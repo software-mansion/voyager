@@ -1,0 +1,37 @@
+:root {
+  /* Surfaces */
+  --bg-0: #f8fafc;
+  --bg-1: #ffffff;
+  --bg-2: #f1f5f9;
+  --bg-3: #e2e8f0;
+
+  /* Borders — named --default-border to avoid clash with DaisyUI's --border width var */
+  --default-border: #e2e8f0;
+  --border-strong: #cbd5e1;
+
+  /* Text */
+  --text-0: #0f172a;
+  --text-1: #334155;
+  --text-2: #64748b;
+  --text-3: #94a3b8;
+
+  /* Brand */
+  --accent: #001a72;
+  --accent-soft: #3a4baa;
+  --accent-glow: rgba(0, 26, 114, 0.14);
+
+  /* Semantic */
+  --good: #059669;
+  --warn: #d97706;
+  --bad: #dc2626;
+  --link: #2563eb;
+
+  /* Misc */
+  --grid: rgba(148, 163, 184, 0.12);
+  --shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 24px 48px -12px rgba(15, 23, 42, 0.12);
+
+  /* Typography */
+  --font-display: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
