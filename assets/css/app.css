@@ -1,10 +1,14 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+@source "../css";
+@source "../js";
+@source "../../lib/voyager_web";
 
-@config "./tailwind.config.js";
+@plugin "../vendor/icons";
 
 @import "./styles/tokens.css";
 @import "./styles/font.css";
 @import "./styles/reset.css";
+@import "./styles/theme.css";
 
 @custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
 @custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
