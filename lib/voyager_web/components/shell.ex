@@ -3,13 +3,7 @@ defmodule VoyagerWeb.Components.Shell do
   App shell components — topbar, sidebar, content area, and status bar.
 
   The entry point is `shell/1`, which renders the full application chrome
-  around a LiveView's inner content.
-
-  ## Usage
-
-      <Shell.shell active_nav={:node_info} node={@node}>
-        <p>Page content here</p>
-      </Shell.shell>
+  around a LiveView's inner content using daisyUI layout (Drawer + Navbar + Menu).
   """
 
   use VoyagerWeb, :html
@@ -20,14 +14,17 @@ defmodule VoyagerWeb.Components.Shell do
 
   def shell(assigns) do
     ~H"""
-    <div class="grid grid-rows-[var(--topbar-h)_1fr_var(--statusbar-h)] h-screen">
+    <div class="flex flex-col h-screen bg-base-100 overflow-hidden">
       <.topbar active_nav={@active_nav} />
-      <div class="grid grid-cols-[var(--sidebar-w)_1fr] overflow-hidden">
+
+      <div class="flex flex-1 overflow-hidden">
         <.sidebar active_nav={@active_nav} node={@node} />
-        <main class="flex flex-col overflow-hidden relative">
+
+        <main class="flex-1 overflow-y-auto relative">
           {render_slot(@inner_block)}
         </main>
       </div>
+
       <.statusbar node={@node} />
     </div>
     """
@@ -37,29 +34,28 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp topbar(assigns) do
     ~H"""
-    <header class="flex items-center px-5 border-b border-default-border bg-white/75 backdrop-blur-[14px] gap-6 z-10">
-      <.brand />
-      <div class="flex-1"></div>
-      <.link
-        navigate={~p"/settings"}
-        class={[
-          "flex items-center justify-center w-8 h-8 border rounded-md cursor-pointer transition-all duration-150 ease-in-out no-underline",
-          "border-default-border text-secondary-text hover:border-strong-border hover:text-primary-text hover:bg-raised-bg",
-          @active_nav == :settings && "border-accent-soft text-accent bg-raised-bg"
-        ]}
-        title="Settings"
-      >
-        <.icon name="icon-settings" class="size-3.5" />
-      </.link>
-    </header>
+    <div class="navbar bg-base-100 border-b border-base-300 min-h-[3.5rem] px-4 gap-4 flex-none z-10">
+      <div class="navbar-start gap-2">
+        <.brand />
+      </div>
+      <div class="navbar-end">
+        <.link
+          navigate={~p"/settings"}
+          class={["btn btn-ghost btn-square btn-sm", @active_nav == :settings && "btn-active"]}
+          title="Settings"
+        >
+          <.icon name="icon-settings" class="size-6" />
+        </.link>
+      </div>
+    </div>
     """
   end
 
   defp brand(assigns) do
     ~H"""
-    <div class="flex items-center gap-2.5 font-semibold tracking-[-0.01em]">
-      <div class="relative w-[22px] h-[22px] bg-gradient-to-br from-accent to-accent-soft rounded-[5px] shadow-accent-glow shrink-0">
-        <div class="absolute inset-1 bg-white rounded-[2px] shadow-[inset_0_0_0_1.5px_var(--accent)]">
+    <div class="flex items-center gap-2.5 font-semibold tracking-tight">
+      <div class="relative w-[22px] h-[22px] bg-gradient-to-br from-primary to-secondary rounded-[5px] shrink-0 shadow-[0_0_12px_color-mix(in_oklch,var(--color-primary)_25%,transparent)]">
+        <div class="absolute inset-1 bg-base-100 rounded-[2px] shadow-[inset_0_0_0_1.5px_var(--color-primary)]">
         </div>
       </div>
       <span class="text-[15px]">Voyager</span>
@@ -72,23 +68,21 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp sidebar(assigns) do
     ~H"""
-    <aside class="border-r border-default-border bg-raised-bg/60 py-4 px-3 overflow-y-auto overflow-x-hidden">
-      <div class="mb-6">
-        <div class="font-mono text-[10px] tracking-[0.12em] uppercase text-faint-text px-[10px] pb-2">
-          Inspect
-        </div>
+    <aside class="bg-base-100 border-r border-base-300 w-64 h-full flex-none flex flex-col overflow-y-auto overflow-x-hidden">
+      <ul class="menu p-4 w-full gap-0.5 font-[var(--font-display)] flex-1">
+        <li class="menu-title text-[10px] tracking-widest uppercase">Inspect</li>
         <.nav_item active={@active_nav == :node_info} navigate={node_path(@node)}>
-          <:icon><.icon name="icon-grid" class="size-3.5" /></:icon>
+          <:icon><.icon name="icon-grid" class="size-4" /></:icon>
           Node Info
         </.nav_item>
         <.nav_item
           active={@active_nav == :supervision_tree}
           navigate={node_path(@node, "supervision-tree")}
         >
-          <:icon><.icon name="icon-network" class="size-3.5" /></:icon>
+          <:icon><.icon name="icon-network" class="size-4" /></:icon>
           Supervision Tree
         </.nav_item>
-      </div>
+      </ul>
     </aside>
     """
   end
@@ -100,31 +94,23 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp nav_item(%{navigate: nil} = assigns) do
     ~H"""
-    <span class={[
-      "relative flex items-center gap-2.5 py-2 px-[10px] rounded-md text-secondary-text text-[13px] no-underline cursor-default opacity-45"
-    ]}>
-      <span class="w-4 text-muted-text flex shrink-0">{render_slot(@icon)}</span>
-      <span class="flex-1 min-w-0 overflow-hidden text-ellipsis">{render_slot(@inner_block)}</span>
-    </span>
+    <li class="opacity-40 pointer-events-none">
+      <span>
+        {render_slot(@icon)}
+        {render_slot(@inner_block)}
+      </span>
+    </li>
     """
   end
 
   defp nav_item(assigns) do
     ~H"""
-    <.link
-      navigate={@navigate}
-      class={[
-        "relative flex items-center gap-2.5 py-2 px-[10px] rounded-md text-secondary-text text-[13px] no-underline cursor-pointer transition-all duration-[120ms] ease-in-out",
-        "hover:bg-raised-bg hover:text-primary-text",
-        @active &&
-          "bg-raised-bg text-primary-text font-medium before:content-[''] before:absolute before:left-0 before:top-2 before:bottom-2 before:w-0.5 before:bg-accent before:rounded-[2px]"
-      ]}
-    >
-      <span class={["w-4 flex shrink-0", (@active && "text-accent") || "text-muted-text"]}>
+    <li>
+      <.link navigate={@navigate} class={@active && "active"}>
         {render_slot(@icon)}
-      </span>
-      <span class="flex-1 min-w-0 overflow-hidden text-ellipsis">{render_slot(@inner_block)}</span>
-    </.link>
+        {render_slot(@inner_block)}
+      </.link>
+    </li>
     """
   end
 
@@ -140,7 +126,7 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp statusbar(assigns) do
     ~H"""
-    <footer class="flex items-center border-t border-default-border bg-surface-bg px-4 font-mono text-[10.5px] text-muted-text tracking-[0.04em] gap-[18px]">
+    <footer class="flex items-center border-t border-base-300 bg-base-100 px-4 py-1.5 font-mono text-[10.5px] text-base-content/60 tracking-wide gap-4 flex-none">
       <div class="flex items-center gap-1.5">
         <span class={["w-1.5 h-1.5 rounded-full", status_dot_class(@node)]}></span>
         {node_display(@node)}
@@ -151,10 +137,10 @@ defmodule VoyagerWeb.Components.Shell do
     """
   end
 
-  defp status_dot_class(nil), do: "bg-faint-text"
-  defp status_dot_class(%Voyager.Node{status: :connected}), do: "bg-good"
-  defp status_dot_class(%Voyager.Node{status: :error}), do: "bg-bad"
-  defp status_dot_class(_), do: "bg-warn"
+  defp status_dot_class(nil), do: "bg-base-300"
+  defp status_dot_class(%Voyager.Node{status: :connected}), do: "bg-success"
+  defp status_dot_class(%Voyager.Node{status: :error}), do: "bg-error"
+  defp status_dot_class(_), do: "bg-warning"
 
   defp node_display(nil), do: "Not connected"
   defp node_display(%Voyager.Node{name: name}), do: to_string(name)

@@ -60,7 +60,7 @@ defmodule Voyager.MixProject do
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
-      "assets.build": ["compile", "tailwind voyager", "esbuild voyager"],
+      "assets.build": ["compile", "tailwind voyager --minify", "esbuild voyager --minify"],
       "assets.deploy": [
         "tailwind voyager --minify",
         "esbuild voyager --minify",
