@@ -72,7 +72,7 @@ defmodule VoyagerWeb.Layouts do
         hidden
       >
         {gettext("Attempting to reconnect")}
-        <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
+        <.icon name="icon-rotate-cw" class="ml-1 size-3 motion-safe:animate-spin" />
       </.flash>
 
       <.flash
@@ -84,7 +84,7 @@ defmodule VoyagerWeb.Layouts do
         hidden
       >
         {gettext("Attempting to reconnect")}
-        <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
+        <.icon name="icon-rotate-cw" class="ml-1 size-3 motion-safe:animate-spin" />
       </.flash>
     </div>
     """

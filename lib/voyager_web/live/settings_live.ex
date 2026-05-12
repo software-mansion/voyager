@@ -7,9 +7,9 @@ defmodule VoyagerWeb.SettingsLive do
 
   def render(assigns) do
     ~H"""
-    <Navbar.shell active_nav={@active_nav} node={@node}>
+    <Shell.shell active_nav={@active_nav} node={@node}>
       <p>Settings</p>
-    </Navbar.shell>
+    </Shell.shell>
     """
   end
 end

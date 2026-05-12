@@ -19,8 +19,6 @@ defmodule VoyagerWeb.CoreComponents do
       we build on. You will use it for layout, sizing, flexbox, grid, and
       spacing.
 
-    * [Heroicons](https://heroicons.com) - see `icon/1` for usage.
-
     * [Phoenix.Component](https://hexdocs.pm/phoenix_live_view/Phoenix.Component.html) -
       the component system used by Phoenix. Some components, such as `<.link>`
       and `<.form>`, are defined there.
@@ -71,15 +69,15 @@ defmodule VoyagerWeb.CoreComponents do
         @kind == :info && "alert-info",
         @kind == :error && "alert-error"
       ]}>
-        <.icon :if={@kind == :info} name="hero-information-circle" class="size-5 shrink-0" />
-        <.icon :if={@kind == :error} name="hero-exclamation-circle" class="size-5 shrink-0" />
+        <.icon :if={@kind == :info} name="icon-info" class="size-5 shrink-0" />
+        <.icon :if={@kind == :error} name="icon-circle-alert" class="size-5 shrink-0" />
         <div>
           <p :if={@title} class="font-semibold">{@title}</p>
           <p>{msg}</p>
         </div>
         <div class="flex-1" />
         <button type="button" class="group self-start cursor-pointer" aria-label={gettext("close")}>
-          <.icon name="hero-x-mark" class="size-5 opacity-40 group-hover:opacity-70" />
+          <.icon name="icon-x" class="size-5 opacity-40 group-hover:opacity-70" />
         </button>
       </div>
     </div>
@@ -306,7 +304,7 @@ defmodule VoyagerWeb.CoreComponents do
   defp error(assigns) do
     ~H"""
     <p class="mt-1.5 flex gap-2 items-center text-sm text-error">
-      <.icon name="hero-exclamation-circle" class="size-5" />
+      <.icon name="icon-circle-alert" class="size-5" />
       {render_slot(@inner_block)}
     </p>
     """
@@ -426,29 +424,24 @@ defmodule VoyagerWeb.CoreComponents do
   end
 
   @doc """
-  Renders a [Heroicon](https://heroicons.com).
+  Renders an icon from `assets/css/icons/`. The Tailwind plugin at
+  `assets/vendor/icons.js` generates an `icon-{name}` CSS class for each
+  SVG file in that directory.
 
-  Heroicons come in three styles – outline, solid, and mini.
-  By default, the outline style is used, but solid and mini may
-  be applied by using the `-solid` and `-mini` suffix.
-
-  You can customize the size and colors of the icons by setting
-  width, height, and background color classes.
-
-  Icons are extracted from the `deps/heroicons` directory and bundled within
-  your compiled app.css by the plugin in `assets/vendor/heroicons.js`.
+  You can customize size and color with Tailwind classes.
 
   ## Examples
 
-      <.icon name="hero-x-mark" />
-      <.icon name="hero-arrow-path" class="ml-1 size-3 motion-safe:animate-spin" />
+      <.icon name="icon-x" />
+      <.icon name="icon-rotate-cw" class="ml-1 size-3 motion-safe:animate-spin" />
   """
-  attr :name, :string, required: true
-  attr :class, :any, default: "size-4"
+  attr :name, :string, required: true, doc: "icon name, e.g. \"icon-x\""
+  attr :class, :any, default: nil
+  attr :rest, :global
 
-  def icon(%{name: "hero-" <> _} = assigns) do
+  def icon(%{name: "icon-" <> _} = assigns) do
     ~H"""
-    <span class={[@name, @class]} />
+    <span class={[@name | List.wrap(@class)]} {@rest}></span>
     """
   end
 

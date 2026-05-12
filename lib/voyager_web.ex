@@ -90,7 +90,7 @@ defmodule VoyagerWeb do
       # Common modules used in templates
       alias Phoenix.LiveView.JS
       alias VoyagerWeb.Layouts
-      alias VoyagerWeb.Components.Navbar
+      alias VoyagerWeb.Components.Shell
 
       # Routes generation with the ~p sigil
       unquote(verified_routes())
