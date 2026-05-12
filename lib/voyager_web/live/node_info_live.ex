@@ -7,9 +7,7 @@ defmodule VoyagerWeb.NodeInfoLive do
 
   def render(assigns) do
     ~H"""
-    <Shell.shell active_nav={@active_nav} node={@node}>
-      <p>Node Info</p>
-    </Shell.shell>
+    <p>Node Info</p>
     """
   end
 end

@@ -7,9 +7,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   def render(assigns) do
     ~H"""
-    <Shell.shell active_nav={@active_nav} node={@node}>
-      <p>Supervision Tree</p>
-    </Shell.shell>
+    <p>Supervision Tree</p>
     """
   end
 end

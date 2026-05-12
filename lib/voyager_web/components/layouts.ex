@@ -9,7 +9,7 @@ defmodule VoyagerWeb.Layouts do
 
   @doc """
   Renders the connect layout — bare full-screen wrapper with no application
-  chrome. Used by the connection screen.
+   chrome. Used by the connection screen.
   """
   attr :flash, :map, required: true, doc: "the map of flash messages"
 
@@ -43,7 +43,9 @@ defmodule VoyagerWeb.Layouts do
   def app(assigns) do
     ~H"""
     <.flash_group flash={@flash} />
-    {@inner_content}
+    <VoyagerWeb.Components.Shell.shell active_nav={assigns[:active_nav]} node={assigns[:node]}>
+      {@inner_content}
+    </VoyagerWeb.Components.Shell.shell>
     """
   end
 
