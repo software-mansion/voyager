@@ -21,9 +21,13 @@ defmodule VoyagerWeb.Router do
       live "/", ConnectLive, :index
     end
 
-    live_session :app, layout: {VoyagerWeb.Layouts, :app} do
+    live_session :app,
+      layout: {VoyagerWeb.Layouts, :app} do
       live "/node/:node", NodeInfoLive, :index
       live "/node/:node/supervision-tree", SupervisionTreeLive, :index
+    end
+
+    live_session :settings, layout: {VoyagerWeb.Layouts, :app} do
       live "/settings", SettingsLive, :index
     end
   end
@@ -33,9 +37,7 @@ defmodule VoyagerWeb.Router do
 
     scope "/dev" do
       pipe_through :browser
-
       live_dashboard "/dashboard", metrics: VoyagerWeb.Telemetry
-      forward "/mailbox", Plug.Swoosh.MailboxPreview
     end
   end
 end

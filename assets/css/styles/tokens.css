@@ -1,0 +1,66 @@
+:root {
+  /* ===== Color: Surfaces ===== */
+  --bg-0: #f8fafc;
+  --bg-1: #ffffff;
+  --bg-2: #f1f5f9;
+  --bg-3: #e2e8f0;
+
+  /* ===== Color: Borders ===== */
+  --border-default: #e2e8f0;
+  --border-strong: #cbd5e1;
+
+  /* ===== Color: Text ===== */
+  --text-0: #0f172a;
+  --text-1: #334155;
+  --text-2: #64748b;
+  --text-3: #94a3b8;
+
+  /* ===== Color: Brand ===== */
+  --accent: #001a72;
+  --accent-soft: #3a4baa;
+  --accent-glow: rgba(0, 26, 114, 0.14);
+
+  /* ===== Color: Semantic ===== */
+  --good: #059669;
+  --warn: #d97706;
+  --bad: #dc2626;
+  --link: #2563eb;
+
+  /* ===== Typography ===== */
+  --font-display: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --fs-xs: 10.5px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-base: 14px;
+  --fs-lg: 15px;
+
+  /* ===== Spacing ===== */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+
+  /* ===== Radius ===== */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* ===== Layout ===== */
+  --topbar-h: 56px;
+  --statusbar-h: 28px;
+  --sidebar-w: 220px;
+
+  /* ===== Effects ===== */
+  --shadow-sm: 0 2px 4px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 24px 48px -12px rgba(15, 23, 42, 0.12);
+
+  --transition-fast: 0.12s ease;
+  --transition-base: 0.15s ease;
+
+  --grid: rgba(148, 163, 184, 0.12);
+}

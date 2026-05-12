@@ -3,8 +3,7 @@ defmodule VoyagerWeb.Components.Shell do
   App shell components — topbar, sidebar, content area, and status bar.
 
   The entry point is `shell/1`, which renders the full application chrome
-  around a LiveView's inner content. The sub-components (`topbar/1`,
-  `sidebar/1`, `statusbar/1`) are private and composed inside `shell/1`.
+  around a LiveView's inner content.
 
   ## Usage
 
@@ -16,16 +15,16 @@ defmodule VoyagerWeb.Components.Shell do
   use VoyagerWeb, :html
 
   attr :active_nav, :atom, default: nil
-  attr :node, :string, default: nil
+  attr :node, :any, default: nil
   slot :inner_block, required: true
 
   def shell(assigns) do
     ~H"""
     <div class="app">
       <.topbar active_nav={@active_nav} />
-      <div class="main">
+      <div class="app-main">
         <.sidebar active_nav={@active_nav} node={@node} />
-        <main class="content">
+        <main class="app-content">
           {render_slot(@inner_block)}
         </main>
       </div>
@@ -33,6 +32,10 @@ defmodule VoyagerWeb.Components.Shell do
     </div>
     """
   end
+
+  # ---------------------------------------------------------------------------
+  # Topbar
+  # ---------------------------------------------------------------------------
 
   attr :active_nav, :atom, default: nil
 
@@ -61,8 +64,12 @@ defmodule VoyagerWeb.Components.Shell do
     """
   end
 
+  # ---------------------------------------------------------------------------
+  # Sidebar
+  # ---------------------------------------------------------------------------
+
   attr :active_nav, :atom, default: nil
-  attr :node, :string, default: nil
+  attr :node, :any, default: nil
 
   defp sidebar(assigns) do
     ~H"""
@@ -71,16 +78,14 @@ defmodule VoyagerWeb.Components.Shell do
         <div class="sidebar-label">Inspect</div>
         <.nav_item
           active={@active_nav == :node_info}
-          navigate={@node && ~p"/node/#{@node}"}
-          tooltip="Node Info"
+          navigate={node_path(@node)}
         >
           <:icon><.icon name="icon-grid" class="size-3.5" /></:icon>
           Node Info
         </.nav_item>
         <.nav_item
           active={@active_nav == :supervision_tree}
-          navigate={@node && ~p"/node/#{@node}/supervision-tree"}
-          tooltip="Supervision Tree"
+          navigate={node_path(@node, "supervision-tree")}
         >
           <:icon><.icon name="icon-network" class="size-3.5" /></:icon>
           Supervision Tree
@@ -92,40 +97,59 @@ defmodule VoyagerWeb.Components.Shell do
 
   attr :active, :boolean, default: false
   attr :navigate, :any, default: nil
-  attr :tooltip, :string, default: nil
   slot :icon, required: true
   slot :inner_block, required: true
 
   defp nav_item(%{navigate: nil} = assigns) do
     ~H"""
-    <span class={["nav-item", "nav-item--disabled", @active && "active"]} data-tooltip={@tooltip}>
-      <span class="icon">{render_slot(@icon)}</span>
-      <span class="nav-label">{render_slot(@inner_block)}</span>
+    <span class={["nav-item", "nav-item--disabled", @active && "nav-item--active"]}>
+      <span class="nav-item-icon">{render_slot(@icon)}</span>
+      <span class="nav-item-label">{render_slot(@inner_block)}</span>
     </span>
     """
   end
 
   defp nav_item(assigns) do
     ~H"""
-    <.link navigate={@navigate} class={["nav-item", @active && "active"]} data-tooltip={@tooltip}>
-      <span class="icon">{render_slot(@icon)}</span>
-      <span class="nav-label">{render_slot(@inner_block)}</span>
+    <.link navigate={@navigate} class={["nav-item", @active && "nav-item--active"]}>
+      <span class="nav-item-icon">{render_slot(@icon)}</span>
+      <span class="nav-item-label">{render_slot(@inner_block)}</span>
     </.link>
     """
   end
 
-  attr :node, :string, default: nil
+  defp node_path(nil), do: nil
+  defp node_path(%Voyager.Node{name: name}), do: ~p"/node/#{name}"
+
+  defp node_path(nil, _), do: nil
+
+  defp node_path(%Voyager.Node{name: name}, "supervision-tree"),
+    do: ~p"/node/#{name}/supervision-tree"
+
+  # ---------------------------------------------------------------------------
+  # Status bar
+  # ---------------------------------------------------------------------------
+
+  attr :node, :any, default: nil
 
   defp statusbar(assigns) do
     ~H"""
     <footer class="statusbar">
-      <div class="item">
-        <span class="dot"></span>
-        {if @node, do: @node, else: "Not connected"}
+      <div class="statusbar-item">
+        <span class={["statusbar-dot", status_dot_class(@node)]}></span>
+        {node_display(@node)}
       </div>
-      <div class="spacer"></div>
-      <div class="item">v0.1.0</div>
+      <div class="statusbar-spacer"></div>
+      <div class="statusbar-item">v0.1.0</div>
     </footer>
     """
   end
+
+  defp status_dot_class(nil), do: "statusbar-dot--off"
+  defp status_dot_class(%Voyager.Node{status: :connected}), do: "statusbar-dot--good"
+  defp status_dot_class(%Voyager.Node{status: :error}), do: "statusbar-dot--bad"
+  defp status_dot_class(_), do: "statusbar-dot--warn"
+
+  defp node_display(nil), do: "Not connected"
+  defp node_display(%Voyager.Node{name: name}), do: to_string(name)
 end

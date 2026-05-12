@@ -14,8 +14,6 @@ config :voyager, VoyagerWeb.Endpoint,
   pubsub_server: Voyager.PubSub,
   live_view: [signing_salt: "/g7Ta1W8"]
 
-config :voyager, Voyager.Mailer, adapter: Swoosh.Adapters.Local
-
 config :esbuild,
   version: "0.25.4",
   voyager: [

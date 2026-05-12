@@ -1,8 +1,8 @@
 defmodule VoyagerWeb.SupervisionTreeLive do
   use VoyagerWeb, :live_view
 
-  def mount(%{"node" => node}, _session, socket) do
-    {:ok, assign(socket, active_nav: :supervision_tree, node: node)}
+  def mount(_params, _session, socket) do
+    {:ok, assign(socket, :active_nav, :supervision_tree)}
   end
 
   def render(assigns) do
