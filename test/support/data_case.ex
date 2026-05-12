@@ -15,10 +15,10 @@ defmodule Voyager.DataCase do
   """
 
   use ExUnit.CaseTemplate
+  alias Ecto.Adapters.SQL.Sandbox
 
   using do
     quote do
-      alias Ecto.Adapters.SQL.Sandbox
       alias Voyager.Repo
 
       import Ecto
