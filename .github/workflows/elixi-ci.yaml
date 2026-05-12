@@ -47,7 +47,9 @@ jobs:
 
       - name: Check prettier
         working-directory: ./assets
-        run: npx prettier . --check
+        run: |
+          npm ci
+          npx prettier . --check    
 
       - name: Check Elixir formatting
         run: mix format --check-formatted
