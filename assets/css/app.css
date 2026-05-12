@@ -1,9 +1,6 @@
-@import "tailwindcss" source(none);
-@source "../css";
-@source "../js";
-@source "../../lib/voyager_web";
+@import "tailwindcss";
 
-@plugin "../vendor/icons";
+@config "./tailwind.config.js";
 
 @import "./styles/tokens.css";
 @import "./styles/font.css";
@@ -12,10 +9,3 @@
 @custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
 @custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
 @custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
-
-@import "./styles/components/shell.css";
-@import "./styles/components/topbar.css";
-@import "./styles/components/sidebar.css";
-@import "./styles/components/statusbar.css";
-@import "./styles/components/icon_button.css";
-@import "./styles/components/flash.css";

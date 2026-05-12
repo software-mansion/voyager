@@ -47,16 +47,24 @@ defmodule VoyagerWeb.CoreComponents do
       id={@id}
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
       role="alert"
-      class={["flash", @kind == :info && "flash--info", @kind == :error && "flash--error"]}
+      class={[
+        "flex items-start gap-3 w-80 max-w-[calc(100vw-2rem)] px-4 py-3 rounded-lg bg-surface-bg border border-default-border shadow-card text-[13px] text-primary-text",
+        @kind == :info && "[border-left:3px_solid_var(--link)]",
+        @kind == :error && "[border-left:3px_solid_var(--bad)]"
+      ]}
       {@rest}
     >
-      <.icon :if={@kind == :info} name="icon-info" class="flash-icon" />
-      <.icon :if={@kind == :error} name="icon-circle-alert" class="flash-icon" />
-      <div class="flash-body">
-        <p :if={@title} class="flash-title">{@title}</p>
+      <.icon :if={@kind == :info} name="icon-info" class="shrink-0 size-[18px] mt-px" />
+      <.icon :if={@kind == :error} name="icon-circle-alert" class="shrink-0 size-[18px] mt-px" />
+      <div class="flex-1 min-w-0">
+        <p :if={@title} class="font-semibold mb-0.5">{@title}</p>
         <p>{msg}</p>
       </div>
-      <button type="button" class="flash-close" aria-label={gettext("close")}>
+      <button
+        type="button"
+        class="cursor-pointer shrink-0 text-faint-text opacity-60 hover:opacity-100"
+        aria-label={gettext("close")}
+      >
         <.icon name="icon-x" class="size-4" />
       </button>
     </div>
