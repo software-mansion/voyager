@@ -24,5 +24,5 @@ defmodule Voyager.Application do
     :ok
   end
 
-  defp skip_migrations?(), do: System.get_env("RELEASE_NAME") == nil
+  defp skip_migrations?, do: System.get_env("RELEASE_NAME") == nil
 end

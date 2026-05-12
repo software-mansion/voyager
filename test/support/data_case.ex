@@ -18,6 +18,7 @@ defmodule Voyager.DataCase do
 
   using do
     quote do
+      alias Ecto.Adapters.SQL.Sandbox
       alias Voyager.Repo
 
       import Ecto
@@ -36,8 +37,8 @@ defmodule Voyager.DataCase do
   Sets up the sandbox based on the test tags.
   """
   def setup_sandbox(tags) do
-    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(Voyager.Repo, shared: not tags[:async])
-    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+    pid = Sandbox.start_owner!(Voyager.Repo, shared: not tags[:async])
+    on_exit(fn -> Sandbox.stop_owner(pid) end)
   end
 
   @doc """
