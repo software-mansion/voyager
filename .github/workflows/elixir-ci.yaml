@@ -22,7 +22,6 @@ jobs:
     runs-on: ubuntu-24.04
     
     env:
-      MIX_ENV: test
       ELIXIR_VERSION: "1.19.5"
       OTP_VERSION: "28.5"
 
