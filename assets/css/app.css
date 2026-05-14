@@ -1,7 +1,14 @@
+@import './styles/font.css';
+@import './styles/tokens.css';
+@import './styles/reset.css';
+
 @import 'tailwindcss' source(none);
+
 @source '../css';
 @source '../js';
 @source '../../lib/voyager_web';
+
+@plugin '../vendor/icons';
 
 @plugin 'daisyui' {
   themes: false;
@@ -76,12 +83,6 @@
   --depth: 1;
   --noise: 0;
 }
-
-@plugin '../vendor/icons';
-
-@import './styles/tokens.css';
-@import './styles/font.css';
-@import './styles/reset.css';
 
 @custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
 @custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
