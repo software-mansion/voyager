@@ -1,6 +1,6 @@
 defmodule VoyagerWeb.Components.Shell do
   @moduledoc """
-  App shell components — topbar, sidebar, content area, and status bar.
+  App shell components - topbar, sidebar, content area, and status bar.
 
   The entry point is `shell/1`, which renders the full application chrome
   around a LiveView's inner content using daisyUI layout (Drawer + Navbar + Menu).
@@ -9,7 +9,7 @@ defmodule VoyagerWeb.Components.Shell do
   use VoyagerWeb, :html
 
   attr :active_nav, :atom, default: nil
-  attr :node, :any, default: nil
+  attr :node, Voyager.Node, default: nil
   slot :inner_block, required: true
 
   def shell(assigns) do
@@ -64,7 +64,7 @@ defmodule VoyagerWeb.Components.Shell do
   end
 
   attr :active_nav, :atom, default: nil
-  attr :node, :any, default: nil
+  attr :node, Voyager.Node, default: nil
 
   defp sidebar(assigns) do
     ~H"""
