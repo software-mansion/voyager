@@ -1,7 +1,7 @@
 import Config
 
 config :voyager, Voyager.Repo,
-  database: Path.expand("../voyager_test.db", __DIR__),
+  database: Path.expand("../priv/db/voyager_test.db", __DIR__),
   pool_size: 5,
   pool: Ecto.Adapters.SQL.Sandbox
 
