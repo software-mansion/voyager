@@ -12,7 +12,6 @@ defmodule VoyagerWeb.CoreComponents do
   """
   use Phoenix.Component
 
-
   alias Phoenix.LiveView.JS
 
   @doc """
@@ -135,5 +134,4 @@ defmodule VoyagerWeb.CoreComponents do
          "opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"}
     )
   end
-
 end

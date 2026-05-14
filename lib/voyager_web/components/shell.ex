@@ -106,7 +106,7 @@ defmodule VoyagerWeb.Components.Shell do
   defp nav_item(assigns) do
     ~H"""
     <li>
-      <.link navigate={@navigate} class={@active && "active"}>
+      <.link navigate={@navigate} class={@active && "menu-active"}>
         {render_slot(@icon)}
         {render_slot(@inner_block)}
       </.link>

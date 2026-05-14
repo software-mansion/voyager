@@ -4,6 +4,7 @@
 @source '../../lib/voyager_web';
 
 @plugin 'daisyui' {
+  themes: false;
 }
 
 @plugin 'daisyui/theme' {
