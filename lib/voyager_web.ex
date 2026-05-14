@@ -21,7 +21,6 @@ defmodule VoyagerWeb do
   def controller do
     quote do
       use Phoenix.Controller, formats: [:html, :json]
-      use Gettext, backend: VoyagerWeb.Gettext
       import Plug.Conn
       unquote(verified_routes())
     end
@@ -51,7 +50,6 @@ defmodule VoyagerWeb do
 
   defp html_helpers do
     quote do
-      use Gettext, backend: VoyagerWeb.Gettext
       import Phoenix.HTML
       import VoyagerWeb.CoreComponents
       alias Phoenix.LiveView.JS

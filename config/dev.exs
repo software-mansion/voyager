@@ -22,8 +22,7 @@ config :voyager, VoyagerWeb.Endpoint,
     web_console_logger: true,
     patterns: [
       ~r"priv/static/(?!uploads/).*\.(js|css|png|jpeg|jpg|gif|svg)$"E,
-      ~r"priv/gettext/.*\.po$"E,
-      ~r"lib/voyager_web/router\.ex$"E,
+~r"lib/voyager_web/router\.ex$"E,
       ~r"lib/voyager_web/(controllers|live|components)/.*\.(ex|heex)$"E
     ]
   ]

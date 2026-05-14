@@ -68,24 +68,24 @@ defmodule VoyagerWeb.Layouts do
       <.flash
         id="client-error"
         kind={:error}
-        title={gettext("We can't find the internet")}
+        title="We can't find the internet"
         phx-disconnected={show(".phx-client-error #client-error") |> JS.remove_attribute("hidden")}
         phx-connected={hide("#client-error") |> JS.set_attribute({"hidden", ""})}
         hidden
       >
-        {gettext("Attempting to reconnect")}
+        "Attempting to reconnect"
         <.icon name="icon-rotate-cw" class="size-3 ml-1 motion-safe:animate-spin" />
       </.flash>
 
       <.flash
         id="server-error"
         kind={:error}
-        title={gettext("Something went wrong!")}
+        title="Something went wrong!"
         phx-disconnected={show(".phx-server-error #server-error") |> JS.remove_attribute("hidden")}
         phx-connected={hide("#server-error") |> JS.set_attribute({"hidden", ""})}
         hidden
       >
-        {gettext("Attempting to reconnect")}
+        "Attempting to reconnect"
         <.icon name="icon-rotate-cw" class="size-3 ml-1 motion-safe:animate-spin" />
       </.flash>
     </div>

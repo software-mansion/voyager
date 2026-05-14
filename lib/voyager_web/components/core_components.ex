@@ -11,7 +11,7 @@ defmodule VoyagerWeb.CoreComponents do
 
   """
   use Phoenix.Component
-  use Gettext, backend: VoyagerWeb.Gettext
+
 
   alias Phoenix.LiveView.JS
 
@@ -61,7 +61,7 @@ defmodule VoyagerWeb.CoreComponents do
         <p :if={@title} class="font-bold">{@title}</p>
         <p>{msg}</p>
       </div>
-      <button type="button" class="btn btn-ghost btn-xs btn-circle" aria-label={gettext("close")}>
+      <button type="button" class="btn btn-ghost btn-xs btn-circle" aria-label="close">
         <.icon name="icon-x" class="size-3.5" />
       </button>
     </div>
@@ -136,21 +136,4 @@ defmodule VoyagerWeb.CoreComponents do
     )
   end
 
-  @doc """
-  Translates an error message using gettext.
-  """
-  def translate_error({msg, opts}) do
-    if count = opts[:count] do
-      Gettext.dngettext(VoyagerWeb.Gettext, "errors", msg, msg, count, opts)
-    else
-      Gettext.dgettext(VoyagerWeb.Gettext, "errors", msg, opts)
-    end
-  end
-
-  @doc """
-  Translates the errors for a field from a keyword list of errors.
-  """
-  def translate_errors(errors, field) when is_list(errors) do
-    for {^field, {msg, opts}} <- errors, do: translate_error({msg, opts})
-  end
 end
