@@ -38,7 +38,8 @@ defmodule VoyagerWeb.Components.Shell do
       <div class="navbar-start gap-2">
         <.brand />
       </div>
-      <div class="navbar-end">
+      <div class="navbar-end gap-1">
+        <.theme_toggle />
         <.link
           navigate={~p"/settings"}
           class={["btn btn-ghost btn-square btn-sm", @active_nav == :settings && "btn-active"]}
@@ -47,6 +48,30 @@ defmodule VoyagerWeb.Components.Shell do
           <.icon name="icon-settings" class="size-6" />
         </.link>
       </div>
+    </div>
+    """
+  end
+
+  defp theme_toggle(assigns) do
+    ~H"""
+    <div class="card relative flex flex-row items-center rounded-full border-2 border-base-300 bg-base-300">
+      <div class="absolute h-full w-1/2 rounded-full border border-base-200 bg-base-100 brightness-110 left-0 [[data-theme=dark]_&]:left-1/2 transition-[left]" />
+      <button
+        class="relative flex w-1/2 cursor-pointer p-2"
+        phx-click={JS.dispatch("phx:set-theme")}
+        data-phx-theme="light"
+        title="Light"
+      >
+        <.icon name="icon-sun" class="size-4 opacity-75 hover:opacity-100" />
+      </button>
+      <button
+        class="relative flex w-1/2 cursor-pointer p-2"
+        phx-click={JS.dispatch("phx:set-theme")}
+        data-phx-theme="dark"
+        title="Dark"
+      >
+        <.icon name="icon-moon" class="size-4 opacity-75 hover:opacity-100" />
+      </button>
     </div>
     """
   end
