@@ -54,8 +54,8 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp theme_toggle(assigns) do
     ~H"""
-    <div class="card relative flex flex-row items-center rounded-full border-2 border-base-300 bg-base-300">
-      <div class="absolute h-full w-1/2 rounded-full border border-base-200 bg-base-100 brightness-110 left-0 [[data-theme=dark]_&]:left-1/2 transition-[left]" />
+    <div class="card border-base-300 bg-base-300 relative flex flex-row items-center rounded-full border-2">
+      <div class="border-base-200 bg-base-100 [[data-theme=dark]_&]:left-1/2 transition-[left] absolute left-0 h-full w-1/2 rounded-full border brightness-110" />
       <button
         class="relative flex w-1/2 cursor-pointer p-2"
         phx-click={JS.dispatch("phx:set-theme")}
