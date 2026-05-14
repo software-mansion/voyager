@@ -23,6 +23,8 @@ jobs:
     
     env:
       MIX_ENV: test
+      ELIXIR_VERSION: "1.19.5"
+      OTP_VERSION: "28.5"
 
     steps:
       - uses: actions/checkout@v4
@@ -30,8 +32,8 @@ jobs:
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
         with:
-          elixir-version: "1.19.5"
-          otp-version: "28.5"
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
 
       - name: Cache dependencies and build artifacts
         uses: actions/cache@v4
@@ -41,6 +43,14 @@ jobs:
             _build
           key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
           restore-keys: ${{ runner.os }}-mix-
+
+      - name: Cache Dialyzer PLTs
+        uses: actions/cache@v4
+        with:
+          path: priv/plts
+          key: ${{ runner.os }}-plt-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-plt-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-
 
       - name: Install Dependencies
         run: mix deps.get
@@ -59,6 +69,10 @@ jobs:
 
       - name: Compile project
         run: mix compile --warnings-as-errors
+
+      - name: Run Dialyzer
+        run: |
+          mix dialyzer --format github
 
       - name: Run unit tests
         run: mix test
