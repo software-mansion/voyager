@@ -1,3 +1,6 @@
+/* Base document styles - applied globally before any component styles.
+   Sets layout foundation, custom scrollbar appearance, and LiveView wrappers. */
+
 html,
 body {
   height: 100%;
