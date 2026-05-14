@@ -71,8 +71,7 @@ jobs:
         run: mix compile --warnings-as-errors
 
       - name: Run Dialyzer
-        run: |
-          mix dialyzer --format github
+        run: mix dialyzer --format github
 
       - name: Run unit tests
         run: mix test
