@@ -48,7 +48,7 @@ defmodule VoyagerWeb.CoreComponents do
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
       role="alert"
       class={[
-        "alert shadow-md w-80 max-w-[calc(100vw-2rem)]",
+        "alert max-w-[calc(100vw-2rem)] w-80 shadow-md",
         "!flex !flex-row items-center text-left",
         @kind == :info && "alert-info",
         @kind == :error && "alert-error"
@@ -57,7 +57,7 @@ defmodule VoyagerWeb.CoreComponents do
     >
       <.icon :if={@kind == :info} name="icon-info" class="size-4 shrink-0" />
       <.icon :if={@kind == :error} name="icon-circle-alert" class="size-4 shrink-0" />
-      <div class="flex-1 min-w-0">
+      <div class="min-w-0 flex-1">
         <p :if={@title} class="font-bold">{@title}</p>
         <p>{msg}</p>
       </div>
@@ -82,7 +82,7 @@ defmodule VoyagerWeb.CoreComponents do
         <h1 class="text-lg font-semibold leading-8">
           {render_slot(@inner_block)}
         </h1>
-        <p :if={@subtitle != []} class="text-sm text-base-content/70">
+        <p :if={@subtitle != []} class="text-base-content/70 text-sm">
           {render_slot(@subtitle)}
         </p>
       </div>

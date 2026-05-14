@@ -31,12 +31,13 @@ defmodule Voyager.MixProject do
 
   defp deps do
     [
-      {:live_debugger, "~> 1.0", only: [:dev]},
       {:phoenix, "~> 1.8.7"},
       {:phoenix_ecto, "~> 4.5"},
       {:ecto_sql, "~> 3.13"},
       {:ecto_sqlite3, ">= 0.0.0"},
       {:phoenix_html, "~> 4.1"},
+      {:live_debugger, "~> 1.0", only: [:dev]},
+      {:tailwind_formatter, "~> 0.4.2", only: [:dev, :test], runtime: false},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:phoenix_live_view, "~> 1.1.0"},
       {:lazy_html, ">= 0.1.0", only: :test},

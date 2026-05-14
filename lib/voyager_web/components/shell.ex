@@ -14,13 +14,13 @@ defmodule VoyagerWeb.Components.Shell do
 
   def shell(assigns) do
     ~H"""
-    <div class="flex flex-col h-screen bg-base-100 overflow-hidden">
+    <div class="bg-base-100 flex h-screen flex-col overflow-hidden">
       <.topbar active_nav={@active_nav} />
 
       <div class="flex flex-1 overflow-hidden">
         <.sidebar active_nav={@active_nav} node={@node} />
 
-        <main class="flex-1 overflow-y-auto relative">
+        <main class="relative flex-1 overflow-y-auto">
           {render_slot(@inner_block)}
         </main>
       </div>
@@ -34,7 +34,7 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp topbar(assigns) do
     ~H"""
-    <div class="navbar bg-base-100 border-b border-base-300 min-h-[3.5rem] px-4 gap-4 flex-none z-10">
+    <div class="navbar bg-base-100 border-base-300 min-h-[3.5rem] z-10 flex-none gap-4 border-b px-4">
       <div class="navbar-start gap-2">
         <.brand />
       </div>
@@ -54,8 +54,8 @@ defmodule VoyagerWeb.Components.Shell do
   defp brand(assigns) do
     ~H"""
     <div class="flex items-center gap-2.5 font-semibold tracking-tight">
-      <div class="relative w-[22px] h-[22px] bg-gradient-to-br from-primary to-secondary rounded-[5px] shrink-0 shadow-[0_0_12px_color-mix(in_oklch,var(--color-primary)_25%,transparent)]">
-        <div class="absolute inset-1 bg-base-100 rounded-[2px] shadow-[inset_0_0_0_1.5px_var(--color-primary)]">
+      <div class="w-[22px] h-[22px] from-primary to-secondary rounded-[5px] shadow-[0_0_12px_color-mix(in_oklch,var(--color-primary)_25%,transparent)] relative shrink-0 bg-gradient-to-br">
+        <div class="bg-base-100 rounded-[2px] shadow-[inset_0_0_0_1.5px_var(--color-primary)] absolute inset-1">
         </div>
       </div>
       <span class="text-[15px]">Voyager</span>
@@ -68,9 +68,9 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp sidebar(assigns) do
     ~H"""
-    <aside class="bg-base-100 border-r border-base-300 w-64 h-full flex-none flex flex-col overflow-y-auto overflow-x-hidden">
-      <ul class="menu p-4 w-full gap-0.5 font-[var(--font-display)] flex-1">
-        <li class="menu-title text-[10px] tracking-widest uppercase">Inspect</li>
+    <aside class="bg-base-100 border-base-300 flex h-full w-64 flex-none flex-col overflow-y-auto overflow-x-hidden border-r">
+      <ul class="menu font-[var(--font-display)] w-full flex-1 gap-0.5 p-4">
+        <li class="menu-title text-[10px] uppercase tracking-widest">Inspect</li>
         <.nav_item active={@active_nav == :node_info} navigate={node_path(@node)}>
           <:icon><.icon name="icon-grid" class="size-4" /></:icon>
           Node Info
@@ -94,7 +94,7 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp nav_item(%{navigate: nil} = assigns) do
     ~H"""
-    <li class="opacity-40 pointer-events-none">
+    <li class="pointer-events-none opacity-40">
       <span>
         {render_slot(@icon)}
         {render_slot(@inner_block)}
@@ -126,9 +126,9 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp statusbar(assigns) do
     ~H"""
-    <footer class="flex items-center border-t border-base-300 bg-base-100 px-4 py-1.5 font-mono text-[10.5px] text-base-content/60 tracking-wide gap-4 flex-none">
+    <footer class="border-base-300 bg-base-100 font-mono text-[10.5px] text-base-content/60 flex flex-none items-center gap-4 border-t px-4 py-1.5 tracking-wide">
       <div class="flex items-center gap-1.5">
-        <span class={["w-1.5 h-1.5 rounded-full", status_dot_class(@node)]}></span>
+        <span class={["h-1.5 w-1.5 rounded-full", status_dot_class(@node)]}></span>
         {node_display(@node)}
       </div>
       <div class="flex-1"></div>
