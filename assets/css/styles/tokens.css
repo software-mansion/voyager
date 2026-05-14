@@ -1,0 +1,10 @@
+:root {
+  /* Layout dimensions */
+  --topbar-h: 56px;
+  --statusbar-h: 28px;
+  --sidebar-w: 220px;
+
+  /* Typography */
+  --font-display: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}

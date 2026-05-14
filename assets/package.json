@@ -1,0 +1,12 @@
+{
+  "scripts": {
+    "format": "prettier . --write",
+    "format:check": "prettier . --check"
+  },
+  "dependencies": {
+    "daisyui": "^5.0.0"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.3"
+  }
+}
