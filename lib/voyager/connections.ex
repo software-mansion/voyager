@@ -2,8 +2,8 @@ defmodule Voyager.Connections do
   @moduledoc "Context for persisted connection history."
 
   import Ecto.Query
-  alias Voyager.Repo
   alias Voyager.Connections.Connection
+  alias Voyager.Repo
 
   @doc "Returns all connections: pinned first, then most recently used."
   def list_connections do

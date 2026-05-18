@@ -1,10 +1,10 @@
 defmodule VoyagerWeb.Hooks.NodeSessionHook do
-  use VoyagerWeb, :verified_routes
-
   @moduledoc """
   LiveView hook to ensure an active connection to a specific remote node.
   Handles redirects on disconnects and updates session state via PubSub.
   """
+
+  use VoyagerWeb, :verified_routes
   import Phoenix.LiveView
   import Phoenix.Component
 
