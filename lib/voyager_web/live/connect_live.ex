@@ -65,18 +65,15 @@ defmodule VoyagerWeb.ConnectLive do
     {:noreply, assign(socket, :form, to_form(changeset, as: :conn))}
   end
 
-  @impl true
   def handle_event("set_name_type", %{"conn" => params}, socket) do
     changeset = Params.changeset(params)
     {:noreply, assign(socket, :form, to_form(changeset, as: :conn))}
   end
 
-  @impl true
   def handle_event("toggle_cookie", _, socket) do
     {:noreply, update(socket, :show_cookie, &(!&1))}
   end
 
-  @impl true
   def handle_event("fill_recent", %{"id" => id}, socket) do
     conn = Connections.get!(String.to_integer(id))
     current_name_type = socket.assigns.form[:name_type].value || :shortnames
@@ -96,12 +93,26 @@ defmodule VoyagerWeb.ConnectLive do
      |> assign(:show_cookie, show_cookie)}
   end
 
-  @impl true
   def handle_event("connect", %{"conn" => params}, socket) do
     case Params.changeset(params) |> Ecto.Changeset.apply_action(:insert) do
       {:ok, %Params{} = p} -> do_connect(socket, params, p)
       {:error, changeset} -> {:noreply, assign(socket, :form, to_form(changeset, as: :conn))}
     end
+  end
+
+  def handle_event("pin", %{"id" => id}, socket) do
+    Connections.pin(String.to_integer(id))
+    {:noreply, reset_connections(socket)}
+  end
+
+  def handle_event("unpin", %{"id" => id}, socket) do
+    Connections.unpin(String.to_integer(id))
+    {:noreply, reset_connections(socket)}
+  end
+
+  def handle_event("delete_connection", %{"id" => id}, socket) do
+    Connections.delete(String.to_integer(id))
+    {:noreply, reset_connections(socket)}
   end
 
   defp do_connect(socket, params, %Params{
@@ -124,24 +135,6 @@ defmodule VoyagerWeb.ConnectLive do
 
         {:noreply, assign(socket, :form, to_form(changeset, as: :conn))}
     end
-  end
-
-  @impl true
-  def handle_event("pin", %{"id" => id}, socket) do
-    Connections.pin(String.to_integer(id))
-    {:noreply, reset_connections(socket)}
-  end
-
-  @impl true
-  def handle_event("unpin", %{"id" => id}, socket) do
-    Connections.unpin(String.to_integer(id))
-    {:noreply, reset_connections(socket)}
-  end
-
-  @impl true
-  def handle_event("delete_connection", %{"id" => id}, socket) do
-    Connections.delete(String.to_integer(id))
-    {:noreply, reset_connections(socket)}
   end
 
   defp reset_connections(socket) do

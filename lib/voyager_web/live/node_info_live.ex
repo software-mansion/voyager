@@ -18,18 +18,6 @@ defmodule VoyagerWeb.NodeInfoLive do
   end
 
   @impl true
-  def handle_info(:refresh_stats, socket) do
-    {:noreply, assign(socket, :stats, load_stats())}
-  end
-
-  defp load_stats do
-    case NodeSession.fetch_stats() do
-      {:ok, stats} -> stats
-      _ -> %{}
-    end
-  end
-
-  @impl true
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-4xl p-8">
@@ -61,6 +49,11 @@ defmodule VoyagerWeb.NodeInfoLive do
       <% end %>
     </div>
     """
+  end
+
+  @impl true
+  def handle_info(:refresh_stats, socket) do
+    {:noreply, assign(socket, :stats, load_stats())}
   end
 
   attr :session, :map, required: true
@@ -141,6 +134,13 @@ defmodule VoyagerWeb.NodeInfoLive do
       </div>
     </div>
     """
+  end
+
+  defp load_stats do
+    case NodeSession.fetch_stats() do
+      {:ok, stats} -> stats
+      _ -> %{}
+    end
   end
 
   defp language_name(nil), do: "Detecting…"

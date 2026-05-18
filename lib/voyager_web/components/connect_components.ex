@@ -7,6 +7,9 @@ defmodule VoyagerWeb.ConnectComponents do
   use Phoenix.Component
   import VoyagerWeb.CoreComponents
 
+  attr :conn, :map, required: true, doc: "The connection record from the database"
+  attr :pinned, :boolean, default: false, doc: "Whether this connection is pinned"
+
   def connection_row(assigns) do
     ~H"""
     <div class="flex w-full items-center gap-1">
@@ -64,6 +67,8 @@ defmodule VoyagerWeb.ConnectComponents do
     """
   end
 
+  # Ten komponent nie przyjmuje żadnych dynamicznych zmiennych (assigns),
+  # więc deklaracje attr nie są tu potrzebne.
   def header(assigns) do
     ~H"""
     <div class="mb-7 flex items-center gap-3">
@@ -80,6 +85,9 @@ defmodule VoyagerWeb.ConnectComponents do
     </div>
     """
   end
+
+  attr :form, :any, required: true, doc: "The Phoenix.HTML.Form map"
+  attr :show_cookie, :boolean, default: false, doc: "Toggles cookie visibility"
 
   def connect_form(assigns) do
     ~H"""
