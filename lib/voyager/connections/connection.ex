@@ -17,6 +17,7 @@ defmodule Voyager.Connections.Connection do
     connection
     |> cast(attrs, [:node_name, :cookie, :label, :pinned, :last_connected_at, :connected_count])
     |> validate_required([:node_name, :last_connected_at])
+    |> validate_length(:cookie, max: 255)
     |> unique_constraint(:node_name)
   end
 end
