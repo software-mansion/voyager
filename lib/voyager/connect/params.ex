@@ -14,8 +14,6 @@ defmodule Voyager.Connect.Params do
     %__MODULE__{}
     |> cast(attrs, [:node_name, :cookie, :name_type, :remember_cookie])
     |> validate_required([:node_name, :cookie])
-    |> validate_format(:node_name, ~r/^[^@\s]+@[^@\s]+$/,
-      message: "Use the name@host format"
-    )
+    |> validate_format(:node_name, ~r/^[^@\s]+@[^@\s]+$/, message: "Use the name@host format")
   end
 end

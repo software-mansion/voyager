@@ -27,7 +27,7 @@ defmodule Voyager.Connector.Distribution do
 
   defp ensure_distributed(name_type) do
     if Node.alive?() and :net_kernel.longnames() != (name_type == :longnames) do
-     :net_kernel.stop()
+      :net_kernel.stop()
     end
 
     if Node.alive?() do
