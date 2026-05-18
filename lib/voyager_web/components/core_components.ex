@@ -112,6 +112,80 @@ defmodule VoyagerWeb.CoreComponents do
     """
   end
 
+  @doc """
+  Renders the Voyager logo mark.
+
+  ## Examples
+
+      <.logo />
+      <.logo class="h-7 w-7" />
+  """
+  attr :class, :any, default: nil
+
+  def logo(assigns) do
+    ~H"""
+    <div class={[
+      "from-primary to-secondary rounded-[6px] shadow-[0_0_12px_color-mix(in_oklch,var(--color-primary)_25%,transparent)] relative h-7 w-7 shrink-0 bg-gradient-to-br",
+      @class
+    ]}>
+      <div class="rounded-[2px] bg-base-100 shadow-[inset_0_0_0_1.5px_var(--color-primary)] absolute inset-1">
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a DaisyUI form input, wired to a `Phoenix.HTML.FormField`.
+
+  ## Examples
+
+      <.input field={@form[:email]} type="email" placeholder="you@example.com" />
+      <.input field={@form[:password]} type="password" />
+  """
+  attr :id, :any, default: nil
+  attr :name, :any, default: nil
+  attr :value, :any, default: nil
+  attr :type, :string, default: "text"
+  attr :errors, :list, default: []
+  attr :class, :any, default: nil
+  attr :field, Phoenix.HTML.FormField
+
+  attr :rest, :global,
+    include:
+      ~w(autocomplete disabled form max maxlength min minlength pattern placeholder required spellcheck step)
+
+  def input(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
+    assigns
+    |> assign(field: nil)
+    |> assign(:id, assigns[:id] || field.id)
+    |> assign(:name, field.name)
+    |> assign(:value, field.value)
+    |> assign(:errors, Enum.map(field.errors, &translate_error(&1)))
+    |> input()
+  end
+
+  def input(assigns) do
+    ~H"""
+    <div class="w-full">
+      <input
+        type={@type}
+        id={@id}
+        name={@name}
+        value={Phoenix.HTML.Form.normalize_value(@type, @value)}
+        class={["input input-bordered w-full", @errors != [] && "input-error", @class]}
+        {@rest}
+      />
+      <p :for={error <- @errors} class="font-mono text-[11px] text-error mt-1.5">{error}</p>
+    </div>
+    """
+  end
+
+  defp translate_error({msg, opts}) do
+    Enum.reduce(opts, msg, fn {key, value}, acc ->
+      String.replace(acc, "%{#{key}}", fn _ -> to_string(value) end)
+    end)
+  end
+
   ## JS Commands
 
   def show(js \\ %JS{}, selector) do
