@@ -66,6 +66,33 @@ defmodule Voyager.NodeSession do
     end
   end
 
+  @doc "Synchronously fetches volatile node statistics: process count, memory, and run queue."
+  @spec fetch_stats() :: {:ok, map()} | {:error, :not_connected}
+  def fetch_stats do
+    case current() do
+      nil ->
+        {:error, :not_connected}
+
+      %Session{node: node} ->
+        stats =
+          [
+            {:process_count, :erlang, :system_info, [:process_count]},
+            {:memory, :erlang, :memory, []},
+            {:run_queue, :erlang, :statistics, [:run_queue]}
+          ]
+          |> Task.async_stream(
+            fn {key, mod, fun, args} -> {key, ERPC.fetch(node, mod, fun, args)} end,
+            timeout: :infinity
+          )
+          |> Enum.reduce(%{}, fn
+            {:ok, {key, val}}, acc -> Map.put(acc, key, val)
+            {:exit, _}, acc -> acc
+          end)
+
+        {:ok, stats}
+    end
+  end
+
   def topic, do: @pubsub_topic
 
   @impl GenServer
