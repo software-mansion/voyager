@@ -15,7 +15,7 @@ defmodule VoyagerWeb.Components.Shell do
   def shell(assigns) do
     ~H"""
     <div class="bg-base-100 flex h-screen flex-col overflow-hidden">
-      <.topbar active_nav={@active_nav} />
+      <.topbar active_nav={@active_nav} node={@node} />
 
       <div class="flex flex-1 overflow-hidden">
         <.sidebar active_nav={@active_nav} node={@node} />
@@ -31,6 +31,7 @@ defmodule VoyagerWeb.Components.Shell do
   end
 
   attr :active_nav, :atom, default: nil
+  attr :node, :any, default: nil
 
   defp topbar(assigns) do
     ~H"""
@@ -40,13 +41,16 @@ defmodule VoyagerWeb.Components.Shell do
       </div>
       <div class="navbar-end gap-1">
         <.theme_toggle />
-        <.link
-          navigate={~p"/settings"}
-          class={["btn btn-ghost btn-square btn-sm", @active_nav == :settings && "btn-active"]}
-          title="Settings"
-        >
-          <.icon name="icon-settings" class="size-6" />
-        </.link>
+        <%= if @node do %>
+          <button
+            type="button"
+            phx-click="disconnect"
+            title="Disconnect"
+            class="btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-error"
+          >
+            <.icon name="icon-log-out" class="size-4" />
+          </button>
+        <% end %>
       </div>
     </div>
     """
@@ -79,10 +83,7 @@ defmodule VoyagerWeb.Components.Shell do
   defp brand(assigns) do
     ~H"""
     <div class="flex items-center gap-2.5 font-semibold tracking-tight">
-      <div class="w-[22px] h-[22px] from-primary to-secondary rounded-[5px] shadow-[0_0_12px_color-mix(in_oklch,var(--color-primary)_25%,transparent)] relative shrink-0 bg-gradient-to-br">
-        <div class="bg-base-100 rounded-[2px] shadow-[inset_0_0_0_1.5px_var(--color-primary)] absolute inset-1">
-        </div>
-      </div>
+      <.logo class="h-[22px] w-[22px]" />
       <span class="text-[15px]">Voyager</span>
     </div>
     """
