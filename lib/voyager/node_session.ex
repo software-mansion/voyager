@@ -1,9 +1,6 @@
 defmodule Voyager.NodeSession do
   @moduledoc """
-  GenServer holding the single active connection to a remote BEAM node.
-
-  Language detection and node info are fetched asynchronously after connect so the
-  caller is not blocked by multiple RPC round-trips.
+   GenServer holding the single active connection to a remote BEAM node.
   """
 
   use GenServer
@@ -13,7 +10,7 @@ defmodule Voyager.NodeSession do
     @type t :: %__MODULE__{
             node: atom(),
             node_name: String.t(),
-            cookie: atom() | String.t(),
+            cookie: String.t(),
             connector: module(),
             language: module() | nil,
             connected_at: DateTime.t(),
@@ -25,45 +22,50 @@ defmodule Voyager.NodeSession do
 
   @pubsub_topic "node_session"
   @languages [Voyager.Language.Elixir, Voyager.Language.Gleam, Voyager.Language.Erlang]
+
   def start_link(_opts \\ []) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
   end
 
   @doc "Connects to a node. Returns :ok immediately; info is fetched in the background."
+  @spec connect(String.t(), String.t(), keyword()) :: :ok | {:error, term()}
   def connect(node_name, cookie, opts \\ []) do
     GenServer.call(__MODULE__, {:connect, node_name, cookie, opts}, 15_000)
   end
 
-  @doc "Disconnects from the current node."
+  @spec disconnect() :: :ok | {:error, :not_connected}
   def disconnect do
     GenServer.call(__MODULE__, :disconnect)
   end
 
-  @doc "Returns the current session map or nil."
+  @spec current() :: Session.t() | nil
   def current do
     GenServer.call(__MODULE__, :current)
   end
 
+  @spec connected?() :: boolean()
   def connected? do
     GenServer.call(__MODULE__, :connected?)
   end
 
-  @doc "Lists nodes visible from the current node's cluster perspective."
-  def cluster_nodes do
-    GenServer.call(__MODULE__, :cluster_nodes)
-  end
-
-  @doc "Runs an RPC call on the current node."
+  @doc "Runs an RPC call on the remote node."
+  @spec rpc(module(), atom(), list(), timeout()) :: {:ok, term()} | {:error, term()}
   def rpc(mod, fun, args, timeout \\ 5_000) do
-    GenServer.call(__MODULE__, {:rpc, mod, fun, args, timeout}, timeout + 1_000)
+    case current() do
+      nil -> {:error, :not_connected}
+      %Session{node: node} -> ERPC.call(node, mod, fun, args, timeout)
+    end
   end
 
-  @doc "Returns the node info map fetched after connect, or {:error, :not_connected}."
+  @doc "Returns the node info map fetched after connect."
+  @spec node_info() :: {:ok, map()} | {:error, :not_connected}
   def node_info do
-    GenServer.call(__MODULE__, :node_info)
+    case current() do
+      nil -> {:error, :not_connected}
+      %Session{info: info} -> {:ok, info}
+    end
   end
 
-  @doc "PubSub topic for node session events."
   def topic, do: @pubsub_topic
 
   @impl GenServer
@@ -72,7 +74,8 @@ defmodule Voyager.NodeSession do
   end
 
   @impl GenServer
-  def handle_call({:connect, _node_name, _cookie, _opts}, _from, %{session: %{}} = state) do
+  def handle_call({:connect, _node_name, _cookie, _opts}, _from, %{session: session} = state)
+      when not is_nil(session) do
     {:reply, {:error, :already_connected}, state}
   end
 
@@ -119,48 +122,40 @@ defmodule Voyager.NodeSession do
   end
 
   def handle_call(:connected?, _from, state) do
-    {:reply, state.session != nil, state}
-  end
-
-  def handle_call(:cluster_nodes, _from, %{session: nil} = state) do
-    {:reply, {:error, :not_connected}, state}
-  end
-
-  def handle_call(:cluster_nodes, _from, %{session: session} = state) do
-    result = ERPC.call(session.node, :erlang, :nodes, [], 5_000)
-    {:reply, result, state}
-  end
-
-  def handle_call({:rpc, _m, _f, _a, _t}, _from, %{session: nil} = state) do
-    {:reply, {:error, :not_connected}, state}
-  end
-
-  def handle_call({:rpc, mod, fun, args, timeout}, _from, %{session: session} = state) do
-    result = ERPC.call(session.node, mod, fun, args, timeout)
-    {:reply, result, state}
-  end
-
-  def handle_call(:node_info, _from, %{session: nil} = state) do
-    {:reply, {:error, :not_connected}, state}
-  end
-
-  def handle_call(:node_info, _from, %{session: session} = state) do
-    {:reply, {:ok, session.info}, state}
+    {:reply, match?(%Session{}, state.session), state}
   end
 
   @impl GenServer
-  def handle_continue(:fetch_node_info, %{session: session} = state) when not is_nil(session) do
-    session = session |> detect_language() |> fetch_info()
-    broadcast({:node_info_updated, session.node, session.info})
-    {:noreply, %{state | session: session}}
-  end
+  def handle_continue(:fetch_node_info, %{session: %Session{} = session} = state) do
+    server = self()
+    node = session.node
 
-  def handle_continue(:fetch_node_info, state) do
+    Task.Supervisor.start_child(Voyager.TaskSupervisor, fn ->
+      updated = session |> detect_language() |> fetch_info()
+      send(server, {:node_info_fetched, node, updated})
+    end)
+
     {:noreply, state}
   end
 
+  def handle_continue(:fetch_node_info, state), do: {:noreply, state}
+
   @impl GenServer
-  def handle_info({:nodedown, node}, %{session: %{node: node}} = state) do
+  def handle_info(
+        {:node_info_fetched, node, updated_session},
+        %{session: %Session{node: session_node}} = state
+      )
+      when node == session_node do
+    broadcast({:node_info_updated, node, updated_session.info})
+    {:noreply, %{state | session: updated_session}}
+  end
+
+  def handle_info({:node_info_fetched, _node, _session}, state) do
+    {:noreply, state}
+  end
+
+  def handle_info({:nodedown, node}, %{session: %Session{node: session_node}} = state)
+      when node == session_node do
     broadcast({:nodedown, node})
     {:noreply, %{state | session: nil}}
   end
@@ -181,25 +176,35 @@ defmodule Voyager.NodeSession do
   end
 
   defp fetch_info(%{node: node, language: language} = session) do
-    %{session | info: Map.merge(fetch_common_info(node), language.info(node))}
+    common_task = Task.async(fn -> fetch_common_info(node) end)
+    lang_task = Task.async(fn -> language.info(node) end)
+
+    info =
+      Map.merge(
+        Task.await(common_task, :infinity),
+        Task.await(lang_task, :infinity)
+      )
+
+    %{session | info: info}
   end
 
   defp fetch_common_info(node) do
-    rpc = fn mod, fun, args ->
-      case ERPC.call(node, mod, fun, args, 5_000) do
-        {:ok, result} -> result
-        {:error, _} -> nil
-      end
-    end
-
-    %{
-      process_count: rpc.(:erlang, :system_info, [:process_count]),
-      memory: rpc.(:erlang, :memory, []),
-      run_queue: rpc.(:erlang, :statistics, [:run_queue]),
-      loaded_apps: rpc.(:application, :loaded_applications, []),
-      node_name: rpc.(:erlang, :node, []),
-      otp_release: rpc.(:erlang, :system_info, [:otp_release])
-    }
+    [
+      {:process_count, :erlang, :system_info, [:process_count]},
+      {:memory, :erlang, :memory, []},
+      {:run_queue, :erlang, :statistics, [:run_queue]},
+      {:loaded_apps, :application, :loaded_applications, []},
+      {:node_name, :erlang, :node, []},
+      {:otp_release, :erlang, :system_info, [:otp_release]}
+    ]
+    |> Task.async_stream(
+      fn {key, mod, fun, args} -> {key, ERPC.fetch(node, mod, fun, args)} end,
+      timeout: :infinity
+    )
+    |> Enum.reduce(%{}, fn
+      {:ok, {key, val}}, acc -> Map.put(acc, key, val)
+      {:exit, _reason}, acc -> acc
+    end)
   end
 
   defp broadcast(event) do

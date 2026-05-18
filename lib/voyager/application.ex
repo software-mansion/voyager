@@ -11,6 +11,8 @@ defmodule Voyager.Application do
       {Ecto.Migrator,
        repos: Application.fetch_env!(:voyager, :ecto_repos), skip: skip_migrations?()},
       {Phoenix.PubSub, name: Voyager.PubSub},
+      {Task.Supervisor, name: Voyager.TaskSupervisor},
+      Voyager.NodeSession,
       VoyagerWeb.Endpoint
     ]
 

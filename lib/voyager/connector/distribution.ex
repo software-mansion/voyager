@@ -5,7 +5,6 @@ defmodule Voyager.Connector.Distribution do
 
   @impl Voyager.Connector
   def connect(node_name, cookie, opts \\ []) do
-    dbg(opts)
     name_type = Keyword.get(opts, :name_type, :shortnames)
 
     with :ok <- ensure_distributed(name_type) do
@@ -28,7 +27,7 @@ defmodule Voyager.Connector.Distribution do
 
   defp ensure_distributed(name_type) do
     if Node.alive?() and :net_kernel.longnames() != (name_type == :longnames) do
-      :net_kernel.stop()
+     :net_kernel.stop()
     end
 
     if Node.alive?() do
