@@ -7,6 +7,8 @@ defmodule Voyager.NodeSession do
   alias Voyager.RPC.ERPC
 
   defmodule Session do
+    @moduledoc "Holds state for an active connection to a remote BEAM node."
+
     @type t :: %__MODULE__{
             node: atom(),
             node_name: String.t(),

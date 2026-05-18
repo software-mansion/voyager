@@ -1,4 +1,6 @@
 defmodule Voyager.Language.Erlang do
+  @moduledoc false
+
   @behaviour Voyager.Language
 
   alias Voyager.RPC.ERPC

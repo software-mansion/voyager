@@ -1,4 +1,6 @@
 defmodule Voyager.Language.Elixir do
+  @moduledoc false
+
   @behaviour Voyager.Language
 
   alias Voyager.Language

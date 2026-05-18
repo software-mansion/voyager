@@ -1,4 +1,6 @@
 defmodule Voyager.Language.Gleam do
+  @moduledoc false
+
   @behaviour Voyager.Language
 
   alias Voyager.Language

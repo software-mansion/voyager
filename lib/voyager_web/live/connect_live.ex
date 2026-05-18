@@ -99,29 +99,29 @@ defmodule VoyagerWeb.ConnectLive do
   @impl true
   def handle_event("connect", %{"conn" => params}, socket) do
     case Params.changeset(params) |> Ecto.Changeset.apply_action(:insert) do
-      {:ok,
-       %Params{
+      {:ok, %Params{} = p} -> do_connect(socket, params, p)
+      {:error, changeset} -> {:noreply, assign(socket, :form, to_form(changeset, as: :conn))}
+    end
+  end
+
+  defp do_connect(socket, params, %Params{
          node_name: node_name,
          cookie: cookie,
          name_type: name_type,
          remember_cookie: remember_cookie
-       }} ->
-        case NodeSession.connect(node_name, cookie, name_type: name_type) do
-          :ok ->
-            cookie_to_store = if remember_cookie, do: cookie, else: nil
-            Connections.upsert_connected(node_name, cookie: cookie_to_store)
-            {:noreply, push_navigate(socket, to: ~p"/node/#{node_name}")}
+       }) do
+    case NodeSession.connect(node_name, cookie, name_type: name_type) do
+      :ok ->
+        cookie_to_store = if remember_cookie, do: cookie, else: nil
+        Connections.upsert_connected(node_name, cookie: cookie_to_store)
+        {:noreply, push_navigate(socket, to: ~p"/node/#{node_name}")}
 
-          {:error, reason} ->
-            changeset =
-              Params.changeset(params)
-              |> Ecto.Changeset.add_error(:node_name, connect_error(reason))
-              |> Map.put(:action, :insert)
+      {:error, reason} ->
+        changeset =
+          Params.changeset(params)
+          |> Ecto.Changeset.add_error(:node_name, connect_error(reason))
+          |> Map.put(:action, :insert)
 
-            {:noreply, assign(socket, :form, to_form(changeset, as: :conn))}
-        end
-
-      {:error, changeset} ->
         {:noreply, assign(socket, :form, to_form(changeset, as: :conn))}
     end
   end

@@ -1,4 +1,6 @@
 defmodule Voyager.Connector.Distribution do
+  @moduledoc "Connects to remote nodes via Erlang distribution."
+
   @behaviour Voyager.Connector
 
   @voyager_node_name Application.compile_env(:voyager, :voyager_node_name, :voyager@localhost)
