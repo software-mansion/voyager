@@ -14,7 +14,7 @@ defmodule Voyager.NodeInfo do
   module owns all RPC and runs four concurrent `:erpc.call/4`s per
   snapshot:
 
-  1. `:lists.map(&:erlang.system_info/1, all_si_keys)` — one server-side
+  1. `:lists.map(&:erlang.system_info/1, all_system_info_keys)` — one server-side
      application of `:erlang.system_info/1` per unique key, regardless
      of how many submodules consume that key. Keys are deduplicated.
   2. `:lists.map(&:erlang.statistics/1, all_stat_keys)` — same shape for
@@ -64,7 +64,7 @@ defmodule Voyager.NodeInfo do
   end
 
   defp collect(node, timeout) do
-    si_keys =
+    system_info_keys =
       Enum.uniq(
         SystemInfo.system_info_keys() ++
           Limits.system_info_keys() ++
@@ -74,9 +74,9 @@ defmodule Voyager.NodeInfo do
 
     stat_keys = Enum.uniq(Statistics.statistics_keys() ++ RunQueues.statistics_keys())
 
-    [si_values, stat_values, memory] =
+    [system_info_values, stat_values, memory] =
       [
-        fn -> :erpc.call(node, :lists, :map, [&:erlang.system_info/1, si_keys]) end,
+        fn -> :erpc.call(node, :lists, :map, [&:erlang.system_info/1, system_info_keys]) end,
         fn -> :erpc.call(node, :lists, :map, [&:erlang.statistics/1, stat_keys]) end,
         fn -> :erpc.call(node, :erlang, :memory, []) end
       ]
@@ -84,7 +84,7 @@ defmodule Voyager.NodeInfo do
       |> Task.await_many(timeout)
 
     %{
-      system_info: si_keys |> Enum.zip(si_values) |> Map.new(),
+      system_info: system_info_keys |> Enum.zip(system_info_values) |> Map.new(),
       statistics: stat_keys |> Enum.zip(stat_values) |> Map.new(),
       memory: memory |> Map.new()
     }

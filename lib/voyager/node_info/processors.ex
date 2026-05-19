@@ -21,11 +21,11 @@ defmodule Voyager.NodeInfo.Processors do
   def system_info_keys, do: @system_info_keys
 
   @spec build(map()) :: t()
-  def build(si) do
+  def build(system_info) do
     %__MODULE__{
-      total: Map.fetch!(si, :logical_processors),
-      online: Map.fetch!(si, :logical_processors_online),
-      available: Map.fetch!(si, :logical_processors_available)
+      total: Map.fetch!(system_info, :logical_processors),
+      online: Map.fetch!(system_info, :logical_processors_online),
+      available: Map.fetch!(system_info, :logical_processors_available)
     }
   end
 end

@@ -21,19 +21,19 @@ defmodule Voyager.NodeInfo.Schedulers do
   def system_info_keys, do: @system_info_keys
 
   @spec build(map()) :: t()
-  def build(si) do
-    online = Map.fetch!(si, :schedulers_online)
+  def build(system_info) do
+    online = Map.fetch!(system_info, :schedulers_online)
 
     %__MODULE__{
-      total: Map.fetch!(si, :schedulers),
+      total: Map.fetch!(system_info, :schedulers),
       online: online,
-      available: available(si)
+      available: available(system_info)
     }
   end
 
-  defp available(si) do
-    case Map.fetch!(si, :multi_scheduling) do
-      :enabled -> Map.fetch!(si, :schedulers_online)
+  defp available(system_info) do
+    case Map.fetch!(system_info, :multi_scheduling) do
+      :enabled -> Map.fetch!(system_info, :schedulers_online)
       _ -> 1
     end
   end

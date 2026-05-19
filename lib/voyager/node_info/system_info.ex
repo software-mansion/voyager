@@ -45,19 +45,19 @@ defmodule Voyager.NodeInfo.SystemInfo do
   def system_info_keys, do: @system_info_keys
 
   @spec build(map()) :: t()
-  def build(si) do
-    otp_release = si |> Map.fetch!(:otp_release) |> to_string()
+  def build(system_info) do
+    otp_release = system_info |> Map.fetch!(:otp_release) |> to_string()
 
     %__MODULE__{
       otp_release: otp_release,
-      erts_version: si |> Map.fetch!(:version) |> to_string(),
-      system_version: si |> Map.fetch!(:system_version) |> to_string() |> String.trim(),
-      system_architecture: si |> Map.fetch!(:system_architecture) |> to_string(),
-      wordsize_internal: Map.fetch!(si, {:wordsize, :internal}),
-      wordsize_external: Map.fetch!(si, {:wordsize, :external}),
-      smp_support?: Map.fetch!(si, :smp_support),
-      thread_support?: Map.fetch!(si, :threads),
-      async_threads: Map.fetch!(si, :thread_pool_size)
+      erts_version: system_info |> Map.fetch!(:version) |> to_string(),
+      system_version: system_info |> Map.fetch!(:system_version) |> to_string() |> String.trim(),
+      system_architecture: system_info |> Map.fetch!(:system_architecture) |> to_string(),
+      wordsize_internal: Map.fetch!(system_info, {:wordsize, :internal}),
+      wordsize_external: Map.fetch!(system_info, {:wordsize, :external}),
+      smp_support?: Map.fetch!(system_info, :smp_support),
+      thread_support?: Map.fetch!(system_info, :threads),
+      async_threads: Map.fetch!(system_info, :thread_pool_size)
     }
   end
 end

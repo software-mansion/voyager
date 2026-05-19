@@ -30,9 +30,12 @@ defmodule Voyager.NodeInfo.Limits do
   def system_info_keys, do: @system_info_keys
 
   @spec build(map()) :: t()
-  def build(si) do
+  def build(system_info) do
     Enum.reduce(@resources, %__MODULE__{}, fn {key, count_key, limit_key}, acc ->
-      Map.put(acc, key, %{used: Map.fetch!(si, count_key), limit: Map.fetch!(si, limit_key)})
+      Map.put(acc, key, %{
+        used: Map.fetch!(system_info, count_key),
+        limit: Map.fetch!(system_info, limit_key)
+      })
     end)
   end
 end
