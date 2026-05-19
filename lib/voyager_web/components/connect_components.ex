@@ -87,7 +87,7 @@ defmodule VoyagerWeb.ConnectComponents do
               value="shortnames"
               aria-label="--sname"
               checked={current_name_type == "shortnames"}
-              class="join-item btn btn-outline btn-info btn-xs font-mono text-[10px]"
+              class="join-item btn btn-outline btn-xs font-mono text-[10px]"
             />
             <input
               type="radio"
@@ -95,7 +95,7 @@ defmodule VoyagerWeb.ConnectComponents do
               value="longnames"
               aria-label="--name"
               checked={current_name_type == "longnames"}
-              class="join-item btn btn-outline btn-info btn-xs font-mono text-[10px]"
+              class="join-item btn btn-outline btn-xs font-mono text-[10px]"
             />
           </div>
         </div>

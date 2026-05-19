@@ -40,8 +40,8 @@ defmodule VoyagerWeb.ConnectLive do
               <p class="font-mono text-[10.5px] tracking-[0.08em] text-base-content/50 mb-2.5 uppercase">
                 Favourites
               </p>
-              <ul id="pinned-connections" phx-update="stream" class="menu -mx-2 gap-0.5 p-0">
-                <li :for={{id, conn} <- @streams.pinned_connections} id={id}>
+              <ul id="pinned-connections" phx-update="stream" class="-mx-2 flex flex-col gap-0.5">
+                <li :for={{id, conn} <- @streams.pinned_connections} id={id} class="list-none">
                   <ConnectComponents.connection_row conn={conn} pinned={true} />
                 </li>
               </ul>
@@ -53,8 +53,8 @@ defmodule VoyagerWeb.ConnectLive do
               <p class="font-mono text-[10.5px] tracking-[0.08em] text-base-content/50 mb-2.5 uppercase">
                 Recent connections
               </p>
-              <ul id="recent-connections" phx-update="stream" class="menu -mx-2 gap-0.5 p-0">
-                <li :for={{id, conn} <- @streams.recent_connections} id={id}>
+              <ul id="recent-connections" phx-update="stream" class="-mx-2 flex flex-col gap-0.5">
+                <li :for={{id, conn} <- @streams.recent_connections} id={id} class="list-none">
                   <ConnectComponents.connection_row conn={conn} pinned={false} />
                 </li>
               </ul>
@@ -72,7 +72,7 @@ defmodule VoyagerWeb.ConnectLive do
 
   @impl true
   def handle_event("validate", %{"conn" => params}, socket) do
-    changeset = Params.changeset(params) |> Map.put(:action, :validate)
+    changeset = Params.changeset(params)
     {:noreply, assign(socket, :form, to_form(changeset, as: :conn))}
   end
 
