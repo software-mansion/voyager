@@ -7,6 +7,7 @@ defmodule Voyager.Application do
   def start(_type, _args) do
     children = [
       VoyagerWeb.Telemetry,
+      Voyager.Vault,
       Voyager.Repo,
       {Ecto.Migrator,
        repos: Application.fetch_env!(:voyager, :ecto_repos), skip: skip_migrations?()},

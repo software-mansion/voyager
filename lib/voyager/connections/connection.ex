@@ -4,7 +4,7 @@ defmodule Voyager.Connections.Connection do
 
   schema "connections" do
     field :node_name, :string
-    field :cookie, :string
+    field :cookie, Voyager.Encrypted.Binary
     field :pinned, :boolean, default: false
     field :last_connected_at, :utc_datetime
 

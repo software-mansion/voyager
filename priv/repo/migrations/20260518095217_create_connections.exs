@@ -4,7 +4,7 @@ defmodule Voyager.Repo.Migrations.CreateConnections do
   def change do
     create table(:connections) do
       add :node_name, :string, null: false
-      add :cookie, :string
+      add :cookie, :binary
       add :pinned, :boolean, default: false, null: false
       add :last_connected_at, :utc_datetime, null: false
 
