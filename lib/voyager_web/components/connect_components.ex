@@ -40,7 +40,7 @@ defmodule VoyagerWeb.ConnectComponents do
         title={if @pinned, do: "Remove from favourites", else: "Save as favourite"}
         class={[
           "btn btn-ghost btn-xs px-1.5",
-          if(@pinned, do: "text-warning", else: "text-base-content/20 hover:text-warning")
+          if(@pinned, do: "text-amber-500", else: "text-base-content/20 hover:text-warning")
         ]}
       >
         <.icon name="icon-star" class="size-3.5" />
