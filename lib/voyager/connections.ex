@@ -12,7 +12,7 @@ defmodule Voyager.Connections do
     |> Repo.all()
   end
 
-  def get!(id), do: Repo.get!(Connection, id)
+  def get(id), do: Repo.get(Connection, id)
 
   def get_by_node_name(node_name), do: Repo.get_by(Connection, node_name: node_name)
 
@@ -25,25 +25,25 @@ defmodule Voyager.Connections do
 
     on_conflict =
       if cookie,
-        do: [set: [last_connected_at: now, cookie: cookie], inc: [connected_count: 1]],
-        else: [set: [last_connected_at: now], inc: [connected_count: 1]]
+        do: [set: [last_connected_at: now, cookie: cookie]],
+        else: [set: [last_connected_at: now]]
 
     %Connection{}
     |> Connection.changeset(%{node_name: node_name, cookie: cookie, last_connected_at: now})
     |> Repo.insert(on_conflict: on_conflict, conflict_target: :node_name)
   end
 
-  def pin(id, label \\ nil) do
+  def pin(id) do
     case Repo.get(Connection, id) do
       nil -> {:error, :not_found}
-      conn -> conn |> Connection.changeset(%{pinned: true, label: label}) |> Repo.update()
+      conn -> conn |> Connection.changeset(%{pinned: true}) |> Repo.update()
     end
   end
 
   def unpin(id) do
     case Repo.get(Connection, id) do
       nil -> {:error, :not_found}
-      conn -> conn |> Connection.changeset(%{pinned: false, label: nil}) |> Repo.update()
+      conn -> conn |> Connection.changeset(%{pinned: false}) |> Repo.update()
     end
   end
 
