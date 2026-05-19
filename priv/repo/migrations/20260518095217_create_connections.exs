@@ -12,5 +12,6 @@ defmodule Voyager.Repo.Migrations.CreateConnections do
     end
 
     create unique_index(:connections, [:node_name])
+    create index(:connections, [:pinned, :last_connected_at])
   end
 end

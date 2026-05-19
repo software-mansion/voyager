@@ -210,8 +210,8 @@ defmodule Voyager.NodeSession do
 
     info =
       Map.merge(
-        Task.await(common_task, :infinity),
-        Task.await(lang_task, :infinity)
+        Task.await(common_task, 10_000),
+        Task.await(lang_task, 10_000)
       )
 
     %{session | info: info}

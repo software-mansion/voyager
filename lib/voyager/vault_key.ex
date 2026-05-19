@@ -50,6 +50,7 @@ defmodule Voyager.VaultKey do
   end
 
   defp key_path do
-    Path.join([System.user_home!(), ".voyager", "vault.key"])
+    base_dir = System.user_home() || "/tmp"
+    Path.join([base_dir, ".voyager", "vault.key"])
   end
 end
