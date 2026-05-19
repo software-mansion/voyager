@@ -1,7 +1,7 @@
 defmodule Voyager.NodeInfo.Statistics do
   @moduledoc """
-  Coarse runtime counters for a BEAM node: uptime, run queue depth,
-  cumulative IO bytes, and cumulative reductions.
+  Coarse runtime counters for a BEAM node: uptime, cumulative IO bytes,
+  and cumulative reductions.
 
   Passive module: declares the `:erlang.statistics/1` keys it needs via
   `statistics_keys/0` and builds its struct from pre-fetched data via
@@ -13,14 +13,12 @@ defmodule Voyager.NodeInfo.Statistics do
 
   @statistics_keys [
     :wall_clock,
-    :total_run_queue_lengths_all,
     :io,
     :reductions
   ]
 
   @type t :: %__MODULE__{
           uptime_ms: non_neg_integer(),
-          run_queue: non_neg_integer(),
           io_input_bytes: non_neg_integer(),
           io_output_bytes: non_neg_integer(),
           total_reductions: non_neg_integer()
@@ -28,7 +26,6 @@ defmodule Voyager.NodeInfo.Statistics do
 
   defstruct [
     :uptime_ms,
-    :run_queue,
     :io_input_bytes,
     :io_output_bytes,
     :total_reductions
@@ -45,7 +42,6 @@ defmodule Voyager.NodeInfo.Statistics do
 
     %Statistics{
       uptime_ms: wall_clock_total,
-      run_queue: Map.fetch!(stat, :total_run_queue_lengths_all),
       io_input_bytes: io_in,
       io_output_bytes: io_out,
       total_reductions: reductions

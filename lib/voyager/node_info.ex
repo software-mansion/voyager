@@ -30,7 +30,7 @@ defmodule Voyager.NodeInfo do
   per second) should retain the previous snapshot and diff against it.
   """
 
-  alias Voyager.NodeInfo.{Limits, Memory, Processors, Schedulers, Statistics, Snapshot}
+  alias Voyager.NodeInfo.{Limits, Memory, Processors, RunQueues, Schedulers, Statistics, Snapshot}
   alias Voyager.NodeInfo.System, as: SystemInfo
 
   @fetch_timeout 5_000
@@ -49,7 +49,8 @@ defmodule Voyager.NodeInfo do
       runtime: Statistics.build(data.statistics),
       limits: Limits.build(data.system_info),
       processors: Processors.build(data.system_info),
-      schedulers: Schedulers.build(data.system_info)
+      schedulers: Schedulers.build(data.system_info),
+      run_queues: RunQueues.build(data.statistics)
     }
 
     {:ok, snapshot}
@@ -66,7 +67,7 @@ defmodule Voyager.NodeInfo do
           Schedulers.system_info_keys()
       )
 
-    stat_keys = Statistics.statistics_keys()
+    stat_keys = Enum.uniq(Statistics.statistics_keys() ++ RunQueues.statistics_keys())
 
     [si_values, stat_values, memory] =
       [

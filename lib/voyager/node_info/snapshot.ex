@@ -5,7 +5,7 @@ defmodule Voyager.NodeInfo.Snapshot do
   Built by `Voyager.NodeInfo.fetch/2` from the per-concern sub-fetchers.
   """
 
-  alias Voyager.NodeInfo.{Limits, Memory, Processors, Schedulers, Statistics, System}
+  alias Voyager.NodeInfo.{Limits, Memory, Processors, RunQueues, Schedulers, Statistics, System}
 
   @type t :: %__MODULE__{
           node: node(),
@@ -15,7 +15,8 @@ defmodule Voyager.NodeInfo.Snapshot do
           runtime: Statistics.t(),
           limits: Limits.t(),
           processors: Processors.t(),
-          schedulers: Schedulers.t()
+          schedulers: Schedulers.t(),
+          run_queues: RunQueues.t()
         }
 
   defstruct [
@@ -26,6 +27,7 @@ defmodule Voyager.NodeInfo.Snapshot do
     :runtime,
     :limits,
     :processors,
-    :schedulers
+    :schedulers,
+    :run_queues
   ]
 end
