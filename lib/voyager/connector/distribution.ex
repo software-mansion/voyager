@@ -35,7 +35,7 @@ defmodule Voyager.Connector.Distribution do
     if Node.alive?() do
       :ok
     else
-      case :net_kernel.start([@voyager_node_name, name_type]) do
+      case :net_kernel.start(@voyager_node_name, %{name_domain: name_type, hidden: true}) do
         {:ok, _pid} -> :ok
         {:error, {:already_started, _pid}} -> :ok
         {:error, reason} -> {:error, {:net_kernel, reason}}
