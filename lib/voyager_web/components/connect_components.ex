@@ -1,7 +1,6 @@
 defmodule VoyagerWeb.ConnectComponents do
   @moduledoc """
-  Components for the node connection flow: the connect form, connection history rows,
-  and the page header.
+  Components for the node connection flow: the connect form and connection history rows.
   """
 
   use Phoenix.Component
@@ -20,14 +19,7 @@ defmodule VoyagerWeb.ConnectComponents do
         class="font-mono text-[12px] text-base-content/60 flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-3 py-2 transition-colors hover:bg-base-200 hover:text-base-content"
       >
         <.icon name="icon-network" class="size-3.5 text-base-content/25 shrink-0" />
-        <span class="min-w-0 flex-1 truncate">
-          {if @conn.label, do: @conn.label, else: @conn.node_name}
-        </span>
-        <%= if @conn.label do %>
-          <span class="font-mono text-[10px] text-base-content/30 hidden truncate sm:block">
-            {@conn.node_name}
-          </span>
-        <% end %>
+        <span class="min-w-0 flex-1 truncate">{@conn.node_name}</span>
         <%= if @conn.cookie do %>
           <span
             title="Cookie saved"
@@ -63,23 +55,6 @@ defmodule VoyagerWeb.ConnectComponents do
       >
         <.icon name="icon-x" class="size-3.5" />
       </button>
-    </div>
-    """
-  end
-
-  def header(assigns) do
-    ~H"""
-    <div class="mb-7 flex items-center gap-3">
-      <.logo />
-      <div class="text-[17px] text-base-content font-semibold tracking-tight">Voyager</div>
-    </div>
-    <div class="mb-6">
-      <h1 class="text-[22px] text-base-content font-semibold tracking-tight">
-        Connect to a node
-      </h1>
-      <p class="text-[13.5px] text-base-content/60 mt-1">
-        Enter the node name and Erlang cookie to inspect a local or remote BEAM.
-      </p>
     </div>
     """
   end

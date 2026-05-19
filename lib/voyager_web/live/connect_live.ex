@@ -20,7 +20,18 @@ defmodule VoyagerWeb.ConnectLive do
     <div class="bg-base-200 flex h-full items-center justify-center p-4">
       <div class="card bg-base-100 max-w-[480px] w-full shadow-xl">
         <div class="card-body gap-0 p-10">
-          <ConnectComponents.header />
+          <div class="mb-7 flex items-center gap-3">
+            <.logo />
+            <div class="text-[17px] text-base-content font-semibold tracking-tight">Voyager</div>
+          </div>
+          <div class="mb-6">
+            <h1 class="text-[22px] text-base-content font-semibold tracking-tight">
+              Connect to a node
+            </h1>
+            <p class="text-[13.5px] text-base-content/60 mt-1">
+              Enter the node name and Erlang cookie to inspect a local or remote BEAM.
+            </p>
+          </div>
 
           <ConnectComponents.connect_form form={@form} show_cookie={@show_cookie} />
 
@@ -65,32 +76,36 @@ defmodule VoyagerWeb.ConnectLive do
     {:noreply, assign(socket, :form, to_form(changeset, as: :conn))}
   end
 
-  def handle_event("set_name_type", %{"conn" => params}, socket) do
-    changeset = Params.changeset(params)
-    {:noreply, assign(socket, :form, to_form(changeset, as: :conn))}
-  end
-
   def handle_event("toggle_cookie", _, socket) do
     {:noreply, update(socket, :show_cookie, &(!&1))}
   end
 
   def handle_event("fill_recent", %{"id" => id}, socket) do
-    conn = Connections.get!(String.to_integer(id))
-    current_name_type = socket.assigns.form[:name_type].value || :shortnames
+    case Integer.parse(id) do
+      {int_id, ""} ->
+        case Connections.get(int_id) do
+          nil ->
+            {:noreply, reset_connections(socket)}
 
-    changeset =
-      Params.changeset(%{
-        "node_name" => conn.node_name,
-        "cookie" => conn.cookie || "",
-        "name_type" => current_name_type
-      })
+          conn ->
+            current_name_type = socket.assigns.form[:name_type].value || :shortnames
 
-    show_cookie = not is_nil(conn.cookie)
+            changeset =
+              Params.changeset(%{
+                "node_name" => conn.node_name,
+                "cookie" => conn.cookie || "",
+                "name_type" => current_name_type
+              })
 
-    {:noreply,
-     socket
-     |> assign(:form, to_form(changeset, as: :conn))
-     |> assign(:show_cookie, show_cookie)}
+            {:noreply,
+             socket
+             |> assign(:form, to_form(changeset, as: :conn))
+             |> assign(:show_cookie, not is_nil(conn.cookie))}
+        end
+
+      _ ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("connect", %{"conn" => params}, socket) do

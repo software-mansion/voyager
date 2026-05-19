@@ -7,9 +7,7 @@ defmodule VoyagerWeb.NodeInfoLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket) do
-      :timer.send_interval(@refresh_interval, self(), :refresh_stats)
-    end
+    if connected?(socket), do: schedule_refresh()
 
     {:ok,
      socket
@@ -22,7 +20,24 @@ defmodule VoyagerWeb.NodeInfoLive do
     ~H"""
     <div class="mx-auto max-w-4xl p-8">
       <.node_header session={@session} />
-      <.main_stats stats={@stats} />
+
+      <div class="stats stats-vertical bg-base-200 border-base-300 mb-8 w-full border shadow-sm sm:stats-horizontal">
+        <.stat
+          title="Processes"
+          value={format_count(@stats[:process_count])}
+          value_class="text-primary"
+        />
+        <.stat
+          title="Run Queue"
+          value={format_count(@stats[:run_queue])}
+          value_class="text-secondary"
+        />
+        <.stat
+          title="Total Memory"
+          value={format_bytes(memory_value(@stats, :total))}
+          value_class="text-accent"
+        />
+      </div>
 
       <.info_section title="Memory">
         <.info_card label="Processes" value={format_bytes(memory_value(@stats, :processes))} />
@@ -53,8 +68,11 @@ defmodule VoyagerWeb.NodeInfoLive do
 
   @impl true
   def handle_info(:refresh_stats, socket) do
+    schedule_refresh()
     {:noreply, assign(socket, :stats, load_stats())}
   end
+
+  defp schedule_refresh, do: Process.send_after(self(), :refresh_stats, @refresh_interval)
 
   attr :session, :map, required: true
 
@@ -73,63 +91,6 @@ defmodule VoyagerWeb.NodeInfoLive do
         <% end %>
         <div class="badge badge-ghost font-mono text-xs">
           Connected {format_datetime(@session.connected_at)}
-        </div>
-      </div>
-    </div>
-    """
-  end
-
-  attr :stats, :map, required: true
-
-  defp main_stats(assigns) do
-    ~H"""
-    <div class="stats stats-vertical bg-base-200 border-base-300 mb-8 w-full border shadow-sm sm:stats-horizontal">
-      <div class="stat">
-        <div class="stat-title font-mono text-[10.5px] uppercase tracking-wider">Processes</div>
-        <div class="stat-value text-primary tabular-nums">{format_count(@stats[:process_count])}</div>
-      </div>
-      <div class="stat">
-        <div class="stat-title font-mono text-[10.5px] uppercase tracking-wider">Run Queue</div>
-        <div class="stat-value text-secondary tabular-nums">{format_count(@stats[:run_queue])}</div>
-      </div>
-      <div class="stat">
-        <div class="stat-title font-mono text-[10.5px] uppercase tracking-wider">Total Memory</div>
-        <div class="stat-value text-accent tabular-nums">
-          {format_bytes(memory_value(@stats, :total))}
-        </div>
-      </div>
-    </div>
-    """
-  end
-
-  attr :title, :string, required: true
-  slot :inner_block, required: true
-
-  defp info_section(assigns) do
-    ~H"""
-    <section class="mb-8">
-      <h2 class="font-mono text-[11px] tracking-[0.15em] text-base-content/50 mb-3 ml-1 font-semibold uppercase">
-        {@title}
-      </h2>
-      <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {render_slot(@inner_block)}
-      </div>
-    </section>
-    """
-  end
-
-  attr :label, :string, required: true
-  attr :value, :string, required: true
-
-  defp info_card(assigns) do
-    ~H"""
-    <div class="card bg-base-200 border-base-300 border shadow-sm">
-      <div class="card-body justify-center gap-1 p-4">
-        <div class="font-mono text-[10px] text-base-content/50 uppercase tracking-wider">
-          {@label}
-        </div>
-        <div class="font-mono text-base-content truncate text-sm font-semibold" title={@value}>
-          {@value}
         </div>
       </div>
     </div>

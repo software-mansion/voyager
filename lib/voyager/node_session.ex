@@ -1,6 +1,6 @@
 defmodule Voyager.NodeSession do
   @moduledoc """
-   GenServer holding the single active connection to a remote BEAM node.
+  GenServer holding the single active connection to a remote BEAM node.
   """
 
   use GenServer

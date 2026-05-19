@@ -186,6 +186,66 @@ defmodule VoyagerWeb.CoreComponents do
     end)
   end
 
+  @doc """
+  Renders a single DaisyUI `stat` tile.
+
+  ## Examples
+
+      <.stat title="Processes" value="1,234" value_class="text-primary" />
+  """
+  attr :title, :string, required: true
+  attr :value, :string, required: true
+  attr :value_class, :any, default: nil
+
+  def stat(assigns) do
+    ~H"""
+    <div class="stat">
+      <div class="stat-title font-mono text-[10.5px] uppercase tracking-wider">{@title}</div>
+      <div class={["stat-value tabular-nums", @value_class]}>{@value}</div>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a labelled card for a single metric, sized for grids of details.
+  """
+  attr :label, :string, required: true
+  attr :value, :string, required: true
+
+  def info_card(assigns) do
+    ~H"""
+    <div class="card bg-base-200 border-base-300 border shadow-sm">
+      <div class="card-body justify-center gap-1 p-4">
+        <div class="font-mono text-[10px] text-base-content/50 uppercase tracking-wider">
+          {@label}
+        </div>
+        <div class="font-mono text-base-content truncate text-sm font-semibold" title={@value}>
+          {@value}
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
+  Wraps a grid of `<.info_card>` tiles under a section heading.
+  """
+  attr :title, :string, required: true
+  slot :inner_block, required: true
+
+  def info_section(assigns) do
+    ~H"""
+    <section class="mb-8">
+      <h2 class="font-mono text-[11px] tracking-[0.15em] text-base-content/50 mb-3 ml-1 font-semibold uppercase">
+        {@title}
+      </h2>
+      <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {render_slot(@inner_block)}
+      </div>
+    </section>
+    """
+  end
+
   ## JS Commands
 
   def show(js \\ %JS{}, selector) do
