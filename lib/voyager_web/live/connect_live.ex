@@ -7,11 +7,16 @@ defmodule VoyagerWeb.ConnectLive do
 
   @impl true
   def mount(_params, _session, socket) do
+    if connected?(socket) do
+      Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
+    end
+
     {:ok,
      socket
      |> reset_connections()
      |> assign(:form, empty_form())
-     |> assign(:show_cookie, false)}
+     |> assign(:show_cookie, false)
+     |> assign(:connected_session, NodeSession.current())}
   end
 
   @impl true
@@ -33,7 +38,13 @@ defmodule VoyagerWeb.ConnectLive do
             </p>
           </div>
 
-          <ConnectComponents.connect_form form={@form} show_cookie={@show_cookie} />
+          <ConnectComponents.connected_indicator session={@connected_session} />
+
+          <ConnectComponents.connect_form
+            form={@form}
+            show_cookie={@show_cookie}
+            disabled={not is_nil(@connected_session)}
+          />
 
           <%= if @has_pinned do %>
             <div class="border-base-300 mt-7 border-t pt-5">
@@ -129,6 +140,17 @@ defmodule VoyagerWeb.ConnectLive do
     Connections.delete(String.to_integer(id))
     {:noreply, reset_connections(socket)}
   end
+
+  @impl true
+  def handle_info({:node_connected, _node}, socket) do
+    {:noreply, assign(socket, :connected_session, NodeSession.current())}
+  end
+
+  def handle_info({event, _node}, socket) when event in [:node_disconnected, :nodedown] do
+    {:noreply, assign(socket, :connected_session, nil)}
+  end
+
+  def handle_info(_, socket), do: {:noreply, socket}
 
   defp do_connect(socket, params, %Params{
          node_name: node_name,

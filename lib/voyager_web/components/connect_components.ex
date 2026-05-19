@@ -4,6 +4,7 @@ defmodule VoyagerWeb.ConnectComponents do
   """
 
   use Phoenix.Component
+  use Phoenix.VerifiedRoutes, endpoint: VoyagerWeb.Endpoint, router: VoyagerWeb.Router
   import VoyagerWeb.CoreComponents
 
   attr :conn, :map, required: true, doc: "The connection record from the database"
@@ -59,8 +60,41 @@ defmodule VoyagerWeb.ConnectComponents do
     """
   end
 
+  attr :session, :any, required: true
+
+  def connected_indicator(%{session: nil} = assigns), do: ~H""
+
+  def connected_indicator(assigns) do
+    ~H"""
+    <div class="mb-5">
+      <p class="font-mono text-[10.5px] tracking-[0.08em] text-base-content/50 mb-2.5 uppercase">
+        Connected node
+      </p>
+    <div class="bg-success/10 border-success/25 flex items-center justify-between rounded-lg border px-3.5 py-2.5">
+      <div class="flex items-center gap-2.5">
+        <span class="relative flex size-2 shrink-0">
+          <span class="bg-success absolute inline-flex size-full animate-ping rounded-full opacity-60"></span>
+          <span class="bg-success relative inline-flex size-2 rounded-full"></span>
+        </span>
+        <span class="font-mono text-[12px] text-base-content/75 min-w-0 truncate">
+          {@session.node_name}
+        </span>
+      </div>
+      <.link
+        navigate={~p"/node/#{@session.node_name}"}
+        class="btn btn-success btn-xs ml-3 shrink-0 gap-1"
+      >
+        Open
+        <.icon name="icon-arrow-right" class="size-3" />
+      </.link>
+    </div>
+    </div>
+    """
+  end
+
   attr :form, :any, required: true, doc: "The Phoenix.HTML.Form map"
   attr :show_cookie, :boolean, default: false, doc: "Toggles cookie visibility"
+  attr :disabled, :boolean, default: false, doc: "Disables all form inputs when a node is already connected"
 
   def connect_form(assigns) do
     ~H"""
@@ -69,7 +103,7 @@ defmodule VoyagerWeb.ConnectComponents do
       id="connect-form"
       phx-change="validate"
       phx-submit="connect"
-      class="flex flex-col gap-4"
+      class={["flex flex-col gap-4", @disabled && "pointer-events-none opacity-40"]}
     >
       <div>
         <div class="mb-1.5 flex items-center justify-between">
@@ -87,6 +121,7 @@ defmodule VoyagerWeb.ConnectComponents do
               value="shortnames"
               aria-label="--sname"
               checked={current_name_type == "shortnames"}
+              disabled={@disabled}
               class="join-item btn btn-outline btn-xs font-mono text-[10px]"
             />
             <input
@@ -95,6 +130,7 @@ defmodule VoyagerWeb.ConnectComponents do
               value="longnames"
               aria-label="--name"
               checked={current_name_type == "longnames"}
+              disabled={@disabled}
               class="join-item btn btn-outline btn-xs font-mono text-[10px]"
             />
           </div>
@@ -105,6 +141,7 @@ defmodule VoyagerWeb.ConnectComponents do
           placeholder="my_app@127.0.0.1"
           autocomplete="off"
           spellcheck="false"
+          disabled={@disabled}
           class="font-mono text-[13px]"
         />
       </div>
@@ -120,6 +157,7 @@ defmodule VoyagerWeb.ConnectComponents do
           <button
             type="button"
             phx-click="toggle_cookie"
+            disabled={@disabled}
             class="font-mono text-[10px] tracking-[0.06em] text-base-content/40 cursor-pointer uppercase transition-colors hover:text-base-content"
           >
             {if @show_cookie, do: "Hide", else: "Show"}
@@ -131,9 +169,10 @@ defmodule VoyagerWeb.ConnectComponents do
           placeholder="••••••••••••••••"
           autocomplete="off"
           spellcheck="false"
+          disabled={@disabled}
           class="font-mono text-[13px]"
         />
-        <label class="mt-2.5 flex cursor-pointer items-center gap-2">
+        <label class={["mt-2.5 flex items-center gap-2", if(@disabled, do: "cursor-not-allowed", else: "cursor-pointer")]}>
           <input type="hidden" name="conn[remember_cookie]" value="false" />
 
           <input
@@ -141,6 +180,7 @@ defmodule VoyagerWeb.ConnectComponents do
             name="conn[remember_cookie]"
             value="true"
             checked={to_string(@form[:remember_cookie].value) == "true"}
+            disabled={@disabled}
             class="checkbox checkbox-sm"
           />
           <span class="text-[12.5px] text-base-content/70">Remember cookie</span>
@@ -150,6 +190,7 @@ defmodule VoyagerWeb.ConnectComponents do
       <button
         type="submit"
         id="connect-btn"
+        disabled={@disabled}
         class="btn btn-primary mt-2 w-full gap-2 phx-submit-loading:pointer-events-none phx-submit-loading:opacity-70"
       >
         <.icon name="icon-network" class="size-4 phx-submit-loading:hidden" />
