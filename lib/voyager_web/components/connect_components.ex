@@ -70,31 +70,34 @@ defmodule VoyagerWeb.ConnectComponents do
       <p class="font-mono text-[10.5px] tracking-[0.08em] text-base-content/50 mb-2.5 uppercase">
         Connected node
       </p>
-    <div class="bg-success/10 border-success/25 flex items-center justify-between rounded-lg border px-3.5 py-2.5">
-      <div class="flex items-center gap-2.5">
-        <span class="relative flex size-2 shrink-0">
-          <span class="bg-success absolute inline-flex size-full animate-ping rounded-full opacity-60"></span>
-          <span class="bg-success relative inline-flex size-2 rounded-full"></span>
-        </span>
-        <span class="font-mono text-[12px] text-base-content/75 min-w-0 truncate">
-          {@session.node_name}
-        </span>
+      <div class="bg-success/10 border-success/25 flex items-center justify-between rounded-lg border px-3.5 py-2.5">
+        <div class="flex items-center gap-2.5">
+          <span class="size-2 relative flex shrink-0">
+            <span class="bg-success size-full absolute inline-flex animate-ping rounded-full opacity-60">
+            </span>
+            <span class="bg-success size-2 relative inline-flex rounded-full"></span>
+          </span>
+          <span class="font-mono text-[12px] text-base-content/75 min-w-0 truncate">
+            {@session.node_name}
+          </span>
+        </div>
+        <.link
+          navigate={~p"/node/#{@session.node_name}"}
+          class="btn btn-success btn-xs ml-3 shrink-0 gap-1"
+        >
+          Open <.icon name="icon-arrow-right" class="size-3" />
+        </.link>
       </div>
-      <.link
-        navigate={~p"/node/#{@session.node_name}"}
-        class="btn btn-success btn-xs ml-3 shrink-0 gap-1"
-      >
-        Open
-        <.icon name="icon-arrow-right" class="size-3" />
-      </.link>
-    </div>
     </div>
     """
   end
 
   attr :form, :any, required: true, doc: "The Phoenix.HTML.Form map"
   attr :show_cookie, :boolean, default: false, doc: "Toggles cookie visibility"
-  attr :disabled, :boolean, default: false, doc: "Disables all form inputs when a node is already connected"
+
+  attr :disabled, :boolean,
+    default: false,
+    doc: "Disables all form inputs when a node is already connected"
 
   def connect_form(assigns) do
     ~H"""
@@ -172,7 +175,10 @@ defmodule VoyagerWeb.ConnectComponents do
           disabled={@disabled}
           class="font-mono text-[13px]"
         />
-        <label class={["mt-2.5 flex items-center gap-2", if(@disabled, do: "cursor-not-allowed", else: "cursor-pointer")]}>
+        <label class={[
+          "mt-2.5 flex items-center gap-2",
+          if(@disabled, do: "cursor-not-allowed", else: "cursor-pointer")
+        ]}>
           <input type="hidden" name="conn[remember_cookie]" value="false" />
 
           <input
