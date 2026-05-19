@@ -30,7 +30,7 @@ defmodule Voyager.NodeInfo do
   per second) should retain the previous snapshot and diff against it.
   """
 
-  alias Voyager.NodeInfo.{Limits, Memory, Runtime, Snapshot}
+  alias Voyager.NodeInfo.{Limits, Memory, Processors, Schedulers, Statistics, Snapshot}
   alias Voyager.NodeInfo.System, as: SystemInfo
 
   @fetch_timeout 5_000
@@ -46,9 +46,10 @@ defmodule Voyager.NodeInfo do
       collected_at: DateTime.utc_now(),
       system: SystemInfo.build(data.system_info),
       memory: Memory.build(data.memory),
-      runtime: Runtime.build(data.statistics),
+      runtime: Statistics.build(data.statistics),
       limits: Limits.build(data.system_info),
-      voyager_version: voyager_version()
+      processors: Processors.build(data.system_info),
+      schedulers: Schedulers.build(data.system_info)
     }
 
     {:ok, snapshot}
@@ -56,21 +57,16 @@ defmodule Voyager.NodeInfo do
     kind, reason -> {:error, {kind, reason}}
   end
 
-  @doc """
-  Version of the Voyager application itself (the introspector), read
-  from the local `:voyager` app spec. Returns `"unknown"` if unavailable.
-  """
-  @spec voyager_version() :: String.t()
-  def voyager_version do
-    case :application.get_key(:voyager, :vsn) do
-      {:ok, vsn} -> to_string(vsn)
-      _ -> "unknown"
-    end
-  end
-
   defp collect(node, timeout) do
-    si_keys = Enum.uniq(SystemInfo.system_info_keys() ++ Limits.system_info_keys())
-    stat_keys = Runtime.statistics_keys()
+    si_keys =
+      Enum.uniq(
+        SystemInfo.system_info_keys() ++
+          Limits.system_info_keys() ++
+          Processors.system_info_keys() ++
+          Schedulers.system_info_keys()
+      )
+
+    stat_keys = Statistics.statistics_keys()
 
     [si_values, stat_values, memory] =
       [

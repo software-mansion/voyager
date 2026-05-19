@@ -1,4 +1,4 @@
-defmodule Voyager.NodeInfo.Runtime do
+defmodule Voyager.NodeInfo.Statistics do
   @moduledoc """
   Coarse runtime counters for a BEAM node: uptime, run queue depth,
   cumulative IO bytes, and cumulative reductions.
@@ -43,7 +43,7 @@ defmodule Voyager.NodeInfo.Runtime do
     {{:input, io_in}, {:output, io_out}} = Map.fetch!(stat, :io)
     {reductions, _} = Map.fetch!(stat, :reductions)
 
-    %Runtime{
+    %Statistics{
       uptime_ms: wall_clock_total,
       run_queue: Map.fetch!(stat, :total_run_queue_lengths_all),
       io_input_bytes: io_in,

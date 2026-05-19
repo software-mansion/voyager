@@ -1,11 +1,11 @@
 defmodule Voyager.NodeInfo.System do
   @moduledoc """
   System-level facts about a BEAM node: OTP/ERTS versions, architecture,
-  scheduler counts, and detected BEAM-hosted languages.
+  and detected BEAM-hosted languages.
 
   Passive module: declares the `:erlang.system_info/1` keys it needs via
   `system_info_keys/0`, and builds its struct from pre-fetched data via
-  `build/2`. The RPC against the target node is owned by
+  `build/1`. The RPC against the target node is owned by
   `Voyager.NodeInfo`, which batches keys from all sub-modules into a
   single remote `:lists.map(&:erlang.system_info/1, keys)` call.
   """
@@ -21,12 +21,7 @@ defmodule Voyager.NodeInfo.System do
     {:wordsize, :external},
     :smp_support,
     :threads,
-    :thread_pool_size,
-    :logical_processors,
-    :logical_processors_online,
-    :logical_processors_available,
-    :schedulers,
-    :schedulers_online
+    :thread_pool_size
   ]
 
   @type language :: %{name: String.t(), version: String.t()}
@@ -40,12 +35,7 @@ defmodule Voyager.NodeInfo.System do
           wordsize_external: pos_integer(),
           smp_support?: boolean(),
           thread_support?: boolean(),
-          async_threads: non_neg_integer(),
-          logical_processors: pos_integer() | :unknown,
-          logical_processors_online: pos_integer() | :unknown,
-          logical_processors_available: pos_integer() | :unknown,
-          schedulers: pos_integer(),
-          schedulers_online: pos_integer()
+          async_threads: non_neg_integer()
         }
 
   defstruct [
@@ -57,12 +47,7 @@ defmodule Voyager.NodeInfo.System do
     :wordsize_external,
     :smp_support?,
     :thread_support?,
-    :async_threads,
-    :logical_processors,
-    :logical_processors_online,
-    :logical_processors_available,
-    :schedulers,
-    :schedulers_online
+    :async_threads
   ]
 
   @spec system_info_keys() :: [atom() | tuple()]
@@ -81,12 +66,7 @@ defmodule Voyager.NodeInfo.System do
       wordsize_external: Map.fetch!(si, {:wordsize, :external}),
       smp_support?: Map.fetch!(si, :smp_support),
       thread_support?: Map.fetch!(si, :threads),
-      async_threads: Map.fetch!(si, :thread_pool_size),
-      logical_processors: Map.fetch!(si, :logical_processors),
-      logical_processors_online: Map.fetch!(si, :logical_processors_online),
-      logical_processors_available: Map.fetch!(si, :logical_processors_available),
-      schedulers: Map.fetch!(si, :schedulers),
-      schedulers_online: Map.fetch!(si, :schedulers_online)
+      async_threads: Map.fetch!(si, :thread_pool_size)
     }
   end
 end
