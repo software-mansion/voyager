@@ -20,14 +20,19 @@ defmodule Voyager.NodeInfo do
   2. `:lists.map(&:erlang.statistics/1, all_stat_keys)` — same shape for
      `:erlang.statistics/1`.
   3. `:erlang.memory/0`.
-  4. `:application.loaded_applications/0`.
+  4. One `:application.get_key(app, :vsn)` per
+     `Language.candidate_apps/0` entry. Each returns `{:ok, vsn}` or
+     `:undefined` (~30 bytes on the wire), so the language-detection
+     payload stays minimal and the snapshot has no side effects on
+     the target node.
 
-  The four calls run concurrently, so a whole snapshot costs ~1 network
+  The four tasks run concurrently, so a whole snapshot costs ~1 network
   round trip against a remote node regardless of how many keys are
   sampled.
   """
 
   alias Voyager.NodeInfo.{
+    Language,
     Limits,
     Memory,
     Processors,
@@ -50,6 +55,7 @@ defmodule Voyager.NodeInfo do
       node: node,
       collected_at: DateTime.utc_now(),
       system: SystemInfo.build(data.system_info),
+      languages: Language.build(data.language_versions),
       memory: Memory.build(data.memory),
       runtime: Statistics.build(data.statistics),
       limits: Limits.build(data.system_info),
@@ -74,11 +80,18 @@ defmodule Voyager.NodeInfo do
 
     stat_keys = Enum.uniq(Statistics.statistics_keys() ++ RunQueues.statistics_keys())
 
-    [system_info_values, stat_values, memory] =
+    candidate_apps = Language.candidate_apps()
+
+    [system_info_values, stat_values, memory, language_versions] =
       [
         fn -> :erpc.call(node, :lists, :map, [&:erlang.system_info/1, system_info_keys]) end,
         fn -> :erpc.call(node, :lists, :map, [&:erlang.statistics/1, stat_keys]) end,
-        fn -> :erpc.call(node, :erlang, :memory, []) end
+        fn -> :erpc.call(node, :erlang, :memory, []) end,
+        fn ->
+          Enum.map(candidate_apps, fn app ->
+            {app, :erpc.call(node, :application, :get_key, [app, :vsn])}
+          end)
+        end
       ]
       |> Enum.map(&Task.async/1)
       |> Task.await_many(timeout)
@@ -86,7 +99,8 @@ defmodule Voyager.NodeInfo do
     %{
       system_info: system_info_keys |> Enum.zip(system_info_values) |> Map.new(),
       statistics: stat_keys |> Enum.zip(stat_values) |> Map.new(),
-      memory: memory |> Map.new()
+      memory: memory |> Map.new(),
+      language_versions: language_versions
     }
   end
 end

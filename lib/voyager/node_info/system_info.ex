@@ -15,8 +15,6 @@ defmodule Voyager.NodeInfo.SystemInfo do
     :thread_pool_size
   ]
 
-  @type language :: %{name: String.t(), version: String.t()}
-
   @type t :: %__MODULE__{
           otp_release: String.t(),
           erts_version: String.t(),

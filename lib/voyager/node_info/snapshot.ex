@@ -6,6 +6,7 @@ defmodule Voyager.NodeInfo.Snapshot do
   """
 
   alias Voyager.NodeInfo.{
+    Language,
     Limits,
     Memory,
     Processors,
@@ -19,6 +20,7 @@ defmodule Voyager.NodeInfo.Snapshot do
           node: node(),
           collected_at: DateTime.t(),
           system: SystemInfo.t(),
+          languages: [Language.t()],
           memory: Memory.t(),
           runtime: Statistics.t(),
           limits: Limits.t(),
@@ -31,6 +33,7 @@ defmodule Voyager.NodeInfo.Snapshot do
     :node,
     :collected_at,
     :system,
+    :languages,
     :memory,
     :runtime,
     :limits,
