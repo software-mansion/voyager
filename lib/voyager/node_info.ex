@@ -11,24 +11,23 @@ defmodule Voyager.NodeInfo do
   The submodules under `Voyager.NodeInfo.*` are passive — each declares
   the keys it needs (`system_info_keys/0`, `statistics_keys/0`) and a
   pure `build/N` that turns pre-fetched data into its struct. This
-  module owns all RPC and runs four concurrent `:erpc.call/4`s per
-  snapshot:
+  module owns all RPC and spawns one `Task` per concurrent
+  `:erpc.call/4` per snapshot:
 
-  1. `:lists.map(&:erlang.system_info/1, all_system_info_keys)` — one server-side
-     application of `:erlang.system_info/1` per unique key, regardless
-     of how many submodules consume that key. Keys are deduplicated.
-  2. `:lists.map(&:erlang.statistics/1, all_stat_keys)` — same shape for
-     `:erlang.statistics/1`.
+  1. `:lists.map(&:erlang.system_info/1, all_system_info_keys)` — one
+     server-side application of `:erlang.system_info/1` per unique key,
+     regardless of how many submodules consume that key. Keys are
+     deduplicated.
+  2. `:lists.map(&:erlang.statistics/1, all_stat_keys)` — same shape
+     for `:erlang.statistics/1`.
   3. `:erlang.memory/0`.
   4. One `:application.get_key(app, :vsn)` per
-     `Language.candidate_apps/0` entry. Each returns `{:ok, vsn}` or
-     `:undefined` (~30 bytes on the wire), so the language-detection
-     payload stays minimal and the snapshot has no side effects on
-     the target node.
+     `Language.candidate_apps/0` entry — each in its own task,
+     returning `{:ok, vsn}` or `:undefined`
 
-  The four tasks run concurrently, so a whole snapshot costs ~1 network
-  round trip against a remote node regardless of how many keys are
-  sampled.
+  All tasks run concurrently as peers, so a whole snapshot costs ~1
+  network round trip against a remote node regardless of how many keys
+  or candidate languages are sampled.
   """
 
   alias Voyager.NodeInfo.{
@@ -48,7 +47,7 @@ defmodule Voyager.NodeInfo do
   @type fetch_error :: {kind :: atom(), reason :: term()}
 
   @spec fetch(node(), keyword()) :: {:ok, Snapshot.t()} | {:error, fetch_error()}
-  def fetch(node \\ Node.self(), _opts \\ []) do
+  def fetch(node, _opts \\ []) do
     data = collect(node, @fetch_timeout)
 
     snapshot = %Snapshot{
@@ -82,17 +81,19 @@ defmodule Voyager.NodeInfo do
 
     candidate_apps = Language.candidate_apps()
 
-    [system_info_values, stat_values, memory, language_versions] =
-      [
-        fn -> :erpc.call(node, :lists, :map, [&:erlang.system_info/1, system_info_keys]) end,
-        fn -> :erpc.call(node, :lists, :map, [&:erlang.statistics/1, stat_keys]) end,
-        fn -> :erpc.call(node, :erlang, :memory, []) end,
-        fn ->
-          Enum.map(candidate_apps, fn app ->
-            {app, :erpc.call(node, :application, :get_key, [app, :vsn])}
-          end)
-        end
-      ]
+    base_tasks = [
+      fn -> :erpc.call(node, :lists, :map, [&:erlang.system_info/1, system_info_keys]) end,
+      fn -> :erpc.call(node, :lists, :map, [&:erlang.statistics/1, stat_keys]) end,
+      fn -> :erpc.call(node, :erlang, :memory, []) end
+    ]
+
+    language_tasks =
+      Enum.map(candidate_apps, fn app ->
+        fn -> {app, :erpc.call(node, :application, :get_key, [app, :vsn])} end
+      end)
+
+    [system_info_values, stat_values, memory | language_versions] =
+      (base_tasks ++ language_tasks)
       |> Enum.map(&Task.async/1)
       |> Task.await_many(timeout)
 
