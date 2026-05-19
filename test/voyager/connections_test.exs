@@ -1,0 +1,97 @@
+defmodule Voyager.ConnectionsTest do
+  use Voyager.DataCase, async: true
+
+  alias Voyager.Connections
+  alias Voyager.Connections.Connection
+
+  describe "upsert_connected/2" do
+    test "inserts a new connection" do
+      assert {:ok, conn} = Connections.upsert_connected("my_app@127.0.0.1", cookie: "secret")
+      assert conn.node_name == "my_app@127.0.0.1"
+      assert conn.cookie == "secret"
+      assert conn.pinned == false
+      assert %DateTime{} = conn.last_connected_at
+    end
+
+    test "updates last_connected_at on conflict" do
+      {:ok, original} = Connections.upsert_connected("dup@127.0.0.1", cookie: "c1")
+      Process.sleep(1100)
+      {:ok, updated} = Connections.upsert_connected("dup@127.0.0.1", cookie: "c2")
+
+      assert updated.id == original.id
+      assert DateTime.compare(updated.last_connected_at, original.last_connected_at) == :gt
+    end
+
+    test "overwrites cookie when a new cookie is supplied" do
+      {:ok, _} = Connections.upsert_connected("c@127.0.0.1", cookie: "old")
+      {:ok, _} = Connections.upsert_connected("c@127.0.0.1", cookie: "new")
+
+      assert Connections.get_by_node_name("c@127.0.0.1").cookie == "new"
+    end
+
+    test "preserves existing cookie when no cookie is supplied" do
+      {:ok, _} = Connections.upsert_connected("k@127.0.0.1", cookie: "keep-me")
+      {:ok, _} = Connections.upsert_connected("k@127.0.0.1")
+
+      assert Connections.get_by_node_name("k@127.0.0.1").cookie == "keep-me"
+    end
+
+    test "cookie is encrypted at rest" do
+      {:ok, _} = Connections.upsert_connected("enc@127.0.0.1", cookie: "plaintext-cookie")
+
+      [raw] = Repo.all(from c in "connections", select: c.cookie)
+
+      refute raw == "plaintext-cookie"
+      assert is_binary(raw)
+      assert byte_size(raw) > byte_size("plaintext-cookie")
+
+      assert Connections.get_by_node_name("enc@127.0.0.1").cookie == "plaintext-cookie"
+    end
+  end
+
+  describe "list_connections/0" do
+    test "returns pinned rows first, then by last_connected_at desc" do
+      {:ok, old_recent} = Connections.upsert_connected("a@h", cookie: "x")
+      Process.sleep(1100)
+      {:ok, _new_recent} = Connections.upsert_connected("b@h", cookie: "x")
+      {:ok, _pinned} = Connections.upsert_connected("c@h", cookie: "x")
+      Connections.pin(Connections.get_by_node_name("c@h").id)
+
+      names = Enum.map(Connections.list_connections(), & &1.node_name)
+
+      assert names == ["c@h", "b@h", "a@h"]
+      assert old_recent.node_name == "a@h"
+    end
+  end
+
+  describe "pin/1, unpin/1, delete/1" do
+    test "pin/1 sets pinned=true, unpin/1 sets pinned=false" do
+      {:ok, conn} = Connections.upsert_connected("p@h", cookie: "x")
+
+      {:ok, pinned} = Connections.pin(conn.id)
+      assert pinned.pinned == true
+
+      {:ok, unpinned} = Connections.unpin(conn.id)
+      assert unpinned.pinned == false
+    end
+
+    test "pin/1, unpin/1, delete/1 return :not_found on missing id" do
+      assert {:error, :not_found} = Connections.pin(-1)
+      assert {:error, :not_found} = Connections.unpin(-1)
+      assert {:error, :not_found} = Connections.delete(-1)
+    end
+
+    test "delete/1 removes the row" do
+      {:ok, conn} = Connections.upsert_connected("d@h", cookie: "x")
+      {:ok, _} = Connections.delete(conn.id)
+
+      assert Repo.get(Connection, conn.id) == nil
+    end
+  end
+
+  describe "get/1" do
+    test "returns nil for missing id rather than raising" do
+      assert Connections.get(-1) == nil
+    end
+  end
+end

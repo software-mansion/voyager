@@ -1,0 +1,71 @@
+defmodule Voyager.Connect.ParamsTest do
+  use ExUnit.Case, async: true
+
+  alias Voyager.Connect.Params
+
+  defp errors_on(changeset) do
+    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
+      Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
+        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
+      end)
+    end)
+  end
+
+  test "accepts a well-formed name@host node name with a cookie" do
+    cs = Params.changeset(%{"node_name" => "my_app@127.0.0.1", "cookie" => "abc"})
+    assert cs.valid?
+  end
+
+  test "requires node_name and cookie" do
+    cs = Params.changeset(%{})
+    refute cs.valid?
+    errors = errors_on(cs)
+    assert "can't be blank" in errors.node_name
+    assert "can't be blank" in errors.cookie
+  end
+
+  test "rejects node_name without @" do
+    cs = Params.changeset(%{"node_name" => "no_at_sign", "cookie" => "c"})
+    refute cs.valid?
+    assert "Use the name@host format" in errors_on(cs).node_name
+  end
+
+  test "rejects node_name with whitespace" do
+    cs = Params.changeset(%{"node_name" => "bad name@host", "cookie" => "c"})
+    refute cs.valid?
+    assert "Use the name@host format" in errors_on(cs).node_name
+  end
+
+  test "rejects node_name longer than 255 chars" do
+    cs =
+      Params.changeset(%{
+        "node_name" => String.duplicate("a", 251) <> "@host",
+        "cookie" => "c"
+      })
+
+    refute cs.valid?
+    assert Enum.any?(errors_on(cs).node_name, &String.contains?(&1, "should be at most 255"))
+  end
+
+  test "rejects cookie longer than 255 chars" do
+    cs =
+      Params.changeset(%{
+        "node_name" => "a@h",
+        "cookie" => String.duplicate("c", 256)
+      })
+
+    refute cs.valid?
+    assert Enum.any?(errors_on(cs).cookie, &String.contains?(&1, "should be at most 255"))
+  end
+
+  test "defaults name_type to :shortnames" do
+    cs = Params.changeset(%{"node_name" => "a@h", "cookie" => "c"})
+    assert Ecto.Changeset.get_field(cs, :name_type) == :shortnames
+  end
+
+  test "accepts :longnames name_type" do
+    cs = Params.changeset(%{"node_name" => "a@h", "cookie" => "c", "name_type" => "longnames"})
+    assert cs.valid?
+    assert Ecto.Changeset.get_field(cs, :name_type) == :longnames
+  end
+end
