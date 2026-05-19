@@ -65,7 +65,7 @@ defmodule Voyager.NodeInfo do
 
     {:ok, snapshot}
   catch
-    kind, reason -> {:error, {kind, reason}}
+    _, reason -> {:error, reason}
   end
 
   defp collect(node, timeout) do
@@ -94,8 +94,9 @@ defmodule Voyager.NodeInfo do
 
     [system_info_values, stat_values, memory | language_versions] =
       (base_tasks ++ language_tasks)
-      |> Enum.map(&Task.async/1)
+      |> Enum.map(&safe_async/1)
       |> Task.await_many(timeout)
+      |> Enum.map(&unwrap!/1)
 
     %{
       system_info: system_info_keys |> Enum.zip(system_info_values) |> Map.new(),
@@ -104,4 +105,17 @@ defmodule Voyager.NodeInfo do
       language_versions: language_versions
     }
   end
+
+  defp safe_async(fun) do
+    Task.async(fn ->
+      try do
+        {:ok, fun.()}
+      catch
+        kind, reason -> {:error, {kind, reason, __STACKTRACE__}}
+      end
+    end)
+  end
+
+  defp unwrap!({:ok, value}), do: value
+  defp unwrap!({:error, {kind, reason, stacktrace}}), do: :erlang.raise(kind, reason, stacktrace)
 end
