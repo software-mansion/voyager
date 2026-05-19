@@ -24,6 +24,6 @@ defmodule Voyager.NodeInfo.RunQueues do
     total = Map.fetch!(stat, :total_run_queue_lengths_all)
     cpu = Map.fetch!(stat, :total_run_queue_lengths)
 
-    %__MODULE__{total: total, cpu: cpu, io: total - cpu}
+    %__MODULE__{total: total, cpu: cpu, io: max(total - cpu, 0)}
   end
 end

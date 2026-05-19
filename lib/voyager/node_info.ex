@@ -25,9 +25,14 @@ defmodule Voyager.NodeInfo do
      `Language.candidate_apps/0` entry — each in its own task,
      returning `{:ok, vsn}` or `:undefined`
 
-  All tasks run concurrently as peers, so a whole snapshot costs ~1
-  network round trip against a remote node regardless of how many keys
-  or candidate languages are sampled.
+  All tasks run concurrently as peers. Latency for a
+  snapshot is bounded by the slowest single `:erpc.call/4` rather
+  than the sum of all of them.
+
+  ## Options
+
+    * `:timeout` — overall budget for all RPC tasks in milliseconds.
+      Defaults to `5_000`.
   """
 
   alias Voyager.NodeInfo.{
@@ -42,13 +47,14 @@ defmodule Voyager.NodeInfo do
     SystemInfo
   }
 
-  @fetch_timeout 5_000
+  @default_timeout 5_000
 
-  @type fetch_error :: {kind :: atom(), reason :: term()}
+  @type fetch_error :: {:exit | :error, term()}
 
   @spec fetch(node(), keyword()) :: {:ok, Snapshot.t()} | {:error, fetch_error()}
-  def fetch(node, _opts \\ []) do
-    data = collect(node, @fetch_timeout)
+  def fetch(node, opts \\ []) do
+    timeout = Keyword.get(opts, :timeout, @default_timeout)
+    data = collect(node, timeout)
 
     snapshot = %Snapshot{
       node: node,
@@ -65,7 +71,7 @@ defmodule Voyager.NodeInfo do
 
     {:ok, snapshot}
   catch
-    _, reason -> {:error, reason}
+    kind, reason -> {:error, {kind, reason}}
   end
 
   defp collect(node, timeout) do

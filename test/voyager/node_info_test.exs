@@ -73,7 +73,8 @@ defmodule Voyager.NodeInfoTest do
     end
 
     test "returns an error tuple for an unreachable node without crashing the caller" do
-      assert {:error, {:erpc, :noconnection}} = NodeInfo.fetch(:"nonexistent@127.0.0.1")
+      assert {:error, {:error, {:erpc, :noconnection}}} =
+               NodeInfo.fetch(:"nonexistent@127.0.0.1")
     end
   end
 end

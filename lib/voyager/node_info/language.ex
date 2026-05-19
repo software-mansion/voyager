@@ -28,8 +28,8 @@ defmodule Voyager.NodeInfo.Language do
   def build(app_versions) do
     versions = for {app, {:ok, vsn}} <- app_versions, into: %{}, do: {app, vsn}
 
-    for {app, name} <- @applications, vsn = Map.get(versions, app) do
-      %__MODULE__{name: name, version: to_string(vsn)}
+    for {app, name} <- @applications, is_map_key(versions, app) do
+      %__MODULE__{name: name, version: to_string(Map.fetch!(versions, app))}
     end
   end
 end
