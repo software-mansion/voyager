@@ -1,6 +1,5 @@
 const SupervisionTree = {
-  mounted() {
-  },
+  mounted() {},
 };
 
 export default SupervisionTree;
