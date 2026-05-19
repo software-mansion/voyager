@@ -67,8 +67,6 @@ defmodule VoyagerWeb.ConnectComponents do
     """
   end
 
-  # Ten komponent nie przyjmuje żadnych dynamicznych zmiennych (assigns),
-  # więc deklaracje attr nie są tu potrzebne.
   def header(assigns) do
     ~H"""
     <div class="mb-7 flex items-center gap-3">
