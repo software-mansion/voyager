@@ -1,13 +1,7 @@
 defmodule Voyager.NodeInfo.Schedulers do
   @moduledoc """
-  Scheduler counts for the BEAM node: total configured and online.
-
-  Passive module: declares the `:erlang.system_info/1` keys it needs via
-  `system_info_keys/0` and builds its struct from pre-fetched data via
-  `build/1`.
+  Scheduler counts for the BEAM node.
   """
-
-  alias __MODULE__
 
   @system_info_keys [
     :schedulers,
@@ -30,7 +24,7 @@ defmodule Voyager.NodeInfo.Schedulers do
   def build(si) do
     online = Map.fetch!(si, :schedulers_online)
 
-    %Schedulers{
+    %__MODULE__{
       total: Map.fetch!(si, :schedulers),
       online: online,
       available: available(si)

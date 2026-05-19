@@ -5,12 +5,12 @@ defmodule Voyager.NodeInfo.Snapshot do
   Built by `Voyager.NodeInfo.fetch/2` from the per-concern sub-fetchers.
   """
 
-  alias Voyager.NodeInfo.{Limits, Memory, Processors, RunQueues, Schedulers, Statistics, System}
+  alias Voyager.NodeInfo.{Limits, Memory, Processors, RunQueues, Schedulers, Statistics, SystemInfo}
 
   @type t :: %__MODULE__{
           node: node(),
           collected_at: DateTime.t(),
-          system: System.t(),
+          system: SystemInfo.t(),
           memory: Memory.t(),
           runtime: Statistics.t(),
           limits: Limits.t(),

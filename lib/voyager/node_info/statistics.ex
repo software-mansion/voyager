@@ -1,15 +1,8 @@
 defmodule Voyager.NodeInfo.Statistics do
   @moduledoc """
-  Coarse runtime counters for a BEAM node: uptime, cumulative IO bytes,
-  and cumulative reductions.
-
-  Passive module: declares the `:erlang.statistics/1` keys it needs via
-  `statistics_keys/0` and builds its struct from pre-fetched data via
-  `build/1`. Counters are cumulative since node start; compute rates by
-  diffing two consecutive snapshots.
+  Coarse runtime counters for a BEAM node.
+  Counters are cumulative since node start.
   """
-
-  alias __MODULE__
 
   @statistics_keys [
     :wall_clock,
@@ -40,7 +33,7 @@ defmodule Voyager.NodeInfo.Statistics do
     {{:input, io_in}, {:output, io_out}} = Map.fetch!(stat, :io)
     {reductions, _} = Map.fetch!(stat, :reductions)
 
-    %Statistics{
+    %__MODULE__{
       uptime_ms: wall_clock_total,
       io_input_bytes: io_in,
       io_output_bytes: io_out,

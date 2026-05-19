@@ -1,14 +1,7 @@
 defmodule Voyager.NodeInfo.RunQueues do
   @moduledoc """
-  Run queue depths for a BEAM node: total, CPU (normal + dirty CPU
-  schedulers), and IO (dirty IO schedulers).
-
-  Passive module: declares the `:erlang.statistics/1` keys it needs via
-  `statistics_keys/0` and builds its struct from pre-fetched data via
-  `build/1`.
+  Run queue depths for a BEAM node.
   """
-
-  alias __MODULE__
 
   @statistics_keys [
     :total_run_queue_lengths_all,
@@ -31,6 +24,6 @@ defmodule Voyager.NodeInfo.RunQueues do
     total = Map.fetch!(stat, :total_run_queue_lengths_all)
     cpu = Map.fetch!(stat, :total_run_queue_lengths)
 
-    %RunQueues{total: total, cpu: cpu, io: total - cpu}
+    %__MODULE__{total: total, cpu: cpu, io: total - cpu}
   end
 end

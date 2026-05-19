@@ -1,14 +1,7 @@
 defmodule Voyager.NodeInfo.Processors do
   @moduledoc """
-  Logical processor counts reported by the BEAM: total detected, online,
-  and available to the scheduler.
-
-  Passive module: declares the `:erlang.system_info/1` keys it needs via
-  `system_info_keys/0` and builds its struct from pre-fetched data via
-  `build/1`.
+  Logical processor counts reported by the BEAM.
   """
-
-  alias __MODULE__
 
   @system_info_keys [
     :logical_processors,
@@ -29,7 +22,7 @@ defmodule Voyager.NodeInfo.Processors do
 
   @spec build(map()) :: t()
   def build(si) do
-    %Processors{
+    %__MODULE__{
       total: Map.fetch!(si, :logical_processors),
       online: Map.fetch!(si, :logical_processors_online),
       available: Map.fetch!(si, :logical_processors_available)

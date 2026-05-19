@@ -2,15 +2,9 @@ defmodule Voyager.NodeInfo.Memory do
   @moduledoc """
   Memory usage breakdown for a BEAM node.
 
-  Passive module: builds its struct from a pre-fetched `:erlang.memory/0`
-  map via `build/1`. All values are bytes. The `:other` field is the
-  memory not attributable to any of the named buckets.
-
   Process used is part of the process allocated.
   Atom allocated is part of the atom used.
   """
-
-  alias __MODULE__
 
   @type t :: %__MODULE__{
           total: non_neg_integer(),
@@ -50,7 +44,7 @@ defmodule Voyager.NodeInfo.Memory do
     code = Map.fetch!(memory, :code)
     ets = Map.fetch!(memory, :ets)
 
-    %Memory{
+    %__MODULE__{
       total: total,
       processes_allocated: process_allocated,
       processes_used: process_used,

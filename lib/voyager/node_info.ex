@@ -25,13 +25,18 @@ defmodule Voyager.NodeInfo do
   The four calls run concurrently, so a whole snapshot costs ~1 network
   round trip against a remote node regardless of how many keys are
   sampled.
-
-  The function is stateless; callers that need rates (e.g. reductions
-  per second) should retain the previous snapshot and diff against it.
   """
 
-  alias Voyager.NodeInfo.{Limits, Memory, Processors, RunQueues, Schedulers, Statistics, Snapshot}
-  alias Voyager.NodeInfo.System, as: SystemInfo
+  alias Voyager.NodeInfo.{
+    Limits,
+    Memory,
+    Processors,
+    RunQueues,
+    Schedulers,
+    Statistics,
+    Snapshot,
+    SystemInfo
+  }
 
   @fetch_timeout 5_000
 

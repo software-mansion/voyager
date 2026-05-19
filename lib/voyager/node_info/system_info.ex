@@ -1,16 +1,7 @@
-defmodule Voyager.NodeInfo.System do
+defmodule Voyager.NodeInfo.SystemInfo do
   @moduledoc """
-  System-level facts about a BEAM node: OTP/ERTS versions, architecture,
-  and detected BEAM-hosted languages.
-
-  Passive module: declares the `:erlang.system_info/1` keys it needs via
-  `system_info_keys/0`, and builds its struct from pre-fetched data via
-  `build/1`. The RPC against the target node is owned by
-  `Voyager.NodeInfo`, which batches keys from all sub-modules into a
-  single remote `:lists.map(&:erlang.system_info/1, keys)` call.
+  System-level facts about a BEAM node.
   """
-
-  alias __MODULE__
 
   @system_info_keys [
     :otp_release,
@@ -57,7 +48,7 @@ defmodule Voyager.NodeInfo.System do
   def build(si) do
     otp_release = si |> Map.fetch!(:otp_release) |> to_string()
 
-    %System{
+    %__MODULE__{
       otp_release: otp_release,
       erts_version: si |> Map.fetch!(:version) |> to_string(),
       system_version: si |> Map.fetch!(:system_version) |> to_string() |> String.trim(),

@@ -1,15 +1,7 @@
 defmodule Voyager.NodeInfo.Limits do
   @moduledoc """
-  Used-vs-limit counters for capped node-wide resources: atoms,
-  processes, ports, and ETS tables. Each entry includes a pre-computed
-  `:used_pct` (a float in 0.0..1.0).
-
-  Passive module: declares the `:erlang.system_info/1` keys it needs via
-  `system_info_keys/0` and builds its struct from pre-fetched data via
-  `build/1`.
+  Used-vs-limit counters for capped node-wide resources.
   """
-
-  alias __MODULE__
 
   @resources [
     {:atoms, :atom_count, :atom_limit},
@@ -39,7 +31,7 @@ defmodule Voyager.NodeInfo.Limits do
 
   @spec build(map()) :: t()
   def build(si) do
-    Enum.reduce(@resources, %Limits{}, fn {key, count_key, limit_key}, acc ->
+    Enum.reduce(@resources, %__MODULE__{}, fn {key, count_key, limit_key}, acc ->
       Map.put(acc, key, %{used: Map.fetch!(si, count_key), limit: Map.fetch!(si, limit_key)})
     end)
   end
