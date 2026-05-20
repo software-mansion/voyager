@@ -185,6 +185,7 @@ defmodule Voyager.NodeSession do
 
   def handle_info({:nodedown, node}, %{session: %Session{node: session_node}} = state)
       when node == session_node do
+    Node.monitor(node, false)
     broadcast({:nodedown, node})
     {:noreply, %{state | session: nil}}
   end
