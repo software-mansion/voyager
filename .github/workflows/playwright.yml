@@ -1,0 +1,102 @@
+name: Playwright Test
+
+on:
+  push:
+    branches:
+      - main
+      - "v*.*"
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: e2e
+    runs-on: ubuntu-24.04
+    
+    env:
+      ELIXIR_VERSION: "1.19.5"
+      OTP_VERSION: "28.5"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install inotify-tools
+        run: sudo apt-get update && sudo apt-get install -y inotify-toolsi
+        
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+
+      - name: Cache dependencies and build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
+
+      - name: Install Dependencies
+        run: mix deps.get
+
+      - name: Compile project
+        run: mix compile --warnings-as-errors
+
+      - name: Cache Mix
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ matrix.backward-compatibility && 'backward-compatibility-' || '' }}${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ matrix.backward-compatibility && 'backward-compatibility-' || '' }}${{ runner.os }}-mix-
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Cache Playwright
+        uses: actions/cache@v3
+        id: playwright-cache
+        with:
+          path: |
+            ~/.cache/ms-playwright
+            node_modules
+          key: ${{ runner.os }}-playwright-${{ hashFiles('./e2e/package-lock.json') }}
+
+      - name: Check prettier
+        working-directory: ./e2e
+        run: npx prettier . --check
+
+      - name: Install Mix Dependencies
+        run: mix deps.get
+
+      - name: Install Node Dependencies
+        working-directory: ./e2e
+        run: npm ci
+
+      - name: Install Playwright Dependencies
+        working-directory: ./e2e
+        run: npx playwright install --with-deps
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+
+      - name: Run e2e tests
+        run: mix e2e
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: ${{ matrix.backward-compatibility && 'backward-compatibility-' || '' }}playwright-report
+          path: e2e/playwright-report/
+          retention-days: 1
+
