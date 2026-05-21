@@ -23,14 +23,12 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
       assert has_element?(view, "#depth-input")
       assert has_element?(view, "#supervision-tree-refresh")
 
-      # Empty state text is visible when no apps selected
       assert render(view) =~ "Select one or more applications to inspect"
     end
 
     test "shows available applications as checkboxes", %{conn: conn, peer: peer} do
       {:ok, view, _html} = live(conn, "/node/#{peer.node}/supervision-tree")
 
-      # The fixture app should appear in the app list
       assert has_element?(view, "input[type='checkbox'][value='voyager_fixture']")
     end
 
@@ -41,45 +39,54 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
   end
 
   describe "app selection and tree fetch" do
-    test "selecting an app triggers a fetch and renders the tree", %{conn: conn, peer: peer} do
+    test "first fetch pushes a full payload and attaches the hook element", %{
+      conn: conn,
+      peer: peer
+    } do
       {:ok, view, _html} = live(conn, "/node/#{peer.node}/supervision-tree")
 
-      # Select voyager_fixture with depth 2
-      # Use flat param names matching the raw <input> names in the template
       view
       |> form("#supervision-tree-controls", %{"apps" => ["voyager_fixture"], "depth" => "2"})
       |> render_change()
 
-      # Get the in_flight task pid for monitoring.
-      # The fetch may already be done by the time we call get_state — handle both cases.
-      %{socket: %{assigns: assigns}} = :sys.get_state(view.pid)
-      in_flight = assigns.in_flight
+      await_fetch!(view)
 
-      if in_flight do
-        # Monitor the task so we know when it's done
-        task_pid = in_flight.task.pid
-        ref = Process.monitor(task_pid)
-        assert_receive {:DOWN, ^ref, :process, ^task_pid, _reason}, 3_000
+      assert_push_event(view, "tree-data", %{kind: "full"} = payload)
+      assert payload.status in [:ok, :partial]
+      assert is_map(payload.nodes)
+      assert map_size(payload.nodes) > 0
 
-        # Flush: ensure the LiveView has processed the result message
-        _ = :sys.get_state(view.pid)
-      else
-        # Fetch already completed — verify status is ok/partial
-        assert assigns.status in [:ok, :partial],
-               "Expected fetch to succeed but status=#{assigns.status}"
-      end
+      assert Map.has_key?(payload.nodes, "app:voyager_fixture")
 
-      # Tree should now be rendered
-      assert has_element?(view, "#supervision-tree-body")
-
-      rendered = render(view)
-      assert rendered =~ "tree-node-"
+      assert has_element?(view, "#supervision-tree-body[phx-hook='SupervisionTree']")
     end
 
-    test "selecting no apps keeps status idle and shows empty state", %{conn: conn, peer: peer} do
+    test "refresh without scope change pushes a delta payload", %{conn: conn, peer: peer} do
       {:ok, view, _html} = live(conn, "/node/#{peer.node}/supervision-tree")
 
-      # Simulate form submit with no apps (empty list) — omit apps key entirely
+      view
+      |> form("#supervision-tree-controls", %{"apps" => ["voyager_fixture"], "depth" => "2"})
+      |> render_change()
+
+      await_fetch!(view)
+      assert_push_event(view, "tree-data", %{kind: "full"})
+
+      view
+      |> element("#supervision-tree-refresh")
+      |> render_click()
+
+      await_fetch!(view)
+
+      assert_push_event(view, "tree-data", %{kind: "delta"} = payload)
+      assert payload.status in [:ok, :partial]
+      assert Map.has_key?(payload, :added)
+      assert Map.has_key?(payload, :removed)
+      assert Map.has_key?(payload, :updated)
+    end
+
+    test "selecting no apps keeps status idle", %{conn: conn, peer: peer} do
+      {:ok, view, _html} = live(conn, "/node/#{peer.node}/supervision-tree")
+
       view
       |> form("#supervision-tree-controls", %{"depth" => "3"})
       |> render_change()
@@ -93,84 +100,57 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
   end
 
   describe "depth change" do
-    test "changing depth triggers a new fetch with updated depth", %{conn: conn, peer: peer} do
+    test "changing depth resets the tree and the next push is full", %{conn: conn, peer: peer} do
       {:ok, view, _html} = live(conn, "/node/#{peer.node}/supervision-tree")
 
-      # First select an app
       view
       |> form("#supervision-tree-controls", %{"apps" => ["voyager_fixture"], "depth" => "2"})
       |> render_change()
 
-      %{socket: %{assigns: first_assigns}} = :sys.get_state(view.pid)
-      first_ref = first_assigns.in_flight && first_assigns.in_flight.ref
+      await_fetch!(view)
+      assert_push_event(view, "tree-data", %{kind: "full"})
 
-      # Wait for first fetch to complete
-      if first_ref do
-        task_pid = first_assigns.in_flight.task.pid
-        mon = Process.monitor(task_pid)
-        assert_receive {:DOWN, ^mon, :process, ^task_pid, _}, 3_000
-        _ = :sys.get_state(view.pid)
-      end
-
-      # Now change depth
       view
       |> form("#supervision-tree-controls", %{"apps" => ["voyager_fixture"], "depth" => "4"})
       |> render_change()
 
-      %{socket: %{assigns: second_assigns}} = :sys.get_state(view.pid)
-      assert second_assigns.depth == 4
-      assert not is_nil(second_assigns.in_flight)
+      %{socket: %{assigns: assigns}} = :sys.get_state(view.pid)
+      assert assigns.depth == 4
+      assert is_nil(assigns.last_tree_flat)
+
+      await_fetch!(view)
+      assert_push_event(view, "tree-data", %{kind: "full"})
     end
   end
 
   describe "toggle expand" do
-    test "toggle-expand on the app root node adds pid to expanded_pids", %{
+    test "toggle-expand event adds pid to expanded_pids", %{
       conn: conn,
       peer: peer
     } do
       {:ok, view, _html} = live(conn, "/node/#{peer.node}/supervision-tree")
 
-      # Select an app
       view
       |> form("#supervision-tree-controls", %{"apps" => ["voyager_fixture"], "depth" => "2"})
       |> render_change()
 
+      await_fetch!(view)
+      assert_push_event(view, "tree-data", %{kind: "full", nodes: nodes})
+
+      # Find any real-pid key (e.g. "<0.123.0>") in the payload.
+      pid_key =
+        nodes
+        |> Map.keys()
+        |> Enum.find(&(is_binary(&1) and String.starts_with?(&1, "<")))
+
+      assert pid_key, "expected at least one real-pid key in payload"
+
+      render_hook(view, "toggle-expand", %{"pid" => pid_key})
+
+      pid = pid_key |> String.to_charlist() |> :erlang.list_to_pid()
+
       %{socket: %{assigns: assigns}} = :sys.get_state(view.pid)
-
-      if assigns.in_flight do
-        task_pid = assigns.in_flight.task.pid
-        mon = Process.monitor(task_pid)
-        assert_receive {:DOWN, ^mon, :process, ^task_pid, _}, 3_000
-        _ = :sys.get_state(view.pid)
-      end
-
-      %{socket: %{assigns: post_fetch}} = :sys.get_state(view.pid)
-      tree = post_fetch.tree
-
-      # Get the app root pid — its toggle button is visible in the rendered HTML
-      app_node = tree && Map.get(tree, :voyager_fixture)
-      root_pid = app_node && app_node.pid
-
-      if root_pid do
-        # DOM id for the app node uses dashes not dots
-        dom_id =
-          root_pid
-          |> :erlang.pid_to_list()
-          |> List.to_string()
-          |> String.trim_leading("<")
-          |> String.trim_trailing(">")
-          |> String.replace(".", "-")
-          |> then(&"tree-node-#{&1}")
-
-        view
-        |> element("##{dom_id} button[phx-click='toggle-expand']")
-        |> render_click()
-
-        %{socket: %{assigns: after_toggle}} = :sys.get_state(view.pid)
-        assert MapSet.member?(after_toggle.expanded_pids, root_pid)
-      else
-        assert not is_nil(tree)
-      end
+      assert MapSet.member?(assigns.expanded_pids, pid)
     end
   end
 
@@ -178,21 +158,12 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
     test "refresh-now button triggers a fetch when apps are selected", %{conn: conn, peer: peer} do
       {:ok, view, _html} = live(conn, "/node/#{peer.node}/supervision-tree")
 
-      # Select an app first
       view
       |> form("#supervision-tree-controls", %{"apps" => ["voyager_fixture"], "depth" => "2"})
       |> render_change()
 
-      %{socket: %{assigns: first}} = :sys.get_state(view.pid)
+      await_fetch!(view)
 
-      if first.in_flight do
-        task_pid = first.in_flight.task.pid
-        mon = Process.monitor(task_pid)
-        assert_receive {:DOWN, ^mon, :process, ^task_pid, _}, 3_000
-        _ = :sys.get_state(view.pid)
-      end
-
-      # Click refresh
       view
       |> element("#supervision-tree-refresh")
       |> render_click()
@@ -200,5 +171,22 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
       %{socket: %{assigns: after_refresh}} = :sys.get_state(view.pid)
       assert not is_nil(after_refresh.in_flight) or after_refresh.status == :ok
     end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Helpers
+  # ---------------------------------------------------------------------------
+
+  defp await_fetch!(view) do
+    %{socket: %{assigns: assigns}} = :sys.get_state(view.pid)
+
+    if in_flight = assigns.in_flight do
+      task_pid = in_flight.task.pid
+      ref = Process.monitor(task_pid)
+      assert_receive {:DOWN, ^ref, :process, ^task_pid, _reason}, 3_000
+      _ = :sys.get_state(view.pid)
+    end
+
+    :ok
   end
 end

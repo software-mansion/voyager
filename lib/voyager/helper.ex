@@ -4,16 +4,28 @@ defmodule Voyager.Helper do
   alias Jason.Encoder
 
   defimpl Encoder, for: PID do
-    @doc """
-    JSON encodes a `PID`.
-
-    Uses `inspect/1` to turn the `pid` into a String and passes the `options` to `Encoder.BitString.encode/1`.
-    """
-    @spec encode(pid :: pid(), options :: Jason.Encode.opts()) :: iodata()
-    def encode(pid, options) do
+    @spec encode(pid(), Jason.Encode.opts()) :: iodata()
+    def encode(pid, opts) do
       pid
-      |> inspect()
-      |> Encoder.BitString.encode(options)
+      |> :erlang.pid_to_list()
+      |> List.to_string()
+      |> Encoder.BitString.encode(opts)
+    end
+  end
+
+  defimpl Encoder, for: Tuple do
+    @spec encode(tuple(), Jason.Encode.opts()) :: iodata()
+    def encode(tuple, opts) do
+      Jason.Encode.list(Tuple.to_list(tuple), opts)
+    end
+  end
+
+  defimpl Encoder, for: Reference do
+    @spec encode(reference :: reference, options :: Jason.Encode.opts()) :: iodata()
+    def encode(reference, opts) do
+      reference
+      |> inspect
+      |> Encoder.BitString.encode(opts)
     end
   end
 end
