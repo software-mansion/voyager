@@ -1,4 +1,5 @@
 defmodule Voyager.Test.FixtureApp.Worker do
+  @moduledoc false
   use GenServer
 
   def start_link(n) do

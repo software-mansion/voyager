@@ -4,14 +4,11 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   alias Voyager.Inspector.Fetch
   alias Voyager.Inspector.Remote
   alias Voyager.Node
+  alias VoyagerWeb.SupervisionTreeLive.Diff
 
   @refresh_interval 5_000
   @max_selected_apps 20
   @default_depth 3
-
-  # ---------------------------------------------------------------------------
-  # Mount
-  # ---------------------------------------------------------------------------
 
   @impl true
   def mount(%{"node" => node_str}, _session, socket) do
@@ -35,7 +32,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         |> assign(:selected_apps, MapSet.new())
         |> assign(:depth, @default_depth)
         |> assign(:expanded_pids, MapSet.new())
-        |> assign(:tree, nil)
+        |> assign(:last_tree_flat, nil)
         |> assign(:in_flight, nil)
         |> assign(:errors, [])
         |> assign(:status, :idle)
@@ -71,13 +68,8 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     end
   end
 
-  # ---------------------------------------------------------------------------
-  # Events
-  # ---------------------------------------------------------------------------
-
   @impl true
   def handle_event("select-apps", params, socket) do
-    # Form uses `as: :tree_controls` so params are nested under "tree_controls"
     inner = Map.get(params, "tree_controls", params)
 
     app_strings = Map.get(inner, "apps", [])
@@ -119,10 +111,15 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         _ -> socket.assigns.depth
       end
 
+    new_apps = MapSet.new(apps)
+    scope_changed? = new_apps != socket.assigns.selected_apps or depth != socket.assigns.depth
+
     socket =
       socket
-      |> assign(:selected_apps, MapSet.new(apps))
+      |> assign(:selected_apps, new_apps)
       |> assign(:depth, depth)
+
+    socket = if scope_changed?, do: reset_tree(socket), else: socket
 
     {:noreply, request_fetch(socket)}
   end
@@ -134,17 +131,18 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         _ -> socket.assigns.depth
       end
 
+    scope_changed? = depth != socket.assigns.depth
+
     socket = assign(socket, :depth, depth)
+    socket = if scope_changed?, do: reset_tree(socket), else: socket
+
     {:noreply, request_fetch(socket)}
   end
 
   def handle_event("toggle-expand", %{"pid" => pid_str}, socket) do
     pid =
       try do
-        # pid_str is stored without angle brackets (e.g. "0.123.0"),
-        # but :erlang.list_to_pid/1 requires the "<X.Y.Z>" format.
-        full_str = "<#{pid_str}>"
-        full_str |> String.to_charlist() |> :erlang.list_to_pid()
+        pid_str |> String.to_charlist() |> :erlang.list_to_pid()
       rescue
         _ -> nil
       catch
@@ -163,7 +161,9 @@ defmodule VoyagerWeb.SupervisionTreeLive do
           {MapSet.put(expanded, pid), true}
         end
 
-      socket = assign(socket, :expanded_pids, expanded)
+      socket =
+        socket
+        |> assign(:expanded_pids, expanded)
 
       socket =
         if newly_expanded? do
@@ -179,10 +179,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   def handle_event("refresh-now", _params, socket) do
     {:noreply, request_fetch(socket)}
   end
-
-  # ---------------------------------------------------------------------------
-  # Info
-  # ---------------------------------------------------------------------------
 
   @impl true
   def handle_info(:refresh, socket) do
@@ -205,18 +201,27 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     if not is_nil(in_flight) and in_flight.ref == ref do
       Process.demonitor(ref, [:flush])
 
+      new_flat = Diff.flatten(tree)
+      prev_flat = socket.assigns.last_tree_flat
+
+      payload =
+        case prev_flat do
+          nil ->
+            %{kind: "full", nodes: new_flat, status: status, errors: errors}
+
+          prev ->
+            d = Diff.diff(prev, new_flat)
+            Map.merge(d, %{kind: "delta", status: status, errors: errors})
+        end
+
       socket =
         socket
-        |> assign(:tree, tree)
         |> assign(:errors, errors)
         |> assign(:status, status)
         |> assign(:last_refreshed_at, DateTime.utc_now())
         |> assign(:in_flight, nil)
-        |> push_event("tree-data", %{
-          tree: serialize_tree(tree),
-          status: status,
-          errors: serialize_errors(errors)
-        })
+        |> assign(:last_tree_flat, new_flat)
+        |> push_event("tree-data", payload)
 
       {:noreply, socket}
     else
@@ -233,6 +238,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         |> assign(:in_flight, nil)
         |> assign(:status, :error)
         |> assign(:errors, socket.assigns.errors ++ [{:fetch, reason}])
+        |> reset_tree()
 
       {:noreply, socket}
     else
@@ -243,10 +249,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   def handle_info(_msg, socket) do
     {:noreply, socket}
   end
-
-  # ---------------------------------------------------------------------------
-  # Terminate
-  # ---------------------------------------------------------------------------
 
   @impl true
   def terminate(_reason, socket) do
@@ -261,15 +263,8 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     :ok
   end
 
-  # ---------------------------------------------------------------------------
-  # Render
-  # ---------------------------------------------------------------------------
-
   @impl true
   def render(assigns) do
-    assigns =
-      assign(assigns, :view_tree, build_view_tree(assigns.tree, assigns.expanded_pids))
-
     ~H"""
     <div class="flex h-full flex-col gap-4 p-4">
       <%!-- Header --%>
@@ -383,18 +378,20 @@ defmodule VoyagerWeb.SupervisionTreeLive do
                 </p>
               </div>
             </div>
-          <% @status == :loading and is_nil(@tree) -> %>
-            <div class="text-base-content/50 flex h-64 items-center justify-center gap-3">
-              <.icon name="icon-rotate-cw" class="size-6 animate-spin" />
-              <span>Loading supervision tree…</span>
+          <% @status == :idle -> %>
+            <div class="border-base-300 flex h-64 flex-col items-center justify-center gap-3 rounded-lg border border-dashed text-center">
+              <.icon name="icon-network" class="size-10 text-base-content/30" />
+              <div>
+                <p class="text-base-content/60 font-medium">Waiting…</p>
+              </div>
             </div>
           <% true -> %>
-            <div id="supervision-tree-body" class="bg-base-100 rounded-lg shadow-sm">
-              <ul class="space-y-1 p-4">
-                <%= for {_app, view_node} <- @view_tree do %>
-                  <.tree_node node={view_node} />
-                <% end %>
-              </ul>
+            <div
+              id="supervision-tree-body"
+              phx-hook="SupervisionTree"
+              phx-update="ignore"
+              class="bg-base-100 min-h-64 rounded-lg p-4 shadow-sm"
+            >
             </div>
         <% end %>
       </div>
@@ -402,74 +399,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     """
   end
 
-  # ---------------------------------------------------------------------------
-  # Tree node component
-  # ---------------------------------------------------------------------------
-
-  attr :node, :map, required: true
-
-  defp tree_node(assigns) do
-    ~H"""
-    <li id={@node.dom_id} class="list-none">
-      <div class={[
-        "flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors",
-        @node.dead? && "opacity-50",
-        not @node.dead? && "hover:bg-base-200"
-      ]}>
-        <%!-- Expand toggle --%>
-        <div class="flex w-5 shrink-0 items-center justify-center">
-          <%= if @node.has_children? do %>
-            <button
-              class="btn btn-ghost btn-xs h-5 min-h-0 w-5 p-0"
-              phx-click="toggle-expand"
-              phx-value-pid={@node.pid_str}
-            >
-              <%= if @node.expanded? do %>
-                <.icon name="icon-chevron-down" class="size-3.5" />
-              <% else %>
-                <.icon name="icon-chevron-right" class="size-3.5" />
-              <% end %>
-            </button>
-          <% else %>
-            <span class="w-3.5"></span>
-          <% end %>
-        </div>
-
-        <%!-- Badge + name + info --%>
-        <span class={["badge badge-xs shrink-0", @node.kind_badge]}>
-          {badge_label(@node.type)}
-        </span>
-        <span class={[
-          "font-mono flex-1 truncate text-sm",
-          @node.dead? && "text-base-content/40 line-through"
-        ]}>
-          {@node.name}
-        </span>
-        <span class="text-base-content/40 shrink-0 text-xs">{@node.info_line}</span>
-      </div>
-
-      <%!-- Children --%>
-      <%= if @node.expanded? and @node.children != [] do %>
-        <ul class="border-base-300 mt-0.5 ml-5 space-y-0.5 border-l pl-2">
-          <%= for child <- @node.children do %>
-            <.tree_node node={child} />
-          <% end %>
-        </ul>
-      <% end %>
-
-      <%!-- Stub indicator --%>
-      <%= if @node.stub? and not @node.expanded? and @node.has_children? do %>
-        <div class="text-base-content/30 ml-12 text-xs italic">
-          — click to expand
-        </div>
-      <% end %>
-    </li>
-    """
-  end
-
-  # ---------------------------------------------------------------------------
-  # Private helpers
-  # ---------------------------------------------------------------------------
+  defp reset_tree(socket), do: assign(socket, :last_tree_flat, nil)
 
   defp request_fetch(socket) do
     if socket.assigns.in_flight do
@@ -481,8 +411,8 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     if selected == [] do
       socket
       |> assign(:status, :idle)
-      |> assign(:tree, nil)
       |> assign(:in_flight, nil)
+      |> reset_tree()
     else
       request = %{
         node: socket.assigns.node.name,
@@ -499,66 +429,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     end
   end
 
-  defp build_view_tree(nil, _expanded_pids), do: []
-
-  defp build_view_tree(tree, expanded_pids) do
-    Enum.map(tree, fn {app, node} ->
-      {app, to_view_node(node, expanded_pids)}
-    end)
-  end
-
-  defp to_view_node(node, expanded_pids) do
-    pid_str = pid_string(node.pid)
-    expanded? = not is_nil(node.pid) and MapSet.member?(expanded_pids, node.pid)
-    name_str = node_name_to_string(node.name)
-
-    dom_id =
-      if node.pid do
-        "tree-node-#{pid_dom_id(node.pid)}"
-      else
-        "tree-node-name-#{name_str}"
-      end
-
-    children =
-      case node.children do
-        :not_loaded -> []
-        list when is_list(list) -> Enum.map(list, &to_view_node(&1, expanded_pids))
-      end
-
-    %{
-      dom_id: dom_id,
-      name: name_str,
-      pid_str: pid_str,
-      type: node.type,
-      info_line: build_info_line(node.info),
-      kind_badge: kind_badge_class(node.type, node.info),
-      dead?: node.info == :dead,
-      expanded?: expanded?,
-      stub?: node.children == :not_loaded,
-      has_children?: node.has_children?,
-      children: children
-    }
-  end
-
-  defp build_info_line(nil), do: ""
-  defp build_info_line(:dead), do: "dead"
-
-  defp build_info_line(info) when is_map(info) do
-    mem = format_memory(Map.get(info, :memory))
-    mq = Map.get(info, :message_queue_len, 0)
-    "#{mem} | mq: #{mq}"
-  end
-
-  defp kind_badge_class(:app, _), do: "badge-primary"
-  defp kind_badge_class(:supervisor, :dead), do: "badge-error"
-  defp kind_badge_class(:supervisor, _), do: "badge-secondary"
-  defp kind_badge_class(:worker, :dead), do: "badge-error"
-  defp kind_badge_class(:worker, _), do: "badge-ghost"
-
-  defp badge_label(:app), do: "app"
-  defp badge_label(:supervisor), do: "sup"
-  defp badge_label(:worker), do: "wkr"
-
   defp status_badge_class(:idle), do: "badge-ghost"
   defp status_badge_class(:loading), do: "badge-info"
   defp status_badge_class(:ok), do: "badge-success"
@@ -571,44 +441,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   defp status_label(:partial), do: "partial"
   defp status_label(:error), do: "error"
 
-  defp node_name_to_string(name) when is_atom(name), do: to_string(name)
-  defp node_name_to_string(name) when is_binary(name), do: name
-  defp node_name_to_string(name), do: inspect(name)
-
-  defp pid_string(nil), do: "nil"
-
-  defp pid_string(pid) when is_pid(pid) do
-    # Strip angle brackets so the string is safe for use in HTML attrs.
-    # :erlang.pid_to_list produces e.g. "<0.123.0>"; we return "0.123.0".
-    pid
-    |> :erlang.pid_to_list()
-    |> List.to_string()
-    |> String.trim_leading("<")
-    |> String.trim_trailing(">")
-  end
-
-  # DOM-safe version: replace dots with dashes so CSS id selectors work.
-  # "0.123.0" -> "0-123-0"
-  defp pid_dom_id(nil), do: "nil"
-  defp pid_dom_id(pid) when is_pid(pid), do: pid |> pid_string() |> String.replace(".", "-")
-
-  defp format_memory(nil), do: "—"
-  defp format_memory(0), do: "0 B"
-
-  defp format_memory(bytes) when bytes < 1024 do
-    "#{bytes} B"
-  end
-
-  defp format_memory(bytes) when bytes < 1_048_576 do
-    kb = Float.round(bytes / 1024, 1)
-    "#{kb} KB"
-  end
-
-  defp format_memory(bytes) do
-    mb = Float.round(bytes / 1_048_576, 1)
-    "#{mb} MB"
-  end
-
   defp relative_time(nil), do: "—"
 
   defp relative_time(%DateTime{} = dt) do
@@ -620,34 +452,4 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       true -> "#{div(diff, 3600)}h ago"
     end
   end
-
-  defp serialize_tree(nil), do: nil
-
-  defp serialize_tree(tree) do
-    Map.new(tree, fn {app, node} ->
-      {to_string(app), serialize_node(node)}
-    end)
-  end
-
-  defp serialize_node(node) do
-    %{
-      pid: pid_string(node.pid),
-      name: node_name_to_string(node.name),
-      type: node.type,
-      has_children: node.has_children?,
-      info: serialize_info(node.info),
-      children: serialize_children(node.children)
-    }
-  end
-
-  defp serialize_children(:not_loaded), do: nil
-
-  defp serialize_children(children) when is_list(children),
-    do: Enum.map(children, &serialize_node/1)
-
-  defp serialize_info(nil), do: nil
-  defp serialize_info(:dead), do: "dead"
-  defp serialize_info(info) when is_map(info), do: Map.new(info, fn {k, v} -> {k, inspect(v)} end)
-
-  defp serialize_errors(errors), do: Enum.map(errors, &inspect/1)
 end

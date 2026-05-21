@@ -1,4 +1,5 @@
 defmodule Voyager.Test.FixtureApp.MidSupervisor do
+  @moduledoc false
   use Supervisor
 
   def start_link({name, worker_ids}) do

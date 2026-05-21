@@ -39,9 +39,8 @@ defmodule Voyager.Inspector.Remote do
   """
   @spec root_supervisor(node(), atom()) :: {:ok, pid()} | {:error, :not_running | term()}
   def root_supervisor(node, app) do
-    with {:ok, master_pid} <- get_master(node, app),
-         {:ok, child_pid} <- get_child(node, master_pid) do
-      {:ok, child_pid}
+    with {:ok, master_pid} <- get_master(node, app) do
+      get_child(node, master_pid)
     end
   end
 
