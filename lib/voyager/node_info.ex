@@ -42,8 +42,8 @@ defmodule Voyager.NodeInfo do
     Processors,
     RunQueues,
     Schedulers,
-    Statistics,
     Snapshot,
+    Statistics,
     SystemInfo
   }
 
