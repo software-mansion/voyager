@@ -12,8 +12,6 @@ defmodule Voyager.Telemetry.Export do
 
   require Logger
 
-  @telemetry_push_url Application.compile_env(:voyager, :telemetry_push_url)
-
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
@@ -38,7 +36,7 @@ defmodule Voyager.Telemetry.Export do
   @doc false
   @spec push(map()) :: :ok | {:error, String.t()}
   def push(payload) do
-    case @telemetry_push_url do
+    case Application.get_env(:voyager, :telemetry_push_url) do
       url when is_binary(url) and url != "" ->
         case Req.post(url, json: payload) do
           {:ok, %Req.Response{status: status}} when status in 200..299 ->
