@@ -59,6 +59,25 @@ defmodule Voyager.Inspector.Remote do
   end
 
   @doc """
+  Returns the spec-children count for `sup_pid` on `node` via
+  `:supervisor.count_children/1`.
+
+  Cheaper than `which_children/2` when only the count is needed — used for
+  collapsed/stub supervisors so the UI can show a `(N)` badge.
+  """
+  @spec count_children(node(), pid()) ::
+          {:ok, non_neg_integer()} | {:error, term()}
+  def count_children(node, sup_pid) do
+    case call(node, :supervisor, :count_children, [sup_pid], @timeout_fast) do
+      {:ok, counts} when is_list(counts) ->
+        {:ok, Keyword.get(counts, :specs, 0)}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  @doc """
   Fetches `:process_info` for a batch of PIDs on `node`.
 
   Splits `pids` into chunks of `@pinfo_chunk_size` and issues one

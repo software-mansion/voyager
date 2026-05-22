@@ -6,6 +6,9 @@
   "dependencies": {
     "@fontsource-variable/dm-sans": "^5.2.8",
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
+    "cytoscape": "^3.33.4",
+    "cytoscape-dagre": "^2.5.0",
+    "dagre": "^0.8.5",
     "daisyui": "^5.0.0"
   },
   "devDependencies": {

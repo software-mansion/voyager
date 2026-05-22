@@ -23,16 +23,21 @@ defmodule Voyager.Inspector.WalkerTest do
       app_node = tree[:voyager_fixture]
       assert app_node.type == :app
       assert app_node.has_children?
+      assert app_node.child_count == 1
       assert [root_node] = app_node.children
 
       assert root_node.type == :supervisor
       assert is_list(root_node.children)
       assert length(root_node.children) == 2
+      assert root_node.child_count == 2
 
       for mid_node <- root_node.children do
         assert mid_node.type == :supervisor
         assert mid_node.has_children?
         assert mid_node.children == :not_loaded
+        # stubbed via depth — count was fetched via count_children
+        assert is_integer(mid_node.child_count)
+        assert mid_node.child_count > 0
       end
     end
   end
@@ -55,6 +60,7 @@ defmodule Voyager.Inspector.WalkerTest do
           assert worker_node.type == :worker
           refute worker_node.has_children?
           assert worker_node.children == :not_loaded
+          assert worker_node.child_count == 0
         end
       end
     end

@@ -180,6 +180,11 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     {:noreply, request_fetch(socket)}
   end
 
+  def handle_event("select-node", %{"key" => key}, socket) do
+    path = walk_to_root(socket.assigns.last_tree_flat, key)
+    {:noreply, push_event(socket, "path-highlight", %{path: path})}
+  end
+
   @impl true
   def handle_info(:refresh, socket) do
     timer = Process.send_after(self(), :refresh, @refresh_interval)
@@ -390,8 +395,10 @@ defmodule VoyagerWeb.SupervisionTreeLive do
               id="supervision-tree-body"
               phx-hook="SupervisionTree"
               phx-update="ignore"
-              class="bg-base-100 min-h-64 rounded-lg p-4 shadow-sm"
+              class="bg-base-100 relative h-full overflow-hidden rounded-lg shadow-sm"
             >
+              <div data-cy-container class="absolute inset-0 h-full"></div>
+              <div data-cy-overlays class="pointer-events-none absolute inset-0"></div>
             </div>
         <% end %>
       </div>
@@ -400,6 +407,22 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   end
 
   defp reset_tree(socket), do: assign(socket, :last_tree_flat, nil)
+
+  defp walk_to_root(_flat, ""), do: []
+  defp walk_to_root(nil, _key), do: []
+
+  defp walk_to_root(flat, key) when is_map(flat) do
+    walk_to_root(flat, key, [])
+  end
+
+  defp walk_to_root(_flat, nil, acc), do: Enum.reverse(acc)
+
+  defp walk_to_root(flat, key, acc) do
+    case Map.fetch(flat, key) do
+      :error -> Enum.reverse(acc)
+      {:ok, node} -> walk_to_root(flat, node.parent_key, [key | acc])
+    end
+  end
 
   defp request_fetch(socket) do
     if socket.assigns.in_flight do
