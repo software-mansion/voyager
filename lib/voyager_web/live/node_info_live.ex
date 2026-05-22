@@ -23,6 +23,8 @@ defmodule VoyagerWeb.NodeInfoLive do
   end
 
   defp fetch_otp_release(node) do
+    # This call should not be here, it's temporary just for showing that Node is connected properly
+    # We will move communication with a node to Node session probably in the future
     :erpc.call(node, :erlang, :system_info, [:otp_release])
   catch
     :error, _ -> nil
