@@ -131,7 +131,7 @@ defmodule VoyagerWeb.ConnectComponents do
               aria-label="--name"
               checked={@current_name_type == "longnames"}
               disabled={@disabled}
-              class="join-item btn btn-soft btn-xs font-mono text-[10px] text-base-content/60 checked:text-primary-content"
+              class="join-item btn btn-soft btn-xs font-mono text-[10px] text-base-content/60 checked:text-primary-content disabled:text-base-content/60"
             />
             <input
               type="radio"
@@ -140,7 +140,7 @@ defmodule VoyagerWeb.ConnectComponents do
               aria-label="--sname"
               checked={@current_name_type == "shortnames"}
               disabled={@disabled}
-              class="join-item btn btn-soft btn-xs font-mono text-[10px] text-base-content/60 checked:text-primary-content"
+              class="join-item btn btn-soft btn-xs font-mono text-[10px] text-base-content/60 checked:text-primary-content disabled:text-base-content/60"
             />
           </div>
         </div>
