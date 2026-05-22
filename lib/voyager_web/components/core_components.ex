@@ -128,8 +128,7 @@ defmodule VoyagerWeb.CoreComponents do
       "from-primary to-secondary shadow-logo-glow relative h-7 w-7 shrink-0 rounded-md bg-gradient-to-br",
       @class
     ]}>
-      <div class="bg-base-100 shadow-logo-inset absolute inset-1 rounded-sm">
-      </div>
+      <div class="bg-base-100 shadow-logo-inset absolute inset-1 rounded-sm"></div>
     </div>
     """
   end
