@@ -104,7 +104,7 @@ defmodule VoyagerWeb.ConnectComponents do
       assign(
         assigns,
         :current_name_type,
-        to_string(assigns.form[:name_type].value || "shortnames")
+        to_string(assigns.form[:name_type].value || "longnames")
       )
 
     ~H"""

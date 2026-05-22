@@ -101,7 +101,7 @@ defmodule VoyagerWeb.ConnectLive do
             {:noreply, reset_connections(socket)}
 
           conn ->
-            current_name_type = socket.assigns.form[:name_type].value || :shortnames
+            current_name_type = socket.assigns.form[:name_type].value || :longnames
 
             changeset =
               ConnectionParams.changeset(%{

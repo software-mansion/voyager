@@ -60,7 +60,7 @@ defmodule Voyager.NodeSession do
   end
 
   def handle_call({:connect, node_name, cookie, opts}, _from, %{session: nil} = state) do
-    name_type = Keyword.get(opts, :name_type, :shortnames)
+    name_type = Keyword.get(opts, :name_type, :longnames)
 
     case NodeConnector.connect(node_name, cookie, name_type: name_type) do
       {:ok, node} ->

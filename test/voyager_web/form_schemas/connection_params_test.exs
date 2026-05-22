@@ -58,20 +58,20 @@ defmodule VoyagerWeb.FormSchemas.ConnectionParamsTest do
     assert Enum.any?(errors_on(cs).cookie, &String.contains?(&1, "should be at most 255"))
   end
 
-  test "defaults name_type to :shortnames" do
+  test "defaults name_type to :longnames" do
     cs = ConnectionParams.changeset(%{"node_name" => "a@h", "cookie" => "c"})
-    assert Ecto.Changeset.get_field(cs, :name_type) == :shortnames
+    assert Ecto.Changeset.get_field(cs, :name_type) == :longnames
   end
 
-  test "accepts :longnames name_type" do
+  test "accepts :shortnames name_type" do
     cs =
       ConnectionParams.changeset(%{
         "node_name" => "a@h",
         "cookie" => "c",
-        "name_type" => "longnames"
+        "name_type" => "shortnames"
       })
 
     assert cs.valid?
-    assert Ecto.Changeset.get_field(cs, :name_type) == :longnames
+    assert Ecto.Changeset.get_field(cs, :name_type) == :shortnames
   end
 end

@@ -7,7 +7,7 @@ defmodule Voyager.Services.NodeConnector do
 
   @spec connect(String.t(), String.t(), keyword()) :: {:ok, atom()} | {:error, term()}
   def connect(node_name, cookie, opts \\ []) do
-    name_type = Keyword.get(opts, :name_type, :shortnames)
+    name_type = Keyword.get(opts, :name_type, :longnames)
 
     with :ok <- ensure_distributed(name_type) do
       node = String.to_atom(node_name)
