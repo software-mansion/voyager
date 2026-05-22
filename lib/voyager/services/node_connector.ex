@@ -25,7 +25,7 @@ defmodule Voyager.Services.NodeConnector do
     :ok
   end
 
-  defp ensure_distributed(name_type) do
+  defp ensure_distributed(name_type) when name_type in [:longnames, :shortnames] do
     cond do
       not Node.alive?() ->
         start_distribution(name_type)
@@ -39,6 +39,10 @@ defmodule Voyager.Services.NodeConnector do
           {:error, reason} -> {:error, {:net_kernel_stop, reason}}
         end
     end
+  end
+
+  defp ensure_distributed(_name_type) do
+    {:error, :invalid_name_type}
   end
 
   defp matches_name_type?(:longnames), do: :net_kernel.longnames() == true
