@@ -87,3 +87,45 @@
 @custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
 @custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
 @custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
+
+[data-cy-container] {
+  background-color: var(--color-base-100);
+  background-image: radial-gradient(
+    circle,
+    color-mix(in oklab, var(--color-base-content) 12%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 18px 18px;
+}
+
+.cy-toggle {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid
+    color-mix(in oklab, var(--color-base-content) 20%, transparent);
+  background: var(--color-base-100);
+  color: color-mix(in oklab, var(--color-base-content) 60%, transparent);
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    color 120ms ease-out,
+    border-color 120ms ease-out,
+    background-color 120ms ease-out,
+    transform 120ms ease-out;
+}
+
+.cy-toggle:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  transform: scale(1.1);
+}
+
+.cy-toggle svg {
+  width: 10px;
+  height: 10px;
+}

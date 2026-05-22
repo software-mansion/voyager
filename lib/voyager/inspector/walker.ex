@@ -21,8 +21,13 @@ defmodule Voyager.Inspector.Walker do
         modules: [module()] | :dynamic,
         info: map() | :dead | nil,
         has_children?: boolean(),
+        child_count: non_neg_integer(),
         children: [tree_node()] | :not_loaded
       }
+
+  `child_count` is the *direct* child count on the remote, sourced from
+  `:supervisor.count_children/1` for stub supervisors and `length(children)`
+  for fully-walked ones.  Workers and ghost nodes always carry `0`.
 
   ## Error shape
 
@@ -48,6 +53,7 @@ defmodule Voyager.Inspector.Walker do
           modules: [module()] | :dynamic,
           info: map() | :dead | nil,
           has_children?: boolean(),
+          child_count: non_neg_integer(),
           children: [tree_node()] | :not_loaded
         }
 
@@ -85,6 +91,7 @@ defmodule Voyager.Inspector.Walker do
               type: :app,
               modules: [],
               has_children?: true,
+              child_count: 1,
               children: [root_node]
             }
 
@@ -123,6 +130,7 @@ defmodule Voyager.Inspector.Walker do
       type: :worker,
       modules: modules,
       has_children?: false,
+      child_count: 0,
       children: :not_loaded
     }
 
@@ -134,9 +142,30 @@ defmodule Voyager.Inspector.Walker do
     if depth_remaining > 0 or MapSet.member?(expanded, pid) do
       fetch_and_recurse(node, pid, name, modules, depth_remaining, expanded, deadline)
     else
-      stub = stub_node(pid, name, :supervisor, modules)
-      {stub, []}
+      stub_supervisor(node, pid, name, modules)
     end
+  end
+
+  # Build a stub supervisor node, fetching the direct child count so the UI
+  # can show the `(N)` badge without fully walking the subtree.
+  defp stub_supervisor(node, pid, name, modules) do
+    {count, errs} =
+      case Remote.count_children(node, pid) do
+        {:ok, n} -> {n, []}
+        {:error, reason} -> {0, [{:count_children, pid, reason}]}
+      end
+
+    stub = %{
+      pid: pid,
+      name: name,
+      type: :supervisor,
+      modules: modules,
+      has_children?: count > 0,
+      child_count: count,
+      children: :not_loaded
+    }
+
+    {stub, errs}
   end
 
   defp fetch_and_recurse(node, pid, name, modules, depth_remaining, expanded, deadline) do
@@ -150,6 +179,7 @@ defmodule Voyager.Inspector.Walker do
           type: :supervisor,
           modules: modules,
           has_children?: true,
+          child_count: 0,
           children: :not_loaded
         }
 
@@ -195,13 +225,16 @@ defmodule Voyager.Inspector.Walker do
               {[ghost | nodes_acc], [error | errs_acc]}
           end)
 
+        ordered_children = Enum.reverse(children)
+
         sup_node = %{
           pid: pid,
           name: name,
           type: :supervisor,
           modules: modules,
-          has_children?: children != [],
-          children: Enum.reverse(children)
+          has_children?: ordered_children != [],
+          child_count: length(ordered_children),
+          children: ordered_children
         }
 
         {sup_node, child_errors}
@@ -225,6 +258,7 @@ defmodule Voyager.Inspector.Walker do
       type: :worker,
       modules: child_modules,
       has_children?: false,
+      child_count: 0,
       children: :not_loaded
     }
 
@@ -247,6 +281,7 @@ defmodule Voyager.Inspector.Walker do
       type: :worker,
       modules: child_modules,
       has_children?: false,
+      child_count: 0,
       children: :not_loaded
     }
 
@@ -286,6 +321,7 @@ defmodule Voyager.Inspector.Walker do
       type: type,
       modules: modules,
       has_children?: type == :supervisor,
+      child_count: 0,
       children: :not_loaded
     }
   end
@@ -297,6 +333,7 @@ defmodule Voyager.Inspector.Walker do
       type: :worker,
       modules: child_modules,
       has_children?: false,
+      child_count: 0,
       children: :not_loaded
     }
   end

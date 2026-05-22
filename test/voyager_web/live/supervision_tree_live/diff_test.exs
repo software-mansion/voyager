@@ -3,7 +3,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DiffTest do
 
   alias VoyagerWeb.SupervisionTreeLive.Diff
 
-  defp tree(root_pid, worker_pid) do
+  defp tree(root_pid, worker_pid, opts \\ []) do
+    worker_info = Keyword.get(opts, :worker_info, %{memory: 1000, message_queue_len: 0})
+
     %{
       voyager_fixture: %{
         pid: root_pid,
@@ -12,6 +14,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DiffTest do
         modules: [],
         info: nil,
         has_children?: true,
+        child_count: 1,
         children: [
           %{
             pid: root_pid,
@@ -20,14 +23,16 @@ defmodule VoyagerWeb.SupervisionTreeLive.DiffTest do
             modules: [],
             info: %{memory: 100, message_queue_len: 0},
             has_children?: true,
+            child_count: 1,
             children: [
               %{
                 pid: worker_pid,
                 name: :worker_one,
                 type: :worker,
                 modules: [],
-                info: %{memory: 1000, message_queue_len: 0},
+                info: worker_info,
                 has_children?: false,
+                child_count: 0,
                 children: :not_loaded
               }
             ]
@@ -64,6 +69,12 @@ defmodule VoyagerWeb.SupervisionTreeLive.DiffTest do
       leaf = flat[worker_key]
       assert leaf.parent_key == root_key
       assert leaf.children_keys == :not_loaded
+      assert leaf.child_count == 0
+      assert leaf.info == %{memory: 1000, message_queue_len: 0}
+
+      assert app.child_count == 1
+      assert sup.child_count == 1
+      assert sup.info == %{memory: 100, message_queue_len: 0}
     end
 
     test "produces stable keys for ghost children (pid: nil)" do
@@ -75,6 +86,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DiffTest do
           modules: [],
           info: nil,
           has_children?: true,
+          child_count: 1,
           children: [
             %{
               pid: nil,
@@ -83,6 +95,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DiffTest do
               modules: [],
               info: nil,
               has_children?: false,
+              child_count: 0,
               children: :not_loaded
             }
           ]
@@ -112,6 +125,26 @@ defmodule VoyagerWeb.SupervisionTreeLive.DiffTest do
       assert %{added: added, removed: [], updated: updated} = Diff.diff(flat, flat)
       assert added == %{}
       assert updated == %{}
+    end
+
+    test "info-only changes produce a patch whose only key is :info" do
+      root = self()
+      worker = spawn(fn -> :ok end)
+
+      prev = Diff.flatten(tree(root, worker))
+
+      curr =
+        Diff.flatten(tree(root, worker, worker_info: %{memory: 2048, message_queue_len: 3}))
+
+      worker_key = worker |> :erlang.pid_to_list() |> List.to_string()
+
+      result = Diff.diff(prev, curr)
+
+      assert result.added == %{}
+      assert result.removed == []
+      assert Map.keys(result.updated) == [worker_key]
+      assert Map.keys(result.updated[worker_key]) == [:info]
+      assert result.updated[worker_key].info == %{memory: 2048, message_queue_len: 3}
     end
 
     test "restarted pid appears as one remove + one add" do

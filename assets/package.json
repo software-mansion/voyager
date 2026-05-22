@@ -4,6 +4,9 @@
     "format:check": "prettier . --check"
   },
   "dependencies": {
+    "cytoscape": "^3.33.4",
+    "cytoscape-dagre": "^2.5.0",
+    "dagre": "^0.8.5",
     "daisyui": "^5.0.0"
   },
   "devDependencies": {

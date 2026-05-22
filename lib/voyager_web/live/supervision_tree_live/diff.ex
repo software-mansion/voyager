@@ -18,6 +18,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.Diff do
           name: term(),
           type: :app | :supervisor | :worker,
           has_children?: boolean(),
+          child_count: non_neg_integer(),
+          info: map() | :dead | nil,
           children_keys: [String.t()] | :not_loaded
         }
 
@@ -31,7 +33,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Diff do
           updated: %{String.t() => patch()}
         }
 
-  @diff_fields [:name, :type, :has_children?, :children_keys]
+  @diff_fields [:name, :type, :has_children?, :child_count, :info, :children_keys]
 
   @spec flatten(map() | nil) :: flat_map()
   def flatten(nil), do: %{}
@@ -53,6 +55,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.Diff do
       name: app,
       type: :app,
       has_children?: app_node.has_children?,
+      child_count: Map.get(app_node, :child_count, 0),
+      info: Map.get(app_node, :info),
       children_keys: child_keys
     }
 
@@ -82,6 +86,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.Diff do
       name: node.name,
       type: node.type,
       has_children?: node.has_children?,
+      child_count: Map.get(node, :child_count, 0),
+      info: Map.get(node, :info),
       children_keys: child_keys
     }
 
