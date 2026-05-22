@@ -56,35 +56,38 @@ defmodule Voyager.Connector.Distribution do
 
   defp diagnose_failure(node_name) do
     case String.split(node_name, "@", parts: 2) do
-      [name, host] ->
-        task =
-          Task.Supervisor.async_nolink(Voyager.TaskSupervisor, fn ->
-            :erl_epmd.names(String.to_charlist(host))
-          end)
+      [name, host] -> diagnose_epmd_failure(name, host)
+      _ -> {:error, :connection_failed}
+    end
+  end
 
-        result = Task.yield(task, 1_000) || Task.shutdown(task)
+  defp diagnose_epmd_failure(name, host) do
+    task =
+      Task.Supervisor.async_nolink(Voyager.TaskSupervisor, fn ->
+        :erl_epmd.names(String.to_charlist(host))
+      end)
 
-        case result do
-          {:ok, {:ok, registered}} ->
-            name_cl = String.to_charlist(name)
+    result = Task.yield(task, 1_000) || Task.shutdown(task)
 
-            case Enum.find(registered, fn {n, _port} -> n == name_cl end) do
-              {_n, port} ->
-                if port_alive?(String.to_charlist(host), port) do
-                  diagnose_registered_failure(host)
-                else
-                  {:error, :node_unreachable}
-                end
+    case result do
+      {:ok, {:ok, registered}} -> diagnose_registered_name(name, host, registered)
+      _ -> {:error, :connection_failed}
+    end
+  end
 
-              nil ->
-                {:error, :connection_failed}
-            end
+  defp diagnose_registered_name(name, host, registered) do
+    name_cl = String.to_charlist(name)
+    host_cl = String.to_charlist(host)
 
-          _ ->
-            {:error, :connection_failed}
+    case Enum.find(registered, fn {n, _port} -> n == name_cl end) do
+      {_n, port} ->
+        if port_alive?(host_cl, port) do
+          diagnose_registered_failure(host)
+        else
+          {:error, :node_unreachable}
         end
 
-      _ ->
+      nil ->
         {:error, :connection_failed}
     end
   end
