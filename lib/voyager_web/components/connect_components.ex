@@ -3,9 +3,7 @@ defmodule VoyagerWeb.ConnectComponents do
   Components for the node connection flow: the connect form and connection history rows.
   """
 
-  use Phoenix.Component
-  use Phoenix.VerifiedRoutes, endpoint: VoyagerWeb.Endpoint, router: VoyagerWeb.Router
-  import VoyagerWeb.CoreComponents
+  use VoyagerWeb, :component
 
   attr :conn, :map, required: true, doc: "The connection record from the database"
   attr :pinned, :boolean, default: false, doc: "Whether this connection is pinned"
