@@ -1,4 +1,4 @@
-defmodule NewNode do
+defmodule RemoteNode do
   @moduledoc """
   Two-phase remote Erlang setup over SSH:
 
