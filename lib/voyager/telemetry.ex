@@ -27,7 +27,7 @@ defmodule Voyager.Telemetry do
 
     children =
       if @telemetry_handler == :export do
-        children ++ [Voyager.Telemetry.Export]
+        children ++ [{Task.Supervisor, name: Voyager.Telemetry.ExportTaskSupervisor}]
       else
         children
       end
