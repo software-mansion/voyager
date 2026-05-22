@@ -1,11 +1,9 @@
-defmodule Voyager.Connector.Distribution do
+defmodule Voyager.Services.NodeConnector do
   @moduledoc "Connects to remote nodes via Erlang distribution."
-
-  @behaviour Voyager.Connector
 
   @voyager_node_name Application.compile_env(:voyager, :voyager_node_name, :voyager@localhost)
 
-  @impl Voyager.Connector
+  @spec connect(String.t(), String.t(), keyword()) :: :ok | {:error, term()}
   def connect(node_name, cookie, opts \\ []) do
     name_type = Keyword.get(opts, :name_type, :shortnames)
 
@@ -21,7 +19,7 @@ defmodule Voyager.Connector.Distribution do
     end
   end
 
-  @impl Voyager.Connector
+  @spec disconnect(atom()) :: :ok
   def disconnect(node) do
     Node.disconnect(node)
     :ok

@@ -5,6 +5,7 @@ defmodule Voyager.NodeSession do
 
   use GenServer
   alias Voyager.RPC.ERPC
+  alias Voyager.Services.NodeConnector
 
   defmodule Session do
     @moduledoc "Holds state for an active connection to a remote BEAM node."
@@ -13,12 +14,11 @@ defmodule Voyager.NodeSession do
             node: atom(),
             node_name: String.t(),
             cookie: String.t(),
-            connector: module(),
             connected_at: DateTime.t(),
             info: map()
           }
 
-    defstruct [:node, :node_name, :cookie, :connector, :connected_at, info: %{}]
+    defstruct [:node, :node_name, :cookie, :connected_at, info: %{}]
   end
 
   @pubsub_topic "node_session"
@@ -107,10 +107,9 @@ defmodule Voyager.NodeSession do
   end
 
   def handle_call({:connect, node_name, cookie, opts}, _from, %{session: nil} = state) do
-    connector = Keyword.get(opts, :connector, Voyager.Connector.Distribution)
     name_type = Keyword.get(opts, :name_type, :shortnames)
 
-    case connector.connect(node_name, cookie, name_type: name_type) do
+    case NodeConnector.connect(node_name, cookie, name_type: name_type) do
       :ok ->
         node = String.to_atom(node_name)
         Node.monitor(node, true)
@@ -119,7 +118,6 @@ defmodule Voyager.NodeSession do
           node: node,
           node_name: node_name,
           cookie: cookie,
-          connector: connector,
           connected_at: DateTime.utc_now(),
           info: %{}
         }
@@ -138,7 +136,7 @@ defmodule Voyager.NodeSession do
 
   def handle_call(:disconnect, _from, %{session: session} = state) do
     Node.monitor(session.node, false)
-    session.connector.disconnect(session.node)
+    NodeConnector.disconnect(session.node)
     broadcast({:node_disconnected, session.node})
     {:reply, :ok, %{state | session: nil}}
   end
