@@ -10,6 +10,7 @@ defmodule VoyagerWeb.FormSchemas.ConnectionParams do
     field :remember_cookie, :boolean, default: false
   end
 
+  @spec changeset(map()) :: Ecto.Changeset.t()
   def changeset(attrs \\ %{}) do
     %__MODULE__{}
     |> cast(attrs, [:node_name, :cookie, :name_type, :remember_cookie])
