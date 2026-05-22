@@ -25,7 +25,6 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
         |> assign(:node, build_node(session))
         |> assign(:session, session)
         |> attach_hook(:nodedown_redirect, :handle_info, &handle_nodedown/2)
-        |> attach_hook(:session_info_update, :handle_info, &handle_info_update/2)
         |> attach_hook(:disconnect, :handle_event, &handle_disconnect/3)
 
       {:cont, socket}
@@ -40,15 +39,6 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
   end
 
   defp handle_nodedown(_event, socket), do: {:cont, socket}
-
-  defp handle_info_update(
-         {:node_info_updated, event_node, _info},
-         %{assigns: %{session: %{node: event_node}}} = socket
-       ) do
-    {:cont, assign(socket, :session, NodeSession.current())}
-  end
-
-  defp handle_info_update(_event, socket), do: {:cont, socket}
 
   defp handle_disconnect("disconnect", _params, socket) do
     Voyager.NodeSession.disconnect()

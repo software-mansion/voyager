@@ -1,114 +1,33 @@
 defmodule VoyagerWeb.NodeInfoLive do
   use VoyagerWeb, :live_view
 
-  alias Voyager.NodeSession
-
-  @refresh_interval 5_000
-
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket), do: schedule_refresh()
-
     {:ok,
      socket
      |> assign(:active_nav, :node_info)
-     |> assign(:stats, load_stats())}
+     |> assign(:otp_release, fetch_otp_release(socket.assigns.session.node))}
   end
 
   @impl true
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-4xl p-8">
-      <.node_header session={@session} />
-
-      <div class="stats stats-vertical bg-base-200 border-base-300 mb-8 w-full border shadow-sm sm:stats-horizontal">
-        <.stat
-          title="Processes"
-          value={format_count(@stats[:process_count])}
-          value_class="text-primary"
-        />
-        <.stat
-          title="Run Queue"
-          value={format_count(@stats[:run_queue])}
-          value_class="text-secondary"
-        />
-        <.stat
-          title="Total Memory"
-          value={format_bytes(memory_value(@stats, :total))}
-          value_class="text-accent"
-        />
-      </div>
-
-      <.info_section title="Memory">
-        <.info_card label="Processes" value={format_bytes(memory_value(@stats, :processes))} />
-        <.info_card label="Binary" value={format_bytes(memory_value(@stats, :binary))} />
-        <.info_card label="ETS" value={format_bytes(memory_value(@stats, :ets))} />
-        <.info_card label="Atom" value={format_bytes(memory_value(@stats, :atom))} />
-      </.info_section>
-    </div>
-    """
-  end
-
-  @impl true
-  def handle_info(:refresh_stats, socket) do
-    schedule_refresh()
-    {:noreply, assign(socket, :stats, load_stats())}
-  end
-
-  defp schedule_refresh, do: Process.send_after(self(), :refresh_stats, @refresh_interval)
-
-  attr :session, :map, required: true
-
-  defp node_header(assigns) do
-    ~H"""
-    <div class="mb-8 flex flex-col gap-2">
-      <h1 class="font-mono text-base-content text-2xl font-bold tracking-tight">
+      <h1 class="font-mono text-base-content mb-8 text-2xl font-bold tracking-tight">
         {@session.node_name}
       </h1>
-      <div class="flex flex-wrap items-center gap-2">
-        <%= if otp = @session.info[:otp_release] do %>
-          <div class="badge badge-ghost font-mono text-xs">OTP {to_string(otp)}</div>
-        <% end %>
-        <div class="badge badge-ghost font-mono text-xs">
-          Connected {format_datetime(@session.connected_at)}
-        </div>
-      </div>
+
+      <.info_card label="OTP" value={format_otp_release(@otp_release)} />
     </div>
     """
   end
 
-  defp load_stats do
-    case NodeSession.fetch_stats() do
-      {:ok, stats} -> stats
-      _ -> %{}
-    end
+  defp fetch_otp_release(node) do
+    :erpc.call(node, :erlang, :system_info, [:otp_release])
+  catch
+    :error, _ -> nil
   end
 
-  defp memory_value(stats, key) do
-    case stats[:memory] do
-      nil -> nil
-      mem -> Keyword.get(mem, key)
-    end
-  end
-
-  defp format_count(nil), do: "—"
-
-  defp format_count(n) do
-    n
-    |> Integer.to_charlist()
-    |> Enum.reverse()
-    |> Enum.chunk_every(3)
-    |> Enum.intersperse(~c",")
-    |> List.flatten()
-    |> Enum.reverse()
-    |> List.to_string()
-  end
-
-  defp format_bytes(nil), do: "—"
-  defp format_bytes(n) when n < 1_024, do: "#{n} B"
-  defp format_bytes(n) when n < 1_048_576, do: "#{Float.round(n / 1_024, 1)} KB"
-  defp format_bytes(n) when n < 1_073_741_824, do: "#{Float.round(n / 1_048_576, 1)} MB"
-  defp format_bytes(n), do: "#{Float.round(n / 1_073_741_824, 2)} GB"
-
-  defp format_datetime(dt), do: Calendar.strftime(dt, "%b %d, %H:%M")
+  defp format_otp_release(nil), do: "—"
+  defp format_otp_release(release), do: to_string(release)
 end

@@ -4,7 +4,6 @@ defmodule Voyager.NodeSession do
   """
 
   use GenServer
-  alias Voyager.RPC.ERPC
   alias Voyager.Services.NodeConnector
 
   defmodule Session do
@@ -14,11 +13,10 @@ defmodule Voyager.NodeSession do
             node: atom(),
             node_name: String.t(),
             cookie: String.t(),
-            connected_at: DateTime.t(),
-            info: map()
+            connected_at: DateTime.t()
           }
 
-    defstruct [:node, :node_name, :cookie, :connected_at, info: %{}]
+    defstruct [:node, :node_name, :cookie, :connected_at]
   end
 
   @pubsub_topic "node_session"
@@ -27,7 +25,7 @@ defmodule Voyager.NodeSession do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
   end
 
-  @doc "Connects to a node. Returns :ok immediately; info is fetched in the background."
+  @doc "Connects to a node."
   @spec connect(String.t(), String.t(), keyword()) :: :ok | {:error, term()}
   def connect(node_name, cookie, opts \\ []) do
     GenServer.call(__MODULE__, {:connect, node_name, cookie, opts}, 15_000)
@@ -46,51 +44,6 @@ defmodule Voyager.NodeSession do
   @spec connected?() :: boolean()
   def connected? do
     GenServer.call(__MODULE__, :connected?)
-  end
-
-  @doc "Runs an RPC call on the remote node."
-  @spec rpc(module(), atom(), list(), timeout()) :: {:ok, term()} | {:error, term()}
-  def rpc(mod, fun, args, timeout \\ 5_000) do
-    case current() do
-      nil -> {:error, :not_connected}
-      %Session{node: node} -> ERPC.call(node, mod, fun, args, timeout)
-    end
-  end
-
-  @doc "Returns the node info map fetched after connect."
-  @spec node_info() :: {:ok, map()} | {:error, :not_connected}
-  def node_info do
-    case current() do
-      nil -> {:error, :not_connected}
-      %Session{info: info} -> {:ok, info}
-    end
-  end
-
-  @doc "Synchronously fetches volatile node statistics: process count, memory, and run queue."
-  @spec fetch_stats() :: {:ok, map()} | {:error, :not_connected}
-  def fetch_stats do
-    case current() do
-      nil ->
-        {:error, :not_connected}
-
-      %Session{node: node} ->
-        stats =
-          [
-            {:process_count, :erlang, :system_info, [:process_count]},
-            {:memory, :erlang, :memory, []},
-            {:run_queue, :erlang, :statistics, [:run_queue]}
-          ]
-          |> Task.async_stream(
-            fn {key, mod, fun, args} -> {key, ERPC.fetch(node, mod, fun, args)} end,
-            timeout: :infinity
-          )
-          |> Enum.reduce(%{}, fn
-            {:ok, {key, val}}, acc -> Map.put(acc, key, val)
-            {:exit, _}, acc -> acc
-          end)
-
-        {:ok, stats}
-    end
   end
 
   def topic, do: @pubsub_topic
@@ -118,12 +71,11 @@ defmodule Voyager.NodeSession do
           node: node,
           node_name: node_name,
           cookie: cookie,
-          connected_at: DateTime.utc_now(),
-          info: %{}
+          connected_at: DateTime.utc_now()
         }
 
         broadcast({:node_connected, node})
-        {:reply, :ok, %{state | session: session}, {:continue, :fetch_node_info}}
+        {:reply, :ok, %{state | session: session}}
 
       {:error, _} = err ->
         {:reply, err, state}
@@ -150,34 +102,6 @@ defmodule Voyager.NodeSession do
   end
 
   @impl GenServer
-  def handle_continue(:fetch_node_info, %{session: %Session{} = session} = state) do
-    server = self()
-    node = session.node
-
-    Task.Supervisor.start_child(Voyager.TaskSupervisor, fn ->
-      updated = fetch_info(session)
-      send(server, {:node_info_fetched, node, updated})
-    end)
-
-    {:noreply, state}
-  end
-
-  def handle_continue(:fetch_node_info, state), do: {:noreply, state}
-
-  @impl GenServer
-  def handle_info(
-        {:node_info_fetched, node, updated_session},
-        %{session: %Session{node: session_node}} = state
-      )
-      when node == session_node do
-    broadcast({:node_info_updated, node, updated_session.info})
-    {:noreply, %{state | session: updated_session}}
-  end
-
-  def handle_info({:node_info_fetched, _node, _session}, state) do
-    {:noreply, state}
-  end
-
   def handle_info({:nodedown, node}, %{session: %Session{node: session_node}} = state)
       when node == session_node do
     Node.monitor(node, false)
@@ -187,29 +111,6 @@ defmodule Voyager.NodeSession do
 
   def handle_info(_msg, state) do
     {:noreply, state}
-  end
-
-  defp fetch_info(%{node: node} = session) do
-    %{session | info: fetch_common_info(node)}
-  end
-
-  defp fetch_common_info(node) do
-    [
-      {:process_count, :erlang, :system_info, [:process_count]},
-      {:memory, :erlang, :memory, []},
-      {:run_queue, :erlang, :statistics, [:run_queue]},
-      {:loaded_apps, :application, :loaded_applications, []},
-      {:node_name, :erlang, :node, []},
-      {:otp_release, :erlang, :system_info, [:otp_release]}
-    ]
-    |> Task.async_stream(
-      fn {key, mod, fun, args} -> {key, ERPC.fetch(node, mod, fun, args)} end,
-      timeout: :infinity
-    )
-    |> Enum.reduce(%{}, fn
-      {:ok, {key, val}}, acc -> Map.put(acc, key, val)
-      {:exit, _reason}, acc -> acc
-    end)
   end
 
   defp broadcast(event) do
