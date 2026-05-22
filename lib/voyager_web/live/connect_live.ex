@@ -1,7 +1,9 @@
 defmodule VoyagerWeb.ConnectLive do
   use VoyagerWeb, :live_view
 
-  alias Voyager.{Connections, NodeSession}
+  alias Voyager.NodeSession
+  alias Voyager.Actions.Connections, as: ConnectionActions
+  alias Voyager.Queries.Connections, as: ConnectionQueries
   alias VoyagerWeb.{ConnectComponents, FormSchemas.ConnectionParams}
 
   @impl true
@@ -93,7 +95,7 @@ defmodule VoyagerWeb.ConnectLive do
   def handle_event("fill_recent", %{"id" => id}, socket) do
     case Integer.parse(id) do
       {int_id, ""} ->
-        case Connections.get(int_id) do
+        case ConnectionQueries.get(int_id) do
           nil ->
             {:noreply, reset_connections(socket)}
 
@@ -126,17 +128,17 @@ defmodule VoyagerWeb.ConnectLive do
   end
 
   def handle_event("pin", %{"id" => id}, socket) do
-    Connections.pin(String.to_integer(id))
+    ConnectionActions.pin(String.to_integer(id))
     {:noreply, reset_connections(socket)}
   end
 
   def handle_event("unpin", %{"id" => id}, socket) do
-    Connections.unpin(String.to_integer(id))
+    ConnectionActions.unpin(String.to_integer(id))
     {:noreply, reset_connections(socket)}
   end
 
   def handle_event("delete_connection", %{"id" => id}, socket) do
-    Connections.delete(String.to_integer(id))
+    ConnectionActions.delete(String.to_integer(id))
     {:noreply, reset_connections(socket)}
   end
 
@@ -160,7 +162,7 @@ defmodule VoyagerWeb.ConnectLive do
     case NodeSession.connect(node_name, cookie, name_type: name_type) do
       :ok ->
         cookie_to_store = if remember_cookie, do: cookie, else: nil
-        Connections.upsert_connected(node_name, cookie: cookie_to_store)
+        ConnectionActions.upsert_connected(node_name, cookie: cookie_to_store)
         {:noreply, push_navigate(socket, to: ~p"/node/#{node_name}")}
 
       {:error, reason} ->
@@ -174,7 +176,7 @@ defmodule VoyagerWeb.ConnectLive do
   end
 
   defp reset_connections(socket) do
-    connections = Connections.list_connections()
+    connections = ConnectionQueries.all()
     {pinned, recent} = Enum.split_with(connections, & &1.pinned)
 
     socket
