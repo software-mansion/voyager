@@ -1,6 +1,8 @@
 defmodule Voyager.Services.NodeConnector do
   @moduledoc "Connects to remote nodes via Erlang distribution."
 
+  require Logger
+
   @voyager_node_name Application.compile_env(:voyager, :voyager_node_name, :voyager@localhost)
 
   @spec connect(String.t(), String.t(), keyword()) :: {:ok, atom()} | {:error, term()}
@@ -50,9 +52,19 @@ defmodule Voyager.Services.NodeConnector do
 
   defp start_distribution(name_type) do
     case :net_kernel.start(@voyager_node_name, %{name_domain: name_type, hidden: true}) do
-      {:ok, _pid} -> :ok
-      {:error, {:already_started, _pid}} -> :ok
-      {:error, reason} -> {:error, {:net_kernel, reason}}
+      {:ok, _pid} ->
+        :ok
+
+      {:error, {:already_started, pid}} ->
+        Logger.warning(
+          "net_kernel.start/2 returned {:already_started, #{inspect(pid)}} " <>
+            "for #{inspect(@voyager_node_name)} name_type=#{inspect(name_type)}"
+        )
+
+        :ok
+
+      {:error, reason} ->
+        {:error, {:net_kernel, reason}}
     end
   end
 
