@@ -8,30 +8,32 @@ defmodule VoyagerWeb.Components.Shell do
 
   use VoyagerWeb, :html
 
+  alias Voyager.NodeSession.Session
+
   attr :active_nav, :atom, default: nil
-  attr :node, Voyager.Node, default: nil
+  attr :session, Session, default: nil
   slot :inner_block, required: true
 
   def shell(assigns) do
     ~H"""
     <div class="bg-base-100 flex h-screen flex-col overflow-hidden">
-      <.topbar active_nav={@active_nav} node={@node} />
+      <.topbar active_nav={@active_nav} session={@session} />
 
       <div class="flex flex-1 overflow-hidden">
-        <.sidebar active_nav={@active_nav} node={@node} />
+        <.sidebar active_nav={@active_nav} session={@session} />
 
         <main class="relative flex-1 overflow-y-auto">
           {render_slot(@inner_block)}
         </main>
       </div>
 
-      <.statusbar node={@node} />
+      <.statusbar session={@session} />
     </div>
     """
   end
 
   attr :active_nav, :atom, default: nil
-  attr :node, :any, default: nil
+  attr :session, Session, default: nil
 
   defp topbar(assigns) do
     ~H"""
@@ -41,7 +43,7 @@ defmodule VoyagerWeb.Components.Shell do
       </div>
       <div class="navbar-end gap-1">
         <.theme_toggle />
-        <%= if @node do %>
+        <%= if @session do %>
           <button
             type="button"
             phx-click="disconnect"
@@ -90,20 +92,20 @@ defmodule VoyagerWeb.Components.Shell do
   end
 
   attr :active_nav, :atom, default: nil
-  attr :node, Voyager.Node, default: nil
+  attr :session, Session, default: nil
 
   defp sidebar(assigns) do
     ~H"""
     <aside class="bg-base-100 border-base-300 flex h-full w-64 flex-none flex-col overflow-y-auto overflow-x-hidden border-r">
       <ul class="menu font-[var(--font-display)] w-full flex-1 gap-0.5 p-4">
         <li class="menu-title text-[10px] uppercase tracking-widest">Inspect</li>
-        <.nav_item active={@active_nav == :node_info} navigate={node_path(@node)}>
+        <.nav_item active={@active_nav == :node_info} navigate={node_path(@session)}>
           <:icon><.icon name="icon-grid" class="size-4" /></:icon>
           Node Info
         </.nav_item>
         <.nav_item
           active={@active_nav == :supervision_tree}
-          navigate={node_path(@node, "supervision-tree")}
+          navigate={node_path(@session, "supervision-tree")}
         >
           <:icon><.icon name="icon-network" class="size-4" /></:icon>
           Supervision Tree
@@ -141,21 +143,21 @@ defmodule VoyagerWeb.Components.Shell do
   end
 
   defp node_path(nil), do: nil
-  defp node_path(%Voyager.Node{name: name}), do: ~p"/node/#{name}"
+  defp node_path(%Session{node_name: node_name}), do: ~p"/node/#{node_name}"
 
   defp node_path(nil, _), do: nil
 
-  defp node_path(%Voyager.Node{name: name}, "supervision-tree"),
-    do: ~p"/node/#{name}/supervision-tree"
+  defp node_path(%Session{node_name: node_name}, "supervision-tree"),
+    do: ~p"/node/#{node_name}/supervision-tree"
 
-  attr :node, :any, default: nil
+  attr :session, Session, default: nil
 
   defp statusbar(assigns) do
     ~H"""
     <footer class="border-base-300 bg-base-100 font-mono text-[10.5px] text-base-content/60 flex flex-none items-center gap-4 border-t px-4 py-1.5 tracking-wide">
       <div class="flex items-center gap-1.5">
-        <span class={["h-1.5 w-1.5 rounded-full", status_dot_class(@node)]}></span>
-        {node_display(@node)}
+        <span class={["h-1.5 w-1.5 rounded-full", status_dot_class(@session)]}></span>
+        {node_display(@session)}
       </div>
       <div class="flex-1"></div>
       <div>v0.1.0</div>
@@ -164,10 +166,8 @@ defmodule VoyagerWeb.Components.Shell do
   end
 
   defp status_dot_class(nil), do: "bg-base-300"
-  defp status_dot_class(%Voyager.Node{status: :connected}), do: "bg-success"
-  defp status_dot_class(%Voyager.Node{status: :error}), do: "bg-error"
-  defp status_dot_class(_), do: "bg-warning"
+  defp status_dot_class(%Session{}), do: "bg-success"
 
   defp node_display(nil), do: "Not connected"
-  defp node_display(%Voyager.Node{name: name}), do: to_string(name)
+  defp node_display(%Session{node_name: node_name}), do: node_name
 end
