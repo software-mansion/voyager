@@ -75,7 +75,7 @@ defmodule VoyagerWeb.ConnectLive do
           <% end %>
 
           <p class="font-mono text-[10.5px] tracking-[0.02em] text-base-content/35 mt-6 text-center">
-            No code changes required · uses Erlang distribution
+            Uses BEAM distribution
           </p>
         </div>
       </div>
