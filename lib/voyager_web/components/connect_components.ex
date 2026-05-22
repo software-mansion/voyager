@@ -98,6 +98,13 @@ defmodule VoyagerWeb.ConnectComponents do
     doc: "Disables all form inputs when a node is already connected"
 
   def connect_form(assigns) do
+    assigns =
+      assign(
+        assigns,
+        :current_name_type,
+        to_string(assigns.form[:name_type].value || "shortnames")
+      )
+
     ~H"""
     <.form
       for={@form}
@@ -115,13 +122,12 @@ defmodule VoyagerWeb.ConnectComponents do
             Node name
           </label>
           <div class="join">
-            <% current_name_type = to_string(@form[:name_type].value || "shortnames") %>
             <input
               type="radio"
               name="conn[name_type]"
               value="shortnames"
               aria-label="--sname"
-              checked={current_name_type == "shortnames"}
+              checked={@current_name_type == "shortnames"}
               disabled={@disabled}
               class="join-item btn btn-outline btn-xs font-mono text-[10px]"
             />
@@ -130,7 +136,7 @@ defmodule VoyagerWeb.ConnectComponents do
               name="conn[name_type]"
               value="longnames"
               aria-label="--name"
-              checked={current_name_type == "longnames"}
+              checked={@current_name_type == "longnames"}
               disabled={@disabled}
               class="join-item btn btn-outline btn-xs font-mono text-[10px]"
             />
