@@ -1,7 +1,7 @@
-defmodule Voyager.Connect.ParamsTest do
+defmodule VoyagerWeb.FormSchemas.ConnectionParamsTest do
   use ExUnit.Case, async: true
 
-  alias Voyager.Connect.Params
+  alias VoyagerWeb.FormSchemas.ConnectionParams
 
   defp errors_on(changeset) do
     Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
@@ -12,12 +12,12 @@ defmodule Voyager.Connect.ParamsTest do
   end
 
   test "accepts a well-formed name@host node name with a cookie" do
-    cs = Params.changeset(%{"node_name" => "my_app@127.0.0.1", "cookie" => "abc"})
+    cs = ConnectionParams.changeset(%{"node_name" => "my_app@127.0.0.1", "cookie" => "abc"})
     assert cs.valid?
   end
 
   test "requires node_name and cookie" do
-    cs = Params.changeset(%{})
+    cs = ConnectionParams.changeset(%{})
     refute cs.valid?
     errors = errors_on(cs)
     assert "can't be blank" in errors.node_name
@@ -25,20 +25,20 @@ defmodule Voyager.Connect.ParamsTest do
   end
 
   test "rejects node_name without @" do
-    cs = Params.changeset(%{"node_name" => "no_at_sign", "cookie" => "c"})
+    cs = ConnectionParams.changeset(%{"node_name" => "no_at_sign", "cookie" => "c"})
     refute cs.valid?
     assert "Use the name@host format" in errors_on(cs).node_name
   end
 
   test "rejects node_name with whitespace" do
-    cs = Params.changeset(%{"node_name" => "bad name@host", "cookie" => "c"})
+    cs = ConnectionParams.changeset(%{"node_name" => "bad name@host", "cookie" => "c"})
     refute cs.valid?
     assert "Use the name@host format" in errors_on(cs).node_name
   end
 
   test "rejects node_name longer than 255 chars" do
     cs =
-      Params.changeset(%{
+      ConnectionParams.changeset(%{
         "node_name" => String.duplicate("a", 251) <> "@host",
         "cookie" => "c"
       })
@@ -49,7 +49,7 @@ defmodule Voyager.Connect.ParamsTest do
 
   test "rejects cookie longer than 255 chars" do
     cs =
-      Params.changeset(%{
+      ConnectionParams.changeset(%{
         "node_name" => "a@h",
         "cookie" => String.duplicate("c", 256)
       })
@@ -59,12 +59,18 @@ defmodule Voyager.Connect.ParamsTest do
   end
 
   test "defaults name_type to :shortnames" do
-    cs = Params.changeset(%{"node_name" => "a@h", "cookie" => "c"})
+    cs = ConnectionParams.changeset(%{"node_name" => "a@h", "cookie" => "c"})
     assert Ecto.Changeset.get_field(cs, :name_type) == :shortnames
   end
 
   test "accepts :longnames name_type" do
-    cs = Params.changeset(%{"node_name" => "a@h", "cookie" => "c", "name_type" => "longnames"})
+    cs =
+      ConnectionParams.changeset(%{
+        "node_name" => "a@h",
+        "cookie" => "c",
+        "name_type" => "longnames"
+      })
+
     assert cs.valid?
     assert Ecto.Changeset.get_field(cs, :name_type) == :longnames
   end

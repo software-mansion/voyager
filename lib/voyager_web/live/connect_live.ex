@@ -1,9 +1,8 @@
 defmodule VoyagerWeb.ConnectLive do
   use VoyagerWeb, :live_view
 
-  alias Voyager.Connect.Params
   alias Voyager.{Connections, NodeSession}
-  alias VoyagerWeb.ConnectComponents
+  alias VoyagerWeb.{ConnectComponents, FormSchemas.ConnectionParams}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -83,7 +82,7 @@ defmodule VoyagerWeb.ConnectLive do
 
   @impl true
   def handle_event("validate", %{"conn" => params}, socket) do
-    changeset = Params.changeset(params)
+    changeset = ConnectionParams.changeset(params)
     {:noreply, assign(socket, :form, to_form(changeset, as: :conn))}
   end
 
@@ -102,7 +101,7 @@ defmodule VoyagerWeb.ConnectLive do
             current_name_type = socket.assigns.form[:name_type].value || :shortnames
 
             changeset =
-              Params.changeset(%{
+              ConnectionParams.changeset(%{
                 "node_name" => conn.node_name,
                 "cookie" => conn.cookie || "",
                 "name_type" => current_name_type
@@ -120,8 +119,8 @@ defmodule VoyagerWeb.ConnectLive do
   end
 
   def handle_event("connect", %{"conn" => params}, socket) do
-    case Params.changeset(params) |> Ecto.Changeset.apply_action(:insert) do
-      {:ok, %Params{} = p} -> do_connect(socket, params, p)
+    case ConnectionParams.changeset(params) |> Ecto.Changeset.apply_action(:insert) do
+      {:ok, %ConnectionParams{} = p} -> do_connect(socket, params, p)
       {:error, changeset} -> {:noreply, assign(socket, :form, to_form(changeset, as: :conn))}
     end
   end
@@ -152,7 +151,7 @@ defmodule VoyagerWeb.ConnectLive do
 
   def handle_info(_, socket), do: {:noreply, socket}
 
-  defp do_connect(socket, params, %Params{
+  defp do_connect(socket, params, %ConnectionParams{
          node_name: node_name,
          cookie: cookie,
          name_type: name_type,
@@ -166,7 +165,7 @@ defmodule VoyagerWeb.ConnectLive do
 
       {:error, reason} ->
         changeset =
-          Params.changeset(params)
+          ConnectionParams.changeset(params)
           |> Ecto.Changeset.add_error(:node_name, connect_error(reason))
           |> Map.put(:action, :insert)
 
@@ -186,7 +185,7 @@ defmodule VoyagerWeb.ConnectLive do
   end
 
   defp empty_form do
-    Params.changeset() |> to_form(as: :conn)
+    ConnectionParams.changeset() |> to_form(as: :conn)
   end
 
   defp connect_error(:connection_failed),

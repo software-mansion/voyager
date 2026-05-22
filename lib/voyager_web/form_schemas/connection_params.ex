@@ -1,4 +1,4 @@
-defmodule Voyager.Connect.Params do
+defmodule VoyagerWeb.FormSchemas.ConnectionParams do
   use Ecto.Schema
   import Ecto.Changeset
 
