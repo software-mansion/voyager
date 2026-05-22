@@ -156,6 +156,13 @@ This is a web application written using the Phoenix web framework.
 - Name list-all query functions `all/0`, not `list_*`
 - Add `@spec` and `@doc` if necessary (`@doc` its not a must-have in simple cases) on public functions in queries and actions modules
 - Actions may call query modules for lookups; LiveViews alias both (e.g. `ConnectionQueries`, `ConnectionActions`)
+
+### Services
+
+- **Domain and infrastructure services** live in `lib/voyager/services/` as `Voyager.Services.ServiceName` (e.g. `Voyager.Services.NodeConnector`)
+- Use services for non-CRUD operations such as connecting to remote nodes, wrapping external systems, or coordinating side effects
+- Add `@spec` and `@doc` if necessary (`@doc` its not a must-have in simple cases) on public functions
+- GenServers and LiveViews call services directly; avoid extra abstraction layers unless needed
 <!-- phoenix:ecto-end -->
 
 <!-- phoenix:html-start -->
