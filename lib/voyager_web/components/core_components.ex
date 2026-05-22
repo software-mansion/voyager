@@ -120,15 +120,15 @@ defmodule VoyagerWeb.CoreComponents do
       <.logo />
       <.logo class="h-7 w-7" />
   """
-  attr :class, :any, default: nil
+  attr :class, :string, default: nil
 
   def logo(assigns) do
     ~H"""
     <div class={[
-      "from-primary to-secondary rounded-[6px] shadow-[0_0_12px_color-mix(in_oklch,var(--color-primary)_25%,transparent)] relative h-7 w-7 shrink-0 bg-gradient-to-br",
+      "from-primary to-secondary shadow-logo-glow relative h-7 w-7 shrink-0 rounded-md bg-gradient-to-br",
       @class
     ]}>
-      <div class="rounded-[2px] bg-base-100 shadow-[inset_0_0_0_1.5px_var(--color-primary)] absolute inset-1">
+      <div class="bg-base-100 shadow-logo-inset absolute inset-1 rounded-sm">
       </div>
     </div>
     """
