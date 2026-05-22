@@ -39,23 +39,8 @@ if config_env() == :prod do
 
   host = System.get_env("PHX_HOST") || "example.com"
 
-  # Behind TLS in production use PHX_URL_SCHEME=https and PHX_URL_PORT=443 (defaults).
-  # For local prod (PHX_HOST=localhost), default to the HTTP port you actually serve on.
-  scheme =
-    System.get_env("PHX_URL_SCHEME") ||
-      if(host in ["localhost", "127.0.0.1"], do: "http", else: "https")
-
-  port =
-    (System.get_env("PHX_URL_PORT") ||
-       if(host in ["localhost", "127.0.0.1"], do: System.get_env("PORT") || "4000", else: "443"))
-    |> String.to_integer()
-
   config :voyager, VoyagerWeb.Endpoint,
-    url: [host: host, port: port, scheme: scheme],
+    url: [host: host, port: 443, scheme: "https"],
     http: [ip: {0, 0, 0, 0, 0, 0, 0, 0}],
-    secret_key_base: secret_key_base,
-    check_origin: [
-      "//#{host}",
-      "//127.0.0.1"
-    ]
+    secret_key_base: secret_key_base
 end
