@@ -125,18 +125,18 @@ defmodule VoyagerWeb.ConnectComponents do
             <input
               type="radio"
               name="conn[name_type]"
-              value="shortnames"
-              aria-label="--sname"
-              checked={@current_name_type == "shortnames"}
+              value="longnames"
+              aria-label="--name"
+              checked={@current_name_type == "longnames"}
               disabled={@disabled}
               class="join-item btn btn-outline btn-xs font-mono text-[10px]"
             />
             <input
               type="radio"
               name="conn[name_type]"
-              value="longnames"
-              aria-label="--name"
-              checked={@current_name_type == "longnames"}
+              value="shortnames"
+              aria-label="--sname"
+              checked={@current_name_type == "shortnames"}
               disabled={@disabled}
               class="join-item btn btn-outline btn-xs font-mono text-[10px]"
             />

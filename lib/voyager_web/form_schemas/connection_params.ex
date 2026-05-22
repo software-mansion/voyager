@@ -6,7 +6,7 @@ defmodule VoyagerWeb.FormSchemas.ConnectionParams do
   embedded_schema do
     field :node_name, :string
     field :cookie, :string
-    field :name_type, Ecto.Enum, values: [:shortnames, :longnames], default: :shortnames
+    field :name_type, Ecto.Enum, values: [:shortnames, :longnames], default: :longnames
     field :remember_cookie, :boolean, default: false
   end
 
