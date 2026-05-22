@@ -45,23 +45,6 @@ defmodule VoyagerWeb.NodeInfoLive do
         <.info_card label="ETS" value={format_bytes(memory_value(@stats, :ets))} />
         <.info_card label="Atom" value={format_bytes(memory_value(@stats, :atom))} />
       </.info_section>
-
-      <%= if @session.info[:elixir_version] || @session.info[:phoenix_version] do %>
-        <.info_section title="Versions">
-          <%= if v = @session.info[:elixir_version] do %>
-            <.info_card label="Elixir" value={to_string(v)} />
-          <% end %>
-          <%= if v = @session.info[:phoenix_version] do %>
-            <.info_card label="Phoenix" value={to_string(v)} />
-          <% end %>
-          <%= if v = @session.info[:ecto_version] do %>
-            <.info_card label="Ecto" value={to_string(v)} />
-          <% end %>
-          <%= if v = @session.info[:mix_version] do %>
-            <.info_card label="Mix" value={to_string(v)} />
-          <% end %>
-        </.info_section>
-      <% end %>
     </div>
     """
   end
@@ -79,11 +62,8 @@ defmodule VoyagerWeb.NodeInfoLive do
   defp node_header(assigns) do
     ~H"""
     <div class="mb-8 flex flex-col gap-2">
-      <h1 class="font-mono text-base-content flex items-center gap-3 text-2xl font-bold tracking-tight">
+      <h1 class="font-mono text-base-content text-2xl font-bold tracking-tight">
         {@session.node_name}
-        <div class="badge badge-primary badge-outline badge-sm uppercase tracking-wider">
-          {language_name(@session.language)}
-        </div>
       </h1>
       <div class="flex flex-wrap items-center gap-2">
         <%= if otp = @session.info[:otp_release] do %>
@@ -103,9 +83,6 @@ defmodule VoyagerWeb.NodeInfoLive do
       _ -> %{}
     end
   end
-
-  defp language_name(nil), do: "Detecting…"
-  defp language_name(lang), do: lang.name()
 
   defp memory_value(stats, key) do
     case stats[:memory] do

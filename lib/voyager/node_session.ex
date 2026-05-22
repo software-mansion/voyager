@@ -14,16 +14,14 @@ defmodule Voyager.NodeSession do
             node_name: String.t(),
             cookie: String.t(),
             connector: module(),
-            language: module() | nil,
             connected_at: DateTime.t(),
             info: map()
           }
 
-    defstruct [:node, :node_name, :cookie, :connector, :language, :connected_at, info: %{}]
+    defstruct [:node, :node_name, :cookie, :connector, :connected_at, info: %{}]
   end
 
   @pubsub_topic "node_session"
-  @languages [Voyager.Language.Elixir, Voyager.Language.Gleam, Voyager.Language.Erlang]
 
   def start_link(_opts \\ []) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
@@ -122,7 +120,6 @@ defmodule Voyager.NodeSession do
           node_name: node_name,
           cookie: cookie,
           connector: connector,
-          language: nil,
           connected_at: DateTime.utc_now(),
           info: %{}
         }
@@ -160,7 +157,7 @@ defmodule Voyager.NodeSession do
     node = session.node
 
     Task.Supervisor.start_child(Voyager.TaskSupervisor, fn ->
-      updated = session |> detect_language() |> fetch_info()
+      updated = fetch_info(session)
       send(server, {:node_info_fetched, node, updated})
     end)
 
@@ -194,28 +191,8 @@ defmodule Voyager.NodeSession do
     {:noreply, state}
   end
 
-  defp detect_language(%{node: node} = session) do
-    apps =
-      case ERPC.call(node, :application, :loaded_applications, [], 5_000) do
-        {:ok, apps} -> apps
-        {:error, _} -> []
-      end
-
-    language = Enum.find(@languages, Voyager.Language.Erlang, fn mod -> mod.detect?(apps) end)
-    %{session | language: language}
-  end
-
-  defp fetch_info(%{node: node, language: language} = session) do
-    common_task = Task.async(fn -> fetch_common_info(node) end)
-    lang_task = Task.async(fn -> language.info(node) end)
-
-    info =
-      Map.merge(
-        Task.await(common_task, 10_000),
-        Task.await(lang_task, 10_000)
-      )
-
-    %{session | info: info}
+  defp fetch_info(%{node: node} = session) do
+    %{session | info: fetch_common_info(node)}
   end
 
   defp fetch_common_info(node) do
