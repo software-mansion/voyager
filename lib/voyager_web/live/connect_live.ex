@@ -4,7 +4,8 @@ defmodule VoyagerWeb.ConnectLive do
   alias Voyager.Actions.Connections, as: ConnectionActions
   alias Voyager.NodeSession
   alias Voyager.Queries.Connections, as: ConnectionQueries
-  alias VoyagerWeb.{ConnectComponents, FormSchemas.ConnectionParams}
+  alias VoyagerWeb.ConnectComponents
+  alias VoyagerWeb.FormSchemas.ConnectionParams
 
   @impl true
   def mount(_params, _session, socket) do
