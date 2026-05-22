@@ -3,7 +3,7 @@ defmodule Voyager.Services.NodeConnector do
 
   @voyager_node_name Application.compile_env(:voyager, :voyager_node_name, :voyager@localhost)
 
-  @spec connect(String.t(), String.t(), keyword()) :: :ok | {:error, term()}
+  @spec connect(String.t(), String.t(), keyword()) :: {:ok, atom()} | {:error, term()}
   def connect(node_name, cookie, opts \\ []) do
     name_type = Keyword.get(opts, :name_type, :shortnames)
 
@@ -12,7 +12,7 @@ defmodule Voyager.Services.NodeConnector do
       :erlang.set_cookie(node, String.to_atom(cookie))
 
       case Node.connect(node) do
-        true -> :ok
+        true -> {:ok, node}
         false -> diagnose_failure(node_name)
         :ignored -> {:error, :not_distributed}
       end

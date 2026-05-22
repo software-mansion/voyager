@@ -63,8 +63,7 @@ defmodule Voyager.NodeSession do
     name_type = Keyword.get(opts, :name_type, :shortnames)
 
     case NodeConnector.connect(node_name, cookie, name_type: name_type) do
-      :ok ->
-        node = String.to_atom(node_name)
+      {:ok, node} ->
         Node.monitor(node, true)
 
         session = %Session{
