@@ -18,16 +18,18 @@ defmodule VoyagerWeb.ConnectComponents do
         class="font-mono text-[12px] text-base-content/60 flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-3 py-2 transition-colors hover:bg-base-200 hover:text-base-content"
       >
         <.icon name="icon-network" class="size-3.5 text-base-content/25 shrink-0" />
-        <span class="min-w-0 flex-1 truncate">{@conn.node_name}</span>
-        <%= if @conn.cookie do %>
-          <span
-            title="Cookie saved"
-            class="font-mono text-[9px] text-base-content/30 border-base-300 shrink-0 rounded border px-1"
-          >
-            cookie
-          </span>
-        <% end %>
-        <span class="font-mono text-[10.5px] text-base-content/35 shrink-0">
+        <div class="flex min-w-0 items-center gap-1.5">
+          <span class="ml-2 truncate">{@conn.node_name}</span>
+          <%= if @conn.cookie do %>
+            <span
+              title="Cookie saved"
+              class="font-mono text-[9px] text-base-content/30 border-base-300 shrink-0 rounded border px-1"
+            >
+              cookie
+            </span>
+          <% end %>
+        </div>
+        <span class="font-mono text-[10.5px] text-base-content/35 ml-auto shrink-0">
           {relative_time(@conn.last_connected_at)}
         </span>
       </button>
@@ -38,11 +40,11 @@ defmodule VoyagerWeb.ConnectComponents do
         phx-value-id={@conn.id}
         title={if @pinned, do: "Remove from favourites", else: "Save as favourite"}
         class={[
-          "btn btn-ghost btn-xs px-1.5",
+          "btn btn-ghost btn-xs px-0.5",
           if(@pinned, do: "text-amber-500", else: "text-base-content/20 hover:text-warning")
         ]}
       >
-        <.icon name="icon-star" class="size-3.5" />
+        <.icon name={if @pinned, do: "icon-star-filled", else: "icon-star"} class="size-3.5" />
       </button>
 
       <button
@@ -50,7 +52,7 @@ defmodule VoyagerWeb.ConnectComponents do
         phx-click="delete_connection"
         phx-value-id={@conn.id}
         title="Remove"
-        class="btn btn-ghost btn-xs text-base-content/20 px-1.5 hover:text-error"
+        class="btn btn-ghost btn-xs text-base-content/20 px-0.5 hover:text-error"
       >
         <.icon name="icon-x" class="size-3.5" />
       </button>
