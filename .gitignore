@@ -40,6 +40,9 @@ voyager-*.tar
 npm-debug.log
 /assets/node_modules/
 
+# Environment secrets
+.env
+
 # Database files
 *.db
 *.db-*
