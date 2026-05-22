@@ -1,8 +1,8 @@
 defmodule VoyagerWeb.ConnectLive do
   use VoyagerWeb, :live_view
 
-  alias Voyager.NodeSession
   alias Voyager.Actions.Connections, as: ConnectionActions
+  alias Voyager.NodeSession
   alias Voyager.Queries.Connections, as: ConnectionQueries
   alias VoyagerWeb.{ConnectComponents, FormSchemas.ConnectionParams}
 

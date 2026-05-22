@@ -2,8 +2,8 @@ defmodule Voyager.Actions.Connections do
   @moduledoc "Write actions for persisted connection history."
 
   alias Voyager.Queries.Connections, as: ConnectionQueries
-  alias Voyager.Schemas.Connection
   alias Voyager.Repo
+  alias Voyager.Schemas.Connection
 
   @type upsert_opts :: [cookie: String.t() | nil]
   @type changeset_result :: {:ok, Connection.t()} | {:error, Ecto.Changeset.t()}
