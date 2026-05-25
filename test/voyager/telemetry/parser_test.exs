@@ -29,18 +29,16 @@ defmodule Voyager.Telemetry.ParserTest do
       refute Map.has_key?(result, :event)
     end
 
-    test "includes socket host_uri", %{socket: socket} do
+    test "doesn't include socket host_uri", %{socket: socket} do
       result = Parser.parse_metadata([:phoenix, :live_view, :mount, :start], %{socket: socket})
       assert result[:uri] == nil
     end
 
-    test "does not include kind/reason for mount exception events (rest is [:mount, :exception])",
-         %{socket: socket} do
+    test "includes kind and reason for exception events", %{socket: socket} do
       meta = %{socket: socket, kind: :error, reason: %RuntimeError{message: "boom"}}
       result = Parser.parse_metadata([:phoenix, :live_view, :mount, :exception], meta)
-      # maybe_exception only matches rest == [:exception]; for real events rest has the action too
-      refute Map.has_key?(result, :kind)
-      refute Map.has_key?(result, :reason)
+      assert result[:kind] == :error
+      assert result[:reason] == %RuntimeError{message: "boom"}
     end
   end
 
