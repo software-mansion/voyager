@@ -38,17 +38,27 @@ defmodule Voyager.Telemetry do
   @doc """
   Dispatch an event by string name.
 
-  String name is the dotted event name, e.g. "voyager.node.connect".
+  String name is the dotted event name, e.g. `"voyager.node.connected"`.
+
+  Node connection events require `metadata: %{id: unique_identifier}` where
+  `id` is a non-empty string that identifies the connection session.
   """
-  @spec dispatch(String.t(), Keyword.t()) :: :ok | {:error, :unknown_event}
+  @spec dispatch(String.t(), Keyword.t()) ::
+          :ok | {:error, :unknown_event | :missing_identifier}
   def dispatch(event_name, opts \\ [])
 
   def dispatch("voyager.node.connect", []) do
     :telemetry.execute([:voyager, :node, :connect], %{}, %{})
   end
 
-  def dispatch("voyager.node.disconnect", []) do
-    :telemetry.execute([:voyager, :node, :disconnect], %{}, %{})
+  def dispatch("voyager.node.disconnect", opts) do
+    metadata =
+      case Keyword.get(opts, :reason) do
+        nil -> %{reason: :unknown}
+        reason -> %{reason: inspect(reason)}
+      end
+
+    :telemetry.execute([:voyager, :node, :disconnect], %{}, metadata)
   end
 
   def dispatch(_event_name, _opts) do

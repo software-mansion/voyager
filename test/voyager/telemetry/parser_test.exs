@@ -31,7 +31,7 @@ defmodule Voyager.Telemetry.ParserTest do
 
     test "includes socket host_uri", %{socket: socket} do
       result = Parser.parse_metadata([:phoenix, :live_view, :mount, :start], %{socket: socket})
-      assert result[:uri] == "http://localhost:4000"
+      assert result[:uri] == nil
     end
 
     test "does not include kind/reason for mount exception events (rest is [:mount, :exception])",

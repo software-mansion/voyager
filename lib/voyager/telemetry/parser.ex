@@ -15,12 +15,12 @@ defmodule Voyager.Telemetry.Parser do
   @doc "Keeps only metadata used by known event groups."
   @spec parse_metadata(Events.event(), map()) :: map()
   def parse_metadata([:phoenix, :live_view | rest], %{socket: socket} = meta) do
-    %{view: inspect(socket.view), uri: to_string(socket.host_uri)}
+    %{view: inspect(socket.view)}
     |> maybe_put(:event, meta[:event])
     |> maybe_exception(rest, meta)
   end
 
-  def parse_metadata([:voyager | _], meta), do: Map.take(meta, [:node, :reason])
+  def parse_metadata([:voyager | _], meta), do: meta
 
   def parse_metadata(_event, _meta), do: %{}
 
