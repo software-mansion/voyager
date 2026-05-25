@@ -17,8 +17,17 @@ defmodule Voyager.ConnectionsTest do
     end
 
     test "updates last_connected_at on conflict" do
-      {:ok, original} = ConnectionActions.upsert_connected("dup@127.0.0.1", cookie: "c1")
-      Process.sleep(1100)
+      old_time = ~U[2020-01-01 00:00:00Z]
+
+      {:ok, original} =
+        %Connection{}
+        |> Connection.changeset(%{
+          node_name: "dup@127.0.0.1",
+          cookie: "c1",
+          last_connected_at: old_time
+        })
+        |> Repo.insert()
+
       {:ok, updated} = ConnectionActions.upsert_connected("dup@127.0.0.1", cookie: "c2")
 
       assert updated.id == original.id
@@ -54,11 +63,25 @@ defmodule Voyager.ConnectionsTest do
 
   describe "all/0" do
     test "returns pinned rows first, then by last_connected_at desc" do
-      {:ok, old_recent} = ConnectionActions.upsert_connected("a@h", cookie: "x")
-      Process.sleep(1100)
-      {:ok, _new_recent} = ConnectionActions.upsert_connected("b@h", cookie: "x")
-      {:ok, _pinned} = ConnectionActions.upsert_connected("c@h", cookie: "x")
-      ConnectionActions.pin(ConnectionQueries.get_by_node_name("c@h").id)
+      old_time = ~U[2020-01-01 00:00:00Z]
+      recent_time = ~U[2020-01-02 00:00:00Z]
+
+      {:ok, old_recent} =
+        %Connection{}
+        |> Connection.changeset(%{node_name: "a@h", cookie: "x", last_connected_at: old_time})
+        |> Repo.insert()
+
+      {:ok, _new_recent} =
+        %Connection{}
+        |> Connection.changeset(%{node_name: "b@h", cookie: "x", last_connected_at: recent_time})
+        |> Repo.insert()
+
+      {:ok, pinned} =
+        %Connection{}
+        |> Connection.changeset(%{node_name: "c@h", cookie: "x", last_connected_at: recent_time})
+        |> Repo.insert()
+
+      ConnectionActions.pin(pinned.id)
 
       names = Enum.map(ConnectionQueries.all(), & &1.node_name)
 
