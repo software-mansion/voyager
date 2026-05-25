@@ -1,10 +1,10 @@
 defmodule Voyager.Telemetry.Handler.Export do
   @moduledoc false
 
+  @behaviour Voyager.Telemetry.Handler
+
   alias Voyager.Telemetry.Export
   alias Voyager.Telemetry.Parser
-
-  @behaviour Voyager.Telemetry.Handler
 
   @impl true
   def handle_event(event, measurements, metadata, _config) do

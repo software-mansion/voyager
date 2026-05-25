@@ -2,12 +2,11 @@ defmodule Voyager.Telemetry.Handler do
   @moduledoc """
   GenServer that attaches a `:telemetry` handler on start and detaches on terminate.
 
-  Fast callback parses via `Voyager.Telemetry.Parser`, then dispatches to one of:
-  - `Voyager.Telemetry.Handler.Export`
-  - `Voyager.Telemetry.Handler.Logger`
-  - `Voyager.Telemetry.Handler.Noop`
-
-  The handler module is passed via `:telemetry_handler` init option from `Voyager.Telemetry`.
+  The handler is passed via `:telemetry_handler` init option from `Voyager.Telemetry`.
+  Can be one of:
+  - :export
+  - :logger
+  - :noop
   """
 
   use GenServer

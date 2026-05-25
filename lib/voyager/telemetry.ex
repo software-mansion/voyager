@@ -39,7 +39,7 @@ defmodule Voyager.Telemetry do
   @doc """
   Dispatch an event by string name.
 
-  String name is the dotted event name, e.g. `"voyager.node.connected"`.
+  String name is the dotted event name, e.g. `"voyager.node.connect"`.
 
   Node connection events require `metadata: %{id: unique_identifier}` where
   `id` is a non-empty string that identifies the connection session.

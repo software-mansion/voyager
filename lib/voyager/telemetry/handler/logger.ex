@@ -1,11 +1,11 @@
 defmodule Voyager.Telemetry.Handler.Logger do
   @moduledoc false
 
+  @behaviour Voyager.Telemetry.Handler
+
   alias Voyager.Telemetry.Parser
 
   require Logger
-
-  @behaviour Voyager.Telemetry.Handler
 
   @impl true
   def handle_event(event, measurements, metadata, _config) do
