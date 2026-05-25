@@ -86,7 +86,13 @@ defmodule Voyager.MixProject do
         "esbuild voyager --minify",
         "phx.digest"
       ],
-      e2e: ["ecto.reset", "cmd --cd e2e npx playwright test"],
+      e2e: [
+        "ecto.reset",
+        "cmd docker build -f e2e/Dockerfile -t voyager-test-node e2e",
+        "cmd docker run --rm -d --network host --name voyager-test-node voyager-test-node",
+        "cmd --cd e2e npx playwright test",
+        "cmd docker stop voyager-test-node"
+      ],
       precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
     ]
   end
