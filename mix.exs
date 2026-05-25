@@ -86,7 +86,13 @@ defmodule Voyager.MixProject do
         "esbuild voyager --minify",
         "phx.digest"
       ],
-      precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
+      precommit: [
+        "compile --warnings-as-errors",
+        "deps.unlock --unused",
+        "credo --strict",
+        "format",
+        "test"
+      ]
     ]
   end
 end
