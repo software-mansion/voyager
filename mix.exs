@@ -54,7 +54,9 @@ defmodule Voyager.MixProject do
       {:phoenix_live_dashboard, "~> 0.8.3"},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:cloak, "~> 1.1"},
+      {:cloak_ecto, "~> 1.3"}
     ]
   end
 
@@ -76,12 +78,14 @@ defmodule Voyager.MixProject do
       ],
       "assets.build": [
         "cmd npm --prefix assets run format",
+        "cmd mkdir -p priv/static/fonts && cp assets/node_modules/@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2 priv/static/fonts/ && cp assets/node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2 priv/static/fonts/",
         "compile",
         "tailwind voyager --minify",
         "esbuild voyager --minify"
       ],
       "assets.deploy": [
         "cmd npm --prefix assets run format",
+        "cmd mkdir -p priv/static/fonts && cp assets/node_modules/@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2 priv/static/fonts/ && cp assets/node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2 priv/static/fonts/",
         "tailwind voyager --minify",
         "esbuild voyager --minify",
         "phx.digest"

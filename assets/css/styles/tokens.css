@@ -1,3 +1,8 @@
+@theme {
+  --font-sans: 'DM Sans Variable', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
+}
+
 :root {
   /* Layout dimensions */
   --topbar-h: 56px;
@@ -5,6 +10,6 @@
   --sidebar-w: 220px;
 
   /* Typography */
-  --font-display: 'DM Sans', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --font-display: 'DM Sans Variable', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
 }
