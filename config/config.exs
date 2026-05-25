@@ -4,14 +4,6 @@ config :voyager,
   ecto_repos: [Voyager.Repo],
   generators: [timestamp_type: :utc_datetime]
 
-config :voyager,
-       :telemetry,
-       (case Mix.env() do
-          :dev -> :logger
-          :prod -> :export
-          _ -> :noop
-        end)
-
 config :voyager, VoyagerWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
