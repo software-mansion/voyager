@@ -25,7 +25,6 @@ defmodule Voyager.NodeSession do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
   end
 
-  @doc "Connects to a node."
   @spec connect(String.t(), String.t(), keyword()) :: :ok | {:error, term()}
   def connect(node_name, cookie, opts \\ []) do
     GenServer.call(__MODULE__, {:connect, node_name, cookie, opts}, 15_000)
