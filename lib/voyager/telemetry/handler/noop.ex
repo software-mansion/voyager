@@ -1,6 +1,8 @@
 defmodule Voyager.Telemetry.Handler.Noop do
   @moduledoc false
 
-  @spec handle_event(String.t(), map(), map(), map()) :: :ok
+  @behaviour Voyager.Telemetry.Handler
+
+  @impl true
   def handle_event(_event, _measurements, _metadata, _config), do: :ok
 end

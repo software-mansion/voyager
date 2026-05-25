@@ -14,6 +14,8 @@ defmodule Voyager.Telemetry.Handler do
 
   alias Voyager.Telemetry.Events
 
+  @callback handle_event(Events.event(), map(), map(), any()) :: :ok
+
   @handler_id "voyager-telemetry"
 
   def start_link(opts \\ []) do

@@ -5,7 +5,9 @@ defmodule Voyager.Telemetry.Handler.Logger do
 
   require Logger
 
-  @spec handle_event(String.t(), map(), map(), map()) :: :ok
+  @behaviour Voyager.Telemetry.Handler
+
+  @impl true
   def handle_event(event, measurements, metadata, _config) do
     Logger.debug("""
     TELEMETRY #{Parser.parse_event(event)}
