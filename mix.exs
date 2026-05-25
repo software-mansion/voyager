@@ -27,7 +27,7 @@ defmodule Voyager.MixProject do
   end
 
   def cli do
-    [preferred_envs: [precommit: :test]]
+    [preferred_envs: [precommit: :test, e2e: :e2e, "e2e.setup": :e2e]]
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
@@ -86,7 +86,7 @@ defmodule Voyager.MixProject do
         "esbuild voyager --minify",
         "phx.digest"
       ],
-      e2e: ["cmd --cd e2e npx playwright test"],
+      e2e: ["ecto.reset", "cmd --cd e2e npx playwright test"],
       precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
     ]
   end
