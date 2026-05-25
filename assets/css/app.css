@@ -3,6 +3,7 @@
 @import './styles/reset.css';
 
 @import 'tailwindcss' source(none);
+@import './styles/utilities.css';
 
 @source '../css';
 @source '../js';

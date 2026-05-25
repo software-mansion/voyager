@@ -48,6 +48,13 @@ defmodule VoyagerWeb do
     end
   end
 
+  def component do
+    quote do
+      use Phoenix.Component
+      unquote(html_helpers())
+    end
+  end
+
   defp html_helpers do
     quote do
       import Phoenix.HTML

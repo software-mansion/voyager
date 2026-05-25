@@ -1,5 +1,10 @@
 import Config
 
+config :voyager, Voyager.Vault,
+  ciphers: [
+    default: {Cloak.Ciphers.AES.GCM, tag: "AES.GCM.V1", key: <<0::256>>}
+  ]
+
 config :voyager, Voyager.Repo,
   database: Path.expand("../priv/db/voyager_test.db", __DIR__),
   pool_size: 5,
