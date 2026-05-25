@@ -10,7 +10,6 @@ defmodule Voyager.Telemetry do
 
   @type event() :: Events.event()
 
-  @telemetry_handler Application.compile_env(:voyager, :telemetry, :noop)
   @telemetry_poller_period_ms 30_000
 
   def start_link(opts \\ []) do
@@ -19,14 +18,16 @@ defmodule Voyager.Telemetry do
 
   @impl Supervisor
   def init(_opts) do
+    telemetry_handler = Application.get_env(:voyager, :telemetry, :noop)
+
     children = [
-      {Voyager.Telemetry.Handler, telemetry_handler: @telemetry_handler},
+      {Voyager.Telemetry.Handler, telemetry_handler: telemetry_handler},
       {:telemetry_poller,
        measurements: periodic_measurements(), period: @telemetry_poller_period_ms}
     ]
 
     children =
-      if @telemetry_handler == :export do
+      if telemetry_handler == :export do
         children ++ [{Task.Supervisor, name: Voyager.Telemetry.ExportTaskSupervisor}]
       else
         children
