@@ -13,7 +13,7 @@ This is a web application written using the Phoenix web framework.
 - Icons live in `assets/css/icons/` as SVG files. `core_components.ex` provides `<.icon name="icon-x" class="size-4"/>`. **Always** use the `<.icon>` component for icons — to add a new icon drop an SVG into `assets/css/icons/` and reference it as `icon-{filename}`
 - **Always** use the imported `<.input>` component for form inputs from `core_components.ex` when available. `<.input>` is imported and using it will save steps and prevent errors
 - If you override the default input classes (`<.input class="myclass px-2 py-1 rounded-lg">)`) class with your own values, no default classes are inherited, so your
-custom classes must fully style the input
+  custom classes must fully style the input
 
 ### JS and CSS guidelines
 
@@ -43,10 +43,10 @@ custom classes must fully style the input
 - Ensure **clean typography, spacing, and layout balance** for a refined, premium look
 - Focus on **delightful details** like hover effects, loading states, and smooth page transitions
 
-
 <!-- usage-rules-start -->
 
 <!-- phoenix:elixir-start -->
+
 ## Elixir guidelines
 
 - Elixir lists **do not support index based access via the access syntax**
@@ -64,7 +64,7 @@ custom classes must fully style the input
       Enum.at(mylist, i)
 
 - Elixir variables are immutable, but can be rebound, so for block expressions like `if`, `case`, `cond`, etc
-  you *must* bind the result of the expression to a variable if you want to use it and you CANNOT rebind the result inside the expression, ie:
+  you _must_ bind the result of the expression to a variable if you want to use it and you CANNOT rebind the result inside the expression, ie:
 
       # INVALID: we are rebinding inside the `if` and the result never gets assigned
       if connected?(socket) do
@@ -81,6 +81,7 @@ custom classes must fully style the input
 - **Never** use map access syntax (`changeset[:field]`) on structs as they do not implement the Access behaviour by default. For regular structs, you **must** access the fields directly, such as `my_struct.field` or use higher level APIs that are available on the struct if they exist, `Ecto.Changeset.get_field/2` for changesets
 - Elixir's standard library has everything necessary for date and time manipulation. Familiarize yourself with the common `Time`, `Date`, `DateTime`, and `Calendar` interfaces by accessing their documentation as necessary. **Never** install additional dependencies unless asked or for date/time parsing (which you can use the `date_time_parser` package)
 - Don't use `String.to_atom/1` on user input (memory leak risk)
+- **Never** group multiple modules in one `alias` clause — use separate lines instead of `alias Foo.{Bar, Baz}`
 - Predicate function names should not start with `is_` and should end in a question mark. Names like `is_thing` should be reserved for guards
 - Elixir's builtin OTP primitives like `DynamicSupervisor` and `Registry`, require names in the child spec, such as `{DynamicSupervisor, name: MyApp.MyDynamicSup}`, then you can use `DynamicSupervisor.start_child(MyApp.MyDynamicSup, child_spec)`
 - Use `Task.async_stream(collection, callback, options)` for concurrent enumeration with back-pressure. The majority of times you will want to pass `timeout: :infinity` as option
@@ -97,13 +98,14 @@ custom classes must fully style the input
 - **Avoid** `Process.sleep/1` and `Process.alive?/1` in tests
   - Instead of sleeping to wait for a process to finish, **always** use `Process.monitor/1` and assert on the DOWN message:
 
-      ref = Process.monitor(pid)
-      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}
+    ref = Process.monitor(pid)
+    assert_receive {:DOWN, ^ref, :process, ^pid, :normal}
 
-   - Instead of sleeping to synchronize before the next call, **always** use `_ = :sys.get_state/1` to ensure the process has handled prior messages
-<!-- phoenix:elixir-end -->
+  - Instead of sleeping to synchronize before the next call, **always** use `_ = :sys.get_state/1` to ensure the process has handled prior messages
+  <!-- phoenix:elixir-end -->
 
 <!-- phoenix:phoenix-start -->
+
 ## Phoenix guidelines
 
 - Remember Phoenix router `scope` blocks include an optional alias which is prefixed for all routes within the scope. **Always** be mindful of this when creating routes within a scope to avoid duplicate module prefixes.
@@ -122,6 +124,7 @@ custom classes must fully style the input
 <!-- phoenix:phoenix-end -->
 
 <!-- phoenix:ecto-start -->
+
 ## Ecto Guidelines
 
 - **Always** preload Ecto associations in queries when they'll be accessed in templates, ie a message that needs to reference the `message.user.email`
@@ -131,9 +134,40 @@ custom classes must fully style the input
 - You **must** use `Ecto.Changeset.get_field(changeset, :field)` to access changeset fields
 - Fields which are set programmatically, such as `user_id`, must not be listed in `cast` calls or similar for security purposes. Instead they must be explicitly set when creating the struct
 - **Always** invoke `mix ecto.gen.migration migration_name_using_underscores` when generating migration files, so the correct timestamp and conventions are applied
+
+## Voyager architecture guidelines
+
+### Schemas
+
+- **Persistent Ecto schemas** live in `lib/voyager/schemas/` as `Voyager.Schemas.ResourceName` (e.g. `Voyager.Schemas.Connection`)
+- **Do not** nest schemas under context or feature modules (e.g. ~~`Voyager.Connections.Connection`~~)
+- Define `@type t` on schema modules; add `@spec` and `@doc` if necessary (`@doc` its not a must-have in simple cases) on public functions such and as `changeset/2`
+
+### Form schemas
+
+- **LiveView form param schemas** (embedded, non-persisted) live in `lib/voyager_web/form_schemas/` as `VoyagerWeb.FormSchemas.ResourceParams` (e.g. `VoyagerWeb.FormSchemas.ConnectionParams`)
+- **Do not** put form param schemas in `lib/voyager/`
+
+### Queries and actions
+
+- **Do not** use monolithic context modules (e.g. ~~`Voyager.Connections`~~)
+- Split data access into two modules per resource:
+  - `lib/voyager/queries/resource.ex` → `Voyager.Queries.Resource` — read operations (`all/0`, `get/1`, etc.)
+  - `lib/voyager/actions/resource.ex` → `Voyager.Actions.Resource` — write operations (`upsert_connected/2`, `pin/1`, `delete/1`, etc.)
+- Name list-all query functions `all/0`, not `list_*`
+- Add `@spec` and `@doc` if necessary (`@doc` its not a must-have in simple cases) on public functions in queries and actions modules
+- Actions may call query modules for lookups; LiveViews alias both (e.g. `ConnectionQueries`, `ConnectionActions`)
+
+### Services
+
+- **Domain and infrastructure services** live in `lib/voyager/services/` as `Voyager.Services.ServiceName` (e.g. `Voyager.Services.NodeConnector`)
+- Use services for non-CRUD operations such as connecting to remote nodes, wrapping external systems, or coordinating side effects
+- Add `@spec` and `@doc` if necessary (`@doc` its not a must-have in simple cases) on public functions
+- GenServers and LiveViews call services directly; avoid extra abstraction layers unless needed
 <!-- phoenix:ecto-end -->
 
 <!-- phoenix:html-start -->
+
 ## Phoenix HTML guidelines
 
 - Phoenix templates **always** use `~H` or .html.heex files (known as HEEx), **never** use `~E`
@@ -163,7 +197,7 @@ custom classes must fully style the input
           ...
       <% end %>
 
-- HEEx require special tag annotation if you want to insert literal curly's like `{` or `}`. If you want to show a textual code snippet on the page in a `<pre>` or `<code>` block you *must* annotate the parent tag with `phx-no-curly-interpolation`:
+- HEEx require special tag annotation if you want to insert literal curly's like `{` or `}`. If you want to show a textual code snippet on the page in a `<pre>` or `<code>` block you _must_ annotate the parent tag with `phx-no-curly-interpolation`:
 
       <code phx-no-curly-interpolation>
         let obj = {key: "val"}
@@ -196,26 +230,28 @@ custom classes must fully style the input
 
   **Always** do this:
 
-      <div id={@id}>
-        {@my_assign}
-        <%= if @some_block_condition do %>
-          {@another_assign}
-        <% end %>
-      </div>
+        <div id={@id}>
+          {@my_assign}
+          <%= if @some_block_condition do %>
+            {@another_assign}
+          <% end %>
+        </div>
 
   and **Never** do this – the program will terminate with a syntax error:
 
-      <%!-- THIS IS INVALID NEVER EVER DO THIS --%>
-      <div id="<%= @invalid_interpolation %>">
-        {if @invalid_block_construct do}
-        {end}
-      </div>
-<!-- phoenix:html-end -->
+        <%!-- THIS IS INVALID NEVER EVER DO THIS --%>
+        <div id="<%= @invalid_interpolation %>">
+          {if @invalid_block_construct do}
+          {end}
+        </div>
+
+  <!-- phoenix:html-end -->
 
 <!-- phoenix:liveview-start -->
+
 ## Phoenix LiveView guidelines
 
-- **Never** use the deprecated `live_redirect` and `live_patch` functions, instead **always** use the `<.link navigate={href}>` and  `<.link patch={href}>` in templates, and `push_navigate` and `push_patch` functions LiveViews
+- **Never** use the deprecated `live_redirect` and `live_patch` functions, instead **always** use the `<.link navigate={href}>` and `<.link patch={href}>` in templates, and `push_navigate` and `push_patch` functions LiveViews
 - **Avoid LiveComponent's** unless you have a strong, specific need for them
 - LiveViews should be named like `VoyagerWeb.WeatherLive`, with a `Live` suffix. When you go to add LiveView routes to the router, the default `:browser` scope is **already aliased** with the `VoyagerWeb` module, so you can just do `live "/weather", WeatherLive`
 
@@ -235,20 +271,18 @@ custom classes must fully style the input
         </div>
       </div>
 
-- LiveView streams are *not* enumerable, so you cannot use `Enum.filter/2` or `Enum.reject/2` on them. Instead, if you want to filter, prune, or refresh a list of items on the UI, you **must refetch the data and re-stream the entire stream collection, passing reset: true**:
+- LiveView streams are _not_ enumerable, so you cannot use `Enum.filter/2` or `Enum.reject/2` on them. Instead, if you want to filter, prune, or refresh a list of items on the UI, you **must refetch the data and re-stream the entire stream collection, passing reset: true**:
 
       def handle_event("filter", %{"filter" => filter}, socket) do
-        # re-fetch the messages based on the filter
-        messages = list_messages(filter)
+        messages = MessageQueries.all(filter)
 
         {:noreply,
          socket
          |> assign(:messages_empty?, messages == [])
-         # reset the stream with the new messages
          |> stream(:messages, messages, reset: true)}
       end
 
-- LiveView streams *do not support counting or empty states*. If you need to display a count, you must track it using a separate assign. For empty states, you can use Tailwind classes:
+- LiveView streams _do not support counting or empty states_. If you need to display a count, you must track it using a separate assign. For empty states, you can use Tailwind classes:
 
       <div id="tasks" phx-update="stream">
         <div class="hidden only:block">No tasks yet</div>
@@ -263,8 +297,8 @@ custom classes must fully style the input
   along with the updated assign:
 
       def handle_event("edit_message", %{"message_id" => message_id}, socket) do
-        message = Chat.get_message!(message_id)
-        edit_form = to_form(Chat.change_message(message, %{content: message.content}))
+        message = MessageQueries.get!(message_id)
+        edit_form = to_form(MessageActions.change_message(message, %{content: message.content}))
 
         # re-insert message so @editing_message_id toggle logic takes effect for that stream item
         {:noreply,
@@ -403,18 +437,29 @@ You can also specify a name to nest the params:
 
 #### Creating a form from changesets
 
-When using changesets, the underlying data, form params, and errors are retrieved from it. The `:as` option is automatically computed too. E.g. if you have a user schema:
+When using changesets, the underlying data, form params, and errors are retrieved from it. The `:as` option is automatically computed too. Use a form schema module under `VoyagerWeb.FormSchemas`:
 
-    defmodule MyApp.Users.User do
+    defmodule VoyagerWeb.FormSchemas.ConnectionParams do
       use Ecto.Schema
-      ...
+      import Ecto.Changeset
+
+      @primary_key false
+      embedded_schema do
+        field :node_name, :string
+        field :cookie, :string
+      end
+
+      def changeset(attrs \\ %{}) do
+        %__MODULE__{}
+        |> cast(attrs, [:node_name, :cookie])
+        |> validate_required([:node_name, :cookie])
+      end
     end
 
-And then you create a changeset that you pass to `to_form`:
+And then create a changeset that you pass to `to_form`:
 
-    %MyApp.Users.User{}
-    |> Ecto.Changeset.change()
-    |> to_form()
+    ConnectionParams.changeset(params)
+    |> to_form(as: :conn)
 
 Once the form is submitted, the params will be available under `%{"user" => user_params}`.
 

@@ -43,7 +43,7 @@ defmodule VoyagerWeb.Layouts do
   def app(assigns) do
     ~H"""
     <.flash_group flash={@flash} />
-    <VoyagerWeb.Components.Shell.shell active_nav={assigns[:active_nav]} node={assigns[:node]}>
+    <VoyagerWeb.Components.Shell.shell active_nav={assigns[:active_nav]} session={assigns[:session]}>
       {@inner_content}
     </VoyagerWeb.Components.Shell.shell>
     """

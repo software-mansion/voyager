@@ -22,13 +22,10 @@ defmodule VoyagerWeb.Router do
     end
 
     live_session :app,
-      layout: {VoyagerWeb.Layouts, :app} do
+      layout: {VoyagerWeb.Layouts, :app},
+      on_mount: [{VoyagerWeb.Hooks.NodeSessionHook, :require_connected_node}] do
       live "/node/:node", NodeInfoLive, :index
       live "/node/:node/supervision-tree", SupervisionTreeLive, :index
-    end
-
-    live_session :settings, layout: {VoyagerWeb.Layouts, :app} do
-      live "/settings", SettingsLive, :index
     end
   end
 
