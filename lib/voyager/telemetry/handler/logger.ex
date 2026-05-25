@@ -1,9 +1,9 @@
 defmodule Voyager.Telemetry.Handler.Logger do
   @moduledoc false
 
-  require Logger
-
   alias Voyager.Telemetry.Parser
+
+  require Logger
 
   @spec handle_event(String.t(), map(), map(), map()) :: :ok
   def handle_event(event, measurements, metadata, _config) do
