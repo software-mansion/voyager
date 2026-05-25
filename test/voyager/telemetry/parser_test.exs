@@ -38,7 +38,7 @@ defmodule Voyager.Telemetry.ParserTest do
       meta = %{socket: socket, kind: :error, reason: %RuntimeError{message: "boom"}}
       result = Parser.parse_metadata([:phoenix, :live_view, :mount, :exception], meta)
       assert result[:kind] == :error
-      assert result[:reason] == %RuntimeError{message: "boom"}
+      assert result[:reason] == "%RuntimeError{message: \"boom\"}"
     end
   end
 

@@ -28,7 +28,13 @@ defmodule Voyager.Telemetry.Parser do
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   defp maybe_exception(map, [_, :exception], meta) do
-    extracted_meta = Map.take(meta, [:kind, :reason])
+    extracted_meta =
+      meta
+      |> Map.take([:kind, :reason])
+      |> case do
+        %{reason: reason} = meta -> %{meta | reason: inspect(reason)}
+        meta -> meta
+      end
 
     Map.merge(map, extracted_meta)
   end
