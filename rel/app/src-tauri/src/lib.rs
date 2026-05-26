@@ -21,7 +21,14 @@ pub fn run() {
 
             tauri::async_runtime::spawn_blocking(move || {
                 let rel_dir = app_handle.path().resource_dir().unwrap().join("rel");
-                let mut command = elixir_command(&rel_dir);
+                let data_dir = app_handle
+                    .path()
+                    .app_data_dir()
+                    .expect("failed to resolve app data directory");
+
+                std::fs::create_dir_all(&data_dir).expect("failed to create app data directory");
+
+                let mut command = elixir_command(&rel_dir, &data_dir);
                 command.env("ELIXIRKIT_PUBSUB", pubsub.url());
                 let status = command.status().expect("failed to start Elixir");
 
@@ -44,7 +51,7 @@ fn create_window(app_handle: &tauri::AppHandle) {
         .unwrap();
 }
 
-fn elixir_command(rel_dir: &std::path::Path) -> std::process::Command {
+fn elixir_command(rel_dir: &std::path::Path, data_dir: &std::path::Path) -> std::process::Command {
     if cfg!(debug_assertions) {
         let mut command = elixirkit::mix("phx.server", &[]);
         command.current_dir("../../../");
@@ -58,6 +65,7 @@ fn elixir_command(rel_dir: &std::path::Path) -> std::process::Command {
             "SECRET_KEY_BASE",
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
         );
+        command.env("DATABASE_PATH", data_dir.join("voyager.db"));
         command
     }
 }

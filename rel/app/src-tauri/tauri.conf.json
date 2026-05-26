@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.swmansion.voyager",
   "build": {
-    "beforeBuildCommand": "MIX_ENV=prod mix do compile + assets.deploy + release --overwrite --path src-tauri/target/rel",
+    "beforeBuildCommand": "./tauri.sh before-build",
     "beforeDevCommand": "mkdir -p src-tauri/target/rel"
   },
   "app": {

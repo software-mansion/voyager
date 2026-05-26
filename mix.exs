@@ -74,6 +74,8 @@ defmodule Voyager.MixProject do
         "cmd --cd e2e npm ci",
         "cmd --cd e2e npx playwright install --with-deps"
       ],
+      "tauri.dev": ["cmd rel/app/tauri.sh dev"],
+      "tauri.build": ["cmd rel/app/tauri.sh build"],
       "assets.setup": [
         "tailwind.install --if-missing",
         "esbuild.install --if-missing",
@@ -107,9 +109,10 @@ defmodule Voyager.MixProject do
 
   defp releases do
     [
-      example: [
+      voyager: [
+        rel_templates_path: "rel/app",
         steps: [:assemble, &ElixirKit.Release.codesign/1],
-        entitlements: "#{__DIR__}/src-tauri/App.entitlements"
+        entitlements: "#{__DIR__}/rel/app/src-tauri/App.entitlements"
       ]
     ]
   end
