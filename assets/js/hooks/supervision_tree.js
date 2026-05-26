@@ -1,5 +1,6 @@
 import cytoscape from 'cytoscape';
 import dagre from 'cytoscape-dagre';
+import Color from 'colorjs.io';
 
 cytoscape.use(dagre);
 
@@ -34,7 +35,6 @@ const SupervisionTree = {
       boxSelectionEnabled: false,
     });
 
-    this.firstFullPayload = true;
     this.layoutTimer = null;
     this.overlayTimer = null;
     this.overlays = new Map();
@@ -42,12 +42,30 @@ const SupervisionTree = {
     this.lastTapTs = 0;
     this.lastTapId = null;
     this.pendingSelectTimer = null;
-    this.labelMeasureCache = new Map();
 
     this.cy.on('tap', 'node', (e) => this.onNodeTap(e));
     this.cy.on('tap', (e) => {
       if (e.target === this.cy) this.onBackgroundTap();
     });
+
+    // Change the cursor to a pointer when hovering over a node
+    this.cy.on('mouseover', 'node', function(event) {
+      event.target.addClass('hover');
+      const container = event.cy.container();
+      if (container) {
+        container.style.cursor = 'pointer';
+      }
+    });
+
+    // Revert the cursor to default when the mouse leaves the node
+    this.cy.on('mouseout', 'node', function(event) {
+      event.target.removeClass('hover');
+      const container = event.cy.container();
+      if (container) {
+        container.style.cursor = '';
+      }
+    });
+
     this.cy.on('viewport', () => {
       this.repositionOverlays();
       this.scheduleOverlayReconcile();
@@ -103,8 +121,7 @@ const SupervisionTree = {
       this.cy.add(addBatch);
     });
 
-    this.runLayout({ fit: this.firstFullPayload });
-    this.firstFullPayload = false;
+    this.runLayout({ fit: true });
     this.scheduleOverlayReconcile();
   },
 
@@ -260,27 +277,21 @@ const SupervisionTree = {
     const layout = this.cy.layout({
       name: 'dagre',
       rankDir: 'LR',
-      ranker: 'longest-path',
-      // align: 'UL',
+      ranker: 'tight-tree',
       nodeSep: 14,
       edgeSep: 8,
       rankSep: 180,
+      spacingFactor: 1.3,
       animate: !fit,
       animationDuration: 280,
       animationEasing: 'ease-out',
       fit,
       padding: 24,
       nodeDimensionsIncludeLabels: true,
-      useDagreEdgeControlPoints: true,
-      automaticDagreEdgeStyle: true,
-      dagreEdgeStyle: {
-        'curve-style': 'unbundled-bezier',
-        'control-point-weights': (ele) => ele.scratch('controlPointWeights'),
-        'control-point-distances': (ele) =>
-          ele.scratch('controlPointDistances'),
-        'edge-distances': 'intersection',
-        'edge-ends-overlap': false,
-      },
+    });
+
+    layout.on('layoutstop', () => {
+      this.cy.style().update();
     });
 
     layout.run();
@@ -317,6 +328,14 @@ const SupervisionTree = {
       if (isRealPid(key)) {
         this.pushEventTo(this.el, 'toggle-expand', { pid: key });
       }
+      if (this.isCollapsed(e.target)) {
+        e.target.successors().removeClass('hidden');
+        e.target.data('is_collapsed', false);
+      } else {
+        e.target.successors().addClass('hidden');
+        e.target.data('is_collapsed', true);
+      }
+      this.scheduleLayout();
       return;
     }
 
@@ -408,6 +427,14 @@ const SupervisionTree = {
       if (isRealPid(key)) {
         this.pushEventTo(this.el, 'toggle-expand', { pid: key });
       }
+      if (this.isCollapsed(node)) {
+        node.successors().removeClass('hidden');
+        node.data('is_collapsed', false);
+      } else {
+        node.successors().addClass('hidden');
+        node.data('is_collapsed', true);
+      }
+      this.scheduleLayout();
     });
 
     this.overlayLayer.appendChild(dom);
@@ -422,10 +449,9 @@ const SupervisionTree = {
     if (node.empty()) return;
 
     const bb = node.renderedBoundingBox();
-    const labelW = this.measureLabelWidth(node.data('displayLabel') || '');
     // Anchor at the right edge of the rendered label.
-    const x = bb.x2 + labelW + 10;
-    const y = (bb.y1 + bb.y2) / 2 - 8;
+    const x = bb.x2 + 10;
+    const y = (bb.y1 + bb.y2) / 2 - 11;
     entry.dom.style.transform = `translate(${x}px, ${y}px)`;
 
     // Keep icon in sync with collapsed state.
@@ -452,22 +478,7 @@ const SupervisionTree = {
   },
 
   isCollapsed(node) {
-    return node.data('children_keys') === null;
-  },
-
-  measureLabelWidth(label) {
-    if (!label) return 0;
-    if (this.labelMeasureCache.has(label)) {
-      return this.labelMeasureCache.get(label);
-    }
-    const canvas =
-      this._measureCanvas ||
-      (this._measureCanvas = document.createElement('canvas'));
-    const ctx = canvas.getContext('2d');
-    ctx.font = '11px ui-monospace, SFMono-Regular, Menlo, monospace';
-    const w = ctx.measureText(label).width;
-    this.labelMeasureCache.set(label, w);
-    return w;
+    return node.data('is_collapsed');
   },
 
   // ---------------------------------------------------------------------------
@@ -477,15 +488,14 @@ const SupervisionTree = {
   readTokens() {
     const cs = getComputedStyle(this.el);
     return {
-      base100: cs.getPropertyValue('--color-base-100').trim() || '#ffffff',
-      base200: cs.getPropertyValue('--color-base-200').trim() || '#f5f5f5',
-      base300: cs.getPropertyValue('--color-base-300').trim() || '#e5e5e5',
-      baseContent:
-        cs.getPropertyValue('--color-base-content').trim() || '#1a1a1a',
-      primary: cs.getPropertyValue('--color-primary').trim() || '#3b82f6',
-      primaryContent:
-        cs.getPropertyValue('--color-primary-content').trim() || '#ffffff',
-      error: cs.getPropertyValue('--color-error').trim() || '#ef4444',
+      base100: getColor(cs, '--color-base-100') || '#ffffff',
+      base200: getColor(cs, '--color-base-200') || '#f5f5f5',
+      base300: getColor(cs, '--color-base-300') || '#e5e5e5',
+      base500: getColor(cs, '--color-base-500') || '#CAD5E2',
+      baseContent: getColor(cs, '--color-base-content') || '#1a1a1a',
+      primary: getColor(cs, '--color-primary') || '#3b82f6',
+      primaryContent: getColor(cs, '--color-primary-content') || '#ffffff',
+      error: getColor(cs, '--color-error') || '#ef4444',
     };
   },
 
@@ -508,39 +518,46 @@ function buildStyle(t) {
         width: 14,
         height: 14,
         'background-color': t.base100,
-        'border-color': t.base300,
-        'border-width': 1,
+        'border-color': t.primary,
+        'border-width': 2,
         label: 'data(displayLabel)',
         'text-halign': 'right',
         'text-valign': 'center',
         'text-margin-x': 6,
+        'text-background-opacity': 1,
+        'text-background-color': t.base100,
         'font-size': 11,
         'font-family': 'ui-monospace, SFMono-Regular, Menlo, monospace',
         color: t.baseContent,
-        'text-opacity': 0.6,
+        // 'text-opacity': 0.6,
         'overlay-padding': 8,
         'transition-property':
           'background-color, border-color, opacity, text-opacity',
-        'transition-duration': '180ms',
+        'transition-duration': '80ms',
         'transition-timing-function': 'ease-out',
+      },
+    },
+    {
+      selector: 'node.hover',
+      style: {
+        'background-color': t.primary,
       },
     },
     {
       selector: 'node[type = "worker"]',
       style: {
         shape: 'ellipse',
-        width: 11,
-        height: 11,
+        width: 14,
+        height: 14,
       },
     },
     {
       selector: 'node[type = "app"]',
       style: {
-        shape: 'ellipse',
-        width: 11,
-        height: 11,
-        'background-color': t.primary,
-        'border-width': 0,
+        shape: 'round-diamond',
+        width: 14,
+        height: 14,
+        'border-width': 3,
         color: t.baseContent,
       },
     },
@@ -571,15 +588,50 @@ function buildStyle(t) {
     {
       selector: 'edge',
       style: {
-        // 'curve-style': 'unbundled-bezier',
-        // 'control-point-distances': [40, -40],
-        // 'control-point-weights': [0.25, 0.75],
-        'line-color': t.base300,
-        width: 1,
-        opacity: 0.55,
+        'curve-style': 'unbundled-bezier',
+
+        'source-endpoint': 'outside-to-node-or-label',
+        'target-endpoint': 'outside-to-node-or-label',
+
+        // TENSION = how strongly the curve is pulled horizontally.
+        // 0.5 = aggressive boxy S-curve
+        // 0.25 to 0.35 = smooth, gentle sweep
+        // 0.1 = almost a straight diagonal line
+        'control-point-distances': function(edge) {
+          const TENSION = 0.3;
+
+          const source = edge.source().position();
+          const target = edge.target().position();
+          const dx = target.x - source.x;
+          const dy = target.y - source.y;
+
+          const length = Math.sqrt(dx * dx + dy * dy);
+          if (length === 0) return [0, 0];
+
+          const dist = (TENSION * (dx * dy)) / length;
+          return [-dist, dist];
+        },
+        'control-point-weights': function(edge) {
+          const TENSION = 0.3;
+
+          const source = edge.source().position();
+          const target = edge.target().position();
+          const dx = target.x - source.x;
+          const dy = target.y - source.y;
+
+          const lengthSq = dx * dx + dy * dy;
+          if (lengthSq === 0) return [0.5, 0.5];
+
+          const w1 = (TENSION * dx * dx) / lengthSq;
+          const w2 = ((1 - TENSION) * dx * dx + dy * dy) / lengthSq;
+
+          return [w1, w2];
+        },
+        'line-color': t.base500,
+        width: 1.4,
         'target-arrow-shape': 'none',
         'transition-property': 'line-color, width, opacity',
-        'transition-duration': '180ms',
+        'transition-duration': '80ms',
       },
     },
     {
@@ -595,21 +647,30 @@ function buildStyle(t) {
       selector: 'edge.leaving',
       style: { opacity: 0 },
     },
+    {
+      selector: '.hidden',
+      style: { display: 'none' },
+    },
   ];
 }
 
 function elementsFor(key, node) {
+  const has_children = !!node['has_children?'];
+  const children_keys =
+    node.children_keys === 'not_loaded' ? null : node.children_keys;
+
   const data = {
     id: key,
     name: node.name,
     type: node.type,
     info: node.info,
-    has_children: !!node['has_children?'],
+    has_children,
     child_count: node.child_count ?? 0,
     parent_key: node.parent_key,
     children_keys:
       node.children_keys === 'not_loaded' ? null : node.children_keys,
     dead: node.info === 'dead',
+    is_collapsed: has_children && children_keys === null,
   };
   data.displayLabel = composeLabel(data);
 
@@ -673,6 +734,14 @@ function toggleIcon(collapsed) {
   }
   // minus
   return `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="2.5" y1="6" x2="9.5" y2="6"/></svg>`;
+}
+
+function getColor(cs, value) {
+  const color = cs.getPropertyValue(value).trim();
+  if (color) {
+    return new Color(color).to('srgb').toString({ format: 'hex' });
+  }
+  return color;
 }
 
 export default SupervisionTree;

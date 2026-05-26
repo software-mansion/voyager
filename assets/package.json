@@ -4,6 +4,7 @@
     "format:check": "prettier . --check"
   },
   "dependencies": {
+    "colorjs.io": "^0.6.1",
     "cytoscape": "^3.33.4",
     "cytoscape-dagre": "^2.5.0",
     "dagre": "^0.8.5",

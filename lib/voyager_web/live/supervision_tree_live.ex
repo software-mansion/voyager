@@ -312,45 +312,48 @@ defmodule VoyagerWeb.SupervisionTreeLive do
             phx-change="select-apps"
             class="flex flex-col gap-3"
           >
-            <div class="flex items-center justify-between">
-              <h2 class="text-base-content text-sm font-semibold">Applications</h2>
-              <div class="flex items-center gap-2">
-                <label class="label text-base-content/60 text-xs" for="depth-input">Depth</label>
-                <input
-                  id="depth-input"
-                  type="number"
-                  name="depth"
-                  min="1"
-                  max="10"
-                  value={@depth}
-                  class="input input-sm input-bordered w-16 text-center"
-                />
-              </div>
-            </div>
-            <div class="flex flex-wrap gap-2">
-              <%= if @available_apps == [] do %>
-                <span class="text-base-content/50 text-sm italic">No applications available</span>
-              <% else %>
-                <%= for {app, vsn} <- @available_apps do %>
-                  <label class={[
-                    "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors",
-                    MapSet.member?(@selected_apps, app) && "border-primary bg-primary/10 text-primary",
-                    not MapSet.member?(@selected_apps, app) &&
-                      "border-base-300 bg-base-200 text-base-content hover:border-primary/50"
-                  ]}>
-                    <input
-                      type="checkbox"
-                      name="apps[]"
-                      value={to_string(app)}
-                      checked={MapSet.member?(@selected_apps, app)}
-                      class="checkbox checkbox-xs checkbox-primary"
-                    />
-                    <span class="font-mono">{app}</span>
-                    <span class="badge badge-ghost badge-xs">{vsn}</span>
-                  </label>
+            <details tabindex="0" class="collapse collapse-arrow">
+              <summary class="collapse-title pe-4 ps-12 flex cursor-pointer items-center justify-between after:start-5 after:end-auto">
+                <h2 class="text-base-content text-sm font-semibold">Applications</h2>
+                <div class="flex items-center gap-2">
+                  <label class="label text-base-content/60 text-xs" for="depth-input">Depth</label>
+                  <input
+                    id="depth-input"
+                    type="number"
+                    name="depth"
+                    min="1"
+                    max="10"
+                    value={@depth}
+                    class="input input-sm input-bordered w-16 text-center"
+                  />
+                </div>
+              </summary>
+              <div class="collapse-content flex flex-wrap gap-2">
+                <%= if @available_apps == [] do %>
+                  <span class="text-base-content/50 text-sm italic">No applications available</span>
+                <% else %>
+                  <%= for {app, vsn} <- @available_apps do %>
+                    <label class={[
+                      "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors",
+                      MapSet.member?(@selected_apps, app) &&
+                        "border-primary bg-primary/10 text-primary",
+                      not MapSet.member?(@selected_apps, app) &&
+                        "border-base-300 bg-base-200 text-base-content hover:border-primary/50"
+                    ]}>
+                      <input
+                        type="checkbox"
+                        name="apps[]"
+                        value={to_string(app)}
+                        checked={MapSet.member?(@selected_apps, app)}
+                        class="checkbox checkbox-xs checkbox-primary"
+                      />
+                      <span class="font-mono">{app}</span>
+                      <span class="badge badge-ghost badge-xs">{vsn}</span>
+                    </label>
+                  <% end %>
                 <% end %>
-              <% end %>
-            </div>
+              </div>
+            </details>
           </.form>
         </div>
       </div>
@@ -374,7 +377,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       <div class="flex-1 overflow-auto">
         <%= cond do %>
           <% MapSet.size(@selected_apps) == 0 -> %>
-            <div class="border-base-300 flex h-64 flex-col items-center justify-center gap-3 rounded-lg border border-dashed text-center">
+            <div class="border-base-300 flex h-full flex-col items-center justify-center gap-3 rounded-lg border border-dashed text-center">
               <.icon name="icon-network" class="size-10 text-base-content/30" />
               <div>
                 <p class="text-base-content/60 font-medium">No applications selected</p>
@@ -384,7 +387,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
               </div>
             </div>
           <% @status == :idle -> %>
-            <div class="border-base-300 flex h-64 flex-col items-center justify-center gap-3 rounded-lg border border-dashed text-center">
+            <div class="border-base-300 flex h-full flex-col items-center justify-center gap-3 rounded-lg border border-dashed text-center">
               <.icon name="icon-network" class="size-10 text-base-content/30" />
               <div>
                 <p class="text-base-content/60 font-medium">Waiting…</p>
@@ -397,7 +400,11 @@ defmodule VoyagerWeb.SupervisionTreeLive do
               phx-update="ignore"
               class="bg-base-100 relative h-full overflow-hidden rounded-lg shadow-sm"
             >
-              <div data-cy-container class="absolute inset-0 h-full"></div>
+              <div
+                data-cy-container
+                class="absolute inset-0 h-full cursor-grab active:cursor-grabbing"
+              >
+              </div>
               <div data-cy-overlays class="pointer-events-none absolute inset-0"></div>
             </div>
         <% end %>
