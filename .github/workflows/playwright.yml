@@ -1,0 +1,92 @@
+name: Playwright Test
+
+on:
+  push:
+    branches:
+      - main
+      - "v*.*"
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: e2e
+    runs-on: ubuntu-24.04
+
+    env:
+      ELIXIR_VERSION: "1.19.5"
+      OTP_VERSION: "28.5"
+      MIX_ENV: "e2e"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+
+      - name: Cache Mix dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
+
+      - name: Install Mix dependencies
+        run: mix deps.get
+
+      - name: Compile project
+        run: mix compile --warnings-as-errors
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: 'npm'
+          cache-dependency-path: './e2e/package-lock.json'
+
+      - name: Cache Playwright dependencies
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('e2e/package-lock.json') }}
+
+      - name: Install Node dependencies
+        working-directory: ./e2e
+        run: npm ci
+
+      - name: Install Playwright dependencies
+        working-directory: ./e2e
+        run: npx playwright install --with-deps
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+
+      - name: Setup assets
+        run: mix assets.setup
+
+      - name: Build assets
+        run: mix assets.build
+
+      - name: Check prettier
+        working-directory: ./e2e
+        run: npx prettier . --check
+
+      - name: Run e2e tests
+        run: mix e2e
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 1
