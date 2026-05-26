@@ -97,9 +97,7 @@ defmodule Voyager.MixProject do
       ],
       e2e: [
         "ecto.reset",
-        "cmd bash e2e/node.sh start",
-        "cmd --cd e2e npx playwright test",
-        "cmd bash e2e/node.sh stop"
+        "cmd bash e2e/run.sh"
       ],
       precommit: [
         "compile --warnings-as-errors",
