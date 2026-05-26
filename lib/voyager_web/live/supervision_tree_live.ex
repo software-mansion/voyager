@@ -22,7 +22,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> assign(:in_flight, nil)
       |> assign(:errors, [])
       |> assign(:status, :idle)
-      |> assign(:last_refreshed_at, nil)
       |> assign(:refresh_timer, nil)
       |> assign(:apps_form, to_form(%{}, as: :tree_controls))
 
@@ -206,11 +205,17 @@ defmodule VoyagerWeb.SupervisionTreeLive do
             Map.merge(d, %{kind: "delta", status: status, errors: errors})
         end
 
+      if socket.assigns[:refresh_timer] do
+        Process.cancel_timer(socket.assigns.refresh_timer)
+      end
+
+      timer = Process.send_after(self(), :refresh, @refresh_interval)
+
       socket =
         socket
+        |> assign(:refresh_timer, timer)
         |> assign(:errors, errors)
         |> assign(:status, status)
-        |> assign(:last_refreshed_at, DateTime.utc_now())
         |> assign(:in_flight, nil)
         |> assign(:last_tree_flat, new_flat)
         |> push_event("tree-data", payload)
@@ -225,8 +230,15 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     in_flight = socket.assigns.in_flight
 
     if not is_nil(in_flight) and in_flight.ref == ref do
+      if socket.assigns[:refresh_timer] do
+        Process.cancel_timer(socket.assigns.refresh_timer)
+      end
+
+      timer = Process.send_after(self(), :refresh, @refresh_interval)
+
       socket =
         socket
+        |> assign(:refresh_timer, timer)
         |> assign(:in_flight, nil)
         |> assign(:status, :error)
         |> assign(:errors, socket.assigns.errors ++ [{:fetch, reason}])
@@ -270,11 +282,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
             <span class={["badge", status_badge_class(@status)]}>
               {status_label(@status)}
             </span>
-            <%= if @last_refreshed_at do %>
-              <span class="text-base-content/50 text-xs">
-                refreshed {relative_time(@last_refreshed_at)}
-              </span>
-            <% end %>
             <button
               id="supervision-tree-refresh"
               class="btn btn-sm btn-ghost"
@@ -457,16 +464,4 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   defp status_label(:ok), do: "ok"
   defp status_label(:partial), do: "partial"
   defp status_label(:error), do: "error"
-
-  defp relative_time(nil), do: "—"
-
-  defp relative_time(%DateTime{} = dt) do
-    diff = DateTime.diff(DateTime.utc_now(), dt)
-
-    cond do
-      diff < 60 -> "#{diff}s ago"
-      diff < 3600 -> "#{div(diff, 60)}m ago"
-      true -> "#{div(diff, 3600)}h ago"
-    end
-  end
 end
