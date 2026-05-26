@@ -24,7 +24,7 @@ jobs:
     env:
       ELIXIR_VERSION: "1.19.5"
       OTP_VERSION: "28.5"
-
+      MIX_ENV: "e2e"
     steps:
       - uses: actions/checkout@v4
 
@@ -52,6 +52,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: lts/*
+          cache: 'npm'
+          cache-dependency-path: './e2e/package-lock.json'
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
