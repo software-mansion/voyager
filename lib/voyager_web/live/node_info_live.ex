@@ -17,7 +17,7 @@ defmodule VoyagerWeb.NodeInfoLive do
         {@session.node_name}
       </h1>
 
-      <.info_card label="OTP" value={format_otp_release(@otp_release)} />
+      <.info_card label="OTP" value={format_otp_release(@otp_release)} data-testid="otp-card" />
     </div>
     """
   end

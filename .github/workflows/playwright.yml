@@ -91,4 +91,4 @@ jobs:
         with:
           name: playwright-report
           path: e2e/playwright-report/
-          retention-days: 1
+          retention-days: 7

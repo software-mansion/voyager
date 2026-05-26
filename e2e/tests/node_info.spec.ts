@@ -15,7 +15,7 @@ test.describe('NodeInfoLive', () => {
   });
 
   test('shows the OTP release info card', async ({ page }) => {
-    const otpCard = page.locator('.card-body', { hasText: 'OTP' });
+    const otpCard = page.locator('[data-testid="otp-card"]');
     await expect(otpCard).toBeVisible();
     await expect(otpCard).not.toContainText('—');
   });

@@ -13,7 +13,7 @@ test.describe('ConnectLive › recent connections', () => {
 
   test('fills the form from a recent connection row', async ({ page }) => {
     await page
-      .locator(`${sel.recentConnections} button[phx-click="fill_recent"]`)
+      .locator(`${sel.recentConnections} [data-testid="fill-recent-btn"]`)
       .first()
       .click();
     await expect(page.locator(sel.nodeNameInput)).toHaveValue(NODE_NAME);
