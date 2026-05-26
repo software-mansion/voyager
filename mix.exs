@@ -76,6 +76,7 @@ defmodule Voyager.MixProject do
       ],
       "tauri.dev": ["cmd rel/app/tauri.sh dev"],
       "tauri.build": ["cmd rel/app/tauri.sh build"],
+      "tauri.test": ["cmd --cd rel/app/src-tauri cargo test"],
       "assets.setup": [
         "tailwind.install --if-missing",
         "esbuild.install --if-missing",
@@ -102,7 +103,8 @@ defmodule Voyager.MixProject do
         "credo --strict",
         "format",
         "format.e2e",
-        "test"
+        "test",
+        "tauri.test"
       ]
     ]
   end
