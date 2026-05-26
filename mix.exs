@@ -96,7 +96,13 @@ defmodule Voyager.MixProject do
         "cmd --cd e2e npx playwright test",
         "cmd bash e2e/node.sh stop"
       ],
-      precommit: ["compile --warnings-as-errors", "deps.unlock --unused","credo --strict", "format", "test"]
+      precommit: [
+        "compile --warnings-as-errors",
+        "deps.unlock --unused",
+        "credo --strict",
+        "format",
+        "test"
+      ]
     ]
   end
 end
