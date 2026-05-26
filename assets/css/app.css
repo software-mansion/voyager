@@ -23,6 +23,7 @@
   --color-base-100: oklch(100% 0 0);
   --color-base-200: oklch(98% 0.003 247.858);
   --color-base-300: oklch(96% 0.007 247.896);
+  --color-base-500: oklch(86.86% 0.022 252.51);
   --color-base-content: oklch(27% 0.041 260.031);
   --color-primary: oklch(0.2814 0.1517 263.58);
   --color-primary-content: oklch(1 0 0);
@@ -58,6 +59,7 @@
   --color-base-100: oklch(25.33% 0.016 252.42);
   --color-base-200: oklch(23.26% 0.014 253.1);
   --color-base-300: oklch(21.15% 0.012 254.09);
+  --color-base-500: oklch(42% 0.042 252.51);
   --color-base-content: oklch(97.807% 0.029 256.847);
   --color-primary: oklch(0.8093 0.0798 225.54);
   --color-primary-content: oklch(27% 0.041 260.031);
@@ -90,19 +92,16 @@
 @custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
 
 [data-cy-container] {
-  background-color: var(--color-base-100);
-  background-image: radial-gradient(
-    circle,
-    color-mix(in oklab, var(--color-base-content) 12%, transparent) 1px,
-    transparent 1px
-  );
-  background-size: 18px 18px;
+  --grid: rgba(148, 163, 184, 0.12);
+  background:
+    linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 32px 32px;
 }
 
 .cy-toggle {
   position: absolute;
-  width: 16px;
-  height: 16px;
+  width: 22px;
+  height: 22px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -116,17 +115,15 @@
   transition:
     color 120ms ease-out,
     border-color 120ms ease-out,
-    background-color 120ms ease-out,
-    transform 120ms ease-out;
+    background-color 120ms ease-out;
 }
 
 .cy-toggle:hover {
-  color: var(--color-primary);
-  border-color: var(--color-primary);
-  transform: scale(1.1);
+  background: var(--color-primary);
+  color: var(--color-base-100);
 }
 
 .cy-toggle svg {
-  width: 10px;
-  height: 10px;
+  width: 14px;
+  height: 14px;
 }
