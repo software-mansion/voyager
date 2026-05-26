@@ -190,7 +190,7 @@ defmodule Voyager.Inspector.Walker do
 
         results =
           Task.Supervisor.async_stream_nolink(
-            Voyager.Inspector.TaskSupervisor,
+            Voyager.TaskSupervisor,
             raw_children,
             fn {child_id, child_pid_or_status, child_type, child_modules} ->
               walk_child(

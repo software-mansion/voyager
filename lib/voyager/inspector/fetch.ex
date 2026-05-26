@@ -55,7 +55,7 @@ defmodule Voyager.Inspector.Fetch do
   @spec start(request()) :: state()
   def start(request) do
     task =
-      Task.Supervisor.async_nolink(Voyager.Inspector.TaskSupervisor, fn ->
+      Task.Supervisor.async_nolink(Voyager.TaskSupervisor, fn ->
         Walker.walk(request.node, request.apps, request.depth, request.expanded)
       end)
 
@@ -74,7 +74,7 @@ defmodule Voyager.Inspector.Fetch do
   def cancel(%{task: task}) do
     Process.demonitor(task.ref, [:flush])
 
-    case Task.Supervisor.terminate_child(Voyager.Inspector.TaskSupervisor, task.pid) do
+    case Task.Supervisor.terminate_child(Voyager.TaskSupervisor, task.pid) do
       :ok -> :ok
       {:error, :not_found} -> :ok
     end

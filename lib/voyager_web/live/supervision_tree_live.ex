@@ -3,7 +3,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   alias Voyager.Inspector.Fetch
   alias Voyager.Inspector.Remote
-  alias Voyager.Node
   alias VoyagerWeb.SupervisionTreeLive.Diff
 
   @refresh_interval 5_000
@@ -11,61 +10,49 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   @default_depth 3
 
   @impl true
-  def mount(%{"node" => node_str}, _session, socket) do
-    node_atom =
-      try do
-        String.to_existing_atom(node_str)
-      rescue
-        ArgumentError -> nil
+  def mount(_params, _session, socket) do
+    socket =
+      socket
+      |> assign(:active_nav, :supervision_tree)
+      |> assign(:available_apps, [])
+      |> assign(:selected_apps, MapSet.new())
+      |> assign(:depth, @default_depth)
+      |> assign(:expanded_pids, MapSet.new())
+      |> assign(:last_tree_flat, nil)
+      |> assign(:in_flight, nil)
+      |> assign(:errors, [])
+      |> assign(:status, :idle)
+      |> assign(:last_refreshed_at, nil)
+      |> assign(:refresh_timer, nil)
+      |> assign(:apps_form, to_form(%{}, as: :tree_controls))
+
+    session = socket.assigns.session
+
+    socket =
+      if connected?(socket) do
+        socket =
+          case Remote.list_applications(session.node) do
+            {:ok, apps} ->
+              available =
+                apps
+                |> Enum.map(fn {a, _desc, vsn} -> {a, to_string(vsn)} end)
+                |> Enum.sort()
+
+              assign(socket, :available_apps, available)
+
+            {:error, reason} ->
+              socket
+              |> assign(:status, :error)
+              |> assign(:errors, [{:list_applications, session.node, reason}])
+          end
+
+        timer = Process.send_after(self(), :refresh, @refresh_interval)
+        assign(socket, :refresh_timer, timer)
+      else
+        socket
       end
 
-    if is_nil(node_atom) do
-      {:ok, push_navigate(socket, to: ~p"/")}
-    else
-      voyager_node = %Node{name: node_atom, status: :connected, connected_at: nil, cookie: nil}
-
-      socket =
-        socket
-        |> assign(:node, voyager_node)
-        |> assign(:active_nav, :supervision_tree)
-        |> assign(:available_apps, [])
-        |> assign(:selected_apps, MapSet.new())
-        |> assign(:depth, @default_depth)
-        |> assign(:expanded_pids, MapSet.new())
-        |> assign(:last_tree_flat, nil)
-        |> assign(:in_flight, nil)
-        |> assign(:errors, [])
-        |> assign(:status, :idle)
-        |> assign(:last_refreshed_at, nil)
-        |> assign(:refresh_timer, nil)
-        |> assign(:apps_form, to_form(%{}, as: :tree_controls))
-
-      socket =
-        if connected?(socket) do
-          socket =
-            case Remote.list_applications(node_atom) do
-              {:ok, apps} ->
-                available =
-                  apps
-                  |> Enum.map(fn {a, _desc, vsn} -> {a, to_string(vsn)} end)
-                  |> Enum.sort()
-
-                assign(socket, :available_apps, available)
-
-              {:error, reason} ->
-                socket
-                |> assign(:status, :error)
-                |> assign(:errors, [{:list_applications, node_atom, reason}])
-            end
-
-          timer = Process.send_after(self(), :refresh, @refresh_interval)
-          assign(socket, :refresh_timer, timer)
-        else
-          socket
-        end
-
-      {:ok, socket}
-    end
+    {:ok, socket}
   end
 
   @impl true
@@ -277,7 +264,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         <div class="card-body flex flex-row items-center gap-4 py-3">
           <div class="flex-1">
             <h1 class="card-title text-base-content">Supervision Tree</h1>
-            <p class="text-base-content/60 text-sm">{@node.name}</p>
+            <p class="text-base-content/60 text-sm">{@session.node_name}</p>
           </div>
           <div class="flex items-center gap-3">
             <span class={["badge", status_badge_class(@status)]}>
@@ -445,7 +432,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> reset_tree()
     else
       request = %{
-        node: socket.assigns.node.name,
+        node: socket.assigns.session.node,
         apps: selected,
         depth: socket.assigns.depth,
         expanded: socket.assigns.expanded_pids
