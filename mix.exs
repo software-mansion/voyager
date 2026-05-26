@@ -92,10 +92,9 @@ defmodule Voyager.MixProject do
       ],
       e2e: [
         "ecto.reset",
-        "cmd docker build -f e2e/Dockerfile -t voyager-test-node e2e",
-        "cmd docker run --rm -d --network host --name voyager-test-node voyager-test-node",
+        "cmd bash e2e/node.sh start",
         "cmd --cd e2e npx playwright test",
-        "cmd docker stop voyager-test-node"
+        "cmd bash e2e/node.sh stop"
       ],
       precommit: ["compile --warnings-as-errors", "deps.unlock --unused","credo --strict", "format", "test"]
     ]

@@ -5,23 +5,13 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: process.env.CI ? 4 : undefined,
+  maxFailures: process.env.CI ? 5 : undefined,
   reporter: 'html',
   use: {
     baseURL: 'http://localhost:4001',
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
   },
-
-  projects: [
-    {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
-    },
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-  ],
 
   webServer: {
     command: 'cd .. && MIX_ENV=e2e mix phx.server',
@@ -30,4 +20,38 @@ export default defineConfig({
     stdout: 'pipe',
     stderr: 'pipe',
   },
+
+  projects: [
+    {
+      name: 'connect-form chromium',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: '**/connect_form.spec.ts',
+    },
+    {
+      name: 'connect-form firefox',
+      use: { ...devices['Desktop Firefox'] },
+      testMatch: '**/connect_form.spec.ts',
+    },
+
+    {
+      name: 'connect',
+      use: { ...devices['Desktop Chrome'] },
+      workers: 1,
+      testMatch: '**/connect.spec.ts',
+      dependencies: ['connect-form chromium', 'connect-form firefox'],
+    },
+
+    {
+      name: 'node chromium',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: ['**/node_info.spec.ts', '**/recent_connections.spec.ts'],
+      dependencies: ['connect'],
+    },
+    {
+      name: 'node firefox',
+      use: { ...devices['Desktop Firefox'] },
+      testMatch: ['**/node_info.spec.ts', '**/recent_connections.spec.ts'],
+      dependencies: ['connect'],
+    },
+  ],
 });
