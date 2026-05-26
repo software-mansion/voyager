@@ -7,4 +7,5 @@ bash "$SCRIPT_DIR/node.sh" start
 trap "bash '$SCRIPT_DIR/node.sh' stop" EXIT
 
 cd "$SCRIPT_DIR"
-./node_modules/.bin/playwright test "$@"
+
+npx playwright test "$@"
