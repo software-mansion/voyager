@@ -10,6 +10,7 @@ defmodule Voyager.MixProject do
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
+      releases: releases(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
       listeners: [Phoenix.CodeReloader],
       dialyzer: [
@@ -40,6 +41,7 @@ defmodule Voyager.MixProject do
       {:cloak_ecto, "~> 1.3"},
       {:ecto_sql, "~> 3.13"},
       {:ecto_sqlite3, ">= 0.0.0"},
+      {:elixirkit, github: "livebook-dev/elixirkit"},
       {:jason, "~> 1.2"},
       {:phoenix, "~> 1.8.7"},
       {:phoenix_ecto, "~> 4.5"},
@@ -99,6 +101,15 @@ defmodule Voyager.MixProject do
         "format",
         "format.e2e",
         "test"
+      ]
+    ]
+  end
+
+  defp releases do
+    [
+      example: [
+        steps: [:assemble, &ElixirKit.Release.codesign/1],
+        entitlements: "#{__DIR__}/src-tauri/App.entitlements"
       ]
     ]
   end
