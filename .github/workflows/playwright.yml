@@ -71,6 +71,12 @@ jobs:
         run: npx playwright install --with-deps
         if: steps.playwright-cache.outputs.cache-hit != 'true'
 
+      - name: Setup assets
+        run: mix assets.setup
+
+      - name: Build assets
+        run: mix assets.build
+
       - name: Check prettier
         working-directory: ./e2e
         run: npx prettier . --check
