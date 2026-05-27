@@ -12,6 +12,8 @@ pool_size=5
 env \
   MIX_ENV="$env" \
   PHX_HOST="$phx_host" \
+  PHX_SCHEME=http \
+  PHX_URL_PORT="$port" \
   PORT="$port" \
   SECRET_KEY_BASE="$secret_key_base" \
   DATABASE_PATH="$database_path" \
