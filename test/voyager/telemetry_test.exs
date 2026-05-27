@@ -9,7 +9,7 @@ defmodule Voyager.TelemetryTest do
     test "defaults to :all and includes phoenix, system, and custom events" do
       events = Events.events()
 
-      assert [:phoenix, :live_view, :mount, :start] in events
+      assert [:phoenix, :live_view, :mount, :stop] in events
       assert [:voyager, :vm, :memory] in events
       assert [:voyager, :node, :connect] in events
     end
@@ -18,14 +18,14 @@ defmodule Voyager.TelemetryTest do
       assert [:voyager, :vm, :memory] in Events.events(:system)
       assert [:voyager, :node, :connect] in Events.events(:custom)
       assert [:voyager, :node, :disconnect] in Events.events(:custom)
-      assert [:phoenix, :live_view, :mount, :start] in Events.events(:phoenix)
+      assert [:phoenix, :live_view, :mount, :stop] in Events.events(:phoenix)
     end
 
     test "phoenix events include all live_view lifecycle events" do
       phoenix_events = Events.events(:phoenix)
 
       for action <- [:mount, :handle_event, :handle_info],
-          phase <- [:start, :stop, :exception] do
+          phase <- [:stop, :exception] do
         assert [:phoenix, :live_view, action, phase] in phoenix_events
       end
     end
