@@ -39,6 +39,9 @@ jobs:
         working-directory: ./e2e
         run: npm ci
 
+      - name: Check prettier
+        working-directory: ./e2e
+        run: npx prettier . --check
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
         with:
@@ -56,11 +59,6 @@ jobs:
 
       - name: Install Mix dependencies
         run: mix deps.get
-
-        
-      - name: Check prettier
-        working-directory: ./e2e
-        run: mix format.e2e
 
       - name: Compile project
         run: mix compile --warnings-as-errors
