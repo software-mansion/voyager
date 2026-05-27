@@ -403,6 +403,11 @@ const SupervisionTree = {
     if (!entry) return;
     const node = this.cy.getElementById(key);
     if (node.empty()) return;
+    if (node.classNames().includes('hidden')) {
+      entry.dom.style.display = 'none';
+      return;
+    }
+    entry.dom.style.display = '';
 
     const bb = node.renderedBoundingBox();
     // Anchor at the right edge of the rendered label.
