@@ -10,7 +10,7 @@ defmodule Voyager.Telemetry do
 
   @type event() :: Events.event()
 
-  @telemetry_poller_period_ms 30_000
+  @telemetry_poller_period_ms 60_000
 
   def start_link(opts \\ []) do
     Supervisor.start_link(__MODULE__, opts, name: __MODULE__)

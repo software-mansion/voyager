@@ -15,13 +15,10 @@ defmodule Voyager.Telemetry.Events do
   @system_events [@vm_memory_event]
 
   @phoenix_events [
-    [:phoenix, :live_view, :mount, :start],
     [:phoenix, :live_view, :mount, :stop],
     [:phoenix, :live_view, :mount, :exception],
-    [:phoenix, :live_view, :handle_event, :start],
     [:phoenix, :live_view, :handle_event, :stop],
     [:phoenix, :live_view, :handle_event, :exception],
-    [:phoenix, :live_view, :handle_info, :start],
     [:phoenix, :live_view, :handle_info, :stop],
     [:phoenix, :live_view, :handle_info, :exception]
   ]
