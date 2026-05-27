@@ -7,7 +7,6 @@ cytoscape.use(dagre);
 const LAYOUT_DEBOUNCE_MS = 50;
 const OVERLAY_DEBOUNCE_MS = 80;
 const OVERLAY_MIN_ZOOM = 0.45;
-const DBLTAP_GUARD_MS = 250;
 const FADE_MS = 200;
 
 const TOPOLOGY_FIELDS = new Set([
@@ -32,7 +31,7 @@ const SupervisionTree = {
       wheelSensitivity: 0.2,
       minZoom: 0.2,
       maxZoom: 2.5,
-      boxSelectionEnabled: false,
+      autoungrabify: true,
     });
 
     this.layoutTimer = null;
@@ -43,7 +42,12 @@ const SupervisionTree = {
     this.lastTapId = null;
     this.pendingSelectTimer = null;
 
-    this.cy.on('tap', 'node', (e) => this.onNodeTap(e));
+    this.cy.on('oneclick', 'node', (e) => {
+      this.pushEventTo(this.el, 'select-node', { key: e.target.id() });
+    });
+    this.cy.on('dblclick', 'node', (e) => {
+      this.toggleExpandNode(e.target);
+    });
     this.cy.on('tap', (e) => {
       if (e.target === this.cy) this.onBackgroundTap();
     });
@@ -310,44 +314,6 @@ const SupervisionTree = {
   // Interactions
   // ---------------------------------------------------------------------------
 
-  onNodeTap(e) {
-    const key = e.target.id();
-    const now = Date.now();
-
-    // Detect double-tap directly: a second tap on the same key within the
-    // guard window cancels the pending single-tap and fires toggle-expand.
-    if (
-      this.lastTapId === key &&
-      now - this.lastTapTs < DBLTAP_GUARD_MS &&
-      this.pendingSelectTimer
-    ) {
-      clearTimeout(this.pendingSelectTimer);
-      this.pendingSelectTimer = null;
-      this.lastTapId = null;
-      this.lastTapTs = 0;
-      if (isRealPid(key)) {
-        this.pushEventTo(this.el, 'toggle-expand', { pid: key });
-      }
-      if (this.isCollapsed(e.target)) {
-        e.target.successors().removeClass('hidden');
-        e.target.data('is_collapsed', false);
-      } else {
-        e.target.successors().addClass('hidden');
-        e.target.data('is_collapsed', true);
-      }
-      this.scheduleLayout();
-      return;
-    }
-
-    this.lastTapId = key;
-    this.lastTapTs = now;
-    if (this.pendingSelectTimer) clearTimeout(this.pendingSelectTimer);
-    this.pendingSelectTimer = setTimeout(() => {
-      this.pendingSelectTimer = null;
-      this.pushEventTo(this.el, 'select-node', { key });
-    }, DBLTAP_GUARD_MS + 10);
-  },
-
   onBackgroundTap() {
     this.pushEventTo(this.el, 'select-node', { key: '' });
   },
@@ -424,17 +390,7 @@ const SupervisionTree = {
     dom.innerHTML = toggleIcon(this.isCollapsed(node));
     dom.addEventListener('click', (ev) => {
       ev.stopPropagation();
-      if (isRealPid(key)) {
-        this.pushEventTo(this.el, 'toggle-expand', { pid: key });
-      }
-      if (this.isCollapsed(node)) {
-        node.successors().removeClass('hidden');
-        node.data('is_collapsed', false);
-      } else {
-        node.successors().addClass('hidden');
-        node.data('is_collapsed', true);
-      }
-      this.scheduleLayout();
+      this.toggleExpandNode(node);
     });
 
     this.overlayLayer.appendChild(dom);
@@ -479,6 +435,20 @@ const SupervisionTree = {
 
   isCollapsed(node) {
     return node.data('is_collapsed');
+  },
+
+  toggleExpandNode(node) {
+    if (isRealPid(node.id())) {
+      this.pushEventTo(this.el, 'toggle-expand', { pid: node.id() });
+    }
+    if (this.isCollapsed(node)) {
+      node.successors().removeClass('hidden');
+      node.data('is_collapsed', false);
+    } else {
+      node.successors().addClass('hidden');
+      node.data('is_collapsed', true);
+    }
+    this.scheduleLayout();
   },
 
   // ---------------------------------------------------------------------------
