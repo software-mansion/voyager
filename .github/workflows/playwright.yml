@@ -41,7 +41,7 @@ jobs:
 
       - name: Check prettier
         working-directory: ./e2e
-        run: npx prettier . --check
+        run: mix format.e2e
 
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
@@ -81,7 +81,7 @@ jobs:
         run: npx playwright install-deps
 
       - name: Setup and build assets
-        run: mix assets.setup && mix assets.build
+        run: mix assets.setup && mix assets.deploy
 
       - name: Run e2e tests
         run: mix e2e
