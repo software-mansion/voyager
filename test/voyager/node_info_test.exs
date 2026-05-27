@@ -2,18 +2,15 @@ defmodule Voyager.NodeInfoTest do
   use ExUnit.Case, async: true
 
   alias Voyager.NodeInfo
-
-  alias Voyager.NodeInfo.{
-    Language,
-    Limits,
-    Memory,
-    Processors,
-    RunQueues,
-    Schedulers,
-    Snapshot,
-    Statistics,
-    SystemInfo
-  }
+  alias Voyager.NodeInfo.Language
+  alias Voyager.NodeInfo.Limits
+  alias Voyager.NodeInfo.Memory
+  alias Voyager.NodeInfo.Processors
+  alias Voyager.NodeInfo.RunQueues
+  alias Voyager.NodeInfo.Schedulers
+  alias Voyager.NodeInfo.Snapshot
+  alias Voyager.NodeInfo.Statistics
+  alias Voyager.NodeInfo.SystemInfo
 
   describe "fetch/2" do
     test "returns a populated snapshot for the local node" do
@@ -72,9 +69,8 @@ defmodule Voyager.NodeInfoTest do
       end
     end
 
-    test "returns an error tuple for an unreachable node without crashing the caller" do
-      assert {:error, {:error, {:erpc, :noconnection}}} =
-               NodeInfo.fetch(:"nonexistent@127.0.0.1")
+    test "returns :noconnection for an unreachable node without crashing the caller" do
+      assert {:error, :noconnection} = NodeInfo.fetch(:"nonexistent@127.0.0.1")
     end
   end
 end
