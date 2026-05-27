@@ -3,7 +3,7 @@ defmodule Voyager.Services.NodeInfo.Memory do
   Memory usage breakdown for a BEAM node.
 
   Process used is part of the process allocated.
-  Atom allocated is part of the atom used.
+  Atom used is part of the atom allocated.
   """
 
   @type t :: %__MODULE__{
