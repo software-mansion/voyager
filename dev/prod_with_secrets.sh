@@ -9,4 +9,5 @@ phx_host=localhost
 port=4000
 pool_size=5
 
+MIX_ENV=$env PHX_HOST=$phx_host PORT=$port SECRET_KEY_BASE=$secret_key_base DATABASE_PATH=$database_path POOL_SIZE=$pool_size TELEMETRY_PUSH_URL=$telemetry_push_url mix setup
 MIX_ENV=$env PHX_HOST=$phx_host PORT=$port SECRET_KEY_BASE=$secret_key_base DATABASE_PATH=$database_path POOL_SIZE=$pool_size TELEMETRY_PUSH_URL=$telemetry_push_url iex -S mix phx.server
