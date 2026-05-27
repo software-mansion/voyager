@@ -1,4 +1,4 @@
-defmodule Voyager.NodeInfo.Schedulers do
+defmodule Voyager.Services.NodeInfo.Schedulers do
   @moduledoc """
   Scheduler counts for the BEAM node.
   """

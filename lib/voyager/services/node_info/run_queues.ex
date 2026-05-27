@@ -1,4 +1,4 @@
-defmodule Voyager.NodeInfo.RunQueues do
+defmodule Voyager.Services.NodeInfo.RunQueues do
   @moduledoc """
   Run queue depths for a BEAM node.
   """

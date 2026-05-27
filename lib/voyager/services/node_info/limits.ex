@@ -1,4 +1,4 @@
-defmodule Voyager.NodeInfo.Limits do
+defmodule Voyager.Services.NodeInfo.Limits do
   @moduledoc """
   Used-vs-limit counters for capped node-wide resources.
   """

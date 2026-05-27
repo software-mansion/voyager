@@ -1,4 +1,4 @@
-defmodule Voyager.NodeInfo.SystemInfo do
+defmodule Voyager.Services.NodeInfo.SystemInfo do
   @moduledoc """
   System-level facts about a BEAM node.
   """

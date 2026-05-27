@@ -1,4 +1,4 @@
-defmodule Voyager.NodeInfo.Memory do
+defmodule Voyager.Services.NodeInfo.Memory do
   @moduledoc """
   Memory usage breakdown for a BEAM node.
 

@@ -1,16 +1,16 @@
-defmodule Voyager.NodeInfoTest do
+defmodule Voyager.Services.NodeInfoTest do
   use ExUnit.Case, async: true
 
-  alias Voyager.NodeInfo
-  alias Voyager.NodeInfo.Language
-  alias Voyager.NodeInfo.Limits
-  alias Voyager.NodeInfo.Memory
-  alias Voyager.NodeInfo.Processors
-  alias Voyager.NodeInfo.RunQueues
-  alias Voyager.NodeInfo.Schedulers
-  alias Voyager.NodeInfo.Snapshot
-  alias Voyager.NodeInfo.Statistics
-  alias Voyager.NodeInfo.SystemInfo
+  alias Voyager.Services.NodeInfo
+  alias Voyager.Services.NodeInfo.Language
+  alias Voyager.Services.NodeInfo.Limits
+  alias Voyager.Services.NodeInfo.Memory
+  alias Voyager.Services.NodeInfo.Processors
+  alias Voyager.Services.NodeInfo.RunQueues
+  alias Voyager.Services.NodeInfo.Schedulers
+  alias Voyager.Services.NodeInfo.Snapshot
+  alias Voyager.Services.NodeInfo.Statistics
+  alias Voyager.Services.NodeInfo.SystemInfo
 
   describe "fetch/2" do
     test "returns a populated snapshot for the local node" do

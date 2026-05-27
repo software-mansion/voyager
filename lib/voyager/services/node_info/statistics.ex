@@ -1,4 +1,4 @@
-defmodule Voyager.NodeInfo.Statistics do
+defmodule Voyager.Services.NodeInfo.Statistics do
   @moduledoc """
   Coarse runtime counters for a BEAM node.
   Counters are cumulative since node start.

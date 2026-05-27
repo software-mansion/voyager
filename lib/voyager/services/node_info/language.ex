@@ -1,4 +1,4 @@
-defmodule Voyager.NodeInfo.Language do
+defmodule Voyager.Services.NodeInfo.Language do
   @moduledoc """
   A BEAM language detected on a node, with its version.
 

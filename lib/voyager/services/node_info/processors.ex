@@ -1,4 +1,4 @@
-defmodule Voyager.NodeInfo.Processors do
+defmodule Voyager.Services.NodeInfo.Processors do
   @moduledoc """
   Logical processor counts reported by the BEAM.
   """

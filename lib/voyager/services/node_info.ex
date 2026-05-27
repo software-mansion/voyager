@@ -1,8 +1,8 @@
-defmodule Voyager.NodeInfo do
+defmodule Voyager.Services.NodeInfo do
   @moduledoc """
   Public entry point for BEAM node introspection.
 
-  `fetch/2` collects a `Voyager.NodeInfo.Snapshot` from any node reachable
+  `fetch/2` collects a `Voyager.Services.NodeInfo.Snapshot` from any node reachable
   via `:erpc`. All RPC calls run concurrently and the target does not need
   Voyager installed.
 
@@ -11,15 +11,15 @@ defmodule Voyager.NodeInfo do
     * `:timeout` — overall budget in milliseconds. Defaults to `5_000`.
   """
 
-  alias Voyager.NodeInfo.Language
-  alias Voyager.NodeInfo.Limits
-  alias Voyager.NodeInfo.Memory
-  alias Voyager.NodeInfo.Processors
-  alias Voyager.NodeInfo.RunQueues
-  alias Voyager.NodeInfo.Schedulers
-  alias Voyager.NodeInfo.Snapshot
-  alias Voyager.NodeInfo.Statistics
-  alias Voyager.NodeInfo.SystemInfo
+  alias Voyager.Services.NodeInfo.Language
+  alias Voyager.Services.NodeInfo.Limits
+  alias Voyager.Services.NodeInfo.Memory
+  alias Voyager.Services.NodeInfo.Processors
+  alias Voyager.Services.NodeInfo.RunQueues
+  alias Voyager.Services.NodeInfo.Schedulers
+  alias Voyager.Services.NodeInfo.Snapshot
+  alias Voyager.Services.NodeInfo.Statistics
+  alias Voyager.Services.NodeInfo.SystemInfo
 
   @default_timeout 5_000
 
