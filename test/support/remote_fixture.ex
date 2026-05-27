@@ -39,12 +39,10 @@ defmodule Voyager.Test.RemoteFixture do
   `:peer.stop/1` produces via `sys.terminate`.
   """
   def stop_peer!(%{peer: peer_pid}) do
-    try do
-      :peer.stop(peer_pid)
-    catch
-      :exit, {:shutdown, _} -> :ok
-      :exit, :shutdown -> :ok
-    end
+    :peer.stop(peer_pid)
+  catch
+    :exit, {:shutdown, _} -> :ok
+    :exit, :shutdown -> :ok
   end
 
   @doc """

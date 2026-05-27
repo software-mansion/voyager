@@ -1,7 +1,7 @@
-defmodule Voyager.Inspector.WalkerTest do
+defmodule Voyager.Queries.SupervisionTree.WalkerTest do
   use ExUnit.Case, async: false
 
-  alias Voyager.Inspector.Walker
+  alias Voyager.Queries.SupervisionTree.Walker
   alias Voyager.Test.RemoteFixture
 
   setup do

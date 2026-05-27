@@ -49,7 +49,7 @@ const SupervisionTree = {
     });
 
     // Change the cursor to a pointer when hovering over a node
-    this.cy.on('mouseover', 'node', function(event) {
+    this.cy.on('mouseover', 'node', function (event) {
       event.target.addClass('hover');
       const container = event.cy.container();
       if (container) {
@@ -58,7 +58,7 @@ const SupervisionTree = {
     });
 
     // Revert the cursor to default when the mouse leaves the node
-    this.cy.on('mouseout', 'node', function(event) {
+    this.cy.on('mouseout', 'node', function (event) {
       event.target.removeClass('hover');
       const container = event.cy.container();
       if (container) {
@@ -597,7 +597,7 @@ function buildStyle(t) {
         // 0.5 = aggressive boxy S-curve
         // 0.25 to 0.35 = smooth, gentle sweep
         // 0.1 = almost a straight diagonal line
-        'control-point-distances': function(edge) {
+        'control-point-distances': function (edge) {
           const TENSION = 0.3;
 
           const source = edge.source().position();
@@ -611,7 +611,7 @@ function buildStyle(t) {
           const dist = (TENSION * (dx * dy)) / length;
           return [-dist, dist];
         },
-        'control-point-weights': function(edge) {
+        'control-point-weights': function (edge) {
           const TENSION = 0.3;
 
           const source = edge.source().position();

@@ -14,8 +14,10 @@ defmodule Voyager.Test.FixtureApp do
   """
   use Application
 
+  alias Voyager.Test.FixtureApp.RootSupervisor
+
   @impl true
   def start(_type, _args) do
-    Voyager.Test.FixtureApp.RootSupervisor.start_link([])
+    RootSupervisor.start_link([])
   end
 end

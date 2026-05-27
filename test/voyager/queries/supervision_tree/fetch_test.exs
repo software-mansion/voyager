@@ -1,7 +1,7 @@
-defmodule Voyager.Inspector.FetchTest do
+defmodule Voyager.Queries.SupervisionTree.FetchTest do
   use ExUnit.Case, async: false
 
-  alias Voyager.Inspector.Fetch
+  alias Voyager.Queries.SupervisionTree.Fetch
   alias Voyager.Test.RemoteFixture
 
   setup do
@@ -80,9 +80,9 @@ defmodule Voyager.Inspector.FetchTest do
       :ok = Fetch.cancel(state)
 
       # Sync: get_state forces processing of any pending supervisor messages.
-      _ = :sys.get_state(Voyager.Inspector.TaskSupervisor)
+      _ = :sys.get_state(Voyager.TaskSupervisor)
 
-      children = Task.Supervisor.children(Voyager.Inspector.TaskSupervisor)
+      children = Task.Supervisor.children(Voyager.TaskSupervisor)
       refute state.task.pid in children
     end
   end
