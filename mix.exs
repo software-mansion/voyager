@@ -64,7 +64,7 @@ defmodule Voyager.MixProject do
     [
       setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
       format: ["format", "cmd npm --prefix assets run format"],
-      "format.all": ["format", "cmd npm --prefix e2e run format"],
+      "format.e2e": ["cmd npm --prefix e2e run format"],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
@@ -104,6 +104,7 @@ defmodule Voyager.MixProject do
         "deps.unlock --unused",
         "credo --strict",
         "format",
+        "format.e2e",
         "test"
       ]
     ]
