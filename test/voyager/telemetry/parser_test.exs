@@ -30,7 +30,7 @@ defmodule Voyager.Telemetry.ParserTest do
     end
 
     test "doesn't include socket host_uri", %{socket: socket} do
-      result = Parser.parse_metadata([:phoenix, :live_view, :mount, :start], %{socket: socket})
+      result = Parser.parse_metadata([:phoenix, :live_view, :mount, :stop], %{socket: socket})
       assert result[:uri] == nil
     end
 
