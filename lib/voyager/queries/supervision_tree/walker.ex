@@ -1,4 +1,4 @@
-defmodule Voyager.Inspector.Walker do
+defmodule Voyager.Queries.SupervisionTree.Walker do
   @moduledoc """
   Produces a lazy, bounded supervision tree for a set of OTP applications on a
   remote node.
@@ -41,7 +41,7 @@ defmodule Voyager.Inspector.Walker do
       {:process_info, :batch, reason}
   """
 
-  alias Voyager.Inspector.Remote
+  alias Voyager.Queries.SupervisionTree.Remote
 
   @walk_deadline_ms 3_000
   @max_concurrency 4

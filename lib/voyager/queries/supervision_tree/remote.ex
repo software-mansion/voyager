@@ -1,4 +1,4 @@
-defmodule Voyager.Inspector.Remote do
+defmodule Voyager.Queries.SupervisionTree.Remote do
   @moduledoc """
   Thin, safe `:erpc` wrappers for remote node inspection.
 
@@ -154,21 +154,19 @@ defmodule Voyager.Inspector.Remote do
   end
 
   defp call(node, mod, fun, args, timeout) do
-    try do
-      result = :erpc.call(node, mod, fun, args, timeout)
-      {:ok, result}
-    catch
-      :error, {:erpc, :timeout} ->
-        {:error, :timeout}
+    result = :erpc.call(node, mod, fun, args, timeout)
+    {:ok, result}
+  catch
+    :error, {:erpc, :timeout} ->
+      {:error, :timeout}
 
-      :error, {:erpc, :noconnection} ->
-        {:error, :not_connected}
+    :error, {:erpc, :noconnection} ->
+      {:error, :not_connected}
 
-      :error, {:exception, reason, _stack} ->
-        {:error, {:remote_exception, reason}}
+    :error, {:exception, reason, _stack} ->
+      {:error, {:remote_exception, reason}}
 
-      :error, {:erpc, _} = reason ->
-        {:error, reason}
-    end
+    :error, {:erpc, _} = reason ->
+      {:error, reason}
   end
 end

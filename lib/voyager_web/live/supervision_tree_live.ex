@@ -1,8 +1,8 @@
 defmodule VoyagerWeb.SupervisionTreeLive do
   use VoyagerWeb, :live_view
 
-  alias Voyager.Inspector.Fetch
-  alias Voyager.Inspector.Remote
+  alias Voyager.Queries.SupervisionTree.Fetch
+  alias Voyager.Queries.SupervisionTree.Remote
   alias VoyagerWeb.SupervisionTreeLive.Diff
 
   @refresh_interval 5_000
@@ -25,28 +25,11 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> assign(:refresh_timer, nil)
       |> assign(:apps_form, to_form(%{}, as: :tree_controls))
 
-    session = socket.assigns.session
-
     socket =
       if connected?(socket) do
-        socket =
-          case Remote.list_applications(session.node) do
-            {:ok, apps} ->
-              available =
-                apps
-                |> Enum.map(fn {a, _desc, vsn} -> {a, to_string(vsn)} end)
-                |> Enum.sort()
-
-              assign(socket, :available_apps, available)
-
-            {:error, reason} ->
-              socket
-              |> assign(:status, :error)
-              |> assign(:errors, [{:list_applications, session.node, reason}])
-          end
-
-        timer = Process.send_after(self(), :refresh, @refresh_interval)
-        assign(socket, :refresh_timer, timer)
+        socket
+        |> assign_applications()
+        |> restart_timer()
       else
         socket
       end
@@ -56,27 +39,13 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   @impl true
   def handle_event("select-apps", params, socket) do
-    inner = Map.get(params, "tree_controls", params)
+    tree_controls = Map.get(params, "tree_controls", params)
 
-    app_strings = Map.get(inner, "apps", [])
-    app_strings = if is_list(app_strings), do: app_strings, else: [app_strings]
+    {apps, truncated?} = parse_apps(tree_controls)
+    depth = parse_depth(socket, tree_controls)
 
-    apps =
-      app_strings
-      |> Enum.flat_map(fn s ->
-        try do
-          [String.to_existing_atom(s)]
-        rescue
-          ArgumentError -> []
-        end
-      end)
-
-    {apps, truncated?} =
-      if length(apps) > @max_selected_apps do
-        {Enum.take(apps, @max_selected_apps), true}
-      else
-        {apps, false}
-      end
+    new_apps = MapSet.new(apps)
+    scope_changed? = new_apps != socket.assigns.selected_apps or depth != socket.assigns.depth
 
     socket =
       if truncated? do
@@ -88,52 +57,23 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       else
         socket
       end
-
-    depth_str = Map.get(inner, "depth", to_string(@default_depth))
-
-    depth =
-      case Integer.parse(depth_str) do
-        {d, ""} -> d |> max(1) |> min(10)
-        _ -> socket.assigns.depth
-      end
-
-    new_apps = MapSet.new(apps)
-    scope_changed? = new_apps != socket.assigns.selected_apps or depth != socket.assigns.depth
-
-    socket =
-      socket
       |> assign(:selected_apps, new_apps)
       |> assign(:depth, depth)
 
-    socket = if scope_changed?, do: reset_tree(socket), else: socket
-
-    {:noreply, request_fetch(socket)}
-  end
-
-  def handle_event("set-depth", %{"depth" => depth_str}, socket) do
-    depth =
-      case Integer.parse(depth_str) do
-        {d, ""} -> d |> max(1) |> min(10)
-        _ -> socket.assigns.depth
+    socket =
+      if scope_changed? do
+        socket
+        |> reset_tree()
+        |> request_fetch()
+      else
+        socket
       end
 
-    scope_changed? = depth != socket.assigns.depth
-
-    socket = assign(socket, :depth, depth)
-    socket = if scope_changed?, do: reset_tree(socket), else: socket
-
-    {:noreply, request_fetch(socket)}
+    {:noreply, socket}
   end
 
   def handle_event("toggle-expand", %{"pid" => pid_str}, socket) do
-    pid =
-      try do
-        pid_str |> String.to_charlist() |> :erlang.list_to_pid()
-      rescue
-        _ -> nil
-      catch
-        _, _ -> nil
-      end
+    pid = parse_pid(pid_str)
 
     if is_nil(pid) do
       {:noreply, socket}
@@ -205,15 +145,9 @@ defmodule VoyagerWeb.SupervisionTreeLive do
             Map.merge(d, %{kind: "delta", status: status, errors: errors})
         end
 
-      if socket.assigns[:refresh_timer] do
-        Process.cancel_timer(socket.assigns.refresh_timer)
-      end
-
-      timer = Process.send_after(self(), :refresh, @refresh_interval)
-
       socket =
         socket
-        |> assign(:refresh_timer, timer)
+        |> restart_timer()
         |> assign(:errors, errors)
         |> assign(:status, status)
         |> assign(:in_flight, nil)
@@ -230,15 +164,9 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     in_flight = socket.assigns.in_flight
 
     if not is_nil(in_flight) and in_flight.ref == ref do
-      if socket.assigns[:refresh_timer] do
-        Process.cancel_timer(socket.assigns.refresh_timer)
-      end
-
-      timer = Process.send_after(self(), :refresh, @refresh_interval)
-
       socket =
         socket
-        |> assign(:refresh_timer, timer)
+        |> restart_timer()
         |> assign(:in_flight, nil)
         |> assign(:status, :error)
         |> assign(:errors, socket.assigns.errors ++ [{:fetch, reason}])
@@ -304,6 +232,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
             for={@apps_form}
             id="supervision-tree-controls"
             phx-change="select-apps"
+            phx-submit="select-apps"
             class="flex flex-col gap-3"
           >
             <details tabindex="0" class="collapse collapse-arrow">
@@ -405,6 +334,70 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       </div>
     </div>
     """
+  end
+
+  defp assign_applications(socket) do
+    case Remote.list_applications(socket.assigns.session.node) do
+      {:ok, apps} ->
+        available =
+          apps
+          |> Enum.map(fn {a, _desc, vsn} -> {a, to_string(vsn)} end)
+          |> Enum.sort()
+
+        assign(socket, :available_apps, available)
+
+      {:error, reason} ->
+        socket
+        |> assign(:status, :error)
+        |> assign(:errors, [{:list_applications, socket.assigns.session.node, reason}])
+    end
+  end
+
+  defp restart_timer(socket) do
+    if socket.assigns[:refresh_timer] do
+      Process.cancel_timer(socket.assigns.refresh_timer)
+    end
+
+    timer = Process.send_after(self(), :refresh, @refresh_interval)
+    assign(socket, :refresh_timer, timer)
+  end
+
+  defp parse_apps(tree_controls) do
+    app_strings = Map.get(tree_controls, "apps", [])
+    app_strings = if is_list(app_strings), do: app_strings, else: [app_strings]
+
+    apps =
+      app_strings
+      |> Enum.flat_map(fn s ->
+        try do
+          [String.to_existing_atom(s)]
+        rescue
+          ArgumentError -> []
+        end
+      end)
+
+    if length(apps) > @max_selected_apps do
+      {Enum.take(apps, @max_selected_apps), true}
+    else
+      {apps, false}
+    end
+  end
+
+  defp parse_depth(socket, tree_controls) do
+    depth_str = Map.get(tree_controls, "depth", to_string(@default_depth))
+
+    case Integer.parse(depth_str) do
+      {d, ""} -> d |> max(1) |> min(10)
+      _ -> socket.assigns.depth
+    end
+  end
+
+  defp parse_pid(pid_str) do
+    pid_str |> String.to_charlist() |> :erlang.list_to_pid()
+  rescue
+    _ -> nil
+  catch
+    _, _ -> nil
   end
 
   defp reset_tree(socket), do: assign(socket, :last_tree_flat, nil)

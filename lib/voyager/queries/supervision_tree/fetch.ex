@@ -1,6 +1,6 @@
-defmodule Voyager.Inspector.Fetch do
+defmodule Voyager.Queries.SupervisionTree.Fetch do
   @moduledoc """
-  Wraps a `Voyager.Inspector.Walker.walk/4` call as a cancellable, monitored
+  Wraps a `Voyager.Queries.SupervisionTree.Walker.walk/4` call as a cancellable, monitored
   async task that a LiveView can launch and abort.
 
   ## Usage
@@ -34,7 +34,7 @@ defmodule Voyager.Inspector.Fetch do
   happens during the walk.
   """
 
-  alias Voyager.Inspector.Walker
+  alias Voyager.Queries.SupervisionTree.Walker
 
   @type request :: %{
           node: node(),
@@ -43,7 +43,7 @@ defmodule Voyager.Inspector.Fetch do
           expanded: MapSet.t(pid())
         }
 
-  @type state :: %{ref: reference(), task: Task.t(), request: request()}
+  @type state :: %{ref: Task.ref(), task: Task.t(), request: request()}
 
   @doc """
   Starts an async walk for `request`. Returns a state map that must be kept

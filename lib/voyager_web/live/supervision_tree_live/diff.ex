@@ -104,19 +104,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Diff do
 
   @spec diff(flat_map(), flat_map()) :: diff_result()
   def diff(prev, curr) when is_map(prev) and is_map(curr) do
-    {added, updated} =
-      Enum.reduce(curr, {%{}, %{}}, fn {key, node}, {add_acc, upd_acc} ->
-        case Map.fetch(prev, key) do
-          :error ->
-            {Map.put(add_acc, key, node), upd_acc}
-
-          {:ok, prev_node} ->
-            case build_patch(prev_node, node) do
-              patch when map_size(patch) == 0 -> {add_acc, upd_acc}
-              patch -> {add_acc, Map.put(upd_acc, key, patch)}
-            end
-        end
-      end)
+    {added, updated} = Enum.reduce(curr, {%{}, %{}}, &classify_node(&1, &2, prev))
 
     removed =
       prev
@@ -124,6 +112,20 @@ defmodule VoyagerWeb.SupervisionTreeLive.Diff do
       |> Enum.reject(&Map.has_key?(curr, &1))
 
     %{added: added, removed: removed, updated: updated}
+  end
+
+  defp classify_node({key, node}, {add_acc, upd_acc}, prev) do
+    case Map.fetch(prev, key) do
+      :error -> {Map.put(add_acc, key, node), upd_acc}
+      {:ok, prev_node} -> patch_node(prev_node, node, key, add_acc, upd_acc)
+    end
+  end
+
+  defp patch_node(prev_node, node, key, add_acc, upd_acc) do
+    case build_patch(prev_node, node) do
+      patch when map_size(patch) == 0 -> {add_acc, upd_acc}
+      patch -> {add_acc, Map.put(upd_acc, key, patch)}
+    end
   end
 
   defp build_patch(prev, curr) do
