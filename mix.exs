@@ -87,10 +87,7 @@ defmodule Voyager.MixProject do
         "esbuild voyager --minify"
       ],
       "assets.deploy": [
-        "cmd npm --prefix assets run format",
-        copy_font_assets_cmd(),
-        "tailwind voyager --minify",
-        "esbuild voyager --minify",
+        "assets.build",
         "phx.digest"
       ],
       e2e: [
