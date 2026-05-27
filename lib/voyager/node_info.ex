@@ -115,7 +115,6 @@ defmodule Voyager.NodeInfo do
     for {task, nil} <- results, do: Task.shutdown(task, :brutal_kill)
 
     summarize(results)
-    |> dbg
   end
 
   defp safe_async(fun) do
