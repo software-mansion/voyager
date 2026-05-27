@@ -2,60 +2,55 @@ defmodule Voyager.NodeInfo do
   @moduledoc """
   Public entry point for BEAM node introspection.
 
-  `fetch/2` builds a `Voyager.NodeInfo.Snapshot` against a target node.
-  The default target is `Node.self()`; any `node()` reachable via
-  `:erpc` works. Fetchers only call OTP stdlib modules (`:erlang`,
-  `:application`, `:lists`), so the target does not need Voyager
-  installed.
-
-  The submodules under `Voyager.NodeInfo.*` are passive — each declares
-  the keys it needs (`system_info_keys/0`, `statistics_keys/0`) and a
-  pure `build/N` that turns pre-fetched data into its struct. This
-  module owns all RPC and spawns one `Task` per concurrent
-  `:erpc.call/4` per snapshot:
-
-  1. `:lists.map(&:erlang.system_info/1, all_system_info_keys)` — one
-     server-side application of `:erlang.system_info/1` per unique key,
-     regardless of how many submodules consume that key. Keys are
-     deduplicated.
-  2. `:lists.map(&:erlang.statistics/1, all_stat_keys)` — same shape
-     for `:erlang.statistics/1`.
-  3. `:erlang.memory/0`.
-  4. One `:application.get_key(app, :vsn)` per
-     `Language.candidate_apps/0` entry — each in its own task,
-     returning `{:ok, vsn}` or `:undefined`
-
-  All tasks run concurrently as peers. Latency for a
-  snapshot is bounded by the slowest single `:erpc.call/4` rather
-  than the sum of all of them.
+  `fetch/2` collects a `Voyager.NodeInfo.Snapshot` from any node reachable
+  via `:erpc`. All RPC calls run concurrently and the target does not need
+  Voyager installed.
 
   ## Options
 
-    * `:timeout` — overall budget for all RPC tasks in milliseconds.
-      Defaults to `5_000`.
+    * `:timeout` — overall budget in milliseconds. Defaults to `5_000`.
   """
 
-  alias Voyager.NodeInfo.{
-    Language,
-    Limits,
-    Memory,
-    Processors,
-    RunQueues,
-    Schedulers,
-    Snapshot,
-    Statistics,
-    SystemInfo
-  }
+  alias Voyager.NodeInfo.Language
+  alias Voyager.NodeInfo.Limits
+  alias Voyager.NodeInfo.Memory
+  alias Voyager.NodeInfo.Processors
+  alias Voyager.NodeInfo.RunQueues
+  alias Voyager.NodeInfo.Schedulers
+  alias Voyager.NodeInfo.Snapshot
+  alias Voyager.NodeInfo.Statistics
+  alias Voyager.NodeInfo.SystemInfo
 
   @default_timeout 5_000
 
-  @type fetch_error :: {:exit | :error, term()}
+  @typedoc """
+  Why a fetch failed.
 
-  @spec fetch(node(), keyword()) :: {:ok, Snapshot.t()} | {:error, fetch_error()}
+    * `:noconnection` — the target node is unreachable.
+    * `:timeout` — the fetch exceeded the configured `:timeout`.
+    * `{:rpc, term()}` — `:erpc` failed for another reason
+      (e.g. `:badrpc`, `:notsup`, remote exception).
+    * `{:internal, String.t()}` — RPC succeeded but returned an
+      unexpected shape; should not normally happen.
+  """
+  @type error_reason ::
+          :noconnection
+          | :timeout
+          | {:rpc, term()}
+          | {:internal, String.t()}
+
+  @type fetch_result :: {:ok, Snapshot.t()} | {:error, error_reason()}
+
+  @spec fetch(node(), keyword()) :: fetch_result()
   def fetch(node, opts \\ []) do
     timeout = Keyword.get(opts, :timeout, @default_timeout)
-    data = collect(node, timeout)
 
+    with {:ok, data} <- collect(node, timeout) do
+      build_snapshot(node, data)
+    end
+  end
+
+  defp build_snapshot(node, data) do
     snapshot = %Snapshot{
       node: node,
       collected_at: DateTime.utc_now(),
@@ -70,8 +65,8 @@ defmodule Voyager.NodeInfo do
     }
 
     {:ok, snapshot}
-  catch
-    kind, reason -> {:error, {kind, reason}}
+  rescue
+    e -> {:error, {:internal, Exception.message(e)}}
   end
 
   defp collect(node, timeout) do
@@ -87,29 +82,40 @@ defmodule Voyager.NodeInfo do
 
     candidate_apps = Language.candidate_apps()
 
-    base_tasks = [
+    base_funs = [
       fn -> :erpc.call(node, :lists, :map, [&:erlang.system_info/1, system_info_keys]) end,
       fn -> :erpc.call(node, :lists, :map, [&:erlang.statistics/1, stat_keys]) end,
       fn -> :erpc.call(node, :erlang, :memory, []) end
     ]
 
-    language_tasks =
+    language_funs =
       Enum.map(candidate_apps, fn app ->
         fn -> {app, :erpc.call(node, :application, :get_key, [app, :vsn])} end
       end)
 
-    [system_info_values, stat_values, memory | language_versions] =
-      (base_tasks ++ language_tasks)
-      |> Enum.map(&safe_async/1)
-      |> Task.await_many(timeout)
-      |> Enum.map(&unwrap!/1)
+    with {:ok, [system_info_values, stat_values, memory | language_versions]} <-
+           run_parallel(base_funs ++ language_funs, timeout) do
+      {:ok,
+       %{
+         system_info: system_info_keys |> Enum.zip(system_info_values) |> Map.new(),
+         statistics: stat_keys |> Enum.zip(stat_values) |> Map.new(),
+         memory: Map.new(memory),
+         language_versions: language_versions
+       }}
+    end
+  end
 
-    %{
-      system_info: system_info_keys |> Enum.zip(system_info_values) |> Map.new(),
-      statistics: stat_keys |> Enum.zip(stat_values) |> Map.new(),
-      memory: memory |> Map.new(),
-      language_versions: language_versions
-    }
+  defp run_parallel(funs, timeout) do
+    tasks = Enum.map(funs, &safe_async/1)
+
+    results = Task.yield_many(tasks, timeout)
+
+    # Tasks that returned nil are still blocked on :erpc I/O; brutal_kill
+    # guarantees immediate termination rather than waiting for the remote end.
+    for {task, nil} <- results, do: Task.shutdown(task, :brutal_kill)
+
+    summarize(results)
+    |> dbg
   end
 
   defp safe_async(fun) do
@@ -117,11 +123,33 @@ defmodule Voyager.NodeInfo do
       try do
         {:ok, fun.()}
       catch
-        kind, reason -> {:error, {kind, reason, __STACKTRACE__}}
+        kind, reason -> {:error, kind, reason}
       end
     end)
   end
 
-  defp unwrap!({:ok, value}), do: value
-  defp unwrap!({:error, {kind, reason, stacktrace}}), do: :erlang.raise(kind, reason, stacktrace)
+  defp summarize(results) do
+    results
+    |> Enum.reduce_while({:ok, []}, fn
+      {_task, {:ok, {:ok, value}}}, {:ok, acc} ->
+        {:cont, {:ok, [value | acc]}}
+
+      {_task, {:ok, {:error, kind, reason}}}, _ ->
+        {:halt, {:error, classify(kind, reason)}}
+
+      {_task, {:exit, reason}}, _ ->
+        # Untrappable exit (e.g. task killed externally during shutdown).
+        {:halt, {:error, {:rpc, reason}}}
+
+      {_task, nil}, _ ->
+        {:halt, {:error, :timeout}}
+    end)
+    |> case do
+      {:ok, values} -> {:ok, Enum.reverse(values)}
+      error -> error
+    end
+  end
+
+  defp classify(:error, {:erpc, :noconnection}), do: :noconnection
+  defp classify(_kind, reason), do: {:rpc, reason}
 end
