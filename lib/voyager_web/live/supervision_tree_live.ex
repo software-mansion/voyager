@@ -1,13 +1,12 @@
 defmodule VoyagerWeb.SupervisionTreeLive do
   use VoyagerWeb, :live_view
 
-  alias Voyager.Queries.SupervisionTree.Fetch
   alias Voyager.Queries.SupervisionTree.Remote
+  alias Voyager.Services.SupervisionTreeFetch
+  alias VoyagerWeb.FormSchemas.SupervisionTreeControls
   alias VoyagerWeb.SupervisionTreeLive.Diff
 
   @refresh_interval 5_000
-  @max_selected_apps 20
-  @default_depth 3
 
   @impl true
   def mount(_params, _session, socket) do
@@ -15,15 +14,16 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       socket
       |> assign(:active_nav, :supervision_tree)
       |> assign(:available_apps, [])
+      |> assign(:available_app_atoms, [])
       |> assign(:selected_apps, MapSet.new())
-      |> assign(:depth, @default_depth)
+      |> assign(:depth, SupervisionTreeControls.default_depth())
       |> assign(:expanded_pids, MapSet.new())
       |> assign(:last_tree_flat, nil)
       |> assign(:in_flight, nil)
       |> assign(:errors, [])
       |> assign(:status, :idle)
       |> assign(:refresh_timer, nil)
-      |> assign(:apps_form, to_form(%{}, as: :tree_controls))
+      |> assign_controls_form()
 
     socket =
       if connected?(socket) do
@@ -38,31 +38,38 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   end
 
   @impl true
-  def handle_event("select-apps", params, socket) do
-    tree_controls = Map.get(params, "tree_controls", params)
+  def handle_event("select-apps", %{"tree_controls" => params}, socket) do
+    changeset = SupervisionTreeControls.changeset(params, socket.assigns.available_app_atoms)
 
-    {apps, truncated?} = parse_apps(tree_controls)
-    depth = parse_depth(socket, tree_controls)
+    {apps, truncated?} = SupervisionTreeControls.apps_from_changeset(changeset)
+    depth = Ecto.Changeset.get_field(changeset, :depth) || socket.assigns.depth
 
     new_apps = MapSet.new(apps)
-    scope_changed? = new_apps != socket.assigns.selected_apps or depth != socket.assigns.depth
+
+    apps_changed? = new_apps != socket.assigns.selected_apps
+    depth_changed? = depth != socket.assigns.depth
 
     socket =
       if truncated? do
         put_flash(
           socket,
           :info,
-          "Only #{@max_selected_apps} applications can be selected at once."
+          "Only #{SupervisionTreeControls.max_apps()} applications can be selected at once."
         )
       else
         socket
       end
       |> assign(:selected_apps, new_apps)
       |> assign(:depth, depth)
+      |> assign(:apps_form, to_form(changeset, as: :tree_controls))
 
     socket =
-      if scope_changed? do
+      if apps_changed? or depth_changed? do
         socket
+        |> assign(
+          :expanded_pids,
+          if(depth_changed?, do: MapSet.new(), else: socket.assigns.expanded_pids)
+        )
         |> reset_tree()
         |> request_fetch()
       else
@@ -73,33 +80,19 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   end
 
   def handle_event("toggle-expand", %{"pid" => pid_str}, socket) do
-    pid = parse_pid(pid_str)
+    {expanded, newly_expanded?} =
+      toggle_expand(socket, pid_str)
 
-    if is_nil(pid) do
-      {:noreply, socket}
-    else
-      expanded = socket.assigns.expanded_pids
+    socket = assign(socket, :expanded_pids, expanded)
 
-      {expanded, newly_expanded?} =
-        if MapSet.member?(expanded, pid) do
-          {MapSet.delete(expanded, pid), false}
-        else
-          {MapSet.put(expanded, pid), true}
-        end
-
-      socket =
+    socket =
+      if newly_expanded? do
+        request_fetch(socket)
+      else
         socket
-        |> assign(:expanded_pids, expanded)
+      end
 
-      socket =
-        if newly_expanded? do
-          request_fetch(socket)
-        else
-          socket
-        end
-
-      {:noreply, socket}
-    end
+    {:noreply, socket}
   end
 
   def handle_event("refresh-now", _params, socket) do
@@ -185,7 +178,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   @impl true
   def terminate(_reason, socket) do
     if socket.assigns[:in_flight] do
-      Fetch.cancel(socket.assigns.in_flight)
+      SupervisionTreeFetch.cancel(socket.assigns.in_flight)
     end
 
     if socket.assigns[:refresh_timer] do
@@ -239,15 +232,15 @@ defmodule VoyagerWeb.SupervisionTreeLive do
               <summary class="collapse-title pe-4 ps-12 flex cursor-pointer items-center justify-between after:start-5 after:end-auto">
                 <h2 class="text-base-content text-sm font-semibold">Applications</h2>
                 <div class="flex items-center gap-2">
-                  <label class="label text-base-content/60 text-xs" for="depth-input">Depth</label>
-                  <input
-                    id="depth-input"
+                  <label class="label text-base-content/60 text-xs" for={@apps_form[:depth].id}>
+                    Depth
+                  </label>
+                  <.input
+                    field={@apps_form[:depth]}
                     type="number"
-                    name="depth"
                     min="1"
                     max="10"
-                    value={@depth}
-                    class="input input-sm input-bordered w-16 text-center"
+                    class="input-sm w-16 text-center"
                   />
                 </div>
               </summary>
@@ -265,7 +258,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
                     ]}>
                       <input
                         type="checkbox"
-                        name="apps[]"
+                        name="tree_controls[apps][]"
                         value={to_string(app)}
                         checked={MapSet.member?(@selected_apps, app)}
                         class="checkbox checkbox-xs checkbox-primary"
@@ -336,6 +329,16 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     """
   end
 
+  defp assign_controls_form(socket) do
+    changeset =
+      SupervisionTreeControls.changeset(
+        %{"depth" => socket.assigns.depth},
+        socket.assigns.available_app_atoms
+      )
+
+    assign(socket, :apps_form, to_form(changeset, as: :tree_controls))
+  end
+
   defp assign_applications(socket) do
     case Remote.list_applications(socket.assigns.session.node) do
       {:ok, apps} ->
@@ -344,7 +347,10 @@ defmodule VoyagerWeb.SupervisionTreeLive do
           |> Enum.map(fn {a, _desc, vsn} -> {a, to_string(vsn)} end)
           |> Enum.sort()
 
-        assign(socket, :available_apps, available)
+        socket
+        |> assign(:available_apps, available)
+        |> assign(:available_app_atoms, Enum.map(available, &elem(&1, 0)))
+        |> assign_controls_form()
 
       {:error, reason} ->
         socket
@@ -362,43 +368,34 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     assign(socket, :refresh_timer, timer)
   end
 
-  defp parse_apps(tree_controls) do
-    app_strings = Map.get(tree_controls, "apps", [])
-    app_strings = if is_list(app_strings), do: app_strings, else: [app_strings]
+  defp toggle_expand(socket, pid_str) do
+    expanded = socket.assigns.expanded_pids
+    pid = parse_pid(pid_str)
 
-    apps =
-      app_strings
-      |> Enum.flat_map(fn s ->
-        try do
-          [String.to_existing_atom(s)]
-        rescue
-          ArgumentError -> []
+    cond do
+      is_nil(pid) ->
+        {expanded, false}
+
+      MapSet.member?(expanded, pid) ->
+        {MapSet.delete(expanded, pid), false}
+
+      true ->
+        with {:ok, process} <- Map.fetch(socket.assigns.last_tree_flat, pid_str),
+             :not_loaded <- process.children_keys do
+          {MapSet.put(expanded, pid), true}
+        else
+          _ -> {expanded, false}
         end
-      end)
-
-    if length(apps) > @max_selected_apps do
-      {Enum.take(apps, @max_selected_apps), true}
-    else
-      {apps, false}
     end
   end
 
-  defp parse_depth(socket, tree_controls) do
-    depth_str = Map.get(tree_controls, "depth", to_string(@default_depth))
-
-    case Integer.parse(depth_str) do
-      {d, ""} -> d |> max(1) |> min(10)
-      _ -> socket.assigns.depth
-    end
-  end
-
-  defp parse_pid(pid_str) do
+  defp parse_pid(pid_str) when is_binary(pid_str) do
     pid_str |> String.to_charlist() |> :erlang.list_to_pid()
   rescue
-    _ -> nil
-  catch
-    _, _ -> nil
+    ArgumentError -> nil
   end
+
+  defp parse_pid(_), do: nil
 
   defp reset_tree(socket), do: assign(socket, :last_tree_flat, nil)
 
@@ -420,7 +417,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   defp request_fetch(socket) do
     if socket.assigns.in_flight do
-      Fetch.cancel(socket.assigns.in_flight)
+      SupervisionTreeFetch.cancel(socket.assigns.in_flight)
     end
 
     selected = MapSet.to_list(socket.assigns.selected_apps)
@@ -438,7 +435,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         expanded: socket.assigns.expanded_pids
       }
 
-      in_flight = Fetch.start(request)
+      in_flight = SupervisionTreeFetch.start(request)
 
       socket
       |> assign(:in_flight, in_flight)

@@ -1,4 +1,4 @@
-defmodule Voyager.Queries.SupervisionTree.Walker do
+defmodule Voyager.Services.SupervisionTreeWalker do
   @moduledoc """
   Produces a lazy, bounded supervision tree for a set of OTP applications on a
   remote node.
@@ -83,7 +83,7 @@ defmodule Voyager.Queries.SupervisionTree.Walker do
 
           {:ok, root_pid} ->
             {root_node, node_errors} =
-              walk_node(node, root_pid, app, :supervisor, [], depth, expanded, deadline)
+              walk_node(node, root_pid, app, :supervisor, [], depth - 1, expanded, deadline)
 
             app_node = %{
               pid: root_pid,
