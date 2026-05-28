@@ -9,7 +9,7 @@ if config_env() != :e2e do
     http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 end
 
-if config_env() != :test do
+if config_env() not in [:test, :e2e] do
   config :voyager, Voyager.Vault,
     ciphers: [
       default: {Cloak.Ciphers.AES.GCM, tag: "AES.GCM.V1", key: Voyager.VaultKey.resolve!()}
