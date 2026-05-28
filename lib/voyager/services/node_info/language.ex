@@ -23,7 +23,7 @@ defmodule Voyager.Services.NodeInfo.Language do
 
   @spec candidate_apps() :: [atom()]
   @candidate_apps Enum.map(@applications, fn {app, _name} -> app end)
-  
+
   @spec candidate_apps() :: [atom()]
   def candidate_apps, do: @candidate_apps
 
