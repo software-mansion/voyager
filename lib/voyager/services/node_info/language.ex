@@ -22,7 +22,10 @@ defmodule Voyager.Services.NodeInfo.Language do
   defstruct [:name, :version]
 
   @spec candidate_apps() :: [atom()]
-  def candidate_apps, do: Enum.map(@applications, fn {app, _name} -> app end)
+  @candidate_apps Enum.map(@applications, fn {app, _name} -> app end)
+  
+  @spec candidate_apps() :: [atom()]
+  def candidate_apps, do: @candidate_apps
 
   @spec build([{atom(), :undefined | {:ok, charlist()}}]) :: [t()]
   def build(app_versions) do
