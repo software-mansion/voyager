@@ -1,4 +1,5 @@
 defmodule Voyager.Telemetry.ParserTest do
+  @moduledoc false
   use ExUnit.Case, async: true
 
   alias Voyager.Telemetry.Parser
