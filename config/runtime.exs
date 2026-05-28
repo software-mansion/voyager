@@ -29,8 +29,6 @@ if config_env() == :prod do
     database: database_path,
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "5")
 
-  config :voyager, telemetry_push_url: System.get_env("TELEMETRY_PUSH_URL")
-
   secret_key_base =
     System.get_env("SECRET_KEY_BASE") ||
       raise """

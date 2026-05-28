@@ -19,9 +19,11 @@ defmodule Voyager.Telemetry do
   @impl Supervisor
   def init(_opts) do
     telemetry_handler = Application.get_env(:voyager, :telemetry, :noop)
+    telemetry_push_url = Application.get_env(:voyager, :telemetry_push_url)
 
     children = [
-      {Voyager.Telemetry.Handler, telemetry_handler: telemetry_handler},
+      {Voyager.Telemetry.Manager,
+       telemetry_handler: telemetry_handler, telemetry_push_url: telemetry_push_url},
       {:telemetry_poller,
        measurements: periodic_measurements(), period: @telemetry_poller_period_ms}
     ]
