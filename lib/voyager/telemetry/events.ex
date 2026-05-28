@@ -41,6 +41,14 @@ defmodule Voyager.Telemetry.Events do
   def events(:system), do: @system_events
   def events(:custom), do: @custom_events
 
+  @doc """
+  Checks if an event is a custom event.
+  """
+  @spec custom_event?(event()) :: boolean()
+  def custom_event?(event) when is_list(event) do
+    event in @custom_events
+  end
+
   @doc "Translates a dotted event name (e.g. `\"voyager.vm.memory\"`) to an atom list."
   @spec name_to_list(String.t()) :: [atom()]
   def name_to_list(name) when is_binary(name) do

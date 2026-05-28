@@ -73,7 +73,7 @@ defmodule Voyager.NodeSession do
         }
 
         broadcast({:node_connected, node})
-        Voyager.Telemetry.dispatch("voyager.node.connect")
+        Voyager.Telemetry.dispatch!("voyager.node.connect")
         {:reply, :ok, %{state | session: session}}
 
       {:error, _} = err ->
@@ -89,7 +89,11 @@ defmodule Voyager.NodeSession do
     Node.monitor(session.node, false)
     NodeConnector.disconnect(session.node)
     broadcast({:node_disconnected, session.node})
-    Voyager.Telemetry.dispatch("voyager.node.disconnect", reason: "manual disconnect")
+
+    Voyager.Telemetry.dispatch!("voyager.node.disconnect",
+      metadata: %{reason: "manual disconnect"}
+    )
+
     {:reply, :ok, %{state | session: nil}}
   end
 
@@ -106,7 +110,7 @@ defmodule Voyager.NodeSession do
       when node == session_node do
     Node.monitor(node, false)
     broadcast({:nodedown, node})
-    Voyager.Telemetry.dispatch("voyager.node.disconnect", reason: "node down")
+    Voyager.Telemetry.dispatch!("voyager.node.disconnect", metadata: %{reason: "node down"})
     {:noreply, %{state | session: nil}}
   end
 

@@ -39,41 +39,32 @@ defmodule Voyager.Telemetry do
   @doc """
   Dispatch an event by string name.
 
+  ## Options
+  - `:measurements` - Measurements to attach to the event.
+  - `:metadata` - Metadata to attach to the event.
+
   String name is the dotted event name, e.g. `"voyager.node.connect"`.
-
-  Node connection events require `metadata: %{id: unique_identifier}` where
-  `id` is a non-empty string that identifies the connection session.
   """
-  @spec dispatch(String.t(), Keyword.t()) ::
-          :ok | {:error, :unknown_event | :missing_identifier}
-  def dispatch(event_name, opts \\ [])
+  @spec dispatch!(String.t(), Keyword.t()) :: :ok
+  def dispatch!(event_name, opts \\ []) when is_binary(event_name) do
+    event_name = Events.name_to_list(event_name)
+    measurements = Keyword.get(opts, :measurements, %{})
+    metadata = Keyword.get(opts, :metadata, %{})
 
-  def dispatch("voyager.node.connect", []) do
-    :telemetry.execute([:voyager, :node, :connect], %{}, %{})
+    if Events.custom_event?(event_name) do
+      :telemetry.execute(event_name, measurements, metadata)
+    else
+      raise ArgumentError, "Unknown event: #{inspect(event_name)}"
+    end
   end
 
-  def dispatch("voyager.node.disconnect", opts) do
-    metadata =
-      case Keyword.get(opts, :reason) do
-        nil -> %{reason: :unknown}
-        reason -> %{reason: inspect(reason)}
-      end
-
-    :telemetry.execute([:voyager, :node, :disconnect], %{}, metadata)
-  end
-
-  def dispatch(_event_name, _opts) do
-    {:error, :unknown_event}
-  end
-
-  @doc "Measurements for `telemetry_poller`."
+  @doc "Periodically collected measurements for `telemetry_poller`."
   @spec periodic_measurements() :: [{module(), atom(), list()}]
   def periodic_measurements do
     [{__MODULE__, :emit_vm_memory, []}]
   end
 
   @doc false
-  @spec emit_vm_memory() :: :ok
   def emit_vm_memory do
     :telemetry.execute([:voyager, :vm, :memory], Measurements.vm_memory(), %{})
   end
