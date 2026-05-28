@@ -20,5 +20,6 @@ env \
   bash -c '
     mix setup
     mix assets.deploy
+    mix compile
     iex -S mix phx.server
   '
