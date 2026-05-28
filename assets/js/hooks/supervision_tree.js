@@ -504,7 +504,6 @@ function buildStyle(t) {
         'font-size': 11,
         'font-family': 'ui-monospace, SFMono-Regular, Menlo, monospace',
         color: t.baseContent,
-        // 'text-opacity': 0.6,
         'overlay-padding': 8,
         'transition-property':
           'background-color, border-color, opacity, text-opacity',

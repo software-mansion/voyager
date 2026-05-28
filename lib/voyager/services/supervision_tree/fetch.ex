@@ -1,5 +1,10 @@
-defmodule Voyager.Queries.SupervisionTree.Fetch do
-  @moduledoc false
+defmodule Voyager.Services.SupervisionTree.Fetch do
+  @moduledoc """
+  Coordinates an async fetch of a (currently mocked) supervision tree.
+
+  Wraps `Task.Supervisor.async_nolink/2` with a `start`/`cancel` lifecycle so
+  the LiveView can swap in-flight requests when the user changes scope.
+  """
 
   @type request :: %{
           node: node(),
@@ -144,18 +149,20 @@ defmodule Voyager.Queries.SupervisionTree.Fetch do
   #       │   └── <app>_session_server  (worker)
   #       ├── <app>_web_endpoint       (worker)
   #       ├── <app>_cache_supervisor   (supervisor)
-  #       │   ├── <app>_cache_server_sup (supervisor)
-  #       │   │   ├── <app>_cache_shard_1 (supervisor — STUB at depth=3)
-  #       │   │   └── <app>_cache_shard_2 (supervisor — STUB at depth=3)
+  #       │   ├── <app>_cache_server_sup (supervisor - STUB at depth=3)
   #       │   └── <app>_cache_eviction   (worker)
   #       └── <app>_worker_supervisor  (supervisor)
   #           ├── <app>_worker_1       (worker)
   #           ├── <app>_worker_2       (worker)
+  #           ├── <app>_worker_3       (worker)
+  #           ├── <app>_worker_4       (worker)
+  #           ├── <app>_worker_5       (worker)
+  #           ├── <app>_worker_6       (worker)
   #           └── restarting_worker    (ghost — pid: nil)
   #
-  # The two cache shard supervisors become stubs (children: :not_loaded) at the
-  # default depth because they sit 4 levels below the app root. Expanding them
-  # reveals their worker children, exercising the expand/collapse code path.
+  # The cache server supervisor becomes stub (children: :not_loaded) at the
+  # default depth because it sit 3 levels below the app root. Expanding it
+  # reveals its children, exercising the expand/collapse code path.
   # ---------------------------------------------------------------------------
 
   defp app_tree_spec(app) do
