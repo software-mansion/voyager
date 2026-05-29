@@ -446,13 +446,23 @@ const SupervisionTree = {
     if (isRealPid(node.id())) {
       this.pushEventTo(this.el, 'toggle-expand', { pid: node.id() });
     }
-    if (this.isCollapsed(node)) {
-      node.successors().removeClass('hidden');
-      node.data('is_collapsed', false);
-    } else {
-      node.successors().addClass('hidden');
-      node.data('is_collapsed', true);
-    }
+
+    this.cy.batch(() => {
+      if (this.isCollapsed(node)) {
+        node.data('is_collapsed', false);
+        node.successors().forEach((ele) => {
+          ele.data('hidden_count', ele.data('hidden_count') - 1 || 0);
+        });
+        node.successors('[hidden_count = 0]').removeClass('hidden');
+      } else {
+        node.data('is_collapsed', true);
+        node.successors().forEach((ele) => {
+          ele.data('hidden_count', ele.data('hidden_count') + 1 || 1);
+        });
+        node.successors().addClass('hidden');
+      }
+    });
+
     this.scheduleLayout();
   },
 

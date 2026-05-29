@@ -1,9 +1,9 @@
 defmodule VoyagerWeb.FormSchemas.SupervisionTreeControlsTest do
   use ExUnit.Case, async: true
 
-  alias VoyagerWeb.FormSchemas.SupervisionTreeControls
-
   import Ecto.Changeset
+
+  alias VoyagerWeb.FormSchemas.SupervisionTreeControls
 
   @available_apps [:kernel, :stdlib, :elixir]
   @available_strings ["kernel", "stdlib", "elixir"]
