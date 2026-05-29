@@ -99,6 +99,8 @@ defmodule Voyager.Services.SupervisionTree.Walker do
         end
       end)
 
+    {tree_map, all_errors} = hydrate_info(node, tree_map, all_errors)
+
     errors = Enum.reverse(all_errors)
 
     if errors == [] do
@@ -339,4 +341,54 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   end
 
   defp now_ms, do: System.monotonic_time(:millisecond)
+
+  # ---------------------------------------------------------------------------
+  # Private — info hydration
+  # ---------------------------------------------------------------------------
+
+  defp hydrate_info(node, tree_map, errors) do
+    all_pids = collect_pids(tree_map)
+
+    case Remote.process_info_batch(node, all_pids) do
+      {:error, reason} ->
+        error = {:process_info, :batch, reason}
+        {tree_map, [error | errors]}
+
+      {:ok, info_map} ->
+        hydrated_tree =
+          Map.new(tree_map, fn {app, app_node} ->
+            {app, merge_info(app_node, info_map)}
+          end)
+
+        {hydrated_tree, errors}
+    end
+  end
+
+  defp collect_pids(tree_map) do
+    Enum.flat_map(tree_map, fn {_app, app_node} ->
+      collect_node_pids(app_node)
+    end)
+    |> Enum.filter(&is_pid/1)
+    |> Enum.uniq()
+  end
+
+  defp collect_node_pids(%{pid: pid, children: :not_loaded}) do
+    [pid]
+  end
+
+  defp collect_node_pids(%{pid: pid, children: children}) when is_list(children) do
+    child_pids = Enum.flat_map(children, &collect_node_pids/1)
+    [pid | child_pids]
+  end
+
+  defp merge_info(%{pid: nil} = node, _info_map), do: node
+
+  defp merge_info(%{pid: pid, children: :not_loaded} = node, info_map) do
+    %{node | info: Map.get(info_map, pid)}
+  end
+
+  defp merge_info(%{pid: pid, children: children} = node, info_map) when is_list(children) do
+    hydrated_children = Enum.map(children, &merge_info(&1, info_map))
+    %{node | info: Map.get(info_map, pid), children: hydrated_children}
+  end
 end
