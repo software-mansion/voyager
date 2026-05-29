@@ -1,4 +1,4 @@
-defmodule Voyager.Queries.SupervisionTree.Remote do
+defmodule Voyager.Services.SupervisionTree.Remote do
   @moduledoc """
   Thin, safe `:erpc` wrappers for remote node inspection.
 

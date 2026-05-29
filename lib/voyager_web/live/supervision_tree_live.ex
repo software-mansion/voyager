@@ -1,8 +1,8 @@
 defmodule VoyagerWeb.SupervisionTreeLive do
   use VoyagerWeb, :live_view
 
-  alias Voyager.Queries.SupervisionTree.Remote
-  alias Voyager.Services.SupervisionTreeFetch
+  alias Voyager.Services.SupervisionTree.Remote
+  alias Voyager.Services.SupervisionTree.Fetch
   alias VoyagerWeb.FormSchemas.SupervisionTreeControls
   alias VoyagerWeb.SupervisionTreeLive.Diff
 
@@ -178,7 +178,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   @impl true
   def terminate(_reason, socket) do
     if socket.assigns[:in_flight] do
-      SupervisionTreeFetch.cancel(socket.assigns.in_flight)
+      Fetch.cancel(socket.assigns.in_flight)
     end
 
     if socket.assigns[:refresh_timer] do
@@ -417,7 +417,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   defp request_fetch(socket) do
     if socket.assigns.in_flight do
-      SupervisionTreeFetch.cancel(socket.assigns.in_flight)
+      Fetch.cancel(socket.assigns.in_flight)
     end
 
     selected = MapSet.to_list(socket.assigns.selected_apps)
@@ -435,7 +435,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         expanded: socket.assigns.expanded_pids
       }
 
-      in_flight = SupervisionTreeFetch.start(request)
+      in_flight = Fetch.start(request)
 
       socket
       |> assign(:in_flight, in_flight)

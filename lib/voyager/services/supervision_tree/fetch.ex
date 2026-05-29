@@ -1,6 +1,6 @@
-defmodule Voyager.Services.SupervisionTreeFetch do
+defmodule Voyager.Services.SupervisionTree.Fetch do
   @moduledoc """
-  Wraps a `Voyager.Queries.SupervisionTree.Walker.walk/4` call as a cancellable, monitored
+  Wraps a `Voyager.Services.SupervisionTree.Walker.walk/4` call as a cancellable, monitored
   async task that a LiveView can launch and abort.
 
   ## Usage
@@ -34,7 +34,7 @@ defmodule Voyager.Services.SupervisionTreeFetch do
   happens during the walk.
   """
 
-  alias Voyager.Services.SupervisionTreeWalker, as: Walker
+  alias Voyager.Services.SupervisionTree.Walker
 
   @type request :: %{
           node: node(),
