@@ -239,7 +239,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
                     field={@apps_form[:depth]}
                     type="number"
                     min="1"
-                    max="10"
                     class="input-sm w-16 text-center"
                   />
                 </div>
