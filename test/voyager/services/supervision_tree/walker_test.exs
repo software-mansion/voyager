@@ -1,7 +1,7 @@
-defmodule Voyager.Queries.SupervisionTree.WalkerTest do
+defmodule Voyager.Services.SupervisionTree.WalkerTest do
   use ExUnit.Case, async: false
 
-  alias Voyager.Queries.SupervisionTree.Walker
+  alias Voyager.Services.SupervisionTree.Walker
   alias Voyager.Test.RemoteFixture
 
   setup do
@@ -12,11 +12,11 @@ defmodule Voyager.Queries.SupervisionTree.WalkerTest do
     {:ok, peer: peer}
   end
 
-  describe "walk/4 depth=1, no expanded" do
+  describe "walk/4 depth=2, no expanded" do
     test "app node exists with root sup as its child; mid sups are stubs", %{peer: peer} do
       node = peer.node
 
-      {:ok, tree, []} = Walker.walk(node, [:voyager_fixture], 1, MapSet.new())
+      {:ok, tree, []} = Walker.walk(node, [:voyager_fixture], 2, MapSet.new())
 
       assert Map.has_key?(tree, :voyager_fixture)
 
@@ -42,11 +42,11 @@ defmodule Voyager.Queries.SupervisionTree.WalkerTest do
     end
   end
 
-  describe "walk/4 depth=2" do
+  describe "walk/4 depth=3" do
     test "mid sups show workers; workers are leaf stubs", %{peer: peer} do
       node = peer.node
 
-      {:ok, tree, []} = Walker.walk(node, [:voyager_fixture], 2, MapSet.new())
+      {:ok, tree, []} = Walker.walk(node, [:voyager_fixture], 3, MapSet.new())
 
       app_node = tree[:voyager_fixture]
       [root_node] = app_node.children
@@ -66,7 +66,7 @@ defmodule Voyager.Queries.SupervisionTree.WalkerTest do
     end
   end
 
-  describe "walk/4 depth=0 with expanded mid-sup pid" do
+  describe "walk/4 depth=2 with expanded mid-sup pid" do
     test "expanded mid sup has its children loaded even though depth=0", %{peer: peer} do
       node = peer.node
 
@@ -77,10 +77,7 @@ defmodule Voyager.Queries.SupervisionTree.WalkerTest do
 
       expanded = MapSet.new([mid_sup_a_pid])
 
-      # depth=0 means root sup gets a stub, but since root sup is also walked
-      # (depth=0 applied after app wrapper), let's use depth=1 so root sup
-      # is fetched, then MidSupA (depth=0) is forced via expanded
-      {status, tree, _errors} = Walker.walk(node, [:voyager_fixture], 1, expanded)
+      {status, tree, _errors} = Walker.walk(node, [:voyager_fixture], 2, expanded)
 
       assert status in [:ok, :partial]
 

@@ -90,6 +90,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
               name: app,
               type: :app,
               modules: [],
+              info: nil,
               has_children?: true,
               child_count: 1,
               children: [root_node]
@@ -131,6 +132,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       name: name,
       type: :worker,
       modules: modules,
+      info: nil,
       has_children?: false,
       child_count: 0,
       children: :not_loaded
@@ -162,6 +164,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       name: name,
       type: :supervisor,
       modules: modules,
+      info: nil,
       has_children?: count > 0,
       child_count: count,
       children: :not_loaded
@@ -180,6 +183,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
           name: name,
           type: :supervisor,
           modules: modules,
+          info: nil,
           has_children?: true,
           child_count: 0,
           children: :not_loaded
@@ -234,6 +238,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
           name: name,
           type: :supervisor,
           modules: modules,
+          info: nil,
           has_children?: ordered_children != [],
           child_count: length(ordered_children),
           children: ordered_children
@@ -259,6 +264,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       name: child_id,
       type: :worker,
       modules: child_modules,
+      info: nil,
       has_children?: false,
       child_count: 0,
       children: :not_loaded
@@ -282,6 +288,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       name: child_id,
       type: :worker,
       modules: child_modules,
+      info: nil,
       has_children?: false,
       child_count: 0,
       children: :not_loaded
@@ -322,6 +329,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       name: name,
       type: type,
       modules: modules,
+      info: nil,
       has_children?: type == :supervisor,
       child_count: 0,
       children: :not_loaded
@@ -334,6 +342,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       name: child_id,
       type: :worker,
       modules: child_modules,
+      info: nil,
       has_children?: false,
       child_count: 0,
       children: :not_loaded

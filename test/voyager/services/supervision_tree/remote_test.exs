@@ -1,7 +1,7 @@
-defmodule Voyager.Queries.SupervisionTree.RemoteTest do
+defmodule Voyager.Services.SupervisionTree.RemoteTest do
   use ExUnit.Case, async: false
 
-  alias Voyager.Queries.SupervisionTree.Remote
+  alias Voyager.Services.SupervisionTree.Remote
   alias Voyager.Test.RemoteFixture
 
   setup do
