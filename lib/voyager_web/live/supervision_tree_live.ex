@@ -107,12 +107,10 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   @impl true
   def handle_info(:refresh, socket) do
-    if socket.assigns[:refresh_timer] do
-      Process.cancel_timer(socket.assigns.refresh_timer)
-    end
-
-    timer = Process.send_after(self(), :refresh, @refresh_interval)
-    socket = assign(socket, :refresh_timer, timer)
+    socket =
+      socket
+      |> start_timer()
+      |> stop_timer()
 
     socket =
       if MapSet.size(socket.assigns.selected_apps) > 0 and is_nil(socket.assigns.in_flight) do
@@ -189,9 +187,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       Fetch.cancel(socket.assigns.in_flight)
     end
 
-    if socket.assigns[:refresh_timer] do
-      Process.cancel_timer(socket.assigns.refresh_timer)
-    end
+    stop_timer(socket)
 
     :ok
   end
@@ -267,12 +263,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         {MapSet.delete(expanded, pid), false}
 
       true ->
-        with {:ok, process} <- Map.fetch(socket.assigns.last_tree_flat, pid_str),
-             :not_loaded <- process.children_keys do
-          {MapSet.put(expanded, pid), true}
-        else
-          _ -> {expanded, false}
-        end
+        {MapSet.put(expanded, pid), true}
     end
   end
 

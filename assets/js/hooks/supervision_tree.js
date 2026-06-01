@@ -41,14 +41,18 @@ const SupervisionTree = {
     this.lastTapTs = 0;
     this.lastTapId = null;
     this.pendingSelectTimer = null;
+    this.disabledClick = false;
 
     this.cy.on('oneclick', 'node', (e) => {
+      if (this.disabledClick) return;
       this.pushEventTo(this.el, 'select-node', { key: e.target.id() });
     });
     this.cy.on('dblclick', 'node', (e) => {
+      if (this.disabledClick) return;
       this.toggleExpandNode(e.target);
     });
     this.cy.on('tap', (e) => {
+      if (this.disabledClick) return;
       if (e.target === this.cy) this.onBackgroundTap();
     });
 
@@ -204,7 +208,6 @@ const SupervisionTree = {
     if (topologyChanged) {
       this.scheduleLayout();
     }
-    this.scheduleOverlayReconcile();
   },
 
   // ---------------------------------------------------------------------------
@@ -296,7 +299,10 @@ const SupervisionTree = {
 
     layout.on('layoutstop', () => {
       this.cy.style().update();
+      this.disabledClick = false;
     });
+
+    this.disabledClick = true;
 
     layout.run();
   },
@@ -389,6 +395,7 @@ const SupervisionTree = {
     dom.dataset.key = key;
     dom.innerHTML = toggleIcon(this.isCollapsed(node));
     dom.addEventListener('click', (ev) => {
+      if (this.disabledClick) return;
       ev.stopPropagation();
       this.toggleExpandNode(node);
     });
@@ -443,6 +450,7 @@ const SupervisionTree = {
   },
 
   toggleExpandNode(node) {
+    this.disabledClick = true;
     if (isRealPid(node.id())) {
       this.pushEventTo(this.el, 'toggle-expand', { pid: node.id() });
     }
