@@ -28,7 +28,7 @@ defmodule Voyager.Telemetry.Handler.Export do
   def handle_event(event, measurements, metadata, config) do
     payload = %{
       event: Parser.parse_event(event),
-      measurements: measurements,
+      measurements: Parser.parse_measurements(event, measurements),
       metadata: Parser.parse_metadata(event, metadata),
       ts: System.system_time(:millisecond)
     }

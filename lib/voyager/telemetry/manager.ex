@@ -25,12 +25,15 @@ defmodule Voyager.Telemetry.Manager do
     handler_module = handler_module(opts)
     handler_config = handler_config(opts)
 
-    :telemetry.attach_many(
-      Handler.handler_id(),
-      Events.events(),
-      &handler_module.handle_event/4,
-      handler_config
-    )
+    _ = :telemetry.detach(Handler.handler_id())
+
+    :ok =
+      :telemetry.attach_many(
+        Handler.handler_id(),
+        Events.events(),
+        &handler_module.handle_event/4,
+        handler_config
+      )
 
     {:ok, %{}}
   end

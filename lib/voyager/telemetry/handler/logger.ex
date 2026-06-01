@@ -11,7 +11,7 @@ defmodule Voyager.Telemetry.Handler.Logger do
   def handle_event(event, measurements, metadata, _config) do
     Logger.debug("""
     TELEMETRY #{Parser.parse_event(event)}
-      measurements: #{inspect(measurements, pretty: true, limit: 50)}
+      measurements: #{Parser.parse_measurements(event, measurements) |> inspect(pretty: true, limit: 50)}
       metadata:     #{Parser.parse_metadata(event, metadata) |> inspect(pretty: true, limit: 50)}
     """)
 
