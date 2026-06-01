@@ -5,14 +5,14 @@ defmodule Voyager.Telemetry.Events do
 
   @type event() :: [atom()]
 
-  @vm_memory_event [:voyager, :vm, :memory]
-
   @custom_events [
     [:voyager, :node, :connect],
     [:voyager, :node, :disconnect]
   ]
 
-  @system_events [@vm_memory_event]
+  @system_events [
+    [:voyager, :vm, :memory]
+  ]
 
   @phoenix_events [
     [:phoenix, :live_view, :mount, :stop],
