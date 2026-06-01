@@ -30,7 +30,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       if connected?(socket) do
         socket
         |> assign_applications()
-        |> restart_timer()
+        |> start_timer()
       else
         socket
       end
@@ -107,6 +107,10 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   @impl true
   def handle_info(:refresh, socket) do
+    if socket.assigns[:refresh_timer] do
+      Process.cancel_timer(socket.assigns.refresh_timer)
+    end
+
     timer = Process.send_after(self(), :refresh, @refresh_interval)
     socket = assign(socket, :refresh_timer, timer)
 
@@ -124,6 +128,8 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     in_flight = socket.assigns.in_flight
 
     if not is_nil(in_flight) and in_flight.ref == ref do
+      stop_timer(socket)
+
       Process.demonitor(ref, [:flush])
 
       new_flat = Diff.flatten(tree)
@@ -141,12 +147,12 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
       socket =
         socket
-        |> restart_timer()
         |> assign(:errors, errors)
         |> assign(:status, status)
         |> assign(:in_flight, nil)
         |> assign(:last_tree_flat, new_flat)
         |> push_event("tree-data", payload)
+        |> start_timer()
 
       {:noreply, socket}
     else
@@ -160,7 +166,8 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     if not is_nil(in_flight) and in_flight.ref == ref do
       socket =
         socket
-        |> restart_timer()
+        |> stop_timer()
+        |> start_timer()
         |> assign(:in_flight, nil)
         |> assign(:status, :error)
         |> assign(:errors, socket.assigns.errors ++ [{:fetch, reason}])
@@ -235,11 +242,15 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     end
   end
 
-  defp restart_timer(socket) do
+  defp stop_timer(socket) do
     if socket.assigns[:refresh_timer] do
       Process.cancel_timer(socket.assigns.refresh_timer)
     end
 
+    socket
+  end
+
+  defp start_timer(socket) do
     timer = Process.send_after(self(), :refresh, @refresh_interval)
     assign(socket, :refresh_timer, timer)
   end

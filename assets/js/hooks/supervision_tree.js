@@ -29,7 +29,7 @@ const SupervisionTree = {
       elements: [],
       style: buildStyle(this.tokens),
       wheelSensitivity: 0.2,
-      minZoom: 0.2,
+      minZoom: 0.1,
       maxZoom: 2.5,
       autoungrabify: true,
     });
