@@ -152,10 +152,9 @@ defmodule VoyagerWeb.NodeInfoLive do
 
       <%= cond do %>
         <% @snapshot -> %>
-          <div id="node-info-content" class="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-3">
-            <div class="lg:col-span-2">
-              <NodeInfoComponents.memory_card memory={@snapshot.memory} />
-            </div>
+          <div id="node-info-content" class="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <NodeInfoComponents.memory_card memory={@snapshot.memory} />
+            <NodeInfoComponents.limits_card limits={@snapshot.limits} />
           </div>
         <% @error -> %>
           <%!-- error already shown above; nothing more to render --%>
