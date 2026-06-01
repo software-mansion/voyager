@@ -18,6 +18,52 @@ defmodule VoyagerWeb.NodeInfoComponents do
   ]
 
   @doc """
+  Renders a compact stat tile with a label, large value, optional unit, and optional sub-line.
+
+  ## Slots
+
+  - `value` (required) — the primary numeric or text value; use the `unit` attr for a trailing unit label
+  - `sub` (optional) — a small secondary line below the value (e.g. "limit 262,144")
+
+  ## Examples
+
+      <.stat_tile label="Processes">
+        <:value unit="live">31</:value>
+        <:sub>limit 262,144</:sub>
+      </.stat_tile>
+  """
+  attr :label, :string, required: true
+
+  slot :value, required: true do
+    attr :unit, :string
+  end
+
+  slot :sub
+
+  def stat_tile(assigns) do
+    ~H"""
+    <div class="card bg-base-100 border border-base-200 shadow-sm p-5 flex flex-col gap-1.5">
+      <span class="font-mono text-[10.5px] font-semibold uppercase tracking-[0.1em] text-base-content/50">
+        {@label}
+      </span>
+      <%= for entry <- @value do %>
+        <div class="mt-1 flex items-baseline gap-1.5">
+          <span class="font-mono text-[26px] font-medium leading-none tracking-tight text-base-content">
+            {render_slot(entry)}
+          </span>
+          <span :if={Map.get(entry, :unit)} class="font-mono text-sm text-base-content/50">
+            {entry.unit}
+          </span>
+        </div>
+      <% end %>
+      <div :if={@sub != []} class="font-mono text-[11px] text-base-content/50">
+        {render_slot(@sub)}
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
   Renders a memory breakdown card with a stacked bar chart and legend.
   """
   attr :memory, Memory, required: true
