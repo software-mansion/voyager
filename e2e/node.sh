@@ -19,8 +19,12 @@ start() {
 }
 
 stop() {
-  pkill -f "erl.*test@127.0.0.1" 2>/dev/null || true
-  rm -f "$PID_FILE"
+  if [ -f "$PID_FILE" ]; then
+    kill "$(cat "$PID_FILE")" 2>/dev/null || true
+    rm -f "$PID_FILE"
+  else
+    pkill -f "erl.*test@127.0.0.1" 2>/dev/null || true
+  fi
   echo "Test node stopped"
 }
 
