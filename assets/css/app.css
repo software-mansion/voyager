@@ -15,6 +15,28 @@
   themes: false;
 }
 
+/* Categorical chart palette — distinct series colors, not status tokens.
+   DaisyUI semantic colors (info/warning/secondary) are near-white in the
+   light theme and blend together in charts, so series get a dedicated set. */
+:root,
+[data-theme='light'] {
+  --chart-1: oklch(48% 0.2 264);
+  --chart-2: oklch(58% 0.12 185);
+  --chart-3: oklch(55% 0.22 300);
+  --chart-4: oklch(68% 0.16 65);
+  --chart-5: oklch(60% 0.17 150);
+  --chart-6: oklch(60% 0.21 15);
+}
+
+[data-theme='dark'] {
+  --chart-1: oklch(70% 0.15 264);
+  --chart-2: oklch(72% 0.12 185);
+  --chart-3: oklch(70% 0.18 300);
+  --chart-4: oklch(80% 0.15 75);
+  --chart-5: oklch(75% 0.16 150);
+  --chart-6: oklch(72% 0.18 15);
+}
+
 @plugin 'daisyui/theme' {
   name: 'light';
   default: true;

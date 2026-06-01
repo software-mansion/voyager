@@ -238,7 +238,7 @@ defmodule VoyagerWeb.CoreComponents do
       <h2 class="font-mono text-[11px] tracking-[0.15em] text-base-content/50 mb-3 ml-1 font-semibold uppercase">
         {@title}
       </h2>
-      <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div class="grid grid-cols-2 gap-4 sm:grid-cols-4 xl:grid-cols-6">
         {render_slot(@inner_block)}
       </div>
     </section>
