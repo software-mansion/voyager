@@ -17,11 +17,6 @@ defmodule Voyager.Telemetry.Handler.Export do
 
   @max_retries 3
   @backoff_ms [500, 1000, 10_000]
-  @telemetry_push_url Application.compile_env(:voyager, :telemetry_push_url)
-
-  def telemetry_push_url do
-    @telemetry_push_url
-  end
 
   @impl true
   @spec handle_event([atom()], any(), map(), any()) :: :ok
