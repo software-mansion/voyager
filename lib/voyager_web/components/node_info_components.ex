@@ -41,17 +41,17 @@ defmodule VoyagerWeb.NodeInfoComponents do
 
   def info_card(assigns) do
     ~H"""
-    <div class="card bg-base-100 border border-base-200 shadow-sm">
+    <div class="card bg-base-100 border-base-200 border shadow-sm">
       <div class="card-body gap-4 p-5">
         <div class="flex items-baseline justify-between">
-          <h3 class="font-semibold text-base-content text-sm">{@title}</h3>
-          <span :if={@subtitle} class="font-mono text-xs text-base-content/50">{@subtitle}</span>
+          <h3 class="text-base-content text-sm font-semibold">{@title}</h3>
+          <span :if={@subtitle} class="font-mono text-base-content/50 text-xs">{@subtitle}</span>
         </div>
 
         <div class="grid grid-cols-2 gap-x-6 gap-y-3">
           <%= for entry <- @row do %>
             <div>
-              <div class="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-base-content/50 mb-0.5">
+              <div class="font-mono text-[10px] tracking-[0.08em] text-base-content/50 mb-0.5 font-semibold uppercase">
                 {entry.label}
               </div>
               <div class="font-mono text-[13px] text-base-content">
@@ -66,44 +66,30 @@ defmodule VoyagerWeb.NodeInfoComponents do
   end
 
   @doc """
-  Renders a compact stat tile with a label, large value, optional unit, and optional sub-line.
-
-  ## Slots
-
-  - `value` (required) — the primary numeric or text value; use the `unit` attr for a trailing unit label
-  - `sub` (optional) — a small secondary line below the value (e.g. "limit 262,144")
+  Renders a compact stat tile with a label, large value, and optional sub-line.
 
   ## Examples
 
-      <.stat_tile label="Processes">
-        <:value unit="live">31</:value>
-        <:sub>limit 262,144</:sub>
+      <.stat_tile label="Uptime" value="4d 1h">
+        <:sub>since 24 Apr 2026</:sub>
       </.stat_tile>
   """
   attr :label, :string, required: true
-
-  slot :value, required: true do
-    attr :unit, :string
-  end
+  attr :value, :string, required: true
 
   slot :sub
 
   def stat_tile(assigns) do
     ~H"""
-    <div class="card bg-base-100 border border-base-200 shadow-sm p-5 flex flex-col gap-1.5">
-      <span class="font-mono text-[10.5px] font-semibold uppercase tracking-[0.1em] text-base-content/50">
+    <div class="card bg-base-100 border-base-200 flex flex-col gap-1.5 border p-5 shadow-sm">
+      <span class="font-mono text-[10.5px] tracking-[0.1em] text-base-content/50 font-semibold uppercase">
         {@label}
       </span>
-      <%= for entry <- @value do %>
-        <div class="mt-1 flex items-baseline gap-1.5">
-          <span class="font-mono text-[26px] font-medium leading-none tracking-tight text-base-content">
-            {render_slot(entry)}
-          </span>
-          <span :if={Map.get(entry, :unit)} class="font-mono text-sm text-base-content/50">
-            {entry.unit}
-          </span>
-        </div>
-      <% end %>
+      <div class="mt-1">
+        <span class="font-mono text-[26px] text-base-content font-medium leading-none tracking-tight">
+          {@value}
+        </span>
+      </div>
       <div :if={@sub != []} class="font-mono text-[11px] text-base-content/50">
         {render_slot(@sub)}
       </div>
@@ -120,11 +106,11 @@ defmodule VoyagerWeb.NodeInfoComponents do
     assigns = assign(assigns, :segments, memory_segments(assigns.memory))
 
     ~H"""
-    <div class="card bg-base-100 border border-base-200 shadow-sm">
+    <div class="card bg-base-100 border-base-200 border shadow-sm">
       <div class="card-body gap-4 p-5">
         <div class="flex items-baseline justify-between">
-          <h3 class="font-semibold text-base-content text-sm">Memory breakdown</h3>
-          <span class="font-mono text-xs text-base-content/50">
+          <h3 class="text-base-content text-sm font-semibold">Memory breakdown</h3>
+          <span class="font-mono text-base-content/50 text-xs">
             {format_bytes(@memory.total)} total
           </span>
         </div>
@@ -144,13 +130,16 @@ defmodule VoyagerWeb.NodeInfoComponents do
         <%!-- Legend rows --%>
         <div class="flex flex-col gap-2">
           <%= for {key, label, color_class, pct} <- @segments do %>
-            <div class="grid items-center gap-2.5 font-mono text-xs" style="grid-template-columns: 10px 1fr auto auto;">
-              <div class={["size-2.5 rounded-sm shrink-0", color_class]}></div>
+            <div
+              class="font-mono grid items-center gap-2.5 text-xs"
+              style="grid-template-columns: 10px 1fr auto auto;"
+            >
+              <div class={["size-2.5 shrink-0 rounded-sm", color_class]}></div>
               <span class="text-base-content/70">{label}</span>
               <span class="text-base-content tabular-nums">
                 {format_bytes(Map.get(@memory, key))}
               </span>
-              <span class="w-12 text-right text-base-content/40 tabular-nums">
+              <span class="text-base-content/40 w-12 text-right tabular-nums">
                 {pct}%
               </span>
             </div>
@@ -168,19 +157,21 @@ defmodule VoyagerWeb.NodeInfoComponents do
 
   def limits_card(assigns) do
     ~H"""
-    <div class="card bg-base-100 border border-base-200 shadow-sm">
+    <div class="card bg-base-100 border-base-200 border shadow-sm">
       <div class="card-body gap-4 p-5">
         <div class="flex items-baseline justify-between">
-          <h3 class="font-semibold text-base-content text-sm">System limits</h3>
-          <span class="font-mono text-xs text-base-content/50">current / max</span>
+          <h3 class="text-base-content text-sm font-semibold">System limits</h3>
+          <span class="font-mono text-base-content/50 text-xs">current / max</span>
         </div>
 
-        <div class="flex flex-col divide-y divide-base-200">
+        <div class="divide-base-200 flex flex-col divide-y">
           <%= for {label, usage} <- limit_rows(@limits) do %>
-            <div class="grid items-center gap-3 py-2 font-mono text-xs first:pt-0 last:pb-0"
-                 style="grid-template-columns: 1fr 4rem 1fr 4rem;">
+            <div
+              class="font-mono grid items-center gap-3 py-2 text-xs first:pt-0 last:pb-0"
+              style="grid-template-columns: 1fr 4rem 1fr 4rem;"
+            >
               <span class="text-base-content/70">{label}</span>
-              <span class="text-right text-base-content tabular-nums">{format_int(usage.used)}</span>
+              <span class="text-base-content text-right tabular-nums">{format_int(usage.used)}</span>
               <div class="bg-base-200 h-1 overflow-hidden rounded-full">
                 <div
                   class={["h-full rounded-full transition-all", meter_color(usage)]}

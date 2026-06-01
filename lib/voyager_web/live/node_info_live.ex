@@ -152,9 +152,40 @@ defmodule VoyagerWeb.NodeInfoLive do
 
       <%= cond do %>
         <% @snapshot -> %>
-          <div id="node-info-content" class="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <NodeInfoComponents.memory_card memory={@snapshot.memory} />
-            <NodeInfoComponents.limits_card limits={@snapshot.limits} />
+          <div id="node-info-content">
+            <%!-- Stat tiles --%>
+            <div class="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <NodeInfoComponents.stat_tile
+                label="Uptime"
+                value={"#{uptime_value(@snapshot.runtime.uptime_ms)}#{uptime_unit(@snapshot.runtime.uptime_ms)}"}
+              >
+                <:sub>since {uptime_since(@snapshot.collected_at, @snapshot.runtime.uptime_ms)}</:sub>
+              </NodeInfoComponents.stat_tile>
+              <NodeInfoComponents.stat_tile
+                label="IO input"
+                value={"#{io_value(@snapshot.runtime.io_input_bytes)}#{io_unit(@snapshot.runtime.io_input_bytes)}"}
+              >
+                <:sub>total since start</:sub>
+              </NodeInfoComponents.stat_tile>
+              <NodeInfoComponents.stat_tile
+                label="IO output"
+                value={"#{io_value(@snapshot.runtime.io_output_bytes)}#{io_unit(@snapshot.runtime.io_output_bytes)}"}
+              >
+                <:sub>total since start</:sub>
+              </NodeInfoComponents.stat_tile>
+              <NodeInfoComponents.stat_tile
+                label="Reductions"
+                value={"#{reductions_value(@snapshot.runtime.total_reductions)}#{reductions_unit(@snapshot.runtime.total_reductions)}"}
+              >
+                <:sub>total since start</:sub>
+              </NodeInfoComponents.stat_tile>
+            </div>
+
+            <%!-- Charts --%>
+            <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <NodeInfoComponents.memory_card memory={@snapshot.memory} />
+              <NodeInfoComponents.limits_card limits={@snapshot.limits} />
+            </div>
           </div>
         <% @error -> %>
           <%!-- error already shown above; nothing more to render --%>
@@ -166,6 +197,67 @@ defmodule VoyagerWeb.NodeInfoLive do
       <% end %>
     </div>
     """
+  end
+
+  defp reductions_value(n) when n >= 1_000_000_000, do: Float.round(n / 1_000_000_000, 1)
+  defp reductions_value(n) when n >= 10_000_000, do: Float.round(n / 1_000_000, 1)
+  defp reductions_value(n), do: n
+
+  defp reductions_unit(n) when n >= 1_000_000_000, do: "B"
+  defp reductions_unit(n) when n >= 10_000_000, do: "M"
+  defp reductions_unit(_n), do: nil
+
+  defp io_value(bytes) when bytes >= 1_099_511_627_776,
+    do: Float.round(bytes / 1_099_511_627_776, 1)
+
+  defp io_value(bytes) when bytes >= 1_073_741_824, do: Float.round(bytes / 1_073_741_824, 1)
+  defp io_value(bytes) when bytes >= 1_048_576, do: round(bytes / 1_048_576)
+  defp io_value(bytes) when bytes >= 1_024, do: round(bytes / 1_024)
+  defp io_value(bytes), do: bytes
+
+  defp io_unit(bytes) when bytes >= 1_099_511_627_776, do: "TB"
+  defp io_unit(bytes) when bytes >= 1_073_741_824, do: "GB"
+  defp io_unit(bytes) when bytes >= 1_048_576, do: "MB"
+  defp io_unit(bytes) when bytes >= 1_024, do: "KB"
+  defp io_unit(_bytes), do: "B"
+
+  defp uptime_parts(ms) when is_integer(ms) do
+    total_seconds = div(ms, 1_000)
+    years = div(total_seconds, 31_536_000)
+    days = total_seconds |> rem(31_536_000) |> div(86_400)
+    hours = total_seconds |> rem(86_400) |> div(3_600)
+    minutes = total_seconds |> rem(3_600) |> div(60)
+    seconds = rem(total_seconds, 60)
+    {years, days, hours, minutes, seconds}
+  end
+
+  defp uptime_value(ms) do
+    {years, days, hours, minutes, seconds} = uptime_parts(ms)
+
+    cond do
+      years > 0 -> years
+      days > 0 -> days
+      hours > 0 -> hours
+      minutes > 0 -> minutes
+      true -> seconds
+    end
+  end
+
+  defp uptime_unit(ms) do
+    {years, days, hours, minutes, _seconds} = uptime_parts(ms)
+
+    cond do
+      years > 0 -> "yr #{days}d"
+      days > 0 -> "d #{hours}h"
+      hours > 0 -> "h #{minutes}m"
+      minutes > 0 -> "m"
+      true -> "s"
+    end
+  end
+
+  defp uptime_since(%DateTime{} = collected_at, uptime_ms) when is_integer(uptime_ms) do
+    started_at = DateTime.add(collected_at, -uptime_ms, :millisecond)
+    Calendar.strftime(started_at, "%d %b %Y %H:%M UTC")
   end
 
   defp interval_options, do: @interval_options
