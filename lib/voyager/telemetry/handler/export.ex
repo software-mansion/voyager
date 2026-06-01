@@ -19,7 +19,6 @@ defmodule Voyager.Telemetry.Handler.Export do
   @backoff_ms [500, 1000, 10_000]
 
   @impl true
-  @spec handle_event([atom()], any(), map(), any()) :: :ok
   def handle_event(event, measurements, metadata, config) do
     case config do
       %{telemetry_push_url: push_url} ->
