@@ -25,6 +25,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
             class="btn btn-sm btn-ghost"
             phx-click="refresh-now"
             title="Refresh now"
+            phx-throttle="500"
           >
             <.icon
               name="icon-rotate-cw"
@@ -64,6 +65,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                   type="number"
                   min="1"
                   class="input-sm w-16 text-center"
+                  phx-debounce="250"
                 />
               </div>
             </summary>
