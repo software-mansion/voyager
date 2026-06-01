@@ -40,3 +40,4 @@ config :phoenix_live_view,
   enable_expensive_runtime_checks: true
 
 config :live_debugger, debug_button: false
+config :live_debugger, auto_port: true
