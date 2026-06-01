@@ -15,6 +15,7 @@ defmodule VoyagerWeb.ConnectComponents do
         type="button"
         phx-click="fill_recent"
         phx-value-id={@conn.id}
+        data-testid="fill-recent-btn"
         class="font-mono text-[12px] text-base-content/60 flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 transition-colors hover:bg-base-200 hover:text-base-content"
       >
         <.icon name="icon-network" class="size-3.5 text-base-content/25 shrink-0" />
