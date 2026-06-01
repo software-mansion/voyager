@@ -21,15 +21,15 @@ defmodule Voyager.Telemetry.Handler.Export do
   @impl true
   @spec handle_event([atom()], any(), map(), any()) :: :ok
   def handle_event(event, measurements, metadata, config) do
-    payload = %{
-      event: Parser.parse_event(event),
-      measurements: Parser.parse_measurements(event, measurements),
-      metadata: Parser.parse_metadata(event, metadata),
-      ts: System.system_time(:millisecond)
-    }
-
     case config do
       %{telemetry_push_url: push_url} ->
+        payload = %{
+          event: Parser.parse_event(event),
+          measurements: Parser.parse_measurements(event, measurements),
+          metadata: Parser.parse_metadata(event, metadata),
+          ts: System.system_time(:millisecond)
+        }
+
         send_event(push_url, payload)
 
       _ ->
