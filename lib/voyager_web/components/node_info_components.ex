@@ -18,6 +18,54 @@ defmodule VoyagerWeb.NodeInfoComponents do
   ]
 
   @doc """
+  Renders a key-value info card with a 2-column grid of labelled rows.
+
+  ## Slots
+
+  - `row` (required) — each entry; provide `label` and `value` attrs
+
+  ## Examples
+
+      <.info_card title="Runtime" subtitle="ERTS · system info">
+        <:row label="OTP version" value="27.1" />
+        <:row label="ERTS version" value="15.1" />
+      </.info_card>
+  """
+  attr :title, :string, required: true
+  attr :subtitle, :string, default: nil
+
+  slot :row, required: true do
+    attr :label, :string, required: true
+    attr :value, :string, required: true
+  end
+
+  def info_card(assigns) do
+    ~H"""
+    <div class="card bg-base-100 border border-base-200 shadow-sm">
+      <div class="card-body gap-4 p-5">
+        <div class="flex items-baseline justify-between">
+          <h3 class="font-semibold text-base-content text-sm">{@title}</h3>
+          <span :if={@subtitle} class="font-mono text-xs text-base-content/50">{@subtitle}</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-x-6 gap-y-3">
+          <%= for entry <- @row do %>
+            <div>
+              <div class="font-mono text-[10px] font-semibold uppercase tracking-[0.08em] text-base-content/50 mb-0.5">
+                {entry.label}
+              </div>
+              <div class="font-mono text-[13px] text-base-content">
+                {entry.value}
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
   Renders a compact stat tile with a label, large value, optional unit, and optional sub-line.
 
   ## Slots
