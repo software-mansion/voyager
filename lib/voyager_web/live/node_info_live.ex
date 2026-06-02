@@ -89,16 +89,10 @@ defmodule VoyagerWeb.NodeInfoLive do
 
       <.async_result :let={snapshot} assign={@snapshot}>
         <:loading>
-          <div class="flex items-center justify-center gap-3 py-24" id="node-info-loading">
-            <span class="loading loading-spinner loading-md text-primary"></span>
-            <span class="font-mono text-base-content/50 text-sm">Fetching node info…</span>
-          </div>
+          <.loading_state id="node-info-loading" message="Fetching node info…" />
         </:loading>
         <:failed :let={reason}>
-          <div class="alert alert-error mb-8" id="node-info-error" role="alert">
-            <.icon name="icon-circle-alert" class="size-5" />
-            <span>{format_error(reason)}</span>
-          </div>
+          <.error_state id="node-info-error" message={format_error(reason)} />
         </:failed>
         <div id="node-info-content">
           <%!-- Stat tiles --%>
@@ -173,8 +167,10 @@ defmodule VoyagerWeb.NodeInfoLive do
   end
 
   def handle_event("set_interval", %{"interval" => value}, socket) do
+    refresh_interval = if value == "off", do: nil, else: String.to_integer(value)
+
     socket
-    |> assign(:refresh_interval, parse_interval(value))
+    |> assign(:refresh_interval, refresh_interval)
     |> schedule_refresh()
     |> noreply()
   end
@@ -224,9 +220,6 @@ defmodule VoyagerWeb.NodeInfoLive do
     assign(socket, :timer_ref, ref)
   end
 
-  defp parse_interval("off"), do: nil
-  defp parse_interval(value), do: String.to_integer(value)
-
   # Compact, unit-suffixed labels (no space) for the stat tiles.
   defp byte_label(bytes) do
     {value, unit} = Formatters.byte_parts(bytes)
@@ -243,13 +236,9 @@ defmodule VoyagerWeb.NodeInfoLive do
 
     base = [
       {"OTP release", snapshot.system.otp_release},
-      {"ERTS version", snapshot.system.erts_version}
+      {"ERTS version", snapshot.system.erts_version},
+      {"stdlib", snapshot.system.stdlib_version || "Not available"}
     ]
-
-    stdlib =
-      if snapshot.system.stdlib_version,
-        do: [{"stdlib", snapshot.system.stdlib_version}],
-        else: []
 
     rest = [
       {"Word size",
@@ -260,7 +249,7 @@ defmodule VoyagerWeb.NodeInfoLive do
       {"System arch", snapshot.system.system_architecture, :full}
     ]
 
-    base ++ stdlib ++ language_rows ++ rest
+    language_rows ++ base ++ rest
   end
 
   defp metric(n) when is_integer(n), do: Integer.to_string(n)

@@ -125,6 +125,15 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       assert has_element?(view, "#node-info-content", "8 / 8 bytes")
     end
 
+    test "shows stdlib as not available when the version lookup fails", %{conn: conn} do
+      stub_erpc(Fakes.node_data(stdlib_version: nil))
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      assert has_element?(view, "#node-info-content", "Not available")
+    end
+
     test "lists installed languages and omits absent ones", %{conn: conn} do
       stub_erpc(Fakes.node_data(elixir_version: "1.18.0", gleam_version: nil))
 
