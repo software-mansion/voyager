@@ -18,6 +18,9 @@ defmodule Voyager.Erpc do
   @spec impl() :: module()
   def impl, do: Application.get_env(:voyager, :erpc, __MODULE__.Impl)
 
+  @spec call(node(), module(), atom(), [term()]) :: term()
+  def call(node, mod, fun, args), do: impl().call(node, mod, fun, args)
+
   defmodule Impl do
     @moduledoc """
     Default `Voyager.Erpc` implementation that delegates to Erlang's `:erpc`.
