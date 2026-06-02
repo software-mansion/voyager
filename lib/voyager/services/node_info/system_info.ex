@@ -18,6 +18,7 @@ defmodule Voyager.Services.NodeInfo.SystemInfo do
   @type t :: %__MODULE__{
           otp_release: String.t(),
           erts_version: String.t(),
+          stdlib_version: String.t() | nil,
           system_version: String.t(),
           system_architecture: String.t(),
           wordsize_internal: pos_integer(),
@@ -30,6 +31,7 @@ defmodule Voyager.Services.NodeInfo.SystemInfo do
   defstruct [
     :otp_release,
     :erts_version,
+    :stdlib_version,
     :system_version,
     :system_architecture,
     :wordsize_internal,
@@ -42,13 +44,14 @@ defmodule Voyager.Services.NodeInfo.SystemInfo do
   @spec system_info_keys() :: [atom() | tuple()]
   def system_info_keys, do: @system_info_keys
 
-  @spec build(map()) :: t()
-  def build(system_info) do
+  @spec build(map(), {:ok, charlist()} | :undefined) :: t()
+  def build(system_info, stdlib_vsn) do
     otp_release = system_info |> Map.fetch!(:otp_release) |> to_string()
 
     %__MODULE__{
       otp_release: otp_release,
       erts_version: system_info |> Map.fetch!(:version) |> to_string(),
+      stdlib_version: parse_vsn(stdlib_vsn),
       system_version: system_info |> Map.fetch!(:system_version) |> to_string() |> String.trim(),
       system_architecture: system_info |> Map.fetch!(:system_architecture) |> to_string(),
       wordsize_internal: Map.fetch!(system_info, {:wordsize, :internal}),
@@ -58,4 +61,7 @@ defmodule Voyager.Services.NodeInfo.SystemInfo do
       async_threads: Map.fetch!(system_info, :thread_pool_size)
     }
   end
+
+  defp parse_vsn({:ok, vsn}) when is_list(vsn), do: List.to_string(vsn)
+  defp parse_vsn(_), do: nil
 end

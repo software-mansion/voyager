@@ -54,7 +54,7 @@ defmodule Voyager.Services.NodeInfo do
     snapshot = %Snapshot{
       node: node,
       collected_at: DateTime.utc_now(),
-      system: SystemInfo.build(data.system_info),
+      system: SystemInfo.build(data.system_info, data.stdlib_vsn),
       languages: Language.build(data.language_versions),
       memory: Memory.build(data.memory),
       runtime: Statistics.build(data.statistics),
@@ -85,7 +85,8 @@ defmodule Voyager.Services.NodeInfo do
     base_funs = [
       fn -> :erpc.call(node, :lists, :map, [&:erlang.system_info/1, system_info_keys]) end,
       fn -> :erpc.call(node, :lists, :map, [&:erlang.statistics/1, stat_keys]) end,
-      fn -> :erpc.call(node, :erlang, :memory, []) end
+      fn -> :erpc.call(node, :erlang, :memory, []) end,
+      fn -> :erpc.call(node, :application, :get_key, [:stdlib, :vsn]) end
     ]
 
     language_funs =
@@ -93,13 +94,14 @@ defmodule Voyager.Services.NodeInfo do
         fn -> {app, :erpc.call(node, :application, :get_key, [app, :vsn])} end
       end)
 
-    with {:ok, [system_info_values, stat_values, memory | language_versions]} <-
+    with {:ok, [system_info_values, stat_values, memory, stdlib_vsn | language_versions]} <-
            run_parallel(base_funs ++ language_funs, timeout) do
       {:ok,
        %{
          system_info: system_info_keys |> Enum.zip(system_info_values) |> Map.new(),
          statistics: stat_keys |> Enum.zip(stat_values) |> Map.new(),
          memory: Map.new(memory),
+         stdlib_vsn: stdlib_vsn,
          language_versions: language_versions
        }}
     end

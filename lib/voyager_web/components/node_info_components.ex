@@ -20,24 +20,20 @@ defmodule VoyagerWeb.NodeInfoComponents do
   @doc """
   Renders a key-value info card with a 2-column grid of labelled rows.
 
-  ## Slots
-
-  - `row` (required) — each entry; provide `label` and `value` attrs
-
   ## Examples
 
-      <.info_card title="Runtime" subtitle="ERTS · system info">
-        <:row label="OTP version" value="27.1" />
-        <:row label="ERTS version" value="15.1" />
-      </.info_card>
+      <NodeInfoComponents.info_card
+        title="Runtime"
+        subtitle="ERTS · system info"
+        rows={[
+          {"OTP version", "27.1"},
+          {"ERTS version", "15.1"}
+        ]}
+      />
   """
   attr :title, :string, required: true
   attr :subtitle, :string, default: nil
-
-  slot :row, required: true do
-    attr :label, :string, required: true
-    attr :value, :string, required: true
-  end
+  attr :rows, :list, required: true
 
   def info_card(assigns) do
     ~H"""
@@ -49,13 +45,13 @@ defmodule VoyagerWeb.NodeInfoComponents do
         </div>
 
         <div class="grid grid-cols-2 gap-x-6 gap-y-3">
-          <%= for entry <- @row do %>
+          <%= for {label, value} <- @rows do %>
             <div>
               <div class="font-mono text-[10px] tracking-[0.08em] text-base-content/50 mb-0.5 font-semibold uppercase">
-                {entry.label}
+                {label}
               </div>
               <div class="font-mono text-[13px] text-base-content">
-                {entry.value}
+                {value}
               </div>
             </div>
           <% end %>

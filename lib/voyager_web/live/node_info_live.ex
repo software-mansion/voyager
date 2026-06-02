@@ -186,6 +186,14 @@ defmodule VoyagerWeb.NodeInfoLive do
               <NodeInfoComponents.memory_card memory={@snapshot.memory} />
               <NodeInfoComponents.limits_card limits={@snapshot.limits} />
             </div>
+
+            <%!-- Runtime info --%>
+            <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <NodeInfoComponents.info_card
+                title="Runtime"
+                rows={runtime_rows(@snapshot)}
+              />
+            </div>
           </div>
         <% @error -> %>
           <%!-- error already shown above; nothing more to render --%>
@@ -227,6 +235,34 @@ defmodule VoyagerWeb.NodeInfoLive do
   defp io_unit(bytes) when bytes >= 1_048_576, do: "MB"
   defp io_unit(bytes) when bytes >= 1_024, do: "KB"
   defp io_unit(_bytes), do: "B"
+
+  defp runtime_rows(snapshot) do
+    language_rows = Enum.map(snapshot.languages, &{&1.name, &1.version})
+
+    base = [
+      {"OTP release", snapshot.system.otp_release},
+      {"ERTS version", snapshot.system.erts_version}
+    ]
+
+    stdlib =
+      if snapshot.system.stdlib_version,
+        do: [{"stdlib", snapshot.system.stdlib_version}],
+        else: []
+
+    rest = [
+      {"System arch", snapshot.system.system_architecture},
+      {"Word size",
+       "#{snapshot.system.wordsize_internal} / #{snapshot.system.wordsize_external} bytes"},
+      {"SMP support", format_bool(snapshot.system.smp_support?)},
+      {"Threads", format_bool(snapshot.system.thread_support?)},
+      {"Async threads", to_string(snapshot.system.async_threads)}
+    ]
+
+    base ++ stdlib ++ language_rows ++ rest
+  end
+
+  defp format_bool(true), do: "enabled"
+  defp format_bool(false), do: "disabled"
 
   defp uptime_parts(ms) when is_integer(ms) do
     total_seconds = div(ms, 1_000)
