@@ -14,7 +14,6 @@ defmodule Voyager.Services.NodeInfo do
   alias Voyager.Services.NodeInfo.Language
   alias Voyager.Services.NodeInfo.Limits
   alias Voyager.Services.NodeInfo.Memory
-  alias Voyager.Services.NodeInfo.Processors
   alias Voyager.Services.NodeInfo.RunQueues
   alias Voyager.Services.NodeInfo.Schedulers
   alias Voyager.Services.NodeInfo.Snapshot
@@ -59,7 +58,6 @@ defmodule Voyager.Services.NodeInfo do
       memory: Memory.build(data.memory),
       runtime: Statistics.build(data.statistics),
       limits: Limits.build(data.system_info),
-      processors: Processors.build(data.system_info),
       schedulers: Schedulers.build(data.system_info),
       run_queues: RunQueues.build(data.statistics)
     }
@@ -74,7 +72,6 @@ defmodule Voyager.Services.NodeInfo do
       Enum.uniq(
         SystemInfo.system_info_keys() ++
           Limits.system_info_keys() ++
-          Processors.system_info_keys() ++
           Schedulers.system_info_keys()
       )
 

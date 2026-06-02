@@ -37,7 +37,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
 
   def info_card(assigns) do
     ~H"""
-    <div class="card bg-base-100 border-base-200 border shadow-sm">
+    <div class="card bg-base-100 border-base-200 h-full border shadow-sm">
       <div class="card-body gap-4 p-5">
         <div class="flex items-baseline justify-between">
           <h3 class="text-base-content text-sm font-semibold">{@title}</h3>
@@ -53,6 +53,46 @@ defmodule VoyagerWeb.NodeInfoComponents do
               <div class="font-mono text-[13px] text-base-content">
                 {value}
               </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a metric card: a titled card showing a row of labelled metric columns.
+
+  ## Examples
+
+      <NodeInfoComponents.metric_card
+        title="Schedulers"
+        metrics={[{"Online", "8"}, {"Total", "8"}, {"Available", "8"}]}
+      />
+  """
+  attr :title, :string, required: true
+  attr :subtitle, :string, default: nil
+  attr :metrics, :list, required: true
+
+  def metric_card(assigns) do
+    ~H"""
+    <div class="card bg-base-100 border-base-200 flex min-h-0 flex-1 flex-col border shadow-sm">
+      <div class="card-body flex flex-1 flex-col gap-4 p-5">
+        <div class="flex items-baseline justify-between">
+          <h3 class="text-base-content text-sm font-semibold">{@title}</h3>
+          <span :if={@subtitle} class="font-mono text-base-content/50 text-xs">{@subtitle}</span>
+        </div>
+
+        <div class="grid flex-1 auto-cols-fr grid-flow-col gap-3">
+          <%= for {label, value} <- @metrics do %>
+            <div class="bg-base-200/60 border-base-200 flex flex-1 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-3">
+              <span class="font-mono text-[22px] text-base-content font-medium leading-none tracking-tight">
+                {value}
+              </span>
+              <span class="font-mono text-[9.5px] tracking-[0.08em] text-base-content/50 font-semibold uppercase">
+                {label}
+              </span>
             </div>
           <% end %>
         </div>

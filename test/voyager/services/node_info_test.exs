@@ -5,7 +5,6 @@ defmodule Voyager.Services.NodeInfoTest do
   alias Voyager.Services.NodeInfo.Language
   alias Voyager.Services.NodeInfo.Limits
   alias Voyager.Services.NodeInfo.Memory
-  alias Voyager.Services.NodeInfo.Processors
   alias Voyager.Services.NodeInfo.RunQueues
   alias Voyager.Services.NodeInfo.Schedulers
   alias Voyager.Services.NodeInfo.Snapshot
@@ -22,7 +21,6 @@ defmodule Voyager.Services.NodeInfoTest do
       assert %Memory{} = snapshot.memory
       assert %Statistics{} = snapshot.runtime
       assert %Limits{} = snapshot.limits
-      assert %Processors{} = snapshot.processors
       assert %Schedulers{} = snapshot.schedulers
       assert %RunQueues{} = snapshot.run_queues
     end

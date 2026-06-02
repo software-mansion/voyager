@@ -99,7 +99,7 @@ defmodule VoyagerWeb.NodeInfoLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="mx-auto max-w-7xl p-6 sm:p-8">
+    <div class="max-w-[1536px] mx-auto p-6 sm:p-8">
       <header class="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 class="font-mono text-base-content text-2xl font-bold tracking-tight">
@@ -187,12 +187,31 @@ defmodule VoyagerWeb.NodeInfoLive do
               <NodeInfoComponents.limits_card limits={@snapshot.limits} />
             </div>
 
-            <%!-- Runtime info --%>
-            <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <NodeInfoComponents.info_card
-                title="Runtime"
-                rows={runtime_rows(@snapshot)}
-              />
+            <%!-- Runtime + concurrency --%>
+            <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-stretch">
+              <NodeInfoComponents.info_card title="Runtime" rows={runtime_rows(@snapshot)} />
+
+              <div class="flex h-full min-h-0 flex-col gap-6">
+                <NodeInfoComponents.metric_card
+                  title="Schedulers"
+                  subtitle="online / total"
+                  metrics={[
+                    {"Normal", "#{@snapshot.schedulers.online} / #{@snapshot.schedulers.total}"},
+                    {"Dirty CPU",
+                     "#{@snapshot.schedulers.dirty_cpu_online} / #{@snapshot.schedulers.dirty_cpu}"},
+                    {"Dirty IO", metric(@snapshot.schedulers.dirty_io)}
+                  ]}
+                />
+                <NodeInfoComponents.metric_card
+                  title="Run queues"
+                  subtitle="queued processes"
+                  metrics={[
+                    {"Total", metric(@snapshot.run_queues.total)},
+                    {"Normal + CPU", metric(@snapshot.run_queues.normal_and_dirty_cpu)},
+                    {"Dirty IO", metric(@snapshot.run_queues.dirty_io)}
+                  ]}
+                />
+              </div>
             </div>
           </div>
         <% @error -> %>
@@ -260,6 +279,8 @@ defmodule VoyagerWeb.NodeInfoLive do
 
     base ++ stdlib ++ language_rows ++ rest
   end
+
+  defp metric(n) when is_integer(n), do: Integer.to_string(n)
 
   defp format_bool(true), do: "enabled"
   defp format_bool(false), do: "disabled"
