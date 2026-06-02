@@ -3,6 +3,7 @@ defmodule VoyagerWeb.NodeInfoLive do
 
   alias Phoenix.LiveView.AsyncResult
   alias Voyager.Services.NodeInfo
+  alias VoyagerWeb.Formatters
   alias VoyagerWeb.NodeInfoComponents
 
   @default_interval Application.compile_env(:voyager, :node_info_refresh_interval_ms, 5_000)
@@ -108,7 +109,7 @@ defmodule VoyagerWeb.NodeInfoLive do
           </h1>
           <p class="font-mono text-base-content/50 mt-0.5 text-xs">
             <%= if @last_updated do %>
-              updated {format_time(@last_updated)} UTC
+              updated {Formatters.format_time(@last_updated)} UTC
             <% else %>
               waiting for first snapshot…
             <% end %>
@@ -170,19 +171,19 @@ defmodule VoyagerWeb.NodeInfoLive do
             </NodeInfoComponents.stat_tile>
             <NodeInfoComponents.stat_tile
               label="IO input"
-              value={"#{io_value(snapshot.runtime.io_input_bytes)}#{io_unit(snapshot.runtime.io_input_bytes)}"}
+              value={byte_label(snapshot.runtime.io_input_bytes)}
             >
               <:sub>total since start</:sub>
             </NodeInfoComponents.stat_tile>
             <NodeInfoComponents.stat_tile
               label="IO output"
-              value={"#{io_value(snapshot.runtime.io_output_bytes)}#{io_unit(snapshot.runtime.io_output_bytes)}"}
+              value={byte_label(snapshot.runtime.io_output_bytes)}
             >
               <:sub>total since start</:sub>
             </NodeInfoComponents.stat_tile>
             <NodeInfoComponents.stat_tile
               label="Reductions"
-              value={"#{reductions_value(snapshot.runtime.total_reductions)}#{reductions_unit(snapshot.runtime.total_reductions)}"}
+              value={count_label(snapshot.runtime.total_reductions)}
             >
               <:sub>total since start</:sub>
             </NodeInfoComponents.stat_tile>
@@ -226,34 +227,16 @@ defmodule VoyagerWeb.NodeInfoLive do
     """
   end
 
-  defp reductions_value(n) when n >= 1_000_000_000, do: Float.round(n / 1_000_000_000, 1)
-  defp reductions_value(n) when n >= 10_000_000, do: Float.round(n / 1_000_000, 1)
-
-  defp reductions_value(n) do
-    n
-    |> Integer.to_string()
-    |> String.reverse()
-    |> String.replace(~r/(\d{3})(?=\d)/, "\\1,")
-    |> String.reverse()
+  # Compact, unit-suffixed labels (no space) for the stat tiles.
+  defp byte_label(bytes) do
+    {value, unit} = Formatters.byte_parts(bytes)
+    "#{value}#{unit}"
   end
 
-  defp reductions_unit(n) when n >= 1_000_000_000, do: "B"
-  defp reductions_unit(n) when n >= 10_000_000, do: "M"
-  defp reductions_unit(_n), do: nil
-
-  defp io_value(bytes) when bytes >= 1_099_511_627_776,
-    do: Float.round(bytes / 1_099_511_627_776, 1)
-
-  defp io_value(bytes) when bytes >= 1_073_741_824, do: Float.round(bytes / 1_073_741_824, 1)
-  defp io_value(bytes) when bytes >= 1_048_576, do: round(bytes / 1_048_576)
-  defp io_value(bytes) when bytes >= 1_024, do: round(bytes / 1_024)
-  defp io_value(bytes), do: bytes
-
-  defp io_unit(bytes) when bytes >= 1_099_511_627_776, do: "TB"
-  defp io_unit(bytes) when bytes >= 1_073_741_824, do: "GB"
-  defp io_unit(bytes) when bytes >= 1_048_576, do: "MB"
-  defp io_unit(bytes) when bytes >= 1_024, do: "KB"
-  defp io_unit(_bytes), do: "B"
+  defp count_label(n) do
+    {value, unit} = Formatters.count_parts(n)
+    "#{value}#{unit}"
+  end
 
   defp runtime_rows(snapshot) do
     language_rows = Enum.map(snapshot.languages, &{&1.name, &1.version})
@@ -271,8 +254,8 @@ defmodule VoyagerWeb.NodeInfoLive do
     rest = [
       {"Word size",
        "#{snapshot.system.wordsize_internal} / #{snapshot.system.wordsize_external} bytes"},
-      {"SMP support", format_bool(snapshot.system.smp_support?)},
-      {"Threads", format_bool(snapshot.system.thread_support?)},
+      {"SMP support", Formatters.format_bool(snapshot.system.smp_support?)},
+      {"Threads", Formatters.format_bool(snapshot.system.thread_support?)},
       {"Async threads", to_string(snapshot.system.async_threads)},
       {"System arch", snapshot.system.system_architecture, :full}
     ]
@@ -282,21 +265,8 @@ defmodule VoyagerWeb.NodeInfoLive do
 
   defp metric(n) when is_integer(n), do: Integer.to_string(n)
 
-  defp format_bool(true), do: "enabled"
-  defp format_bool(false), do: "disabled"
-
-  defp uptime_parts(ms) when is_integer(ms) do
-    total_seconds = div(ms, 1_000)
-    years = div(total_seconds, 31_536_000)
-    days = total_seconds |> rem(31_536_000) |> div(86_400)
-    hours = total_seconds |> rem(86_400) |> div(3_600)
-    minutes = total_seconds |> rem(3_600) |> div(60)
-    seconds = rem(total_seconds, 60)
-    {years, days, hours, minutes, seconds}
-  end
-
   defp uptime_value(ms) do
-    {years, days, hours, minutes, seconds} = uptime_parts(ms)
+    {years, days, hours, minutes, seconds} = Formatters.duration_parts(ms)
 
     cond do
       years > 0 -> years
@@ -308,7 +278,7 @@ defmodule VoyagerWeb.NodeInfoLive do
   end
 
   defp uptime_unit(ms) do
-    {years, days, hours, minutes, _seconds} = uptime_parts(ms)
+    {years, days, hours, minutes, _seconds} = Formatters.duration_parts(ms)
 
     cond do
       years > 0 -> "yr #{days}d"
@@ -328,8 +298,6 @@ defmodule VoyagerWeb.NodeInfoLive do
 
   defp interval_value(nil), do: "off"
   defp interval_value(ms), do: Integer.to_string(ms)
-
-  defp format_time(%DateTime{} = dt), do: Calendar.strftime(dt, "%H:%M:%S")
 
   defp format_error(:noconnection), do: "Node is unreachable."
   defp format_error(:timeout), do: "Timed out while fetching node info."

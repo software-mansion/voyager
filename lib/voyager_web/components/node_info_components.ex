@@ -7,6 +7,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
 
   alias Voyager.Services.NodeInfo.Limits
   alias Voyager.Services.NodeInfo.Memory
+  alias VoyagerWeb.Formatters
 
   @memory_segments [
     {:processes_allocated, "Processes", "bg-primary"},
@@ -148,7 +149,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
         <div class="flex items-baseline justify-between">
           <h3 class="text-base-content text-sm font-semibold">Memory breakdown</h3>
           <span class="font-mono text-base-content/50 text-xs">
-            {format_bytes(@memory.total)} total
+            {Formatters.format_bytes(@memory.total)} total
           </span>
         </div>
 
@@ -174,7 +175,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
               <div class={["size-2.5 shrink-0 rounded-sm", color_class]}></div>
               <span class="text-base-content/70">{label}</span>
               <span class="text-base-content tabular-nums">
-                {format_bytes(Map.get(@memory, key))}
+                {Formatters.format_bytes(Map.get(@memory, key))}
               </span>
               <span class="text-base-content/40 w-12 text-right tabular-nums">
                 {pct}%
@@ -208,7 +209,9 @@ defmodule VoyagerWeb.NodeInfoComponents do
               style="grid-template-columns: 1fr 4rem 1fr 4rem;"
             >
               <span class="text-base-content/70">{label}</span>
-              <span class="text-base-content text-right tabular-nums">{format_int(usage.used)}</span>
+              <span class="text-base-content text-right tabular-nums">
+                {Formatters.format_integer(usage.used)}
+              </span>
               <div class="bg-base-200 h-1 overflow-hidden rounded-full">
                 <div
                   class={["h-full rounded-full transition-all", meter_color(usage)]}
@@ -216,7 +219,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
                 >
                 </div>
               </div>
-              <span class="text-base-content/40 tabular-nums">{format_int(usage.limit)}</span>
+              <span class="text-base-content/40 tabular-nums">{Formatters.format_integer(usage.limit)}</span>
             </div>
           <% end %>
         </div>
@@ -251,14 +254,6 @@ defmodule VoyagerWeb.NodeInfoComponents do
 
   defp meter_color(_), do: "bg-primary"
 
-  defp format_int(n) when is_integer(n) do
-    n
-    |> Integer.to_string()
-    |> String.reverse()
-    |> String.replace(~r/(\d{3})(?=\d)/, "\\1,")
-    |> String.reverse()
-  end
-
   defp info_row({label, value}), do: {label, value, false}
   defp info_row({label, value, :full}), do: {label, value, true}
 
@@ -271,20 +266,4 @@ defmodule VoyagerWeb.NodeInfoComponents do
       {key, label, color_class, pct}
     end)
   end
-
-  defp format_bytes(nil), do: "—"
-
-  defp format_bytes(bytes) when bytes >= 1_073_741_824 do
-    "#{Float.round(bytes / 1_073_741_824, 1)} GB"
-  end
-
-  defp format_bytes(bytes) when bytes >= 1_048_576 do
-    "#{round(bytes / 1_048_576)} MB"
-  end
-
-  defp format_bytes(bytes) when bytes >= 1_024 do
-    "#{round(bytes / 1_024)} KB"
-  end
-
-  defp format_bytes(bytes), do: "#{bytes} B"
 end
