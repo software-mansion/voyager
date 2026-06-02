@@ -79,16 +79,18 @@ defmodule Voyager.Services.NodeInfo do
 
     candidate_apps = Language.candidate_apps()
 
+    erpc = Voyager.Erpc.impl()
+
     base_funs = [
-      fn -> :erpc.call(node, :lists, :map, [&:erlang.system_info/1, system_info_keys]) end,
-      fn -> :erpc.call(node, :lists, :map, [&:erlang.statistics/1, stat_keys]) end,
-      fn -> :erpc.call(node, :erlang, :memory, []) end,
-      fn -> :erpc.call(node, :application, :get_key, [:stdlib, :vsn]) end
+      fn -> erpc.call(node, :lists, :map, [&:erlang.system_info/1, system_info_keys]) end,
+      fn -> erpc.call(node, :lists, :map, [&:erlang.statistics/1, stat_keys]) end,
+      fn -> erpc.call(node, :erlang, :memory, []) end,
+      fn -> erpc.call(node, :application, :get_key, [:stdlib, :vsn]) end
     ]
 
     language_funs =
       Enum.map(candidate_apps, fn app ->
-        fn -> {app, :erpc.call(node, :application, :get_key, [app, :vsn])} end
+        fn -> {app, erpc.call(node, :application, :get_key, [app, :vsn])} end
       end)
 
     with {:ok, [system_info_values, stat_values, memory, stdlib_vsn | language_versions]} <-

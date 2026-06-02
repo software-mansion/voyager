@@ -219,7 +219,9 @@ defmodule VoyagerWeb.NodeInfoComponents do
                 >
                 </div>
               </div>
-              <span class="text-base-content/40 tabular-nums">{Formatters.format_integer(usage.limit)}</span>
+              <span class="text-base-content/40 tabular-nums">
+                {Formatters.format_integer(usage.limit)}
+              </span>
             </div>
           <% end %>
         </div>

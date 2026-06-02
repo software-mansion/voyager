@@ -11,6 +11,14 @@ defmodule Voyager.Services.NodeInfoTest do
   alias Voyager.Services.NodeInfo.Statistics
   alias Voyager.Services.NodeInfo.SystemInfo
 
+  # test_helper sets the global :erpc impl to the Mox mock; this is a real
+  # integration test against the local node, so opt back into the live impl.
+  setup do
+    Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
+    on_exit(fn -> Application.put_env(:voyager, :erpc, Voyager.ErpcMock) end)
+    :ok
+  end
+
   describe "fetch/2" do
     test "returns a populated snapshot for the local node" do
       assert {:ok, %Snapshot{} = snapshot} = NodeInfo.fetch(Node.self())
