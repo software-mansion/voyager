@@ -141,16 +141,16 @@ defmodule VoyagerWeb.NodeInfoLive do
                   {"Normal", "#{snapshot.schedulers.online} / #{snapshot.schedulers.total}"},
                   {"Dirty CPU",
                    "#{snapshot.schedulers.dirty_cpu_online} / #{snapshot.schedulers.dirty_cpu}"},
-                  {"Dirty IO", metric(snapshot.schedulers.dirty_io)}
+                  {"Dirty IO", snapshot.schedulers.dirty_io}
                 ]}
               />
               <NodeInfoComponents.metric_card
                 title="Run queues"
                 subtitle="queued processes"
                 metrics={[
-                  {"Total", metric(snapshot.run_queues.total)},
-                  {"Normal + CPU", metric(snapshot.run_queues.normal_and_dirty_cpu)},
-                  {"Dirty IO", metric(snapshot.run_queues.dirty_io)}
+                  {"Total", snapshot.run_queues.total},
+                  {"Normal + CPU", snapshot.run_queues.normal_and_dirty_cpu},
+                  {"Dirty IO", snapshot.run_queues.dirty_io}
                 ]}
               />
             </div>
@@ -240,8 +240,6 @@ defmodule VoyagerWeb.NodeInfoLive do
 
     language_rows ++ base ++ rest
   end
-
-  defp metric(n) when is_integer(n), do: Integer.to_string(n)
 
   defp uptime_since(%DateTime{} = collected_at, uptime_ms) when is_integer(uptime_ms) do
     started_at = DateTime.add(collected_at, -uptime_ms, :millisecond)
