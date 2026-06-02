@@ -149,5 +149,6 @@ defmodule Voyager.Services.NodeInfo do
   end
 
   defp classify(:error, {:erpc, :noconnection}), do: :noconnection
+  defp classify(:error, {:erpc, :timeout}), do: :timeout
   defp classify(_kind, reason), do: {:rpc, reason}
 end

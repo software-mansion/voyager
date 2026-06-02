@@ -167,10 +167,8 @@ defmodule VoyagerWeb.NodeInfoLive do
   end
 
   def handle_event("set_interval", %{"interval" => value}, socket) do
-    refresh_interval = if value == "off", do: nil, else: String.to_integer(value)
-
     socket
-    |> assign(:refresh_interval, refresh_interval)
+    |> assign(:refresh_interval, parse_interval(value))
     |> schedule_refresh()
     |> noreply()
   end
@@ -250,6 +248,15 @@ defmodule VoyagerWeb.NodeInfoLive do
 
   defp interval_value(nil), do: "off"
   defp interval_value(ms), do: Integer.to_string(ms)
+
+  defp parse_interval("off"), do: nil
+
+  defp parse_interval(value) do
+    case Integer.parse(value) do
+      {ms, ""} when ms > 0 -> ms
+      _ -> nil
+    end
+  end
 
   defp format_error(:noconnection), do: "Node is unreachable."
   defp format_error(:timeout), do: "Timed out while fetching node info."
