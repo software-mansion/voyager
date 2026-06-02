@@ -201,7 +201,14 @@ defmodule VoyagerWeb.NodeInfoLive do
 
   defp reductions_value(n) when n >= 1_000_000_000, do: Float.round(n / 1_000_000_000, 1)
   defp reductions_value(n) when n >= 10_000_000, do: Float.round(n / 1_000_000, 1)
-  defp reductions_value(n), do: n
+
+  defp reductions_value(n) do
+    n
+    |> Integer.to_string()
+    |> String.reverse()
+    |> String.replace(~r/(\d{3})(?=\d)/, "\\1,")
+    |> String.reverse()
+  end
 
   defp reductions_unit(n) when n >= 1_000_000_000, do: "B"
   defp reductions_unit(n) when n >= 10_000_000, do: "M"
