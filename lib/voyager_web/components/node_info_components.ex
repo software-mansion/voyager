@@ -120,9 +120,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
   def stat_tile(assigns) do
     ~H"""
     <div class="card bg-base-100 border-base-200 flex flex-col gap-1.5 border p-5 shadow-sm">
-      <span class="font-mono text-[10.5px] tracking-[0.1em] text-base-content/50 font-semibold uppercase">
-        {@label}
-      </span>
+      <h3 class="text-base-content text-sm font-semibold">{@label}</h3>
       <div class="mt-1">
         <span class="font-mono text-[26px] text-base-content font-medium leading-none tracking-tight">
           {@value}
