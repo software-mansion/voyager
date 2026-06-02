@@ -15,7 +15,7 @@ defmodule Voyager.Fakes do
   @spec node_session(keyword()) :: Session.t()
   def node_session(attrs \\ []) do
     %Session{
-      node: Keyword.get(attrs, :node, :"demo@localhost"),
+      node: Keyword.get(attrs, :node, :demo@localhost),
       node_name: Keyword.get(attrs, :node_name, "demo@localhost"),
       cookie: Keyword.get(attrs, :cookie, "secret"),
       connected_at: Keyword.get(attrs, :connected_at, DateTime.utc_now())
