@@ -42,6 +42,14 @@ defmodule VoyagerWeb.FormattersTest do
     end
   end
 
+  describe "format_bytes_compact/1" do
+    test "joins value and unit with no space" do
+      assert Formatters.format_bytes_compact(0) == "0B"
+      assert Formatters.format_bytes_compact(2_048) == "2KB"
+      assert Formatters.format_bytes_compact(1_610_612_736) == "1.5GB"
+    end
+  end
+
   describe "count_parts/1" do
     test "returns a thousands-separated string with nil unit below ten million" do
       assert Formatters.count_parts(0) == {"0", nil}
@@ -57,6 +65,14 @@ defmodule VoyagerWeb.FormattersTest do
     test "abbreviates billions with one decimal" do
       assert Formatters.count_parts(1_000_000_000) == {1.0, "B"}
       assert Formatters.count_parts(2_500_000_000) == {2.5, "B"}
+    end
+  end
+
+  describe "format_count_compact/1" do
+    test "joins value and unit with no space" do
+      assert Formatters.format_count_compact(1_234) == "1,234"
+      assert Formatters.format_count_compact(12_500_000) == "12.5M"
+      assert Formatters.format_count_compact(2_500_000_000) == "2.5B"
     end
   end
 
@@ -109,6 +125,16 @@ defmodule VoyagerWeb.FormattersTest do
     test "counts years using a 365-day year" do
       {years, days, hours, minutes, seconds} = Formatters.duration_parts(31_536_000_000)
       assert {years, days, hours, minutes, seconds} == {1, 0, 0, 0, 0}
+    end
+  end
+
+  describe "format_uptime/1" do
+    test "picks the largest meaningful unit" do
+      assert Formatters.format_uptime(42_000) == "42s"
+      assert Formatters.format_uptime(123_456) == "2m"
+      assert Formatters.format_uptime(3_661_000) == "1h 1m"
+      assert Formatters.format_uptime(90_061_000) == "1d 1h"
+      assert Formatters.format_uptime(31_536_000_000) == "1yr 0d"
     end
   end
 end

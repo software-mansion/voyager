@@ -43,6 +43,15 @@ defmodule VoyagerWeb.Formatters do
   end
 
   @doc """
+  Formats a byte count as a compact string with no space, e.g. `"4.2GB"`.
+  """
+  @spec format_bytes_compact(non_neg_integer()) :: String.t()
+  def format_bytes_compact(bytes) do
+    {value, unit} = byte_parts(bytes)
+    "#{value}#{unit}"
+  end
+
+  @doc """
   Splits a large count into an abbreviated `{value, unit}` tuple.
 
   Billions use `"B"`, values over ten million use `"M"`; smaller counts are
@@ -57,6 +66,15 @@ defmodule VoyagerWeb.Formatters do
   def count_parts(n) when n >= 1_000_000_000, do: {Float.round(n / 1_000_000_000, 1), "B"}
   def count_parts(n) when n >= 10_000_000, do: {Float.round(n / 1_000_000, 1), "M"}
   def count_parts(n), do: {format_integer(n), nil}
+
+  @doc """
+  Formats a large count as a compact string with no space, e.g. `"2.5B"` or `"1,234"`.
+  """
+  @spec format_count_compact(non_neg_integer()) :: String.t()
+  def format_count_compact(n) do
+    {value, unit} = count_parts(n)
+    "#{value}#{unit}"
+  end
 
   @doc """
   Formats an integer with thousands separators, e.g. `"1,234,567"`.
@@ -95,5 +113,25 @@ defmodule VoyagerWeb.Formatters do
     minutes = total_seconds |> rem(3_600) |> div(60)
     seconds = rem(total_seconds, 60)
     {years, days, hours, minutes, seconds}
+  end
+
+  @doc """
+  Formats a duration in milliseconds as a compact uptime label, picking the
+  largest meaningful unit, e.g. `"2yr 5d"`, `"3d 4h"`, `"2m"`, `"42s"`.
+  """
+  @spec format_uptime(non_neg_integer()) :: String.t()
+  def format_uptime(ms) when is_integer(ms) do
+    {years, days, hours, minutes, seconds} = duration_parts(ms)
+
+    {value, unit} =
+      cond do
+        years > 0 -> {years, "yr #{days}d"}
+        days > 0 -> {days, "d #{hours}h"}
+        hours > 0 -> {hours, "h #{minutes}m"}
+        minutes > 0 -> {minutes, "m"}
+        true -> {seconds, "s"}
+      end
+
+    "#{value}#{unit}"
   end
 end

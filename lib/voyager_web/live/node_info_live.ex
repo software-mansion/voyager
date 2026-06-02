@@ -99,25 +99,25 @@ defmodule VoyagerWeb.NodeInfoLive do
           <div class="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
             <NodeInfoComponents.stat_tile
               label="Uptime"
-              value={"#{uptime_value(snapshot.runtime.uptime_ms)}#{uptime_unit(snapshot.runtime.uptime_ms)}"}
+              value={Formatters.format_uptime(snapshot.runtime.uptime_ms)}
             >
               <:sub>since {uptime_since(snapshot.collected_at, snapshot.runtime.uptime_ms)}</:sub>
             </NodeInfoComponents.stat_tile>
             <NodeInfoComponents.stat_tile
               label="IO input"
-              value={byte_label(snapshot.runtime.io_input_bytes)}
+              value={Formatters.format_bytes_compact(snapshot.runtime.io_input_bytes)}
             >
               <:sub>total since start</:sub>
             </NodeInfoComponents.stat_tile>
             <NodeInfoComponents.stat_tile
               label="IO output"
-              value={byte_label(snapshot.runtime.io_output_bytes)}
+              value={Formatters.format_bytes_compact(snapshot.runtime.io_output_bytes)}
             >
               <:sub>total since start</:sub>
             </NodeInfoComponents.stat_tile>
             <NodeInfoComponents.stat_tile
               label="Reductions"
-              value={count_label(snapshot.runtime.total_reductions)}
+              value={Formatters.format_count_compact(snapshot.runtime.total_reductions)}
             >
               <:sub>total since start</:sub>
             </NodeInfoComponents.stat_tile>
@@ -220,17 +220,6 @@ defmodule VoyagerWeb.NodeInfoLive do
     assign(socket, :timer_ref, ref)
   end
 
-  # Compact, unit-suffixed labels (no space) for the stat tiles.
-  defp byte_label(bytes) do
-    {value, unit} = Formatters.byte_parts(bytes)
-    "#{value}#{unit}"
-  end
-
-  defp count_label(n) do
-    {value, unit} = Formatters.count_parts(n)
-    "#{value}#{unit}"
-  end
-
   defp runtime_rows(snapshot) do
     language_rows = Enum.map(snapshot.languages, &{&1.name, &1.version})
 
@@ -253,30 +242,6 @@ defmodule VoyagerWeb.NodeInfoLive do
   end
 
   defp metric(n) when is_integer(n), do: Integer.to_string(n)
-
-  defp uptime_value(ms) do
-    {years, days, hours, minutes, seconds} = Formatters.duration_parts(ms)
-
-    cond do
-      years > 0 -> years
-      days > 0 -> days
-      hours > 0 -> hours
-      minutes > 0 -> minutes
-      true -> seconds
-    end
-  end
-
-  defp uptime_unit(ms) do
-    {years, days, hours, minutes, _seconds} = Formatters.duration_parts(ms)
-
-    cond do
-      years > 0 -> "yr #{days}d"
-      days > 0 -> "d #{hours}h"
-      hours > 0 -> "h #{minutes}m"
-      minutes > 0 -> "m"
-      true -> "s"
-    end
-  end
 
   defp uptime_since(%DateTime{} = collected_at, uptime_ms) when is_integer(uptime_ms) do
     started_at = DateTime.add(collected_at, -uptime_ms, :millisecond)
