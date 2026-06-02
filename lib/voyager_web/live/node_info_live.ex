@@ -4,7 +4,7 @@ defmodule VoyagerWeb.NodeInfoLive do
   alias Voyager.Services.NodeInfo
   alias VoyagerWeb.NodeInfoComponents
 
-  @default_interval 5_000
+  @default_interval Application.compile_env(:voyager, :node_info_refresh_interval_ms, 5_000)
 
   @interval_options [
     {"Off", "off"},
