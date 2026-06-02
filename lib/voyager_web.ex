@@ -15,6 +15,7 @@ defmodule VoyagerWeb do
   def channel do
     quote do
       use Phoenix.Channel
+      import VoyagerWeb.Helpers
     end
   end
 
@@ -22,6 +23,7 @@ defmodule VoyagerWeb do
     quote do
       use Phoenix.Controller, formats: [:html, :json]
       import Plug.Conn
+      import VoyagerWeb.Helpers
       unquote(verified_routes())
     end
   end
@@ -29,6 +31,7 @@ defmodule VoyagerWeb do
   def live_view do
     quote do
       use Phoenix.LiveView
+      import VoyagerWeb.Helpers
       unquote(html_helpers())
     end
   end
@@ -36,6 +39,7 @@ defmodule VoyagerWeb do
   def live_component do
     quote do
       use Phoenix.LiveComponent
+      import VoyagerWeb.Helpers
       unquote(html_helpers())
     end
   end

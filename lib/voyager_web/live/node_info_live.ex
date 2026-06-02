@@ -1,6 +1,7 @@
 defmodule VoyagerWeb.NodeInfoLive do
   use VoyagerWeb, :live_view
 
+  alias Phoenix.LiveView.AsyncResult
   alias Voyager.Services.NodeInfo
   alias VoyagerWeb.NodeInfoComponents
 
@@ -22,9 +23,7 @@ defmodule VoyagerWeb.NodeInfoLive do
       socket
       |> assign(:active_nav, :node_info)
       |> assign(:refresh_interval, @default_interval)
-      |> assign(:snapshot, nil)
-      |> assign(:error, nil)
-      |> assign(:loading, false)
+      |> assign(:snapshot, AsyncResult.loading())
       |> assign(:last_updated, nil)
       |> assign(:timer_ref, nil)
 
@@ -40,44 +39,46 @@ defmodule VoyagerWeb.NodeInfoLive do
 
   @impl true
   def handle_event("refresh", _params, socket) do
-    {:noreply, socket |> fetch_snapshot() |> schedule_refresh()}
+    socket |> fetch_snapshot() |> schedule_refresh() |> noreply()
   end
 
   def handle_event("set_interval", %{"interval" => value}, socket) do
-    {:noreply,
-     socket
-     |> assign(:refresh_interval, parse_interval(value))
-     |> schedule_refresh()}
+    socket
+    |> assign(:refresh_interval, parse_interval(value))
+    |> schedule_refresh()
+    |> noreply()
   end
 
   @impl true
   def handle_info(:refresh, socket) do
-    {:noreply, socket |> fetch_snapshot() |> schedule_refresh()}
+    socket |> fetch_snapshot() |> schedule_refresh() |> noreply()
   end
 
   @impl true
   def handle_async(:snapshot, {:ok, {:ok, snapshot}}, socket) do
-    {:noreply,
-     socket
-     |> assign(:snapshot, snapshot)
-     |> assign(:error, nil)
-     |> assign(:loading, false)
-     |> assign(:last_updated, DateTime.utc_now())}
+    socket
+    |> assign(:snapshot, AsyncResult.ok(socket.assigns.snapshot, snapshot))
+    |> assign(:last_updated, DateTime.utc_now())
+    |> noreply()
   end
 
   def handle_async(:snapshot, {:ok, {:error, reason}}, socket) do
-    {:noreply, socket |> assign(:error, reason) |> assign(:loading, false)}
+    socket
+    |> assign(:snapshot, AsyncResult.failed(socket.assigns.snapshot, reason))
+    |> noreply()
   end
 
   def handle_async(:snapshot, {:exit, reason}, socket) do
-    {:noreply, socket |> assign(:error, {:rpc, reason}) |> assign(:loading, false)}
+    socket
+    |> assign(:snapshot, AsyncResult.failed(socket.assigns.snapshot, {:rpc, reason}))
+    |> noreply()
   end
 
   defp fetch_snapshot(socket) do
     node = socket.assigns.session.node
 
     socket
-    |> assign(:loading, true)
+    |> assign(:snapshot, AsyncResult.loading(socket.assigns.snapshot))
     |> start_async(:snapshot, fn -> NodeInfo.fetch(node) end)
   end
 
@@ -140,88 +141,87 @@ defmodule VoyagerWeb.NodeInfoLive do
             title="Refresh now"
             class="btn btn-sm btn-ghost btn-square"
           >
-            <.icon name="icon-rotate-cw" class={["size-4", @loading && "animate-spin"]} />
+            <.icon name="icon-rotate-cw" class={["size-4", @snapshot.loading && "animate-spin"]} />
           </button>
         </div>
       </header>
 
-      <div :if={@error} class="alert alert-error mb-8" id="node-info-error" role="alert">
-        <.icon name="icon-circle-alert" class="size-5" />
-        <span>{format_error(@error)}</span>
-      </div>
-
-      <%= cond do %>
-        <% @snapshot -> %>
-          <div id="node-info-content">
-            <%!-- Stat tiles --%>
-            <div class="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <NodeInfoComponents.stat_tile
-                label="Uptime"
-                value={"#{uptime_value(@snapshot.runtime.uptime_ms)}#{uptime_unit(@snapshot.runtime.uptime_ms)}"}
-              >
-                <:sub>since {uptime_since(@snapshot.collected_at, @snapshot.runtime.uptime_ms)}</:sub>
-              </NodeInfoComponents.stat_tile>
-              <NodeInfoComponents.stat_tile
-                label="IO input"
-                value={"#{io_value(@snapshot.runtime.io_input_bytes)}#{io_unit(@snapshot.runtime.io_input_bytes)}"}
-              >
-                <:sub>total since start</:sub>
-              </NodeInfoComponents.stat_tile>
-              <NodeInfoComponents.stat_tile
-                label="IO output"
-                value={"#{io_value(@snapshot.runtime.io_output_bytes)}#{io_unit(@snapshot.runtime.io_output_bytes)}"}
-              >
-                <:sub>total since start</:sub>
-              </NodeInfoComponents.stat_tile>
-              <NodeInfoComponents.stat_tile
-                label="Reductions"
-                value={"#{reductions_value(@snapshot.runtime.total_reductions)}#{reductions_unit(@snapshot.runtime.total_reductions)}"}
-              >
-                <:sub>total since start</:sub>
-              </NodeInfoComponents.stat_tile>
-            </div>
-
-            <%!-- Charts --%>
-            <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <NodeInfoComponents.memory_card memory={@snapshot.memory} />
-              <NodeInfoComponents.limits_card limits={@snapshot.limits} />
-            </div>
-
-            <%!-- Runtime + concurrency --%>
-            <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-stretch">
-              <NodeInfoComponents.info_card title="Runtime" rows={runtime_rows(@snapshot)} />
-
-              <div class="flex h-full min-h-0 flex-col gap-6">
-                <NodeInfoComponents.metric_card
-                  title="Schedulers"
-                  subtitle="online / total"
-                  metrics={[
-                    {"Normal", "#{@snapshot.schedulers.online} / #{@snapshot.schedulers.total}"},
-                    {"Dirty CPU",
-                     "#{@snapshot.schedulers.dirty_cpu_online} / #{@snapshot.schedulers.dirty_cpu}"},
-                    {"Dirty IO", metric(@snapshot.schedulers.dirty_io)}
-                  ]}
-                />
-                <NodeInfoComponents.metric_card
-                  title="Run queues"
-                  subtitle="queued processes"
-                  metrics={[
-                    {"Total", metric(@snapshot.run_queues.total)},
-                    {"Normal + CPU", metric(@snapshot.run_queues.normal_and_dirty_cpu)},
-                    {"Dirty IO", metric(@snapshot.run_queues.dirty_io)}
-                  ]}
-                />
-              </div>
-            </div>
-          </div>
-        <% @error -> %>
-          <%!-- error already shown above; nothing more to render --%>
-        <% true -> %>
+      <.async_result :let={snapshot} assign={@snapshot}>
+        <:loading>
           <div class="flex items-center justify-center gap-3 py-24" id="node-info-loading">
             <span class="loading loading-spinner loading-md text-primary"></span>
             <span class="font-mono text-base-content/50 text-sm">Fetching node info…</span>
           </div>
-      <% end %>
+        </:loading>
+        <:failed :let={reason}>
+          <div class="alert alert-error mb-8" id="node-info-error" role="alert">
+            <.icon name="icon-circle-alert" class="size-5" />
+            <span>{format_error(reason)}</span>
+          </div>
+        </:failed>
+        <div id="node-info-content">
+          <%!-- Stat tiles --%>
+          <div class="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <NodeInfoComponents.stat_tile
+              label="Uptime"
+              value={"#{uptime_value(snapshot.runtime.uptime_ms)}#{uptime_unit(snapshot.runtime.uptime_ms)}"}
+            >
+              <:sub>since {uptime_since(snapshot.collected_at, snapshot.runtime.uptime_ms)}</:sub>
+            </NodeInfoComponents.stat_tile>
+            <NodeInfoComponents.stat_tile
+              label="IO input"
+              value={"#{io_value(snapshot.runtime.io_input_bytes)}#{io_unit(snapshot.runtime.io_input_bytes)}"}
+            >
+              <:sub>total since start</:sub>
+            </NodeInfoComponents.stat_tile>
+            <NodeInfoComponents.stat_tile
+              label="IO output"
+              value={"#{io_value(snapshot.runtime.io_output_bytes)}#{io_unit(snapshot.runtime.io_output_bytes)}"}
+            >
+              <:sub>total since start</:sub>
+            </NodeInfoComponents.stat_tile>
+            <NodeInfoComponents.stat_tile
+              label="Reductions"
+              value={"#{reductions_value(snapshot.runtime.total_reductions)}#{reductions_unit(snapshot.runtime.total_reductions)}"}
+            >
+              <:sub>total since start</:sub>
+            </NodeInfoComponents.stat_tile>
+          </div>
+
+          <%!-- Charts --%>
+          <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <NodeInfoComponents.memory_card memory={snapshot.memory} />
+            <NodeInfoComponents.limits_card limits={snapshot.limits} />
+          </div>
+
+          <%!-- Runtime + concurrency --%>
+          <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-stretch">
+            <NodeInfoComponents.info_card title="Runtime" rows={runtime_rows(snapshot)} />
+
+            <div class="flex h-full min-h-0 flex-col gap-6">
+              <NodeInfoComponents.metric_card
+                title="Schedulers"
+                subtitle="online / total"
+                metrics={[
+                  {"Normal", "#{snapshot.schedulers.online} / #{snapshot.schedulers.total}"},
+                  {"Dirty CPU",
+                   "#{snapshot.schedulers.dirty_cpu_online} / #{snapshot.schedulers.dirty_cpu}"},
+                  {"Dirty IO", metric(snapshot.schedulers.dirty_io)}
+                ]}
+              />
+              <NodeInfoComponents.metric_card
+                title="Run queues"
+                subtitle="queued processes"
+                metrics={[
+                  {"Total", metric(snapshot.run_queues.total)},
+                  {"Normal + CPU", metric(snapshot.run_queues.normal_and_dirty_cpu)},
+                  {"Dirty IO", metric(snapshot.run_queues.dirty_io)}
+                ]}
+              />
+            </div>
+          </div>
+        </div>
+      </.async_result>
     </div>
     """
   end

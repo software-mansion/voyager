@@ -51,10 +51,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
               <div class="font-mono text-[10px] tracking-[0.08em] text-base-content/50 mb-0.5 font-semibold uppercase">
                 {label}
               </div>
-              <div class={[
-                "font-mono text-[13px] text-base-content",
-                full_width? && "truncate"
-              ]}>
+              <div class={["font-mono text-[13px] text-base-content", full_width? && "truncate"]}>
                 {value}
               </div>
             </div>
