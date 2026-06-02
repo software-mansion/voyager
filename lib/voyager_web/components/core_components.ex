@@ -210,10 +210,11 @@ defmodule VoyagerWeb.CoreComponents do
   """
   attr :label, :string, required: true
   attr :value, :string, required: true
+  attr :rest, :global
 
   def info_card(assigns) do
     ~H"""
-    <div class="card bg-base-200 border-base-300 border shadow-sm">
+    <div class="card bg-base-200 border-base-300 border shadow-sm" {@rest}>
       <div class="card-body justify-center gap-1 p-4">
         <div class="font-mono text-[10px] text-base-content/50 uppercase tracking-wider">
           {@label}

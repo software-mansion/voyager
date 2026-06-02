@@ -164,7 +164,7 @@ defmodule VoyagerWeb.ConnectLive do
       :ok ->
         cookie_to_store = if remember_cookie, do: cookie, else: nil
         ConnectionActions.upsert_connected(node_name, cookie: cookie_to_store)
-        {:noreply, push_navigate(socket, to: ~p"/node/#{node_name}")}
+        {:noreply, redirect(socket, to: ~p"/node/#{node_name}")}
 
       {:error, reason} ->
         changeset =
