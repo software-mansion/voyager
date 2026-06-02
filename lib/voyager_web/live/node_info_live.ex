@@ -269,12 +269,12 @@ defmodule VoyagerWeb.NodeInfoLive do
         else: []
 
     rest = [
-      {"System arch", snapshot.system.system_architecture},
       {"Word size",
        "#{snapshot.system.wordsize_internal} / #{snapshot.system.wordsize_external} bytes"},
       {"SMP support", format_bool(snapshot.system.smp_support?)},
       {"Threads", format_bool(snapshot.system.thread_support?)},
-      {"Async threads", to_string(snapshot.system.async_threads)}
+      {"Async threads", to_string(snapshot.system.async_threads)},
+      {"System arch", snapshot.system.system_architecture, :full}
     ]
 
     base ++ stdlib ++ language_rows ++ rest

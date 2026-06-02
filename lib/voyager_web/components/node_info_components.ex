@@ -45,12 +45,16 @@ defmodule VoyagerWeb.NodeInfoComponents do
         </div>
 
         <div class="grid grid-cols-2 gap-x-6 gap-y-3">
-          <%= for {label, value} <- @rows do %>
-            <div>
+          <%= for row <- @rows do %>
+            <% {label, value, full_width?} = info_row(row) %>
+            <div class={full_width? && "col-span-2 min-w-0"}>
               <div class="font-mono text-[10px] tracking-[0.08em] text-base-content/50 mb-0.5 font-semibold uppercase">
                 {label}
               </div>
-              <div class="font-mono text-[13px] text-base-content">
+              <div class={[
+                "font-mono text-[13px] text-base-content",
+                full_width? && "truncate"
+              ]}>
                 {value}
               </div>
             </div>
@@ -257,6 +261,9 @@ defmodule VoyagerWeb.NodeInfoComponents do
     |> String.replace(~r/(\d{3})(?=\d)/, "\\1,")
     |> String.reverse()
   end
+
+  defp info_row({label, value}), do: {label, value, false}
+  defp info_row({label, value, :full}), do: {label, value, true}
 
   defp memory_segments(%Memory{total: total}) when total == 0 or is_nil(total), do: []
 
