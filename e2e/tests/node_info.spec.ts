@@ -7,7 +7,7 @@ const nodeUrl = `/node/${NODE_NAME}`;
 function expectedOtpRelease(): string {
   return execSync(
     'erl -noshell -eval "io:format(\\"~s\\", [erlang:system_info(otp_release)]), halt()."',
-    { encoding: 'utf8' },
+    { encoding: 'utf8' }
   ).trim();
 }
 
