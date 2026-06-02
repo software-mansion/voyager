@@ -7,4 +7,6 @@ export const sel = {
   cookieInput: '#conn_cookie',
   connectBtn: '#connect-btn',
   recentConnections: '#recent-connections',
+  nodeInfoContent: '#node-info-content',
+  nodeInfoLoading: '#node-info-loading',
 };

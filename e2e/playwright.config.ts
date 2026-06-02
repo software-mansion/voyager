@@ -44,13 +44,13 @@ export default defineConfig({
     {
       name: 'node chromium',
       use: { ...devices['Desktop Chrome'] },
-      testMatch: '**/recent_connections.spec.ts',
+      testMatch: ['**/node_info.spec.ts', '**/recent_connections.spec.ts'],
       dependencies: ['connect'],
     },
     {
       name: 'node firefox',
       use: { ...devices['Desktop Firefox'] },
-      testMatch: '**/recent_connections.spec.ts',
+      testMatch: ['**/node_info.spec.ts', '**/recent_connections.spec.ts'],
       dependencies: ['connect'],
     },
   ],
