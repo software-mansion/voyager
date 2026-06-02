@@ -39,66 +39,6 @@ defmodule VoyagerWeb.NodeInfoLive do
   end
 
   @impl true
-  def handle_event("refresh", _params, socket) do
-    socket |> fetch_snapshot() |> schedule_refresh() |> noreply()
-  end
-
-  def handle_event("set_interval", %{"interval" => value}, socket) do
-    socket
-    |> assign(:refresh_interval, parse_interval(value))
-    |> schedule_refresh()
-    |> noreply()
-  end
-
-  @impl true
-  def handle_info(:refresh, socket) do
-    socket |> fetch_snapshot() |> schedule_refresh() |> noreply()
-  end
-
-  @impl true
-  def handle_async(:snapshot, {:ok, {:ok, snapshot}}, socket) do
-    socket
-    |> assign(:snapshot, AsyncResult.ok(socket.assigns.snapshot, snapshot))
-    |> assign(:last_updated, DateTime.utc_now())
-    |> noreply()
-  end
-
-  def handle_async(:snapshot, {:ok, {:error, reason}}, socket) do
-    socket
-    |> assign(:snapshot, AsyncResult.failed(socket.assigns.snapshot, reason))
-    |> noreply()
-  end
-
-  def handle_async(:snapshot, {:exit, reason}, socket) do
-    socket
-    |> assign(:snapshot, AsyncResult.failed(socket.assigns.snapshot, {:rpc, reason}))
-    |> noreply()
-  end
-
-  defp fetch_snapshot(socket) do
-    node = socket.assigns.session.node
-
-    socket
-    |> assign(:snapshot, AsyncResult.loading(socket.assigns.snapshot))
-    |> start_async(:snapshot, fn -> NodeInfo.fetch(node) end)
-  end
-
-  defp schedule_refresh(socket) do
-    if ref = socket.assigns.timer_ref, do: Process.cancel_timer(ref)
-
-    ref =
-      case socket.assigns.refresh_interval do
-        nil -> nil
-        ms -> Process.send_after(self(), :refresh, ms)
-      end
-
-    assign(socket, :timer_ref, ref)
-  end
-
-  defp parse_interval("off"), do: nil
-  defp parse_interval(value), do: String.to_integer(value)
-
-  @impl true
   def render(assigns) do
     ~H"""
     <div class="max-w-[1536px] mx-auto p-6 sm:p-8">
@@ -226,6 +166,66 @@ defmodule VoyagerWeb.NodeInfoLive do
     </div>
     """
   end
+
+  @impl true
+  def handle_event("refresh", _params, socket) do
+    socket |> fetch_snapshot() |> schedule_refresh() |> noreply()
+  end
+
+  def handle_event("set_interval", %{"interval" => value}, socket) do
+    socket
+    |> assign(:refresh_interval, parse_interval(value))
+    |> schedule_refresh()
+    |> noreply()
+  end
+
+  @impl true
+  def handle_info(:refresh, socket) do
+    socket |> fetch_snapshot() |> schedule_refresh() |> noreply()
+  end
+
+  @impl true
+  def handle_async(:snapshot, {:ok, {:ok, snapshot}}, socket) do
+    socket
+    |> assign(:snapshot, AsyncResult.ok(socket.assigns.snapshot, snapshot))
+    |> assign(:last_updated, DateTime.utc_now())
+    |> noreply()
+  end
+
+  def handle_async(:snapshot, {:ok, {:error, reason}}, socket) do
+    socket
+    |> assign(:snapshot, AsyncResult.failed(socket.assigns.snapshot, reason))
+    |> noreply()
+  end
+
+  def handle_async(:snapshot, {:exit, reason}, socket) do
+    socket
+    |> assign(:snapshot, AsyncResult.failed(socket.assigns.snapshot, {:rpc, reason}))
+    |> noreply()
+  end
+
+  defp fetch_snapshot(socket) do
+    node = socket.assigns.session.node
+
+    socket
+    |> assign(:snapshot, AsyncResult.loading(socket.assigns.snapshot))
+    |> start_async(:snapshot, fn -> NodeInfo.fetch(node) end)
+  end
+
+  defp schedule_refresh(socket) do
+    if ref = socket.assigns.timer_ref, do: Process.cancel_timer(ref)
+
+    ref =
+      case socket.assigns.refresh_interval do
+        nil -> nil
+        ms -> Process.send_after(self(), :refresh, ms)
+      end
+
+    assign(socket, :timer_ref, ref)
+  end
+
+  defp parse_interval("off"), do: nil
+  defp parse_interval(value), do: String.to_integer(value)
 
   # Compact, unit-suffixed labels (no space) for the stat tiles.
   defp byte_label(bytes) do
