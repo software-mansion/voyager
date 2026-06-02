@@ -1,8 +1,8 @@
 [package]
-name = "voyager"
+name = "Voyager"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "Voyager is a desktop application which allows you to introspect your Elixir application."
+authors = ["Software Mansion S.A."]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -23,3 +23,4 @@ tauri-plugin-opener = "2"
 elixirkit = { path = "../../../deps/elixirkit/elixirkit_rs" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+rand = "0.9"
