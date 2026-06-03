@@ -20,6 +20,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> assign(:depth, SupervisionTreeControls.default_depth())
       |> assign(:expanded_pids, MapSet.new())
       |> assign(:last_tree_flat, nil)
+      |> assign(:last_relations, %{})
       |> assign(:in_flight, nil)
       |> assign(:errors, [])
       |> assign(:status, :idle)
@@ -124,7 +125,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     {:noreply, socket}
   end
 
-  def handle_info({ref, {status, tree, errors}}, socket) do
+  def handle_info({ref, {status, result, errors}}, socket) do
     in_flight = socket.assigns.in_flight
 
     if not is_nil(in_flight) and in_flight.ref == ref do
@@ -132,17 +133,29 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
       Process.demonitor(ref, [:flush])
 
-      new_flat = Diff.flatten(tree)
+      new_flat = Diff.flatten(result)
+      new_edges = Diff.relations(result)
       prev_flat = socket.assigns.last_tree_flat
+      prev_edges = socket.assigns.last_relations
 
       payload =
         case prev_flat do
           nil ->
-            %{kind: "full", nodes: new_flat, status: status, errors: errors}
+            %{
+              kind: "full",
+              nodes: new_flat,
+              edges: new_edges,
+              status: status,
+              errors: errors
+            }
 
           prev ->
-            d = Diff.diff(prev, new_flat)
-            Map.merge(d, %{kind: "delta", status: status, errors: errors})
+            node_diff = Diff.diff(prev, new_flat)
+            edge_diff = Diff.diff_relations(prev_edges, new_edges)
+
+            node_diff
+            |> Map.merge(edge_diff)
+            |> Map.merge(%{kind: "delta", status: status, errors: errors})
         end
 
       socket =
@@ -151,6 +164,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         |> assign(:status, status)
         |> assign(:in_flight, nil)
         |> assign(:last_tree_flat, new_flat)
+        |> assign(:last_relations, new_edges)
         |> push_event("tree-data", payload)
         |> start_timer()
 
@@ -284,7 +298,11 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   defp parse_pid(_), do: nil
 
-  defp reset_tree(socket), do: assign(socket, :last_tree_flat, nil)
+  defp reset_tree(socket) do
+    socket
+    |> assign(:last_tree_flat, nil)
+    |> assign(:last_relations, %{})
+  end
 
   defp walk_to_root(_flat, ""), do: []
   defp walk_to_root(nil, _key), do: []

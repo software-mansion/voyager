@@ -18,7 +18,10 @@ defmodule Voyager.Services.SupervisionTree.Remote do
     :status,
     :memory,
     :message_queue_len,
-    :reductions
+    :reductions,
+    :links,
+    :monitors,
+    :monitored_by
   ]
 
   @doc """
@@ -41,6 +44,23 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   def root_supervisor(node, app) do
     with {:ok, master_pid} <- get_master(node, app) do
       get_child(node, master_pid)
+    end
+  end
+
+  @doc """
+  Returns the `$ancestors` recorded in `pid`'s process dictionary on `node`.
+  """
+  @spec ancestors(node(), pid()) :: {:ok, [pid() | atom()]} | {:error, term()}
+  def ancestors(node, pid) do
+    case call(node, :erlang, :process_info, [pid, :dictionary], @timeout_fast) do
+      {:ok, {:dictionary, dict}} when is_list(dict) ->
+        {:ok, Keyword.get(dict, :"$ancestors", [])}
+
+      {:ok, _} ->
+        {:ok, []}
+
+      {:error, _} = err ->
+        err
     end
   end
 

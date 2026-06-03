@@ -24,12 +24,12 @@ defmodule Voyager.Services.SupervisionTree.FetchTest do
 
       assert state.ref == state.task.ref
 
-      assert_receive {ref, {status, tree, _errors}}, 2_000
+      assert_receive {ref, {status, result, _errors}}, 2_000
 
       assert ref == state.ref
       assert status in [:ok, :partial]
-      assert is_map(tree)
-      assert Map.has_key?(tree, :voyager_fixture)
+      assert is_map(result.tree)
+      assert Map.has_key?(result.tree, :voyager_fixture)
     end
   end
 
@@ -61,7 +61,7 @@ defmodule Voyager.Services.SupervisionTree.FetchTest do
         })
 
       # Wait for the task to finish so it is no longer a supervisor child.
-      assert_receive {ref, {_status, _tree, _errors}}, 2_000
+      assert_receive {ref, {_status, _result, _errors}}, 2_000
       assert ref == state.ref
 
       # Cancelling a finished task must not raise.

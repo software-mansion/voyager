@@ -9,6 +9,11 @@ const OVERLAY_DEBOUNCE_MS = 80;
 const OVERLAY_MIN_ZOOM = 0.45;
 const FADE_MS = 200;
 
+// Relationship edge colors (mirrors ObserverWeb).
+const LINK_COLOR = '#CCCCCC';
+const MONITOR_COLOR = '#D1A1E5';
+const MONITORED_BY_COLOR = '#4DB8FF';
+
 const TOPOLOGY_FIELDS = new Set([
   'name',
   'type',
@@ -44,6 +49,7 @@ const SupervisionTree = {
 
     this.cy.on('oneclick', 'node', (e) => {
       this.pushEventTo(this.el, 'select-node', { key: e.target.id() });
+      console.log(e.target.data());
     });
     this.cy.on('dblclick', 'node', (e) => {
       this.toggleExpandNode(e.target);
@@ -113,6 +119,7 @@ const SupervisionTree = {
 
   applyFull(payload) {
     const incoming = payload.nodes || {};
+    const edges = payload.edges || {};
 
     this.cy.batch(() => {
       this.tearDownAllOverlays();
@@ -121,6 +128,11 @@ const SupervisionTree = {
       const addBatch = [];
       for (const [key, node] of Object.entries(incoming)) {
         addBatch.push(...elementsFor(key, node));
+      }
+      // Relationship edges are appended after all nodes so their endpoints
+      // already exist when cytoscape processes the batch.
+      for (const edge of Object.values(edges)) {
+        addBatch.push(relEdgeElement(edge));
       }
       this.cy.add(addBatch);
     });
@@ -133,6 +145,8 @@ const SupervisionTree = {
     const removed = payload.removed || [];
     const added = payload.added || {};
     const updated = payload.updated || {};
+    const edgesAdded = payload.edges_added || {};
+    const edgesRemoved = payload.edges_removed || [];
 
     // Detect restart pairs (same parent_key + name, one removed and one added)
     // so we can fade them rather than instant-swap.
@@ -198,6 +212,24 @@ const SupervisionTree = {
       for (const [removedKey, addedKey] of restartPairs.pairs) {
         this.applyRestartPair(removedKey, addedKey, added[addedKey]);
         topologyChanged = true;
+      }
+
+      // Relationship edge removals (node removals above already drop their
+      // connected edges, so a missing edge here is a no-op).
+      for (const id of edgesRemoved) {
+        const el = this.cy.getElementById(id);
+        if (el.nonempty()) el.remove();
+      }
+
+      // Relationship edge additions — guard that both endpoints exist (their
+      // rel-node additions were applied earlier in this batch).
+      for (const edge of Object.values(edgesAdded)) {
+        if (this.cy.getElementById(edge.id).nonempty()) continue;
+        const source = this.cy.getElementById(edge.source);
+        const target = this.cy.getElementById(edge.target);
+        if (source.nonempty() && target.nonempty()) {
+          this.cy.add(relEdgeElement(edge));
+        }
       }
     });
 
@@ -443,6 +475,10 @@ const SupervisionTree = {
   },
 
   toggleExpandNode(node) {
+    // Only supervisors/apps with children are expandable. Workers, ports,
+    // references, and relationship-only leaves have nothing to toggle.
+    if (!node.data('has_children')) return;
+
     if (isRealPid(node.id())) {
       this.pushEventTo(this.el, 'toggle-expand', { pid: node.id() });
     }
@@ -459,7 +495,7 @@ const SupervisionTree = {
         node.successors().forEach((ele) => {
           ele.data('hidden_count', ele.data('hidden_count') + 1 || 1);
         });
-        node.successors().addClass('hidden');
+        node.successors('[!is_from_relation]').addClass('hidden');
       }
     });
 
@@ -480,6 +516,9 @@ const SupervisionTree = {
       baseContent: getColor(cs, '--color-base-content') || '#1a1a1a',
       primary: getColor(cs, '--color-primary') || '#3b82f6',
       primaryContent: getColor(cs, '--color-primary-content') || '#ffffff',
+      secondary: getColor(cs, '--color-secondary') || '#3b82f6',
+      port: getColor(cs, '--color-port') || '#dddd55',
+      reference: getColor(cs, '--color-success') || '#22ee22',
       error: getColor(cs, '--color-error') || '#ef4444',
     };
   },
@@ -525,14 +564,22 @@ function buildStyle(t) {
       selector: 'node.hover',
       style: {
         'background-color': t.primary,
+        'border-color': t.primary,
       },
     },
     {
       selector: 'node[type = "worker"]',
       style: {
         shape: 'ellipse',
+        'border-color': t.secondary,
         width: 14,
         height: 14,
+      },
+    },
+    {
+      selector: 'node[type = "worker"].hover',
+      style: {
+        'background-color': t.secondary,
       },
     },
     {
@@ -543,6 +590,36 @@ function buildStyle(t) {
         height: 14,
         'border-width': 3,
         color: t.baseContent,
+      },
+    },
+    {
+      selector: 'node[type = "port"]',
+      style: {
+        shape: 'triangle',
+        'border-color': t.port,
+        width: 14,
+        height: 14,
+      },
+    },
+    {
+      selector: 'node[type = "port"].hover',
+      style: {
+        'background-color': t.port,
+      },
+    },
+    {
+      selector: 'node[type = "reference"]',
+      style: {
+        shape: 'rectangle',
+        'border-color': t.reference,
+        width: 12,
+        height: 12,
+      },
+    },
+    {
+      selector: 'node[type = "reference"].hover',
+      style: {
+        'background-color': t.reference,
       },
     },
     {
@@ -632,6 +709,40 @@ function buildStyle(t) {
       style: { opacity: 0 },
     },
     {
+      // Relationship edges (link / monitor / monitored-by) are drawn as dashed,
+      // directed overlays distinct from the solid structural supervision edges.
+      selector: 'edge.rel',
+      style: {
+        'curve-style': 'unbundled-bezier',
+        'line-style': 'dashed',
+        width: 1.2,
+        'target-arrow-shape': 'triangle',
+        'arrow-scale': 0.7,
+        'z-index': 1,
+      },
+    },
+    {
+      selector: 'edge.link',
+      style: {
+        'line-color': LINK_COLOR,
+        'target-arrow-color': LINK_COLOR,
+      },
+    },
+    {
+      selector: 'edge.monitor',
+      style: {
+        'line-color': MONITOR_COLOR,
+        'target-arrow-color': MONITOR_COLOR,
+      },
+    },
+    {
+      selector: 'edge.monitored_by',
+      style: {
+        'line-color': MONITORED_BY_COLOR,
+        'target-arrow-color': MONITORED_BY_COLOR,
+      },
+    },
+    {
       selector: '.hidden',
       style: { display: 'none' },
     },
@@ -655,6 +766,7 @@ function elementsFor(key, node) {
       node.children_keys === 'not_loaded' ? null : node.children_keys,
     dead: node.info === 'dead',
     is_collapsed: has_children && children_keys === null,
+    is_from_relation: node.parent_key === null,
   };
   data.displayLabel = composeLabel(data);
 
@@ -672,6 +784,19 @@ function elementsFor(key, node) {
   }
 
   return els;
+}
+
+function relEdgeElement(edge) {
+  return {
+    group: 'edges',
+    data: {
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      kind: edge.kind,
+    },
+    classes: `rel ${edge.kind}`,
+  };
 }
 
 function composeLabel(d) {

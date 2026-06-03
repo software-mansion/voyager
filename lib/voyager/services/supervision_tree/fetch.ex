@@ -20,10 +20,11 @@ defmodule Voyager.Services.SupervisionTree.Fetch do
 
   When the walk completes successfully, the owning process receives:
 
-      {ref, {status, tree, errors}}
+      {ref, {status, result, errors}}
 
-  where `ref` is `state.ref`, `status` is `:ok` or `:partial`, `tree` is the
-  tree map, and `errors` is a list of error tuples.
+  where `ref` is `state.ref`, `status` is `:ok` or `:partial`, `result` is the
+  walker result map `%{tree: tree_map, relations: [edge], rel_nodes: [node]}`,
+  and `errors` is a list of error tuples.
 
   If the underlying task crashes, the owning process receives a DOWN message:
 
@@ -49,7 +50,7 @@ defmodule Voyager.Services.SupervisionTree.Fetch do
   Starts an async walk for `request`. Returns a state map that must be kept
   by the caller and passed to `cancel/1` if early termination is needed.
 
-  The result arrives as `{state.ref, {status, tree, errors}}`.
+  The result arrives as `{state.ref, {status, result, errors}}`.
   Crashes arrive as `{:DOWN, state.ref, :process, _pid, reason}`.
   """
   @spec start(request()) :: state()

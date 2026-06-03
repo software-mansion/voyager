@@ -28,4 +28,13 @@ defmodule Voyager.Helper do
       |> Encoder.BitString.encode(opts)
     end
   end
+
+  defimpl Encoder, for: Port do
+    @spec encode(port :: port, options :: Jason.Encode.opts()) :: iodata()
+    def encode(port, opts) do
+      port
+      |> inspect
+      |> Encoder.BitString.encode(opts)
+    end
+  end
 end
