@@ -1,22 +1,24 @@
 import cytoscape from 'cytoscape';
 import dagre from 'cytoscape-dagre';
-import Color from 'colorjs.io';
+
+import {
+  LAYOUT_DEBOUNCE_MS,
+  OVERLAY_DEBOUNCE_MS,
+  OVERLAY_MIN_ZOOM,
+  FADE_MS,
+  TOPOLOGY_FIELDS,
+} from './supervision_tree/constants';
+import { buildStyle, toggleIcon, getColor } from './supervision_tree/styles';
+import {
+  elementsFor,
+  composeLabel,
+  pairSignature,
+  edgeId,
+  isRealPid,
+  nodeIntersectsExtent,
+} from './supervision_tree/elements';
 
 cytoscape.use(dagre);
-
-const LAYOUT_DEBOUNCE_MS = 50;
-const OVERLAY_DEBOUNCE_MS = 80;
-const OVERLAY_MIN_ZOOM = 0.45;
-const FADE_MS = 200;
-
-const TOPOLOGY_FIELDS = new Set([
-  'name',
-  'type',
-  'has_children?',
-  'child_count',
-  'children_keys',
-  'parent_key',
-]);
 
 const SupervisionTree = {
   mounted() {
@@ -50,25 +52,20 @@ const SupervisionTree = {
     });
     this.cy.on('tap', (e) => {
       if (this.disabledClick) return;
-      if (e.target === this.cy) this.onBackgroundTap();
+      if (e.target === this.cy)
+        this.pushEventTo(this.el, 'select-node', { key: '' });
     });
 
     // Change the cursor to a pointer when hovering over a node
     this.cy.on('mouseover', 'node', function (event) {
       event.target.addClass('hover');
-      const container = event.cy.container();
-      if (container) {
-        container.style.cursor = 'pointer';
-      }
+      event.cy.container().style.cursor = 'pointer';
     });
 
     // Revert the cursor to default when the mouse leaves the node
     this.cy.on('mouseout', 'node', function (event) {
       event.target.removeClass('hover');
-      const container = event.cy.container();
-      if (container) {
-        container.style.cursor = '';
-      }
+      event.cy.container().style.cursor = '';
     });
 
     this.cy.on('viewport', () => {
@@ -312,14 +309,6 @@ const SupervisionTree = {
     }, LAYOUT_DEBOUNCE_MS);
   },
 
-  // ---------------------------------------------------------------------------
-  // Interactions
-  // ---------------------------------------------------------------------------
-
-  onBackgroundTap() {
-    this.pushEventTo(this.el, 'select-node', { key: '' });
-  },
-
   applyHighlight({ path }) {
     this.cy.batch(() => {
       this.cy.elements().removeClass('in-path');
@@ -340,8 +329,33 @@ const SupervisionTree = {
     });
   },
 
+  toggleExpandNode(node) {
+    this.disabledClick = true;
+    if (isRealPid(node.id())) {
+      this.pushEventTo(this.el, 'toggle-expand', { pid: node.id() });
+    }
+
+    this.cy.batch(() => {
+      if (this.isCollapsed(node)) {
+        node.data('is_collapsed', false);
+        node.successors().forEach((ele) => {
+          ele.data('hidden_count', ele.data('hidden_count') - 1 || 0);
+        });
+        node.successors('[hidden_count = 0]').removeClass('hidden');
+      } else {
+        node.data('is_collapsed', true);
+        node.successors().forEach((ele) => {
+          ele.data('hidden_count', ele.data('hidden_count') + 1 || 1);
+        });
+        node.successors().addClass('hidden');
+      }
+    });
+
+    this.scheduleLayout();
+  },
+
   // ---------------------------------------------------------------------------
-  // Popper overlays
+  // Overlays
   // ---------------------------------------------------------------------------
 
   scheduleOverlayReconcile() {
@@ -445,45 +459,13 @@ const SupervisionTree = {
     return node.data('is_collapsed');
   },
 
-  toggleExpandNode(node) {
-    this.disabledClick = true;
-    if (isRealPid(node.id())) {
-      this.pushEventTo(this.el, 'toggle-expand', { pid: node.id() });
-    }
-
-    this.cy.batch(() => {
-      if (this.isCollapsed(node)) {
-        node.data('is_collapsed', false);
-        node.successors().forEach((ele) => {
-          ele.data('hidden_count', ele.data('hidden_count') - 1 || 0);
-        });
-        node.successors('[hidden_count = 0]').removeClass('hidden');
-      } else {
-        node.data('is_collapsed', true);
-        node.successors().forEach((ele) => {
-          ele.data('hidden_count', ele.data('hidden_count') + 1 || 1);
-        });
-        node.successors().addClass('hidden');
-      }
-    });
-
-    this.scheduleLayout();
-  },
-
-  // ---------------------------------------------------------------------------
-  // Theme tokens
-  // ---------------------------------------------------------------------------
-
   readTokens() {
     const cs = getComputedStyle(this.el);
     return {
       base100: getColor(cs, '--color-base-100', '#ffffff'),
-      base200: getColor(cs, '--color-base-200', '#f5f5f5'),
-      base300: getColor(cs, '--color-base-300', '#e5e5e5'),
       base500: getColor(cs, '--color-base-500', '#CAD5E2'),
       baseContent: getColor(cs, '--color-base-content', '#1a1a1a'),
       primary: getColor(cs, '--color-primary', '#3b82f6'),
-      primaryContent: getColor(cs, '--color-primary-content', '#ffffff'),
       error: getColor(cs, '--color-error', '#ef4444'),
     };
   },
@@ -493,243 +475,5 @@ const SupervisionTree = {
     this.cy.style(buildStyle(this.tokens));
   },
 };
-
-// ---------------------------------------------------------------------------
-// Pure helpers
-// ---------------------------------------------------------------------------
-
-function buildStyle(t) {
-  return [
-    {
-      selector: 'node',
-      style: {
-        shape: 'round-rectangle',
-        width: 14,
-        height: 14,
-        'background-color': t.base100,
-        'border-color': t.primary,
-        'border-width': 2,
-        label: 'data(displayLabel)',
-        'text-halign': 'right',
-        'text-valign': 'center',
-        'text-margin-x': 6,
-        'text-background-opacity': 1,
-        'text-background-color': t.base100,
-        'font-size': 11,
-        'font-family': 'ui-monospace, SFMono-Regular, Menlo, monospace',
-        color: t.baseContent,
-        'overlay-padding': 8,
-        'transition-property':
-          'background-color, border-color, opacity, text-opacity',
-        'transition-duration': '80ms',
-        'transition-timing-function': 'ease-out',
-      },
-    },
-    {
-      selector: 'node.hover',
-      style: {
-        'background-color': t.primary,
-      },
-    },
-    {
-      selector: 'node[type = "worker"]',
-      style: {
-        shape: 'ellipse',
-        width: 14,
-        height: 14,
-      },
-    },
-    {
-      selector: 'node[type = "app"]',
-      style: {
-        shape: 'round-diamond',
-        width: 14,
-        height: 14,
-        'border-width': 3,
-        color: t.baseContent,
-      },
-    },
-    {
-      selector: 'node[?dead]',
-      style: {
-        opacity: 0.4,
-        'border-color': t.error,
-      },
-    },
-    {
-      selector: 'node.in-path',
-      style: {
-        'background-color': t.primary,
-        'border-color': t.primary,
-        'text-opacity': 1,
-        'font-weight': 600,
-      },
-    },
-    {
-      selector: 'node.leaving',
-      style: { opacity: 0 },
-    },
-    {
-      selector: 'node.entering',
-      style: { opacity: 0 },
-    },
-    {
-      selector: 'edge',
-      style: {
-        'curve-style': 'unbundled-bezier',
-
-        'source-endpoint': 'outside-to-node-or-label',
-        'target-endpoint': 'outside-to-node-or-label',
-
-        // TENSION = how strongly the curve is pulled horizontally.
-        // 0.5 = aggressive boxy S-curve
-        // 0.25 to 0.35 = smooth, gentle sweep
-        // 0.1 = almost a straight diagonal line
-        'control-point-distances': function (edge) {
-          const TENSION = 0.3;
-
-          const source = edge.source().position();
-          const target = edge.target().position();
-          const dx = target.x - source.x;
-          const dy = target.y - source.y;
-
-          const length = Math.sqrt(dx * dx + dy * dy);
-          if (length === 0) return [0, 0];
-
-          const dist = (TENSION * (dx * dy)) / length;
-          return [-dist, dist];
-        },
-        'control-point-weights': function (edge) {
-          const TENSION = 0.3;
-
-          const source = edge.source().position();
-          const target = edge.target().position();
-          const dx = target.x - source.x;
-          const dy = target.y - source.y;
-
-          const lengthSq = dx * dx + dy * dy;
-          if (lengthSq === 0) return [0.5, 0.5];
-
-          const w1 = (TENSION * dx * dx) / lengthSq;
-          const w2 = ((1 - TENSION) * dx * dx + dy * dy) / lengthSq;
-
-          return [w1, w2];
-        },
-        'line-color': t.base500,
-        width: 1.4,
-        'target-arrow-shape': 'none',
-        'transition-property': 'line-color, width, opacity',
-        'transition-duration': '80ms',
-      },
-    },
-    {
-      selector: 'edge.in-path',
-      style: {
-        'line-color': t.primary,
-        width: 1.8,
-        opacity: 1,
-        'z-index': 10,
-      },
-    },
-    {
-      selector: 'edge.leaving',
-      style: { opacity: 0 },
-    },
-    {
-      selector: '.hidden',
-      style: { display: 'none' },
-    },
-  ];
-}
-
-function elementsFor(key, node) {
-  const has_children = !!node['has_children?'];
-  const children_keys =
-    node.children_keys === 'not_loaded' ? null : node.children_keys;
-
-  const data = {
-    id: key,
-    name: node.name,
-    type: node.type,
-    info: node.info,
-    has_children,
-    child_count: node.child_count ?? 0,
-    parent_key: node.parent_key,
-    children_keys:
-      node.children_keys === 'not_loaded' ? null : node.children_keys,
-    dead: node.info === 'dead',
-    is_collapsed: has_children && children_keys === null,
-  };
-  data.displayLabel = composeLabel(data);
-
-  const els = [{ group: 'nodes', data }];
-
-  if (node.parent_key) {
-    els.push({
-      group: 'edges',
-      data: {
-        id: edgeId(node.parent_key, key),
-        source: node.parent_key,
-        target: key,
-      },
-    });
-  }
-
-  return els;
-}
-
-function composeLabel(d) {
-  const name = formatName(d.name);
-  if (d.type === 'worker' || d.child_count === 0 || d.child_count == null) {
-    return name;
-  }
-  return `${name} (${d.child_count})`;
-}
-
-function formatName(name) {
-  if (name === null || name === undefined) return '';
-  if (Array.isArray(name)) return name.map(formatName).join(':');
-  if (typeof name === 'string') return name;
-  return String(name);
-}
-
-function edgeId(parentKey, childKey) {
-  return `e:${parentKey}->${childKey}`;
-}
-
-function pairSignature(parentKey, name) {
-  return `${parentKey ?? ''}|${formatName(name)}`;
-}
-
-function isRealPid(key) {
-  return typeof key === 'string' && key.startsWith('<') && key.endsWith('>');
-}
-
-function nodeIntersectsExtent(node, extent) {
-  const bb = node.boundingBox();
-  return !(
-    bb.x2 < extent.x1 ||
-    bb.x1 > extent.x2 ||
-    bb.y2 < extent.y1 ||
-    bb.y1 > extent.y2
-  );
-}
-
-function toggleIcon(collapsed) {
-  if (collapsed) {
-    // plus
-    return `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="6" y1="2.5" x2="6" y2="9.5"/><line x1="2.5" y1="6" x2="9.5" y2="6"/></svg>`;
-  }
-  // minus
-  return `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="2.5" y1="6" x2="9.5" y2="6"/></svg>`;
-}
-
-function getColor(cs, value, defaultColor = '') {
-  const color = cs.getPropertyValue(value).trim();
-  if (color) {
-    return new Color(color).to('srgb').toString({ format: 'hex' });
-  }
-  return defaultColor;
-}
 
 export default SupervisionTree;
