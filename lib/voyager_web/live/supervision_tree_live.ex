@@ -109,8 +109,8 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   def handle_info(:refresh, socket) do
     socket =
       socket
-      |> start_timer()
       |> stop_timer()
+      |> start_timer()
 
     socket =
       if MapSet.size(socket.assigns.selected_apps) > 0 and is_nil(socket.assigns.in_flight) do
