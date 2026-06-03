@@ -61,7 +61,8 @@ fn create_window(app_handle: &tauri::AppHandle, port: u16) {
     let url = tauri::WebviewUrl::External(format!("http://127.0.0.1:{port}").parse().unwrap());
     tauri::WebviewWindowBuilder::new(app_handle, format!("window-{}", n), url)
         .title("Voyager")
-        .inner_size(800.0, 600.0)
+        .inner_size(800.0, 800.0)
+        .min_inner_size(800.0, 800.0)
         .build()
         .unwrap();
 }
