@@ -38,9 +38,6 @@ const SupervisionTree = {
     this.overlayTimer = null;
     this.overlays = new Map();
     this.fadeTimers = new Map();
-    this.lastTapTs = 0;
-    this.lastTapId = null;
-    this.pendingSelectTimer = null;
     this.disabledClick = false;
 
     this.cy.on('oneclick', 'node', (e) => {
@@ -96,7 +93,6 @@ const SupervisionTree = {
     this.fadeTimers.clear();
     if (this.layoutTimer) clearTimeout(this.layoutTimer);
     if (this.overlayTimer) clearTimeout(this.overlayTimer);
-    if (this.pendingSelectTimer) clearTimeout(this.pendingSelectTimer);
     if (this.themeObserver) this.themeObserver.disconnect();
     if (this.cy) this.cy.destroy();
   },
@@ -481,14 +477,14 @@ const SupervisionTree = {
   readTokens() {
     const cs = getComputedStyle(this.el);
     return {
-      base100: getColor(cs, '--color-base-100') || '#ffffff',
-      base200: getColor(cs, '--color-base-200') || '#f5f5f5',
-      base300: getColor(cs, '--color-base-300') || '#e5e5e5',
-      base500: getColor(cs, '--color-base-500') || '#CAD5E2',
-      baseContent: getColor(cs, '--color-base-content') || '#1a1a1a',
-      primary: getColor(cs, '--color-primary') || '#3b82f6',
-      primaryContent: getColor(cs, '--color-primary-content') || '#ffffff',
-      error: getColor(cs, '--color-error') || '#ef4444',
+      base100: getColor(cs, '--color-base-100', '#ffffff'),
+      base200: getColor(cs, '--color-base-200', '#f5f5f5'),
+      base300: getColor(cs, '--color-base-300', '#e5e5e5'),
+      base500: getColor(cs, '--color-base-500', '#CAD5E2'),
+      baseContent: getColor(cs, '--color-base-content', '#1a1a1a'),
+      primary: getColor(cs, '--color-primary', '#3b82f6'),
+      primaryContent: getColor(cs, '--color-primary-content', '#ffffff'),
+      error: getColor(cs, '--color-error', '#ef4444'),
     };
   },
 
@@ -728,12 +724,12 @@ function toggleIcon(collapsed) {
   return `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="2.5" y1="6" x2="9.5" y2="6"/></svg>`;
 }
 
-function getColor(cs, value) {
+function getColor(cs, value, defaultColor = '') {
   const color = cs.getPropertyValue(value).trim();
   if (color) {
     return new Color(color).to('srgb').toString({ format: 'hex' });
   }
-  return color;
+  return defaultColor;
 }
 
 export default SupervisionTree;

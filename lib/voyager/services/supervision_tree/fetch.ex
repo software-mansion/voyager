@@ -24,7 +24,6 @@ defmodule Voyager.Services.SupervisionTree.Fetch do
   def start(request) do
     task =
       Task.Supervisor.async_nolink(Voyager.TaskSupervisor, fn ->
-        Process.sleep(200)
         build_mock_result(request)
       end)
 
@@ -45,6 +44,9 @@ defmodule Voyager.Services.SupervisionTree.Fetch do
   end
 
   defp build_mock_result(request) do
+    # Sleep here simulates real time fetching, will be removed when adding actual logic
+    Process.sleep(200)
+
     tree =
       Enum.reduce(request.apps, %{}, fn app, acc ->
         Map.put(acc, app, mock_app_node(app, request.depth, request.expanded))
