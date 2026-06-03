@@ -22,12 +22,12 @@ defmodule Voyager.Services.SupervisionTree.FetchTest do
           expanded: MapSet.new()
         })
 
-      assert_receive {ref, {status, tree, _errors}}, 2_000
+      assert_receive {ref, {status, result, _errors}}, 2_000
 
       assert ref == state.task.ref
       assert status in [:ok, :partial]
-      assert is_map(tree)
-      assert Map.has_key?(tree, :voyager_fixture)
+      assert is_map(result.tree)
+      assert Map.has_key?(result.tree, :voyager_fixture)
     end
   end
 

@@ -167,4 +167,105 @@ defmodule VoyagerWeb.SupervisionTreeLive.DiffTest do
       assert result.updated[root_key].children_keys == [key_b]
     end
   end
+
+  describe "flatten/1 with relationships" do
+    test "adds rel_nodes as parentless leaves with stable port/reference keys" do
+      root = self()
+      worker = spawn(fn -> :ok end)
+      external = spawn(fn -> :ok end)
+      port = Port.open({:spawn, "cat"}, [:binary])
+      ref = make_ref()
+
+      result = %{
+        tree: tree(root, worker),
+        relations: [],
+        rel_nodes: [
+          %{id: external, name: :ext, type: :worker, info: nil},
+          %{id: port, name: inspect(port), type: :port, info: nil},
+          %{id: ref, name: inspect(ref), type: :reference, info: nil}
+        ]
+      }
+
+      flat = Diff.flatten(result)
+
+      external_key = external |> :erlang.pid_to_list() |> List.to_string()
+      assert flat[external_key].type == :worker
+      assert flat[external_key].parent_key == nil
+      assert flat[external_key].children_keys == :not_loaded
+
+      assert flat["port:#{inspect(port)}"].type == :port
+      assert flat["ref:#{inspect(ref)}"].type == :reference
+
+      Port.close(port)
+    end
+
+    test "a rel_node whose pid is already in the tree does not overwrite the tree node" do
+      root = self()
+      worker = spawn(fn -> :ok end)
+
+      result = %{
+        tree: tree(root, worker),
+        relations: [],
+        rel_nodes: [%{id: worker, name: :dup, type: :worker, info: nil}]
+      }
+
+      flat = Diff.flatten(result)
+      worker_key = worker |> :erlang.pid_to_list() |> List.to_string()
+
+      # The richer tree entry wins (keeps its real name + parent).
+      assert flat[worker_key].name == :worker_one
+      assert flat[worker_key].parent_key != nil
+    end
+  end
+
+  describe "relations/1 and diff_relations/2" do
+    test "relations/1 builds an id-keyed edge map from a walker result" do
+      from = self()
+      to = spawn(fn -> :ok end)
+
+      result = %{
+        tree: %{},
+        relations: [%{from: from, to: to, kind: :monitor}],
+        rel_nodes: []
+      }
+
+      edges = Diff.relations(result)
+      from_key = from |> :erlang.pid_to_list() |> List.to_string()
+      to_key = to |> :erlang.pid_to_list() |> List.to_string()
+      id = "rel:monitor:#{from_key}->#{to_key}"
+
+      assert Map.has_key?(edges, id)
+      assert edges[id] == %{id: id, source: from_key, target: to_key, kind: "monitor"}
+    end
+
+    test "relations/1 returns an empty map for bare tree input" do
+      assert Diff.relations(tree(self(), spawn(fn -> :ok end))) == %{}
+    end
+
+    test "diff_relations/2 reports added and removed edges by id" do
+      a = self()
+      b = spawn(fn -> :ok end)
+      c = spawn(fn -> :ok end)
+
+      prev =
+        Diff.relations(%{
+          relations: [%{from: a, to: b, kind: :link}],
+          tree: %{},
+          rel_nodes: []
+        })
+
+      curr =
+        Diff.relations(%{
+          relations: [%{from: a, to: c, kind: :link}],
+          tree: %{},
+          rel_nodes: []
+        })
+
+      %{edges_added: added, edges_removed: removed} = Diff.diff_relations(prev, curr)
+
+      [removed_id] = removed
+      assert removed_id =~ "rel:link:"
+      assert map_size(added) == 1
+    end
+  end
 end

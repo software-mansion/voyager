@@ -1,5 +1,9 @@
 import Color from 'colorjs.io';
 
+const LINK_COLOR = '#CCCCCC';
+const MONITOR_COLOR = '#D1A1E5';
+const MONITORED_BY_COLOR = '#4DB8FF';
+
 export function buildStyle(t) {
   return [
     {
@@ -42,6 +46,12 @@ export function buildStyle(t) {
       },
     },
     {
+      selector: 'node[type = "worker"].hover',
+      style: {
+        'background-color': t.secondary,
+      },
+    },
+    {
       selector: 'node[type = "app"]',
       style: {
         shape: 'round-diamond',
@@ -49,6 +59,36 @@ export function buildStyle(t) {
         height: 14,
         'border-width': 3,
         color: t.baseContent,
+      },
+    },
+    {
+      selector: 'node[type = "port"]',
+      style: {
+        shape: 'triangle',
+        'border-color': t.port,
+        width: 14,
+        height: 14,
+      },
+    },
+    {
+      selector: 'node[type = "port"].hover',
+      style: {
+        'background-color': t.port,
+      },
+    },
+    {
+      selector: 'node[type = "reference"]',
+      style: {
+        shape: 'rectangle',
+        'border-color': t.reference,
+        width: 12,
+        height: 12,
+      },
+    },
+    {
+      selector: 'node[type = "reference"].hover',
+      style: {
+        'background-color': t.reference,
       },
     },
     {
@@ -66,14 +106,6 @@ export function buildStyle(t) {
         'text-opacity': 1,
         'font-weight': 600,
       },
-    },
-    {
-      selector: 'node.leaving',
-      style: { opacity: 0 },
-    },
-    {
-      selector: 'node.entering',
-      style: { opacity: 0 },
     },
     {
       selector: 'edge',
@@ -134,8 +166,38 @@ export function buildStyle(t) {
       },
     },
     {
-      selector: 'edge.leaving',
-      style: { opacity: 0 },
+      // Relationship edges (link / monitor / monitored-by) are drawn as dashed,
+      // directed overlays distinct from the solid structural supervision edges.
+      selector: 'edge.rel',
+      style: {
+        'curve-style': 'unbundled-bezier',
+        'line-style': 'dashed',
+        width: 1.2,
+        'target-arrow-shape': 'triangle',
+        'arrow-scale': 0.7,
+        'z-index': 1,
+      },
+    },
+    {
+      selector: 'edge.link',
+      style: {
+        'line-color': LINK_COLOR,
+        'target-arrow-color': LINK_COLOR,
+      },
+    },
+    {
+      selector: 'edge.monitor',
+      style: {
+        'line-color': MONITOR_COLOR,
+        'target-arrow-color': MONITOR_COLOR,
+      },
+    },
+    {
+      selector: 'edge.monitored_by',
+      style: {
+        'line-color': MONITORED_BY_COLOR,
+        'target-arrow-color': MONITORED_BY_COLOR,
+      },
     },
     {
       selector: '.hidden',

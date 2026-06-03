@@ -10,6 +10,7 @@ import {
 import { buildStyle, toggleIcon, getColor } from './supervision_tree/styles';
 import {
   elementsFor,
+  relEdgeElement,
   composeLabel,
   edgeId,
   isRealPid,
@@ -108,6 +109,7 @@ const SupervisionTree = {
 
   applyFull(payload) {
     const incoming = payload.nodes || {};
+    const edges = payload.edges || {};
 
     this.cy.batch(() => {
       this.tearDownAllOverlays();
@@ -116,6 +118,11 @@ const SupervisionTree = {
       const addBatch = [];
       for (const [key, node] of Object.entries(incoming)) {
         addBatch.push(...elementsFor(key, node));
+      }
+      // Relationship edges are appended after all nodes so their endpoints
+      // already exist when cytoscape processes the batch.
+      for (const edge of Object.values(edges)) {
+        addBatch.push(relEdgeElement(edge));
       }
       this.cy.add(addBatch);
     });
@@ -128,6 +135,8 @@ const SupervisionTree = {
     const removed = payload.removed || [];
     const added = payload.added || {};
     const updated = payload.updated || {};
+    const edgesAdded = payload.edges_added || {};
+    const edgesRemoved = payload.edges_removed || [];
 
     let topologyChanged = false;
 
@@ -180,6 +189,24 @@ const SupervisionTree = {
         // Dead state.
         if (patch.info !== undefined) {
           node.data('dead', patch.info === 'dead');
+        }
+      }
+
+      // Relationship edge removals (node removals above already drop their
+      // connected edges, so a missing edge here is a no-op).
+      for (const id of edgesRemoved) {
+        const el = this.cy.getElementById(id);
+        if (el.nonempty()) el.remove();
+      }
+
+      // Relationship edge additions — guard that both endpoints exist (their
+      // rel-node additions were applied earlier in this batch).
+      for (const edge of Object.values(edgesAdded)) {
+        if (this.cy.getElementById(edge.id).nonempty()) continue;
+        const source = this.cy.getElementById(edge.source);
+        const target = this.cy.getElementById(edge.target);
+        if (source.nonempty() && target.nonempty()) {
+          this.cy.add(relEdgeElement(edge));
         }
       }
     });
@@ -249,33 +276,6 @@ const SupervisionTree = {
 
       nodeColl.union(edgeColl).addClass('in-path');
     });
-  },
-
-  toggleExpandNode(node) {
-    this.disabledClick = true;
-    if (isRealPid(node.id())) {
-      this.pushEventTo(this.el, 'toggle-expand', { pid: node.id() });
-    }
-
-    this.cy.batch(() => {
-      if (this.isCollapsed(node)) {
-        node.data('is_collapsed', false);
-        node.successors().forEach((ele) => {
-          const hidden_count = ele.data('hidden_count') ?? 0;
-          ele.data('hidden_count', Math.max(hidden_count - 1, 0));
-        });
-        node.successors('[hidden_count = 0]').removeClass('hidden');
-      } else {
-        node.data('is_collapsed', true);
-        node.successors().forEach((ele) => {
-          const hidden_count = ele.data('hidden_count') ?? 0;
-          ele.data('hidden_count', hidden_count + 1);
-        });
-        node.successors().addClass('hidden');
-      }
-    });
-
-    this.scheduleLayout();
   },
 
   // ---------------------------------------------------------------------------
@@ -383,6 +383,42 @@ const SupervisionTree = {
     return node.data('is_collapsed');
   },
 
+  toggleExpandNode(node) {
+    // Only supervisors/apps with children are expandable. Workers, ports,
+    // references, and relationship-only leaves have nothing to toggle.
+    if (!node.data('has_children')) return;
+
+    this.disabledClick = true;
+
+    if (isRealPid(node.id())) {
+      this.pushEventTo(this.el, 'toggle-expand', { pid: node.id() });
+    }
+
+    this.cy.batch(() => {
+      if (this.isCollapsed(node)) {
+        node.data('is_collapsed', false);
+        node.successors().forEach((ele) => {
+          const hidden_count = ele.data('hidden_count') ?? 0;
+          ele.data('hidden_count', Math.max(hidden_count - 1, 0));
+        });
+        node.successors('[hidden_count = 0]').removeClass('hidden');
+      } else {
+        node.data('is_collapsed', true);
+        node.successors().forEach((ele) => {
+          const hidden_count = ele.data('hidden_count') ?? 0;
+          ele.data('hidden_count', hidden_count + 1);
+        });
+        node.successors('[!is_from_relation]').addClass('hidden');
+      }
+    });
+
+    this.scheduleLayout();
+  },
+
+  // ---------------------------------------------------------------------------
+  // Theme tokens
+  // ---------------------------------------------------------------------------
+
   readTokens() {
     const cs = getComputedStyle(this.el);
     return {
@@ -390,6 +426,9 @@ const SupervisionTree = {
       base500: getColor(cs, '--color-base-500', '#CAD5E2'),
       baseContent: getColor(cs, '--color-base-content', '#1a1a1a'),
       primary: getColor(cs, '--color-primary', '#3b82f6'),
+      secondary: getColor(cs, '--color-secondary', '#3b82f6'),
+      port: getColor(cs, '--color-port', '#dddd55'),
+      reference: getColor(cs, '--color-success', '#22ee22'),
       error: getColor(cs, '--color-error', '#ef4444'),
     };
   },

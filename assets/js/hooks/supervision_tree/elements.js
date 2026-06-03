@@ -15,6 +15,7 @@ export function elementsFor(key, node) {
       node.children_keys === 'not_loaded' ? null : node.children_keys,
     dead: node.info === 'dead',
     is_collapsed: has_children && children_keys === null,
+    is_from_relation: node.parent_key === null,
   };
   data.displayLabel = composeLabel(data);
 
@@ -32,6 +33,19 @@ export function elementsFor(key, node) {
   }
 
   return els;
+}
+
+export function relEdgeElement(edge) {
+  return {
+    group: 'edges',
+    data: {
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      kind: edge.kind,
+    },
+    classes: `rel ${edge.kind}`,
+  };
 }
 
 export function composeLabel(d) {

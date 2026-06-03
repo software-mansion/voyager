@@ -72,6 +72,10 @@ defmodule Voyager.Services.SupervisionTree.RemoteTest do
         assert is_map(pinfo)
         assert Map.has_key?(pinfo, :memory)
         assert Map.has_key?(pinfo, :status)
+        # Relationship keys ride along on the same batch call.
+        assert Map.has_key?(pinfo, :links)
+        assert Map.has_key?(pinfo, :monitors)
+        assert Map.has_key?(pinfo, :monitored_by)
       end)
     end
 
@@ -91,6 +95,17 @@ defmodule Voyager.Services.SupervisionTree.RemoteTest do
       assert {:ok, info_map} = Remote.process_info_batch(node, [worker_pid, mid_a_pid])
       assert info_map[worker_pid] == :dead
       assert is_map(info_map[mid_a_pid])
+    end
+  end
+
+  describe "ancestors/2" do
+    test "returns the root supervisor's recorded ancestors", %{node: node} do
+      {:ok, root_pid} = Remote.root_supervisor(node, :voyager_fixture)
+
+      assert {:ok, ancestors} = Remote.ancestors(node, root_pid)
+      assert is_list(ancestors)
+      # The root supervisor was started by the application master.
+      assert Enum.any?(ancestors, &is_pid/1)
     end
   end
 
