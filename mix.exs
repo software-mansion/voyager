@@ -79,20 +79,13 @@ defmodule Voyager.MixProject do
       ],
       "assets.build": [
         "cmd npm --prefix assets run format",
-        "cmd mkdir -p priv/static/fonts",
-        "cmd cp assets/node_modules/@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2 priv/static/fonts/",
-        "cmd cp assets/node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2 priv/static/fonts/",
+        copy_font_assets_cmd(),
         "compile",
         "tailwind voyager --minify",
         "esbuild voyager --minify"
       ],
       "assets.deploy": [
-        "cmd npm --prefix assets run format",
-        "cmd mkdir -p priv/static/fonts",
-        "cmd cp assets/node_modules/@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2 priv/static/fonts/",
-        "cmd cp assets/node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2 priv/static/fonts/",
-        "tailwind voyager --minify",
-        "esbuild voyager --minify",
+        "assets.build",
         "phx.digest"
       ],
       e2e: [
@@ -108,5 +101,13 @@ defmodule Voyager.MixProject do
         "test"
       ]
     ]
+  end
+
+  defp copy_font_assets_cmd do
+    script =
+      "cp -f -- assets/node_modules/@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2 priv/static/fonts/ &&
+      cp -f -- assets/node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2 priv/static/fonts/"
+
+    "cmd sh -c '#{script}'"
   end
 end
