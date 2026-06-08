@@ -78,6 +78,7 @@ defmodule VoyagerWeb.NodeInfoLive do
           <button
             type="button"
             phx-click="refresh"
+            phx-throttle="1000"
             id="refresh-now"
             title="Refresh now"
             class="btn btn-sm btn-ghost btn-square"
