@@ -41,7 +41,7 @@ defmodule VoyagerWeb.NodeInfoLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="max-w-[1536px] mx-auto p-6 sm:p-8">
+    <div class="max-w-screen-2xl mx-auto p-6 sm:p-8">
       <header class="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 class="font-mono text-base-content text-2xl font-bold tracking-tight">
