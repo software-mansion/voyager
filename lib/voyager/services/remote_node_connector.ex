@@ -9,22 +9,38 @@ defmodule Voyager.Services.RemoteNodeConnector do
        forwards each accepted TCP connection through the existing SSH session
        to the remote node's distribution port. Equivalent to `ssh -L`, but
        multiplexed onto the same SSH connection (no second handshake).
-  The SSH connection ref is linked to the caller, so killing your IEx shell
-  tears the tunnel down. Call `stop/1` for clean shutdown.
+  The returned SSH conn pid is linked to the caller — when the caller exits
+  the tunnel tears down with it. Call `stop/1` for clean explicit shutdown.
+
   Pair with `Voyager.ProxyEpmd` set at boot via `-epmd_module`:
       iex -pa . --name local@127.0.0.1 --cookie mycookie \\
         --erl "-epmd_module Elixir.Voyager.ProxyEpmd" -S mix
+
   Usage:
       {:ok, node, conn, port} =
         Voyager.Services.RemoteNodeConnector.connect("user", "127.0.0.1", "app", {:password, "secret"})
       Node.list()
       :rpc.call(node, :erlang, :node, [])
       Voyager.Services.RemoteNodeConnector.stop(conn)
+
+  Options for `connect/5`:
+    * `:ssh_port` — defaults to `22`
+    * `:node_host` — hostname the remote node was started with (the `@host` part
+      of its name). Also used as the forwarding target for the SSH tunnel.
+      Defaults to `"127.0.0.1"`. Override when the node runs on an internal host
+      reachable from the SSH server, or was started with `--name app@actual.host`.
+    * `:epmd_prefix` — list of shell tokens prepended to `epmd -names` on the
+      remote (e.g. `["sudo", "-u", "appuser"]`). Treated as trusted input — do
+      not pass user-controlled values.
+
+  Auth modes:
+    * `:agent` — uses the local ssh-agent via `SSH_AUTH_SOCK`
+    * `{:password, pw}` — plain password
+    * `{:key, path, passphrase | nil}` — private key on disk
   """
 
   @proxy_table :proxy_epmd
   @local_bind ~c"127.0.0.1"
-  @remote_dist_host ~c"127.0.0.1"
 
   @type auth ::
           :agent
@@ -35,8 +51,9 @@ defmodule Voyager.Services.RemoteNodeConnector do
           {:ok, node(), pid(), pos_integer()} | {:error, term()}
   def connect(user, host, node_name, auth, opts \\ []) do
     ssh_port = Keyword.get(opts, :ssh_port, 22)
+    node_host = Keyword.get(opts, :node_host, "127.0.0.1")
     node_key = String.to_charlist(node_name)
-    remote_node = String.to_atom("#{node_name}@127.0.0.1")
+    remote_node = String.to_atom("#{node_name}@#{node_host}")
 
     with :ok <- ensure_ssh_started(),
          {:ok, conn} <- ssh_connect(host, ssh_port, user, auth) do
@@ -48,7 +65,7 @@ defmodule Voyager.Services.RemoteNodeConnector do
                conn,
                @local_bind,
                0,
-               @remote_dist_host,
+               String.to_charlist(node_host),
                dist_port,
                5_000
              ),
@@ -60,6 +77,10 @@ defmodule Voyager.Services.RemoteNodeConnector do
           cleanup(conn, node_key)
           {:error, :node_connect_failed}
 
+        :ignored ->
+          cleanup(conn, node_key)
+          {:error, :not_distributed}
+
         {:error, _} = err ->
           cleanup(conn, node_key)
           err
@@ -70,6 +91,15 @@ defmodule Voyager.Services.RemoteNodeConnector do
   @spec stop(pid()) :: :ok
   def stop(conn) when is_pid(conn) do
     :ssh.close(conn)
+  end
+
+  @doc false
+  @spec parse_port(binary(), String.t()) :: {:ok, pos_integer()} | {:error, term()}
+  def parse_port(output, node_name) when is_binary(output) do
+    case Regex.run(~r/^name #{Regex.escape(node_name)} at port (\d+)$/m, output) do
+      [_, port] -> {:ok, String.to_integer(port)}
+      _ -> {:error, {:node_not_found, node_name, output}}
+    end
   end
 
   defp cleanup(conn, node_key) do
@@ -115,16 +145,20 @@ defmodule Voyager.Services.RemoteNodeConnector do
     ]
   end
 
-  defp discover_dist_port(conn, node_name, opts) do
-    prefix = opts |> Keyword.get(:remote_prefix, []) |> Enum.join(" ")
+  @doc false
+  @spec discover_dist_port(pid(), String.t(), keyword()) ::
+          {:ok, pos_integer()} | {:error, term()}
+  def discover_dist_port(conn, node_name, opts \\ []) do
+    prefix = opts |> Keyword.get(:epmd_prefix, []) |> Enum.join(" ")
     cmd = if prefix == "", do: "epmd -names\n", else: "#{prefix} epmd -names\n"
 
     with {:ok, ch} <- :ssh_connection.session_channel(conn, 5_000),
-         :success <- :ssh_connection.exec(conn, ch, String.to_charlist(cmd), 5_000) do
-      output = collect_exec_output(conn, ch, [])
+         :success <- :ssh_connection.exec(conn, ch, String.to_charlist(cmd), 5_000),
+         {:ok, output} <- collect_exec_output(conn, ch, []) do
       parse_port(output, node_name)
     else
       :failure -> {:error, :exec_failure}
+      :timeout -> {:error, :exec_timeout}
       {:error, _} = err -> err
     end
   end
@@ -144,16 +178,9 @@ defmodule Voyager.Services.RemoteNodeConnector do
         collect_exec_output(conn, ch, acc)
 
       {:ssh_cm, ^conn, {:closed, ^ch}} ->
-        IO.iodata_to_binary(Enum.reverse(acc))
+        {:ok, IO.iodata_to_binary(Enum.reverse(acc))}
     after
-      5_000 -> ""
-    end
-  end
-
-  defp parse_port(output, node_name) when is_binary(output) do
-    case Regex.run(~r/^name #{Regex.escape(node_name)} at port (\d+)$/m, output) do
-      [_, port] -> {:ok, String.to_integer(port)}
-      _ -> {:error, {:node_not_found, node_name, output}}
+      5_000 -> :timeout
     end
   end
 
