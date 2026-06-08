@@ -39,7 +39,6 @@ defmodule Voyager.Services.RemoteNodeConnector do
     remote_node = String.to_atom("#{node_name}@127.0.0.1")
 
     with :ok <- ensure_ssh_started(),
-         :ok <- ensure_proxy_table(),
          {:ok, conn} <- ssh_connect(host, ssh_port, user, auth) do
       Process.link(conn)
 
@@ -158,17 +157,6 @@ defmodule Voyager.Services.RemoteNodeConnector do
     end
   end
 
-  defp ensure_proxy_table do
-    case :ets.whereis(@proxy_table) do
-      :undefined ->
-        :ets.new(@proxy_table, [:set, :public, :named_table])
-        :ok
-
-      _ ->
-        :ok
-    end
-  end
-
   defp register_proxy(node_key, local_port, conn) do
     :ets.insert(@proxy_table, {
       node_key,
@@ -179,13 +167,7 @@ defmodule Voyager.Services.RemoteNodeConnector do
   end
 
   defp cleanup_proxy(node_key) do
-    case :ets.whereis(@proxy_table) do
-      :undefined ->
-        :ok
-
-      _ ->
-        :ets.delete(@proxy_table, node_key)
-        :ok
-    end
+    :ets.delete(@proxy_table, node_key)
+    :ok
   end
 end
