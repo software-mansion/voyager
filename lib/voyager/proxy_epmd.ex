@@ -1,19 +1,33 @@
 defmodule Voyager.ProxyEpmd do
   @moduledoc """
-   Custom `-epmd_module` used by the local BEAM to resolve remote nodes through
-   SSH tunnels set up by `NewNode`.
-   `port_please/2,3` and `address_please/3` first look up the node in the
-   `:proxy_epmd` ETS table (populated by `NewNode.connect/4`). If the node is
-   registered, the locally-forwarded port and loopback address are returned so
-   the distribution layer connects through the tunnel. Otherwise the call falls
-   through to `:erl_epmd`.
-   ETS schema:
-       {node_name_charlist, %{port: pos_integer, address: :inet.ip_address, tunnel: port()}}
-   How to use
-   mix compile
-   iex  \
-     --erl "-epmd_module Elixir.Voyager.ProxyEpmd -pa _build/dev/lib/voyager/ebin" \
-     -S mix
+  Custom `-epmd_module` used by the local BEAM to resolve remote nodes through
+  SSH tunnels set up by `Voyager.Services.RemoteNodeConnector`.
+
+  `port_please/2,3` and `address_please/3` first look up the node in the
+  `:proxy_epmd` ETS table (populated by `RemoteNodeConnector.connect/5`). If
+  the node is registered, the locally-forwarded port and loopback address are
+  returned so the distribution layer connects through the tunnel. Otherwise the
+  call falls through to `:erl_epmd`.
+
+  ETS schema:
+
+      {node_name_charlist, %{port: pos_integer(), address: :inet.ip_address(), tunnel: pid()}}
+
+  ## Setup
+
+  The recommended way is via `mise.toml` — `ELIXIR_ERL_OPTIONS` is injected
+  automatically and plain `iex -S mix phx.server` works:
+
+      # mise.toml (already in the project root)
+      [env]
+      ELIXIR_ERL_OPTIONS = "-epmd_module Elixir.Voyager.ProxyEpmd -pa {{config_root}}/_build/dev/lib/voyager/ebin"
+
+  Without mise, compile first and pass the flags manually:
+
+      mix compile
+      iex --erl "-epmd_module Elixir.Voyager.ProxyEpmd -pa _build/dev/lib/voyager/ebin" -S mix phx.server
+
+  Or use `./dev/server.sh` which does the same thing.
   """
 
   @table :proxy_epmd

@@ -1,7 +1,9 @@
 defmodule Voyager.Services.RemoteNodeConnector do
   @moduledoc """
   Erlang `:ssh`-based remote distribution tunnel — no subprocess, no shell.
+
   Two phases:
+
     1. **Discover** — `:ssh.connect/4` opens a connection. An exec channel runs
        `epmd -names` on the remote box and the distribution port is parsed
        from the output.
@@ -9,34 +11,41 @@ defmodule Voyager.Services.RemoteNodeConnector do
        forwards each accepted TCP connection through the existing SSH session
        to the remote node's distribution port. Equivalent to `ssh -L`, but
        multiplexed onto the same SSH connection (no second handshake).
+
   The returned SSH conn pid is linked to the caller — when the caller exits
   the tunnel tears down with it. Call `stop/1` for clean explicit shutdown.
 
-  Pair with `Voyager.ProxyEpmd` set at boot via `-epmd_module`:
-      iex -pa . --name local@127.0.0.1 --cookie mycookie \\
-        --erl "-epmd_module Elixir.Voyager.ProxyEpmd" -S mix
+  Requires `Voyager.ProxyEpmd` to be active as the BEAM's `-epmd_module` so
+  the distribution layer routes through the local tunnel port. See
+  `Voyager.ProxyEpmd` for setup instructions.
 
-  Usage:
-      {:ok, node, conn, port} =
-        Voyager.Services.RemoteNodeConnector.connect("user", "127.0.0.1", "app", {:password, "secret"})
+  ## Usage
+
+      {:ok, node, conn, _port} =
+        Voyager.Services.RemoteNodeConnector.connect("user", "remote.host", "myapp", :agent)
+
       Node.list()
       :rpc.call(node, :erlang, :node, [])
       Voyager.Services.RemoteNodeConnector.stop(conn)
 
-  Options for `connect/5`:
-    * `:ssh_port` — defaults to `22`
-    * `:node_host` — hostname the remote node was started with (the `@host` part
-      of its name). Also used as the forwarding target for the SSH tunnel.
-      Defaults to `"127.0.0.1"`. Override when the node runs on an internal host
-      reachable from the SSH server, or was started with `--name app@actual.host`.
-    * `:epmd_prefix` — list of shell tokens prepended to `epmd -names` on the
-      remote (e.g. `["sudo", "-u", "appuser"]`). Treated as trusted input — do
-      not pass user-controlled values.
+  ## Options
 
-  Auth modes:
-    * `:agent` — uses the local ssh-agent via `SSH_AUTH_SOCK`
-    * `{:password, pw}` — plain password
-    * `{:key, path, passphrase | nil}` — private key on disk
+    * `:ssh_port` — SSH port on the remote host. Defaults to `22`.
+    * `:node_host` — hostname the remote node was started with (the `@host` part
+      of its name). Also used as the tunnel's forwarding target on the SSH
+      server's side. Defaults to `"127.0.0.1"`. Override when the node was
+      started with `--name app@actual.host` or runs on a different internal host
+      reachable from the SSH server.
+    * `:epmd_prefix` — list of shell tokens prepended to `epmd -names` on the
+      remote (e.g. `["sudo", "-u", "app"]` or `["PATH=/usr/lib/erlang/bin:$PATH"]`).
+      Treated as trusted input — do not pass user-controlled values.
+
+  ## Auth
+
+    * `:agent` — delegates to the local ssh-agent (`SSH_AUTH_SOCK` must be set)
+    * `{:password, pw}` — password authentication
+    * `{:key, path, passphrase | nil}` — private key file; `path` is the key
+      file, its parent directory is used as the OTP ssh `user_dir`
   """
 
   @proxy_table :proxy_epmd
