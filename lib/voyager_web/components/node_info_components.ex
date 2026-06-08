@@ -49,10 +49,10 @@ defmodule VoyagerWeb.NodeInfoComponents do
           <%= for row <- @rows do %>
             <% {label, value, full_width?} = info_row(row) %>
             <div class={full_width? && "col-span-2 min-w-0"}>
-              <div class="font-mono text-xs tracking-[0.08em] text-base-content/50 mb-0.5 font-semibold uppercase">
+              <div class="font-mono tracking-[0.08em] text-base-content/50 mb-0.5 text-xs font-semibold uppercase">
                 {label}
               </div>
-              <div class={["font-mono text-sm text-base-content", full_width? && "truncate"]}>
+              <div class={["font-mono text-base-content text-sm", full_width? && "truncate"]}>
                 {value}
               </div>
             </div>
@@ -89,10 +89,10 @@ defmodule VoyagerWeb.NodeInfoComponents do
         <div class="grid flex-1 auto-cols-fr grid-flow-col gap-3">
           <%= for {label, value} <- @metrics do %>
             <div class="bg-base-200/60 border-base-200 flex flex-1 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-3">
-              <span class="font-mono text-xl text-base-content font-medium leading-none tracking-tight">
+              <span class="font-mono text-base-content text-xl font-medium leading-none tracking-tight">
                 {value}
               </span>
-              <span class="font-mono text-xs tracking-[0.08em] text-base-content/50 font-semibold uppercase">
+              <span class="font-mono tracking-[0.08em] text-base-content/50 text-xs font-semibold uppercase">
                 {label}
               </span>
             </div>
@@ -122,11 +122,11 @@ defmodule VoyagerWeb.NodeInfoComponents do
     <div class="card bg-base-100 border-base-200 flex flex-col gap-1.5 border p-5 shadow-sm">
       <h3 class="text-base-content text-sm font-semibold">{@label}</h3>
       <div class="mt-1">
-        <span class="font-mono text-2xl text-base-content font-medium leading-none tracking-tight">
+        <span class="font-mono text-base-content text-2xl font-medium leading-none tracking-tight">
           {@value}
         </span>
       </div>
-      <div :if={@sub != []} class="font-mono text-xs text-base-content/50">
+      <div :if={@sub != []} class="font-mono text-base-content/50 text-xs">
         {render_slot(@sub)}
       </div>
     </div>
@@ -199,7 +199,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
 
         <div class="divide-base-200 flex flex-col divide-y">
           <%= for {label, usage} <- limit_rows(@limits) do %>
-            <div class="font-mono grid grid-cols-[1fr_auto_1fr_auto] items-center gap-3 py-2 text-xs first:pt-0 last:pb-0">
+            <div class="font-mono grid-cols-[1fr_auto_1fr_auto] grid items-center gap-3 py-2 text-xs first:pt-0 last:pb-0">
               <span class="text-base-content/70">{label}</span>
               <span class="text-base-content w-16 text-right tabular-nums">
                 {Formatters.format_integer(usage.used)}

@@ -30,7 +30,7 @@ defmodule VoyagerWeb.NodeInfoLive do
 
     socket =
       if connected?(socket) do
-        socket |> fetch_snapshot() |> schedule_refresh()
+        fetch_snapshot(socket)
       else
         socket
       end
@@ -41,7 +41,7 @@ defmodule VoyagerWeb.NodeInfoLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="max-w-screen-2xl mx-auto p-6 sm:p-8">
+    <div class="mx-auto max-w-screen-2xl p-6 sm:p-8">
       <header class="mb-8 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 class="font-mono text-base-content text-2xl font-bold tracking-tight">
@@ -164,7 +164,7 @@ defmodule VoyagerWeb.NodeInfoLive do
 
   @impl true
   def handle_event("refresh", _params, socket) do
-    socket |> fetch_snapshot() |> schedule_refresh() |> noreply()
+    socket |> fetch_snapshot() |> noreply()
   end
 
   def handle_event("set_interval", %{"interval" => value}, socket) do
@@ -176,7 +176,7 @@ defmodule VoyagerWeb.NodeInfoLive do
 
   @impl true
   def handle_info(:refresh, socket) do
-    socket |> fetch_snapshot() |> schedule_refresh() |> noreply()
+    socket |> fetch_snapshot() |> noreply()
   end
 
   @impl true
@@ -184,18 +184,25 @@ defmodule VoyagerWeb.NodeInfoLive do
     socket
     |> assign(:snapshot, AsyncResult.ok(socket.assigns.snapshot, snapshot))
     |> assign(:last_updated, DateTime.utc_now())
+    |> schedule_refresh()
     |> noreply()
   end
 
   def handle_async(:snapshot, {:ok, {:error, reason}}, socket) do
     socket
     |> assign(:snapshot, AsyncResult.failed(socket.assigns.snapshot, reason))
+    |> schedule_refresh()
     |> noreply()
+  end
+
+  def handle_async(:snapshot, {:exit, {:shutdown, :cancel}}, socket) do
+    noreply(socket)
   end
 
   def handle_async(:snapshot, {:exit, reason}, socket) do
     socket
     |> assign(:snapshot, AsyncResult.failed(socket.assigns.snapshot, {:rpc, reason}))
+    |> schedule_refresh()
     |> noreply()
   end
 
@@ -203,8 +210,11 @@ defmodule VoyagerWeb.NodeInfoLive do
     node = socket.assigns.session.node
 
     socket
+    |> cancel_async(:snapshot, {:shutdown, :cancel})
     |> assign(:snapshot, AsyncResult.loading(socket.assigns.snapshot))
-    |> start_async(:snapshot, fn -> NodeInfo.fetch(node) end)
+    |> start_async(:snapshot, fn ->
+      NodeInfo.fetch(node)
+    end)
   end
 
   defp schedule_refresh(socket) do
@@ -212,8 +222,14 @@ defmodule VoyagerWeb.NodeInfoLive do
 
     ref =
       case socket.assigns.refresh_interval do
-        nil -> nil
-        ms -> Process.send_after(self(), :refresh, ms)
+        nil ->
+          nil
+
+        ms when socket.assigns.snapshot.loading != true ->
+          Process.send_after(self(), :refresh, ms)
+
+        _ms ->
+          nil
       end
 
     assign(socket, :timer_ref, ref)
