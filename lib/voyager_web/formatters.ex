@@ -62,7 +62,7 @@ defmodule VoyagerWeb.Formatters do
       iex> VoyagerWeb.Formatters.count_parts(1_234)
       {"1,234", nil}
   """
-  @spec count_parts(non_neg_integer()) :: {number() | String.t(), String.t() | nil}
+  @spec count_parts(non_neg_integer()) :: {number(), String.t()} | {String.t(), nil}
   def count_parts(n) when n >= 1_000_000_000, do: {Float.round(n / 1_000_000_000, 1), "B"}
   def count_parts(n) when n >= 10_000_000, do: {Float.round(n / 1_000_000, 1), "M"}
   def count_parts(n), do: {format_integer(n), nil}
@@ -123,15 +123,12 @@ defmodule VoyagerWeb.Formatters do
   def format_uptime(ms) when is_integer(ms) do
     {years, days, hours, minutes, seconds} = duration_parts(ms)
 
-    {value, unit} =
-      cond do
-        years > 0 -> {years, "yr #{days}d"}
-        days > 0 -> {days, "d #{hours}h"}
-        hours > 0 -> {hours, "h #{minutes}m"}
-        minutes > 0 -> {minutes, "m"}
-        true -> {seconds, "s"}
-      end
-
-    "#{value}#{unit}"
+    cond do
+      years > 0 -> "#{years}yr #{days}d"
+      days > 0 -> "#{days}d #{hours}h"
+      hours > 0 -> "#{hours}h #{minutes}m"
+      minutes > 0 -> "#{minutes}m"
+      true -> "#{seconds}s"
+    end
   end
 end
