@@ -339,13 +339,15 @@ const SupervisionTree = {
       if (this.isCollapsed(node)) {
         node.data('is_collapsed', false);
         node.successors().forEach((ele) => {
-          ele.data('hidden_count', ele.data('hidden_count') - 1 || 0);
+          const hidden_count = ele.data('hidden_count') ?? 0;
+          ele.data('hidden_count', Math.max(hidden_count - 1, 0));
         });
         node.successors('[hidden_count = 0]').removeClass('hidden');
       } else {
         node.data('is_collapsed', true);
         node.successors().forEach((ele) => {
-          ele.data('hidden_count', ele.data('hidden_count') + 1 || 1);
+          const hidden_count = ele.data('hidden_count') ?? 0;
+          ele.data('hidden_count', hidden_count + 1);
         });
         node.successors().addClass('hidden');
       }

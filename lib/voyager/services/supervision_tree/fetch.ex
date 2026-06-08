@@ -13,7 +13,7 @@ defmodule Voyager.Services.SupervisionTree.Fetch do
           expanded: MapSet.t(pid())
         }
 
-  @type state :: %{ref: Task.ref(), task: Task.t(), request: request()}
+  @type state :: %{task: Task.t(), request: request()}
 
   @doc """
   Starts an async fetch that delivers a mock supervision tree.
@@ -27,7 +27,7 @@ defmodule Voyager.Services.SupervisionTree.Fetch do
         build_mock_result(request)
       end)
 
-    %{ref: task.ref, task: task, request: request}
+    %{task: task, request: request}
   end
 
   @doc """
