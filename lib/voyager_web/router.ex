@@ -34,7 +34,7 @@ defmodule VoyagerWeb.Router do
 
     scope "/dev" do
       pipe_through :browser
-      live_dashboard "/dashboard", metrics: VoyagerWeb.Telemetry
+      live_dashboard "/dashboard", metrics: Voyager.Telemetry.Metrics
     end
   end
 end

@@ -6,7 +6,7 @@ defmodule Voyager.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      VoyagerWeb.Telemetry,
+      Voyager.Telemetry,
       Voyager.Vault,
       Voyager.Repo,
       {Ecto.Migrator,

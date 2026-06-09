@@ -4,9 +4,10 @@ if System.get_env("PHX_SERVER") do
   config :voyager, VoyagerWeb.Endpoint, server: true
 end
 
+port = String.to_integer(System.get_env("PORT", "4000"))
+
 if config_env() != :e2e do
-  config :voyager, VoyagerWeb.Endpoint,
-    http: [port: String.to_integer(System.get_env("PORT", "4000"))]
+  config :voyager, VoyagerWeb.Endpoint, http: [port: port]
 end
 
 if config_env() not in [:test, :e2e] do
@@ -35,10 +36,10 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  host = System.get_env("PHX_HOST") || "example.com"
+  host = System.get_env("PHX_HOST", "localhost")
 
   config :voyager, VoyagerWeb.Endpoint,
-    url: [host: host, port: 443, scheme: "https"],
+    url: [host: host, port: port, scheme: "http"],
     http: [ip: {0, 0, 0, 0, 0, 0, 0, 0}],
     secret_key_base: secret_key_base
 end
