@@ -81,7 +81,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Diff do
     entry = %{
       key: app_key,
       parent_key: nil,
-      name: app,
+      name: app_node.name,
       type: :app,
       has_children?: app_node.has_children?,
       child_count: Map.get(app_node, :child_count, 0),
