@@ -59,7 +59,7 @@ defmodule Voyager.Services.SupervisionTree.FetchTest do
         })
 
       # Wait for the task to finish so it is no longer a supervisor child.
-      assert_receive {ref, {_status, _tree, _errors}}, 2_000
+      assert_receive {ref, {_status, _result, _errors}}, 2_000
       assert ref == state.task.ref
 
       # Cancelling a finished task must not raise.
