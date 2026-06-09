@@ -246,6 +246,38 @@ defmodule VoyagerWeb.CoreComponents do
     """
   end
 
+  @doc """
+  Renders a centered loading spinner with a message.
+  """
+  attr :id, :string, required: true
+  attr :message, :string, required: true
+  attr :rest, :global
+
+  def loading_state(assigns) do
+    ~H"""
+    <div class="flex items-center justify-center gap-3 py-24" id={@id} {@rest}>
+      <span class="loading loading-spinner loading-md text-primary"></span>
+      <span class="font-mono text-base-content/50 text-sm">{@message}</span>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders an inline error alert.
+  """
+  attr :id, :string, required: true
+  attr :message, :string, required: true
+  attr :rest, :global
+
+  def error_state(assigns) do
+    ~H"""
+    <div class="alert alert-error mb-8" id={@id} role="alert" {@rest}>
+      <.icon name="icon-circle-alert" class="size-5" />
+      <span>{@message}</span>
+    </div>
+    """
+  end
+
   ## JS Commands
 
   def show(js \\ %JS{}, selector) do
