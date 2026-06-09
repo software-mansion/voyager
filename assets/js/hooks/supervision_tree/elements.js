@@ -48,6 +48,9 @@ export function relEdgeElement(edge) {
   };
 }
 
+// The label is the process's registered name, or its pid when unregistered —
+// the server resolves this into `name`. Nodes with children also show their
+// direct child count as `(N)`.
 export function composeLabel(d) {
   const name = formatName(d.name);
   if (d.type === 'worker' || d.child_count === 0) {

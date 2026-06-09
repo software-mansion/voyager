@@ -41,7 +41,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
 
       %{
         pid: pid() | nil,
-        name: atom() | String.t(),
+        name: atom() | pid() | term(),
         type: :app | :supervisor | :worker | :port | :reference,
         modules: [module()] | :dynamic,
         info: map() | :dead | nil,
@@ -49,6 +49,11 @@ defmodule Voyager.Services.SupervisionTree.Walker do
         child_count: non_neg_integer(),
         children: [tree_node()] | :not_loaded
       }
+
+  `name` is the process's display label: its `:registered_name` when
+  registered, otherwise its pid.  Ghost children (`pid: nil`) keep their
+  supervisor child-spec id, since they have neither a registered name nor a
+  live pid.
 
   `child_count` is the *direct* child count on the remote, sourced from
   `:supervisor.count_children/1` for stub supervisors and `length(children)`
@@ -90,7 +95,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
 
   @type tree_node :: %{
           pid: pid() | nil,
-          name: atom() | String.t(),
+          name: atom() | pid() | term(),
           type: :app | :supervisor | :worker | :port | :reference,
           modules: [module()] | :dynamic,
           info: map() | :dead | nil,
@@ -467,16 +472,26 @@ defmodule Voyager.Services.SupervisionTree.Walker do
     [pid | child_pids]
   end
 
+  # Ghost nodes (pid: nil) have no live process; they keep their child-spec id
+  # as their label.
   defp merge_info(%{pid: nil} = node, _info_map), do: node
 
   defp merge_info(%{pid: pid, children: :not_loaded} = node, info_map) do
-    %{node | info: Map.get(info_map, pid)}
+    info = Map.get(info_map, pid)
+    %{node | info: info, name: pid_label(pid, info)}
   end
 
   defp merge_info(%{pid: pid, children: children} = node, info_map) when is_list(children) do
+    info = Map.get(info_map, pid)
     hydrated_children = Enum.map(children, &merge_info(&1, info_map))
-    %{node | info: Map.get(info_map, pid), children: hydrated_children}
+    %{node | info: info, name: pid_label(pid, info), children: hydrated_children}
   end
+
+  # A process's display label is its `:registered_name` when registered,
+  # otherwise its pid. `:erlang.process_info/2` reports `[]` for an
+  # unregistered process, which is not an atom and so falls through to the pid.
+  defp pid_label(_pid, %{registered_name: name}) when is_atom(name), do: name
+  defp pid_label(pid, _info), do: pid
 
   # ---------------------------------------------------------------------------
   # Private — relationship discovery
@@ -604,7 +619,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
 
   defp build_rel_node(pid, info_map) when is_pid(pid) do
     info = Map.get(info_map, pid)
-    %{id: pid, name: rel_pid_name(pid, info), type: :worker, info: info}
+    %{id: pid, name: pid_label(pid, info), type: :worker, info: info}
   end
 
   defp build_rel_node(port, _info_map) when is_port(port) do
@@ -614,7 +629,4 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   defp build_rel_node(ref, _info_map) when is_reference(ref) do
     %{id: ref, name: ref, type: :reference, info: nil}
   end
-
-  defp rel_pid_name(_pid, %{registered_name: name}) when is_atom(name), do: name
-  defp rel_pid_name(pid, _info), do: pid
 end

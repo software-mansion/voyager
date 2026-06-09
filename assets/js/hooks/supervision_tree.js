@@ -19,11 +19,6 @@ import {
 
 cytoscape.use(dagre);
 
-// Relationship edge colors (mirrors ObserverWeb).
-const LINK_COLOR = '#CCCCCC';
-const MONITOR_COLOR = '#D1A1E5';
-const MONITORED_BY_COLOR = '#4DB8FF';
-
 const SupervisionTree = {
   mounted() {
     this.container = this.el.querySelector('[data-cy-container]');
@@ -186,7 +181,7 @@ const SupervisionTree = {
           if (TOPOLOGY_FIELDS.has(field)) topologyChanged = true;
         }
 
-        // Rebuild displayLabel if name or child_count moved.
+        // Rebuild displayLabel if the name or child count moved.
         if (patch.name !== undefined || patch.child_count !== undefined) {
           node.data('displayLabel', composeLabel(node.data()));
         }
