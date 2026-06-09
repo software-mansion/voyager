@@ -131,16 +131,11 @@ const SupervisionTree = {
     const added = payload.added || {};
     const updated = payload.updated || {};
 
-    // Detect restart pairs (same parent_key + name, one removed and one added)
-    // so we can fade them rather than instant-swap.
-    const restartPairs = this.detectRestarts(removed, added);
-
     let topologyChanged = false;
 
     this.cy.batch(() => {
       // Removals
       for (const key of removed) {
-        if (restartPairs.removedToPair.has(key)) continue; // handle below
         const el = this.cy.getElementById(key);
         if (el.nonempty()) {
           el.connectedEdges().remove();
@@ -152,7 +147,6 @@ const SupervisionTree = {
 
       // Additions
       for (const [key, node] of Object.entries(added)) {
-        if (restartPairs.addedToPair.has(key)) continue;
         this.cy.add(elementsFor(key, node));
         topologyChanged = true;
       }
@@ -190,81 +184,11 @@ const SupervisionTree = {
           node.data('dead', patch.info === 'dead');
         }
       }
-
-      // Restart pairs: fade-out old, fade-in new.
-      for (const [removedKey, addedKey] of restartPairs.pairs) {
-        this.applyRestartPair(removedKey, addedKey, added[addedKey]);
-        topologyChanged = true;
-      }
     });
 
     if (topologyChanged) {
       this.scheduleLayout();
     }
-  },
-
-  // ---------------------------------------------------------------------------
-  // Restart detection / fade
-  // ---------------------------------------------------------------------------
-
-  detectRestarts(removed, added) {
-    // Group existing-soon-to-be-removed nodes by parent_key + name
-    const removedByPair = new Map();
-    for (const key of removed) {
-      const el = this.cy.getElementById(key);
-      if (el.empty()) continue;
-      const d = el.data();
-      const pairKey = pairSignature(d.parent_key, d.name);
-      if (!removedByPair.has(pairKey)) removedByPair.set(pairKey, []);
-      removedByPair.get(pairKey).push(key);
-    }
-
-    const pairs = [];
-    const removedToPair = new Set();
-    const addedToPair = new Set();
-
-    for (const [addedKey, node] of Object.entries(added)) {
-      const pairKey = pairSignature(node.parent_key, node.name);
-      const candidates = removedByPair.get(pairKey);
-      if (candidates && candidates.length > 0) {
-        const removedKey = candidates.shift();
-        pairs.push([removedKey, addedKey]);
-        removedToPair.add(removedKey);
-        addedToPair.add(addedKey);
-      }
-    }
-
-    return { pairs, removedToPair, addedToPair };
-  },
-
-  applyRestartPair(removedKey, addedKey, addedNode) {
-    // Add the new node already (invisible), then fade out the old, then remove old + fade in new.
-    const newEls = elementsFor(addedKey, addedNode);
-    this.cy.add(newEls);
-    const newNode = this.cy.getElementById(addedKey);
-    newNode.addClass('entering');
-
-    const oldNode = this.cy.getElementById(removedKey);
-    if (oldNode.nonempty()) oldNode.addClass('leaving');
-
-    if (this.fadeTimers.has(removedKey)) {
-      clearTimeout(this.fadeTimers.get(removedKey));
-    }
-
-    const t = setTimeout(() => {
-      this.fadeTimers.delete(removedKey);
-      this.cy.batch(() => {
-        const o = this.cy.getElementById(removedKey);
-        if (o.nonempty()) {
-          o.connectedEdges().remove();
-          o.remove();
-          this.tearDownOverlay(removedKey);
-        }
-        newNode.removeClass('entering');
-      });
-    }, FADE_MS);
-
-    this.fadeTimers.set(removedKey, t);
   },
 
   // ---------------------------------------------------------------------------

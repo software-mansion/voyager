@@ -53,10 +53,6 @@ export function edgeId(parentKey, childKey) {
   return `e:${parentKey}->${childKey}`;
 }
 
-export function pairSignature(parentKey, name) {
-  return `${parentKey ?? ''}|${formatName(name)}`;
-}
-
 export function isRealPid(key) {
   return typeof key === 'string' && key.startsWith('<') && key.endsWith('>');
 }
