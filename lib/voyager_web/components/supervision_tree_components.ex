@@ -5,6 +5,8 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
 
   use VoyagerWeb, :component
 
+  alias VoyagerWeb.FormSchemas.SupervisionTreeControls
+
   attr :node_name, :string, required: true
   attr :status, :atom, required: true
 
@@ -63,7 +65,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                 <.input
                   field={@form[:depth]}
                   type="number"
-                  min="1"
+                  min={SupervisionTreeControls.min_depth()}
                   class="input-sm w-16 text-center"
                   phx-debounce="250"
                 />

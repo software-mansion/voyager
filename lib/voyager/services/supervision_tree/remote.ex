@@ -36,14 +36,21 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   end
 
   @doc """
-  Returns the root supervisor PID for `app` on `node`.
+  Returns the application master PID and the application's root supervisor PID
+  for `app` on `node`, as `{:ok, master_pid, root_supervisor_pid}`.
+
+  The application master is the `:application_master` process returned by
+  `:application_controller.get_master/1`; the root supervisor is the child it
+  reports via `:application_master.get_child/1`.
 
   Returns `{:error, :not_running}` if the app is not started.
   """
-  @spec root_supervisor(node(), atom()) :: {:ok, pid()} | {:error, :not_running | term()}
-  def root_supervisor(node, app) do
-    with {:ok, master_pid} <- get_master(node, app) do
-      get_child(node, master_pid)
+  @spec app_root_chain(node(), atom()) ::
+          {:ok, pid(), pid()} | {:error, :not_running | term()}
+  def app_root_chain(node, app) do
+    with {:ok, master_pid} <- get_master(node, app),
+         {:ok, root_pid} <- get_child(node, master_pid) do
+      {:ok, master_pid, root_pid}
     end
   end
 

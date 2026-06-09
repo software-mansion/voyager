@@ -29,25 +29,9 @@ defmodule Voyager.Services.SupervisionTree.RemoteTest do
     end
   end
 
-  describe "root_supervisor/2" do
-    test "returns {:ok, pid} matching the registered root supervisor", %{node: node} do
-      assert {:ok, root_pid} = Remote.root_supervisor(node, :voyager_fixture)
-      assert is_pid(root_pid)
-
-      expected_pid =
-        :erpc.call(node, Process, :whereis, [Voyager.Test.FixtureApp.RootSupervisor])
-
-      assert root_pid == expected_pid
-    end
-
-    test "returns {:error, :not_running} for an unknown app", %{node: node} do
-      assert {:error, :not_running} = Remote.root_supervisor(node, :nonexistent_app)
-    end
-  end
-
   describe "which_children/2" do
     test "root supervisor has 2 mid-supervisor children", %{node: node} do
-      {:ok, root_pid} = Remote.root_supervisor(node, :voyager_fixture)
+      {:ok, _, root_pid} = Remote.app_root_chain(node, :voyager_fixture)
       assert {:ok, children} = Remote.which_children(node, root_pid)
       assert length(children) == 2
 
@@ -60,7 +44,7 @@ defmodule Voyager.Services.SupervisionTree.RemoteTest do
 
   describe "process_info_batch/2" do
     test "returns map with memory and status for mid-supervisor pids", %{node: node} do
-      {:ok, root_pid} = Remote.root_supervisor(node, :voyager_fixture)
+      {:ok, _, root_pid} = Remote.app_root_chain(node, :voyager_fixture)
       {:ok, children} = Remote.which_children(node, root_pid)
       mid_pids = Enum.map(children, fn {_id, pid, _type, _mods} -> pid end)
 
@@ -100,7 +84,7 @@ defmodule Voyager.Services.SupervisionTree.RemoteTest do
 
   describe "ancestors/2" do
     test "returns the root supervisor's recorded ancestors", %{node: node} do
-      {:ok, root_pid} = Remote.root_supervisor(node, :voyager_fixture)
+      {:ok, _, root_pid} = Remote.app_root_chain(node, :voyager_fixture)
 
       assert {:ok, ancestors} = Remote.ancestors(node, root_pid)
       assert is_list(ancestors)

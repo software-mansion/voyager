@@ -15,10 +15,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
 
     * supervisors contribute only their *linked ports*;
     * workers contribute their `:links` (minus the supervision parent),
-      `:monitored_by`, and `:monitors`;
-    * the application root supervisor's parent is recovered from its
-      `$ancestors` (the application master), and the `:app` node is keyed by
-      that ancestor.
+      `:monitored_by`, and `:monitors`.
 
   Relationship targets that are not part of the supervision tree (external
   processes, ports, references) are returned as standalone leaf nodes in
@@ -142,27 +139,25 @@ defmodule Voyager.Services.SupervisionTree.Walker do
 
     {tree_map, all_errors} =
       Enum.reduce(apps, {%{}, []}, fn app, {acc_tree, acc_errors} ->
-        case Remote.root_supervisor(node, app) do
+        case Remote.app_root_chain(node, app) do
           {:error, reason} ->
             error = {:root_supervisor, app, reason}
             {acc_tree, [error | acc_errors]}
 
-          {:ok, root_pid} ->
-            app_pid = ancestor_pid(node, root_pid)
-
+          {:ok, master_pid, root_pid} ->
             {root_node, node_errors} =
-              walk_node(node, root_pid, app, :supervisor, [], depth - 1, expanded, deadline)
+              walk_node(
+                node,
+                root_pid,
+                root_pid,
+                :supervisor,
+                [],
+                depth - 2,
+                expanded,
+                deadline
+              )
 
-            app_node = %{
-              pid: app_pid,
-              name: app,
-              type: :app,
-              modules: [],
-              info: nil,
-              has_children?: true,
-              child_count: 1,
-              children: [root_node]
-            }
+            app_node = app_chain(node, master_pid, root_pid, root_node)
 
             {Map.put(acc_tree, app, app_node), node_errors ++ acc_errors}
         end
@@ -421,13 +416,55 @@ defmodule Voyager.Services.SupervisionTree.Walker do
     }
   end
 
-  # Recovers the real parent of an app's root supervisor from its `$ancestors`
-  # (typically the application master). Falls back to the root pid itself when
-  # no ancestor is recorded.
-  defp ancestor_pid(node, root_pid) do
-    case Remote.ancestors(node, root_pid) do
+  # Builds the application root chain `application_master -> p -> root_supervisor`,
+  # where `p` is the root supervisor's recorded `$ancestor`.
+  defp app_chain(node, master_pid, root_pid, root_node) do
+    p_pid = ancestor_pid(node, root_pid)
+
+    children =
+      if p_pid == root_pid or p_pid == master_pid do
+        [root_node]
+      else
+        [chain_node(p_pid, [root_node])]
+      end
+
+    app_node(master_pid, children)
+  end
+
+  defp app_node(master_pid, children) do
+    %{
+      pid: master_pid,
+      name: master_pid,
+      type: :app,
+      modules: [],
+      info: nil,
+      has_children?: children != [],
+      child_count: length(children),
+      children: children
+    }
+  end
+
+  # An intermediate process node (the application master's child `p`). It is not
+  # a supervisor we walk; its single child is supplied directly. Typed
+  # `:supervisor` so its pid-links (to the master and root supervisor) are
+  # treated as structural rather than emitted as relationship edges.
+  defp chain_node(pid, children) do
+    %{
+      pid: pid,
+      name: pid,
+      type: :supervisor,
+      modules: [],
+      info: nil,
+      has_children?: children != [],
+      child_count: length(children),
+      children: children
+    }
+  end
+
+  defp ancestor_pid(node, default) do
+    case Remote.ancestors(node, default) do
       {:ok, [ancestor | _]} when is_pid(ancestor) -> ancestor
-      _ -> root_pid
+      _ -> default
     end
   end
 
