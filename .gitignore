@@ -25,11 +25,9 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 voyager-*.tar
 
-# Ignore assets that are produced by build tools.
-/priv/static/assets/
-
-# Ignore digested assets cache.
-/priv/static/cache_manifest.json
+# Ignore built assets
+/priv/static/*
+!/priv/static/.gitkeep
 
 # Ignore font assets.
 /priv/static/fonts/*

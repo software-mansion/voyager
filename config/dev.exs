@@ -29,8 +29,6 @@ config :voyager, VoyagerWeb.Endpoint,
 
 config :voyager, dev_routes: true
 
-config :voyager, :telemetry, :logger
-
 config :logger, :default_formatter, format: "[$level] $message\n"
 
 config :phoenix, :stacktrace_depth, 20

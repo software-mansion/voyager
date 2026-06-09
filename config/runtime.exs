@@ -1,5 +1,12 @@
 import Config
 
+telemetry_push_url = System.get_env("TELEMETRY_PUSH_URL")
+config :voyager, telemetry_push_url: telemetry_push_url
+
+if config_env() == :dev do
+  config :voyager, :telemetry, if(telemetry_push_url in [nil, ""], do: :logger, else: :export)
+end
+
 if System.get_env("PHX_SERVER") do
   config :voyager, VoyagerWeb.Endpoint, server: true
 end

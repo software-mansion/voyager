@@ -1,0 +1,32 @@
+[package]
+name = "Voyager"
+version = "0.1.0"
+description = "Voyager is a desktop application which allows you to introspect your Elixir application."
+authors = ["Software Mansion S.A."]
+# Rust Edition 2024
+edition = "2024"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "voyager_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+elixirkit = { path = "../../../deps/elixirkit/elixirkit_rs" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+rand = "0.9"
+
+#  Optimizations applied to the production bundle built by `cargo tauri build`
+[profile.release]
+lto = "thin"
+opt-level = "s"

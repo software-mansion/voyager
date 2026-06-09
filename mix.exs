@@ -10,6 +10,7 @@ defmodule Voyager.MixProject do
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
+      releases: releases(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
       listeners: [Phoenix.CodeReloader],
       dialyzer: [
@@ -35,29 +36,30 @@ defmodule Voyager.MixProject do
 
   defp deps do
     [
-      {:phoenix, "~> 1.8.7"},
-      {:phoenix_ecto, "~> 4.5"},
+      {:bandit, "~> 1.5"},
+      {:cloak, "~> 1.1"},
+      {:cloak_ecto, "~> 1.3"},
       {:ecto_sql, "~> 3.13"},
       {:ecto_sqlite3, ">= 0.0.0"},
+      {:elixirkit, github: "livebook-dev/elixirkit"},
+      {:jason, "~> 1.2"},
+      {:phoenix, "~> 1.8.7"},
+      {:phoenix_ecto, "~> 4.5"},
       {:phoenix_html, "~> 4.1"},
+      {:phoenix_live_dashboard, "~> 0.8.3"},
+      {:phoenix_live_view, "~> 1.1.0"},
       {:req, "~> 0.5"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
-      {:jason, "~> 1.2"},
-      {:bandit, "~> 1.5"},
-      {:phoenix_live_view, "~> 1.1.0"},
-      {:live_debugger, "~> 1.0", only: [:dev]},
-      {:tailwind_formatter, "~> 0.4.2", only: [:dev, :test], runtime: false},
-      {:phoenix_live_reload, "~> 1.2", only: :dev},
-      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:lazy_html, ">= 0.1.0", only: :test},
-      {:mox, "~> 1.2", only: :test},
-      {:phoenix_live_dashboard, "~> 0.8.3"},
-      {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
-      {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:cloak, "~> 1.1"},
-      {:cloak_ecto, "~> 1.3"}
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:mox, "~> 1.2", only: :test},
+      {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
+      {:lazy_html, ">= 0.1.0", only: :test},
+      {:live_debugger, "~> 1.0", only: [:dev]},
+      {:phoenix_live_reload, "~> 1.2", only: :dev},
+      {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
+      {:tailwind_formatter, "~> 0.4.2", only: [:dev, :test], runtime: false}
     ]
   end
 
@@ -73,6 +75,10 @@ defmodule Voyager.MixProject do
         "cmd --cd e2e npm ci",
         "cmd --cd e2e npx playwright install --with-deps"
       ],
+      "tauri.dev": ["cmd rel/app/tauri.sh dev"],
+      "tauri.build": ["cmd rel/app/tauri.sh build"],
+      "tauri.test": ["cmd --cd rel/app/src-tauri cargo test"],
+      "tauri.format": ["cmd --cd rel/app/src-tauri cargo fmt"],
       "assets.setup": [
         "tailwind.install --if-missing",
         "esbuild.install --if-missing",
@@ -99,7 +105,19 @@ defmodule Voyager.MixProject do
         "credo --strict",
         "format",
         "format.e2e",
-        "test"
+        "tauri.format",
+        "test",
+        "tauri.test"
+      ]
+    ]
+  end
+
+  defp releases do
+    [
+      voyager: [
+        rel_templates_path: "rel/app",
+        steps: [:assemble, &ElixirKit.Release.codesign/1],
+        entitlements: "#{__DIR__}/rel/app/src-tauri/App.entitlements"
       ]
     ]
   end
