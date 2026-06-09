@@ -226,8 +226,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
     [
       {"processes", limits.processes},
       {"atoms", limits.atoms},
-      {"ports", limits.ports},
-      {"ets tables", limits.ets}
+      {"ports", limits.ports}
     ]
   end
 

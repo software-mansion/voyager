@@ -62,8 +62,6 @@ defmodule Voyager.Fakes do
     process_limit: 262_144,
     port_count: 12,
     port_limit: 65_536,
-    ets_count: 28,
-    ets_limit: 32_768,
     # Schedulers
     schedulers: 8,
     schedulers_online: 8,
@@ -137,8 +135,6 @@ defmodule Voyager.Fakes do
   defp system_value(:process_limit, d), do: d.process_limit
   defp system_value(:port_count, d), do: d.port_count
   defp system_value(:port_limit, d), do: d.port_limit
-  defp system_value(:ets_count, d), do: d.ets_count
-  defp system_value(:ets_limit, d), do: d.ets_limit
   defp system_value(:schedulers, d), do: d.schedulers
   defp system_value(:schedulers_online, d), do: d.schedulers_online
   defp system_value(:dirty_cpu_schedulers, d), do: d.dirty_cpu_schedulers
