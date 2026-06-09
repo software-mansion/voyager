@@ -1,4 +1,7 @@
 {
+  "engines": {
+    "node": "24.16.0"
+  },
   "name": "e2e",
   "version": "1.0.0",
   "description": "",

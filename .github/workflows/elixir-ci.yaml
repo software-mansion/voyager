@@ -24,9 +24,16 @@ jobs:
     env:
       ELIXIR_VERSION: "1.20"
       OTP_VERSION: "29"
+      NODE_VERSION: "24.16.0"
 
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: "./assets/package-lock.json"
 
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
