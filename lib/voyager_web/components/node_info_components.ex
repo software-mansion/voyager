@@ -190,21 +190,21 @@ defmodule VoyagerWeb.NodeInfoComponents do
 
   def limits_card(assigns) do
     ~H"""
-    <div class="card bg-base-100 border-base-200 border shadow-sm">
-      <div class="card-body gap-4 p-5">
+    <div class="card bg-base-100 border-base-200 flex h-full flex-col border shadow-sm">
+      <div class="card-body flex flex-1 flex-col gap-4 p-5">
         <div class="flex items-baseline justify-between">
           <h3 class="text-base-content text-sm font-semibold">System limits</h3>
           <span class="font-mono text-base-content/50 text-xs">current / max</span>
         </div>
 
-        <div class="divide-base-200 flex flex-col divide-y">
+        <div class="divide-base-200 flex flex-1 flex-col divide-y">
           <%= for {label, usage} <- limit_rows(@limits) do %>
-            <div class="font-mono grid-cols-[1fr_auto_1fr_auto] grid items-center gap-3 py-2 text-xs first:pt-0 last:pb-0">
+            <div class="font-mono grid-cols-[1fr_auto_1fr_auto] grid items-center gap-3 py-3 text-xs">
               <span class="text-base-content/70">{label}</span>
               <span class="text-base-content w-16 text-right tabular-nums">
                 {Formatters.format_integer(usage.used)}
               </span>
-              <div class="bg-base-200 h-1 overflow-hidden rounded-full">
+              <div class="bg-base-200 h-2 overflow-hidden rounded-full">
                 <div
                   class={["h-full rounded-full transition-all", meter_color(usage)]}
                   style={"width: #{meter_pct(usage)}%"}
