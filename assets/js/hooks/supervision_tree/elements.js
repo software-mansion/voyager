@@ -36,7 +36,7 @@ export function elementsFor(key, node) {
 
 export function composeLabel(d) {
   const name = formatName(d.name);
-  if (d.type === 'worker' || d.child_count === 0 || d.child_count == null) {
+  if (d.type === 'worker' || d.child_count === 0) {
     return name;
   }
   return `${name} (${d.child_count})`;
@@ -54,7 +54,8 @@ export function edgeId(parentKey, childKey) {
 }
 
 export function isRealPid(key) {
-  return typeof key === 'string' && key.startsWith('<') && key.endsWith('>');
+  const re = /^<\d+\.\d+\.\d+>$/;
+  return re.test(key);
 }
 
 export function nodeIntersectsExtent(node, extent) {
