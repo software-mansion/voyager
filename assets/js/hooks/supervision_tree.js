@@ -5,14 +5,12 @@ import {
   LAYOUT_DEBOUNCE_MS,
   OVERLAY_DEBOUNCE_MS,
   OVERLAY_MIN_ZOOM,
-  FADE_MS,
   TOPOLOGY_FIELDS,
 } from './supervision_tree/constants';
 import { buildStyle, toggleIcon, getColor } from './supervision_tree/styles';
 import {
   elementsFor,
   composeLabel,
-  pairSignature,
   edgeId,
   isRealPid,
   nodeIntersectsExtent,
