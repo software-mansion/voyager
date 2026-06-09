@@ -12,9 +12,9 @@ defmodule Voyager.Services.SupervisionTree.Fetch do
         expanded: MapSet.new()
       }
 
-      state = Fetch.start(request)
+      task = Fetch.start(request)
       # Later, to cancel:
-      Fetch.cancel(state)
+      Fetch.cancel(task)
 
   ## Message protocol
 
@@ -22,7 +22,7 @@ defmodule Voyager.Services.SupervisionTree.Fetch do
 
       {ref, {status, result, errors}}
 
-  where `ref` is `state.ref`, `status` is `:ok` or `:partial`, `result` is the
+  where `ref` is `task.ref`, `status` is `:ok` or `:partial`, `result` is the
   walker result map `%{tree: tree_map, relations: [edge], rel_nodes: [node]}`,
   and `errors` is a list of error tuples.
 
@@ -47,20 +47,17 @@ defmodule Voyager.Services.SupervisionTree.Fetch do
   @type state :: %{task: Task.t(), request: request()}
 
   @doc """
-  Starts an async walk for `request`. Returns a state map that must be kept
+  Starts an async walk for `request`. Returns a task that must be kept
   by the caller and passed to `cancel/1` if early termination is needed.
 
-  The result arrives as `{state.ref, {status, result, errors}}`.
+  The result arrives as `{task.ref, {status, result, errors}}`.
   Crashes arrive as `{:DOWN, state.ref, :process, _pid, reason}`.
   """
-  @spec start(request()) :: state()
+  @spec start(request()) :: Task.t()
   def start(request) do
-    task =
-      Task.Supervisor.async_nolink(Voyager.TaskSupervisor, fn ->
-        Walker.walk(request.node, request.apps, request.depth, request.expanded)
-      end)
-
-    %{task: task, request: request}
+    Task.Supervisor.async_nolink(Voyager.TaskSupervisor, fn ->
+      Walker.walk(request.node, request.apps, request.depth, request.expanded)
+    end)
   end
 
   @doc """
@@ -71,8 +68,8 @@ defmodule Voyager.Services.SupervisionTree.Fetch do
 
   Always returns `:ok`.
   """
-  @spec cancel(state()) :: :ok
-  def cancel(%{task: task}) do
+  @spec cancel(Task.t()) :: :ok
+  def cancel(task) do
     Process.demonitor(task.ref, [:flush])
 
     case Task.Supervisor.terminate_child(Voyager.TaskSupervisor, task.pid) do

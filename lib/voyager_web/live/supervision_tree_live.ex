@@ -126,7 +126,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   def handle_info({ref, {status, result, errors}}, socket) do
     in_flight = socket.assigns.in_flight
 
-    if not is_nil(in_flight) and in_flight.task.ref == ref do
+    if not is_nil(in_flight) and in_flight.ref == ref do
       stop_timer(socket)
 
       Process.demonitor(ref, [:flush])
@@ -175,7 +175,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   def handle_info({:DOWN, ref, :process, _pid, reason}, socket) do
     in_flight = socket.assigns.in_flight
 
-    if not is_nil(in_flight) and in_flight.task.ref == ref do
+    if not is_nil(in_flight) and in_flight.ref == ref do
       socket =
         socket
         |> stop_timer()
