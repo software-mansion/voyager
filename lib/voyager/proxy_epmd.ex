@@ -39,14 +39,14 @@ defmodule Voyager.ProxyEpmd do
 
   def port_please(name, host) do
     case lookup(name) do
-      {:ok, %{port: port}} -> {:port, port, 5}
+      {:ok, %{port: port}} -> {:port, port, 6}
       :error -> :erl_epmd.port_please(name, host)
     end
   end
 
   def port_please(name, host, timeout) do
     case lookup(name) do
-      {:ok, %{port: port}} -> {:port, port, 5}
+      {:ok, %{port: port}} -> {:port, port, 6}
       :error -> :erl_epmd.port_please(name, host, timeout)
     end
   end
