@@ -1,8 +1,8 @@
 mod utils;
 
 use tauri::{
-    menu::{MenuBuilder, SubmenuBuilder},
     Manager,
+    menu::{MenuBuilder, SubmenuBuilder},
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
