@@ -15,7 +15,7 @@ defmodule Voyager.ProxyEpmdTest do
     test "returns proxy port and dist version on hit", %{node_key: key} do
       :ets.insert(@table, {key, %{port: 41_234, address: {127, 0, 0, 1}, tunnel: self()}})
 
-      assert {:port, 41_234, 5} = ProxyEpmd.port_please(key, ~c"127.0.0.1")
+      assert {:port, 41_234, 6} = ProxyEpmd.port_please(key, ~c"127.0.0.1")
     end
 
     test "delegates to :erl_epmd on miss", %{node_key: key} do
@@ -30,7 +30,7 @@ defmodule Voyager.ProxyEpmdTest do
     test "returns proxy port and dist version on hit", %{node_key: key} do
       :ets.insert(@table, {key, %{port: 41_234, address: {127, 0, 0, 1}, tunnel: self()}})
 
-      assert {:port, 41_234, 5} = ProxyEpmd.port_please(key, ~c"127.0.0.1", 1_000)
+      assert {:port, 41_234, 6} = ProxyEpmd.port_please(key, ~c"127.0.0.1", 1_000)
     end
 
     test "delegates to :erl_epmd on miss", %{node_key: key} do

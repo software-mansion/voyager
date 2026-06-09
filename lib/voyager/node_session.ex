@@ -86,7 +86,7 @@ defmodule Voyager.NodeSession do
   end
 
   def handle_call(:disconnect, _from, %{session: session} = state) do
-    Node.monitor(session.node, false)
+    if Node.alive?(), do: Node.monitor(session.node, false)
     NodeConnector.disconnect(session.node)
     broadcast({:node_disconnected, session.node})
 
@@ -108,7 +108,7 @@ defmodule Voyager.NodeSession do
   @impl GenServer
   def handle_info({:nodedown, node}, %{session: %Session{node: session_node}} = state)
       when node == session_node do
-    Node.monitor(node, false)
+    if Node.alive?(), do: Node.monitor(node, false)
     broadcast({:nodedown, node})
     Voyager.Telemetry.dispatch!("voyager.node.disconnect", metadata: %{reason: "node down"})
     {:noreply, %{state | session: nil}}
