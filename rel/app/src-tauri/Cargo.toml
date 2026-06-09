@@ -3,7 +3,8 @@ name = "Voyager"
 version = "0.1.0"
 description = "Voyager is a desktop application which allows you to introspect your Elixir application."
 authors = ["Software Mansion S.A."]
-edition = "2021"
+# Rust Edition 2024
+edition = "2024"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
