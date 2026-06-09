@@ -109,6 +109,44 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
     end
   end
 
+  describe "walk/4 labels" do
+    test "registered processes are named by their registered_name; unregistered by pid",
+         %{peer: peer} do
+      node = peer.node
+
+      {:ok, %{tree: tree}, []} = Walker.walk(node, [:voyager_fixture], 3, MapSet.new())
+
+      app_node = tree[:voyager_fixture]
+      [root_node] = app_node.children
+
+      # The root supervisor is registered as its module.
+      assert root_node.name == Voyager.Test.FixtureApp.RootSupervisor
+
+      # Mid supervisors are registered too.
+      mid_names = Enum.map(root_node.children, & &1.name)
+      assert Voyager.Test.FixtureApp.MidSupA in mid_names
+      assert Voyager.Test.FixtureApp.MidSupB in mid_names
+
+      # Workers are not registered, so their label falls back to their pid.
+      for mid_node <- root_node.children, worker_node <- mid_node.children do
+        assert worker_node.name == worker_node.pid
+      end
+    end
+
+    test "the app node is labeled by its (unregistered) application-master pid",
+         %{peer: peer} do
+      node = peer.node
+
+      {:ok, %{tree: tree}, []} = Walker.walk(node, [:voyager_fixture], 2, MapSet.new())
+
+      app_node = tree[:voyager_fixture]
+      # The application master is not a registered process, so the app node's
+      # label is its pid rather than the application atom.
+      assert app_node.name == app_node.pid
+      assert is_pid(app_node.name)
+    end
+  end
+
   describe "walk/4 relationships" do
     test "worker link to an external process yields a :link edge and a worker rel_node",
          %{peer: peer} do

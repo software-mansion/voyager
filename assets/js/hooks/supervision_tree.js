@@ -181,7 +181,7 @@ const SupervisionTree = {
           if (TOPOLOGY_FIELDS.has(field)) topologyChanged = true;
         }
 
-        // Rebuild displayLabel if name or child_count moved.
+        // Rebuild displayLabel if the name or child count moved.
         if (patch.name !== undefined || patch.child_count !== undefined) {
           node.data('displayLabel', composeLabel(node.data()));
         }
