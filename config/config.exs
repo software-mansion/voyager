@@ -39,4 +39,6 @@ config :logger, :default_formatter,
 
 config :phoenix, :json_library, Jason
 
+config :voyager, telemetry_push_url: System.get_env("TELEMETRY_PUSH_URL")
+
 import_config "#{config_env()}.exs"

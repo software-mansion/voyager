@@ -5,7 +5,7 @@ defmodule Voyager.MixProject do
     [
       app: :voyager,
       version: "0.1.0",
-      elixir: "~> 1.15",
+      elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
@@ -27,7 +27,7 @@ defmodule Voyager.MixProject do
   end
 
   def cli do
-    [preferred_envs: [precommit: :test]]
+    [preferred_envs: [precommit: :test, e2e: :e2e, "e2e.setup": :e2e]]
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
@@ -64,9 +64,14 @@ defmodule Voyager.MixProject do
     [
       setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
       format: ["format", "cmd npm --prefix assets run format"],
+      "format.e2e": ["cmd npm --prefix e2e run format"],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
+      "e2e.setup": [
+        "cmd --cd e2e npm ci",
+        "cmd --cd e2e npx playwright install --with-deps"
+      ],
       "assets.setup": [
         "tailwind.install --if-missing",
         "esbuild.install --if-missing",
@@ -74,25 +79,35 @@ defmodule Voyager.MixProject do
       ],
       "assets.build": [
         "cmd npm --prefix assets run format",
-        "cmd mkdir -p priv/static/fonts && cp assets/node_modules/@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2 priv/static/fonts/ && cp assets/node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2 priv/static/fonts/",
+        copy_font_assets_cmd(),
         "compile",
         "tailwind voyager --minify",
         "esbuild voyager --minify"
       ],
       "assets.deploy": [
-        "cmd npm --prefix assets run format",
-        "cmd mkdir -p priv/static/fonts && cp assets/node_modules/@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2 priv/static/fonts/ && cp assets/node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2 priv/static/fonts/",
-        "tailwind voyager --minify",
-        "esbuild voyager --minify",
+        "assets.build",
         "phx.digest"
+      ],
+      e2e: [
+        "ecto.reset",
+        "cmd bash e2e/run.sh"
       ],
       precommit: [
         "compile --warnings-as-errors",
         "deps.unlock --unused",
         "credo --strict",
         "format",
+        "format.e2e",
         "test"
       ]
     ]
+  end
+
+  defp copy_font_assets_cmd do
+    script =
+      "cp -f -- assets/node_modules/@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2 priv/static/fonts/ &&
+      cp -f -- assets/node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2 priv/static/fonts/"
+
+    "cmd sh -c '#{script}'"
   end
 end

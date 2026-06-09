@@ -29,6 +29,8 @@ config :voyager, VoyagerWeb.Endpoint,
 
 config :voyager, dev_routes: true
 
+config :voyager, :telemetry, :logger
+
 config :logger, :default_formatter, format: "[$level] $message\n"
 
 config :phoenix, :stacktrace_depth, 20
@@ -40,3 +42,4 @@ config :phoenix_live_view,
   enable_expensive_runtime_checks: true
 
 config :live_debugger, debug_button: false
+config :live_debugger, auto_port: true

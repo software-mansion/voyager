@@ -15,6 +15,8 @@ config :voyager, VoyagerWeb.Endpoint,
   secret_key_base: "xadc/ex/aZLzBKM3evVVaZqtQyL16e/3cb8k81ThIB0OcCuTx0wQifiVdQFuGk6E",
   server: false
 
+config :voyager, :telemetry, :noop
+
 config :logger, level: :warning
 
 config :phoenix, :plug_init_mode, :runtime

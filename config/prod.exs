@@ -8,4 +8,6 @@ config :voyager, VoyagerWeb.Endpoint,
     exclude: [hosts: ["localhost", "127.0.0.1"]]
   ]
 
+config :voyager, :telemetry, :export
+
 config :logger, level: :info
