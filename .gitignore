@@ -33,6 +33,10 @@ voyager-*.tar
 /priv/static/fonts/*
 !/priv/static/fonts/.gitkeep
 
+# Ignore font assets.
+/priv/static/fonts/*
+!/priv/static/fonts/.gitkeep
+
 #Ignore Dialyzer files
 /priv/plts/*
 !/priv/plts/.gitkeep

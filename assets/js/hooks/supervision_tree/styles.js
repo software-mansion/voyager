@@ -35,12 +35,14 @@ export function buildStyle(t) {
       selector: 'node.hover',
       style: {
         'background-color': t.primary,
+        'border-color': t.primary,
       },
     },
     {
       selector: 'node[type = "worker"]',
       style: {
         shape: 'ellipse',
+        'border-color': t.secondary,
         width: 14,
         height: 14,
       },
