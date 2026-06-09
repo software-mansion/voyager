@@ -22,8 +22,8 @@ jobs:
     runs-on: ubuntu-24.04
     
     env:
-      ELIXIR_VERSION: "1.19.5"
-      OTP_VERSION: "28.5"
+      ELIXIR_VERSION: "1.20"
+      OTP_VERSION: "29"
 
     steps:
       - uses: actions/checkout@v4

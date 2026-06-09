@@ -44,7 +44,7 @@ defmodule Voyager.Services.SupervisionTree.Fetch do
           expanded: MapSet.t(pid())
         }
 
-  @type state :: %{ref: Task.ref(), task: Task.t(), request: request()}
+  @type state :: %{task: Task.t(), request: request()}
 
   @doc """
   Starts an async walk for `request`. Returns a state map that must be kept
@@ -60,7 +60,7 @@ defmodule Voyager.Services.SupervisionTree.Fetch do
         Walker.walk(request.node, request.apps, request.depth, request.expanded)
       end)
 
-    %{ref: task.ref, task: task, request: request}
+    %{task: task, request: request}
   end
 
   @doc """

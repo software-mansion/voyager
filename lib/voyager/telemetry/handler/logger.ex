@@ -1,0 +1,20 @@
+defmodule Voyager.Telemetry.Handler.Logger do
+  @moduledoc false
+
+  @behaviour Voyager.Telemetry.Handler
+
+  alias Voyager.Telemetry.Parser
+
+  require Logger
+
+  @impl true
+  def handle_event(event, measurements, metadata, _config) do
+    Logger.debug("""
+    TELEMETRY #{Parser.parse_event(event)}
+      measurements: #{Parser.parse_measurements(event, measurements) |> inspect(pretty: true, limit: 50)}
+      metadata:     #{Parser.parse_metadata(event, metadata) |> inspect(pretty: true, limit: 50)}
+    """)
+
+    :ok
+  end
+end
