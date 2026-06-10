@@ -83,7 +83,10 @@ defmodule Voyager.MixProject do
         "cmd --cd e2e npm ci",
         "cmd --cd e2e npx playwright install --with-deps"
       ],
-      "tauri.release": ["compile", "release voyager --overwrite --path src-tauri/target/rel"],
+      "tauri.release": [
+        "compile",
+        "release voyager --overwrite --path rel/app/src-tauri/target/rel"
+      ],
       "tauri.dev": ["cmd --cd rel/app/src-tauri cargo tauri dev"],
       "tauri.build": ["tauri.release", "cmd --cd rel/app cargo tauri build"],
       "tauri.test": ["cmd --cd rel/app/src-tauri cargo test"],
