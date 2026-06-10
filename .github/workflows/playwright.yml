@@ -23,9 +23,6 @@ jobs:
     runs-on: ubuntu-24.04
 
     env:
-      ELIXIR_VERSION: "1.20"
-      OTP_VERSION: "29"
-      NODE_VERSION: "24.16.0"
       MIX_ENV: "e2e"
 
     steps:
@@ -33,7 +30,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+
+          node-version-file: .tool-versions
           cache: "npm"
           cache-dependency-path: "./e2e/package-lock.json"
 
@@ -44,11 +42,14 @@ jobs:
       - name: Check prettier
         working-directory: ./e2e
         run: npx prettier . --check
+
       - name: Set up Elixir
+        id: beam
         uses: erlef/setup-beam@v1
         with:
-          elixir-version: ${{ env.ELIXIR_VERSION }}
-          otp-version: ${{ env.OTP_VERSION }}
+
+          version-file: .tool-versions
+          version-type: strict
 
       - name: Cache Mix dependencies
         uses: actions/cache@v4
@@ -56,8 +57,8 @@ jobs:
           path: |
             deps
             _build
-          key: ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('**/mix.lock') }}
-          restore-keys: ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-
+          key: ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version}}-${{ steps.beam.outputs.otp-version}}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version}}-${{ steps.beam.outputs.otp-version}}-
 
       - name: Install Mix dependencies
         run: mix deps.get
