@@ -85,6 +85,7 @@ defmodule Voyager.MixProject do
         "cmd npm install --prefix assets"
       ],
       "assets.build": [
+        "phx.digest.clean --all",
         "cmd npm --prefix assets run format",
         copy_font_assets_cmd(),
         "compile",

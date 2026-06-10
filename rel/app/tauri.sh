@@ -19,7 +19,7 @@ main() {
       (
         cd "${mix_project_dir}"
         export MIX_ENV="${MIX_ENV:-prod}"
-        mix do compile + assets.deploy + release voyager --overwrite --path "${release_root}"
+        mix do compile + release voyager --overwrite --path "${release_root}"
       )
       ;;
 

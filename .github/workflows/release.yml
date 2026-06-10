@@ -16,10 +16,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-15
-            gui_target: "aarch64-apple-darwin"
-          - platform: macos-15-intel
-            gui_target: "x86_64-apple-darwin"
+          # - platform: macos-15
+          #   gui_target: "aarch64-apple-darwin"
+          # - platform: macos-15-intel
+          #   gui_target: "x86_64-apple-darwin"
           - platform: windows-2022
             gui_target: "x86_64-pc-windows-msvc"
     runs-on: ${{ matrix.platform }}
@@ -61,17 +61,12 @@ jobs:
             echo "cargo-tauri already installed: $(cargo-tauri --version)"
           fi
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "lts/*"
-
       - name: Install Mix dependencies
         shell: bash
         run: |
           mix local.hex --force
           mix local.rebar --force
-          mix setup
+          mix deps.get
 
       # - name: Install trusted-signing-cli (Windows)
       #   if: runner.os == 'Windows'
