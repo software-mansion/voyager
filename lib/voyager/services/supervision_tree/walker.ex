@@ -438,7 +438,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       type: :app,
       modules: [],
       info: nil,
-      has_children?: children != [],
+      has_children?: not Enum.empty?(children),
       child_count: length(children),
       children: children
     }
@@ -455,7 +455,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       type: :supervisor,
       modules: [],
       info: nil,
-      has_children?: children != [],
+      has_children?: not Enum.empty?(children),
       child_count: length(children),
       children: children
     }
