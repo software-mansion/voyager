@@ -1,98 +1,151 @@
-name: Release
-
-# This workflow runs end-to-end on a free GitHub account with NO secrets:
-#   - macOS: ad-hoc signed (ElixirKit.Release.codesign/1), not notarized
-#   - Windows: unsigned installer
-#   - Linux: unsigned .deb/.rpm/.AppImage
-# Users bypass the first-launch OS warning per .github/release-notes.md.
-# Adding the APPLE_*/AZURE_* secrets below (paid) upgrades builds to fully
-# signed + notarized; the signing steps are skipped automatically when unset.
+name: "Build Desktop App"
 
 on:
   push:
-    tags:
+    branches:
       - "v*.*.*"
-    branches: 
       - "17-add-release-ci" # For testing only TODO: remove before merging
 
 permissions:
   contents: read
 
 jobs:
-  build-macos:
+  app:
+    name: "Desktop (${{ matrix.gui_target }})"
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: macos-15
-            target: "aarch64-apple-darwin"
-            args: "--target aarch64-apple-darwin"
+            gui_target: "aarch64-apple-darwin"
           - platform: macos-15-intel
-            target: "x86_64-apple-darwin"
-            args: "--target x86_64-apple-darwin"
-
+            gui_target: "x86_64-apple-darwin"
           # TODO: add other platforms
-          # - platform: ubuntu-22.04-arm
-          #   target: "aarch64-unknown-linux-gnu"
-          # - platform: ubuntu-22.04
-          #   target: "x86_64-unknown-linux-gnu"
-
           # - platform: windows-2022
-          #   target: "x86_64-pc-windows-msvc"
-
+          #   gui_target: "x86_64-pc-windows-msvc"
+          # - platform: ubuntu-22.04-arm
+          #   gui_target: "aarch64-unknown-linux-gnu"
+          # - platform: ubuntu-22.04
+          #   gui_target: "x86_64-unknown-linux-gnu"
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - uses: erlef/setup-beam@v1
         with:
           otp-version: "29" # TODO: make dynamic
           elixir-version: "1.20" # TODO: make dynamic
 
-      - name: Fetch Elixir dependencies
-        run: mix deps.get
-
-      - name: Install asset toolchain
-        run: mix assets.setup
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
-      - name: Import Apple Developer Certificate
-        env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        run: |
-          echo $APPLE_CERTIFICATE | base64 --decode > certificate.p12
-          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          security set-keychain-settings -t 3600 -u build.keychain
-          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
-          security find-identity -v -p codesigning build.keychain
-      - name: Verify Certificate
-        run: |
-          CERT_INFO=$(security find-identity -v -p codesigning build.keychain | grep "Apple Development")
-          CERT_ID=$(echo "$CERT_INFO" | awk -F'"' '{print $2}')
-          echo "CERT_ID=$CERT_ID" >> $GITHUB_ENV
-          echo "Certificate imported."
-      - uses: tauri-apps/tauri-action@v0.6
-        env:
-          MIX_ENV: prod
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          targets: ${{ matrix.gui_target }}
 
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ env.CERT_ID }}
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
         with:
-          args: ${{ matrix.args }}
+          workspaces: rel/app/src-tauri
+          cache-directories: |
+            ~/.cargo/bin
+          key: ${{ matrix.gui_target }}-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}
 
-      - name: Upload DMG artifact
+      - name: Mix deps cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            deps
+          key: ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('rel/app/mix.lock') }}-${{ matrix.gui_target }}
+
+      # TODO: add Linux dependencies
+      # - name: Install dependencies (Linux)
+      #   if: runner.os == 'Linux'
+      #   shell: bash
+      #   run: |
+      #     sudo apt-get update
+      #     sudo apt-get install -y \
+      #       libwebkit2gtk-4.1-dev \
+      #       libgtk-3-dev \
+      #       libayatana-appindicator3-dev \
+      #       librsvg2-dev \
+      #       patchelf \
+      #       xdg-utils
+
+      - name: Install Tauri CLI
+        shell: bash
+        run: |
+          if ! command -v cargo-tauri &> /dev/null; then
+            cargo install tauri-cli --version "=2.8.0" --locked
+          else
+            echo "cargo-tauri already installed: $(cargo-tauri --version)"
+          fi
+
+      - name: Install Mix dependencies
+        shell: bash
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix setup
+
+      # - name: Install trusted-signing-cli (Windows)
+      #   if: runner.os == 'Windows'
+      #   run: |
+      #     cargo install trusted-signing-cli@0.9.0
+
+      # - name: Install Apple certificate (macOS)
+      #   if: runner.os == 'macOS'
+      #   env:
+      #     P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+      #     P12_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_P12_PASSWORD }}
+      #     KEYCHAIN_PASSWORD: secret
+      #   run: |
+      #     # Only run if certificate is provided
+      #     if [ -n "$P12_BASE64" ]; then
+      #       # Create variables
+      #       CERTIFICATE_PATH=$RUNNER_TEMP/apple_certificate.p12
+      #       KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+      #
+      #       echo -n "$P12_BASE64" | base64 --decode -o $CERTIFICATE_PATH
+      #
+      #       # Create temporary keychain
+      #       security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+      #       security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+      #       security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+      #
+      #       # Import certificate to keychain
+      #       security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+      #       security list-keychain -d user -s $KEYCHAIN_PATH
+      #     fi
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0.6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MIX_ENV: prod
+          # macOS codesigning/notarization
+          # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_P12_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: "-" # ad-hoc signature
+          # APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          # APPLE_ID: ${{ secrets.APPLE_ID }}
+          # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Windows codesigning
+          # AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          # AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          # AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          # AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
+          # AZURE_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_CERTIFICATE_PROFILE_NAME }}
+          # Tauri updater
+          # TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          # TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: rel/app
+          args: --target ${{ matrix.gui_target }}
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Voyager-macos-${{ matrix.target }}
-          path: rel/app/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+          name: voyager-${{ matrix.gui_target }}
+          path: rel/app/src-tauri/target/${{ matrix.gui_target }}/release/bundle/
           if-no-files-found: error
