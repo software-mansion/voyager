@@ -61,6 +61,11 @@ jobs:
             echo "cargo-tauri already installed: $(cargo-tauri --version)"
           fi
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+
       - name: Install Mix dependencies
         shell: bash
         run: |
