@@ -36,6 +36,7 @@ jobs:
           cache-dependency-path: "./assets/package-lock.json"
 
       - name: Set up Elixir
+        id: beam
         uses: erlef/setup-beam@v1
         with:
           elixir-version: ${{ env.ELIXIR_VERSION }}
@@ -54,9 +55,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: priv/plts
-          key: ${{ runner.os }}-plt-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-${{ hashFiles('**/mix.lock') }}
+          key: ${{ runner.os }}-plt-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('**/mix.lock') }}
           restore-keys: |
-            ${{ runner.os }}-plt-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-
+            ${{ runner.os }}-plt-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-
 
       - name: Install Dependencies
         run: mix deps.get
@@ -67,14 +68,14 @@ jobs:
           npm ci
           npx prettier . --check    
 
+      - name: Compile project
+        run: mix compile --warnings-as-errors
+
       - name: Check Elixir formatting
         run: mix format --check-formatted
 
       - name: Run Credo
         run: mix credo --strict
-
-      - name: Compile project
-        run: mix compile --warnings-as-errors
 
       - name: Run Dialyzer
         run: mix dialyzer --format github
