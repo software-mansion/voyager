@@ -12,22 +12,6 @@ defmodule Voyager.ProxyEpmd do
   ETS schema:
 
       {node_name_charlist, %{port: pos_integer(), address: :inet.ip_address(), tunnel: pid()}}
-
-  ## Setup
-
-  The recommended way is via `mise.toml` — `ELIXIR_ERL_OPTIONS` is injected
-  automatically and plain `iex -S mix phx.server` works:
-
-      # mise.toml (already in the project root)
-      [env]
-      ELIXIR_ERL_OPTIONS = "-epmd_module Elixir.Voyager.ProxyEpmd -pa {{config_root}}/_build/dev/lib/voyager/ebin"
-
-  Without mise, compile first and pass the flags manually:
-
-      mix compile
-      iex --erl "-epmd_module Elixir.Voyager.ProxyEpmd -pa _build/dev/lib/voyager/ebin" -S mix phx.server
-
-  Or use `./dev/server.sh` which does the same thing.
   """
 
   @table :proxy_epmd
