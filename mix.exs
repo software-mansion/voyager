@@ -28,7 +28,15 @@ defmodule Voyager.MixProject do
   end
 
   def cli do
-    [preferred_envs: [precommit: :test, e2e: :e2e, "e2e.setup": :e2e]]
+    [
+      preferred_envs: [
+        precommit: :test,
+        e2e: :e2e,
+        "e2e.setup": :e2e,
+        "tauri.release": :prod,
+        "tauri.build": :prod
+      ]
+    ]
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
@@ -75,8 +83,9 @@ defmodule Voyager.MixProject do
         "cmd --cd e2e npm ci",
         "cmd --cd e2e npx playwright install --with-deps"
       ],
-      "tauri.dev": ["cmd rel/app/tauri.sh dev"],
-      "tauri.build": ["cmd rel/app/tauri.sh build"],
+      "tauri.release": ["compile", "release voyager --overwrite --path src-tauri/target/rel"],
+      "tauri.dev": ["cmd --cd rel/app/src-tauri cargo tauri dev"],
+      "tauri.build": ["tauri.release", "cmd --cd rel/app cargo tauri build"],
       "tauri.test": ["cmd --cd rel/app/src-tauri cargo test"],
       "tauri.format": ["cmd --cd rel/app/src-tauri cargo fmt"],
       "assets.setup": [
