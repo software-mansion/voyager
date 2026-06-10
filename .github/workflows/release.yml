@@ -98,35 +98,35 @@ jobs:
       #       security list-keychain -d user -s $KEYCHAIN_PATH
       #     fi
 
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0.6
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          MIX_ENV: prod
-          # macOS codesigning/notarization
-          # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
-          # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_P12_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: "-" # ad-hoc signature
-          # APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          # APPLE_ID: ${{ secrets.APPLE_ID }}
-          # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # Windows codesigning
-          # AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          # AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          # AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          # AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
-          # AZURE_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_CERTIFICATE_PROFILE_NAME }}
-          # Tauri updater
-          # TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          # TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          projectPath: rel/app
-          args: --target ${{ matrix.gui_target }}
+      # - name: Build Tauri app
+      #   uses: tauri-apps/tauri-action@v0.6
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #     MIX_ENV: prod
+      #     # macOS codesigning/notarization
+      #     # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+      #     # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_P12_PASSWORD }}
+      #     APPLE_SIGNING_IDENTITY: "-" # ad-hoc signature
+      #     # APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      #     # APPLE_ID: ${{ secrets.APPLE_ID }}
+      #     # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      #     # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      #     # Windows codesigning
+      #     # AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      #     # AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      #     # AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      #     # AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
+      #     # AZURE_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_CERTIFICATE_PROFILE_NAME }}
+      #     # Tauri updater
+      #     # TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      #     # TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      #   with:
+      #     projectPath: rel/app
+      #     args: --target ${{ matrix.gui_target }}
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: voyager-${{ matrix.gui_target }}
-          path: rel/app/src-tauri/target/${{ matrix.gui_target }}/release/bundle/
-          if-no-files-found: error
+      # - name: Upload artifact
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: voyager-${{ matrix.gui_target }}
+      #     path: rel/app/src-tauri/target/${{ matrix.gui_target }}/release/bundle/
+      #     if-no-files-found: error
