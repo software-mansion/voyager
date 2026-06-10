@@ -20,13 +20,12 @@ jobs:
             gui_target: "aarch64-apple-darwin"
           - platform: macos-15-intel
             gui_target: "x86_64-apple-darwin"
-          # TODO: add other platforms
-          # - platform: windows-2022
-          #   gui_target: "x86_64-pc-windows-msvc"
-          # - platform: ubuntu-22.04-arm
-          #   gui_target: "aarch64-unknown-linux-gnu"
-          # - platform: ubuntu-22.04
-          #   gui_target: "x86_64-unknown-linux-gnu"
+          - platform: windows-2022
+            gui_target: "x86_64-pc-windows-msvc"
+          - platform: ubuntu-22.04-arm
+            gui_target: "aarch64-unknown-linux-gnu"
+          - platform: ubuntu-22.04
+            gui_target: "x86_64-unknown-linux-gnu"
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout repository
@@ -57,19 +56,18 @@ jobs:
             deps
           key: ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('rel/app/mix.lock') }}-${{ matrix.gui_target }}
 
-      # TODO: add Linux dependencies
-      # - name: Install dependencies (Linux)
-      #   if: runner.os == 'Linux'
-      #   shell: bash
-      #   run: |
-      #     sudo apt-get update
-      #     sudo apt-get install -y \
-      #       libwebkit2gtk-4.1-dev \
-      #       libgtk-3-dev \
-      #       libayatana-appindicator3-dev \
-      #       librsvg2-dev \
-      #       patchelf \
-      #       xdg-utils
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            xdg-utils
 
       - name: Install Tauri CLI
         shell: bash
