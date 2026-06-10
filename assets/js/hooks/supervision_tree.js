@@ -415,10 +415,6 @@ const SupervisionTree = {
     this.scheduleLayout();
   },
 
-  // ---------------------------------------------------------------------------
-  // Theme tokens
-  // ---------------------------------------------------------------------------
-
   readTokens() {
     const cs = getComputedStyle(this.el);
     return {
