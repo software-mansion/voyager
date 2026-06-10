@@ -27,6 +27,8 @@ jobs:
           - platform: ubuntu-22.04
             gui_target: "x86_64-unknown-linux-gnu"
     runs-on: ${{ matrix.platform }}
+    env:
+      ImageOS: ${{ matrix.platform == 'ubuntu-22.04-arm' && 'ubuntu22' || '' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -47,14 +49,14 @@ jobs:
           workspaces: rel/app/src-tauri
           cache-directories: |
             ~/.cargo/bin
-          key: ${{ matrix.gui_target }}-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}
+          key: ${{ matrix.gui_target }
 
       - name: Mix deps cache
         uses: actions/cache@v5
         with:
           path: |
             deps
-          key: ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('rel/app/mix.lock') }}-${{ matrix.gui_target }}
+          key: ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('mix.lock') }}
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
