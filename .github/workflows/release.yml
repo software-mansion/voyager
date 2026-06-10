@@ -42,10 +42,19 @@ jobs:
 
     runs-on: ${{ matrix.platform }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - uses: erlef/setup-beam@v1
         with:
           otp-version: "29" # TODO: make dynamic
           elixir-version: "1.20" # TODO: make dynamic
+
+      - name: Fetch Elixir dependencies
+        run: mix deps.get
+
+      - name: Install asset toolchain
+        run: mix assets.setup
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -70,7 +79,7 @@ jobs:
           CERT_ID=$(echo "$CERT_INFO" | awk -F'"' '{print $2}')
           echo "CERT_ID=$CERT_ID" >> $GITHUB_ENV
           echo "Certificate imported."
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v0.6
         env:
           MIX_ENV: prod
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
