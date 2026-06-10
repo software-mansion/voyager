@@ -6,8 +6,7 @@ defmodule Voyager.Services.NodeInfo.Limits do
   @resources [
     {:atoms, :atom_count, :atom_limit},
     {:processes, :process_count, :process_limit},
-    {:ports, :port_count, :port_limit},
-    {:ets, :ets_count, :ets_limit}
+    {:ports, :port_count, :port_limit}
   ]
 
   @system_info_keys Enum.flat_map(@resources, fn {_key, count, limit} -> [count, limit] end)
@@ -20,11 +19,10 @@ defmodule Voyager.Services.NodeInfo.Limits do
   @type t :: %__MODULE__{
           atoms: usage(),
           processes: usage(),
-          ports: usage(),
-          ets: usage()
+          ports: usage()
         }
 
-  defstruct [:atoms, :processes, :ports, :ets]
+  defstruct [:atoms, :processes, :ports]
 
   @spec system_info_keys() :: [atom()]
   def system_info_keys, do: @system_info_keys
