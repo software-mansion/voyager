@@ -21,17 +21,12 @@ jobs:
     name: Build and test
     runs-on: ubuntu-24.04
     
-    env:
-      ELIXIR_VERSION: "1.20"
-      OTP_VERSION: "29"
-      NODE_VERSION: "24.16.0"
-
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .tool-versions
           cache: "npm"
           cache-dependency-path: "./assets/package-lock.json"
 
@@ -39,8 +34,8 @@ jobs:
         id: beam
         uses: erlef/setup-beam@v1
         with:
-          elixir-version: ${{ env.ELIXIR_VERSION }}
-          otp-version: ${{ env.OTP_VERSION }}
+          version-file: .tool-versions
+          version-type: strict
 
       - name: Cache dependencies and build artifacts
         uses: actions/cache@v4
