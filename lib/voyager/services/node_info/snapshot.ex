@@ -8,7 +8,6 @@ defmodule Voyager.Services.NodeInfo.Snapshot do
   alias Voyager.Services.NodeInfo.Language
   alias Voyager.Services.NodeInfo.Limits
   alias Voyager.Services.NodeInfo.Memory
-  alias Voyager.Services.NodeInfo.Processors
   alias Voyager.Services.NodeInfo.RunQueues
   alias Voyager.Services.NodeInfo.Schedulers
   alias Voyager.Services.NodeInfo.Statistics
@@ -22,7 +21,6 @@ defmodule Voyager.Services.NodeInfo.Snapshot do
           memory: Memory.t(),
           runtime: Statistics.t(),
           limits: Limits.t(),
-          processors: Processors.t(),
           schedulers: Schedulers.t(),
           run_queues: RunQueues.t()
         }
@@ -35,7 +33,6 @@ defmodule Voyager.Services.NodeInfo.Snapshot do
     :memory,
     :runtime,
     :limits,
-    :processors,
     :schedulers,
     :run_queues
   ]

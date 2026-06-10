@@ -5,6 +5,9 @@ defmodule Voyager.Application do
 
   @impl true
   def start(_type, _args) do
+    # Elixirkit installation here: https://hexdocs.pm/elixirkit/tauri.html#phoenix-tauri
+    elixirkit_pubsub = System.get_env("ELIXIRKIT_PUBSUB")
+
     children = [
       Voyager.Telemetry,
       Voyager.Vault,
@@ -15,7 +18,9 @@ defmodule Voyager.Application do
       {Task.Supervisor, name: Voyager.TaskSupervisor},
       Voyager.ProxyEpmd.TunnelRegistry,
       Voyager.NodeSession,
-      VoyagerWeb.Endpoint
+      {ElixirKit.PubSub, connect: elixirkit_pubsub || :ignore, on_exit: fn -> System.stop() end},
+      VoyagerWeb.Endpoint,
+      {Task, fn -> if elixirkit_pubsub, do: ElixirKit.PubSub.broadcast("messages", "ready") end}
     ]
 
     opts = [strategy: :one_for_one, name: Voyager.Supervisor]

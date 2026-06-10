@@ -1,4 +1,7 @@
 {
+  "engines": {
+    "node": "24.16.0"
+  },
   "scripts": {
     "format": "prettier . --write",
     "format:check": "prettier . --check"

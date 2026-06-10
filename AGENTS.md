@@ -34,6 +34,7 @@ This is a web application written using the Phoenix web framework.
   - You cannot reference an external vendor'd script `src` or link `href` in the layouts
   - You must import the vendor deps into app.js and app.css to use them
   - **Never write inline <script>custom js</script> tags within templates**
+- Use Tailwind's built-in scale (`text-xs` … `text-3xl`, `max-w-7xl`, `p-5`, `w-16`, …) — not arbitrary `[Npx]` / `[Nrem]` values. DaisyUI has no font-size utilities; use `text-*` for typography.
 
 ### UI/UX & design guidelines
 
