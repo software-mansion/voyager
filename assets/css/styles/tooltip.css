@@ -1,0 +1,22 @@
+/* Portaled tooltip popover. Lives in #tooltip-portal-root (teleported via
+   <.portal>) so it escapes modal/overflow/stacking contexts. Visibility is
+   toggled by the Tooltip JS hook through the data-show attribute. */
+.tooltip-pop {
+  position: fixed;
+  /* Above DaisyUI modals/drawers. */
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(2px);
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease,
+    visibility 150ms ease;
+}
+
+.tooltip-pop[data-show='true'] {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}

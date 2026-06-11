@@ -278,6 +278,113 @@ defmodule VoyagerWeb.CoreComponents do
     """
   end
 
+  @doc """
+  Renders an arbitrary `trigger` with a tooltip that reveals on hover/focus.
+
+  The tooltip content is teleported via `<.portal>` to `#tooltip-portal-root`
+  (rendered in the root layout), so it renders above and outside any modal,
+  drawer, or `overflow-hidden` container and is never clipped. Positioning is
+  handled by the `Tooltip` JS hook.
+
+  This is the low-level primitive; for the common "?" help affordance use
+  `help_tooltip/1`, which wraps this component.
+
+  ## Examples
+
+      <.tooltip id="status-tip" position="bottom">
+        <.badge>online</.badge>
+        <:content>Node responded to the last heartbeat.</:content>
+      </.tooltip>
+  """
+  attr :id, :string, required: true, doc: "unique DOM id for the trigger"
+
+  attr :position, :string,
+    default: "top",
+    values: ~w(top bottom left right),
+    doc: "preferred side to place the tooltip"
+
+  attr :class, :any, default: nil, doc: "extra classes for the trigger wrapper"
+  slot :inner_block, required: true, doc: "the hover/focus target"
+  slot :content, required: true, doc: "tooltip content"
+
+  def tooltip(assigns) do
+    ~H"""
+    <span
+      id={@id}
+      class={["inline-flex align-middle leading-none", @class]}
+      phx-hook="Tooltip"
+      data-tooltip-target={"##{@id}-tip"}
+      data-tooltip-position={@position}
+    >
+      {render_slot(@inner_block)}
+    </span>
+    <.portal id={"#{@id}-portal"} target="#tooltip-portal-root">
+      <div
+        id={"#{@id}-tip"}
+        role="tooltip"
+        data-show="false"
+        class={[
+          "tooltip-pop bg-neutral text-neutral-content rounded-box max-w-xs px-3 py-2",
+          "ring-base-content/10 text-xs leading-relaxed shadow-lg ring-1"
+        ]}
+      >
+        {render_slot(@content)}
+      </div>
+    </.portal>
+    """
+  end
+
+  @doc """
+  Renders a round "?" help affordance that reveals a tooltip on hover/focus.
+
+  Thin wrapper over `tooltip/1` that supplies the "?" trigger button. Pass plain
+  text via `text`, or richer markup as the inner block.
+
+  ## Examples
+
+      <.help_tooltip id="cpu-help" text="Average scheduler utilization." />
+
+      <.help_tooltip id="mem-help" position="right">
+        Total memory allocated by the BEAM, including
+        <span class="font-semibold">processes</span> and binaries.
+      </.help_tooltip>
+  """
+  attr :id, :string, required: true, doc: "unique DOM id for the trigger"
+  attr :text, :string, default: nil, doc: "tooltip text; ignored when an inner block is given"
+
+  attr :position, :string,
+    default: "top",
+    values: ~w(top bottom left right),
+    doc: "preferred side to place the tooltip"
+
+  attr :class, :any, default: nil, doc: "extra classes for the trigger button"
+  slot :inner_block, doc: "rich tooltip content; overrides text"
+
+  def help_tooltip(assigns) do
+    ~H"""
+    <.tooltip id={@id} position={@position}>
+      <button
+        type="button"
+        aria-label="Help"
+        class={[
+          "btn btn-circle btn-ghost btn-xs text-base-content/40 hover:text-base-content",
+          "transition-colors",
+          @class
+        ]}
+      >
+        <.icon name="icon-circle-help" class="size-4" />
+      </button>
+      <:content>
+        <%= if @inner_block != [] do %>
+          {render_slot(@inner_block)}
+        <% else %>
+          {@text}
+        <% end %>
+      </:content>
+    </.tooltip>
+    """
+  end
+
   ## JS Commands
 
   def show(js \\ %JS{}, selector) do
