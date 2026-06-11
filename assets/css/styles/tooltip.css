@@ -25,3 +25,17 @@
   visibility: visible;
   transform: translateY(0);
 }
+
+/* Only interactive tooltips capture the pointer, so the cursor can reach links
+   inside the tip. Plain tooltips stay click-through. */
+.tooltip-pop.is-interactive.is-open {
+  pointer-events: auto;
+}
+
+/* Pinned (click-opened) tip: a primary-colored ring signals it stays put until
+   dismissed. Toggled by the Tooltip JS hook via the `is-pinned` class. The tip
+   uses a `base-100` background, so `primary` reads as a distinct border in both
+   themes. */
+.tooltip-pop.is-pinned {
+  --tw-ring-color: var(--color-primary);
+}

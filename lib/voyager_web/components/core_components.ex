@@ -304,6 +304,12 @@ defmodule VoyagerWeb.CoreComponents do
     doc: "preferred side to place the tooltip"
 
   attr :class, :any, default: nil, doc: "extra classes for the trigger wrapper"
+
+  attr :interactive, :boolean,
+    default: false,
+    doc:
+      "when true, the tip stays open while hovered and can be pinned open with a click — required if the content holds clickable elements"
+
   slot :inner_block, required: true, doc: "the hover/focus target"
   slot :content, required: true, doc: "tooltip content"
 
@@ -315,6 +321,7 @@ defmodule VoyagerWeb.CoreComponents do
       phx-hook="Tooltip"
       data-tooltip-target={"##{@id}-tip"}
       data-tooltip-position={@position}
+      data-tooltip-interactive={to_string(@interactive)}
     >
       {render_slot(@inner_block)}
     </span>
@@ -324,8 +331,9 @@ defmodule VoyagerWeb.CoreComponents do
         role="tooltip"
         phx-update="ignore"
         class={[
-          "tooltip-pop bg-neutral text-neutral-content rounded-box max-w-xs px-3 py-2",
-          "ring-base-content/10 text-xs leading-relaxed shadow-lg ring-1"
+          "tooltip-pop bg-base-100 text-base-content rounded-box max-w-xs px-3 py-2",
+          "ring-base-content/15 text-xs leading-relaxed shadow-lg ring-1",
+          @interactive && "is-interactive"
         ]}
       >
         {render_slot(@content)}
@@ -358,11 +366,22 @@ defmodule VoyagerWeb.CoreComponents do
     doc: "preferred side to place the tooltip"
 
   attr :class, :any, default: nil, doc: "extra classes for the trigger button"
+
+  attr :doc_href, :string,
+    default: nil,
+    doc: "when set, renders a documentation link at the bottom of the tooltip"
+
+  attr :doc_label, :string, default: "Learn more", doc: "label for the documentation link"
+
+  attr :interactive, :boolean,
+    default: true,
+    doc: "when true, the tip can be hovered into and pinned open with a click"
+
   slot :inner_block, doc: "rich tooltip content; overrides text"
 
   def help_tooltip(assigns) do
     ~H"""
-    <.tooltip id={@id} position={@position}>
+    <.tooltip id={@id} position={@position} interactive={@interactive}>
       <button
         type="button"
         aria-label="Help"
@@ -380,6 +399,16 @@ defmodule VoyagerWeb.CoreComponents do
         <% else %>
           {@text}
         <% end %>
+        <a
+          :if={@doc_href}
+          href={@doc_href}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-primary mt-2 flex w-fit items-center gap-1 font-medium underline-offset-2 transition-colors hover:text-primary hover:underline"
+        >
+          {@doc_label}
+          <.icon name="icon-external-link" class="size-3" />
+        </a>
       </:content>
     </.tooltip>
     """

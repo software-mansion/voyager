@@ -18,6 +18,46 @@ defmodule VoyagerWeb.NodeInfoComponents do
     {:other, "Other", "bg-base-300"}
   ]
 
+  @help_text %{
+    "Uptime" =>
+      "Lorem Ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+    "IO input" =>
+      "Lorem Ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+    "IO output" =>
+      "Lorem Ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+    "Reductions" =>
+      "Lorem Ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+    "Runtime" =>
+      "Lorem Ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+    "Schedulers" =>
+      "Lorem Ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+    "Run queues" =>
+      "Lorem Ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+    "Memory breakdown" =>
+      "Lorem Ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+    "System limits" =>
+      "Lorem Ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
+  }
+
+  defp help_text(label), do: Map.get(@help_text, label, "")
+
+  # Documentation links shown as a "learn more" affordance inside each tooltip.
+  # NOTE: verify these anchors against the OTP version you target — Erlang doc
+  # URLs have changed across releases.
+  @help_doc %{
+    "Uptime" => "https://www.erlang.org/doc/man/erlang.html",
+    "IO input" => "https://www.erlang.org/doc/man/erlang.html",
+    "IO output" => "https://www.erlang.org/doc/man/erlang.html",
+    "Reductions" => "https://www.erlang.org/doc/man/erlang.html",
+    "Runtime" => "https://www.erlang.org/doc/man/erlang.html",
+    "Schedulers" => "https://www.erlang.org/doc/man/erlang.html",
+    "Run queues" => "https://www.erlang.org/doc/man/erlang.html",
+    "Memory breakdown" => "https://www.erlang.org/doc/man/erlang.html",
+    "System limits" => "https://www.erlang.org/doc/man/erlang.html"
+  }
+
+  defp help_doc(label), do: Map.get(@help_doc, label)
+
   @doc """
   Renders a key-value info card with a 2-column grid of labelled rows.
 
@@ -41,7 +81,14 @@ defmodule VoyagerWeb.NodeInfoComponents do
     <div class="card bg-base-100 border-base-200 h-full border shadow-sm">
       <div class="card-body gap-4 p-5">
         <div class="flex items-baseline justify-between">
-          <h3 class="text-base-content text-sm font-semibold">{@title}</h3>
+          <div class="flex items-center gap-1">
+            <h3 class="text-base-content text-sm font-semibold">{@title}</h3>
+            <.help_tooltip
+              id={help_id("info-card", @title)}
+              text={help_text(@title)}
+              doc_href={help_doc(@title)}
+            />
+          </div>
           <span :if={@subtitle} class="font-mono text-base-content/50 text-xs">{@subtitle}</span>
         </div>
 
@@ -82,7 +129,14 @@ defmodule VoyagerWeb.NodeInfoComponents do
     <div class="card bg-base-100 border-base-200 flex min-h-0 flex-1 flex-col border shadow-sm">
       <div class="card-body flex flex-1 flex-col gap-4 p-5">
         <div class="flex items-baseline justify-between">
-          <h3 class="text-base-content text-sm font-semibold">{@title}</h3>
+          <div class="flex items-center gap-1">
+            <h3 class="text-base-content text-sm font-semibold">{@title}</h3>
+            <.help_tooltip
+              id={help_id("metric", @title)}
+              text={help_text(@title)}
+              doc_href={help_doc(@title)}
+            />
+          </div>
           <span :if={@subtitle} class="font-mono text-base-content/50 text-xs">{@subtitle}</span>
         </div>
 
@@ -120,7 +174,14 @@ defmodule VoyagerWeb.NodeInfoComponents do
   def stat_tile(assigns) do
     ~H"""
     <div class="card bg-base-100 border-base-200 flex flex-col gap-1.5 border p-5 shadow-sm">
-      <h3 class="text-base-content text-sm font-semibold">{@label}</h3>
+      <div class="flex items-center gap-1">
+        <h3 class="text-base-content text-sm font-semibold">{@label}</h3>
+        <.help_tooltip
+          id={help_id("stat", @label)}
+          text={help_text(@label)}
+          doc_href={help_doc(@label)}
+        />
+      </div>
       <div class="mt-1">
         <span class="font-mono text-base-content text-2xl font-medium leading-none tracking-tight">
           {@value}
@@ -145,7 +206,14 @@ defmodule VoyagerWeb.NodeInfoComponents do
     <div class="card bg-base-100 border-base-200 border shadow-sm">
       <div class="card-body gap-4 p-5">
         <div class="flex items-baseline justify-between">
-          <h3 class="text-base-content text-sm font-semibold">Memory breakdown</h3>
+          <div class="flex items-center gap-1">
+            <h3 class="text-base-content text-sm font-semibold">Memory breakdown</h3>
+            <.help_tooltip
+              id="memory-breakdown-help"
+              text={help_text("Memory breakdown")}
+              doc_href={help_doc("Memory breakdown")}
+            />
+          </div>
           <span class="font-mono text-base-content/50 text-xs">
             {Formatters.format_bytes(@memory.total)} total
           </span>
@@ -193,7 +261,14 @@ defmodule VoyagerWeb.NodeInfoComponents do
     <div class="card bg-base-100 border-base-200 flex h-full flex-col border shadow-sm">
       <div class="card-body flex flex-1 flex-col gap-4 p-5">
         <div class="flex items-baseline justify-between">
-          <h3 class="text-base-content text-sm font-semibold">System limits</h3>
+          <div class="flex items-center gap-1">
+            <h3 class="text-base-content text-sm font-semibold">System limits</h3>
+            <.help_tooltip
+              id="system-limits-help"
+              text={help_text("System limits")}
+              doc_href={help_doc("System limits")}
+            />
+          </div>
           <span class="font-mono text-base-content/50 text-xs">current / max</span>
         </div>
 
@@ -249,6 +324,16 @@ defmodule VoyagerWeb.NodeInfoComponents do
 
   defp info_row({label, value}), do: {label, value, false}
   defp info_row({label, value, :full}), do: {label, value, true}
+
+  defp help_id(prefix, label) do
+    slug =
+      label
+      |> String.downcase()
+      |> String.replace(~r/[^a-z0-9]+/, "-")
+      |> String.trim("-")
+
+    "#{prefix}-#{slug}-help"
+  end
 
   defp memory_segments(%Memory{total: total}) when total == 0 or is_nil(total), do: []
 
