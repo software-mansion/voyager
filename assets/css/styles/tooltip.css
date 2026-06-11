@@ -1,6 +1,11 @@
 /* Portaled tooltip popover. Lives in #tooltip-portal-root (teleported via
    <.portal>) so it escapes modal/overflow/stacking contexts. Visibility is
-   toggled by the Tooltip JS hook through the data-show attribute. */
+   toggled by the Tooltip JS hook through the `is-open` class.
+
+   A class (not a data-* attribute) is used on purpose: the popover sits in a
+   `phx-update="ignore"` portal, and LiveView still re-syncs `data-*` attributes
+   on ignored elements, which would clobber visibility on every patch. Non-data
+   attributes/classes are preserved under `ignore`. */
 .tooltip-pop {
   position: fixed;
   /* Above DaisyUI modals/drawers. */
@@ -15,7 +20,7 @@
     visibility 150ms ease;
 }
 
-.tooltip-pop[data-show='true'] {
+.tooltip-pop.is-open {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);

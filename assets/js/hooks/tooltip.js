@@ -59,15 +59,16 @@ const Tooltip = {
     this.show = () => {
       const tipEl = this.getTip();
       if (!tipEl) return;
-      // Position while still invisible so getBoundingClientRect is accurate.
-      tipEl.dataset.show = 'true';
+      // Position before revealing so getBoundingClientRect is accurate and the
+      // tooltip doesn't flash at a stale spot for one frame.
       positionTooltip(tipEl, this.el);
+      tipEl.classList.add('is-open');
     };
 
     this.hide = () => {
       clearTimeout(this._hoverTimeout);
       const tipEl = this.getTip();
-      if (tipEl) tipEl.dataset.show = 'false';
+      if (tipEl) tipEl.classList.remove('is-open');
     };
 
     this.delayedShow = () => {
