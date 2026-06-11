@@ -19,14 +19,11 @@ defmodule VoyagerWeb.NodeInfoComponents do
   ]
 
   @help_text %{
-    "Uptime" =>
-      "Lorem Ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
-    "IO input" =>
-      "Lorem Ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
-    "IO output" =>
-      "Lorem Ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+    "Uptime" => "Total wall-clock time since the node started, in milliseconds.",
+    "IO input" => "Total bytes received by the node through all ports since it started.",
+    "IO output" => "Total bytes sent by the node through all ports since it started.",
     "Reductions" =>
-      "Lorem Ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+      "Total reductions executed on this node since it started. A reduction is the BEAM's unit of work (roughly one function call).",
     "Runtime" =>
       "Lorem Ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
     "Schedulers" =>
@@ -45,10 +42,10 @@ defmodule VoyagerWeb.NodeInfoComponents do
   # NOTE: verify these anchors against the OTP version you target — Erlang doc
   # URLs have changed across releases.
   @help_doc %{
-    "Uptime" => "https://www.erlang.org/doc/man/erlang.html",
-    "IO input" => "https://www.erlang.org/doc/man/erlang.html",
-    "IO output" => "https://www.erlang.org/doc/man/erlang.html",
-    "Reductions" => "https://www.erlang.org/doc/man/erlang.html",
+    "Uptime" => "https://www.erlang.org/doc/apps/erts/erlang.html#statistics/1",
+    "IO input" => "https://www.erlang.org/doc/apps/erts/erlang.html#statistics/1",
+    "IO output" => "https://www.erlang.org/doc/apps/erts/erlang.html#statistics/1",
+    "Reductions" => "https://www.erlang.org/doc/apps/erts/erlang.html#statistics/1",
     "Runtime" => "https://www.erlang.org/doc/man/erlang.html",
     "Schedulers" => "https://www.erlang.org/doc/man/erlang.html",
     "Run queues" => "https://www.erlang.org/doc/man/erlang.html",
@@ -57,6 +54,15 @@ defmodule VoyagerWeb.NodeInfoComponents do
   }
 
   defp help_doc(label), do: Map.get(@help_doc, label)
+
+  @help_doc_label %{
+    "Uptime" => "See erlang:statistics(wall_clock)",
+    "IO input" => "See erlang:statistics(io)",
+    "IO output" => "See erlang:statistics(io)",
+    "Reductions" => "See erlang:statistics(reductions)"
+  }
+
+  defp help_doc_label(label), do: Map.get(@help_doc_label, label, "Learn more")
 
   @doc """
   Renders a key-value info card with a 2-column grid of labelled rows.
@@ -180,6 +186,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
           id={help_id("stat", @label)}
           text={help_text(@label)}
           doc_href={help_doc(@label)}
+          doc_label={help_doc_label(@label)}
         />
       </div>
       <div class="mt-1">
