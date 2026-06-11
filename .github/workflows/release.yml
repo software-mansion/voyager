@@ -12,6 +12,9 @@ permissions:
 jobs:
   app:
     name: "Desktop (${{ matrix.gui_target }})"
+    env: 
+      ELIXIR_VERSION: "1.20"
+      OTP_VERSION: "29"
     strategy:
       fail-fast: false
       matrix:
@@ -20,8 +23,8 @@ jobs:
             gui_target: "aarch64-apple-darwin"
           - platform: macos-15-intel
             gui_target: "x86_64-apple-darwin"
-          - platform: windows-2022
-            gui_target: "x86_64-pc-windows-msvc"
+          # - platform: windows-2022
+          #   gui_target: "x86_64-pc-windows-msvc"
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout repository
@@ -29,8 +32,8 @@ jobs:
 
       - uses: erlef/setup-beam@v1
         with:
-          otp-version: "29" # TODO: make dynamic
-          elixir-version: "1.20" # TODO: make dynamic
+          otp-version: ${{ env.OTP_VERSION }}
+          elixir-version: ${{ env.ELIXIR_VERSION }}
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -77,30 +80,30 @@ jobs:
       #   run: |
       #     cargo install trusted-signing-cli@0.9.0
 
-      # - name: Install Apple certificate (macOS)
-      #   if: runner.os == 'macOS'
-      #   env:
-      #     P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
-      #     P12_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_P12_PASSWORD }}
-      #     KEYCHAIN_PASSWORD: secret
-      #   run: |
-      #     # Only run if certificate is provided
-      #     if [ -n "$P12_BASE64" ]; then
-      #       # Create variables
-      #       CERTIFICATE_PATH=$RUNNER_TEMP/apple_certificate.p12
-      #       KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-      #
-      #       echo -n "$P12_BASE64" | base64 --decode -o $CERTIFICATE_PATH
-      #
-      #       # Create temporary keychain
-      #       security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-      #       security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-      #       security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-      #
-      #       # Import certificate to keychain
-      #       security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-      #       security list-keychain -d user -s $KEYCHAIN_PATH
-      #     fi
+      - name: Import Apple Developer Certificate
+        # Prevents keychain from locking automatically for 3600 seconds.
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        if: runner.os == 'macOS'
+        run: |
+          echo $APPLE_CERTIFICATE | base64 --decode > certificate.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          security find-identity -v -p codesigning build.keychain
+
+      - name: verify certificate
+        if: runner.os == 'macOS'
+        run: |
+          CERT_INFO=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application")
+          CERT_ID=$(echo "$CERT_INFO" | awk -F'"' '{print $2}')
+          echo "CERT_ID=$CERT_ID" >> $GITHUB_ENV
+          echo "Certificate imported."
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0.6
@@ -108,22 +111,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MIX_ENV: prod
           # macOS codesigning/notarization
-          # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
-          # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_P12_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: "-" # ad-hoc signature
-          # APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          # APPLE_ID: ${{ secrets.APPLE_ID }}
-          # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          # APPLE_SIGNING_IDENTITY: "-" # ad-hoc signature
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           # Windows codesigning
           # AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           # AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           # AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           # AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
           # AZURE_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_CERTIFICATE_PROFILE_NAME }}
-          # Tauri updater
-          # TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          # TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
         with:
           projectPath: rel/app
           args: --target ${{ matrix.gui_target }}
