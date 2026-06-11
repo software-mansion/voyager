@@ -131,8 +131,8 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
       Process.demonitor(ref, [:flush])
 
-      new_flat = Diff.flatten(result)
-      new_edges = Diff.relations(result)
+      new_flat = result.nodes
+      new_edges = result.edges
       prev_flat = socket.assigns.last_tree_flat
       prev_edges = socket.assigns.last_relations
 

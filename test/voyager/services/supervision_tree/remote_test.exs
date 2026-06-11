@@ -42,6 +42,43 @@ defmodule Voyager.Services.SupervisionTree.RemoteTest do
     end
   end
 
+  describe "app_masters/2" do
+    test "returns master pids aligned with apps; unknown apps map to :undefined", %{node: node} do
+      assert {:ok, [fixture_master, :undefined]} =
+               Remote.app_masters(node, [:voyager_fixture, :nonexistent_app_xyz])
+
+      assert is_pid(fixture_master)
+    end
+
+    test "returns an empty list without an :erpc call for no apps", %{node: node} do
+      assert {:ok, []} = Remote.app_masters(node, [])
+    end
+  end
+
+  describe "app_children/2" do
+    test "returns the root supervisor for each master pid", %{node: node} do
+      {:ok, [master]} = Remote.app_masters(node, [:voyager_fixture])
+
+      assert {:ok, [child]} = Remote.app_children(node, [master])
+      assert match?({pid, _module} when is_pid(pid), child) or is_pid(child)
+    end
+  end
+
+  describe "which_children_many/2 and count_children_many/2" do
+    test "return per-supervisor results aligned with the input pids", %{node: node} do
+      {:ok, _, root_pid} = Remote.app_root_chain(node, :voyager_fixture)
+      {:ok, mids} = Remote.which_children(node, root_pid)
+      mid_pids = Enum.map(mids, fn {_id, pid, _type, _mods} -> pid end)
+
+      assert {:ok, children_lists} = Remote.which_children_many(node, mid_pids)
+      assert length(children_lists) == length(mid_pids)
+      assert Enum.all?(children_lists, &(length(&1) == 2))
+
+      assert {:ok, counts} = Remote.count_children_many(node, mid_pids)
+      assert counts == Enum.map(mid_pids, fn _ -> 2 end)
+    end
+  end
+
   describe "process_info_batch/2" do
     test "returns map with memory and status for mid-supervisor pids", %{node: node} do
       {:ok, _, root_pid} = Remote.app_root_chain(node, :voyager_fixture)
@@ -54,8 +91,6 @@ defmodule Voyager.Services.SupervisionTree.RemoteTest do
         assert Map.has_key?(info_map, pid)
         pinfo = info_map[pid]
         assert is_map(pinfo)
-        assert Map.has_key?(pinfo, :memory)
-        assert Map.has_key?(pinfo, :status)
         # Relationship keys ride along on the same batch call.
         assert Map.has_key?(pinfo, :links)
         assert Map.has_key?(pinfo, :monitors)

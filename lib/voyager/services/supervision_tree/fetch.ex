@@ -23,8 +23,8 @@ defmodule Voyager.Services.SupervisionTree.Fetch do
       {ref, {status, result, errors}}
 
   where `ref` is `task.ref`, `status` is `:ok` or `:partial`, `result` is the
-  walker result map `%{tree: tree_map, relations: [edge], rel_nodes: [node]}`,
-  and `errors` is a list of error tuples.
+  walker result map `%{nodes: node_map, edges: edge_map}`, and `errors` is a
+  list of error tuples.
 
   If the underlying task crashes, the owning process receives a DOWN message:
 
@@ -51,7 +51,7 @@ defmodule Voyager.Services.SupervisionTree.Fetch do
   by the caller and passed to `cancel/1` if early termination is needed.
 
   The result arrives as `{task.ref, {status, result, errors}}`.
-  Crashes arrive as `{:DOWN, state.ref, :process, _pid, reason}`.
+  Crashes arrive as `{:DOWN, task.ref, :process, _pid, reason}`.
   """
   @spec start(request()) :: Task.t()
   def start(request) do

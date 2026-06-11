@@ -12,12 +12,19 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
     {:ok, peer: peer}
   end
 
+  # The flat key for a pid / port, matching the walker's `id_key/1`.
+  defp key(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
+  defp key(port) when is_port(port), do: "port:#{inspect(port)}"
+
+  # Resolves a node's children into their full node maps via `children_keys`.
+  defp children(nodes, node), do: Enum.map(node.children_keys, &Map.fetch!(nodes, &1))
+
   # Unwraps the `application_master -> p -> root_supervisor` root chain the
-  # walker builds for each application, returning `{app_node, p_node, root_node}`.
-  defp app_chain_nodes(tree) do
-    app_node = tree[:voyager_fixture]
-    [p_node] = app_node.children
-    [root_node] = p_node.children
+  # walker builds for `:voyager_fixture`, returning `{app_node, p_node, root_node}`.
+  defp app_chain_nodes(nodes) do
+    app_node = Map.fetch!(nodes, "app:voyager_fixture")
+    [p_node] = children(nodes, app_node)
+    [root_node] = children(nodes, p_node)
     {app_node, p_node, root_node}
   end
 
@@ -34,11 +41,11 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
          %{peer: peer} do
       node = peer.node
 
-      {:ok, %{tree: tree}, []} = Walker.walk(node, [:voyager_fixture], 3, MapSet.new())
+      {:ok, %{nodes: nodes}, []} = Walker.walk(node, [:voyager_fixture], 3, MapSet.new())
 
-      assert Map.has_key?(tree, :voyager_fixture)
+      assert Map.has_key?(nodes, "app:voyager_fixture")
 
-      {app_node, p_node, root_node} = app_chain_nodes(tree)
+      {app_node, p_node, root_node} = app_chain_nodes(nodes)
 
       # application_master node wraps the intermediate process `p`.
       assert app_node.type == :app
@@ -53,14 +60,14 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
       assert p_node.child_count == 1
 
       assert root_node.type == :supervisor
-      assert is_list(root_node.children)
-      assert length(root_node.children) == 2
+      assert is_list(root_node.children_keys)
+      assert length(root_node.children_keys) == 2
       assert root_node.child_count == 2
 
-      for mid_node <- root_node.children do
+      for mid_node <- children(nodes, root_node) do
         assert mid_node.type == :supervisor
         assert mid_node.has_children?
-        assert mid_node.children == :not_loaded
+        assert mid_node.children_keys == :not_loaded
         # stubbed via depth — count was fetched via count_children
         assert is_integer(mid_node.child_count)
         assert mid_node.child_count > 0
@@ -72,19 +79,19 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
     test "mid sups show workers; workers are leaf stubs", %{peer: peer} do
       node = peer.node
 
-      {:ok, %{tree: tree}, []} = Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
+      {:ok, %{nodes: nodes}, []} = Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
 
-      {_app_node, _p_node, root_node} = app_chain_nodes(tree)
+      {_app_node, _p_node, root_node} = app_chain_nodes(nodes)
 
-      for mid_node <- root_node.children do
+      for mid_node <- children(nodes, root_node) do
         assert mid_node.type == :supervisor
-        assert is_list(mid_node.children)
-        assert length(mid_node.children) == 2
+        assert is_list(mid_node.children_keys)
+        assert length(mid_node.children_keys) == 2
 
-        for worker_node <- mid_node.children do
+        for worker_node <- children(nodes, mid_node) do
           assert worker_node.type == :worker
           refute worker_node.has_children?
-          assert worker_node.children == :not_loaded
+          assert worker_node.children_keys == :not_loaded
           assert worker_node.child_count == 0
         end
       end
@@ -102,24 +109,24 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
 
       expanded = MapSet.new([mid_sup_a_pid])
 
-      {status, %{tree: tree}, _errors} = Walker.walk(node, [:voyager_fixture], 3, expanded)
+      {status, %{nodes: nodes}, _errors} = Walker.walk(node, [:voyager_fixture], 3, expanded)
 
       assert status in [:ok, :partial]
 
-      {_app_node, _p_node, root_node} = app_chain_nodes(tree)
+      {_app_node, _p_node, root_node} = app_chain_nodes(nodes)
 
       mid_sup_a_node =
-        Enum.find(root_node.children, fn child ->
+        Enum.find(children(nodes, root_node), fn child ->
           child.pid == mid_sup_a_pid
         end)
 
       refute is_nil(mid_sup_a_node)
       assert mid_sup_a_node.type == :supervisor
       # MidSupA was in expanded, so its children should be loaded
-      assert is_list(mid_sup_a_node.children)
-      assert length(mid_sup_a_node.children) == 2
+      assert is_list(mid_sup_a_node.children_keys)
+      assert length(mid_sup_a_node.children_keys) == 2
 
-      for worker_node <- mid_sup_a_node.children do
+      for worker_node <- children(nodes, mid_sup_a_node) do
         assert worker_node.type == :worker
       end
     end
@@ -130,20 +137,20 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
          %{peer: peer} do
       node = peer.node
 
-      {:ok, %{tree: tree}, []} = Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
+      {:ok, %{nodes: nodes}, []} = Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
 
-      {_app_node, _p_node, root_node} = app_chain_nodes(tree)
+      {_app_node, _p_node, root_node} = app_chain_nodes(nodes)
 
       # The root supervisor is registered as its module.
       assert root_node.name == Voyager.Test.FixtureApp.RootSupervisor
 
       # Mid supervisors are registered too.
-      mid_names = Enum.map(root_node.children, & &1.name)
+      mid_names = Enum.map(children(nodes, root_node), & &1.name)
       assert Voyager.Test.FixtureApp.MidSupA in mid_names
       assert Voyager.Test.FixtureApp.MidSupB in mid_names
 
       # Workers are not registered, so their label falls back to their pid.
-      for mid_node <- root_node.children, worker_node <- mid_node.children do
+      for mid_node <- children(nodes, root_node), worker_node <- children(nodes, mid_node) do
         assert worker_node.name == worker_node.pid
       end
     end
@@ -152,9 +159,9 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
          %{peer: peer} do
       node = peer.node
 
-      {:ok, %{tree: tree}, []} = Walker.walk(node, [:voyager_fixture], 3, MapSet.new())
+      {:ok, %{nodes: nodes}, []} = Walker.walk(node, [:voyager_fixture], 3, MapSet.new())
 
-      {app_node, p_node, _root_node} = app_chain_nodes(tree)
+      {app_node, p_node, _root_node} = app_chain_nodes(nodes)
 
       # Neither the application master nor `p` is a registered process, so each
       # falls back to its pid rather than to the application atom.
@@ -167,7 +174,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
   end
 
   describe "walk/4 relationships" do
-    test "worker link to an external process yields a :link edge and a worker rel_node",
+    test "worker link to an external process yields a :link edge and a worker rel node",
          %{peer: peer} do
       node = peer.node
       {_mid_a, [w1 | _]} = midsup_a_workers(node)
@@ -175,14 +182,15 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
       target = :erpc.call(node, :erlang, :spawn, [:timer, :sleep, [:infinity]])
       :ok = :erpc.call(node, GenServer, :call, [w1, {:link, target}])
 
-      {_status, %{relations: relations, rel_nodes: rel_nodes}, _errors} =
+      {_status, %{nodes: nodes, edges: edges}, _errors} =
         Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
 
-      assert Enum.any?(relations, fn r ->
-               r.from == w1 and r.to == target and r.kind == :link
+      assert Enum.any?(Map.values(edges), fn e ->
+               e.source == key(w1) and e.target == key(target) and e.kind == "link"
              end)
 
-      assert Enum.any?(rel_nodes, fn n -> n.id == target and n.type == :worker end)
+      assert nodes[key(target)].type == :worker
+      assert nodes[key(target)].parent_key == nil
     end
 
     test "monitor between two supervised workers yields :monitor and :monitored_by edges",
@@ -192,15 +200,15 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
 
       _ref = :erpc.call(node, GenServer, :call, [w1, {:monitor, w2}])
 
-      {_status, %{relations: relations}, _errors} =
+      {_status, %{edges: edges}, _errors} =
         Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
 
-      assert Enum.any?(relations, fn r ->
-               r.from == w1 and r.to == w2 and r.kind == :monitor
+      assert Enum.any?(Map.values(edges), fn e ->
+               e.source == key(w1) and e.target == key(w2) and e.kind == "monitor"
              end)
 
-      assert Enum.any?(relations, fn r ->
-               r.from == w2 and r.to == w1 and r.kind == :monitored_by
+      assert Enum.any?(Map.values(edges), fn e ->
+               e.source == key(w2) and e.target == key(w1) and e.kind == "monitored_by"
              end)
     end
 
@@ -208,31 +216,32 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
       node = peer.node
       {mid_a, _workers} = midsup_a_workers(node)
 
-      {_status, %{relations: relations}, _errors} =
+      {_status, %{edges: edges}, _errors} =
         Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
 
       # A supervisor is linked to its parent and children, but those duplicate
-      # the supervision spine and must not appear as :link edges.
-      refute Enum.any?(relations, fn r ->
-               r.from == mid_a and is_pid(r.to) and r.kind == :link
+      # the supervision spine and must not appear as :link edges. A pid target
+      # key is rendered as "<X.Y.Z>".
+      refute Enum.any?(Map.values(edges), fn e ->
+               e.source == key(mid_a) and e.kind == "link" and String.starts_with?(e.target, "<")
              end)
     end
 
-    test "worker-owned port yields a :link edge and a port rel_node", %{peer: peer} do
+    test "worker-owned port yields a :link edge and a port rel node", %{peer: peer} do
       node = peer.node
       {_mid_a, [w1 | _]} = midsup_a_workers(node)
 
       port = :erpc.call(node, GenServer, :call, [w1, {:open_port, {:spawn, ~c"cat"}, []}])
       assert is_port(port)
 
-      {_status, %{relations: relations, rel_nodes: rel_nodes}, _errors} =
+      {_status, %{nodes: nodes, edges: edges}, _errors} =
         Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
 
-      assert Enum.any?(relations, fn r ->
-               r.from == w1 and r.to == port and r.kind == :link
+      assert Enum.any?(Map.values(edges), fn e ->
+               e.source == key(w1) and e.target == key(port) and e.kind == "link"
              end)
 
-      assert Enum.any?(rel_nodes, fn n -> n.id == port and n.type == :port end)
+      assert nodes[key(port)].type == :port
     end
   end
 
@@ -240,21 +249,21 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
     test "returns partial with error for nonexistent app", %{peer: peer} do
       node = peer.node
 
-      {:partial, %{tree: tree}, errors} =
+      {:partial, %{nodes: nodes}, errors} =
         Walker.walk(node, [:nonexistent_app_xyz], 4, MapSet.new())
 
-      assert tree == %{}
+      assert nodes == %{}
       assert [{:root_supervisor, :nonexistent_app_xyz, :not_running}] = errors
     end
 
     test "returns ok tree for running apps alongside error for nonexistent", %{peer: peer} do
       node = peer.node
 
-      {:partial, %{tree: tree}, errors} =
+      {:partial, %{nodes: nodes}, errors} =
         Walker.walk(node, [:voyager_fixture, :nonexistent_app_xyz], 2, MapSet.new())
 
-      assert Map.has_key?(tree, :voyager_fixture)
-      refute Map.has_key?(tree, :nonexistent_app_xyz)
+      assert Map.has_key?(nodes, "app:voyager_fixture")
+      refute Map.has_key?(nodes, "app:nonexistent_app_xyz")
 
       assert Enum.any?(errors, fn
                {:root_supervisor, :nonexistent_app_xyz, :not_running} -> true

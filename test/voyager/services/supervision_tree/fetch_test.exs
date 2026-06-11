@@ -26,8 +26,8 @@ defmodule Voyager.Services.SupervisionTree.FetchTest do
 
       assert ref == task.ref
       assert status in [:ok, :partial]
-      assert is_map(result.tree)
-      assert Map.has_key?(result.tree, :voyager_fixture)
+      assert is_map(result.nodes)
+      assert Map.has_key?(result.nodes, "app:voyager_fixture")
     end
   end
 

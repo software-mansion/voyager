@@ -10,15 +10,8 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   @timeout_fast 500
   @timeout_children 1_500
   @timeout_pinfo 1_000
-  @pinfo_chunk_size 32
   @safe_pinfo_keys [
     :registered_name,
-    :initial_call,
-    :current_function,
-    :status,
-    :memory,
-    :message_queue_len,
-    :reductions,
     :links,
     :monitors,
     :monitored_by
@@ -72,6 +65,35 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   end
 
   @doc """
+  Returns the application master PIDs for `apps` on `node` in one `:erpc` call.
+
+  Runs `:lists.map(&:application_controller.get_master/1, apps)` on the remote,
+  so the result list is positionally aligned with `apps`. Apps that are not
+  running map to `:undefined`.
+  """
+  @spec app_masters(node(), [atom()]) :: {:ok, [pid() | :undefined]} | {:error, term()}
+  def app_masters(_node, []), do: {:ok, []}
+
+  def app_masters(node, apps) do
+    call(node, :lists, :map, [&:application_controller.get_master/1, apps], @timeout_fast)
+  end
+
+  @doc """
+  Returns the root child for each application master in `master_pids` on `node`
+  in one `:erpc` call via `:lists.map(&:application_master.get_child/1, …)`.
+
+  Each element is `{root_pid, app_module}` (or, on older systems, a bare
+  `root_pid`), positionally aligned with `master_pids`.
+  """
+  @spec app_children(node(), [pid()]) ::
+          {:ok, [{pid(), module()} | pid()]} | {:error, term()}
+  def app_children(_node, []), do: {:ok, []}
+
+  def app_children(node, master_pids) do
+    call(node, :lists, :map, [&:application_master.get_child/1, master_pids], @timeout_fast)
+  end
+
+  @doc """
   Returns the children of `sup_pid` on `node` via `:supervisor.which_children/1`.
   """
   @spec which_children(node(), pid()) ::
@@ -83,6 +105,22 @@ defmodule Voyager.Services.SupervisionTree.Remote do
           | {:error, term()}
   def which_children(node, sup_pid) do
     call(node, :supervisor, :which_children, [sup_pid], @timeout_children)
+  end
+
+  @doc """
+  Returns the children of every supervisor in `sup_pids` on `node` in one
+  `:erpc` call via `:lists.map(&:supervisor.which_children/1, sup_pids)`.
+
+  The result list is positionally aligned with `sup_pids`. Because the remote
+  `:lists.map` aborts if any single `which_children` raises (e.g. a supervisor
+  died mid-walk), callers should fall back to per-pid `which_children/2` on
+  `{:error, {:remote_exception, _}}` to isolate the offending pid.
+  """
+  @spec which_children_many(node(), [pid()]) :: {:ok, [list()]} | {:error, term()}
+  def which_children_many(_node, []), do: {:ok, []}
+
+  def which_children_many(node, sup_pids) do
+    call(node, :lists, :map, [&:supervisor.which_children/1, sup_pids], @timeout_children)
   end
 
   @doc """
@@ -105,27 +143,68 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   end
 
   @doc """
-  Fetches `:process_info` for a batch of PIDs on `node`.
+  Returns the spec-children count for every supervisor in `sup_pids` on `node`
+  in one `:erpc` call via `:lists.map(&:supervisor.count_children/1, sup_pids)`.
 
-  Splits `pids` into chunks of `@pinfo_chunk_size` and issues one
-  `:erpc.call(node, :erlang, :process_info, [pid, keys])` per PID via local
-  `Task.async_stream`, bounding concurrency. Returns a map keyed by PID;
-  dead processes map to `:dead`. If any chunk fails the whole call returns
-  `{:error, reason}`.
+  The result list is positionally aligned with `sup_pids`. As with
+  `which_children_many/2`, callers should fall back to per-pid `count_children/2`
+  on `{:error, {:remote_exception, _}}`.
+  """
+  @spec count_children_many(node(), [pid()]) ::
+          {:ok, [non_neg_integer()]} | {:error, term()}
+  def count_children_many(_node, []), do: {:ok, []}
+
+  def count_children_many(node, sup_pids) do
+    case call(node, :lists, :map, [&:supervisor.count_children/1, sup_pids], @timeout_fast) do
+      {:ok, counts_list} when is_list(counts_list) ->
+        {:ok, Enum.map(counts_list, &Keyword.get(&1, :specs, 0))}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  @doc """
+  Fetches the `@safe_pinfo_keys` `:process_info` for a batch of PIDs on `node`
+  in a single `:erpc` call (see `process_info_many/3`). Returns a map keyed by
+  PID; dead processes map to `:dead`.
   """
   @spec process_info_batch(node(), [pid()]) :: {:ok, %{pid() => map() | :dead}} | {:error, term()}
   def process_info_batch(node, pids) do
-    chunks = Enum.chunk_every(pids, @pinfo_chunk_size)
+    process_info_many(node, pids, @safe_pinfo_keys)
+  end
 
-    result =
-      Enum.reduce_while(chunks, {:ok, %{}}, fn chunk, {:ok, acc} ->
-        case fetch_pinfo_chunk(node, chunk) do
-          {:ok, chunk_map} -> {:cont, {:ok, Map.merge(acc, chunk_map)}}
-          {:error, _} = err -> {:halt, err}
-        end
-      end)
+  @doc """
+  Fetches `:process_info` for `pids` on `node` with the given `keys` in one
+  `:erpc` call.
 
-    result
+  Runs `:lists.zipwith(&:erlang.process_info/2, pids, dup_keys)` on the remote —
+  an external fun, so no helper code is shipped — collapsing what would be one
+  call per PID into a single round-trip. Returns a map keyed by PID; dead
+  processes (`process_info/2` returns `:undefined`) map to `:dead`.
+  """
+  @spec process_info_many(node(), [pid()], [atom()]) ::
+          {:ok, %{pid() => map() | :dead}} | {:error, term()}
+  def process_info_many(_node, [], _keys), do: {:ok, %{}}
+
+  def process_info_many(node, pids, keys) do
+    dup_keys = List.duplicate(keys, length(pids))
+
+    case call(node, :lists, :zipwith, [&:erlang.process_info/2, pids, dup_keys], @timeout_pinfo) do
+      {:ok, pinfo_list} when is_list(pinfo_list) ->
+        map =
+          pids
+          |> Enum.zip(pinfo_list)
+          |> Map.new(fn
+            {pid, :undefined} -> {pid, :dead}
+            {pid, kw_list} -> {pid, Map.new(kw_list)}
+          end)
+
+        {:ok, map}
+
+      {:error, _} = err ->
+        err
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -145,38 +224,6 @@ defmodule Voyager.Services.SupervisionTree.Remote do
       {:ok, {child_pid, _app_module}} -> {:ok, child_pid}
       {:ok, child_pid} when is_pid(child_pid) -> {:ok, child_pid}
       {:error, _} = err -> err
-    end
-  end
-
-  defp fetch_pinfo_chunk(node, pids) do
-    results =
-      Task.async_stream(
-        pids,
-        fn pid ->
-          call(node, :erlang, :process_info, [pid, @safe_pinfo_keys], @timeout_pinfo)
-        end,
-        timeout: @timeout_pinfo + 200,
-        on_timeout: :kill_task
-      )
-      |> Enum.reduce_while([], fn
-        {:ok, {:ok, result}}, acc -> {:cont, [result | acc]}
-        {:ok, {:error, reason}}, _acc -> {:halt, {:error, reason}}
-        {:exit, reason}, _acc -> {:halt, {:error, reason}}
-      end)
-
-    case results do
-      {:error, _} = err ->
-        err
-
-      pinfo_list ->
-        map =
-          Enum.zip(pids, Enum.reverse(pinfo_list))
-          |> Map.new(fn
-            {pid, :undefined} -> {pid, :dead}
-            {pid, kw_list} -> {pid, Map.new(kw_list)}
-          end)
-
-        {:ok, map}
     end
   end
 
