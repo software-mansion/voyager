@@ -29,42 +29,6 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   end
 
   @doc """
-  Returns the application master PID and the application's root supervisor PID
-  for `app` on `node`, as `{:ok, master_pid, root_supervisor_pid}`.
-
-  The application master is the `:application_master` process returned by
-  `:application_controller.get_master/1`; the root supervisor is the child it
-  reports via `:application_master.get_child/1`.
-
-  Returns `{:error, :not_running}` if the app is not started.
-  """
-  @spec app_root_chain(node(), atom()) ::
-          {:ok, pid(), pid()} | {:error, :not_running | term()}
-  def app_root_chain(node, app) do
-    with {:ok, master_pid} <- get_master(node, app),
-         {:ok, root_pid} <- get_child(node, master_pid) do
-      {:ok, master_pid, root_pid}
-    end
-  end
-
-  @doc """
-  Returns the `$ancestors` recorded in `pid`'s process dictionary on `node`.
-  """
-  @spec ancestors(node(), pid()) :: {:ok, [pid() | atom()]} | {:error, term()}
-  def ancestors(node, pid) do
-    case call(node, :erlang, :process_info, [pid, :dictionary], @timeout_fast) do
-      {:ok, {:dictionary, dict}} when is_list(dict) ->
-        {:ok, Keyword.get(dict, :"$ancestors", [])}
-
-      {:ok, _} ->
-        {:ok, []}
-
-      {:error, _} = err ->
-        err
-    end
-  end
-
-  @doc """
   Returns the application master PIDs for `apps` on `node` in one `:erpc` call.
 
   Runs `:lists.map(&:application_controller.get_master/1, apps)` on the remote,
@@ -207,35 +171,15 @@ defmodule Voyager.Services.SupervisionTree.Remote do
     end
   end
 
-  # ---------------------------------------------------------------------------
-  # Private helpers
-  # ---------------------------------------------------------------------------
-
-  defp get_master(node, app) do
-    case call(node, :application_controller, :get_master, [app], @timeout_fast) do
-      {:ok, :undefined} -> {:error, :not_running}
-      {:ok, pid} -> {:ok, pid}
-      {:error, _} = err -> err
-    end
-  end
-
-  defp get_child(node, master_pid) do
-    case call(node, :application_master, :get_child, [master_pid], @timeout_fast) do
-      {:ok, {child_pid, _app_module}} -> {:ok, child_pid}
-      {:ok, child_pid} when is_pid(child_pid) -> {:ok, child_pid}
-      {:error, _} = err -> err
-    end
-  end
-
   defp call(node, mod, fun, args, timeout) do
-    result = :erpc.call(node, mod, fun, args, timeout)
+    result = Voyager.Erpc.call(node, mod, fun, args, timeout)
     {:ok, result}
   catch
     :error, {:erpc, :timeout} ->
       {:error, :timeout}
 
     :error, {:erpc, :noconnection} ->
-      {:error, :not_connected}
+      {:error, :noconnection}
 
     :error, {:exception, reason, _stack} ->
       {:error, {:remote_exception, reason}}

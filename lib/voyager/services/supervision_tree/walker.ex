@@ -171,7 +171,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   end
 
   # ---------------------------------------------------------------------------
-  # Private — application roots
+  # application roots
   # ---------------------------------------------------------------------------
 
   defp build_roots(node, apps, depth) do
@@ -314,7 +314,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   defp ancestor_pid(_info, default), do: default
 
   # ---------------------------------------------------------------------------
-  # Private — breadth-first level walk
+  # breadth-first level walk
   # ---------------------------------------------------------------------------
 
   defp walk_levels(_node, nodes, [], _expanded, _deadline, errors), do: {nodes, errors}
@@ -434,7 +434,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   end
 
   # ---------------------------------------------------------------------------
-  # Private — batched remote calls with per-pid fallback
+  # batched remote calls with per-pid fallback
   # ---------------------------------------------------------------------------
 
   defp which_children_aligned(node, pids) do
@@ -465,7 +465,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   end
 
   # ---------------------------------------------------------------------------
-  # Private — node constructors
+  # node constructors
   # ---------------------------------------------------------------------------
 
   # All node maps share this skeleton; each constructor overrides only the
@@ -533,7 +533,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   end
 
   # ---------------------------------------------------------------------------
-  # Private — info hydration
+  # info hydration
   # ---------------------------------------------------------------------------
 
   defp hydrate(node, nodes) do
@@ -568,7 +568,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   defp pid_label(pid, _info), do: pid
 
   # ---------------------------------------------------------------------------
-  # Private — relationship discovery
+  # relationship discovery
   # ---------------------------------------------------------------------------
 
   defp build_relations(node, nodes) do
@@ -712,7 +712,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   end
 
   # ---------------------------------------------------------------------------
-  # Private — keys & helpers
+  # keys & helpers
   # ---------------------------------------------------------------------------
 
   defp id_key(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()

@@ -4,19 +4,23 @@ defmodule Voyager.Services.SupervisionTree.FetchTest do
   alias Voyager.Services.SupervisionTree.Fetch
   alias Voyager.Test.RemoteFixture
 
-  setup do
-    peer = RemoteFixture.start_peer!()
-    RemoteFixture.load_fixture_app!(peer)
-    RemoteFixture.start_fixture_app!(peer)
-    on_exit(fn -> RemoteFixture.stop_peer!(peer) end)
-    {:ok, peer: peer}
+  setup_all do
+    fixture_app = RemoteFixture.start_fixture_app!()
+    Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
+
+    on_exit(fn ->
+      Application.stop(fixture_app)
+      Application.put_env(:voyager, :erpc, Voyager.ErpcMock)
+    end)
+
+    {:ok, node: Node.self()}
   end
 
   describe "start/1" do
-    test "returns task with matching ref and delivers walk result", %{peer: peer} do
+    test "returns task with matching ref and delivers walk result", %{node: node} do
       task =
         Fetch.start(%{
-          node: peer.node,
+          node: node,
           apps: [:voyager_fixture],
           depth: 2,
           expanded: MapSet.new()
@@ -32,10 +36,10 @@ defmodule Voyager.Services.SupervisionTree.FetchTest do
   end
 
   describe "cancel/1" do
-    test "terminates task and suppresses result message", %{peer: peer} do
+    test "terminates task and suppresses result message", %{node: node} do
       task =
         Fetch.start(%{
-          node: peer.node,
+          node: node,
           apps: [:voyager_fixture],
           depth: 2,
           expanded: MapSet.new()
@@ -49,10 +53,10 @@ defmodule Voyager.Services.SupervisionTree.FetchTest do
       refute_receive {^ref, _}, 200
     end
 
-    test "is safe to call after task has already finished", %{peer: peer} do
+    test "is safe to call after task has already finished", %{node: node} do
       task =
         Fetch.start(%{
-          node: peer.node,
+          node: node,
           apps: [:voyager_fixture],
           depth: 2,
           expanded: MapSet.new()
@@ -66,10 +70,10 @@ defmodule Voyager.Services.SupervisionTree.FetchTest do
       assert :ok = Fetch.cancel(task)
     end
 
-    test "task is not present in TaskSupervisor children after cancel", %{peer: peer} do
+    test "task is not present in TaskSupervisor children after cancel", %{node: node} do
       task =
         Fetch.start(%{
-          node: peer.node,
+          node: node,
           apps: [:voyager_fixture],
           depth: 10,
           expanded: MapSet.new()
@@ -86,10 +90,10 @@ defmodule Voyager.Services.SupervisionTree.FetchTest do
   end
 
   describe "async_nolink crash isolation" do
-    test "killing the task pid delivers :DOWN to caller without crashing caller", %{peer: peer} do
+    test "killing the task pid delivers :DOWN to caller without crashing caller", %{node: node} do
       task =
         Fetch.start(%{
-          node: peer.node,
+          node: node,
           apps: [:voyager_fixture],
           depth: 2,
           expanded: MapSet.new()

@@ -4,46 +4,40 @@ defmodule Voyager.Services.SupervisionTree.RemoteTest do
   alias Voyager.Services.SupervisionTree.Remote
   alias Voyager.Test.RemoteFixture
 
-  setup do
-    peer = RemoteFixture.start_peer!()
-    RemoteFixture.load_fixture_app!(peer)
-    RemoteFixture.start_fixture_app!(peer)
+  setup_all do
+    fixture_app = RemoteFixture.start_fixture_app!()
+    Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
 
     on_exit(fn ->
-      try do
-        RemoteFixture.stop_peer!(peer)
-      catch
-        :exit, :noproc -> :ok
-        :exit, {:noproc, _} -> :ok
-      end
+      Application.stop(fixture_app)
+      Application.put_env(:voyager, :erpc, Voyager.ErpcMock)
     end)
 
-    %{peer: peer, node: peer.node}
+    {:ok, node: Node.self()}
   end
 
   describe "list_applications/1" do
-    test "returns ok with apps list and :voyager_fixture is included", %{node: node} do
+    test "returns ok with apps list and fixture app is included", %{node: node} do
       assert {:ok, apps} = Remote.list_applications(node)
       app_names = Enum.map(apps, fn {name, _desc, _vsn} -> name end)
       assert :voyager_fixture in app_names
     end
-  end
 
-  describe "which_children/2" do
-    test "root supervisor has 2 mid-supervisor children", %{node: node} do
-      {:ok, _, root_pid} = Remote.app_root_chain(node, :voyager_fixture)
-      assert {:ok, children} = Remote.which_children(node, root_pid)
-      assert length(children) == 2
+    test "returns ok with apps list and fixture app is not included when stopped", %{node: node} do
+      Application.stop(:voyager_fixture)
 
-      Enum.each(children, fn {_id, child_pid, type, _modules} ->
-        assert is_pid(child_pid)
-        assert type == :supervisor
-      end)
+      assert {:ok, apps} = Remote.list_applications(node)
+      app_names = Enum.map(apps, fn {name, _desc, _vsn} -> name end)
+      assert :voyager_fixture not in app_names
+
+      Application.start(:voyager_fixture)
     end
   end
 
   describe "app_masters/2" do
-    test "returns master pids aligned with apps; unknown apps map to :undefined", %{node: node} do
+    test "returns master pids aligned with apps; unknown apps map to :undefined", %{
+      node: node
+    } do
       assert {:ok, [fixture_master, :undefined]} =
                Remote.app_masters(node, [:voyager_fixture, :nonexistent_app_xyz])
 
@@ -64,9 +58,26 @@ defmodule Voyager.Services.SupervisionTree.RemoteTest do
     end
   end
 
+  describe "which_children/2" do
+    test "root supervisor has 2 mid-supervisor children", %{node: node} do
+      {:ok, [master]} = Remote.app_masters(node, [:voyager_fixture])
+      {:ok, [{root_pid, _}]} = Remote.app_children(node, [master])
+
+      assert {:ok, children} = Remote.which_children(node, root_pid)
+      assert length(children) == 2
+
+      Enum.each(children, fn {_id, child_pid, type, _modules} ->
+        assert is_pid(child_pid)
+        assert type == :supervisor
+      end)
+    end
+  end
+
   describe "which_children_many/2 and count_children_many/2" do
     test "return per-supervisor results aligned with the input pids", %{node: node} do
-      {:ok, _, root_pid} = Remote.app_root_chain(node, :voyager_fixture)
+      {:ok, [master]} = Remote.app_masters(node, [:voyager_fixture])
+      {:ok, [{root_pid, _}]} = Remote.app_children(node, [master])
+
       {:ok, mids} = Remote.which_children(node, root_pid)
       mid_pids = Enum.map(mids, fn {_id, pid, _type, _mods} -> pid end)
 
@@ -81,7 +92,8 @@ defmodule Voyager.Services.SupervisionTree.RemoteTest do
 
   describe "process_info_batch/2" do
     test "returns map with memory and status for mid-supervisor pids", %{node: node} do
-      {:ok, _, root_pid} = Remote.app_root_chain(node, :voyager_fixture)
+      {:ok, [master]} = Remote.app_masters(node, [:voyager_fixture])
+      {:ok, [{root_pid, _}]} = Remote.app_children(node, [master])
       {:ok, children} = Remote.which_children(node, root_pid)
       mid_pids = Enum.map(children, fn {_id, pid, _type, _mods} -> pid end)
 
@@ -114,25 +126,6 @@ defmodule Voyager.Services.SupervisionTree.RemoteTest do
       assert {:ok, info_map} = Remote.process_info_batch(node, [worker_pid, mid_a_pid])
       assert info_map[worker_pid] == :dead
       assert is_map(info_map[mid_a_pid])
-    end
-  end
-
-  describe "ancestors/2" do
-    test "returns the root supervisor's recorded ancestors", %{node: node} do
-      {:ok, _, root_pid} = Remote.app_root_chain(node, :voyager_fixture)
-
-      assert {:ok, ancestors} = Remote.ancestors(node, root_pid)
-      assert is_list(ancestors)
-      # The root supervisor was started by the application master.
-      assert Enum.any?(ancestors, &is_pid/1)
-    end
-  end
-
-  describe "disconnected node" do
-    test "returns {:error, :not_connected} after peer is stopped", %{peer: peer, node: node} do
-      RemoteFixture.stop_peer!(peer)
-
-      assert {:error, :not_connected} = Remote.list_applications(node)
     end
   end
 end

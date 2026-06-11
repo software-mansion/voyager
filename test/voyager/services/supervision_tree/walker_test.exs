@@ -4,12 +4,16 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
   alias Voyager.Services.SupervisionTree.Walker
   alias Voyager.Test.RemoteFixture
 
-  setup do
-    peer = RemoteFixture.start_peer!()
-    RemoteFixture.load_fixture_app!(peer)
-    RemoteFixture.start_fixture_app!(peer)
-    on_exit(fn -> RemoteFixture.stop_peer!(peer) end)
-    {:ok, peer: peer}
+  setup_all do
+    fixture_app = RemoteFixture.start_fixture_app!()
+    Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
+
+    on_exit(fn ->
+      Application.stop(fixture_app)
+      Application.put_env(:voyager, :erpc, Voyager.ErpcMock)
+    end)
+
+    {:ok, node: Node.self()}
   end
 
   # The flat key for a pid / port, matching the walker's `id_key/1`.
@@ -38,9 +42,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
 
   describe "walk/4 depth=3, no expanded" do
     test "root chain is application_master -> p -> root sup; mid sups are stubs",
-         %{peer: peer} do
-      node = peer.node
-
+         %{node: node} do
       {:ok, %{nodes: nodes}, []} = Walker.walk(node, [:voyager_fixture], 3, MapSet.new())
 
       assert Map.has_key?(nodes, "app:voyager_fixture")
@@ -76,9 +78,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
   end
 
   describe "walk/4 depth=4" do
-    test "mid sups show workers; workers are leaf stubs", %{peer: peer} do
-      node = peer.node
-
+    test "mid sups show workers; workers are leaf stubs", %{node: node} do
       {:ok, %{nodes: nodes}, []} = Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
 
       {_app_node, _p_node, root_node} = app_chain_nodes(nodes)
@@ -99,9 +99,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
   end
 
   describe "walk/4 depth=3 with expanded mid-sup pid" do
-    test "expanded mid sup has its children loaded even though depth=0", %{peer: peer} do
-      node = peer.node
-
+    test "expanded mid sup has its children loaded even though depth=0", %{node: node} do
       mid_sup_a_pid =
         :erpc.call(node, :erlang, :whereis, [Voyager.Test.FixtureApp.MidSupA])
 
@@ -134,9 +132,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
 
   describe "walk/4 labels" do
     test "registered processes are named by their registered_name; unregistered by pid",
-         %{peer: peer} do
-      node = peer.node
-
+         %{node: node} do
       {:ok, %{nodes: nodes}, []} = Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
 
       {_app_node, _p_node, root_node} = app_chain_nodes(nodes)
@@ -156,9 +152,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
     end
 
     test "the application-master and p nodes are labeled by their (unregistered) pids",
-         %{peer: peer} do
-      node = peer.node
-
+         %{node: node} do
       {:ok, %{nodes: nodes}, []} = Walker.walk(node, [:voyager_fixture], 3, MapSet.new())
 
       {app_node, p_node, _root_node} = app_chain_nodes(nodes)
@@ -175,8 +169,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
 
   describe "walk/4 relationships" do
     test "worker link to an external process yields a :link edge and a worker rel node",
-         %{peer: peer} do
-      node = peer.node
+         %{node: node} do
       {_mid_a, [w1 | _]} = midsup_a_workers(node)
 
       target = :erpc.call(node, :erlang, :spawn, [:timer, :sleep, [:infinity]])
@@ -194,8 +187,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
     end
 
     test "monitor between two supervised workers yields :monitor and :monitored_by edges",
-         %{peer: peer} do
-      node = peer.node
+         %{node: node} do
       {_mid_a, [w1, w2]} = midsup_a_workers(node)
 
       _ref = :erpc.call(node, GenServer, :call, [w1, {:monitor, w2}])
@@ -212,8 +204,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
              end)
     end
 
-    test "supervisor pid-links are not emitted as relationship edges", %{peer: peer} do
-      node = peer.node
+    test "supervisor pid-links are not emitted as relationship edges", %{node: node} do
       {mid_a, _workers} = midsup_a_workers(node)
 
       {_status, %{edges: edges}, _errors} =
@@ -227,8 +218,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
              end)
     end
 
-    test "worker-owned port yields a :link edge and a port rel node", %{peer: peer} do
-      node = peer.node
+    test "worker-owned port yields a :link edge and a port rel node", %{node: node} do
       {_mid_a, [w1 | _]} = midsup_a_workers(node)
 
       port = :erpc.call(node, GenServer, :call, [w1, {:open_port, {:spawn, ~c"cat"}, []}])
@@ -246,9 +236,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
   end
 
   describe "walk/4 app not running" do
-    test "returns partial with error for nonexistent app", %{peer: peer} do
-      node = peer.node
-
+    test "returns partial with error for nonexistent app", %{node: node} do
       {:partial, %{nodes: nodes}, errors} =
         Walker.walk(node, [:nonexistent_app_xyz], 4, MapSet.new())
 
@@ -256,9 +244,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
       assert [{:root_supervisor, :nonexistent_app_xyz, :not_running}] = errors
     end
 
-    test "returns ok tree for running apps alongside error for nonexistent", %{peer: peer} do
-      node = peer.node
-
+    test "returns ok tree for running apps alongside error for nonexistent", %{node: node} do
       {:partial, %{nodes: nodes}, errors} =
         Walker.walk(node, [:voyager_fixture, :nonexistent_app_xyz], 2, MapSet.new())
 
