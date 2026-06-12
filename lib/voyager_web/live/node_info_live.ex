@@ -140,11 +140,7 @@ defmodule VoyagerWeb.NodeInfoLive do
 
           <%!-- Runtime + concurrency --%>
           <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-stretch">
-            <NodeInfoComponents.info_card
-              title="Runtime"
-              rows={runtime_rows(snapshot)}
-              row_tooltips={NodeInfoComponents.runtime_row_tooltips()}
-            />
+            <NodeInfoComponents.info_card title="Runtime" rows={runtime_rows(snapshot)} />
 
             <div class="flex h-full min-h-0 flex-col gap-6">
               <NodeInfoComponents.metric_card
@@ -249,22 +245,32 @@ defmodule VoyagerWeb.NodeInfoLive do
     assign(socket, :timer_ref, ref)
   end
 
+  @language_help %{"Elixir" => :elixir, "Gleam (stdlib)" => :gleam_stdlib}
+
   defp runtime_rows(snapshot) do
-    language_rows = Enum.map(snapshot.languages, &{&1.name, &1.version})
+    language_rows =
+      Enum.map(snapshot.languages, fn lang ->
+        {lang.name, lang.version, help: NodeInfoHelp.get(@language_help[lang.name])}
+      end)
 
     base = [
-      {"OTP", snapshot.system.otp_release},
-      {"ERTS", snapshot.system.erts_version},
-      {"stdlib", snapshot.system.stdlib_version || "Not available"}
+      {"OTP", snapshot.system.otp_release, help: NodeInfoHelp.get(:otp)},
+      {"ERTS", snapshot.system.erts_version, help: NodeInfoHelp.get(:erts)},
+      {"stdlib", snapshot.system.stdlib_version || "Not available",
+       help: NodeInfoHelp.get(:stdlib)}
     ]
 
     rest = [
       {"Word size",
-       "#{snapshot.system.wordsize_internal} / #{snapshot.system.wordsize_external} bytes"},
-      {"SMP", Formatters.format_bool(snapshot.system.smp_support?)},
-      {"Threads", Formatters.format_bool(snapshot.system.thread_support?)},
-      {"Async threads", to_string(snapshot.system.async_threads)},
-      {"System arch", snapshot.system.system_architecture, :full}
+       "#{snapshot.system.wordsize_internal} / #{snapshot.system.wordsize_external} bytes",
+       help: NodeInfoHelp.get(:word_size)},
+      {"SMP", Formatters.format_bool(snapshot.system.smp_support?), help: NodeInfoHelp.get(:smp)},
+      {"Threads", Formatters.format_bool(snapshot.system.thread_support?),
+       help: NodeInfoHelp.get(:threads)},
+      {"Async threads", to_string(snapshot.system.async_threads),
+       help: NodeInfoHelp.get(:async_threads)},
+      {"System arch", snapshot.system.system_architecture,
+       help: NodeInfoHelp.get(:system_arch), full: true}
     ]
 
     language_rows ++ base ++ rest

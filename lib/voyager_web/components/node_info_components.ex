@@ -19,31 +19,12 @@ defmodule VoyagerWeb.NodeInfoComponents do
     {:other, "Other", "bg-base-300"}
   ]
 
-  # Maps runtime info_card row labels to their help entries. The labels come
-  # from `runtime_rows/1` in the LiveView (including dynamic language rows), so
-  # this adapter bridges those display strings to the atom-keyed registry.
-  @runtime_rows %{
-    "OTP" => :otp,
-    "ERTS" => :erts,
-    "stdlib" => :stdlib,
-    "Elixir" => :elixir,
-    "Gleam (stdlib)" => :gleam_stdlib,
-    "Word size" => :word_size,
-    "SMP" => :smp,
-    "Threads" => :threads,
-    "Async threads" => :async_threads,
-    "System arch" => :system_arch
-  }
-
-  @doc """
-  Returns a map of runtime row label → help entry for `info_card`'s `row_tooltips`.
-  """
-  def runtime_row_tooltips do
-    Map.new(@runtime_rows, fn {label, key} -> {label, NodeInfoHelp.get(key)} end)
-  end
-
   @doc """
   Renders a key-value info card with a 2-column grid of labelled rows.
+
+  Each row is `{label, value}` or `{label, value, opts}`, where `opts` is a
+  keyword list supporting `:full` (span both columns) and `:help` (a help entry
+  from `NodeInfoHelp` rendered as a per-row tooltip).
 
   ## Examples
 
@@ -51,20 +32,15 @@ defmodule VoyagerWeb.NodeInfoComponents do
         title="Runtime"
         subtitle="ERTS · system info"
         rows={[
-          {"OTP version", "27.1"},
-          {"ERTS version", "15.1"}
+          {"OTP", "27.1", help: NodeInfoHelp.get(:otp)},
+          {"System arch", "x86_64-...", full: true}
         ]}
       />
   """
   attr :title, :string, required: true
   attr :subtitle, :string, default: nil
   attr :rows, :list, required: true
-
   attr :help, :map, default: nil, doc: "optional help entry for the card title (see NodeInfoHelp)"
-
-  attr :row_tooltips, :map,
-    default: %{},
-    doc: "optional map of row label → %{text, doc_href, doc_label} for per-row help tooltips"
 
   def info_card(assigns) do
     ~H"""
@@ -86,18 +62,17 @@ defmodule VoyagerWeb.NodeInfoComponents do
 
         <div class="grid grid-cols-2 gap-x-6 gap-y-3">
           <%= for row <- @rows do %>
-            <% {label, value, full_width?} = info_row(row) %>
+            <% {label, value, full_width?, help} = info_row(row) %>
             <div class={full_width? && "col-span-2 min-w-0"}>
               <div class="font-mono tracking-[0.08em] text-base-content/50 mb-0.5 flex items-center gap-0.5 text-xs font-semibold uppercase">
                 {label}
-                <%= if tooltip = Map.get(@row_tooltips, label) do %>
-                  <.help_tooltip
-                    id={help_id("row", label)}
-                    text={tooltip.text}
-                    doc_href={Map.get(tooltip, :doc_href)}
-                    doc_label={Map.get(tooltip, :doc_label, "Learn more")}
-                  />
-                <% end %>
+                <.help_tooltip
+                  :if={help}
+                  id={help_id("row", label)}
+                  text={help.text}
+                  doc_href={help[:doc_href]}
+                  doc_label={help[:doc_label] || "Learn more"}
+                />
               </div>
               <div class={["font-mono text-base-content text-sm", full_width? && "truncate"]}>
                 {value}
@@ -332,8 +307,10 @@ defmodule VoyagerWeb.NodeInfoComponents do
 
   defp meter_color(_), do: "bg-primary"
 
-  defp info_row({label, value}), do: {label, value, false}
-  defp info_row({label, value, :full}), do: {label, value, true}
+  defp info_row({label, value}), do: {label, value, false, nil}
+
+  defp info_row({label, value, opts}) when is_list(opts),
+    do: {label, value, Keyword.get(opts, :full, false), Keyword.get(opts, :help)}
 
   defp help_id(prefix, label) do
     slug =
