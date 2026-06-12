@@ -5,6 +5,7 @@ defmodule VoyagerWeb.NodeInfoLive do
   alias Voyager.Services.NodeInfo
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.NodeInfoComponents
+  alias VoyagerWeb.NodeInfoHelp
 
   @default_interval Application.compile_env(:voyager, :node_info_refresh_interval_ms, 5_000)
 
@@ -101,24 +102,28 @@ defmodule VoyagerWeb.NodeInfoLive do
             <NodeInfoComponents.stat_tile
               label="Uptime"
               value={Formatters.format_uptime(snapshot.runtime.uptime_ms)}
+              help={NodeInfoHelp.get(:uptime)}
             >
               <:sub>since {uptime_since(snapshot.collected_at, snapshot.runtime.uptime_ms)}</:sub>
             </NodeInfoComponents.stat_tile>
             <NodeInfoComponents.stat_tile
               label="IO input"
               value={Formatters.format_bytes_compact(snapshot.runtime.io_input_bytes)}
+              help={NodeInfoHelp.get(:io_input)}
             >
               <:sub>total since start</:sub>
             </NodeInfoComponents.stat_tile>
             <NodeInfoComponents.stat_tile
               label="IO output"
               value={Formatters.format_bytes_compact(snapshot.runtime.io_output_bytes)}
+              help={NodeInfoHelp.get(:io_output)}
             >
               <:sub>total since start</:sub>
             </NodeInfoComponents.stat_tile>
             <NodeInfoComponents.stat_tile
               label="Reductions"
               value={Formatters.format_count_compact(snapshot.runtime.total_reductions)}
+              help={NodeInfoHelp.get(:reductions)}
             >
               <:sub>total since start</:sub>
             </NodeInfoComponents.stat_tile>
@@ -126,7 +131,10 @@ defmodule VoyagerWeb.NodeInfoLive do
 
           <%!-- Charts --%>
           <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <NodeInfoComponents.memory_card memory={snapshot.memory} />
+            <NodeInfoComponents.memory_card
+              memory={snapshot.memory}
+              help={NodeInfoHelp.get(:memory_breakdown)}
+            />
             <NodeInfoComponents.limits_card limits={snapshot.limits} />
           </div>
 
@@ -142,6 +150,7 @@ defmodule VoyagerWeb.NodeInfoLive do
               <NodeInfoComponents.metric_card
                 title="Schedulers"
                 subtitle="online / total"
+                help={NodeInfoHelp.get(:schedulers)}
                 metrics={[
                   {"Normal", "#{snapshot.schedulers.online} / #{snapshot.schedulers.total}"},
                   {"Dirty CPU",
@@ -152,6 +161,7 @@ defmodule VoyagerWeb.NodeInfoLive do
               <NodeInfoComponents.metric_card
                 title="Run queues"
                 subtitle="queued processes"
+                help={NodeInfoHelp.get(:run_queues)}
                 metrics={[
                   {"Normal + CPU", snapshot.run_queues.normal_and_dirty_cpu},
                   {"Dirty IO", snapshot.run_queues.dirty_io},
