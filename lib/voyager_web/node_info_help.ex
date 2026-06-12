@@ -18,8 +18,6 @@ defmodule VoyagerWeb.NodeInfoHelp do
           optional(:doc_label) => String.t()
         }
 
-  # Base URL for the Erlang/OTP erts docs. NOTE: verify these anchors against
-  # the OTP version you target — Erlang doc URLs have changed across releases.
   @erts "https://www.erlang.org/doc/apps/erts/erlang.html"
 
   @entries %{
