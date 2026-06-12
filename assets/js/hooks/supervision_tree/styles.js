@@ -1,9 +1,5 @@
 import Color from 'colorjs.io';
 
-const LINK_COLOR = '#CCCCCC';
-const MONITOR_COLOR = '#D1A1E5';
-const MONITORED_BY_COLOR = '#4DB8FF';
-
 export function buildStyle(t) {
   return [
     {
@@ -153,7 +149,6 @@ export function buildStyle(t) {
         },
         'line-color': t.base500,
         width: 1.4,
-        'target-arrow-shape': 'none',
         'transition-property': 'line-color, width, opacity',
         'transition-duration': '80ms',
       },
@@ -172,33 +167,31 @@ export function buildStyle(t) {
       // directed overlays distinct from the solid structural supervision edges.
       selector: 'edge.rel',
       style: {
-        'curve-style': 'unbundled-bezier',
         'line-style': 'dashed',
         width: 1.2,
         'target-arrow-shape': 'triangle',
-        'arrow-scale': 0.7,
         'z-index': 1,
       },
     },
     {
       selector: 'edge.link',
       style: {
-        'line-color': LINK_COLOR,
-        'target-arrow-color': LINK_COLOR,
+        'line-color': t.base400,
+        'target-arrow-shape': 'none',
       },
     },
     {
       selector: 'edge.monitor',
       style: {
-        'line-color': MONITOR_COLOR,
-        'target-arrow-color': MONITOR_COLOR,
+        'line-color': t.processMonitor,
+        'target-arrow-color': t.processMonitor,
       },
     },
     {
       selector: 'edge.monitored_by',
       style: {
-        'line-color': MONITORED_BY_COLOR,
-        'target-arrow-color': MONITORED_BY_COLOR,
+        'line-color': t.processMonitoredBy,
+        'target-arrow-color': t.processMonitoredBy,
       },
     },
     {
