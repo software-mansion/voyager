@@ -23,8 +23,8 @@ defmodule Voyager.Services.SupervisionTree.Fetch do
       {ref, {status, result, errors}}
 
   where `ref` is `task.ref`, `status` is `:ok` or `:partial`, `result` is the
-  walker result map `%{nodes: node_map, edges: edge_map}`, and `errors` is a
-  list of error tuples.
+  walker result map `%{nodes: node_map}`, and `errors` is a list of error
+  tuples.
 
   If the underlying task crashes, the owning process receives a DOWN message:
 

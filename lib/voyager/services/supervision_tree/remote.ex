@@ -11,10 +11,7 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   @timeout_children 1_500
   @timeout_pinfo 1_000
   @safe_pinfo_keys [
-    :registered_name,
-    :links,
-    :monitors,
-    :monitored_by
+    :registered_name
   ]
 
   @doc """

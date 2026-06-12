@@ -42,9 +42,6 @@
   --color-warning-content: oklch(55% 0.163 48.998);
   --color-error: oklch(63% 0.237 25.331);
   --color-error-content: oklch(25% 0.092 26.042);
-  --color-port: #cccc33;
-  --color-process-monitor: #af5ed1;
-  --color-process-monitored-by: #4db8ff;
   --radius-selector: 0.25rem;
   --radius-field: 0.5rem;
   --radius-box: 0.5rem;
@@ -81,9 +78,6 @@
   --color-warning-content: oklch(41% 0.112 45.904);
   --color-error: oklch(71% 0.194 13.428);
   --color-error-content: oklch(27% 0.105 12.094);
-  --color-port: #eeee55;
-  --color-process-monitor: #d1a1e5;
-  --color-process-monitored-by: #4db8ff;
   --radius-selector: 0.25rem;
   --radius-field: 0.5rem;
   --radius-box: 0.5rem;

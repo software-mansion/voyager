@@ -1,20 +1,13 @@
 defmodule VoyagerWeb.SupervisionTreeLive.Diff do
   @moduledoc """
-  Diffs two flat, key-addressable node maps (and their edge maps) produced by
+  Diffs two flat, key-addressable node maps produced by
   `Voyager.Services.SupervisionTree.Walker.walk/4` into a minimal
   `added` / `removed` / `updated` payload for the client-side renderer.
-
-  Relationship edges (links / monitors / monitored-by) are diffed separately
-  into `edges_added` / `edges_removed` — edges carry no mutable fields, so there
-  is no "updated" case for them.
   """
 
-  alias Voyager.Services.SupervisionTree.Edge
   alias Voyager.Services.SupervisionTree.TreeNode
 
   @type flat_tree :: %{String.t() => TreeNode.t()}
-
-  @type edge_map :: %{String.t() => Edge.t()}
 
   @type patch :: %{optional(atom()) => term()}
 
@@ -22,11 +15,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.Diff do
           added: flat_tree(),
           removed: [String.t()],
           updated: %{String.t() => patch()}
-        }
-
-  @type edge_diff_result :: %{
-          edges_added: edge_map(),
-          edges_removed: [String.t()]
         }
 
   @diff_fields [:name, :type, :has_children, :child_count, :info, :children_keys]
@@ -41,25 +29,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.Diff do
       |> Enum.reject(&Map.has_key?(curr, &1))
 
     %{added: added, removed: removed, updated: updated}
-  end
-
-  @doc """
-  Diffs two edge maps into `edges_added` (full edge objects) and
-  `edges_removed` (ids). Edges have no mutable fields.
-  """
-  @spec diff_relations(edge_map(), edge_map()) :: edge_diff_result()
-  def diff_relations(prev, curr) when is_map(prev) and is_map(curr) do
-    edges_added =
-      curr
-      |> Enum.reject(fn {id, _edge} -> Map.has_key?(prev, id) end)
-      |> Map.new()
-
-    edges_removed =
-      prev
-      |> Map.keys()
-      |> Enum.reject(&Map.has_key?(curr, &1))
-
-    %{edges_added: edges_added, edges_removed: edges_removed}
   end
 
   defp classify_node({key, node}, {add_acc, upd_acc}, prev) do

@@ -103,10 +103,7 @@ defmodule Voyager.Services.SupervisionTree.RemoteTest do
         assert Map.has_key?(info_map, pid)
         pinfo = info_map[pid]
         assert is_map(pinfo)
-        # Relationship keys ride along on the same batch call.
-        assert Map.has_key?(pinfo, :links)
-        assert Map.has_key?(pinfo, :monitors)
-        assert Map.has_key?(pinfo, :monitored_by)
+        assert Map.has_key?(pinfo, :registered_name)
       end)
     end
 
