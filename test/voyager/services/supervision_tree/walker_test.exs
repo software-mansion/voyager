@@ -18,7 +18,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
 
   # The flat key for a pid / port, matching the walker's `id_key/1`.
   defp key(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
-  defp key(port) when is_port(port), do: "port:#{inspect(port)}"
+  defp key(port) when is_port(port), do: "#{inspect(port)}"
 
   # Resolves a node's children into their full node maps via `children_keys`.
   defp children(nodes, node), do: Enum.map(node.children_keys, &Map.fetch!(nodes, &1))
@@ -51,7 +51,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
 
       # application_master node wraps the intermediate process `p`.
       assert app_node.type == :app
-      assert app_node.has_children?
+      assert app_node.has_children
       assert app_node.child_count == 1
 
       # `p` is the root supervisor's $ancestor; its sole child is the root sup.
@@ -68,7 +68,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
 
       for mid_node <- children(nodes, root_node) do
         assert mid_node.type == :supervisor
-        assert mid_node.has_children?
+        assert mid_node.has_children
         assert mid_node.children_keys == :not_loaded
         # stubbed via depth — count was fetched via count_children
         assert is_integer(mid_node.child_count)
@@ -90,7 +90,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
 
         for worker_node <- children(nodes, mid_node) do
           assert worker_node.type == :worker
-          refute worker_node.has_children?
+          refute worker_node.has_children
           assert worker_node.children_keys == :not_loaded
           assert worker_node.child_count == 0
         end
@@ -179,7 +179,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
         Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
 
       assert Enum.any?(Map.values(edges), fn e ->
-               e.source == key(w1) and e.target == key(target) and e.kind == "link"
+               e.source == w1 and e.target == target and e.kind == :link
              end)
 
       assert nodes[key(target)].type == :worker
@@ -196,11 +196,11 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
         Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
 
       assert Enum.any?(Map.values(edges), fn e ->
-               e.source == key(w1) and e.target == key(w2) and e.kind == "monitor"
+               e.source == w1 and e.target == w2 and e.kind == :monitor
              end)
 
       assert Enum.any?(Map.values(edges), fn e ->
-               e.source == key(w2) and e.target == key(w1) and e.kind == "monitored_by"
+               e.source == w2 and e.target == w1 and e.kind == :monitored_by
              end)
     end
 
@@ -211,10 +211,9 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
         Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
 
       # A supervisor is linked to its parent and children, but those duplicate
-      # the supervision spine and must not appear as :link edges. A pid target
-      # key is rendered as "<X.Y.Z>".
+      # the supervision spine and must not appear as :link edges.
       refute Enum.any?(Map.values(edges), fn e ->
-               e.source == key(mid_a) and e.kind == "link" and String.starts_with?(e.target, "<")
+               e.source == mid_a and e.kind == :link and is_pid(e.target)
              end)
     end
 
@@ -228,7 +227,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
         Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
 
       assert Enum.any?(Map.values(edges), fn e ->
-               e.source == key(w1) and e.target == key(port) and e.kind == "link"
+               e.source == w1 and e.target == port and e.kind == :link
              end)
 
       assert nodes[key(port)].type == :port

@@ -142,9 +142,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
             %{
               kind: "full",
               nodes: new_flat,
-              edges: new_edges,
-              status: status,
-              errors: errors
+              edges: new_edges
             }
 
           prev ->
@@ -153,7 +151,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
             node_diff
             |> Map.merge(edge_diff)
-            |> Map.merge(%{kind: "delta", status: status, errors: errors})
+            |> Map.merge(%{kind: "delta"})
         end
 
       socket =

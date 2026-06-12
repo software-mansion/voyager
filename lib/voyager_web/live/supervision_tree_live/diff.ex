@@ -9,27 +9,17 @@ defmodule VoyagerWeb.SupervisionTreeLive.Diff do
   is no "updated" case for them.
   """
 
-  @type flat_node :: %{
-          key: String.t(),
-          parent_key: String.t() | nil,
-          name: term(),
-          type: :app | :supervisor | :worker | :port | :reference,
-          has_children?: boolean(),
-          child_count: non_neg_integer(),
-          info: map() | :dead | nil,
-          children_keys: [String.t()] | :not_loaded
-        }
+  alias Voyager.Services.SupervisionTree.Edge
+  alias Voyager.Services.SupervisionTree.TreeNode
 
-  @type flat_map :: %{String.t() => flat_node()}
+  @type flat_tree :: %{String.t() => TreeNode.t()}
 
-  @type edge :: %{id: String.t(), source: String.t(), target: String.t(), kind: String.t()}
-
-  @type edge_map :: %{String.t() => edge()}
+  @type edge_map :: %{String.t() => Edge.t()}
 
   @type patch :: %{optional(atom()) => term()}
 
   @type diff_result :: %{
-          added: flat_map(),
+          added: flat_tree(),
           removed: [String.t()],
           updated: %{String.t() => patch()}
         }
@@ -39,9 +29,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.Diff do
           edges_removed: [String.t()]
         }
 
-  @diff_fields [:name, :type, :has_children?, :child_count, :info, :children_keys]
+  @diff_fields [:name, :type, :has_children, :child_count, :info, :children_keys]
 
-  @spec diff(flat_map(), flat_map()) :: diff_result()
+  @spec diff(flat_tree(), flat_tree()) :: diff_result()
   def diff(prev, curr) when is_map(prev) and is_map(curr) do
     {added, updated} = Enum.reduce(curr, {%{}, %{}}, &classify_node(&1, &2, prev))
 

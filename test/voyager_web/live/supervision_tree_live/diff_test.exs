@@ -1,18 +1,20 @@
 defmodule VoyagerWeb.SupervisionTreeLive.DiffTest do
   use ExUnit.Case, async: true
 
+  alias Voyager.Services.SupervisionTree.Edge
+  alias Voyager.Services.SupervisionTree.TreeNode
   alias VoyagerWeb.SupervisionTreeLive.Diff
 
   # The flat key for a pid, matching the walker's `id_key/1`.
   defp key(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
 
-  defp node_entry(key, parent_key, name, type, has_children?, child_count, info, children_keys) do
-    %{
+  defp node_entry(key, parent_key, name, type, has_children, child_count, info, children_keys) do
+    %TreeNode{
       key: key,
       parent_key: parent_key,
       name: name,
       type: type,
-      has_children?: has_children?,
+      has_children: has_children,
       child_count: child_count,
       info: info,
       children_keys: children_keys
@@ -50,7 +52,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DiffTest do
     source = key(from)
     target = key(to)
     id = "rel:#{kind}:#{source}->#{target}"
-    %{id => %{id: id, source: source, target: target, kind: to_string(kind)}}
+    %{id => %Edge{id: id, source: from, target: to, kind: kind}}
   end
 
   describe "diff/2" do

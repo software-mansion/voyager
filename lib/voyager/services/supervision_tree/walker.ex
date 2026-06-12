@@ -42,51 +42,9 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   where
 
       walk_result :: %{
-        nodes: %{key => flat_node()},
-        edges: %{id => edge()}
+        nodes: %{key => TreeNode.t()},
+        edges: %{id => Edge.t()}
       }
-
-  ## Node shape
-
-      %{
-        key: String.t(),
-        parent_key: String.t() | nil,
-        pid: pid() | nil,
-        name: atom() | pid() | term(),
-        type: :app | :supervisor | :worker | :port | :reference,
-        has_children?: boolean(),
-        child_count: non_neg_integer(),
-        info: map() | :dead | nil,
-        children_keys: [String.t()] | :not_loaded
-      }
-
-  Node keys:
-
-    * real-pid node → `"<X.Y.Z>"` (matches `:erlang.pid_to_list/1`)
-    * `:app` wrapper → `"app:<app_atom>"`
-    * port node → `"port:<inspect(port)>"`
-    * reference node → `"ref:<inspect(ref)>"`
-    * ghost child (`pid: nil`) → `"<parent_key>::ghost::<inspect(child_id)>"`
-
-  `name` is the process's display label: its `:registered_name` when
-  registered, otherwise its pid. Ghost children (`pid: nil`) keep their
-  supervisor child-spec id, since they have neither a registered name nor a
-  live pid.
-
-  `child_count` is the *direct* child count on the remote, sourced from
-  `:supervisor.count_children/1` for stub supervisors and `length(children)`
-  for fully-walked ones. Workers and ghost nodes always carry `0`.
-
-  ## Edge shape
-
-      edge :: %{
-        id: String.t(),
-        source: String.t(),
-        target: String.t(),
-        kind: String.t()
-      }
-
-  Edge keys → `"rel:<kind>:<source>-><target>"`.
 
   ## Error shape
 
@@ -101,28 +59,16 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       {:relationships, pid, :truncated}
   """
 
+  alias Voyager.Services.SupervisionTree.Edge
   alias Voyager.Services.SupervisionTree.Remote
+  alias Voyager.Services.SupervisionTree.TreeNode
 
   @walk_deadline_ms 3_000
   @max_rel_per_node 50
 
-  @type flat_node :: %{
-          key: String.t(),
-          parent_key: String.t() | nil,
-          pid: pid() | nil,
-          name: atom() | pid() | term(),
-          type: :app | :supervisor | :worker | :port | :reference,
-          has_children?: boolean(),
-          child_count: non_neg_integer(),
-          info: map() | :dead | nil,
-          children_keys: [String.t()] | :not_loaded
-        }
-
-  @type edge :: %{id: String.t(), source: String.t(), target: String.t(), kind: String.t()}
-
   @type walk_result :: %{
-          nodes: %{String.t() => flat_node()},
-          edges: %{String.t() => edge()}
+          nodes: %{String.t() => TreeNode.t()},
+          edges: %{String.t() => Edge.t()}
         }
 
   @type error :: {atom(), term(), term()}
@@ -266,7 +212,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       pid: master_pid,
       name: master_pid,
       type: :app,
-      has_children?: true,
+      has_children: true,
       child_count: 1,
       children_keys: children_keys
     })
@@ -283,7 +229,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       pid: p_pid,
       name: p_pid,
       type: :supervisor,
-      has_children?: true,
+      has_children: true,
       child_count: 1,
       children_keys: children_keys
     })
@@ -468,23 +414,10 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   # node constructors
   # ---------------------------------------------------------------------------
 
-  # All node maps share this skeleton; each constructor overrides only the
-  # fields that differ from these defaults.
-  @node_defaults %{
-    parent_key: nil,
-    pid: nil,
-    name: nil,
-    type: nil,
-    has_children?: false,
-    child_count: 0,
-    info: nil,
-    children_keys: :not_loaded
-  }
+  @spec build_node(map()) :: TreeNode.t()
+  defp build_node(attrs), do: struct!(TreeNode, attrs)
 
-  @spec build_node(map()) :: flat_node()
-  defp build_node(attrs), do: Map.merge(@node_defaults, attrs)
-
-  @spec sup_node(work_item(), [String.t()]) :: flat_node()
+  @spec sup_node(work_item(), [String.t()]) :: TreeNode.t()
   defp sup_node(item, child_keys) do
     build_node(%{
       key: item.key,
@@ -492,7 +425,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       pid: item.pid,
       name: item.name,
       type: :supervisor,
-      has_children?: child_keys != [],
+      has_children: child_keys != [],
       child_count: length(child_keys),
       children_keys: child_keys
     })
@@ -505,7 +438,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       pid: item.pid,
       name: item.name,
       type: :supervisor,
-      has_children?: count > 0,
+      has_children: count > 0,
       child_count: count
     })
   end
@@ -520,7 +453,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       pid: item.pid,
       name: item.name,
       type: :supervisor,
-      has_children?: true
+      has_children: true
     })
   end
 
@@ -554,9 +487,9 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   end
 
   # Ghost nodes (pid: nil) have no live process; they keep their child-spec id.
-  defp merge_info(%{pid: nil} = node, _info_map), do: node
+  defp merge_info(%TreeNode{pid: nil} = node, _info_map), do: node
 
-  defp merge_info(%{pid: pid} = node, info_map) do
+  defp merge_info(%TreeNode{pid: pid} = node, info_map) do
     info = Map.get(info_map, pid)
     %{node | info: info, name: pid_label(pid, info)}
   end
@@ -576,8 +509,8 @@ defmodule Voyager.Services.SupervisionTree.Walker do
     # candidates (live supervisors/workers).
     {seen, candidates} =
       Enum.reduce(nodes, {MapSet.new(), []}, fn
-        {_key, %{pid: pid} = n}, {seen, candidates} when is_pid(pid) ->
-          candidates = if n.type in [:supervisor, :worker], do: [n | candidates], else: candidates
+        {_key, %TreeNode{pid: pid, type: type} = n}, {seen, candidates} when is_pid(pid) ->
+          candidates = if type in [:supervisor, :worker], do: [n | candidates], else: candidates
           {MapSet.put(seen, pid), candidates}
 
         _entry, acc ->
@@ -611,11 +544,11 @@ defmodule Voyager.Services.SupervisionTree.Walker do
     {nodes, edges, Enum.reverse(cap_errors) ++ pinfo_errors}
   end
 
-  defp parent_pid_of(_nodes, %{parent_key: nil}), do: nil
+  defp parent_pid_of(_nodes, %TreeNode{parent_key: nil}), do: nil
 
-  defp parent_pid_of(nodes, %{parent_key: parent_key}) do
+  defp parent_pid_of(nodes, %TreeNode{parent_key: parent_key}) do
     case Map.get(nodes, parent_key) do
-      %{pid: pid} -> pid
+      %TreeNode{pid: pid} -> pid
       _ -> nil
     end
   end
@@ -631,7 +564,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
 
   # Supervisors contribute only their linked ports (their pid links duplicate
   # the supervision spine and are shown as structural edges).
-  defp node_relations(%{type: :supervisor, pid: pid, info: info}, _parent) do
+  defp node_relations(%TreeNode{type: :supervisor, pid: pid, info: info}, _parent) do
     info
     |> links_of()
     |> Enum.filter(&is_port/1)
@@ -640,7 +573,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
 
   # Workers contribute their links (minus the supervision parent), the
   # processes/ports monitoring them, and the processes/ports they monitor.
-  defp node_relations(%{type: :worker, pid: pid, info: info}, parent) do
+  defp node_relations(%TreeNode{type: :worker, pid: pid, info: info}, parent) do
     links = links_of(info) -- [parent]
     link_rels = Enum.map(links, fn target -> {pid, target, :link} end)
     mb_rels = Enum.map(monitored_by_of(info), fn target -> {pid, target, :monitored_by} end)
@@ -689,7 +622,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
     source = id_key(from)
     target = id_key(to)
     id = "rel:#{kind}:#{source}->#{target}"
-    {id, %{id: id, source: source, target: target, kind: to_string(kind)}}
+    {id, %Edge{id: id, source: from, target: to, kind: kind}}
   end
 
   # Relationship-only nodes are parentless leaves. `put_new` ensures a target
@@ -716,8 +649,9 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   # ---------------------------------------------------------------------------
 
   defp id_key(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
-  defp id_key(port) when is_port(port), do: "port:#{inspect(port)}"
-  defp id_key(ref) when is_reference(ref), do: "ref:#{inspect(ref)}"
+
+  defp id_key(port_or_ref) when is_port(port_or_ref) or is_reference(port_or_ref),
+    do: inspect(port_or_ref)
 
   defp ghost_key(parent_key, child_id), do: "#{parent_key}::ghost::#{inspect(child_id)}"
 

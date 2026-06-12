@@ -17,6 +17,11 @@ import {
   nodeIntersectsExtent,
 } from './supervision_tree/elements';
 
+/**
+ * @typedef {import('./supervision_tree/elements.js').ServerNode} ServerNode
+ * @typedef {import('./supervision_tree/elements.js').ServerEdge} ServerEdge
+ */
+
 cytoscape.use(dagre);
 
 const SupervisionTree = {
@@ -97,6 +102,22 @@ const SupervisionTree = {
   // Payload application
   // ---------------------------------------------------------------------------
 
+  /**
+   * @typedef {Object} FullPayload
+   * @property {'full'} kind
+   * @property {Map<string, ServerNode>} nodes
+   * @property {Map<string, ServerEdge>} edges
+   *
+   * @typedef {Object} DeltaPayload
+   * @property {'delta'} kind
+   * @property {Map<string, ServerNode>} added
+   * @property {string[]} removed
+   * @property {Map<string, Object>} updated
+   * @property {Map<string, ServerEdge>} edges_added
+   * @property {string[]} edges_removed
+   *
+   * @param {FullPayload|DeltaPayload} payload
+   */
   applyPayload(payload) {
     if (!payload) return;
 
@@ -107,6 +128,9 @@ const SupervisionTree = {
     }
   },
 
+  /**
+   * @param {FullPayload} payload
+   */
   applyFull(payload) {
     const incoming = payload.nodes || {};
     const edges = payload.edges || {};
@@ -131,6 +155,9 @@ const SupervisionTree = {
     this.scheduleOverlayReconcile();
   },
 
+  /**
+   * @param {DeltaPayload} payload
+   */
   applyDelta(payload) {
     const removed = payload.removed || [];
     const added = payload.added || {};

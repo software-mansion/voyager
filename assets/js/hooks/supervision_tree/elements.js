@@ -1,5 +1,30 @@
+/**
+ * @typedef {Object} ServerNode
+ * @property {string} key
+ * @property {string|null} parent_key
+ * @property {string} pid                "<X.Y.Z>"
+ * @property {string|Array|null} name
+ * @property {'app'|'supervisor'|'worker'|'port'|'reference'} type
+ * @property {boolean} has_children
+ * @property {number} child_count
+ * @property {Object|'dead'|null} info
+ * @property {string[]|'not_loaded'} children_keys
+ */
+
+/**
+ * @typedef {Object} ServerEdge
+ * @property {string} id
+ * @property {string} source
+ * @property {string} target
+ * @property {'link'|'monitor'|'monitored_by'} kind
+ */
+
+/**
+ * @param {string} key
+ * @param {ServerNode} node
+ */
 export function elementsFor(key, node) {
-  const has_children = !!node['has_children?'];
+  const has_children = !!node.has_children;
   const children_keys =
     node.children_keys === 'not_loaded' ? null : node.children_keys;
 
@@ -35,6 +60,9 @@ export function elementsFor(key, node) {
   return els;
 }
 
+/**
+ * @param {ServerEdge} edge
+ */
 export function relEdgeElement(edge) {
   return {
     group: 'edges',
