@@ -24,16 +24,12 @@ defmodule VoyagerWeb.NodeInfoComponents do
     "IO output" => "Total bytes sent by the node through all ports since it started.",
     "Reductions" =>
       "Total reductions executed on this node since it started. A reduction is the BEAM's unit of work (roughly one function call).",
-    "Runtime" =>
-      "Lorem Ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
     "Schedulers" =>
-      "Lorem Ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+      "OS threads that execute Erlang processes. Normal schedulers run regular processes; dirty CPU schedulers handle long-running NIFs that would starve normal ones; dirty IO schedulers handle blocking I/O in NIFs. Online is how many are active; total is the configured maximum.",
     "Run queues" =>
-      "Lorem Ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
+      "Number of processes waiting to be picked up by a scheduler. A consistently non-zero queue means the node is CPU-bound. Normal + CPU combines the normal scheduler queues and dirty CPU queues; Dirty IO is the dirty I/O scheduler queue.",
     "Memory breakdown" =>
-      "Lorem Ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.",
-    "System limits" =>
-      "Lorem Ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
+      "Memory allocated by the BEAM VM, split by category: processes, binaries, loaded code, ETS tables, and the atom table. Other is derived as total minus those five categories."
   }
 
   defp help_text(label), do: Map.get(@help_text, label, "")
@@ -42,15 +38,14 @@ defmodule VoyagerWeb.NodeInfoComponents do
   # NOTE: verify these anchors against the OTP version you target — Erlang doc
   # URLs have changed across releases.
   @help_doc %{
-    "Uptime" => "https://www.erlang.org/doc/apps/erts/erlang.html#statistics/1",
+    "Uptime" => "https://www.erlang.org/doc/apps/erts/erlang.html#statistics_wall_clock",
     "IO input" => "https://www.erlang.org/doc/apps/erts/erlang.html#statistics/1",
     "IO output" => "https://www.erlang.org/doc/apps/erts/erlang.html#statistics/1",
-    "Reductions" => "https://www.erlang.org/doc/apps/erts/erlang.html#statistics/1",
-    "Runtime" => "https://www.erlang.org/doc/man/erlang.html",
-    "Schedulers" => "https://www.erlang.org/doc/man/erlang.html",
-    "Run queues" => "https://www.erlang.org/doc/man/erlang.html",
-    "Memory breakdown" => "https://www.erlang.org/doc/man/erlang.html",
-    "System limits" => "https://www.erlang.org/doc/man/erlang.html"
+    "Reductions" => "https://www.erlang.org/doc/apps/erts/erlang.html#statistics_reductions",
+    "Schedulers" => "https://www.erlang.org/doc/apps/erts/erlang.html#system_info_schedulers",
+    "Run queues" =>
+      "https://www.erlang.org/doc/apps/erts/erlang.html#statistics_run_queue_lengths",
+    "Memory breakdown" => "https://www.erlang.org/doc/apps/erts/erlang.html#memory/0"
   }
 
   defp help_doc(label), do: Map.get(@help_doc, label)
@@ -59,10 +54,67 @@ defmodule VoyagerWeb.NodeInfoComponents do
     "Uptime" => "See erlang:statistics(wall_clock)",
     "IO input" => "See erlang:statistics(io)",
     "IO output" => "See erlang:statistics(io)",
-    "Reductions" => "See erlang:statistics(reductions)"
+    "Reductions" => "See erlang:statistics(reductions)",
+    "Schedulers" => "See erlang:system_info(schedulers)",
+    "Run queues" => "See erlang:statistics(run_queue_lengths)",
+    "Memory breakdown" => "See erlang:memory()"
   }
 
   defp help_doc_label(label), do: Map.get(@help_doc_label, label, "Learn more")
+
+  @si "https://www.erlang.org/doc/apps/erts/erlang.html"
+
+  @runtime_row_tooltips %{
+    "OTP" => %{
+      text:
+        "OTP major release number. Determines which OTP applications and behaviours are available."
+    },
+    "ERTS" => %{
+      text: "Erlang Runtime System version string. Versioned independently from OTP."
+    },
+    "stdlib" => %{
+      text:
+        "Version of the Erlang standard library (stdlib) OTP application running on this node."
+    },
+    "Elixir" => %{
+      text: "Elixir version running on this node, read from the :elixir OTP application."
+    },
+    "Gleam (stdlib)" => %{
+      text:
+        "Gleam standard library version running on this node, read from the :gleam_stdlib OTP application."
+    },
+    "Word size" => %{
+      text:
+        "Internal word size (used by the scheduler and heap) / external word size (used by ports and drivers), in bytes.",
+      doc_href: @si <> "#system_info_wordsize",
+      doc_label: "See erlang:system_info(wordsize)"
+    },
+    "SMP" => %{
+      text:
+        "Whether the VM was built with Symmetric Multi-Processing support, allowing parallel execution across CPU cores.",
+      doc_href: @si <> "#system_info_smp_support",
+      doc_label: "See erlang:system_info(smp_support)"
+    },
+    "Threads" => %{
+      text:
+        "Whether the VM was built with OS thread support, required for dirty NIF schedulers and async I/O.",
+      doc_href: @si <> "#system_info_threads",
+      doc_label: "See erlang:system_info(threads)"
+    },
+    "Async threads" => %{
+      text:
+        "Size of the async thread pool used for blocking operations in drivers. Separate from dirty I/O schedulers.",
+      doc_href: @si <> "#system_info_thread_pool_size",
+      doc_label: "See erlang:system_info(thread_pool_size)"
+    },
+    "System arch" => %{
+      text: "Target system architecture string.",
+      doc_href: @si <> "#system_info_system_architecture",
+      doc_label: "See erlang:system_info(system_architecture)"
+    }
+  }
+
+  def runtime_row_tooltips, do: @runtime_row_tooltips
 
   @doc """
   Renders a key-value info card with a 2-column grid of labelled rows.
@@ -82,6 +134,10 @@ defmodule VoyagerWeb.NodeInfoComponents do
   attr :subtitle, :string, default: nil
   attr :rows, :list, required: true
 
+  attr :row_tooltips, :map,
+    default: %{},
+    doc: "optional map of row label → %{text, doc_href, doc_label} for per-row help tooltips"
+
   def info_card(assigns) do
     ~H"""
     <div class="card bg-base-100 border-base-200 h-full border shadow-sm">
@@ -90,6 +146,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
           <div class="flex items-center gap-1">
             <h3 class="text-base-content text-sm font-semibold">{@title}</h3>
             <.help_tooltip
+              :if={help_text(@title) != ""}
               id={help_id("info-card", @title)}
               text={help_text(@title)}
               doc_href={help_doc(@title)}
@@ -102,8 +159,16 @@ defmodule VoyagerWeb.NodeInfoComponents do
           <%= for row <- @rows do %>
             <% {label, value, full_width?} = info_row(row) %>
             <div class={full_width? && "col-span-2 min-w-0"}>
-              <div class="font-mono tracking-[0.08em] text-base-content/50 mb-0.5 text-xs font-semibold uppercase">
+              <div class="font-mono tracking-[0.08em] text-base-content/50 mb-0.5 flex items-center gap-0.5 text-xs font-semibold uppercase">
                 {label}
+                <%= if tooltip = Map.get(@row_tooltips, label) do %>
+                  <.help_tooltip
+                    id={help_id("row", label)}
+                    text={tooltip.text}
+                    doc_href={Map.get(tooltip, :doc_href)}
+                    doc_label={Map.get(tooltip, :doc_label, "Learn more")}
+                  />
+                <% end %>
               </div>
               <div class={["font-mono text-base-content text-sm", full_width? && "truncate"]}>
                 {value}
@@ -141,6 +206,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
               id={help_id("metric", @title)}
               text={help_text(@title)}
               doc_href={help_doc(@title)}
+              doc_label={help_doc_label(@title)}
             />
           </div>
           <span :if={@subtitle} class="font-mono text-base-content/50 text-xs">{@subtitle}</span>
@@ -219,6 +285,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
               id="memory-breakdown-help"
               text={help_text("Memory breakdown")}
               doc_href={help_doc("Memory breakdown")}
+              doc_label={help_doc_label("Memory breakdown")}
             />
           </div>
           <span class="font-mono text-base-content/50 text-xs">
@@ -268,21 +335,22 @@ defmodule VoyagerWeb.NodeInfoComponents do
     <div class="card bg-base-100 border-base-200 flex h-full flex-col border shadow-sm">
       <div class="card-body flex flex-1 flex-col gap-4 p-5">
         <div class="flex items-baseline justify-between">
-          <div class="flex items-center gap-1">
-            <h3 class="text-base-content text-sm font-semibold">System limits</h3>
-            <.help_tooltip
-              id="system-limits-help"
-              text={help_text("System limits")}
-              doc_href={help_doc("System limits")}
-            />
-          </div>
+          <h3 class="text-base-content text-sm font-semibold">System limits</h3>
           <span class="font-mono text-base-content/50 text-xs">current / max</span>
         </div>
 
         <div class="divide-base-200 flex flex-1 flex-col divide-y">
-          <%= for {label, usage} <- limit_rows(@limits) do %>
+          <%= for {label, usage, tooltip} <- limit_rows(@limits) do %>
             <div class="font-mono grid-cols-[1fr_auto_1fr_auto] grid items-center gap-3 py-3 text-xs">
-              <span class="text-base-content/70">{label}</span>
+              <span class="text-base-content/70 flex items-center gap-0.5">
+                {label}
+                <.help_tooltip
+                  id={"limit-#{label}-help"}
+                  text={tooltip.text}
+                  doc_href={tooltip.doc_href}
+                  doc_label={tooltip.doc_label}
+                />
+              </span>
               <span class="text-base-content w-16 text-right tabular-nums">
                 {Formatters.format_integer(usage.used)}
               </span>
@@ -304,11 +372,29 @@ defmodule VoyagerWeb.NodeInfoComponents do
     """
   end
 
+  @limit_tooltips %{
+    "processes" => %{
+      text: "Maximum number of concurrently existing processes.",
+      doc_href: "https://www.erlang.org/doc/apps/erts/erlang.html#system_info/1-system-limits",
+      doc_label: "See erlang:system_info(process_limit)"
+    },
+    "atoms" => %{
+      text: "Maximum number of atoms the VM can hold. Atoms are never garbage-collected.",
+      doc_href: "https://www.erlang.org/doc/apps/erts/erlang.html#system_info/1-system-limits",
+      doc_label: "See erlang:system_info(atom_limit)"
+    },
+    "ports" => %{
+      text: "Maximum number of concurrently open ports (file descriptors, sockets, drivers).",
+      doc_href: "https://www.erlang.org/doc/apps/erts/erlang.html#system_info/1-system-limits",
+      doc_label: "See erlang:system_info(port_limit)"
+    }
+  }
+
   defp limit_rows(limits) do
     [
-      {"processes", limits.processes},
-      {"atoms", limits.atoms},
-      {"ports", limits.ports}
+      {"processes", limits.processes, @limit_tooltips["processes"]},
+      {"atoms", limits.atoms, @limit_tooltips["atoms"]},
+      {"ports", limits.ports, @limit_tooltips["ports"]}
     ]
   end
 

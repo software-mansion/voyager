@@ -18,7 +18,7 @@ test.describe('NodeInfoLive', () => {
     await expect(page.locator(sel.nodeInfoContent)).toBeVisible();
   });
 
-  test('shows the connected node name and OTP release', async ({ page }) => {
+  test('shows the connected node name and OTP', async ({ page }) => {
     await expect(page.locator('h1')).toContainText(NODE_NAME);
 
     const runtimeCard = page.locator(sel.nodeInfoContent).locator('.card', {
@@ -26,7 +26,7 @@ test.describe('NodeInfoLive', () => {
     });
 
     const otpRelease = runtimeCard
-      .getByText('OTP release', { exact: true })
+      .getByText('OTP', { exact: true })
       .locator('..')
       .locator('> div')
       .nth(1);

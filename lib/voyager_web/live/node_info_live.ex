@@ -132,7 +132,11 @@ defmodule VoyagerWeb.NodeInfoLive do
 
           <%!-- Runtime + concurrency --%>
           <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-stretch">
-            <NodeInfoComponents.info_card title="Runtime" rows={runtime_rows(snapshot)} />
+            <NodeInfoComponents.info_card
+              title="Runtime"
+              rows={runtime_rows(snapshot)}
+              row_tooltips={NodeInfoComponents.runtime_row_tooltips()}
+            />
 
             <div class="flex h-full min-h-0 flex-col gap-6">
               <NodeInfoComponents.metric_card
@@ -149,9 +153,9 @@ defmodule VoyagerWeb.NodeInfoLive do
                 title="Run queues"
                 subtitle="queued processes"
                 metrics={[
-                  {"Total", snapshot.run_queues.total},
                   {"Normal + CPU", snapshot.run_queues.normal_and_dirty_cpu},
-                  {"Dirty IO", snapshot.run_queues.dirty_io}
+                  {"Dirty IO", snapshot.run_queues.dirty_io},
+                  {"Total", snapshot.run_queues.total}
                 ]}
               />
             </div>
@@ -239,15 +243,15 @@ defmodule VoyagerWeb.NodeInfoLive do
     language_rows = Enum.map(snapshot.languages, &{&1.name, &1.version})
 
     base = [
-      {"OTP release", snapshot.system.otp_release},
-      {"ERTS version", snapshot.system.erts_version},
+      {"OTP", snapshot.system.otp_release},
+      {"ERTS", snapshot.system.erts_version},
       {"stdlib", snapshot.system.stdlib_version || "Not available"}
     ]
 
     rest = [
       {"Word size",
        "#{snapshot.system.wordsize_internal} / #{snapshot.system.wordsize_external} bytes"},
-      {"SMP support", Formatters.format_bool(snapshot.system.smp_support?)},
+      {"SMP", Formatters.format_bool(snapshot.system.smp_support?)},
       {"Threads", Formatters.format_bool(snapshot.system.thread_support?)},
       {"Async threads", to_string(snapshot.system.async_threads)},
       {"System arch", snapshot.system.system_architecture, :full}
