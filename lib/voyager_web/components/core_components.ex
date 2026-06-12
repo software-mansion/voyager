@@ -385,6 +385,7 @@ defmodule VoyagerWeb.CoreComponents do
       <button
         type="button"
         aria-label="Help"
+        aria-describedby={"#{@id}-tip"}
         class={[
           "btn btn-circle btn-ghost btn-xs text-base-content/40 hover:text-base-content",
           "transition-colors",

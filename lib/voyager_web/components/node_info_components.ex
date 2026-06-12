@@ -257,8 +257,8 @@ defmodule VoyagerWeb.NodeInfoComponents do
                 <.help_tooltip
                   id={"limit-#{label}-help"}
                   text={tooltip.text}
-                  doc_href={tooltip.doc_href}
-                  doc_label={tooltip.doc_label}
+                  doc_href={tooltip[:doc_href]}
+                  doc_label={tooltip[:doc_label] || "Learn more"}
                 />
               </span>
               <span class="text-base-content w-16 text-right tabular-nums">
