@@ -40,4 +40,25 @@ defmodule Voyager.Services.OpenSSH.HostScannerTest do
       assert {:error, _} = HostScanner.scan("127.0.0.1", 1)
     end
   end
+
+  describe "trust/2" do
+    setup do
+      tmp = Path.join(System.tmp_dir!(), "voyager_trust_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(tmp)
+      Application.put_env(:voyager, :known_hosts_path, Path.join(tmp, "known_hosts"))
+
+      on_exit(fn ->
+        Application.delete_env(:voyager, :known_hosts_path)
+        File.rm_rf!(tmp)
+      end)
+
+      :ok
+    end
+
+    @tag :slow
+    test "returns an error and does not modify known_hosts on unreachable host" do
+      assert {:error, _} = HostScanner.trust("127.0.0.1", 1)
+      refute HostScanner.known?("127.0.0.1")
+    end
+  end
 end
