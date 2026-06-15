@@ -12,7 +12,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg", "nsis", "appimage"],
+    "targets": ["dmg", "deb"],
     "resources": {
       "target/rel": "rel"
     },

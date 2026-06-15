@@ -4,7 +4,9 @@ on:
   push:
     branches:
       - "v*.*.*"
-      - "17-add-release-ci" # For testing only TODO: remove before merging
+  pull_request: # For testing only TODO: remove before merging
+    branches:
+      - "17-add-release-ci" 
 
 permissions:
   contents: read
@@ -19,12 +21,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # - platform: macos-15
-          #   gui_target: "aarch64-apple-darwin"
-          # - platform: macos-15-intel
-          #   gui_target: "x86_64-apple-darwin"
-          # - platform: windows-2022
-          #   gui_target: "x86_64-pc-windows-msvc"
+          - platform: macos-15
+            gui_target: "aarch64-apple-darwin"
+          - platform: macos-15-intel
+            gui_target: "x86_64-apple-darwin"
           - platform: ubuntu-22.04
             gui_target: "x86_64-unknown-linux-gnu"
     runs-on: ${{ matrix.platform }}
@@ -91,11 +91,6 @@ jobs:
             libwxgtk3.0-gtk3-dev \
             xdg-utils
 
-      # - name: Install trusted-signing-cli (Windows)
-      #   if: runner.os == 'Windows'
-      #   run: |
-      #     cargo install trusted-signing-cli@0.9.0
-
       - name: Import Apple Developer Certificate
         # Prevents keychain from locking automatically for 3600 seconds.
         env:
@@ -134,12 +129,6 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          # Windows codesigning
-          # AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          # AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
-          # AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          # AZURE_TRUSTED_SIGNING_ACCOUNT_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME }}
-          # AZURE_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_CERTIFICATE_PROFILE_NAME }}
 
         with:
           projectPath: rel/app
