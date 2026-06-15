@@ -1,6 +1,7 @@
 defmodule VoyagerWeb.SupervisionTreeLive.DiffTest do
   use ExUnit.Case, async: true
 
+  alias Voyager.Services.SupervisionTree.Edge
   alias Voyager.Services.SupervisionTree.TreeNode
   alias VoyagerWeb.SupervisionTreeLive.Diff
 
@@ -43,6 +44,13 @@ defmodule VoyagerWeb.SupervisionTreeLive.DiffTest do
       worker_key =>
         node_entry(worker_key, root_key, :worker_one, :worker, 0, worker_info, :not_loaded)
     }
+  end
+
+  defp edge_map(from, to, kind) do
+    source = key(from)
+    target = key(to)
+    id = "rel:#{kind}:#{source}->#{target}"
+    %{id => %Edge{id: id, source: from, target: to, kind: kind}}
   end
 
   describe "diff/2" do
@@ -92,6 +100,33 @@ defmodule VoyagerWeb.SupervisionTreeLive.DiffTest do
       root_key = key(root)
       assert Map.has_key?(result.updated, root_key)
       assert result.updated[root_key].children_keys == [key_b]
+    end
+  end
+
+  describe "diff_relations/2" do
+    test "reports added and removed edges by id" do
+      a = self()
+      b = spawn(fn -> :ok end)
+      c = spawn(fn -> :ok end)
+
+      prev = edge_map(a, b, :link)
+      curr = edge_map(a, c, :link)
+
+      %{edges_added: added, edges_removed: removed} = Diff.diff_relations(prev, curr)
+
+      [removed_id] = removed
+      assert removed_id =~ "rel:link:"
+      assert map_size(added) == 1
+    end
+
+    test "returns empty diffs for identical edge maps" do
+      a = self()
+      b = spawn(fn -> :ok end)
+
+      edges = edge_map(a, b, :monitor)
+
+      assert %{edges_added: added, edges_removed: []} = Diff.diff_relations(edges, edges)
+      assert added == %{}
     end
   end
 end

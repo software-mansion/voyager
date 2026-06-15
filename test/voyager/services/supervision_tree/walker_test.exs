@@ -18,6 +18,10 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
     {:ok, node: Node.self()}
   end
 
+  # The flat key for a pid / port, matching the walker's `id_key/1`.
+  defp key(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
+  defp key(port) when is_port(port), do: "#{inspect(port)}"
+
   # Resolves a node's children into their full node maps via `children_keys`.
   defp children(nodes, node), do: Enum.map(node.children_keys, &Map.fetch!(nodes, &1))
 
@@ -28,6 +32,14 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
     [p_node] = children(nodes, app_node)
     [root_node] = children(nodes, p_node)
     {app_node, p_node, root_node}
+  end
+
+  # Returns `{mid_sup_a_pid, [worker_pids]}` for MidSupA on the peer node.
+  defp midsup_a_workers(node) do
+    mid_a = :erpc.call(node, :erlang, :whereis, [Voyager.Test.FixtureApp.MidSupA])
+    children = :erpc.call(node, :supervisor, :which_children, [mid_a])
+    pids = Enum.map(children, fn {_id, pid, _type, _mods} -> pid end)
+    {mid_a, pids}
   end
 
   describe "walk/4 depth=3, no expanded" do
@@ -151,6 +163,73 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
 
       assert p_node.name == p_node.pid
       assert is_pid(p_node.name)
+    end
+  end
+
+  describe "walk/4 relationships" do
+    test "worker link to an external process yields a :link edge and a worker rel node",
+         %{node: node} do
+      {_mid_a, [w1 | _]} = midsup_a_workers(node)
+
+      target = :erpc.call(node, :erlang, :spawn, [:timer, :sleep, [:infinity]])
+      :ok = :erpc.call(node, GenServer, :call, [w1, {:link, target}])
+
+      {_status, %{nodes: nodes, edges: edges}, _errors} =
+        Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
+
+      assert Enum.any?(Map.values(edges), fn e ->
+               e.source == w1 and e.target == target and e.kind == :link
+             end)
+
+      assert nodes[key(target)].type == :worker
+      assert nodes[key(target)].parent_key == nil
+    end
+
+    test "monitor between two supervised workers yields :monitor and :monitored_by edges",
+         %{node: node} do
+      {_mid_a, [w1, w2]} = midsup_a_workers(node)
+
+      _ref = :erpc.call(node, GenServer, :call, [w1, {:monitor, w2}])
+
+      {_status, %{edges: edges}, _errors} =
+        Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
+
+      assert Enum.any?(Map.values(edges), fn e ->
+               e.source == w1 and e.target == w2 and e.kind == :monitor
+             end)
+
+      assert Enum.any?(Map.values(edges), fn e ->
+               e.source == w2 and e.target == w1 and e.kind == :monitored_by
+             end)
+    end
+
+    test "supervisor pid-links are not emitted as relationship edges", %{node: node} do
+      {mid_a, _workers} = midsup_a_workers(node)
+
+      {_status, %{edges: edges}, _errors} =
+        Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
+
+      # A supervisor is linked to its parent and children, but those duplicate
+      # the supervision spine and must not appear as :link edges.
+      refute Enum.any?(Map.values(edges), fn e ->
+               e.source == mid_a and e.kind == :link and is_pid(e.target)
+             end)
+    end
+
+    test "worker-owned port yields a :link edge and a port rel node", %{node: node} do
+      {_mid_a, [w1 | _]} = midsup_a_workers(node)
+
+      port = :erpc.call(node, GenServer, :call, [w1, {:open_port, {:spawn, ~c"cat"}, []}])
+      assert is_port(port)
+
+      {_status, %{nodes: nodes, edges: edges}, _errors} =
+        Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
+
+      assert Enum.any?(Map.values(edges), fn e ->
+               e.source == w1 and e.target == port and e.kind == :link
+             end)
+
+      assert nodes[key(port)].type == :port
     end
   end
 

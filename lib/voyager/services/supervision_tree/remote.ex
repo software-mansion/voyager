@@ -7,7 +7,10 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   @timeout_children 1_500
   @timeout_pinfo 1_000
   @process_info_keys [
-    :registered_name
+    :registered_name,
+    :links,
+    :monitors,
+    :monitored_by
   ]
 
   @doc """

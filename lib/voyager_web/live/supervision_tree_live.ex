@@ -22,6 +22,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> assign(:expanded_pids, MapSet.new())
       |> assign(:last_tree_flat, nil)
       |> assign(:last_updated, nil)
+      |> assign(:last_relations, %{})
       |> assign(:in_flight, nil)
       |> assign(:errors, [])
       |> assign(:status, :idle)
@@ -122,19 +123,25 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       Process.demonitor(ref, [:flush])
 
       new_flat = result.nodes
+      new_edges = result.edges
       prev_flat = socket.assigns.last_tree_flat
+      prev_edges = socket.assigns.last_relations
 
       payload =
         case prev_flat do
           nil ->
             %{
               kind: "full",
-              nodes: new_flat
+              nodes: new_flat,
+              edges: new_edges
             }
 
           prev ->
-            prev
-            |> Diff.diff(new_flat)
+            node_diff = Diff.diff(prev, new_flat)
+            edge_diff = Diff.diff_relations(prev_edges, new_edges)
+
+            node_diff
+            |> Map.merge(edge_diff)
             |> Map.merge(%{kind: "delta"})
         end
 
@@ -145,6 +152,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         |> assign(:in_flight, nil)
         |> assign(:last_tree_flat, new_flat)
         |> assign(:last_updated, DateTime.utc_now())
+        |> assign(:last_relations, new_edges)
         |> push_event("tree-data", payload)
         |> start_timer()
 
@@ -305,7 +313,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   defp parse_pid(_), do: nil
 
-  defp reset_tree(socket), do: assign(socket, :last_tree_flat, nil)
+  defp reset_tree(socket), do: assign(socket, last_tree_flat: nil, last_relations: %{})
 
   defp walk_to_root(_flat, ""), do: []
   defp walk_to_root(nil, _key), do: []

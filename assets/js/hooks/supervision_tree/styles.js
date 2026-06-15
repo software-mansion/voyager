@@ -60,6 +60,36 @@ export function buildStyle(t) {
       },
     },
     {
+      selector: 'node[type = "port"]',
+      style: {
+        shape: 'triangle',
+        'border-color': t.port,
+        width: 14,
+        height: 14,
+      },
+    },
+    {
+      selector: 'node[type = "port"].hover',
+      style: {
+        'background-color': t.port,
+      },
+    },
+    {
+      selector: 'node[type = "reference"]',
+      style: {
+        shape: 'rectangle',
+        'border-color': t.reference,
+        width: 12,
+        height: 12,
+      },
+    },
+    {
+      selector: 'node[type = "reference"].hover',
+      style: {
+        'background-color': t.reference,
+      },
+    },
+    {
       selector: 'node[?dead]',
       style: {
         opacity: 0.4,
@@ -130,6 +160,38 @@ export function buildStyle(t) {
         width: 1.8,
         opacity: 1,
         'z-index': 10,
+      },
+    },
+    {
+      // Relationship edges (link / monitor / monitored-by) are drawn as dashed,
+      // directed overlays distinct from the solid structural supervision edges.
+      selector: 'edge.rel',
+      style: {
+        'line-style': 'dashed',
+        width: 1.2,
+        'target-arrow-shape': 'triangle',
+        'z-index': 1,
+      },
+    },
+    {
+      selector: 'edge.link',
+      style: {
+        'line-color': t.base400,
+        'target-arrow-shape': 'none',
+      },
+    },
+    {
+      selector: 'edge.monitor',
+      style: {
+        'line-color': t.processMonitor,
+        'target-arrow-color': t.processMonitor,
+      },
+    },
+    {
+      selector: 'edge.monitored_by',
+      style: {
+        'line-color': t.processMonitoredBy,
+        'target-arrow-color': t.processMonitoredBy,
       },
     },
     {

@@ -7,10 +7,18 @@
  * @property {string|null} parent_key
  * @property {string|null} pid "<X.Y.Z>" (null for ghost children)
  * @property {string|any[]} name
- * @property {'app'|'supervisor'|'worker'} type
+ * @property {'app'|'supervisor'|'worker'|'port'|'reference'} type
  * @property {number} child_count
  * @property {Info|'dead'|null} info
  * @property {string[]|'not_loaded'} children_keys
+ */
+
+/**
+ * @typedef {Object} ServerEdge
+ * @property {string} id
+ * @property {string} source
+ * @property {string} target
+ * @property {'link'|'monitor'|'monitored_by'} kind
  */
 
 /**
@@ -33,6 +41,7 @@ export function elementsFor(key, node) {
       node.children_keys === 'not_loaded' ? null : node.children_keys,
     dead: node.info === 'dead',
     is_collapsed: child_count > 0 && children_keys === null,
+    is_from_relation: node.parent_key === null,
   };
   data.displayLabel = composeLabel(data);
 
@@ -50,6 +59,22 @@ export function elementsFor(key, node) {
   }
 
   return els;
+}
+
+/**
+ * @param {ServerEdge} edge
+ */
+export function relEdgeElement(edge) {
+  return {
+    group: 'edges',
+    data: {
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      kind: edge.kind,
+    },
+    classes: `rel ${edge.kind}`,
+  };
 }
 
 // The label is the process's registered name, or its pid when unregistered —
