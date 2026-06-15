@@ -8,5 +8,4 @@ export const TOPOLOGY_FIELDS = new Set([
   'has_children',
   'child_count',
   'children_keys',
-  'parent_key',
 ]);

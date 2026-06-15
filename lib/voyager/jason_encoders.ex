@@ -1,5 +1,14 @@
-defmodule Voyager.Helper do
-  @moduledoc false
+defmodule Voyager.JasonEncoders do
+  @moduledoc """
+  App-wide `Jason.Encoder` implementations for native Erlang terms that have no
+  default JSON representation.
+
+  These are required so that supervision-tree node values (`name`, `info`) —
+  which stay as raw Erlang terms until push time — can be serialised to the
+  client. Note the implementations are **global**: every `PID`, `Tuple`,
+  `Reference`, and `Port` encoded anywhere in the app uses them. In particular,
+  tuples are encoded as JSON arrays rather than raising.
+  """
 
   alias Jason.Encoder
 

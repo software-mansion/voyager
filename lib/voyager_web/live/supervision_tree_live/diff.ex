@@ -17,7 +17,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Diff do
           updated: %{String.t() => patch()}
         }
 
-  @diff_fields [:name, :type, :has_children, :child_count, :info, :children_keys]
+  @diff_fields [:parent_key, :name, :type, :has_children, :child_count, :info, :children_keys]
 
   @spec diff(flat_tree(), flat_tree()) :: diff_result()
   def diff(prev, curr) when is_map(prev) and is_map(curr) do

@@ -279,9 +279,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   defp parse_pid(_), do: nil
 
-  defp reset_tree(socket) do
-    assign(socket, :last_tree_flat, nil)
-  end
+  defp reset_tree(socket), do: assign(socket, :last_tree_flat, nil)
 
   defp walk_to_root(_flat, ""), do: []
   defp walk_to_root(nil, _key), do: []

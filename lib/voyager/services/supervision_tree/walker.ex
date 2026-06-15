@@ -8,7 +8,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   parent and children by **string key** (the format the client renderer and the
   `VoyagerWeb.SupervisionTreeLive.Diff` differ both expect), while all display
   *values* (`name`, `info`) stay as native Erlang terms and are serialised by
-  the `Voyager.Helper` `Jason.Encoder` implementations at push time.
+  the `Voyager.JasonEncoders` `Jason.Encoder` implementations at push time.
 
   The walk is **breadth-first and batched**: each tree level issues at most one
   `:supervisor.which_children/1` batch (for expanded supervisors) and one

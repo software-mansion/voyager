@@ -173,6 +173,11 @@ defmodule Voyager.Services.SupervisionTree.Remote do
     end
   end
 
+  # Translates every `:erpc.call` failure into an `{:error, reason}` tuple so no
+  # raw exception ever escapes to callers. Besides erpc-level failures
+  # (`{:erpc, _}`) and remote `error` exceptions (`{:exception, _, _}`), this
+  # also covers remote `exit`s (re-raised by erpc as an `:exit`) and remote
+  # `throw`s (re-thrown by erpc), plus a catch-all for any other `:error`.
   defp call(node, mod, fun, args, timeout) do
     {:ok, Voyager.Erpc.call(node, mod, fun, args, timeout)}
   catch
@@ -186,6 +191,15 @@ defmodule Voyager.Services.SupervisionTree.Remote do
       {:error, {:remote_exception, reason}}
 
     :error, {:erpc, _} = reason ->
+      {:error, reason}
+
+    :exit, reason ->
+      {:error, {:remote_exit, reason}}
+
+    :throw, value ->
+      {:error, {:remote_throw, value}}
+
+    :error, reason ->
       {:error, reason}
   end
 end
