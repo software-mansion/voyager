@@ -12,16 +12,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["dmg", "nsis", "appimage"],
+    "targets": ["app", "dmg", "nsis", "appimage"],
     "resources": {
       "target/rel": "rel"
-    },
-    "linux": {
-      "appimage": {
-        "files": {
-          "/usr/rel": "target/rel"
-        }
-      }
     },
     "icon": [
       "icons/32x32.png",
