@@ -73,7 +73,7 @@ defmodule Voyager.MixProject do
 
   defp aliases do
     [
-      setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
+      setup: ["deps.get", "ecto.setup", "assets.setup", "assets.deploy"],
       format: ["format", "cmd npm --prefix assets run format"],
       "format.e2e": ["cmd npm --prefix e2e run format"],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
