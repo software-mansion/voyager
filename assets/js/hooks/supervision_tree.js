@@ -17,7 +17,7 @@ import {
 } from './supervision_tree/elements';
 
 /**
- * @typedef {import('./supervision_tree/elements.js').ServerNode} ServerNode
+ * @import {ServerNode, Info} from './supervision_tree/elements.js'
  */
 
 cytoscape.use(dagre);
@@ -58,13 +58,11 @@ const SupervisionTree = {
         this.pushEventTo(this.el, 'select-node', { key: '' });
     });
 
-    // Change the cursor to a pointer when hovering over a node
     this.cy.on('mouseover', 'node', function (event) {
       event.target.addClass('hover');
       event.cy.container().style.cursor = 'pointer';
     });
 
-    // Revert the cursor to default when the mouse leaves the node
     this.cy.on('mouseout', 'node', function (event) {
       event.target.removeClass('hover');
       event.cy.container().style.cursor = '';
@@ -104,12 +102,20 @@ const SupervisionTree = {
    * @typedef {Object} FullPayload
    * @property {'full'} kind
    * @property {Map<string, ServerNode>} nodes
+
+   * @typedef {Object} Patch
+   * @property {string} name
+   * @property {'app'|'supervisor'|'worker'} type
+   * @property {boolean} has_children
+   * @property {number} child_count
+   * @property {Info|'dead'|null} info
+   * @property {string[]|'not_loaded'} children_keys
    *
    * @typedef {Object} DeltaPayload
    * @property {'delta'} kind
    * @property {Map<string, ServerNode>} added
    * @property {string[]} removed
-   * @property {Map<string, Object>} updated
+   * @property {Map<string, Patch>} updated
    *
    * @param {FullPayload|DeltaPayload} payload
    */
@@ -179,7 +185,6 @@ const SupervisionTree = {
 
         for (const [field, value] of Object.entries(patch)) {
           if (field === 'parent_key') {
-            // edge re-parent
             node.connectedEdges('[target = "' + key + '"]').remove();
             if (value) {
               this.cy.add({
@@ -195,12 +200,10 @@ const SupervisionTree = {
           if (TOPOLOGY_FIELDS.has(field)) topologyChanged = true;
         }
 
-        // Rebuild displayLabel if the name or child count moved.
         if (patch.name !== undefined || patch.child_count !== undefined) {
           node.data('displayLabel', composeLabel(node.data()));
         }
 
-        // Dead state.
         if (patch.info !== undefined) {
           node.data('dead', patch.info === 'dead');
         }
@@ -380,8 +383,6 @@ const SupervisionTree = {
   },
 
   toggleExpandNode(node) {
-    // Only supervisors/apps with children are expandable. Workers have nothing
-    // to toggle.
     if (!node.data('has_children')) return;
 
     this.disabledClick = true;

@@ -10,7 +10,7 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   @timeout_fast 500
   @timeout_children 1_500
   @timeout_pinfo 1_000
-  @safe_pinfo_keys [
+  @process_info_keys [
     :registered_name
   ]
 
@@ -131,13 +131,13 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   end
 
   @doc """
-  Fetches the `@safe_pinfo_keys` `:process_info` for a batch of PIDs on `node`
+  Fetches the `@process_info_keys` `:process_info` for a batch of PIDs on `node`
   in a single `:erpc` call (see `process_info_many/3`). Returns a map keyed by
   PID; dead processes map to `:dead`.
   """
   @spec process_info_batch(node(), [pid()]) :: {:ok, %{pid() => map() | :dead}} | {:error, term()}
   def process_info_batch(node, pids) do
-    process_info_many(node, pids, @safe_pinfo_keys)
+    process_info_many(node, pids, @process_info_keys)
   end
 
   @doc """

@@ -35,7 +35,7 @@ defmodule Voyager.Services.SupervisionTree.TreeNode do
           key: String.t(),
           parent_key: String.t() | nil,
           pid: pid() | nil,
-          name: atom() | pid() | term(),
+          name: atom() | pid(),
           type: node_type(),
           has_children: boolean(),
           child_count: non_neg_integer(),

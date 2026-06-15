@@ -1,13 +1,16 @@
 /**
+ * @typedef {Object} Info
+ * @property {string} registered_name
+ *
  * @typedef {Object} ServerNode
  * @property {string} key
  * @property {string|null} parent_key
- * @property {string} pid                "<X.Y.Z>"
- * @property {string|Array|null} name
+ * @property {string} pid "<X.Y.Z>"
+ * @property {string} name
  * @property {'app'|'supervisor'|'worker'} type
  * @property {boolean} has_children
  * @property {number} child_count
- * @property {Object|'dead'|null} info
+ * @property {Info|'dead'|null} info
  * @property {string[]|'not_loaded'} children_keys
  */
 
