@@ -1,63 +1,63 @@
 defmodule Voyager.Services.RemoteNodeConnector do
   @moduledoc """
-  Erlang `:ssh`-based remote distribution tunnel — no subprocess, no shell.
+  OpenSSH-binary based remote distribution tunnel.
 
   Two phases:
 
-    1. **Discover** — `:ssh.connect/4` opens a connection. An exec channel runs
-       `epmd -names` on the remote box and the distribution port is parsed
-       from the output.
-    2. **Tunnel** — `:ssh.tcpip_tunnel_to_server/6` binds a local port that
-       forwards each accepted TCP connection through the existing SSH session
-       to the remote node's distribution port. Equivalent to `ssh -L`, but
-       multiplexed onto the same SSH connection (no second handshake).
+    1. **Discover** — `Voyager.Services.OpenSSH.Executor.exec/6` runs
+       `epmd -names` on the remote box via `ssh user@host -- "epmd -names"`.
+       The distribution port is parsed from the output.
+    2. **Tunnel** — `Voyager.Services.OpenSSH.Tunnel` spawns a persistent
+       `ssh -L local_port:node_host:dist_port -N` subprocess. The Tunnel
+       GenServer pid is registered with `Voyager.ProxyEpmd.TunnelRegistry`
+       so the BEAM's distribution layer routes through the forwarded port.
 
-  The returned SSH conn pid is monitored by the caller — if the tunnel dies
-  the caller receives a `{:DOWN, ref, :process, conn, reason}` message but is
-  not killed. The caller is responsible for invoking `stop/2` (or letting its
-  own `terminate/2` do it) to tear the tunnel down on its own shutdown.
+  The OpenSSH binary inherits the user's `~/.ssh/config` (including
+  `ProxyJump`), agent forwarding from `SSH_AUTH_SOCK`, and the system's
+  installed identities. Host keys are verified against
+  `Voyager.Services.OpenSSH.KnownHosts` with `StrictHostKeyChecking=yes` —
+  unknown hosts must be added first via the TOFU flow (see
+  `Voyager.Services.OpenSSH.HostScanner`).
 
-  Requires `Voyager.ProxyEpmd` to be active as the BEAM's `-epmd_module` so
-  the distribution layer routes through the local tunnel port. See
-  `Voyager.ProxyEpmd` for setup instructions.
+  The returned Tunnel pid is monitored by the caller — if the tunnel dies the
+  caller receives a `{:DOWN, ref, :process, pid, reason}` message but is not
+  killed. The caller is responsible for invoking `stop/2` (or letting its own
+  `terminate/2` do it) to tear the tunnel down on its own shutdown.
 
   ## Usage
 
-      {:ok, node, conn, ref, _port} =
-        Voyager.Services.RemoteNodeConnector.connect("user", "remote.host", "myapp", :agent)
+      {:ok, node, tunnel, ref, _port} =
+        RemoteNodeConnector.connect("user", "remote.host", "myapp", :agent)
 
-      Node.list()
       :rpc.call(node, :erlang, :node, [])
-      Voyager.Services.RemoteNodeConnector.stop(conn, ref)
+      RemoteNodeConnector.stop(tunnel, ref)
 
   ## Options
 
     * `:ssh_port` — SSH port on the remote host. Defaults to `22`.
-    * `:node_host` — hostname the remote node was started with (the `@host` part
-      of its name). Also used as the tunnel's forwarding target on the SSH
-      server's side. Defaults to `"127.0.0.1"`. Override when the node was
-      started with `--name app@actual.host` or runs on a different internal host
-      reachable from the SSH server.
+    * `:node_host` — hostname the remote node was started with. Defaults to
+      `"127.0.0.1"`.
     * `:epmd_prefix` — list of shell tokens prepended to `epmd -names` on the
-      remote (e.g. `["sudo", "-u", "app"]` or `["PATH=/usr/lib/erlang/bin:$PATH"]`).
-      Treated as trusted input — do not pass user-controlled values.
+      remote (e.g. `["sudo", "-u", "app"]`). Treated as trusted input.
 
   ## Auth
 
     * `:agent` — delegates to the local ssh-agent (`SSH_AUTH_SOCK` must be set)
-    * `{:password, pw}` — password authentication
-    * `{:key, path, passphrase | nil}` — private key file; `path` is the key
-      file, its parent directory is used as the OTP ssh `user_dir`
+    * `{:key, path, nil}` — unencrypted private key file at `path`
+
+  Encrypted keys and password authentication are not supported by this PR —
+  load encrypted keys into `ssh-agent` and use `:agent` instead.
   """
 
   alias Voyager.ProxyEpmd.TunnelRegistry
+  alias Voyager.Services.OpenSSH.Executor
+  alias Voyager.Services.OpenSSH.Tunnel
 
-  @local_bind ~c"127.0.0.1"
+  @max_tunnel_attempts 3
 
   @type auth ::
           :agent
-          | {:password, String.t()}
-          | {:key, Path.t(), String.t() | nil}
+          | {:key, Path.t(), nil}
 
   @spec connect(String.t(), String.t(), String.t(), auth(), keyword()) ::
           {:ok, node(), pid(), reference(), pos_integer()} | {:error, term()}
@@ -67,147 +67,115 @@ defmodule Voyager.Services.RemoteNodeConnector do
     node_key = String.to_charlist(node_name)
     remote_node = String.to_atom("#{node_name}@#{node_host}")
 
-    with :ok <- ensure_ssh_started(),
-         {:ok, conn} <- ssh_connect(host, ssh_port, user, auth) do
-      ref = Process.monitor(conn)
+    with {:ok, normalized_auth} <- normalize_auth(auth),
+         {:ok, dist_port} <-
+           discover_dist_port(user, host, ssh_port, normalized_auth, node_name, opts),
+         {:ok, tunnel_pid, local_port} <-
+           open_tunnel(user, host, ssh_port, normalized_auth, node_host, dist_port),
+         :ok <- TunnelRegistry.register(node_key, local_port, tunnel_pid) do
+      ref = Process.monitor(tunnel_pid)
 
-      with {:ok, dist_port} <- discover_dist_port(conn, node_name, opts),
-           {:ok, local_port} <-
-             :ssh.tcpip_tunnel_to_server(
-               conn,
-               @local_bind,
-               0,
-               String.to_charlist(node_host),
-               dist_port,
-               5_000
-             ),
-           :ok <- register_proxy(node_key, local_port, conn),
-           true <- Node.connect(remote_node) do
-        {:ok, remote_node, conn, ref, local_port}
-      else
+      case Node.connect(remote_node) do
+        true ->
+          {:ok, remote_node, tunnel_pid, ref, local_port}
+
         false ->
-          cleanup(conn, ref, node_key)
+          cleanup(tunnel_pid, ref, node_key)
           {:error, :node_connect_failed}
 
         :ignored ->
-          cleanup(conn, ref, node_key)
+          cleanup(tunnel_pid, ref, node_key)
           {:error, :not_distributed}
-
-        {:error, _} = err ->
-          cleanup(conn, ref, node_key)
-          err
       end
     end
   end
 
   @spec stop(pid(), reference() | nil) :: :ok
-  def stop(conn, ref \\ nil) when is_pid(conn) do
+  def stop(tunnel_pid, ref \\ nil) when is_pid(tunnel_pid) do
     if is_reference(ref), do: Process.demonitor(ref, [:flush])
-    :ssh.close(conn)
+    Tunnel.stop(tunnel_pid)
   end
 
   @doc false
   @spec parse_port(binary(), String.t()) :: {:ok, pos_integer()} | {:error, term()}
   def parse_port(output, node_name) when is_binary(output) do
-    case Regex.run(~r/^\s*name\s+#{Regex.escape(node_name)}\s+at\s+port\s+(\d+)\s*$/m, output) do
+    case Regex.run(
+           ~r/^\s*name\s+#{Regex.escape(node_name)}\s+at\s+port\s+(\d+)\s*$/m,
+           output
+         ) do
       [_, port] -> {:ok, String.to_integer(port)}
       _ -> {:error, {:node_not_found, node_name, output}}
     end
   end
 
-  defp cleanup(conn, ref, node_key) do
-    Process.demonitor(ref, [:flush])
-    cleanup_proxy(node_key)
-    :ssh.close(conn)
-  end
-
-  defp ensure_ssh_started do
-    case :ssh.start() do
-      :ok -> :ok
-      {:error, {:already_started, _}} -> :ok
-      other -> other
+  @doc false
+  @spec discover_dist_port(
+          String.t(),
+          String.t(),
+          pos_integer(),
+          Executor.auth(),
+          String.t(),
+          keyword()
+        ) ::
+          {:ok, pos_integer()} | {:error, term()}
+  def discover_dist_port(user, host, ssh_port, auth, node_name, opts \\ []) do
+    with {:ok, output} <- Executor.exec(user, host, ssh_port, auth, "epmd -names", opts) do
+      parse_port(output, node_name)
     end
   end
 
-  defp ssh_connect(host, port, user, auth) do
-    base = [
-      user: String.to_charlist(user),
-      silently_accept_hosts: true,
-      user_interaction: false
-    ]
+  defp normalize_auth(:agent), do: {:ok, :agent}
+  defp normalize_auth({:key, path, nil}) when is_binary(path), do: {:ok, {:key, path}}
+  defp normalize_auth(_), do: {:error, :auth_method_unsupported}
 
-    :ssh.connect(String.to_charlist(host), port, base ++ auth_opts(auth), 10_000)
+  defp open_tunnel(user, host, ssh_port, auth, node_host, dist_port, attempt \\ 1)
+
+  defp open_tunnel(_user, _host, _ssh_port, _auth, _node_host, _dist_port, attempt)
+       when attempt > @max_tunnel_attempts do
+    {:error, :tunnel_port_exhausted}
   end
 
-  defp auth_opts(:agent), do: []
+  defp open_tunnel(user, host, ssh_port, auth, node_host, dist_port, attempt) do
+    with {:ok, local_port} <- pick_port() do
+      result =
+        Tunnel.start_link(
+          user: user,
+          host: host,
+          ssh_port: ssh_port,
+          auth: auth,
+          local_port: local_port,
+          remote_host: node_host,
+          remote_port: dist_port
+        )
 
-  defp auth_opts({:password, pw}),
-    do: [password: String.to_charlist(pw)]
+      case result do
+        {:ok, pid} ->
+          {:ok, pid, local_port}
 
-  defp auth_opts({:key, path, nil}),
-    do: [user_dir: String.to_charlist(Path.expand(Path.dirname(path)))]
+        {:error, {:tunnel_not_ready, _, _}} ->
+          open_tunnel(user, host, ssh_port, auth, node_host, dist_port, attempt + 1)
 
-  defp auth_opts({:key, path, passphrase}) do
-    pp = String.to_charlist(passphrase)
-
-    [
-      user_dir: String.to_charlist(Path.expand(Path.dirname(path))),
-      rsa_pass_phrase: pp,
-      dsa_pass_phrase: pp,
-      ecdsa_pass_phrase: pp,
-      ed25519_pass_phrase: pp
-    ]
-  end
-
-  @doc false
-  @spec discover_dist_port(pid(), String.t(), keyword()) ::
-          {:ok, pos_integer()} | {:error, term()}
-  def discover_dist_port(conn, node_name, opts \\ []) do
-    prefix = opts |> Keyword.get(:epmd_prefix, []) |> Enum.join(" ")
-    cmd = if prefix == "", do: "epmd -names\n", else: "#{prefix} epmd -names\n"
-
-    with {:ok, ch} <- :ssh_connection.session_channel(conn, 5_000) do
-      try do
-        with :success <- :ssh_connection.exec(conn, ch, String.to_charlist(cmd), 5_000),
-             {:ok, output} <- collect_exec_output(conn, ch, []) do
-          parse_port(output, node_name)
-        else
-          :failure -> {:error, :exec_failure}
-          :timeout -> {:error, :exec_timeout}
-          {:error, _} = err -> err
-        end
-      after
-        _ = :ssh_connection.close(conn, ch)
+        {:error, _} = err ->
+          err
       end
     end
   end
 
-  defp collect_exec_output(conn, ch, acc) do
-    receive do
-      {:ssh_cm, ^conn, {:data, ^ch, 0, data}} ->
-        collect_exec_output(conn, ch, [data | acc])
+  defp pick_port do
+    case :gen_tcp.listen(0, active: false) do
+      {:ok, socket} ->
+        {:ok, port} = :inet.port(socket)
+        :gen_tcp.close(socket)
+        {:ok, port}
 
-      {:ssh_cm, ^conn, {:data, ^ch, 1, _stderr}} ->
-        collect_exec_output(conn, ch, acc)
-
-      {:ssh_cm, ^conn, {:eof, ^ch}} ->
-        collect_exec_output(conn, ch, acc)
-
-      {:ssh_cm, ^conn, {:exit_status, ^ch, _}} ->
-        collect_exec_output(conn, ch, acc)
-
-      {:ssh_cm, ^conn, {:closed, ^ch}} ->
-        {:ok, IO.iodata_to_binary(Enum.reverse(acc))}
-    after
-      5_000 -> :timeout
+      {:error, _} = err ->
+        err
     end
   end
 
-  defp register_proxy(node_key, local_port, conn) do
-    TunnelRegistry.register(node_key, local_port, conn)
-  end
-
-  defp cleanup_proxy(node_key) do
+  defp cleanup(tunnel_pid, ref, node_key) do
+    if is_reference(ref), do: Process.demonitor(ref, [:flush])
     TunnelRegistry.unregister(node_key)
+    Tunnel.stop(tunnel_pid)
   end
 end

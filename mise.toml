@@ -1,2 +1,0 @@
-[env]
-ELIXIR_ERL_OPTIONS = "-epmd_module Elixir.Voyager.ProxyEpmd -pa {{config_root}}/_build/dev/lib/voyager/ebin"

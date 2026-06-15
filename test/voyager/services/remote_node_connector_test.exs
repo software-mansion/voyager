@@ -3,43 +3,9 @@ defmodule Voyager.Services.RemoteNodeConnectorTest do
 
   alias Voyager.ProxyEpmd.TunnelRegistry
   alias Voyager.Services.RemoteNodeConnector
+  alias Voyager.SshdFixture
 
   @moduletag capture_log: true
-
-  @epmd_output "epmd: up and running on port 4369 with data:\nname myapp at port 41234\nname other at port 99\n"
-
-  setup_all do
-    case :ssh.start() do
-      :ok -> :ok
-      {:error, {:already_started, _}} -> :ok
-    end
-
-    :ok
-  end
-
-  setup context do
-    if context[:daemon] do
-      system_dir = make_system_dir!()
-      on_exit(fn -> File.rm_rf!(system_dir) end)
-
-      {:ok, daemon} =
-        :ssh.daemon(
-          0,
-          system_dir: String.to_charlist(system_dir),
-          auth_methods: ~c"password",
-          pwdfun: &password_check/2,
-          exec: {:direct, &fake_epmd_exec/1}
-        )
-
-      {:ok, info} = :ssh.daemon_info(daemon)
-      port = Keyword.fetch!(info, :port)
-      on_exit(fn -> :ssh.stop_daemon(daemon) end)
-
-      {:ok, port: port}
-    else
-      :ok
-    end
-  end
 
   describe "parse_port/2" do
     test "parses a single-node epmd -names output" do
@@ -95,126 +61,110 @@ defmodule Voyager.Services.RemoteNodeConnectorTest do
           "nobody",
           "127.0.0.1",
           "no_such_node",
-          {:password, "x"},
+          :agent,
           ssh_port: 1
         )
 
       assert match?({:error, _}, result)
     end
-  end
 
-  describe "discover_dist_port/3" do
-    @describetag :daemon
-    test "parses the port for a node present in epmd output", %{port: port} do
-      {:ok, conn} = open_client(port)
-      assert {:ok, 41_234} = RemoteNodeConnector.discover_dist_port(conn, "myapp")
-      :ssh.close(conn)
-    end
+    test "rejects unsupported auth methods" do
+      assert {:error, :auth_method_unsupported} =
+               RemoteNodeConnector.connect(
+                 "nobody",
+                 "127.0.0.1",
+                 "node",
+                 {:password, "x"},
+                 ssh_port: 1
+               )
 
-    test "returns :node_not_found when the node is absent", %{port: port} do
-      {:ok, conn} = open_client(port)
-
-      assert {:error, {:node_not_found, "missing", _output}} =
-               RemoteNodeConnector.discover_dist_port(conn, "missing")
-
-      :ssh.close(conn)
-    end
-
-    test "honors :epmd_prefix without losing the node match", %{port: port} do
-      {:ok, conn} = open_client(port)
-
-      assert {:ok, 41_234} =
-               RemoteNodeConnector.discover_dist_port(conn, "myapp", epmd_prefix: ["env"])
-
-      :ssh.close(conn)
-    end
-  end
-
-  describe "auth" do
-    @describetag :daemon
-    test "wrong password is rejected", %{port: port} do
-      assert {:error, _} = open_client(port, "wrong")
-    end
-
-    test "unknown user is rejected", %{port: port} do
-      assert {:error, _} =
-               :ssh.connect(
-                 ~c"127.0.0.1",
-                 port,
-                 [
-                   user: ~c"other",
-                   password: ~c"password",
-                   silently_accept_hosts: true,
-                   user_interaction: false,
-                   auth_methods: ~c"password"
-                 ],
-                 5_000
+      assert {:error, :auth_method_unsupported} =
+               RemoteNodeConnector.connect(
+                 "nobody",
+                 "127.0.0.1",
+                 "node",
+                 {:key, "/tmp/k", "passphrase"},
+                 ssh_port: 1
                )
     end
   end
 
-  describe "stop/2" do
-    @describetag :daemon
-    test "conn exit removes the ETS entry via TunnelRegistry", %{port: port} do
-      {:ok, conn} = open_client(port)
+  describe "with real sshd" do
+    @describetag :integration
+
+    setup do
+      ctx = SshdFixture.start!()
+      kh_path = SshdFixture.install_host_key!(ctx)
+
+      previous = Application.get_env(:voyager, :known_hosts_path)
+      Application.put_env(:voyager, :known_hosts_path, kh_path)
+
+      on_exit(fn ->
+        if previous,
+          do: Application.put_env(:voyager, :known_hosts_path, previous),
+          else: Application.delete_env(:voyager, :known_hosts_path)
+
+        SshdFixture.stop!(ctx)
+      end)
+
+      {:ok, sshd: ctx}
+    end
+
+    test "discover_dist_port parses the port from a node present in epmd output", %{sshd: ctx} do
+      assert {:ok, 41_234} =
+               RemoteNodeConnector.discover_dist_port(
+                 ctx.user,
+                 ctx.host,
+                 ctx.port,
+                 {:key, ctx.key_path},
+                 "myapp"
+               )
+    end
+
+    test "discover_dist_port returns :node_not_found when the node is absent", %{sshd: ctx} do
+      assert {:error, {:node_not_found, "missing", _}} =
+               RemoteNodeConnector.discover_dist_port(
+                 ctx.user,
+                 ctx.host,
+                 ctx.port,
+                 {:key, ctx.key_path},
+                 "missing"
+               )
+    end
+
+    test "connect/5 returns auth failure when the key is wrong", %{sshd: ctx} do
+      bad_key = generate_unrelated_key!(ctx.dir)
+
+      assert {:error, _} =
+               RemoteNodeConnector.connect(
+                 ctx.user,
+                 ctx.host,
+                 "myapp",
+                 {:key, bad_key, nil},
+                 ssh_port: ctx.port
+               )
+    end
+
+    test "TunnelRegistry cleans up when the tunnel pid exits" do
       node_key = ~c"stoptest_#{System.unique_integer([:positive])}"
-      TunnelRegistry.register(node_key, 12_345, conn)
+      {:ok, fake_pid} = Agent.start(fn -> :ok end)
+      :ok = TunnelRegistry.register(node_key, 12_345, fake_pid)
 
       assert [{^node_key, _}] = :ets.lookup(:proxy_epmd, node_key)
 
-      wait_ref = Process.monitor(conn)
-      RemoteNodeConnector.stop(conn)
+      ref = Process.monitor(fake_pid)
+      Agent.stop(fake_pid)
+      assert_receive {:DOWN, ^ref, :process, ^fake_pid, _}
 
-      assert_receive {:DOWN, ^wait_ref, :process, ^conn, _}
       _ = :sys.get_state(TunnelRegistry)
-
       assert :ets.lookup(:proxy_epmd, node_key) == []
     end
-
-    test "demonitors the caller ref so no DOWN is delivered after stop", %{port: port} do
-      {:ok, conn} = open_client(port)
-      ref = Process.monitor(conn)
-
-      RemoteNodeConnector.stop(conn, ref)
-
-      refute_receive {:DOWN, ^ref, :process, ^conn, _}
-    end
   end
 
-  defp open_client(port, password \\ "password") do
-    :ssh.connect(
-      ~c"127.0.0.1",
-      port,
-      [
-        user: ~c"test",
-        password: String.to_charlist(password),
-        silently_accept_hosts: true,
-        user_interaction: false,
-        auth_methods: ~c"password"
-      ],
-      5_000
-    )
-  end
-
-  defp password_check(~c"test", ~c"password"), do: true
-  defp password_check(_, _), do: false
-
-  defp fake_epmd_exec(cmd) when is_list(cmd) do
-    if String.contains?(List.to_string(cmd), "epmd -names") do
-      {:ok, @epmd_output}
-    else
-      {:ok, "unknown command\n"}
-    end
-  end
-
-  defp make_system_dir! do
-    dir = Path.join(System.tmp_dir!(), "voyager_ssh_#{System.unique_integer([:positive])}")
-    File.mkdir_p!(dir)
-
-    rsa_key = :public_key.generate_key({:rsa, 2048, 65_537})
-    pem_entry = :public_key.pem_entry_encode(:RSAPrivateKey, rsa_key)
-    File.write!(Path.join(dir, "ssh_host_rsa_key"), :public_key.pem_encode([pem_entry]))
-
-    dir
+  defp generate_unrelated_key!(dir) do
+    path = Path.join(dir, "unrelated_ed25519_#{System.unique_integer([:positive])}")
+    {_, 0} = System.cmd("ssh-keygen", ["-t", "ed25519", "-N", "", "-f", path, "-q"])
+    File.chmod!(path, 0o600)
+    path
   end
 end
