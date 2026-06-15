@@ -22,6 +22,7 @@ defmodule Voyager.Services.NodeInfo.Limits do
           ports: usage()
         }
 
+  @derive JSON.Encoder
   defstruct [:atoms, :processes, :ports]
 
   @spec system_info_keys() :: [atom()]

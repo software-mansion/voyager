@@ -14,6 +14,8 @@ defmodule VoyagerWeb.Router do
     plug :accepts, ["json"]
   end
 
+  forward "/mcp", Anubis.Server.Transport.StreamableHTTP.Plug, server: Voyager.MCP.Server
+
   scope "/", VoyagerWeb do
     pipe_through :browser
 
