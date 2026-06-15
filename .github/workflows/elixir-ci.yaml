@@ -21,25 +21,21 @@ jobs:
     name: Build and test
     runs-on: ubuntu-24.04
     
-    env:
-      ELIXIR_VERSION: "1.20"
-      OTP_VERSION: "29"
-      NODE_VERSION: "24.16.0"
-
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .tool-versions
           cache: "npm"
           cache-dependency-path: "./assets/package-lock.json"
 
       - name: Set up Elixir
+        id: beam
         uses: erlef/setup-beam@v1
         with:
-          elixir-version: ${{ env.ELIXIR_VERSION }}
-          otp-version: ${{ env.OTP_VERSION }}
+          version-file: .tool-versions
+          version-type: strict
 
       - name: Cache dependencies and build artifacts
         uses: actions/cache@v4
@@ -54,9 +50,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: priv/plts
-          key: ${{ runner.os }}-plt-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-${{ hashFiles('**/mix.lock') }}
+          key: ${{ runner.os }}-plt-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('**/mix.lock') }}
           restore-keys: |
-            ${{ runner.os }}-plt-${{ env.OTP_VERSION }}-${{ env.ELIXIR_VERSION }}-
+            ${{ runner.os }}-plt-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-
 
       - name: Install Dependencies
         run: mix deps.get
@@ -67,14 +63,14 @@ jobs:
           npm ci
           npx prettier . --check    
 
+      - name: Compile project
+        run: mix compile --warnings-as-errors
+
       - name: Check Elixir formatting
         run: mix format --check-formatted
 
       - name: Run Credo
         run: mix credo --strict
-
-      - name: Compile project
-        run: mix compile --warnings-as-errors
 
       - name: Run Dialyzer
         run: mix dialyzer --format github
