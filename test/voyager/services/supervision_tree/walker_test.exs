@@ -172,6 +172,12 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
       {_mid_a, [w1 | _]} = midsup_a_workers(node)
 
       target = :erpc.call(node, :erlang, :spawn, [:timer, :sleep, [:infinity]])
+
+      on_exit(fn ->
+        :erpc.call(node, Process, :exit, [target, :kill])
+        :erpc.call(node, :sys, :get_state, [Voyager.Test.FixtureApp.MidSupA])
+      end)
+
       :ok = :erpc.call(node, GenServer, :call, [w1, {:link, target}])
 
       {_status, %{nodes: nodes, edges: edges}, _errors} =
@@ -221,6 +227,14 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
 
       port = :erpc.call(node, GenServer, :call, [w1, {:open_port, {:spawn, ~c"cat"}, []}])
       assert is_port(port)
+
+      on_exit(fn ->
+        try do
+          Port.close(port)
+        catch
+          _, _ -> :ok
+        end
+      end)
 
       {_status, %{nodes: nodes, edges: edges}, _errors} =
         Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
