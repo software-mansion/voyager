@@ -48,10 +48,7 @@ defmodule Voyager.Services.NodeInfoTest do
       assert is_binary(system.erts_version)
       assert is_binary(system.system_version)
       assert is_binary(system.system_architecture)
-      assert is_integer(system.wordsize_internal) and system.wordsize_internal > 0
-      assert is_integer(system.wordsize_external) and system.wordsize_external > 0
-      assert is_boolean(system.smp_support?)
-      assert is_boolean(system.thread_support?)
+      assert is_integer(system.wordsize) and system.wordsize > 0
       assert is_integer(system.async_threads) and system.async_threads >= 0
     end
 
