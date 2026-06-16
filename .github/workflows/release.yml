@@ -6,7 +6,7 @@ on:
       - "v*.*.*"
   pull_request: # For testing only TODO: remove before merging
     branches:
-      - "17-add-release-ci"
+      - "main"
 
 permissions:
   contents: read
