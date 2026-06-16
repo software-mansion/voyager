@@ -201,6 +201,7 @@ const Tooltip = {
       e.preventDefault();
       this._pinned = !this._pinned;
       if (this._pinned) {
+        document.dispatchEvent(new CustomEvent('tooltip:pinned', { detail: { id: this.el.id } }));
         this.show();
         const tipEl = this.getTip();
         if (tipEl) tipEl.classList.add('is-pinned');
@@ -234,6 +235,11 @@ const Tooltip = {
       }
     };
 
+    this._onOtherPin = (e) => {
+      if (this._pinned && e.detail.id !== this.el.id) this.hide();
+    };
+    document.addEventListener('tooltip:pinned', this._onOtherPin);
+
     this.el.addEventListener('mouseenter', this.onTriggerEnter);
     this.el.addEventListener('mouseleave', this.onTriggerLeave);
     this.el.addEventListener('focusin', this.show);
@@ -249,6 +255,7 @@ const Tooltip = {
 
   destroyed() {
     this.hide();
+    document.removeEventListener('tooltip:pinned', this._onOtherPin);
     this.el.removeEventListener('mouseenter', this.onTriggerEnter);
     this.el.removeEventListener('mouseleave', this.onTriggerLeave);
     this.el.removeEventListener('focusin', this.show);
