@@ -20,6 +20,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> assign(:depth, SupervisionTreeControls.default_depth())
       |> assign(:expanded_pids, MapSet.new())
       |> assign(:last_tree_flat, nil)
+      |> assign(:last_updated, nil)
       |> assign(:in_flight, nil)
       |> assign(:errors, [])
       |> assign(:status, :idle)
@@ -149,6 +150,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         |> assign(:status, status)
         |> assign(:in_flight, nil)
         |> assign(:last_tree_flat, new_flat)
+        |> assign(:last_updated, DateTime.utc_now())
         |> push_event("tree-data", payload)
         |> start_timer()
 
@@ -195,8 +197,12 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="flex h-full flex-col gap-4 p-4">
-      <SupervisionTreeComponents.header node_name={@session.node_name} status={@status} />
+    <div class="flex h-full flex-col gap-4 p-6 sm:p-8">
+      <SupervisionTreeComponents.header
+        node_name={@session.node_name}
+        status={@status}
+        last_updated={@last_updated}
+      />
       <SupervisionTreeComponents.controls
         form={@apps_form}
         available_apps={@available_apps}

@@ -5,27 +5,40 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
 
   use VoyagerWeb, :component
 
+  alias VoyagerWeb.Formatters
+
   attr :node_name, :string, required: true
   attr :status, :atom, required: true
+  attr :last_updated, :any, required: true
 
   def header(assigns) do
     ~H"""
-    <div class="card bg-base-100 shadow-sm">
-      <div class="card-body flex flex-row items-center gap-4 py-3">
-        <div class="flex-1">
-          <h1 class="card-title text-base-content">Supervision Tree</h1>
-          <p class="text-base-content/60 text-sm">{@node_name}</p>
+    <div class="mx-auto w-full max-w-screen-2xl">
+      <header class="mb-8 flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 class="font-mono text-base-content text-2xl font-bold tracking-tight">
+            {@node_name}
+          </h1>
+          <p class="font-mono text-base-content/50 mt-0.5 text-xs">
+            <%= if @last_updated do %>
+              updated {Formatters.format_time(@last_updated)} UTC
+            <% else %>
+              waiting for first fetch…
+            <% end %>
+          </p>
         </div>
-        <div class="flex items-center gap-3">
+
+        <div class="flex items-center gap-2">
           <span class={["badge", status_badge_class(@status)]}>
             {status_label(@status)}
           </span>
           <button
-            id="supervision-tree-refresh"
-            class="btn btn-sm btn-ghost"
+            type="button"
             phx-click="refresh-now"
+            phx-throttle="1000"
+            id="supervision-tree-refresh"
             title="Refresh now"
-            phx-throttle="500"
+            class="btn btn-sm btn-ghost"
           >
             <.icon
               name="icon-rotate-cw"
@@ -33,7 +46,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
             />
           </button>
         </div>
-      </div>
+      </header>
     </div>
     """
   end
@@ -44,7 +57,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
 
   def controls(assigns) do
     ~H"""
-    <div class="card bg-base-100 shadow-sm">
+    <div class="card bg-base-100 border-base-200 border shadow-sm">
       <div class="card-body py-3">
         <.form
           for={@form}
@@ -54,19 +67,21 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
           class="flex flex-col gap-3"
         >
           <details tabindex="0" class="collapse collapse-arrow">
-            <summary class="collapse-title pe-4 ps-12 flex cursor-pointer items-center justify-between after:start-5 after:end-auto">
+            <summary class="collapse-title pe-4 ps-6 flex cursor-pointer items-center justify-between after:start-1 after:end-auto">
               <h2 class="text-base-content text-sm font-semibold">Applications</h2>
               <div class="flex items-center gap-2">
                 <label class="label text-base-content/60 text-xs" for={@form[:depth].id}>
                   Depth
                 </label>
-                <.input
-                  field={@form[:depth]}
-                  type="number"
-                  min="1"
-                  class="input-sm w-16 text-center"
-                  phx-debounce="250"
-                />
+                <div class="w-16">
+                  <.input
+                    field={@form[:depth]}
+                    type="number"
+                    min="1"
+                    class="input-sm text-center"
+                    phx-debounce="250"
+                  />
+                </div>
               </div>
             </summary>
             <div class="collapse-content flex flex-wrap gap-2">
@@ -128,7 +143,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
     <div class="flex-1 overflow-auto">
       <%= cond do %>
         <% MapSet.size(@selected_apps) == 0 -> %>
-          <div class="border-base-300 flex h-full flex-col items-center justify-center gap-3 rounded-lg border border-dashed text-center">
+          <div class="border-base-300 flex h-full flex-col items-center justify-center gap-3 rounded-lg text-center">
             <.icon name="icon-network" class="size-10 text-base-content/30" />
             <div>
               <p class="text-base-content/60 font-medium">No applications selected</p>
@@ -138,7 +153,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
             </div>
           </div>
         <% @status == :idle -> %>
-          <div class="border-base-300 flex h-full flex-col items-center justify-center gap-3 rounded-lg border border-dashed text-center">
+          <div class="border-base-300 flex h-full flex-col items-center justify-center gap-3 rounded-lg text-center">
             <.icon name="icon-network" class="size-10 text-base-content/30" />
             <div>
               <p class="text-base-content/60 font-medium">Waiting…</p>
@@ -149,7 +164,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
             id="supervision-tree-body"
             phx-hook="SupervisionTree"
             phx-update="ignore"
-            class="bg-base-100 relative h-full overflow-hidden rounded-lg shadow-sm"
+            class="bg-base-100 relative h-full overflow-hidden rounded-lg"
           >
             <div
               data-cy-container
