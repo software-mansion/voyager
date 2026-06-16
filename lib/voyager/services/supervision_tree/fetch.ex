@@ -44,8 +44,6 @@ defmodule Voyager.Services.SupervisionTree.Fetch do
           expanded: MapSet.t(pid())
         }
 
-  @type state :: %{task: Task.t(), request: request()}
-
   @doc """
   Starts an async walk for `request`. Returns a task that must be kept
   by the caller and passed to `cancel/1` if early termination is needed.

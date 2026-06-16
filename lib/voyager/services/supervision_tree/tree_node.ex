@@ -35,7 +35,9 @@ defmodule Voyager.Services.SupervisionTree.TreeNode do
           key: String.t(),
           parent_key: String.t() | nil,
           pid: pid() | nil,
-          name: atom() | pid(),
+          # :name is mostly process's :registered_name if present or it's pid,
+          # but if none present it default to child_id from supervision tree
+          name: term(),
           type: node_type(),
           has_children: boolean(),
           child_count: non_neg_integer(),

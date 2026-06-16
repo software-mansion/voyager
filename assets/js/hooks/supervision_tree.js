@@ -101,7 +101,7 @@ const SupervisionTree = {
   /**
    * @typedef {Object} FullPayload
    * @property {'full'} kind
-   * @property {Map<string, ServerNode>} nodes
+   * @property {Record<string, ServerNode>} nodes
 
    * @typedef {Object} Patch
    * @property {string} name
@@ -113,9 +113,9 @@ const SupervisionTree = {
    *
    * @typedef {Object} DeltaPayload
    * @property {'delta'} kind
-   * @property {Map<string, ServerNode>} added
+   * @property {Record<string, ServerNode>} added
    * @property {string[]} removed
-   * @property {Map<string, Patch>} updated
+   * @property {Record<string, Patch>} updated
    *
    * @param {FullPayload|DeltaPayload} payload
    */

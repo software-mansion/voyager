@@ -1,12 +1,12 @@
 /**
  * @typedef {Object} Info
- * @property {string} registered_name
+ * @property {string|any[]} registered_name
  *
  * @typedef {Object} ServerNode
  * @property {string} key
  * @property {string|null} parent_key
- * @property {string} pid "<X.Y.Z>"
- * @property {string} name
+ * @property {string|null} pid "<X.Y.Z>" (null for ghost children)
+ * @property {string|any[]} name
  * @property {'app'|'supervisor'|'worker'} type
  * @property {boolean} has_children
  * @property {number} child_count

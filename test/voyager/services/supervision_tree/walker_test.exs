@@ -6,11 +6,13 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
 
   setup_all do
     fixture_app = RemoteFixture.start_fixture_app!()
+    prev_erpc = Application.get_env(:voyager, :erpc)
+
     Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
 
     on_exit(fn ->
       Application.stop(fixture_app)
-      Application.put_env(:voyager, :erpc, Voyager.ErpcMock)
+      Application.put_env(:voyager, :erpc, prev_erpc)
     end)
 
     {:ok, node: Node.self()}

@@ -326,10 +326,10 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   end
 
   # Ghosts: a child spec with no live pid keeps its child-spec id as its label.
-  defp walk_child(item, {child_id, status, _type, _modules}, nodes, worklist)
+  defp walk_child(item, {child_id, status, type, _modules}, nodes, worklist)
        when status in [:undefined, :restarting] do
     key = ghost_key(item.key, child_id)
-    {key, Map.put(nodes, key, ghost_node(key, item.key, child_id)), worklist}
+    {key, Map.put(nodes, key, ghost_node(key, item.key, child_id, type)), worklist}
   end
 
   # Child supervisors are queued for the next level (their node is inserted when
@@ -438,8 +438,8 @@ defmodule Voyager.Services.SupervisionTree.Walker do
     build_node(%{key: key, parent_key: parent_key, pid: pid, name: name, type: :worker})
   end
 
-  defp ghost_node(key, parent_key, child_id) do
-    build_node(%{key: key, parent_key: parent_key, name: child_id, type: :worker})
+  defp ghost_node(key, parent_key, child_id, type) do
+    build_node(%{key: key, parent_key: parent_key, name: child_id, type: type})
   end
 
   # ---------------------------------------------------------------------------
