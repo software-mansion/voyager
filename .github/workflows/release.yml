@@ -100,47 +100,67 @@ jobs:
         shell: bash
         run: mix tauri.release
 
-      # - name: Install Apple certificate (macOS)
-      #   if: runner.os == 'macOS'
-      #   env:
-      #     CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE }}
-      #     PRIVATE_KEY_BASE64: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_BASE64 }}
-      #     PRIVATE_KEY_PASSWORD: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_PASSWORD }}
-      #     KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
-      #   run: |
-      #     CERTIFICATE_PATH=$RUNNER_TEMP/certificate.pem
-      #     PRIVATE_KEY_PATH=$RUNNER_TEMP/private_key.p12
-      #     KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+      - name: Check Apple signing secrets (macOS)
+        if: runner.os == 'macOS'
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE }}
+          PRIVATE_KEY_BASE64: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_BASE64 }}
+          PRIVATE_KEY_PASSWORD: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+          SIGNING_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
+        run: |
+          missing=()
+          [[ -z "$CERTIFICATE_BASE64" ]]  && missing+=("APPLE_DEVELOPER_CERTIFICATE")
+          [[ -z "$PRIVATE_KEY_BASE64" ]]  && missing+=("APPLE_DEVELOPER_PRIVATE_KEY_BASE64")
+          [[ -z "$PRIVATE_KEY_PASSWORD" ]] && missing+=("APPLE_DEVELOPER_PRIVATE_KEY_PASSWORD")
+          [[ -z "$KEYCHAIN_PASSWORD" ]]   && missing+=("APPLE_KEYCHAIN_PASSWORD")
+          [[ -z "$SIGNING_IDENTITY" ]]    && missing+=("APPLE_DEVELOPER_IDENTITY")
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "::error::One or more Apple signing secrets are missing or empty (${#missing[@]} secret(s))"
+            exit 1
+          fi
 
-      #     echo -n "${{ env.CERTIFICATE_BASE64 }}" | base64 --decode > $CERTIFICATE_PATH
-      #     echo -n "${{ env.PRIVATE_KEY_BASE64 }}" | base64 --decode -o $PRIVATE_KEY_PATH
+      - name: Install Apple certificate (macOS)
+        if: runner.os == 'macOS'
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE }}
+          PRIVATE_KEY_BASE64: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_BASE64 }}
+          PRIVATE_KEY_PASSWORD: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+        run: |
+          CERTIFICATE_PATH=$RUNNER_TEMP/certificate.pem
+          PRIVATE_KEY_PATH=$RUNNER_TEMP/private_key.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
 
-      #     # Create temporary keychain
-      #     security create-keychain -p "${{ env.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
-      #     security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-      #     security unlock-keychain -p "${{ env.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
+          echo -n "${{ env.CERTIFICATE_BASE64 }}" | base64 --decode > $CERTIFICATE_PATH
+          echo -n "${{ env.PRIVATE_KEY_BASE64 }}" | base64 --decode -o $PRIVATE_KEY_PATH
 
-      #     # Import certificate (PEM) and private key (PKCS12) separately
-      #     security import $CERTIFICATE_PATH -A -k $KEYCHAIN_PATH
-      #     security import $PRIVATE_KEY_PATH -A -t priv -f pkcs12 -P "${{ env.PRIVATE_KEY_PASSWORD }}" -k $KEYCHAIN_PATH
-      #     security set-key-partition-list -S apple-tool:,apple: -k "${{ env.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
-      #     security list-keychain -d user -s $KEYCHAIN_PATH
+          # Create temporary keychain
+          security create-keychain -p "${{ env.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "${{ env.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
 
-      # - name: Build Tauri app
-      #   uses: tauri-apps/tauri-action@v0.6
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #     MIX_ENV: prod
-      #     # APPLE_CERTIFICATE intentionally omitted — the cert is already imported
-      #     # into the keychain by the step above; tauri-action finds it via the identity.
-      #     APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
-      #   with:
-      #     projectPath: rel/app
-      #     args: --target ${{ matrix.gui_target }}
+          # Import certificate (PEM) and private key (PKCS12) separately
+          security import $CERTIFICATE_PATH -A -k $KEYCHAIN_PATH
+          security import $PRIVATE_KEY_PATH -A -t priv -f pkcs12 -P "${{ env.PRIVATE_KEY_PASSWORD }}" -k $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple: -s -k "${{ env.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
 
-      # - name: Upload artifact
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: voyager-${{ matrix.gui_target }}
-      #     path: rel/app/src-tauri/target/${{ matrix.gui_target }}/release/bundle/
-      #     if-no-files-found: error
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0.6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MIX_ENV: prod
+          # APPLE_CERTIFICATE intentionally omitted — the cert is already imported
+          # into the keychain by the step above; tauri-action finds it via the identity.
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
+        with:
+          projectPath: rel/app
+          args: --target ${{ matrix.gui_target }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: voyager-${{ matrix.gui_target }}
+          path: rel/app/src-tauri/target/${{ matrix.gui_target }}/release/bundle/
+          if-no-files-found: error
