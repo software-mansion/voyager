@@ -201,7 +201,9 @@ const Tooltip = {
       e.preventDefault();
       this._pinned = !this._pinned;
       if (this._pinned) {
-        document.dispatchEvent(new CustomEvent('tooltip:pinned', { detail: { id: this.el.id } }));
+        document.dispatchEvent(
+          new CustomEvent('tooltip:pinned', { detail: { id: this.el.id } })
+        );
         this.show();
         const tipEl = this.getTip();
         if (tipEl) tipEl.classList.add('is-pinned');
