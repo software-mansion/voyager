@@ -100,26 +100,6 @@ jobs:
         shell: bash
         run: mix tauri.release
 
-      - name: Check Apple signing secrets (macOS)
-        if: runner.os == 'macOS'
-        env:
-          CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE }}
-          PRIVATE_KEY_BASE64: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_BASE64 }}
-          PRIVATE_KEY_PASSWORD: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
-          SIGNING_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
-        run: |
-          missing=()
-          [[ -z "$CERTIFICATE_BASE64" ]]  && missing+=("APPLE_DEVELOPER_CERTIFICATE")
-          [[ -z "$PRIVATE_KEY_BASE64" ]]  && missing+=("APPLE_DEVELOPER_PRIVATE_KEY_BASE64")
-          [[ -z "$PRIVATE_KEY_PASSWORD" ]] && missing+=("APPLE_DEVELOPER_PRIVATE_KEY_PASSWORD")
-          [[ -z "$KEYCHAIN_PASSWORD" ]]   && missing+=("APPLE_KEYCHAIN_PASSWORD")
-          [[ -z "$SIGNING_IDENTITY" ]]    && missing+=("APPLE_DEVELOPER_IDENTITY")
-          if [[ ${#missing[@]} -gt 0 ]]; then
-            echo "::error::One or more Apple signing secrets are missing or empty (${#missing[@]} secret(s))"
-            exit 1
-          fi
-
       - name: Install Apple certificate (macOS)
         if: runner.os == 'macOS'
         env:
@@ -128,12 +108,14 @@ jobs:
           PRIVATE_KEY_PASSWORD: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
         run: |
+          set -euo pipefail
+
           CERTIFICATE_PATH=$RUNNER_TEMP/certificate.pem
           PRIVATE_KEY_PATH=$RUNNER_TEMP/private_key.p12
           KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
 
           echo -n "${{ env.CERTIFICATE_BASE64 }}" | base64 --decode > $CERTIFICATE_PATH
-          echo -n "${{ env.PRIVATE_KEY_BASE64 }}" | base64 --decode -o $PRIVATE_KEY_PATH
+          echo -n "${{ env.PRIVATE_KEY_BASE64 }}" | base64 --decode > $PRIVATE_KEY_PATH
 
           # Create temporary keychain
           security create-keychain -p "${{ env.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
