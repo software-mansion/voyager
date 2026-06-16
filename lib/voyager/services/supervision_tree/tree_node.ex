@@ -1,13 +1,13 @@
 defmodule Voyager.Services.SupervisionTree.TreeNode do
   @moduledoc """
-  A flat node representing a process or port in a supervision tree.
+  A flat node representing a process, port or reference in a supervision tree.
 
   ## Node keys:
 
     * real-pid node → `"<X.Y.Z>"` (matches `:erlang.pid_to_list/1`)
     * `:app` wrapper → `"app:<app_atom>"`
-    * port node → `"<inspect(port)>"`
-    * reference node → `"<inspect(ref)>"`
+    * port node → `inspect(port)`
+    * reference node → `inspect(ref)`
     * ghost child (`pid: nil`) → `"<parent_key>::ghost::<inspect(child_id)>"`
 
   `name` is the process's display label: its `:registered_name` when
