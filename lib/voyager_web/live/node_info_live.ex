@@ -250,7 +250,10 @@ defmodule VoyagerWeb.NodeInfoLive do
   defp runtime_rows(snapshot) do
     language_rows =
       Enum.map(snapshot.languages, fn lang ->
-        {lang.name, lang.version, help: NodeInfoHelp.get(@language_help[lang.name])}
+        case Map.fetch(@language_help, lang.name) do
+          {:ok, key} -> {lang.name, lang.version, help: NodeInfoHelp.get(key)}
+          :error -> {lang.name, lang.version}
+        end
       end)
 
     base = [

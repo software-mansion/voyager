@@ -47,9 +47,21 @@ if (window.__TAURI_INTERNALS__) {
   document.addEventListener(
     'click',
     (e) => {
-      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.altKey) return;
+      if (
+        e.defaultPrevented ||
+        e.button !== 0 ||
+        e.metaKey ||
+        e.altKey ||
+        e.ctrlKey ||
+        e.shiftKey
+      ) {
+        return;
+      }
 
-      const link = e.target.closest('a[target="_blank"]');
+      const target = e.target;
+      if (!(target instanceof Element)) return;
+
+      const link = target.closest('a[target="_blank"]');
       if (!link?.href) return;
 
       const url = new URL(link.href);

@@ -68,6 +68,12 @@ const Tooltip = {
     this._pinned = false;
     this._hoverTrigger = false;
     this._hoverTip = false;
+    // Track which global listeners are currently attached so they can be
+    // added/removed lazily instead of one set per tooltip living for the whole
+    // page lifetime. Scroll/resize are only needed while the tip is open;
+    // pointerdown/keydown only while it is pinned.
+    this._scrollResizeBound = false;
+    this._pinListenersBound = false;
     // Interactive tooltips can be hovered into and pinned open with a click;
     // plain ones are a transient hover/focus peek that hides as soon as the
     // cursor leaves the trigger.
@@ -86,6 +92,37 @@ const Tooltip = {
       tipEl.addEventListener('mouseleave', this.onTipLeave);
     };
 
+    // Global scroll/resize listeners only need to exist while this tip is
+    // visible. Reposition (pinned) or hide (transient) on viewport changes.
+    this.bindScrollResize = () => {
+      if (this._scrollResizeBound) return;
+      this._scrollResizeBound = true;
+      window.addEventListener('scroll', this.onScrollResize, true);
+      window.addEventListener('resize', this.onScrollResize);
+    };
+
+    this.unbindScrollResize = () => {
+      if (!this._scrollResizeBound) return;
+      this._scrollResizeBound = false;
+      window.removeEventListener('scroll', this.onScrollResize, true);
+      window.removeEventListener('resize', this.onScrollResize);
+    };
+
+    // Outside-click and Escape handling only need to exist while pinned.
+    this.bindPinListeners = () => {
+      if (this._pinListenersBound) return;
+      this._pinListenersBound = true;
+      document.addEventListener('pointerdown', this.onDocPointerDown);
+      document.addEventListener('keydown', this.onKeydown);
+    };
+
+    this.unbindPinListeners = () => {
+      if (!this._pinListenersBound) return;
+      this._pinListenersBound = false;
+      document.removeEventListener('pointerdown', this.onDocPointerDown);
+      document.removeEventListener('keydown', this.onKeydown);
+    };
+
     this.show = () => {
       clearTimeout(this._closeTimeout);
       const tipEl = this.getTip();
@@ -95,6 +132,7 @@ const Tooltip = {
       // tooltip doesn't flash at a stale spot for one frame.
       positionTooltip(tipEl, this.el);
       tipEl.classList.add('is-open');
+      this.bindScrollResize();
     };
 
     this.hide = () => {
@@ -103,6 +141,8 @@ const Tooltip = {
       this._pinned = false;
       const tipEl = this.getTip();
       if (tipEl) tipEl.classList.remove('is-open', 'is-pinned');
+      this.unbindScrollResize();
+      this.unbindPinListeners();
     };
 
     this.reposition = () => {
@@ -164,9 +204,11 @@ const Tooltip = {
         this.show();
         const tipEl = this.getTip();
         if (tipEl) tipEl.classList.add('is-pinned');
+        this.bindPinListeners();
       } else {
         const tipEl = this.getTip();
         if (tipEl) tipEl.classList.remove('is-pinned');
+        this.unbindPinListeners();
         if (!this.hovering()) this.hide();
       }
     };
@@ -196,14 +238,12 @@ const Tooltip = {
     this.el.addEventListener('mouseleave', this.onTriggerLeave);
     this.el.addEventListener('focusin', this.show);
     this.el.addEventListener('focusout', this.onTriggerLeave);
-    window.addEventListener('scroll', this.onScrollResize, true);
-    window.addEventListener('resize', this.onScrollResize);
 
-    // Pinning and dismiss-on-outside-click only apply to interactive tooltips.
+    // Global scroll/resize and pin (pointerdown/keydown) listeners are attached
+    // lazily in show()/togglePin() and torn down in hide(), so an idle tooltip
+    // holds no global listeners.
     if (this._interactive) {
       this.el.addEventListener('click', this.togglePin);
-      document.addEventListener('pointerdown', this.onDocPointerDown);
-      document.addEventListener('keydown', this.onKeydown);
     }
   },
 
@@ -219,11 +259,11 @@ const Tooltip = {
     }
     if (this._interactive) {
       this.el.removeEventListener('click', this.togglePin);
-      document.removeEventListener('pointerdown', this.onDocPointerDown);
-      document.removeEventListener('keydown', this.onKeydown);
     }
-    window.removeEventListener('scroll', this.onScrollResize, true);
-    window.removeEventListener('resize', this.onScrollResize);
+    // hide() above already tore down the global scroll/resize and pin
+    // listeners; these are belt-and-suspenders in case they were still bound.
+    this.unbindScrollResize();
+    this.unbindPinListeners();
   },
 };
 
