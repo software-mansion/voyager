@@ -2,11 +2,11 @@ name: "Build Desktop App"
 
 on:
   push:
-    branches:
+    tags:
       - "v*.*.*"
   pull_request: # For testing only TODO: remove before merging
     branches:
-      - "17-add-release-ci" 
+      - "17-add-release-ci"
 
 permissions:
   contents: read
@@ -14,9 +14,6 @@ permissions:
 jobs:
   app:
     name: "Desktop (${{ matrix.gui_target }})"
-    env: 
-      ELIXIR_VERSION: "1.20"
-      OTP_VERSION: "29"
     strategy:
       fail-fast: false
       matrix:
@@ -32,14 +29,29 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - uses: erlef/setup-beam@v1
+      - name: Set up Elixir
+        id: beam
+        uses: erlef/setup-beam@v1
         with:
-          otp-version: ${{ env.OTP_VERSION }}
-          elixir-version: ${{ env.ELIXIR_VERSION }}
+          version-file: .tool-versions
+          version-type: strict
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .tool-versions
+          cache: "npm"
+          cache-dependency-path: "./assets/package-lock.json"
+
+      - name: Read Rust version
+        id: rust-version
+        shell: bash
+        run: echo "version=$(grep '^rust' .tool-versions | awk '{print $2}')" >> $GITHUB_OUTPUT
 
       - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: ${{ steps.rust-version.outputs.version }}
           targets: ${{ matrix.gui_target }}
 
       - name: Rust cache
@@ -55,7 +67,21 @@ jobs:
         with:
           path: |
             deps
-          key: ${{ runner.os }}-mix-${{ env.ELIXIR_VERSION }}-${{ env.OTP_VERSION }}-${{ hashFiles('mix.lock') }}
+          key: ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libwxgtk3.0-gtk3-dev \
+            xdg-utils
 
       - name: Install Tauri CLI
         shell: bash
@@ -73,63 +99,50 @@ jobs:
           mix local.rebar --force
           mix deps.get
 
-      - name: Create release
+      - name: Build assets
+        shell: bash
+        run: |
+          mix assets.setup
+          mix assets.deploy
+
+      - name: Create Elixir release
         shell: bash
         run: mix tauri.release
 
-      - name: Install dependencies (Linux)
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            libwxgtk3.0-gtk3-dev \
-            xdg-utils
-
-      - name: Import Apple Developer Certificate
-        # Prevents keychain from locking automatically for 3600 seconds.
+      - name: Install Apple certificate (macOS)
+        if: runner.os == 'macOS'
         env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        if: runner.os == 'macOS'
+          CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE }}
+          PRIVATE_KEY_BASE64: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_BASE64 }}
+          PRIVATE_KEY_PASSWORD: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
         run: |
-          echo $APPLE_CERTIFICATE | base64 --decode > certificate.p12
-          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          security set-keychain-settings -t 3600 -u build.keychain
-          security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
-          security find-identity -v -p codesigning build.keychain
+          CERTIFICATE_PATH=$RUNNER_TEMP/certificate.pem
+          PRIVATE_KEY_PATH=$RUNNER_TEMP/private_key.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
 
-      - name: verify certificate
-        if: runner.os == 'macOS'
-        run: |
-          CERT_INFO=$(security find-identity -v -p codesigning build.keychain | grep "Apple Development")
-          CERT_ID=$(echo "$CERT_INFO" | awk -F'"' '{print $2}')
-          echo "CERT_ID=$CERT_ID" >> $GITHUB_ENV
-          echo "Certificate imported."
+          echo -n "${{ env.CERTIFICATE_BASE64 }}" | base64 --decode > $CERTIFICATE_PATH
+          echo -n "${{ env.PRIVATE_KEY_BASE64 }}" | base64 --decode -o $PRIVATE_KEY_PATH
+
+          # Create temporary keychain
+          security create-keychain -p "${{ env.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "${{ env.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
+
+          # Import certificate (PEM) and private key (PKCS12) separately
+          security import $CERTIFICATE_PATH -A -k $KEYCHAIN_PATH
+          security import $PRIVATE_KEY_PATH -A -t priv -f pkcs12 -P "${{ env.PRIVATE_KEY_PASSWORD }}" -k $KEYCHAIN_PATH
+          security set-key-partition-list -S apple-tool:,apple: -k "${{ env.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0.6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MIX_ENV: prod
-          # macOS codesigning/notarization
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          # APPLE_SIGNING_IDENTITY: "-" # ad-hoc signature
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-
+          # APPLE_CERTIFICATE intentionally omitted — the cert is already imported
+          # into the keychain by the step above; tauri-action finds it via the identity.
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
         with:
           projectPath: rel/app
           args: --target ${{ matrix.gui_target }}
