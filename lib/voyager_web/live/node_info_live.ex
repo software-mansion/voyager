@@ -261,12 +261,7 @@ defmodule VoyagerWeb.NodeInfoLive do
     ]
 
     rest = [
-      {"Word size",
-       "#{snapshot.system.wordsize_internal} / #{snapshot.system.wordsize_external} bytes",
-       help: NodeInfoHelp.get(:word_size)},
-      {"SMP", Formatters.format_bool(snapshot.system.smp_support?), help: NodeInfoHelp.get(:smp)},
-      {"Threads", Formatters.format_bool(snapshot.system.thread_support?),
-       help: NodeInfoHelp.get(:threads)},
+      {"Word size", "#{snapshot.system.wordsize} bytes", help: NodeInfoHelp.get(:word_size)},
       {"Async threads", to_string(snapshot.system.async_threads),
        help: NodeInfoHelp.get(:async_threads)},
       {"System arch", snapshot.system.system_architecture,

@@ -86,22 +86,9 @@ defmodule VoyagerWeb.NodeInfoHelp do
         "Gleam standard library version running on this node, read from the :gleam_stdlib OTP application."
     },
     word_size: %{
-      text:
-        "Internal word size (used by the scheduler and heap) / external word size (used by ports and drivers), in bytes.",
+      text: "Size of an Erlang term word on the heap, in bytes.",
       doc_href: @erts <> "#system_info_wordsize",
       doc_label: "See erlang:system_info(wordsize)"
-    },
-    smp: %{
-      text:
-        "Whether the VM was built with Symmetric Multi-Processing support, allowing parallel execution across CPU cores.",
-      doc_href: @erts <> "#system_info_smp_support",
-      doc_label: "See erlang:system_info(smp_support)"
-    },
-    threads: %{
-      text:
-        "Whether the VM was built with OS thread support, required for dirty NIF schedulers and async I/O.",
-      doc_href: @erts <> "#system_info_threads",
-      doc_label: "See erlang:system_info(threads)"
     },
     async_threads: %{
       text:
