@@ -117,7 +117,11 @@ jobs:
           CERTIFICATE_P12="$RUNNER_TEMP/certificate.p12"
           KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
 
-          echo -n "$CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PEM"
+          # Fix potential DER certificate
+          echo -n "$CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/certificate.der"
+          openssl x509 -inform DER -in "$RUNNER_TEMP/certificate.der" -outform PEM -out "$CERTIFICATE_PEM"
+
+          # echo -n "$CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PEM"
           echo -n "$PRIVATE_KEY_BASE64" | base64 --decode > "$PRIVATE_KEY_P12"
 
           # Combine certificate.pem + private_key.p12 into a single certificate.p12.
