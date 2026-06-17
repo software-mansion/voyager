@@ -130,17 +130,17 @@ jobs:
           openssl pkcs12 -export -inkey "$KEY_PEM" -in "$CERTIFICATE_PEM" -out "$CERTIFICATE_P12" -passout env:CERTIFICATE_PASSWORD
           rm -f "$KEY_PEM"
 
-          # import the combined certificate.p12 into a keychain (standard tauri pattern)
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security default-keychain -s "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -t 3600 -u "$KEYCHAIN_PATH"
-          security import "$CERTIFICATE_P12" -k "$KEYCHAIN_PATH" -P "$CERTIFICATE_PASSWORD" -A
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" >/dev/null
+          # # import the combined certificate.p12 into a keychain (standard tauri pattern)
+          # security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          # security default-keychain -s "$KEYCHAIN_PATH"
+          # security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          # security set-keychain-settings -t 3600 -u "$KEYCHAIN_PATH"
+          # security import "$CERTIFICATE_P12" -k "$KEYCHAIN_PATH" -P "$CERTIFICATE_PASSWORD" -A
+          # security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" >/dev/null
 
-          # confirm the keychain holds a usable codesigning identity (cert + private key)
-          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
-          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          # # confirm the keychain holds a usable codesigning identity (cert + private key)
+          # security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+          # security list-keychain -d user -s "$KEYCHAIN_PATH"
 
           # Export certificate.p12 as base64 encoded and password to GITHUB_ENV
           CERTIFICATE_P12_BASE64="$(base64 -i "$CERTIFICATE_P12" | tr -d '\n')"
