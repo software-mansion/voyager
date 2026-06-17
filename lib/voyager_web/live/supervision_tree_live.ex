@@ -111,6 +111,10 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     {:noreply, push_event(socket, "path-highlight", %{path: path})}
   end
 
+  def handle_event("maximize", _params, socket) do
+    {:noreply, push_event(socket, "maximize", %{})}
+  end
+
   @impl true
   def handle_info(:refresh, socket) do
     socket =

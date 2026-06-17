@@ -74,6 +74,7 @@ const SupervisionTree = {
 
     this.handleEvent('tree-data', (p) => this.applyPayload(p));
     this.handleEvent('path-highlight', (p) => this.applyHighlight(p));
+    this.handleEvent('maximize', () => this.scheduleLayout({ fit: true }));
 
     this.themeObserver = new MutationObserver(() => this.refreshTokens());
     this.themeObserver.observe(document.documentElement, {
@@ -204,7 +205,7 @@ const SupervisionTree = {
       edgeSep: 8,
       rankSep: 180,
       spacingFactor: 1.3,
-      animate: !fit,
+      animate: true,
       animationDuration: 280,
       animationEasing: 'ease-out',
       fit,
@@ -222,11 +223,11 @@ const SupervisionTree = {
     layout.run();
   },
 
-  scheduleLayout() {
+  scheduleLayout({ fit = false }) {
     if (this.layoutTimer) clearTimeout(this.layoutTimer);
     this.layoutTimer = setTimeout(() => {
       this.layoutTimer = null;
-      this.runLayout({ fit: false });
+      this.runLayout({ fit });
       this.scheduleOverlayReconcile();
     }, LAYOUT_DEBOUNCE_MS);
   },
