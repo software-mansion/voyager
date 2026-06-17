@@ -127,6 +127,7 @@ jobs:
           echo -n "$PRIVATE_KEY_BASE64" | base64 --decode > "$PRIVATE_KEY_PATH" || fail "APPLE_DEVELOPER_PRIVATE_KEY_BASE64 is not valid base64"
           [ -s "$CERTIFICATE_PATH" ] || fail "decoded certificate.pem is empty"
           [ -s "$PRIVATE_KEY_PATH" ] || fail "decoded private_key.p12 is empty"
+          echo "all secrets decoded successfully"
           echo "::endgroup::"
 
 
@@ -142,6 +143,13 @@ jobs:
           # Don't pass `-t priv` with `-f pkcs12`: that mismatch imports 0 keys.
           security import "$CERTIFICATE_PATH" -A -k "$KEYCHAIN_PATH" || fail "certificate import failed"
           security import "$PRIVATE_KEY_PATH" -A -f pkcs12 -P "$PRIVATE_KEY_PASSWORD" -k "$KEYCHAIN_PATH" || fail "private key import failed"
+          echo "::endgroup::"
+
+          echo "::group::4 Verify a codesigning identity formed"
+          identities=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" || true)
+          echo "$identities"
+          echo "$identities" | grep -Eq '[1-9][0-9]* valid identities found' \
+            || fail "no codesigning identity (cert and private key likely don't match, or the key didn't import)"
           echo "::endgroup::"
 
       - name: Build Tauri app
