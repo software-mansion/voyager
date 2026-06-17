@@ -43,6 +43,13 @@ defmodule VoyagerWeb.Components.Shell do
       </div>
       <div class="navbar-end gap-1">
         <.theme_toggle />
+        <.link
+          navigate={~p"/settings"}
+          title="Settings"
+          class="btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-base-content"
+        >
+          <.icon name="icon-settings" class="size-4" />
+        </.link>
         <%= if @session do %>
           <button
             type="button"
@@ -170,4 +177,24 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp node_display(nil), do: "Not connected"
   defp node_display(%Session{node_name: node_name}), do: node_name
+
+  slot :inner_block, required: true
+
+  def settings_shell(assigns) do
+    ~H"""
+    <div class="bg-base-100 flex h-screen flex-col overflow-hidden">
+      <div class="navbar bg-base-100 border-base-300 min-h-[3.5rem] z-10 flex-none gap-4 border-b px-4">
+        <div class="navbar-start gap-2">
+          <.brand />
+        </div>
+        <div class="navbar-end gap-1">
+          <.theme_toggle />
+        </div>
+      </div>
+      <main class="relative flex-1 overflow-y-auto">
+        {render_slot(@inner_block)}
+      </main>
+    </div>
+    """
+  end
 end

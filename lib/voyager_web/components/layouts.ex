@@ -49,6 +49,17 @@ defmodule VoyagerWeb.Layouts do
     """
   end
 
+  attr :flash, :map, required: true, doc: "the map of flash messages"
+
+  def settings(assigns) do
+    ~H"""
+    <.flash_group flash={@flash} />
+    <VoyagerWeb.Components.Shell.settings_shell>
+      {@inner_content}
+    </VoyagerWeb.Components.Shell.settings_shell>
+    """
+  end
+
   @doc """
   Shows the flash group with standard titles and content.
 

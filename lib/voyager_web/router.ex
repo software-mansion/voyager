@@ -27,6 +27,10 @@ defmodule VoyagerWeb.Router do
       live "/node/:node", NodeInfoLive, :index
       live "/node/:node/supervision-tree", SupervisionTreeLive, :index
     end
+
+    live_session :settings, layout: {VoyagerWeb.Layouts, :settings} do
+      live "/settings", SettingsLive, :index
+    end
   end
 
   if Application.compile_env(:voyager, :dev_routes) do
