@@ -111,52 +111,54 @@ jobs:
           set -euo pipefail
           umask 077
 
-          CERTIFICATE_PATH="$RUNNER_TEMP/certificate.pem"
-          PRIVATE_KEY_PATH="$RUNNER_TEMP/private_key.p12"
-          KEYCHAIN_PATH="$RUNNER_TEMP/codesign.keychain-db"
-
-          echo -n "$CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
-          echo -n "$PRIVATE_KEY_BASE64" | base64 --decode -o "$PRIVATE_KEY_PATH"
-          KEYCHAIN_PATH="$RUNNER_TEMP/codesign.keychain-db"
-
-          # create temporary keychain
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # Re-encode cert+key into a legacy PKCS#12 (3DES/RC2 + SHA-1). macOS
-          # `security import` can't read OpenSSL-3 (AES/PBES2) p12s, so the original
-          # import silently added no key. System openssl is LibreSSL, so use Homebrew
-          # openssl@3, which reads modern and (with -legacy) writes legacy crypto.
-          OPENSSL="$(brew --prefix openssl@3)/bin/openssl"
-          LEGACY=""
-          if "$OPENSSL" pkcs12 -help 2>&1 | grep -q -- -legacy; then LEGACY="-legacy"; fi
+          CERTIFICATE_PEM="$RUNNER_TEMP/certificate.pem"
+          PRIVATE_KEY_P12="$RUNNER_TEMP/private_key.p12"
           KEY_PEM="$RUNNER_TEMP/key.pem"
-          LEGACY_P12="$RUNNER_TEMP/combined_legacy.p12"
-          "$OPENSSL" pkcs12 $LEGACY -in "$PRIVATE_KEY_PATH" -nodes -nocerts -passin env:PRIVATE_KEY_PASSWORD -out "$KEY_PEM"
-          "$OPENSSL" pkcs12 -export $LEGACY -inkey "$KEY_PEM" -in "$CERTIFICATE_PATH" -out "$LEGACY_P12" -passout env:PRIVATE_KEY_PASSWORD
+          CERTIFICATE_P12="$RUNNER_TEMP/certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
 
-          # import the legacy cert+key p12; print its output so an error isn't silenced
-          if ! import_output="$(security import "$LEGACY_P12" -A -f pkcs12 -P "$PRIVATE_KEY_PASSWORD" -k "$KEYCHAIN_PATH" 2>&1)"; then
-            echo "::error::private key import failed:"
-            echo "$import_output"
-            exit 1
-          fi
-          echo "$import_output"
-          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          echo -n "$CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PEM"
+          echo -n "$PRIVATE_KEY_BASE64" | base64 --decode > "$PRIVATE_KEY_P12"
 
-          # `security import` can exit 0 without importing a usable key, so verify a
-          # codesigning identity actually formed — the reliable way to catch failure
+          # Combine certificate.pem + private_key.p12 into a single certificate.p12.
+          # PRIVATE_KEY_PASSWORD only unlocks the *input* key; the combined p12 gets its own password.
+          CERTIFICATE_PASSWORD="$(openssl rand -base64 24)"
+          echo "::add-mask::$CERTIFICATE_PASSWORD"
+          openssl pkcs12 -in "$PRIVATE_KEY_P12" -nodes -nocerts -passin env:PRIVATE_KEY_PASSWORD -out "$KEY_PEM"
+          openssl pkcs12 -export -inkey "$KEY_PEM" -in "$CERTIFICATE_PEM" -out "$CERTIFICATE_P12" -passout env:CERTIFICATE_PASSWORD
+          rm -f "$KEY_PEM"
+
+          # import the combined certificate.p12 into a keychain (standard tauri pattern)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security default-keychain -s "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -t 3600 -u "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_P12" -k "$KEYCHAIN_PATH" -P "$CERTIFICATE_PASSWORD" -A
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" >/dev/null
+
+          # confirm the keychain holds a usable codesigning identity (cert + private key)
           security find-identity -v -p codesigning "$KEYCHAIN_PATH"
-          security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep -Eq '[1-9][0-9]* valid identities found' \
-            || { echo "::error::no codesigning identity in keychain — cert/key import failed"; exit 1; }
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+
+          # Export certificate.p12 as base64 encoded and password to GITHUB_ENV
+          CERTIFICATE_P12_BASE64="$(base64 -i "$CERTIFICATE_P12" | tr -d '\n')"
+          echo "::add-mask::$CERTIFICATE_P12_BASE64"
+          {
+            echo "APPLE_CERTIFICATE_P12_BASE64=$CERTIFICATE_P12_BASE64"
+            echo "APPLE_CERTIFICATE_P12_PASSWORD=$CERTIFICATE_PASSWORD"
+          } >> "$GITHUB_ENV"
+  
+
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0.6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MIX_ENV: prod
+          # identity comes from the default keychain set up in the step above
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
+          APPLE_CERTIFICATE: ${{ env.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ env.APPLE_CERTIFICATE_P12_PASSWORD }}
         with:
           projectPath: rel/app
           args: --target ${{ matrix.gui_target }}
