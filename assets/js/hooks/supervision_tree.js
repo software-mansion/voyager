@@ -390,6 +390,7 @@ const SupervisionTree = {
       base500: getColor(cs, '--color-base-500', '#CAD5E2'),
       baseContent: getColor(cs, '--color-base-content', '#1a1a1a'),
       primary: getColor(cs, '--color-primary', '#3b82f6'),
+      secondary: getColor(cs, '--color-secondary', '#3b82f6'),
       error: getColor(cs, '--color-error', '#ef4444'),
     };
   },

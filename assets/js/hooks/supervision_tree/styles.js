@@ -37,8 +37,15 @@ export function buildStyle(t) {
       selector: 'node[type = "worker"]',
       style: {
         shape: 'ellipse',
+        'border-color': t.secondary,
         width: 14,
         height: 14,
+      },
+    },
+    {
+      selector: 'node[type = "worker"].hover',
+      style: {
+        'background-color': t.secondary,
       },
     },
     {

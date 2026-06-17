@@ -175,6 +175,37 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
             >
             </div>
             <div data-cy-overlays class="pointer-events-none absolute inset-0"></div>
+            <div class="card bg-base-100 border-base-300 absolute bottom-2 left-2 border">
+              <div class="card-body font-mono text-base-content/80 flex-row flex-wrap gap-4 px-4 py-3 text-xs">
+                <div>
+                  <.icon name="icon-diamond" class="size-4 bg-primary" /> App
+                </div>
+                <div>
+                  <.icon name="icon-square" class="size-4 bg-primary" /> Supervisor
+                </div>
+                <div>
+                  <.icon name="icon-circle" class="size-4 bg-secondary" /> Worker
+                </div>
+                <div>
+                  <.icon name="icon-triangle" class="size-4 bg-port" /> Port
+                </div>
+                <div>
+                  <.icon name="icon-square" class="size-4 bg-success" /> Reference
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="border-base-500 w-4 border-b" /> Supervision link
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="border-base-400 w-4 border-b border-dashed" /> Link
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="border-process-monitor w-4 border-b border-dashed" /> Monitor
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="border-process-monitored-by w-4 border-b border-dashed" /> Monitored by
+                </div>
+              </div>
+            </div>
           </div>
       <% end %>
     </div>
