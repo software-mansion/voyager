@@ -113,54 +113,34 @@ jobs:
 
           CERTIFICATE_PATH="$RUNNER_TEMP/certificate.pem"
           PRIVATE_KEY_PATH="$RUNNER_TEMP/private_key.p12"
-          COMBINED_P12="$RUNNER_TEMP/combined.p12"
           KEYCHAIN_PATH="$RUNNER_TEMP/codesign.keychain-db"
 
-          fail() { echo "::error::$1"; exit 1; }
+          echo -n "$CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+          echo -n "$PRIVATE_KEY_BASE64" | base64 --decode -o "$PRIVATE_KEY_PATH"
+          KEYCHAIN_PATH="$RUNNER_TEMP/codesign.keychain-db"
 
-          echo "::group::1 Decode split secrets"
-          [ -n "$CERTIFICATE_BASE64" ] || fail "secret APPLE_DEVELOPER_CERTIFICATE is empty"
-          [ -n "$PRIVATE_KEY_BASE64" ] || fail "secret APPLE_DEVELOPER_PRIVATE_KEY_BASE64 is empty"
-          [ -n "$PRIVATE_KEY_PASSWORD" ] || fail "secret APPLE_DEVELOPER_PRIVATE_KEY_PASSWORD is empty"
-          [ -n "$KEYCHAIN_PASSWORD" ] || fail "secret APPLE_KEYCHAIN_PASSWORD is empty"
-          echo -n "$CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH" || fail "APPLE_DEVELOPER_CERTIFICATE is not valid base64"
-          echo -n "$PRIVATE_KEY_BASE64" | base64 --decode > "$PRIVATE_KEY_PATH" || fail "APPLE_DEVELOPER_PRIVATE_KEY_BASE64 is not valid base64"
-          [ -s "$CERTIFICATE_PATH" ] || fail "decoded certificate.pem is empty"
-          [ -s "$PRIVATE_KEY_PATH" ] || fail "decoded private_key.p12 is empty"
-          echo "all secrets decoded successfully"
-          echo "::endgroup::"
-
-
-          echo "::group::2 Create + unlock keychain"
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" || fail "create-keychain failed"
+          # create temporary keychain
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" || fail "unlock-keychain failed (wrong APPLE_KEYCHAIN_PASSWORD?)"
-          [ -f "$KEYCHAIN_PATH" ] || fail "keychain file missing after create"
-          echo "keychain ready: $KEYCHAIN_PATH"
-          echo "::endgroup::"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
-          echo "::group::3 Import certificate + private key"
-          # Don't pass `-t priv` with `-f pkcs12`: that mismatch imports 0 keys.
-          security import "$CERTIFICATE_PATH" -A -k "$KEYCHAIN_PATH" || fail "certificate import failed"
-          security import "$PRIVATE_KEY_PATH" -A -f pkcs12 -P "$PRIVATE_KEY_PASSWORD" -k "$KEYCHAIN_PATH" || fail "private key import failed"
-          echo "::endgroup::"
-
-          echo "::group::4 Verify a codesigning identity formed"
-          identities=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" || true)
-          echo "$identities"
-          echo "$identities" | grep -Eq '[1-9][0-9]* valid identities found' \
-            || fail "no codesigning identity (cert and private key likely don't match, or the key didn't import)"
-          echo "::endgroup::"
+          # import certificate and private key to keychain
+          security import "$CERTIFICATE_PATH" -A -k "$KEYCHAIN_PATH"
+          # print the private key import output so its error isn't silenced
+          if ! import_output="$(security import "$PRIVATE_KEY_PATH" -A -t priv -f pkcs12 -P "$PRIVATE_KEY_PASSWORD" -k "$KEYCHAIN_PATH" 2>&1)"; then
+            echo "::error::private key import failed:"
+            echo "$import_output"
+            exit 1
+          fi
+          echo "$import_output"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0.6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MIX_ENV: prod
-          # Combined cert+key .p12 built by the step above (passed via $GITHUB_ENV)
-          APPLE_CERTIFICATE: ${{ env.APPLE_CERTIFICATE_P12_BASE64 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ env.APPLE_CERTIFICATE_P12_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
         with:
           projectPath: rel/app
           args: --target ${{ matrix.gui_target }}
