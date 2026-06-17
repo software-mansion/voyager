@@ -124,17 +124,33 @@ jobs:
           security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
-          # import certificate and private key to keychain
-          security import "$CERTIFICATE_PATH" -A -k "$KEYCHAIN_PATH"
-          # print the private key import output so its error isn't silenced
-          if ! import_output="$(security import "$PRIVATE_KEY_PATH" -A -t priv -f pkcs12 -P "$PRIVATE_KEY_PASSWORD" -k "$KEYCHAIN_PATH" 2>&1)"; then
+          # Re-encode cert+key into a legacy PKCS#12 (3DES/RC2 + SHA-1). macOS
+          # `security import` can't read OpenSSL-3 (AES/PBES2) p12s, so the original
+          # import silently added no key. System openssl is LibreSSL, so use Homebrew
+          # openssl@3, which reads modern and (with -legacy) writes legacy crypto.
+          OPENSSL="$(brew --prefix openssl@3)/bin/openssl"
+          LEGACY=""
+          if "$OPENSSL" pkcs12 -help 2>&1 | grep -q -- -legacy; then LEGACY="-legacy"; fi
+          KEY_PEM="$RUNNER_TEMP/key.pem"
+          LEGACY_P12="$RUNNER_TEMP/combined_legacy.p12"
+          "$OPENSSL" pkcs12 $LEGACY -in "$PRIVATE_KEY_PATH" -nodes -nocerts -passin env:PRIVATE_KEY_PASSWORD -out "$KEY_PEM"
+          "$OPENSSL" pkcs12 -export $LEGACY -inkey "$KEY_PEM" -in "$CERTIFICATE_PATH" -out "$LEGACY_P12" -passout env:PRIVATE_KEY_PASSWORD
+
+          # import the legacy cert+key p12; print its output so an error isn't silenced
+          if ! import_output="$(security import "$LEGACY_P12" -A -f pkcs12 -P "$PRIVATE_KEY_PASSWORD" -k "$KEYCHAIN_PATH" 2>&1)"; then
             echo "::error::private key import failed:"
             echo "$import_output"
             exit 1
           fi
           echo "$import_output"
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+
+          # `security import` can exit 0 without importing a usable key, so verify a
+          # codesigning identity actually formed — the reliable way to catch failure
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep -Eq '[1-9][0-9]* valid identities found' \
+            || { echo "::error::no codesigning identity in keychain — cert/key import failed"; exit 1; }
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0.6
