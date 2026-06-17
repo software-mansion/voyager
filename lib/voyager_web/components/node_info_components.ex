@@ -8,6 +8,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
   alias Voyager.Services.NodeInfo.Limits
   alias Voyager.Services.NodeInfo.Memory
   alias VoyagerWeb.Formatters
+  alias VoyagerWeb.NodeInfoHelp
 
   @memory_segments [
     {:processes_allocated, "Processes", "bg-primary"},
@@ -21,36 +22,57 @@ defmodule VoyagerWeb.NodeInfoComponents do
   @doc """
   Renders a key-value info card with a 2-column grid of labelled rows.
 
+  Each row is `{label, value}` or `{label, value, opts}`, where `opts` is a
+  keyword list supporting `:full` (span both columns) and `:help` (a help entry
+  from `NodeInfoHelp` rendered as a per-row tooltip).
+
   ## Examples
 
       <NodeInfoComponents.info_card
         title="Runtime"
         subtitle="ERTS · system info"
         rows={[
-          {"OTP version", "27.1"},
-          {"ERTS version", "15.1"}
+          {"OTP", "27.1", help: NodeInfoHelp.get(:otp)},
+          {"System arch", "x86_64-...", full: true}
         ]}
       />
   """
   attr :title, :string, required: true
   attr :subtitle, :string, default: nil
   attr :rows, :list, required: true
+  attr :help, :map, default: nil, doc: "optional help entry for the card title (see NodeInfoHelp)"
 
   def info_card(assigns) do
     ~H"""
     <div class="card bg-base-100 border-base-200 h-full border shadow-sm">
       <div class="card-body gap-4 p-5">
         <div class="flex items-baseline justify-between">
-          <h3 class="text-base-content text-sm font-semibold">{@title}</h3>
+          <div class="flex items-center gap-1">
+            <h3 class="text-base-content text-sm font-semibold">{@title}</h3>
+            <.help_tooltip
+              :if={@help}
+              id={help_id("info-card", @title)}
+              text={@help.text}
+              doc_href={@help[:doc_href]}
+              doc_label={@help[:doc_label] || "Learn more"}
+            />
+          </div>
           <span :if={@subtitle} class="font-mono text-base-content/50 text-xs">{@subtitle}</span>
         </div>
 
         <div class="grid grid-cols-2 gap-x-6 gap-y-3">
           <%= for row <- @rows do %>
-            <% {label, value, full_width?} = info_row(row) %>
+            <% {label, value, full_width?, help} = info_row(row) %>
             <div class={full_width? && "col-span-2 min-w-0"}>
-              <div class="font-mono tracking-[0.08em] text-base-content/50 mb-0.5 text-xs font-semibold uppercase">
+              <div class="font-mono tracking-[0.08em] text-base-content/50 mb-0.5 flex items-center gap-0.5 text-xs font-semibold uppercase">
                 {label}
+                <.help_tooltip
+                  :if={help}
+                  id={help_id("row", label)}
+                  text={help.text}
+                  doc_href={help[:doc_href]}
+                  doc_label={help[:doc_label] || "Learn more"}
+                />
               </div>
               <div class={["font-mono text-base-content text-sm", full_width? && "truncate"]}>
                 {value}
@@ -76,13 +98,23 @@ defmodule VoyagerWeb.NodeInfoComponents do
   attr :title, :string, required: true
   attr :subtitle, :string, default: nil
   attr :metrics, :list, required: true
+  attr :help, :map, default: nil, doc: "optional help entry for the card title (see NodeInfoHelp)"
 
   def metric_card(assigns) do
     ~H"""
     <div class="card bg-base-100 border-base-200 flex min-h-0 flex-1 flex-col border shadow-sm">
       <div class="card-body flex flex-1 flex-col gap-4 p-5">
         <div class="flex items-baseline justify-between">
-          <h3 class="text-base-content text-sm font-semibold">{@title}</h3>
+          <div class="flex items-center gap-1">
+            <h3 class="text-base-content text-sm font-semibold">{@title}</h3>
+            <.help_tooltip
+              :if={@help}
+              id={help_id("metric", @title)}
+              text={@help.text}
+              doc_href={@help[:doc_href]}
+              doc_label={@help[:doc_label] || "Learn more"}
+            />
+          </div>
           <span :if={@subtitle} class="font-mono text-base-content/50 text-xs">{@subtitle}</span>
         </div>
 
@@ -114,13 +146,23 @@ defmodule VoyagerWeb.NodeInfoComponents do
   """
   attr :label, :string, required: true
   attr :value, :string, required: true
+  attr :help, :map, default: nil, doc: "optional help entry for the tile (see NodeInfoHelp)"
 
   slot :sub
 
   def stat_tile(assigns) do
     ~H"""
     <div class="card bg-base-100 border-base-200 flex flex-col gap-1.5 border p-5 shadow-sm">
-      <h3 class="text-base-content text-sm font-semibold">{@label}</h3>
+      <div class="flex items-center gap-1">
+        <h3 class="text-base-content text-sm font-semibold">{@label}</h3>
+        <.help_tooltip
+          :if={@help}
+          id={help_id("stat", @label)}
+          text={@help.text}
+          doc_href={@help[:doc_href]}
+          doc_label={@help[:doc_label] || "Learn more"}
+        />
+      </div>
       <div class="mt-1">
         <span class="font-mono text-base-content text-2xl font-medium leading-none tracking-tight">
           {@value}
@@ -137,6 +179,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
   Renders a memory breakdown card with a stacked bar chart and legend.
   """
   attr :memory, Memory, required: true
+  attr :help, :map, default: nil, doc: "optional help entry for the card title (see NodeInfoHelp)"
 
   def memory_card(assigns) do
     assigns = assign(assigns, :segments, memory_segments(assigns.memory))
@@ -145,7 +188,16 @@ defmodule VoyagerWeb.NodeInfoComponents do
     <div class="card bg-base-100 border-base-200 border shadow-sm">
       <div class="card-body gap-4 p-5">
         <div class="flex items-baseline justify-between">
-          <h3 class="text-base-content text-sm font-semibold">Memory breakdown</h3>
+          <div class="flex items-center gap-1">
+            <h3 class="text-base-content text-sm font-semibold">Memory breakdown</h3>
+            <.help_tooltip
+              :if={@help}
+              id="memory-breakdown-help"
+              text={@help.text}
+              doc_href={@help[:doc_href]}
+              doc_label={@help[:doc_label] || "Learn more"}
+            />
+          </div>
           <span class="font-mono text-base-content/50 text-xs">
             {Formatters.format_bytes(@memory.total)} total
           </span>
@@ -198,9 +250,17 @@ defmodule VoyagerWeb.NodeInfoComponents do
         </div>
 
         <div class="divide-base-200 flex flex-1 flex-col divide-y">
-          <%= for {label, usage} <- limit_rows(@limits) do %>
+          <%= for {label, usage, tooltip} <- limit_rows(@limits) do %>
             <div class="font-mono grid-cols-[1fr_auto_1fr_auto] grid items-center gap-3 py-3 text-xs">
-              <span class="text-base-content/70">{label}</span>
+              <span class="text-base-content/70 flex items-center gap-0.5">
+                {label}
+                <.help_tooltip
+                  id={"limit-#{label}-help"}
+                  text={tooltip.text}
+                  doc_href={tooltip[:doc_href]}
+                  doc_label={tooltip[:doc_label] || "Learn more"}
+                />
+              </span>
               <span class="text-base-content w-16 text-right tabular-nums">
                 {Formatters.format_integer(usage.used)}
               </span>
@@ -224,9 +284,9 @@ defmodule VoyagerWeb.NodeInfoComponents do
 
   defp limit_rows(limits) do
     [
-      {"processes", limits.processes},
-      {"atoms", limits.atoms},
-      {"ports", limits.ports}
+      {"processes", limits.processes, NodeInfoHelp.get(:processes)},
+      {"atoms", limits.atoms, NodeInfoHelp.get(:atoms)},
+      {"ports", limits.ports, NodeInfoHelp.get(:ports)}
     ]
   end
 
@@ -247,8 +307,20 @@ defmodule VoyagerWeb.NodeInfoComponents do
 
   defp meter_color(_), do: "bg-primary"
 
-  defp info_row({label, value}), do: {label, value, false}
-  defp info_row({label, value, :full}), do: {label, value, true}
+  defp info_row({label, value}), do: {label, value, false, nil}
+
+  defp info_row({label, value, opts}) when is_list(opts),
+    do: {label, value, Keyword.get(opts, :full, false), Keyword.get(opts, :help)}
+
+  defp help_id(prefix, label) do
+    slug =
+      label
+      |> String.downcase()
+      |> String.replace(~r/[^a-z0-9]+/, "-")
+      |> String.trim("-")
+
+    "#{prefix}-#{slug}-help"
+  end
 
   defp memory_segments(%Memory{total: total}) when total == 0 or is_nil(total), do: []
 

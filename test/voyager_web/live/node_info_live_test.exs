@@ -108,9 +108,7 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
           erts_version: "15.2",
           stdlib_version: "5.2",
           system_architecture: "aarch64-apple-darwin23",
-          smp_support: true,
-          wordsize_internal: 8,
-          wordsize_external: 8
+          wordsize: 8
         )
       )
 
@@ -121,8 +119,7 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       assert has_element?(view, "#node-info-content", "15.2")
       assert has_element?(view, "#node-info-content", "5.2")
       assert has_element?(view, "#node-info-content", "aarch64-apple-darwin23")
-      assert has_element?(view, "#node-info-content", "enabled")
-      assert has_element?(view, "#node-info-content", "8 / 8 bytes")
+      assert has_element?(view, "#node-info-content", "8 bytes")
     end
 
     test "shows stdlib as not available when the version lookup fails", %{conn: conn} do

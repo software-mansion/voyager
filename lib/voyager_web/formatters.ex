@@ -89,13 +89,6 @@ defmodule VoyagerWeb.Formatters do
   end
 
   @doc """
-  Renders a boolean as `"enabled"` / `"disabled"`.
-  """
-  @spec format_bool(boolean()) :: String.t()
-  def format_bool(true), do: "enabled"
-  def format_bool(false), do: "disabled"
-
-  @doc """
   Formats a `DateTime` as a `HH:MM:SS` clock string.
   """
   @spec format_time(DateTime.t()) :: String.t()
