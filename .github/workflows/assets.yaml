@@ -1,0 +1,62 @@
+name: Assets
+
+on:
+  push:
+    branches:
+      - main
+      - "v*.*"
+    paths:
+      - "assets/**"
+
+jobs:
+  build:
+    name: Build and update assets
+    runs-on: ubuntu-24.04
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          version-file: .tool-versions
+          version-type: strict
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .tool-versions
+          cache: "npm"
+          cache-dependency-path: "./assets/package-lock.json"
+
+      - name: Cache Mix dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
+
+      - name: Install Mix dependencies
+        run: mix deps.get
+
+      - name: Install npm dependencies
+        working-directory: ./assets
+        run: npm ci
+
+      - name: Setup assets
+        run: mix assets.setup
+
+      - name: Build assets
+        run: mix assets.build
+
+      - name: Push updated assets
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: Update assets
+          file_pattern: priv/static

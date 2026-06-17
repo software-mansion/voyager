@@ -110,23 +110,30 @@ jobs:
         run: |
           set -euo pipefail
 
-          CERTIFICATE_PATH=$RUNNER_TEMP/certificate.pem
-          PRIVATE_KEY_PATH=$RUNNER_TEMP/private_key.p12
-          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          CERTIFICATE_PATH="$RUNNER_TEMP/certificate.pem"
+          PRIVATE_KEY_PATH="$RUNNER_TEMP/private_key.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
 
-          echo -n "${{ env.CERTIFICATE_BASE64 }}" | base64 --decode > $CERTIFICATE_PATH
-          echo -n "${{ env.PRIVATE_KEY_BASE64 }}" | base64 --decode > $PRIVATE_KEY_PATH
+          echo -n "$CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH"
+          echo -n "$PRIVATE_KEY_BASE64" | base64 --decode > "$PRIVATE_KEY_PATH"
 
           # Create temporary keychain
-          security create-keychain -p "${{ env.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "${{ env.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 
-          # Import certificate (PEM) and private key (PKCS12) separately
-          security import $CERTIFICATE_PATH -A -k $KEYCHAIN_PATH
-          security import $PRIVATE_KEY_PATH -A -t priv -f pkcs12 -P "${{ env.PRIVATE_KEY_PASSWORD }}" -k $KEYCHAIN_PATH
-          security set-key-partition-list -S apple-tool:,apple: -s -k "${{ env.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
-          security list-keychain -d user -s $KEYCHAIN_PATH
+          # Import certificate (PEM) and private key (PKCS12).
+          # Don't pass `-t priv` with `-f pkcs12`: that type/format mismatch makes
+          # `security` import 0 keys, leaving no signing identity, which then makes
+          # `set-key-partition-list` fail with "SecItemCopyMatching ... could not be found".
+          security import "$CERTIFICATE_PATH" -A -k "$KEYCHAIN_PATH"
+          security import "$PRIVATE_KEY_PATH" -A -f pkcs12 -P "$PRIVATE_KEY_PASSWORD" -k "$KEYCHAIN_PATH"
+
+          # Non-fatal diagnostic: shows whether a usable codesigning identity formed
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH" || true
+
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0.6
