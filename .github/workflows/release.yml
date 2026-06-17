@@ -124,6 +124,8 @@ jobs:
           # PRIVATE_KEY_PASSWORD only unlocks the *input* key; the combined p12 gets its own password.
           CERTIFICATE_PASSWORD="$(openssl rand -base64 24)"
           echo "::add-mask::$CERTIFICATE_PASSWORD"
+          export CERTIFICATE_PASSWORD
+
           openssl pkcs12 -in "$PRIVATE_KEY_P12" -nodes -nocerts -passin env:PRIVATE_KEY_PASSWORD -out "$KEY_PEM"
           openssl pkcs12 -export -inkey "$KEY_PEM" -in "$CERTIFICATE_PEM" -out "$CERTIFICATE_P12" -passout env:CERTIFICATE_PASSWORD
           rm -f "$KEY_PEM"
