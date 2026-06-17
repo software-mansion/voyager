@@ -4,6 +4,10 @@ config :voyager,
   ecto_repos: [Voyager.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+config :voyager, Voyager.MCP.EndpointManager,
+  ip: {127, 0, 0, 1},
+  port: 4040
+
 config :voyager, VoyagerWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
