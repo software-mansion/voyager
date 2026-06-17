@@ -144,13 +144,6 @@ jobs:
           security import "$PRIVATE_KEY_PATH" -A -f pkcs12 -P "$PRIVATE_KEY_PASSWORD" -k "$KEYCHAIN_PATH" || fail "private key import failed"
           echo "::endgroup::"
 
-      - name: Verify signing values propagated (macOS)
-        if: runner.os == 'macOS'
-        env:
-          APPLE_CERTIFICATE: ${{ env.APPLE_CERTIFICATE_P12_BASE64 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ env.APPLE_CERTIFICATE_P12_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
-
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0.6
         env:
