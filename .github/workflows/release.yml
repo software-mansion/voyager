@@ -103,39 +103,63 @@ jobs:
       - name: Install Apple certificate (macOS)
         if: runner.os == 'macOS'
         env:
-          IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
           CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE }}
           PRIVATE_KEY_BASE64: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_BASE64 }}
           PRIVATE_KEY_PASSWORD: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
         run: |
-          CERTIFICATE_PATH=$RUNNER_TEMP/certificate.pem
-          echo -n "${{ env.CERTIFICATE_BASE64 }}" | base64 --decode > $CERTIFICATE_PATH
-          PRIVATE_KEY_PATH=$RUNNER_TEMP/private_key.p12
-          echo -n "${{ env.PRIVATE_KEY_BASE64 }}" | base64 --decode -o $PRIVATE_KEY_PATH
-          KEYCHAIN_PATH=$RUNNER_TEMP/codesign.keychain-db
+          set -euo pipefail
+          umask 077
 
-          # create temporary keychain
-          security create-keychain -p "${{ env.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "${{ env.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
+          CERTIFICATE_PATH="$RUNNER_TEMP/certificate.pem"
+          PRIVATE_KEY_PATH="$RUNNER_TEMP/private_key.p12"
+          COMBINED_P12="$RUNNER_TEMP/combined.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/codesign.keychain-db"
 
-          # import certificate and private key to keychain
-          security import $CERTIFICATE_PATH -A -k $KEYCHAIN_PATH
-          security import $PRIVATE_KEY_PATH -A -t priv -f pkcs12 -P "${{ env.PRIVATE_KEY_PASSWORD }}" -k $KEYCHAIN_PATH
-          security set-key-partition-list -S apple-tool:,apple: -k "${{ env.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
-          security list-keychain -d user -s $KEYCHAIN_PATH
+          fail() { echo "::error::$1"; exit 1; }
+
+          echo "::group::1 Decode split secrets"
+          [ -n "$CERTIFICATE_BASE64" ] || fail "secret APPLE_DEVELOPER_CERTIFICATE is empty"
+          [ -n "$PRIVATE_KEY_BASE64" ] || fail "secret APPLE_DEVELOPER_PRIVATE_KEY_BASE64 is empty"
+          [ -n "$PRIVATE_KEY_PASSWORD" ] || fail "secret APPLE_DEVELOPER_PRIVATE_KEY_PASSWORD is empty"
+          [ -n "$KEYCHAIN_PASSWORD" ] || fail "secret APPLE_KEYCHAIN_PASSWORD is empty"
+          echo -n "$CERTIFICATE_BASE64" | base64 --decode > "$CERTIFICATE_PATH" || fail "APPLE_DEVELOPER_CERTIFICATE is not valid base64"
+          echo -n "$PRIVATE_KEY_BASE64" | base64 --decode > "$PRIVATE_KEY_PATH" || fail "APPLE_DEVELOPER_PRIVATE_KEY_BASE64 is not valid base64"
+          [ -s "$CERTIFICATE_PATH" ] || fail "decoded certificate.pem is empty"
+          [ -s "$PRIVATE_KEY_PATH" ] || fail "decoded private_key.p12 is empty"
+          echo "::endgroup::"
+
+
+          echo "::group::2 Create + unlock keychain"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" || fail "create-keychain failed"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" || fail "unlock-keychain failed (wrong APPLE_KEYCHAIN_PASSWORD?)"
+          [ -f "$KEYCHAIN_PATH" ] || fail "keychain file missing after create"
+          echo "keychain ready: $KEYCHAIN_PATH"
+          echo "::endgroup::"
+
+          echo "::group::3 Import certificate + private key"
+          # Don't pass `-t priv` with `-f pkcs12`: that mismatch imports 0 keys.
+          security import "$CERTIFICATE_PATH" -A -k "$KEYCHAIN_PATH" || fail "certificate import failed"
+          security import "$PRIVATE_KEY_PATH" -A -f pkcs12 -P "$PRIVATE_KEY_PASSWORD" -k "$KEYCHAIN_PATH" || fail "private key import failed"
+          echo "::endgroup::"
+
+      - name: Verify signing values propagated (macOS)
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERTIFICATE: ${{ env.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ env.APPLE_CERTIFICATE_P12_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0.6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MIX_ENV: prod
-          # tauri-action creates its own keychain and imports this combined
-          # cert+key .p12, so no manual `security` keychain step is needed.
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_P12_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          # Combined cert+key .p12 built by the step above (passed via $GITHUB_ENV)
+          APPLE_CERTIFICATE: ${{ env.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ env.APPLE_CERTIFICATE_P12_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
         with:
           projectPath: rel/app
           args: --target ${{ matrix.gui_target }}
