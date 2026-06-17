@@ -54,6 +54,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
   attr :form, Phoenix.HTML.Form, required: true
   attr :available_apps, :list, required: true
   attr :selected_apps, MapSet, required: true
+  attr :open?, :boolean, required: true
 
   def controls(assigns) do
     ~H"""
@@ -64,27 +65,15 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
           id="supervision-tree-controls"
           phx-change="select-apps"
           phx-submit="select-apps"
-          class="flex flex-col gap-3"
+          class="flex items-start"
         >
-          <details tabindex="0" class="collapse collapse-arrow">
-            <summary class="collapse-title pe-4 ps-6 flex cursor-pointer items-center justify-between after:start-1 after:end-auto">
-              <h2 class="text-base-content text-sm font-semibold">Applications</h2>
-              <div class="flex items-center gap-2">
-                <label class="label text-base-content/60 text-xs" for={@form[:depth].id}>
-                  Depth
-                </label>
-                <div class="w-16">
-                  <.input
-                    field={@form[:depth]}
-                    type="number"
-                    min="1"
-                    class="input-sm text-center"
-                    phx-debounce="250"
-                  />
-                </div>
-              </div>
-            </summary>
-            <div class="collapse-content flex flex-wrap gap-2">
+          <.collapsible id="apps" phx-click="toggle-apps-open" open={@open?} class="flex-1">
+            <:label>
+              <h2 class="text-base-content ml-2 text-center text-sm font-semibold leading-8">
+                Applications
+              </h2>
+            </:label>
+            <div class="flex flex-wrap gap-2 py-4">
               <%= if @available_apps == [] do %>
                 <span class="text-base-content/50 text-sm italic">No applications available</span>
               <% else %>
@@ -108,7 +97,21 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                 <% end %>
               <% end %>
             </div>
-          </details>
+          </.collapsible>
+          <div class="flex items-center gap-2">
+            <label class="label text-base-content/60 text-xs" for={@form[:depth].id}>
+              Depth
+            </label>
+            <div class="w-16">
+              <.input
+                field={@form[:depth]}
+                type="number"
+                min="1"
+                class="input-sm text-center"
+                phx-debounce="250"
+              />
+            </div>
+          </div>
         </.form>
       </div>
     </div>

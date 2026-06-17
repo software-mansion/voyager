@@ -415,6 +415,45 @@ defmodule VoyagerWeb.CoreComponents do
     """
   end
 
+  @doc """
+  Collapsible element. It doesn't perform any client-side actions.
+
+
+  ## Examples
+
+      <.static_collapsible id="collapsible" open={true}>
+        <:label :let={open}>
+          <%= if(open, do: "Open", else: "Closed") %>
+        </:label>
+        <div>Content</div>
+      </.static_collapsible>
+  """
+
+  attr(:open, :boolean, required: true, doc: "State of the collapsible")
+  attr(:class, :any, default: nil, doc: "CSS class for parent container")
+  attr(:label_class, :any, default: nil, doc: "CSS class for the label")
+  attr(:chevron_class, :any, default: nil, doc: "CSS class for the chevron icon")
+
+  attr(:rest, :global)
+
+  slot(:label, required: true)
+  slot(:inner_block, required: true)
+
+  def collapsible(assigns) do
+    ~H"""
+    <div class={["block" | List.wrap(@class)]}>
+      <div class={["flex cursor-pointer items-center" | List.wrap(@label_class)]} {@rest}>
+        <.icon
+          name="icon-chevron-right"
+          class={["shrink-0", if(@open, do: "rotate-90") | List.wrap(@chevron_class)]}
+        />
+        {render_slot(@label, @open)}
+      </div>
+      {if(@open, do: render_slot(@inner_block))}
+    </div>
+    """
+  end
+
   ## JS Commands
 
   def show(js \\ %JS{}, selector) do

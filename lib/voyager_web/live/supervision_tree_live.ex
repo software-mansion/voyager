@@ -17,6 +17,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> assign(:available_apps, [])
       |> assign(:available_app_atoms, [])
       |> assign(:selected_apps, MapSet.new())
+      |> assign(:apps_open?, true)
       |> assign(:depth, SupervisionTreeControls.default_depth())
       |> assign(:expanded_pids, MapSet.new())
       |> assign(:last_tree_flat, nil)
@@ -40,6 +41,10 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   end
 
   @impl true
+  def handle_event("toggle-apps-open", _params, socket) do
+    {:noreply, assign(socket, apps_open?: not socket.assigns.apps_open?)}
+  end
+
   def handle_event("select-apps", %{"tree_controls" => params}, socket) do
     changeset = SupervisionTreeControls.changeset(params, socket.assigns.available_app_atoms)
 
@@ -207,6 +212,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         form={@apps_form}
         available_apps={@available_apps}
         selected_apps={@selected_apps}
+        open?={@apps_open?}
       />
       <SupervisionTreeComponents.errors errors={@errors} />
       <SupervisionTreeComponents.body selected_apps={@selected_apps} status={@status} />
