@@ -46,39 +46,24 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   end
 
   def handle_event("select-apps", %{"tree_controls" => params}, socket) do
-    changeset = SupervisionTreeControls.changeset(params, socket.assigns.available_app_atoms)
+    changeset =
+      params
+      |> SupervisionTreeControls.changeset(socket.assigns.available_app_atoms)
+      |> Map.put(:action, :validate)
 
     {apps, truncated?} = SupervisionTreeControls.apps_from_changeset(changeset)
-    depth = Ecto.Changeset.get_field(changeset, :depth) || socket.assigns.depth
-
     new_apps = MapSet.new(apps)
-
     apps_changed? = new_apps != socket.assigns.selected_apps
-    depth_changed? = depth != socket.assigns.depth
 
     socket =
-      if truncated? do
-        put_flash(
-          socket,
-          :info,
-          "Only #{SupervisionTreeControls.max_apps()} applications can be selected at once."
-        )
-      else
-        socket
-      end
+      socket
+      |> maybe_flash_truncated(truncated?)
       |> assign(:selected_apps, new_apps)
-      |> assign(:depth, depth)
       |> assign(:apps_form, to_form(changeset, as: :tree_controls))
 
     socket =
-      if apps_changed? or depth_changed? do
-        socket
-        |> assign(
-          :expanded_pids,
-          if(depth_changed?, do: MapSet.new(), else: socket.assigns.expanded_pids)
-        )
-        |> reset_tree()
-        |> request_fetch()
+      if changeset.valid? do
+        apply_valid_controls(socket, changeset, apps_changed?)
       else
         socket
       end
@@ -222,6 +207,35 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       <SupervisionTreeComponents.body selected_apps={@selected_apps} status={@status} />
     </div>
     """
+  end
+
+  defp apply_valid_controls(socket, changeset, apps_changed?) do
+    depth = Ecto.Changeset.get_field(changeset, :depth) || socket.assigns.depth
+    depth_changed? = depth != socket.assigns.depth
+
+    socket = assign(socket, :depth, depth)
+
+    if apps_changed? or depth_changed? do
+      socket
+      |> assign(
+        :expanded_pids,
+        if(depth_changed?, do: MapSet.new(), else: socket.assigns.expanded_pids)
+      )
+      |> reset_tree()
+      |> request_fetch()
+    else
+      socket
+    end
+  end
+
+  defp maybe_flash_truncated(socket, false), do: socket
+
+  defp maybe_flash_truncated(socket, true) do
+    put_flash(
+      socket,
+      :info,
+      "Only #{SupervisionTreeControls.max_apps()} applications can be selected at once."
+    )
   end
 
   defp assign_controls_form(socket) do
