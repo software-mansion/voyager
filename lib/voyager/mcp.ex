@@ -21,12 +21,6 @@ defmodule Voyager.MCP do
   end
 
   @doc """
-  Returns the configured MCP HTTP port.
-  """
-  @spec port() :: pos_integer() | nil
-  defdelegate port(), to: EndpointManager
-
-  @doc """
   Changes the MCP HTTP listen port at runtime.
 
   Stops the current listener and starts a new one on the given port.
@@ -35,19 +29,18 @@ defmodule Voyager.MCP do
   @spec set_port(pos_integer()) :: :ok | {:error, term()}
   defdelegate set_port(port), to: EndpointManager
 
-  @doc """
-  Returns the MCP Streamable HTTP endpoint URL (e.g. `http://127.0.0.1:4040/mcp`).
-  """
-  @spec url() :: String.t() | nil
-  defdelegate url(), to: EndpointManager
-
   @impl Supervisor
   def init(opts) do
+    # `:one_for_all`: the three children form one logical MCP unit.
+    # `EndpointManager` depends on both the `DynamicSupervisor` (which owns the
+    # Bandit listener pid) and `Server` (the listener's Router forwards to it)
+    # Restarting all three together keeps them consistent
     children = [
-      {Server, transport: {:streamable_http, start: true}},
-      {EndpointManager, Keyword.get(opts, :endpoint, [])}
+      {DynamicSupervisor, name: Voyager.MCP.DynamicSupervisor, strategy: :one_for_one},
+      {EndpointManager, Keyword.get(opts, :endpoint, [])},
+      {Server, transport: {:streamable_http, start: true}}
     ]
 
-    Supervisor.init(children, strategy: :one_for_one)
+    Supervisor.init(children, strategy: :one_for_all)
   end
 end

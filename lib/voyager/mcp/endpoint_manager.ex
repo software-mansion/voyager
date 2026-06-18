@@ -2,25 +2,32 @@ defmodule Voyager.MCP.EndpointManager do
   @moduledoc """
   Owns and manages the dedicated Bandit HTTP endpoint serving the MCP transport.
 
-  Started under the `Voyager.MCP` supervisor. Prefer the `Voyager.MCP` API
-  (`Voyager.MCP.port/0`, `Voyager.MCP.set_port/1`, `Voyager.MCP.url/0`) over
-  calling this module directly.
+  Port and IP are owned entirely by `Voyager.Settings` — this GenServer holds
+  only the Bandit process reference. Every read of port/IP goes through the
+  Settings service so config.exs overrides and DB persistence are always
+  respected.
 
-  ## Configuration
+  ## Configuration (optional — overrides DB)
 
-      config :voyager, Voyager.MCP.EndpointManager,
-        ip: {127, 0, 0, 1},
-        port: 4040
+      config :voyager, :mcp_port, 4040
+      config :voyager, :mcp_ip, {127, 0, 0, 1}
   """
 
   use GenServer
 
+  require Logger
+
   alias Voyager.MCP.Router
+  alias Voyager.Settings
 
   @type port_number :: pos_integer()
+  @type state :: %{endpoint: pid() | nil, monitor: reference() | nil}
+
+  @dynamic_supervisor Voyager.MCP.DynamicSupervisor
 
   @default_ip {127, 0, 0, 1}
-  @set_port_timeout :timer.seconds(10)
+  @default_port 4040
+  @set_port_timeout 10_000
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts \\ []) do
@@ -28,32 +35,11 @@ defmodule Voyager.MCP.EndpointManager do
   end
 
   @doc """
-  Returns the current listen port, or `nil` when the endpoint is not running.
-  """
-  @spec port() :: port_number() | nil
-  def port do
-    case info() do
-      %{port: port} -> port
-      nil -> nil
-    end
-  end
+  Changes the listen port at runtime by binding Bandit to the new port.
 
-  @doc """
-  Returns the MCP Streamable HTTP endpoint URL, or `nil` when not running.
-  """
-  @spec url() :: String.t() | nil
-  def url() do
-    case info() do
-      %{ip: ip, port: port} -> "http://#{format_host(ip)}:#{port}/mcp"
-      nil -> nil
-    end
-  end
-
-  @doc """
-  Changes the listen port at runtime by restarting Bandit on the new port.
-
-  Returns `:ok`, or `{:error, reason}` if the port could not be bound (the old
-  port is restored) or the listener is not running.
+  The new listener is started before the old one is stopped, so a failure to
+  bind (e.g. the port is already in use) leaves the existing listener serving
+  and returns `{:error, :port_in_use}` to the caller rather than crashing.
   """
   @spec set_port(port_number()) :: :ok | {:error, term()}
   def set_port(port) when is_integer(port) and port > 0 do
@@ -62,66 +48,99 @@ defmodule Voyager.MCP.EndpointManager do
     :exit, _ -> {:error, :not_running}
   end
 
-  @doc """
-  Returns the running endpoint's `%{ip: ip, port: port}`, or `nil` when the
-  endpoint is not running (i.e. MCP is inactive).
-  """
-  @spec info() :: %{ip: :inet.ip_address(), port: port_number()} | nil
-  def info() do
-    GenServer.call(__MODULE__, :info)
-  catch
-    :exit, _ -> nil
-  end
-
   @impl true
-  def init(opts) do
-    config = Keyword.merge(config(), opts)
-    port = Keyword.fetch!(config, :port)
-    ip = Keyword.get(config, :ip, @default_ip)
+  def init(_opts) do
+    port = Settings.get(:mcp_port, @default_port)
+    ip = Settings.get(:mcp_ip, @default_ip)
+    state = %{endpoint: nil, monitor: nil}
 
     case start_endpoint(port, ip) do
-      {:ok, pid} -> {:ok, %{port: port, ip: ip, endpoint: pid}}
-      {:error, reason} -> {:stop, reason}
+      {:ok, pid} ->
+        {:ok, monitor_endpoint(state, pid)}
+
+      {:error, reason} ->
+        # Don't take the whole MCP supervision tree down because the port is
+        # busy at boot — start idle and let the user rebind via `set_port/1`.
+        Logger.warning("MCP endpoint failed to start on port #{port}: #{inspect(reason)}")
+        {:ok, state}
     end
   end
 
   @impl true
-  def handle_call(:info, _from, state) do
-    {:reply, %{ip: state.ip, port: state.port}, state}
-  end
-
-  def handle_call({:set_port, port}, _from, %{port: port} = state) do
-    {:reply, :ok, state}
-  end
-
   def handle_call({:set_port, new_port}, _from, state) do
-    :ok = stop_endpoint(state.endpoint)
-
-    case start_endpoint(new_port, state.ip) do
-      {:ok, pid} ->
-        {:reply, :ok, %{state | port: new_port, endpoint: pid}}
-
-      {:error, reason} ->
-        # New port unavailable - restore the previous one.
-        case start_endpoint(state.port, state.ip) do
-          {:ok, pid} -> {:reply, {:error, reason}, %{state | endpoint: pid}}
-          {:error, _} -> {:stop, reason, {:error, reason}, state}
-        end
+    if Settings.locked?(:mcp_port) do
+      {:reply, {:error, :locked}, state}
+    else
+      do_set_port(new_port, state)
     end
   end
 
-  # Bandit is linked to this GenServer. Stopping it with reason `:normal` is
-  # ignored by the link (we don't trap exits), while an unexpected Bandit crash
-  # propagates here and lets the `Voyager.MCP` supervisor restart the endpoint.
-  defp start_endpoint(port, ip) do
-    Bandit.start_link(plug: Router, port: port, ip: ip)
+  defp do_set_port(new_port, state) do
+    current_port = Settings.get(:mcp_port, @default_port)
+    ip = Settings.get(:mcp_ip, @default_ip)
+
+    if new_port == current_port and is_pid(state.endpoint) do
+      {:reply, :ok, state}
+    else
+      case start_endpoint(new_port, ip) do
+        {:ok, pid} ->
+          stop_endpoint(state)
+          {:ok, _} = Settings.put(:mcp_port, new_port)
+          {:reply, :ok, monitor_endpoint(state, pid)}
+
+        {:error, reason} ->
+          {:reply, {:error, reason}, state}
+      end
+    end
   end
 
-  defp stop_endpoint(pid), do: Supervisor.stop(pid)
+  @impl true
+  def handle_info({:DOWN, ref, :process, pid, reason}, %{monitor: ref, endpoint: pid} = state) do
+    Logger.warning("MCP endpoint #{inspect(pid)} went down: #{inspect(reason)}")
+    {:noreply, %{state | endpoint: nil, monitor: nil}}
+  end
 
-  defp config, do: Application.get_env(:voyager, __MODULE__, [])
+  def handle_info(_msg, state), do: {:noreply, state}
 
-  defp format_host({0, 0, 0, 0}), do: "127.0.0.1"
-  defp format_host({127, 0, 0, 1}), do: "127.0.0.1"
-  defp format_host(ip) when is_tuple(ip), do: ip |> :inet.ntoa() |> to_string()
+  @spec start_endpoint(port_number(), :inet.ip_address()) ::
+          {:ok, pid()} | {:error, :port_in_use | term()}
+  defp start_endpoint(port, ip) do
+    spec = %{
+      id: Bandit,
+      start: {Bandit, :start_link, [[plug: Router, port: port, ip: ip]]},
+      restart: :temporary
+    }
+
+    case DynamicSupervisor.start_child(@dynamic_supervisor, spec) do
+      {:ok, pid} -> {:ok, pid}
+      {:error, {:already_started, pid}} -> {:ok, pid}
+      {:error, reason} -> {:error, classify_error(reason)}
+    end
+  end
+
+  @spec stop_endpoint(state()) :: :ok
+  defp stop_endpoint(%{endpoint: pid, monitor: monitor}) when is_pid(pid) do
+    if monitor, do: Process.demonitor(monitor, [:flush])
+    DynamicSupervisor.terminate_child(@dynamic_supervisor, pid)
+    :ok
+  end
+
+  defp stop_endpoint(_state), do: :ok
+
+  @spec monitor_endpoint(state(), pid()) :: state()
+  defp monitor_endpoint(state, pid) do
+    if state.monitor, do: Process.demonitor(state.monitor, [:flush])
+    %{state | endpoint: pid, monitor: Process.monitor(pid)}
+  end
+
+  # Bandit/ThousandIsland bury the listen error deep in a nested
+  # `:failed_to_start_child` shutdown tuple, so scan the term for `:eaddrinuse`.
+  defp classify_error(reason) do
+    if eaddrinuse?(reason), do: :port_in_use, else: reason
+  end
+
+  defp eaddrinuse?(:eaddrinuse), do: true
+  defp eaddrinuse?(term) when is_tuple(term), do: term |> Tuple.to_list() |> eaddrinuse?()
+  defp eaddrinuse?(term) when is_list(term), do: Enum.any?(term, &eaddrinuse?/1)
+  defp eaddrinuse?(_term), do: false
 end
