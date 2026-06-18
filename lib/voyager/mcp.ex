@@ -29,6 +29,20 @@ defmodule Voyager.MCP do
   @spec set_port(pos_integer()) :: :ok | {:error, term()}
   defdelegate set_port(port), to: EndpointManager
 
+  @doc """
+  Returns MCP runtime info as a map: `:alive?` (is the listener up) and `:url`
+  (the endpoint URL it is, or would be, reachable at).
+  """
+  @spec info() :: %{alive?: boolean(), url: String.t()}
+  defdelegate info, to: EndpointManager
+
+  @doc """
+  Toggles the MCP listener on/off at runtime. Returns `{:ok, :running}` or
+  `{:ok, :stopped}` reflecting the new state, or `{:error, reason}`.
+  """
+  @spec toggle() :: {:ok, :running | :stopped} | {:error, term()}
+  defdelegate toggle, to: EndpointManager
+
   @impl Supervisor
   def init(opts) do
     # `:one_for_all`: the three children form one logical MCP unit.

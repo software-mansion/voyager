@@ -21,7 +21,11 @@ defmodule Voyager.MCP.EndpointManager do
   require Logger
 
   @type port_number :: pos_integer()
-  @type state :: %{endpoint: pid() | nil, monitor: reference() | nil}
+  @type state :: %{
+          endpoint: pid() | nil,
+          monitor: reference() | nil,
+          enabled: boolean()
+        }
 
   @dynamic_supervisor Voyager.MCP.DynamicSupervisor
 
@@ -48,11 +52,33 @@ defmodule Voyager.MCP.EndpointManager do
     :exit, _ -> {:error, :not_running}
   end
 
+  @doc """
+  Returns the current MCP runtime state: whether the listener is alive and the
+  endpoint URL it is (or would be) reachable at.
+  """
+  @spec info() :: %{alive?: boolean(), url: String.t()}
+  def info do
+    GenServer.call(__MODULE__, :info)
+  catch
+    :exit, _ -> %{alive?: false, url: endpoint_url()}
+  end
+
+  @doc """
+  Toggles the listener at runtime: stops it if running, starts it on the
+  configured port if stopped. Returns the resulting state.
+  """
+  @spec toggle() :: {:ok, :running | :stopped} | {:error, term()}
+  def toggle do
+    GenServer.call(__MODULE__, :toggle, @set_port_timeout)
+  catch
+    :exit, _ -> {:error, :not_running}
+  end
+
   @impl true
   def init(_opts) do
     port = Settings.get(:mcp_port, @default_port)
     ip = Settings.get(:mcp_ip, @default_ip)
-    state = %{endpoint: nil, monitor: nil}
+    state = %{endpoint: nil, monitor: nil, enabled: true}
 
     case start_endpoint(port, ip) do
       {:ok, pid} ->
@@ -75,14 +101,47 @@ defmodule Voyager.MCP.EndpointManager do
     end
   end
 
-  defp do_set_port(new_port, state) do
-    current_port = Settings.get(:mcp_port, @default_port)
+  @impl true
+  def handle_call(:info, _from, state) do
+    {:reply, %{alive?: is_pid(state.endpoint), url: endpoint_url()}, state}
+  end
+
+  def handle_call(:toggle, _from, %{endpoint: pid} = state) when is_pid(pid) do
+    stop_endpoint(state)
+    {:reply, {:ok, :stopped}, %{state | endpoint: nil, monitor: nil, enabled: false}}
+  end
+
+  def handle_call(:toggle, _from, state) do
+    port = Settings.get(:mcp_port, @default_port)
     ip = Settings.get(:mcp_ip, @default_ip)
 
-    if new_port == current_port and is_pid(state.endpoint) do
-      {:reply, :ok, state}
-    else
-      swap_endpoint(new_port, ip, state)
+    case start_endpoint(port, ip) do
+      {:ok, pid} -> {:reply, {:ok, :running}, %{monitor_endpoint(state, pid) | enabled: true}}
+      {:error, reason} -> {:reply, {:error, reason}, %{state | enabled: true}}
+    end
+  end
+
+  defp do_set_port(new_port, state) do
+    current_port = Settings.get(:mcp_port, @default_port)
+
+    cond do
+      # MCP toggled off: persist the new port but keep the listener down.
+      not state.enabled ->
+        persist_port(new_port, state)
+
+      new_port == current_port and is_pid(state.endpoint) ->
+        {:reply, :ok, state}
+
+      true ->
+        ip = Settings.get(:mcp_ip, @default_ip)
+        swap_endpoint(new_port, ip, state)
+    end
+  end
+
+  defp persist_port(new_port, state) do
+    case Settings.put(:mcp_port, new_port) do
+      {:ok, _} -> {:reply, :ok, state}
+      {:error, reason} -> {:reply, {:error, reason}, state}
     end
   end
 
@@ -142,6 +201,16 @@ defmodule Voyager.MCP.EndpointManager do
     if state.monitor, do: Process.demonitor(state.monitor, [:flush])
     %{state | endpoint: pid, monitor: Process.monitor(pid)}
   end
+
+  defp endpoint_url do
+    ip = Settings.get(:mcp_ip, @default_ip)
+    port = Settings.get(:mcp_port, @default_port)
+    "http://#{format_host(ip)}:#{port}/mcp"
+  end
+
+  defp format_host({0, 0, 0, 0}), do: "127.0.0.1"
+  defp format_host({127, 0, 0, 1}), do: "127.0.0.1"
+  defp format_host(ip) when is_tuple(ip), do: ip |> :inet.ntoa() |> to_string()
 
   # Bandit/ThousandIsland bury the listen error deep in a nested
   # `:failed_to_start_child` shutdown tuple, so scan the term for `:eaddrinuse`.
