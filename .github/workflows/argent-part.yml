@@ -1,0 +1,74 @@
+- name: Codesign
+  env:
+    IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
+    CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE }}
+    PRIVATE_KEY_BASE64: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_BASE64 }}
+    PRIVATE_KEY_PASSWORD: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_PASSWORD }}
+    KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+  run: |
+    CERTIFICATE_PATH=$RUNNER_TEMP/certificate.pem
+    echo -n "${{ env.CERTIFICATE_BASE64 }}" | base64 --decode > $CERTIFICATE_PATH
+    PRIVATE_KEY_PATH=$RUNNER_TEMP/private_key.p12
+    echo -n "${{ env.PRIVATE_KEY_BASE64 }}" | base64 --decode -o $PRIVATE_KEY_PATH
+    KEYCHAIN_PATH=$RUNNER_TEMP/codesign.keychain-db
+
+    # create temporary keychain
+    security create-keychain -p "${{ env.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
+    security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+    security unlock-keychain -p "${{ env.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
+
+    # import certificate and private key to keychain
+    security import $CERTIFICATE_PATH -A -k $KEYCHAIN_PATH
+    security import $PRIVATE_KEY_PATH -A -t priv -f pkcs12 -P "${{ env.PRIVATE_KEY_PASSWORD }}" -k $KEYCHAIN_PATH
+    security set-key-partition-list -S apple-tool:,apple: -k "${{ env.KEYCHAIN_PASSWORD }}" $KEYCHAIN_PATH
+    security list-keychain -d user -s $KEYCHAIN_PATH
+
+    # Sign dylibs with hardened runtime.
+    # Dylibs are loaded into non-hardened simulator apps; hardened-runtime
+    # policies don't apply to them, the flag is carried for consistency
+    # and future-proofing.
+    for f in \
+      build/dylibs/libNativeDevtoolsIos.dylib \
+      build/dylibs/libKeyboardPatch.dylib \
+      build/dylibs/libArgentInjectionBootstrap.dylib; do
+      codesign --force --options runtime --sign "${{ env.IDENTITY }}" "$f"
+      codesign --verify --verbose "$f"
+    done
+
+    # Sign ax-service with hardened runtime PLUS entitlements:
+    #   - allow-dyld-environment-variables: ax-service is an iOS-simulator
+    #     Mach-O spawned via `xcrun simctl spawn`, which sets DYLD_ROOT_PATH
+    #     to the simulator runtime. Without this entitlement, hardened
+    #     runtime scrubs DYLD_ROOT_PATH and dyld aborts at load time with
+    #     "DYLD_ROOT_PATH not set for simulator program".
+    #   - disable-library-validation: lets DYLD_INSERT_LIBRARIES load
+    #     dylibs that are not Apple- or SWM-signed (e.g. third-party
+    #     simulator tooling).
+    # See ax-service-hardened-runtime-fix.md in the radon-lite root.
+    codesign --force --options runtime \
+      --entitlements packages/native-devtools-ios/Sources/AXService/ax-service.entitlements \
+      --sign "${{ env.IDENTITY }}" \
+      build/bin/ax-service
+    codesign --verify --verbose build/bin/ax-service
+
+    # Fail the build if the critical entitlements are missing — this is
+    # the exact regression the fix prevents. If someone edits the codesign
+    # invocation above and drops --entitlements, the binary would still
+    # be "signed successfully" but would crash on every describe call.
+    ENTS=$(codesign -d --entitlements - build/bin/ax-service 2>&1)
+    missing=0
+    for key in \
+      com.apple.security.cs.allow-dyld-environment-variables \
+      com.apple.security.cs.disable-library-validation; do
+      if ! echo "$ENTS" | grep -q "$key"; then
+        echo "ERROR: ax-service is missing $key entitlement" >&2
+        missing=1
+      fi
+    done
+    if [ "$missing" -ne 0 ]; then
+      echo "This will cause SIGABRT under simctl spawn or block third-party dylibs." >&2
+      echo "See ax-service-hardened-runtime-fix.md" >&2
+      codesign -dvv build/bin/ax-service
+      echo "$ENTS"
+      exit 1
+    fi

@@ -73,7 +73,7 @@ defmodule Voyager.MixProject do
 
   defp aliases do
     [
-      setup: ["deps.get", "ecto.setup", "assets.setup", "assets.deploy"],
+      setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
       format: ["format", "cmd npm --prefix assets run format"],
       "format.e2e": ["cmd npm --prefix e2e run format"],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
@@ -84,6 +84,7 @@ defmodule Voyager.MixProject do
         "cmd --cd e2e npx playwright install --with-deps"
       ],
       "tauri.release": [
+        "phx.digest",
         "compile",
         "release voyager --overwrite --path rel/app/src-tauri/target/rel"
       ],
