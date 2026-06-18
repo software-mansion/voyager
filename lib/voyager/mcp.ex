@@ -65,8 +65,8 @@ defmodule Voyager.MCP do
     # Restarting all three together keeps them consistent
     children = [
       {DynamicSupervisor, name: Voyager.MCP.DynamicSupervisor, strategy: :one_for_one},
-      EndpointManager,
-      {Server, transport: {:streamable_http, start: true}}
+      {Server, transport: {:streamable_http, start: true}},
+      EndpointManager
     ]
 
     Supervisor.init(children, strategy: :one_for_all)
