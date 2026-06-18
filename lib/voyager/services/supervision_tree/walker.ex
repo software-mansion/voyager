@@ -316,8 +316,10 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   # with its `children_keys`.
   defp expand_one(item, raw_children, nodes, worklist) do
     {child_keys_rev, nodes, worklist} =
-      Enum.reduce(raw_children, {[], nodes, worklist}, fn raw_child, {keys, nds, wl} ->
-        {key, nds, wl} = walk_child(item, raw_child, nds, wl)
+      raw_children
+      |> Enum.with_index()
+      |> Enum.reduce({[], nodes, worklist}, fn {raw_child, i}, {keys, nds, wl} ->
+        {key, nds, wl} = walk_child(item, {raw_child, i}, nds, wl)
         {[key | keys], nds, wl}
       end)
 
@@ -326,15 +328,15 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   end
 
   # Ghosts: a child spec with no live pid keeps its child-spec id as its label.
-  defp walk_child(item, {child_id, status, type, _modules}, nodes, worklist)
+  defp walk_child(item, {{child_id, status, type, _modules}, index}, nodes, worklist)
        when status in [:undefined, :restarting] do
-    key = ghost_key(item.key, child_id)
-    {key, Map.put(nodes, key, ghost_node(key, item.key, child_id, type)), worklist}
+    key = ghost_key(item.key, child_id, status, index)
+    {key, Map.put(nodes, key, ghost_node(key, item.key, child_id, type, status, index)), worklist}
   end
 
   # Child supervisors are queued for the next level (their node is inserted when
   # resolved); their key is already known from their pid.
-  defp walk_child(item, {child_id, child_pid, :supervisor, _modules}, nodes, worklist)
+  defp walk_child(item, {{child_id, child_pid, :supervisor, _modules}, _}, nodes, worklist)
        when is_pid(child_pid) do
     key = id_key(child_pid)
 
@@ -350,7 +352,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   end
 
   # Workers (and any non-supervisor) are always leaves.
-  defp walk_child(item, {child_id, child_pid, _type, _modules}, nodes, worklist)
+  defp walk_child(item, {{child_id, child_pid, _type, _modules}, _}, nodes, worklist)
        when is_pid(child_pid) do
     key = id_key(child_pid)
     {key, Map.put(nodes, key, leaf_node(key, item.key, child_pid, child_id)), worklist}
@@ -438,7 +440,11 @@ defmodule Voyager.Services.SupervisionTree.Walker do
     build_node(%{key: key, parent_key: parent_key, pid: pid, name: name, type: :worker})
   end
 
-  defp ghost_node(key, parent_key, child_id, type) do
+  defp ghost_node(key, parent_key, :undefined, type, status, index) do
+    build_node(%{key: key, parent_key: parent_key, name: {status, index}, type: type})
+  end
+
+  defp ghost_node(key, parent_key, child_id, type, _, _) do
     build_node(%{key: key, parent_key: parent_key, name: child_id, type: type})
   end
 
@@ -483,7 +489,11 @@ defmodule Voyager.Services.SupervisionTree.Walker do
 
   defp id_key(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
 
-  defp ghost_key(parent_key, child_id), do: "#{parent_key}::ghost::#{inspect(child_id)}"
+  defp ghost_key(parent_key, :undefined, status, index),
+    do: "#{parent_key}::ghost::#{inspect(status)}::#{index}"
+
+  defp ghost_key(parent_key, child_id, _, _),
+    do: "#{parent_key}::ghost::#{inspect(child_id)}"
 
   defp now_ms, do: System.monotonic_time(:millisecond)
 end
