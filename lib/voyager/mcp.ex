@@ -1,6 +1,8 @@
 defmodule Voyager.MCP do
   @moduledoc """
   MCP (Model Context Protocol) integration for Voyager.
+
+  Port and IP are configured through `Voyager.Settings`, not supervisor options.
   """
 
   use Supervisor
@@ -8,13 +10,25 @@ defmodule Voyager.MCP do
   alias Voyager.MCP.EndpointManager
   alias Voyager.MCP.Server
 
+  @doc """
+  Starts the MCP supervision tree, or returns `:ignore` when disabled.
+
+  The only supported option is `:enabled`. When `false`, the tree is not started
+  and the application supervisor treats this child as ignored.
+
+  Runtime `opts` override application config:
+
+      config :voyager, Voyager.MCP, enabled: false
+  """
   @spec start_link(keyword()) :: Supervisor.on_start() | :ignore
   def start_link(opts \\ []) do
-    config = Application.get_env(:voyager, __MODULE__, [])
-    opts = Keyword.merge(config, opts)
+    enabled =
+      Application.get_env(:voyager, __MODULE__, [])
+      |> Keyword.merge(opts)
+      |> Keyword.get(:enabled, true)
 
-    if Keyword.get(opts, :enabled, true) do
-      Supervisor.start_link(__MODULE__, opts, name: __MODULE__)
+    if enabled do
+      Supervisor.start_link(__MODULE__, [], name: __MODULE__)
     else
       :ignore
     end
@@ -44,14 +58,14 @@ defmodule Voyager.MCP do
   defdelegate toggle, to: EndpointManager
 
   @impl Supervisor
-  def init(opts) do
+  def init(_) do
     # `:one_for_all`: the three children form one logical MCP unit.
     # `EndpointManager` depends on both the `DynamicSupervisor` (which owns the
     # Bandit listener pid) and `Server` (the listener's Router forwards to it)
     # Restarting all three together keeps them consistent
     children = [
       {DynamicSupervisor, name: Voyager.MCP.DynamicSupervisor, strategy: :one_for_one},
-      {EndpointManager, Keyword.get(opts, :endpoint, [])},
+      EndpointManager,
       {Server, transport: {:streamable_http, start: true}}
     ]
 

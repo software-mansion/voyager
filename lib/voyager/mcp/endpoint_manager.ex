@@ -34,8 +34,8 @@ defmodule Voyager.MCP.EndpointManager do
   @set_port_timeout 10_000
 
   @spec start_link(keyword()) :: GenServer.on_start()
-  def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+  def start_link(_opts \\ []) do
+    GenServer.start_link(__MODULE__, [], name: __MODULE__)
   end
 
   @doc """
@@ -75,7 +75,7 @@ defmodule Voyager.MCP.EndpointManager do
   end
 
   @impl true
-  def init(_opts) do
+  def init(_) do
     port = Settings.get(:mcp_port, @default_port)
     ip = Settings.get(:mcp_ip, @default_ip)
     state = %{endpoint: nil, monitor: nil, enabled: true}
