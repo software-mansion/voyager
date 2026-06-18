@@ -4,6 +4,8 @@ defmodule Voyager.Schemas.Setting do
   use Ecto.Schema
   import Ecto.Changeset
 
+  @type t :: %__MODULE__{}
+
   schema "settings" do
     field :key, :string
     field :value, :string
@@ -11,7 +13,7 @@ defmodule Voyager.Schemas.Setting do
     timestamps()
   end
 
-  @spec changeset(%__MODULE__{}, map()) :: Ecto.Changeset.t()
+  @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(setting, attrs) do
     setting
     |> cast(attrs, [:key, :value])

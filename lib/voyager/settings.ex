@@ -59,7 +59,7 @@ defmodule Voyager.Settings do
   Returns `{:error, :locked}` when the key is set in application config.
   """
   @spec put(atom(), term()) ::
-          {:ok, %Setting{}} | {:error, :locked} | {:error, Ecto.Changeset.t()}
+          {:ok, Setting.t()} | {:error, :locked} | {:error, Ecto.Changeset.t()}
   def put(key, value) when is_atom(key) do
     if locked?(key) do
       {:error, :locked}

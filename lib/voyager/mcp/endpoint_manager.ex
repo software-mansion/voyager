@@ -15,10 +15,10 @@ defmodule Voyager.MCP.EndpointManager do
 
   use GenServer
 
-  require Logger
-
   alias Voyager.MCP.Router
   alias Voyager.Settings
+
+  require Logger
 
   @type port_number :: pos_integer()
   @type state :: %{endpoint: pid() | nil, monitor: reference() | nil}
@@ -82,15 +82,29 @@ defmodule Voyager.MCP.EndpointManager do
     if new_port == current_port and is_pid(state.endpoint) do
       {:reply, :ok, state}
     else
-      case start_endpoint(new_port, ip) do
-        {:ok, pid} ->
-          stop_endpoint(state)
-          {:ok, _} = Settings.put(:mcp_port, new_port)
-          {:reply, :ok, monitor_endpoint(state, pid)}
+      swap_endpoint(new_port, ip, state)
+    end
+  end
 
-        {:error, reason} ->
-          {:reply, {:error, reason}, state}
-      end
+  defp swap_endpoint(new_port, ip, state) do
+    case start_endpoint(new_port, ip) do
+      {:ok, pid} -> commit_endpoint(new_port, pid, state)
+      {:error, reason} -> {:reply, {:error, reason}, state}
+    end
+  end
+
+  # Persist before swapping so a DB failure leaves the old listener serving and
+  # runtime/DB consistent. Only tear down the old listener once the new port is
+  # durably stored.
+  defp commit_endpoint(new_port, pid, state) do
+    case Settings.put(:mcp_port, new_port) do
+      {:ok, _} ->
+        stop_endpoint(state)
+        {:reply, :ok, monitor_endpoint(state, pid)}
+
+      {:error, reason} ->
+        DynamicSupervisor.terminate_child(@dynamic_supervisor, pid)
+        {:reply, {:error, reason}, state}
     end
   end
 
@@ -105,15 +119,11 @@ defmodule Voyager.MCP.EndpointManager do
   @spec start_endpoint(port_number(), :inet.ip_address()) ::
           {:ok, pid()} | {:error, :port_in_use | term()}
   defp start_endpoint(port, ip) do
-    spec = %{
-      id: Bandit,
-      start: {Bandit, :start_link, [[plug: Router, port: port, ip: ip]]},
-      restart: :temporary
-    }
+    spec =
+      Supervisor.child_spec({Bandit, plug: Router, port: port, ip: ip}, restart: :temporary)
 
     case DynamicSupervisor.start_child(@dynamic_supervisor, spec) do
       {:ok, pid} -> {:ok, pid}
-      {:error, {:already_started, pid}} -> {:ok, pid}
       {:error, reason} -> {:error, classify_error(reason)}
     end
   end
