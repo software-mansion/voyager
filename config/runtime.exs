@@ -13,10 +13,6 @@ end
 
 port = String.to_integer(System.get_env("PORT", "4000"))
 
-if mcp_port = System.get_env("MCP_PORT") do
-  config :voyager, Voyager.MCP.EndpointManager, port: String.to_integer(mcp_port)
-end
-
 if config_env() != :e2e do
   config :voyager, VoyagerWeb.Endpoint, http: [port: port]
 end
