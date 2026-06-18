@@ -1,5 +1,5 @@
 defmodule Voyager.SettingsTest do
-  use Voyager.DataCase, async: true
+  use Voyager.DataCase, async: false
 
   alias Voyager.Schemas.Setting
   alias Voyager.Settings
