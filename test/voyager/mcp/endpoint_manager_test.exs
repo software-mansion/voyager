@@ -1,33 +1,110 @@
 defmodule Voyager.MCP.EndpointManagerTest do
-  use ExUnit.Case, async: false
+  use Voyager.MCPCase
 
   alias Voyager.MCP
+  alias Voyager.MCP.EndpointManager
+  alias Voyager.Settings
 
-  setup do
-    case Process.whereis(Voyager.MCP) do
-      nil -> :ok
-      pid -> Supervisor.stop(pid)
+  describe "info/0" do
+    test "reports a running listener and endpoint URL", %{mcp_port: port} do
+      assert %{alive?: true, url: url} = MCP.info()
+      assert url == "http://127.0.0.1:#{port}/mcp"
     end
 
-    on_exit(fn ->
-      case Process.whereis(Voyager.MCP) do
-        nil -> :ok
-        pid -> Supervisor.stop(pid)
-      end
-    end)
+    test "maps 0.0.0.0 to 127.0.0.1 in the advertised URL", %{mcp_port: port} do
+      assert {:ok, _} = Settings.put(:mcp_ip, {0, 0, 0, 0})
 
-    :ok
+      assert %{url: url} = MCP.info()
+      assert url == "http://127.0.0.1:#{port}/mcp"
+    end
   end
 
-  test "set_port/1 restarts the endpoint on a new port" do
-    _pid =
-      start_supervised!({Voyager.MCP, enabled: true, endpoint: [port: 54_041]})
+  describe "boot" do
+    @tag skip_mcp: true
+    test "starts idle when the configured port is already in use" do
+      port = unique_port()
+      {:ok, socket} = :gen_tcp.listen(port, [:binary, active: false, ip: {127, 0, 0, 1}])
+      on_exit(fn -> :gen_tcp.close(socket) end)
 
-    assert MCP.port() == 54_041
-    assert MCP.url() == "http://127.0.0.1:54041/mcp"
+      {:ok, _} = Settings.put(:mcp_port, port)
+      start_supervised!({Voyager.MCP, enabled: true})
 
-    assert :ok = MCP.set_port(54_042)
-    assert MCP.port() == 54_042
-    assert MCP.url() == "http://127.0.0.1:54042/mcp"
+      assert %{alive?: false, url: url} = MCP.info()
+      assert url == "http://127.0.0.1:#{port}/mcp"
+    end
+  end
+
+  describe "set_port/1" do
+    test "restarts the endpoint on a new port", %{mcp_port: port} do
+      new_port = port + 1
+      assert :ok = MCP.set_port(new_port)
+      assert Settings.get(:mcp_port) == new_port
+
+      assert %{alive?: true, url: url} = MCP.info()
+      assert url == "http://127.0.0.1:#{new_port}/mcp"
+    end
+
+    test "returns {:error, :locked} when the port is controlled by config", %{mcp_port: port} do
+      Application.put_env(:voyager, :mcp_port, port)
+      on_exit(fn -> Application.delete_env(:voyager, :mcp_port) end)
+
+      assert {:error, :locked} = MCP.set_port(port + 1)
+
+      assert %{alive?: true, url: url} = MCP.info()
+      assert url == "http://127.0.0.1:#{port}/mcp"
+    end
+
+    test "returns {:error, :port_in_use} and keeps the current listener", %{mcp_port: port} do
+      {:ok, socket} = :gen_tcp.listen(port + 1, [:binary, active: false, ip: {127, 0, 0, 1}])
+      on_exit(fn -> :gen_tcp.close(socket) end)
+
+      assert {:error, :port_in_use} = MCP.set_port(port + 1)
+
+      assert %{alive?: true, url: url} = MCP.info()
+      assert url == "http://127.0.0.1:#{port}/mcp"
+    end
+
+    test "persists a new port while the listener stays down after toggle", %{mcp_port: port} do
+      assert {:ok, :stopped} = MCP.toggle()
+      assert %{alive?: false} = MCP.info()
+
+      new_port = port + 2
+      assert :ok = MCP.set_port(new_port)
+      assert Settings.get(:mcp_port) == new_port
+
+      assert %{alive?: false, url: url} = MCP.info()
+      assert url == "http://127.0.0.1:#{new_port}/mcp"
+    end
+  end
+
+  describe "toggle/0" do
+    test "stops and restarts the listener", %{mcp_port: port} do
+      assert %{alive?: true} = MCP.info()
+
+      assert {:ok, :stopped} = MCP.toggle()
+
+      assert %{alive?: false, url: url} = MCP.info()
+      assert url == "http://127.0.0.1:#{port}/mcp"
+
+      assert {:ok, :running} = MCP.toggle()
+
+      assert %{alive?: true, url: running_url} = MCP.info()
+      assert running_url == "http://127.0.0.1:#{port}/mcp"
+    end
+  end
+
+  describe "endpoint crash handling" do
+    test "clears alive? when the Bandit process exits", %{mcp_port: port} do
+      %{endpoint: pid} = :sys.get_state(EndpointManager)
+      assert is_pid(pid)
+
+      DynamicSupervisor.terminate_child(Voyager.MCP.DynamicSupervisor, pid)
+
+      # Wait for EndpointManager to handle the Bandit DOWN message.
+      _ = :sys.get_state(EndpointManager)
+
+      assert %{alive?: false, url: url} = MCP.info()
+      assert url == "http://127.0.0.1:#{port}/mcp"
+    end
   end
 end
