@@ -1,6 +1,6 @@
 defmodule Voyager.MCP.Server do
   @moduledoc """
-  MCP server exposing read-only BEAM node introspection to coding agents.
+  MCP server exposing BEAM node introspection to coding agents.
   """
 
   use Anubis.Server,
@@ -8,7 +8,6 @@ defmodule Voyager.MCP.Server do
     version: "0.1.0",
     capabilities: [:tools]
 
-  component(Voyager.MCP.Tools.ConnectionStatus)
   component(Voyager.MCP.Tools.NodeInfo)
 
   @impl true
