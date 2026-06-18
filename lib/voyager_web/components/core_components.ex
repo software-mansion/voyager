@@ -421,12 +421,12 @@ defmodule VoyagerWeb.CoreComponents do
 
   ## Examples
 
-      <.static_collapsible id="collapsible" open={true}>
+      <.collapsible id="collapsible" open={true}>
         <:label :let={open}>
           <%= if(open, do: "Open", else: "Closed") %>
         </:label>
         <div>Content</div>
-      </.static_collapsible>
+      </.collapsible>
   """
 
   attr(:open, :boolean, required: true, doc: "State of the collapsible")
@@ -442,13 +442,18 @@ defmodule VoyagerWeb.CoreComponents do
   def collapsible(assigns) do
     ~H"""
     <div class={["block" | List.wrap(@class)]}>
-      <div class={["flex cursor-pointer items-center" | List.wrap(@label_class)]} {@rest}>
+      <button
+        type="button"
+        aria-expanded={@open}
+        class={["flex w-full cursor-pointer items-center" | List.wrap(@label_class)]}
+        {@rest}
+      >
         <.icon
           name="icon-chevron-right"
           class={["shrink-0", if(@open, do: "rotate-90") | List.wrap(@chevron_class)]}
         />
         {render_slot(@label, @open)}
-      </div>
+      </button>
       {if(@open, do: render_slot(@inner_block))}
     </div>
     """

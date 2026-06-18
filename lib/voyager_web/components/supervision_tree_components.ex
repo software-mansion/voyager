@@ -181,19 +181,19 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
               <div class="card bg-base-100 border-base-300 border">
                 <div class="card-body font-mono text-base-content/80 flex-row flex-wrap gap-4 px-4 py-3 text-xs">
                   <div>
-                    <.icon name="icon-diamond" class="size-4 bg-primary" /> App
+                    <.icon name="icon-diamond" class="size-4 text-primary" /> App
                   </div>
                   <div>
-                    <.icon name="icon-square" class="size-4 bg-primary" /> Supervisor
+                    <.icon name="icon-square" class="size-4 text-primary" /> Supervisor
                   </div>
                   <div>
-                    <.icon name="icon-circle" class="size-4 bg-secondary" /> Worker
+                    <.icon name="icon-circle" class="size-4 text-secondary" /> Worker
                   </div>
                   <div>
-                    <.icon name="icon-triangle" class="size-4 bg-port" /> Port
+                    <.icon name="icon-triangle" class="size-4 text-port" /> Port
                   </div>
                   <div>
-                    <.icon name="icon-square" class="size-4 bg-success" /> Reference
+                    <.icon name="icon-square" class="size-4 text-success" /> Reference
                   </div>
                   <div class="flex items-center gap-2">
                     <div class="border-base-500 w-4 border-b" /> Supervision link
@@ -212,7 +212,13 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
               </div>
               <div class="card bg-base-100 border-base-300 m-2 border shadow-md">
                 <div class="card-body p-1">
-                  <button phx-click="maximize" class="h-8 w-8 cursor-pointer hover:bg-base-300">
+                  <button
+                    type="button"
+                    phx-click="maximize"
+                    title="Fit graph to view"
+                    aria-label="Fit graph to view"
+                    class="h-8 w-8 cursor-pointer hover:bg-base-300"
+                  >
                     <.icon name="icon-maximize" class="size-5" />
                   </button>
                 </div>

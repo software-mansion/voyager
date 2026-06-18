@@ -223,7 +223,7 @@ const SupervisionTree = {
     layout.run();
   },
 
-  scheduleLayout({ fit = false }) {
+  scheduleLayout({ fit = false } = {}) {
     if (this.layoutTimer) clearTimeout(this.layoutTimer);
     this.layoutTimer = setTimeout(() => {
       this.layoutTimer = null;
