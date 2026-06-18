@@ -21,6 +21,20 @@ defmodule Voyager.Services.SupervisionTree.Remote do
     call(node, :application, :which_applications, [], @timeout_fast)
   end
 
+  @spec list_running_applications(node()) ::
+          {:ok, [{atom(), charlist(), charlist()}]} | {:error, term()}
+  def list_running_applications(node) do
+    with {:ok, apps} <- call(node, :application, :which_applications, [], @timeout_fast),
+         {:ok, masters} = app_masters(node, Enum.map(apps, fn {a, _, _} -> a end)) do
+      running_apps =
+        Enum.zip(apps, masters)
+        |> Enum.filter(fn {_, master} -> master != :undefined end)
+        |> Enum.map(fn {app, _} -> app end)
+
+      {:ok, running_apps}
+    end
+  end
+
   @doc """
   Returns the application master PIDs for `apps` on `node` in one `:erpc` call.
 

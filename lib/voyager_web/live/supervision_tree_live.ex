@@ -249,7 +249,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   end
 
   defp assign_applications(socket) do
-    case Remote.list_applications(socket.assigns.session.node) do
+    case Remote.list_running_applications(socket.assigns.session.node) do
       {:ok, apps} ->
         available =
           apps
