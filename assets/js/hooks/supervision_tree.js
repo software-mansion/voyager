@@ -74,7 +74,11 @@ const SupervisionTree = {
 
     this.handleEvent('tree-data', (p) => this.applyPayload(p));
     this.handleEvent('path-highlight', (p) => this.applyHighlight(p));
-    this.handleEvent('maximize', () => this.scheduleLayout({ fit: true }));
+    this.el.addEventListener('zoom-in', () => this.zoomBy(1.2));
+    this.el.addEventListener('zoom-out', () => this.zoomBy(0.8));
+    this.el.addEventListener('maximize', () =>
+      this.scheduleLayout({ fit: true })
+    );
 
     this.themeObserver = new MutationObserver(() => this.refreshTokens());
     this.themeObserver.observe(document.documentElement, {
@@ -277,6 +281,21 @@ const SupervisionTree = {
     });
 
     this.scheduleLayout();
+  },
+
+  zoomBy(factor) {
+    const { x1, x2, y1, y2 } = this.cy.extent();
+    const x = (x1 + x2) / 2;
+    const y = (y1 + y2) / 2;
+
+    this.cy.animate({
+      zoom: {
+        level: this.cy.zoom() * factor,
+        position: { x, y },
+      },
+      duration: 200,
+      queue: false,
+    });
   },
 
   // ---------------------------------------------------------------------------

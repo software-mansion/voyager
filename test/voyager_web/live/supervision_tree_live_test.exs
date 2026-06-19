@@ -145,12 +145,6 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
       %{view: view}
     end
 
-    test "maximize button does not crash the view", %{view: view} do
-      view |> element(~s|button[phx-click="maximize"]|) |> render_click()
-
-      assert Process.alive?(view.pid)
-    end
-
     test "selecting a node before any data has loaded is a no-op", %{view: view} do
       render_hook(view, "select-node", %{"key" => "missing"})
 

@@ -214,7 +214,25 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                 <div class="card-body p-1">
                   <button
                     type="button"
-                    phx-click="maximize"
+                    phx-click={JS.dispatch("zoom-in", to: "#supervision-tree-body")}
+                    title="Zoom graph in"
+                    aria-label="Zoom graph in"
+                    class="h-8 w-8 cursor-pointer hover:bg-base-300"
+                  >
+                    <.icon name="icon-plus" class="size-5" />
+                  </button>
+                  <button
+                    type="button"
+                    phx-click={JS.dispatch("zoom-out", to: "#supervision-tree-body")}
+                    title="Zoom graph out"
+                    aria-label="Zoom graph out"
+                    class="h-8 w-8 cursor-pointer hover:bg-base-300"
+                  >
+                    <.icon name="icon-minus" class="size-5" />
+                  </button>
+                  <button
+                    type="button"
+                    phx-click={JS.dispatch("maximize", to: "#supervision-tree-body")}
                     title="Fit graph to view"
                     aria-label="Fit graph to view"
                     class="h-8 w-8 cursor-pointer hover:bg-base-300"

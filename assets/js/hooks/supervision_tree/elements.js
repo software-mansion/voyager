@@ -62,8 +62,8 @@ export function nodeIntersectsExtent(node, extent) {
   const bb = node.boundingBox();
   return !(
     bb.x2 < extent.x1 ||
-    bb.x1 > extent.x2 ||
-    bb.y2 < extent.y1 ||
-    bb.y1 > extent.y2
+    bb.x2 + 10 + 22 + 10 > extent.x2 ||
+    bb.y1 < extent.y1 ||
+    bb.y2 > extent.y2
   );
 }
