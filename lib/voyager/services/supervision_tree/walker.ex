@@ -191,7 +191,6 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       pid: master_pid,
       name: master_pid,
       type: :app,
-      has_children: true,
       child_count: 1,
       children_keys: children_keys
     })
@@ -206,7 +205,6 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       pid: p_pid,
       name: p_pid,
       type: :supervisor,
-      has_children: true,
       child_count: 1,
       children_keys: children_keys
     })
@@ -404,7 +402,6 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       pid: item.pid,
       name: item.name,
       type: :supervisor,
-      has_children: child_keys != [],
       child_count: length(child_keys),
       children_keys: child_keys
     })
@@ -417,22 +414,19 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       pid: item.pid,
       name: item.name,
       type: :supervisor,
-      has_children: count > 0,
       child_count: count
     })
   end
 
   # A supervisor whose children could not be listed (remote error) or were not
-  # reached before the deadline: keep it expandable so the client still shows a
-  # chevron, but with an unknown count. The reason lives in the error tuple.
+  # reached before the deadline. The reason lives in the error tuple.
   defp unresolved_sup_node(item) do
     build_node(%{
       key: item.key,
       parent_key: item.parent_key,
       pid: item.pid,
       name: item.name,
-      type: :supervisor,
-      has_children: true
+      type: :supervisor
     })
   end
 

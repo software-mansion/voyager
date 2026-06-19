@@ -7,13 +7,12 @@ defmodule VoyagerWeb.SupervisionTreeLive.DiffTest do
   # The flat key for a pid, matching the walker's `id_key/1`.
   defp key(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
 
-  defp node_entry(key, parent_key, name, type, has_children, child_count, info, children_keys) do
+  defp node_entry(key, parent_key, name, type, child_count, info, children_keys) do
     %TreeNode{
       key: key,
       parent_key: parent_key,
       name: name,
       type: type,
-      has_children: has_children,
       child_count: child_count,
       info: info,
       children_keys: children_keys
@@ -30,20 +29,19 @@ defmodule VoyagerWeb.SupervisionTreeLive.DiffTest do
     worker_key = key(worker_pid)
 
     %{
-      app_key => node_entry(app_key, nil, :voyager_fixture, :app, true, 1, nil, [root_key]),
+      app_key => node_entry(app_key, nil, :voyager_fixture, :app, 1, nil, [root_key]),
       root_key =>
         node_entry(
           root_key,
           app_key,
           :voyager_fixture,
           :supervisor,
-          true,
           1,
           %{memory: 100, message_queue_len: 0},
           [worker_key]
         ),
       worker_key =>
-        node_entry(worker_key, root_key, :worker_one, :worker, false, 0, worker_info, :not_loaded)
+        node_entry(worker_key, root_key, :worker_one, :worker, 0, worker_info, :not_loaded)
     }
   end
 

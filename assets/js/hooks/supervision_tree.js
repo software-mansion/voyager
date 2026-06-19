@@ -106,7 +106,6 @@ const SupervisionTree = {
    * @typedef {Object} Patch
    * @property {string} name
    * @property {'app'|'supervisor'|'worker'} type
-   * @property {boolean} has_children
    * @property {number} child_count
    * @property {Info|'dead'|null} info
    * @property {string[]|'not_loaded'} children_keys
@@ -298,7 +297,7 @@ const SupervisionTree = {
     const wanted = new Set();
 
     if (!tooSmall) {
-      this.cy.nodes('[?has_children]').forEach((node) => {
+      this.cy.nodes('[child_count > 0]').forEach((node) => {
         if (nodeIntersectsExtent(node, extent)) {
           wanted.add(node.id());
         }
@@ -383,7 +382,7 @@ const SupervisionTree = {
   },
 
   toggleExpandNode(node) {
-    if (!node.data('has_children')) return;
+    if (node.data('child_count') == 0) return;
 
     this.disabledClick = true;
 

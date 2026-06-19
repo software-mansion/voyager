@@ -23,7 +23,6 @@ defmodule Voyager.Services.SupervisionTree.TreeNode do
     parent_key: nil,
     pid: nil,
     name: nil,
-    has_children: false,
     child_count: 0,
     info: nil,
     children_keys: :not_loaded
@@ -39,7 +38,6 @@ defmodule Voyager.Services.SupervisionTree.TreeNode do
           # but if none present it default to child_id from supervision tree
           name: term(),
           type: node_type(),
-          has_children: boolean(),
           child_count: non_neg_integer(),
           info: map() | :dead | nil,
           children_keys: [String.t()] | :not_loaded

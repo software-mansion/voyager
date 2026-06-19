@@ -8,7 +8,6 @@
  * @property {string|null} pid "<X.Y.Z>" (null for ghost children)
  * @property {string|any[]} name
  * @property {'app'|'supervisor'|'worker'} type
- * @property {boolean} has_children
  * @property {number} child_count
  * @property {Info|'dead'|null} info
  * @property {string[]|'not_loaded'} children_keys
@@ -19,7 +18,7 @@
  * @param {ServerNode} node
  */
 export function elementsFor(key, node) {
-  const has_children = !!node.has_children;
+  const child_count = node.child_count ?? 0;
   const children_keys =
     node.children_keys === 'not_loaded' ? null : node.children_keys;
 
@@ -28,13 +27,12 @@ export function elementsFor(key, node) {
     name: node.name,
     type: node.type,
     info: node.info,
-    has_children,
     child_count: node.child_count ?? 0,
     parent_key: node.parent_key,
     children_keys:
       node.children_keys === 'not_loaded' ? null : node.children_keys,
     dead: node.info === 'dead',
-    is_collapsed: has_children && children_keys === null,
+    is_collapsed: child_count > 0 && children_keys === null,
   };
   data.displayLabel = composeLabel(data);
 

@@ -41,7 +41,6 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
 
       # application_master node wraps the intermediate process `p`.
       assert app_node.type == :app
-      assert app_node.has_children
       assert app_node.child_count == 1
 
       # `p` is the root supervisor's $ancestor; its sole child is the root sup.
@@ -58,7 +57,6 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
 
       for mid_node <- children(nodes, root_node) do
         assert mid_node.type == :supervisor
-        assert mid_node.has_children
         assert mid_node.children_keys == :not_loaded
         # stubbed via depth — count was fetched via count_children
         assert is_integer(mid_node.child_count)
@@ -80,7 +78,6 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
 
         for worker_node <- children(nodes, mid_node) do
           assert worker_node.type == :worker
-          refute worker_node.has_children
           assert worker_node.children_keys == :not_loaded
           assert worker_node.child_count == 0
         end

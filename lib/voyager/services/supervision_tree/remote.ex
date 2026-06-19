@@ -1,10 +1,6 @@
 defmodule Voyager.Services.SupervisionTree.Remote do
   @moduledoc """
-  Thin, safe `:erpc` wrappers for remote node inspection.
-
-  BIF-only: no helper module is loaded on the remote node. Every function
-  returns `{:ok, value} | {:error, reason}` and never lets raw `:erpc`
-  exceptions escape to callers.
+  Thin `:erpc` wrappers for remote node inspection of supervision tree.
   """
 
   @timeout_fast 500
@@ -54,9 +50,6 @@ defmodule Voyager.Services.SupervisionTree.Remote do
     call(node, :lists, :map, [&:application_master.get_child/1, master_pids], @timeout_fast)
   end
 
-  @doc """
-  Returns the children of `sup_pid` on `node` via `:supervisor.which_children/1`.
-  """
   @spec which_children(node(), pid()) ::
           {:ok,
            [
@@ -145,9 +138,8 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   `:erpc` call.
 
   Runs `:lists.zipwith(&:erlang.process_info/2, pids, dup_keys)` on the remote —
-  an external fun, so no helper code is shipped — collapsing what would be one
-  call per PID into a single round-trip. Returns a map keyed by PID; dead
-  processes (`process_info/2` returns `:undefined`) map to `:dead`.
+
+  Returns a map keyed by PID; dead processes (`process_info/2` returns `:undefined`) map to `:dead`.
   """
   @spec process_info_many(node(), [pid()], [atom()]) ::
           {:ok, %{pid() => map() | :dead}} | {:error, term()}
@@ -193,13 +185,13 @@ defmodule Voyager.Services.SupervisionTree.Remote do
     :error, {:erpc, _} = reason ->
       {:error, reason}
 
+    :error, reason ->
+      {:error, reason}
+
     :exit, reason ->
       {:error, {:remote_exit, reason}}
 
     :throw, value ->
       {:error, {:remote_throw, value}}
-
-    :error, reason ->
-      {:error, reason}
   end
 end

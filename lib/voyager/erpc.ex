@@ -15,7 +15,7 @@ defmodule Voyager.Erpc do
   Invokes `fun` in `mod` with `args` on `node`, mirroring `:erpc.call/4`.
   """
   @callback call(node(), module(), atom(), [term()]) :: term()
-  @callback call(node(), module(), atom(), [term()], timeout_time() | call_options()) :: term()
+  @callback call(node(), module(), atom(), [term()], timeout_or_options()) :: term()
 
   @doc """
   Returns the configured `Voyager.Erpc` implementation.
