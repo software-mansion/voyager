@@ -43,21 +43,8 @@ defmodule VoyagerWeb.NodeInfoLive do
   def render(assigns) do
     ~H"""
     <div class="mx-auto max-w-screen-2xl p-6 sm:p-8">
-      <header class="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 class="font-mono text-base-content text-2xl font-bold tracking-tight">
-            {@session.node_name}
-          </h1>
-          <p class="font-mono text-base-content/50 mt-0.5 text-xs">
-            <%= if @last_updated do %>
-              updated {Formatters.format_time(@last_updated)} UTC
-            <% else %>
-              waiting for first snapshot…
-            <% end %>
-          </p>
-        </div>
-
-        <div class="flex items-center gap-2">
+      <.node_header node_name={@session.node_name} last_updated={@last_updated}>
+        <:actions>
           <label class="font-mono text-base-content/50 text-xs uppercase tracking-wider">
             Auto-refresh
           </label>
@@ -86,8 +73,8 @@ defmodule VoyagerWeb.NodeInfoLive do
           >
             <.icon name="icon-rotate-cw" class={["size-4", @snapshot.loading && "animate-spin"]} />
           </button>
-        </div>
-      </header>
+        </:actions>
+      </.node_header>
 
       <.async_result :let={snapshot} assign={@snapshot}>
         <:loading>

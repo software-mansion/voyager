@@ -13,6 +13,7 @@ defmodule VoyagerWeb.CoreComponents do
   use Phoenix.Component
 
   alias Phoenix.LiveView.JS
+  alias VoyagerWeb.Formatters
 
   @doc """
   Renders flash notices.
@@ -68,24 +69,34 @@ defmodule VoyagerWeb.CoreComponents do
   end
 
   @doc """
-  Renders a header with title.
+  Renders a page header for a connected node, showing the node name and the
+  last-updated time, with an optional `actions` slot rendered on the right.
   """
-  slot :inner_block, required: true
-  slot :subtitle
+  attr :node_name, :string, required: true
+  attr :last_updated, :any, default: nil
+
+  attr :waiting_message, :string,
+    default: "waiting for first snapshot…",
+    doc: "shown until the first update arrives"
+
   slot :actions
 
-  def header(assigns) do
+  def node_header(assigns) do
     ~H"""
-    <header class={[@actions != [] && "flex items-center justify-between gap-6", "pb-4"]}>
+    <header class="mb-8 flex flex-wrap items-center justify-between gap-4">
       <div>
-        <h1 class="text-lg font-semibold leading-8">
-          {render_slot(@inner_block)}
+        <h1 class="font-mono text-base-content text-2xl font-bold tracking-tight">
+          {@node_name}
         </h1>
-        <p :if={@subtitle != []} class="text-base-content/70 text-sm">
-          {render_slot(@subtitle)}
+        <p class="font-mono text-base-content/50 mt-0.5 text-xs">
+          <%= if @last_updated do %>
+            updated {Formatters.format_time(@last_updated)} UTC
+          <% else %>
+            {@waiting_message}
+          <% end %>
         </p>
       </div>
-      <div :if={@actions != []} class="flex-none">{render_slot(@actions)}</div>
+      <div :if={@actions != []} class="flex items-center gap-2">{render_slot(@actions)}</div>
     </header>
     """
   end

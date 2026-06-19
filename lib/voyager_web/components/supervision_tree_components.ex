@@ -5,7 +5,6 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
 
   use VoyagerWeb, :component
 
-  alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.SupervisionTreeControls
 
   attr :node_name, :string, required: true
@@ -15,21 +14,12 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
   def header(assigns) do
     ~H"""
     <div class="mx-auto w-full max-w-screen-2xl">
-      <header class="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 class="font-mono text-base-content text-2xl font-bold tracking-tight">
-            {@node_name}
-          </h1>
-          <p class="font-mono text-base-content/50 mt-0.5 text-xs">
-            <%= if @last_updated do %>
-              updated {Formatters.format_time(@last_updated)} UTC
-            <% else %>
-              waiting for first fetch…
-            <% end %>
-          </p>
-        </div>
-
-        <div class="flex items-center gap-2">
+      <.node_header
+        node_name={@node_name}
+        last_updated={@last_updated}
+        waiting_message="waiting for first fetch…"
+      >
+        <:actions>
           <span class={["badge", status_badge_class(@status)]}>
             {status_label(@status)}
           </span>
@@ -46,8 +36,8 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
               class={["size-4", @status == :loading && "animate-spin"]}
             />
           </button>
-        </div>
-      </header>
+        </:actions>
+      </.node_header>
     </div>
     """
   end
