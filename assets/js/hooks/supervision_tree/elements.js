@@ -58,11 +58,15 @@ export function isRealPid(key) {
   return re.test(key);
 }
 
-export function nodeIntersectsExtent(node, extent) {
+/**
+ * Calculates whether toggle expand button should be rendered based on it's node and zoom level
+ */
+
+export function overlayButtonIntersectsExtent(node, extent, zoomLevel) {
   const bb = node.boundingBox();
   return !(
     bb.x2 < extent.x1 ||
-    bb.x2 + 10 + 22 + 10 > extent.x2 ||
+    bb.x2 + 40 / zoomLevel > extent.x2 ||
     bb.y1 < extent.y1 ||
     bb.y2 > extent.y2
   );

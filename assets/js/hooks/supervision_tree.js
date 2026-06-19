@@ -13,7 +13,7 @@ import {
   composeLabel,
   edgeId,
   isRealPid,
-  nodeIntersectsExtent,
+  overlayButtonIntersectsExtent,
 } from './supervision_tree/elements';
 
 cytoscape.use(dagre);
@@ -213,7 +213,7 @@ const SupervisionTree = {
       animationDuration: 280,
       animationEasing: 'ease-out',
       fit,
-      padding: 24,
+      padding: 45,
       nodeDimensionsIncludeLabels: true,
     });
 
@@ -320,7 +320,7 @@ const SupervisionTree = {
 
     if (!tooSmall) {
       this.cy.nodes('[?has_children]').forEach((node) => {
-        if (nodeIntersectsExtent(node, extent)) {
+        if (overlayButtonIntersectsExtent(node, extent, this.cy.zoom())) {
           wanted.add(node.id());
         }
       });
