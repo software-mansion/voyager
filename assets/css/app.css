@@ -17,6 +17,11 @@
   themes: false;
 }
 
+@theme {
+  --color-base-500: oklch(86.86% 0.022 252.51);
+  --color-pinned: oklch(0.769 0.188 70.08);
+}
+
 @plugin 'daisyui/theme' {
   name: 'light';
   default: true;

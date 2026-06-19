@@ -5,8 +5,6 @@
   --tracking-loose: 0.06em;
   --tracking-label: 0.08em;
   --tracking-display: 0.15em;
-  --color-base-500: oklch(86.86% 0.022 252.51);
-  --color-pinned: oklch(0.769 0.188 70.08);
 }
 
 :root {
