@@ -199,7 +199,7 @@ defmodule VoyagerWeb.CoreComponents do
   def stat(assigns) do
     ~H"""
     <div class="stat">
-      <div class="stat-title font-mono text-xs uppercase tracking-wider">{@title}</div>
+      <div class="stat-title font-mono tracking-label text-xs uppercase">{@title}</div>
       <div class={["stat-value tabular-nums", @value_class]}>{@value}</div>
     </div>
     """
@@ -216,7 +216,7 @@ defmodule VoyagerWeb.CoreComponents do
     ~H"""
     <div class="card bg-base-200 border-base-300 border shadow-sm" {@rest}>
       <div class="card-body justify-center gap-1 p-4">
-        <div class="font-mono text-base-content/50 text-xs uppercase tracking-wider">
+        <div class="font-mono text-base-content/50 tracking-label text-xs uppercase">
           {@label}
         </div>
         <div class="font-mono text-base-content truncate text-sm font-semibold" title={@value}>

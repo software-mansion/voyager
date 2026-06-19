@@ -97,8 +97,8 @@ defmodule VoyagerWeb.Components.Shell do
   defp sidebar(assigns) do
     ~H"""
     <aside class="bg-base-100 border-base-300 flex h-full w-64 flex-none flex-col overflow-y-auto overflow-x-hidden border-r">
-      <ul class="menu font-[var(--font-display)] w-full flex-1 gap-0.5 p-4">
-        <li class="menu-title text-xs uppercase tracking-widest">Inspect</li>
+      <ul class="menu font-sans w-full flex-1 gap-0.5 p-4">
+        <li class="menu-title tracking-label text-xs uppercase">Inspect</li>
         <.nav_item active={@active_nav == :node_info} navigate={node_path(@session)}>
           <:icon><.icon name="icon-grid" class="size-4" /></:icon>
           Node Info
@@ -154,7 +154,7 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp statusbar(assigns) do
     ~H"""
-    <footer class="border-base-300 bg-base-100 font-mono text-base-content/60 flex flex-none items-center gap-4 border-t px-4 py-1.5 text-xs tracking-wide">
+    <footer class="border-base-300 bg-base-100 font-mono text-base-content/60 tracking-snug flex flex-none items-center gap-4 border-t px-4 py-1.5 text-xs">
       <div class="flex items-center gap-1.5">
         <span class={["h-1.5 w-1.5 rounded-full", status_dot_class(@session)]}></span>
         {node_display(@session)}
