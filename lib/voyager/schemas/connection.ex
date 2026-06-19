@@ -35,7 +35,7 @@ defmodule Voyager.Schemas.Connection do
   def changeset(connection, attrs) do
     connection
     |> cast(attrs, [:node_name, :cookie, :name_type, :pinned, :last_connected_at])
-    |> validate_required([:node_name, :last_connected_at])
+    |> validate_required([:node_name, :name_type, :last_connected_at])
     |> validate_length(:node_name, max: 255)
     |> validate_length(:cookie, max: 255)
     |> unique_constraint(:node_name)
