@@ -20,7 +20,7 @@ defmodule Voyager.Actions.Connections do
   @spec upsert_connected(String.t(), upsert_opts()) :: changeset_result()
   def upsert_connected(node_name, opts \\ []) do
     cookie = Keyword.get(opts, :cookie)
-    name_type = Keyword.get(opts, :name_type, :longnames)
+    name_type = Keyword.get(opts, :name_type) || :longnames
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     on_conflict =
