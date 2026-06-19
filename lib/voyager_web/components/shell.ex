@@ -37,7 +37,7 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp topbar(assigns) do
     ~H"""
-    <div class="navbar bg-base-100 border-base-300 min-h-[3.5rem] z-10 flex-none gap-4 border-b px-4">
+    <div class="navbar bg-base-100 border-base-300 min-h-14 z-10 flex-none gap-4 border-b px-4">
       <div class="navbar-start gap-2">
         <.brand />
       </div>
@@ -61,7 +61,7 @@ defmodule VoyagerWeb.Components.Shell do
   defp theme_toggle(assigns) do
     ~H"""
     <div class="card border-base-300 bg-base-300 relative flex flex-row items-center rounded-full border-2">
-      <div class="border-base-200 bg-base-100 [[data-theme=dark]_&]:left-1/2 transition-[left] absolute left-0 h-full w-1/2 rounded-full border brightness-110" />
+      <div class="border-base-200 bg-base-100 [[data-theme=dark]_&]:left-1/2 transition-left absolute left-0 h-full w-1/2 rounded-full border brightness-110" />
       <button
         class="relative flex w-1/2 cursor-pointer p-2"
         phx-click={JS.dispatch("phx:set-theme")}
@@ -98,7 +98,7 @@ defmodule VoyagerWeb.Components.Shell do
     ~H"""
     <aside class="bg-base-100 border-base-300 flex h-full w-64 flex-none flex-col overflow-y-auto overflow-x-hidden border-r">
       <ul class="menu font-[var(--font-display)] w-full flex-1 gap-0.5 p-4">
-        <li class="menu-title text-[10px] uppercase tracking-widest">Inspect</li>
+        <li class="menu-title text-xs uppercase tracking-widest">Inspect</li>
         <.nav_item active={@active_nav == :node_info} navigate={node_path(@session)}>
           <:icon><.icon name="icon-grid" class="size-4" /></:icon>
           Node Info
@@ -154,7 +154,7 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp statusbar(assigns) do
     ~H"""
-    <footer class="border-base-300 bg-base-100 font-mono text-[10.5px] text-base-content/60 flex flex-none items-center gap-4 border-t px-4 py-1.5 tracking-wide">
+    <footer class="border-base-300 bg-base-100 font-mono text-base-content/60 flex flex-none items-center gap-4 border-t px-4 py-1.5 text-xs tracking-wide">
       <div class="flex items-center gap-1.5">
         <span class={["h-1.5 w-1.5 rounded-full", status_dot_class(@session)]}></span>
         {node_display(@session)}
