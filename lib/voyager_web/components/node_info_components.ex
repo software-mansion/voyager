@@ -64,7 +64,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
           <%= for row <- @rows do %>
             <% {label, value, full_width?, help} = info_row(row) %>
             <div class={full_width? && "col-span-2 min-w-0"}>
-              <div class="font-mono tracking-[0.08em] text-base-content/50 mb-0.5 flex items-center gap-0.5 text-xs font-semibold uppercase">
+              <div class="font-mono tracking-label text-base-content/50 mb-0.5 flex items-center gap-0.5 text-xs font-semibold uppercase">
                 {label}
                 <.help_tooltip
                   :if={help}
@@ -124,7 +124,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
               <span class="font-mono text-base-content text-xl font-medium leading-none tracking-tight">
                 {value}
               </span>
-              <span class="font-mono tracking-[0.08em] text-base-content/50 text-xs font-semibold uppercase">
+              <span class="font-mono tracking-label text-base-content/50 text-xs font-semibold uppercase">
                 {label}
               </span>
             </div>
@@ -251,7 +251,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
 
         <div class="divide-base-200 flex flex-1 flex-col divide-y">
           <%= for {label, usage, tooltip} <- limit_rows(@limits) do %>
-            <div class="font-mono grid-cols-[1fr_auto_1fr_auto] grid items-center gap-3 py-3 text-xs">
+            <div class="font-mono grid-cols-limits grid items-center gap-3 py-3 text-xs">
               <span class="text-base-content/70 flex items-center gap-0.5">
                 {label}
                 <.help_tooltip

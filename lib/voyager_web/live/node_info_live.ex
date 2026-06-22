@@ -58,7 +58,7 @@ defmodule VoyagerWeb.NodeInfoLive do
         </div>
 
         <div class="flex items-center gap-2">
-          <label class="font-mono text-base-content/50 text-xs uppercase tracking-wider">
+          <label class="font-mono text-base-content/50 tracking-label text-xs uppercase">
             Auto-refresh
           </label>
           <form phx-change="set_interval" id="refresh-interval-form">

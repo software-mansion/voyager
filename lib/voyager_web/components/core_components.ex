@@ -47,7 +47,7 @@ defmodule VoyagerWeb.CoreComponents do
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
       role="alert"
       class={[
-        "alert max-w-[calc(100vw-2rem)] w-80 shadow-md",
+        "alert flash-constrained w-80 shadow-md",
         "!flex !flex-row items-center text-left",
         @kind == :info && "alert-info",
         @kind == :error && "alert-error"
@@ -174,7 +174,7 @@ defmodule VoyagerWeb.CoreComponents do
         class={["input input-bordered w-full", @errors != [] && "input-error", @class]}
         {@rest}
       />
-      <p :for={error <- @errors} class="font-mono text-[11px] text-error mt-1.5">{error}</p>
+      <p :for={error <- @errors} class="font-mono text-error mt-1.5 text-xs">{error}</p>
     </div>
     """
   end
@@ -199,7 +199,7 @@ defmodule VoyagerWeb.CoreComponents do
   def stat(assigns) do
     ~H"""
     <div class="stat">
-      <div class="stat-title font-mono text-[10.5px] uppercase tracking-wider">{@title}</div>
+      <div class="stat-title font-mono tracking-label text-xs uppercase">{@title}</div>
       <div class={["stat-value tabular-nums", @value_class]}>{@value}</div>
     </div>
     """
@@ -216,7 +216,7 @@ defmodule VoyagerWeb.CoreComponents do
     ~H"""
     <div class="card bg-base-200 border-base-300 border shadow-sm" {@rest}>
       <div class="card-body justify-center gap-1 p-4">
-        <div class="font-mono text-[10px] text-base-content/50 uppercase tracking-wider">
+        <div class="font-mono text-base-content/50 tracking-label text-xs uppercase">
           {@label}
         </div>
         <div class="font-mono text-base-content truncate text-sm font-semibold" title={@value}>
@@ -236,7 +236,7 @@ defmodule VoyagerWeb.CoreComponents do
   def info_section(assigns) do
     ~H"""
     <section class="mb-8">
-      <h2 class="font-mono text-[11px] tracking-[0.15em] text-base-content/50 mb-3 ml-1 font-semibold uppercase">
+      <h2 class="font-mono tracking-display text-base-content/50 mb-3 ml-1 text-xs font-semibold uppercase">
         {@title}
       </h2>
       <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">

@@ -16,7 +16,7 @@ defmodule VoyagerWeb.ConnectComponents do
         phx-click="fill_recent"
         phx-value-id={@conn.id}
         data-testid="fill-recent-btn"
-        class="font-mono text-[12px] text-base-content/60 flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 transition-colors hover:bg-base-200 hover:text-base-content"
+        class="font-mono text-base-content/60 flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-xs transition-colors hover:bg-base-200 hover:text-base-content"
       >
         <.icon name="icon-network" class="size-3.5 text-base-content/25 shrink-0" />
         <div class="flex min-w-0 items-center gap-1.5">
@@ -24,13 +24,13 @@ defmodule VoyagerWeb.ConnectComponents do
           <%= if @conn.cookie do %>
             <span
               title="Cookie saved"
-              class="font-mono text-[9px] text-base-content/30 border-base-300 shrink-0 rounded border px-1"
+              class="font-mono text-base-content/30 border-base-300 shrink-0 rounded border px-1 text-xs"
             >
               cookie
             </span>
           <% end %>
         </div>
-        <span class="font-mono text-[10.5px] text-base-content/35 ml-auto shrink-0">
+        <span class="font-mono text-base-content/35 ml-auto shrink-0 text-xs">
           {relative_time(@conn.last_connected_at)}
         </span>
       </button>
@@ -42,7 +42,7 @@ defmodule VoyagerWeb.ConnectComponents do
         title={if @pinned, do: "Remove from favourites", else: "Save as favourite"}
         class={[
           "btn btn-ghost btn-xs px-0.5",
-          if(@pinned, do: "text-amber-500", else: "text-base-content/20 hover:text-warning")
+          if(@pinned, do: "text-pinned", else: "text-base-content/20 hover:text-pinned")
         ]}
       >
         <.icon name={if @pinned, do: "icon-star-filled", else: "icon-star"} class="size-3.5" />
@@ -68,7 +68,7 @@ defmodule VoyagerWeb.ConnectComponents do
   def connected_indicator(assigns) do
     ~H"""
     <div class="mb-5">
-      <p class="font-mono text-[10.5px] tracking-[0.08em] text-base-content/50 mb-2.5 uppercase">
+      <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
         Connected node
       </p>
       <div class="bg-success/10 border-success/25 flex items-center justify-between rounded-lg border px-3.5 py-2.5">
@@ -78,7 +78,7 @@ defmodule VoyagerWeb.ConnectComponents do
             </span>
             <span class="bg-success size-2 relative inline-flex rounded-full"></span>
           </span>
-          <span class="font-mono text-[12px] text-base-content/75 min-w-0 truncate">
+          <span class="font-mono text-base-content/75 min-w-0 truncate text-xs">
             {@session.node_name}
           </span>
         </div>
@@ -119,7 +119,7 @@ defmodule VoyagerWeb.ConnectComponents do
       <div>
         <div class="mb-1.5 flex items-center justify-between">
           <label
-            class="font-mono text-[10.5px] tracking-[0.08em] text-base-content/50 uppercase"
+            class="font-mono tracking-label text-base-content/50 text-xs uppercase"
             for={@form[:node_name].id}
           >
             Node name
@@ -132,7 +132,7 @@ defmodule VoyagerWeb.ConnectComponents do
               aria-label="--name"
               checked={@current_name_type == "longnames"}
               disabled={@disabled}
-              class="join-item btn btn-soft btn-xs font-mono text-[10px] text-base-content/60 checked:text-primary-content disabled:text-base-content/60"
+              class="join-item btn btn-soft btn-xs font-mono text-base-content/60 text-xs checked:text-primary-content disabled:text-base-content/60"
             />
             <input
               type="radio"
@@ -141,7 +141,7 @@ defmodule VoyagerWeb.ConnectComponents do
               aria-label="--sname"
               checked={@current_name_type == "shortnames"}
               disabled={@disabled}
-              class="join-item btn btn-soft btn-xs font-mono text-[10px] text-base-content/60 checked:text-primary-content disabled:text-base-content/60"
+              class="join-item btn btn-soft btn-xs font-mono text-base-content/60 text-xs checked:text-primary-content disabled:text-base-content/60"
             />
           </div>
         </div>
@@ -152,14 +152,14 @@ defmodule VoyagerWeb.ConnectComponents do
           autocomplete="off"
           spellcheck="false"
           disabled={@disabled}
-          class="font-mono text-[13px]"
+          class="font-mono text-sm"
         />
       </div>
 
       <div>
         <div class="mb-1.5 flex items-center justify-between">
           <label
-            class="font-mono text-[10.5px] tracking-[0.08em] text-base-content/50 uppercase"
+            class="font-mono tracking-label text-base-content/50 text-xs uppercase"
             for={@form[:cookie].id}
           >
             Cookie
@@ -168,7 +168,7 @@ defmodule VoyagerWeb.ConnectComponents do
             type="button"
             phx-click="toggle_cookie"
             disabled={@disabled}
-            class="font-mono text-[10px] tracking-[0.06em] text-base-content/40 cursor-pointer uppercase transition-colors hover:text-base-content"
+            class="font-mono tracking-loose text-base-content/40 cursor-pointer text-xs uppercase transition-colors hover:text-base-content"
           >
             {if @show_cookie, do: "Hide", else: "Show"}
           </button>
@@ -180,7 +180,7 @@ defmodule VoyagerWeb.ConnectComponents do
           autocomplete="off"
           spellcheck="false"
           disabled={@disabled}
-          class="font-mono text-[13px]"
+          class="font-mono text-sm"
         />
         <label class={[
           "mt-2.5 flex items-center gap-2",
@@ -196,7 +196,7 @@ defmodule VoyagerWeb.ConnectComponents do
             disabled={@disabled}
             class="checkbox checkbox-sm"
           />
-          <span class="text-[12.5px] text-base-content/70">Remember cookie</span>
+          <span class="text-base-content/70 text-xs">Remember cookie</span>
         </label>
       </div>
 
