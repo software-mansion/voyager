@@ -1,5 +1,24 @@
+/**
+ * @typedef {Object} Info
+ * @property {string|any[]} registered_name
+ *
+ * @typedef {Object} ServerNode
+ * @property {string} key
+ * @property {string|null} parent_key
+ * @property {string|null} pid "<X.Y.Z>" (null for ghost children)
+ * @property {string|any[]} name
+ * @property {'app'|'supervisor'|'worker'} type
+ * @property {number} child_count
+ * @property {Info|'dead'|null} info
+ * @property {string[]|'not_loaded'} children_keys
+ */
+
+/**
+ * @param {string} key
+ * @param {ServerNode} node
+ */
 export function elementsFor(key, node) {
-  const has_children = !!node['has_children?'];
+  const child_count = node.child_count ?? 0;
   const children_keys =
     node.children_keys === 'not_loaded' ? null : node.children_keys;
 
@@ -8,13 +27,12 @@ export function elementsFor(key, node) {
     name: node.name,
     type: node.type,
     info: node.info,
-    has_children,
     child_count: node.child_count ?? 0,
     parent_key: node.parent_key,
     children_keys:
       node.children_keys === 'not_loaded' ? null : node.children_keys,
     dead: node.info === 'dead',
-    is_collapsed: has_children && children_keys === null,
+    is_collapsed: child_count > 0 && children_keys === null,
   };
   data.displayLabel = composeLabel(data);
 
@@ -34,6 +52,9 @@ export function elementsFor(key, node) {
   return els;
 }
 
+// The label is the process's registered name, or its pid when unregistered —
+// the server resolves this into `name`. Nodes with children also show their
+// direct child count as `(N)`.
 export function composeLabel(d) {
   const name = formatName(d.name);
   if (d.type === 'worker' || d.child_count === 0) {

@@ -31,14 +31,22 @@ export function buildStyle(t) {
       selector: 'node.hover',
       style: {
         'background-color': t.primary,
+        'border-color': t.primary,
       },
     },
     {
       selector: 'node[type = "worker"]',
       style: {
         shape: 'ellipse',
+        'border-color': t.secondary,
         width: 14,
         height: 14,
+      },
+    },
+    {
+      selector: 'node[type = "worker"].hover',
+      style: {
+        'background-color': t.secondary,
       },
     },
     {
@@ -66,14 +74,6 @@ export function buildStyle(t) {
         'text-opacity': 1,
         'font-weight': 600,
       },
-    },
-    {
-      selector: 'node.leaving',
-      style: { opacity: 0 },
-    },
-    {
-      selector: 'node.entering',
-      style: { opacity: 0 },
     },
     {
       selector: 'edge',
@@ -119,7 +119,6 @@ export function buildStyle(t) {
         },
         'line-color': t.base500,
         width: 1.4,
-        'target-arrow-shape': 'none',
         'transition-property': 'line-color, width, opacity',
         'transition-duration': '80ms',
       },
@@ -132,10 +131,6 @@ export function buildStyle(t) {
         opacity: 1,
         'z-index': 10,
       },
-    },
-    {
-      selector: 'edge.leaving',
-      style: { opacity: 0 },
     },
     {
       selector: '.hidden',

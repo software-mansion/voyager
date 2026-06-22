@@ -18,6 +18,7 @@ defmodule Voyager.Application do
       {Task.Supervisor, name: Voyager.TaskSupervisor},
       Voyager.ProxyEpmd.TunnelRegistry,
       Voyager.NodeSession,
+      Voyager.MCP,
       {ElixirKit.PubSub, connect: elixirkit_pubsub || :ignore, on_exit: fn -> System.stop() end},
       VoyagerWeb.Endpoint,
       {Task, fn -> if elixirkit_pubsub, do: ElixirKit.PubSub.broadcast("messages", "ready") end}

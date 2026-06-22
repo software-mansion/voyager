@@ -49,6 +49,29 @@ defmodule Voyager.ConnectionsTest do
       assert ConnectionQueries.get_by_node_name("k@127.0.0.1").cookie == "keep-me"
     end
 
+    test "defaults name_type to :longnames" do
+      {:ok, conn} = ConnectionActions.upsert_connected("nt@127.0.0.1", cookie: "x")
+      assert conn.name_type == :longnames
+    end
+
+    test "stores the given name_type" do
+      {:ok, conn} =
+        ConnectionActions.upsert_connected("nt@127.0.0.1", cookie: "x", name_type: :shortnames)
+
+      assert conn.name_type == :shortnames
+      assert ConnectionQueries.get_by_node_name("nt@127.0.0.1").name_type == :shortnames
+    end
+
+    test "updates name_type on conflict" do
+      {:ok, _} =
+        ConnectionActions.upsert_connected("ntc@127.0.0.1", cookie: "x", name_type: :longnames)
+
+      {:ok, _} =
+        ConnectionActions.upsert_connected("ntc@127.0.0.1", cookie: "x", name_type: :shortnames)
+
+      assert ConnectionQueries.get_by_node_name("ntc@127.0.0.1").name_type == :shortnames
+    end
+
     test "cookie is encrypted at rest" do
       {:ok, _} = ConnectionActions.upsert_connected("enc@127.0.0.1", cookie: "plaintext-cookie")
 

@@ -47,7 +47,7 @@ defmodule VoyagerWeb.CoreComponents do
       phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
       role="alert"
       class={[
-        "alert max-w-[calc(100vw-2rem)] w-80 shadow-md",
+        "alert flash-constrained w-80 shadow-md",
         "!flex !flex-row items-center text-left",
         @kind == :info && "alert-info",
         @kind == :error && "alert-error"
@@ -174,7 +174,7 @@ defmodule VoyagerWeb.CoreComponents do
         class={["input input-bordered w-full", @errors != [] && "input-error", @class]}
         {@rest}
       />
-      <p :for={error <- @errors} class="font-mono text-[11px] text-error mt-1.5">{error}</p>
+      <p :for={error <- @errors} class="font-mono text-error mt-1.5 text-xs">{error}</p>
     </div>
     """
   end
@@ -199,7 +199,7 @@ defmodule VoyagerWeb.CoreComponents do
   def stat(assigns) do
     ~H"""
     <div class="stat">
-      <div class="stat-title font-mono text-[10.5px] uppercase tracking-wider">{@title}</div>
+      <div class="stat-title font-mono tracking-label text-xs uppercase">{@title}</div>
       <div class={["stat-value tabular-nums", @value_class]}>{@value}</div>
     </div>
     """
@@ -216,7 +216,7 @@ defmodule VoyagerWeb.CoreComponents do
     ~H"""
     <div class="card bg-base-200 border-base-300 border shadow-sm" {@rest}>
       <div class="card-body justify-center gap-1 p-4">
-        <div class="font-mono text-[10px] text-base-content/50 uppercase tracking-wider">
+        <div class="font-mono text-base-content/50 tracking-label text-xs uppercase">
           {@label}
         </div>
         <div class="font-mono text-base-content truncate text-sm font-semibold" title={@value}>
@@ -236,7 +236,7 @@ defmodule VoyagerWeb.CoreComponents do
   def info_section(assigns) do
     ~H"""
     <section class="mb-8">
-      <h2 class="font-mono text-[11px] tracking-[0.15em] text-base-content/50 mb-3 ml-1 font-semibold uppercase">
+      <h2 class="font-mono tracking-display text-base-content/50 mb-3 ml-1 text-xs font-semibold uppercase">
         {@title}
       </h2>
       <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -275,6 +275,143 @@ defmodule VoyagerWeb.CoreComponents do
       <.icon name="icon-circle-alert" class="size-5" />
       <span>{@message}</span>
     </div>
+    """
+  end
+
+  @doc """
+  Renders an arbitrary `trigger` with a tooltip that reveals on hover/focus.
+
+  The tooltip content is teleported via `<.portal>` to `#tooltip-portal-root`
+  (rendered in the root layout), so it renders above and outside any modal,
+  drawer, or `overflow-hidden` container and is never clipped. Positioning is
+  handled by the `Tooltip` JS hook.
+
+  This is the low-level primitive; for the common "?" help affordance use
+  `help_tooltip/1`, which wraps this component.
+
+  ## Examples
+
+      <.tooltip id="status-tip" position="bottom">
+        <.badge>online</.badge>
+        <:content>Node responded to the last heartbeat.</:content>
+      </.tooltip>
+  """
+  attr :id, :string, required: true, doc: "unique DOM id for the trigger"
+
+  attr :position, :string,
+    default: "top",
+    values: ~w(top bottom left right),
+    doc: "preferred side to place the tooltip"
+
+  attr :class, :any, default: nil, doc: "extra classes for the trigger wrapper"
+
+  attr :interactive, :boolean,
+    default: false,
+    doc:
+      "when true, the tip stays open while hovered and can be pinned open with a click — required if the content holds clickable elements"
+
+  slot :inner_block, required: true, doc: "the hover/focus target"
+  slot :content, required: true, doc: "tooltip content"
+
+  def tooltip(assigns) do
+    ~H"""
+    <span
+      id={@id}
+      class={["inline-flex align-middle leading-none", @class]}
+      phx-hook="Tooltip"
+      data-tooltip-target={"##{@id}-tip"}
+      data-tooltip-position={@position}
+      data-tooltip-interactive={to_string(@interactive)}
+    >
+      {render_slot(@inner_block)}
+    </span>
+    <.portal id={"#{@id}-portal"} target="#tooltip-portal-root">
+      <div
+        id={"#{@id}-tip"}
+        role="tooltip"
+        phx-update="ignore"
+        class={[
+          "tooltip-pop bg-base-100 text-base-content rounded-box max-w-xs px-3 py-2",
+          "ring-base-content/15 text-xs leading-relaxed shadow-lg ring-1",
+          @interactive && "is-interactive"
+        ]}
+      >
+        {render_slot(@content)}
+      </div>
+    </.portal>
+    """
+  end
+
+  @doc """
+  Renders a round "?" help affordance that reveals a tooltip on hover/focus.
+
+  Thin wrapper over `tooltip/1` that supplies the "?" trigger button. Pass plain
+  text via `text`, or richer markup as the inner block.
+
+  ## Examples
+
+      <.help_tooltip id="cpu-help" text="Average scheduler utilization." />
+
+      <.help_tooltip id="mem-help" position="right">
+        Total memory allocated by the BEAM, including
+        <span class="font-semibold">processes</span> and binaries.
+      </.help_tooltip>
+  """
+  attr :id, :string, required: true, doc: "unique DOM id for the trigger"
+  attr :text, :string, default: nil, doc: "tooltip text; ignored when an inner block is given"
+
+  attr :position, :string,
+    default: "top",
+    values: ~w(top bottom left right),
+    doc: "preferred side to place the tooltip"
+
+  attr :class, :any, default: nil, doc: "extra classes for the trigger button"
+
+  attr :doc_href, :string,
+    default: nil,
+    doc: "when set, renders a documentation link at the bottom of the tooltip"
+
+  attr :doc_label, :string, default: "Learn more", doc: "label for the documentation link"
+
+  attr :interactive, :boolean,
+    default: true,
+    doc: "when true, the tip can be hovered into and pinned open with a click"
+
+  slot :inner_block, doc: "rich tooltip content; overrides text"
+
+  def help_tooltip(assigns) do
+    ~H"""
+    <.tooltip id={@id} position={@position} interactive={@interactive}>
+      <button
+        type="button"
+        aria-label="Help"
+        aria-describedby={"#{@id}-tip"}
+        class={[
+          "btn btn-circle btn-ghost btn-xs text-base-content/40 hover:text-base-content",
+          "transition-colors",
+          @class
+        ]}
+      >
+        <.icon name="icon-circle-help" class="size-4" />
+      </button>
+      <:content>
+        <%= if @inner_block != [] do %>
+          {render_slot(@inner_block)}
+        <% else %>
+          {@text}
+        <% end %>
+        <a
+          :if={@doc_href}
+          href={@doc_href}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-primary mt-2 flex w-fit items-center gap-1 font-medium underline-offset-2 transition-colors hover:text-primary hover:underline"
+        >
+          {@doc_label}
+          <.icon name="icon-external-link" class="size-3" />
+        </a>
+      </:content>
+    </.tooltip>
     """
   end
 

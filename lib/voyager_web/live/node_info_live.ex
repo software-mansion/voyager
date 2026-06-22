@@ -5,6 +5,7 @@ defmodule VoyagerWeb.NodeInfoLive do
   alias Voyager.Services.NodeInfo
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.NodeInfoComponents
+  alias VoyagerWeb.NodeInfoHelp
 
   @default_interval Application.compile_env(:voyager, :node_info_refresh_interval_ms, 5_000)
 
@@ -57,7 +58,7 @@ defmodule VoyagerWeb.NodeInfoLive do
         </div>
 
         <div class="flex items-center gap-2">
-          <label class="font-mono text-base-content/50 text-xs uppercase tracking-wider">
+          <label class="font-mono text-base-content/50 tracking-label text-xs uppercase">
             Auto-refresh
           </label>
           <form phx-change="set_interval" id="refresh-interval-form">
@@ -101,24 +102,28 @@ defmodule VoyagerWeb.NodeInfoLive do
             <NodeInfoComponents.stat_tile
               label="Uptime"
               value={Formatters.format_uptime(snapshot.runtime.uptime_ms)}
+              help={NodeInfoHelp.get(:uptime)}
             >
               <:sub>since {uptime_since(snapshot.collected_at, snapshot.runtime.uptime_ms)}</:sub>
             </NodeInfoComponents.stat_tile>
             <NodeInfoComponents.stat_tile
               label="IO input"
               value={Formatters.format_bytes_compact(snapshot.runtime.io_input_bytes)}
+              help={NodeInfoHelp.get(:io_input)}
             >
               <:sub>total since start</:sub>
             </NodeInfoComponents.stat_tile>
             <NodeInfoComponents.stat_tile
               label="IO output"
               value={Formatters.format_bytes_compact(snapshot.runtime.io_output_bytes)}
+              help={NodeInfoHelp.get(:io_output)}
             >
               <:sub>total since start</:sub>
             </NodeInfoComponents.stat_tile>
             <NodeInfoComponents.stat_tile
               label="Reductions"
               value={Formatters.format_count_compact(snapshot.runtime.total_reductions)}
+              help={NodeInfoHelp.get(:reductions)}
             >
               <:sub>total since start</:sub>
             </NodeInfoComponents.stat_tile>
@@ -126,7 +131,10 @@ defmodule VoyagerWeb.NodeInfoLive do
 
           <%!-- Charts --%>
           <div class="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <NodeInfoComponents.memory_card memory={snapshot.memory} />
+            <NodeInfoComponents.memory_card
+              memory={snapshot.memory}
+              help={NodeInfoHelp.get(:memory_breakdown)}
+            />
             <NodeInfoComponents.limits_card limits={snapshot.limits} />
           </div>
 
@@ -138,6 +146,7 @@ defmodule VoyagerWeb.NodeInfoLive do
               <NodeInfoComponents.metric_card
                 title="Schedulers"
                 subtitle="online / total"
+                help={NodeInfoHelp.get(:schedulers)}
                 metrics={[
                   {"Normal", "#{snapshot.schedulers.online} / #{snapshot.schedulers.total}"},
                   {"Dirty CPU",
@@ -148,10 +157,11 @@ defmodule VoyagerWeb.NodeInfoLive do
               <NodeInfoComponents.metric_card
                 title="Run queues"
                 subtitle="queued processes"
+                help={NodeInfoHelp.get(:run_queues)}
                 metrics={[
-                  {"Total", snapshot.run_queues.total},
                   {"Normal + CPU", snapshot.run_queues.normal_and_dirty_cpu},
-                  {"Dirty IO", snapshot.run_queues.dirty_io}
+                  {"Dirty IO", snapshot.run_queues.dirty_io},
+                  {"Total", snapshot.run_queues.total}
                 ]}
               />
             </div>
@@ -235,22 +245,30 @@ defmodule VoyagerWeb.NodeInfoLive do
     assign(socket, :timer_ref, ref)
   end
 
+  @language_help %{"Elixir" => :elixir, "Gleam (stdlib)" => :gleam_stdlib}
+
   defp runtime_rows(snapshot) do
-    language_rows = Enum.map(snapshot.languages, &{&1.name, &1.version})
+    language_rows =
+      Enum.map(snapshot.languages, fn lang ->
+        case Map.fetch(@language_help, lang.name) do
+          {:ok, key} -> {lang.name, lang.version, help: NodeInfoHelp.get(key)}
+          :error -> {lang.name, lang.version}
+        end
+      end)
 
     base = [
-      {"OTP release", snapshot.system.otp_release},
-      {"ERTS version", snapshot.system.erts_version},
-      {"stdlib", snapshot.system.stdlib_version || "Not available"}
+      {"OTP", snapshot.system.otp_release, help: NodeInfoHelp.get(:otp)},
+      {"ERTS", snapshot.system.erts_version, help: NodeInfoHelp.get(:erts)},
+      {"stdlib", snapshot.system.stdlib_version || "Not available",
+       help: NodeInfoHelp.get(:stdlib)}
     ]
 
     rest = [
-      {"Word size",
-       "#{snapshot.system.wordsize_internal} / #{snapshot.system.wordsize_external} bytes"},
-      {"SMP support", Formatters.format_bool(snapshot.system.smp_support?)},
-      {"Threads", Formatters.format_bool(snapshot.system.thread_support?)},
-      {"Async threads", to_string(snapshot.system.async_threads)},
-      {"System arch", snapshot.system.system_architecture, :full}
+      {"Word size", "#{snapshot.system.wordsize} bytes", help: NodeInfoHelp.get(:word_size)},
+      {"Async threads", to_string(snapshot.system.async_threads),
+       help: NodeInfoHelp.get(:async_threads)},
+      {"System arch", snapshot.system.system_architecture,
+       help: NodeInfoHelp.get(:system_arch), full: true}
     ]
 
     language_rows ++ base ++ rest

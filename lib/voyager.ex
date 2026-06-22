@@ -5,4 +5,9 @@ defmodule Voyager do
   Connect to a remote Erlang/Elixir node and inspect its processes,
   supervision tree, ETS tables, and runtime state.
   """
+
+  @version Mix.Project.config()[:version]
+
+  @spec version() :: String.t()
+  def version, do: @version
 end
