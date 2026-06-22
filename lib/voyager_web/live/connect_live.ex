@@ -108,7 +108,10 @@ defmodule VoyagerWeb.ConnectLive do
                 "name_type" => conn.name_type
               })
 
-            {:noreply, assign(socket, :form, to_form(changeset, as: :conn))}
+            {:noreply,
+             socket
+             |> assign(:form, to_form(changeset, as: :conn))
+             |> assign(:show_cookie, false)}
         end
 
       _ ->
