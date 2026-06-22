@@ -174,7 +174,7 @@ defmodule Voyager.Services.RemoteNodeConnector do
   end
 
   defp cleanup(tunnel_pid, ref, node_key) do
-    if is_reference(ref), do: Process.demonitor(ref, [:flush])
+    Process.demonitor(ref, [:flush])
     TunnelRegistry.unregister(node_key)
     Tunnel.stop(tunnel_pid)
   end
