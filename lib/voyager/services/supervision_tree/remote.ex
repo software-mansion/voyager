@@ -1,26 +1,197 @@
 defmodule Voyager.Services.SupervisionTree.Remote do
   @moduledoc """
-  Currently mock-only. Set `config :voyager, :mock_remote_error, :some_reason`
-  to exercise the LiveView's error branch during development.
+  Thin `:erpc` wrappers for remote node inspection of supervision tree.
   """
 
-  @type entry :: {atom(), charlist(), charlist()}
+  @timeout_fast 500
+  @timeout_children 1_500
+  @timeout_pinfo 1_000
+  @process_info_keys [
+    :registered_name
+  ]
 
   @doc """
   Returns the list of OTP applications running on `node`.
-  """
-  @spec list_applications(node()) :: {:ok, [entry()]} | {:error, term()}
-  def list_applications(_node) do
-    case Application.get_env(:voyager, :mock_remote_error) do
-      nil ->
-        {:ok,
-         [
-           {:demo_app, ~c"Demo Application", ~c"1.0.0"},
-           {:another_app, ~c"Another Application", ~c"0.5.0"}
-         ]}
 
-      reason ->
-        {:error, reason}
+  Calls `:application.which_applications/0` via `:erpc`.
+  """
+  @spec list_applications(node()) ::
+          {:ok, [{atom(), charlist(), charlist()}]} | {:error, term()}
+  def list_applications(node) do
+    call(node, :application, :which_applications, [], @timeout_fast)
+  end
+
+  @doc """
+  Returns the application master PIDs for `apps` on `node` in one `:erpc` call.
+
+  Runs `:lists.map(&:application_controller.get_master/1, apps)` on the remote,
+  so the result list is positionally aligned with `apps`. Apps that are not
+  running map to `:undefined`.
+  """
+  @spec app_masters(node(), [atom()]) :: {:ok, [pid() | :undefined]} | {:error, term()}
+  def app_masters(_node, []), do: {:ok, []}
+
+  def app_masters(node, apps) do
+    call(node, :lists, :map, [&:application_controller.get_master/1, apps], @timeout_fast)
+  end
+
+  @doc """
+  Returns the root child for each application master in `master_pids` on `node`
+  in one `:erpc` call via `:lists.map(&:application_master.get_child/1, …)`.
+
+  Each element is `{root_pid, app_module}` (or, on older systems, a bare
+  `root_pid`), positionally aligned with `master_pids`.
+  """
+  @spec app_children(node(), [pid()]) ::
+          {:ok, [{pid(), module()} | pid()]} | {:error, term()}
+  def app_children(_node, []), do: {:ok, []}
+
+  def app_children(node, master_pids) do
+    call(node, :lists, :map, [&:application_master.get_child/1, master_pids], @timeout_fast)
+  end
+
+  @spec which_children(node(), pid()) ::
+          {:ok,
+           [
+             {term(), pid() | :undefined | :restarting, :worker | :supervisor,
+              :dynamic | [module()]}
+           ]}
+          | {:error, term()}
+  def which_children(node, sup_pid) do
+    call(node, :supervisor, :which_children, [sup_pid], @timeout_children)
+  end
+
+  @doc """
+  Returns the children of every supervisor in `sup_pids` on `node` in one
+  `:erpc` call via `:lists.map(&:supervisor.which_children/1, sup_pids)`.
+
+  The result list is positionally aligned with `sup_pids`. Because the remote
+  `:lists.map` aborts if any single `which_children` raises (e.g. a supervisor
+  died mid-walk), callers should fall back to per-pid `which_children/2` on
+  `{:error, {:remote_exception, _}}` to isolate the offending pid.
+  """
+  @spec which_children_many(node(), [pid()]) :: {:ok, [list()]} | {:error, term()}
+  def which_children_many(_node, []), do: {:ok, []}
+
+  def which_children_many(node, sup_pids) do
+    call(node, :lists, :map, [&:supervisor.which_children/1, sup_pids], @timeout_children)
+  end
+
+  @doc """
+  Returns the spec-children count for `sup_pid` on `node` via
+  `:supervisor.count_children/1`.
+
+  Cheaper than `which_children/2` when only the count is needed — used for
+  collapsed/stub supervisors so the UI can show a `(N)` badge.
+  """
+  @spec count_children(node(), pid()) ::
+          {:ok, non_neg_integer()} | {:error, term()}
+  def count_children(node, sup_pid) do
+    case call(node, :supervisor, :count_children, [sup_pid], @timeout_fast) do
+      {:ok, counts} when is_list(counts) ->
+        {:ok, Keyword.get(counts, :specs, 0)}
+
+      {:error, _} = err ->
+        err
     end
+  end
+
+  @doc """
+  Returns the spec-children count for every supervisor in `sup_pids` on `node`
+  in one `:erpc` call via `:lists.map(&:supervisor.count_children/1, sup_pids)`.
+
+  The result list is positionally aligned with `sup_pids`. As with
+  `which_children_many/2`, callers should fall back to per-pid `count_children/2`
+  on `{:error, {:remote_exception, _}}`.
+  """
+  @spec count_children_many(node(), [pid()]) ::
+          {:ok, [non_neg_integer()]} | {:error, term()}
+  def count_children_many(_node, []), do: {:ok, []}
+
+  def count_children_many(node, sup_pids) do
+    case call(node, :lists, :map, [&:supervisor.count_children/1, sup_pids], @timeout_fast) do
+      {:ok, counts_list} when is_list(counts_list) ->
+        counts_list
+        |> Enum.map(fn
+          counts when is_list(counts) -> Keyword.get(counts, :specs, 0)
+          _ -> 0
+        end)
+        |> then(&{:ok, &1})
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  @doc """
+  Fetches the `@process_info_keys` `:process_info` for a batch of PIDs on `node`
+  in a single `:erpc` call (see `process_info_many/3`). Returns a map keyed by
+  PID; dead processes map to `:dead`.
+  """
+  @spec process_info_batch(node(), [pid()]) :: {:ok, %{pid() => map() | :dead}} | {:error, term()}
+  def process_info_batch(node, pids) do
+    process_info_many(node, pids, @process_info_keys)
+  end
+
+  @doc """
+  Fetches `:process_info` for `pids` on `node` with the given `keys` in one
+  `:erpc` call.
+
+  Runs `:lists.zipwith(&:erlang.process_info/2, pids, dup_keys)` on the remote —
+
+  Returns a map keyed by PID; dead processes (`process_info/2` returns `:undefined`) map to `:dead`.
+  """
+  @spec process_info_many(node(), [pid()], [atom()]) ::
+          {:ok, %{pid() => map() | :dead}} | {:error, term()}
+  def process_info_many(_node, [], _keys), do: {:ok, %{}}
+
+  def process_info_many(node, pids, keys) do
+    dup_keys = List.duplicate(keys, length(pids))
+
+    case call(node, :lists, :zipwith, [&:erlang.process_info/2, pids, dup_keys], @timeout_pinfo) do
+      {:ok, pinfo_list} when is_list(pinfo_list) ->
+        map =
+          pids
+          |> Enum.zip(pinfo_list)
+          |> Map.new(fn
+            {pid, :undefined} -> {pid, :dead}
+            {pid, kw_list} -> {pid, Map.new(kw_list)}
+          end)
+
+        {:ok, map}
+
+      {:error, _} = err ->
+        err
+    end
+  end
+
+  # Translates every `:erpc.call` failure into an `{:error, reason}` tuple so no
+  # raw exception ever escapes to callers. Besides erpc-level failures
+  # (`{:erpc, _}`) and remote `error` exceptions (`{:exception, _, _}`), this
+  # also covers remote `exit`s (re-raised by erpc as an `:exit`) and remote
+  # `throw`s (re-thrown by erpc), plus a catch-all for any other `:error`.
+  defp call(node, mod, fun, args, timeout) do
+    {:ok, Voyager.Erpc.call(node, mod, fun, args, timeout)}
+  catch
+    :error, {:erpc, :timeout} ->
+      {:error, :timeout}
+
+    :error, {:erpc, :noconnection} ->
+      {:error, :noconnection}
+
+    :error, {:exception, reason, _stack} ->
+      {:error, {:remote_exception, reason}}
+
+    :error, {:erpc, _} = reason ->
+      {:error, reason}
+
+    :error, reason ->
+      {:error, reason}
+
+    :exit, reason ->
+      {:error, {:remote_exit, reason}}
+
+    :throw, value ->
+      {:error, {:remote_throw, value}}
   end
 end
