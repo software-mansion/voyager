@@ -1,10 +1,41 @@
 defmodule Voyager.Services.SupervisionTree.Fetch do
   @moduledoc """
-  Coordinates an async fetch of a (currently mocked) supervision tree.
+  Wraps a `Voyager.Services.SupervisionTree.Walker.walk/4` call as a cancellable, monitored
+  async task that a LiveView can launch and abort.
 
-  Wraps `Task.Supervisor.async_nolink/2` with a `start`/`cancel` lifecycle so
-  the LiveView can swap in-flight requests when the user changes scope.
+  ## Usage
+
+      request = %{
+        node: :"target@localhost",
+        apps: [:my_app],
+        depth: 3,
+        expanded: MapSet.new()
+      }
+
+      task = Fetch.start(request)
+      # Later, to cancel:
+      Fetch.cancel(task)
+
+  ## Message protocol
+
+  When the walk completes successfully, the owning process receives:
+
+      {ref, {status, result, errors}}
+
+  where `ref` is `task.ref`, `status` is `:ok` or `:partial`, `result` is the
+  walker result map `%{nodes: node_map}`, and `errors` is a list of error
+  tuples.
+
+  If the underlying task crashes, the owning process receives a DOWN message:
+
+      {:DOWN, ref, :process, _pid, reason}
+
+  Because `Task.Supervisor.async_nolink/2` is used, task crashes **never**
+  propagate to the caller — the LiveView process is safe regardless of what
+  happens during the walk.
   """
+
+  alias Voyager.Services.SupervisionTree.Walker
 
   @type request :: %{
           node: node(),
@@ -13,221 +44,35 @@ defmodule Voyager.Services.SupervisionTree.Fetch do
           expanded: MapSet.t(pid())
         }
 
-  @type state :: %{task: Task.t(), request: request()}
-
   @doc """
-  Starts an async fetch that delivers a mock supervision tree.
+  Starts an async walk for `request`. Returns a task that must be kept
+  by the caller and passed to `cancel/1` if early termination is needed.
 
-  The result arrives as `{state.ref, {status, tree, errors}}`.
+  The result arrives as `{task.ref, {status, result, errors}}`.
+  Crashes arrive as `{:DOWN, task.ref, :process, _pid, reason}`.
   """
-  @spec start(request()) :: state()
+  @spec start(request()) :: Task.t()
   def start(request) do
-    task =
-      Task.Supervisor.async_nolink(Voyager.TaskSupervisor, fn ->
-        build_mock_result(request)
-      end)
-
-    %{task: task, request: request}
+    Task.Supervisor.async_nolink(Voyager.TaskSupervisor, fn ->
+      Walker.walk(request.node, request.apps, request.depth, request.expanded)
+    end)
   end
 
   @doc """
-  Cancels an in-flight fetch. Always returns `:ok`.
+  Cancels an in-flight fetch. Demonitors the task reference (flushing any
+  queued DOWN messages) and terminates the child process. Safe to call even if
+  the task has already finished — the `{:error, :not_found}` from
+  `Task.Supervisor.terminate_child/2` is silently ignored.
+
+  Always returns `:ok`.
   """
-  @spec cancel(state()) :: :ok
-  def cancel(%{task: task}) do
+  @spec cancel(Task.t()) :: :ok
+  def cancel(task) do
     Process.demonitor(task.ref, [:flush])
 
     case Task.Supervisor.terminate_child(Voyager.TaskSupervisor, task.pid) do
       :ok -> :ok
       {:error, :not_found} -> :ok
-    end
-  end
-
-  defp build_mock_result(request) do
-    # Sleep here simulates real time fetching, will be removed when adding actual logic
-    Process.sleep(200)
-
-    tree =
-      Enum.reduce(request.apps, %{}, fn app, acc ->
-        Map.put(acc, app, mock_app_node(app, request.depth, request.expanded))
-      end)
-
-    {:ok, tree, []}
-  end
-
-  defp mock_app_node(app, depth, expanded) do
-    {root_id, _, _, _} = app_tree_spec(app)
-    root_pid = stable_pid(app, root_id)
-
-    root_sup = build_from_spec(app, app_tree_spec(app), depth - 1, expanded)
-
-    %{
-      pid: root_pid,
-      name: app,
-      type: :app,
-      modules: [],
-      info: nil,
-      has_children?: true,
-      child_count: 1,
-      children: [root_sup]
-    }
-  end
-
-  # ---------------------------------------------------------------------------
-  # Private — spec-driven recursive tree builder
-  #
-  # Spec format: {id, name, type, children_spec | :leaf | :ghost}
-  #   - :leaf  → worker with a real PID
-  #   - :ghost → worker with pid: nil (simulates a restarting child)
-  #   - [...] → supervisor whose children follow depth/expanded rules
-  # ---------------------------------------------------------------------------
-
-  defp build_from_spec(app, {id, name, :supervisor, children_specs}, depth, expanded) do
-    pid = stable_pid(app, id)
-
-    if depth > 0 or MapSet.member?(expanded, pid) do
-      children =
-        Enum.map(children_specs, &build_from_spec(app, &1, max(depth - 1, 0), expanded))
-
-      %{
-        pid: pid,
-        name: name,
-        type: :supervisor,
-        modules: [],
-        info: nil,
-        has_children?: children != [],
-        child_count: length(children),
-        children: children
-      }
-    else
-      %{
-        pid: pid,
-        name: name,
-        type: :supervisor,
-        modules: [],
-        info: nil,
-        has_children?: true,
-        child_count: length(children_specs),
-        children: :not_loaded
-      }
-    end
-  end
-
-  defp build_from_spec(app, {id, name, :worker, :leaf}, _depth, _expanded) do
-    %{
-      pid: stable_pid(app, id),
-      name: name,
-      type: :worker,
-      modules: [],
-      info: nil,
-      has_children?: false,
-      child_count: 0,
-      children: :not_loaded
-    }
-  end
-
-  defp build_from_spec(_app, {_id, name, :worker, :ghost}, _depth, _expanded) do
-    %{
-      pid: nil,
-      name: name,
-      type: :worker,
-      modules: [],
-      info: nil,
-      has_children?: false,
-      child_count: 0,
-      children: :not_loaded
-    }
-  end
-
-  # ---------------------------------------------------------------------------
-  # Private — demo tree spec
-  #
-  # At default depth=3 the tree renders as follows:
-  #
-  #   <app> (app wrapper)
-  #   └── <app>_supervisor (supervisor)
-  #       ├── <app>_auth_supervisor (supervisor)
-  #       │   ├── <app>_token_server    (worker)
-  #       │   └── <app>_session_server  (worker)
-  #       ├── <app>_web_endpoint       (worker)
-  #       ├── <app>_cache_supervisor   (supervisor)
-  #       │   ├── <app>_cache_server_sup (supervisor - STUB at depth=3)
-  #       │   └── <app>_cache_eviction   (worker)
-  #       └── <app>_worker_supervisor  (supervisor)
-  #           ├── <app>_worker_1       (worker)
-  #           ├── <app>_worker_2       (worker)
-  #           ├── <app>_worker_3       (worker)
-  #           ├── <app>_worker_4       (worker)
-  #           ├── <app>_worker_5       (worker)
-  #           ├── <app>_worker_6       (worker)
-  #           └── restarting_worker    (ghost — pid: nil)
-  #
-  # The cache server supervisor becomes stub (children: :not_loaded) at the
-  # default depth because it sit 3 levels below the app root. Expanding it
-  # reveals its children, exercising the expand/collapse code path.
-  # ---------------------------------------------------------------------------
-
-  defp app_tree_spec(app) do
-    a = app
-
-    {:"#{a}_supervisor", :"#{a}_supervisor", :supervisor,
-     [
-       {:"#{a}_auth_supervisor", :"#{a}_auth_supervisor", :supervisor,
-        [
-          {:"#{a}_token_server", :"#{a}_token_server", :worker, :leaf},
-          {:"#{a}_session_server", :"#{a}_session_server", :worker, :leaf}
-        ]},
-       {:"#{a}_web_endpoint", :"#{a}_web_endpoint", :worker, :leaf},
-       {:"#{a}_cache_supervisor", :"#{a}_cache_supervisor", :supervisor,
-        [
-          {:"#{a}_cache_server_sup", :"#{a}_cache_server_sup", :supervisor,
-           [
-             {:"#{a}_cache_shard_1", :"#{a}_cache_shard_1", :supervisor,
-              [
-                {:"#{a}_shard_1_w1", :"#{a}_shard_1_w1", :worker, :leaf},
-                {:"#{a}_shard_1_w2", :"#{a}_shard_1_w2", :worker, :leaf}
-              ]},
-             {:"#{a}_cache_shard_2", :"#{a}_cache_shard_2", :supervisor,
-              [
-                {:"#{a}_shard_2_w1", :"#{a}_shard_2_w1", :worker, :leaf},
-                {:"#{a}_shard_2_w2", :"#{a}_shard_2_w2", :worker, :leaf}
-              ]}
-           ]},
-          {:"#{a}_cache_eviction", :"#{a}_cache_eviction", :worker, :leaf}
-        ]},
-       {:"#{a}_worker_supervisor", :"#{a}_worker_supervisor", :supervisor,
-        [
-          {:"#{a}_worker_1", :"#{a}_worker_1", :worker, :leaf},
-          {:"#{a}_worker_2", :"#{a}_worker_2", :worker, :leaf},
-          {:"#{a}_worker_3", :"#{a}_worker_3", :worker, :leaf},
-          {:"#{a}_worker_4", :"#{a}_worker_4", :worker, :leaf},
-          {:"#{a}_worker_5", :"#{a}_worker_5", :worker, :leaf},
-          {:"#{a}_worker_6", :"#{a}_worker_6", :worker, :leaf},
-          {:restarting_worker, :restarting_worker, :worker, :ghost}
-        ]}
-     ]}
-  end
-
-  # ---------------------------------------------------------------------------
-  # Private — stable PIDs
-  #
-  # PIDs must survive across fetches so the LiveView's `expanded` MapSet (which
-  # holds PIDs from previous results) can match nodes in subsequent fetches.
-  # :persistent_term gives us a lightweight per-node cache that lives for the
-  # duration of the VM. One sleeping process is spawned per unique {app, id}.
-  # ---------------------------------------------------------------------------
-
-  defp stable_pid(app, id) do
-    key = {__MODULE__, app, id}
-
-    case :persistent_term.get(key, nil) do
-      nil ->
-        pid = spawn(fn -> Process.sleep(:infinity) end)
-        :persistent_term.put(key, pid)
-        pid
-
-      pid ->
-        pid
     end
   end
 end

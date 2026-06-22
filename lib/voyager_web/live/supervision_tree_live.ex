@@ -122,25 +122,29 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     {:noreply, socket}
   end
 
-  def handle_info({ref, {status, tree, errors}}, socket) do
+  def handle_info({ref, {status, result, errors}}, socket) do
     in_flight = socket.assigns.in_flight
 
-    if not is_nil(in_flight) and in_flight.task.ref == ref do
+    if not is_nil(in_flight) and in_flight.ref == ref do
       stop_timer(socket)
 
       Process.demonitor(ref, [:flush])
 
-      new_flat = Diff.flatten(tree)
+      new_flat = result.nodes
       prev_flat = socket.assigns.last_tree_flat
 
       payload =
         case prev_flat do
           nil ->
-            %{kind: "full", nodes: new_flat, status: status, errors: errors}
+            %{
+              kind: "full",
+              nodes: new_flat
+            }
 
           prev ->
-            d = Diff.diff(prev, new_flat)
-            Map.merge(d, %{kind: "delta", status: status, errors: errors})
+            prev
+            |> Diff.diff(new_flat)
+            |> Map.merge(%{kind: "delta"})
         end
 
       socket =
@@ -161,7 +165,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   def handle_info({:DOWN, ref, :process, _pid, reason}, socket) do
     in_flight = socket.assigns.in_flight
 
-    if not is_nil(in_flight) and in_flight.task.ref == ref do
+    if not is_nil(in_flight) and in_flight.ref == ref do
       socket =
         socket
         |> stop_timer()

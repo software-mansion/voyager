@@ -13,7 +13,7 @@ defmodule VoyagerWeb.FormSchemas.SupervisionTreeControls do
   import Ecto.Changeset
 
   @max_apps 20
-  @min_depth 1
+  @min_depth 2
   @default_depth 3
 
   @primary_key false
@@ -24,6 +24,9 @@ defmodule VoyagerWeb.FormSchemas.SupervisionTreeControls do
 
   @spec max_apps() :: pos_integer()
   def max_apps, do: @max_apps
+
+  @spec min_depth() :: pos_integer()
+  def min_depth, do: @min_depth
 
   @spec default_depth() :: pos_integer()
   def default_depth, do: @default_depth
