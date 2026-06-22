@@ -9,33 +9,35 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
 
   attr :node_name, :string, required: true
   attr :status, :atom, required: true
+  attr :last_updated, :any, required: true
 
   def header(assigns) do
     ~H"""
-    <div class="card bg-base-100 shadow-sm">
-      <div class="card-body flex flex-row items-center gap-4 py-3">
-        <div class="flex-1">
-          <h1 class="card-title text-base-content">Supervision Tree</h1>
-          <p class="text-base-content/60 text-sm">{@node_name}</p>
-        </div>
-        <div class="flex items-center gap-3">
+    <div class="mx-auto w-full">
+      <.node_header
+        node_name={@node_name}
+        last_updated={@last_updated}
+        waiting_message="waiting for first fetch…"
+      >
+        <:actions>
           <span class={["badge", status_badge_class(@status)]}>
             {status_label(@status)}
           </span>
           <button
-            id="supervision-tree-refresh"
-            class="btn btn-sm btn-ghost"
+            type="button"
             phx-click="refresh-now"
+            phx-throttle="1000"
+            id="supervision-tree-refresh"
             title="Refresh now"
-            phx-throttle="500"
+            class="btn btn-sm btn-ghost"
           >
             <.icon
               name="icon-rotate-cw"
               class={["size-4", @status == :loading && "animate-spin"]}
             />
           </button>
-        </div>
-      </div>
+        </:actions>
+      </.node_header>
     </div>
     """
   end
@@ -43,35 +45,26 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
   attr :form, Phoenix.HTML.Form, required: true
   attr :available_apps, :list, required: true
   attr :selected_apps, MapSet, required: true
+  attr :open?, :boolean, required: true
 
   def controls(assigns) do
     ~H"""
-    <div class="card bg-base-100 shadow-sm">
+    <div class="card bg-base-100 border-base-200 border shadow-sm">
       <div class="card-body py-3">
         <.form
           for={@form}
           id="supervision-tree-controls"
           phx-change="select-apps"
           phx-submit="select-apps"
-          class="flex flex-col gap-3"
+          class="flex items-start"
         >
-          <details tabindex="0" class="collapse collapse-arrow">
-            <summary class="collapse-title pe-4 ps-12 flex cursor-pointer items-center justify-between after:start-5 after:end-auto">
-              <h2 class="text-base-content text-sm font-semibold">Applications</h2>
-              <div class="flex items-center gap-2">
-                <label class="label text-base-content/60 text-xs" for={@form[:depth].id}>
-                  Depth
-                </label>
-                <.input
-                  field={@form[:depth]}
-                  type="number"
-                  min={SupervisionTreeControls.min_depth()}
-                  class="input-sm w-16 text-center"
-                  phx-debounce="250"
-                />
-              </div>
-            </summary>
-            <div class="collapse-content flex flex-wrap gap-2">
+          <.collapsible id="apps" phx-click="toggle-apps-open" open={@open?} class="flex-1">
+            <:label>
+              <h2 class="text-base-content ml-2 text-center text-sm font-semibold leading-8">
+                Applications
+              </h2>
+            </:label>
+            <div class="flex flex-wrap gap-2 py-4">
               <%= if @available_apps == [] do %>
                 <span class="text-base-content/50 text-sm italic">No applications available</span>
               <% else %>
@@ -95,7 +88,22 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                 <% end %>
               <% end %>
             </div>
-          </details>
+          </.collapsible>
+          <div class="flex items-start gap-2">
+            <label class="label text-base-content/60 text-xs leading-8" for={@form[:depth].id}>
+              Depth
+            </label>
+            <div class="w-20">
+              <.input
+                field={@form[:depth]}
+                type="number"
+                step="1"
+                min={SupervisionTreeControls.min_depth()}
+                class="input-sm text-center"
+                phx-debounce="250"
+              />
+            </div>
+          </div>
         </.form>
       </div>
     </div>
@@ -130,7 +138,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
     <div class="flex-1 overflow-auto">
       <%= cond do %>
         <% MapSet.size(@selected_apps) == 0 -> %>
-          <div class="border-base-300 flex h-full flex-col items-center justify-center gap-3 rounded-lg border border-dashed text-center">
+          <div class="border-base-300 flex h-full flex-col items-center justify-center gap-3 rounded-lg text-center">
             <.icon name="icon-network" class="size-10 text-base-content/30" />
             <div>
               <p class="text-base-content/60 font-medium">No applications selected</p>
@@ -140,7 +148,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
             </div>
           </div>
         <% @status == :idle -> %>
-          <div class="border-base-300 flex h-full flex-col items-center justify-center gap-3 rounded-lg border border-dashed text-center">
+          <div class="border-base-300 flex h-full flex-col items-center justify-center gap-3 rounded-lg text-center">
             <.icon name="icon-network" class="size-10 text-base-content/30" />
             <div>
               <p class="text-base-content/60 font-medium">Waiting…</p>
@@ -151,7 +159,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
             id="supervision-tree-body"
             phx-hook="SupervisionTree"
             phx-update="ignore"
-            class="bg-base-100 relative h-full overflow-hidden rounded-lg shadow-sm"
+            class="bg-base-100 relative h-full overflow-hidden rounded-lg"
           >
             <div
               data-cy-container
@@ -159,6 +167,71 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
             >
             </div>
             <div data-cy-overlays class="pointer-events-none absolute inset-0"></div>
+            <div class="absolute right-2 bottom-2 left-2 flex items-end justify-between">
+              <div class="card bg-base-100 border-base-300 border">
+                <div class="card-body font-mono text-base-content/80 flex-row flex-wrap gap-4 px-4 py-3 text-xs">
+                  <div>
+                    <.icon name="icon-diamond" class="size-4 text-primary" /> App
+                  </div>
+                  <div>
+                    <.icon name="icon-square" class="size-4 text-primary" /> Supervisor
+                  </div>
+                  <div>
+                    <.icon name="icon-circle" class="size-4 text-secondary" /> Worker
+                  </div>
+                  <div>
+                    <.icon name="icon-triangle" class="size-4 text-port" /> Port
+                  </div>
+                  <div>
+                    <.icon name="icon-square" class="size-4 text-success" /> Reference
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <div class="border-base-500 w-4 border-b" /> Supervision link
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <div class="border-base-400 w-4 border-b border-dashed" /> Link
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <div class="border-process-monitor w-4 border-b border-dashed" /> Monitor
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <div class="border-process-monitored-by w-4 border-b border-dashed" />
+                    Monitored by
+                  </div>
+                </div>
+              </div>
+              <div class="card bg-base-100 border-base-300 m-2 border shadow-md">
+                <div class="card-body p-1">
+                  <button
+                    type="button"
+                    phx-click={JS.dispatch("zoom-in", to: "#supervision-tree-body")}
+                    title="Zoom graph in"
+                    aria-label="Zoom graph in"
+                    class="h-8 w-8 cursor-pointer hover:bg-base-300"
+                  >
+                    <.icon name="icon-plus" class="size-5" />
+                  </button>
+                  <button
+                    type="button"
+                    phx-click={JS.dispatch("zoom-out", to: "#supervision-tree-body")}
+                    title="Zoom graph out"
+                    aria-label="Zoom graph out"
+                    class="h-8 w-8 cursor-pointer hover:bg-base-300"
+                  >
+                    <.icon name="icon-minus" class="size-5" />
+                  </button>
+                  <button
+                    type="button"
+                    phx-click={JS.dispatch("maximize", to: "#supervision-tree-body")}
+                    title="Fit graph to view"
+                    aria-label="Fit graph to view"
+                    class="h-8 w-8 cursor-pointer hover:bg-base-300"
+                  >
+                    <.icon name="icon-maximize" class="size-5" />
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
       <% end %>
     </div>

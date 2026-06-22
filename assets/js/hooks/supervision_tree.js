@@ -13,7 +13,7 @@ import {
   composeLabel,
   edgeId,
   isRealPid,
-  nodeIntersectsExtent,
+  overlayButtonIntersectsExtent,
 } from './supervision_tree/elements';
 
 /**
@@ -76,6 +76,11 @@ const SupervisionTree = {
 
     this.handleEvent('tree-data', (p) => this.applyPayload(p));
     this.handleEvent('path-highlight', (p) => this.applyHighlight(p));
+    this.el.addEventListener('zoom-in', () => this.zoomBy(1.2));
+    this.el.addEventListener('zoom-out', () => this.zoomBy(0.8));
+    this.el.addEventListener('maximize', () =>
+      this.scheduleLayout({ fit: true })
+    );
 
     this.themeObserver = new MutationObserver(() => this.refreshTokens());
     this.themeObserver.observe(document.documentElement, {
@@ -229,11 +234,11 @@ const SupervisionTree = {
       edgeSep: 8,
       rankSep: 180,
       spacingFactor: 1.3,
-      animate: !fit,
+      animate: true,
       animationDuration: 280,
       animationEasing: 'ease-out',
       fit,
-      padding: 24,
+      padding: 45,
       nodeDimensionsIncludeLabels: true,
     });
 
@@ -247,11 +252,11 @@ const SupervisionTree = {
     layout.run();
   },
 
-  scheduleLayout() {
+  scheduleLayout({ fit = false } = {}) {
     if (this.layoutTimer) clearTimeout(this.layoutTimer);
     this.layoutTimer = setTimeout(() => {
       this.layoutTimer = null;
-      this.runLayout({ fit: false });
+      this.runLayout({ fit });
       this.scheduleOverlayReconcile();
     }, LAYOUT_DEBOUNCE_MS);
   },
@@ -298,7 +303,7 @@ const SupervisionTree = {
 
     if (!tooSmall) {
       this.cy.nodes('[child_count > 0]').forEach((node) => {
-        if (nodeIntersectsExtent(node, extent)) {
+        if (overlayButtonIntersectsExtent(node, extent, this.cy.zoom())) {
           wanted.add(node.id());
         }
       });
@@ -409,6 +414,21 @@ const SupervisionTree = {
     });
 
     this.scheduleLayout();
+  },
+
+  zoomBy(factor) {
+    const { x1, x2, y1, y2 } = this.cy.extent();
+    const x = (x1 + x2) / 2;
+    const y = (y1 + y2) / 2;
+
+    this.cy.animate({
+      zoom: {
+        level: this.cy.zoom() * factor,
+        position: { x, y },
+      },
+      duration: 200,
+      queue: false,
+    });
   },
 
   readTokens() {
