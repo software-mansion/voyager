@@ -68,7 +68,8 @@ defmodule Voyager.MixProject do
       {:live_debugger, "~> 1.0", only: [:dev]},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
-      {:tailwind_formatter, "~> 0.4.2", only: [:dev, :test], runtime: false}
+      {:tailwind_formatter, "~> 0.4.2", only: [:dev, :test], runtime: false},
+      {:toml_elixir, "~> 3.0.0", only: [:dev, :test], runtime: false}
     ]
   end
 
@@ -121,6 +122,7 @@ defmodule Voyager.MixProject do
         "format",
         "format.e2e",
         "tauri.format",
+        "tauri.check_version",
         "test",
         "tauri.test"
       ]
