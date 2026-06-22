@@ -22,6 +22,7 @@ defmodule Voyager.Services.NodeInfo.SystemInfo do
           async_threads: non_neg_integer()
         }
 
+  @derive JSON.Encoder
   defstruct [
     :otp_release,
     :erts_version,

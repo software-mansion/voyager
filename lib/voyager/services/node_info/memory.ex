@@ -18,6 +18,7 @@ defmodule Voyager.Services.NodeInfo.Memory do
           other: non_neg_integer()
         }
 
+  @derive JSON.Encoder
   defstruct [
     :total,
     :processes_allocated,
