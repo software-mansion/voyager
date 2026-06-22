@@ -5,7 +5,7 @@ defmodule Voyager.MCP.Server do
 
   use Anubis.Server,
     name: "Voyager",
-    version: "0.1.0",
+    version: Voyager.version(),
     capabilities: [:tools]
 
   component(Voyager.MCP.Tools.NodeInfo)
