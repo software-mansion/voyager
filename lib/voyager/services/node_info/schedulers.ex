@@ -37,6 +37,7 @@ defmodule Voyager.Services.NodeInfo.Schedulers do
           dirty_io: non_neg_integer()
         }
 
+  @derive JSON.Encoder
   defstruct [
     :total,
     :online,

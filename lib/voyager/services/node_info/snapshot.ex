@@ -25,6 +25,7 @@ defmodule Voyager.Services.NodeInfo.Snapshot do
           run_queues: RunQueues.t()
         }
 
+  @derive JSON.Encoder
   defstruct [
     :node,
     :collected_at,

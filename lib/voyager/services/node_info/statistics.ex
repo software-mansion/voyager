@@ -17,6 +17,7 @@ defmodule Voyager.Services.NodeInfo.Statistics do
           total_reductions: non_neg_integer()
         }
 
+  @derive JSON.Encoder
   defstruct [
     :uptime_ms,
     :io_input_bytes,

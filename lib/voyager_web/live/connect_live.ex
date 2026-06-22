@@ -25,17 +25,17 @@ defmodule VoyagerWeb.ConnectLive do
   def render(assigns) do
     ~H"""
     <div class="bg-base-200 flex h-full items-center justify-center p-4">
-      <div class="card bg-base-100 max-w-[480px] w-full shadow-xl">
+      <div class="card bg-base-100 w-full max-w-lg shadow-xl">
         <div class="card-body gap-0 p-10">
           <div class="mb-7 flex items-center gap-3">
             <.logo />
-            <div class="text-[17px] text-base-content font-semibold tracking-tight">Voyager</div>
+            <div class="text-base-content text-lg font-semibold tracking-tight">Voyager</div>
           </div>
           <div class="mb-6">
-            <h1 class="text-[22px] text-base-content font-semibold tracking-tight">
+            <h1 class="text-base-content text-2xl font-semibold tracking-tight">
               Connect to a node
             </h1>
-            <p class="text-[13.5px] text-base-content/60 mt-1">
+            <p class="text-base-content/60 mt-1 text-sm">
               Enter the node name and Erlang cookie to inspect a local or remote BEAM.
             </p>
           </div>
@@ -50,7 +50,7 @@ defmodule VoyagerWeb.ConnectLive do
 
           <%= if @has_pinned do %>
             <div class="border-base-300 mt-7 border-t pt-5">
-              <p class="font-mono text-[10.5px] tracking-[0.08em] text-base-content/50 mb-2.5 uppercase">
+              <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
                 Favourites
               </p>
               <ul id="pinned-connections" phx-update="stream" class="-mx-2 flex flex-col gap-0.5">
@@ -63,7 +63,7 @@ defmodule VoyagerWeb.ConnectLive do
 
           <%= if @has_recent do %>
             <div class={["border-base-300 border-t pt-5", if(@has_pinned, do: "mt-3", else: "mt-7")]}>
-              <p class="font-mono text-[10.5px] tracking-[0.08em] text-base-content/50 mb-2.5 uppercase">
+              <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
                 Recent connections
               </p>
               <ul id="recent-connections" phx-update="stream" class="-mx-2 flex flex-col gap-0.5">
@@ -74,7 +74,7 @@ defmodule VoyagerWeb.ConnectLive do
             </div>
           <% end %>
 
-          <p class="font-mono text-[10.5px] tracking-[0.02em] text-base-content/35 mt-6 text-center">
+          <p class="font-mono tracking-snug text-base-content/35 mt-6 text-center text-xs">
             Uses BEAM distribution
           </p>
         </div>
@@ -101,19 +101,17 @@ defmodule VoyagerWeb.ConnectLive do
             {:noreply, reset_connections(socket)}
 
           conn ->
-            current_name_type = socket.assigns.form[:name_type].value || :longnames
-
             changeset =
               ConnectionParams.changeset(%{
                 "node_name" => conn.node_name,
                 "cookie" => conn.cookie || "",
-                "name_type" => current_name_type
+                "name_type" => conn.name_type
               })
 
             {:noreply,
              socket
              |> assign(:form, to_form(changeset, as: :conn))
-             |> assign(:show_cookie, not is_nil(conn.cookie))}
+             |> assign(:show_cookie, false)}
         end
 
       _ ->
@@ -163,7 +161,12 @@ defmodule VoyagerWeb.ConnectLive do
     case NodeSession.connect(node_name, cookie, name_type: name_type) do
       :ok ->
         cookie_to_store = if remember_cookie, do: cookie, else: nil
-        ConnectionActions.upsert_connected(node_name, cookie: cookie_to_store)
+
+        ConnectionActions.upsert_connected(node_name,
+          cookie: cookie_to_store,
+          name_type: name_type
+        )
+
         {:noreply, redirect(socket, to: ~p"/node/#{node_name}")}
 
       {:error, reason} ->

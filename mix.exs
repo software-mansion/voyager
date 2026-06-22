@@ -44,6 +44,7 @@ defmodule Voyager.MixProject do
 
   defp deps do
     [
+      {:anubis_mcp, "~> 1.6"},
       {:bandit, "~> 1.5"},
       {:cloak, "~> 1.1"},
       {:cloak_ecto, "~> 1.3"},

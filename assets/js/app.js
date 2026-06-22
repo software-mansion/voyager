@@ -25,14 +25,58 @@ import { LiveSocket } from 'phoenix_live_view';
 import { hooks as colocatedHooks } from 'phoenix-colocated/voyager';
 import topbar from '../vendor/topbar';
 import SupervisionTree from './hooks/supervision_tree';
+import Tooltip from './hooks/tooltip';
 
 const csrfToken = document
   .querySelector("meta[name='csrf-token']")
   .getAttribute('content');
 const liveSocket = new LiveSocket('/live', Socket, {
   params: { _csrf_token: csrfToken },
-  hooks: { SupervisionTree, ...colocatedHooks },
+  hooks: { SupervisionTree, Tooltip, ...colocatedHooks },
 });
+
+// Inside the Tauri webview, `target="_blank"` links do nothing because there is
+// no browser to open a new tab. Intercept them and hand the URL to the Tauri
+// opener plugin so they open in the user's default browser instead.
+//
+// We call the plugin command through `__TAURI_INTERNALS__.invoke`, which Tauri
+// always injects into every webview, rather than `window.__TAURI__.opener`,
+// which only exists when the opener guest JS bindings have been injected.
+// See https://v2.tauri.app/reference/javascript/opener/
+if (window.__TAURI_INTERNALS__) {
+  document.addEventListener(
+    'click',
+    (e) => {
+      if (
+        e.defaultPrevented ||
+        e.button !== 0 ||
+        e.metaKey ||
+        e.altKey ||
+        e.ctrlKey ||
+        e.shiftKey
+      ) {
+        return;
+      }
+
+      const target = e.target;
+      if (!(target instanceof Element)) return;
+
+      const link = target.closest('a[target="_blank"]');
+      if (!link?.href) return;
+
+      const url = new URL(link.href);
+      if (!['http:', 'https:', 'mailto:', 'tel:'].includes(url.protocol)) {
+        return;
+      }
+
+      e.preventDefault();
+      window.__TAURI_INTERNALS__.invoke('plugin:opener|open_url', {
+        url: url.href,
+      });
+    },
+    true
+  );
+}
 
 // Show progress bar on live navigation and form submits
 topbar.config({ barColors: { 0: '#29d' }, shadowColor: 'rgba(0, 0, 0, .3)' });

@@ -9,9 +9,6 @@ defmodule Voyager.Services.NodeInfo.SystemInfo do
     :system_version,
     :system_architecture,
     {:wordsize, :internal},
-    {:wordsize, :external},
-    :smp_support,
-    :threads,
     :thread_pool_size
   ]
 
@@ -21,23 +18,18 @@ defmodule Voyager.Services.NodeInfo.SystemInfo do
           stdlib_version: String.t() | nil,
           system_version: String.t(),
           system_architecture: String.t(),
-          wordsize_internal: pos_integer(),
-          wordsize_external: pos_integer(),
-          smp_support?: boolean(),
-          thread_support?: boolean(),
+          wordsize: pos_integer(),
           async_threads: non_neg_integer()
         }
 
+  @derive JSON.Encoder
   defstruct [
     :otp_release,
     :erts_version,
     :stdlib_version,
     :system_version,
     :system_architecture,
-    :wordsize_internal,
-    :wordsize_external,
-    :smp_support?,
-    :thread_support?,
+    :wordsize,
     :async_threads
   ]
 
@@ -54,10 +46,7 @@ defmodule Voyager.Services.NodeInfo.SystemInfo do
       stdlib_version: parse_vsn(stdlib_vsn),
       system_version: system_info |> Map.fetch!(:system_version) |> to_string() |> String.trim(),
       system_architecture: system_info |> Map.fetch!(:system_architecture) |> to_string(),
-      wordsize_internal: Map.fetch!(system_info, {:wordsize, :internal}),
-      wordsize_external: Map.fetch!(system_info, {:wordsize, :external}),
-      smp_support?: Map.fetch!(system_info, :smp_support),
-      thread_support?: Map.fetch!(system_info, :threads),
+      wordsize: Map.fetch!(system_info, {:wordsize, :internal}),
       async_threads: Map.fetch!(system_info, :thread_pool_size)
     }
   end

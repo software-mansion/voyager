@@ -1,0 +1,41 @@
+/* Portaled tooltip popover. Lives in #tooltip-portal-root (teleported via
+   <.portal>) so it escapes modal/overflow/stacking contexts. Visibility is
+   toggled by the Tooltip JS hook through the `is-open` class.
+
+   A class (not a data-* attribute) is used on purpose: the popover sits in a
+   `phx-update="ignore"` portal, and LiveView still re-syncs `data-*` attributes
+   on ignored elements, which would clobber visibility on every patch. Non-data
+   attributes/classes are preserved under `ignore`. */
+.tooltip-pop {
+  position: fixed;
+  /* Above DaisyUI modals/drawers. */
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(2px);
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease,
+    visibility 150ms ease;
+}
+
+.tooltip-pop.is-open {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+/* Only interactive tooltips capture the pointer, so the cursor can reach links
+   inside the tip. Plain tooltips stay click-through. */
+.tooltip-pop.is-interactive.is-open {
+  pointer-events: auto;
+}
+
+/* Pinned (click-opened) tip: a primary-colored ring signals it stays put until
+   dismissed. Toggled by the Tooltip JS hook via the `is-pinned` class. The tip
+   uses a `base-100` background, so `primary` reads as a distinct border in both
+   themes. */
+.tooltip-pop.is-pinned {
+  --tw-ring-color: var(--color-primary);
+}
