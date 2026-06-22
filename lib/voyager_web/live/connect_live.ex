@@ -101,13 +101,11 @@ defmodule VoyagerWeb.ConnectLive do
             {:noreply, reset_connections(socket)}
 
           conn ->
-            current_name_type = socket.assigns.form[:name_type].value || :longnames
-
             changeset =
               ConnectionParams.changeset(%{
                 "node_name" => conn.node_name,
                 "cookie" => conn.cookie || "",
-                "name_type" => current_name_type
+                "name_type" => conn.name_type
               })
 
             {:noreply,
@@ -163,7 +161,12 @@ defmodule VoyagerWeb.ConnectLive do
     case NodeSession.connect(node_name, cookie, name_type: name_type) do
       :ok ->
         cookie_to_store = if remember_cookie, do: cookie, else: nil
-        ConnectionActions.upsert_connected(node_name, cookie: cookie_to_store)
+
+        ConnectionActions.upsert_connected(node_name,
+          cookie: cookie_to_store,
+          name_type: name_type
+        )
+
         {:noreply, redirect(socket, to: ~p"/node/#{node_name}")}
 
       {:error, reason} ->

@@ -16,6 +16,10 @@ import {
   overlayButtonIntersectsExtent,
 } from './supervision_tree/elements';
 
+/**
+ * @import {ServerNode, Info} from './supervision_tree/elements.js'
+ */
+
 cytoscape.use(dagre);
 
 const SupervisionTree = {
@@ -54,13 +58,11 @@ const SupervisionTree = {
         this.pushEventTo(this.el, 'select-node', { key: '' });
     });
 
-    // Change the cursor to a pointer when hovering over a node
     this.cy.on('mouseover', 'node', function (event) {
       event.target.addClass('hover');
       event.cy.container().style.cursor = 'pointer';
     });
 
-    // Revert the cursor to default when the mouse leaves the node
     this.cy.on('mouseout', 'node', function (event) {
       event.target.removeClass('hover');
       event.cy.container().style.cursor = '';
@@ -101,6 +103,26 @@ const SupervisionTree = {
   // Payload application
   // ---------------------------------------------------------------------------
 
+  /**
+   * @typedef {Object} FullPayload
+   * @property {'full'} kind
+   * @property {Record<string, ServerNode>} nodes
+
+   * @typedef {Object} Patch
+   * @property {string} name
+   * @property {'app'|'supervisor'|'worker'} type
+   * @property {number} child_count
+   * @property {Info|'dead'|null} info
+   * @property {string[]|'not_loaded'} children_keys
+   *
+   * @typedef {Object} DeltaPayload
+   * @property {'delta'} kind
+   * @property {Record<string, ServerNode>} added
+   * @property {string[]} removed
+   * @property {Record<string, Patch>} updated
+   *
+   * @param {FullPayload|DeltaPayload} payload
+   */
   applyPayload(payload) {
     if (!payload) return;
 
@@ -111,6 +133,9 @@ const SupervisionTree = {
     }
   },
 
+  /**
+   * @param {FullPayload} payload
+   */
   applyFull(payload) {
     const incoming = payload.nodes || {};
 
@@ -129,6 +154,9 @@ const SupervisionTree = {
     this.scheduleOverlayReconcile();
   },
 
+  /**
+   * @param {DeltaPayload} payload
+   */
   applyDelta(payload) {
     const removed = payload.removed || [];
     const added = payload.added || {};
@@ -161,7 +189,6 @@ const SupervisionTree = {
 
         for (const [field, value] of Object.entries(patch)) {
           if (field === 'parent_key') {
-            // edge re-parent
             node.connectedEdges('[target = "' + key + '"]').remove();
             if (value) {
               this.cy.add({
@@ -177,12 +204,10 @@ const SupervisionTree = {
           if (TOPOLOGY_FIELDS.has(field)) topologyChanged = true;
         }
 
-        // Rebuild displayLabel if name or child_count moved.
         if (patch.name !== undefined || patch.child_count !== undefined) {
           node.data('displayLabel', composeLabel(node.data()));
         }
 
-        // Dead state.
         if (patch.info !== undefined) {
           node.data('dead', patch.info === 'dead');
         }
@@ -256,48 +281,6 @@ const SupervisionTree = {
     });
   },
 
-  toggleExpandNode(node) {
-    this.disabledClick = true;
-    if (isRealPid(node.id())) {
-      this.pushEventTo(this.el, 'toggle-expand', { pid: node.id() });
-    }
-
-    this.cy.batch(() => {
-      if (this.isCollapsed(node)) {
-        node.data('is_collapsed', false);
-        node.successors().forEach((ele) => {
-          const hidden_count = ele.data('hidden_count') ?? 0;
-          ele.data('hidden_count', Math.max(hidden_count - 1, 0));
-        });
-        node.successors('[hidden_count = 0]').removeClass('hidden');
-      } else {
-        node.data('is_collapsed', true);
-        node.successors().forEach((ele) => {
-          const hidden_count = ele.data('hidden_count') ?? 0;
-          ele.data('hidden_count', hidden_count + 1);
-        });
-        node.successors().addClass('hidden');
-      }
-    });
-
-    this.scheduleLayout();
-  },
-
-  zoomBy(factor) {
-    const { x1, x2, y1, y2 } = this.cy.extent();
-    const x = (x1 + x2) / 2;
-    const y = (y1 + y2) / 2;
-
-    this.cy.animate({
-      zoom: {
-        level: this.cy.zoom() * factor,
-        position: { x, y },
-      },
-      duration: 200,
-      queue: false,
-    });
-  },
-
   // ---------------------------------------------------------------------------
   // Overlays
   // ---------------------------------------------------------------------------
@@ -319,7 +302,7 @@ const SupervisionTree = {
     const wanted = new Set();
 
     if (!tooSmall) {
-      this.cy.nodes('[?has_children]').forEach((node) => {
+      this.cy.nodes('[child_count > 0]').forEach((node) => {
         if (overlayButtonIntersectsExtent(node, extent, this.cy.zoom())) {
           wanted.add(node.id());
         }
@@ -401,6 +384,51 @@ const SupervisionTree = {
 
   isCollapsed(node) {
     return node.data('is_collapsed');
+  },
+
+  toggleExpandNode(node) {
+    if (node.data('child_count') == 0) return;
+
+    this.disabledClick = true;
+
+    if (isRealPid(node.id())) {
+      this.pushEventTo(this.el, 'toggle-expand', { pid: node.id() });
+    }
+
+    this.cy.batch(() => {
+      if (this.isCollapsed(node)) {
+        node.data('is_collapsed', false);
+        node.successors().forEach((ele) => {
+          const hidden_count = ele.data('hidden_count') ?? 0;
+          ele.data('hidden_count', Math.max(hidden_count - 1, 0));
+        });
+        node.successors('[hidden_count = 0]').removeClass('hidden');
+      } else {
+        node.data('is_collapsed', true);
+        node.successors().forEach((ele) => {
+          const hidden_count = ele.data('hidden_count') ?? 0;
+          ele.data('hidden_count', hidden_count + 1);
+        });
+        node.successors().addClass('hidden');
+      }
+    });
+
+    this.scheduleLayout();
+  },
+
+  zoomBy(factor) {
+    const { x1, x2, y1, y2 } = this.cy.extent();
+    const x = (x1 + x2) / 2;
+    const y = (y1 + y2) / 2;
+
+    this.cy.animate({
+      zoom: {
+        level: this.cy.zoom() * factor,
+        position: { x, y },
+      },
+      duration: 200,
+      queue: false,
+    });
   },
 
   readTokens() {

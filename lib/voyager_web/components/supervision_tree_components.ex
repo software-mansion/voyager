@@ -117,9 +117,9 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
     <%= if @errors != [] do %>
       <div id="supervision-tree-errors" class="alert alert-error">
         <.icon name="icon-circle-alert" class="size-4 shrink-0" />
-        <div>
+        <div class="w-full">
           <p class="font-semibold">Errors encountered</p>
-          <ul class="mt-1 list-inside list-disc text-sm">
+          <ul class="max-h-[10vh] mt-1 w-full list-inside list-disc overflow-auto text-sm">
             <%= for err <- @errors do %>
               <li>{inspect(err)}</li>
             <% end %>

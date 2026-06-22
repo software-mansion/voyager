@@ -465,7 +465,9 @@ defmodule VoyagerWeb.CoreComponents do
         />
         {render_slot(@label, @open)}
       </button>
-      {if(@open, do: render_slot(@inner_block))}
+      <div class={if not @open, do: "hidden"}>
+        {render_slot(@inner_block)}
+      </div>
     </div>
     """
   end
