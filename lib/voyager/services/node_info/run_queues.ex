@@ -30,6 +30,7 @@ defmodule Voyager.Services.NodeInfo.RunQueues do
           dirty_io: non_neg_integer()
         }
 
+  @derive JSON.Encoder
   defstruct [:total, :normal_and_dirty_cpu, :dirty_io]
 
   @spec statistics_keys() :: [atom()]

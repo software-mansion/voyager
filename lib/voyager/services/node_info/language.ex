@@ -19,6 +19,7 @@ defmodule Voyager.Services.NodeInfo.Language do
           version: String.t()
         }
 
+  @derive JSON.Encoder
   defstruct [:name, :version]
 
   @spec candidate_apps() :: [atom()]

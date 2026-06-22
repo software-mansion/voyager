@@ -45,7 +45,7 @@ defmodule VoyagerWeb.NodeInfoLive do
     <div class="mx-auto max-w-screen-2xl p-6 sm:p-8">
       <.node_header node_name={@session.node_name} last_updated={@last_updated}>
         <:actions>
-          <label class="font-mono text-base-content/50 text-xs uppercase tracking-wider">
+          <label class="font-mono text-base-content/50 tracking-label text-xs uppercase">
             Auto-refresh
           </label>
           <form phx-change="set_interval" id="refresh-interval-form">
