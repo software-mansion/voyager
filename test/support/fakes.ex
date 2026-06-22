@@ -50,10 +50,7 @@ defmodule Voyager.Fakes do
     erts_version: "15.2",
     system_version: "Erlang/OTP 27 [erts-15.2]",
     system_architecture: "aarch64-apple-darwin23",
-    wordsize_internal: 8,
-    wordsize_external: 8,
-    smp_support: true,
-    thread_support: true,
+    wordsize: 8,
     async_threads: 1,
     # Limits
     atom_count: 12_345,
@@ -124,10 +121,7 @@ defmodule Voyager.Fakes do
   defp system_value(:version, d), do: to_charlist(d.erts_version)
   defp system_value(:system_version, d), do: to_charlist(d.system_version)
   defp system_value(:system_architecture, d), do: to_charlist(d.system_architecture)
-  defp system_value({:wordsize, :internal}, d), do: d.wordsize_internal
-  defp system_value({:wordsize, :external}, d), do: d.wordsize_external
-  defp system_value(:smp_support, d), do: d.smp_support
-  defp system_value(:threads, d), do: d.thread_support
+  defp system_value({:wordsize, :internal}, d), do: d.wordsize
   defp system_value(:thread_pool_size, d), do: d.async_threads
   defp system_value(:atom_count, d), do: d.atom_count
   defp system_value(:atom_limit, d), do: d.atom_limit

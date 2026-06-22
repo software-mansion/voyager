@@ -92,13 +92,6 @@ defmodule VoyagerWeb.FormattersTest do
     end
   end
 
-  describe "format_bool/1" do
-    test "maps booleans to enabled/disabled" do
-      assert Formatters.format_bool(true) == "enabled"
-      assert Formatters.format_bool(false) == "disabled"
-    end
-  end
-
   describe "format_time/1" do
     test "renders an HH:MM:SS clock string" do
       {:ok, dt, 0} = DateTime.from_iso8601("2026-06-02T09:08:07Z")
