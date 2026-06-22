@@ -65,7 +65,7 @@ defmodule Voyager.SettingsTest do
       assert {:ok, _} = Settings.put(:mcp_port, 5050)
       assert {:ok, _} = Settings.put(:mcp_ip, {127, 0, 0, 1})
 
-      assert Settings.all() == %{mcp_port: 5050, mcp_ip: {127, 0, 0, 1}}
+      assert Settings.all() == %{"mcp_port" => 5050, "mcp_ip" => {127, 0, 0, 1}}
     end
   end
 end

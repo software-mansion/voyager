@@ -88,11 +88,11 @@ defmodule Voyager.Settings do
     match?({:ok, _}, Application.fetch_env(:voyager, key))
   end
 
-  @doc "Returns all persisted settings as a map of `atom key => decoded value`."
-  @spec all() :: %{atom() => term()}
+  @doc "Returns all persisted settings as a map of string key => decoded value."
+  @spec all() :: %{String.t() => term()}
   def all do
     Repo.all(from s in Setting, select: {s.key, s.value})
-    |> Map.new(fn {key, encoded} -> {String.to_existing_atom(key), decode(encoded)} end)
+    |> Map.new(fn {key, encoded} -> {key, decode(encoded)} end)
   end
 
   defp db_get(key) do
