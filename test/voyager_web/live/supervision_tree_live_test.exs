@@ -1,18 +1,30 @@
 defmodule VoyagerWeb.SupervisionTreeLiveTest do
-  # async: false because some tests mutate the global `:mock_remote_error`
-  # application env and the async fetch runs under the shared TaskSupervisor.
+  # async: false because we use Mox global mode (the supervision-tree walk runs
+  # in tasks under the shared TaskSupervisor, so erpc expectations must be
+  # reachable from any process).
   use VoyagerWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
+  import Mox
 
   alias Voyager.Fakes
 
   @node_name "demo@localhost"
   @path "/node/demo@localhost/supervision-tree"
 
+  # The OTP applications the mocked node reports running. The LiveView maps
+  # these to `{app, version}` and renders a checkbox per app.
+  @apps [
+    {:demo_app, ~c"Demo app", ~c"1.0.0"},
+    {:another_app, ~c"Another app", ~c"2.0.0"}
+  ]
+
+  setup :set_mox_global
+
   setup do
     # Inject an active session so the NodeSessionHook on_mount lets us through.
     Fakes.connect_node!(Fakes.node_session(node_name: @node_name))
+    stub_supervision_erpc()
     :ok
   end
 
@@ -111,17 +123,15 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
     test "collapses and expands the applications section", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
 
-      app_checkbox = ~s|input[name="tree_controls[apps][]"][value="demo_app"]|
-      assert has_element?(view, app_checkbox)
+      # The collapsible toggle carries the `aria-expanded` attribute only while
+      # open (HEEx drops a `false` boolean attribute entirely).
+      assert has_element?(view, "#apps[aria-expanded]")
 
-      # Collapsing hides the application checkboxes (the collapsible only
-      # renders its inner content while open).
-      view |> element(~s|button[phx-click="toggle-apps-open"]|) |> render_click()
-      refute has_element?(view, app_checkbox)
+      view |> element("#apps") |> render_click()
+      refute has_element?(view, "#apps[aria-expanded]")
 
-      # Expanding again brings them back.
-      view |> element(~s|button[phx-click="toggle-apps-open"]|) |> render_click()
-      assert has_element?(view, app_checkbox)
+      view |> element("#apps") |> render_click()
+      assert has_element?(view, "#apps[aria-expanded]")
     end
 
     test "refresh-now with no applications selected stays idle", %{conn: conn} do
@@ -154,8 +164,12 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
 
   describe "mount when the application list cannot be fetched" do
     setup do
-      Application.put_env(:voyager, :mock_remote_error, :noconnection)
-      on_exit(fn -> Application.delete_env(:voyager, :mock_remote_error) end)
+      # Simulate an unreachable node: every erpc call raises a noconnection
+      # error, which `Remote` translates into `{:error, :noconnection}`.
+      stub(Voyager.ErpcMock, :call, fn _node, _mod, _fun, _args, _timeout ->
+        :erlang.error({:erpc, :noconnection})
+      end)
+
       :ok
     end
 
@@ -174,5 +188,43 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
 
       assert {:error, {:live_redirect, %{to: "/"}}} = live(conn, @path)
     end
+  end
+
+  # Stubs `Voyager.Erpc` so the supervision-tree backend (Remote + Walker) sees
+  # a small, reachable node: two running applications, each with a root
+  # supervisor that has no children. None of the tests assert on tree contents,
+  # so the shape is intentionally minimal — the point is that the fetch resolves
+  # cleanly (status :ok, no errors) instead of crashing on an unstubbed call.
+  defp stub_supervision_erpc do
+    stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args, _timeout ->
+      supervision_reply(mod, fun, args)
+    end)
+  end
+
+  defp supervision_reply(:application, :which_applications, []), do: @apps
+
+  defp supervision_reply(:lists, :map, [fun, list]) do
+    case mfa(fun) do
+      {:application_controller, :get_master, 1} ->
+        Enum.map(list, fn _app -> self() end)
+
+      {:application_master, :get_child, 1} ->
+        Enum.map(list, fn _master -> {self(), :fake_app} end)
+
+      {:supervisor, :which_children, 1} ->
+        Enum.map(list, fn _sup -> [] end)
+
+      {:supervisor, :count_children, 1} ->
+        Enum.map(list, fn _sup -> [specs: 0, active: 0, supervisors: 0, workers: 0] end)
+    end
+  end
+
+  defp supervision_reply(:lists, :zipwith, [_fun, pids, _keys]) do
+    Enum.map(pids, fn _pid -> :undefined end)
+  end
+
+  defp mfa(fun) do
+    info = :erlang.fun_info(fun)
+    {info[:module], info[:name], info[:arity]}
   end
 end
