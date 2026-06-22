@@ -13,7 +13,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
 
   def header(assigns) do
     ~H"""
-    <div class="mx-auto w-full max-w-screen-2xl">
+    <div class="mx-auto w-full">
       <.node_header
         node_name={@node_name}
         last_updated={@last_updated}
