@@ -24,10 +24,15 @@ defmodule VoyagerWeb.FormSchemas.SupervisionTreeControlsTest do
     test "validates depth is >= 2" do
       changeset = SupervisionTreeControls.changeset(%{"depth" => 1}, @available_apps)
       refute changeset.valid?
-      assert "must be greater than or equal to 2" in errors_on(changeset).depth
+      assert "min 2" in errors_on(changeset).depth
 
       changeset = SupervisionTreeControls.changeset(%{"depth" => 2}, @available_apps)
       assert changeset.valid?
+    end
+
+    test "validates depth is a number" do
+      changeset = SupervisionTreeControls.changeset(%{"depth" => "abc"}, @available_apps)
+      refute changeset.valid?
     end
   end
 

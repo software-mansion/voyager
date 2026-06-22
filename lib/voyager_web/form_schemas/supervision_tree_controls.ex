@@ -37,7 +37,8 @@ defmodule VoyagerWeb.FormSchemas.SupervisionTreeControls do
     |> cast(attrs, [:apps, :depth])
     |> update_change(:apps, &filter_known(&1, available_apps))
     |> validate_number(:depth,
-      greater_than_or_equal_to: @min_depth
+      greater_than_or_equal_to: @min_depth,
+      message: "min #{@min_depth}"
     )
   end
 
