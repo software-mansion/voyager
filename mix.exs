@@ -32,8 +32,7 @@ defmodule Voyager.MixProject do
       preferred_envs: [
         precommit: :test,
         e2e: :e2e,
-        "e2e.setup": :e2e,
-        "tauri.build": :prod
+        "e2e.setup": :e2e
       ]
     ]
   end
@@ -67,16 +66,15 @@ defmodule Voyager.MixProject do
       {:live_debugger, "~> 1.0", only: [:dev]},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
-      {:tailwind_formatter, "~> 0.4.2", only: [:dev, :test], runtime: false},
-      {:toml_elixir, "~> 3.0.0", only: [:dev, :test], runtime: false}
+      {:tailwind_formatter, "~> 0.4.2", only: [:dev, :test], runtime: false}
     ]
   end
 
   defp aliases do
     [
       setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
-      format: ["format", "cmd npm --prefix assets run format"],
-      "format.e2e": ["cmd npm --prefix e2e run format"],
+      format: ["format", "cmd npm --prefix assets run format", "tauri.format"],
+      "e2e.format": ["cmd npm --prefix e2e run format"],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
@@ -112,9 +110,9 @@ defmodule Voyager.MixProject do
         "deps.unlock --unused",
         "credo --strict",
         "format",
-        "format.e2e",
+        "e2e.format",
         "tauri.format",
-        "tauri.check_version",
+        tauri_check_version_cmd(),
         "test",
         "tauri.test"
       ]
@@ -138,4 +136,6 @@ defmodule Voyager.MixProject do
 
     "cmd sh -c '#{script}'"
   end
+
+  defp tauri_check_version_cmd, do: "cmd sh dev/tauri_check_version.sh"
 end

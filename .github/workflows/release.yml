@@ -75,6 +75,8 @@ jobs:
           cache-dependency-path: ./assets/package-lock.json
 
       - name: Prepare assets
+        env:
+          MIX_ENV: prod
         shell: bash
         run: |
           mix assets.setup
