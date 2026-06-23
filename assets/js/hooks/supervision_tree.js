@@ -428,21 +428,40 @@ const SupervisionTree = {
       this.pushEventTo(this.el, 'toggle-expand', { pid: node.id() });
     }
 
+    const bumpHiddenCount = (ele, delta) => {
+      const current = ele.data('hidden_count') ?? 0;
+      ele.data('hidden_count', Math.max(current + delta, 0));
+    };
+
     this.cy.batch(() => {
       if (this.isCollapsed(node)) {
+        // Expand: decrement the hidden_count of every successor, then reveal
+        // those no longer hidden by any other collapsed ancestor.
         node.data('is_collapsed', false);
-        node.successors().forEach((ele) => {
-          const hidden_count = ele.data('hidden_count') ?? 0;
-          ele.data('hidden_count', Math.max(hidden_count - 1, 0));
-        });
+        node.successors().forEach((ele) => bumpHiddenCount(ele, -1));
         node.successors('[hidden_count = 0]').removeClass('hidden');
       } else {
+        // Collapse: hide tree successors outright.
         node.data('is_collapsed', true);
-        node.successors().forEach((ele) => {
-          const hidden_count = ele.data('hidden_count') ?? 0;
-          ele.data('hidden_count', hidden_count + 1);
+
+        const treeSuccessors = node.successors('[!is_from_relation]');
+        treeSuccessors.forEach((ele) => bumpHiddenCount(ele, 1));
+        treeSuccessors.addClass('hidden');
+
+        // Hide relation successors only once all of their edges are hidden.
+        node.successors('[?is_from_relation]').forEach((ele) => {
+          const connectedEdges = this.cy
+            .elements('edge[target="' + ele.id() + '"]')
+            .union(this.cy.elements('edge[source="' + ele.id() + '"]'));
+
+          const visibleEdges =
+            connectedEdges.length - connectedEdges.edges('.hidden').length;
+
+          if (visibleEdges == 0) {
+            bumpHiddenCount(ele, 1);
+            ele.addClass('hidden');
+          }
         });
-        node.successors('[!is_from_relation]').addClass('hidden');
       }
     });
 
