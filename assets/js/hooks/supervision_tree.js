@@ -112,7 +112,7 @@ const SupervisionTree = {
    *
    * @typedef {Object} Patch
    * @property {string} name
-   * @property {'app'|'supervisor'|'worker'} type
+   * @property {'app'|'supervisor'|'worker'|'port'|'reference'} type
    * @property {number} child_count
    * @property {Info|'dead'|null} info
    * @property {string[]|'not_loaded'} children_keys
