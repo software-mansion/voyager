@@ -98,7 +98,11 @@ jobs:
 
       - name: Run Tauri tests
         working-directory: ./rel/app/src-tauri
-        run: cargo tauri test
+        run: cargo test
+
+      - name: Run Tauri formatting
+        working-directory: ./rel/app/src-tauri
+        run: cargo fmt --check
 
       - name: Check Tauri version
         working-directory: ./dev
