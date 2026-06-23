@@ -160,15 +160,19 @@ defmodule Voyager.Services.RemoteNodeConnector do
           {:ok, pid, local_port}
 
         {:error, {:tunnel_not_ready, _, stderr}} = err ->
-          if port_collision?(stderr) and attempt < @max_tunnel_attempts do
-            open_tunnel(user, host, ssh_port, auth, node_host, dist_port, attempt + 1)
-          else
-            err
-          end
+          maybe_retry_tunnel(err, stderr, {user, host, ssh_port, auth, node_host, dist_port}, attempt)
 
         {:error, _} = err ->
           err
       end
+    end
+  end
+
+  defp maybe_retry_tunnel(err, stderr, {user, host, ssh_port, auth, node_host, dist_port}, attempt) do
+    if port_collision?(stderr) and attempt < @max_tunnel_attempts do
+      open_tunnel(user, host, ssh_port, auth, node_host, dist_port, attempt + 1)
+    else
+      err
     end
   end
 

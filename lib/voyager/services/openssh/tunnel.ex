@@ -69,7 +69,7 @@ defmodule Voyager.Services.OpenSSH.Tunnel do
 
         {:error, reason} ->
           stderr = drain_messages(port, "")
-          if Port.info(port) != nil, do: Port.close(port)
+          maybe_close_port(port)
           {:error, {:tunnel_not_ready, reason, stderr}}
       end
     end
@@ -99,8 +99,12 @@ defmodule Voyager.Services.OpenSSH.Tunnel do
   def terminate(_reason, %{port: nil}), do: :ok
 
   def terminate(_reason, %{port: port}) do
-    if Port.info(port) != nil, do: Port.close(port)
+    maybe_close_port(port)
     :ok
+  end
+
+  defp maybe_close_port(port) do
+    if Port.info(port) != nil, do: Port.close(port)
   end
 
   defp monitor_owner(%{owner: owner}) when not is_nil(owner), do: Process.monitor(owner)
