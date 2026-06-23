@@ -174,7 +174,7 @@ const SupervisionTree = {
     const edgesAdded = payload.edges_added || {};
     const edgesRemoved = payload.edges_removed || [];
 
-    let topologyChanged = false;
+    let topologyChangeCounter = 0;
 
     this.cy.batch(() => {
       // Removals
@@ -184,15 +184,17 @@ const SupervisionTree = {
           el.connectedEdges().remove();
           el.remove();
           this.tearDownOverlay(key);
-          topologyChanged = true;
+          topologyChangeCounter++;
         }
       }
 
       // Additions
+      const addBatch = [];
       for (const [key, node] of Object.entries(added)) {
-        this.cy.add(elementsFor(key, node));
-        topologyChanged = true;
+        addBatch.push(...elementsFor(key, node));
+        topologyChangeCounter++;
       }
+      this.cy.add(addBatch);
 
       // Updates
       for (const [key, patch] of Object.entries(updated)) {
@@ -208,12 +210,11 @@ const SupervisionTree = {
                 data: { id: edgeId(value, key), source: value, target: key },
               });
             }
-            topologyChanged = true;
           } else {
             node.data(field, value);
           }
 
-          if (TOPOLOGY_FIELDS.has(field)) topologyChanged = true;
+          if (TOPOLOGY_FIELDS.has(field)) topologyChangeCounter++;
         }
 
         if (patch.name !== undefined || patch.child_count !== undefined) {
@@ -244,7 +245,9 @@ const SupervisionTree = {
       }
     });
 
-    if (topologyChanged) {
+    if (topologyChangeCounter > 4) {
+      this.scheduleLayout({ fit: true });
+    } else if (topologyChangeCounter > 0) {
       this.scheduleLayout();
     }
   },
