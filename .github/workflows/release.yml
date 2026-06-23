@@ -12,8 +12,62 @@ permissions:
   contents: read
 
 jobs:
+  assets:
+    name: Build assets
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Elixir
+        id: beam
+        uses: erlef/setup-beam@v1
+        with:
+          version-file: .tool-versions
+          version-type: strict
+
+      - name: Mix deps cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-${{ runner.arch }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+
+      - name: Install Mix dependencies
+        shell: bash
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .tool-versions
+          cache: npm
+          cache-dependency-path: ./assets/package-lock.json
+
+      - name: Build assets
+        env:
+          MIX_ENV: prod
+        shell: bash
+        run: |
+          mix assets.setup
+          mix assets.build
+
+      - name: Upload built assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: voyager-assets
+          path: priv/static/
+          if-no-files-found: error
+
   app:
     name: "Desktop (${{ matrix.gui_target }})"
+    needs: assets
     strategy:
       fail-fast: false
       matrix:
@@ -61,26 +115,21 @@ jobs:
             ${{ runner.os }}-${{ runner.arch }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
 
       - name: Install Mix dependencies
-        shell: bash
         run: |
           mix local.hex --force
           mix local.rebar --force
           mix deps.get
 
-      - name: Set up Node
-        uses: actions/setup-node@v6
+      - name: Download built assets
+        uses: actions/download-artifact@v4
         with:
-          node-version-file: .tool-versions
-          cache: npm
-          cache-dependency-path: ./assets/package-lock.json
+          name: voyager-assets
+          path: priv/static
 
-      - name: Prepare assets
+      - name: Digest assets
         env:
           MIX_ENV: prod
-        shell: bash
-        run: |
-          mix assets.setup
-          mix assets.deploy
+        run: mix phx.digest
 
       - name: Read Rust version
         id: rust-version
