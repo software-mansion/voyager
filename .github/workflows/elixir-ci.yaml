@@ -46,6 +46,7 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ steps.rust-version.outputs.version }}
+          components: rustfmt
 
       - name: Cache dependencies and build artifacts
         uses: actions/cache@v4
