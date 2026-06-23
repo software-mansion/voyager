@@ -1,6 +1,3 @@
-# powershell -ExecutionPolicy Bypass -File dev\prod_with_secrets.ps1
-# Or once: Set-ExecutionPolicy -Scope CurrentUser Bypass
-
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")
 

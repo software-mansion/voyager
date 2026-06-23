@@ -23,22 +23,6 @@ defmodule Voyager.Services.OpenSSH.HostScanner do
   @spec known?(String.t()) :: boolean()
   defdelegate known?(host), to: KnownHosts
 
-  @doc """
-  Scans `host` and unconditionally adds its keys to the Voyager known_hosts
-  file. Use after the user has confirmed they trust the host (e.g. via a
-  TOFU dialog) — or as a one-shot "trust without review" call.
-
-  Returns the parsed fingerprints so the caller can log or surface what was
-  added.
-  """
-  @spec trust(String.t(), pos_integer()) :: {:ok, [fingerprint()]} | {:error, term()}
-  def trust(host, port \\ 22) when is_binary(host) and is_integer(port) do
-    with {:ok, raw, fingerprints} <- scan(host, port),
-         :ok <- KnownHosts.add(host, raw) do
-      {:ok, fingerprints}
-    end
-  end
-
   @spec scan(String.t(), pos_integer()) ::
           {:ok, String.t(), [fingerprint()]} | {:error, term()}
   def scan(host, port \\ 22) when is_binary(host) and is_integer(port) do

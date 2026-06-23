@@ -1,52 +1,37 @@
 defmodule Voyager.Services.RemoteNodeConnector do
   @moduledoc """
-  OpenSSH-binary based remote distribution tunnel.
+   OpenSSH-binary based remote distribution tunnel.
 
-  Two phases:
+   Two phases:
 
-    1. **Discover** — `Voyager.Services.OpenSSH.Executor.exec/6` runs
-       `epmd -names` on the remote box via `ssh user@host -- "epmd -names"`.
-       The distribution port is parsed from the output.
-    2. **Tunnel** — `Voyager.Services.OpenSSH.Tunnel` spawns a persistent
-       `ssh -L local_port:node_host:dist_port -N` subprocess. The Tunnel
-       GenServer pid is registered with `Voyager.ProxyEpmd.TunnelRegistry`
-       so the BEAM's distribution layer routes through the forwarded port.
+     1. **Discover** — `Voyager.Services.OpenSSH.Executor.exec/6` runs
+        `epmd -names` on the remote box via `ssh user@host -- "epmd -names"`.
+        The distribution port is parsed from the output.
+     2. **Tunnel** — `Voyager.Services.OpenSSH.Tunnel` spawns a persistent
+        `ssh -L local_port:node_host:dist_port -N` subprocess. The Tunnel
+        GenServer pid is registered with `Voyager.ProxyEpmd.TunnelRegistry`
+        so the BEAM's distribution layer routes through the forwarded port.
 
-  The OpenSSH binary inherits the user's `~/.ssh/config` (including
-  `ProxyJump`), agent forwarding from `SSH_AUTH_SOCK`, and the system's
-  installed identities. Host keys are verified against
-  `Voyager.Services.OpenSSH.KnownHosts` with `StrictHostKeyChecking=yes` —
-  unknown hosts must be added first via the TOFU flow (see
-  `Voyager.Services.OpenSSH.HostScanner`).
+   ## Usage
 
-  The returned Tunnel pid is monitored by the caller — if the tunnel dies the
-  caller receives a `{:DOWN, ref, :process, pid, reason}` message but is not
-  killed. The caller is responsible for invoking `stop/2` (or letting its own
-  `terminate/2` do it) to tear the tunnel down on its own shutdown.
+       {:ok, node, tunnel, ref, _port} =
+         RemoteNodeConnector.connect("user", "remote.host", "myapp", :agent)
 
-  ## Usage
+       :rpc.call(node, :erlang, :node, [])
+       RemoteNodeConnector.stop(tunnel, ref)
 
-      {:ok, node, tunnel, ref, _port} =
-        RemoteNodeConnector.connect("user", "remote.host", "myapp", :agent)
+   ## Options
 
-      :rpc.call(node, :erlang, :node, [])
-      RemoteNodeConnector.stop(tunnel, ref)
+     * `:ssh_port` — SSH port on the remote host. Defaults to `22`.
+     * `:node_host` — hostname the remote node was started with. Defaults to
+       `"127.0.0.1"`.
+     * `:epmd_prefix` — list of shell tokens prepended to `epmd -names` on the
+       remote (e.g. `["sudo", "-u", "app"]`). Treated as trusted input.
 
-  ## Options
+   ## Auth
 
-    * `:ssh_port` — SSH port on the remote host. Defaults to `22`.
-    * `:node_host` — hostname the remote node was started with. Defaults to
-      `"127.0.0.1"`.
-    * `:epmd_prefix` — list of shell tokens prepended to `epmd -names` on the
-      remote (e.g. `["sudo", "-u", "app"]`). Treated as trusted input.
-
-  ## Auth
-
-    * `:agent` — delegates to the local ssh-agent (`SSH_AUTH_SOCK` must be set)
-    * `{:key, path, nil}` — unencrypted private key file at `path`
-
-  Encrypted keys and password authentication are not supported by this PR —
-  load encrypted keys into `ssh-agent` and use `:agent` instead.
+     * `:agent` — delegates to the local ssh-agent (`SSH_AUTH_SOCK` must be set)
+     * `{:key, path, nil}` — unencrypted private key file at `path`
   """
 
   alias Voyager.ProxyEpmd.TunnelRegistry

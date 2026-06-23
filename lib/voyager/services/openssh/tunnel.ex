@@ -1,17 +1,7 @@
 defmodule Voyager.Services.OpenSSH.Tunnel do
   @moduledoc """
-  GenServer wrapping a persistent `ssh -L local_port:remote_host:remote_port -N`
-  subprocess.
-
-  `start_link/1` only returns `{:ok, pid}` once the local port accepts
-  connections — eliminating the race between `ssh` binding the port and
-  callers attempting to use it. If the readiness check times out, `start_link/1`
-  returns `{:error, {:tunnel_not_ready, reason, stderr_tail}}` (the process exits
-  `:normal`, so a linked caller is left running).
-
-  Stderr from the `ssh` subprocess is buffered (capped at `@stderr_buf_max`)
-  and surfaced in the exit reason when the tunnel dies — useful for diagnosing
-  authentication failures, port collisions, or host-key rejections.
+   GenServer wrapping a persistent `ssh -L local_port:remote_host:remote_port -N`
+   subprocess.
   """
 
   use GenServer
