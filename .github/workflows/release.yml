@@ -84,28 +84,6 @@ jobs:
             echo "APPLE_CERTIFICATE_P12_PASSWORD=$CERTIFICATE_PASSWORD"
           } >> "$GITHUB_ENV"
 
-      - name: Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: rel/app/src-tauri
-          cache-directories: |
-            ~/.cargo/bin
-          key: ${{ matrix.gui_target }}
-
-      - name: Mix deps cache
-        uses: actions/cache@v5
-        with:
-          path: |
-            deps
-          key: ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
-
-      - name: Assets cache
-        uses: actions/cache@v5
-        with:
-          path: |
-            assets
-          key: ${{ runner.os }}-assets-${{ hashFiles('assets/package-lock.json') }}
-
       - name: Set up Elixir
         id: beam
         uses: erlef/setup-beam@v1
@@ -113,12 +91,29 @@ jobs:
           version-file: .tool-versions
           version-type: strict
 
+      - name: Mix deps cache
+        uses: actions/cache@v5
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-${{ runner.arch }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+
       - name: Install Mix dependencies
         shell: bash
         run: |
           mix local.hex --force
           mix local.rebar --force
           mix deps.get
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .tool-versions
+          cache: npm
+          cache-dependency-path: ./assets/package-lock.json
 
       - name: Prepare assets
         shell: bash
@@ -136,6 +131,14 @@ jobs:
         with:
           toolchain: ${{ steps.rust-version.outputs.version }}
           targets: ${{ matrix.gui_target }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rel/app/src-tauri
+          cache-directories: |
+            ~/.cargo/bin
+          key: ${{ matrix.gui_target }}
 
       - name: Install Tauri CLI
         shell: bash

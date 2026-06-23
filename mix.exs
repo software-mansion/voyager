@@ -33,7 +33,6 @@ defmodule Voyager.MixProject do
         precommit: :test,
         e2e: :e2e,
         "e2e.setup": :e2e,
-        "tauri.release": :prod,
         "tauri.build": :prod
       ]
     ]
