@@ -52,6 +52,7 @@ defmodule Voyager.Services.RemoteNodeConnector do
   alias Voyager.ProxyEpmd.TunnelRegistry
   alias Voyager.Services.OpenSSH.Executor
   alias Voyager.Services.OpenSSH.Tunnel
+  alias Voyager.Services.OpenSSH.Validate
 
   @max_tunnel_attempts 3
 
@@ -64,14 +65,16 @@ defmodule Voyager.Services.RemoteNodeConnector do
   def connect(user, host, node_name, auth, opts \\ []) do
     ssh_port = Keyword.get(opts, :ssh_port, 22)
     node_host = Keyword.get(opts, :node_host, "127.0.0.1")
-    node_key = String.to_charlist(node_name)
-    remote_node = String.to_atom("#{node_name}@#{node_host}")
 
-    with {:ok, normalized_auth} <- normalize_auth(auth),
+    with {:ok, node_name} <- Validate.node_name(node_name),
+         {:ok, node_host} <- Validate.host(node_host),
+         {:ok, remote_node} <- build_remote_node(node_name, node_host),
+         {:ok, normalized_auth} <- normalize_auth(auth),
          {:ok, dist_port} <-
            discover_dist_port(user, host, ssh_port, normalized_auth, node_name, opts),
          {:ok, tunnel_pid, local_port} <-
            open_tunnel(user, host, ssh_port, normalized_auth, node_host, dist_port),
+         node_key = String.to_charlist(node_name),
          :ok <- TunnelRegistry.register(node_key, local_port, tunnel_pid) do
       ref = Process.monitor(tunnel_pid)
 
@@ -124,18 +127,21 @@ defmodule Voyager.Services.RemoteNodeConnector do
     end
   end
 
+  defp build_remote_node(node_name, node_host) do
+    label = "#{node_name}@#{node_host}"
+
+    if byte_size(label) <= 255 do
+      {:ok, String.to_atom(label)}
+    else
+      {:error, {:invalid_node_name, node_name}}
+    end
+  end
+
   defp normalize_auth(:agent), do: {:ok, :agent}
   defp normalize_auth({:key, path, nil}) when is_binary(path), do: {:ok, {:key, path}}
   defp normalize_auth(_), do: {:error, :auth_method_unsupported}
 
-  defp open_tunnel(user, host, ssh_port, auth, node_host, dist_port, attempt \\ 1)
-
-  defp open_tunnel(_user, _host, _ssh_port, _auth, _node_host, _dist_port, attempt)
-       when attempt > @max_tunnel_attempts do
-    {:error, :tunnel_port_exhausted}
-  end
-
-  defp open_tunnel(user, host, ssh_port, auth, node_host, dist_port, attempt) do
+  defp open_tunnel(user, host, ssh_port, auth, node_host, dist_port, attempt \\ 1) do
     with {:ok, local_port} <- pick_port() do
       result =
         Tunnel.start_link(
@@ -145,21 +151,33 @@ defmodule Voyager.Services.RemoteNodeConnector do
           auth: auth,
           local_port: local_port,
           remote_host: node_host,
-          remote_port: dist_port
+          remote_port: dist_port,
+          owner: TunnelRegistry
         )
 
       case result do
         {:ok, pid} ->
           {:ok, pid, local_port}
 
-        {:error, {:tunnel_not_ready, _, _}} ->
-          open_tunnel(user, host, ssh_port, auth, node_host, dist_port, attempt + 1)
+        {:error, {:tunnel_not_ready, _, stderr}} = err ->
+          if port_collision?(stderr) and attempt < @max_tunnel_attempts do
+            open_tunnel(user, host, ssh_port, auth, node_host, dist_port, attempt + 1)
+          else
+            err
+          end
 
         {:error, _} = err ->
           err
       end
     end
   end
+
+  defp port_collision?(stderr) when is_binary(stderr) do
+    String.contains?(stderr, "Address already in use") or
+      String.contains?(stderr, "cannot listen to port")
+  end
+
+  defp port_collision?(_), do: false
 
   defp pick_port do
     case :gen_tcp.listen(0, active: false) do

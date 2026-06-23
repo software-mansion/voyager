@@ -11,6 +11,7 @@ defmodule Voyager.Services.OpenSSH.Executor do
   """
 
   alias Voyager.Services.OpenSSH.KnownHosts
+  alias Voyager.Services.OpenSSH.Validate
 
   @type auth :: :agent | {:key, Path.t()}
 
@@ -20,14 +21,17 @@ defmodule Voyager.Services.OpenSSH.Executor do
           {:ok, String.t()} | {:error, term()}
   def exec(user, host, ssh_port, auth, command, opts \\ [])
       when is_binary(user) and is_binary(host) and is_integer(ssh_port) and is_binary(command) do
-    prefix = opts |> Keyword.get(:epmd_prefix, []) |> Enum.join(" ")
-    full_cmd = if prefix == "", do: command, else: "#{prefix} #{command}"
+    with {:ok, user} <- Validate.user(user),
+         {:ok, host} <- Validate.host(host) do
+      prefix = opts |> Keyword.get(:epmd_prefix, []) |> Enum.join(" ")
+      full_cmd = if prefix == "", do: command, else: "#{prefix} #{command}"
 
-    args = base_args(user, host, ssh_port) ++ auth_args(auth) ++ ["--", full_cmd]
+      args = base_args(user, host, ssh_port) ++ auth_args(auth) ++ ["--", full_cmd]
 
-    case System.cmd(ssh!(), args, stderr_to_stdout: true) do
-      {output, 0} -> {:ok, String.trim(output)}
-      {output, code} -> {:error, {:exec_failed, code, String.trim(output)}}
+      case System.cmd(ssh!(), args, stderr_to_stdout: true) do
+        {output, 0} -> {:ok, String.trim(output)}
+        {output, code} -> {:error, {:exec_failed, code, String.trim(output)}}
+      end
     end
   end
 

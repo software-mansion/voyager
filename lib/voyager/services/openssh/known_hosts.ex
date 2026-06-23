@@ -8,6 +8,8 @@ defmodule Voyager.Services.OpenSSH.KnownHosts do
   `config :voyager, :known_hosts_path, "/some/path"` (used by tests).
   """
 
+  alias Voyager.Services.OpenSSH.Validate
+
   @spec path() :: String.t()
   def path do
     case Application.get_env(:voyager, :known_hosts_path) do
@@ -25,20 +27,28 @@ defmodule Voyager.Services.OpenSSH.KnownHosts do
   end
 
   @spec known?(String.t()) :: boolean()
-  def known?(host) do
-    ensure_file!()
+  def known?(host) when is_binary(host) do
+    case Validate.host(host) do
+      {:ok, host} ->
+        ensure_file!()
 
-    case System.cmd(keygen!(), ["-F", host, "-f", path()], stderr_to_stdout: true) do
-      {output, 0} -> String.trim(output) != ""
-      _ -> false
+        case System.cmd(keygen!(), ["-F", host, "-f", path()], stderr_to_stdout: true) do
+          {output, 0} -> String.trim(output) != ""
+          _ -> false
+        end
+
+      {:error, _} ->
+        false
     end
   end
 
-  @spec add(String.t(), String.t()) :: :ok
+  @spec add(String.t(), String.t()) :: :ok | {:error, {:invalid_host, String.t()}}
   def add(host, raw_keyscan_output) when is_binary(host) and is_binary(raw_keyscan_output) do
-    ensure_file!()
-    _ = System.cmd(keygen!(), ["-R", host, "-f", path()], stderr_to_stdout: true)
-    File.write!(path(), String.trim_trailing(raw_keyscan_output) <> "\n", [:append])
+    with {:ok, host} <- Validate.host(host) do
+      ensure_file!()
+      _ = System.cmd(keygen!(), ["-R", host, "-f", path()], stderr_to_stdout: true)
+      File.write!(path(), String.trim_trailing(raw_keyscan_output) <> "\n", [:append])
+    end
   end
 
   defp keygen! do

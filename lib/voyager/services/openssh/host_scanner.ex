@@ -9,6 +9,7 @@ defmodule Voyager.Services.OpenSSH.HostScanner do
   """
 
   alias Voyager.Services.OpenSSH.KnownHosts
+  alias Voyager.Services.OpenSSH.Validate
 
   @type fingerprint :: %{
           bits: pos_integer(),
@@ -41,16 +42,18 @@ defmodule Voyager.Services.OpenSSH.HostScanner do
   @spec scan(String.t(), pos_integer()) ::
           {:ok, String.t(), [fingerprint()]} | {:error, term()}
   def scan(host, port \\ 22) when is_binary(host) and is_integer(port) do
-    tmp = Path.join(System.tmp_dir!(), "voyager_scan_#{System.unique_integer([:positive])}")
+    with {:ok, host} <- Validate.host(host) do
+      tmp = Path.join(System.tmp_dir!(), "voyager_scan_#{System.unique_integer([:positive])}")
 
-    try do
-      with {:ok, raw} <- run_keyscan(host, port),
-           :ok <- File.write(tmp, raw),
-           {:ok, fp_output} <- run_keygen_lf(tmp) do
-        {:ok, raw, parse_fingerprints(fp_output)}
+      try do
+        with {:ok, raw} <- run_keyscan(host, port),
+             :ok <- File.write(tmp, raw),
+             {:ok, fp_output} <- run_keygen_lf(tmp) do
+          {:ok, raw, parse_fingerprints(fp_output)}
+        end
+      after
+        File.rm(tmp)
       end
-    after
-      File.rm(tmp)
     end
   end
 
@@ -96,7 +99,7 @@ defmodule Voyager.Services.OpenSSH.HostScanner do
   end
 
   defp parse_line(line) do
-    case Regex.run(~r/^(\d+)\s+(SHA256:\S+)\s+(\S+)\s+\(([^)]+)\)$/, line) do
+    case Regex.run(~r/^(\d+)\s+(SHA256:\S+)\s+(\S+)\s+\(([^)]+)\)\s*$/, String.trim(line)) do
       [_, bits, hash, comment, type] ->
         %{bits: String.to_integer(bits), hash: hash, comment: comment, type: type}
 

@@ -31,6 +31,14 @@ defmodule Voyager.Services.OpenSSH.HostScannerTest do
     test "returns empty list for empty input" do
       assert HostScanner.parse_fingerprints("") == []
     end
+
+    test "parses lines with trailing carriage returns (CRLF output)" do
+      output = "256 SHA256:abc123xyz user@host (ED25519)\r\n3072 SHA256:def456uvw u@h (RSA)\r\n"
+
+      assert [ed, rsa] = HostScanner.parse_fingerprints(output)
+      assert ed == %{bits: 256, hash: "SHA256:abc123xyz", comment: "user@host", type: "ED25519"}
+      assert rsa == %{bits: 3072, hash: "SHA256:def456uvw", comment: "u@h", type: "RSA"}
+    end
   end
 
   describe "scan/2" do

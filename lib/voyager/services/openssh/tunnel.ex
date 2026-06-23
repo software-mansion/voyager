@@ -5,8 +5,9 @@ defmodule Voyager.Services.OpenSSH.Tunnel do
 
   `start_link/1` only returns `{:ok, pid}` once the local port accepts
   connections — eliminating the race between `ssh` binding the port and
-  callers attempting to use it. If the readiness check times out, the process
-  exits with `{:tunnel_not_ready, reason, stderr_tail}`.
+  callers attempting to use it. If the readiness check times out, `start_link/1`
+  returns `{:error, {:tunnel_not_ready, reason, stderr_tail}}` (the process exits
+  `:normal`, so a linked caller is left running).
 
   Stderr from the `ssh` subprocess is buffered (capped at `@stderr_buf_max`)
   and surfaced in the exit reason when the tunnel dies — useful for diagnosing
@@ -17,6 +18,7 @@ defmodule Voyager.Services.OpenSSH.Tunnel do
 
   alias Voyager.Services.OpenSSH.Executor
   alias Voyager.Services.OpenSSH.KnownHosts
+  alias Voyager.Services.OpenSSH.Validate
 
   require Logger
 
@@ -33,7 +35,8 @@ defmodule Voyager.Services.OpenSSH.Tunnel do
           auth: auth(),
           local_port: pos_integer(),
           remote_host: String.t(),
-          remote_port: pos_integer()
+          remote_port: pos_integer(),
+          owner: GenServer.server()
         ]
 
   @spec start_link(opts()) :: GenServer.on_start()
@@ -49,22 +52,26 @@ defmodule Voyager.Services.OpenSSH.Tunnel do
 
   @impl GenServer
   def init(%{} = cfg) do
-    Process.flag(:trap_exit, true)
+    with {:ok, _} <- Validate.user(cfg.user),
+         {:ok, _} <- Validate.host(cfg.host),
+         {:ok, _} <- Validate.host(cfg.remote_host) do
+      Process.flag(:trap_exit, true)
 
-    port =
-      Port.open(
-        {:spawn_executable, to_charlist(Executor.ssh!())},
-        [:binary, :exit_status, :use_stdio, :stderr_to_stdout, args: build_args(cfg)]
-      )
+      port =
+        Port.open(
+          {:spawn_executable, to_charlist(Executor.ssh!())},
+          [:binary, :exit_status, :use_stdio, :stderr_to_stdout, args: build_args(cfg)]
+        )
 
-    case wait_for_port(cfg.local_port, @ready_timeout_ms) do
-      :ok ->
-        {:ok, %{port: port, buf: "", local_port: cfg.local_port}}
+      case wait_for_port(port, cfg.local_port, @ready_timeout_ms) do
+        :ok ->
+          {:ok, %{port: port, buf: "", local_port: cfg.local_port, owner_ref: monitor_owner(cfg)}}
 
-      {:error, reason} ->
-        stderr = drain_messages(port, "")
-        if Port.info(port) != nil, do: Port.close(port)
-        {:stop, {:tunnel_not_ready, reason, stderr}}
+        {:error, reason} ->
+          stderr = drain_messages(port, "")
+          if Port.info(port) != nil, do: Port.close(port)
+          {:error, {:tunnel_not_ready, reason, stderr}}
+      end
     end
   end
 
@@ -78,6 +85,14 @@ defmodule Voyager.Services.OpenSSH.Tunnel do
     {:stop, {:tunnel_exited, code, buf}, %{state | port: nil}}
   end
 
+  def handle_info({:DOWN, ref, :process, _pid, _reason}, %{owner_ref: ref} = state) do
+    {:stop, :normal, state}
+  end
+
+  def handle_info({:EXIT, from, _reason}, %{port: port} = state) when from != port do
+    {:stop, :normal, state}
+  end
+
   def handle_info(_msg, state), do: {:noreply, state}
 
   @impl GenServer
@@ -87,6 +102,9 @@ defmodule Voyager.Services.OpenSSH.Tunnel do
     if Port.info(port) != nil, do: Port.close(port)
     :ok
   end
+
+  defp monitor_owner(%{owner: owner}) when not is_nil(owner), do: Process.monitor(owner)
+  defp monitor_owner(_cfg), do: nil
 
   defp build_args(cfg) do
     [
@@ -115,23 +133,28 @@ defmodule Voyager.Services.OpenSSH.Tunnel do
   defp auth_args(:agent), do: []
   defp auth_args({:key, path}), do: ["-i", path, "-o", "IdentitiesOnly=yes"]
 
-  defp wait_for_port(port, timeout_ms) do
+  defp wait_for_port(ssh_port, tcp_port, timeout_ms) do
     deadline = System.monotonic_time(:millisecond) + timeout_ms
-    do_wait(port, deadline)
+    do_wait(ssh_port, tcp_port, deadline)
   end
 
-  defp do_wait(port, deadline) do
-    case :gen_tcp.connect(~c"127.0.0.1", port, [active: false], 200) do
-      {:ok, socket} ->
-        :gen_tcp.close(socket)
-        :ok
+  defp do_wait(ssh_port, tcp_port, deadline) do
+    receive do
+      {^ssh_port, {:exit_status, code}} -> {:error, {:exited, code}}
+    after
+      0 ->
+        case :gen_tcp.connect(~c"127.0.0.1", tcp_port, [active: false], 200) do
+          {:ok, socket} ->
+            :gen_tcp.close(socket)
+            :ok
 
-      {:error, _} ->
-        if System.monotonic_time(:millisecond) >= deadline do
-          {:error, :timeout}
-        else
-          Process.sleep(50)
-          do_wait(port, deadline)
+          {:error, _} ->
+            if System.monotonic_time(:millisecond) >= deadline do
+              {:error, :timeout}
+            else
+              Process.sleep(50)
+              do_wait(ssh_port, tcp_port, deadline)
+            end
         end
     end
   end

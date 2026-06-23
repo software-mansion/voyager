@@ -47,6 +47,38 @@ defmodule Voyager.Services.OpenSSH.TunnelTest do
     end
   end
 
+  describe "owner / caller lifecycle" do
+    test "stops when its monitored owner goes down" do
+      owner_ref = make_ref()
+      state = %{port: nil, buf: "", local_port: 1234, owner_ref: owner_ref}
+
+      assert {:stop, :normal, ^state} =
+               Tunnel.handle_info({:DOWN, owner_ref, :process, self(), :shutdown}, state)
+    end
+
+    test "ignores a DOWN that is not from its owner" do
+      state = %{port: nil, buf: "", local_port: 1234, owner_ref: make_ref()}
+
+      assert {:noreply, ^state} =
+               Tunnel.handle_info({:DOWN, make_ref(), :process, self(), :shutdown}, state)
+    end
+
+    test "stops when a linked process (its caller) exits" do
+      state = %{port: nil, buf: "", local_port: 1234, owner_ref: nil}
+
+      assert {:stop, :normal, ^state} = Tunnel.handle_info({:EXIT, self(), :crash}, state)
+    end
+
+    test "ignores EXIT signals from its own ssh port" do
+      port = Port.open({:spawn, "cat"}, [:binary])
+      state = %{port: port, buf: "", local_port: 1234, owner_ref: nil}
+
+      assert {:noreply, ^state} = Tunnel.handle_info({:EXIT, port, :normal}, state)
+
+      Port.close(port)
+    end
+  end
+
   defp pick_port do
     {:ok, s} = :gen_tcp.listen(0, active: false)
     {:ok, p} = :inet.port(s)
