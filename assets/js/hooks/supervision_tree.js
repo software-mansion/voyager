@@ -440,6 +440,12 @@ const SupervisionTree = {
         node.data('is_collapsed', false);
         node.successors().forEach((ele) => bumpHiddenCount(ele, -1));
         node.successors('[hidden_count = 0]').removeClass('hidden');
+
+        if (node.successors('node[hidden_count = 0]').length > 4) {
+          setTimeout(() => {
+            this.scheduleLayout({ fit: true });
+          }, 200);
+        }
       } else {
         // Collapse: hide tree successors outright.
         node.data('is_collapsed', true);
