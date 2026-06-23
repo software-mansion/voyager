@@ -43,47 +43,6 @@ jobs:
             libwxgtk3.0-gtk3-dev \
             xdg-utils
 
-      - name: Install Apple certificate (macOS)
-        if: runner.os == 'macOS'
-        env:
-          CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE }}
-          PRIVATE_KEY_BASE64: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_BASE64 }}
-          PRIVATE_KEY_PASSWORD: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
-        run: |
-          set -euo pipefail
-          umask 077
-
-          CERTIFICATE_PEM="$RUNNER_TEMP/certificate.pem"
-          CERTIFICATE_DER="$RUNNER_TEMP/certificate.der"
-          CERTIFICATE_P12="$RUNNER_TEMP/certificate.p12"
-          PRIVATE_KEY_P12="$RUNNER_TEMP/private_key.p12"
-          KEY_PEM="$RUNNER_TEMP/key.pem"
-
-          # Transform DER certificate to PEM certificate
-          echo -n "$CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/certificate.der"
-          openssl x509 -inform DER -in "$CERTIFICATE_DER" -outform PEM -out "$CERTIFICATE_PEM"
-
-          echo -n "$PRIVATE_KEY_BASE64" | base64 --decode > "$PRIVATE_KEY_P12"
-
-          # Combine certificate.pem + private_key.p12 into a single certificate.p12.
-          # PRIVATE_KEY_PASSWORD only unlocks the *input* key; the combined p12 gets its own password.
-          CERTIFICATE_PASSWORD="$(openssl rand -base64 24)"
-          echo "::add-mask::$CERTIFICATE_PASSWORD"
-          export CERTIFICATE_PASSWORD
-
-          openssl pkcs12 -in "$PRIVATE_KEY_P12" -nodes -nocerts -passin env:PRIVATE_KEY_PASSWORD -out "$KEY_PEM"
-          openssl pkcs12 -export -inkey "$KEY_PEM" -in "$CERTIFICATE_PEM" -out "$CERTIFICATE_P12" -passout env:CERTIFICATE_PASSWORD
-          rm -f "$KEY_PEM"
-
-          # Export certificate.p12 as base64 encoded and password to GITHUB_ENV
-          CERTIFICATE_P12_BASE64="$(base64 -i "$CERTIFICATE_P12" | tr -d '\n')"
-          echo "::add-mask::$CERTIFICATE_P12_BASE64"
-          {
-            echo "APPLE_CERTIFICATE_P12_BASE64=$CERTIFICATE_P12_BASE64"
-            echo "APPLE_CERTIFICATE_P12_PASSWORD=$CERTIFICATE_PASSWORD"
-          } >> "$GITHUB_ENV"
-
       - name: Set up Elixir
         id: beam
         uses: erlef/setup-beam@v1
@@ -148,6 +107,47 @@ jobs:
           else
             echo "cargo-tauri already installed: $(cargo-tauri --version)"
           fi
+
+      - name: Install Apple certificate (macOS)
+        if: runner.os == 'macOS'
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE }}
+          PRIVATE_KEY_BASE64: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_BASE64 }}
+          PRIVATE_KEY_PASSWORD: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+
+          CERTIFICATE_PEM="$RUNNER_TEMP/certificate.pem"
+          CERTIFICATE_DER="$RUNNER_TEMP/certificate.der"
+          CERTIFICATE_P12="$RUNNER_TEMP/certificate.p12"
+          PRIVATE_KEY_P12="$RUNNER_TEMP/private_key.p12"
+          KEY_PEM="$RUNNER_TEMP/key.pem"
+
+          # Transform DER certificate to PEM certificate
+          echo -n "$CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/certificate.der"
+          openssl x509 -inform DER -in "$CERTIFICATE_DER" -outform PEM -out "$CERTIFICATE_PEM"
+
+          echo -n "$PRIVATE_KEY_BASE64" | base64 --decode > "$PRIVATE_KEY_P12"
+
+          # Combine certificate.pem + private_key.p12 into a single certificate.p12.
+          # PRIVATE_KEY_PASSWORD only unlocks the *input* key; the combined p12 gets its own password.
+          CERTIFICATE_PASSWORD="$(openssl rand -base64 24)"
+          echo "::add-mask::$CERTIFICATE_PASSWORD"
+          export CERTIFICATE_PASSWORD
+
+          openssl pkcs12 -in "$PRIVATE_KEY_P12" -nodes -nocerts -passin env:PRIVATE_KEY_PASSWORD -out "$KEY_PEM"
+          openssl pkcs12 -export -inkey "$KEY_PEM" -in "$CERTIFICATE_PEM" -out "$CERTIFICATE_P12" -passout env:CERTIFICATE_PASSWORD
+          rm -f "$KEY_PEM"
+
+          # Export certificate.p12 as base64 encoded and password to GITHUB_ENV
+          CERTIFICATE_P12_BASE64="$(base64 -i "$CERTIFICATE_P12" | tr -d '\n')"
+          echo "::add-mask::$CERTIFICATE_P12_BASE64"
+          {
+            echo "APPLE_CERTIFICATE_P12_BASE64=$CERTIFICATE_P12_BASE64"
+            echo "APPLE_CERTIFICATE_P12_PASSWORD=$CERTIFICATE_PASSWORD"
+          } >> "$GITHUB_ENV"
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0.6
