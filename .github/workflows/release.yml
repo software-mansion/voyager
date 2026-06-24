@@ -2,8 +2,6 @@ name: Release
 
 on:
   push:
-    branches:
-      - "17-add-release-ci"
     tags:
       - "v*.*.*"
 
@@ -26,27 +24,11 @@ jobs:
       - name: Create release
         shell: bash
         run: |
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            gh release create \
-              --repo "${{ github.repository }}" \
-              --title "${{ github.ref_name }}" \
-              --draft \
-              "${{ github.ref_name }}"
-          else
-            ref_name="17-add-release-ci-test"
-            notes="Temporary release build for ${GITHUB_SHA} from ${{ github.ref_name }}."
-
-            git tag "$ref_name" --force "$GITHUB_SHA"
-            git push origin "$ref_name" --force
-
-            gh release create \
-              --repo "${{ github.repository }}" \
-              --title "$ref_name" \
-              --notes "$notes" \
-              --draft \
-              "$ref_name"
-  
-          fi
+          gh release create \
+            --repo "${{ github.repository }}" \
+            --title "${{ github.ref_name }}" \
+            --draft \
+            "${{ github.ref_name }}"
 
   assets:
     name: Build priv/static
@@ -274,8 +256,8 @@ jobs:
           projectPath: rel/app
           args: --target ${{ matrix.gui_target }}
           tauriScript: ./tauri.sh
-          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '17-add-release-ci-test' }}
-          releaseName: ${{ github.ref_type == 'tag' && github.ref_name || '17-add-release-ci-test' }}
+          tagName: ${{ github.ref_name }}
+          releaseName: ${{ github.ref_name }}
           releaseDraft: true
           assetNamePattern: "Voyager-[platform]-[arch][ext]"
 
