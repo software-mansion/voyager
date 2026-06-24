@@ -1,35 +1,12 @@
-name: Release
+name: Build apps
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  create_release:
-    if: github.repository == 'software-mansion/voyager'
-    name: Create release
-    permissions:
-      contents: write
-    runs-on: ubuntu-24.04
-    env:
-      GH_TOKEN: ${{ github.token }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Create release
-        shell: bash
-        run: |
-          gh release create \
-            --repo "${{ github.repository }}" \
-            --title "${{ github.ref_name }}" \
-            --draft \
-            "${{ github.ref_name }}"
-
   assets:
     name: Build assets
     runs-on: ubuntu-24.04
@@ -85,9 +62,7 @@ jobs:
 
   app:
     name: "Build desktop app (${{ matrix.gui_target }})"
-    needs: [create_release, assets]
-    permissions:
-      contents: write
+    needs: assets
     strategy:
       fail-fast: false
       matrix:
@@ -196,14 +171,11 @@ jobs:
           PRIVATE_KEY_P12="$RUNNER_TEMP/private_key.p12"
           KEY_PEM="$RUNNER_TEMP/key.pem"
 
-          # Transform DER certificate to PEM certificate
           echo -n "$CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/certificate.der"
           openssl x509 -inform DER -in "$CERTIFICATE_DER" -outform PEM -out "$CERTIFICATE_PEM"
 
           echo -n "$PRIVATE_KEY_BASE64" | base64 --decode > "$PRIVATE_KEY_P12"
 
-          # Combine certificate.pem + private_key.p12 into a single certificate.p12.
-          # PRIVATE_KEY_PASSWORD only unlocks the *input* key; the combined p12 gets its own password.
           CERTIFICATE_PASSWORD="$(openssl rand -base64 24)"
           echo "::add-mask::$CERTIFICATE_PASSWORD"
           export CERTIFICATE_PASSWORD
@@ -212,7 +184,6 @@ jobs:
           openssl pkcs12 -export -inkey "$KEY_PEM" -in "$CERTIFICATE_PEM" -out "$CERTIFICATE_P12" -passout env:CERTIFICATE_PASSWORD
           rm -f "$KEY_PEM"
 
-          # Export certificate.p12 as base64 encoded and password to GITHUB_ENV
           CERTIFICATE_P12_BASE64="$(base64 -i "$CERTIFICATE_P12" | tr -d '\n')"
           echo "::add-mask::$CERTIFICATE_P12_BASE64"
           {
@@ -233,17 +204,15 @@ jobs:
 
             echo -n "$P12_BASE64" | base64 --decode -o $CERTIFICATE_PATH
 
-            # Create temporary keychain
             security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
             security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
             security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
 
-            # Import certificate to keychain
             security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
             security list-keychain -d user -s $KEYCHAIN_PATH
           fi
 
-      - name: Build and upload Tauri release asset
+      - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0.6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -258,10 +227,6 @@ jobs:
           projectPath: rel/app
           args: --target ${{ matrix.gui_target }}
           tauriScript: ./tauri.sh
-          tagName: ${{ github.ref_name }}
-          releaseName: ${{ github.ref_name }}
-          releaseDraft: true
-          assetNamePattern: "Voyager-[platform]-[arch][ext]"
 
       - name: Verify app notarization (macOS)
         if: runner.os == 'macOS'
@@ -270,3 +235,10 @@ jobs:
           app_path="rel/app/src-tauri/target/${{ matrix.gui_target }}/release/bundle/macos/Voyager.app"
           echo "Verifying $app_path"
           spctl -a -t exec -vvv "$app_path"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: voyager-${{ matrix.gui_target }}
+          path: rel/app/src-tauri/target/${{ matrix.gui_target }}/release/bundle/
+          if-no-files-found: error
