@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   assets:
-    name: Build assets
+    name: Build priv/static
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
