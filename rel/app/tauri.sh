@@ -34,12 +34,14 @@ main() {
     fi
   done
 
-  release_root="$root_dir/src-tauri/rel-${os}"
+  release_dir="rel-${os}"
+  release_root="$root_dir/src-tauri/$release_dir"
 
   command="${1:-}"
 
   config="--config"
-  config_json="{\"bundle\":{\"resources\":{\"rel-${os}\":\"rel\"}}}"
+  # tauri.conf.json keeps resources as an empty list so this per-OS map replaces it.
+  config_json="{\"bundle\":{\"resources\":{\"${release_dir}\":\"rel\"}}}"
 
   if [ -z "${MIX_ENV:-}" ] && [ "$profile" = "release" ] && [ "$command" != "dev" ]; then
     export MIX_ENV="prod"
