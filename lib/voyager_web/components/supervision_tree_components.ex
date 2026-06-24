@@ -89,12 +89,26 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                     <span class="badge badge-ghost badge-xs">{vsn}</span>
                   </label>
                 <% end %>
-                <div>
-                  <p :for={error <- @apps_errors} class="font-mono text-error mt-1.5 text-xs">
-                    {error}
-                  </p>
-                </div>
               <% end %>
+            </div>
+            <div>
+              <p
+                :for={error <- @apps_errors}
+                class="font-mono text-error my-1.5 text-xs"
+              >
+                {error}
+              </p>
+              <button
+                type="button"
+                id="supervision-tree-clear-apps"
+                phx-click="clear-all-apps"
+                title="Clear all applications"
+                aria-label="Clear all applications"
+                class="btn btn-soft btn-primary max-w-32 mt-2 gap-2"
+              >
+                <.icon name="icon-x" class="size-4" />
+                <span>Clear all</span>
+              </button>
             </div>
           </.collapsible>
           <div class="flex items-start gap-2">

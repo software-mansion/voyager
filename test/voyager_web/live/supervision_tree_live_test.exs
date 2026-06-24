@@ -95,6 +95,60 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
     end
   end
 
+  describe "clearing all applications" do
+    test "unchecks every selected application", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+
+      view
+      |> form("#supervision-tree-controls", %{
+        "tree_controls" => %{"apps" => ["demo_app", "another_app"]}
+      })
+      |> render_change()
+
+      assert has_element?(
+               view,
+               ~s|input[name="tree_controls[apps][]"][value="demo_app"][checked]|
+             )
+
+      view |> element("#supervision-tree-clear-apps") |> render_click()
+
+      refute has_element?(
+               view,
+               ~s|input[name="tree_controls[apps][]"][value="demo_app"][checked]|
+             )
+
+      refute has_element?(
+               view,
+               ~s|input[name="tree_controls[apps][]"][value="another_app"][checked]|
+             )
+    end
+
+    test "returns to the empty state and tears down the graph body", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+
+      view
+      |> form("#supervision-tree-controls", %{"tree_controls" => %{"apps" => ["demo_app"]}})
+      |> render_change()
+
+      assert has_element?(view, "#supervision-tree-body")
+
+      view |> element("#supervision-tree-clear-apps") |> render_click()
+
+      assert render(view) =~ "No applications selected"
+      refute has_element?(view, "#supervision-tree-body")
+    end
+
+    test "is a no-op when no applications are selected", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+
+      view |> element("#supervision-tree-clear-apps") |> render_click()
+
+      assert render(view) =~ "No applications selected"
+      refute has_element?(view, "#supervision-tree-body")
+      assert Process.alive?(view.pid)
+    end
+  end
+
   describe "depth control" do
     test "shows a validation error when depth is below the minimum", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)

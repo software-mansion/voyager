@@ -75,6 +75,19 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     {:noreply, socket}
   end
 
+  def handle_event("clear-all-apps", _params, socket) do
+    changeset = SupervisionTreeControls.changeset(%{}, socket.assigns.available_app_atoms)
+
+    socket =
+      socket
+      |> assign(:available_apps, socket.assigns.available_apps |> Enum.sort())
+      |> assign(:selected_apps, MapSet.new())
+      |> assign(:apps_form, to_form(changeset, as: :tree_controls))
+      |> apply_valid_controls(changeset, true)
+
+    {:noreply, socket}
+  end
+
   def handle_event("toggle-expand", %{"pid" => pid_str}, socket) do
     {expanded, newly_expanded?} =
       toggle_expand(socket, pid_str)
