@@ -29,11 +29,7 @@ defmodule Voyager.MixProject do
 
   def cli do
     [
-      preferred_envs: [
-        precommit: :test,
-        e2e: :e2e,
-        "e2e.setup": :e2e
-      ]
+      preferred_envs: [precommit: :test, e2e: :e2e, "e2e.setup": :e2e]
     ]
   end
 

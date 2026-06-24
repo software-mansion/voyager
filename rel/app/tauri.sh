@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Usage: ./tauri.sh [command] [options]
 #
+# This is heavily inspired by: https://github.com/livebook-dev/livebook/blob/6b74cfc835c3000cf0cb9dedf204ea8722863088/rel/app/tauri.sh
+# It allows for better dev experience and is used in `tauri-action` to build the app on CI.
+#
 # Commands:
 #
 #   build   see: cargo tauri build --help

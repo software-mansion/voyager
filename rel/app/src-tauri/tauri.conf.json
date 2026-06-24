@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.swmansion.voyager",
   "app": {
-    "withGlobalTauri": false,
+    "withGlobalTauri": true,
     "windows": [],
     "security": {
       "csp": null
