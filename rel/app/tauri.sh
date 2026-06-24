@@ -49,7 +49,7 @@ main() {
 
   case "$command" in
     dev)
-      cargo tauri "$@"
+      cargo_tauri "$@"
       ;;
     app)
       shift
@@ -67,7 +67,7 @@ main() {
       tauri_build "$@"
       ;;
     *)
-      cargo tauri "$@"
+      cargo_tauri "$@"
       ;;
   esac
 }
@@ -97,8 +97,15 @@ mix_release() {
 
 tauri_build() {
   log "Building Tauri app with args: $*"
-  cargo tauri build "$config" "$config_json" --verbose "$@"
+  cargo_tauri build "$config" "$config_json" --verbose "$@"
   log "Tauri build finished"
+}
+
+cargo_tauri() {
+  (
+    cd "$root_dir"
+    cargo tauri "$@"
+  )
 }
 
 log() {

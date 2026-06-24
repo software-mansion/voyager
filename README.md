@@ -28,8 +28,7 @@ The production release needs these environment variables when it starts:
 
 Voyager uses [ElixirKit](https://hexdocs.pm/elixirkit/tauri.html) to bundle the Phoenix release into a Tauri desktop app.
 
-Before creating desktop app first run 
-
+Before creating the desktop app, first run:
 ```sh
 mix setup
 MIX_ENV=prod mix assets.deploy
@@ -51,23 +50,16 @@ Install system packages:
 ```sh
 sudo apt-get update
 sudo apt-get install -y \
-  pkg-config \
-  libglib2.0-dev \
-  libgtk-3-dev \
   libwebkit2gtk-4.1-dev \
-  libwxgtk3.0-gtk3-dev \
-  libayatana-appindicator3-dev \
+  libappindicator3-dev \
   librsvg2-dev \
-  libssl-dev \
-  patchelf \
-  xdg-utils
+  patchelf
 ```
 
 Build the app:
 
 ```sh
-cd rel/app
-./tauri.sh build
+rel/app/tauri.sh build
 ```
 
 #### macOS
@@ -75,6 +67,5 @@ cd rel/app
 Install Xcode Command Line Tools, then build:
 
 ```sh
-cd rel/app
-./tauri.sh build
+rel/app/tauri.sh build
 ```
