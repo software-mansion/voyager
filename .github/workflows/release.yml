@@ -4,14 +4,38 @@ on:
   push:
     tags:
       - "v*.*.*"
-  pull_request: # For testing only TODO: remove before merging
-    branches:
-      - "main"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  create_release:
+    if: github.repository == 'software-mansion/voyager'
+    name: Create release
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Create release
+        shell: bash
+        run: |
+          if [[ "${{ github.ref_type }}" != "tag" ]]; then
+            echo "Not a tag ref; skipping release creation."
+            exit 0
+          fi
+
+          gh release create \
+            --repo "${{ github.repository }}" \
+            --title "${{ github.ref_name }}" \
+            --draft \
+            "${{ github.ref_name }}"
+
   assets:
     name: Build assets
     runs-on: ubuntu-24.04
@@ -66,8 +90,10 @@ jobs:
           if-no-files-found: error
 
   app:
-    name: "Desktop (${{ matrix.gui_target }})"
-    needs: assets
+    name: "Build desktop app (${{ matrix.gui_target }})"
+    needs: [create_release, assets]
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -226,6 +252,7 @@ jobs:
           fi
 
       - name: Build Tauri app
+        if: github.ref_type != 'tag'
         uses: tauri-apps/tauri-action@v0.6
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -242,9 +269,41 @@ jobs:
           args: --target ${{ matrix.gui_target }}
           tauriScript: ./tauri.sh
 
-      - name: Upload artifact
+      - name: Build and upload Tauri release asset
+        if: github.ref_type == 'tag'
+        uses: tauri-apps/tauri-action@v0.6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MIX_ENV: prod
+          # identity comes from the default keychain set up in the step above
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
+          APPLE_CERTIFICATE: ${{ env.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ env.APPLE_CERTIFICATE_P12_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_CI_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        with:
+          projectPath: rel/app
+          args: --target ${{ matrix.gui_target }}
+          tauriScript: ./tauri.sh
+          tagName: ${{ github.ref_name }}
+          releaseName: ${{ github.ref_name }}
+          releaseDraft: true
+          assetNamePattern: "Voyager-[platform]-[arch][ext]"
+      
+      - name: Verify app notarization (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          app_path="rel/app/src-tauri/target/${{ matrix.gui_target }}/release/bundle/macos/Livebook.app"
+          echo "Verifying $app_path"
+          spctl -a -t exec -vvv "$app_path"
+
+      - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
+        if: github.ref_type != 'tag'
         with:
           name: voyager-${{ matrix.gui_target }}
           path: rel/app/src-tauri/target/${{ matrix.gui_target }}/release/bundle/
           if-no-files-found: error
+
