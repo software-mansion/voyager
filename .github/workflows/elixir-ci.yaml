@@ -1,4 +1,4 @@
-name: Elixir CI
+name: CI Check
 
 on:
   push:
@@ -81,12 +81,12 @@ jobs:
       - name: Install Dependencies
         run: mix deps.get
 
-      - name: Rust cache
+      - name: Cache Tauri test build
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
             rel/app/src-tauri -> target
-          key: rust-tests-${{ steps.rust-version.outputs.version }}-${{ hashFiles('rel/app/src-tauri/Cargo.lock') }}
+          key: tauri-tests-${{ steps.rust-version.outputs.version }}-${{ hashFiles('rel/app/src-tauri/Cargo.lock') }}
 
       - name: Check prettier
         working-directory: ./assets
@@ -111,7 +111,7 @@ jobs:
 
       - name: Run Tauri tests
         working-directory: ./rel/app/src-tauri
-        run: cargo test
+        run: cargo test --profile ci-rust
 
       - name: Run Tauri formatting
         working-directory: ./rel/app/src-tauri

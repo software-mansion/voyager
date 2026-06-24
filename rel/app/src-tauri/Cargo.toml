@@ -31,3 +31,10 @@ rand = "0.9"
 [profile.release]
 lto = "thin"
 opt-level = "s"
+
+[profile.ci-rust]
+inherits = "test"
+opt-level = 0
+debug = false
+incremental = true
+codegen-units = 256
