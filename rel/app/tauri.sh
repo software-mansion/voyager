@@ -24,6 +24,10 @@ main() {
     Linux*)
       os=linux
       ;;
+    *)
+      echo "Unsupported OS: $(uname -s)" >&2
+      exit 1
+      ;;
   esac
 
   profile="release"
