@@ -234,7 +234,9 @@ jobs:
         run: |
           app_path="rel/app/src-tauri/target/${{ matrix.gui_target }}/release/bundle/macos/Voyager.app"
           echo "Verifying $app_path"
-          spctl -a -t exec -vvv "$app_path"
+          test -d "$app_path"
+          codesign --verify --deep --strict --verbose=4 "$app_path"
+          syspolicy_check distribution "$app_path" --verbose
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4

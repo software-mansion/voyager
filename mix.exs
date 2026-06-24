@@ -133,5 +133,5 @@ defmodule Voyager.MixProject do
     "cmd sh -c '#{script}'"
   end
 
-  defp tauri_check_version_cmd, do: "cmd sh dev/tauri_check_version.sh"
+  defp tauri_check_version_cmd, do: "cmd dev/tauri_check_version.sh"
 end

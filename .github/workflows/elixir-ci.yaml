@@ -119,4 +119,4 @@ jobs:
 
       - name: Check Tauri version
         working-directory: ./dev
-        run: sh ./tauri_check_version.sh
+        run: bash ./tauri_check_version.sh
