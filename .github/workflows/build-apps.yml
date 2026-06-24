@@ -54,11 +54,12 @@ jobs:
           mix assets.build
 
       - name: Upload built assets
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: voyager-assets
           path: priv/static/
           if-no-files-found: error
+          retention-days: 7
 
   app:
     name: "Build desktop app (${{ matrix.gui_target }})"
@@ -116,7 +117,7 @@ jobs:
           mix deps.get
 
       - name: Download built assets
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: voyager-assets
           path: priv/static
@@ -237,8 +238,9 @@ jobs:
           spctl -a -t exec -vvv "$app_path"
 
       - name: Upload workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: voyager-${{ matrix.gui_target }}
           path: rel/app/src-tauri/target/${{ matrix.gui_target }}/release/bundle/
           if-no-files-found: error
+          retention-days: 7

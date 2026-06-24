@@ -86,7 +86,7 @@ jobs:
       - name: Run e2e tests
         run: mix e2e
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: playwright-report
