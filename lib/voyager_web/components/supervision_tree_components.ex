@@ -44,7 +44,9 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
 
   attr :form, Phoenix.HTML.Form, required: true
   attr :available_apps, :list, required: true
+  attr :visible_apps, :list, required: true
   attr :selected_apps, MapSet, required: true
+  attr :search, :string, required: true
   attr :open?, :boolean, required: true
 
   def controls(assigns) do
@@ -67,28 +69,53 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                 Applications
               </h2>
             </:label>
+            <label
+              :if={@available_apps != []}
+              class="input input-sm mt-2 flex max-w-xs items-center gap-2"
+            >
+              <.icon name="icon-search" class="size-4 text-base-content/50" />
+              <input
+                type="text"
+                id="supervision-tree-search"
+                name="search"
+                value={@search}
+                placeholder="Filter applications…"
+                autocomplete="off"
+                class="grow"
+                phx-debounce="150"
+              />
+              <button :if={@search != ""} phx-click="clear-search" class="cursor-pointer">
+                <.icon name="icon-x" class="size-4" />
+              </button>
+            </label>
             <div class="flex flex-wrap gap-2 py-4">
-              <%= if @available_apps == [] do %>
-                <span class="text-base-content/50 text-sm italic">No applications available</span>
-              <% else %>
-                <%= for {app, vsn} <- @available_apps do %>
-                  <label class={[
-                    "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors",
-                    MapSet.member?(@selected_apps, app) && "border-primary bg-primary/10 text-primary",
-                    not MapSet.member?(@selected_apps, app) &&
-                      "border-base-300 bg-base-200 text-base-content hover:border-primary/50"
-                  ]}>
-                    <input
-                      type="checkbox"
-                      name="tree_controls[apps][]"
-                      value={to_string(app)}
-                      checked={MapSet.member?(@selected_apps, app)}
-                      class="checkbox checkbox-xs checkbox-primary"
-                    />
-                    <span class="font-mono">{app}</span>
-                    <span class="badge badge-ghost badge-xs">{vsn}</span>
-                  </label>
-                <% end %>
+              <%= cond do %>
+                <% @available_apps == [] -> %>
+                  <span class="text-base-content/50 text-sm italic">No applications available</span>
+                <% @visible_apps == [] -> %>
+                  <span class="text-base-content/50 text-sm italic">
+                    No applications match your search
+                  </span>
+                <% true -> %>
+                  <%= for {app, vsn} <- @visible_apps do %>
+                    <label class={[
+                      "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors",
+                      MapSet.member?(@selected_apps, app) &&
+                        "border-primary bg-primary/10 text-primary",
+                      not MapSet.member?(@selected_apps, app) &&
+                        "border-base-300 bg-base-200 text-base-content hover:border-primary/50"
+                    ]}>
+                      <input
+                        type="checkbox"
+                        name="tree_controls[apps][]"
+                        value={to_string(app)}
+                        checked={MapSet.member?(@selected_apps, app)}
+                        class="checkbox checkbox-xs checkbox-primary"
+                      />
+                      <span class="font-mono">{app}</span>
+                      <span class="badge badge-ghost badge-xs">{vsn}</span>
+                    </label>
+                  <% end %>
               <% end %>
             </div>
             <div>
@@ -104,7 +131,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                 phx-click="clear-all-apps"
                 title="Clear all applications"
                 aria-label="Clear all applications"
-                class="btn btn-soft btn-primary max-w-32 mt-2 gap-2"
+                class="btn btn-sm btn-soft btn-primary mt-2 gap-2"
               >
                 <.icon name="icon-x" class="size-4" />
                 <span>Clear all</span>
