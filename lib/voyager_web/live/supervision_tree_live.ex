@@ -55,8 +55,13 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     new_apps = MapSet.new(apps)
     apps_changed? = new_apps != socket.assigns.selected_apps
 
+    {selected_apps, rest_apps} =
+      socket.assigns.available_apps
+      |> Enum.split_with(fn {app, _} -> MapSet.member?(new_apps, app) end)
+
     socket =
       socket
+      |> assign(:available_apps, selected_apps ++ rest_apps)
       |> assign(:selected_apps, new_apps)
       |> assign(:apps_form, to_form(changeset, as: :tree_controls))
 
