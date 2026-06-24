@@ -52,6 +52,7 @@ sudo apt-get install -y \
   libglib2.0-dev \
   libgtk-3-dev \
   libwebkit2gtk-4.1-dev \
+  libwxgtk3.0-gtk3-dev \
   libayatana-appindicator3-dev \
   librsvg2-dev \
   libssl-dev \
@@ -62,7 +63,8 @@ sudo apt-get install -y \
 Build the app:
 
 ```sh
-./rel/app/tauri.sh build
+cd rel/app
+./tauri.sh build
 ```
 
 #### macOS
@@ -70,5 +72,6 @@ Build the app:
 Install Xcode Command Line Tools, then build:
 
 ```sh
-./rel/app/tauri.sh build
+cd rel/app
+./tauri.sh build
 ```
