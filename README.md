@@ -28,6 +28,13 @@ The production release needs these environment variables when it starts:
 
 Voyager uses [ElixirKit](https://hexdocs.pm/elixirkit/tauri.html) to bundle the Phoenix release into a Tauri desktop app.
 
+Before creating desktop app first run 
+
+```sh
+mix setup
+MIX_ENV=prod mix assets.deploy
+```
+
 Install the Tauri CLI:
 
 ```sh

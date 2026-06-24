@@ -61,14 +61,15 @@ jobs:
           toolchain: ${{ steps.rust-version.outputs.version }}
           components: rustfmt
 
-      - name: Cache dependencies and build artifacts
+      - name: Cache Mix dependencies and build artifacts
         uses: actions/cache@v4
         with:
           path: |
             deps
             _build
-          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
-          restore-keys: ${{ runner.os }}-mix-
+          key: ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
 
       - name: Cache Dialyzer PLTs
         uses: actions/cache@v4
@@ -81,12 +82,13 @@ jobs:
       - name: Install Dependencies
         run: mix deps.get
 
-      - name: Cache Tauri test build
+      - name: Cache Tauri dependencies and test build
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
             rel/app/src-tauri -> target
-          key: tauri-tests-${{ steps.rust-version.outputs.version }}-${{ hashFiles('rel/app/src-tauri/Cargo.lock') }}
+          key: tauri-tests-${{ steps.rust-version.outputs.version }}-${{ hashFiles('mix.lock', 'rel/app/src-tauri/Cargo.lock') }}
+          cache-on-failure: true
 
       - name: Check prettier
         working-directory: ./assets
