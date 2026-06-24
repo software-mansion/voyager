@@ -111,7 +111,9 @@ jobs:
 
       - name: Run Tauri tests
         working-directory: ./rel/app/src-tauri
-        run: cargo test
+        run: |
+          mkdir -p target/rel
+          cargo test
 
       - name: Run Tauri formatting
         working-directory: ./rel/app/src-tauri
