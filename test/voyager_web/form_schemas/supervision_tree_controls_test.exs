@@ -41,10 +41,9 @@ defmodule VoyagerWeb.FormSchemas.SupervisionTreeControlsTest do
       changeset =
         SupervisionTreeControls.changeset(%{"apps" => @available_strings}, @available_apps)
 
-      {apps, truncated?} = SupervisionTreeControls.apps_from_changeset(changeset)
+      apps = SupervisionTreeControls.apps_from_changeset(changeset)
 
       assert apps == [:kernel, :stdlib, :elixir]
-      refute truncated?
     end
 
     test "handles truncation when apps exceed max_apps" do
@@ -58,10 +57,9 @@ defmodule VoyagerWeb.FormSchemas.SupervisionTreeControlsTest do
       all_available = @available_apps ++ Enum.map(many_apps, &String.to_atom(&1))
 
       changeset = SupervisionTreeControls.changeset(attrs, all_available)
-      {apps, truncated?} = SupervisionTreeControls.apps_from_changeset(changeset)
+      apps = SupervisionTreeControls.apps_from_changeset(changeset)
 
-      assert length(apps) == SupervisionTreeControls.max_apps()
-      assert truncated?
+      assert length(apps) == 20
     end
   end
 

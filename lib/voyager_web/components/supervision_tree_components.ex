@@ -48,6 +48,9 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
   attr :open?, :boolean, required: true
 
   def controls(assigns) do
+    assigns =
+      assign(assigns, :apps_errors, Enum.map(assigns.form[:apps].errors, &translate_error(&1)))
+
     ~H"""
     <div class="card bg-base-100 border-base-200 border shadow-sm">
       <div class="card-body py-3">
@@ -86,6 +89,11 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                     <span class="badge badge-ghost badge-xs">{vsn}</span>
                   </label>
                 <% end %>
+                <div>
+                  <p :for={error <- @apps_errors} class="font-mono text-error mt-1.5 text-xs">
+                    {error}
+                  </p>
+                </div>
               <% end %>
             </div>
           </.collapsible>
@@ -236,6 +244,12 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
       <% end %>
     </div>
     """
+  end
+
+  defp translate_error({msg, opts}) do
+    Enum.reduce(opts, msg, fn {key, value}, acc ->
+      String.replace(acc, "%{#{key}}", fn _ -> to_string(value) end)
+    end)
   end
 
   defp status_badge_class(:idle), do: "badge-ghost"

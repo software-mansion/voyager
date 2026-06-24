@@ -51,13 +51,12 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> SupervisionTreeControls.changeset(socket.assigns.available_app_atoms)
       |> Map.put(:action, :validate)
 
-    {apps, truncated?} = SupervisionTreeControls.apps_from_changeset(changeset)
+    apps = SupervisionTreeControls.apps_from_changeset(changeset)
     new_apps = MapSet.new(apps)
     apps_changed? = new_apps != socket.assigns.selected_apps
 
     socket =
       socket
-      |> maybe_flash_truncated(truncated?)
       |> assign(:selected_apps, new_apps)
       |> assign(:apps_form, to_form(changeset, as: :tree_controls))
 
@@ -228,16 +227,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     end
   end
 
-  defp maybe_flash_truncated(socket, false), do: socket
-
-  defp maybe_flash_truncated(socket, true) do
-    put_flash(
-      socket,
-      :info,
-      "Only #{SupervisionTreeControls.max_apps()} applications can be selected at once."
-    )
-  end
-
   defp assign_controls_form(socket) do
     changeset =
       SupervisionTreeControls.changeset(
@@ -264,7 +253,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       {:error, reason} ->
         socket
         |> assign(:status, :error)
-        |> assign(:errors, [{:list_applications, socket.assigns.session.node, reason}])
+        |> assign(:errors, [{:list_running_applications, socket.assigns.session.node, reason}])
     end
   end
 

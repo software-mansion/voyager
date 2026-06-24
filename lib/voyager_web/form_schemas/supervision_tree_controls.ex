@@ -22,9 +22,6 @@ defmodule VoyagerWeb.FormSchemas.SupervisionTreeControls do
     field :depth, :integer, default: @default_depth
   end
 
-  @spec max_apps() :: pos_integer()
-  def max_apps, do: @max_apps
-
   @spec min_depth() :: pos_integer()
   def min_depth, do: @min_depth
 
@@ -36,21 +33,20 @@ defmodule VoyagerWeb.FormSchemas.SupervisionTreeControls do
     %__MODULE__{}
     |> cast(attrs, [:apps, :depth])
     |> update_change(:apps, &filter_known(&1, available_apps))
+    |> validate_length(:apps,
+      max: @max_apps,
+      message: "Only #{@max_apps} applications can be selected at once."
+    )
     |> validate_number(:depth,
       greater_than_or_equal_to: @min_depth,
       message: "min #{@min_depth}"
     )
   end
 
-  @doc """
-  Returns `{apps_as_atoms, truncated?}`. Callers can show a flash when
-  `truncated?` is true.
-  """
-  @spec apps_from_changeset(Ecto.Changeset.t()) :: {[atom()], boolean()}
+  @spec apps_from_changeset(Ecto.Changeset.t()) :: [atom()]
   def apps_from_changeset(changeset) do
     apps = get_field(changeset, :apps) || []
-    truncated? = length(apps) > @max_apps
-    {apps |> Enum.take(@max_apps) |> Enum.map(&String.to_existing_atom/1), truncated?}
+    apps |> Enum.take(@max_apps) |> Enum.map(&String.to_existing_atom/1)
   end
 
   defp filter_known(strings, available) when is_list(strings) do
