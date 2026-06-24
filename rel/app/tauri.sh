@@ -56,13 +56,13 @@ main() {
       if [ "$os" = "darwin" ]; then
         bundles_flag="--bundles app"
       fi
-      cargo tauri build "$config" "$config_json" $bundles_flag "$@"
+      tauri_build $bundles_flag "$@"
       open_app "$@"
       ;;
     build)
       shift
       mix_release
-      cargo tauri build "$config" "$config_json" "$@"
+      tauri_build "$@"
       ;;
     *)
       cargo tauri "$@"
@@ -85,10 +85,22 @@ open_app() {
 }
 
 mix_release() {
+  log "Building Phoenix release at $release_root"
   (
     cd "${mix_project_dir}"
     mix release voyager --overwrite --path "$release_root"
   )
+  log "Phoenix release finished"
+}
+
+tauri_build() {
+  log "Building Tauri app with args: $*"
+  cargo tauri build "$config" "$config_json" --verbose "$@"
+  log "Tauri build finished"
+}
+
+log() {
+  printf '[%s] %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*"
 }
 
 main "$@"
