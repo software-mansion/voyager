@@ -35,7 +35,10 @@ mix setup
 MIX_ENV=prod mix assets.deploy
 ```
 
-Install the Tauri CLI:
+#### Prerequisites
+
+- `rust`
+- `tauri-cli`
 
 ```sh
 cargo install tauri-cli --version "=2.8.0" --locked

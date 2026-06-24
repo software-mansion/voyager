@@ -86,8 +86,10 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
-            rel/app/src-tauri -> target
-          key: tauri-tests-${{ steps.rust-version.outputs.version }}-${{ hashFiles('mix.lock', 'rel/app/src-tauri/Cargo.lock') }}
+            rel/app/src-tauri
+          cache-directories: |
+            ~/.cargo/bin
+          key: ${{ runner.os }}-tauri-tests
           cache-on-failure: true
 
       - name: Check prettier
