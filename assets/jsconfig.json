@@ -1,0 +1,25 @@
+{
+    "compilerOptions": {
+        "strict": true,
+        "noImplicitAny": false,
+        "strictFunctionTypes": true,
+        "strictPropertyInitialization": true,
+        "strictBindCallApply": true,
+        "noImplicitThis": true,
+        "noImplicitReturns": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "checkJs": true,
+        "allowJs": true,
+        "declaration": true,
+        "target": "ES2020",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "maxNodeModuleJsDepth": 0,
+        "outDir": "dist"
+    },
+    "include": [
+        "./js/**/*.js"
+    ],
+    "verbose": true
+}

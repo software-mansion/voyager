@@ -4,7 +4,8 @@
   },
   "scripts": {
     "format": "prettier . --write",
-    "format:check": "prettier . --check"
+    "format:check": "prettier . --check",
+    "check-types": "tsc --project ./jsconfig.json"
   },
   "dependencies": {
     "@fontsource-variable/dm-sans": "^5.2.8",
@@ -16,6 +17,7 @@
     "daisyui": "^5.0.0"
   },
   "devDependencies": {
-    "prettier": "^3.8.3"
+    "prettier": "^3.8.3",
+    "typescript": "^5.9.2"
   }
 }
