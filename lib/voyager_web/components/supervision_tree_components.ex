@@ -185,18 +185,21 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                   <div>
                     <.icon name="icon-square" class="size-4 text-success" /> Reference
                   </div>
-                  <div class="flex items-center gap-2">
-                    <div class="border-base-500 w-4 border-b" /> Supervision link
+                  <div class="gap-[3px] flex items-center">
+                    <span class="w-[18px] h-[2px] bg-base-500" />
+                    <span class="ml-1">Supervision link</span>
                   </div>
-                  <div class="flex items-center gap-2">
-                    <div class="border-base-400 w-4 border-b border-dashed" /> Link
+                  <div class="gap-[3px] flex items-center">
+                    <span :for={_ <- 1..3} class="w-[4px] h-[2px] bg-base-400" />
+                    <span class="ml-1">Link</span>
                   </div>
-                  <div class="flex items-center gap-2">
-                    <div class="border-process-monitor w-4 border-b border-dashed" /> Monitor
+                  <div class="gap-[3px] flex items-center">
+                    <span :for={_ <- 1..3} class="w-[4px] h-[2px] bg-process-monitor" />
+                    <span class="ml-1">Monitor</span>
                   </div>
-                  <div class="flex items-center gap-2">
-                    <div class="border-process-monitored-by w-4 border-b border-dashed" />
-                    Monitored by
+                  <div class="gap-[3px] flex items-center">
+                    <span :for={_ <- 1..3} class="w-[4px] h-[2px] bg-process-monitored-by" />
+                    <span class="ml-1">Monitored by</span>
                   </div>
                 </div>
               </div>
