@@ -8,13 +8,13 @@ defmodule Voyager.SshdFixture do
       ed25519 client key (returned in the context),
     * answer every exec channel with a shell wrapper that prints a canned
       `epmd -names` style payload — sufficient to drive
-      `RemoteNodeConnector.discover_dist_port/3` end-to-end without a real
-      Erlang node on the remote side,
-    * permit TCP port forwarding so `Tunnel` integration tests can exercise
-      `-L` against the same daemon.
+      `Voyager.Services.Erlssh.Connection.discover_dist_port/3` end-to-end
+      without a real Erlang node on the remote side,
+    * permit TCP port forwarding so tunnel integration tests can exercise
+      `:ssh.tcpip_tunnel_to_server/6` against the same daemon.
 
   Use `start!/0` in `setup`/`setup_all`. The returned context exposes the
-  paths and port needed by the OpenSSH client modules.
+  paths and port needed by the `:ssh` client modules.
   """
 
   @epmd_output """
