@@ -451,8 +451,16 @@ const SupervisionTree = {
         node.data('is_collapsed', true);
 
         const treeSuccessors = node.successors('[!is_from_relation]');
-        treeSuccessors.forEach((ele) => bumpHiddenCount(ele, 1));
-        treeSuccessors.addClass('hidden');
+
+        treeSuccessors
+          .filter((ele) => {
+            const incomers = ele.incomers('node');
+            return treeSuccessors.contains(incomers) || incomers.contains(node);
+          })
+          .forEach((ele) => {
+            bumpHiddenCount(ele, 1);
+            ele.addClass('hidden');
+          });
 
         // Hide relation successors only once all of their edges are hidden.
         node.successors('[?is_from_relation]').forEach((ele) => {
