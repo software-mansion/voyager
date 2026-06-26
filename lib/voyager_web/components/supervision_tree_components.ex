@@ -7,9 +7,18 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
 
   alias VoyagerWeb.FormSchemas.SupervisionTreeControls
 
+  @interval_options [
+    {"Off", "off"},
+    {"5s", "5000"},
+    {"10s", "10000"},
+    {"30s", "30000"},
+    {"60s", "60000"}
+  ]
+
   attr :node_name, :string, required: true
   attr :status, :atom, required: true
   attr :last_updated, :any, required: true
+  attr :refresh_interval, :integer, required: true
 
   def header(assigns) do
     ~H"""
@@ -20,22 +29,14 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
         waiting_message="waiting for first fetch…"
       >
         <:actions>
-          <span class={["badge", status_badge_class(@status)]}>
+          <span class={["badge mr-2", status_badge_class(@status)]}>
             {status_label(@status)}
           </span>
-          <button
-            type="button"
-            phx-click="refresh-now"
-            phx-throttle="1000"
-            id="supervision-tree-refresh"
-            title="Refresh now"
-            class="btn btn-sm btn-ghost"
-          >
-            <.icon
-              name="icon-rotate-cw"
-              class={["size-4", @status == :loading && "animate-spin"]}
-            />
-          </button>
+          <.interval_select
+            options={interval_options()}
+            refresh_interval={@refresh_interval}
+            loading?={@status == :loading}
+          />
         </:actions>
       </.node_header>
     </div>
@@ -286,6 +287,15 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
     </div>
     """
   end
+
+  def default_refresh_interval,
+    do:
+      interval_options()
+      |> Enum.at(1)
+      |> elem(1)
+      |> String.to_integer()
+
+  defp interval_options, do: @interval_options
 
   defp translate_error({msg, opts}) do
     Enum.reduce(opts, msg, fn {key, value}, acc ->

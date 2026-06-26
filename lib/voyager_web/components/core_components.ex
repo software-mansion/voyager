@@ -102,6 +102,67 @@ defmodule VoyagerWeb.CoreComponents do
   end
 
   @doc """
+  Renders a form with select input with specified refresh interval options and
+  button to refresh manually.
+
+  ## Examples
+
+      <.interval_select
+        options={[
+          {"Off", "off"},
+          {"1s", "1000"},
+          {"2s", "2000"},
+        ]}
+        refresh_interval={@refresh_interval} # number of miliseconds or nil
+        status={}
+      />
+  """
+  attr :options, :list, required: true
+  attr :refresh_interval, :integer, required: true
+  attr :loading?, :boolean, required: true
+
+  def interval_select(assigns) do
+    ~H"""
+    <div class="flex items-center gap-2">
+      <label class="font-mono text-base-content/50 tracking-label text-xs uppercase">
+        Auto-refresh
+      </label>
+      <form phx-change="set-interval" id="refresh-interval-form">
+        <select
+          name="interval"
+          id="refresh-interval"
+          class="select select-bordered select-sm font-mono pr-8 text-xs"
+        >
+          <option
+            :for={{label, value} <- @options}
+            value={value}
+            selected={value == interval_value(@refresh_interval)}
+          >
+            {label}
+          </option>
+        </select>
+      </form>
+      <button
+        type="button"
+        phx-click="refresh-now"
+        phx-throttle="1000"
+        id="refresh-now-button"
+        title="Refresh now"
+        class="btn btn-sm btn-ghost btn-square"
+      >
+        <.icon
+          name="icon-rotate-cw"
+          class={["size-4", @loading? && "animate-spin"]}
+        />
+      </button>
+    </div>
+    """
+  end
+
+  defp interval_value(nil), do: "off"
+  defp interval_value(ms), do: Integer.to_string(ms)
+
+  @doc """
   Renders an icon from `assets/css/icons/`. The Tailwind plugin at
   `assets/vendor/icons.js` generates an `icon-{name}` CSS class for each
   SVG file in that directory.

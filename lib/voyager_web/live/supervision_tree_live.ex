@@ -7,13 +7,12 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   alias VoyagerWeb.FormSchemas.SupervisionTreeControls
   alias VoyagerWeb.SupervisionTreeLive.Diff
 
-  @refresh_interval 5_000
-
   @impl true
   def mount(_params, _session, socket) do
     socket =
       socket
       |> assign(:active_nav, :supervision_tree)
+      |> assign(:refresh_interval, SupervisionTreeComponents.default_refresh_interval())
       |> assign(:available_apps, [])
       |> assign(:available_app_atoms, [])
       |> assign(:selected_apps, MapSet.new())
@@ -88,6 +87,14 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   end
 
   @impl true
+  def handle_event("set-interval", %{"interval" => value}, socket) do
+    socket
+    |> assign(:refresh_interval, parse_interval(value))
+    |> stop_timer()
+    |> start_timer()
+    |> noreply()
+  end
+
   def handle_event("toggle-apps-open", _params, socket) do
     {:noreply, assign(socket, apps_open?: not socket.assigns.apps_open?)}
   end
@@ -259,6 +266,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         node_name={@session.node_name}
         status={@status}
         last_updated={@last_updated}
+        refresh_interval={@refresh_interval}
       />
       <SupervisionTreeComponents.controls
         form={@apps_form}
@@ -354,8 +362,23 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   end
 
   defp start_timer(socket) do
-    timer = Process.send_after(self(), :refresh, @refresh_interval)
-    assign(socket, :refresh_timer, timer)
+    case socket.assigns.refresh_interval do
+      nil ->
+        socket
+
+      interval ->
+        timer = Process.send_after(self(), :refresh, interval)
+        assign(socket, :refresh_timer, timer)
+    end
+  end
+
+  defp parse_interval("off"), do: nil
+
+  defp parse_interval(value) do
+    case Integer.parse(value) do
+      {ms, ""} when ms > 0 -> ms
+      _ -> nil
+    end
   end
 
   defp toggle_expand(socket, pid_str) do
