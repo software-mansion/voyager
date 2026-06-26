@@ -71,7 +71,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
             </:label>
             <label
               :if={@available_apps != []}
-              class="input input-sm mt-2 flex max-w-xs items-center gap-2"
+              class="input mt-2 flex max-w-xs items-center gap-2"
             >
               <.icon name="icon-search" class="size-4 text-base-content/50" />
               <input
@@ -131,7 +131,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                 phx-click="clear-all-apps"
                 title="Clear all applications"
                 aria-label="Clear all applications"
-                class="btn btn-sm btn-soft btn-primary mt-2 gap-2"
+                class="btn btn-soft btn-primary mt-2 gap-2"
               >
                 <.icon name="icon-x" class="size-4" />
                 <span>Clear all</span>
