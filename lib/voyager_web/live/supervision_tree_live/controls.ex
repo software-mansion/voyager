@@ -16,57 +16,13 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
 
   @impl true
   def update(assigns, socket) do
-    socket =
-      socket
-      |> assign(assigns)
-      |> assign_new(:search, fn -> "" end)
-      |> assign_new(:apps_open?, fn -> true end)
-      |> assign_form()
-      |> assign_visible_apps()
-
-    {:ok, socket}
-  end
-
-  @impl true
-  def handle_event("toggle-apps-open", _params, socket) do
-    {:noreply, assign(socket, :apps_open?, not socket.assigns.apps_open?)}
-  end
-
-  def handle_event("select-apps", %{"_target" => ["search"], "search" => search}, socket) do
-    socket =
-      socket
-      |> assign(:search, search)
-      |> assign_visible_apps()
-
-    {:noreply, socket}
-  end
-
-  def handle_event("select-apps", %{"tree_controls" => params}, socket) do
-    changeset =
-      params
-      |> SupervisionTreeControls.changeset(socket.assigns.available_app_atoms)
-      |> Map.put(:action, :validate)
-
-    if changeset.valid? do
-      apps = SupervisionTreeControls.apps_from_changeset(changeset)
-      depth = Ecto.Changeset.get_field(changeset, :depth)
-      {:noreply, push_patch(socket, to: controls_path(socket, apps, depth))}
-    else
-      {:noreply, assign(socket, :apps_form, to_form(changeset, as: :tree_controls))}
-    end
-  end
-
-  def handle_event("clear-search", _params, socket) do
-    socket =
-      socket
-      |> assign(:search, "")
-      |> assign_visible_apps()
-
-    {:noreply, socket}
-  end
-
-  def handle_event("clear-all-apps", _params, socket) do
-    {:noreply, push_patch(socket, to: controls_path(socket, [], socket.assigns.depth))}
+    socket
+    |> assign(assigns)
+    |> assign_new(:search, fn -> "" end)
+    |> assign_new(:apps_open?, fn -> true end)
+    |> assign_form()
+    |> assign_visible_apps()
+    |> ok()
   end
 
   @impl true
@@ -195,6 +151,49 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
       </div>
     </div>
     """
+  end
+
+  @impl true
+  def handle_event("toggle-apps-open", _params, socket) do
+    socket
+    |> assign(:apps_open?, not socket.assigns.apps_open?)
+    |> noreply()
+  end
+
+  def handle_event("select-apps", %{"_target" => ["search"], "search" => search}, socket) do
+    socket
+    |> assign(:search, search)
+    |> assign_visible_apps()
+    |> noreply()
+  end
+
+  def handle_event("select-apps", %{"tree_controls" => params}, socket) do
+    changeset =
+      params
+      |> SupervisionTreeControls.changeset(socket.assigns.available_app_atoms)
+      |> Map.put(:action, :validate)
+
+    if changeset.valid? do
+      apps = SupervisionTreeControls.apps_from_changeset(changeset)
+      depth = Ecto.Changeset.get_field(changeset, :depth)
+      push_patch(socket, to: controls_path(socket, apps, depth))
+    else
+      assign(socket, :apps_form, to_form(changeset, as: :tree_controls))
+    end
+    |> noreply()
+  end
+
+  def handle_event("clear-search", _params, socket) do
+    socket
+    |> assign(:search, "")
+    |> assign_visible_apps()
+    |> noreply()
+  end
+
+  def handle_event("clear-all-apps", _params, socket) do
+    socket
+    |> push_patch(to: controls_path(socket, [], socket.assigns.depth))
+    |> noreply()
   end
 
   defp assign_form(socket) do

@@ -25,16 +25,14 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> assign(:status, :idle)
       |> assign(:refresh_timer, nil)
 
-    socket =
-      if connected?(socket) do
-        socket
-        |> assign_applications()
-        |> start_timer()
-      else
-        socket
-      end
-
-    {:ok, socket}
+    if connected?(socket) do
+      socket
+      |> assign_applications()
+      |> start_timer()
+    else
+      socket
+    end
+    |> ok()
   end
 
   @impl true
@@ -64,146 +62,18 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> assign(:selected_apps, new_selected)
       |> assign(:depth, depth)
 
-    socket =
-      if connected?(socket) and (apps_changed? or depth_changed?) do
-        socket
-        |> assign(
-          :expanded_pids,
-          if(depth_changed?, do: MapSet.new(), else: socket.assigns.expanded_pids)
-        )
-        |> reset_tree()
-        |> request_fetch()
-      else
-        socket
-      end
-
-    {:noreply, socket}
-  end
-
-  @impl true
-  def handle_event("set-interval", %{"interval" => value}, socket) do
-    socket
-    |> assign(:refresh_interval, parse_interval(value))
-    |> stop_timer()
-    |> start_timer()
-    |> noreply()
-  end
-
-  def handle_event("toggle-expand", %{"pid" => pid_str}, socket) do
-    {expanded, newly_expanded?} =
-      toggle_expand(socket, pid_str)
-
-    socket = assign(socket, :expanded_pids, expanded)
-
-    socket =
-      if newly_expanded? do
-        request_fetch(socket)
-      else
-        socket
-      end
-
-    {:noreply, socket}
-  end
-
-  def handle_event("refresh-now", _params, socket) do
-    {:noreply, request_fetch(socket)}
-  end
-
-  def handle_event("select-node", %{"key" => key}, socket) do
-    path = walk_to_root(socket.assigns.last_tree_flat, key)
-    {:noreply, push_event(socket, "path-highlight", %{path: path})}
-  end
-
-  @impl true
-  def handle_info(:refresh, socket) do
-    socket =
+    if connected?(socket) and (apps_changed? or depth_changed?) do
       socket
-      |> stop_timer()
-      |> start_timer()
-
-    socket =
-      if MapSet.size(socket.assigns.selected_apps) > 0 and is_nil(socket.assigns.in_flight) do
-        request_fetch(socket)
-      else
-        socket
-      end
-
-    {:noreply, socket}
-  end
-
-  def handle_info({ref, {status, result, errors}}, socket) do
-    in_flight = socket.assigns.in_flight
-
-    if not is_nil(in_flight) and in_flight.ref == ref do
-      stop_timer(socket)
-
-      Process.demonitor(ref, [:flush])
-
-      new_flat = result.nodes
-      prev_flat = socket.assigns.last_tree_flat
-
-      payload =
-        case prev_flat do
-          nil ->
-            %{
-              kind: "full",
-              nodes: new_flat
-            }
-
-          prev ->
-            prev
-            |> Diff.diff(new_flat)
-            |> Map.merge(%{kind: "delta"})
-        end
-
-      socket =
-        socket
-        |> assign(:errors, errors)
-        |> assign(:status, status)
-        |> assign(:in_flight, nil)
-        |> assign(:last_tree_flat, new_flat)
-        |> assign(:last_updated, DateTime.utc_now())
-        |> push_event("tree-data", payload)
-        |> start_timer()
-
-      {:noreply, socket}
+      |> assign(
+        :expanded_pids,
+        if(depth_changed?, do: MapSet.new(), else: socket.assigns.expanded_pids)
+      )
+      |> reset_tree()
+      |> request_fetch()
     else
-      {:noreply, socket}
+      socket
     end
-  end
-
-  def handle_info({:DOWN, ref, :process, _pid, reason}, socket) do
-    in_flight = socket.assigns.in_flight
-
-    if not is_nil(in_flight) and in_flight.ref == ref do
-      socket =
-        socket
-        |> stop_timer()
-        |> start_timer()
-        |> assign(:in_flight, nil)
-        |> assign(:status, :error)
-        |> assign(:errors, socket.assigns.errors ++ [{:fetch, reason}])
-        |> reset_tree()
-
-      {:noreply, socket}
-    else
-      {:noreply, socket}
-    end
-  end
-
-  def handle_info(_msg, socket) do
-    {:noreply, socket}
-  end
-
-  @impl true
-  def terminate(_reason, socket) do
-    if socket.assigns[:in_flight] do
-      Fetch.cancel(socket.assigns.in_flight)
-    end
-
-    stop_timer(socket)
-
-    :ok
+    |> noreply()
   end
 
   @impl true
@@ -229,6 +99,123 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       <SupervisionTreeComponents.body selected_apps={@selected_apps} status={@status} />
     </div>
     """
+  end
+
+  @impl true
+  def handle_event("set-interval", %{"interval" => value}, socket) do
+    socket
+    |> assign(:refresh_interval, parse_interval(value))
+    |> stop_timer()
+    |> start_timer()
+    |> noreply()
+  end
+
+  def handle_event("toggle-expand", %{"pid" => pid_str}, socket) do
+    {expanded, newly_expanded?} =
+      toggle_expand(socket, pid_str)
+
+    socket = assign(socket, :expanded_pids, expanded)
+
+    if newly_expanded? do
+      request_fetch(socket)
+    else
+      socket
+    end
+    |> noreply()
+  end
+
+  def handle_event("refresh-now", _params, socket) do
+    socket
+    |> request_fetch()
+    |> noreply()
+  end
+
+  def handle_event("select-node", %{"key" => key}, socket) do
+    path = walk_to_root(socket.assigns.last_tree_flat, key)
+
+    socket
+    |> push_event("path-highlight", %{path: path})
+    |> noreply()
+  end
+
+  @impl true
+  def handle_info(:refresh, socket) do
+    socket =
+      socket
+      |> stop_timer()
+      |> start_timer()
+
+    if MapSet.size(socket.assigns.selected_apps) > 0 and is_nil(socket.assigns.in_flight) do
+      request_fetch(socket)
+    else
+      socket
+    end
+    |> noreply()
+  end
+
+  def handle_info(
+        {ref, {status, result, errors}},
+        %{assigns: %{in_flight: %{ref: ref}}} = socket
+      ) do
+    stop_timer(socket)
+
+    Process.demonitor(ref, [:flush])
+
+    new_flat = result.nodes
+    prev_flat = socket.assigns.last_tree_flat
+
+    payload =
+      case prev_flat do
+        nil ->
+          %{
+            kind: "full",
+            nodes: new_flat
+          }
+
+        prev ->
+          prev
+          |> Diff.diff(new_flat)
+          |> Map.merge(%{kind: "delta"})
+      end
+
+    socket
+    |> assign(:errors, errors)
+    |> assign(:status, status)
+    |> assign(:in_flight, nil)
+    |> assign(:last_tree_flat, new_flat)
+    |> assign(:last_updated, DateTime.utc_now())
+    |> push_event("tree-data", payload)
+    |> start_timer()
+    |> noreply()
+  end
+
+  def handle_info(
+        {:DOWN, ref, :process, _pid, reason},
+        %{assigns: %{in_flight: %{ref: ref}}} = socket
+      ) do
+    socket
+    |> stop_timer()
+    |> start_timer()
+    |> assign(:in_flight, nil)
+    |> assign(:status, :error)
+    |> assign(:errors, socket.assigns.errors ++ [{:fetch, reason}])
+    |> reset_tree()
+    |> noreply()
+  end
+
+  def handle_info(_msg, socket) do
+    {:noreply, socket}
+  end
+
+  @impl true
+  def terminate(_reason, socket) do
+    if socket.assigns[:in_flight] do
+      Fetch.cancel(socket.assigns.in_flight)
+    end
+
+    stop_timer(socket)
+
+    :ok
   end
 
   defp assign_applications(socket) do
