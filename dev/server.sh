@@ -8,6 +8,5 @@ mix compile
 env="${MIX_ENV:-dev}"
 ebin="$PWD/_build/$env/lib/voyager/ebin"
 
-exec iex --name voyager_test --cookie test \
-  --erl "-epmd_module Elixir.Voyager.ProxyEpmd -pa $ebin" \
+exec iex --erl "-epmd_module Elixir.Voyager.ProxyEpmd -pa $ebin" \
   -S mix phx.server
