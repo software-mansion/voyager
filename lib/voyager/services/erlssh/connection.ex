@@ -28,7 +28,16 @@ defmodule Voyager.Services.Erlssh.Connection do
           {:ok, integer()} | {:error, term()}
   def discover_dist_port(conn_ref, node_name, epmd_prefix \\ "") do
     epmd_command =
-      if epmd_prefix == "", do: "epmd -names", else: "#{epmd_prefix} epmd -names"
+      cond do
+        epmd_prefix == "" ->
+          "epmd -names"
+
+        String.contains?(epmd_prefix, "=") ->
+          "#{epmd_prefix} epmd -names"
+
+        true ->
+          "PATH=\"#{epmd_prefix}:$PATH\" epmd -names"
+      end
 
     with {:ok, channel_id} <- :ssh_connection.session_channel(conn_ref, @ssh_timeout),
          :success <-
