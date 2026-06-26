@@ -27,30 +27,14 @@ defmodule Voyager.Services.Erlssh.Connection do
   @spec discover_dist_port(:ssh.connection_ref(), String.t(), String.t()) ::
           {:ok, integer()} | {:error, term()}
   def discover_dist_port(conn_ref, node_name, epmd_prefix \\ "") do
-    epmd_command =
-      cond do
-        epmd_prefix == "" ->
-          "epmd -names"
+    epmd_command = build_epmd_command(epmd_prefix)
 
-        String.contains?(epmd_prefix, "=") ->
-          "#{epmd_prefix} epmd -names"
+    case :ssh_connection.session_channel(conn_ref, @ssh_timeout) do
+      {:ok, channel_id} ->
+        exec_and_parse(conn_ref, channel_id, epmd_command, node_name)
 
-        true ->
-          "PATH=\"#{epmd_prefix}:$PATH\" epmd -names"
-      end
-
-    with {:ok, channel_id} <- :ssh_connection.session_channel(conn_ref, @ssh_timeout),
-         :success <-
-           :ssh_connection.exec(
-             conn_ref,
-             channel_id,
-             String.to_charlist(epmd_command),
-             @ssh_timeout
-           ) do
-      output = collect_ssh_output(conn_ref, channel_id, "")
-      parse_epmd_names(output, node_name)
-    else
-      error -> {:error, {:ssh_failed, error}}
+      error ->
+        {:error, {:ssh_failed, error}}
     end
   end
 
@@ -73,6 +57,30 @@ defmodule Voyager.Services.Erlssh.Connection do
 
   defp auth_opts(:agent), do: []
   defp auth_opts({:password, pass}), do: [password: String.to_charlist(pass)]
+
+  defp exec_and_parse(conn_ref, channel_id, epmd_command, node_name) do
+    command_charlist = String.to_charlist(epmd_command)
+
+    case :ssh_connection.exec(conn_ref, channel_id, command_charlist, @ssh_timeout) do
+      :success ->
+        output = collect_ssh_output(conn_ref, channel_id, "")
+        parse_epmd_names(output, node_name)
+
+      error ->
+        :ssh_connection.close(conn_ref, channel_id)
+        {:error, {:ssh_failed, error}}
+    end
+  end
+
+  defp build_epmd_command(""), do: "epmd -names"
+
+  defp build_epmd_command(prefix) do
+    if String.contains?(prefix, "=") do
+      "#{prefix} epmd -names"
+    else
+      "PATH=\"#{prefix}:$PATH\" epmd -names"
+    end
+  end
 
   defp collect_ssh_output(conn_ref, channel_id, acc) do
     receive do

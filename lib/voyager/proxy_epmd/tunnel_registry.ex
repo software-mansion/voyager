@@ -27,7 +27,7 @@ defmodule Voyager.ProxyEpmd.TunnelRegistry do
 
   @impl true
   def init(:ok) do
-    :ets.new(@table, [:set, :public, :named_table, read_concurrency: true])
+    :ets.new(@table, [:set, :protected, :named_table, read_concurrency: true])
     {:ok, %{refs: %{}, keys: %{}}}
   end
 

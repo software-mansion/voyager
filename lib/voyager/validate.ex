@@ -18,22 +18,21 @@ defmodule Voyager.Validate do
 
   @host_re ~r/\A[A-Za-z0-9._:-]+\z/
   @name_re ~r/\A[A-Za-z0-9._-]+@[A-Za-z0-9._:-]+\z/
-  @prefix_re ~r{\A[A-Za-z0-9 _.:/=$~@-]+\z}
+  @prefix_re ~r{\A[A-Za-z0-9_.:/=$~@-]+\z}
 
-  @spec host(String.t()) :: {:ok, String.t()} | {:error, {:invalid_host, String.t()}}
+  @spec host(String.t()) :: :ok | {:error, {:invalid_host, String.t()}}
   def host(host) when is_binary(host) do
-    if safe?(host, @host_re), do: {:ok, host}, else: {:error, {:invalid_host, host}}
+    if safe?(host, @host_re), do: :ok, else: {:error, {:invalid_host, host}}
   end
 
-  @spec node_name(String.t()) :: {:ok, String.t()} | {:error, {:invalid_node_name, String.t()}}
+  @spec node_name(String.t()) :: :ok | {:error, {:invalid_node_name, String.t()}}
   def node_name(name) when is_binary(name) do
-    if safe?(name, @name_re), do: {:ok, name}, else: {:error, {:invalid_node_name, name}}
+    if safe?(name, @name_re), do: :ok, else: {:error, {:invalid_node_name, name}}
   end
 
-  @spec epmd_prefix(String.t()) ::
-          {:ok, String.t()} | {:error, {:invalid_epmd_prefix, String.t()}}
+  @spec epmd_prefix(String.t()) :: :ok | {:error, {:invalid_epmd_prefix, String.t()}}
   def epmd_prefix(prefix) when is_binary(prefix) do
-    if safe_prefix?(prefix), do: {:ok, prefix}, else: {:error, {:invalid_epmd_prefix, prefix}}
+    if safe_prefix?(prefix), do: :ok, else: {:error, {:invalid_epmd_prefix, prefix}}
   end
 
   defp safe_prefix?(prefix) do

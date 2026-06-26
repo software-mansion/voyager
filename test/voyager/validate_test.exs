@@ -5,9 +5,13 @@ defmodule Voyager.ValidateTest do
 
   describe "host/1" do
     test "accepts hostnames, IPv4, and IPv6 literals" do
-      assert {:ok, "example.com"} = Validate.host("example.com")
-      assert {:ok, "10.0.0.5"} = Validate.host("10.0.0.5")
-      assert {:ok, "fe80::1"} = Validate.host("fe80::1")
+      assert :ok = Validate.host("example.com")
+      assert :ok = Validate.host("10.0.0.5")
+      assert :ok = Validate.host("fe80::1")
+    end
+
+    test "accepts short hostnames" do
+      assert :ok = Validate.host("myhost")
     end
 
     test "rejects option-injection and shell metacharacters" do
@@ -19,7 +23,11 @@ defmodule Voyager.ValidateTest do
 
   describe "node_name/1" do
     test "accepts a name@host value" do
-      assert {:ok, "myapp@10.0.0.5"} = Validate.node_name("myapp@10.0.0.5")
+      assert :ok = Validate.node_name("myapp@10.0.0.5")
+    end
+
+    test "accepts short node names" do
+      assert :ok = Validate.node_name("myapp@myhost")
     end
 
     test "rejects values without a host part" do
@@ -34,15 +42,13 @@ defmodule Voyager.ValidateTest do
 
   describe "epmd_prefix/1" do
     test "accepts an empty prefix" do
-      assert {:ok, ""} = Validate.epmd_prefix("")
+      assert :ok = Validate.epmd_prefix("")
     end
 
     test "accepts paths and shell env-var assignments" do
-      assert {:ok, "/opt/homebrew/bin"} = Validate.epmd_prefix("/opt/homebrew/bin")
-      assert {:ok, "~/bin"} = Validate.epmd_prefix("~/bin")
-
-      prefix = "PATH=$HOME/.local/share/mise/shims:$PATH"
-      assert {:ok, ^prefix} = Validate.epmd_prefix(prefix)
+      assert :ok = Validate.epmd_prefix("/opt/homebrew/bin")
+      assert :ok = Validate.epmd_prefix("~/bin")
+      assert :ok = Validate.epmd_prefix("PATH=$HOME/.local/share/mise/shims:$PATH")
     end
 
     test "rejects command-chaining and substitution metacharacters" do
@@ -50,6 +56,11 @@ defmodule Voyager.ValidateTest do
       assert {:error, {:invalid_epmd_prefix, "$(whoami)"}} = Validate.epmd_prefix("$(whoami)")
       assert {:error, {:invalid_epmd_prefix, "a | b"}} = Validate.epmd_prefix("a | b")
       assert {:error, {:invalid_epmd_prefix, "a && b"}} = Validate.epmd_prefix("a && b")
+    end
+
+    test "rejects prefixes with spaces to prevent word-splitting injection" do
+      assert {:error, {:invalid_epmd_prefix, "PATH=/tmp evil"}} =
+               Validate.epmd_prefix("PATH=/tmp evil")
     end
   end
 end

@@ -45,17 +45,30 @@ defmodule Voyager.Services.RemoteNodeConnector do
     epmd_prefix = Keyword.get(opts, :epmd_prefix, "")
     ssh_port = Keyword.get(opts, :ssh_port, 22)
 
-    with {:ok, full_node_name} <- Validate.node_name(full_node_name),
+    with :ok <- Validate.node_name(full_node_name),
          {:ok, node_name, node_host} <- split_node_name(full_node_name),
-         {:ok, _node_host} <- Validate.host(node_host),
-         {:ok, _prefix} <- Validate.epmd_prefix(epmd_prefix),
+         :ok <- Validate.host(node_host),
+         :ok <- Validate.epmd_prefix(epmd_prefix),
          {:ok, conn_ref} <- Connection.connect_ssh(ssh_host, ssh_port, ssh_user, auth) do
       establish(conn_ref, full_node_name, node_name, epmd_prefix)
     end
   end
 
-  # The SSH connection is owned by the caller, so any failure after it is open
-  # must close it explicitly or the connection leaks until the caller dies.
+  @spec stop(pid(), reference() | nil) :: :ok
+  def stop(conn_ref, ref \\ nil) when is_pid(conn_ref) do
+    if is_reference(ref), do: Process.demonitor(ref, [:flush])
+    :ssh.close(conn_ref)
+  end
+
+  @spec split_node_name(String.t()) ::
+          {:ok, String.t(), String.t()} | {:error, {:invalid_node_format, String.t()}}
+  def split_node_name(full_node_name) when is_binary(full_node_name) do
+    case String.split(full_node_name, "@", parts: 2) do
+      [name, host] -> {:ok, name, host}
+      _ -> {:error, {:invalid_node_format, full_node_name}}
+    end
+  end
+
   defp establish(conn_ref, full_node_name, node_name, epmd_prefix) do
     node_key = String.to_charlist(node_name)
 
@@ -82,21 +95,6 @@ defmodule Voyager.Services.RemoteNodeConnector do
         :ssh.close(conn_ref)
         TunnelRegistry.unregister(node_key)
         err
-    end
-  end
-
-  @spec stop(pid(), reference() | nil) :: :ok
-  def stop(conn_ref, ref \\ nil) when is_pid(conn_ref) do
-    if is_reference(ref), do: Process.demonitor(ref, [:flush])
-    :ssh.close(conn_ref)
-  end
-
-  @spec split_node_name(String.t()) ::
-          {:ok, String.t(), String.t()} | {:error, {:invalid_node_format, String.t()}}
-  def split_node_name(full_node_name) when is_binary(full_node_name) do
-    case String.split(full_node_name, "@", parts: 2) do
-      [name, host] -> {:ok, name, host}
-      _ -> {:error, {:invalid_node_format, full_node_name}}
     end
   end
 
