@@ -28,7 +28,6 @@ defmodule Voyager.SshdFixture do
           user: String.t(),
           host: String.t(),
           key_path: String.t(),
-          host_key_path: String.t(),
           dir: String.t(),
           sshd_port: port()
         }
@@ -56,7 +55,6 @@ defmodule Voyager.SshdFixture do
           user: user,
           host: "127.0.0.1",
           key_path: client_key,
-          host_key_path: host_key,
           dir: dir,
           sshd_port: sshd_port
         }
@@ -74,26 +72,6 @@ defmodule Voyager.SshdFixture do
     if Port.info(sshd_port) != nil, do: Port.close(sshd_port)
     File.rm_rf!(dir)
     :ok
-  end
-
-  @doc """
-  Pre-populates the Voyager known_hosts file with the fixture's host key so
-  client connections succeed with `StrictHostKeyChecking=yes`.
-
-  Returns the configured known_hosts path so the caller can override and
-  restore the `:voyager, :known_hosts_path` application env around the test.
-  """
-  @spec install_host_key!(ctx()) :: String.t()
-  def install_host_key!(%{port: port, host_key_path: host_key_path}) do
-    kh_dir = Path.join(System.tmp_dir!(), "voyager_kh_fix_#{System.unique_integer([:positive])}")
-    File.mkdir_p!(kh_dir)
-    kh_path = Path.join(kh_dir, "known_hosts")
-
-    pub = File.read!(host_key_path <> ".pub") |> String.trim()
-    entry = "[127.0.0.1]:#{port} #{pub}\n"
-    File.write!(kh_path, entry)
-
-    kh_path
   end
 
   defp make_dir! do
