@@ -82,6 +82,9 @@ defmodule Voyager.Services.Erlssh.Connection do
       {:ssh_cm, ^conn_ref, {:eof, ^channel_id}} ->
         collect_ssh_output(conn_ref, channel_id, acc)
 
+      {:ssh_cm, ^conn_ref, {:exit_status, ^channel_id, _status}} ->
+        collect_ssh_output(conn_ref, channel_id, acc)
+
       {:ssh_cm, ^conn_ref, {:closed, ^channel_id}} ->
         acc
     after
