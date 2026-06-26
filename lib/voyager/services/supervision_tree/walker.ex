@@ -64,7 +64,6 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   alias Voyager.Services.SupervisionTree.TreeNode
 
   @walk_deadline_ms 3_000
-  @max_rel_per_node 50
 
   @type walk_result :: %{
           nodes: %{String.t() => TreeNode.t()},
@@ -520,13 +519,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
     {raw_rels, cap_errors} =
       Enum.reduce(candidates, {[], []}, fn n, {rels_acc, errs_acc} ->
         node_rels = node_relations(n, parent_pid_of(nodes, n))
-
-        if length(node_rels) > @max_rel_per_node do
-          kept = Enum.take(node_rels, @max_rel_per_node)
-          {kept ++ rels_acc, [{:relationships, n.pid, :truncated} | errs_acc]}
-        else
-          {node_rels ++ rels_acc, errs_acc}
-        end
+        {node_rels ++ rels_acc, errs_acc}
       end)
 
     deduped = dedup_relations(raw_rels)
