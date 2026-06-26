@@ -16,9 +16,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> assign(:available_apps, [])
       |> assign(:available_app_atoms, [])
       |> assign(:selected_apps, MapSet.new())
-      |> assign(:visible_apps, [])
-      |> assign(:search, "")
-      |> assign(:apps_open?, true)
       |> assign(:depth, SupervisionTreeControls.default_depth())
       |> assign(:expanded_pids, MapSet.new())
       |> assign(:last_tree_flat, nil)
@@ -27,7 +24,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> assign(:errors, [])
       |> assign(:status, :idle)
       |> assign(:refresh_timer, nil)
-      |> assign_controls_form()
 
     socket =
       if connected?(socket) do
@@ -64,11 +60,9 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
     socket =
       socket
-      |> assign(:available_apps, selected_apps ++ rest_apps)
+      |> assign(:available_apps, selected_apps ++ Enum.sort(rest_apps))
       |> assign(:selected_apps, new_selected)
       |> assign(:depth, depth)
-      |> assign(:apps_form, to_form(changeset, as: :tree_controls))
-      |> assign_visible_apps()
 
     socket =
       if connected?(socket) and (apps_changed? or depth_changed?) do
@@ -93,52 +87,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     |> stop_timer()
     |> start_timer()
     |> noreply()
-  end
-
-  def handle_event("toggle-apps-open", _params, socket) do
-    {:noreply, assign(socket, apps_open?: not socket.assigns.apps_open?)}
-  end
-
-  def handle_event("select-apps", %{"_target" => ["search"], "search" => search}, socket) do
-    socket =
-      socket
-      |> assign(:search, search)
-      |> assign_visible_apps()
-
-    {:noreply, socket}
-  end
-
-  def handle_event("select-apps", %{"tree_controls" => params}, socket) do
-    changeset =
-      params
-      |> SupervisionTreeControls.changeset(socket.assigns.available_app_atoms)
-      |> Map.put(:action, :validate)
-
-    if changeset.valid? do
-      apps = SupervisionTreeControls.apps_from_changeset(changeset)
-      depth = Ecto.Changeset.get_field(changeset, :depth)
-      {:noreply, push_patch(socket, to: controls_path(socket, apps, depth))}
-    else
-      {:noreply, assign(socket, :apps_form, to_form(changeset, as: :tree_controls))}
-    end
-  end
-
-  def handle_event("clear-search", _params, socket) do
-    socket =
-      socket
-      |> assign(:search, "")
-      |> assign_visible_apps()
-
-    {:noreply, socket}
-  end
-
-  def handle_event("clear-all-apps", _params, socket) do
-    socket =
-      socket
-      |> assign(:available_apps, Enum.sort(socket.assigns.available_apps))
-      |> assign(:search, "")
-
-    {:noreply, push_patch(socket, to: controls_path(socket, [], socket.assigns.depth))}
   end
 
   def handle_event("toggle-expand", %{"pid" => pid_str}, socket) do
@@ -268,28 +216,19 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         last_updated={@last_updated}
         refresh_interval={@refresh_interval}
       />
-      <SupervisionTreeComponents.controls
-        form={@apps_form}
+      <.live_component
+        module={VoyagerWeb.SupervisionTreeLive.Controls}
+        id="controls"
+        node_name={@session.node_name}
         available_apps={@available_apps}
-        visible_apps={@visible_apps}
+        available_app_atoms={@available_app_atoms}
         selected_apps={@selected_apps}
-        search={@search}
-        open?={@apps_open?}
+        depth={@depth}
       />
       <SupervisionTreeComponents.errors errors={@errors} />
       <SupervisionTreeComponents.body selected_apps={@selected_apps} status={@status} />
     </div>
     """
-  end
-
-  defp assign_controls_form(socket) do
-    changeset =
-      SupervisionTreeControls.changeset(
-        %{"depth" => socket.assigns.depth},
-        socket.assigns.available_app_atoms
-      )
-
-    assign(socket, :apps_form, to_form(changeset, as: :tree_controls))
   end
 
   defp assign_applications(socket) do
@@ -303,26 +242,12 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         socket
         |> assign(:available_apps, available)
         |> assign(:available_app_atoms, Enum.map(available, &elem(&1, 0)))
-        |> assign_visible_apps()
-        |> assign_controls_form()
 
       {:error, reason} ->
         socket
         |> assign(:status, :error)
         |> assign(:errors, [{:list_running_applications, socket.assigns.session.node, reason}])
     end
-  end
-
-  defp assign_visible_apps(socket) do
-    search = socket.assigns.search
-    selected = socket.assigns.selected_apps
-
-    visible =
-      Enum.filter(socket.assigns.available_apps, fn {app, _vsn} ->
-        MapSet.member?(selected, app) or fuzzy_match?(to_string(app), search)
-      end)
-
-    assign(socket, :visible_apps, visible)
   end
 
   defp request_fetch(socket) do
@@ -423,22 +348,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     end
   end
 
-  defp controls_path(socket, apps, depth) do
-    node = socket.assigns.session.node_name
-
-    query =
-      %{"depth" => depth}
-      |> maybe_put_apps(apps)
-
-    ~p"/node/#{node}/supervision-tree?#{query}"
-  end
-
-  defp maybe_put_apps(query, apps) when apps in [nil, []], do: query
-
-  defp maybe_put_apps(query, apps) do
-    Map.put(query, "apps", Enum.map_join(apps, ",", &to_string/1))
-  end
-
   defp params_to_attrs(params) do
     apps =
       case params["apps"] do
@@ -450,18 +359,4 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
     %{"apps" => apps, "depth" => depth}
   end
-
-  defp fuzzy_match?(_str, search) when search in [nil, ""], do: true
-
-  defp fuzzy_match?(str, search) do
-    subsequence?(String.downcase(str), String.downcase(search))
-  end
-
-  defp subsequence?(_str, ""), do: true
-  defp subsequence?("", _search), do: false
-
-  defp subsequence?(<<c::utf8, str::binary>>, <<c::utf8, search::binary>>),
-    do: subsequence?(str, search)
-
-  defp subsequence?(<<_c::utf8, str::binary>>, search), do: subsequence?(str, search)
 end

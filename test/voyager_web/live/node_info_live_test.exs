@@ -178,7 +178,7 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       render_async(view)
       assert has_element?(view, "#node-info-content")
 
-      view |> element("#refresh-now") |> render_click()
+      view |> element("#refresh-now-button") |> render_click()
       render_async(view)
 
       assert has_element?(view, "#node-info-content")

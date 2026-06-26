@@ -5,8 +5,6 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
 
   use VoyagerWeb, :component
 
-  alias VoyagerWeb.FormSchemas.SupervisionTreeControls
-
   @interval_options [
     {"Off", "off"},
     {"5s", "5000"},
@@ -39,123 +37,6 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
           />
         </:actions>
       </.node_header>
-    </div>
-    """
-  end
-
-  attr :form, Phoenix.HTML.Form, required: true
-  attr :available_apps, :list, required: true
-  attr :visible_apps, :list, required: true
-  attr :selected_apps, MapSet, required: true
-  attr :search, :string, required: true
-  attr :open?, :boolean, required: true
-
-  def controls(assigns) do
-    assigns =
-      assign(assigns, :apps_errors, Enum.map(assigns.form[:apps].errors, &translate_error(&1)))
-
-    ~H"""
-    <div class="card bg-base-100 border-base-200 border shadow-sm">
-      <div class="card-body py-3">
-        <.form
-          for={@form}
-          id="supervision-tree-controls"
-          phx-change="select-apps"
-          phx-submit="select-apps"
-          class="flex items-start"
-        >
-          <.collapsible id="apps" phx-click="toggle-apps-open" open={@open?} class="flex-1">
-            <:label>
-              <h2 class="text-base-content ml-2 text-center text-sm font-semibold leading-8">
-                Applications
-              </h2>
-            </:label>
-            <label
-              :if={@available_apps != []}
-              class="input mt-2 flex max-w-xs items-center gap-2"
-            >
-              <.icon name="icon-search" class="size-4 text-base-content/50" />
-              <input
-                type="text"
-                id="supervision-tree-search"
-                name="search"
-                value={@search}
-                placeholder="Filter applications…"
-                autocomplete="off"
-                class="grow"
-                phx-debounce="150"
-              />
-              <button :if={@search != ""} phx-click="clear-search" class="cursor-pointer">
-                <.icon name="icon-x" class="size-4" />
-              </button>
-            </label>
-            <div class="flex flex-wrap gap-2 py-4">
-              <%= cond do %>
-                <% @available_apps == [] -> %>
-                  <span class="text-base-content/50 text-sm italic">No applications available</span>
-                <% @visible_apps == [] -> %>
-                  <span class="text-base-content/50 text-sm italic">
-                    No applications match your search
-                  </span>
-                <% true -> %>
-                  <%= for {app, vsn} <- @visible_apps do %>
-                    <label class={[
-                      "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors",
-                      MapSet.member?(@selected_apps, app) &&
-                        "border-primary bg-primary/10 text-primary",
-                      not MapSet.member?(@selected_apps, app) &&
-                        "border-base-300 bg-base-200 text-base-content hover:border-primary/50"
-                    ]}>
-                      <input
-                        type="checkbox"
-                        name="tree_controls[apps][]"
-                        value={to_string(app)}
-                        checked={MapSet.member?(@selected_apps, app)}
-                        class="checkbox checkbox-xs checkbox-primary"
-                      />
-                      <span class="font-mono">{app}</span>
-                      <span class="badge badge-ghost badge-xs">{vsn}</span>
-                    </label>
-                  <% end %>
-              <% end %>
-            </div>
-            <div>
-              <p
-                :for={error <- @apps_errors}
-                class="font-mono text-error my-1.5 text-xs"
-              >
-                {error}
-              </p>
-              <button
-                type="button"
-                id="supervision-tree-clear-apps"
-                phx-click="clear-all-apps"
-                title="Clear all applications"
-                aria-label="Clear all applications"
-                class="btn btn-soft btn-primary mt-2 gap-2"
-              >
-                <.icon name="icon-x" class="size-4" />
-                <span>Clear all</span>
-              </button>
-            </div>
-          </.collapsible>
-          <div class="flex items-start gap-2">
-            <label class="label text-base-content/60 text-xs leading-8" for={@form[:depth].id}>
-              Depth
-            </label>
-            <div class="w-20">
-              <.input
-                field={@form[:depth]}
-                type="number"
-                step="1"
-                min={SupervisionTreeControls.min_depth()}
-                class="input-sm text-center"
-                phx-debounce="250"
-              />
-            </div>
-          </div>
-        </.form>
-      </div>
     </div>
     """
   end
@@ -296,12 +177,6 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
       |> String.to_integer()
 
   defp interval_options, do: @interval_options
-
-  defp translate_error({msg, opts}) do
-    Enum.reduce(opts, msg, fn {key, value}, acc ->
-      String.replace(acc, "%{#{key}}", fn _ -> to_string(value) end)
-    end)
-  end
 
   defp status_badge_class(:idle), do: "badge-ghost"
   defp status_badge_class(:loading), do: "badge-info"
