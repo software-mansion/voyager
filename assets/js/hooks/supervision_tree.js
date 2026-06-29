@@ -241,6 +241,10 @@ const SupervisionTree = {
         const target = this.cy.getElementById(edge.target);
         if (source.nonempty() && target.nonempty()) {
           this.cy.add(relEdgeElement(edge));
+        } else {
+          console.warn(
+            `Failed to add edge. At least one target empty: ${source.id()} - ${target.id()}`
+          );
         }
       }
     });
