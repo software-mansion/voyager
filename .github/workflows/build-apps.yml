@@ -159,35 +159,7 @@ jobs:
           PRIVATE_KEY_BASE64: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_BASE64 }}
           PRIVATE_KEY_PASSWORD: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
-        run: |
-          set -euo pipefail
-          umask 077
-
-          CERTIFICATE_PEM="$RUNNER_TEMP/certificate.pem"
-          CERTIFICATE_DER="$RUNNER_TEMP/certificate.der"
-          CERTIFICATE_P12="$RUNNER_TEMP/certificate.p12"
-          PRIVATE_KEY_P12="$RUNNER_TEMP/private_key.p12"
-          KEY_PEM="$RUNNER_TEMP/key.pem"
-
-          echo -n "$CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/certificate.der"
-          openssl x509 -inform DER -in "$CERTIFICATE_DER" -outform PEM -out "$CERTIFICATE_PEM"
-
-          echo -n "$PRIVATE_KEY_BASE64" | base64 --decode > "$PRIVATE_KEY_P12"
-
-          CERTIFICATE_PASSWORD="$(openssl rand -base64 24)"
-          echo "::add-mask::$CERTIFICATE_PASSWORD"
-          export CERTIFICATE_PASSWORD
-
-          openssl pkcs12 -in "$PRIVATE_KEY_P12" -nodes -nocerts -passin env:PRIVATE_KEY_PASSWORD -out "$KEY_PEM"
-          openssl pkcs12 -export -inkey "$KEY_PEM" -in "$CERTIFICATE_PEM" -out "$CERTIFICATE_P12" -passout env:CERTIFICATE_PASSWORD
-          rm -f "$KEY_PEM"
-
-          CERTIFICATE_P12_BASE64="$(base64 -i "$CERTIFICATE_P12" | tr -d '\n')"
-          echo "::add-mask::$CERTIFICATE_P12_BASE64"
-          {
-            echo "APPLE_CERTIFICATE_P12_BASE64=$CERTIFICATE_P12_BASE64"
-            echo "APPLE_CERTIFICATE_P12_PASSWORD=$CERTIFICATE_PASSWORD"
-          } >> "$GITHUB_ENV"
+        run: .github/scripts/create_apple_certificate.sh
 
       - name: Install Apple certificate (macOS)
         if: runner.os == 'macOS'
@@ -195,21 +167,8 @@ jobs:
           P12_BASE64: ${{ env.APPLE_CERTIFICATE_P12_BASE64 }}
           P12_PASSWORD: ${{ env.APPLE_CERTIFICATE_P12_PASSWORD }}
           KEYCHAIN_PASSWORD: secret
-        run: |
-          if [ -n "$P12_BASE64" ]; then
-            CERTIFICATE_PATH=$RUNNER_TEMP/apple_certificate.p12
-            KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-
-            echo -n "$P12_BASE64" | base64 --decode -o $CERTIFICATE_PATH
-
-            security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-            security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-            security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-
-            security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-            security list-keychain -d user -s $KEYCHAIN_PATH
-          fi
-
+        run: .github/scripts/install_apple_certificate.sh
+         
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0.6
         env:
