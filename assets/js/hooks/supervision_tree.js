@@ -203,7 +203,12 @@ const SupervisionTree = {
 
         for (const [field, value] of Object.entries(patch)) {
           if (field === 'parent_key') {
-            node.connectedEdges('[target = "' + key + '"]').remove();
+            const parent_key = node.data('parent_key');
+
+            node
+              .connectedEdges(`[source = "${parent_key}"][target = "${key}"]`)
+              .remove();
+
             if (value) {
               this.cy.add({
                 group: 'edges',
