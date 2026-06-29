@@ -114,11 +114,10 @@ jobs:
           key: ${{ runner.os }}-tauri-tests
           cache-on-failure: true
 
-      - name: Run Tauri tests
-        working-directory: ./rel/app/src-tauri
-        run: cargo test --profile ci-rust
-
       - name: Run Tauri formatting
         working-directory: ./rel/app/src-tauri
         run: cargo fmt --check
 
+      - name: Run Tauri tests
+        working-directory: ./rel/app/src-tauri
+        run: cargo test --profile ci-rust
