@@ -100,13 +100,13 @@ defmodule Voyager.MixProject do
         "cmd bash e2e/run.sh"
       ],
       precommit: [
-        "compile --warnings-as-errors",
+        tauri_check_version_cmd(),
         "deps.unlock --unused",
-        "credo --strict",
+        "compile --warnings-as-errors",
         "format",
+        "credo --strict",
         "e2e.format",
         "tauri.format",
-        tauri_check_version_cmd(),
         "test",
         "tauri.test"
       ]
