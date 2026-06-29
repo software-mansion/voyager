@@ -1,4 +1,4 @@
-name: Build apps
+name: 'Build apps'
 
 on:
   workflow_dispatch:
@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Elixir
         id: beam
@@ -22,7 +22,7 @@ jobs:
           version-type: strict
 
       - name: Mix deps cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             deps
@@ -77,7 +77,7 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
@@ -98,7 +98,7 @@ jobs:
           version-type: strict
 
       - name: Mix deps cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             deps

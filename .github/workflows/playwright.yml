@@ -26,7 +26,7 @@ jobs:
       MIX_ENV: "e2e"
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-node@v6
         with:
@@ -50,7 +50,7 @@ jobs:
           version-type: strict
 
       - name: Cache Mix dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             deps
@@ -65,7 +65,7 @@ jobs:
         run: mix compile --warnings-as-errors
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
