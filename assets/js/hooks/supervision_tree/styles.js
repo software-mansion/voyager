@@ -167,7 +167,7 @@ export function buildStyle(t) {
         width: 1.2,
         'target-arrow-shape': 'triangle',
         'z-index': 1,
-        'line-dash-pattern': [6, 6],
+        'line-dash-pattern': [6, 12],
       },
     },
     {
@@ -182,6 +182,7 @@ export function buildStyle(t) {
       style: {
         'line-color': t.processMonitor,
         'target-arrow-color': t.processMonitor,
+        'line-dash-offset': 6,
       },
     },
     {
@@ -189,7 +190,7 @@ export function buildStyle(t) {
       style: {
         'line-color': t.processMonitoredBy,
         'target-arrow-color': t.processMonitoredBy,
-        'line-dashed-offset': 6,
+        'line-dash-offset': 12,
       },
     },
     {
