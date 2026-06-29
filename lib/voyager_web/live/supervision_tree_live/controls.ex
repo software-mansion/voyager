@@ -91,14 +91,18 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
                   </span>
                 <% true -> %>
                   <%= for {app, vsn} <- @visible_apps do %>
-                    <label class={[
-                      "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors",
-                      MapSet.member?(@selected_apps, app) &&
-                        "border-primary bg-primary/10 text-primary",
-                      not MapSet.member?(@selected_apps, app) &&
-                        "border-base-300 bg-base-200 text-base-content hover:border-primary/50"
-                    ]}>
+                    <label
+                      id={"#{app}-#{vsn}-label"}
+                      class={[
+                        "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors",
+                        MapSet.member?(@selected_apps, app) &&
+                          "border-primary bg-primary/10 text-primary",
+                        not MapSet.member?(@selected_apps, app) &&
+                          "border-base-300 bg-base-200 text-base-content hover:border-primary/50"
+                      ]}
+                    >
                       <input
+                        id={"#{app}-#{vsn}-input"}
                         type="checkbox"
                         name="tree_controls[apps][]"
                         value={to_string(app)}
