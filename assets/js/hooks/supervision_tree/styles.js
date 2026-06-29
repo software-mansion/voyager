@@ -32,6 +32,8 @@ export function buildStyle(t) {
       style: {
         'background-color': t.primary,
         'border-color': t.primary,
+        'text-background-opacity': 0,
+        'text-opacity': 0.1,
       },
     },
     {
@@ -60,6 +62,36 @@ export function buildStyle(t) {
       },
     },
     {
+      selector: 'node[type = "port"]',
+      style: {
+        shape: 'triangle',
+        'border-color': t.port,
+        width: 14,
+        height: 14,
+      },
+    },
+    {
+      selector: 'node[type = "port"].hover',
+      style: {
+        'background-color': t.port,
+      },
+    },
+    {
+      selector: 'node[type = "reference"]',
+      style: {
+        shape: 'rectangle',
+        'border-color': t.reference,
+        width: 12,
+        height: 12,
+      },
+    },
+    {
+      selector: 'node[type = "reference"].hover',
+      style: {
+        'background-color': t.reference,
+      },
+    },
+    {
       selector: 'node[?dead]',
       style: {
         opacity: 0.4,
@@ -76,44 +108,38 @@ export function buildStyle(t) {
       },
     },
     {
+      selector: 'node.in-path.hover',
+      style: {
+        'background-color': t.primary,
+        'border-color': t.primary,
+        'text-background-opacity': 0,
+        'text-opacity': 0.3,
+      },
+    },
+    {
       selector: 'edge',
       style: {
         'curve-style': 'unbundled-bezier',
 
-        'source-endpoint': 'outside-to-node-or-label',
-        'target-endpoint': 'outside-to-node-or-label',
-
-        // TENSION = how strongly the curve is pulled horizontally.
-        // 0.5 = aggressive boxy S-curve
-        // 0.25 to 0.35 = smooth, gentle sweep
-        // 0.1 = almost a straight diagonal line
         'control-point-distances': function (edge) {
-          const TENSION = 0.3;
-
-          const source = edge.source().position();
-          const target = edge.target().position();
-          const dx = target.x - source.x;
-          const dy = target.y - source.y;
+          const tension = getTensionForEdge(edge);
+          const { dx, dy } = getSourceTargetDelta(edge);
 
           const length = Math.sqrt(dx * dx + dy * dy);
           if (length === 0) return [0, 0];
 
-          const dist = (TENSION * (dx * dy)) / length;
+          const dist = (tension * (dx * dy)) / length;
           return [-dist, dist];
         },
         'control-point-weights': function (edge) {
-          const TENSION = 0.3;
-
-          const source = edge.source().position();
-          const target = edge.target().position();
-          const dx = target.x - source.x;
-          const dy = target.y - source.y;
+          const tension = getTensionForEdge(edge);
+          const { dx, dy } = getSourceTargetDelta(edge);
 
           const lengthSq = dx * dx + dy * dy;
           if (lengthSq === 0) return [0.5, 0.5];
 
-          const w1 = (TENSION * dx * dx) / lengthSq;
-          const w2 = ((1 - TENSION) * dx * dx + dy * dy) / lengthSq;
+          const w1 = (tension * dx * dx) / lengthSq;
+          const w2 = ((1 - tension) * dx * dx + dy * dy) / lengthSq;
 
           return [w1, w2];
         },
@@ -130,6 +156,41 @@ export function buildStyle(t) {
         width: 1.8,
         opacity: 1,
         'z-index': 10,
+      },
+    },
+    {
+      // Relationship edges (link / monitor / monitored-by) are drawn as dashed,
+      // directed overlays distinct from the solid structural supervision edges.
+      selector: 'edge.rel',
+      style: {
+        'line-style': 'dashed',
+        width: 1.2,
+        'target-arrow-shape': 'triangle',
+        'z-index': 1,
+        'line-dash-pattern': [6, 12],
+      },
+    },
+    {
+      selector: 'edge.link',
+      style: {
+        'line-color': t.base400,
+        'target-arrow-shape': 'none',
+      },
+    },
+    {
+      selector: 'edge.monitor',
+      style: {
+        'line-color': t.processMonitor,
+        'target-arrow-color': t.processMonitor,
+        'line-dash-offset': 6,
+      },
+    },
+    {
+      selector: 'edge.monitored_by',
+      style: {
+        'line-color': t.processMonitoredBy,
+        'target-arrow-color': t.processMonitoredBy,
+        'line-dash-offset': 12,
       },
     },
     {
@@ -154,4 +215,29 @@ export function getColor(cs, value, defaultColor = '') {
     return new Color(color).to('srgb').toString({ format: 'hex' });
   }
   return defaultColor;
+}
+
+/*
+ * tension = how strongly the curve is pulled horizontally.
+ * 0.5 = aggressive boxy S-curve
+ * 0.25 to 0.35 = smooth, gentle sweep
+ * 0.1 = almost a straight diagonal line
+ */
+function getTensionForEdge(edge) {
+  const classNames = edge.classNames();
+
+  if (classNames.includes('monitor')) {
+    return 0.2;
+  } else if (classNames.includes('monitored_by')) {
+    return 0.4;
+  }
+  return 0.3;
+}
+
+function getSourceTargetDelta(edge) {
+  const source = edge.source().position();
+  const target = edge.target().position();
+  const dx = target.x - source.x;
+  const dy = target.y - source.y;
+  return { dx, dy };
 }

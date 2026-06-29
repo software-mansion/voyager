@@ -10,6 +10,7 @@ import {
 import { buildStyle, toggleIcon, getColor } from './supervision_tree/styles';
 import {
   elementsFor,
+  relEdgeElement,
   composeLabel,
   edgeId,
   isRealPid,
@@ -17,7 +18,7 @@ import {
 } from './supervision_tree/elements';
 
 /**
- * @import {ServerNode, Info} from './supervision_tree/elements.js'
+ * @import {ServerNode, ServerEdge, Info} from './supervision_tree/elements.js'
  */
 
 cytoscape.use(dagre);
@@ -107,10 +108,11 @@ const SupervisionTree = {
    * @typedef {Object} FullPayload
    * @property {'full'} kind
    * @property {Record<string, ServerNode>} nodes
-
+   * @property {Record<string, ServerEdge>} edges
+   *
    * @typedef {Object} Patch
    * @property {string} name
-   * @property {'app'|'supervisor'|'worker'} type
+   * @property {'app'|'supervisor'|'worker'|'port'|'reference'} type
    * @property {number} child_count
    * @property {Info|'dead'|null} info
    * @property {string[]|'not_loaded'} children_keys
@@ -120,6 +122,8 @@ const SupervisionTree = {
    * @property {Record<string, ServerNode>} added
    * @property {string[]} removed
    * @property {Record<string, Patch>} updated
+   * @property {Record<string, ServerEdge>} edges_added
+   * @property {string[]} edges_removed
    *
    * @param {FullPayload|DeltaPayload} payload
    */
@@ -138,6 +142,7 @@ const SupervisionTree = {
    */
   applyFull(payload) {
     const incoming = payload.nodes || {};
+    const edges = payload.edges || {};
 
     this.cy.batch(() => {
       this.tearDownAllOverlays();
@@ -146,6 +151,11 @@ const SupervisionTree = {
       const addBatch = [];
       for (const [key, node] of Object.entries(incoming)) {
         addBatch.push(...elementsFor(key, node));
+      }
+      // Relationship edges are appended after all nodes so their endpoints
+      // already exist when cytoscape processes the batch.
+      for (const edge of Object.values(edges)) {
+        addBatch.push(relEdgeElement(edge));
       }
       this.cy.add(addBatch);
     });
@@ -161,8 +171,10 @@ const SupervisionTree = {
     const removed = payload.removed || [];
     const added = payload.added || {};
     const updated = payload.updated || {};
+    const edgesAdded = payload.edges_added || {};
+    const edgesRemoved = payload.edges_removed || [];
 
-    let topologyChanged = false;
+    let topologyChangeCounter = 0;
 
     this.cy.batch(() => {
       // Removals
@@ -172,15 +184,17 @@ const SupervisionTree = {
           el.connectedEdges().remove();
           el.remove();
           this.tearDownOverlay(key);
-          topologyChanged = true;
+          topologyChangeCounter++;
         }
       }
 
       // Additions
+      const addBatch = [];
       for (const [key, node] of Object.entries(added)) {
-        this.cy.add(elementsFor(key, node));
-        topologyChanged = true;
+        addBatch.push(...elementsFor(key, node));
+        topologyChangeCounter++;
       }
+      this.cy.add(addBatch);
 
       // Updates
       for (const [key, patch] of Object.entries(updated)) {
@@ -189,19 +203,23 @@ const SupervisionTree = {
 
         for (const [field, value] of Object.entries(patch)) {
           if (field === 'parent_key') {
-            node.connectedEdges('[target = "' + key + '"]').remove();
+            const parent_key = node.data('parent_key');
+
+            node
+              .connectedEdges(`[source = "${parent_key}"][target = "${key}"]`)
+              .remove();
+
             if (value) {
               this.cy.add({
                 group: 'edges',
                 data: { id: edgeId(value, key), source: value, target: key },
               });
             }
-            topologyChanged = true;
           } else {
             node.data(field, value);
           }
 
-          if (TOPOLOGY_FIELDS.has(field)) topologyChanged = true;
+          if (TOPOLOGY_FIELDS.has(field)) topologyChangeCounter++;
         }
 
         if (patch.name !== undefined || patch.child_count !== undefined) {
@@ -212,9 +230,33 @@ const SupervisionTree = {
           node.data('dead', patch.info === 'dead');
         }
       }
+
+      // Relationship edge removals (node removals above already drop their
+      // connected edges, so a missing edge here is a no-op).
+      for (const id of edgesRemoved) {
+        const el = this.cy.getElementById(id);
+        if (el.nonempty()) el.remove();
+      }
+
+      // Relationship edge additions — guard that both endpoints exist (their
+      // rel-node additions were applied earlier in this batch).
+      for (const edge of Object.values(edgesAdded)) {
+        if (this.cy.getElementById(edge.id).nonempty()) continue;
+        const source = this.cy.getElementById(edge.source);
+        const target = this.cy.getElementById(edge.target);
+        if (source.nonempty() && target.nonempty()) {
+          this.cy.add(relEdgeElement(edge));
+        } else {
+          console.warn(
+            `Failed to add edge. At least one target empty: ${source.id()} - ${target.id()}`
+          );
+        }
+      }
     });
 
-    if (topologyChanged) {
+    if (topologyChangeCounter > 4) {
+      this.scheduleLayout({ fit: true });
+    } else if (topologyChangeCounter > 0) {
       this.scheduleLayout();
     }
   },
@@ -395,21 +437,54 @@ const SupervisionTree = {
       this.pushEventTo(this.el, 'toggle-expand', { pid: node.id() });
     }
 
+    const bumpHiddenCount = (ele, delta) => {
+      const current = ele.data('hidden_count') ?? 0;
+      ele.data('hidden_count', Math.max(current + delta, 0));
+    };
+
     this.cy.batch(() => {
       if (this.isCollapsed(node)) {
+        // Expand: decrement the hidden_count of every successor, then reveal
+        // those no longer hidden by any other collapsed ancestor.
         node.data('is_collapsed', false);
-        node.successors().forEach((ele) => {
-          const hidden_count = ele.data('hidden_count') ?? 0;
-          ele.data('hidden_count', Math.max(hidden_count - 1, 0));
-        });
+        node.successors().forEach((ele) => bumpHiddenCount(ele, -1));
         node.successors('[hidden_count = 0]').removeClass('hidden');
+
+        if (node.successors('node[hidden_count = 0]').length > 4) {
+          setTimeout(() => {
+            this.scheduleLayout({ fit: true });
+          }, 200);
+        }
       } else {
+        // Collapse: hide tree successors outright.
         node.data('is_collapsed', true);
-        node.successors().forEach((ele) => {
-          const hidden_count = ele.data('hidden_count') ?? 0;
-          ele.data('hidden_count', hidden_count + 1);
+
+        const treeSuccessors = node.successors('[!is_from_relation]');
+
+        treeSuccessors
+          .filter((ele) => {
+            const incomers = ele.incomers('node');
+            return treeSuccessors.contains(incomers) || incomers.contains(node);
+          })
+          .forEach((ele) => {
+            bumpHiddenCount(ele, 1);
+            ele.addClass('hidden');
+          });
+
+        // Hide relation successors only once all of their edges are hidden.
+        node.successors('[?is_from_relation]').forEach((ele) => {
+          const connectedEdges = this.cy
+            .elements('edge[target="' + ele.id() + '"]')
+            .union(this.cy.elements('edge[source="' + ele.id() + '"]'));
+
+          const visibleEdges =
+            connectedEdges.length - connectedEdges.edges('.hidden').length;
+
+          if (visibleEdges == 0) {
+            bumpHiddenCount(ele, 1);
+            ele.addClass('hidden');
+          }
         });
-        node.successors().addClass('hidden');
       }
     });
 
@@ -435,10 +510,19 @@ const SupervisionTree = {
     const cs = getComputedStyle(this.el);
     return {
       base100: getColor(cs, '--color-base-100', '#ffffff'),
+      base400: getColor(cs, '--color-base-400', '#cccccc'),
       base500: getColor(cs, '--color-base-500', '#CAD5E2'),
       baseContent: getColor(cs, '--color-base-content', '#1a1a1a'),
       primary: getColor(cs, '--color-primary', '#3b82f6'),
       secondary: getColor(cs, '--color-secondary', '#3b82f6'),
+      port: getColor(cs, '--color-port', '#dddd55'),
+      reference: getColor(cs, '--color-success', '#22ee22'),
+      processMonitor: getColor(cs, '--color-process-monitor', '#d1a1e5'),
+      processMonitoredBy: getColor(
+        cs,
+        '--color-process-monitored-by',
+        '#4db8ff'
+      ),
       error: getColor(cs, '--color-error', '#ef4444'),
     };
   },

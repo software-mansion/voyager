@@ -1,14 +1,16 @@
 defmodule Voyager.Services.SupervisionTree.Walker do
   @moduledoc """
   Produces a **flat**, bounded supervision tree for a set of OTP applications on
-  a remote node.
+  a remote node, augmented with the link / monitor / monitored-by relationships
+  of every discovered process.
 
   Unlike a nested tree, the walk aggregates a key-addressable node map directly —
   no separate flattening pass is required afterwards. Each node references its
   parent and children by **string key** (the format the client renderer and the
   `VoyagerWeb.SupervisionTreeLive.Diff` differ both expect), while all display
-  *values* (`name`, `info`) stay as native Erlang terms and are serialised by
-  the `Voyager.JasonEncoders` `Jason.Encoder` implementations at push time.
+  *values* (`name`, `info`, relation endpoints) stay as native Erlang terms and
+  are serialised by the `Voyager.JasonEncoders` `Jason.Encoder` implementations at
+  push time.
 
   The walk is **breadth-first and batched**: each tree level issues at most one
   `:supervisor.which_children/1` batch (for expanded supervisors) and one
@@ -21,6 +23,18 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   depth or outside the `expanded_pids` set are returned as stubs
   (`children_keys: :not_loaded`).
 
+  After hydration the walker derives a **relationship edge set** from each
+  process's links/monitors:
+
+    * supervisors contribute only their *linked ports*;
+    * workers contribute their `:links` (minus the supervision parent),
+      `:monitored_by`, and `:monitors`.
+
+  Relationship targets that are not part of the supervision tree (external
+  processes, ports, references) are merged into `nodes` as parentless leaf
+  nodes so the client can render them. The walk goes **one hop** — relationship
+  targets are never expanded further.
+
   ## Return value
 
       {:ok | :partial, walk_result(), [error()]}
@@ -28,7 +42,8 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   where
 
       walk_result :: %{
-        nodes: %{key => TreeNode.t()}
+        nodes: %{key => TreeNode.t()},
+        edges: %{id => Edge.t()}
       }
 
   ## Error shape
@@ -41,15 +56,18 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       {:which_children, pid, :timeout}
       {:deadline, pid, :exceeded}
       {:process_info, :batch, reason}
+      {:relationships, pid, :truncated}
   """
 
+  alias Voyager.Services.SupervisionTree.Edge
   alias Voyager.Services.SupervisionTree.Remote
   alias Voyager.Services.SupervisionTree.TreeNode
 
   @walk_deadline_ms 3_000
 
   @type walk_result :: %{
-          nodes: %{String.t() => TreeNode.t()}
+          nodes: %{String.t() => TreeNode.t()},
+          edges: %{String.t() => Edge.t()}
         }
 
   @type error :: {atom(), term(), term()}
@@ -84,9 +102,11 @@ defmodule Voyager.Services.SupervisionTree.Walker do
 
     {nodes, hydrate_errors} = hydrate(node, nodes)
 
-    result = %{nodes: nodes}
+    {nodes, edges, rel_errors} = build_relations(node, nodes)
 
-    errors = root_errors ++ walk_errors ++ hydrate_errors
+    result = %{nodes: nodes, edges: edges}
+
+    errors = root_errors ++ walk_errors ++ hydrate_errors ++ rel_errors
 
     if errors == [] do
       {:ok, result, []}
@@ -197,7 +217,9 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   end
 
   # The intermediate process node (the application master's child `p`). It is
-  # not a supervisor we walk; its single child is supplied directly.
+  # not a supervisor we walk; its single child is supplied directly. Typed
+  # `:supervisor` so its pid-links (to the master and root supervisor) are
+  # treated as structural rather than emitted as relationship edges.
   defp chain_node(p_key, app_key, p_pid, [_single] = children_keys) do
     build_node(%{
       key: p_key,
@@ -478,10 +500,151 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   defp pid_label(pid, _info), do: pid
 
   # ---------------------------------------------------------------------------
+  # relationship discovery
+  # ---------------------------------------------------------------------------
+
+  defp build_relations(node, nodes) do
+    # One pass collects both the set of in-tree pids (`seen`) and the relation
+    # candidates (live supervisors/workers).
+    {seen, candidates} =
+      Enum.reduce(nodes, {MapSet.new(), []}, fn
+        {_key, %TreeNode{pid: pid, type: type} = n}, {seen, candidates} when is_pid(pid) ->
+          candidates = if type in [:supervisor, :worker], do: [n | candidates], else: candidates
+          {MapSet.put(seen, pid), candidates}
+
+        _entry, acc ->
+          acc
+      end)
+
+    {raw_rels, cap_errors} =
+      Enum.reduce(candidates, {[], []}, fn n, {rels_acc, errs_acc} ->
+        node_rels = node_relations(n, parent_pid_of(nodes, n))
+        {node_rels ++ rels_acc, errs_acc}
+      end)
+
+    deduped = dedup_relations(raw_rels)
+
+    target_ids = deduped |> Enum.map(fn {_from, to, _kind} -> to end) |> Enum.uniq()
+    external = Enum.reject(target_ids, &MapSet.member?(seen, &1))
+    external_pids = Enum.filter(external, &is_pid/1)
+
+    {info_map, pinfo_errors} = fetch_external_info(node, external_pids)
+
+    nodes = Enum.reduce(external, nodes, &put_rel_node(&2, &1, info_map))
+
+    edges = Map.new(deduped, fn {from, to, kind} -> build_edge(from, to, kind) end)
+
+    {nodes, edges, Enum.reverse(cap_errors) ++ pinfo_errors}
+  end
+
+  defp parent_pid_of(_nodes, %TreeNode{parent_key: nil}), do: nil
+
+  defp parent_pid_of(nodes, %TreeNode{parent_key: parent_key}) do
+    case Map.get(nodes, parent_key) do
+      %TreeNode{pid: pid} -> pid
+      _ -> nil
+    end
+  end
+
+  defp fetch_external_info(_node, []), do: {%{}, []}
+
+  defp fetch_external_info(node, external_pids) do
+    case Remote.process_info_batch(node, external_pids) do
+      {:ok, info_map} -> {info_map, []}
+      {:error, reason} -> {%{}, [{:process_info, :relations, reason}]}
+    end
+  end
+
+  # Supervisors contribute only their linked ports (their pid links duplicate
+  # the supervision spine and are shown as structural edges).
+  defp node_relations(%TreeNode{type: :supervisor, pid: pid, info: info}, _parent) do
+    info
+    |> links_of()
+    |> Enum.filter(&is_port/1)
+    |> Enum.map(fn port -> {pid, port, :link} end)
+  end
+
+  # Workers contribute their links (minus the supervision parent), the
+  # processes/ports monitoring them, and the processes/ports they monitor.
+  defp node_relations(%TreeNode{type: :worker, pid: pid, info: info}, parent) do
+    links = links_of(info) -- [parent]
+    link_rels = Enum.map(links, fn target -> {pid, target, :link} end)
+    mb_rels = Enum.map(monitored_by_of(info), fn target -> {pid, target, :monitored_by} end)
+    mon_rels = Enum.map(monitors_of(info), fn target -> {pid, target, :monitor} end)
+
+    link_rels ++ mb_rels ++ mon_rels
+  end
+
+  defp links_of(%{links: links}) when is_list(links), do: links
+  defp links_of(_), do: []
+
+  defp monitored_by_of(%{monitored_by: monitored_by}) when is_list(monitored_by), do: monitored_by
+  defp monitored_by_of(_), do: []
+
+  defp monitors_of(%{monitors: monitors}) when is_list(monitors),
+    do: Enum.flat_map(monitors, &monitor_target/1)
+
+  defp monitors_of(_), do: []
+
+  defp monitor_target({:process, pid}) when is_pid(pid), do: [pid]
+  defp monitor_target({:port, port}) when is_port(port), do: [port]
+  defp monitor_target(_), do: []
+
+  # Drop duplicate edges. Links are undirected (A↔B reported from both ends),
+  # so they are normalised by term order; monitor/monitored_by stay directed.
+  defp dedup_relations(rels) do
+    {kept, _seen} =
+      Enum.reduce(rels, {[], MapSet.new()}, fn rel, {acc, seen} ->
+        sig = rel_sig(rel)
+
+        if MapSet.member?(seen, sig) do
+          {acc, seen}
+        else
+          {[rel | acc], MapSet.put(seen, sig)}
+        end
+      end)
+
+    Enum.reverse(kept)
+  end
+
+  defp rel_sig({from, to, :link}) when from <= to, do: {:link, from, to}
+  defp rel_sig({from, to, :link}), do: {:link, to, from}
+  defp rel_sig({from, to, kind}), do: {kind, from, to}
+
+  defp build_edge(from, to, kind) do
+    source = id_key(from)
+    target = id_key(to)
+    id = "rel:#{kind}:#{source}->#{target}"
+    {id, %Edge{id: id, source: from, target: to, kind: kind}}
+  end
+
+  # Relationship-only nodes are parentless leaves. `put_new` ensures a target
+  # that also exists in the supervision tree keeps its richer tree entry.
+  defp put_rel_node(nodes, id, info_map) when is_pid(id) do
+    info = Map.get(info_map, id)
+    Map.put_new(nodes, id_key(id), rel_node(id, id, pid_label(id, info), :worker, info))
+  end
+
+  defp put_rel_node(nodes, id, _info_map) when is_port(id) do
+    Map.put_new(nodes, id_key(id), rel_node(id, nil, id, :port, nil))
+  end
+
+  defp put_rel_node(nodes, id, _info_map) when is_reference(id) do
+    Map.put_new(nodes, id_key(id), rel_node(id, nil, id, :reference, nil))
+  end
+
+  defp rel_node(id, pid, name, type, info) do
+    build_node(%{key: id_key(id), pid: pid, name: name, type: type, info: info})
+  end
+
+  # ---------------------------------------------------------------------------
   # keys & helpers
   # ---------------------------------------------------------------------------
 
   defp id_key(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
+
+  defp id_key(port_or_ref) when is_port(port_or_ref) or is_reference(port_or_ref),
+    do: inspect(port_or_ref)
 
   defp ghost_key(parent_key, :undefined, status, index),
     do: "#{parent_key}::ghost::#{inspect(status)}::#{index}"
