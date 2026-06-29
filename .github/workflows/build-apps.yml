@@ -2,6 +2,9 @@ name: 'Build apps'
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - '17-add-release-ci'
 
 permissions:
   contents: read
