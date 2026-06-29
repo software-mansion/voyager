@@ -34,6 +34,15 @@ jobs:
             librsvg2-dev \
             patchelf
 
+      - name: Read Rust version
+        id: rust-version
+        shell: bash
+        run: echo "version=$(grep '^rust' .tool-versions | awk '{print $2}')" >> $GITHUB_OUTPUT
+      
+      - name: Check Tauri version
+        working-directory: ./dev
+        run: bash ./tauri_check_version.sh
+
       - uses: actions/setup-node@v6
         with:
           node-version-file: .tool-versions
@@ -46,17 +55,6 @@ jobs:
         with:
           version-file: .tool-versions
           version-type: strict
-
-      - name: Read Rust version
-        id: rust-version
-        shell: bash
-        run: echo "version=$(grep '^rust' .tool-versions | awk '{print $2}')" >> $GITHUB_OUTPUT
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: ${{ steps.rust-version.outputs.version }}
-          components: rustfmt
 
       - name: Cache Mix dependencies and build artifacts
         uses: actions/cache@v6
@@ -78,17 +76,7 @@ jobs:
 
       - name: Install Dependencies
         run: mix deps.get
-
-      - name: Cache Tauri dependencies and test build
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            rel/app/src-tauri
-          cache-directories: |
-            ~/.cargo/bin
-          key: ${{ runner.os }}-tauri-tests
-          cache-on-failure: true
-
+      
       - name: Check prettier
         working-directory: ./assets
         run: |
@@ -110,6 +98,22 @@ jobs:
       - name: Run unit tests
         run: mix test
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust-version.outputs.version }}
+          components: rustfmt
+
+      - name: Cache Tauri dependencies and test build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            rel/app/src-tauri
+          cache-directories: |
+            ~/.cargo/bin
+          key: ${{ runner.os }}-tauri-tests
+          cache-on-failure: true
+
       - name: Run Tauri tests
         working-directory: ./rel/app/src-tauri
         run: cargo test --profile ci-rust
@@ -118,6 +122,3 @@ jobs:
         working-directory: ./rel/app/src-tauri
         run: cargo fmt --check
 
-      - name: Check Tauri version
-        working-directory: ./dev
-        run: bash ./tauri_check_version.sh
