@@ -92,7 +92,7 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   def count_children(node, sup_pid) do
     case call(node, :supervisor, :count_children, [sup_pid], @timeout_fast) do
       {:ok, counts} when is_list(counts) ->
-        {:ok, Keyword.get(counts, :specs, 0)}
+        {:ok, Keyword.get(counts, :active, 0)}
 
       {:error, _} = err ->
         err
@@ -116,7 +116,7 @@ defmodule Voyager.Services.SupervisionTree.Remote do
       {:ok, counts_list} when is_list(counts_list) ->
         counts_list
         |> Enum.map(fn
-          counts when is_list(counts) -> Keyword.get(counts, :specs, 0)
+          counts when is_list(counts) -> Keyword.get(counts, :active, 0)
           _ -> 0
         end)
         |> then(&{:ok, &1})
