@@ -41,6 +41,22 @@ defmodule Voyager.Services.RemoteNodeConnector do
 
   require Auth
 
+  @doc """
+  Establishes an SSH connection and sets up a local TCP tunnel to the remote node.
+
+  Use this function when you need to bridge local distribution to a remote node.
+
+  ## Examples
+
+  # Using the local SSH agent
+  iex> Voyager.Services.RemoteNodeConnector.connect("voyager", "1.2.3.4", "test@10.0.0.5", :agent)
+  {:ok, :"test@10.0.0.5", #PID<0.123.0>, #Reference<0.1.2.3>, 54321}
+
+  # Using a password and custom options
+  iex> Voyager.Services.RemoteNodeConnector.connect("voyager", "1.2.3.4", "test@10.0.0.5", {:password, "secret"}, ssh_port: 2222)
+  {:ok, :"test@10.0.0.5", #PID<0.124.0>, #Reference<0.1.2.4>, 54322}
+
+  """
   @spec connect(String.t(), String.t(), String.t(), Auth.auth(), keyword()) ::
           {:ok, remote_node :: node(), conn_ref :: pid(), monitor_ref :: reference(),
            local_port :: pos_integer()}
