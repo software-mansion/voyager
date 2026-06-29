@@ -39,9 +39,13 @@ defmodule Voyager.Services.RemoteNodeConnector do
   alias Voyager.Services.Erlssh.Connection
   alias Voyager.Validate
 
+  require Auth
+
   @spec connect(String.t(), String.t(), String.t(), Auth.auth(), keyword()) ::
-          {:ok, node(), pid(), reference(), pos_integer()} | {:error, term()}
-  def connect(ssh_user, ssh_host, full_node_name, auth, opts \\ []) do
+          {:ok, remote_node :: node(), conn_ref :: pid(), monitor_ref :: reference(),
+           local_port :: pos_integer()}
+          | {:error, reason :: term()}
+  def connect(ssh_user, ssh_host, full_node_name, auth, opts \\ []) when Auth.is_ssh_auth(auth) do
     epmd_prefix = Keyword.get(opts, :epmd_prefix, "")
     ssh_port = Keyword.get(opts, :ssh_port, 22)
 
@@ -61,7 +65,8 @@ defmodule Voyager.Services.RemoteNodeConnector do
   end
 
   @spec split_node_name(String.t()) ::
-          {:ok, String.t(), String.t()} | {:error, {:invalid_node_format, String.t()}}
+          {:ok, node_name :: String.t(), host :: String.t()}
+          | {:error, {:invalid_node_format, og_name :: String.t()}}
   def split_node_name(full_node_name) when is_binary(full_node_name) do
     case String.split(full_node_name, "@", parts: 2) do
       [name, host] -> {:ok, name, host}

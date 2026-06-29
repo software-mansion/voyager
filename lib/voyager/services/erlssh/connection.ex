@@ -6,11 +6,13 @@ defmodule Voyager.Services.Erlssh.Connection do
 
   alias Voyager.Services.Erlssh.Auth
 
+  require Auth
+
   @ssh_timeout 5000
 
   @spec connect_ssh(String.t(), integer(), String.t(), Auth.auth()) ::
-          {:ok, :ssh.connection_ref()} | {:error, term()}
-  def connect_ssh(host, ssh_port, ssh_user, auth \\ :agent) do
+          {:ok, conn_ref :: :ssh.connection_ref()} | {:error, reason :: term()}
+  def connect_ssh(host, ssh_port, ssh_user, auth \\ :agent) when Auth.is_ssh_auth(auth) do
     char_host = String.to_charlist(host)
     char_user = String.to_charlist(ssh_user)
 
