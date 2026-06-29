@@ -7,6 +7,20 @@
 
 Now you can visit [localhost:4000](http://localhost:4000) from your browser.
 
+For running desktop application in development use:
+
+```sh
+rel/app/tauri.sh dev
+```
+
+To check production app locally use
+
+```ssh
+mix assets.deploy
+rel/app/tauri.sh app
+```
+
+
 ## How to build
 
 ### Mix release
