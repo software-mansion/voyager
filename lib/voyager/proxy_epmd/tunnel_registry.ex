@@ -4,6 +4,9 @@ defmodule Voyager.ProxyEpmd.TunnelRegistry do
   table mapping `node_name_charlist` -> `%{port, address, tunnel}` and monitors
   each registered tunnel pid so the entry is removed automatically when the
   tunnel dies.
+
+  This is a custom registry built on `GenServer` and `:ets`, and does 
+  not use Elixir's built-in `Registry` module under the hood.
   """
 
   use GenServer

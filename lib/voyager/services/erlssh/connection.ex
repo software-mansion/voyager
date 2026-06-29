@@ -24,6 +24,10 @@ defmodule Voyager.Services.Erlssh.Connection do
     :ssh.connect(char_host, ssh_port, base_opts ++ auth_opts(auth))
   end
 
+  @doc """
+  This function performs blocking SSH operations and can block the calling 
+  process for up to `@ssh_timeout`.
+  """
   @spec discover_dist_port(:ssh.connection_ref(), String.t(), String.t()) ::
           {:ok, integer()} | {:error, term()}
   def discover_dist_port(conn_ref, node_name, epmd_prefix \\ "") do
