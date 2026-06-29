@@ -10,6 +10,8 @@ defmodule Voyager.ProxyEpmd.TunnelRegistry do
 
   @table :proxy_epmd
 
+  def table_name, do: @table
+
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(_opts \\ []) do
     GenServer.start_link(__MODULE__, :ok, name: __MODULE__)

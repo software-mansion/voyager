@@ -14,7 +14,7 @@ defmodule Voyager.ProxyEpmd do
       {node_name_charlist, %{port: pos_integer(), address: :inet.ip_address(), tunnel: pid()}}
   """
 
-  @table :proxy_epmd
+  alias Voyager.ProxyEpmd.TunnelRegistry
 
   def start_link, do: :erl_epmd.start_link()
   def register_node(name, port), do: :erl_epmd.register_node(name, port)
@@ -43,7 +43,7 @@ defmodule Voyager.ProxyEpmd do
   end
 
   defp lookup(name) when is_list(name) do
-    with ref when ref != :undefined <- :ets.whereis(@table),
+    with ref when ref != :undefined <- :ets.whereis(TunnelRegistry.table_name()),
          [{_key, entry}] <- :ets.lookup(ref, name) do
       {:ok, entry}
     else
