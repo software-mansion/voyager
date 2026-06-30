@@ -5,12 +5,17 @@ defmodule VoyagerWeb.DistributionSettingsLive do
   alias VoyagerWeb.FormSchemas.DistributionSettings
 
   @impl true
-  def update(%{id: id}, socket) do
+  def update(%{id: id} = assigns, socket) do
     {:ok,
      socket
      |> assign(:id, id)
      |> assign(:form, distribution_settings_form())
-     |> assign(:locked, Settings.locked?(:distribution_suffix))}
+     |> assign(:locked, Settings.locked?(:distribution_suffix))
+     |> assign(:connected, Map.get(assigns, :connected, false))}
+  end
+
+  def update(%{connected: connected}, socket) do
+    {:ok, assign(socket, :connected, connected)}
   end
 
   @impl true
@@ -47,6 +52,13 @@ defmodule VoyagerWeb.DistributionSettingsLive do
               <.icon name="icon-x" class="size-4" />
             </button>
           </div>
+
+          <%= if @connected do %>
+            <div id="distribution-settings-connected" class="alert alert-warning text-sm">
+              <.icon name="icon-circle-alert" class="size-4" />
+              <span>Cannot change settings when node is connected.</span>
+            </div>
+          <% end %>
 
           <%= if @locked do %>
             <div id="distribution-settings-locked" class="alert alert-info text-sm">
@@ -86,7 +98,7 @@ defmodule VoyagerWeb.DistributionSettingsLive do
                 placeholder="_dev"
                 autocomplete="off"
                 spellcheck="false"
-                disabled={@locked}
+                disabled={@locked or @connected}
                 class="font-mono text-sm"
               />
               <p class="text-base-content/50 mt-2 text-xs">
@@ -107,7 +119,7 @@ defmodule VoyagerWeb.DistributionSettingsLive do
               >
                 Cancel
               </button>
-              <button type="submit" class="btn btn-primary" disabled={@locked}>
+              <button type="submit" class="btn btn-primary" disabled={@locked or @connected}>
                 Save settings
               </button>
             </div>
@@ -126,6 +138,10 @@ defmodule VoyagerWeb.DistributionSettingsLive do
 
   def handle_event("close", _, socket) do
     send(self(), {:distribution_settings, :closed})
+    {:noreply, socket}
+  end
+
+  def handle_event("save", _params, %{assigns: %{connected: true}} = socket) do
     {:noreply, socket}
   end
 

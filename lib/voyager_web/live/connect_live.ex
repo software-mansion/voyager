@@ -94,6 +94,7 @@ defmodule VoyagerWeb.ConnectLive do
         <.live_component
           module={VoyagerWeb.DistributionSettingsLive}
           id="distribution-settings-modal"
+          connected={not is_nil(@connected_session)}
         />
       <% end %>
     </div>
