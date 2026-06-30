@@ -5,17 +5,17 @@ defmodule VoyagerWeb.DistributionSettingsLive do
   alias VoyagerWeb.FormSchemas.DistributionSettings
 
   @impl true
-  def update(%{id: id} = assigns, socket) do
+  def update(%{id: id, connected?: connected?}, socket) do
     {:ok,
      socket
      |> assign(:id, id)
      |> assign(:form, distribution_settings_form())
      |> assign(:locked, Settings.locked?(:distribution_suffix))
-     |> assign(:connected, Map.get(assigns, :connected, false))}
+     |> assign(:connected, connected?)}
   end
 
-  def update(%{connected: connected}, socket) do
-    {:ok, assign(socket, :connected, connected)}
+  def update(%{connected?: connected?}, socket) do
+    {:ok, assign(socket, :connected, connected?)}
   end
 
   @impl true
