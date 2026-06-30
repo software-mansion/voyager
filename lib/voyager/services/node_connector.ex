@@ -34,7 +34,7 @@ defmodule Voyager.Services.NodeConnector do
   end
 
   @spec close_distribution() :: :ok | {:error, term()}
-  def close_distribution() do
+  def close_distribution do
     if Node.alive?() do
       :net_kernel.stop()
     else
