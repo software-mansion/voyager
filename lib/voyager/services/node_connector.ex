@@ -93,7 +93,7 @@ defmodule Voyager.Services.NodeConnector do
       |> String.split("@", parts: 2)
       |> hd()
 
-    distributed_node_name == distribution_name() |> Atom.to_string()
+    distributed_node_name == Atom.to_string(distribution_name())
   end
 
   defp distribution_name do
