@@ -8,14 +8,12 @@ defmodule VoyagerWeb.DistributionSettingsLive do
   def update(%{id: id, connected?: connected?}, socket) do
     {:ok,
      socket
-     |> assign(:id, id)
-     |> assign(:form, distribution_settings_form())
-     |> assign(:locked, Settings.locked?(:distribution_suffix))
-     |> assign(:connected, connected?)}
-  end
-
-  def update(%{connected?: connected?}, socket) do
-    {:ok, assign(socket, :connected, connected?)}
+     |> assign(
+       id: id,
+       connected?: connected?
+     )
+     |> assign(:locked?, Settings.locked?(:distribution_suffix))
+     |> assign_new(:form, &distribution_settings_form/0)}
   end
 
   @impl true
