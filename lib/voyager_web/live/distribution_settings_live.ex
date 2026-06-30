@@ -4,6 +4,8 @@ defmodule VoyagerWeb.DistributionSettingsLive do
   alias Voyager.Settings
   alias VoyagerWeb.FormSchemas.DistributionSettings
 
+  require Logger
+
   @impl true
   def update(%{id: id, connected?: connected?}, socket) do
     {:ok,
@@ -148,7 +150,7 @@ defmodule VoyagerWeb.DistributionSettingsLive do
 
     with false <- Settings.locked?(:distribution_suffix),
          {:ok, settings} <- Ecto.Changeset.apply_action(changeset, :insert),
-         {:ok, _setting} <- Settings.put(:distribution_suffix, settings.distribution_suffix) do
+         {:ok, _} <- Settings.put(:distribution_suffix, settings.distribution_suffix) do
       send(self(), {:distribution_settings, :saved})
       {:noreply, socket}
     else
@@ -158,6 +160,10 @@ defmodule VoyagerWeb.DistributionSettingsLive do
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, :form, to_form(changeset, as: :distribution_settings))}
+
+      {:error, error} ->
+        Logger.error("Failed to save distribution settings: #{inspect(error)}")
+        {:noreply, socket}
     end
   end
 
