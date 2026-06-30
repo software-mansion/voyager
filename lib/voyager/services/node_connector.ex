@@ -14,9 +14,15 @@ defmodule Voyager.Services.NodeConnector do
       :erlang.set_cookie(node, String.to_atom(cookie))
 
       case Node.connect(node) do
-        true -> {:ok, node}
-        false -> diagnose_failure(node_name)
-        :ignored -> {:error, :not_distributed}
+        true ->
+          {:ok, node}
+
+        false ->
+          close_distribution()
+          diagnose_failure(node_name)
+
+        :ignored ->
+          {:error, :not_distributed}
       end
     end
   end
@@ -27,12 +33,21 @@ defmodule Voyager.Services.NodeConnector do
     :ok
   end
 
+  @spec close_distribution() :: :ok | {:error, term()}
+  def close_distribution() do
+    if Node.alive?() do
+      :net_kernel.stop()
+    else
+      :ok
+    end
+  end
+
   defp ensure_distributed(name_type) when name_type in [:longnames, :shortnames] do
     cond do
       not Node.alive?() ->
         start_distribution(name_type)
 
-      matches_name_type?(name_type) ->
+      matches_name_type?(name_type) and distribution_name_matches?() ->
         :ok
 
       true ->
@@ -68,6 +83,16 @@ defmodule Voyager.Services.NodeConnector do
       {:error, reason} ->
         {:error, {:net_kernel, reason}}
     end
+  end
+
+  defp distribution_name_matches? do
+    distributed_node_name =
+      Node.self()
+      |> Atom.to_string()
+      |> String.split("@", parts: 2)
+      |> hd()
+
+    distributed_node_name == distribution_name() |> Atom.to_string()
   end
 
   defp distribution_name do
