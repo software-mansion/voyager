@@ -51,14 +51,14 @@ defmodule VoyagerWeb.DistributionSettingsLive do
             </button>
           </div>
 
-          <%= if @connected do %>
+          <%= if @connected? do %>
             <div id="distribution-settings-connected" class="alert alert-warning text-sm">
               <.icon name="icon-circle-alert" class="size-4" />
               <span>Cannot change settings when node is connected.</span>
             </div>
           <% end %>
 
-          <%= if @locked do %>
+          <%= if @locked? do %>
             <div id="distribution-settings-locked" class="alert alert-info text-sm">
               <.icon name="icon-circle-alert" class="size-4" />
               <span>
@@ -96,7 +96,7 @@ defmodule VoyagerWeb.DistributionSettingsLive do
                 placeholder="_dev"
                 autocomplete="off"
                 spellcheck="false"
-                disabled={@locked or @connected}
+                disabled={@locked? or @connected?}
                 class="font-mono text-sm"
               />
               <p class="text-base-content/50 mt-2 text-xs">
@@ -117,7 +117,7 @@ defmodule VoyagerWeb.DistributionSettingsLive do
               >
                 Cancel
               </button>
-              <button type="submit" class="btn btn-primary" disabled={@locked or @connected}>
+              <button type="submit" class="btn btn-primary" disabled={@locked? or @connected?}>
                 Save settings
               </button>
             </div>
@@ -139,7 +139,7 @@ defmodule VoyagerWeb.DistributionSettingsLive do
     {:noreply, socket}
   end
 
-  def handle_event("save", _params, %{assigns: %{connected: true}} = socket) do
+  def handle_event("save", _params, %{assigns: %{connected?: true}} = socket) do
     {:noreply, socket}
   end
 
@@ -154,7 +154,7 @@ defmodule VoyagerWeb.DistributionSettingsLive do
     else
       true ->
         send(self(), {:distribution_settings, :locked})
-        {:noreply, assign(socket, :locked, true)}
+        {:noreply, assign(socket, :locked?, true)}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, :form, to_form(changeset, as: :distribution_settings))}

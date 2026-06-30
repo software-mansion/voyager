@@ -10,7 +10,8 @@ defmodule VoyagerWeb.FormSchemas.DistributionSettings do
   @spec changeset(map()) :: Ecto.Changeset.t()
   def changeset(attrs \\ %{}) do
     %__MODULE__{}
-    |> cast(attrs, [:distribution_suffix])
+    |> cast(attrs, [:distribution_suffix], empty_values: [])
+    |> validate_required([:distribution_suffix])
     |> update_change(:distribution_suffix, &String.trim/1)
     |> validate_format(:distribution_suffix, ~r/^[A-Za-z0-9_-]*$/,
       message: "Use only letters, numbers, underscores, or hyphens"

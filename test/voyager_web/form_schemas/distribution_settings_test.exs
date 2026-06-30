@@ -21,6 +21,13 @@ defmodule VoyagerWeb.FormSchemas.DistributionSettingsTest do
       assert get_field(changeset, :distribution_suffix) == "_dev"
     end
 
+    test "rejects nil distribution_suffix" do
+      changeset = DistributionSettings.changeset(%{"distribution_suffix" => nil})
+
+      refute changeset.valid?
+      assert "can't be blank" in errors_on(changeset).distribution_suffix
+    end
+
     test "accepts letters, numbers, underscores, and hyphens" do
       changeset = DistributionSettings.changeset(%{"distribution_suffix" => "Dev_123-node"})
 
