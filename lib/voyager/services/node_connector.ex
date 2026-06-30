@@ -18,8 +18,9 @@ defmodule Voyager.Services.NodeConnector do
           {:ok, node}
 
         false ->
+          result = diagnose_failure(node_name)
           close_distribution()
-          diagnose_failure(node_name)
+          result
 
         :ignored ->
           {:error, :not_distributed}
