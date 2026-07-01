@@ -13,10 +13,29 @@ pub fn run() {
         .enable_macos_default_menu(false)
         .plugin(tauri_plugin_opener::init())
         .setup(move |app| {
-            #[cfg(target_os = "macos")] // Remove default menu on macOS
+            #[cfg(target_os = "macos")]
             {
-                let app_menu = SubmenuBuilder::new(app, "Voyager").quit().build()?;
-                let menu = MenuBuilder::new(app).item(&app_menu).build()?;
+                let app_menu = SubmenuBuilder::new(app, "Voyager")
+                    .about(None)
+                    .quit()
+                    .build()?;
+
+                let edit_menu = SubmenuBuilder::new(app, "Edit")
+                    .cut()
+                    .copy()
+                    .paste()
+                    .select_all()
+                    .build()?;
+
+                let window_menu = SubmenuBuilder::new(app, "Window")
+                    .minimize()
+                    .maximize()
+                    .fullscreen()
+                    .build()?;
+
+                let menu = MenuBuilder::new(app)
+                    .items(&[&app_menu, &edit_menu, &window_menu])
+                    .build()?;
                 app.set_menu(menu)?;
             }
 
@@ -63,6 +82,7 @@ fn create_window(app_handle: &tauri::AppHandle, port: u16) {
         .title("Voyager")
         .inner_size(800.0, 800.0)
         .min_inner_size(800.0, 800.0)
+        .zoom_hotkeys_enabled(true)
         .build()
         .unwrap();
 }
