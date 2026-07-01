@@ -38,7 +38,7 @@ defmodule VoyagerWeb.DistributionSettingsLive do
               <p id="distribution-settings-help" class="text-base-content/60 mt-1 text-sm">
                 To connect with node Voyager starts distribution using the <span class="font-mono font-bold">voyager&lt;suffix&gt;</span>.
                 This suffix allows multiple Voyager instances to run on the same network.
-                Leave empty to use voyager.
+                Leave empty to use <span class="font-mono font-bold">voyager</span>.
               </p>
             </div>
             <button
@@ -85,12 +85,6 @@ defmodule VoyagerWeb.DistributionSettingsLive do
                 >
                   Distribution name suffix
                 </label>
-                <span
-                  class="tooltip tooltip-right"
-                  data-tip="Leave empty to use voyager. Use a suffix when another local BEAM node already uses that name."
-                >
-                  <.icon name="icon-circle-alert" class="text-base-content/35 size-3.5" />
-                </span>
               </div>
               <.input
                 field={@form[:distribution_suffix]}
