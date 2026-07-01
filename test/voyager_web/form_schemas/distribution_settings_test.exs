@@ -14,11 +14,12 @@ defmodule VoyagerWeb.FormSchemas.DistributionSettingsTest do
       assert get_field(changeset, :distribution_suffix) == ""
     end
 
-    test "trims distribution_suffix" do
+    test "rejects distribution_suffix with spaces" do
       changeset = DistributionSettings.changeset(%{"distribution_suffix" => "  _dev  "})
 
-      assert changeset.valid?
-      assert get_field(changeset, :distribution_suffix) == "_dev"
+      refute changeset.valid?
+
+      assert "Use only letters, numbers, underscores, or hyphens" in errors_on(changeset).distribution_suffix
     end
 
     test "rejects nil distribution_suffix" do
