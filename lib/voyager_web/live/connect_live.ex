@@ -17,7 +17,7 @@ defmodule VoyagerWeb.ConnectLive do
      socket
      |> reset_connections()
      |> assign(:form, empty_form())
-     |> assign(:show_distribution_settings, false)
+     |> assign(:show_distribution_settings?, false)
      |> assign(:show_cookie, false)
      |> assign(:connected_session, NodeSession.current())}
   end
@@ -90,7 +90,7 @@ defmodule VoyagerWeb.ConnectLive do
         </div>
       </div>
 
-      <%= if @show_distribution_settings do %>
+      <%= if @show_distribution_settings? do %>
         <.live_component
           module={VoyagerWeb.DistributionSettingsLive}
           id="distribution-settings-modal"
@@ -112,7 +112,7 @@ defmodule VoyagerWeb.ConnectLive do
   end
 
   def handle_event("open_distribution_settings", _, socket) do
-    {:noreply, assign(socket, :show_distribution_settings, true)}
+    {:noreply, assign(socket, :show_distribution_settings?, true)}
   end
 
   def handle_event("fill_recent", %{"id" => id}, socket) do
@@ -176,11 +176,11 @@ defmodule VoyagerWeb.ConnectLive do
     {:noreply,
      socket
      |> put_flash(:info, "Distribution suffix saved")
-     |> assign(:show_distribution_settings, false)}
+     |> assign(:show_distribution_settings?, false)}
   end
 
   def handle_info({:distribution_settings, :closed}, socket) do
-    {:noreply, assign(socket, :show_distribution_settings, false)}
+    {:noreply, assign(socket, :show_distribution_settings?, false)}
   end
 
   def handle_info({:distribution_settings, :locked}, socket) do
