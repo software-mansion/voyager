@@ -95,12 +95,7 @@ defmodule VoyagerWeb.DistributionSettingsLive do
                 disabled={@locked? or @connected?}
                 class="font-mono text-sm"
               />
-              <p class="text-base-content/50 mt-2 text-xs">
-                Effective distribution name:
-                <span class="font-mono text-base-content">
-                  {"voyager#{@form[:distribution_suffix].value || ""}"}
-                </span>
-              </p>
+              <.effective_distribution_name suffix={@form[:distribution_suffix].value} />
             </div>
 
             <div class="card-actions justify-end">
@@ -160,6 +155,21 @@ defmodule VoyagerWeb.DistributionSettingsLive do
         {:noreply, socket}
     end
   end
+
+  attr :suffix, :string, required: true
+
+  defp effective_distribution_name(assigns) do
+    assigns = assign(assigns, :name, distribution_name(assigns.suffix))
+
+    ~H"""
+    <p class="text-base-content/50 mt-2 text-xs">
+      Effective distribution name: <span class="font-mono text-base-content">{@name}</span>
+    </p>
+    """
+  end
+
+  defp distribution_name(""), do: "voyager"
+  defp distribution_name(suffix), do: "voyager#{suffix}"
 
   defp distribution_settings_form do
     %{"distribution_suffix" => Settings.get(:distribution_suffix, "")}
