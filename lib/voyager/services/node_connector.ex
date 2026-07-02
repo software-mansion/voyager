@@ -18,9 +18,7 @@ defmodule Voyager.Services.NodeConnector do
           {:ok, node}
 
         false ->
-          result = diagnose_failure(node_name)
-          close_distribution()
-          result
+          diagnose_failure(node_name)
 
         :ignored ->
           {:error, :not_distributed}
@@ -32,15 +30,6 @@ defmodule Voyager.Services.NodeConnector do
   def disconnect(node) do
     Node.disconnect(node)
     :ok
-  end
-
-  @spec close_distribution() :: :ok | {:error, term()}
-  def close_distribution do
-    if Node.alive?() do
-      :net_kernel.stop()
-    else
-      :ok
-    end
   end
 
   defp ensure_distributed(name_type) when name_type in [:longnames, :shortnames] do
