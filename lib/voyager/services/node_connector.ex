@@ -1,15 +1,13 @@
 defmodule Voyager.Services.NodeConnector do
   @moduledoc "Connects to remote nodes via Erlang distribution."
 
-  require Logger
-
-  @voyager_node_name Application.compile_env(:voyager, :voyager_node_name, :voyager@localhost)
+  alias Voyager.Services.Distribution
 
   @spec connect(String.t(), String.t(), keyword()) :: {:ok, atom()} | {:error, term()}
   def connect(node_name, cookie, opts \\ []) do
     name_type = Keyword.get(opts, :name_type, :longnames)
 
-    with :ok <- ensure_distributed(name_type) do
+    with :ok <- Distribution.ensure_distributed(name_type) do
       node = String.to_atom(node_name)
       :erlang.set_cookie(node, String.to_atom(cookie))
 
@@ -27,50 +25,9 @@ defmodule Voyager.Services.NodeConnector do
     :ok
   end
 
-  defp ensure_distributed(name_type) when name_type in [:longnames, :shortnames] do
-    cond do
-      not Node.alive?() ->
-        start_distribution(name_type)
-
-      matches_name_type?(name_type) ->
-        :ok
-
-      true ->
-        case :net_kernel.stop() do
-          :ok -> start_distribution(name_type)
-          {:error, reason} -> {:error, {:net_kernel_stop, reason}}
-        end
-    end
-  end
-
-  defp ensure_distributed(_name_type) do
-    {:error, :invalid_name_type}
-  end
-
-  defp matches_name_type?(:longnames), do: :net_kernel.longnames() == true
-  defp matches_name_type?(:shortnames), do: :net_kernel.longnames() == false
-
-  defp start_distribution(name_type) do
-    case :net_kernel.start(@voyager_node_name, %{name_domain: name_type, hidden: true}) do
-      {:ok, _pid} ->
-        :ok
-
-      {:error, {:already_started, pid}} ->
-        Logger.warning(
-          "net_kernel.start/2 returned {:already_started, #{inspect(pid)}} " <>
-            "for #{inspect(@voyager_node_name)} name_type=#{inspect(name_type)}"
-        )
-
-        :ok
-
-      {:error, reason} ->
-        {:error, {:net_kernel, reason}}
-    end
-  end
-
   defp diagnose_failure(node_name) do
-    case String.split(node_name, "@", parts: 2) do
-      [name, host] -> diagnose_epmd_failure(name, host)
+    case Distribution.split_node_name(node_name) do
+      {:ok, name, host} -> diagnose_epmd_failure(name, host)
       _ -> {:error, :connection_failed}
     end
   end
