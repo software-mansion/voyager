@@ -1,0 +1,123 @@
+name: CI Check
+
+on:
+  push:
+    branches:
+      - main
+      - "v*.*"
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: ubuntu-24.04
+    
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Tauri dependencies
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Read Rust version
+        id: rust-version
+        shell: bash
+        run: echo "version=$(grep '^rust' .tool-versions | awk '{print $2}')" >> $GITHUB_OUTPUT
+      
+      - name: Check Tauri version
+        working-directory: ./dev
+        run: bash ./tauri_check_version.sh
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .tool-versions
+          cache: "npm"
+          cache-dependency-path: "./assets/package-lock.json"
+
+      - name: Set up Elixir
+        id: beam
+        uses: erlef/setup-beam@v1
+        with:
+          version-file: .tool-versions
+          version-type: strict
+
+      - name: Cache Mix dependencies and build artifacts
+        uses: actions/cache@v6
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+
+      - name: Cache Dialyzer PLTs
+        uses: actions/cache@v6
+        with:
+          path: priv/plts
+          key: ${{ runner.os }}-plt-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-plt-${{ steps.beam.outputs.otp-version }}-${{ steps.beam.outputs.elixir-version }}-
+
+      - name: Install Dependencies
+        run: mix deps.get
+      
+      - name: Check prettier
+        working-directory: ./assets
+        run: |
+          npm ci
+          npx prettier . --check    
+
+      - name: Compile project
+        run: mix compile --warnings-as-errors
+
+      - name: Check Elixir formatting
+        run: mix format --check-formatted
+
+      - name: Run Credo
+        run: mix credo --strict
+
+      - name: Run Dialyzer
+        run: mix dialyzer --format github
+
+      - name: Run unit tests
+        run: mix test
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust-version.outputs.version }}
+          components: rustfmt
+
+      - name: Cache Tauri dependencies and test build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            rel/app/src-tauri
+          cache-directories: |
+            ~/.cargo/bin
+          key: ${{ runner.os }}-tauri-tests
+          cache-on-failure: true
+
+      - name: Run Tauri formatting
+        working-directory: ./rel/app/src-tauri
+        run: cargo fmt --check
+
+      - name: Run Tauri tests
+        working-directory: ./rel/app/src-tauri
+        run: cargo test --profile ci-rust

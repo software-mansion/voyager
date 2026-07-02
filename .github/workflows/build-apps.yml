@@ -1,0 +1,202 @@
+name: 'Build apps'
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  assets:
+    name: Build priv/static
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Elixir
+        id: beam
+        uses: erlef/setup-beam@v1
+        with:
+          version-file: .tool-versions
+          version-type: strict
+
+      - name: Mix deps cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-${{ runner.arch }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+
+      - name: Install Mix dependencies
+        shell: bash
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .tool-versions
+          cache: npm
+          cache-dependency-path: ./assets/package-lock.json
+
+      - name: Build assets
+        env:
+          MIX_ENV: prod
+        shell: bash
+        run: |
+          mix assets.setup
+          mix assets.build
+
+      - name: Upload built assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: voyager-assets
+          path: priv/static/
+          if-no-files-found: error
+          retention-days: 7
+
+  app:
+    name: "Build desktop app (${{ matrix.gui_target }})"
+    needs: assets
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-15
+            gui_target: "aarch64-apple-darwin"
+          - platform: macos-15-intel
+            gui_target: "x86_64-apple-darwin"
+          - platform: ubuntu-22.04
+            gui_target: "x86_64-unknown-linux-gnu"
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install dependencies (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Set up Elixir
+        id: beam
+        uses: erlef/setup-beam@v1
+        with:
+          version-file: .tool-versions
+          version-type: strict
+
+      - name: Mix deps cache
+        uses: actions/cache@v6
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-${{ runner.arch }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-mix-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-
+
+      - name: Install Mix dependencies
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+          mix deps.get
+
+      - name: Download built assets
+        uses: actions/download-artifact@v8
+        with:
+          name: voyager-assets
+          path: priv/static
+
+      - name: Digest assets
+        env:
+          MIX_ENV: prod
+        run: mix phx.digest
+
+      - name: Read Rust version
+        id: rust-version
+        shell: bash
+        run: echo "version=$(grep '^rust' .tool-versions | awk '{print $2}')" >> $GITHUB_OUTPUT
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ steps.rust-version.outputs.version }}
+          targets: ${{ matrix.gui_target }}
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rel/app/src-tauri
+          cache-directories: |
+            ~/.cargo/bin
+          key: ${{ matrix.gui_target }}
+
+      - name: Install Tauri CLI
+        shell: bash
+        run: |
+          if ! command -v cargo-tauri &> /dev/null; then
+            cargo install tauri-cli --version "=2.8.0" --locked
+          else
+            echo "cargo-tauri already installed: $(cargo-tauri --version)"
+          fi
+
+      - name: Create Apple certificate (macOS)
+        if: runner.os == 'macOS'
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_CERTIFICATE }}
+          PRIVATE_KEY_BASE64: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_BASE64 }}
+          PRIVATE_KEY_PASSWORD: ${{ secrets.APPLE_DEVELOPER_PRIVATE_KEY_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+        run: .github/scripts/create_apple_certificate.sh
+
+      - name: Install Apple certificate (macOS)
+        if: runner.os == 'macOS'
+        env:
+          P12_BASE64: ${{ env.APPLE_CERTIFICATE_P12_BASE64 }}
+          P12_PASSWORD: ${{ env.APPLE_CERTIFICATE_P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: secret
+        run: .github/scripts/install_apple_certificate.sh
+         
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0.6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MIX_ENV: prod
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
+          APPLE_CERTIFICATE: ${{ env.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ env.APPLE_CERTIFICATE_P12_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_CI_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        with:
+          projectPath: rel/app
+          args: --target ${{ matrix.gui_target }}
+          tauriScript: ./tauri.sh
+
+      - name: Verify app notarization (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          app_path="rel/app/src-tauri/target/${{ matrix.gui_target }}/release/bundle/macos/Voyager.app"
+          echo "Verifying $app_path"
+          spctl -a -t exec -vvv "$app_path"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: voyager-${{ matrix.gui_target }}
+          path: rel/app/src-tauri/target/${{ matrix.gui_target }}/release/bundle/
+          if-no-files-found: error
+          retention-days: 7

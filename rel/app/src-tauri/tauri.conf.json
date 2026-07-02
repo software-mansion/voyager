@@ -3,10 +3,6 @@
   "productName": "Voyager",
   "version": "0.1.0",
   "identifier": "com.swmansion.voyager",
-  "build": {
-    "beforeBuildCommand": "./tauri.sh before-build",
-    "beforeDevCommand": "mkdir -p src-tauri/target/rel"
-  },
   "app": {
     "withGlobalTauri": true,
     "windows": [],
@@ -16,10 +12,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
-    "resources": {
-      "target/rel": "rel"
-    },
+    "targets": ["app", "dmg", "deb"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
