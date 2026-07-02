@@ -95,11 +95,17 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   end
 
   @impl true
-  def handle_event("set-interval", %{"interval" => value}, socket) do
+  def handle_event("set_interval", %{"interval" => value}, socket) do
     socket
     |> assign(:refresh_interval, parse_interval(value))
     |> stop_timer()
     |> start_timer()
+    |> noreply()
+  end
+
+  def handle_event("refresh_now", _params, socket) do
+    socket
+    |> request_fetch()
     |> noreply()
   end
 
@@ -114,12 +120,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     else
       socket
     end
-    |> noreply()
-  end
-
-  def handle_event("refresh-now", _params, socket) do
-    socket
-    |> request_fetch()
     |> noreply()
   end
 

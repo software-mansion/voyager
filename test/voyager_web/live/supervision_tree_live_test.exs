@@ -140,12 +140,13 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
 
     test "is a no-op when no applications are selected", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
+      ref = Process.monitor(view.pid)
 
       view |> element("#supervision-tree-clear-apps") |> render_click()
 
       assert render(view) =~ "No applications selected"
       refute has_element?(view, "#supervision-tree-body")
-      assert Process.alive?(view.pid)
+      refute_receive {:DOWN, ^ref, :process, _pid, _reason}
     end
   end
 
@@ -188,7 +189,7 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
       assert has_element?(view, "#apps[aria-expanded]")
     end
 
-    test "refresh-now with no applications selected stays idle", %{conn: conn} do
+    test "refresh_now with no applications selected stays idle", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
 
       view |> element("#refresh-now-button") |> render_click()

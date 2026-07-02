@@ -113,13 +113,13 @@ defmodule VoyagerWeb.CoreComponents do
           {"1s", "1000"},
           {"2s", "2000"},
         ]}
-        refresh_interval={@refresh_interval} # number of miliseconds or nil
-        status={}
+        refresh_interval={@refresh_interval} # number of milliseconds or nil
+        loading={@loading}
       />
   """
   attr :options, :list, required: true
-  attr :refresh_interval, :integer, required: true
-  attr :loading?, :boolean, required: true
+  attr :refresh_interval, :integer, default: nil
+  attr :loading, :boolean, required: true
 
   def interval_select(assigns) do
     ~H"""
@@ -127,7 +127,7 @@ defmodule VoyagerWeb.CoreComponents do
       <label class="font-mono text-base-content/50 tracking-label text-xs uppercase">
         Auto-refresh
       </label>
-      <form phx-change="set-interval" id="refresh-interval-form">
+      <form phx-change="set_interval" id="refresh-interval-form">
         <select
           name="interval"
           id="refresh-interval"
@@ -144,7 +144,7 @@ defmodule VoyagerWeb.CoreComponents do
       </form>
       <button
         type="button"
-        phx-click="refresh-now"
+        phx-click="refresh_now"
         phx-throttle="1000"
         id="refresh-now-button"
         title="Refresh now"
@@ -152,7 +152,7 @@ defmodule VoyagerWeb.CoreComponents do
       >
         <.icon
           name="icon-rotate-cw"
-          class={["size-4", @loading? && "animate-spin"]}
+          class={["size-4", @loading && "animate-spin"]}
         />
       </button>
     </div>

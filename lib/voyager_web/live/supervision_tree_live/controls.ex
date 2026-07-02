@@ -41,14 +41,14 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
           for={@apps_form}
           id="supervision-tree-controls"
           phx-target={@myself}
-          phx-change="select-apps"
-          phx-submit="select-apps"
+          phx-change="select_apps"
+          phx-submit="select_apps"
           class="flex items-start"
         >
           <.collapsible
             id="apps"
             phx-target={@myself}
-            phx-click="toggle-apps-open"
+            phx-click="toggle_apps_open"
             open={@apps_open?}
             class="flex-1"
           >
@@ -74,8 +74,11 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
               />
               <button
                 :if={@search != ""}
+                type="button"
                 phx-target={@myself}
-                phx-click="clear-search"
+                phx-click="clear_search"
+                title="Clear search"
+                aria-label="Clear search"
                 class="cursor-pointer"
               >
                 <.icon name="icon-x" class="size-4" />
@@ -126,7 +129,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
                 type="button"
                 id="supervision-tree-clear-apps"
                 phx-target={@myself}
-                phx-click="clear-all-apps"
+                phx-click="clear_all_apps"
                 title="Clear all applications"
                 aria-label="Clear all applications"
                 class="btn btn-soft btn-primary mt-2 gap-2"
@@ -158,20 +161,20 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
   end
 
   @impl true
-  def handle_event("toggle-apps-open", _params, socket) do
+  def handle_event("toggle_apps_open", _params, socket) do
     socket
     |> assign(:apps_open?, not socket.assigns.apps_open?)
     |> noreply()
   end
 
-  def handle_event("select-apps", %{"_target" => ["search"], "search" => search}, socket) do
+  def handle_event("select_apps", %{"_target" => ["search"], "search" => search}, socket) do
     socket
     |> assign(:search, search)
     |> assign_visible_apps()
     |> noreply()
   end
 
-  def handle_event("select-apps", %{"tree_controls" => params}, socket) do
+  def handle_event("select_apps", %{"tree_controls" => params}, socket) do
     params
     |> SupervisionTreeControls.changeset(socket.assigns.available_app_atoms)
     |> Ecto.Changeset.apply_action(:validate)
@@ -185,14 +188,14 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
     |> noreply()
   end
 
-  def handle_event("clear-search", _params, socket) do
+  def handle_event("clear_search", _params, socket) do
     socket
     |> assign(:search, "")
     |> assign_visible_apps()
     |> noreply()
   end
 
-  def handle_event("clear-all-apps", _params, socket) do
+  def handle_event("clear_all_apps", _params, socket) do
     socket
     |> push_patch(to: controls_path(socket, [], socket.assigns.depth))
     |> noreply()

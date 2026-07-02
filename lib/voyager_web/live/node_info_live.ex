@@ -48,7 +48,7 @@ defmodule VoyagerWeb.NodeInfoLive do
           <.interval_select
             options={interval_options()}
             refresh_interval={@refresh_interval}
-            loading?={@snapshot.loading}
+            loading={@snapshot.loading}
           />
         </:actions>
       </.node_header>
@@ -137,11 +137,11 @@ defmodule VoyagerWeb.NodeInfoLive do
   end
 
   @impl true
-  def handle_event("refresh-now", _params, socket) do
+  def handle_event("refresh_now", _params, socket) do
     socket |> fetch_snapshot() |> noreply()
   end
 
-  def handle_event("set-interval", %{"interval" => value}, socket) do
+  def handle_event("set_interval", %{"interval" => value}, socket) do
     socket
     |> assign(:refresh_interval, parse_interval(value))
     |> schedule_refresh()

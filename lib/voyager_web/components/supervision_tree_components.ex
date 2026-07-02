@@ -16,7 +16,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
   attr :node_name, :string, required: true
   attr :status, :atom, required: true
   attr :last_updated, :any, required: true
-  attr :refresh_interval, :integer, required: true
+  attr :refresh_interval, :integer, default: nil
 
   def header(assigns) do
     ~H"""
@@ -33,7 +33,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
           <.interval_select
             options={interval_options()}
             refresh_interval={@refresh_interval}
-            loading?={@status == :loading}
+            loading={@status == :loading}
           />
         </:actions>
       </.node_header>
