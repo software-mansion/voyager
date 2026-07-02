@@ -37,41 +37,34 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    available = socket.assigns.available_app_atoms
+    params
+    |> params_to_attrs()
+    |> SupervisionTreeControls.changeset(socket.assigns.available_app_atoms)
+    |> Ecto.Changeset.apply_action(:validate)
+    |> case do
+      {:ok, %SupervisionTreeControls{apps: apps, depth: depth}} ->
+        new_selected = MapSet.new(apps)
 
-    changeset =
-      params
-      |> params_to_attrs()
-      |> SupervisionTreeControls.changeset(available)
+        apps_changed? = new_selected != socket.assigns.selected_apps
+        depth_changed? = depth != socket.assigns.depth
 
-    apps = SupervisionTreeControls.apps_from_changeset(changeset)
-    new_selected = MapSet.new(apps)
-    depth = Ecto.Changeset.get_field(changeset, :depth) || socket.assigns.depth
+        socket =
+          socket
+          |> assign(:selected_apps, new_selected)
+          |> assign(:depth, depth)
+          |> assign_available_apps(new_selected)
+          |> maybe_reset_expanded_pids(depth_changed?)
 
-    apps_changed? = new_selected != socket.assigns.selected_apps
-    depth_changed? = depth != socket.assigns.depth
+        if connected?(socket) and (apps_changed? or depth_changed?) do
+          socket
+          |> reset_tree()
+          |> request_fetch()
+        else
+          socket
+        end
 
-    {selected_apps, rest_apps} =
-      Enum.split_with(socket.assigns.available_apps, fn {app, _} ->
-        MapSet.member?(new_selected, app)
-      end)
-
-    socket =
-      socket
-      |> assign(:available_apps, selected_apps ++ Enum.sort(rest_apps))
-      |> assign(:selected_apps, new_selected)
-      |> assign(:depth, depth)
-
-    if connected?(socket) and (apps_changed? or depth_changed?) do
-      socket
-      |> assign(
-        :expanded_pids,
-        if(depth_changed?, do: MapSet.new(), else: socket.assigns.expanded_pids)
-      )
-      |> reset_tree()
-      |> request_fetch()
-    else
-      socket
+      {:error, changeset} ->
+        assign(socket, :apps_form, to_form(changeset, as: :tree_controls))
     end
     |> noreply()
   end
@@ -236,6 +229,18 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         |> assign(:errors, [{:list_running_applications, socket.assigns.session.node, reason}])
     end
   end
+
+  defp assign_available_apps(socket, new_selected) do
+    {selected_apps, rest_apps} =
+      Enum.split_with(socket.assigns.available_apps, fn {app, _} ->
+        MapSet.member?(new_selected, app)
+      end)
+
+    assign(socket, :available_apps, selected_apps ++ Enum.sort(rest_apps))
+  end
+
+  defp maybe_reset_expanded_pids(socket, true), do: assign(socket, :expanded_pids, MapSet.new())
+  defp maybe_reset_expanded_pids(socket, false), do: socket
 
   defp request_fetch(socket) do
     if socket.assigns.in_flight do

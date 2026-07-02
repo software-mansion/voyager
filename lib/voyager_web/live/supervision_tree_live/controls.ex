@@ -172,17 +172,15 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
   end
 
   def handle_event("select-apps", %{"tree_controls" => params}, socket) do
-    changeset =
-      params
-      |> SupervisionTreeControls.changeset(socket.assigns.available_app_atoms)
-      |> Map.put(:action, :validate)
+    params
+    |> SupervisionTreeControls.changeset(socket.assigns.available_app_atoms)
+    |> Ecto.Changeset.apply_action(:validate)
+    |> case do
+      {:ok, %SupervisionTreeControls{apps: apps, depth: depth}} ->
+        push_patch(socket, to: controls_path(socket, apps, depth))
 
-    if changeset.valid? do
-      apps = SupervisionTreeControls.apps_from_changeset(changeset)
-      depth = Ecto.Changeset.get_field(changeset, :depth)
-      push_patch(socket, to: controls_path(socket, apps, depth))
-    else
-      assign(socket, :apps_form, to_form(changeset, as: :tree_controls))
+      {:error, changeset} ->
+        assign(socket, :apps_form, to_form(changeset, as: :tree_controls))
     end
     |> noreply()
   end
