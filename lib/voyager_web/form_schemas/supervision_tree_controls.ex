@@ -32,8 +32,7 @@ defmodule VoyagerWeb.FormSchemas.SupervisionTreeControls do
   def changeset(attrs, available_apps) when is_list(available_apps) do
     %__MODULE__{}
     |> cast(attrs, [:apps, :depth])
-    |> update_change(:apps, fn apps -> Enum.map(apps, &String.to_existing_atom/1) end)
-    |> update_change(:apps, &filter_known(&1, available_apps))
+    |> update_change(:apps, &filter_map_known(&1, available_apps))
     |> validate_length(:apps,
       max: @max_apps,
       message: "Only #{@max_apps} applications can be selected at once."
@@ -44,10 +43,13 @@ defmodule VoyagerWeb.FormSchemas.SupervisionTreeControls do
     )
   end
 
-  defp filter_known(apps, available) when is_list(apps) do
-    available = MapSet.new(available)
-    Enum.filter(apps, &MapSet.member?(available, &1))
+  defp filter_map_known(apps, available) when is_list(apps) do
+    available = MapSet.new(available, &to_string/1)
+
+    apps
+    |> Enum.filter(&MapSet.member?(available, &1))
+    |> Enum.map(&String.to_existing_atom/1)
   end
 
-  defp filter_known(_, _), do: []
+  defp filter_map_known(_, _), do: []
 end
