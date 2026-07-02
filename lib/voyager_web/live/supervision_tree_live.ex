@@ -17,9 +17,12 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> assign(:available_apps, [])
       |> assign(:available_app_atoms, [])
       |> assign(:selected_apps, MapSet.new())
+      |> assign(:apps_open?, true)
       |> assign(:depth, SupervisionTreeControls.default_depth())
       |> assign(:expanded_pids, MapSet.new())
       |> assign(:last_tree_flat, nil)
+      |> assign(:last_updated, nil)
+      |> assign(:last_relations, %{})
       |> assign(:in_flight, nil)
       |> assign(:errors, [])
       |> assign(:status, :idle)
@@ -39,40 +42,29 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   end
 
   @impl true
+  def handle_event("toggle-apps-open", _params, socket) do
+    {:noreply, assign(socket, apps_open?: not socket.assigns.apps_open?)}
+  end
+
   def handle_event("select-apps", %{"tree_controls" => params}, socket) do
-    changeset = SupervisionTreeControls.changeset(params, socket.assigns.available_app_atoms)
+    changeset =
+      params
+      |> SupervisionTreeControls.changeset(socket.assigns.available_app_atoms)
+      |> Map.put(:action, :validate)
 
     {apps, truncated?} = SupervisionTreeControls.apps_from_changeset(changeset)
-    depth = Ecto.Changeset.get_field(changeset, :depth) || socket.assigns.depth
-
     new_apps = MapSet.new(apps)
-
     apps_changed? = new_apps != socket.assigns.selected_apps
-    depth_changed? = depth != socket.assigns.depth
 
     socket =
-      if truncated? do
-        put_flash(
-          socket,
-          :info,
-          "Only #{SupervisionTreeControls.max_apps()} applications can be selected at once."
-        )
-      else
-        socket
-      end
+      socket
+      |> maybe_flash_truncated(truncated?)
       |> assign(:selected_apps, new_apps)
-      |> assign(:depth, depth)
       |> assign(:apps_form, to_form(changeset, as: :tree_controls))
 
     socket =
-      if apps_changed? or depth_changed? do
-        socket
-        |> assign(
-          :expanded_pids,
-          if(depth_changed?, do: MapSet.new(), else: socket.assigns.expanded_pids)
-        )
-        |> reset_tree()
-        |> request_fetch()
+      if changeset.valid? do
+        apply_valid_controls(socket, changeset, apps_changed?)
       else
         socket
       end
@@ -131,19 +123,25 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       Process.demonitor(ref, [:flush])
 
       new_flat = result.nodes
+      new_edges = result.edges
       prev_flat = socket.assigns.last_tree_flat
+      prev_edges = socket.assigns.last_relations
 
       payload =
         case prev_flat do
           nil ->
             %{
               kind: "full",
-              nodes: new_flat
+              nodes: new_flat,
+              edges: new_edges
             }
 
           prev ->
-            prev
-            |> Diff.diff(new_flat)
+            node_diff = Diff.diff(prev, new_flat)
+            edge_diff = Diff.diff_relations(prev_edges, new_edges)
+
+            node_diff
+            |> Map.merge(edge_diff)
             |> Map.merge(%{kind: "delta"})
         end
 
@@ -153,6 +151,8 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         |> assign(:status, status)
         |> assign(:in_flight, nil)
         |> assign(:last_tree_flat, new_flat)
+        |> assign(:last_updated, DateTime.utc_now())
+        |> assign(:last_relations, new_edges)
         |> push_event("tree-data", payload)
         |> start_timer()
 
@@ -199,17 +199,51 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="flex h-full flex-col gap-4 p-4">
-      <SupervisionTreeComponents.header node_name={@session.node_name} status={@status} />
+    <div class="flex h-full flex-col gap-4 p-6 sm:p-8">
+      <SupervisionTreeComponents.header
+        node_name={@session.node_name}
+        status={@status}
+        last_updated={@last_updated}
+      />
       <SupervisionTreeComponents.controls
         form={@apps_form}
         available_apps={@available_apps}
         selected_apps={@selected_apps}
+        open?={@apps_open?}
       />
       <SupervisionTreeComponents.errors errors={@errors} />
       <SupervisionTreeComponents.body selected_apps={@selected_apps} status={@status} />
     </div>
     """
+  end
+
+  defp apply_valid_controls(socket, changeset, apps_changed?) do
+    depth = Ecto.Changeset.get_field(changeset, :depth) || socket.assigns.depth
+    depth_changed? = depth != socket.assigns.depth
+
+    socket = assign(socket, :depth, depth)
+
+    if apps_changed? or depth_changed? do
+      socket
+      |> assign(
+        :expanded_pids,
+        if(depth_changed?, do: MapSet.new(), else: socket.assigns.expanded_pids)
+      )
+      |> reset_tree()
+      |> request_fetch()
+    else
+      socket
+    end
+  end
+
+  defp maybe_flash_truncated(socket, false), do: socket
+
+  defp maybe_flash_truncated(socket, true) do
+    put_flash(
+      socket,
+      :info,
+      "Only #{SupervisionTreeControls.max_apps()} applications can be selected at once."
+    )
   end
 
   defp assign_controls_form(socket) do
@@ -279,7 +313,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   defp parse_pid(_), do: nil
 
-  defp reset_tree(socket), do: assign(socket, :last_tree_flat, nil)
+  defp reset_tree(socket), do: assign(socket, last_tree_flat: nil, last_relations: %{})
 
   defp walk_to_root(_flat, ""), do: []
   defp walk_to_root(nil, _key), do: []

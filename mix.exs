@@ -68,7 +68,7 @@ defmodule Voyager.MixProject do
     [
       setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
       format: ["format", "cmd npm --prefix assets run format"],
-      "format.e2e": ["cmd npm --prefix e2e run format"],
+      "e2e.format": ["cmd npm --prefix e2e run format"],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
@@ -76,8 +76,6 @@ defmodule Voyager.MixProject do
         "cmd --cd e2e npm ci",
         "cmd --cd e2e npx playwright install --with-deps"
       ],
-      "tauri.dev": ["cmd rel/app/tauri.sh dev"],
-      "tauri.build": ["cmd rel/app/tauri.sh build"],
       "tauri.test": ["cmd --cd rel/app/src-tauri cargo test"],
       "tauri.format": ["cmd --cd rel/app/src-tauri cargo fmt"],
       "assets.setup": [
@@ -86,6 +84,7 @@ defmodule Voyager.MixProject do
         "cmd npm install --prefix assets"
       ],
       "assets.build": [
+        "phx.digest.clean --all",
         "cmd npm --prefix assets run format",
         copy_font_assets_cmd(),
         "compile",
@@ -101,11 +100,12 @@ defmodule Voyager.MixProject do
         "cmd bash e2e/run.sh"
       ],
       precommit: [
-        "compile --warnings-as-errors",
+        tauri_check_version_cmd(),
         "deps.unlock --unused",
-        "credo --strict",
+        "compile --warnings-as-errors",
         "format",
-        "format.e2e",
+        "credo --strict",
+        "e2e.format",
         "tauri.format",
         "test",
         "tauri.test"
@@ -130,4 +130,6 @@ defmodule Voyager.MixProject do
 
     "cmd sh -c '#{script}'"
   end
+
+  defp tauri_check_version_cmd, do: "cmd dev/tauri_check_version.sh"
 end
