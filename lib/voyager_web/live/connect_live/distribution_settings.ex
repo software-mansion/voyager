@@ -37,7 +37,7 @@ defmodule VoyagerWeb.ConnectLive.DistributionSettings do
                 Distribution settings
               </h2>
               <p id="distribution-settings-help" class="text-base-content/60 mt-1 text-sm">
-                To connect with node Voyager starts distribution using the <span class="font-mono font-bold">voyager&lt;suffix&gt;</span>.
+                To connect to a remote node, Voyager starts its own distribution named <span class="font-mono font-bold">voyager&lt;suffix&gt;</span>.
                 This suffix allows multiple Voyager instances to run on the same network.
                 Leave empty to use <span class="font-mono font-bold">voyager</span>.
               </p>
