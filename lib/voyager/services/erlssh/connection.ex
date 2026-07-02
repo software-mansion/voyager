@@ -98,7 +98,7 @@ defmodule Voyager.Services.Erlssh.Connection do
         collect_ssh_output(conn_ref, channel_id, acc)
 
       {:ssh_cm, ^conn_ref, {:exit_status, ^channel_id, _status}} ->
-        # SSH sends: data → eof → exit_status → closed; keep looping to consume {:closed}
+        # SSH sends: data -> eof -> exit_status -> closed; keep looping to consume {:closed}
         collect_ssh_output(conn_ref, channel_id, acc)
 
       {:ssh_cm, ^conn_ref, {:closed, ^channel_id}} ->
