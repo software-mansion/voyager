@@ -27,8 +27,9 @@ defmodule Voyager.Services.Erlssh.Connection do
   end
 
   @doc """
-  This function performs blocking SSH operations and can block the calling 
-  process for up to `@ssh_timeout`.
+  This function performs blocking SSH operations and can block the calling
+  process for up to #{@ssh_timeout}ms. Run it inside a `Task` or supervised
+  process to avoid blocking a caller.
   """
   @spec discover_dist_port(:ssh.connection_ref(), String.t(), String.t()) ::
           {:ok, integer()} | {:error, term()}
@@ -97,12 +98,14 @@ defmodule Voyager.Services.Erlssh.Connection do
         collect_ssh_output(conn_ref, channel_id, acc)
 
       {:ssh_cm, ^conn_ref, {:exit_status, ^channel_id, _status}} ->
+        # SSH sends: data → eof → exit_status → closed; keep looping to consume {:closed}
         collect_ssh_output(conn_ref, channel_id, acc)
 
       {:ssh_cm, ^conn_ref, {:closed, ^channel_id}} ->
         acc
     after
       @ssh_timeout ->
+        :ssh_connection.close(conn_ref, channel_id)
         acc
     end
   end
