@@ -90,13 +90,12 @@ defmodule VoyagerWeb.ConnectLive do
         </div>
       </div>
 
-      <%= if @show_distribution_settings? do %>
-        <.live_component
-          module={VoyagerWeb.DistributionSettingsLive}
-          id="distribution-settings-modal"
-          connected?={not is_nil(@connected_session)}
-        />
-      <% end %>
+      <.live_component
+        :if={@show_distribution_settings?}
+        module={VoyagerWeb.DistributionSettingsComponent}
+        id="distribution-settings-modal"
+        connected?={not is_nil(@connected_session)}
+      />
     </div>
     """
   end
@@ -130,10 +129,10 @@ defmodule VoyagerWeb.ConnectLive do
                 "name_type" => conn.name_type
               })
 
-            {:noreply,
-             socket
-             |> assign(:form, to_form(changeset, as: :conn))
-             |> assign(:show_cookie, false)}
+            socket
+            |> assign(:form, to_form(changeset, as: :conn))
+            |> assign(:show_cookie, false)
+            |> noreply()
         end
 
       _ ->
@@ -173,19 +172,22 @@ defmodule VoyagerWeb.ConnectLive do
   end
 
   def handle_info({:distribution_settings, :saved}, socket) do
-    {:noreply,
-     socket
-     |> put_flash(:info, "Distribution suffix saved")
-     |> assign(:show_distribution_settings?, false)}
+    socket
+    |> put_flash(:info, "Distribution suffix saved")
+    |> assign(:show_distribution_settings?, false)
+    |> noreply()
   end
 
   def handle_info({:distribution_settings, :closed}, socket) do
-    {:noreply, assign(socket, :show_distribution_settings?, false)}
+    socket
+    |> assign(:show_distribution_settings?, false)
+    |> noreply()
   end
 
   def handle_info({:distribution_settings, :locked}, socket) do
-    {:noreply,
-     put_flash(socket, :error, "Distribution suffix is controlled by application config")}
+    socket
+    |> put_flash(:error, "Distribution suffix is controlled by application config")
+    |> noreply()
   end
 
   def handle_info(_, socket), do: {:noreply, socket}

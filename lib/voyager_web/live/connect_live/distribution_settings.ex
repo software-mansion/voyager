@@ -1,4 +1,5 @@
-defmodule VoyagerWeb.DistributionSettingsLive do
+defmodule VoyagerWeb.ConnectLive.DistributionSettings do
+  @moduledoc false
   use VoyagerWeb, :live_component
 
   alias Voyager.Settings
@@ -8,14 +9,14 @@ defmodule VoyagerWeb.DistributionSettingsLive do
 
   @impl true
   def update(%{id: id, connected?: connected?}, socket) do
-    {:ok,
-     socket
-     |> assign(
-       id: id,
-       connected?: connected?
-     )
-     |> assign(:locked?, Settings.locked?(:distribution_suffix))
-     |> assign_new(:form, &distribution_settings_form/0)}
+    socket
+    |> assign(
+      id: id,
+      connected?: connected?
+    )
+    |> assign(:locked?, Settings.locked?(:distribution_suffix))
+    |> assign_new(:form, &distribution_settings_form/0)
+    |> ok()
   end
 
   @impl true
@@ -53,21 +54,25 @@ defmodule VoyagerWeb.DistributionSettingsLive do
             </button>
           </div>
 
-          <%= if @connected? do %>
-            <div id="distribution-settings-connected" class="alert alert-warning text-sm">
-              <.icon name="icon-circle-alert" class="size-4" />
-              <span>Cannot change settings when node is connected.</span>
-            </div>
-          <% end %>
+          <div
+            :if={@connected?}
+            id="distribution-settings-connected"
+            class="alert alert-warning text-sm"
+          >
+            <.icon name="icon-circle-alert" class="size-4" />
+            <span>Cannot change settings when node is connected.</span>
+          </div>
 
-          <%= if @locked? do %>
-            <div id="distribution-settings-locked" class="alert alert-info text-sm">
-              <.icon name="icon-circle-alert" class="size-4" />
-              <span>
-                This value is set in application config, so changes are disabled.
-              </span>
-            </div>
-          <% end %>
+          <div
+            :if={@locked?}
+            id="distribution-settings-locked"
+            class="alert alert-info text-sm"
+          >
+            <.icon name="icon-circle-alert" class="size-4" />
+            <span>
+              This value is set in application config, so changes are disabled.
+            </span>
+          </div>
 
           <.form
             for={@form}
@@ -122,16 +127,19 @@ defmodule VoyagerWeb.DistributionSettingsLive do
   @impl true
   def handle_event("validate", %{"distribution_settings" => params}, socket) do
     changeset = DistributionSettings.changeset(params)
-    {:noreply, assign(socket, :form, to_form(changeset, as: :distribution_settings))}
+
+    socket
+    |> assign(:form, to_form(changeset, as: :distribution_settings))
+    |> noreply()
   end
 
   def handle_event("close", _, socket) do
     send(self(), {:distribution_settings, :closed})
-    {:noreply, socket}
+    noreply(socket)
   end
 
   def handle_event("save", _params, %{assigns: %{connected?: true}} = socket) do
-    {:noreply, socket}
+    noreply(socket)
   end
 
   def handle_event("save", %{"distribution_settings" => params}, socket) do
@@ -141,18 +149,23 @@ defmodule VoyagerWeb.DistributionSettingsLive do
          {:ok, settings} <- Ecto.Changeset.apply_action(changeset, :insert),
          {:ok, _} <- Settings.put(:distribution_suffix, settings.distribution_suffix) do
       send(self(), {:distribution_settings, :saved})
-      {:noreply, socket}
+      noreply(socket)
     else
       true ->
         send(self(), {:distribution_settings, :locked})
-        {:noreply, assign(socket, :locked?, true)}
+
+        socket
+        |> assign(:locked?, true)
+        |> noreply()
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, assign(socket, :form, to_form(changeset, as: :distribution_settings))}
+        socket
+        |> assign(:form, to_form(changeset, as: :distribution_settings))
+        |> noreply()
 
       {:error, error} ->
         Logger.error("Failed to save distribution settings: #{inspect(error)}")
-        {:noreply, socket}
+        noreply(socket)
     end
   end
 
