@@ -179,9 +179,9 @@ This is a web application written using the Phoenix web framework.
 - When building forms **always** use the already imported `Phoenix.Component.to_form/2` (`assign(socket, form: to_form(...))` and `<.form for={@form} id="msg-form">`), then access those forms in the template via `@form[:field]`
 - **Always** add unique DOM IDs to key elements (like forms, buttons, etc) when writing templates, these IDs can later be used in tests (`<.form for={@form} id="product-form">`)
 - For "app wide" template imports, you can import/alias into `voyager_web.ex`'s `html_helpers` block, so they will be available to all LiveViews, LiveComponents, and all modules that do `use VoyagerWeb, :html`
-- Use helper functions like `noreply/1`, `ok/1` when returning piped socket.
+- Use helper functions like `noreply/1`, `ok/1` when returning piped socket. **Avoid** using helper functions without piping, use tuple instead.
 
-    <!-- OK -->
+    <!-- DO THIS -->
 
     def handle_event(_, _, socket) do
       socket
@@ -193,7 +193,7 @@ This is a web application written using the Phoenix web framework.
       {:noreply, socket}
     end
 
-    <!-- WRONG -->
+    <!-- AVOID THIS -->
     
     def handle_event(_, _, socket) do
       {:noreply,
@@ -320,10 +320,10 @@ This is a web application written using the Phoenix web framework.
       def handle_event("filter", %{"filter" => filter}, socket) do
         messages = MessageQueries.all(filter)
 
-        {:noreply,
-         socket
-         |> assign(:messages_empty?, messages == [])
-         |> stream(:messages, messages, reset: true)}
+        socket
+        |> assign(:messages_empty?, messages == [])
+        |> stream(:messages, messages, reset: true)
+        |> noreply()
       end
 
 - LiveView streams _do not support counting or empty states_. If you need to display a count, you must track it using a separate assign. For empty states, you can use Tailwind classes:
@@ -345,11 +345,11 @@ This is a web application written using the Phoenix web framework.
         edit_form = to_form(MessageActions.change_message(message, %{content: message.content}))
 
         # re-insert message so @editing_message_id toggle logic takes effect for that stream item
-        {:noreply,
-         socket
-         |> stream_insert(:messages, message)
-         |> assign(:editing_message_id, String.to_integer(message_id))
-         |> assign(:edit_form, edit_form)}
+        socket
+        |> stream_insert(:messages, message)
+        |> assign(:editing_message_id, String.to_integer(message_id))
+        |> assign(:edit_form, edit_form)
+        |> noreply()
       end
 
   And in the template:

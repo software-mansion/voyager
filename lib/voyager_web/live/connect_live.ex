@@ -13,13 +13,13 @@ defmodule VoyagerWeb.ConnectLive do
       Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
     end
 
-    {:ok,
-     socket
-     |> reset_connections()
-     |> assign(:form, empty_form())
-     |> assign(:show_distribution_settings?, false)
-     |> assign(:show_cookie, false)
-     |> assign(:connected_session, NodeSession.current())}
+    socket
+    |> reset_connections()
+    |> assign(:form, empty_form())
+    |> assign(:show_distribution_settings?, false)
+    |> assign(:show_cookie, false)
+    |> assign(:connected_session, NodeSession.current())
+    |> ok()
   end
 
   @impl true
@@ -92,7 +92,7 @@ defmodule VoyagerWeb.ConnectLive do
 
       <.live_component
         :if={@show_distribution_settings?}
-        module={VoyagerWeb.DistributionSettingsComponent}
+        module={VoyagerWeb.ConnectLive.DistributionSettings}
         id="distribution-settings-modal"
         connected?={not is_nil(@connected_session)}
       />

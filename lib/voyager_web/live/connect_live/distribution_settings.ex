@@ -135,11 +135,11 @@ defmodule VoyagerWeb.ConnectLive.DistributionSettings do
 
   def handle_event("close", _, socket) do
     send(self(), {:distribution_settings, :closed})
-    noreply(socket)
+    {:noreply, socket}
   end
 
   def handle_event("save", _params, %{assigns: %{connected?: true}} = socket) do
-    noreply(socket)
+    {:noreply, socket}
   end
 
   def handle_event("save", %{"distribution_settings" => params}, socket) do
@@ -149,7 +149,7 @@ defmodule VoyagerWeb.ConnectLive.DistributionSettings do
          {:ok, settings} <- Ecto.Changeset.apply_action(changeset, :insert),
          {:ok, _} <- Settings.put(:distribution_suffix, settings.distribution_suffix) do
       send(self(), {:distribution_settings, :saved})
-      noreply(socket)
+      {:noreply, socket}
     else
       true ->
         send(self(), {:distribution_settings, :locked})
@@ -165,7 +165,7 @@ defmodule VoyagerWeb.ConnectLive.DistributionSettings do
 
       {:error, error} ->
         Logger.error("Failed to save distribution settings: #{inspect(error)}")
-        noreply(socket)
+        {:noreply, socket}
     end
   end
 
