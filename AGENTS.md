@@ -135,6 +135,9 @@ This is a web application written using the Phoenix web framework.
 - You **must** use `Ecto.Changeset.get_field(changeset, :field)` to access changeset fields
 - Fields which are set programmatically, such as `user_id`, must not be listed in `cast` calls or similar for security purposes. Instead they must be explicitly set when creating the struct
 - **Always** invoke `mix ecto.gen.migration migration_name_using_underscores` when generating migration files, so the correct timestamp and conventions are applied
+<!-- phoenix:ecto-end -->
+
+<!-- voyager:architecture-start -->
 
 ## Voyager architecture guidelines
 
@@ -165,7 +168,7 @@ This is a web application written using the Phoenix web framework.
 - Use services for non-CRUD operations such as connecting to remote nodes, wrapping external systems, or coordinating side effects
 - Add `@spec` and `@doc` if necessary (`@doc` its not a must-have in simple cases) on public functions
 - GenServers and LiveViews call services directly; avoid extra abstraction layers unless needed
-<!-- phoenix:ecto-end -->
+<!-- voyager:architecture-end -->
 
 <!-- phoenix:html-start -->
 
@@ -176,6 +179,43 @@ This is a web application written using the Phoenix web framework.
 - When building forms **always** use the already imported `Phoenix.Component.to_form/2` (`assign(socket, form: to_form(...))` and `<.form for={@form} id="msg-form">`), then access those forms in the template via `@form[:field]`
 - **Always** add unique DOM IDs to key elements (like forms, buttons, etc) when writing templates, these IDs can later be used in tests (`<.form for={@form} id="product-form">`)
 - For "app wide" template imports, you can import/alias into `voyager_web.ex`'s `html_helpers` block, so they will be available to all LiveViews, LiveComponents, and all modules that do `use VoyagerWeb, :html`
+- Use helper functions like `noreply/1`, `ok/1` when returning piped socket. **Avoid** using helper functions without piping, use tuple instead.
+
+    <!-- DO THIS -->
+
+    def handle_event(_, _, socket) do
+      socket
+      |> do_something()
+      |> noreply()
+    end
+
+    def handle_event(_, _, socket) do
+      {:noreply, socket}
+    end
+
+    <!-- AVOID THIS -->
+    
+    def handle_event(_, _, socket) do
+      {:noreply,
+       socket
+       |> do_something()}
+    end
+
+    def handle_event(_, _, socket) do
+      noreply(socket)
+    end
+
+- **Avoid** code blocks for `if` and `for` statements:
+
+**Avoid**:
+
+    <%= if condition do %>
+      <.component />
+    <% end %>
+
+**Use this** instead:
+
+    <.component :if={condition} />
 
 - Elixir supports `if/else` but **does NOT support `if/else if` or `if/elsif`**. **Never use `else if` or `elseif` in Elixir**, **always** use `cond` or `case` for multiple conditionals.
 
@@ -255,6 +295,9 @@ This is a web application written using the Phoenix web framework.
 - **Never** use the deprecated `live_redirect` and `live_patch` functions, instead **always** use the `<.link navigate={href}>` and `<.link patch={href}>` in templates, and `push_navigate` and `push_patch` functions LiveViews
 - **Avoid LiveComponent's** unless you have a strong, specific need for them
 - LiveViews should be named like `VoyagerWeb.WeatherLive`, with a `Live` suffix. When you go to add LiveView routes to the router, the default `:browser` scope is **already aliased** with the `VoyagerWeb` module, so you can just do `live "/weather", WeatherLive`
+- **Never** use old style `<%= =>` tags. Instead use `{}` to add code blocks.
+- Add `Live` suffix only for `LiveView`. Do not add it for `LiveComponent`
+- Use newest features if available (read `phoenix_live_view` version)
 
 ### LiveView streams
 
@@ -277,10 +320,10 @@ This is a web application written using the Phoenix web framework.
       def handle_event("filter", %{"filter" => filter}, socket) do
         messages = MessageQueries.all(filter)
 
-        {:noreply,
-         socket
-         |> assign(:messages_empty?, messages == [])
-         |> stream(:messages, messages, reset: true)}
+        socket
+        |> assign(:messages_empty?, messages == [])
+        |> stream(:messages, messages, reset: true)
+        |> noreply()
       end
 
 - LiveView streams _do not support counting or empty states_. If you need to display a count, you must track it using a separate assign. For empty states, you can use Tailwind classes:
@@ -302,11 +345,11 @@ This is a web application written using the Phoenix web framework.
         edit_form = to_form(MessageActions.change_message(message, %{content: message.content}))
 
         # re-insert message so @editing_message_id toggle logic takes effect for that stream item
-        {:noreply,
-         socket
-         |> stream_insert(:messages, message)
-         |> assign(:editing_message_id, String.to_integer(message_id))
-         |> assign(:edit_form, edit_form)}
+        socket
+        |> stream_insert(:messages, message)
+        |> assign(:editing_message_id, String.to_integer(message_id))
+        |> assign(:edit_form, edit_form)
+        |> noreply()
       end
 
   And in the template:
