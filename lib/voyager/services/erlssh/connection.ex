@@ -51,7 +51,6 @@ defmodule Voyager.Services.Erlssh.Connection do
     :ssh.tcpip_tunnel_to_server(conn_ref, ~c"127.0.0.1", local_port, ~c"127.0.0.1", remote_port)
   end
 
-  @spec parse_epmd_names(binary(), String.t()) :: {:ok, pos_integer()} | {:error, term()}
   defp parse_epmd_names(output, node_name) do
     case Regex.run(
            ~r/^\s*name\s+#{Regex.escape(node_name)}\s+at\s+port\s+(\d+)\s*$/m,

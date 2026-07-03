@@ -4,14 +4,15 @@ defmodule Voyager.Validate do
   Erlang's `:ssh` client, interpolated into the remote `epmd -names` command, or
   converted to atoms.
 
+  Every value is capped at 255 bytes so that names later passed to
+  `String.to_atom/1` stay within the atom limit and cannot raise `system_limit`.
+
   `epmd_prefix` is trusted operator input (it runs over an SSH session that
   already grants full remote shell access), so it intentionally permits shell
   env-var assignments and paths such as `PATH=$HOME/.local/bin:$PATH`. The
   allowlist still rejects command-chaining and substitution metacharacters
   (`;`, `|`, `&`, backtick, parentheses, redirections, quotes, newlines) as
-  defense-in-depth should the value ever come from a saved profile. The length
-  cap also keeps node names within the 255-byte atom limit so
-  `String.to_atom/1` cannot raise `system_limit`.
+  defense-in-depth should the value ever come from a saved profile.
   """
 
   @max_len 255

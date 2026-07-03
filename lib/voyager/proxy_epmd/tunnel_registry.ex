@@ -20,7 +20,7 @@ defmodule Voyager.ProxyEpmd.TunnelRegistry do
     GenServer.start_link(__MODULE__, :ok, name: __MODULE__)
   end
 
-  @spec register(charlist(), pos_integer(), pid()) :: :ok
+  @spec register(charlist(), pos_integer(), :ssh.connection_ref()) :: :ok
   def register(node_key, local_port, conn) when is_list(node_key) and is_pid(conn) do
     GenServer.call(__MODULE__, {:register, node_key, local_port, conn})
   end
@@ -28,6 +28,11 @@ defmodule Voyager.ProxyEpmd.TunnelRegistry do
   @spec unregister(charlist()) :: :ok
   def unregister(node_key) when is_list(node_key) do
     GenServer.call(__MODULE__, {:unregister, node_key})
+  end
+
+  @spec unregister_by_tunnel(:ssh.connection_ref()) :: :ok
+  def unregister_by_tunnel(conn) when is_pid(conn) do
+    GenServer.call(__MODULE__, {:unregister_by_tunnel, conn})
   end
 
   @impl true
@@ -55,6 +60,22 @@ defmodule Voyager.ProxyEpmd.TunnelRegistry do
   @impl true
   def handle_call({:unregister, node_key}, _from, state) do
     {:reply, :ok, drop_existing(state, node_key)}
+  end
+
+  @impl true
+  def handle_call({:unregister_by_tunnel, conn}, _from, state) do
+    node_key =
+      :ets.foldl(
+        fn
+          {key, %{tunnel: ^conn}}, _acc -> key
+          _entry, acc -> acc
+        end,
+        nil,
+        @table
+      )
+
+    state = if node_key, do: drop_existing(state, node_key), else: state
+    {:reply, :ok, state}
   end
 
   @impl true

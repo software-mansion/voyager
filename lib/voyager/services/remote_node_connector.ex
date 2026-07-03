@@ -68,8 +68,8 @@ defmodule Voyager.Services.RemoteNodeConnector do
       #=> {:ok, :"test@10.0.0.5", conn_ref, ref, 54322}
   """
   @spec connect(String.t(), String.t(), String.t(), String.t(), Auth.auth(), keyword()) ::
-          {:ok, remote_node :: node(), conn_ref :: pid(), monitor_ref :: reference(),
-           local_port :: pos_integer()}
+          {:ok, remote_node :: node(), conn_ref :: :ssh.connection_ref(),
+           monitor_ref :: reference(), local_port :: pos_integer()}
           | {:error, reason :: term()}
   def connect(ssh_user, ssh_host, full_node_name, cookie, auth, opts \\ [])
       when Auth.is_ssh_auth(auth) do
@@ -86,9 +86,10 @@ defmodule Voyager.Services.RemoteNodeConnector do
     end
   end
 
-  @spec stop(pid(), reference() | nil) :: :ok
+  @spec stop(:ssh.connection_ref(), reference() | nil) :: :ok
   def stop(conn_ref, ref \\ nil) when is_pid(conn_ref) do
     if is_reference(ref), do: Process.demonitor(ref, [:flush])
+    TunnelRegistry.unregister_by_tunnel(conn_ref)
     :ssh.close(conn_ref)
   end
 
