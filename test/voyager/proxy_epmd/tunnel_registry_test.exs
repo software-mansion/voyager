@@ -58,6 +58,35 @@ defmodule Voyager.ProxyEpmd.TunnelRegistryTest do
     end
   end
 
+  describe "unregister_by_tunnel/1" do
+    test "removes the ETS entry matching the given tunnel pid", %{key: key} do
+      TunnelRegistry.register(key, 12_345, self())
+      :ok = TunnelRegistry.unregister_by_tunnel(self())
+
+      assert :ets.lookup(@table, key) == []
+    end
+
+    test "is a no-op when no entry matches the pid" do
+      other = spawn(fn -> receive do: (:stop -> :ok) end)
+      on_exit(fn -> send(other, :stop) end)
+
+      assert :ok = TunnelRegistry.unregister_by_tunnel(other)
+    end
+
+    test "cancels the monitor so the later tunnel exit does not double-delete", %{key: key} do
+      tunnel = spawn(fn -> receive do: (:stop -> :ok) end)
+      TunnelRegistry.register(key, 12_345, tunnel)
+      :ok = TunnelRegistry.unregister_by_tunnel(tunnel)
+
+      ref = Process.monitor(tunnel)
+      send(tunnel, :stop)
+      assert_receive {:DOWN, ^ref, :process, ^tunnel, _}
+      _ = :sys.get_state(TunnelRegistry)
+
+      assert :ets.lookup(@table, key) == []
+    end
+  end
+
   describe "auto-cleanup on tunnel exit" do
     test "removes the ETS entry when the tunnel pid exits normally", %{key: key} do
       tunnel = spawn(fn -> receive do: (:stop -> :ok) end)
