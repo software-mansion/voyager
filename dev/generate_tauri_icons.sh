@@ -28,7 +28,12 @@ src_image=""
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --format)
-      format="${2:-}"
+      if [ "$#" -lt 2 ]; then
+        echo "Missing value for --format" >&2
+        usage
+        exit 1
+      fi
+      format="$2"
       shift 2
       ;;
     --format=*)
@@ -131,11 +136,11 @@ iconset_dir="$(mktemp -d)/icon.iconset"
 mkdir -p "$iconset_dir"
 trap 'rm -rf "$(dirname "$iconset_dir")"' EXIT
 
-for size in 16 32 128 256 512; do
-  size2x=$((size * 2))
-  scale_png "$size" "$iconset_dir/icon_${size}x${size}.png"
-  scale_png "$size2x" "$iconset_dir/icon_${size}x${size}@2x.png"
-done
+  for size in 16 32 128 256 512; do
+    size2x=$((size * 2))
+    scale_png "$size" "$iconset_dir/icon_${size}x${size}.png"
+    scale_png "$size2x" "$iconset_dir/icon_${size}x${size}@2x.png"
+  done
 
 iconutil -c icns "$iconset_dir" -o "$icons_dir/icon.icns"
 
