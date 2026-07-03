@@ -39,7 +39,7 @@ export function elementsFor(key, node) {
     parent_key: node.parent_key,
     children_keys: children_keys,
     dead: node.info === 'dead',
-    is_collapsed: initialIsCollapsedState(node),
+    is_collapsed: initialIsCollapsedState({ child_count, children_keys }),
     is_from_relation: node.parent_key === null,
   };
   data.displayLabel = composeLabel(data);

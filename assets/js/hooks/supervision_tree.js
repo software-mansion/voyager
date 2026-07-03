@@ -251,6 +251,8 @@ const SupervisionTree = {
         const target = this.cy.getElementById(edge.target);
         if (source.nonempty() && target.nonempty()) {
           this.cy.add(relEdgeElement(edge));
+          source.data('hidden_count', 0);
+          target.data('hidden_count', 0);
           source.removeClass('hidden');
           target.removeClass('hidden');
         } else {
