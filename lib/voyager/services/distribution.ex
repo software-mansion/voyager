@@ -3,21 +3,23 @@ defmodule Voyager.Services.Distribution do
   Manages the local node's Erlang distribution lifecycle and parses remote node
   names. Shared by `Voyager.Services.NodeConnector` and
   `Voyager.Services.RemoteNodeConnector`.
+
+  The local distribution name is `voyager<suffix>`, where `<suffix>` comes from
+  the `:distribution_suffix` setting. Only the base name is passed to
+  `:net_kernel.start/2`; the host part is derived from `name_domain`, so the
+  same base name is valid for both `:longnames` and `:shortnames`.
   """
 
+  alias Voyager.Settings
+
   require Logger
-
-  @voyager_node_name Application.compile_env(:voyager, :voyager_node_name, :voyager@localhost)
-
-  # A longname host must contain a dot; a shortname host must not. The configured
-  # name supplies only the base part — the host is chosen to match name_type so
-  # `:net_kernel.start/2` does not reject the name.
-  @longname_host "127.0.0.1"
-  @shortname_host "localhost"
 
   @doc """
   Ensures the local node is alive and distributed under `name_type`
   (`:longnames` or `:shortnames`), starting or restarting distribution as needed.
+
+  Distribution is restarted when the running node's name type or base name no
+  longer matches the requested type / current `:distribution_suffix` setting.
   """
   @spec ensure_distributed(atom()) :: :ok | {:error, term()}
   def ensure_distributed(name_type) when name_type in [:longnames, :shortnames] do
@@ -25,7 +27,7 @@ defmodule Voyager.Services.Distribution do
       not Node.alive?() ->
         start_distribution(name_type)
 
-      matches_name_type?(name_type) ->
+      matches_name_type?(name_type) and distribution_name_matches?() ->
         :ok
 
       true ->
@@ -53,11 +55,31 @@ defmodule Voyager.Services.Distribution do
     end
   end
 
+  @doc """
+  Returns the local distribution base name (`:"voyager<suffix>"`) built from the
+  `:distribution_suffix` setting.
+  """
+  @spec distribution_name() :: atom()
+  def distribution_name do
+    suffix = Settings.get(:distribution_suffix, "")
+    String.to_atom("voyager#{suffix}")
+  end
+
   defp matches_name_type?(:longnames), do: :net_kernel.longnames() == true
   defp matches_name_type?(:shortnames), do: :net_kernel.longnames() == false
 
+  defp distribution_name_matches? do
+    distributed_base =
+      Node.self()
+      |> Atom.to_string()
+      |> String.split("@", parts: 2)
+      |> hd()
+
+    distributed_base == Atom.to_string(distribution_name())
+  end
+
   defp start_distribution(name_type) do
-    node_name = local_node_name(name_type)
+    node_name = distribution_name()
 
     case :net_kernel.start(node_name, %{name_domain: name_type, hidden: true}) do
       {:ok, _pid} ->
@@ -74,18 +96,5 @@ defmodule Voyager.Services.Distribution do
       {:error, reason} ->
         {:error, {:net_kernel, reason}}
     end
-  end
-
-  # Rebuilds the configured node name with a host that matches name_type so a
-  # `:longnames` VM never starts under a shortname host (or vice versa).
-  defp local_node_name(name_type) do
-    base =
-      @voyager_node_name
-      |> Atom.to_string()
-      |> String.split("@", parts: 2)
-      |> hd()
-
-    host = if name_type == :longnames, do: @longname_host, else: @shortname_host
-    :"#{base}@#{host}"
   end
 end
