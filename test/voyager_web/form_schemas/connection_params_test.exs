@@ -1,15 +1,9 @@
 defmodule VoyagerWeb.FormSchemas.ConnectionParamsTest do
   use ExUnit.Case, async: true
 
-  alias VoyagerWeb.FormSchemas.ConnectionParams
+  import Voyager.TestUtils
 
-  defp errors_on(changeset) do
-    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-      Regex.replace(~r"%{(\w+)}", msg, fn _, key ->
-        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
-      end)
-    end)
-  end
+  alias VoyagerWeb.FormSchemas.ConnectionParams
 
   test "accepts a well-formed name@host node name with a cookie" do
     cs = ConnectionParams.changeset(%{"node_name" => "my_app@127.0.0.1", "cookie" => "abc"})
