@@ -205,7 +205,7 @@ This is a web application written using the Phoenix web framework.
       noreply(socket)
     end
 
-- **Avoid** code blocs for `if` and `for` statements:
+- **Avoid** code blocks for `if` and `for` statements:
 
 **Avoid**:
 
