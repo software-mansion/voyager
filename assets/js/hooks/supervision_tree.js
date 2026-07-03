@@ -15,6 +15,7 @@ import {
   edgeId,
   isRealPid,
   overlayButtonIntersectsExtent,
+  initialIsCollapsedState,
 } from './supervision_tree/elements';
 
 /**
@@ -215,15 +216,19 @@ const SupervisionTree = {
                 data: { id: edgeId(value, key), source: value, target: key },
               });
             }
-          } else {
-            node.data(field, value);
           }
+
+          node.data(field, value);
 
           if (TOPOLOGY_FIELDS.has(field)) topologyChangeCounter++;
         }
 
         if (patch.name !== undefined || patch.child_count !== undefined) {
           node.data('displayLabel', composeLabel(node.data()));
+        }
+
+        if (patch.child_count !== undefined) {
+          node.data('is_collapsed', initialIsCollapsedState(node.data()));
         }
 
         if (patch.info !== undefined) {
@@ -246,6 +251,8 @@ const SupervisionTree = {
         const target = this.cy.getElementById(edge.target);
         if (source.nonempty() && target.nonempty()) {
           this.cy.add(relEdgeElement(edge));
+          source.removeClass('hidden');
+          target.removeClass('hidden');
         } else {
           console.warn(
             `Failed to add edge. At least one target empty: ${source.id()} - ${target.id()}`

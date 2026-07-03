@@ -35,12 +35,11 @@ export function elementsFor(key, node) {
     name: node.name,
     type: node.type,
     info: node.info,
-    child_count: node.child_count ?? 0,
+    child_count: child_count,
     parent_key: node.parent_key,
-    children_keys:
-      node.children_keys === 'not_loaded' ? null : node.children_keys,
+    children_keys: children_keys,
     dead: node.info === 'dead',
-    is_collapsed: child_count > 0 && children_keys === null,
+    is_collapsed: initialIsCollapsedState(node),
     is_from_relation: node.parent_key === null,
   };
   data.displayLabel = composeLabel(data);
@@ -75,6 +74,16 @@ export function relEdgeElement(edge) {
     },
     classes: `rel ${edge.kind}`,
   };
+}
+
+/**
+ * @param {{child_count:number,children_keys:string[]|'not_loaded'|null}} data
+ */
+export function initialIsCollapsedState({ child_count, children_keys }) {
+  return (
+    child_count > 0 &&
+    (children_keys === 'not_loaded' || children_keys === null)
+  );
 }
 
 // The label is the process's registered name, or its pid when unregistered —
