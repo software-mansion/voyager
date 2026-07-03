@@ -39,28 +39,4 @@ defmodule Voyager.ValidateTest do
       assert {:error, {:invalid_node_name, ^long}} = Validate.node_name(long)
     end
   end
-
-  describe "epmd_prefix/1" do
-    test "accepts an empty prefix" do
-      assert :ok = Validate.epmd_prefix("")
-    end
-
-    test "accepts paths and shell env-var assignments" do
-      assert :ok = Validate.epmd_prefix("/opt/homebrew/bin")
-      assert :ok = Validate.epmd_prefix("~/bin")
-      assert :ok = Validate.epmd_prefix("PATH=$HOME/.local/share/mise/shims:$PATH")
-    end
-
-    test "rejects command-chaining and substitution metacharacters" do
-      assert {:error, {:invalid_epmd_prefix, "; rm -rf /"}} = Validate.epmd_prefix("; rm -rf /")
-      assert {:error, {:invalid_epmd_prefix, "$(whoami)"}} = Validate.epmd_prefix("$(whoami)")
-      assert {:error, {:invalid_epmd_prefix, "a | b"}} = Validate.epmd_prefix("a | b")
-      assert {:error, {:invalid_epmd_prefix, "a && b"}} = Validate.epmd_prefix("a && b")
-    end
-
-    test "rejects prefixes with spaces to prevent word-splitting injection" do
-      assert {:error, {:invalid_epmd_prefix, "PATH=/tmp evil"}} =
-               Validate.epmd_prefix("PATH=/tmp evil")
-    end
-  end
 end

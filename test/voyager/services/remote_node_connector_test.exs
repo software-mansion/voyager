@@ -24,17 +24,5 @@ defmodule Voyager.Services.RemoteNodeConnectorTest do
       assert {:error, {:invalid_node_name, "no_at_sign"}} =
                RemoteNodeConnector.connect("nobody", "127.0.0.1", "no_at_sign", "cookie", :agent)
     end
-
-    test "rejects an invalid epmd_prefix before opening any connection" do
-      assert {:error, {:invalid_epmd_prefix, "; rm -rf /"}} =
-               RemoteNodeConnector.connect(
-                 "nobody",
-                 "127.0.0.1",
-                 "node@127.0.0.1",
-                 "cookie",
-                 :agent,
-                 epmd_prefix: "; rm -rf /"
-               )
-    end
   end
 end

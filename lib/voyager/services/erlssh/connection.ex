@@ -1,7 +1,8 @@
 defmodule Voyager.Services.Erlssh.Connection do
   @moduledoc """
-  Low-level Erlang SSH primitives: connect, discover the Erlang distribution
-  port via `epmd -names`, and open a TCP tunnel to the remote node.
+  Low-level Erlang SSH primitives: connect, open a TCP tunnel to a remote port,
+  and discover the Erlang distribution port by querying the remote `epmd` over
+  the tunnel.
   """
 
   alias Voyager.Services.Erlssh.Auth
@@ -9,6 +10,8 @@ defmodule Voyager.Services.Erlssh.Connection do
   require Auth
 
   @ssh_timeout 5000
+  @epmd_names_req 110
+  @epmd_port 4369
 
   @spec connect_ssh(String.t(), integer(), String.t(), Auth.auth()) ::
           {:ok, conn_ref :: :ssh.connection_ref()} | {:error, reason :: term()}
@@ -26,29 +29,53 @@ defmodule Voyager.Services.Erlssh.Connection do
     :ssh.connect(char_host, ssh_port, base_opts ++ auth_opts(auth))
   end
 
-  @doc """
-  This function performs blocking SSH operations and can block the calling
-  process for up to #{@ssh_timeout}ms. Run it inside a `Task` or supervised
-  process to avoid blocking a caller.
-  """
-  @spec discover_dist_port(:ssh.connection_ref(), String.t(), String.t()) ::
-          {:ok, integer()} | {:error, term()}
-  def discover_dist_port(conn_ref, node_name, epmd_prefix \\ "") do
-    epmd_command = build_epmd_command(epmd_prefix)
-
-    case :ssh_connection.session_channel(conn_ref, @ssh_timeout) do
-      {:ok, channel_id} ->
-        exec_and_parse(conn_ref, channel_id, epmd_command, node_name)
-
-      error ->
-        {:error, {:ssh_failed, error}}
-    end
-  end
-
   @spec open_tunnel(:ssh.connection_ref(), integer(), integer()) ::
           {:ok, pos_integer()} | {:error, term()}
   def open_tunnel(conn_ref, remote_port, local_port \\ 0) do
     :ssh.tcpip_tunnel_to_server(conn_ref, ~c"127.0.0.1", local_port, ~c"127.0.0.1", remote_port)
+  end
+
+  @doc """
+  Discovers the distribution port of `node_name` on the remote host.
+
+  Opens a short-lived TCP tunnel to the remote `epmd`, sends an EPMD `NAMES` request, and parses the reply.
+  Performs blocking SSH and TCP operations and can block the caller for up to
+  #{@ssh_timeout}ms; run it inside a `Task` or supervised process.
+  """
+  @spec discover_dist_port(:ssh.connection_ref(), String.t(), integer()) ::
+          {:ok, pos_integer()} | {:error, term()}
+  def discover_dist_port(conn_ref, node_name, epmd_port \\ @epmd_port) do
+    with {:ok, epmd_local_port} <- open_tunnel(conn_ref, epmd_port),
+         {:ok, output} <- query_epmd_names(epmd_local_port) do
+      parse_epmd_names(output, node_name)
+    end
+  end
+
+  defp query_epmd_names(local_port) do
+    opts = [:binary, active: false, packet: :raw]
+
+    with {:ok, sock} <- :gen_tcp.connect(~c"127.0.0.1", local_port, opts, @ssh_timeout) do
+      result =
+        with :ok <- :gen_tcp.send(sock, <<1::16, @epmd_names_req>>),
+             {:ok, resp} <- recv_until_closed(sock, <<>>) do
+          parse_names_response(resp)
+        end
+
+      :gen_tcp.close(sock)
+      result
+    end
+  end
+
+  # First 4 bytes are epmd's own port; the rest is the "name ... at port N" text.
+  defp parse_names_response(<<_epmd_port::32, text::binary>>), do: {:ok, text}
+  defp parse_names_response(_), do: {:error, :invalid_epmd_response}
+
+  defp recv_until_closed(sock, acc) do
+    case :gen_tcp.recv(sock, 0, @ssh_timeout) do
+      {:ok, data} -> recv_until_closed(sock, acc <> data)
+      {:error, :closed} -> {:ok, acc}
+      {:error, _} = err -> err
+    end
   end
 
   defp parse_epmd_names(output, node_name) do
@@ -63,49 +90,4 @@ defmodule Voyager.Services.Erlssh.Connection do
 
   defp auth_opts(:agent), do: []
   defp auth_opts({:password, pass}), do: [password: String.to_charlist(pass)]
-
-  defp exec_and_parse(conn_ref, channel_id, epmd_command, node_name) do
-    command_charlist = String.to_charlist(epmd_command)
-
-    case :ssh_connection.exec(conn_ref, channel_id, command_charlist, @ssh_timeout) do
-      :success ->
-        output = collect_ssh_output(conn_ref, channel_id, "")
-        parse_epmd_names(output, node_name)
-
-      error ->
-        :ssh_connection.close(conn_ref, channel_id)
-        {:error, {:ssh_failed, error}}
-    end
-  end
-
-  defp build_epmd_command(""), do: "epmd -names"
-
-  defp build_epmd_command(prefix) do
-    if String.contains?(prefix, "=") do
-      "#{prefix} epmd -names"
-    else
-      "PATH=\"#{prefix}:$PATH\" epmd -names"
-    end
-  end
-
-  defp collect_ssh_output(conn_ref, channel_id, acc) do
-    receive do
-      {:ssh_cm, ^conn_ref, {:data, ^channel_id, 0, data}} ->
-        collect_ssh_output(conn_ref, channel_id, acc <> to_string(data))
-
-      {:ssh_cm, ^conn_ref, {:eof, ^channel_id}} ->
-        collect_ssh_output(conn_ref, channel_id, acc)
-
-      {:ssh_cm, ^conn_ref, {:exit_status, ^channel_id, _status}} ->
-        # SSH sends: data -> eof -> exit_status -> closed; keep looping to consume {:closed}
-        collect_ssh_output(conn_ref, channel_id, acc)
-
-      {:ssh_cm, ^conn_ref, {:closed, ^channel_id}} ->
-        acc
-    after
-      @ssh_timeout ->
-        :ssh_connection.close(conn_ref, channel_id)
-        acc
-    end
-  end
 end

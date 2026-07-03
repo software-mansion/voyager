@@ -3,9 +3,9 @@ defmodule Voyager.Services.RemoteNodeConnector do
   Connects to a remote Erlang node via SSH using Erlang's built-in `:ssh`.
 
   Ensures the local node is distributed, opens an SSH connection to the gateway
-  host, discovers the target node's distribution port via `epmd -names`, opens a
-  local TCP tunnel to that port, sets the remote node cookie, and calls
-  `Node.connect/1`.
+  host, discovers the target node's distribution port by querying the remote
+  `epmd` over a TCP tunnel , opens a local TCP tunnel to
+  that port, sets the remote node cookie, and calls `Node.connect/1`.
 
   ## Example
 
@@ -28,7 +28,7 @@ defmodule Voyager.Services.RemoteNodeConnector do
           "s3cret-cookie",
           {:password, "s3cret"},
           ssh_port: 2222,
-          epmd_prefix: "/opt/homebrew/bin"
+          epmd_port: 4369
         )
 
       # Disconnect
@@ -37,9 +37,8 @@ defmodule Voyager.Services.RemoteNodeConnector do
   ## Options
 
     * `:ssh_port` — SSH port on the gateway host. Defaults to `22`.
-    * `:epmd_prefix` — absolute path to the directory holding the remote `epmd`
-      binary, for hosts where it is not on the non-interactive SSH `PATH`
-      (e.g. `/opt/homebrew/bin`). Validated by `Voyager.Validate.epmd_prefix/1`.
+    * `:epmd_port` — TCP port the remote `epmd` listens on, queried over the SSH
+      tunnel to discover the target node's distribution port. Defaults to `4369`.
     * `:name_type` — `:longnames` or `:shortnames`; how local distribution is
       started. Defaults to `:longnames`.
   """
@@ -73,16 +72,15 @@ defmodule Voyager.Services.RemoteNodeConnector do
           | {:error, reason :: term()}
   def connect(ssh_user, ssh_host, full_node_name, cookie, auth, opts \\ [])
       when Auth.is_ssh_auth(auth) do
-    epmd_prefix = Keyword.get(opts, :epmd_prefix, "")
+    epmd_port = Keyword.get(opts, :epmd_port, 4369)
     ssh_port = Keyword.get(opts, :ssh_port, 22)
     name_type = Keyword.get(opts, :name_type, :longnames)
 
     with :ok <- Validate.node_name(full_node_name),
          {:ok, node_name, node_host} <- Distribution.split_node_name(full_node_name),
          :ok <- Validate.host(node_host),
-         :ok <- Validate.epmd_prefix(epmd_prefix),
          {:ok, conn_ref} <- Connection.connect_ssh(ssh_host, ssh_port, ssh_user, auth) do
-      establish(conn_ref, full_node_name, node_name, epmd_prefix, name_type, cookie)
+      establish(conn_ref, full_node_name, node_name, name_type, cookie, epmd_port)
     end
   end
 
@@ -93,11 +91,11 @@ defmodule Voyager.Services.RemoteNodeConnector do
     :ssh.close(conn_ref)
   end
 
-  defp establish(conn_ref, full_node_name, node_name, epmd_prefix, name_type, cookie) do
+  defp establish(conn_ref, full_node_name, node_name, name_type, cookie, epmd_port) do
     node_key = String.to_charlist(node_name)
 
     with :ok <- Distribution.ensure_distributed(name_type),
-         {:ok, dist_port} <- Connection.discover_dist_port(conn_ref, node_name, epmd_prefix),
+         {:ok, dist_port} <- Connection.discover_dist_port(conn_ref, node_name, epmd_port),
          {:ok, local_port} <- Connection.open_tunnel(conn_ref, dist_port),
          :ok <- TunnelRegistry.register(node_key, local_port, conn_ref) do
       ref = Process.monitor(conn_ref)
