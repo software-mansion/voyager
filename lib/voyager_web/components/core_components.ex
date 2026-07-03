@@ -354,6 +354,10 @@ defmodule VoyagerWeb.CoreComponents do
   end
 
   @doc """
+  Renders a tooltip trigger with a content slot, and optionally appends an external
+  documentation link (when `doc_href` is set).
+
+  This is a thin wrapper over `tooltip/1`.
   """
   attr :id, :string, required: true, doc: "unique DOM id for the trigger"
 

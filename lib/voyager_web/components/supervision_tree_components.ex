@@ -321,9 +321,12 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
   defp legend_node_entry(assigns) do
     ~H"""
     <.link_tooltip id={@id} doc_href={@doc_href} doc_label={@doc_label} interactive={true}>
-      <div>
+      <span
+        tabindex="0"
+        aria-describedby={"#{@id}-tip"}
+      >
         <.icon name={@icon_name} class={"#{@color_class} size-4"} /> {@name}
-      </div>
+      </span>
       <:content>
         {@text}
       </:content>
@@ -342,11 +345,15 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
   defp legend_edge_entry(assigns) do
     ~H"""
     <.link_tooltip id={@id} doc_href={@doc_href} doc_label={@doc_label} interactive={true}>
-      <div class="flex items-center gap-1.5">
+      <span
+        tabindex="0"
+        aria-describedby={"#{@id}-tip"}
+        class="inline-flex items-center gap-1.5"
+      >
         <span :for={_ <- 1..3} :if={@dashed} class={"#{@color_class} h-0.5 w-1.5"} />
         <span :if={not @dashed} class={"#{@color_class} w-7.5 h-0.5"} />
         <span class="ml-1">{@name}</span>
-      </div>
+      </span>
       <:content>
         {@text}
       </:content>
@@ -358,7 +365,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
   defp edge_legends, do: @edge_legends
 
   defp legend_entry_id(%{name: name}) do
-    "#{name |> String.downcase() |> String.replace(" ", "-")}-node"
+    "#{name |> String.downcase() |> String.replace(" ", "-")}-legend-entry"
   end
 
   defp status_badge_class(:idle), do: "badge-ghost"
