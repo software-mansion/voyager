@@ -9,7 +9,7 @@ defmodule Voyager.Validate do
 
   @max_len 255
 
-  @host_re ~r/\A[A-Za-z0-9._:-]+\z/
+  @host_re ~r/\A[A-Za-z0-9][A-Za-z0-9._:-]*\z/
   @name_re ~r/\A[A-Za-z0-9._-]+@[A-Za-z0-9._:-]+\z/
 
   @spec host(String.t()) :: :ok | {:error, {:invalid_host, String.t()}}

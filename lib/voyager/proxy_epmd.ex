@@ -4,7 +4,7 @@ defmodule Voyager.ProxyEpmd do
   SSH tunnels set up by `Voyager.Services.RemoteNodeConnector`.
 
   `port_please/2,3` and `address_please/3` first look up the node in the
-  `:proxy_epmd` ETS table (populated by `RemoteNodeConnector.connect/5`). If
+  `:proxy_epmd` ETS table (populated by `RemoteNodeConnector.connect/6`). If
   the node is registered, the locally-forwarded port and loopback address are
   returned so the distribution layer connects through the tunnel. Otherwise the
   call falls through to `:erl_epmd`.

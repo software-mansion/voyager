@@ -4,7 +4,7 @@ defmodule Voyager.Services.RemoteNodeConnector do
 
   Ensures the local node is distributed, opens an SSH connection to the gateway
   host, discovers the target node's distribution port by querying the remote
-  `epmd` over a TCP tunnel , opens a local TCP tunnel to
+  `epmd` over a TCP tunnel, opens a local TCP tunnel to
   that port, sets the remote node cookie, and calls `Node.connect/1`.
 
   ## Example
@@ -79,6 +79,7 @@ defmodule Voyager.Services.RemoteNodeConnector do
     with :ok <- Validate.node_name(full_node_name),
          {:ok, node_name, node_host} <- Distribution.split_node_name(full_node_name),
          :ok <- Validate.host(node_host),
+         :ok <- Validate.host(ssh_host),
          {:ok, conn_ref} <- Connection.connect_ssh(ssh_host, ssh_port, ssh_user, auth) do
       establish(conn_ref, full_node_name, node_name, name_type, cookie, epmd_port)
     end
