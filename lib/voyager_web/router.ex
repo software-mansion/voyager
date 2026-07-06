@@ -27,7 +27,10 @@ defmodule VoyagerWeb.Router do
 
     live_session :app,
       layout: {VoyagerWeb.Layouts, :app},
-      on_mount: [{VoyagerWeb.Hooks.NodeSessionHook, :require_connected_node}] do
+      on_mount: [
+        {VoyagerWeb.Hooks.NodeSessionHook, :require_connected_node},
+        VoyagerWeb.Hooks.McpStatusHook
+      ] do
       live "/node/:node", NodeInfoLive, :index
       live "/node/:node/supervision-tree", SupervisionTreeLive, :index
     end

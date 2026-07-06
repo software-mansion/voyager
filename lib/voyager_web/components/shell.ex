@@ -12,12 +12,13 @@ defmodule VoyagerWeb.Components.Shell do
 
   attr :active_nav, :atom, default: nil
   attr :session, Session, default: nil
+  attr :mcp_status, :map, default: %{alive?: false, url: nil}
   slot :inner_block, required: true
 
   def shell(assigns) do
     ~H"""
     <div class="bg-base-200 flex h-screen flex-col overflow-hidden">
-      <.topbar active_nav={@active_nav} session={@session} />
+      <.topbar active_nav={@active_nav} session={@session} mcp_status={@mcp_status} />
 
       <div class="flex flex-1 overflow-hidden">
         <.sidebar active_nav={@active_nav} session={@session} />
@@ -34,6 +35,7 @@ defmodule VoyagerWeb.Components.Shell do
 
   attr :active_nav, :atom, default: nil
   attr :session, Session, default: nil
+  attr :mcp_status, :map, default: %{alive?: false, url: nil}
 
   defp topbar(assigns) do
     ~H"""
@@ -42,6 +44,7 @@ defmodule VoyagerWeb.Components.Shell do
         <.brand />
       </div>
       <div class="navbar-end gap-1">
+        <.mcp_status_indicator status={@mcp_status} active_nav={@active_nav} session={@session} />
         <.link
           navigate={~p"/settings?#{[return_to: settings_return_to(@active_nav, @session)]}"}
           id="open-settings"
@@ -94,6 +97,41 @@ defmodule VoyagerWeb.Components.Shell do
       <.logo class="size-5.5" />
       <span class="text-lg">Voyager</span>
     </div>
+    """
+  end
+
+  attr :status, :map, required: true
+  attr :active_nav, :atom, default: nil
+  attr :session, Session, default: nil
+
+  defp mcp_status_indicator(assigns) do
+    ~H"""
+    <.tooltip id={"mcp-status-tip-#{@status.alive?}"} interactive position="bottom">
+      <div
+        id="mcp-status"
+        class="font-mono text-base-content/60 flex cursor-default items-center gap-1.5 px-2 text-xs"
+      >
+        <span class={[
+          "h-1.5 w-1.5 rounded-full",
+          if(@status.alive?, do: "bg-success", else: "bg-error")
+        ]}>
+        </span>
+        MCP {if @status.alive?, do: "running", else: "stopped"}
+      </div>
+      <:content>
+        <%= if @status.alive? do %>
+          MCP server is running at <span class="font-mono">{@status.url}</span>.
+        <% else %>
+          MCP server is not active. It can be enabled and configured in Settings.
+          <.link
+            navigate={~p"/settings?#{[return_to: settings_return_to(@active_nav, @session)]}"}
+            class="text-primary mt-2 flex w-fit items-center gap-1 font-medium underline-offset-2 hover:underline"
+          >
+            Open Settings
+          </.link>
+        <% end %>
+      </:content>
+    </.tooltip>
     """
   end
 
