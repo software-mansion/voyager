@@ -27,14 +27,8 @@ pub fn run() {
                     .select_all()
                     .build()?;
 
-                let window_menu = SubmenuBuilder::new(app, "Window")
-                    .minimize()
-                    .maximize()
-                    .fullscreen()
-                    .build()?;
-
                 let menu = MenuBuilder::new(app)
-                    .items(&[&app_menu, &edit_menu, &window_menu])
+                    .items(&[&app_menu, &edit_menu])
                     .build()?;
                 app.set_menu(menu)?;
             }
@@ -82,7 +76,6 @@ fn create_window(app_handle: &tauri::AppHandle, port: u16) {
         .title("Voyager")
         .inner_size(800.0, 800.0)
         .min_inner_size(800.0, 800.0)
-        .zoom_hotkeys_enabled(true)
         .build()
         .unwrap();
 }
