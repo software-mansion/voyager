@@ -100,4 +100,69 @@ defmodule VoyagerWeb.SettingsLiveTest do
              )
     end
   end
+
+  describe "mcp settings" do
+    @describetag capture_log: true
+
+    setup do
+      Voyager.MCPCase.stop_mcp()
+      port = Voyager.MCPCase.unique_port()
+      {:ok, _} = Settings.put(:mcp_port, port)
+      start_supervised!({Voyager.MCP, enabled: true})
+      on_exit(fn -> Voyager.MCPCase.stop_mcp() end)
+      %{mcp_port: port}
+    end
+
+    test "shows the running status and toggles the server off/on", %{conn: conn, mcp_port: port} do
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      assert render(view) =~ "Running at http://127.0.0.1:#{port}/mcp"
+
+      view |> element("#mcp-toggle") |> render_click()
+      assert render(view) =~ "Stopped"
+
+      view |> element("#mcp-toggle") |> render_click()
+      assert render(view) =~ "Running at http://127.0.0.1:#{port}/mcp"
+    end
+
+    test "updates the port", %{conn: conn, mcp_port: port} do
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      new_port = port + 1
+
+      view
+      |> form("#mcp-port-form", %{"mcp_port" => %{"port" => to_string(new_port)}})
+      |> render_submit()
+
+      assert Settings.get(:mcp_port) == new_port
+      assert render(view) =~ "MCP port updated"
+      assert render(view) =~ "Running at http://127.0.0.1:#{new_port}/mcp"
+    end
+
+    test "shows an error when the port is already in use", %{conn: conn, mcp_port: port} do
+      {:ok, socket} = :gen_tcp.listen(port + 1, [:binary, active: false, ip: {127, 0, 0, 1}])
+      on_exit(fn -> :gen_tcp.close(socket) end)
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      view
+      |> form("#mcp-port-form", %{"mcp_port" => %{"port" => to_string(port + 1)}})
+      |> render_submit()
+
+      assert render(view) =~ "That port is already in use"
+    end
+
+    test "disables the port field when locked by application config", %{
+      conn: conn,
+      mcp_port: port
+    } do
+      Application.put_env(:voyager, :mcp_port, port)
+      on_exit(fn -> Application.delete_env(:voyager, :mcp_port) end)
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      assert has_element?(view, "#mcp-port-locked")
+      assert has_element?(view, ~s|#mcp_port_port[disabled]|)
+    end
+  end
 end

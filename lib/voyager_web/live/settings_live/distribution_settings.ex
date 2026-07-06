@@ -105,13 +105,13 @@ defmodule VoyagerWeb.SettingsLive.DistributionSettings do
     with false <- Settings.locked?(:distribution_suffix),
          {:ok, settings} <- Ecto.Changeset.apply_action(changeset, :insert),
          {:ok, _} <- Settings.put(:distribution_suffix, settings.distribution_suffix) do
-      send(self(), {:distribution_settings, :saved})
-      {:noreply, socket}
+      socket
+      |> push_flash(:info, "Distribution suffix saved")
+      |> noreply()
     else
       true ->
-        send(self(), {:distribution_settings, :locked})
-
         socket
+        |> push_flash(:error, "Distribution suffix is controlled by application config")
         |> assign(:locked?, true)
         |> noreply()
 
