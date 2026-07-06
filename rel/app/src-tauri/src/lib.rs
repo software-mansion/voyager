@@ -24,6 +24,8 @@ pub fn run() {
                     .cut()
                     .copy()
                     .paste()
+                    .undo()
+                    .redo()
                     .select_all()
                     .build()?;
 
