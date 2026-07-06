@@ -22,7 +22,8 @@ defmodule Voyager.Services.SupervisionTree.Remote do
     with {:ok, apps} <- call(node, :application, :which_applications, [], @timeout_fast),
          {:ok, masters} <- app_masters(node, Enum.map(apps, fn {a, _, _} -> a end)) do
       running_apps =
-        Enum.zip(apps, masters)
+        apps
+        |> Enum.zip(masters)
         |> Enum.filter(fn {_, master} -> master != :undefined end)
         |> Enum.map(fn {app, _} -> app end)
 

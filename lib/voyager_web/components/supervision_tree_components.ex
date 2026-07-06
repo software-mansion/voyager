@@ -31,6 +31,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
             {status_label(@status)}
           </span>
           <.interval_select
+            id="refresh-interval"
             options={interval_options()}
             refresh_interval={@refresh_interval}
             loading={@status == :loading}

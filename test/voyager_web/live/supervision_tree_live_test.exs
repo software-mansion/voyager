@@ -192,7 +192,7 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
     test "refresh_now with no applications selected stays idle", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
 
-      view |> element("#refresh-now-button") |> render_click()
+      view |> element("#refresh-interval-refresh-now-button") |> render_click()
 
       assert render(view) =~ "idle"
       refute has_element?(view, "#supervision-tree-body")

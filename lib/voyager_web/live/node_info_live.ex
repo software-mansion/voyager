@@ -46,6 +46,7 @@ defmodule VoyagerWeb.NodeInfoLive do
       <.node_header node_name={@session.node_name} last_updated={@last_updated}>
         <:actions>
           <.interval_select
+            id="refresh-interval"
             options={interval_options()}
             refresh_interval={@refresh_interval}
             loading={@snapshot.loading}

@@ -117,6 +117,7 @@ defmodule VoyagerWeb.CoreComponents do
         loading={@loading}
       />
   """
+  attr :id, :string, default: nil
   attr :options, :list, required: true
   attr :refresh_interval, :integer, default: nil
   attr :loading, :boolean, required: true
@@ -127,10 +128,10 @@ defmodule VoyagerWeb.CoreComponents do
       <label class="font-mono text-base-content/50 tracking-label text-xs uppercase">
         Auto-refresh
       </label>
-      <form phx-change="set_interval" id="refresh-interval-form">
+      <form phx-change="set_interval" id={"#{@id}-form"}>
         <select
           name="interval"
-          id="refresh-interval"
+          id={@id}
           class="select select-bordered select-sm font-mono pr-8 text-xs"
         >
           <option
@@ -146,7 +147,7 @@ defmodule VoyagerWeb.CoreComponents do
         type="button"
         phx-click="refresh_now"
         phx-throttle="1000"
-        id="refresh-now-button"
+        id={"#{@id}-refresh-now-button"}
         title="Refresh now"
         class="btn btn-sm btn-ghost btn-square"
       >
