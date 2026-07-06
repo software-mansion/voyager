@@ -29,7 +29,11 @@ defmodule VoyagerWeb.SettingsLive do
       </div>
 
       <AppearanceSettings.appearance_settings />
-      <.live_component module={DistributionSettings} id="distribution-settings" connected?={@connected?} />
+      <.live_component
+        module={DistributionSettings}
+        id="distribution-settings"
+        connected?={@connected?}
+      />
     </div>
     """
   end
