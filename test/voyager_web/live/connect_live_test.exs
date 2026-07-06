@@ -4,7 +4,6 @@ defmodule VoyagerWeb.ConnectLiveTest do
   import Phoenix.LiveViewTest
 
   alias Voyager.Fakes
-  alias Voyager.Settings
 
   setup do
     previous_state = :sys.get_state(Voyager.NodeSession)
@@ -12,60 +11,21 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
     on_exit(fn ->
       :sys.replace_state(Voyager.NodeSession, fn _ -> previous_state end)
-      Application.delete_env(:voyager, :distribution_suffix)
     end)
 
     :ok
   end
 
-  describe "distribution settings modal" do
-    test "opens and closes from the connect page", %{conn: conn} do
+  describe "settings link" do
+    test "navigates to the settings page", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 
-      refute has_element?(view, "#distribution-settings-modal")
+      assert has_element?(view, "#open-settings")
 
-      view |> element("#open-distribution-settings") |> render_click()
-      assert has_element?(view, "#distribution-settings-modal")
-      assert has_element?(view, "#distribution-settings-form")
+      {:ok, settings_view, _html} =
+        view |> element("#open-settings") |> render_click() |> follow_redirect(conn)
 
-      view |> element("#close-distribution-settings") |> render_click()
-      refute has_element?(view, "#distribution-settings-modal")
-    end
-
-    test "saves the distribution suffix setting", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/")
-
-      view |> element("#open-distribution-settings") |> render_click()
-
-      view
-      |> form("#distribution-settings-form", %{
-        "distribution_settings" => %{"distribution_suffix" => "_test"}
-      })
-      |> render_submit()
-
-      assert Settings.get(:distribution_suffix, "") == "_test"
-      refute has_element?(view, "#distribution-settings-modal")
-      assert render(view) =~ "Distribution suffix saved"
-    end
-
-    test "disables the form while a node is connected", %{conn: conn} do
-      Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
-
-      {:ok, view, _html} = live(conn, ~p"/")
-
-      view |> element("#open-distribution-settings") |> render_click()
-
-      assert has_element?(view, "#distribution-settings-connected")
-
-      assert has_element?(
-               view,
-               ~s|#distribution_settings_distribution_suffix[disabled]|
-             )
-
-      assert has_element?(
-               view,
-               ~s|#distribution-settings-form button[type="submit"][disabled]|
-             )
+      assert has_element?(settings_view, "#distribution-settings-form")
     end
   end
 end

@@ -16,7 +16,6 @@ defmodule VoyagerWeb.ConnectLive do
     socket
     |> reset_connections()
     |> assign(:form, empty_form())
-    |> assign(:show_distribution_settings?, false)
     |> assign(:show_cookie, false)
     |> assign(:connected_session, NodeSession.current())
     |> ok()
@@ -31,15 +30,14 @@ defmodule VoyagerWeb.ConnectLive do
           <div class="mb-7 flex items-center gap-3">
             <.logo />
             <div class="text-base-content text-lg font-semibold tracking-tight">Voyager</div>
-            <button
-              type="button"
-              id="open-distribution-settings"
-              phx-click="open_distribution_settings"
-              title="Distribution settings"
+            <.link
+              id="open-settings"
+              navigate={~p"/settings?#{[return_to: "/"]}"}
+              title="Settings"
               class="btn btn-ghost btn-square btn-sm text-base-content/50 ml-auto hover:text-base-content"
             >
               <.icon name="icon-settings" class="size-4" />
-            </button>
+            </.link>
           </div>
           <div class="mb-6">
             <h1 class="text-base-content text-2xl font-semibold tracking-tight">
@@ -89,13 +87,6 @@ defmodule VoyagerWeb.ConnectLive do
           </p>
         </div>
       </div>
-
-      <.live_component
-        :if={@show_distribution_settings?}
-        module={VoyagerWeb.ConnectLive.DistributionSettings}
-        id="distribution-settings-modal"
-        connected?={not is_nil(@connected_session)}
-      />
     </div>
     """
   end
@@ -108,10 +99,6 @@ defmodule VoyagerWeb.ConnectLive do
 
   def handle_event("toggle_cookie", _, socket) do
     {:noreply, update(socket, :show_cookie, &(!&1))}
-  end
-
-  def handle_event("open_distribution_settings", _, socket) do
-    {:noreply, assign(socket, :show_distribution_settings?, true)}
   end
 
   def handle_event("fill_recent", %{"id" => id}, socket) do
@@ -169,25 +156,6 @@ defmodule VoyagerWeb.ConnectLive do
 
   def handle_info({event, _node}, socket) when event in [:node_disconnected, :nodedown] do
     {:noreply, assign(socket, :connected_session, nil)}
-  end
-
-  def handle_info({:distribution_settings, :saved}, socket) do
-    socket
-    |> put_flash(:info, "Distribution suffix saved")
-    |> assign(:show_distribution_settings?, false)
-    |> noreply()
-  end
-
-  def handle_info({:distribution_settings, :closed}, socket) do
-    socket
-    |> assign(:show_distribution_settings?, false)
-    |> noreply()
-  end
-
-  def handle_info({:distribution_settings, :locked}, socket) do
-    socket
-    |> put_flash(:error, "Distribution suffix is controlled by application config")
-    |> noreply()
   end
 
   def handle_info(_, socket), do: {:noreply, socket}

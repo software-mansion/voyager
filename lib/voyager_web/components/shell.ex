@@ -42,7 +42,14 @@ defmodule VoyagerWeb.Components.Shell do
         <.brand />
       </div>
       <div class="navbar-end gap-1">
-        <.theme_toggle />
+        <.link
+          navigate={~p"/settings?#{[return_to: settings_return_to(@active_nav, @session)]}"}
+          id="open-settings"
+          title="Settings"
+          class="btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-base-content"
+        >
+          <.icon name="icon-settings" class="size-4" />
+        </.link>
         <%= if @session do %>
           <button
             type="button"
@@ -58,26 +65,25 @@ defmodule VoyagerWeb.Components.Shell do
     """
   end
 
-  defp theme_toggle(assigns) do
+  @doc """
+  Renders the topbar used by the settings page — a back arrow to `return_to`
+  (defaults to the connect page) followed by the brand mark.
+  """
+  attr :return_to, :string, default: nil
+
+  def settings_topbar(assigns) do
     ~H"""
-    <div class="card border-base-300 bg-base-300 relative flex flex-row items-center rounded-full border-2">
-      <div class="border-base-200 bg-base-100 [[data-theme=dark]_&]:left-1/2 transition-left absolute left-0 h-full w-1/2 rounded-full border brightness-110" />
-      <button
-        class="relative flex w-1/2 cursor-pointer p-2"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="light"
-        title="Light"
-      >
-        <.icon name="icon-sun" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-      <button
-        class="relative flex w-1/2 cursor-pointer p-2"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="dark"
-        title="Dark"
-      >
-        <.icon name="icon-moon" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
+    <div class="navbar bg-base-100 border-base-300 min-h-14 z-10 flex-none gap-3 border-b px-4">
+      <div class="navbar-start gap-3">
+        <.link
+          navigate={@return_to || ~p"/"}
+          title="Back"
+          class="btn btn-ghost btn-square text-base-content"
+        >
+          <.icon name="icon-arrow-left" class="size-6" />
+        </.link>
+        <.brand />
+      </div>
     </div>
     """
   end
@@ -149,6 +155,9 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp node_path(%Session{node_name: node_name}, "supervision-tree"),
     do: ~p"/node/#{node_name}/supervision-tree"
+
+  defp settings_return_to(:supervision_tree, session), do: node_path(session, "supervision-tree")
+  defp settings_return_to(_active_nav, session), do: node_path(session) || "/"
 
   attr :session, Session, default: nil
 
