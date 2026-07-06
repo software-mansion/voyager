@@ -61,6 +61,19 @@ defmodule VoyagerWeb.SettingsLive do
 
   def handle_info(_, socket), do: {:noreply, socket}
 
-  defp safe_return_to("/" <> _ = path), do: path
+  defp safe_return_to(path) when is_binary(path) do
+    case URI.parse(path) do
+      %URI{scheme: nil, host: nil, path: "/" <> rest} ->
+        if String.starts_with?(rest, "/") or String.starts_with?(rest, "\\") do
+          "/"
+        else
+          path
+        end
+
+      _ ->
+        "/"
+    end
+  end
+
   defp safe_return_to(_), do: "/"
 end

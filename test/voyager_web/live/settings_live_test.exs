@@ -37,6 +37,12 @@ defmodule VoyagerWeb.SettingsLiveTest do
 
       assert has_element?(view, ~s|a[href="/"]|)
     end
+
+    test "ignores a protocol-relative return_to and falls back to /", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings?return_to=//evil.example")
+
+      assert has_element?(view, ~s|a[href="/"]|)
+    end
   end
 
   describe "appearance" do
