@@ -28,11 +28,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
   @impl true
   def render(assigns) do
     assigns =
-      assign(
-        assigns,
-        :apps_errors,
-        Enum.map(assigns.apps_form[:apps].errors, &translate_error(&1))
-      )
+      assigns
+      |> assign(:apps_errors, Enum.map(assigns.apps_form[:apps].errors, &translate_error(&1)))
+      |> assign(:selected_apps_count, MapSet.size(assigns.selected_apps))
 
     ~H"""
     <div class="card bg-base-100 border-base-200 border shadow-sm">
@@ -56,6 +54,17 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
               <h2 class="text-base-content ml-2 text-center text-sm font-semibold leading-8">
                 Applications
               </h2>
+              <.tooltip id="selected-apps-number-tip" class="ml-4">
+                <div
+                  :if={@selected_apps_count > 0}
+                  class="border-primary text-primary bg-primary/10 h-6.5 w-7.5 flex items-center justify-center rounded-lg border text-xs font-semibold"
+                >
+                  <span class="font-mono">{@selected_apps_count}</span>
+                </div>
+                <:content>
+                  Number of selected applications
+                </:content>
+              </.tooltip>
             </:label>
             <label
               :if={@available_apps != []}
