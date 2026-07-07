@@ -21,7 +21,7 @@ defmodule VoyagerWeb.Components.Shell do
     <div class="bg-base-200 flex h-screen flex-col overflow-hidden">
       <.topbar active_nav={@active_nav} session={@session} />
 
-      <div class="relative flex flex-1 overflow-hidden">
+      <div class="relative flex flex-1 overflow-x-auto overflow-y-hidden">
         <.sidebar active_nav={@active_nav} session={@session} />
 
         <div
@@ -31,7 +31,7 @@ defmodule VoyagerWeb.Components.Shell do
         >
         </div>
 
-        <main class="relative flex-1 overflow-y-auto">
+        <main class="min-w-xl relative flex-1 overflow-y-auto">
           {render_slot(@inner_block)}
         </main>
       </div>
