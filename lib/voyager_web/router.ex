@@ -26,6 +26,14 @@ defmodule VoyagerWeb.Router do
       on_mount: [{VoyagerWeb.Hooks.NodeSessionHook, :require_connected_node}] do
       live "/node/:node", NodeInfoLive, :index
       live "/node/:node/supervision-tree", SupervisionTreeLive, :index
+
+      live "/node/:node/processes", ComingSoon.ProcessesLive, :index
+      live "/node/:node/ets-tables", ComingSoon.EtsTablesLive, :index
+      live "/node/:node/tracing", ComingSoon.TracingLive, :index
+      live "/node/:node/sockets", ComingSoon.SocketsLive, :index
+      live "/node/:node/ports", ComingSoon.PortsLive, :index
+      live "/node/:node/charts", ComingSoon.ChartsLive, :index
+      live "/node/:node/memory-allocators", ComingSoon.MemoryAllocatorsLive, :index
     end
   end
 

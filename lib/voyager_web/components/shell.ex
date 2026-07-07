@@ -130,10 +130,36 @@ defmodule VoyagerWeb.Components.Shell do
           <:icon><.icon name="icon-network" class="size-4" /></:icon>
           Supervision Tree
         </.nav_item>
+
+        <li class="menu-title tracking-label text-xs uppercase">Coming soon</li>
+        <%= for page <- coming_soon_pages() do %>
+          <.nav_item active={@active_nav == page.feature} navigate={node_path(@session, page.path)}>
+            <:icon><.icon name={page.icon} class="size-4" /></:icon>
+            <span class="flex-1">{page.label}</span>
+            <span class="badge badge-soft badge-xs">Soon</span>
+          </.nav_item>
+        <% end %>
       </ul>
     </aside>
     """
   end
+
+  @coming_soon_pages [
+    %{feature: :processes, path: "processes", label: "Processes", icon: "icon-square"},
+    %{feature: :ets_tables, path: "ets-tables", label: "ETS Tables", icon: "icon-diamond"},
+    %{feature: :tracing, path: "tracing", label: "Tracing", icon: "icon-maximize"},
+    %{feature: :sockets, path: "sockets", label: "Sockets", icon: "icon-circle"},
+    %{feature: :ports, path: "ports", label: "Ports", icon: "icon-chevron-right"},
+    %{feature: :charts, path: "charts", label: "Charts", icon: "icon-triangle"},
+    %{
+      feature: :memory_allocators,
+      path: "memory-allocators",
+      label: "Memory Allocators",
+      icon: "icon-settings"
+    }
+  ]
+
+  defp coming_soon_pages, do: @coming_soon_pages
 
   attr :active, :boolean, default: false
   attr :navigate, :any, default: nil
@@ -179,6 +205,27 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp node_path(%Session{node_name: node_name}, "supervision-tree"),
     do: ~p"/node/#{node_name}/supervision-tree"
+
+  defp node_path(%Session{node_name: node_name}, "processes"),
+    do: ~p"/node/#{node_name}/processes"
+
+  defp node_path(%Session{node_name: node_name}, "ets-tables"),
+    do: ~p"/node/#{node_name}/ets-tables"
+
+  defp node_path(%Session{node_name: node_name}, "tracing"),
+    do: ~p"/node/#{node_name}/tracing"
+
+  defp node_path(%Session{node_name: node_name}, "sockets"),
+    do: ~p"/node/#{node_name}/sockets"
+
+  defp node_path(%Session{node_name: node_name}, "ports"),
+    do: ~p"/node/#{node_name}/ports"
+
+  defp node_path(%Session{node_name: node_name}, "charts"),
+    do: ~p"/node/#{node_name}/charts"
+
+  defp node_path(%Session{node_name: node_name}, "memory-allocators"),
+    do: ~p"/node/#{node_name}/memory-allocators"
 
   attr :session, Session, default: nil
 
