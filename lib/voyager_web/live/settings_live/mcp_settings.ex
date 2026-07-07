@@ -35,6 +35,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
             id="mcp-toggle"
             type="checkbox"
             class="toggle toggle-primary mt-1"
+            aria-label="Toggle MCP server"
             checked={@status.alive?}
             phx-click="toggle"
             phx-target={@myself}
