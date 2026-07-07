@@ -119,17 +119,12 @@ defmodule VoyagerWeb.Components.Shell do
     >
       <ul class="menu font-sans w-full flex-1 gap-0.5 p-4">
         <li class="menu-title tracking-label text-xs uppercase">Inspect</li>
-        <.nav_item active={@active_nav == :node_info} navigate={node_path(@session)}>
-          <:icon><.icon name="icon-grid" class="size-4" /></:icon>
-          Node Info
-        </.nav_item>
-        <.nav_item
-          active={@active_nav == :supervision_tree}
-          navigate={node_path(@session, "supervision-tree")}
-        >
-          <:icon><.icon name="icon-network" class="size-4" /></:icon>
-          Supervision Tree
-        </.nav_item>
+        <%= for page <- inspect_pages() do %>
+          <.nav_item active={@active_nav == page.feature} navigate={node_path(@session, page.path)}>
+            <:icon><.icon name={page.icon} class="size-4" /></:icon>
+            {page.label}
+          </.nav_item>
+        <% end %>
 
         <li class="menu-title tracking-label text-xs uppercase">Coming soon</li>
         <%= for page <- coming_soon_pages() do %>
@@ -143,6 +138,16 @@ defmodule VoyagerWeb.Components.Shell do
     </aside>
     """
   end
+
+  @inspect_pages [
+    %{feature: :node_info, path: nil, label: "Node Info", icon: "icon-grid"},
+    %{
+      feature: :supervision_tree,
+      path: "supervision-tree",
+      label: "Supervision Tree",
+      icon: "icon-network"
+    }
+  ]
 
   @coming_soon_pages [
     %{feature: :processes, path: "processes", label: "Processes", icon: "icon-square"},
@@ -159,6 +164,7 @@ defmodule VoyagerWeb.Components.Shell do
     }
   ]
 
+  defp inspect_pages, do: @inspect_pages
   defp coming_soon_pages, do: @coming_soon_pages
 
   attr :active, :boolean, default: false
@@ -198,34 +204,13 @@ defmodule VoyagerWeb.Components.Shell do
     |> JS.add_class("hidden", to: "#app-sidebar-backdrop")
   end
 
-  defp node_path(nil), do: nil
-  defp node_path(%Session{node_name: node_name}), do: ~p"/node/#{node_name}"
-
   defp node_path(nil, _), do: nil
 
-  defp node_path(%Session{node_name: node_name}, "supervision-tree"),
-    do: ~p"/node/#{node_name}/supervision-tree"
+  defp node_path(%Session{node_name: node_name}, nil),
+    do: ~p"/node/#{node_name}"
 
-  defp node_path(%Session{node_name: node_name}, "processes"),
-    do: ~p"/node/#{node_name}/processes"
-
-  defp node_path(%Session{node_name: node_name}, "ets-tables"),
-    do: ~p"/node/#{node_name}/ets-tables"
-
-  defp node_path(%Session{node_name: node_name}, "tracing"),
-    do: ~p"/node/#{node_name}/tracing"
-
-  defp node_path(%Session{node_name: node_name}, "sockets"),
-    do: ~p"/node/#{node_name}/sockets"
-
-  defp node_path(%Session{node_name: node_name}, "ports"),
-    do: ~p"/node/#{node_name}/ports"
-
-  defp node_path(%Session{node_name: node_name}, "charts"),
-    do: ~p"/node/#{node_name}/charts"
-
-  defp node_path(%Session{node_name: node_name}, "memory-allocators"),
-    do: ~p"/node/#{node_name}/memory-allocators"
+  defp node_path(%Session{node_name: node_name}, path),
+    do: "/node/#{node_name}/#{path}"
 
   attr :session, Session, default: nil
 
