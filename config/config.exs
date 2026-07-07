@@ -37,9 +37,6 @@ config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id]
 
-config :voyager, :mcp_port, 4040
-config :voyager, :distribution_suffix, "_alan"
-
 config :phoenix, :json_library, Jason
 
 import_config "#{config_env()}.exs"
