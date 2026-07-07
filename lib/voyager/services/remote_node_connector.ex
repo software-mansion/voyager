@@ -10,7 +10,7 @@ defmodule Voyager.Services.RemoteNodeConnector do
   ## Example
 
       # Using the local SSH agent
-      {:ok, node, conn_ref, ref, local_port} =
+      {:ok, node, conn_ref, local_port} =
         RemoteNodeConnector.connect(
           "alice",
           "bastion.example.com",
@@ -20,7 +20,7 @@ defmodule Voyager.Services.RemoteNodeConnector do
         )
 
       # Using a password
-      {:ok, node, conn_ref, ref, local_port} =
+      {:ok, node, conn_ref, local_port} =
         RemoteNodeConnector.connect(
           "alice",
           "bastion.example.com",
@@ -32,7 +32,7 @@ defmodule Voyager.Services.RemoteNodeConnector do
         )
 
       # Disconnect
-      RemoteNodeConnector.stop(conn_ref, ref)
+      RemoteNodeConnector.stop(conn_ref)
 
   ## Options
 
@@ -60,15 +60,15 @@ defmodule Voyager.Services.RemoteNodeConnector do
 
       # Using the local SSH agent
       Voyager.Services.RemoteNodeConnector.connect("voyager", "1.2.3.4", "test@10.0.0.5", "cookie", :agent)
-      #=> {:ok, :"test@10.0.0.5", conn_ref, ref, 54321}
+      #=> {:ok, :"test@10.0.0.5", conn_ref, 54321}
 
       # Using a password and custom options
       Voyager.Services.RemoteNodeConnector.connect("voyager", "1.2.3.4", "test@10.0.0.5", "cookie", {:password, "secret"}, ssh_port: 2222)
-      #=> {:ok, :"test@10.0.0.5", conn_ref, ref, 54322}
+      #=> {:ok, :"test@10.0.0.5", conn_ref, 54322}
   """
   @spec connect(String.t(), String.t(), String.t(), String.t(), Auth.auth(), keyword()) ::
           {:ok, remote_node :: node(), conn_ref :: :ssh.connection_ref(),
-           monitor_ref :: reference(), local_port :: pos_integer()}
+           local_port :: pos_integer()}
           | {:error, reason :: term()}
   def connect(ssh_user, ssh_host, full_node_name, cookie, auth, opts \\ [])
       when Auth.is_ssh_auth(auth) do
@@ -85,9 +85,8 @@ defmodule Voyager.Services.RemoteNodeConnector do
     end
   end
 
-  @spec stop(:ssh.connection_ref(), reference() | nil) :: :ok
-  def stop(conn_ref, ref \\ nil) when is_pid(conn_ref) do
-    if is_reference(ref), do: Process.demonitor(ref, [:flush])
+  @spec stop(:ssh.connection_ref()) :: :ok
+  def stop(conn_ref) when is_pid(conn_ref) do
     TunnelRegistry.unregister_by_tunnel(conn_ref)
     :ssh.close(conn_ref)
   end
@@ -99,20 +98,19 @@ defmodule Voyager.Services.RemoteNodeConnector do
          {:ok, dist_port} <- Connection.discover_dist_port(conn_ref, node_name, epmd_port),
          {:ok, local_port} <- Connection.open_tunnel(conn_ref, dist_port),
          :ok <- TunnelRegistry.register(node_key, local_port, conn_ref) do
-      ref = Process.monitor(conn_ref)
       remote_node = String.to_atom(full_node_name)
       :erlang.set_cookie(remote_node, String.to_atom(cookie))
 
       case Node.connect(remote_node) do
         true ->
-          {:ok, remote_node, conn_ref, ref, local_port}
+          {:ok, remote_node, conn_ref, local_port}
 
         false ->
-          cleanup(conn_ref, ref, node_key)
+          cleanup(conn_ref, node_key)
           {:error, :node_connect_failed}
 
         :ignored ->
-          cleanup(conn_ref, ref, node_key)
+          cleanup(conn_ref, node_key)
           {:error, :not_distributed}
       end
     else
@@ -123,8 +121,7 @@ defmodule Voyager.Services.RemoteNodeConnector do
     end
   end
 
-  defp cleanup(conn_ref, ref, node_key) do
-    Process.demonitor(ref, [:flush])
+  defp cleanup(conn_ref, node_key) do
     :ssh.close(conn_ref)
     TunnelRegistry.unregister(node_key)
   end
