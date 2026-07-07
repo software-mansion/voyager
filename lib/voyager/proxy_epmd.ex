@@ -16,11 +16,21 @@ defmodule Voyager.ProxyEpmd do
 
   alias Voyager.ProxyEpmd.TunnelRegistry
 
+  @spec start_link() :: {:ok, pid()} | {:error, term()}
   def start_link, do: :erl_epmd.start_link()
+
+  @spec register_node(charlist(), pos_integer()) :: {:ok, pos_integer()} | {:error, term()}
   def register_node(name, port), do: :erl_epmd.register_node(name, port)
+
+  @spec register_node(charlist(), pos_integer(), :inet | :inet6) ::
+          {:ok, pos_integer()} | {:error, term()}
   def register_node(name, port, family), do: :erl_epmd.register_node(name, port, family)
+
+  @spec names(charlist()) :: {:ok, [{charlist(), pos_integer()}]} | {:error, term()}
   def names(host), do: :erl_epmd.names(host)
 
+  @spec port_please(charlist(), charlist()) ::
+          {:port, pos_integer(), pos_integer()} | :noport | :nonode
   def port_please(name, host) do
     case lookup(name) do
       {:ok, %{port: port}} -> {:port, port, 6}
@@ -28,6 +38,8 @@ defmodule Voyager.ProxyEpmd do
     end
   end
 
+  @spec port_please(charlist(), charlist(), timeout()) ::
+          {:port, pos_integer(), pos_integer()} | :noport | :nonode
   def port_please(name, host, timeout) do
     case lookup(name) do
       {:ok, %{port: port}} -> {:port, port, 6}
@@ -35,6 +47,8 @@ defmodule Voyager.ProxyEpmd do
     end
   end
 
+  @spec address_please(charlist(), charlist(), :inet | :inet6) ::
+          {:ok, :inet.ip_address()} | {:error, term()}
   def address_please(name, host, family) do
     case lookup(name) do
       {:ok, %{address: address}} -> {:ok, address}
