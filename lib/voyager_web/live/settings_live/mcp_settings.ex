@@ -143,7 +143,9 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
 
       {:error, reason} ->
         Logger.error("Failed to set MCP port: #{inspect(reason)}")
-        {:noreply, socket}
+        socket
+        |> push_flash(:error, "Failed to update MCP port: #{inspect(reason)}")
+        |> noreply()
     end
   end
 
