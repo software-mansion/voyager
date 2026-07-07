@@ -66,33 +66,48 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
                 </:content>
               </.tooltip>
             </:label>
-            <label
-              :if={@available_apps != []}
-              class="input mt-2 flex max-w-xs items-center gap-2"
-            >
-              <.icon name="icon-search" class="size-4 text-base-content/50" />
-              <input
-                type="text"
-                id="supervision-tree-search"
-                name="search"
-                value={@search}
-                placeholder="Filter applications…"
-                autocomplete="off"
-                class="grow"
-                phx-debounce="150"
-              />
+            <div class="flex gap-4">
+              <label
+                :if={@available_apps != []}
+                class="input mt-2 flex max-w-xs items-center gap-2"
+              >
+                <.icon name="icon-search" class="size-4 text-base-content/50" />
+                <input
+                  type="text"
+                  id="supervision-tree-search"
+                  name="search"
+                  value={@search}
+                  placeholder="Filter applications…"
+                  autocomplete="off"
+                  class="grow"
+                  phx-debounce="150"
+                />
+                <button
+                  :if={@search != ""}
+                  type="button"
+                  phx-target={@myself}
+                  phx-click="clear_search"
+                  title="Clear search"
+                  aria-label="Clear search"
+                  class="cursor-pointer"
+                >
+                  <.icon name="icon-x" class="size-4" />
+                </button>
+              </label>
               <button
-                :if={@search != ""}
+                :if={@selected_apps_count > 0}
                 type="button"
+                id="supervision-tree-clear-apps"
                 phx-target={@myself}
-                phx-click="clear_search"
-                title="Clear search"
-                aria-label="Clear search"
-                class="cursor-pointer"
+                phx-click="clear_all_apps"
+                title="Clear all applications"
+                aria-label="Clear all applications"
+                class="btn btn-soft btn-primary mt-2 gap-2"
               >
                 <.icon name="icon-x" class="size-4" />
+                <span>Clear all</span>
               </button>
-            </label>
+            </div>
             <div class="flex flex-wrap gap-2 py-4">
               <%= cond do %>
                 <% @available_apps == [] -> %>
@@ -134,18 +149,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
               >
                 {error}
               </p>
-              <button
-                type="button"
-                id="supervision-tree-clear-apps"
-                phx-target={@myself}
-                phx-click="clear_all_apps"
-                title="Clear all applications"
-                aria-label="Clear all applications"
-                class="btn btn-soft btn-primary mt-2 gap-2"
-              >
-                <.icon name="icon-x" class="size-4" />
-                <span>Clear all</span>
-              </button>
             </div>
           </.collapsible>
           <div class="flex items-start gap-2">

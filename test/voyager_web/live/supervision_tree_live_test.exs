@@ -138,15 +138,12 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
       refute has_element?(view, "#supervision-tree-body")
     end
 
-    test "is a no-op when no applications are selected", %{conn: conn} do
+    test "is unavailable when no applications are selected", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
-      ref = Process.monitor(view.pid)
-
-      view |> element("#supervision-tree-clear-apps") |> render_click()
 
       assert render(view) =~ "No applications selected"
+      refute has_element?(view, "#supervision-tree-clear-apps")
       refute has_element?(view, "#supervision-tree-body")
-      refute_receive {:DOWN, ^ref, :process, _pid, _reason}
     end
   end
 
