@@ -18,8 +18,8 @@ defmodule VoyagerWeb.Helpers do
 
   `put_flash/3` only propagates to the client from a component when paired
   with `push_navigate/2` or `push_patch/2`. This sends the flash to the
-  parent LiveView instead, where `VoyagerWeb.Hooks.FlashHook` picks it up.
-  Requires the LiveView's `live_session` to include that hook.
+  parent LiveView instead, where `VoyagerWeb.Hooks.FlashHook` picks it up
+  (mounted by default for LiveViews that `use VoyagerWeb, :live_view`).
   """
   @spec push_flash(Phoenix.LiveView.Socket.t(), atom(), String.t()) ::
           Phoenix.LiveView.Socket.t()
