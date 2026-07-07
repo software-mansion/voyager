@@ -13,7 +13,7 @@ defmodule Voyager.Services.Erlssh.Connection do
   @epmd_names_req 110
   @epmd_port 4369
 
-  @spec connect_ssh(String.t(), integer(), String.t(), Auth.auth()) ::
+  @spec connect_ssh(String.t(), :inet.port_number(), String.t(), Auth.auth()) ::
           {:ok, conn_ref :: :ssh.connection_ref()} | {:error, reason :: term()}
   def connect_ssh(host, ssh_port, ssh_user, auth \\ :agent) when Auth.is_ssh_auth(auth) do
     char_host = String.to_charlist(host)

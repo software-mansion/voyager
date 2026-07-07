@@ -69,13 +69,12 @@ defmodule Voyager.Services.Distribution do
   defp matches_name_type?(:shortnames), do: :net_kernel.longnames() == false
 
   defp distribution_name_matches? do
-    distributed_base =
+    {:ok, name, _host} =
       Node.self()
       |> Atom.to_string()
-      |> String.split("@", parts: 2)
-      |> hd()
+      |> split_node_name()
 
-    distributed_base == Atom.to_string(distribution_name())
+    name == Atom.to_string(distribution_name())
   end
 
   defp start_distribution(name_type) do
