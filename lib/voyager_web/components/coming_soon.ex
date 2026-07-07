@@ -1,14 +1,6 @@
 defmodule VoyagerWeb.Components.ComingSoon do
   @moduledoc """
-  Shared placeholder card for the coming-soon pages. Each page keeps its own
-  LiveView module (rather than sharing one) so the built-in
-  `phoenix.live_view.mount` telemetry — tagged by `view` module name — can
-  tell pages apart, which is what we use to prioritize which feature to
-  build next.
-
-  There's no locked-down design for these features yet, so the card sticks
-  to a general title/description rather than mocking up UI we might not
-  actually ship.
+  Shared placeholder card for the coming-soon pages.
   """
 
   use VoyagerWeb, :html
@@ -46,5 +38,5 @@ defmodule VoyagerWeb.Components.ComingSoon do
     """
   end
 
-  defp waitlist_url, do: "https://voyager.dev/waitlist"
+  defp waitlist_url, do: "http://localhost:4000/"
 end
