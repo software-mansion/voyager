@@ -16,7 +16,7 @@ defmodule VoyagerWeb.ComingSoon.EtsTablesLive do
     <ComingSoon.panel
       title="ETS Tables"
       description="Explore ETS tables, their contents, and memory footprint."
-      icon="icon-diamond"
+      icon="icon-database-search"
     />
     """
   end

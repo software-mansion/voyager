@@ -16,7 +16,7 @@ defmodule VoyagerWeb.ComingSoon.MemoryAllocatorsLive do
     <ComingSoon.panel
       title="Memory Allocators"
       description="Dig into per-allocator memory statistics."
-      icon="icon-settings"
+      icon="icon-memory-stick"
     />
     """
   end

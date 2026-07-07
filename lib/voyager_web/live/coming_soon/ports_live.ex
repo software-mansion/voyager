@@ -16,7 +16,7 @@ defmodule VoyagerWeb.ComingSoon.PortsLive do
     <ComingSoon.panel
       title="Ports"
       description="Inspect open ports and the drivers behind them."
-      icon="icon-chevron-right"
+      icon="icon-ethernet-port"
     />
     """
   end

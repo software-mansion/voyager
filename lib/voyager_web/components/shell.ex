@@ -150,17 +150,22 @@ defmodule VoyagerWeb.Components.Shell do
   ]
 
   @coming_soon_pages [
-    %{feature: :processes, path: "processes", label: "Processes", icon: "icon-square"},
-    %{feature: :ets_tables, path: "ets-tables", label: "ETS Tables", icon: "icon-diamond"},
-    %{feature: :tracing, path: "tracing", label: "Tracing", icon: "icon-maximize"},
-    %{feature: :sockets, path: "sockets", label: "Sockets", icon: "icon-circle"},
-    %{feature: :ports, path: "ports", label: "Ports", icon: "icon-chevron-right"},
-    %{feature: :charts, path: "charts", label: "Charts", icon: "icon-triangle"},
+    %{feature: :processes, path: "processes", label: "Processes", icon: "icon-cpu"},
+    %{
+      feature: :ets_tables,
+      path: "ets-tables",
+      label: "ETS Tables",
+      icon: "icon-database-search"
+    },
+    %{feature: :tracing, path: "tracing", label: "Tracing", icon: "icon-binoculars"},
+    %{feature: :sockets, path: "sockets", label: "Sockets", icon: "icon-plug"},
+    %{feature: :ports, path: "ports", label: "Ports", icon: "icon-ethernet-port"},
+    %{feature: :charts, path: "charts", label: "Charts", icon: "icon-chart-column"},
     %{
       feature: :memory_allocators,
       path: "memory-allocators",
       label: "Memory Allocators",
-      icon: "icon-settings"
+      icon: "icon-memory-stick"
     }
   ]
 
