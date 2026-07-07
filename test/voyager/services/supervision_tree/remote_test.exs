@@ -18,9 +18,9 @@ defmodule Voyager.Services.SupervisionTree.RemoteTest do
     {:ok, node: Node.self()}
   end
 
-  describe "list_applications/1" do
+  describe "list_running_applications/1" do
     test "returns ok with apps list and fixture app is included", %{node: node} do
-      assert {:ok, apps} = Remote.list_applications(node)
+      assert {:ok, apps} = Remote.list_running_applications(node)
       app_names = Enum.map(apps, fn {name, _desc, _vsn} -> name end)
       assert :voyager_fixture in app_names
     end
@@ -28,7 +28,7 @@ defmodule Voyager.Services.SupervisionTree.RemoteTest do
     test "returns ok with apps list and fixture app is not included when stopped", %{node: node} do
       Application.stop(:voyager_fixture)
 
-      assert {:ok, apps} = Remote.list_applications(node)
+      assert {:ok, apps} = Remote.list_running_applications(node)
       app_names = Enum.map(apps, fn {name, _desc, _vsn} -> name end)
       assert :voyager_fixture not in app_names
 
