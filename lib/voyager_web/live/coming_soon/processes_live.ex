@@ -15,7 +15,7 @@ defmodule VoyagerWeb.ComingSoon.ProcessesLive do
     ~H"""
     <ComingSoon.panel
       title="Processes"
-      description="Browse and inspect every process running on the connected node."
+      description="Browse and inspect every running process."
       icon="icon-cpu"
     />
     """

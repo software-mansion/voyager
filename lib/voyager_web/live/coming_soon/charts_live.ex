@@ -15,7 +15,7 @@ defmodule VoyagerWeb.ComingSoon.ChartsLive do
     ~H"""
     <ComingSoon.panel
       title="Charts"
-      description="Visualize node metrics over time with live charts."
+      description="Visualize metrics over time with live charts."
       icon="icon-chart-column"
     />
     """

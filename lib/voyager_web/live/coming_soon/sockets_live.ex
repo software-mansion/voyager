@@ -15,7 +15,7 @@ defmodule VoyagerWeb.ComingSoon.SocketsLive do
     ~H"""
     <ComingSoon.panel
       title="Sockets"
-      description="Inspect open sockets and monitor their traffic."
+      description="Inspect open sockets and their details."
       icon="icon-plug"
     />
     """

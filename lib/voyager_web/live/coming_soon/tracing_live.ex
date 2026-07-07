@@ -15,7 +15,7 @@ defmodule VoyagerWeb.ComingSoon.TracingLive do
     ~H"""
     <ComingSoon.panel
       title="Tracing"
-      description="Trace function calls and messages on the node in real time."
+      description="Trace function calls and messages in real time."
       icon="icon-binoculars"
     />
     """
