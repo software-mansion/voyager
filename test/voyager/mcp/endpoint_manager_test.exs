@@ -124,6 +124,7 @@ defmodule Voyager.MCP.EndpointManagerTest do
       Phoenix.PubSub.subscribe(Voyager.PubSub, MCP.topic())
 
       %{endpoint: pid} = :sys.get_state(EndpointManager)
+      assert is_pid(pid)
       DynamicSupervisor.terminate_child(Voyager.MCP.DynamicSupervisor, pid)
 
       assert_receive {:mcp_status, %{alive?: false}}
