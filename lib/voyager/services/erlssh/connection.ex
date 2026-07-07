@@ -55,14 +55,16 @@ defmodule Voyager.Services.Erlssh.Connection do
     opts = [:binary, active: false, packet: :raw]
 
     with {:ok, sock} <- :gen_tcp.connect(~c"127.0.0.1", local_port, opts, @ssh_timeout) do
-      result =
-        with :ok <- :gen_tcp.send(sock, <<1::16, @epmd_names_req>>),
-             {:ok, resp} <- recv_until_closed(sock, <<>>) do
-          parse_names_response(resp)
-        end
-
+      result = send_epmd_request(sock)
       :gen_tcp.close(sock)
       result
+    end
+  end
+
+  defp send_epmd_request(sock) do
+    with :ok <- :gen_tcp.send(sock, <<1::16, @epmd_names_req>>),
+         {:ok, resp} <- recv_until_closed(sock, <<>>) do
+      parse_names_response(resp)
     end
   end
 
