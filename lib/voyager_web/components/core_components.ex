@@ -416,6 +416,53 @@ defmodule VoyagerWeb.CoreComponents do
   end
 
   @doc """
+  Renders a tooltip trigger with a content slot, and optionally appends an external
+  documentation link (when `doc_href` is set).
+
+  This is a thin wrapper over `tooltip/1`.
+  """
+  attr :id, :string, required: true, doc: "unique DOM id for the trigger"
+
+  attr :position, :string,
+    default: "top",
+    values: ~w(top bottom left right),
+    doc: "preferred side to place the tooltip"
+
+  attr :doc_href, :string,
+    default: nil,
+    doc: "when set, renders a documentation link at the bottom of the tooltip"
+
+  attr :doc_label, :string, default: "Learn more", doc: "label for the documentation link"
+
+  attr :interactive, :boolean,
+    default: true,
+    doc: "when true, the tip can be hovered into and pinned open with a click"
+
+  slot :inner_block, required: true, doc: "the hover/focus target"
+  slot :content, required: true, doc: "tooltip content"
+
+  def link_tooltip(assigns) do
+    ~H"""
+    <.tooltip id={@id} position={@position} interactive={@interactive}>
+      {render_slot(@inner_block)}
+      <:content>
+        {render_slot(@content)}
+        <a
+          :if={@doc_href}
+          href={@doc_href}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-primary mt-2 flex w-fit items-center gap-1 font-medium underline-offset-2 transition-colors hover:text-primary hover:underline"
+        >
+          {@doc_label}
+          <.icon name="icon-external-link" class="size-3" />
+        </a>
+      </:content>
+    </.tooltip>
+    """
+  end
+
+  @doc """
   Renders a round "?" help affordance that reveals a tooltip on hover/focus.
 
   Thin wrapper over `tooltip/1` that supplies the "?" trigger button. Pass plain
@@ -454,7 +501,13 @@ defmodule VoyagerWeb.CoreComponents do
 
   def help_tooltip(assigns) do
     ~H"""
-    <.tooltip id={@id} position={@position} interactive={@interactive}>
+    <.link_tooltip
+      id={@id}
+      position={@position}
+      doc_href={@doc_href}
+      doc_label={@doc_label}
+      interactive={@interactive}
+    >
       <button
         type="button"
         aria-label="Help"
@@ -473,18 +526,8 @@ defmodule VoyagerWeb.CoreComponents do
         <% else %>
           {@text}
         <% end %>
-        <a
-          :if={@doc_href}
-          href={@doc_href}
-          target="_blank"
-          rel="noopener noreferrer"
-          class="text-primary mt-2 flex w-fit items-center gap-1 font-medium underline-offset-2 transition-colors hover:text-primary hover:underline"
-        >
-          {@doc_label}
-          <.icon name="icon-external-link" class="size-3" />
-        </a>
       </:content>
-    </.tooltip>
+    </.link_tooltip>
     """
   end
 

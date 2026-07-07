@@ -76,6 +76,9 @@ defmodule Voyager.MixProject do
         "cmd --cd e2e npm ci",
         "cmd --cd e2e npx playwright install --with-deps"
       ],
+      "tauri.dev": ["cmd bash ./rel/app/tauri.sh dev"],
+      "tauri.app": ["cmd bash ./rel/app/tauri.sh app"],
+      "tauri.build": ["cmd bash ./rel/app/tauri.sh build"],
       "tauri.test": ["cmd --cd rel/app/src-tauri cargo test"],
       "tauri.format": ["cmd --cd rel/app/src-tauri cargo fmt"],
       "assets.setup": [
