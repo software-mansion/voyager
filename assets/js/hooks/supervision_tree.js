@@ -12,6 +12,7 @@ import {
   elementsFor,
   relEdgeElement,
   composeLabel,
+  formatName,
   edgeId,
   isRealPid,
   overlayButtonIntersectsExtent,
@@ -39,6 +40,9 @@ const SupervisionTree = {
       maxZoom: 2.5,
       autoungrabify: true,
     });
+
+    // Test handle: lets e2e tests inspect graph state via page.evaluate.
+    this.el._cy = this.cy;
 
     this.layoutTimer = null;
     this.overlayTimer = null;
@@ -99,6 +103,7 @@ const SupervisionTree = {
     if (this.overlayTimer) clearTimeout(this.overlayTimer);
     if (this.themeObserver) this.themeObserver.disconnect();
     if (this.cy) this.cy.destroy();
+    this.el._cy = null;
   },
 
   // ---------------------------------------------------------------------------
@@ -381,7 +386,7 @@ const SupervisionTree = {
     dom.type = 'button';
     dom.className = 'cy-toggle';
     dom.dataset.key = key;
-    dom.innerHTML = toggleIcon(this.isCollapsed(node));
+    this.decorateOverlay(dom, node);
     dom.addEventListener('click', (ev) => {
       if (this.disabledClick) return;
       ev.stopPropagation();
@@ -410,12 +415,27 @@ const SupervisionTree = {
     const y = (bb.y1 + bb.y2) / 2 - 11;
     entry.dom.style.transform = `translate(${x}px, ${y}px)`;
 
-    // Keep icon in sync with collapsed state.
+    // Keep icon and attributes in sync with the node's state.
     const collapsed = this.isCollapsed(node);
-    if (entry.collapsed !== collapsed) {
-      entry.dom.innerHTML = toggleIcon(collapsed);
+    const name = formatName(node.data('name'));
+    if (entry.collapsed !== collapsed || entry.name !== name) {
+      this.decorateOverlay(entry.dom, node);
       entry.collapsed = collapsed;
+      entry.name = name;
     }
+  },
+
+  // Sets the icon plus the a11y/testability attributes from the node's state.
+  decorateOverlay(dom, node) {
+    const collapsed = this.isCollapsed(node);
+    const name = formatName(node.data('name'));
+    dom.innerHTML = toggleIcon(collapsed);
+    dom.dataset.name = name;
+    dom.dataset.collapsed = String(collapsed);
+    dom.setAttribute(
+      'aria-label',
+      `${collapsed ? 'Expand' : 'Collapse'} ${name}`
+    );
   },
 
   repositionOverlays() {

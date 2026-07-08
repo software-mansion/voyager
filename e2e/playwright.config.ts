@@ -53,5 +53,14 @@ export default defineConfig({
       testMatch: ['**/node_info.spec.ts', '**/recent_connections.spec.ts'],
       dependencies: ['connect'],
     },
+
+    {
+      name: 'supervision-tree',
+      use: { ...devices['Desktop Chrome'] },
+      // Tests mutate shared state on the target node, so run them in order.
+      fullyParallel: false,
+      testMatch: '**/supervision_tree.spec.ts',
+      dependencies: ['connect'],
+    },
   ],
 });

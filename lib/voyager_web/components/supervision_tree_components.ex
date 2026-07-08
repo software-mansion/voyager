@@ -20,7 +20,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
         waiting_message="waiting for first fetch…"
       >
         <:actions>
-          <span class={["badge", status_badge_class(@status)]}>
+          <span id="supervision-tree-status" class={["badge", status_badge_class(@status)]}>
             {status_label(@status)}
           </span>
           <button
