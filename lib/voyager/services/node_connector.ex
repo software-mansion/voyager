@@ -1,15 +1,13 @@
 defmodule Voyager.Services.NodeConnector do
   @moduledoc "Connects to remote nodes via Erlang distribution."
 
-  alias Voyager.Settings
-
-  require Logger
+  alias Voyager.Services.Distribution
 
   @spec connect(String.t(), String.t(), keyword()) :: {:ok, atom()} | {:error, term()}
   def connect(node_name, cookie, opts \\ []) do
     name_type = Keyword.get(opts, :name_type, :longnames)
 
-    with :ok <- ensure_distributed(name_type) do
+    with :ok <- Distribution.ensure_distributed(name_type) do
       node = String.to_atom(node_name)
       :erlang.set_cookie(node, String.to_atom(cookie))
 
@@ -32,67 +30,9 @@ defmodule Voyager.Services.NodeConnector do
     :ok
   end
 
-  defp ensure_distributed(name_type) when name_type in [:longnames, :shortnames] do
-    cond do
-      not Node.alive?() ->
-        start_distribution(name_type)
-
-      matches_name_type?(name_type) and distribution_name_matches?() ->
-        :ok
-
-      true ->
-        case :net_kernel.stop() do
-          :ok -> start_distribution(name_type)
-          {:error, reason} -> {:error, {:net_kernel_stop, reason}}
-        end
-    end
-  end
-
-  defp ensure_distributed(_name_type) do
-    {:error, :invalid_name_type}
-  end
-
-  defp matches_name_type?(:longnames), do: :net_kernel.longnames() == true
-  defp matches_name_type?(:shortnames), do: :net_kernel.longnames() == false
-
-  defp start_distribution(name_type) do
-    node_name = distribution_name()
-
-    case :net_kernel.start(node_name, %{name_domain: name_type, hidden: true}) do
-      {:ok, _pid} ->
-        :ok
-
-      {:error, {:already_started, pid}} ->
-        Logger.warning(
-          "net_kernel.start/2 returned {:already_started, #{inspect(pid)}} " <>
-            "for #{inspect(node_name)} name_type=#{inspect(name_type)}"
-        )
-
-        :ok
-
-      {:error, reason} ->
-        {:error, {:net_kernel, reason}}
-    end
-  end
-
-  defp distribution_name_matches? do
-    distributed_node_name =
-      Node.self()
-      |> Atom.to_string()
-      |> String.split("@", parts: 2)
-      |> hd()
-
-    distributed_node_name == Atom.to_string(distribution_name())
-  end
-
-  defp distribution_name do
-    suffix = Settings.get(:distribution_suffix, "")
-    String.to_atom("voyager#{suffix}")
-  end
-
   defp diagnose_failure(node_name) do
-    case String.split(node_name, "@", parts: 2) do
-      [name, host] -> diagnose_epmd_failure(name, host)
+    case Distribution.split_node_name(node_name) do
+      {:ok, name, host} -> diagnose_epmd_failure(name, host)
       _ -> {:error, :connection_failed}
     end
   end

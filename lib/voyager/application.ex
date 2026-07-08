@@ -16,6 +16,7 @@ defmodule Voyager.Application do
        repos: Application.fetch_env!(:voyager, :ecto_repos), skip: skip_migrations?()},
       {Phoenix.PubSub, name: Voyager.PubSub},
       {Task.Supervisor, name: Voyager.TaskSupervisor},
+      Voyager.ProxyEpmd.TunnelRegistry,
       Voyager.NodeSession,
       Voyager.MCP,
       {ElixirKit.PubSub, connect: elixirkit_pubsub || :ignore, on_exit: fn -> System.stop() end},

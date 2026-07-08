@@ -1,4 +1,4 @@
-ExUnit.start()
+ExUnit.start(exclude: [:integration])
 Ecto.Adapters.SQL.Sandbox.mode(Voyager.Repo, :manual)
 
 Mox.defmock(Voyager.ErpcMock, for: Voyager.Erpc)
