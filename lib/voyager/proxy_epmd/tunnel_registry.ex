@@ -12,8 +12,10 @@ defmodule Voyager.ProxyEpmd.TunnelRegistry do
   use GenServer
 
   @table :proxy_epmd
+  @pubsub_topic "tunnel_registry"
 
   def table_name, do: @table
+  def topic, do: @pubsub_topic
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(_opts \\ []) do
@@ -79,13 +81,14 @@ defmodule Voyager.ProxyEpmd.TunnelRegistry do
   end
 
   @impl true
-  def handle_info({:DOWN, ref, :process, _pid, _reason}, state) do
+  def handle_info({:DOWN, ref, :process, pid, _reason}, state) do
     case Map.pop(state.refs, ref) do
       {nil, _} ->
         {:noreply, state}
 
       {node_key, refs} ->
         :ets.delete(@table, node_key)
+        Phoenix.PubSub.broadcast(Voyager.PubSub, @pubsub_topic, {:tunnel_down, pid})
         {:noreply, %{state | refs: refs, keys: Map.delete(state.keys, node_key)}}
     end
   end
