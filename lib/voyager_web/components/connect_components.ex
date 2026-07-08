@@ -549,7 +549,7 @@ defmodule VoyagerWeb.ConnectComponents do
         data-testid="fill-ssh-recent-btn"
         class="font-mono text-base-content/60 flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-xs transition-colors hover:bg-base-200 hover:text-base-content"
       >
-        <.icon name="icon-ssh" class="size-3.5 text-base-content/25 shrink-0 self-start mt-1" />
+        <.icon name="icon-ssh" class="size-3.5 text-base-content/25 mt-1 shrink-0 self-start" />
         <div class="flex min-w-0 flex-1 flex-col gap-1">
           <span class="ml-2 truncate">{@conn.node_name}</span>
           <div class="ml-2 flex flex-wrap items-center gap-1">
@@ -574,7 +574,7 @@ defmodule VoyagerWeb.ConnectComponents do
             <% end %>
           </div>
         </div>
-        <span class="font-mono text-base-content/35 shrink-0 self-start text-xs mt-0.5">
+        <span class="font-mono text-base-content/35 mt-0.5 shrink-0 self-start text-xs">
           {relative_time(@conn.last_connected_at)}
         </span>
       </button>

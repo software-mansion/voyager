@@ -39,151 +39,154 @@ defmodule VoyagerWeb.ConnectLive do
     ~H"""
     <div class="bg-base-200 h-full overflow-y-auto">
       <div class="flex min-h-full items-center justify-center p-4">
-      <div class="card bg-base-100 w-full max-w-lg shadow-xl">
-        <div class="card-body gap-0 p-10">
-          <div class="mb-7 flex items-center gap-3">
-            <.logo />
-            <div class="text-base-content text-lg font-semibold tracking-tight">Voyager</div>
-            <button
-              type="button"
-              id="open-distribution-settings"
-              phx-click="open_distribution_settings"
-              title="Distribution settings"
-              class="btn btn-ghost btn-square btn-sm text-base-content/50 ml-auto hover:text-base-content"
-            >
-              <.icon name="icon-settings" class="size-4" />
-            </button>
-          </div>
-          <div class="mb-6">
-            <h1 class="text-base-content text-2xl font-semibold tracking-tight">
-              Connect to a node
-            </h1>
-            <p :if={@mode == :direct} class="text-base-content/60 mt-1 text-sm">
-              Enter the node name and Erlang cookie to inspect a local or remote BEAM.
-            </p>
-            <p :if={@mode == :ssh} class="text-base-content/60 mt-1 text-sm">
-              Connect to a remote node through an SSH gateway tunnel.
-            </p>
-          </div>
+        <div class="card bg-base-100 w-full max-w-lg shadow-xl">
+          <div class="card-body gap-0 p-10">
+            <div class="mb-7 flex items-center gap-3">
+              <.logo />
+              <div class="text-base-content text-lg font-semibold tracking-tight">Voyager</div>
+              <button
+                type="button"
+                id="open-distribution-settings"
+                phx-click="open_distribution_settings"
+                title="Distribution settings"
+                class="btn btn-ghost btn-square btn-sm text-base-content/50 ml-auto hover:text-base-content"
+              >
+                <.icon name="icon-settings" class="size-4" />
+              </button>
+            </div>
+            <div class="mb-6">
+              <h1 class="text-base-content text-2xl font-semibold tracking-tight">
+                Connect to a node
+              </h1>
+              <p :if={@mode == :direct} class="text-base-content/60 mt-1 text-sm">
+                Enter the node name and Erlang cookie to inspect a local or remote BEAM.
+              </p>
+              <p :if={@mode == :ssh} class="text-base-content/60 mt-1 text-sm">
+                Connect to a remote node through an SSH gateway tunnel.
+              </p>
+            </div>
 
-          <ConnectComponents.connected_indicator session={@connected_session} />
+            <ConnectComponents.connected_indicator session={@connected_session} />
 
-          <ConnectComponents.mode_toggle
-            mode={@mode}
-            disabled={not is_nil(@connected_session)}
-          />
-
-          <div :if={@mode == :direct}>
-            <ConnectComponents.connect_form
-              form={@form}
-              show_cookie={@show_cookie}
+            <ConnectComponents.mode_toggle
+              mode={@mode}
               disabled={not is_nil(@connected_session)}
             />
 
-            <%= if @has_pinned do %>
-              <div class="border-base-300 mt-7 border-t pt-5">
-                <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
-                  Favourites
-                </p>
-                <ul id="pinned-connections" phx-update="stream" class="-mx-2 flex flex-col gap-0.5">
-                  <li :for={{id, conn} <- @streams.pinned_connections} id={id} class="list-none">
-                    <ConnectComponents.connection_row conn={conn} pinned={true} />
-                  </li>
-                </ul>
-              </div>
-            <% end %>
+            <div :if={@mode == :direct}>
+              <ConnectComponents.connect_form
+                form={@form}
+                show_cookie={@show_cookie}
+                disabled={not is_nil(@connected_session)}
+              />
 
-            <%= if @has_recent do %>
-              <div class={["border-base-300 border-t pt-5", if(@has_pinned, do: "mt-3", else: "mt-7")]}>
-                <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
-                  Recent connections
-                </p>
-                <ul
-                  id="recent-connections"
-                  phx-update="stream"
-                  class="-mx-2 flex flex-col gap-0.5"
-                >
-                  <li :for={{id, conn} <- @streams.recent_connections} id={id} class="list-none">
-                    <ConnectComponents.connection_row conn={conn} pinned={false} />
-                  </li>
-                </ul>
-              </div>
-            <% end %>
+              <%= if @has_pinned do %>
+                <div class="border-base-300 mt-7 border-t pt-5">
+                  <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
+                    Favourites
+                  </p>
+                  <ul id="pinned-connections" phx-update="stream" class="-mx-2 flex flex-col gap-0.5">
+                    <li :for={{id, conn} <- @streams.pinned_connections} id={id} class="list-none">
+                      <ConnectComponents.connection_row conn={conn} pinned={true} />
+                    </li>
+                  </ul>
+                </div>
+              <% end %>
 
-            <p class="font-mono tracking-snug text-base-content/35 mt-6 text-center text-xs">
-              Uses BEAM distribution
-            </p>
-          </div>
-
-          <div :if={@mode == :ssh}>
-            <ConnectComponents.ssh_connect_form
-              form={@ssh_form}
-              show_ssh_cookie={@show_ssh_cookie}
-              show_ssh_password={@show_ssh_password}
-              show_advanced={@show_ssh_advanced}
-              connecting={@ssh_connecting}
-              disabled={not is_nil(@connected_session)}
-            />
-
-            <%= if @has_pinned_ssh do %>
-              <div class="border-base-300 mt-7 border-t pt-5">
-                <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
-                  Favourites
-                </p>
-                <ul
-                  id="pinned-ssh-connections"
-                  phx-update="stream"
-                  class="-mx-2 flex flex-col gap-0.5"
-                >
-                  <li
-                    :for={{id, conn} <- @streams.pinned_ssh_connections}
-                    id={id}
-                    class="list-none"
+              <%= if @has_recent do %>
+                <div class={[
+                  "border-base-300 border-t pt-5",
+                  if(@has_pinned, do: "mt-3", else: "mt-7")
+                ]}>
+                  <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
+                    Recent connections
+                  </p>
+                  <ul
+                    id="recent-connections"
+                    phx-update="stream"
+                    class="-mx-2 flex flex-col gap-0.5"
                   >
-                    <ConnectComponents.ssh_connection_row conn={conn} pinned={true} />
-                  </li>
-                </ul>
-              </div>
-            <% end %>
+                    <li :for={{id, conn} <- @streams.recent_connections} id={id} class="list-none">
+                      <ConnectComponents.connection_row conn={conn} pinned={false} />
+                    </li>
+                  </ul>
+                </div>
+              <% end %>
 
-            <%= if @has_recent_ssh do %>
-              <div class={[
-                "border-base-300 border-t pt-5",
-                if(@has_pinned_ssh, do: "mt-3", else: "mt-7")
-              ]}>
-                <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
-                  Recent connections
-                </p>
-                <ul
-                  id="recent-ssh-connections"
-                  phx-update="stream"
-                  class="-mx-2 flex flex-col gap-0.5"
-                >
-                  <li
-                    :for={{id, conn} <- @streams.recent_ssh_connections}
-                    id={id}
-                    class="list-none"
+              <p class="font-mono tracking-snug text-base-content/35 mt-6 text-center text-xs">
+                Uses BEAM distribution
+              </p>
+            </div>
+
+            <div :if={@mode == :ssh}>
+              <ConnectComponents.ssh_connect_form
+                form={@ssh_form}
+                show_ssh_cookie={@show_ssh_cookie}
+                show_ssh_password={@show_ssh_password}
+                show_advanced={@show_ssh_advanced}
+                connecting={@ssh_connecting}
+                disabled={not is_nil(@connected_session)}
+              />
+
+              <%= if @has_pinned_ssh do %>
+                <div class="border-base-300 mt-7 border-t pt-5">
+                  <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
+                    Favourites
+                  </p>
+                  <ul
+                    id="pinned-ssh-connections"
+                    phx-update="stream"
+                    class="-mx-2 flex flex-col gap-0.5"
                   >
-                    <ConnectComponents.ssh_connection_row conn={conn} pinned={false} />
-                  </li>
-                </ul>
-              </div>
-            <% end %>
+                    <li
+                      :for={{id, conn} <- @streams.pinned_ssh_connections}
+                      id={id}
+                      class="list-none"
+                    >
+                      <ConnectComponents.ssh_connection_row conn={conn} pinned={true} />
+                    </li>
+                  </ul>
+                </div>
+              <% end %>
 
-            <p class="font-mono tracking-snug text-base-content/35 mt-6 text-center text-xs">
-              Connects via SSH tunnel
-            </p>
+              <%= if @has_recent_ssh do %>
+                <div class={[
+                  "border-base-300 border-t pt-5",
+                  if(@has_pinned_ssh, do: "mt-3", else: "mt-7")
+                ]}>
+                  <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
+                    Recent connections
+                  </p>
+                  <ul
+                    id="recent-ssh-connections"
+                    phx-update="stream"
+                    class="-mx-2 flex flex-col gap-0.5"
+                  >
+                    <li
+                      :for={{id, conn} <- @streams.recent_ssh_connections}
+                      id={id}
+                      class="list-none"
+                    >
+                      <ConnectComponents.ssh_connection_row conn={conn} pinned={false} />
+                    </li>
+                  </ul>
+                </div>
+              <% end %>
+
+              <p class="font-mono tracking-snug text-base-content/35 mt-6 text-center text-xs">
+                Connects via SSH tunnel
+              </p>
+            </div>
           </div>
         </div>
-      </div>
 
-      <.live_component
-        :if={@show_distribution_settings?}
-        module={VoyagerWeb.ConnectLive.DistributionSettings}
-        id="distribution-settings-modal"
-        connected?={not is_nil(@connected_session)}
-      />
-    </div>
+        <.live_component
+          :if={@show_distribution_settings?}
+          module={VoyagerWeb.ConnectLive.DistributionSettings}
+          id="distribution-settings-modal"
+          connected?={not is_nil(@connected_session)}
+        />
+      </div>
     </div>
     """
   end
