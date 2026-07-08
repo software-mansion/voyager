@@ -220,34 +220,30 @@ defmodule VoyagerWeb.ConnectComponents do
 
   def mode_toggle(assigns) do
     ~H"""
-    <div class="join mb-6 w-full" id="ssh-mode-toggle">
-      <button
-        type="button"
-        id="mode-direct"
-        phx-click="switch_mode"
-        phx-value-mode="direct"
-        class={[
-          "join-item btn btn-soft btn-sm font-mono flex-1 text-xs transition-colors",
-          if(@mode == :direct, do: "btn-primary", else: "text-base-content/60")
-        ]}
-        disabled={@disabled}
-      >
-        Direct
-      </button>
-      <button
-        type="button"
-        id="mode-ssh"
-        phx-click="switch_mode"
-        phx-value-mode="ssh"
-        class={[
-          "join-item btn btn-soft btn-sm font-mono flex-1 text-xs transition-colors",
-          if(@mode == :ssh, do: "btn-primary", else: "text-base-content/60")
-        ]}
-        disabled={@disabled}
-      >
-        SSH Tunnel
-      </button>
-    </div>
+    <form phx-change="switch_mode" id="ssh-mode-toggle" class="mb-6">
+      <div class="join w-full">
+        <input
+          type="radio"
+          name="mode"
+          value="direct"
+          aria-label="Direct"
+          id="mode-direct"
+          checked={@mode == :direct}
+          disabled={@disabled}
+          class="join-item btn btn-soft btn-sm font-mono flex-1 text-xs transition-colors checked:text-primary-content disabled:text-base-content/60"
+        />
+        <input
+          type="radio"
+          name="mode"
+          value="ssh"
+          aria-label="SSH Tunnel"
+          id="mode-ssh"
+          checked={@mode == :ssh}
+          disabled={@disabled}
+          class="join-item btn btn-soft btn-sm font-mono flex-1 text-xs transition-colors checked:text-primary-content disabled:text-base-content/60"
+        />
+      </div>
+    </form>
     """
   end
 
@@ -553,17 +549,17 @@ defmodule VoyagerWeb.ConnectComponents do
         data-testid="fill-ssh-recent-btn"
         class="font-mono text-base-content/60 flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-xs transition-colors hover:bg-base-200 hover:text-base-content"
       >
-        <.icon name="icon-ssh" class="size-3.5 text-base-content/25 shrink-0" />
-        <div class="flex min-w-0 flex-col gap-0.5">
-          <span class="font-mono text-base-content/50 text-xs">
-            {@conn.ssh_user}@{@conn.ssh_host}
-          </span>
-          <div class="flex min-w-0 items-center gap-1.5">
-            <span class="truncate">{@conn.node_name}</span>
+        <.icon name="icon-ssh" class="size-3.5 text-base-content/25 shrink-0 self-start mt-1" />
+        <div class="flex min-w-0 flex-1 flex-col gap-1">
+          <span class="ml-2 truncate">{@conn.node_name}</span>
+          <div class="ml-2 flex flex-wrap items-center gap-1">
+            <span class="font-mono text-base-content/30 border-base-300 rounded border px-1 text-xs">
+              {@conn.ssh_user}@{@conn.ssh_host}
+            </span>
             <%= if @conn.cookie do %>
               <span
                 title="Cookie saved"
-                class="font-mono text-base-content/30 border-base-300 shrink-0 rounded border px-1 text-xs"
+                class="font-mono text-base-content/30 border-base-300 rounded border px-1 text-xs"
               >
                 cookie
               </span>
@@ -571,14 +567,14 @@ defmodule VoyagerWeb.ConnectComponents do
             <%= if @conn.password do %>
               <span
                 title="Password saved"
-                class="font-mono text-base-content/30 border-base-300 shrink-0 rounded border px-1 text-xs"
+                class="font-mono text-base-content/30 border-base-300 rounded border px-1 text-xs"
               >
                 pass
               </span>
             <% end %>
           </div>
         </div>
-        <span class="font-mono text-base-content/35 ml-auto shrink-0 text-xs">
+        <span class="font-mono text-base-content/35 shrink-0 self-start text-xs mt-0.5">
           {relative_time(@conn.last_connected_at)}
         </span>
       </button>
