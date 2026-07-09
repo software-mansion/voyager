@@ -1,12 +1,6 @@
 defmodule VoyagerWeb.Components.Shell do
   @moduledoc """
   App shell components - topbar, sidebar, content area, and status bar.
-
-  The entry point is `shell/1`, which renders the full application chrome
-  around a LiveView's inner content using daisyUI components (Navbar + Menu).
-  The sidebar is always visible: icon-only ("compact") by default below the
-  `lg` breakpoint and full width at `lg` and up, with a topbar button to
-  override that default in either direction at any size.
   """
 
   use VoyagerWeb, :html

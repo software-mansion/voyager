@@ -1,8 +1,3 @@
-/* #app-sidebar is icon-only ("compact") below `lg` and full width at `lg`
-   and up by default. The topbar's panel-toggle button (see the
-   ".SidebarCompactToggle" colocated hook in shell.ex) can force either mode
-   at any viewport size via the "mode-compact" / "mode-full" classes, which
-   win over the default responsive width thanks to the `#app-sidebar` id. */
 #app-sidebar.mode-compact {
   width: 4rem;
 }
@@ -21,11 +16,6 @@
   justify-content: center;
 }
 
-/* Square, centered icon button: the row's own padding (from the `.menu`
-   item styles) is zeroed out and replaced with a fixed box sized to exactly
-   fill the space left over by the surrounding `ul.p-4` — 4rem sidebar minus
-   2 * 1rem padding = 2rem — so the icon lines up with the topbar logo,
-   which sits at the same 1rem inset. */
 #app-sidebar.mode-compact .sidebar-nav-row {
   width: 2rem;
   height: 2rem;
