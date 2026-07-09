@@ -88,7 +88,7 @@ defmodule VoyagerWeb.Components.Shell do
   defp brand(assigns) do
     ~H"""
     <div class="flex items-center gap-2.5 font-semibold tracking-tight">
-      <.logo class="size-5.5" />
+      <.logo class="size-5.5 ml-[1px]" />
       <span class="text-lg">Voyager</span>
     </div>
     """
