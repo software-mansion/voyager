@@ -4,8 +4,9 @@ defmodule VoyagerWeb.Components.Shell do
 
   The entry point is `shell/1`, which renders the full application chrome
   around a LiveView's inner content using daisyUI components (Navbar + Menu).
-  The sidebar collapses into an off-canvas overlay below the `lg` breakpoint,
-  toggled via a hamburger button and closed via backdrop click or nav-link click.
+  The sidebar is always visible: icon-only ("compact") by default below the
+  `lg` breakpoint and full width at `lg` and up, with a topbar button to
+  override that default in either direction at any size.
   """
 
   use VoyagerWeb, :html
@@ -24,13 +25,6 @@ defmodule VoyagerWeb.Components.Shell do
       <div class="relative flex flex-1 overflow-x-auto overflow-y-hidden">
         <.sidebar active_nav={@active_nav} session={@session} />
 
-        <div
-          id="app-sidebar-backdrop"
-          class="bg-black/40 fixed inset-0 z-20 hidden lg:hidden"
-          phx-click={close_sidebar()}
-        >
-        </div>
-
         <main class="min-w-xl relative flex-1 overflow-y-auto">
           {render_slot(@inner_block)}
         </main>
@@ -48,14 +42,6 @@ defmodule VoyagerWeb.Components.Shell do
     ~H"""
     <div class="navbar bg-base-100 border-base-300 min-h-14 z-10 flex-none gap-4 border-b px-4">
       <div class="navbar-start gap-2">
-        <button
-          type="button"
-          aria-label="Toggle sidebar"
-          class="btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-base-content lg:hidden"
-          phx-click={toggle_sidebar()}
-        >
-          <.icon name="icon-menu" class="size-4" />
-        </button>
         <.brand />
       </div>
       <div class="navbar-end gap-1">
@@ -115,20 +101,46 @@ defmodule VoyagerWeb.Components.Shell do
     ~H"""
     <aside
       id="app-sidebar"
-      class="bg-base-100 border-base-300 fixed inset-y-0 left-0 z-30 flex h-full w-64 flex-none -translate-x-full flex-col overflow-y-auto overflow-x-hidden border-r shadow-xl transition-transform duration-200 ease-out lg:static lg:z-auto lg:translate-x-0 lg:shadow-none"
+      class="bg-base-100 border-base-300 flex h-full w-16 flex-none flex-col overflow-y-auto overflow-x-hidden border-r transition-all duration-200 ease-out lg:w-64"
     >
       <ul class="menu font-sans w-full flex-1 gap-0.5 p-4">
-        <li class="menu-title tracking-label text-xs uppercase">Inspect</li>
-        <.nav_item active={@active_nav == :node_info} navigate={node_path(@session)}>
+        <li class="sidebar-toggle-row mb-3 flex flex-row items-center justify-between">
+          <span class="menu-title sidebar-label tracking-label p-0 text-xs uppercase">Inspect</span>
+          <button
+            id="sidebar-compact-toggle"
+            type="button"
+            aria-label="Toggle sidebar width"
+            class="btn btn-ghost btn-square btn-xs text-base-content/50 hover:text-base-content"
+            phx-hook=".SidebarCompactToggle"
+          >
+            <.icon name="icon-panel-left" class="size-4" />
+          </button>
+          <script :type={Phoenix.LiveView.ColocatedHook} name=".SidebarCompactToggle">
+            export default {
+              mounted() {
+                this.el.addEventListener("click", () => {
+                  const sidebar = document.getElementById("app-sidebar")
+                  const isNarrowViewport = window.matchMedia("(max-width: 1023px)").matches
+                  const isCompactNow =
+                    sidebar.classList.contains("mode-compact") ||
+                    (!sidebar.classList.contains("mode-full") && isNarrowViewport)
+
+                  sidebar.classList.remove("mode-compact", "mode-full")
+                  sidebar.classList.add(isCompactNow ? "mode-full" : "mode-compact")
+                })
+              }
+            }
+          </script>
+        </li>
+        <.nav_item active={@active_nav == :node_info} navigate={node_path(@session)} label="Node Info">
           <:icon><.icon name="icon-grid" class="size-4" /></:icon>
-          Node Info
         </.nav_item>
         <.nav_item
           active={@active_nav == :supervision_tree}
           navigate={node_path(@session, "supervision-tree")}
+          label="Supervision Tree"
         >
           <:icon><.icon name="icon-network" class="size-4" /></:icon>
-          Supervision Tree
         </.nav_item>
       </ul>
     </aside>
@@ -137,15 +149,15 @@ defmodule VoyagerWeb.Components.Shell do
 
   attr :active, :boolean, default: false
   attr :navigate, :any, default: nil
+  attr :label, :string, required: true
   slot :icon, required: true
-  slot :inner_block, required: true
 
   defp nav_item(%{navigate: nil} = assigns) do
     ~H"""
     <li class="pointer-events-none opacity-40">
-      <span>
+      <span title={@label}>
         {render_slot(@icon)}
-        {render_slot(@inner_block)}
+        <span class="sidebar-label truncate">{@label}</span>
       </span>
     </li>
     """
@@ -154,22 +166,12 @@ defmodule VoyagerWeb.Components.Shell do
   defp nav_item(assigns) do
     ~H"""
     <li>
-      <.link navigate={@navigate} class={@active && "menu-active"} phx-click={close_sidebar()}>
+      <.link navigate={@navigate} class={@active && "menu-active"} title={@label}>
         {render_slot(@icon)}
-        {render_slot(@inner_block)}
+        <span class="sidebar-label truncate">{@label}</span>
       </.link>
     </li>
     """
-  end
-
-  defp toggle_sidebar do
-    JS.toggle_class("-translate-x-full", to: "#app-sidebar")
-    |> JS.toggle_class("hidden", to: "#app-sidebar-backdrop")
-  end
-
-  defp close_sidebar do
-    JS.add_class("-translate-x-full", to: "#app-sidebar")
-    |> JS.add_class("hidden", to: "#app-sidebar-backdrop")
   end
 
   defp node_path(nil), do: nil
