@@ -148,7 +148,13 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
           </ul>
         </div>
         <div class="h-full">
-          <button phx-click="dismiss_errors" class="cursor-pointer rounded p-1 hover:bg-black/10">
+          <button
+            type="button"
+            phx-click="dismiss_errors"
+            title="Dismiss errors"
+            aria-label="Dismiss errors"
+            class="cursor-pointer rounded p-1 hover:bg-black/10"
+          >
             <.icon name="icon-x" class="size-5" />
           </button>
         </div>

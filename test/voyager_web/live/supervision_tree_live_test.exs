@@ -232,6 +232,18 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
       assert render(view) =~ "error"
       refute has_element?(view, "#supervision-tree-body")
     end
+
+    test "dismissing the errors removes the error alert", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+
+      assert has_element?(view, "#supervision-tree-errors")
+
+      view
+      |> element(~s|#supervision-tree-errors button[aria-label="Dismiss errors"]|)
+      |> render_click()
+
+      refute has_element?(view, "#supervision-tree-errors")
+    end
   end
 
   describe "mount without a matching session" do
