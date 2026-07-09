@@ -22,9 +22,6 @@ defmodule VoyagerWeb.FormSchemas.SupervisionTreeControls do
     field :depth, :integer, default: @default_depth
   end
 
-  @spec max_apps() :: pos_integer()
-  def max_apps, do: @max_apps
-
   @spec min_depth() :: pos_integer()
   def min_depth, do: @min_depth
 
@@ -35,28 +32,24 @@ defmodule VoyagerWeb.FormSchemas.SupervisionTreeControls do
   def changeset(attrs, available_apps) when is_list(available_apps) do
     %__MODULE__{}
     |> cast(attrs, [:apps, :depth])
-    |> update_change(:apps, &filter_known(&1, available_apps))
+    |> update_change(:apps, &filter_map_known(&1, available_apps))
+    |> validate_length(:apps,
+      max: @max_apps,
+      message: "Only #{@max_apps} applications can be selected at once."
+    )
     |> validate_number(:depth,
       greater_than_or_equal_to: @min_depth,
       message: "min #{@min_depth}"
     )
   end
 
-  @doc """
-  Returns `{apps_as_atoms, truncated?}`. Callers can show a flash when
-  `truncated?` is true.
-  """
-  @spec apps_from_changeset(Ecto.Changeset.t()) :: {[atom()], boolean()}
-  def apps_from_changeset(changeset) do
-    apps = get_field(changeset, :apps) || []
-    truncated? = length(apps) > @max_apps
-    {apps |> Enum.take(@max_apps) |> Enum.map(&String.to_existing_atom/1), truncated?}
+  defp filter_map_known(apps, available) when is_list(apps) do
+    available = MapSet.new(available, &to_string/1)
+
+    apps
+    |> Enum.filter(&MapSet.member?(available, &1))
+    |> Enum.map(&String.to_existing_atom/1)
   end
 
-  defp filter_known(strings, available) when is_list(strings) do
-    available_strings = MapSet.new(available, &to_string/1)
-    Enum.filter(strings, &MapSet.member?(available_strings, &1))
-  end
-
-  defp filter_known(_, _), do: []
+  defp filter_map_known(_, _), do: []
 end

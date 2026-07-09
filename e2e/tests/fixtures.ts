@@ -10,7 +10,7 @@ export const sel = {
   nodeInfoContent: '#node-info-content',
   nodeInfoLoading: '#node-info-loading',
   stStatus: '#supervision-tree-status',
-  stRefresh: '#supervision-tree-refresh',
+  stRefresh: '#refresh-interval-refresh-now-button',
   stBody: '#supervision-tree-body',
   stControls: '#supervision-tree-controls',
   stErrors: '#supervision-tree-errors',

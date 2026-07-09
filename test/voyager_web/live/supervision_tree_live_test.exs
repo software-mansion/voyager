@@ -95,6 +95,58 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
     end
   end
 
+  describe "clearing all applications" do
+    test "unchecks every selected application", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+
+      view
+      |> form("#supervision-tree-controls", %{
+        "tree_controls" => %{"apps" => ["demo_app", "another_app"]}
+      })
+      |> render_change()
+
+      assert has_element?(
+               view,
+               ~s|input[name="tree_controls[apps][]"][value="demo_app"][checked]|
+             )
+
+      view |> element("#supervision-tree-clear-apps") |> render_click()
+
+      refute has_element?(
+               view,
+               ~s|input[name="tree_controls[apps][]"][value="demo_app"][checked]|
+             )
+
+      refute has_element?(
+               view,
+               ~s|input[name="tree_controls[apps][]"][value="another_app"][checked]|
+             )
+    end
+
+    test "returns to the empty state and tears down the graph body", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+
+      view
+      |> form("#supervision-tree-controls", %{"tree_controls" => %{"apps" => ["demo_app"]}})
+      |> render_change()
+
+      assert has_element?(view, "#supervision-tree-body")
+
+      view |> element("#supervision-tree-clear-apps") |> render_click()
+
+      assert render(view) =~ "No applications selected"
+      refute has_element?(view, "#supervision-tree-body")
+    end
+
+    test "is unavailable when no applications are selected", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+
+      assert render(view) =~ "No applications selected"
+      refute has_element?(view, "#supervision-tree-clear-apps")
+      refute has_element?(view, "#supervision-tree-body")
+    end
+  end
+
   describe "depth control" do
     test "shows a validation error when depth is below the minimum", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
@@ -134,10 +186,10 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
       assert has_element?(view, "#apps[aria-expanded]")
     end
 
-    test "refresh-now with no applications selected stays idle", %{conn: conn} do
+    test "refresh_now with no applications selected stays idle", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
 
-      view |> element("#supervision-tree-refresh") |> render_click()
+      view |> element("#refresh-interval-refresh-now-button") |> render_click()
 
       assert render(view) =~ "idle"
       refute has_element?(view, "#supervision-tree-body")

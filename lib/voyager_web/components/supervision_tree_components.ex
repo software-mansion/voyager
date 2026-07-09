@@ -5,11 +5,108 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
 
   use VoyagerWeb, :component
 
-  alias VoyagerWeb.FormSchemas.SupervisionTreeControls
+  @interval_options [
+    {"Off", "off"},
+    {"5s", "5000"},
+    {"10s", "10000"},
+    {"30s", "30000"},
+    {"60s", "60000"}
+  ]
+
+  @erts "https://www.erlang.org/doc/apps/erts/erlang.html"
+  @supervisor "https://www.erlang.org/doc/apps/stdlib/supervisor.html"
+
+  @node_legends [
+    %{
+      name: "App",
+      icon_name: "icon-diamond",
+      text:
+        "An OTP application: a component with its own supervision tree. This node wraps the application master and roots the tree for that app.",
+      color_class: "text-primary",
+      doc_href: "https://www.erlang.org/doc/system/applications.html",
+      doc_label: "Learn about OTP applications"
+    },
+    %{
+      name: "Supervisor",
+      icon_name: "icon-square",
+      text:
+        "A process that starts, monitors, and restarts its children according to a restart strategy. Supervisors form the branches of the supervision tree.",
+      color_class: "text-primary",
+      doc_href: @supervisor,
+      doc_label: "See the supervisor behaviour"
+    },
+    %{
+      name: "Worker",
+      icon_name: "icon-circle",
+      text:
+        "A non-supervisor child (e.g. a GenServer) that does the actual work. Workers are the leaves of the supervision tree.",
+      color_class: "text-secondary",
+      doc_href: @supervisor <> "#worker",
+      doc_label: "See supervisor worker children"
+    },
+    %{
+      name: "Port",
+      icon_name: "icon-triangle",
+      text:
+        "An Erlang port: the VM's interface to the outside world (files, sockets, external programs). Discovered here through the processes that link to or monitor it.",
+      color_class: "text-port",
+      doc_href: "https://www.erlang.org/doc/system/ports.html",
+      doc_label: "Learn about ports"
+    },
+    %{
+      name: "Reference",
+      icon_name: "icon-square",
+      text:
+        "An Erlang reference: a unique, opaque term rather than a live process. It appears here as the endpoint of a link or monitor relationship.",
+      color_class: "text-success",
+      doc_href: "https://www.erlang.org/doc/system/data_types.html#reference",
+      doc_label: "Learn about references"
+    }
+  ]
+
+  @edge_legends [
+    %{
+      name: "Supervision link",
+      text:
+        "A structural parent-child edge in the supervision tree: the supervisor directly starts and supervises this child.",
+      color_class: "bg-base-500",
+      doc_href: @supervisor,
+      doc_label: "See the supervisor behaviour",
+      dashed: false
+    },
+    %{
+      name: "Link",
+      text:
+        "A bidirectional link between two processes. If either side crashes, the exit signal propagates to the other. Reported from both ends, so it is undirected.",
+      color_class: "bg-base-400",
+      doc_href: @erts <> "#link/1",
+      doc_label: "See erlang:link/1",
+      dashed: true
+    },
+    %{
+      name: "Monitor",
+      text:
+        "A directed monitor: this process watches the target and receives a DOWN message if it terminates. Unlike a link, it is one-way and does not propagate exits.",
+      color_class: "bg-process-monitor",
+      doc_href: @erts <> "#monitor/2",
+      doc_label: "See erlang:monitor/2",
+      dashed: true
+    },
+    %{
+      name: "Monitored by",
+      text:
+        "The reverse of a monitor: another process is watching this one and will be notified with a DOWN message when it terminates.",
+      color_class: "bg-process-monitored-by",
+      doc_href: @erts <> "#process_info/2",
+      doc_label: "See erlang:process_info(monitored_by)",
+      dashed: true
+    }
+  ]
 
   attr :node_name, :string, required: true
   attr :status, :atom, required: true
   attr :last_updated, :any, required: true
+  attr :refresh_interval, :integer, default: nil
 
   def header(assigns) do
     ~H"""
@@ -20,92 +117,17 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
         waiting_message="waiting for first fetch…"
       >
         <:actions>
-          <span id="supervision-tree-status" class={["badge", status_badge_class(@status)]}>
+          <span id="supervision-tree-status" class={["badge mr-2", status_badge_class(@status)]}>
             {status_label(@status)}
           </span>
-          <button
-            type="button"
-            phx-click="refresh-now"
-            phx-throttle="1000"
-            id="supervision-tree-refresh"
-            title="Refresh now"
-            class="btn btn-sm btn-ghost"
-          >
-            <.icon
-              name="icon-rotate-cw"
-              class={["size-4", @status == :loading && "animate-spin"]}
-            />
-          </button>
+          <.interval_select
+            id="refresh-interval"
+            options={interval_options()}
+            refresh_interval={@refresh_interval}
+            loading={@status == :loading}
+          />
         </:actions>
       </.node_header>
-    </div>
-    """
-  end
-
-  attr :form, Phoenix.HTML.Form, required: true
-  attr :available_apps, :list, required: true
-  attr :selected_apps, MapSet, required: true
-  attr :open?, :boolean, required: true
-
-  def controls(assigns) do
-    ~H"""
-    <div class="card bg-base-100 border-base-200 border shadow-sm">
-      <div class="card-body py-3">
-        <.form
-          for={@form}
-          id="supervision-tree-controls"
-          phx-change="select-apps"
-          phx-submit="select-apps"
-          class="flex items-start"
-        >
-          <.collapsible id="apps" phx-click="toggle-apps-open" open={@open?} class="flex-1">
-            <:label>
-              <h2 class="text-base-content ml-2 text-center text-sm font-semibold leading-8">
-                Applications
-              </h2>
-            </:label>
-            <div class="flex flex-wrap gap-2 py-4">
-              <%= if @available_apps == [] do %>
-                <span class="text-base-content/50 text-sm italic">No applications available</span>
-              <% else %>
-                <%= for {app, vsn} <- @available_apps do %>
-                  <label class={[
-                    "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors",
-                    MapSet.member?(@selected_apps, app) && "border-primary bg-primary/10 text-primary",
-                    not MapSet.member?(@selected_apps, app) &&
-                      "border-base-300 bg-base-200 text-base-content hover:border-primary/50"
-                  ]}>
-                    <input
-                      type="checkbox"
-                      name="tree_controls[apps][]"
-                      value={to_string(app)}
-                      checked={MapSet.member?(@selected_apps, app)}
-                      class="checkbox checkbox-xs checkbox-primary"
-                    />
-                    <span class="font-mono">{app}</span>
-                    <span class="badge badge-ghost badge-xs">{vsn}</span>
-                  </label>
-                <% end %>
-              <% end %>
-            </div>
-          </.collapsible>
-          <div class="flex items-start gap-2">
-            <label class="label text-base-content/60 text-xs leading-8" for={@form[:depth].id}>
-              Depth
-            </label>
-            <div class="w-20">
-              <.input
-                field={@form[:depth]}
-                type="number"
-                step="1"
-                min={SupervisionTreeControls.min_depth()}
-                class="input-sm text-center"
-                phx-debounce="250"
-              />
-            </div>
-          </div>
-        </.form>
-      </div>
     </div>
     """
   end
@@ -170,37 +192,16 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
             <div class="absolute right-2 bottom-2 left-2 flex items-end justify-between">
               <div class="card bg-base-100 border-base-300 border">
                 <div class="card-body font-mono text-base-content/80 flex-row flex-wrap gap-4 px-4 py-3 text-xs">
-                  <div>
-                    <.icon name="icon-diamond" class="size-4 text-primary" /> App
-                  </div>
-                  <div>
-                    <.icon name="icon-square" class="size-4 text-primary" /> Supervisor
-                  </div>
-                  <div>
-                    <.icon name="icon-circle" class="size-4 text-secondary" /> Worker
-                  </div>
-                  <div>
-                    <.icon name="icon-triangle" class="size-4 text-port" /> Port
-                  </div>
-                  <div>
-                    <.icon name="icon-square" class="size-4 text-success" /> Reference
-                  </div>
-                  <div class="flex items-center gap-1.5">
-                    <span class="w-7.5 bg-base-500 h-0.5" />
-                    <span class="ml-1">Supervision link</span>
-                  </div>
-                  <div class="flex items-center gap-1.5">
-                    <span :for={_ <- 1..3} class="bg-base-400 h-0.5 w-1.5" />
-                    <span class="ml-1">Link</span>
-                  </div>
-                  <div class="flex items-center gap-1.5">
-                    <span :for={_ <- 1..3} class="bg-process-monitor h-0.5 w-1.5" />
-                    <span class="ml-1">Monitor</span>
-                  </div>
-                  <div class="flex items-center gap-1.5">
-                    <span :for={_ <- 1..3} class="bg-process-monitored-by h-0.5 w-1.5" />
-                    <span class="ml-1">Monitored by</span>
-                  </div>
+                  <.legend_node_entry
+                    :for={entry <- node_legends()}
+                    id={legend_entry_id(entry)}
+                    {entry}
+                  />
+                  <.legend_edge_entry
+                    :for={entry <- edge_legends()}
+                    id={legend_entry_id(entry)}
+                    {entry}
+                  />
                 </div>
               </div>
               <div class="card bg-base-100 border-base-300 m-2 border shadow-md">
@@ -239,6 +240,73 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
       <% end %>
     </div>
     """
+  end
+
+  attr :id, :string, required: true
+  attr :icon_name, :string, required: true
+  attr :name, :string, required: true
+  attr :color_class, :string, required: true
+  attr :text, :string, default: nil
+  attr :doc_href, :string, default: nil
+  attr :doc_label, :string, default: "Learn more"
+
+  defp legend_node_entry(assigns) do
+    ~H"""
+    <.link_tooltip id={@id} doc_href={@doc_href} doc_label={@doc_label} interactive={true}>
+      <span
+        tabindex="0"
+        aria-describedby={"#{@id}-tip"}
+      >
+        <.icon name={@icon_name} class={"#{@color_class} size-4"} /> {@name}
+      </span>
+      <:content>
+        {@text}
+      </:content>
+    </.link_tooltip>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :name, :string, required: true
+  attr :color_class, :string, required: true
+  attr :dashed, :boolean, default: true
+  attr :text, :string, default: nil
+  attr :doc_href, :string, default: nil
+  attr :doc_label, :string, default: "Learn more"
+
+  defp legend_edge_entry(assigns) do
+    ~H"""
+    <.link_tooltip id={@id} doc_href={@doc_href} doc_label={@doc_label} interactive={true}>
+      <span
+        tabindex="0"
+        aria-describedby={"#{@id}-tip"}
+        class="inline-flex items-center gap-1.5"
+      >
+        <span :for={_ <- 1..3} :if={@dashed} class={"#{@color_class} h-0.5 w-1.5"} />
+        <span :if={not @dashed} class={"#{@color_class} w-7.5 h-0.5"} />
+        <span class="ml-1">{@name}</span>
+      </span>
+      <:content>
+        {@text}
+      </:content>
+    </.link_tooltip>
+    """
+  end
+
+  defp interval_options, do: @interval_options
+
+  def default_refresh_interval,
+    do:
+      interval_options()
+      |> Enum.at(1)
+      |> elem(1)
+      |> String.to_integer()
+
+  defp node_legends, do: @node_legends
+  defp edge_legends, do: @edge_legends
+
+  defp legend_entry_id(%{name: name}) do
+    "#{name |> String.downcase() |> String.replace(" ", "-")}-legend-entry"
   end
 
   defp status_badge_class(:idle), do: "badge-ghost"

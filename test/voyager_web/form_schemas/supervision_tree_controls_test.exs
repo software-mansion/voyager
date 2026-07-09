@@ -2,11 +2,11 @@ defmodule VoyagerWeb.FormSchemas.SupervisionTreeControlsTest do
   use ExUnit.Case, async: true
 
   import Ecto.Changeset
+  import Voyager.TestUtils
 
   alias VoyagerWeb.FormSchemas.SupervisionTreeControls
 
   @available_apps [:kernel, :stdlib, :elixir]
-  @available_strings ["kernel", "stdlib", "elixir"]
 
   describe "changeset/2" do
     test "defaults are applied correctly" do
@@ -18,7 +18,7 @@ defmodule VoyagerWeb.FormSchemas.SupervisionTreeControlsTest do
     test "filters out unknown apps" do
       attrs = %{"apps" => ["kernel", "unknown", "elixir"]}
       changeset = SupervisionTreeControls.changeset(attrs, @available_apps)
-      assert get_field(changeset, :apps) == ["kernel", "elixir"]
+      assert get_field(changeset, :apps) == [:kernel, :elixir]
     end
 
     test "validates depth is >= 2" do
@@ -34,42 +34,17 @@ defmodule VoyagerWeb.FormSchemas.SupervisionTreeControlsTest do
       changeset = SupervisionTreeControls.changeset(%{"depth" => "abc"}, @available_apps)
       refute changeset.valid?
     end
-  end
 
-  describe "apps_from_changeset/1" do
-    test "converts valid strings to atoms and detects truncation" do
-      changeset =
-        SupervisionTreeControls.changeset(%{"apps" => @available_strings}, @available_apps)
+    test "validates apps length is <= 20" do
+      apps = for i <- 1..21, do: String.to_atom("app_#{i}")
+      attrs = %{"apps" => Enum.map(apps, &Atom.to_string/1)}
 
-      {apps, truncated?} = SupervisionTreeControls.apps_from_changeset(changeset)
+      changeset = SupervisionTreeControls.changeset(attrs, apps)
+      refute changeset.valid?
+      assert "Only 20 applications can be selected at once." in errors_on(changeset).apps
 
-      assert apps == [:kernel, :stdlib, :elixir]
-      refute truncated?
+      changeset = SupervisionTreeControls.changeset(attrs, Enum.take(apps, 20))
+      assert changeset.valid?
     end
-
-    test "handles truncation when apps exceed max_apps" do
-      many_apps = Enum.map(1..25, &"app_#{&1}")
-      # All these are "unknown" based on @available_apps so they would be filtered out
-      # We need to include valid ones to test truncation
-      valid_apps = ["kernel"]
-      attrs = %{"apps" => valid_apps ++ many_apps}
-
-      # We need to expand available apps for this test
-      all_available = @available_apps ++ Enum.map(many_apps, &String.to_atom(&1))
-
-      changeset = SupervisionTreeControls.changeset(attrs, all_available)
-      {apps, truncated?} = SupervisionTreeControls.apps_from_changeset(changeset)
-
-      assert length(apps) == SupervisionTreeControls.max_apps()
-      assert truncated?
-    end
-  end
-
-  defp errors_on(changeset) do
-    Ecto.Changeset.traverse_errors(changeset, fn {message, opts} ->
-      Regex.replace(~r"%{(\w+)}", message, fn _, key ->
-        opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
-      end)
-    end)
   end
 end
