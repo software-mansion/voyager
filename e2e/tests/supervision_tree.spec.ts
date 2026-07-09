@@ -148,7 +148,7 @@ test.describe('SupervisionTreeLive › expand/collapse', () => {
     }).toPass();
   });
 
-  // Regression for PR #86 (commit 6304c7b): a node that gains children at
+  // A node that gains children at
   // runtime must recompute its collapsed state from the delta patch.
   test('a childless supervisor gaining a child gets a working + toggle', async ({
     page,
@@ -176,7 +176,7 @@ test.describe('SupervisionTreeLive › expand/collapse', () => {
     }).toPass();
   });
 
-  // Regression for PR #86: an already-expanded node gaining another child must
+  // An already-expanded node gaining another child must
   // stay expanded instead of flipping back to +.
   test('an expanded supervisor gaining a child stays expanded', async ({
     page,
