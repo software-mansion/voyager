@@ -106,11 +106,11 @@ export function focusNode(page: Page, ref: string): Promise<boolean> {
  * break either, so we re-focus the node when its button is missing.
  */
 export async function clickToggle(page: Page, ref: string) {
-  const btn = toggle(page, ref);
+  expect(await focusNode(page, ref)).toBe(true);
 
-  const snap = await cyNode(page, ref);
-  if (!snap.exists) throw new Error(`${ref} is not in the graph`);
-  const after = String(!snap.isCollapsed);
+  const btn = toggle(page, ref);
+  const before = await btn.getAttribute('data-collapsed', { timeout: 2_000 });
+  const after = before === 'true' ? 'false' : 'true';
 
   await expect(async () => {
     if (!(await btn.isVisible())) {
