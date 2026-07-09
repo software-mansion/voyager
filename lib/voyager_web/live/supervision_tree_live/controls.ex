@@ -13,6 +13,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
   use VoyagerWeb, :live_component
 
   alias VoyagerWeb.FormSchemas.SupervisionTreeControls
+  alias VoyagerWeb.Utils.URL
 
   @impl true
   def update(assigns, socket) do
@@ -239,7 +240,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
       %{"depth" => depth}
       |> maybe_put_apps(apps)
 
-    ~p"/node/#{node}/supervision-tree?#{query}"
+    URL.upsert_query_params(~p"/node/#{node}/supervision-tree", query)
   end
 
   defp maybe_put_apps(query, apps) when apps in [nil, []], do: query
