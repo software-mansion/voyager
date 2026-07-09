@@ -3,9 +3,9 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   Thin `:erpc` wrappers for remote node inspection of supervision tree.
   """
 
-  @timeout_fast 1000
-  @timeout_children 2_500
-  @timeout_pinfo 2_000
+  @timeout_fast 500
+  @timeout_children 1_500
+  @timeout_pinfo 1_000
   @process_info_keys [
     :registered_name,
     :links,
