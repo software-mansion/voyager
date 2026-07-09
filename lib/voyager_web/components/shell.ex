@@ -102,7 +102,18 @@ defmodule VoyagerWeb.Components.Shell do
     <aside
       id="app-sidebar"
       class="bg-base-100 border-base-300 flex h-full w-16 flex-none flex-col overflow-y-auto overflow-x-hidden border-r transition-all duration-200 ease-out lg:w-64"
+      phx-hook=".SidebarPersistedMode"
     >
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".SidebarPersistedMode">
+        export default {
+          mounted() {
+            const savedMode = sessionStorage.getItem("sidebar-mode")
+            if (savedMode === "compact" || savedMode === "full") {
+              this.el.classList.add(`mode-${savedMode}`)
+            }
+          }
+        }
+      </script>
       <ul class="menu font-sans w-full flex-1 gap-0.5 p-4">
         <li class="sidebar-toggle-row mb-3 flex flex-row items-center justify-between">
           <span class="menu-title sidebar-label tracking-label p-0 text-xs uppercase">Inspect</span>
@@ -125,8 +136,10 @@ defmodule VoyagerWeb.Components.Shell do
                     sidebar.classList.contains("mode-compact") ||
                     (!sidebar.classList.contains("mode-full") && isNarrowViewport)
 
+                  const nextMode = isCompactNow ? "full" : "compact"
                   sidebar.classList.remove("mode-compact", "mode-full")
-                  sidebar.classList.add(isCompactNow ? "mode-full" : "mode-compact")
+                  sidebar.classList.add(`mode-${nextMode}`)
+                  sessionStorage.setItem("sidebar-mode", nextMode)
                 })
               }
             }
