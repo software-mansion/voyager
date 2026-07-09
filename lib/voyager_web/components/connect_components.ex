@@ -55,8 +55,8 @@ defmodule VoyagerWeb.ConnectComponents do
   end
 
   @doc """
-  Favourite and delete buttons shared by the connection-history rows.
- """
+   Favourite and delete buttons shared by the connection-history rows.
+  """
   attr :id, :any, required: true
   attr :pinned, :boolean, required: true
   attr :pin_event, :string, required: true
@@ -180,7 +180,6 @@ defmodule VoyagerWeb.ConnectComponents do
     </.form>
     """
   end
-
 
   attr :field, Phoenix.HTML.FormField, required: true
   attr :label, :string, required: true
