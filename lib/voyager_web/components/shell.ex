@@ -110,7 +110,7 @@ defmodule VoyagerWeb.Components.Shell do
             id="sidebar-compact-toggle"
             type="button"
             aria-label="Toggle sidebar width"
-            class="btn btn-ghost btn-square btn-xs text-base-content/50 hover:text-base-content"
+            class="btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-base-content"
             phx-hook=".SidebarCompactToggle"
           >
             <.icon name="icon-panel-left" class="size-4" />
@@ -155,7 +155,7 @@ defmodule VoyagerWeb.Components.Shell do
   defp nav_item(%{navigate: nil} = assigns) do
     ~H"""
     <li class="pointer-events-none opacity-40">
-      <span title={@label}>
+      <span class="sidebar-nav-row" title={@label}>
         {render_slot(@icon)}
         <span class="sidebar-label truncate">{@label}</span>
       </span>
@@ -166,7 +166,11 @@ defmodule VoyagerWeb.Components.Shell do
   defp nav_item(assigns) do
     ~H"""
     <li>
-      <.link navigate={@navigate} class={@active && "menu-active"} title={@label}>
+      <.link
+        navigate={@navigate}
+        class={["sidebar-nav-row", @active && "menu-active"]}
+        title={@label}
+      >
         {render_slot(@icon)}
         <span class="sidebar-label truncate">{@label}</span>
       </.link>

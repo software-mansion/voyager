@@ -16,9 +16,22 @@
   display: none;
 }
 
-#app-sidebar.mode-compact .menu > li > a,
-#app-sidebar.mode-compact .menu > li > span,
 #app-sidebar.mode-compact .sidebar-toggle-row {
+  justify-content: center;
+}
+
+/* Square, centered icon button: the row's own padding (from the `.menu`
+   item styles) is zeroed out and replaced with a fixed box sized to exactly
+   fill the space left over by the surrounding `ul.p-4` — 4rem sidebar minus
+   2 * 1rem padding = 2rem — so the icon lines up with the topbar logo,
+   which sits at the same 1rem inset. */
+#app-sidebar.mode-compact .sidebar-nav-row {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
   justify-content: center;
 }
 
@@ -28,9 +41,17 @@
     display: none;
   }
 
-  #app-sidebar:not(.mode-full) .menu > li > a,
-  #app-sidebar:not(.mode-full) .menu > li > span,
   #app-sidebar:not(.mode-full) .sidebar-toggle-row {
+    justify-content: center;
+  }
+
+  #app-sidebar:not(.mode-full) .sidebar-nav-row {
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    margin-inline: auto;
+    display: flex;
+    align-items: center;
     justify-content: center;
   }
 }
