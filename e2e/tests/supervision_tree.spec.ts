@@ -14,11 +14,13 @@ import {
 // (the cytoscape instance exposed by the hook). The mock_app tree served by
 // the target node (see e2e/mock_app/) looks like:
 //
-//   mock_root_sup
-//   ├── mock_static_worker
-//   ├── mock_deep_sup_1 ── mock_deep_sup_2 ── mock_deep_sup_3 ── mock_leaf_worker
-//   ├── mock_dyn_sup_a        (0 children; tests add some at runtime)
-//   └── mock_dyn_sup_b        (1 child: mock_dyn_worker_b1)
+//   app:mock_app (app's master process)
+//   └── p (intermediate process)
+//       └── mock_root_sup
+//           ├── mock_static_worker
+//           ├── mock_deep_sup_1 ── mock_deep_sup_2 ── mock_deep_sup_3 ── mock_leaf_worker
+//           ├── mock_dyn_sup_a        (0 children; tests add some at runtime)
+//           └── mock_dyn_sup_b        (1 child: mock_dyn_worker_b1)
 //
 // At the default walk depth (3) every supervisor child of mock_root_sup is a
 // collapsed stub. Timing rules: never assert the loading->ok transition (it
