@@ -28,7 +28,7 @@ defmodule VoyagerWeb.ConnectLiveSshTest do
     test "switching to SSH mode shows the SSH form", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 
-      view |> form("#ssh-mode-toggle", %{"mode" => "ssh"}) |> render_change()
+      view |> form("#mode-toggle", %{"mode" => "ssh"}) |> render_change()
 
       assert has_element?(view, "#ssh-connect-form")
       refute has_element?(view, "#connect-form")
@@ -37,8 +37,8 @@ defmodule VoyagerWeb.ConnectLiveSshTest do
     test "switching back to direct mode restores the direct form", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 
-      view |> form("#ssh-mode-toggle", %{"mode" => "ssh"}) |> render_change()
-      view |> form("#ssh-mode-toggle", %{"mode" => "direct"}) |> render_change()
+      view |> form("#mode-toggle", %{"mode" => "ssh"}) |> render_change()
+      view |> form("#mode-toggle", %{"mode" => "direct"}) |> render_change()
 
       assert has_element?(view, "#connect-form")
       refute has_element?(view, "#ssh-connect-form")
@@ -47,7 +47,7 @@ defmodule VoyagerWeb.ConnectLiveSshTest do
     test "mode toggle is present on the page", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 
-      assert has_element?(view, "#ssh-mode-toggle")
+      assert has_element?(view, "#mode-toggle")
       assert has_element?(view, "#mode-direct")
       assert has_element?(view, "#mode-ssh")
     end
@@ -56,7 +56,7 @@ defmodule VoyagerWeb.ConnectLiveSshTest do
   describe "SSH form structure" do
     setup %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
-      view |> form("#ssh-mode-toggle", %{"mode" => "ssh"}) |> render_change()
+      view |> form("#mode-toggle", %{"mode" => "ssh"}) |> render_change()
       %{view: view}
     end
 
@@ -100,7 +100,7 @@ defmodule VoyagerWeb.ConnectLiveSshTest do
   describe "SSH form validation" do
     setup %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
-      view |> form("#ssh-mode-toggle", %{"mode" => "ssh"}) |> render_change()
+      view |> form("#mode-toggle", %{"mode" => "ssh"}) |> render_change()
       %{view: view}
     end
 
@@ -151,7 +151,7 @@ defmodule VoyagerWeb.ConnectLiveSshTest do
   describe "connected state in SSH mode" do
     test "disables the SSH form when a node is connected mid-session", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
-      view |> form("#ssh-mode-toggle", %{"mode" => "ssh"}) |> render_change()
+      view |> form("#mode-toggle", %{"mode" => "ssh"}) |> render_change()
 
       Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
 

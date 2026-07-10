@@ -5,40 +5,6 @@ defmodule VoyagerWeb.ConnectComponents do
 
   use VoyagerWeb, :component
 
-  attr :conn, :map, required: true, doc: "The connection record from the database"
-  attr :pinned, :boolean, default: false, doc: "Whether this connection is pinned"
-
-  def connection_row(assigns) do
-    ~H"""
-    <div class="flex w-full items-center gap-1">
-      <button
-        type="button"
-        phx-click="fill_recent"
-        phx-value-id={@conn.id}
-        data-testid="fill-recent-btn"
-        class="font-mono text-base-content/60 flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-xs transition-colors hover:bg-base-200 hover:text-base-content"
-      >
-        <.icon name="icon-network" class="size-3.5 text-base-content/25 shrink-0" />
-        <div class="flex min-w-0 items-center gap-1.5">
-          <span class="ml-2 truncate">{@conn.node_name}</span>
-          <.saved_badge :if={@conn.cookie} label="cookie" title="Cookie saved" />
-        </div>
-        <span class="font-mono text-base-content/35 ml-auto shrink-0 text-xs">
-          {relative_time(@conn.last_connected_at)}
-        </span>
-      </button>
-
-      <.row_actions
-        id={@conn.id}
-        pinned={@pinned}
-        pin_event="pin"
-        unpin_event="unpin"
-        delete_event="delete_connection"
-      />
-    </div>
-    """
-  end
-
   @doc "Small bordered badge marking a stored element on a row."
   attr :label, :string, required: true
   attr :title, :string, required: true
@@ -125,59 +91,35 @@ defmodule VoyagerWeb.ConnectComponents do
     """
   end
 
-  attr :form, :any, required: true, doc: "The Phoenix.HTML.Form map"
-  attr :show_cookie, :boolean, default: false, doc: "Toggles cookie visibility"
+  attr :mode, :atom, required: true
+  attr :disabled, :boolean, default: false
 
-  attr :disabled, :boolean,
-    default: false,
-    doc: "Disables all form inputs when a node is already connected"
-
-  def connect_form(assigns) do
-    assigns =
-      assign(
-        assigns,
-        :current_name_type,
-        to_string(assigns.form[:name_type].value || "longnames")
-      )
-
+  def mode_toggle(assigns) do
     ~H"""
-    <.form
-      for={@form}
-      id="connect-form"
-      phx-change="validate"
-      phx-submit="connect"
-      class={["flex flex-col gap-4", @disabled && "pointer-events-none opacity-40"]}
-    >
-      <.form_field
-        field={@form[:node_name]}
-        label="Node name"
-        placeholder="my_app@127.0.0.1"
-        disabled={@disabled}
-      >
-        <:trailing>
-          <.name_type_toggle name="conn[name_type]" value={@current_name_type} disabled={@disabled} />
-        </:trailing>
-      </.form_field>
-
-      <.secret_field
-        field={@form[:cookie]}
-        label="Cookie"
-        shown={@show_cookie}
-        toggle_event="toggle_cookie"
-        remember_name="conn[remember_cookie]"
-        remember_checked={to_string(@form[:remember_cookie].value) == "true"}
-        remember_label="Remember cookie"
-        disabled={@disabled}
-      />
-
-      <.connect_submit
-        id="connect-btn"
-        icon="icon-network"
-        label="Connect"
-        loading_label="Connecting…"
-        disabled={@disabled}
-      />
-    </.form>
+    <form phx-change="switch_mode" id="mode-toggle" class="mb-6">
+      <div class="join w-full">
+        <input
+          type="radio"
+          name="mode"
+          value="direct"
+          aria-label="Direct"
+          id="mode-direct"
+          checked={@mode == :direct}
+          disabled={@disabled}
+          class="join-item btn btn-soft btn-sm font-mono flex-1 text-xs transition-colors checked:text-primary-content disabled:text-base-content/60"
+        />
+        <input
+          type="radio"
+          name="mode"
+          value="ssh"
+          aria-label="SSH Tunnel"
+          id="mode-ssh"
+          checked={@mode == :ssh}
+          disabled={@disabled}
+          class="join-item btn btn-soft btn-sm font-mono flex-1 text-xs transition-colors checked:text-primary-content disabled:text-base-content/60"
+        />
+      </div>
+    </form>
     """
   end
 

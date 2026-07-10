@@ -66,7 +66,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
             <.form_field
               field={@ssh_form[:ssh_user]}
               label="SSH User"
-              placeholder="alice"
+              placeholder="voyager"
               disabled={@connected?}
             />
           </div>
@@ -74,7 +74,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
             <.form_field
               field={@ssh_form[:ssh_host]}
               label="SSH Host"
-              placeholder="bastion.example.com"
+              placeholder="10.0.0.5"
               disabled={@connected?}
             />
           </div>
@@ -83,7 +83,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         <.form_field
           field={@ssh_form[:node_name]}
           label="Node Name"
-          placeholder="myapp@10.0.0.5"
+          placeholder="myapp@127.0.0.1"
           disabled={@connected?}
         >
           <:trailing>
