@@ -1,0 +1,47 @@
+#app-sidebar.mode-compact {
+  width: 4rem;
+}
+
+#app-sidebar.mode-full {
+  width: 16rem;
+}
+
+#app-sidebar.mode-compact .sidebar-label,
+#app-sidebar.mode-compact .menu-title {
+  display: none;
+}
+
+#app-sidebar.mode-compact .sidebar-toggle-row {
+  justify-content: center;
+}
+
+#app-sidebar.mode-compact .sidebar-nav-row {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 1023.98px) {
+  #app-sidebar:not(.mode-full) .sidebar-label,
+  #app-sidebar:not(.mode-full) .menu-title {
+    display: none;
+  }
+
+  #app-sidebar:not(.mode-full) .sidebar-toggle-row {
+    justify-content: center;
+  }
+
+  #app-sidebar:not(.mode-full) .sidebar-nav-row {
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    margin-inline: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
