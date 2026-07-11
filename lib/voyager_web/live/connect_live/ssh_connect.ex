@@ -240,18 +240,6 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         </span>
       </button>
 
-      <button
-        :if={@conn.auth_method == :agent or not is_nil(@conn.password)}
-        type="button"
-        phx-target={@target}
-        phx-click="ssh_reconnect"
-        phx-value-id={@conn.id}
-        title="Reconnect"
-        class="btn btn-ghost btn-xs text-base-content/20 px-0.5 hover:text-primary"
-      >
-        <.icon name="icon-zap" class="size-3.5" />
-      </button>
-
       <.row_actions
         id={@conn.id}
         pinned={@pinned}
@@ -317,30 +305,6 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       |> assign(:ssh_form, to_form(SshConnectionParams.changeset(params), as: :ssh))
       |> assign(:show_ssh_cookie, false)
       |> assign(:show_ssh_password, false)
-    end)
-  end
-
-  def handle_event("ssh_reconnect", _, %{assigns: %{ssh_connecting: true}} = socket) do
-    {:noreply, socket}
-  end
-
-  def handle_event("ssh_reconnect", %{"id" => id}, socket) do
-    with_ssh_connection(socket, id, fn conn ->
-      p = %SshConnectionParams{
-        ssh_user: conn.ssh_user,
-        ssh_host: conn.ssh_host,
-        ssh_port: conn.ssh_port,
-        node_name: conn.node_name,
-        cookie: conn.cookie || "",
-        name_type: conn.name_type,
-        auth_method: conn.auth_method,
-        password: conn.password,
-        epmd_port: conn.epmd_port,
-        remember_cookie: not is_nil(conn.cookie),
-        remember_password: not is_nil(conn.password)
-      }
-
-      start_ssh_connect(socket, p)
     end)
   end
 
