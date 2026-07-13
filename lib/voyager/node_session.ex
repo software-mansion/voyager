@@ -67,7 +67,7 @@ defmodule Voyager.NodeSession do
 
   @impl GenServer
   def init(_opts) do
-    {:ok, %{session: nil}}
+    {:ok, %{session: nil, connecting: nil}}
   end
 
   @impl GenServer
@@ -80,28 +80,30 @@ defmodule Voyager.NodeSession do
     {:reply, {:error, :already_connected}, state}
   end
 
-  def handle_call({:connect, connector, node_name, cookie, opts}, _from, %{session: nil} = state) do
-    case connector.connect(node_name, cookie, opts) do
-      {:ok, node, meta} ->
-        Node.monitor(node, true)
-        subscribe(connector)
+  def handle_call(
+        {:connect, _connector, _node_name, _cookie, _opts},
+        _from,
+        %{connecting: connecting} = state
+      )
+      when not is_nil(connecting) do
+    {:reply, {:error, :already_connected}, state}
+  end
 
-        session = %Session{
-          node: node,
-          node_name: node_name,
-          cookie: cookie,
-          connected_at: DateTime.utc_now(),
-          connector: connector,
-          meta: meta
-        }
+  def handle_call({:connect, connector, node_name, cookie, opts}, from, state) do
+    task =
+      Task.Supervisor.async_nolink(Voyager.TaskSupervisor, fn ->
+        connector.connect(node_name, cookie, opts)
+      end)
 
-        broadcast({:node_connected, node})
-        Voyager.Telemetry.dispatch!("voyager.node.connect", metadata: %{via: connector.name()})
-        {:reply, :ok, %{state | session: session}}
+    connecting = %{
+      from: from,
+      task_ref: task.ref,
+      connector: connector,
+      node_name: node_name,
+      cookie: cookie
+    }
 
-      {:error, _} = err ->
-        {:reply, err, state}
-    end
+    {:noreply, %{state | connecting: connecting}}
   end
 
   def handle_call(:disconnect, _from, %{session: nil} = state) do
@@ -130,6 +132,19 @@ defmodule Voyager.NodeSession do
   end
 
   @impl GenServer
+  def handle_info({ref, result}, %{connecting: %{task_ref: ref} = connecting} = state) do
+    Process.demonitor(ref, [:flush])
+    finish_connect(result, connecting, state)
+  end
+
+  def handle_info(
+        {:DOWN, ref, :process, _pid, reason},
+        %{connecting: %{task_ref: ref} = connecting} = state
+      ) do
+    GenServer.reply(connecting.from, {:error, {:connector_crashed, reason}})
+    {:noreply, %{state | connecting: nil}}
+  end
+
   # The remote node went down: clean up transport resources, then drop the session.
   def handle_info({:nodedown, node}, %{session: %Session{node: session_node} = session} = state)
       when node == session_node do
@@ -152,6 +167,34 @@ defmodule Voyager.NodeSession do
 
   def handle_info(_msg, state) do
     {:noreply, state}
+  end
+
+  defp finish_connect({:ok, node, meta}, connecting, state) do
+    Node.monitor(node, true)
+    subscribe(connecting.connector)
+
+    session = %Session{
+      node: node,
+      node_name: connecting.node_name,
+      cookie: connecting.cookie,
+      connected_at: DateTime.utc_now(),
+      connector: connecting.connector,
+      meta: meta
+    }
+
+    broadcast({:node_connected, node})
+
+    Voyager.Telemetry.dispatch!("voyager.node.connect",
+      metadata: %{via: connecting.connector.name()}
+    )
+
+    GenServer.reply(connecting.from, :ok)
+    {:noreply, %{state | session: session, connecting: nil}}
+  end
+
+  defp finish_connect({:error, _} = err, connecting, state) do
+    GenServer.reply(connecting.from, err)
+    {:noreply, %{state | connecting: nil}}
   end
 
   defp drop_session(state, session, reason) do
