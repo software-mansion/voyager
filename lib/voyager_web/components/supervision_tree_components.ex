@@ -117,7 +117,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
         waiting_message="waiting for first fetch…"
       >
         <:actions>
-          <span class={["badge mr-2", status_badge_class(@status)]}>
+          <span id="supervision-tree-status" class={["badge mr-2", status_badge_class(@status)]}>
             {status_label(@status)}
           </span>
           <.interval_select
