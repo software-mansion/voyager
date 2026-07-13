@@ -3,6 +3,7 @@ defmodule VoyagerWeb.NodeInfoLive do
 
   alias Phoenix.LiveView.AsyncResult
   alias Voyager.Services.NodeInfo
+  alias Voyager.Services.NodeInfo.Snapshot
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.NodeInfoComponents
   alias VoyagerWeb.NodeInfoHelp
@@ -28,6 +29,8 @@ defmodule VoyagerWeb.NodeInfoLive do
       |> assign(:snapshot, AsyncResult.loading())
       |> assign(:last_updated, nil)
       |> assign(:timer_ref, nil)
+      |> assign(:show_json_modal?, false)
+      |> assign(:snapshot_json, nil)
 
     socket =
       if connected?(socket) do
@@ -45,6 +48,18 @@ defmodule VoyagerWeb.NodeInfoLive do
     <div class="mx-auto max-w-screen-2xl p-6 sm:p-8">
       <.node_header node_name={@session.node_name} last_updated={@last_updated}>
         <:actions>
+          <button
+            type="button"
+            id="show-node-info-json"
+            phx-click="show-json-modal"
+            phx-throttle="1000"
+            title="Show snapshot JSON"
+            aria-label="Show snapshot JSON"
+            disabled={not @snapshot.ok?}
+            class="btn btn-sm btn-ghost btn-square"
+          >
+            <.icon name="icon-braces" class="size-4" />
+          </button>
           <.interval_select
             id="refresh-interval"
             options={interval_options()}
@@ -133,8 +148,38 @@ defmodule VoyagerWeb.NodeInfoLive do
           </div>
         </div>
       </.async_result>
+
+      <NodeInfoComponents.json_snapshot_modal
+        id="node-info-json-modal"
+        show={@show_json_modal?}
+        title="Node snapshot JSON"
+        description="Point-in-time data from the latest successful node inspection."
+        json={@snapshot_json}
+        on_close="close-json-modal"
+      />
     </div>
     """
+  end
+
+  @impl true
+  def handle_event(
+        "show-json-modal",
+        _params,
+        %{assigns: %{snapshot: %AsyncResult{ok?: true, result: snapshot}}} = socket
+      ) do
+    socket
+    |> assign(:snapshot_json, Snapshot.to_pretty_json(snapshot))
+    |> assign(:show_json_modal?, true)
+    |> noreply()
+  end
+
+  def handle_event("show-json-modal", _params, socket), do: {:noreply, socket}
+
+  def handle_event("close-json-modal", _params, socket) do
+    socket
+    |> assign(:show_json_modal?, false)
+    |> assign(:snapshot_json, nil)
+    |> noreply()
   end
 
   @impl true

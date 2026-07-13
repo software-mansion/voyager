@@ -164,6 +164,114 @@ defmodule VoyagerWeb.CoreComponents do
   defp interval_value(ms), do: Integer.to_string(ms)
 
   @doc """
+  Renders a button that copies text from another element.
+
+  ## Examples
+
+      <.copy_button id="copy-json" target="#json-content" />
+  """
+  attr :id, :string, required: true
+  attr :target, :string, required: true, doc: "CSS selector for the element whose text is copied"
+  attr :label, :string, default: "Copy"
+  attr :copied_label, :string, default: "Copied"
+  attr :class, :any, default: nil
+  attr :rest, :global
+
+  def copy_button(assigns) do
+    ~H"""
+    <button
+      type="button"
+      id={@id}
+      phx-hook=".CopyToClipboard"
+      phx-update="ignore"
+      data-copy-target={@target}
+      data-copy-label={@label}
+      data-copy-copied-label={@copied_label}
+      title={@label}
+      aria-label={@label}
+      class={["btn btn-sm btn-ghost gap-2", @class]}
+      {@rest}
+    >
+      <.icon name="icon-copy" class="size-4" />
+      <span data-copy-button-label>{@label}</span>
+      <span class="sr-only" aria-live="polite" data-copy-status></span>
+    </button>
+
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".CopyToClipboard">
+      export default {
+        mounted() {
+          this.resetTimer = null
+          this.onClick = () => this.copyTarget()
+          this.el.addEventListener("click", this.onClick)
+        },
+
+        destroyed() {
+          this.el.removeEventListener("click", this.onClick)
+          window.clearTimeout(this.resetTimer)
+        },
+
+        async copyTarget() {
+          const target = document.querySelector(this.el.dataset.copyTarget)
+
+          if (!target) {
+            this.showResult(false)
+            return
+          }
+
+          const text = target.textContent || ""
+
+          try {
+            if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable")
+            await navigator.clipboard.writeText(text)
+            this.showResult(true)
+          } catch (_error) {
+            this.showResult(this.copyWithFallback(text))
+          }
+        },
+
+        copyWithFallback(text) {
+          const textarea = document.createElement("textarea")
+          textarea.value = text
+          textarea.setAttribute("readonly", "")
+          textarea.style.position = "fixed"
+          textarea.style.opacity = "0"
+          document.body.appendChild(textarea)
+          textarea.select()
+
+          try {
+            return document.execCommand("copy")
+          } catch (_error) {
+            return false
+          } finally {
+            textarea.remove()
+          }
+        },
+
+        showResult(copied) {
+          const label = this.el.querySelector("[data-copy-button-label]")
+          const status = this.el.querySelector("[data-copy-status]")
+          const originalLabel = this.el.dataset.copyLabel
+          const resultLabel = copied ? this.el.dataset.copyCopiedLabel : "Copy failed"
+
+          label.textContent = resultLabel
+          status.textContent = resultLabel
+          this.el.setAttribute("aria-label", resultLabel)
+          this.el.setAttribute("title", resultLabel)
+
+          window.clearTimeout(this.resetTimer)
+          this.resetTimer = window.setTimeout(() => {
+            label.textContent = originalLabel
+            status.textContent = ""
+            this.el.setAttribute("aria-label", originalLabel)
+            this.el.setAttribute("title", originalLabel)
+          }, 1800)
+        }
+      }
+    </script>
+    """
+  end
+
+  @doc """
   Renders an icon from `assets/css/icons/`. The Tailwind plugin at
   `assets/vendor/icons.js` generates an `icon-{name}` CSS class for each
   SVG file in that directory.
