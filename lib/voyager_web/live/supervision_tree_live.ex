@@ -110,6 +110,12 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     |> noreply()
   end
 
+  def handle_event("dismiss_errors", _params, socket) do
+    socket
+    |> assign(:errors, [])
+    |> noreply()
+  end
+
   def handle_event("toggle-expand", %{"pid" => pid_str}, socket) do
     {expanded, newly_expanded?} =
       toggle_expand(socket, pid_str)

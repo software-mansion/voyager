@@ -138,7 +138,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
     ~H"""
     <%= if @errors != [] do %>
       <div id="supervision-tree-errors" class="alert alert-error">
-        <.icon name="icon-circle-alert" class="size-4 shrink-0" />
+        <.icon name="icon-circle-alert" class="size-5 shrink-0" />
         <div class="w-full">
           <p class="font-semibold">Errors encountered</p>
           <ul class="max-h-[10vh] mt-1 w-full list-inside list-disc overflow-auto text-sm">
@@ -146,6 +146,17 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
               <li>{inspect(err)}</li>
             <% end %>
           </ul>
+        </div>
+        <div class="h-full">
+          <button
+            type="button"
+            phx-click="dismiss_errors"
+            title="Dismiss errors"
+            aria-label="Dismiss errors"
+            class="cursor-pointer rounded p-1 hover:bg-black/10"
+          >
+            <.icon name="icon-x" class="size-5" />
+          </button>
         </div>
       </div>
     <% end %>
@@ -211,7 +222,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                     phx-click={JS.dispatch("zoom-in", to: "#supervision-tree-body")}
                     title="Zoom graph in"
                     aria-label="Zoom graph in"
-                    class="h-8 w-8 cursor-pointer hover:bg-base-300"
+                    class="h-8 w-8 cursor-pointer rounded hover:bg-base-300"
                   >
                     <.icon name="icon-plus" class="size-5" />
                   </button>
@@ -220,7 +231,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                     phx-click={JS.dispatch("zoom-out", to: "#supervision-tree-body")}
                     title="Zoom graph out"
                     aria-label="Zoom graph out"
-                    class="h-8 w-8 cursor-pointer hover:bg-base-300"
+                    class="h-8 w-8 cursor-pointer rounded hover:bg-base-300"
                   >
                     <.icon name="icon-minus" class="size-5" />
                   </button>
@@ -229,7 +240,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                     phx-click={JS.dispatch("maximize", to: "#supervision-tree-body")}
                     title="Fit graph to view"
                     aria-label="Fit graph to view"
-                    class="h-8 w-8 cursor-pointer hover:bg-base-300"
+                    class="h-8 w-8 cursor-pointer rounded hover:bg-base-300"
                   >
                     <.icon name="icon-maximize" class="size-5" />
                   </button>
