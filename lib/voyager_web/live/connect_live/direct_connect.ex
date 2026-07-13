@@ -15,7 +15,15 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   alias Voyager.Actions.Connections, as: ConnectionActions
   alias Voyager.NodeSession
   alias Voyager.Queries.Connections, as: ConnectionQueries
+  alias VoyagerWeb.ConnectLive.Recents
   alias VoyagerWeb.FormSchemas.ConnectionParams
+
+  @recents_keys %{
+    pinned: :pinned_connections,
+    recent: :recent_connections,
+    has_pinned: :has_pinned,
+    has_recent: :has_recent
+  }
 
   @impl true
   def update(%{id: id, connected?: connected?}, socket) do
@@ -245,14 +253,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   end
 
   defp reset_connections(socket) do
-    connections = ConnectionQueries.all()
-    {pinned, recent} = Enum.split_with(connections, & &1.pinned)
-
-    socket
-    |> stream(:pinned_connections, pinned, reset: true)
-    |> stream(:recent_connections, recent, reset: true)
-    |> assign(:has_pinned, pinned != [])
-    |> assign(:has_recent, recent != [])
+    Recents.reset(socket, ConnectionQueries.all(), @recents_keys)
   end
 
   defp empty_form do

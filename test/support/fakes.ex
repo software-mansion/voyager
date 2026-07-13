@@ -40,7 +40,7 @@ defmodule Voyager.Fakes do
   """
   @spec put_session(Session.t() | nil) :: :ok
   def put_session(session) do
-    :sys.replace_state(NodeSession, fn _ -> %{session: session} end)
+    :sys.replace_state(NodeSession, fn state -> Map.put(state, :session, session) end)
     :ok
   end
 

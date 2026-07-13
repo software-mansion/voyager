@@ -20,7 +20,15 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Connectors.Ssh, as: SshConnector
   alias Voyager.Queries.SshConnections, as: SshConnectionQueries
+  alias VoyagerWeb.ConnectLive.Recents
   alias VoyagerWeb.FormSchemas.SshConnectionParams
+
+  @recents_keys %{
+    pinned: :pinned_ssh_connections,
+    recent: :recent_ssh_connections,
+    has_pinned: :has_pinned_ssh,
+    has_recent: :has_recent_ssh
+  }
 
   @impl true
   def update(%{id: id, connected?: connected?}, socket) do
@@ -275,10 +283,12 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   end
 
   def handle_event("connect_ssh", %{"ssh" => params}, socket) do
-    case SshConnectionParams.changeset(params) |> Ecto.Changeset.apply_action(:insert) do
+    changeset = SshConnectionParams.changeset(params)
+
+    case Ecto.Changeset.apply_action(changeset, :insert) do
       {:ok, %SshConnectionParams{} = p} ->
         socket
-        |> assign(:ssh_form, to_form(SshConnectionParams.changeset(params), as: :ssh))
+        |> assign(:ssh_form, to_form(changeset, as: :ssh))
         |> start_ssh_connect(p)
         |> noreply()
 
@@ -328,7 +338,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     case NodeSession.current() do
       nil ->
         socket
-        |> assign(:ssh_connecting, false)
+        |> finish_connecting()
         |> assign(:ssh_form, error_form(socket.assigns.ssh_last_applied, :connection_lost))
         |> noreply()
 
@@ -344,19 +354,21 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
 
   def handle_async(:ssh_connect, {:ok, {:error, reason}}, socket) do
     socket
-    |> assign(:ssh_connecting, false)
+    |> finish_connecting()
     |> assign(:ssh_form, error_form(socket.assigns.ssh_last_applied, reason))
     |> noreply()
   end
 
   def handle_async(:ssh_connect, {:exit, _reason}, socket) do
     socket
-    |> assign(:ssh_connecting, false)
+    |> finish_connecting()
     |> assign(:ssh_form, error_form(socket.assigns.ssh_last_applied, :unexpected_exit))
     |> noreply()
   end
 
   defp start_ssh_connect(socket, %SshConnectionParams{} = p) do
+    send(self(), {:ssh_connecting, true})
+
     socket
     |> assign(:ssh_connecting, true)
     |> assign(:ssh_last_applied, p)
@@ -370,6 +382,11 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         name_type: p.name_type
       )
     end)
+  end
+
+  defp finish_connecting(socket) do
+    send(self(), {:ssh_connecting, false})
+    assign(socket, :ssh_connecting, false)
   end
 
   defp persist_connection(%SshConnectionParams{} = p) do
@@ -400,14 +417,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   end
 
   defp reset_ssh_connections(socket) do
-    conns = SshConnectionQueries.all()
-    {pinned, recent} = Enum.split_with(conns, & &1.pinned)
-
-    socket
-    |> stream(:pinned_ssh_connections, pinned, reset: true)
-    |> stream(:recent_ssh_connections, recent, reset: true)
-    |> assign(:has_pinned_ssh, pinned != [])
-    |> assign(:has_recent_ssh, recent != [])
+    Recents.reset(socket, SshConnectionQueries.all(), @recents_keys)
   end
 
   defp empty_ssh_form do

@@ -14,6 +14,7 @@ defmodule VoyagerWeb.ConnectLive do
     |> assign(:show_distribution_settings?, false)
     |> assign(:connected_session, NodeSession.current())
     |> assign(:mode, :direct)
+    |> assign(:connecting?, false)
     |> ok()
   end
 
@@ -49,7 +50,10 @@ defmodule VoyagerWeb.ConnectLive do
               </p>
             </div>
             <ConnectComponents.connected_indicator session={@connected_session} />
-            <ConnectComponents.mode_toggle mode={@mode} disabled={not is_nil(@connected_session)} />
+            <ConnectComponents.mode_toggle
+              mode={@mode}
+              disabled={not is_nil(@connected_session) or @connecting?}
+            />
 
             <.live_component
               :if={@mode == :direct}
@@ -98,6 +102,10 @@ defmodule VoyagerWeb.ConnectLive do
 
   def handle_info({event, _node}, socket) when event in [:node_disconnected, :nodedown] do
     {:noreply, assign(socket, :connected_session, nil)}
+  end
+
+  def handle_info({:ssh_connecting, connecting?}, socket) do
+    {:noreply, assign(socket, :connecting?, connecting?)}
   end
 
   def handle_info({:distribution_settings, :saved}, socket) do
