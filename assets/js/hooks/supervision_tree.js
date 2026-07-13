@@ -12,9 +12,9 @@ import {
   elementsFor,
   relEdgeElement,
   composeLabel,
-  edgeId,
   isRealPid,
   overlayButtonIntersectsExtent,
+  edgeElement,
 } from './supervision_tree/elements';
 
 /**
@@ -112,6 +112,7 @@ const SupervisionTree = {
    *
    * @typedef {Object} Patch
    * @property {string} name
+   * @property {string|null} parent_key
    * @property {'app'|'supervisor'|'worker'|'port'|'reference'} type
    * @property {number} child_count
    * @property {Info|'dead'|null} info
@@ -209,11 +210,8 @@ const SupervisionTree = {
               .connectedEdges(`[source = "${parent_key}"][target = "${key}"]`)
               .remove();
 
-            if (value) {
-              this.cy.add({
-                group: 'edges',
-                data: { id: edgeId(value, key), source: value, target: key },
-              });
+            if (patch.parent_key) {
+              this.cy.add(edgeElement(patch.parent_key, key));
             }
           } else {
             node.data(field, value);
@@ -475,7 +473,7 @@ const SupervisionTree = {
             ele.addClass('hidden');
           });
 
-        // Hide relation successors only once all of their edges are hidden.
+        // Hide relation successors only once all they have no visible incoming nodes.
         node.successors('node[?is_from_relation]').forEach((ele) => {
           const visibleConnectedNodes = ele
             .incomers('node')

@@ -45,21 +45,30 @@ export function elementsFor(key, node) {
   };
   data.displayLabel = composeLabel(data);
 
+  /** @type {[{group: string, data: Object}]} */
   const els = [{ group: 'nodes', data }];
 
   if (node.parent_key) {
-    els.push({
-      group: 'edges',
-      data: {
-        id: edgeId(node.parent_key, key),
-        source: node.parent_key,
-        target: key,
-        kind: 'supervision-link',
-      },
-    });
+    els.push(edgeElement(node.parent_key, key));
   }
 
   return els;
+}
+
+/**
+ * @param {string} source
+ * @param {string} target
+ */
+export function edgeElement(source, target) {
+  return {
+    group: 'edges',
+    data: {
+      id: edgeId(source, target),
+      source,
+      target,
+      kind: 'supervision-link',
+    },
+  };
 }
 
 /**
