@@ -107,6 +107,7 @@ const SupervisionTree = {
   /**
    * @typedef {Object} FullPayload
    * @property {'full'} kind
+   * @property {'initial'|'auto_refresh'|'manual_refresh'|'toggle_expand'} request_type
    * @property {Record<string, ServerNode>} nodes
    * @property {Record<string, ServerEdge>} edges
    *
@@ -120,6 +121,7 @@ const SupervisionTree = {
    *
    * @typedef {Object} DeltaPayload
    * @property {'delta'} kind
+   * @property {'initial'|'auto_refresh'|'manual_refresh'|'toggle_expand'} request_type
    * @property {Record<string, ServerNode>} added
    * @property {string[]} removed
    * @property {Record<string, Patch>} updated
@@ -252,7 +254,7 @@ const SupervisionTree = {
       }
     });
 
-    if (topologyChangeCounter > 4) {
+    if (topologyChangeCounter > 4 && payload.request_type !== 'toggle_expand') {
       this.scheduleLayout({ fit: true });
     } else if (topologyChangeCounter > 0) {
       this.scheduleLayout();
@@ -447,12 +449,6 @@ const SupervisionTree = {
         node.data('is_collapsed', false);
         node.successors('node').forEach((ele) => bumpHiddenCount(ele, -1));
         node.successors('node[hidden_count = 0]').removeClass('hidden');
-
-        if (node.successors('node[hidden_count = 0]').length > 4) {
-          setTimeout(() => {
-            this.scheduleLayout({ fit: true });
-          }, 200);
-        }
       } else {
         // Collapse: hide tree successors outright.
         node.data('is_collapsed', true);
