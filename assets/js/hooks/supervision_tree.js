@@ -447,8 +447,8 @@ const SupervisionTree = {
         // Expand: decrement the hidden_count of every successor, then reveal
         // those no longer hidden by any other collapsed ancestor.
         node.data('is_collapsed', false);
-        node.successors().forEach((ele) => bumpHiddenCount(ele, -1));
-        node.successors('[hidden_count = 0]').removeClass('hidden');
+        node.successors('node').forEach((ele) => bumpHiddenCount(ele, -1));
+        node.successors('node[hidden_count = 0]').removeClass('hidden');
 
         if (node.successors('node[hidden_count = 0]').length > 4) {
           setTimeout(() => {
@@ -459,12 +459,16 @@ const SupervisionTree = {
         // Collapse: hide tree successors outright.
         node.data('is_collapsed', true);
 
-        const treeSuccessors = node.successors('[!is_from_relation]');
+        const treeSuccessors = node.successors('node[!is_from_relation]');
 
         treeSuccessors
+          // Filter out nodes that have supervision parents outside of collapsing node successors (other applications tree)
           .filter((ele) => {
-            const incomers = ele.incomers('node');
-            return treeSuccessors.contains(incomers) || incomers.contains(node);
+            const sources = ele
+              .connectedEdges(`[target="${ele.id()}"][kind="supervision-link"]`)
+              .sources();
+
+            return treeSuccessors.contains(sources) || sources.contains(node);
           })
           .forEach((ele) => {
             bumpHiddenCount(ele, 1);
@@ -472,15 +476,12 @@ const SupervisionTree = {
           });
 
         // Hide relation successors only once all of their edges are hidden.
-        node.successors('[?is_from_relation]').forEach((ele) => {
-          const connectedEdges = this.cy
-            .elements('edge[target="' + ele.id() + '"]')
-            .union(this.cy.elements('edge[source="' + ele.id() + '"]'));
+        node.successors('node[?is_from_relation]').forEach((ele) => {
+          const visibleConnectedNodes = ele
+            .incomers('node')
+            .difference('.hidden');
 
-          const visibleEdges =
-            connectedEdges.length - connectedEdges.edges('.hidden').length;
-
-          if (visibleEdges == 0) {
+          if (visibleConnectedNodes.length == 0) {
             bumpHiddenCount(ele, 1);
             ele.addClass('hidden');
           }

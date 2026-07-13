@@ -54,6 +54,7 @@ export function elementsFor(key, node) {
         id: edgeId(node.parent_key, key),
         source: node.parent_key,
         target: key,
+        kind: 'supervision-link',
       },
     });
   }
