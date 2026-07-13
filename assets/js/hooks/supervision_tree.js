@@ -44,10 +44,16 @@ const SupervisionTree = {
     this.overlays = new Map();
     this.fadeTimers = new Map();
     this.disabledClick = false;
+    this.selectedEdgeId = null;
 
     this.cy.on('oneclick', 'node', (e) => {
       if (this.disabledClick) return;
+      this.applyEdgeHighlight(null);
       this.pushEventTo(this.el, 'select-node', { key: e.target.id() });
+    });
+    this.cy.on('tap', 'edge', (e) => {
+      if (this.disabledClick) return;
+      this.selectEdge(e.target);
     });
     this.cy.on('dblclick', 'node', (e) => {
       if (this.disabledClick) return;
@@ -55,8 +61,10 @@ const SupervisionTree = {
     });
     this.cy.on('tap', (e) => {
       if (this.disabledClick) return;
-      if (e.target === this.cy)
+      if (e.target === this.cy) {
+        this.applyEdgeHighlight(null);
         this.pushEventTo(this.el, 'select-node', { key: '' });
+      }
     });
 
     this.cy.on('mouseover', 'node', function (event) {
@@ -65,6 +73,16 @@ const SupervisionTree = {
     });
 
     this.cy.on('mouseout', 'node', function (event) {
+      event.target.removeClass('hover');
+      event.cy.container().style.cursor = '';
+    });
+
+    this.cy.on('mouseover', 'edge', function (event) {
+      event.target.addClass('hover');
+      event.cy.container().style.cursor = 'pointer';
+    });
+
+    this.cy.on('mouseout', 'edge', function (event) {
       event.target.removeClass('hover');
       event.cy.container().style.cursor = '';
     });
@@ -136,6 +154,10 @@ const SupervisionTree = {
       this.applyFull(payload);
     } else if (payload.kind === 'delta') {
       this.applyDelta(payload);
+    }
+
+    if (this.selectedEdgeId) {
+      this.applyEdgeHighlight(this.selectedEdgeId);
     }
   },
 
@@ -310,6 +332,8 @@ const SupervisionTree = {
       this.cy.elements().removeClass('in-path');
       if (!path || path.length === 0) return;
 
+      this.applyEdgeHighlight(null);
+
       const nodeColl = this.cy.collection(
         path.map((k) => this.cy.getElementById(k)).filter((n) => n.nonempty())
       );
@@ -322,6 +346,34 @@ const SupervisionTree = {
       });
 
       nodeColl.union(edgeColl).addClass('in-path');
+    });
+  },
+
+  selectEdge(edge) {
+    const edgeId = edge.id();
+    const nextEdgeId = this.selectedEdgeId === edgeId ? null : edgeId;
+
+    this.cy.elements().removeClass('in-path');
+    this.applyEdgeHighlight(nextEdgeId);
+  },
+
+  applyEdgeHighlight(edgeId) {
+    this.selectedEdgeId = edgeId || null;
+
+    this.cy.batch(() => {
+      this.cy.elements().removeClass('selected dimmed');
+
+      if (!this.selectedEdgeId) return;
+
+      const edge = this.cy.getElementById(this.selectedEdgeId);
+      if (edge.empty() || !edge.isEdge()) {
+        this.selectedEdgeId = null;
+        return;
+      }
+
+      this.cy.edges().difference(edge).addClass('dimmed');
+      edge.addClass('selected');
+      edge.source().union(edge.target()).addClass('selected');
     });
   },
 
