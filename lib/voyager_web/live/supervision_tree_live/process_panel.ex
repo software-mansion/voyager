@@ -1,0 +1,333 @@
+defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
+  @moduledoc """
+  Side panel that displays details for a selected supervisor or worker process
+  in the supervision tree. Styled after the Elixir Explorer prototype detail
+  panel — type label, process name, and info-box kv sections.
+  """
+
+  use VoyagerWeb, :live_component
+
+  alias Phoenix.LiveView.AsyncResult
+  alias Voyager.Services.SupervisionTree.TreeNode
+
+  @impl true
+  def mount(socket) do
+    socket
+    |> assign(:node, nil)
+    |> assign(:open, false)
+    |> assign(:process_info, AsyncResult.loading())
+    |> ok()
+  end
+
+  @impl true
+  def update(%{id: id, node: node}, socket) do
+    socket
+    |> assign(:id, id)
+    |> maybe_assign_node(node)
+    |> ok()
+  end
+
+  # Keep the last node while sliding out so the panel doesn't blank mid-animation
+  defp maybe_assign_node(socket, nil), do: assign(socket, :open, false)
+
+  defp maybe_assign_node(socket, node) do
+    socket = assign(socket, :open, true)
+
+    if node_changed?(socket, node) do
+      socket
+      |> assign(:node, node)
+      |> assign(:process_info, AsyncResult.loading())
+      |> assign_async(:process_info, fn -> {:ok, %{process_info: fetch_process_info(node)}} end)
+    else
+      socket
+    end
+  end
+
+  defp node_changed?(socket, node) do
+    case socket.assigns[:node] do
+      %TreeNode{key: key} -> key != node.key
+      _ -> true
+    end
+  end
+
+  # Mocked process info fetch. The 2s sleep simulates the eventual remote call
+  # and runs inside the async Task, off the LiveView process.
+  defp fetch_process_info(node) do
+    Process.sleep(2000)
+
+    %{
+      initial_call: initial_call(node),
+      current_function: ":gen_server.loop/7",
+      registered_name: registered_name(node),
+      status: "waiting",
+      message_queue_len: "0",
+      group_leader: "<0.64.0>",
+      priority: "normal",
+      trap_exit: "false",
+      reductions: "128,942",
+      catch_level: "0",
+      links: ["<0.123.0>", "<0.124.0>", "<0.125.0>"],
+      memory: "2.6 KB",
+      stack_and_heaps: "376 words",
+      heap_size: "233 words",
+      stack_size: "10 words",
+      gc_min_heap_size: "233 words",
+      gc_fullsweep_after: "65535"
+    }
+  end
+
+  defp initial_call(%TreeNode{name: name}) when is_atom(name) and not is_nil(name),
+    do: "#{inspect(name)}.init/1"
+
+  defp initial_call(_), do: "proc_lib:init_p/5"
+
+  defp registered_name(%TreeNode{name: name}) when is_atom(name) and not is_nil(name),
+    do: inspect(name)
+
+  defp registered_name(_), do: "—"
+
+  @impl true
+  def render(assigns) do
+    ~H"""
+    <aside
+      id="process-panel"
+      class={[
+        "border-base-200 bg-base-100 z-60 absolute inset-y-0 right-0 flex w-full flex-col overflow-hidden border-l shadow-2xl transition-transform duration-300 ease-in-out lg:w-80",
+        if(@open, do: "translate-x-0", else: "translate-x-full")
+      ]}
+    >
+      <%= if @node do %>
+        <%!-- Header --%>
+        <div class="border-base-200 flex items-start gap-3 border-b px-5 py-4">
+          <div class="min-w-0 flex-1">
+            <p class="font-mono text-primary mb-1 text-xs uppercase tracking-widest">
+              {type_label(@node.type)}
+            </p>
+            <p class="font-mono text-base-content break-all text-sm font-medium">
+              {node_display_name(@node)}
+            </p>
+            <p class="font-mono text-base-content/40 mt-0.5 text-xs">
+              {node_pid_string(@node)}
+            </p>
+          </div>
+          <button
+            type="button"
+            id="process-panel-close"
+            phx-click="close-process-panel"
+            title="Close"
+            aria-label="Close panel"
+            class="border-base-200 text-base-content/40 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border transition-all hover:border-base-300 hover:bg-base-200 hover:text-base-content"
+          >
+            <.icon name="icon-x" class="size-3.5" />
+          </button>
+        </div>
+        <%!-- Scrollable body --%>
+        <div class="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
+          <.overview info={@process_info} />
+          <.links info={@process_info} />
+          <.memory_and_garbage_collection info={@process_info} />
+        </div>
+      <% end %>
+    </aside>
+    """
+  end
+
+  attr :info, AsyncResult, required: true
+
+  defp overview(assigns) do
+    ~H"""
+    <.section title="Overview">
+      <.async_result :let={info} assign={@info}>
+        <:loading>
+          <.info_box>
+            <.kv_skeleton label="Initial call" wide />
+            <.kv_skeleton label="Current function" wide />
+            <.kv_skeleton label="Registered name" />
+            <.kv_skeleton label="Status" narrow />
+            <.kv_skeleton label="Message queue len" narrow />
+            <.kv_skeleton label="Group leader" />
+            <.kv_skeleton label="Priority" narrow />
+            <.kv_skeleton label="Trap exit" narrow />
+            <.kv_skeleton label="Reductions" />
+            <.kv_skeleton label="Catch level" narrow last />
+          </.info_box>
+        </:loading>
+        <:failed>
+          <.load_error />
+        </:failed>
+        <.info_box>
+          <.kv label="Initial call" value={info.initial_call} />
+          <.kv label="Current function" value={info.current_function} />
+          <.kv label="Registered name" value={info.registered_name} />
+          <.kv label="Status" value={info.status} />
+          <.kv label="Message queue len" value={info.message_queue_len} />
+          <.kv label="Group leader" value={info.group_leader} />
+          <.kv label="Priority" value={info.priority} />
+          <.kv label="Trap exit" value={info.trap_exit} />
+          <.kv label="Reductions" value={info.reductions} />
+          <.kv label="Catch level" value={info.catch_level} last />
+        </.info_box>
+      </.async_result>
+    </.section>
+    """
+  end
+
+  attr :info, AsyncResult, required: true
+
+  defp links(assigns) do
+    ~H"""
+    <.section title="Links">
+      <.async_result :let={info} assign={@info}>
+        <:loading>
+          <div class="border-base-200 bg-base-200 flex flex-wrap gap-1.5 rounded-lg border px-3 py-2.5">
+            <.chip_skeleton />
+            <.chip_skeleton />
+            <.chip_skeleton />
+          </div>
+        </:loading>
+        <:failed>
+          <.load_error />
+        </:failed>
+        <div class="border-base-200 bg-base-200 flex flex-wrap gap-1.5 rounded-lg border px-3 py-2.5">
+          <.chip :for={pid <- info.links} pid={pid} />
+        </div>
+      </.async_result>
+    </.section>
+    """
+  end
+
+  attr :info, AsyncResult, required: true
+
+  defp memory_and_garbage_collection(assigns) do
+    ~H"""
+    <.section title="Memory and Garbage Collection">
+      <.async_result :let={info} assign={@info}>
+        <:loading>
+          <.info_box>
+            <.kv_skeleton label="Memory" narrow />
+            <.kv_skeleton label="Stack and heaps" narrow />
+            <.kv_skeleton label="Heap size" narrow />
+            <.kv_skeleton label="Stack size" narrow />
+            <.kv_skeleton label="GC min heap size" narrow />
+            <.kv_skeleton label="GC fullsweep after" narrow last />
+          </.info_box>
+        </:loading>
+        <:failed>
+          <.load_error />
+        </:failed>
+        <.info_box>
+          <.kv label="Memory" value={info.memory} />
+          <.kv label="Stack and heaps" value={info.stack_and_heaps} />
+          <.kv label="Heap size" value={info.heap_size} />
+          <.kv label="Stack size" value={info.stack_size} />
+          <.kv label="GC min heap size" value={info.gc_min_heap_size} />
+          <.kv label="GC fullsweep after" value={info.gc_fullsweep_after} last />
+        </.info_box>
+      </.async_result>
+    </.section>
+    """
+  end
+
+  attr :title, :string, required: true
+  attr :muted, :string, default: nil
+  slot :inner_block, required: true
+
+  defp section(assigns) do
+    ~H"""
+    <div>
+      <h4 class="text-base-content mb-2 text-sm font-semibold leading-none">
+        {@title}
+        <span :if={@muted} class="font-mono text-base-content/30 ml-1 text-xs font-normal">
+          {@muted}
+        </span>
+      </h4>
+      {render_slot(@inner_block)}
+    </div>
+    """
+  end
+
+  slot :inner_block, required: true
+
+  defp info_box(assigns) do
+    ~H"""
+    <div class="border-base-200 bg-base-200 rounded-lg border px-3.5">
+      {render_slot(@inner_block)}
+    </div>
+    """
+  end
+
+  attr :label, :string, required: true
+  attr :value, :string, required: true
+  attr :last, :boolean, default: false
+
+  defp kv(assigns) do
+    ~H"""
+    <div class={[
+      "font-mono grid grid-cols-2 items-baseline gap-4 py-2.5 text-xs",
+      not @last && "border-base-300/60 border-b"
+    ]}>
+      <span class="text-base-content/50 truncate">{@label}</span>
+      <span class="text-base-content truncate text-right" title={@value}>{@value}</span>
+    </div>
+    """
+  end
+
+  attr :pid, :string, required: true
+
+  defp chip(assigns) do
+    ~H"""
+    <span class="border-base-300 bg-base-100 text-base-content/80 font-mono rounded border px-2 py-0.5 text-xs">
+      {@pid}
+    </span>
+    """
+  end
+
+  defp load_error(assigns) do
+    ~H"""
+    <div class="border-error/30 bg-error/10 text-error rounded-lg border px-3 py-2.5 text-xs">
+      Failed to load process info.
+    </div>
+    """
+  end
+
+  attr :label, :string, required: true
+  attr :narrow, :boolean, default: false
+  attr :wide, :boolean, default: false
+  attr :last, :boolean, default: false
+
+  defp kv_skeleton(assigns) do
+    ~H"""
+    <div class={[
+      "font-mono grid grid-cols-2 items-baseline gap-4 py-2.5 text-xs",
+      not @last && "border-base-300/60 border-b"
+    ]}>
+      <span class="text-base-content/50 truncate">{@label}</span>
+      <div class={[
+        "skeleton h-2.5 shrink-0 justify-self-end rounded",
+        @narrow && "w-12",
+        @wide && "w-full",
+        (not @narrow and not @wide) && "w-20"
+      ]} />
+    </div>
+    """
+  end
+
+  defp chip_skeleton(assigns) do
+    ~H"""
+    <div class="skeleton h-6 w-16 rounded" />
+    """
+  end
+
+  defp type_label(:supervisor), do: "Supervisor"
+  defp type_label(:worker), do: "Worker"
+  defp type_label(type), do: type |> to_string() |> String.capitalize()
+
+  defp node_display_name(%TreeNode{name: name}) when is_atom(name) and not is_nil(name),
+    do: inspect(name)
+
+  defp node_display_name(%TreeNode{name: name}) when is_binary(name), do: name
+  defp node_display_name(%TreeNode{key: key}), do: key
+
+  defp node_pid_string(%TreeNode{pid: pid}) when is_pid(pid), do: inspect(pid)
+  defp node_pid_string(%TreeNode{key: key}), do: key
+end
