@@ -181,7 +181,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
     <.section title="Links" muted={@links_count}>
       <.async_result :let={info} assign={@info}>
         <:loading>
-          <div class="border-base-200 bg-base-200 flex flex-wrap gap-1.5 rounded-lg border px-3 py-2.5">
+          <div class="flex flex-wrap gap-1.5">
             <.chip_skeleton />
             <.chip_skeleton />
             <.chip_skeleton />
@@ -190,7 +190,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
         <:failed>
           <.load_error />
         </:failed>
-        <div class="border-base-200 bg-base-200 flex flex-wrap gap-1.5 rounded-lg border px-3 py-2.5">
+        <div class="flex flex-wrap gap-1.5">
           <.chip :for={pid <- info.links} pid={pid} />
         </div>
       </.async_result>
@@ -255,7 +255,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
 
   defp info_box(assigns) do
     ~H"""
-    <div class="border-base-200 bg-base-200 rounded-lg border px-3.5">
+    <div>
       {render_slot(@inner_block)}
     </div>
     """
@@ -280,10 +280,17 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
   attr :pid, :string, required: true
 
   defp chip(assigns) do
+    # Redirecting will be available after #41 and #99
     ~H"""
-    <span class="border-base-300 bg-base-100 text-base-content/80 font-mono rounded border px-2 py-0.5 text-xs">
+    <button
+      type="button"
+      disabled
+      title={@pid}
+      class="border-base-400 bg-base-200 text-base-content font-mono inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs"
+    >
+      <span class="bg-primary h-1.5 w-1.5 rounded-full" />
       {@pid}
-    </span>
+    </button>
     """
   end
 
