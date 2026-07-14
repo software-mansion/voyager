@@ -354,15 +354,17 @@ const SupervisionTree = {
     const nextEdgeId =
       this.selectedEdgeId === clickedEdgeId ? null : clickedEdgeId;
 
-    this.cy.elements().removeClass('in-path');
-    this.applyEdgeHighlight(nextEdgeId);
+    this.cy.batch(() => {
+      this.cy.elements().removeClass('in-path');
+      this.applyEdgeHighlight(nextEdgeId);
+    });
   },
 
   applyEdgeHighlight(edgeId) {
     this.selectedEdgeId = edgeId || null;
 
     this.cy.batch(() => {
-      this.cy.elements().removeClass('selected dimmed');
+      this.cy.elements('.selected, .dimmed').removeClass('selected dimmed');
 
       if (!this.selectedEdgeId) return;
 
