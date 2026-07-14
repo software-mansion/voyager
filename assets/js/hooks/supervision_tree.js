@@ -350,8 +350,8 @@ const SupervisionTree = {
   },
 
   selectEdge(edge) {
-    const edgeId = edge.id();
-    const nextEdgeId = this.selectedEdgeId === edgeId ? null : edgeId;
+    const clickedEdgeId = edge.id();
+    const nextEdgeId = this.selectedEdgeId === clickedEdgeId ? null : clickedEdgeId;
 
     this.cy.elements().removeClass('in-path');
     this.applyEdgeHighlight(nextEdgeId);
