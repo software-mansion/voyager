@@ -175,8 +175,10 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
   attr :info, AsyncResult, required: true
 
   defp links(assigns) do
+    assigns = assign(assigns, :links_count, links_count(assigns.info))
+
     ~H"""
-    <.section title="Links">
+    <.section title="Links" muted={@links_count}>
       <.async_result :let={info} assign={@info}>
         <:loading>
           <div class="border-base-200 bg-base-200 flex flex-wrap gap-1.5 rounded-lg border px-3 py-2.5">
@@ -195,6 +197,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
     </.section>
     """
   end
+
+  defp links_count(%AsyncResult{ok?: true, result: %{links: links}}), do: "(#{length(links)})"
+  defp links_count(_), do: nil
 
   attr :info, AsyncResult, required: true
 
