@@ -221,6 +221,8 @@ const SupervisionTree = {
             if (patch.parent_key) {
               this.cy.add(edgeElement(patch.parent_key, key));
             }
+
+            node.data('is_from_relation', patch.parent_key === null);
           }
 
           node.data(field, value);
