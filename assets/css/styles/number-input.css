@@ -2,9 +2,9 @@
 
    Tauri embeds a different webview per platform — WebKit on macOS and Linux,
    Chromium (WebView2) on Windows — and each draws its own tiny, differently
-   styled spinner buttons that are fiddly to hit. We suppress them everywhere
+   styled spinner buttons that are fiddly to hit. We suppress them
    and replace them with the larger, consistent −/+ stepper buttons rendered by
-   the `<.input type="number">` component. */
+   the `<.input type="number-stepper">` component. */
 .no-spinner::-webkit-outer-spin-button,
 .no-spinner::-webkit-inner-spin-button {
   -webkit-appearance: none;

@@ -1,4 +1,4 @@
-// Drives the −/+ buttons of a `<.input type="number">` stepper.
+// Drives the −/+ buttons of a `<.input type="number-stepper">` stepper.
 //
 // The native number-input spinners are hidden (see number-input.css) because
 // they render tiny and inconsistently across the WebKit/Chromium webviews Tauri
