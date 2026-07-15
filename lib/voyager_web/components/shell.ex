@@ -12,12 +12,13 @@ defmodule VoyagerWeb.Components.Shell do
 
   attr :active_nav, :atom, default: nil
   attr :session, Session, default: nil
+  attr :current_path, :string, default: nil
   slot :inner_block, required: true
 
   def shell(assigns) do
     ~H"""
     <div class="bg-base-200 flex h-screen flex-col overflow-hidden">
-      <.topbar active_nav={@active_nav} session={@session} />
+      <.topbar active_nav={@active_nav} session={@session} current_path={@current_path} />
 
       <div class="flex flex-1 overflow-hidden">
         <.sidebar active_nav={@active_nav} session={@session} />
@@ -34,6 +35,7 @@ defmodule VoyagerWeb.Components.Shell do
 
   attr :active_nav, :atom, default: nil
   attr :session, Session, default: nil
+  attr :current_path, :string, default: nil
 
   defp topbar(assigns) do
     ~H"""
@@ -43,7 +45,9 @@ defmodule VoyagerWeb.Components.Shell do
       </div>
       <div class="navbar-end gap-1">
         <.link
-          navigate={~p"/settings?#{[return_to: settings_return_to(@active_nav, @session)]}"}
+          navigate={
+            ~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_path)]}"
+          }
           id="open-settings"
           title="Settings"
           class="btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-base-content"
@@ -148,16 +152,21 @@ defmodule VoyagerWeb.Components.Shell do
     """
   end
 
-  defp node_path(nil), do: nil
-  defp node_path(%Session{node_name: node_name}), do: ~p"/node/#{node_name}"
-
-  defp node_path(nil, _), do: nil
+  defp node_path(session, path \\ nil)
+  defp node_path(nil, _path), do: nil
+  defp node_path(%Session{node_name: node_name}, nil), do: ~p"/node/#{node_name}"
 
   defp node_path(%Session{node_name: node_name}, "supervision-tree"),
     do: ~p"/node/#{node_name}/supervision-tree"
 
-  defp settings_return_to(:supervision_tree, session), do: node_path(session, "supervision-tree")
-  defp settings_return_to(_active_nav, session), do: node_path(session) || "/"
+  defp settings_return_to(active_nav, session, current_path) do
+    current_path || settings_return_to_fallback(active_nav, session)
+  end
+
+  defp settings_return_to_fallback(:supervision_tree, session),
+    do: node_path(session, "supervision-tree")
+
+  defp settings_return_to_fallback(_active_nav, session), do: node_path(session) || "/"
 
   attr :session, Session, default: nil
 

@@ -67,8 +67,8 @@ defmodule VoyagerWeb.SettingsLive do
 
   defp safe_return_to(path) when is_binary(path) do
     case URI.parse(path) do
-      %URI{scheme: nil, host: nil, path: "/" <> rest} ->
-        if String.starts_with?(rest, "/") or String.starts_with?(rest, "\\") do
+      %URI{scheme: nil, host: nil, path: "/" <> _ = route_path} ->
+        if Phoenix.Router.route_info(VoyagerWeb.Router, "GET", route_path, "") == :error do
           "/"
         else
           path

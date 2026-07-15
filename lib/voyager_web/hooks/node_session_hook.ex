@@ -25,9 +25,20 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
         |> assign(:session, session)
         |> attach_hook(:nodedown_redirect, :handle_info, &handle_nodedown/2)
         |> attach_hook(:disconnect, :handle_event, &handle_disconnect/3)
+        |> attach_hook(:track_current_path, :handle_params, &track_current_path/3)
 
       {:cont, socket}
     end
+  end
+
+  defp track_current_path(_params, uri, socket) do
+    {:cont, assign(socket, :current_path, current_path(uri))}
+  end
+
+  defp current_path(uri) do
+    uri = URI.parse(uri)
+
+    if uri.query, do: uri.path <> "?" <> uri.query, else: uri.path
   end
 
   defp handle_nodedown(
