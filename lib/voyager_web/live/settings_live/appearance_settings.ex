@@ -47,11 +47,18 @@ defmodule VoyagerWeb.SettingsLive.AppearanceSettings do
                     btn.classList.toggle("btn-active", btn.dataset.phxTheme === active)
                   })
                 }
+
+                this.onStorage = (e) => {
+                  if (e.key === "phx:theme") this.sync()
+                }
+
                 this.sync()
                 window.addEventListener("phx:set-theme", this.sync)
+                window.addEventListener("storage", this.onStorage)
               },
               destroyed() {
                 window.removeEventListener("phx:set-theme", this.sync)
+                window.removeEventListener("storage", this.onStorage)
               }
             }
           </script>
