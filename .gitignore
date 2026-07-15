@@ -50,4 +50,5 @@ npm-debug.log
 *.db
 *.db-*
 
+*.beam
 .DS_Store

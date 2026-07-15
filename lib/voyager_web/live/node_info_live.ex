@@ -45,34 +45,12 @@ defmodule VoyagerWeb.NodeInfoLive do
     <div class="mx-auto max-w-screen-2xl p-6 sm:p-8">
       <.node_header node_name={@session.node_name} last_updated={@last_updated}>
         <:actions>
-          <label class="font-mono text-base-content/50 tracking-label text-xs uppercase">
-            Auto-refresh
-          </label>
-          <form phx-change="set_interval" id="refresh-interval-form">
-            <select
-              name="interval"
-              id="refresh-interval"
-              class="select select-bordered select-sm font-mono pr-8 text-xs"
-            >
-              <option
-                :for={{label, value} <- interval_options()}
-                value={value}
-                selected={value == interval_value(@refresh_interval)}
-              >
-                {label}
-              </option>
-            </select>
-          </form>
-          <button
-            type="button"
-            phx-click="refresh"
-            phx-throttle="1000"
-            id="refresh-now"
-            title="Refresh now"
-            class="btn btn-sm btn-ghost btn-square"
-          >
-            <.icon name="icon-rotate-cw" class={["size-4", @snapshot.loading && "animate-spin"]} />
-          </button>
+          <.interval_select
+            id="refresh-interval"
+            options={interval_options()}
+            refresh_interval={@refresh_interval}
+            loading={@snapshot.loading}
+          />
         </:actions>
       </.node_header>
 
@@ -160,7 +138,7 @@ defmodule VoyagerWeb.NodeInfoLive do
   end
 
   @impl true
-  def handle_event("refresh", _params, socket) do
+  def handle_event("refresh_now", _params, socket) do
     socket |> fetch_snapshot() |> noreply()
   end
 
@@ -267,9 +245,6 @@ defmodule VoyagerWeb.NodeInfoLive do
   end
 
   defp interval_options, do: @interval_options
-
-  defp interval_value(nil), do: "off"
-  defp interval_value(ms), do: Integer.to_string(ms)
 
   defp parse_interval("off"), do: nil
 

@@ -13,10 +13,25 @@ pub fn run() {
         .enable_macos_default_menu(false)
         .plugin(tauri_plugin_opener::init())
         .setup(move |app| {
-            #[cfg(target_os = "macos")] // Remove default menu on macOS
+            #[cfg(target_os = "macos")]
             {
-                let app_menu = SubmenuBuilder::new(app, "Voyager").quit().build()?;
-                let menu = MenuBuilder::new(app).item(&app_menu).build()?;
+                let app_menu = SubmenuBuilder::new(app, "Voyager")
+                    .about(None)
+                    .quit()
+                    .build()?;
+
+                let edit_menu = SubmenuBuilder::new(app, "Edit")
+                    .cut()
+                    .copy()
+                    .paste()
+                    .undo()
+                    .redo()
+                    .select_all()
+                    .build()?;
+
+                let menu = MenuBuilder::new(app)
+                    .items(&[&app_menu, &edit_menu])
+                    .build()?;
                 app.set_menu(menu)?;
             }
 

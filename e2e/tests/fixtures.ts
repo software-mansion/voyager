@@ -9,4 +9,9 @@ export const sel = {
   recentConnections: '#recent-connections',
   nodeInfoContent: '#node-info-content',
   nodeInfoLoading: '#node-info-loading',
+  stStatus: '#supervision-tree-status',
+  stRefresh: '#refresh-interval-refresh-now-button',
+  stBody: '#supervision-tree-body',
+  stControls: '#supervision-tree-controls',
+  stErrors: '#supervision-tree-errors',
 };

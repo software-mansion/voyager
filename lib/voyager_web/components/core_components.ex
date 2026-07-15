@@ -102,6 +102,68 @@ defmodule VoyagerWeb.CoreComponents do
   end
 
   @doc """
+  Renders a form with select input with specified refresh interval options and
+  button to refresh manually.
+
+  ## Examples
+
+      <.interval_select
+        options={[
+          {"Off", "off"},
+          {"1s", "1000"},
+          {"2s", "2000"},
+        ]}
+        refresh_interval={@refresh_interval} # number of milliseconds or nil
+        loading={@loading}
+      />
+  """
+  attr :id, :string, default: nil
+  attr :options, :list, required: true
+  attr :refresh_interval, :integer, default: nil
+  attr :loading, :boolean, required: true
+
+  def interval_select(assigns) do
+    ~H"""
+    <div class="flex items-center gap-2">
+      <label class="font-mono text-base-content/50 tracking-label text-xs uppercase">
+        Auto-refresh
+      </label>
+      <form phx-change="set_interval" id={"#{@id}-form"}>
+        <select
+          name="interval"
+          id={@id}
+          class="select select-bordered select-sm font-mono pr-8 text-xs"
+        >
+          <option
+            :for={{label, value} <- @options}
+            value={value}
+            selected={value == interval_value(@refresh_interval)}
+          >
+            {label}
+          </option>
+        </select>
+      </form>
+      <button
+        type="button"
+        phx-click="refresh_now"
+        phx-throttle="1000"
+        id={"#{@id}-refresh-now-button"}
+        title="Refresh now"
+        class="btn btn-sm btn-ghost btn-square"
+      >
+        <.icon
+          name="icon-rotate-cw"
+          class={["size-4", @loading && "animate-spin"]}
+        />
+      </button>
+    </div>
+    """
+  end
+
+  defp interval_value(nil), do: "off"
+  defp interval_value(ms), do: Integer.to_string(ms)
+
+  @doc """
   Renders an icon from `assets/css/icons/`. The Tailwind plugin at
   `assets/vendor/icons.js` generates an `icon-{name}` CSS class for each
   SVG file in that directory.
@@ -136,7 +198,7 @@ defmodule VoyagerWeb.CoreComponents do
   def logo(assigns) do
     ~H"""
     <div class={[
-      "from-primary to-secondary shadow-logo-glow relative h-7 w-7 shrink-0 rounded-md bg-gradient-to-br",
+      "from-primary to-secondary shadow-logo-glow relative m-1 h-7 w-7 shrink-0 rounded-md bg-gradient-to-br",
       @class
     ]}>
       <div class="bg-base-100 shadow-logo-inset absolute inset-1 rounded-sm"></div>
@@ -354,6 +416,53 @@ defmodule VoyagerWeb.CoreComponents do
   end
 
   @doc """
+  Renders a tooltip trigger with a content slot, and optionally appends an external
+  documentation link (when `doc_href` is set).
+
+  This is a thin wrapper over `tooltip/1`.
+  """
+  attr :id, :string, required: true, doc: "unique DOM id for the trigger"
+
+  attr :position, :string,
+    default: "top",
+    values: ~w(top bottom left right),
+    doc: "preferred side to place the tooltip"
+
+  attr :doc_href, :string,
+    default: nil,
+    doc: "when set, renders a documentation link at the bottom of the tooltip"
+
+  attr :doc_label, :string, default: "Learn more", doc: "label for the documentation link"
+
+  attr :interactive, :boolean,
+    default: true,
+    doc: "when true, the tip can be hovered into and pinned open with a click"
+
+  slot :inner_block, required: true, doc: "the hover/focus target"
+  slot :content, required: true, doc: "tooltip content"
+
+  def link_tooltip(assigns) do
+    ~H"""
+    <.tooltip id={@id} position={@position} interactive={@interactive}>
+      {render_slot(@inner_block)}
+      <:content>
+        {render_slot(@content)}
+        <a
+          :if={@doc_href}
+          href={@doc_href}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-primary mt-2 flex w-fit items-center gap-1 font-medium underline-offset-2 transition-colors hover:text-primary hover:underline"
+        >
+          {@doc_label}
+          <.icon name="icon-external-link" class="size-3" />
+        </a>
+      </:content>
+    </.tooltip>
+    """
+  end
+
+  @doc """
   Renders a round "?" help affordance that reveals a tooltip on hover/focus.
 
   Thin wrapper over `tooltip/1` that supplies the "?" trigger button. Pass plain
@@ -392,7 +501,13 @@ defmodule VoyagerWeb.CoreComponents do
 
   def help_tooltip(assigns) do
     ~H"""
-    <.tooltip id={@id} position={@position} interactive={@interactive}>
+    <.link_tooltip
+      id={@id}
+      position={@position}
+      doc_href={@doc_href}
+      doc_label={@doc_label}
+      interactive={@interactive}
+    >
       <button
         type="button"
         aria-label="Help"
@@ -411,18 +526,8 @@ defmodule VoyagerWeb.CoreComponents do
         <% else %>
           {@text}
         <% end %>
-        <a
-          :if={@doc_href}
-          href={@doc_href}
-          target="_blank"
-          rel="noopener noreferrer"
-          class="text-primary mt-2 flex w-fit items-center gap-1 font-medium underline-offset-2 transition-colors hover:text-primary hover:underline"
-        >
-          {@doc_label}
-          <.icon name="icon-external-link" class="size-3" />
-        </a>
       </:content>
-    </.tooltip>
+    </.link_tooltip>
     """
   end
 
