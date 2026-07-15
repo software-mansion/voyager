@@ -98,6 +98,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         module={VoyagerWeb.SupervisionTreeLive.ProcessPanel}
         id="process-panel"
         node={@selected_node}
+        remote_node={@session.node}
       />
     </div>
     """

@@ -8,21 +8,24 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
   use VoyagerWeb, :live_component
 
   alias Phoenix.LiveView.AsyncResult
+  alias Voyager.Services.ProcessInfo
   alias Voyager.Services.SupervisionTree.TreeNode
 
   @impl true
   def mount(socket) do
     socket
     |> assign(:node, nil)
+    |> assign(:remote_node, nil)
     |> assign(:open, false)
     |> assign(:process_info, AsyncResult.loading())
     |> ok()
   end
 
   @impl true
-  def update(%{id: id, node: node}, socket) do
+  def update(%{id: id, node: node, remote_node: remote_node}, socket) do
     socket
     |> assign(:id, id)
+    |> assign(:remote_node, remote_node)
     |> maybe_assign_node(node)
     |> ok()
   end
@@ -34,10 +37,13 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
     socket = assign(socket, :open, true)
 
     if node_changed?(socket, node) do
+      remote_node = socket.assigns.remote_node
+      pid = node.pid
+
       socket
       |> assign(:node, node)
       |> assign(:process_info, AsyncResult.loading())
-      |> assign_async(:process_info, fn -> {:ok, %{process_info: fetch_process_info(node)}} end)
+      |> assign_async(:process_info, fn -> fetch_process_info(remote_node, pid) end)
     else
       socket
     end
@@ -50,41 +56,12 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
     end
   end
 
-  # Mocked process info fetch. The 2s sleep simulates the eventual remote call
-  # and runs inside the async Task, off the LiveView process.
-  defp fetch_process_info(node) do
-    Process.sleep(2000)
-
-    %{
-      initial_call: initial_call(node),
-      current_function: ":gen_server.loop/7",
-      registered_name: registered_name(node),
-      status: "waiting",
-      message_queue_len: "0",
-      group_leader: "<0.64.0>",
-      priority: "normal",
-      trap_exit: "false",
-      reductions: "128,942",
-      catch_level: "0",
-      links: ["<0.123.0>", "<0.124.0>", "<0.125.0>"],
-      memory: "2.6 KB",
-      stack_and_heaps: "376 words",
-      heap_size: "233 words",
-      stack_size: "10 words",
-      gc_min_heap_size: "233 words",
-      gc_fullsweep_after: "65535"
-    }
+  defp fetch_process_info(remote_node, pid) do
+    case ProcessInfo.fetch(remote_node, pid) do
+      {:ok, info} -> {:ok, %{process_info: info}}
+      {:error, reason} -> {:error, reason}
+    end
   end
-
-  defp initial_call(%TreeNode{name: name}) when is_atom(name) and not is_nil(name),
-    do: "#{inspect(name)}.init/1"
-
-  defp initial_call(_), do: "proc_lib:init_p/5"
-
-  defp registered_name(%TreeNode{name: name}) when is_atom(name) and not is_nil(name),
-    do: inspect(name)
-
-  defp registered_name(_), do: "—"
 
   @impl true
   def render(assigns) do
@@ -92,7 +69,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
     <aside
       id="process-panel"
       class={[
-        "border-base-200 bg-base-100 z-60 absolute inset-y-0 right-0 flex w-full flex-col overflow-hidden border-l shadow-2xl transition-transform duration-300 ease-in-out lg:w-80",
+        "border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex w-full flex-col overflow-hidden border-l shadow-2xl transition-transform duration-300 ease-in-out lg:w-80",
         if(@open, do: "translate-x-0", else: "translate-x-full")
       ]}
     >
