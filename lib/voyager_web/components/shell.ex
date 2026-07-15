@@ -149,6 +149,11 @@ defmodule VoyagerWeb.Components.Shell do
           </.nav_item>
         <% end %>
 
+        <li class="px-0">
+          <div class="border-base-300 my-4 border-t p-0"></div>
+        </li>
+        <li class="menu-title tracking-label mb-3 p-0 text-xs uppercase">Coming Soon</li>
+
         <%= for page <- coming_soon_pages() do %>
           <.nav_item
             active={@active_nav == page.feature}
