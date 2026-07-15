@@ -11,6 +11,7 @@ defmodule VoyagerWeb.SettingsLive.DistributionSettings do
   def update(assigns, socket) do
     socket
     |> assign(assigns)
+    |> assign_new(:form, &distribution_settings_form/0)
     |> assign(:locked?, Settings.locked?(:distribution_suffix))
     |> ok()
   end
