@@ -241,8 +241,8 @@ defmodule VoyagerWeb.Components.Shell do
   defp node_path(%Session{node_name: node_name}, nil),
     do: ~p"/node/#{node_name}"
 
-defp node_path(%Session{node_name: node_name}, path),
-  do: "/node/#{URI.encode(node_name)}/#{path}"
+  defp node_path(%Session{node_name: node_name}, path),
+    do: "/node/#{URI.encode(node_name)}/#{path}"
 
   attr :session, Session, default: nil
 
