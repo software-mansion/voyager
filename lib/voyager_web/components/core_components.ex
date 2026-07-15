@@ -102,6 +102,68 @@ defmodule VoyagerWeb.CoreComponents do
   end
 
   @doc """
+  Renders a form with select input with specified refresh interval options and
+  button to refresh manually.
+
+  ## Examples
+
+      <.interval_select
+        options={[
+          {"Off", "off"},
+          {"1s", "1000"},
+          {"2s", "2000"},
+        ]}
+        refresh_interval={@refresh_interval} # number of milliseconds or nil
+        loading={@loading}
+      />
+  """
+  attr :id, :string, default: nil
+  attr :options, :list, required: true
+  attr :refresh_interval, :integer, default: nil
+  attr :loading, :boolean, required: true
+
+  def interval_select(assigns) do
+    ~H"""
+    <div class="flex items-center gap-2">
+      <label class="font-mono text-base-content/50 tracking-label text-xs uppercase">
+        Auto-refresh
+      </label>
+      <form phx-change="set_interval" id={"#{@id}-form"}>
+        <select
+          name="interval"
+          id={@id}
+          class="select select-bordered select-sm font-mono pr-8 text-xs"
+        >
+          <option
+            :for={{label, value} <- @options}
+            value={value}
+            selected={value == interval_value(@refresh_interval)}
+          >
+            {label}
+          </option>
+        </select>
+      </form>
+      <button
+        type="button"
+        phx-click="refresh_now"
+        phx-throttle="1000"
+        id={"#{@id}-refresh-now-button"}
+        title="Refresh now"
+        class="btn btn-sm btn-ghost btn-square"
+      >
+        <.icon
+          name="icon-rotate-cw"
+          class={["size-4", @loading && "animate-spin"]}
+        />
+      </button>
+    </div>
+    """
+  end
+
+  defp interval_value(nil), do: "off"
+  defp interval_value(ms), do: Integer.to_string(ms)
+
+  @doc """
   Renders an icon from `assets/css/icons/`. The Tailwind plugin at
   `assets/vendor/icons.js` generates an `icon-{name}` CSS class for each
   SVG file in that directory.
@@ -136,7 +198,7 @@ defmodule VoyagerWeb.CoreComponents do
   def logo(assigns) do
     ~H"""
     <div class={[
-      "from-primary to-secondary shadow-logo-glow relative h-7 w-7 shrink-0 rounded-md bg-gradient-to-br",
+      "from-primary to-secondary shadow-logo-glow relative m-1 h-7 w-7 shrink-0 rounded-md bg-gradient-to-br",
       @class
     ]}>
       <div class="bg-base-100 shadow-logo-inset absolute inset-1 rounded-sm"></div>

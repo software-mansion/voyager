@@ -15,13 +15,20 @@ defmodule Voyager.Services.SupervisionTree.Remote do
 
   @doc """
   Returns the list of OTP applications running on `node`.
-
-  Calls `:application.which_applications/0` via `:erpc`.
   """
-  @spec list_applications(node()) ::
+  @spec list_running_applications(node()) ::
           {:ok, [{atom(), charlist(), charlist()}]} | {:error, term()}
-  def list_applications(node) do
-    call(node, :application, :which_applications, [], @timeout_fast)
+  def list_running_applications(node) do
+    with {:ok, apps} <- call(node, :application, :which_applications, [], @timeout_fast),
+         {:ok, masters} <- app_masters(node, Enum.map(apps, fn {a, _, _} -> a end)) do
+      running_apps =
+        apps
+        |> Enum.zip(masters)
+        |> Enum.filter(fn {_, master} -> master != :undefined end)
+        |> Enum.map(fn {app, _} -> app end)
+
+      {:ok, running_apps}
+    end
   end
 
   @doc """

@@ -13,5 +13,7 @@ config :voyager, Voyager.Vault,
     default: {Cloak.Ciphers.AES.GCM, tag: "AES.GCM.V1", key: <<0::256>>}
   ]
 
+config :voyager, :distribution_suffix, "_e2e"
+
 config :logger, level: :warning
 config :phoenix, :plug_init_mode, :runtime

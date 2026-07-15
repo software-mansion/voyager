@@ -5,7 +5,13 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
 
   use VoyagerWeb, :component
 
-  alias VoyagerWeb.FormSchemas.SupervisionTreeControls
+  @interval_options [
+    {"Off", "off"},
+    {"5s", "5000"},
+    {"10s", "10000"},
+    {"30s", "30000"},
+    {"60s", "60000"}
+  ]
 
   @erts "https://www.erlang.org/doc/apps/erts/erlang.html"
   @supervisor "https://www.erlang.org/doc/apps/stdlib/supervisor.html"
@@ -100,6 +106,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
   attr :node_name, :string, required: true
   attr :status, :atom, required: true
   attr :last_updated, :any, required: true
+  attr :refresh_interval, :integer, default: nil
 
   def header(assigns) do
     ~H"""
@@ -110,92 +117,17 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
         waiting_message="waiting for first fetch…"
       >
         <:actions>
-          <span class={["badge", status_badge_class(@status)]}>
+          <span id="supervision-tree-status" class={["badge mr-2", status_badge_class(@status)]}>
             {status_label(@status)}
           </span>
-          <button
-            type="button"
-            phx-click="refresh-now"
-            phx-throttle="1000"
-            id="supervision-tree-refresh"
-            title="Refresh now"
-            class="btn btn-sm btn-ghost"
-          >
-            <.icon
-              name="icon-rotate-cw"
-              class={["size-4", @status == :loading && "animate-spin"]}
-            />
-          </button>
+          <.interval_select
+            id="refresh-interval"
+            options={interval_options()}
+            refresh_interval={@refresh_interval}
+            loading={@status == :loading}
+          />
         </:actions>
       </.node_header>
-    </div>
-    """
-  end
-
-  attr :form, Phoenix.HTML.Form, required: true
-  attr :available_apps, :list, required: true
-  attr :selected_apps, MapSet, required: true
-  attr :open?, :boolean, required: true
-
-  def controls(assigns) do
-    ~H"""
-    <div class="card bg-base-100 border-base-200 border shadow-sm">
-      <div class="card-body py-3">
-        <.form
-          for={@form}
-          id="supervision-tree-controls"
-          phx-change="select-apps"
-          phx-submit="select-apps"
-          class="flex items-start"
-        >
-          <.collapsible id="apps" phx-click="toggle-apps-open" open={@open?} class="flex-1">
-            <:label>
-              <h2 class="text-base-content ml-2 text-center text-sm font-semibold leading-8">
-                Applications
-              </h2>
-            </:label>
-            <div class="flex flex-wrap gap-2 py-4">
-              <%= if @available_apps == [] do %>
-                <span class="text-base-content/50 text-sm italic">No applications available</span>
-              <% else %>
-                <%= for {app, vsn} <- @available_apps do %>
-                  <label class={[
-                    "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors",
-                    MapSet.member?(@selected_apps, app) && "border-primary bg-primary/10 text-primary",
-                    not MapSet.member?(@selected_apps, app) &&
-                      "border-base-300 bg-base-200 text-base-content hover:border-primary/50"
-                  ]}>
-                    <input
-                      type="checkbox"
-                      name="tree_controls[apps][]"
-                      value={to_string(app)}
-                      checked={MapSet.member?(@selected_apps, app)}
-                      class="checkbox checkbox-xs checkbox-primary"
-                    />
-                    <span class="font-mono">{app}</span>
-                    <span class="badge badge-ghost badge-xs">{vsn}</span>
-                  </label>
-                <% end %>
-              <% end %>
-            </div>
-          </.collapsible>
-          <div class="flex items-start gap-2">
-            <label class="label text-base-content/60 text-xs leading-8" for={@form[:depth].id}>
-              Depth
-            </label>
-            <div class="w-20">
-              <.input
-                field={@form[:depth]}
-                type="number"
-                step="1"
-                min={SupervisionTreeControls.min_depth()}
-                class="input-sm text-center"
-                phx-debounce="250"
-              />
-            </div>
-          </div>
-        </.form>
-      </div>
     </div>
     """
   end
@@ -206,7 +138,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
     ~H"""
     <%= if @errors != [] do %>
       <div id="supervision-tree-errors" class="alert alert-error">
-        <.icon name="icon-circle-alert" class="size-4 shrink-0" />
+        <.icon name="icon-circle-alert" class="size-5 shrink-0" />
         <div class="w-full">
           <p class="font-semibold">Errors encountered</p>
           <ul class="max-h-[10vh] mt-1 w-full list-inside list-disc overflow-auto text-sm">
@@ -214,6 +146,17 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
               <li>{inspect(err)}</li>
             <% end %>
           </ul>
+        </div>
+        <div class="h-full">
+          <button
+            type="button"
+            phx-click="dismiss_errors"
+            title="Dismiss errors"
+            aria-label="Dismiss errors"
+            class="cursor-pointer rounded p-1 hover:bg-black/10"
+          >
+            <.icon name="icon-x" class="size-5" />
+          </button>
         </div>
       </div>
     <% end %>
@@ -279,7 +222,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                     phx-click={JS.dispatch("zoom-in", to: "#supervision-tree-body")}
                     title="Zoom graph in"
                     aria-label="Zoom graph in"
-                    class="h-8 w-8 cursor-pointer hover:bg-base-300"
+                    class="h-8 w-8 cursor-pointer rounded hover:bg-base-300"
                   >
                     <.icon name="icon-plus" class="size-5" />
                   </button>
@@ -288,7 +231,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                     phx-click={JS.dispatch("zoom-out", to: "#supervision-tree-body")}
                     title="Zoom graph out"
                     aria-label="Zoom graph out"
-                    class="h-8 w-8 cursor-pointer hover:bg-base-300"
+                    class="h-8 w-8 cursor-pointer rounded hover:bg-base-300"
                   >
                     <.icon name="icon-minus" class="size-5" />
                   </button>
@@ -297,7 +240,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                     phx-click={JS.dispatch("maximize", to: "#supervision-tree-body")}
                     title="Fit graph to view"
                     aria-label="Fit graph to view"
-                    class="h-8 w-8 cursor-pointer hover:bg-base-300"
+                    class="h-8 w-8 cursor-pointer rounded hover:bg-base-300"
                   >
                     <.icon name="icon-maximize" class="size-5" />
                   </button>
@@ -360,6 +303,15 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
     </.link_tooltip>
     """
   end
+
+  defp interval_options, do: @interval_options
+
+  def default_refresh_interval,
+    do:
+      interval_options()
+      |> Enum.at(1)
+      |> elem(1)
+      |> String.to_integer()
 
   defp node_legends, do: @node_legends
   defp edge_legends, do: @edge_legends
