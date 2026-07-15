@@ -51,7 +51,6 @@ defmodule VoyagerWeb.Components.Shell do
         >
           <.icon name="icon-settings" class="size-4" />
         </.link>
-        <.theme_toggle />
         <button
           type="button"
           phx-click="disconnect"
@@ -61,30 +60,6 @@ defmodule VoyagerWeb.Components.Shell do
           <.icon name="icon-log-out" class="size-4" />
         </button>
       </div>
-    </div>
-    """
-  end
-
-  defp theme_toggle(assigns) do
-    ~H"""
-    <div class="card border-base-300 bg-base-300 relative flex flex-row items-center rounded-full border-2">
-      <div class="border-base-200 bg-base-100 [[data-theme=dark]_&]:left-1/2 transition-left absolute left-0 h-full w-1/2 rounded-full border brightness-110" />
-      <button
-        class="relative flex w-1/2 cursor-pointer p-2"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="light"
-        title="Light"
-      >
-        <.icon name="icon-sun" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
-      <button
-        class="relative flex w-1/2 cursor-pointer p-2"
-        phx-click={JS.dispatch("phx:set-theme")}
-        data-phx-theme="dark"
-        title="Dark"
-      >
-        <.icon name="icon-moon" class="size-4 opacity-75 hover:opacity-100" />
-      </button>
     </div>
     """
   end
