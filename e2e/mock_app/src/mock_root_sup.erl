@@ -20,13 +20,19 @@ init([]) ->
         sup_spec(mock_deep_sup, mock_deep_sup_3, [worker_spec(mock_leaf_worker)]),
     DeepSup2 = sup_spec(mock_deep_sup, mock_deep_sup_2, [DeepSup3]),
     DeepSup1 = sup_spec(mock_deep_sup, mock_deep_sup_1, [DeepSup2]),
-    RelSupA = sup_spec(mock_deep_sup, rel_sup_a, [worker_spec(rel_leaf_a)]),
-    DynSupA = sup_spec(mock_dyn_sup, mock_dyn_sup_a, [RelSupA]),
-    RelSupB = sup_spec(mock_deep_sup, rel_sup_b, [worker_spec(rel_leaf_b)]),
-    DynSupB = sup_spec(mock_dyn_sup, mock_dyn_sup_b, [RelSupB, worker_spec(mock_dyn_worker_b1)]),
+
+    RelDeepSupA = sup_spec(mock_deep_sup, mock_rel_deep_sup_a, [worker_spec(mock_rel_leaf_a)]),
+    RelSupA = sup_spec(mock_deep_sup, mock_rel_sup_a, [RelDeepSupA]),
+
+    RelDeepSupB = sup_spec(mock_deep_sup, mock_rel_deep_sup_b, [worker_spec(mock_rel_leaf_b)]),
+    RelSupB = sup_spec(mock_deep_sup, mock_rel_sup_b, [RelDeepSupB]),
+
+    DynSupA = sup_spec(mock_dyn_sup, mock_dyn_sup_a, []),
+    DynSupB = sup_spec(mock_dyn_sup, mock_dyn_sup_b, [worker_spec(mock_dyn_worker_b1)]),
+
     {ok,
      {#{strategy => one_for_one},
-      [worker_spec(mock_static_worker), DeepSup1, DynSupA, DynSupB]}}.
+      [worker_spec(mock_static_worker), DeepSup1, DynSupA, DynSupB, RelSupA, RelSupB]}}.
 
 sup_spec(Module, Name, ChildSpecs) ->
     #{id => Name, type => supervisor, start => {Module, start_link, [Name, ChildSpecs]}}.

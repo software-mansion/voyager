@@ -67,6 +67,7 @@ export function edgeElement(source, target) {
       target,
       kind: 'supervision-link',
     },
+    classes: `supervision-link`,
   };
 }
 

@@ -275,19 +275,27 @@ test.describe('SupervisionTreeLive › expand/collapse', () => {
 //   * order — collapse branch A first then B, vs. B first then A.
 //
 const BRANCH = {
-  a: { top: 'mock_dyn_sup_a', sup: 'rel_sup_a', leaf: 'rel_leaf_a' },
-  b: { top: 'mock_dyn_sup_b', sup: 'rel_sup_b', leaf: 'rel_leaf_b' },
+  a: {
+    top: 'mock_rel_sup_a',
+    sup: 'mock_rel_deep_sup_a',
+    leaf: 'mock_rel_leaf_a',
+  },
+  b: {
+    top: 'mock_rel_sup_b',
+    sup: 'mock_rel_deep_sup_b',
+    leaf: 'mock_rel_leaf_b',
+  },
 } as const;
 
 test.describe('SupervisionTreeLive › relation-edge collapse', () => {
   test.beforeAll(() => {
     rpcOk('mock_app_ctl reset []');
     // Two deep branches joined by a monitor between their leaves:
-    rpcOk('mock_worker monitor_process [rel_leaf_a, rel_leaf_b]');
+    rpcOk('mock_worker monitor_process [mock_rel_leaf_a, mock_rel_leaf_b]');
   });
 
   test.afterAll(() => {
-    rpcOk('mock_worker clear_relations [rel_leaf_a]');
+    rpcOk('mock_worker clear_relations [mock_rel_leaf_a]');
   });
 
   for (const expansion of ['toggle', 'depth'] as const) {
