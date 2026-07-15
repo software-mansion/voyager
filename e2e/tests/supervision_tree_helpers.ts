@@ -64,6 +64,65 @@ export function cyNode(page: Page, ref: string): Promise<CyNodeSnapshot> {
 }
 
 /**
+ * Whether a relationship edge (link / monitor / monitored_by) of the given kind
+ * connects the two named nodes, in either direction. Relationship edges are
+ * keyed by pid, so this resolves the endpoints by their registered name first.
+ */
+export function relEdge(
+  page: Page,
+  fromRef: string,
+  toRef: string,
+  kind: string
+): Promise<boolean> {
+  return page.evaluate(
+    ({ fromRef, toRef, kind }) => {
+      const cy = (document.getElementById('supervision-tree-body') as any)?._cy;
+      if (!cy) return false;
+      const idOf = (ref: string) => {
+        const hit = cy
+          .nodes()
+          .filter((x: any) => x.id() === ref || String(x.data('name')) === ref);
+        return hit.length ? hit[0].id() : null;
+      };
+      const a = idOf(fromRef);
+      const b = idOf(toRef);
+      if (!a || !b) return false;
+      return cy.edges().some((e: any) => {
+        const s = e.data('source');
+        const t = e.data('target');
+        return (
+          e.data('kind') === kind &&
+          ((s === a && t === b) || (s === b && t === a))
+        );
+      });
+    },
+    { fromRef, toRef, kind }
+  );
+}
+
+/**
+ * Names of nodes that are "floating": visible in the graph yet have no visible
+ * neighbour (every connected node is hidden). This is the exact symptom the
+ * relation-edge collapse fix targets — a node left stranded with no edges.
+ */
+export function floatingNodes(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const cy = (document.getElementById('supervision-tree-body') as any)?._cy;
+    if (!cy) return [];
+    const out: string[] = [];
+    cy.nodes().forEach((n: any) => {
+      if (n.hasClass('hidden')) return;
+      const visibleNeighbors = n
+        .connectedEdges()
+        .connectedNodes()
+        .filter((m: any) => m.id() !== n.id() && !m.hasClass('hidden')).length;
+      if (visibleNeighbors === 0) out.push(String(n.data('name')));
+    });
+    return out;
+  });
+}
+
+/**
  * Opens the supervision tree page, selects mock_app and waits until the graph
  * has rendered and overlay buttons are in place.
  */

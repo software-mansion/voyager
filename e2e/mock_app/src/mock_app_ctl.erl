@@ -5,7 +5,7 @@
 
 -export([add_child/2, remove_child/2, reset/0]).
 
--define(BASELINE, #{mock_dyn_sup_a => [], mock_dyn_sup_b => [mock_dyn_worker_b1]}).
+-define(BASELINE, #{mock_dyn_sup_a => [rel_sup_a], mock_dyn_sup_b => [rel_sup_b, mock_dyn_worker_b1]}).
 
 add_child(Sup, Name) ->
     {ok, _} =
