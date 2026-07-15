@@ -4,6 +4,7 @@
 @import './styles/reset.css';
 @import './styles/supervision-tree.css';
 @import './styles/tooltip.css';
+@import './styles/sidebar.css';
 @import './styles/utilities.css';
 
 @source '../css';

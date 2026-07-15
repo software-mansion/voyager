@@ -7,6 +7,8 @@ defmodule VoyagerWeb.Layouts do
 
   embed_templates "layouts/*"
 
+  alias Voyager.NodeSession.Session
+
   @doc """
   Renders the connect layout — bare full-screen wrapper with no application
   chrome. Used by the connection screen.
@@ -35,6 +37,7 @@ defmodule VoyagerWeb.Layouts do
 
   """
   attr :flash, :map, required: true, doc: "the map of flash messages"
+  attr :session, Session, required: true
 
   attr :current_scope, :map,
     default: nil,
@@ -45,8 +48,9 @@ defmodule VoyagerWeb.Layouts do
     <.flash_group flash={@flash} />
     <VoyagerWeb.Components.Shell.shell
       active_nav={assigns[:active_nav]}
-      session={assigns[:session]}
+      session={@session}
       mcp_status={assigns[:mcp_status]}
+      current_path={assigns[:current_path]}
     >
       {@inner_content}
     </VoyagerWeb.Components.Shell.shell>
