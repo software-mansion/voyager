@@ -29,7 +29,7 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParamsTest do
     test "requires ssh_user" do
       changeset = SshConnectionParams.changeset(Map.delete(valid_attrs(), "ssh_user"))
       refute changeset.valid?
-      assert {:ssh_user, _} = hd(changeset.errors)
+      assert Keyword.has_key?(changeset.errors, :ssh_user)
     end
 
     test "requires ssh_host" do
