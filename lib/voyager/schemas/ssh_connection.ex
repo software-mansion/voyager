@@ -69,6 +69,10 @@ defmodule Voyager.Schemas.SshConnection do
     |> validate_length(:ssh_user, max: 255)
     |> validate_length(:ssh_host, max: 255)
     |> validate_length(:node_name, max: 255)
+    |> validate_length(:cookie, max: 255)
+    |> validate_length(:password, max: 255)
+    |> validate_number(:ssh_port, greater_than_or_equal_to: 1, less_than_or_equal_to: 65_535)
+    |> validate_number(:epmd_port, greater_than_or_equal_to: 1, less_than_or_equal_to: 65_535)
     |> unique_constraint([:ssh_user, :ssh_host, :ssh_port, :node_name])
   end
 end
