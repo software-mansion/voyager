@@ -8,7 +8,7 @@ defmodule VoyagerWeb.Components.Shell do
   alias Voyager.NodeSession.Session
 
   attr :active_nav, :atom, default: nil
-  attr :session, Session, default: nil
+  attr :session, Session, required: true
   slot :inner_block, required: true
 
   def shell(assigns) do
@@ -30,7 +30,7 @@ defmodule VoyagerWeb.Components.Shell do
   end
 
   attr :active_nav, :atom, default: nil
-  attr :session, Session, default: nil
+  attr :session, Session, required: true
 
   defp topbar(assigns) do
     ~H"""
@@ -40,16 +40,14 @@ defmodule VoyagerWeb.Components.Shell do
       </div>
       <div class="navbar-end gap-1">
         <.theme_toggle />
-        <%= if @session do %>
-          <button
-            type="button"
-            phx-click="disconnect"
-            title="Disconnect"
-            class="btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-error"
-          >
-            <.icon name="icon-log-out" class="size-4" />
-          </button>
-        <% end %>
+        <button
+          type="button"
+          phx-click="disconnect"
+          title="Disconnect"
+          class="btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-error"
+        >
+          <.icon name="icon-log-out" class="size-4" />
+        </button>
       </div>
     </div>
     """
@@ -89,7 +87,7 @@ defmodule VoyagerWeb.Components.Shell do
   end
 
   attr :active_nav, :atom, default: nil
-  attr :session, Session, default: nil
+  attr :session, Session, required: true
 
   defp sidebar(assigns) do
     ~H"""
@@ -236,32 +234,24 @@ defmodule VoyagerWeb.Components.Shell do
     """
   end
 
-  defp node_path(nil, _), do: nil
-
   defp node_path(%Session{node_name: node_name}, nil),
     do: ~p"/node/#{node_name}"
 
   defp node_path(%Session{node_name: node_name}, path),
     do: "/node/#{URI.encode(node_name)}/#{path}"
 
-  attr :session, Session, default: nil
+  attr :session, Session, required: true
 
   defp statusbar(assigns) do
     ~H"""
     <footer class="border-base-300 bg-base-100 font-mono text-base-content/60 tracking-snug flex flex-none items-center gap-4 border-t px-4 py-1.5 text-xs">
       <div class="flex items-center gap-1.5">
-        <span class={["h-1.5 w-1.5 rounded-full", status_dot_class(@session)]}></span>
-        {node_display(@session)}
+        <span class="bg-success h-1.5 w-1.5 rounded-full"></span>
+        {@session.node_name}
       </div>
       <div class="flex-1"></div>
       <div>v0.1.0</div>
     </footer>
     """
   end
-
-  defp status_dot_class(nil), do: "bg-base-300"
-  defp status_dot_class(%Session{}), do: "bg-success"
-
-  defp node_display(nil), do: "Not connected"
-  defp node_display(%Session{node_name: node_name}), do: node_name
 end
