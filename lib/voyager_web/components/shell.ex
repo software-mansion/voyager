@@ -42,7 +42,7 @@ defmodule VoyagerWeb.Components.Shell do
       </div>
       <div class="navbar-end gap-1">
         <.link
-          navigate={
+          href={
             ~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_path)]}"
           }
           id="open-settings"
@@ -75,7 +75,7 @@ defmodule VoyagerWeb.Components.Shell do
     <div class="navbar bg-base-100 border-base-300 min-h-14 z-10 flex-none gap-3 border-b px-4">
       <div class="navbar-start gap-3">
         <.link
-          navigate={@return_to || ~p"/"}
+          href={@return_to || ~p"/"}
           title="Back"
           class="btn btn-ghost btn-square text-base-content"
         >

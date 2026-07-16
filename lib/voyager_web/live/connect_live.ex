@@ -32,7 +32,7 @@ defmodule VoyagerWeb.ConnectLive do
             <div class="text-base-content text-lg font-semibold tracking-tight">Voyager</div>
             <.link
               id="open-settings"
-              navigate={~p"/settings?#{[return_to: "/"]}"}
+              href={~p"/settings?#{[return_to: "/"]}"}
               title="Settings"
               class="btn btn-ghost btn-square btn-sm text-base-content/50 ml-auto hover:text-base-content"
             >
