@@ -212,7 +212,7 @@ export function buildStyle(t) {
       },
     },
     {
-      selector: 'edge[!kind].selected',
+      selector: 'edge[^kind].selected',
       style: {
         'line-color': t.primary,
       },
