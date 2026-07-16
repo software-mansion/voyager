@@ -158,7 +158,7 @@ defmodule VoyagerWeb.Components.Shell do
         <% end %>
 
         <li class="px-0">
-          <div class="border-base-300 my-4 border-t p-0"></div>
+          <div class="border-base-content/10 my-4 border-t p-0"></div>
         </li>
         <li class="menu-title tracking-label mb-3 p-0 text-xs uppercase">Coming Soon</li>
 
