@@ -99,24 +99,6 @@ export function buildStyle(t) {
       },
     },
     {
-      selector: 'node.in-path',
-      style: {
-        'background-color': t.primary,
-        'border-color': t.primary,
-        'text-opacity': 1,
-        'font-weight': 600,
-      },
-    },
-    {
-      selector: 'node.in-path.hover',
-      style: {
-        'background-color': t.primary,
-        'border-color': t.primary,
-        'text-background-opacity': 0,
-        'text-opacity': 0.3,
-      },
-    },
-    {
       selector: 'edge',
       style: {
         'curve-style': 'unbundled-bezier',
@@ -149,15 +131,6 @@ export function buildStyle(t) {
           'line-color, target-arrow-color, width, opacity, arrow-scale',
         'transition-duration': '80ms',
         'transition-timing-function': 'ease-out',
-      },
-    },
-    {
-      selector: 'edge.in-path',
-      style: {
-        'line-color': t.primary,
-        width: 1.8,
-        opacity: 1,
-        'z-index': 10,
       },
     },
     {
@@ -242,9 +215,37 @@ export function buildStyle(t) {
     {
       selector: 'node.selected',
       style: {
+        'background-color': t.primary,
+        'border-color': t.primary,
+        'border-width': 3,
+        'text-opacity': 1,
+        'font-weight': 600,
+      },
+    },
+    {
+      selector: 'node.selected.hover',
+      style: {
+        'background-color': t.primary,
+        'border-color': t.primary,
+        'text-background-opacity': 0,
+        'text-opacity': 0.3,
+      },
+    },
+    {
+      selector: 'node.endpoint',
+      style: {
         'border-color': t.primary,
         'border-width': 3,
         'font-weight': 600,
+      },
+    },
+    {
+      selector: 'node.endpoint.hover',
+      style: {
+        'background-color': t.primary,
+        'border-color': t.primary,
+        'text-background-opacity': 0,
+        'text-opacity': 0.3,
       },
     },
     {

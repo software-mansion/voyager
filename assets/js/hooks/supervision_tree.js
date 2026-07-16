@@ -328,11 +328,13 @@ const SupervisionTree = {
   },
 
   applyHighlight({ path }) {
-    this.cy.batch(() => {
-      this.cy.elements().removeClass('in-path');
-      if (!path || path.length === 0) return;
+    this.selectedEdgeId = null;
 
-      this.applyEdgeHighlight(null);
+    this.cy.batch(() => {
+      this.cy
+        .elements('.selected, .endpoint, .dimmed')
+        .removeClass('selected endpoint dimmed');
+      if (!path || path.length === 0) return;
 
       const nodeColl = this.cy.collection(
         path.map((k) => this.cy.getElementById(k)).filter((n) => n.nonempty())
@@ -345,7 +347,9 @@ const SupervisionTree = {
         );
       });
 
-      nodeColl.union(edgeColl).addClass('in-path');
+      this.cy.edges().difference(edgeColl).addClass('dimmed');
+      edgeColl.addClass('selected');
+      nodeColl.addClass('selected');
     });
   },
 
@@ -354,17 +358,16 @@ const SupervisionTree = {
     const nextEdgeId =
       this.selectedEdgeId === clickedEdgeId ? null : clickedEdgeId;
 
-    this.cy.batch(() => {
-      this.cy.elements().removeClass('in-path');
-      this.applyEdgeHighlight(nextEdgeId);
-    });
+    this.applyEdgeHighlight(nextEdgeId);
   },
 
   applyEdgeHighlight(edgeId) {
     this.selectedEdgeId = edgeId || null;
 
     this.cy.batch(() => {
-      this.cy.elements('.selected, .dimmed').removeClass('selected dimmed');
+      this.cy
+        .elements('.selected, .endpoint, .dimmed')
+        .removeClass('selected endpoint dimmed');
 
       if (!this.selectedEdgeId) return;
 
@@ -376,7 +379,7 @@ const SupervisionTree = {
 
       this.cy.edges().difference(edge).addClass('dimmed');
       edge.addClass('selected');
-      edge.source().union(edge.target()).addClass('selected');
+      edge.source().union(edge.target()).addClass('endpoint');
     });
   },
 
