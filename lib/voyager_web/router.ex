@@ -21,6 +21,10 @@ defmodule VoyagerWeb.Router do
       live "/", ConnectLive, :index
     end
 
+    live_session :settings, layout: {VoyagerWeb.Layouts, :settings} do
+      live "/settings", SettingsLive, :index
+    end
+
     live_session :app,
       layout: {VoyagerWeb.Layouts, :app},
       on_mount: [{VoyagerWeb.Hooks.NodeSessionHook, :require_connected_node}] do
