@@ -342,7 +342,6 @@ test.describe('SupervisionTreeLive › relation-edge collapse', () => {
         // (depth-expanded trees fit too small for the buttons to render).
         const collapse = async (key: 'a' | 'b') => {
           await focusNode(page, BRANCH[key].top);
-          await page.waitForTimeout(300);
           await clickToggle(page, BRANCH[key].top);
         };
 

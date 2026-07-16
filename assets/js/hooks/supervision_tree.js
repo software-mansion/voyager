@@ -44,11 +44,15 @@ const SupervisionTree = {
     // Test handle: lets e2e tests inspect graph state via page.evaluate.
     this.el._cy = this.cy;
 
+    /** @type {HTMLMetaElement | null} */
+    const metaEnv = document.querySelector('meta[name="env"]');
+
     this.layoutTimer = null;
     this.overlayTimer = null;
     this.overlays = new Map();
     this.fadeTimers = new Map();
     this.disabledClick = false;
+    this.animate = metaEnv?.content !== 'e2e';
 
     this.cy.on('onetap', 'node', (e) => {
       if (this.disabledClick) return;
@@ -295,7 +299,7 @@ const SupervisionTree = {
       edgeSep: 8,
       rankSep: 180,
       spacingFactor: 1.3,
-      animate: true,
+      animate: this.animate,
       animationDuration: 280,
       animationEasing: 'ease-out',
       fit,
