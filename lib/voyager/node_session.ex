@@ -20,7 +20,7 @@ defmodule Voyager.NodeSession do
             meta: map()
           }
 
-    defstruct [:node, :node_name, :cookie, :connected_at, :connector, meta: %{}]
+    defstruct [:node, :node_name, :cookie, :connected_at, connector: Distribution, meta: %{}]
   end
 
   @pubsub_topic "node_session"

@@ -109,7 +109,7 @@ defmodule Voyager.NodeSessionTest do
   end
 
   describe "remote node death" do
-    test "drops the session and broadcasts :nodedown without calling disconnect/2" do
+    test "tears down the connector, drops the session, and broadcasts :nodedown" do
       :ok =
         NodeSession.connect_via(FakeConnector, "demo@localhost", "secret", test_pid: self())
 
