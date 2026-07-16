@@ -1,12 +1,6 @@
 defmodule Voyager.NodeSession do
   @moduledoc """
-  GenServer holding the single active connection to a remote BEAM node.
-
-  The session is transport-agnostic: it stores a `Voyager.NodeSession.Connector`
-  module plus the opaque `meta` that connector returned, and delegates all
-  transport-specific work (establishing, tearing down, recognising a dead
-  transport) back to that module. Direct Erlang distribution is the default
-  connector; other transports plug in via `connect_via/4`.
+   GenServer holding the single active connection to a remote BEAM node.
   """
 
   use GenServer
@@ -16,8 +10,7 @@ defmodule Voyager.NodeSession do
   @default_connector Distribution
 
   defmodule Session do
-    @moduledoc "Holds state for an active connection to a remote BEAM node."
-
+    @moduledoc false
     @type t :: %__MODULE__{
             node: atom(),
             node_name: String.t(),
@@ -36,7 +29,7 @@ defmodule Voyager.NodeSession do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
   end
 
-  @doc "Connects via the default (direct Erlang distribution) connector."
+  @doc "Connects via the default distribution connector."
   @spec connect(String.t(), String.t(), keyword()) :: :ok | {:error, term()}
   def connect(node_name, cookie, opts \\ []) do
     connect_via(@default_connector, node_name, cookie, opts)
