@@ -17,7 +17,7 @@ defmodule VoyagerWeb.Components.ComingSoon do
           Coming soon
         </span>
 
-        <div class="bg-primary/10 shadow-logo-glow size-16 flex items-center justify-center rounded-full">
+        <div class="bg-primary/10 size-16 flex items-center justify-center rounded-full">
           <.icon name={@icon} class="text-primary size-7" />
         </div>
 
@@ -29,7 +29,7 @@ defmodule VoyagerWeb.Components.ComingSoon do
           href={waitlist_url()}
           target="_blank"
           rel="noopener noreferrer"
-          class="btn btn-primary btn-sm mt-2"
+          class="btn btn-primary btn-sm mt-2 shadow-none"
         >
           Join the waiting list
         </a>

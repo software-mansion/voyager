@@ -222,7 +222,9 @@ defmodule VoyagerWeb.Components.Shell do
       <span class="sidebar-nav-row" title={@label}>
         {render_slot(@icon)}
         <span class="sidebar-label flex-1 truncate">{@label}</span>
-        <span :if={@coming_soon} class="sidebar-badge badge badge-soft badge-xs">Soon</span>
+        <span :if={@coming_soon} class="sidebar-badge badge badge-primary badge-soft badge-xs">
+          Soon
+        </span>
       </span>
     </li>
     """
@@ -238,7 +240,9 @@ defmodule VoyagerWeb.Components.Shell do
       >
         {render_slot(@icon)}
         <span class="sidebar-label flex-1 truncate">{@label}</span>
-        <span :if={@coming_soon} class="sidebar-badge badge badge-soft badge-xs">Soon</span>
+        <span :if={@coming_soon} class="sidebar-badge badge badge-primary badge-soft badge-xs">
+          Soon
+        </span>
       </.link>
     </li>
     """
