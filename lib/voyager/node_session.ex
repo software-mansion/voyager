@@ -10,7 +10,7 @@ defmodule Voyager.NodeSession do
   @default_connector Distribution
 
   defmodule Session do
-    @moduledoc false
+    @moduledoc "Holds state for an active connection to a remote BEAM node."
     @type t :: %__MODULE__{
             node: atom(),
             node_name: String.t(),
