@@ -1,6 +1,6 @@
 defmodule Voyager.NodeSession.Connector do
   @moduledoc """
-   Behaviour for a `Voyager.NodeSession` connection strategy.
+  Behaviour for a `Voyager.NodeSession` connection strategy.
   """
 
   @typedoc "Connector-specific state stored alongside the session."

@@ -1,7 +1,7 @@
 defmodule Voyager.NodeSession.Connectors.Distribution do
   @moduledoc """
-   Default `Voyager.NodeSession.Connector` — direct Erlang distribution via
-   `Voyager.Services.NodeConnector`.
+  Default `Voyager.NodeSession.Connector` — direct Erlang distribution via
+  `Voyager.Services.NodeConnector`.
   """
 
   @behaviour Voyager.NodeSession.Connector

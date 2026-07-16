@@ -1,7 +1,7 @@
 defmodule Voyager.NodeSession.Connectors.Ssh do
   @moduledoc """
-   SSH-tunnelled `Voyager.NodeSession.Connector` - distribution bridged through
-   an SSH gateway via `Voyager.Services.RemoteNodeConnector`.
+  SSH-tunnelled `Voyager.NodeSession.Connector` — distribution bridged through
+  an SSH gateway via `Voyager.Services.RemoteNodeConnector`.
   """
 
   @behaviour Voyager.NodeSession.Connector
