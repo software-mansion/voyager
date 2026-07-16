@@ -46,9 +46,32 @@ defmodule VoyagerWeb.Layouts do
   def app(assigns) do
     ~H"""
     <.flash_group flash={@flash} />
-    <VoyagerWeb.Components.Shell.shell active_nav={assigns[:active_nav]} session={@session}>
+    <VoyagerWeb.Components.Shell.shell
+      active_nav={assigns[:active_nav]}
+      session={@session}
+      current_path={assigns[:current_path]}
+    >
       {@inner_content}
     </VoyagerWeb.Components.Shell.shell>
+    """
+  end
+
+  @doc """
+  Renders the settings layout - a bare page with a topbar that
+  shows a back arrow to the previous page. Used by the settings screen,
+  reachable from both the connect panel and the app navbar.
+  """
+  attr :flash, :map, required: true, doc: "the map of flash messages"
+
+  def settings(assigns) do
+    ~H"""
+    <.flash_group flash={@flash} />
+    <div class="bg-base-200 flex h-screen flex-col overflow-hidden">
+      <VoyagerWeb.Components.Shell.settings_topbar return_to={assigns[:return_to]} />
+      <main class="flex-1 overflow-y-auto">
+        {@inner_content}
+      </main>
+    </div>
     """
   end
 
