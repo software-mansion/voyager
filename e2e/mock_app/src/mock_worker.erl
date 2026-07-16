@@ -25,7 +25,7 @@ handle_call({monitor, RegName}, _From, State) when is_atom(RegName) ->
             Ref = erlang:monitor(process, Pid),
             {reply, ok, State#{monitors := [Ref | Monitors]}};
         _ ->
-            {reply, {error, "No registered process"}, State}
+            {reply, {error, {no_registered_process, RegName}}, State}
     end;
 
 handle_call(clear_relations, _From, State) ->

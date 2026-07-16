@@ -44,7 +44,7 @@ export function elementsFor(key, node) {
   };
   data.displayLabel = composeLabel(data);
 
-  /** @type {[{group: string, data: Object}]} */
+  /** @type {Array<{group: string, data: Object, classes?: string}>} */
   const els = [{ group: 'nodes', data }];
 
   if (node.parent_key) {
