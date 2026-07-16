@@ -1,3 +1,4 @@
+import cytoscape, { EdgeSingular } from 'cytoscape';
 import { execSync } from 'node:child_process';
 import { expect, type Page } from '@playwright/test';
 import { NODE_NAME, COOKIE, sel } from './fixtures';
@@ -44,12 +45,15 @@ type CyNodeSnapshot =
  * only way to assert on ones that have no overlay button (workers, hidden).
  */
 export function cyNode(page: Page, ref: string): Promise<CyNodeSnapshot> {
-  return page.evaluate((n) => {
-    const cy = (document.getElementById('supervision-tree-body') as any)?._cy;
+  return page.evaluate((ref) => {
+    const cy = (document.getElementById('supervision-tree-body') as any)
+      ?._cy as cytoscape.Core;
     if (!cy) return { exists: false as const };
+
     const hit = cy
       .nodes()
-      .filter((x: any) => x.id() === n || String(x.data('name')) === n);
+      .filter((x) => x.id() === ref || String(x.data('name')) === ref);
+
     return hit.length
       ? {
           exists: true as const,
@@ -76,20 +80,25 @@ export function relEdge(
 ): Promise<boolean> {
   return page.evaluate(
     ({ fromRef, toRef, kind }) => {
-      const cy = (document.getElementById('supervision-tree-body') as any)?._cy;
+      const cy = (document.getElementById('supervision-tree-body') as any)
+        ?._cy as cytoscape.Core;
       if (!cy) return false;
+
       const idOf = (ref: string) => {
         const hit = cy
           .nodes()
-          .filter((x: any) => x.id() === ref || String(x.data('name')) === ref);
+          .filter((x) => x.id() === ref || String(x.data('name')) === ref);
         return hit.length ? hit[0].id() : null;
       };
+
       const a = idOf(fromRef);
       const b = idOf(toRef);
+
       if (!a || !b) return false;
-      return cy.edges().some((e: any) => {
-        const s = e.data('source');
-        const t = e.data('target');
+
+      return cy.edges().some((e) => {
+        const s = (e as EdgeSingular).source().id();
+        const t = (e as EdgeSingular).target().id();
         return (
           e.data('kind') === kind &&
           ((s === a && t === b) || (s === b && t === a))
@@ -107,17 +116,21 @@ export function relEdge(
  */
 export function floatingNodes(page: Page): Promise<string[]> {
   return page.evaluate(() => {
-    const cy = (document.getElementById('supervision-tree-body') as any)?._cy;
+    const cy = (document.getElementById('supervision-tree-body') as any)
+      ?._cy as cytoscape.Core;
     if (!cy) return [];
+
     const out: string[] = [];
-    cy.nodes().forEach((n: any) => {
+
+    cy.nodes().forEach((n) => {
       if (n.hasClass('hidden')) return;
       const visibleNeighbors = n
         .connectedEdges()
         .connectedNodes()
-        .filter((m: any) => m.id() !== n.id() && !m.hasClass('hidden')).length;
+        .filter((m) => m.id() !== n.id() && !m.hasClass('hidden')).length;
       if (visibleNeighbors === 0) out.push(String(n.data('name')));
     });
+
     return out;
   });
 }
@@ -144,12 +157,15 @@ export async function openTree(page: Page) {
  * inside the viewport). Returns false if the node isn't (visibly) in the graph.
  */
 export function focusNode(page: Page, ref: string): Promise<boolean> {
-  return page.evaluate((n) => {
-    const cy = (document.getElementById('supervision-tree-body') as any)?._cy;
+  return page.evaluate((ref) => {
+    const cy = (document.getElementById('supervision-tree-body') as any)
+      ?._cy as cytoscape.Core;
     if (!cy) return false;
+
     const node = cy
       .nodes()
-      .filter((x: any) => x.id() === n || String(x.data('name')) === n);
+      .filter((x) => x.id() === ref || String(x.data('name')) === ref);
+
     if (!node.length || node.hasClass('hidden')) return false;
     if (cy.zoom() < 0.6) cy.zoom(0.6);
     cy.center(node);
