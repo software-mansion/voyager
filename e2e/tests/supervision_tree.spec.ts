@@ -17,11 +17,20 @@ import {
 // the target node (see e2e/mock_app/) looks like:
 //
 //   app:mock_app (app's master process)
+//   │
 //   └── p (intermediate process)
+//       │
 //       └── mock_root_sup
 //           ├── mock_static_worker
+//           │
 //           ├── mock_deep_sup_1 ── mock_deep_sup_2 ── mock_deep_sup_3 ── mock_leaf_worker
+//           │
+//           ├── mock_rel_sup_a ── mock_rel_deep_sup_a ── mock_rel_leaf_a
+//           │
+//           ├── mock_rel_sup_b ── mock_rel_deep_sup_b ── mock_rel_leaf_b
+//           │
 //           ├── mock_dyn_sup_a        (0 children; tests add some at runtime)
+//           │
 //           └── mock_dyn_sup_b        (1 child: mock_dyn_worker_b1)
 //
 // At the default walk depth (3) every supervisor child of mock_root_sup is a
