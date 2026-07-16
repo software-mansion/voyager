@@ -1,8 +1,7 @@
 defmodule Voyager.NodeSession.Connectors.Distribution do
   @moduledoc """
   Default `Voyager.NodeSession.Connector` — direct Erlang distribution via
-  `Voyager.Services.NodeConnector`. Needs no teardown signal: a lost node is
-  reported by `Node.monitor/2` alone.
+  `Voyager.Services.NodeConnector`.
   """
 
   @behaviour Voyager.NodeSession.Connector

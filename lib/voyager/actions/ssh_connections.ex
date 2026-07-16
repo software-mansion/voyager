@@ -17,13 +17,8 @@ defmodule Voyager.Actions.SshConnections do
   @type mutation_result :: {:ok, SshConnection.t()} | {:error, :not_found | Ecto.Changeset.t()}
 
   @doc """
-  Creates or updates an SSH connection profile when a node is successfully
-  connected.
-
-  Always updates `last_connected_at`, `name_type`, `auth_method`, and
-  `epmd_port`. When `:cookie` or `:password` are non-nil in `opts`, the stored
-  encrypted values are overwritten; when nil, any existing encrypted value is
-  preserved.
+   Creates or updates an SSH connection profile when a node is successfully
+   connected.
   """
   @spec upsert_connected(String.t(), String.t(), integer(), String.t(), upsert_opts()) ::
           changeset_result()

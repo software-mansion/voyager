@@ -2,11 +2,6 @@ defmodule Voyager.NodeSession.Connectors.Ssh do
   @moduledoc """
   SSH-tunnelled `Voyager.NodeSession.Connector` — distribution bridged through
   an SSH gateway via `Voyager.Services.RemoteNodeConnector`.
-
-  Subscribes the session to `TunnelRegistry`'s topic so a dying tunnel is
-  reported as a teardown even when the remote node itself stays up. This module
-  is the only main-tree reference to the SSH connector: deleting the SSH feature
-  means deleting this file and dropping the `connect_via/4` caller.
   """
 
   @behaviour Voyager.NodeSession.Connector

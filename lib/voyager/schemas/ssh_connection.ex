@@ -1,11 +1,6 @@
 defmodule Voyager.Schemas.SshConnection do
   @moduledoc """
-  Ecto schema for a persisted SSH tunnel connection profile.
-
-  Stores the SSH gateway credentials, the remote node name, and optionally
-  encrypted cookie and SSH password. Unique per `(ssh_user, ssh_host, ssh_port,
-  node_name)` — the same node reachable through different gateways produces
-  separate rows.
+   Ecto schema for a persisted SSH tunnel connection profile.
   """
 
   use Ecto.Schema
@@ -74,6 +69,10 @@ defmodule Voyager.Schemas.SshConnection do
     |> validate_length(:ssh_user, max: 255)
     |> validate_length(:ssh_host, max: 255)
     |> validate_length(:node_name, max: 255)
+    |> validate_length(:cookie, max: 255)
+    |> validate_length(:password, max: 255)
+    |> validate_number(:ssh_port, greater_than_or_equal_to: 1, less_than_or_equal_to: 65_535)
+    |> validate_number(:epmd_port, greater_than_or_equal_to: 1, less_than_or_equal_to: 65_535)
     |> unique_constraint([:ssh_user, :ssh_host, :ssh_port, :node_name])
   end
 end

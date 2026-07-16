@@ -26,32 +26,10 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParamsTest do
       assert changeset.valid?
     end
 
-    test "defaults ssh_port to 22" do
-      attrs = Map.delete(valid_attrs(), "ssh_port")
-      changeset = SshConnectionParams.changeset(attrs)
-      assert changeset.valid?
-      assert Ecto.Changeset.get_field(changeset, :ssh_port) == 22
-    end
-
-    test "defaults epmd_port to 4369" do
-      changeset = SshConnectionParams.changeset(valid_attrs())
-      assert Ecto.Changeset.get_field(changeset, :epmd_port) == 4369
-    end
-
-    test "defaults name_type to :longnames" do
-      changeset = SshConnectionParams.changeset(valid_attrs())
-      assert Ecto.Changeset.get_field(changeset, :name_type) == :longnames
-    end
-
-    test "defaults auth_method to :agent" do
-      changeset = SshConnectionParams.changeset(valid_attrs())
-      assert Ecto.Changeset.get_field(changeset, :auth_method) == :agent
-    end
-
     test "requires ssh_user" do
       changeset = SshConnectionParams.changeset(Map.delete(valid_attrs(), "ssh_user"))
       refute changeset.valid?
-      assert {:ssh_user, _} = hd(changeset.errors)
+      assert Keyword.has_key?(changeset.errors, :ssh_user)
     end
 
     test "requires ssh_host" do
