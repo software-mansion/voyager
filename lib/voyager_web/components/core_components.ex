@@ -242,7 +242,7 @@ defmodule VoyagerWeb.CoreComponents do
       <div class="join" id={"#{@id}-stepper"} phx-hook="NumberStepper">
         <button
           type="button"
-          data-step="-1"
+          data-direction="-1"
           tabindex="-1"
           aria-label="Decrease"
           class="btn btn-sm btn-square join-item border-base-content/20"
@@ -264,7 +264,7 @@ defmodule VoyagerWeb.CoreComponents do
         />
         <button
           type="button"
-          data-step="1"
+          data-direction="1"
           tabindex="-1"
           aria-label="Increase"
           class="btn btn-sm btn-square join-item border-base-content/20"

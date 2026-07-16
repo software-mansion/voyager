@@ -15,7 +15,7 @@ const REPEAT_INTERVAL_MS = 80;
 const NumberStepper = {
   mounted() {
     this.input = this.el.querySelector('input[type="number"]');
-    this.buttons = Array.from(this.el.querySelectorAll('[data-step]'));
+    this.buttons = Array.from(this.el.querySelectorAll('[data-direction]'));
 
     this.step = (direction) => {
       if (!this.input || this.input.disabled) return;
@@ -50,7 +50,7 @@ const NumberStepper = {
       // Keep focus on the input and avoid text selection while pressing.
       e.preventDefault();
 
-      const direction = Number(e.currentTarget.dataset.step) < 0 ? -1 : 1;
+      const direction = Number(e.currentTarget.dataset.direction) < 0 ? -1 : 1;
       this.stopRepeat();
       this.step(direction);
       this._holdTimeout = setTimeout(() => {
