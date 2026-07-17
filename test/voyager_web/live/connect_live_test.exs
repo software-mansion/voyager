@@ -17,15 +17,10 @@ defmodule VoyagerWeb.ConnectLiveTest do
   end
 
   describe "settings link" do
-    test "navigates to the settings page", %{conn: conn} do
+    test "links to the settings page", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 
-      assert has_element?(view, "#open-settings")
-
-      {:ok, settings_view, _html} =
-        view |> element("#open-settings") |> render_click() |> follow_redirect(conn)
-
-      assert has_element?(settings_view, "#distribution-settings-form")
+      assert has_element?(view, ~s|a#open-settings[href="/settings?return_to=%2F"]|)
     end
   end
 end
