@@ -7,6 +7,7 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
   use VoyagerWeb, :verified_routes
   import Phoenix.LiveView
   import Phoenix.Component
+  import VoyagerWeb.Helpers
 
   alias Voyager.NodeSession
 
@@ -23,7 +24,7 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
       socket =
         socket
         |> assign(:session, session)
-        |> attach_hook(:nodedown_redirect, :handle_info, &handle_nodedown/2)
+        |> attach_hook(:no_node_redirect, :handle_info, &handle_no_node/2)
         |> attach_hook(:disconnect, :handle_event, &handle_disconnect/3)
         |> attach_hook(:track_current_path, :handle_params, &track_current_path/3)
 
@@ -44,14 +45,18 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
 
   defp current_path(_), do: "/"
 
-  defp handle_nodedown(
-         {:nodedown, event_node},
+  defp handle_no_node(
+         {event, event_node},
          %{assigns: %{session: %{node: event_node}}} = socket
-       ) do
-    {:halt, push_navigate(socket, to: ~p"/")}
+       )
+       when event in [:node_disconnected, :nodedown] do
+    socket
+    |> put_no_node_flash({event, event_node})
+    |> push_navigate(to: ~p"/")
+    |> halt()
   end
 
-  defp handle_nodedown(_event, socket), do: {:cont, socket}
+  defp handle_no_node(_event, socket), do: {:cont, socket}
 
   defp handle_disconnect("disconnect", _params, socket) do
     Voyager.NodeSession.disconnect()
@@ -59,4 +64,12 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
   end
 
   defp handle_disconnect(_event, _params, socket), do: {:cont, socket}
+
+  defp put_no_node_flash(socket, {:node_disconnected, node_name}) do
+    put_flash(socket, :info, "Node disconnected: #{node_name}")
+  end
+
+  defp put_no_node_flash(socket, {:nodedown, node_name}) do
+    put_flash(socket, :error, "Node down: #{node_name}")
+  end
 end
