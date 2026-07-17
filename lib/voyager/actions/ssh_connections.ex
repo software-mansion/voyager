@@ -32,7 +32,7 @@ defmodule Voyager.Actions.SshConnections do
 
     on_conflict_set = [
       last_connected_at: now,
-      updated_at: DateTime.to_naive(now),
+      updated_at: now,
       name_type: name_type,
       auth_method: auth_method,
       epmd_port: epmd_port
