@@ -63,7 +63,11 @@ defmodule VoyagerWeb.ConnectLive do
               </p>
               <ul id="pinned-connections" phx-update="stream" class="-mx-2 flex flex-col gap-0.5">
                 <li :for={{id, conn} <- @streams.pinned_connections} id={id} class="list-none">
-                  <ConnectComponents.connection_row conn={conn} pinned={true} />
+                  <ConnectComponents.connection_row
+                    conn={conn}
+                    pinned={true}
+                    disabled={not is_nil(@connected_session)}
+                  />
                 </li>
               </ul>
             </div>
@@ -76,7 +80,11 @@ defmodule VoyagerWeb.ConnectLive do
               </p>
               <ul id="recent-connections" phx-update="stream" class="-mx-2 flex flex-col gap-0.5">
                 <li :for={{id, conn} <- @streams.recent_connections} id={id} class="list-none">
-                  <ConnectComponents.connection_row conn={conn} pinned={false} />
+                  <ConnectComponents.connection_row
+                    conn={conn}
+                    pinned={false}
+                    disabled={not is_nil(@connected_session)}
+                  />
                 </li>
               </ul>
             </div>
@@ -99,6 +107,16 @@ defmodule VoyagerWeb.ConnectLive do
 
   def handle_event("toggle_cookie", _, socket) do
     {:noreply, update(socket, :show_cookie, &(!&1))}
+  end
+
+  def handle_event("disconnect", _params, socket) do
+    NodeSession.disconnect()
+    {:noreply, socket}
+  end
+
+  def handle_event("fill_recent", _params, %{assigns: %{connected_session: session}} = socket)
+      when not is_nil(session) do
+    {:noreply, socket}
   end
 
   def handle_event("fill_recent", %{"id" => id}, socket) do
@@ -151,11 +169,17 @@ defmodule VoyagerWeb.ConnectLive do
 
   @impl true
   def handle_info({:node_connected, _node}, socket) do
-    {:noreply, assign(socket, :connected_session, NodeSession.current())}
+    socket
+    |> assign(:connected_session, NodeSession.current())
+    |> reset_connections()
+    |> noreply()
   end
 
   def handle_info({event, _node}, socket) when event in [:node_disconnected, :nodedown] do
-    {:noreply, assign(socket, :connected_session, nil)}
+    socket
+    |> assign(:connected_session, nil)
+    |> reset_connections()
+    |> noreply()
   end
 
   def handle_info(_, socket), do: {:noreply, socket}

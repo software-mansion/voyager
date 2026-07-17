@@ -8,15 +8,26 @@ defmodule VoyagerWeb.ConnectComponents do
   attr :conn, :map, required: true, doc: "The connection record from the database"
   attr :pinned, :boolean, default: false, doc: "Whether this connection is pinned"
 
+  attr :disabled, :boolean,
+    default: false,
+    doc: "Disables fill-from-recent when a node is already connected"
+
   def connection_row(assigns) do
     ~H"""
     <div class="flex w-full items-center gap-1">
       <button
         type="button"
-        phx-click="fill_recent"
+        phx-click={unless @disabled, do: "fill_recent"}
         phx-value-id={@conn.id}
         data-testid="fill-recent-btn"
-        class="font-mono text-base-content/60 flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-xs transition-colors hover:bg-base-200 hover:text-base-content"
+        disabled={@disabled}
+        class={[
+          "font-mono text-base-content/60 flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-3 py-2 text-xs transition-colors",
+          if(@disabled,
+            do: "pointer-events-none opacity-40",
+            else: "cursor-pointer hover:bg-base-200 hover:text-base-content"
+          )
+        ]}
       >
         <.icon name="icon-network" class="size-3.5 text-base-content/25 shrink-0" />
         <div class="flex min-w-0 items-center gap-1.5">
@@ -82,12 +93,23 @@ defmodule VoyagerWeb.ConnectComponents do
             {@session.node_name}
           </span>
         </div>
-        <.link
-          navigate={~p"/node/#{@session.node_name}"}
-          class="btn btn-success btn-xs ml-3 shrink-0 gap-1"
-        >
-          Open <.icon name="icon-arrow-right" class="size-3" />
-        </.link>
+        <div class="ml-3 flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            id="disconnect-from-connect"
+            phx-click="disconnect"
+            title="Disconnect"
+            class="btn btn-ghost btn-xs text-base-content/50 hover:text-error"
+          >
+            <.icon name="icon-log-out" class="size-3.5" />
+          </button>
+          <.link
+            navigate={~p"/node/#{@session.node_name}"}
+            class="btn btn-success btn-xs gap-1"
+          >
+            Open <.icon name="icon-arrow-right" class="size-3" />
+          </.link>
+        </div>
       </div>
     </div>
     """
