@@ -147,15 +147,14 @@ defmodule VoyagerWeb.Components.Shell do
             }
           </script>
         </li>
-        <%= for page <- inspect_pages() do %>
-          <.nav_item
-            active={@active_nav == page.feature}
-            navigate={node_path(@session, page.path)}
-            label={page.label}
-          >
-            <:icon><.icon name={page.icon} class="size-4" /></:icon>
-          </.nav_item>
-        <% end %>
+        <.nav_item
+          :for={page <- inspect_pages()}
+          active={@active_nav == page.feature}
+          navigate={node_path(@session, page.path)}
+          label={page.label}
+        >
+          <:icon><.icon name={page.icon} class="size-4" /></:icon>
+        </.nav_item>
 
         <li class="px-0">
           <div class="border-base-content/10 my-4 border-t p-0"></div>
