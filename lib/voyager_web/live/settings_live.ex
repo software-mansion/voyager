@@ -1,7 +1,6 @@
 defmodule VoyagerWeb.SettingsLive do
   use VoyagerWeb, :live_view
 
-  alias Voyager.MCP
   alias Voyager.NodeSession
   alias VoyagerWeb.SettingsLive.AppearanceSettings
   alias VoyagerWeb.SettingsLive.DistributionSettings
@@ -11,13 +10,11 @@ defmodule VoyagerWeb.SettingsLive do
   def mount(params, _session, socket) do
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
-      Phoenix.PubSub.subscribe(Voyager.PubSub, MCP.topic())
     end
 
     socket
     |> assign(:return_to, safe_return_to(params["return_to"]))
     |> assign(:connected?, not is_nil(NodeSession.current()))
-    |> assign(:mcp_status, MCP.info())
     |> ok()
   end
 
@@ -53,12 +50,6 @@ defmodule VoyagerWeb.SettingsLive do
   def handle_info({event, _node}, socket) when event in [:node_disconnected, :nodedown] do
     socket
     |> assign(:connected?, false)
-    |> noreply()
-  end
-
-  def handle_info({:mcp_status, status}, socket) do
-    socket
-    |> assign(:mcp_status, status)
     |> noreply()
   end
 

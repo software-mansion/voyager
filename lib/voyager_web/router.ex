@@ -21,7 +21,9 @@ defmodule VoyagerWeb.Router do
       live "/", ConnectLive, :index
     end
 
-    live_session :settings, layout: {VoyagerWeb.Layouts, :settings} do
+    live_session :settings,
+      layout: {VoyagerWeb.Layouts, :settings},
+      on_mount: VoyagerWeb.Hooks.McpStatusHook do
       live "/settings", SettingsLive, :index
     end
 
