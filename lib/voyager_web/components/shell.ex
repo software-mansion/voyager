@@ -161,16 +161,14 @@ defmodule VoyagerWeb.Components.Shell do
         </li>
         <li class="menu-title tracking-label mb-3 p-0 text-xs uppercase">Coming Soon</li>
 
-        <%= for page <- coming_soon_pages() do %>
-          <.nav_item
-            active={@active_nav == page.feature}
-            navigate={node_path(@session, page.path)}
-            label={page.label}
-            coming_soon
-          >
-            <:icon><.icon name={page.icon} class="size-4" /></:icon>
-          </.nav_item>
-        <% end %>
+        <.nav_item
+          :for={page <- inspect_pages()}
+          active={@active_nav == page.feature}
+          navigate={node_path(@session, page.path)}
+          label={page.label}
+        >
+          <:icon><.icon name={page.icon} class="size-4" /></:icon>
+        </.nav_item>
       </ul>
     </aside>
     """
