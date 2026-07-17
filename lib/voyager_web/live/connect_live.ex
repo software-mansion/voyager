@@ -11,7 +11,6 @@ defmodule VoyagerWeb.ConnectLive do
     end
 
     socket
-    |> assign(:show_distribution_settings?, false)
     |> assign(:connected_session, NodeSession.current())
     |> assign(:mode, :direct)
     |> assign(:connecting?, false)
@@ -28,15 +27,14 @@ defmodule VoyagerWeb.ConnectLive do
             <div class="mb-7 flex items-center gap-3">
               <.logo />
               <div class="text-base-content text-lg font-semibold tracking-tight">Voyager</div>
-              <button
-                type="button"
-                id="open-distribution-settings"
-                phx-click="open_distribution_settings"
-                title="Distribution settings"
+              <.link
+                id="open-settings"
+                href={~p"/settings?#{[return_to: "/"]}"}
+                title="Settings"
                 class="btn btn-ghost btn-square btn-sm text-base-content/50 ml-auto hover:text-base-content"
               >
                 <.icon name="icon-settings" class="size-4" />
-              </button>
+              </.link>
             </div>
             <div class="mb-6">
               <h1 class="text-base-content text-2xl font-semibold tracking-tight">
@@ -70,13 +68,6 @@ defmodule VoyagerWeb.ConnectLive do
             />
           </div>
         </div>
-
-        <.live_component
-          :if={@show_distribution_settings?}
-          module={VoyagerWeb.ConnectLive.DistributionSettings}
-          id="distribution-settings-modal"
-          connected?={not is_nil(@connected_session)}
-        />
       </div>
     </div>
     """
@@ -91,10 +82,6 @@ defmodule VoyagerWeb.ConnectLive do
     {:noreply, assign(socket, :mode, :ssh)}
   end
 
-  def handle_event("open_distribution_settings", _, socket) do
-    {:noreply, assign(socket, :show_distribution_settings?, true)}
-  end
-
   @impl true
   def handle_info({:node_connected, _node}, socket) do
     {:noreply, assign(socket, :connected_session, NodeSession.current())}
@@ -106,25 +93,6 @@ defmodule VoyagerWeb.ConnectLive do
 
   def handle_info({:ssh_connecting, connecting?}, socket) do
     {:noreply, assign(socket, :connecting?, connecting?)}
-  end
-
-  def handle_info({:distribution_settings, :saved}, socket) do
-    socket
-    |> put_flash(:info, "Distribution suffix saved")
-    |> assign(:show_distribution_settings?, false)
-    |> noreply()
-  end
-
-  def handle_info({:distribution_settings, :closed}, socket) do
-    socket
-    |> assign(:show_distribution_settings?, false)
-    |> noreply()
-  end
-
-  def handle_info({:distribution_settings, :locked}, socket) do
-    socket
-    |> put_flash(:error, "Distribution suffix is controlled by application config")
-    |> noreply()
   end
 
   def handle_info(_, socket), do: {:noreply, socket}

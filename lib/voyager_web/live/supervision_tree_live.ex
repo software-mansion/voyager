@@ -106,7 +106,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   def handle_event("refresh_now", _params, socket) do
     socket
-    |> request_fetch()
+    |> request_fetch(:manual_refresh)
     |> noreply()
   end
 
@@ -123,7 +123,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     socket = assign(socket, :expanded_pids, expanded)
 
     if newly_expanded? do
-      request_fetch(socket)
+      request_fetch(socket, :toggle_expand)
     else
       socket
     end
@@ -146,7 +146,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> start_timer()
 
     if MapSet.size(socket.assigns.selected_apps) > 0 and is_nil(socket.assigns.in_flight) do
-      request_fetch(socket)
+      request_fetch(socket, :auto_refresh)
     else
       socket
     end
@@ -171,6 +171,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         nil ->
           %{
             kind: "full",
+            request_type: socket.private.request_type,
             nodes: new_flat,
             edges: new_edges
           }
@@ -181,7 +182,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
           node_diff
           |> Map.merge(edge_diff)
-          |> Map.merge(%{kind: "delta"})
+          |> Map.merge(%{kind: "delta", request_type: socket.private.request_type})
       end
 
     socket
@@ -256,7 +257,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   defp maybe_reset_expanded_pids(socket, true), do: assign(socket, :expanded_pids, MapSet.new())
   defp maybe_reset_expanded_pids(socket, false), do: socket
 
-  defp request_fetch(socket) do
+  defp request_fetch(socket, type \\ :initial) do
     if socket.assigns.in_flight do
       Fetch.cancel(socket.assigns.in_flight)
     end
@@ -281,6 +282,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       socket
       |> assign(:in_flight, in_flight)
       |> assign(:status, :loading)
+      |> put_private(:request_type, type)
     end
   end
 

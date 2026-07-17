@@ -20,7 +20,7 @@ defmodule Voyager.NodeSession do
             meta: map()
           }
 
-    defstruct [:node, :node_name, :cookie, :connected_at, :connector, meta: %{}]
+    defstruct [:node, :node_name, :cookie, :connected_at, connector: Distribution, meta: %{}]
   end
 
   @pubsub_topic "node_session"
@@ -123,7 +123,6 @@ defmodule Voyager.NodeSession do
   end
 
   @impl GenServer
-  # The remote node went down: clean up transport resources, then drop the session.
   def handle_info({:nodedown, node}, %{session: %Session{node: session_node} = session} = state)
       when node == session_node do
     Node.monitor(session.node, false)
@@ -131,9 +130,6 @@ defmodule Voyager.NodeSession do
     drop_session(state, session, "node down")
   end
 
-  # Any other message: ask the connector whether it signals its transport died
-  # (e.g. an SSH tunnel dropping while the node itself is still up). If so the
-  # transport is already gone, so drop the session without calling disconnect.
   def handle_info(msg, %{session: %Session{connector: connector, meta: meta} = session} = state) do
     if connector.teardown?(msg, meta) do
       Node.monitor(session.node, false)
