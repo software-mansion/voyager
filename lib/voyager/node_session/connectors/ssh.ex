@@ -14,24 +14,32 @@ defmodule Voyager.NodeSession.Connectors.Ssh do
 
   @impl true
   def connect(node_name, cookie, opts) do
-    ssh_user = Keyword.fetch!(opts, :ssh_user)
-    ssh_host = Keyword.fetch!(opts, :ssh_host)
-    auth = Keyword.get(opts, :auth, :agent)
-    rc_opts = Keyword.take(opts, [:ssh_port, :epmd_port, :name_type])
+    with {:ok, ssh_user} <- fetch_required(opts, :ssh_user),
+         {:ok, ssh_host} <- fetch_required(opts, :ssh_host) do
+      auth = Keyword.get(opts, :auth, :agent)
+      rc_opts = Keyword.take(opts, [:ssh_port, :epmd_port, :name_type])
 
-    case RemoteNodeConnector.connect(ssh_user, ssh_host, node_name, cookie, auth, rc_opts) do
-      {:ok, node, conn_ref, local_port} ->
-        meta = %{
-          conn_ref: conn_ref,
-          local_port: local_port,
-          ssh_user: ssh_user,
-          ssh_host: ssh_host
-        }
+      case RemoteNodeConnector.connect(ssh_user, ssh_host, node_name, cookie, auth, rc_opts) do
+        {:ok, node, conn_ref, local_port} ->
+          meta = %{
+            conn_ref: conn_ref,
+            local_port: local_port,
+            ssh_user: ssh_user,
+            ssh_host: ssh_host
+          }
 
-        {:ok, node, meta}
+          {:ok, node, meta}
 
-      {:error, _} = err ->
-        err
+        {:error, _} = err ->
+          err
+      end
+    end
+  end
+
+  defp fetch_required(opts, key) do
+    case Keyword.fetch(opts, key) do
+      {:ok, value} -> {:ok, value}
+      :error -> {:error, {:missing_option, key}}
     end
   end
 

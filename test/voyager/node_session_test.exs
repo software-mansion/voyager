@@ -16,13 +16,6 @@ defmodule Voyager.NodeSessionTest do
     def connect(_node_name, _cookie, opts) do
       case Keyword.get(opts, :fail) do
         nil ->
-          # Real connectors always ensure local distribution before returning
-          # {:ok, ...} - NodeSession.handle_call/3 calls Node.monitor/2 right
-          # after, which requires the local node to already be alive. We
-          # "connect" to Node.self() rather than a made-up remote node atom:
-          # Node.monitor/2 on a node that was never actually connected fires
-          # an immediate, spurious :nodedown, which Node.self() (always up)
-          # does not.
           :ok = Distribution.ensure_distributed(:shortnames)
           meta = %{test_pid: Keyword.fetch!(opts, :test_pid), ref: Keyword.get(opts, :ref)}
           {:ok, Node.self(), meta}
