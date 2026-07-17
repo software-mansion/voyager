@@ -121,10 +121,17 @@ defmodule VoyagerWeb.Components.Shell do
         id="mcp-status"
         class="font-mono text-base-content/60 flex cursor-default items-center gap-1.5 px-2 text-xs"
       >
-        <span class={[
-          "h-1.5 w-1.5 rounded-full",
-          if(@status.alive?, do: "bg-success", else: "bg-error")
-        ]}>
+        <span class="relative flex h-1.5 w-1.5">
+          <span
+            :if={@status.alive?}
+            class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
+          >
+          </span>
+          <span class={[
+            "relative inline-flex h-1.5 w-1.5 rounded-full",
+            if(@status.alive?, do: "bg-success", else: "bg-error")
+          ]}>
+          </span>
         </span>
         MCP {if @status.alive?, do: "running", else: "stopped"}
       </div>
