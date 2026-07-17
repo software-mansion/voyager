@@ -45,6 +45,7 @@ const SupervisionTree = {
     this.fadeTimers = new Map();
     this.disabledClick = false;
     this.selectedEdgeId = null;
+    this.selectedPath = null;
 
     this.cy.on('oneclick', 'node', (event) => {
       if (this.disabledClick) return;
@@ -67,7 +68,7 @@ const SupervisionTree = {
       }
     });
 
-    this.cy.on('mouseover', 'node, edge', (event) => {  
+    this.cy.on('mouseover', 'node, edge', (event) => {
       event.target.addClass('hover');
       event.cy.container().style.cursor = 'pointer';
     });
@@ -147,6 +148,8 @@ const SupervisionTree = {
 
     if (this.selectedEdgeId) {
       this.applyEdgeHighlight(this.selectedEdgeId);
+    } else if (this.selectedPath) {
+      this.applyPathHighlight({ path: this.selectedPath });
     }
   },
 
@@ -318,17 +321,30 @@ const SupervisionTree = {
 
   applyPathHighlight({ path }) {
     this.selectedEdgeId = null;
+    this.selectedPath = path && path.length > 0 ? path : null;
 
     this.cy.batch(() => {
       this.cy
         .elements('.selected, .endpoint, .dimmed')
         .removeClass('selected endpoint dimmed');
-      if (!path || path.length === 0) return;
+
+      if (!this.selectedPath) return;
+
+      const selectedKey = this.selectedPath[this.selectedPath.length - 1];
+      if (this.cy.getElementById(selectedKey).empty()) {
+        this.selectedPath = null;
+        return;
+      }
 
       const nodeColl = this.cy.collection(
-        path.map((k) => this.cy.getElementById(k)).filter((n) => n.nonempty())
+        this.selectedPath
+          .map((k) => this.cy.getElementById(k))
+          .filter((n) => n.nonempty())
       );
-      if (nodeColl.empty()) return;
+      if (nodeColl.empty()) {
+        this.selectedPath = null;
+        return;
+      }
 
       const edgeColl = nodeColl.connectedEdges().filter((edge) => {
         return (
@@ -352,6 +368,7 @@ const SupervisionTree = {
 
   applyEdgeHighlight(edgeId) {
     this.selectedEdgeId = edgeId || null;
+    this.selectedPath = null;
 
     this.cy.batch(() => {
       this.cy
