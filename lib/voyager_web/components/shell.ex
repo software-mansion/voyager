@@ -164,6 +164,7 @@ defmodule VoyagerWeb.Components.Shell do
           active={@active_nav == page.feature}
           navigate={node_path(@session, page.path)}
           label={page.label}
+          coming_soon
         >
           <:icon><.icon name={page.icon} class="size-4" /></:icon>
         </.nav_item>
