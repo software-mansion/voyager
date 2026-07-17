@@ -53,5 +53,21 @@ export default defineConfig({
       testMatch: ['**/node_info.spec.ts', '**/recent_connections.spec.ts'],
       dependencies: ['connect'],
     },
+
+    // Supervision Tree tests mutate shared state on the target node, so run them in order.
+    {
+      name: 'supervision-tree chromium',
+      use: { ...devices['Desktop Chrome'] },
+      fullyParallel: false,
+      testMatch: '**/supervision_tree.spec.ts',
+      dependencies: ['connect'],
+    },
+    {
+      name: 'supervision-tree firefox',
+      use: { ...devices['Desktop Firefox'] },
+      fullyParallel: false,
+      testMatch: '**/supervision_tree.spec.ts',
+      dependencies: ['connect', 'supervision-tree chromium'],
+    },
   ],
 });

@@ -7,6 +7,7 @@
 }
 
 #app-sidebar.mode-compact .sidebar-label,
+#app-sidebar.mode-compact .sidebar-badge,
 #app-sidebar.mode-compact .menu-title {
   display: none;
 }
@@ -27,6 +28,7 @@
 
 @media (max-width: 1023.98px) {
   #app-sidebar:not(.mode-full) .sidebar-label,
+  #app-sidebar:not(.mode-full) .sidebar-badge,
   #app-sidebar:not(.mode-full) .menu-title {
     display: none;
   }
