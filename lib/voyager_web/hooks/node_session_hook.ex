@@ -52,7 +52,7 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
        when event in [:node_disconnected, :nodedown] do
     socket
     |> put_no_node_flash({event, event_node})
-    |> push_navigate(to: ~p"/")
+    |> redirect(to: ~p"/")
     |> halt()
   end
 
@@ -65,11 +65,11 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
 
   defp handle_disconnect(_event, _params, socket), do: {:cont, socket}
 
-  defp put_no_node_flash(socket, {:node_disconnected, node_name}) do
-    put_flash(socket, :info, "Node disconnected: #{node_name}")
+  defp put_no_node_flash(socket, {:node_disconnected, node}) do
+    put_flash(socket, :info, "Node disconnected: #{node}")
   end
 
-  defp put_no_node_flash(socket, {:nodedown, node_name}) do
-    put_flash(socket, :error, "Node down: #{node_name}")
+  defp put_no_node_flash(socket, {:nodedown, node}) do
+    put_flash(socket, :error, "Node down: #{node}")
   end
 end
