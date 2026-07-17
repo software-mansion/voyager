@@ -181,7 +181,7 @@ defmodule VoyagerWeb.ConnectComponents do
             disabled={@disabled}
             aria-label={if @show_cookie, do: "Hide cookie", else: "Show cookie"}
             title={if @show_cookie, do: "Hide cookie", else: "Show cookie"}
-            class="btn btn-ghost btn-xs text-base-content/40 absolute top-1 right-1.5 flex h-8 items-center px-1 hover:text-base-content"
+            class="btn btn-ghost btn-square btn-sm text-base-content/40 absolute top-1 right-1.5 hover:text-base-content"
           >
             <.icon
               name={if @show_cookie, do: "icon-eye", else: "icon-eye-off"}
