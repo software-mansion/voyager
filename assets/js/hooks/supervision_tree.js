@@ -46,43 +46,32 @@ const SupervisionTree = {
     this.disabledClick = false;
     this.selectedEdgeId = null;
 
-    this.cy.on('oneclick', 'node', (e) => {
+    this.cy.on('oneclick', 'node', (event) => {
       if (this.disabledClick) return;
       this.applyEdgeHighlight(null);
-      this.pushEventTo(this.el, 'select-node', { key: e.target.id() });
+      this.pushEventTo(this.el, 'select-node', { key: event.target.id() });
     });
-    this.cy.on('tap', 'edge', (e) => {
+    this.cy.on('tap', 'edge', (event) => {
       if (this.disabledClick) return;
-      this.selectEdge(e.target);
+      this.selectEdge(event.target);
     });
-    this.cy.on('dblclick', 'node', (e) => {
+    this.cy.on('dblclick', 'node', (event) => {
       if (this.disabledClick) return;
-      this.toggleExpandNode(e.target);
+      this.toggleExpandNode(event.target);
     });
-    this.cy.on('tap', (e) => {
+    this.cy.on('tap', (event) => {
       if (this.disabledClick) return;
-      if (e.target === this.cy) {
+      if (event.target === this.cy) {
         this.applyEdgeHighlight(null);
         this.pushEventTo(this.el, 'select-node', { key: '' });
       }
     });
 
-    this.cy.on('mouseover', 'node', function (event) {
+    this.cy.on('mouseover', 'node, edge', (event) => {  
       event.target.addClass('hover');
       event.cy.container().style.cursor = 'pointer';
     });
-
-    this.cy.on('mouseout', 'node', function (event) {
-      event.target.removeClass('hover');
-      event.cy.container().style.cursor = '';
-    });
-
-    this.cy.on('mouseover', 'edge', function (event) {
-      event.target.addClass('hover');
-      event.cy.container().style.cursor = 'pointer';
-    });
-
-    this.cy.on('mouseout', 'edge', function (event) {
+    this.cy.on('mouseout', 'node, edge', (event) => {
       event.target.removeClass('hover');
       event.cy.container().style.cursor = '';
     });
@@ -94,7 +83,7 @@ const SupervisionTree = {
     this.cy.on('render', () => this.repositionOverlays());
 
     this.handleEvent('tree-data', (p) => this.applyPayload(p));
-    this.handleEvent('path-highlight', (p) => this.applyHighlight(p));
+    this.handleEvent('path-highlight', (p) => this.applyPathHighlight(p));
     this.el.addEventListener('zoom-in', () => this.zoomBy(1.2));
     this.el.addEventListener('zoom-out', () => this.zoomBy(0.8));
     this.el.addEventListener('maximize', () =>
@@ -327,7 +316,7 @@ const SupervisionTree = {
     }, LAYOUT_DEBOUNCE_MS);
   },
 
-  applyHighlight({ path }) {
+  applyPathHighlight({ path }) {
     this.selectedEdgeId = null;
 
     this.cy.batch(() => {
