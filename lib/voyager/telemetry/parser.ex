@@ -53,7 +53,7 @@ defmodule Voyager.Telemetry.Parser do
   end
 
   def parse_metadata([:voyager, :vm, :memory], _meta), do: %{}
-  def parse_metadata([:voyager, :node, :connect], _meta), do: %{}
+  def parse_metadata([:voyager, :node, :connect], meta), do: %{via: meta[:via]}
 
   def parse_metadata([:voyager, :node, :disconnect], meta) do
     %{reason: meta[:reason]}
