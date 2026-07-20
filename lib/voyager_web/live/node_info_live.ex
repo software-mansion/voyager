@@ -140,6 +140,7 @@ defmodule VoyagerWeb.NodeInfoLive do
             visible_count={@visible_app_count}
             page_size={@applications_page_size}
             load_more_event="load-more-apps"
+            help={NodeInfoHelp.get(:applications)}
           />
         </div>
       </.async_result>

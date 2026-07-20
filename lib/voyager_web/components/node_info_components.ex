@@ -301,6 +301,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
   attr :visible_count, :integer, required: true
   attr :page_size, :integer, required: true
   attr :load_more_event, :string, required: true
+  attr :help, :map, default: nil, doc: "optional help entry for the card title (see NodeInfoHelp)"
 
   def applications_card(assigns) do
     assigns =
@@ -314,7 +315,16 @@ defmodule VoyagerWeb.NodeInfoComponents do
     <div class="card bg-base-100 border-base-200 border shadow-sm">
       <div class="card-body gap-4 p-5">
         <div class="mb-2 flex items-baseline justify-between">
-          <h3 class="text-base-content text-sm font-semibold">Running applications</h3>
+          <div class="flex items-center gap-1">
+            <h3 class="text-base-content text-sm font-semibold">Running applications</h3>
+            <.help_tooltip
+              :if={@help}
+              id="applications-help"
+              text={@help.text}
+              doc_href={@help[:doc_href]}
+              doc_label={@help[:doc_label] || "Learn more"}
+            />
+          </div>
           <span class="font-mono text-base-content/50 text-xs">{@total} running</span>
         </div>
 
