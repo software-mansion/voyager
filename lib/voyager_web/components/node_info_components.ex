@@ -329,13 +329,13 @@ defmodule VoyagerWeb.NodeInfoComponents do
         </div>
 
         <div class="overflow-x-auto">
-          <table class="w-full text-left">
+          <table class="w-full table-fixed text-left">
             <thead>
               <tr class="border-base-200 border-b">
-                <th class="font-mono tracking-label text-base-content/50 px-2 pb-2 text-xs font-semibold uppercase">
+                <th class="font-mono tracking-label text-base-content/50 w-1/4 px-2 pb-2 text-xs font-semibold uppercase">
                   Application
                 </th>
-                <th class="font-mono tracking-label text-base-content/50 px-2 pb-2 text-xs font-semibold uppercase">
+                <th class="font-mono tracking-label text-base-content/50 w-28 px-2 pb-2 text-xs font-semibold uppercase">
                   Version
                 </th>
                 <th class="font-mono tracking-label text-base-content/50 px-2 pb-2 text-xs font-semibold uppercase">
@@ -345,13 +345,20 @@ defmodule VoyagerWeb.NodeInfoComponents do
             </thead>
             <tbody class="divide-base-200 divide-y">
               <tr :for={app <- @visible_applications}>
-                <td class="text-base-content px-2 py-2.5 text-sm font-medium">{app.name}</td>
+                <td class="text-base-content px-2 py-2.5 text-sm font-medium">
+                  {app.name}
+                </td>
                 <td class="px-2 py-2.5">
                   <span class="bg-base-200/60 border-base-200 text-base-content/80 font-mono rounded border px-1.5 py-0.5 text-xs">
                     {app.version}
                   </span>
                 </td>
-                <td class="text-base-content/70 px-2 py-2.5 text-sm">{app.description}</td>
+                <td
+                  class="text-base-content/70 px-2 py-2.5 text-sm"
+                  title={app.description}
+                >
+                  {app.description}
+                </td>
               </tr>
             </tbody>
           </table>
