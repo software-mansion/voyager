@@ -171,6 +171,40 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       assert has_element?(view, "#node-info-content", "1")
     end
 
+    test "lists running applications sorted alphabetically", %{conn: conn} do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      assert has_element?(view, "#node-info-content", "kernel")
+      assert has_element?(view, "#node-info-content", "9.2")
+      assert has_element?(view, "#node-info-content", "ERTS CXC 138 10")
+      assert has_element?(view, "#node-info-content", "stdlib")
+      refute has_element?(view, "#applications-load-more-button")
+    end
+
+    test "shows a load-more button when applications exceed the page size, revealing the rest on click",
+         %{conn: conn} do
+      applications =
+        for n <- 1..12, do: {:"app#{String.pad_leading("#{n}", 2, "0")}", "d#{n}", "1.0.#{n}"}
+
+      stub_erpc(Fakes.node_data(applications: applications))
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      assert has_element?(view, "#node-info-content", "app01")
+      refute has_element?(view, "#node-info-content", "app11")
+      assert has_element?(view, "#applications-load-more-button", "Load 2 more")
+
+      view |> element("#applications-load-more-button") |> render_click()
+
+      assert has_element?(view, "#node-info-content", "app11")
+      assert has_element?(view, "#node-info-content", "app12")
+      refute has_element?(view, "#applications-load-more-button")
+    end
+
     test "renders the auto-refresh form defaulting to Off", %{conn: conn} do
       stub_erpc(Fakes.node_data())
 

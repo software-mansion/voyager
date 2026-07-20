@@ -282,6 +282,86 @@ defmodule VoyagerWeb.NodeInfoComponents do
     """
   end
 
+  @doc """
+  Renders a running-applications table, capped to `visible_count` rows with a
+  "Load more" affordance for the remainder. `page_size` is only used to size
+  the "Load more" button label to how many rows the next click will reveal.
+  `load_more_event` is the `phx-click` event name the parent LiveView handles.
+
+  ## Examples
+
+      <NodeInfoComponents.applications_card
+        applications={snapshot.applications}
+        visible_count={@visible_app_count}
+        page_size={@applications_page_size}
+        load_more_event="load-more-apps"
+      />
+  """
+  attr :applications, :list, required: true
+  attr :visible_count, :integer, required: true
+  attr :page_size, :integer, required: true
+  attr :load_more_event, :string, required: true
+
+  def applications_card(assigns) do
+    assigns =
+      assign(assigns,
+        visible_applications: Enum.take(assigns.applications, assigns.visible_count),
+        total: length(assigns.applications),
+        remaining: max(length(assigns.applications) - assigns.visible_count, 0)
+      )
+
+    ~H"""
+    <div class="card bg-base-100 border-base-200 border shadow-sm">
+      <div class="card-body gap-4 p-5">
+        <div class="mb-2 flex items-baseline justify-between">
+          <h3 class="text-base-content text-sm font-semibold">Running applications</h3>
+          <span class="font-mono text-base-content/50 text-xs">{@total} running</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left">
+            <thead>
+              <tr class="border-base-200 border-b">
+                <th class="font-mono tracking-label text-base-content/50 px-2 pb-2 text-xs font-semibold uppercase">
+                  Application
+                </th>
+                <th class="font-mono tracking-label text-base-content/50 px-2 pb-2 text-xs font-semibold uppercase">
+                  Version
+                </th>
+                <th class="font-mono tracking-label text-base-content/50 px-2 pb-2 text-xs font-semibold uppercase">
+                  Description
+                </th>
+              </tr>
+            </thead>
+            <tbody class="divide-base-200 divide-y">
+              <tr :for={app <- @visible_applications}>
+                <td class="text-base-content px-2 py-2.5 text-sm font-medium">{app.name}</td>
+                <td class="px-2 py-2.5">
+                  <span class="bg-base-200/60 border-base-200 text-base-content/80 font-mono rounded border px-1.5 py-0.5 text-xs">
+                    {app.version}
+                  </span>
+                </td>
+                <td class="text-base-content/70 px-2 py-2.5 text-sm">{app.description}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div :if={@remaining > 0} class="flex justify-center">
+          <button
+            type="button"
+            id="applications-load-more-button"
+            class="btn btn-ghost btn-sm"
+            phx-click={@load_more_event}
+          >
+            Load {min(@remaining, @page_size)} more
+          </button>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
   defp limit_rows(limits) do
     [
       {"processes", limits.processes, NodeInfoHelp.get(:processes)},

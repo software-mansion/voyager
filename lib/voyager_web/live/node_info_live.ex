@@ -8,6 +8,7 @@ defmodule VoyagerWeb.NodeInfoLive do
   alias VoyagerWeb.NodeInfoHelp
 
   @default_interval Application.compile_env(:voyager, :node_info_refresh_interval_ms, 5_000)
+  @applications_page_size 10
 
   @interval_options [
     {"Off", "off"},
@@ -28,6 +29,8 @@ defmodule VoyagerWeb.NodeInfoLive do
       |> assign(:snapshot, AsyncResult.loading())
       |> assign(:last_updated, nil)
       |> assign(:timer_ref, nil)
+      |> assign(:visible_app_count, @applications_page_size)
+      |> assign(:applications_page_size, @applications_page_size)
 
     socket =
       if connected?(socket) do
@@ -131,6 +134,13 @@ defmodule VoyagerWeb.NodeInfoLive do
               />
             </div>
           </div>
+
+          <NodeInfoComponents.applications_card
+            applications={snapshot.applications}
+            visible_count={@visible_app_count}
+            page_size={@applications_page_size}
+            load_more_event="load-more-apps"
+          />
         </div>
       </.async_result>
     </div>
@@ -146,6 +156,12 @@ defmodule VoyagerWeb.NodeInfoLive do
     socket
     |> assign(:refresh_interval, parse_interval(value))
     |> schedule_refresh()
+    |> noreply()
+  end
+
+  def handle_event("load-more-apps", _params, socket) do
+    socket
+    |> update(:visible_app_count, &(&1 + @applications_page_size))
     |> noreply()
   end
 
