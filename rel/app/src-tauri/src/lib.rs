@@ -91,7 +91,10 @@ fn elixir_command(
         let mut command = elixirkit::mix("phx.server", &[]);
         command.current_dir("../../../");
         command.env("PORT", port.to_string());
-        command.env("TELEMETRY_PUSH_URL", "http://127.0.0.1:4310/telemetry");
+        command.env(
+            "TELEMETRY_PUSH_URL",
+            "https://voyager-telemetry-ingest.swmtest.xyz/telemetry",
+        );
         command
     } else {
         let mut command = elixirkit::release(rel_dir, "voyager");
@@ -100,7 +103,10 @@ fn elixir_command(
         command.env("PORT", port.to_string());
         command.env("SECRET_KEY_BASE", utils::secret_key_base(data_dir));
         command.env("DATABASE_PATH", data_dir.join("voyager.db"));
-        command.env("TELEMETRY_PUSH_URL", "http://127.0.0.1:4310/telemetry"); // This is temporary until we have a proper telemetry server #17
+        command.env(
+            "TELEMETRY_PUSH_URL",
+            "https://voyager-telemetry-ingest.swmtest.xyz/telemetry",
+        );
         command
     }
 }
