@@ -19,6 +19,16 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
     :ok
   end
 
+  describe "navbar" do
+    test "shows the MCP status indicator", %{conn: conn} do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+
+      assert has_element?(view, "#mcp-status")
+    end
+  end
+
   describe "mount with a reachable node" do
     test "shows the loading state on initial connect", %{conn: conn} do
       stub_erpc(Fakes.node_data())

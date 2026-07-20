@@ -170,32 +170,34 @@ defmodule VoyagerWeb.ConnectComponents do
   def secret_field(assigns) do
     ~H"""
     <div>
-      <div class="mb-1.5 flex items-center justify-between">
-        <label
-          class="font-mono tracking-label text-base-content/50 text-xs uppercase"
-          for={@field.id}
-        >
-          {@label}
-        </label>
+      <label
+        class="font-mono tracking-label text-base-content/50 mb-1.5 block text-xs uppercase"
+        for={@field.id}
+      >
+        {@label}
+      </label>
+      <div class="relative">
+        <.input
+          field={@field}
+          type={if @shown, do: "text", else: "password"}
+          placeholder="••••••••••••••••"
+          autocomplete="off"
+          spellcheck="false"
+          disabled={@disabled}
+          class="font-mono pr-10 text-sm"
+        />
         <button
           type="button"
           phx-target={@target}
           phx-click={@toggle_event}
           disabled={@disabled}
-          class="font-mono tracking-loose text-base-content/40 cursor-pointer text-xs uppercase transition-colors hover:text-base-content"
+          aria-label={if @shown, do: "Hide", else: "Show"}
+          title={if @shown, do: "Hide", else: "Show"}
+          class="btn btn-ghost btn-square btn-sm text-base-content/40 absolute top-1 right-1.5 hover:text-base-content"
         >
-          {if @shown, do: "Hide", else: "Show"}
+          <.icon name={if @shown, do: "icon-eye", else: "icon-eye-off"} class="size-5" />
         </button>
       </div>
-      <.input
-        field={@field}
-        type={if @shown, do: "text", else: "password"}
-        placeholder="••••••••••••••••"
-        autocomplete="off"
-        spellcheck="false"
-        disabled={@disabled}
-        class="font-mono text-sm"
-      />
       <label class={[
         "mt-2.5 flex items-center gap-2",
         if(@disabled, do: "cursor-not-allowed", else: "cursor-pointer")

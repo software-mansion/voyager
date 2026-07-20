@@ -107,4 +107,27 @@ defmodule Voyager.MCP.EndpointManagerTest do
       assert url == "http://127.0.0.1:#{port}/mcp"
     end
   end
+
+  describe "status broadcasts" do
+    test "broadcasts on toggle", %{mcp_port: port} do
+      Phoenix.PubSub.subscribe(Voyager.PubSub, MCP.topic())
+
+      assert {:ok, :stopped} = MCP.toggle()
+      assert_receive {:mcp_status, %{alive?: false, url: url}}
+      assert url == "http://127.0.0.1:#{port}/mcp"
+
+      assert {:ok, :running} = MCP.toggle()
+      assert_receive {:mcp_status, %{alive?: true, url: ^url}}
+    end
+
+    test "broadcasts when the endpoint crashes" do
+      Phoenix.PubSub.subscribe(Voyager.PubSub, MCP.topic())
+
+      %{endpoint: pid} = :sys.get_state(EndpointManager)
+      assert is_pid(pid)
+      DynamicSupervisor.terminate_child(Voyager.MCP.DynamicSupervisor, pid)
+
+      assert_receive {:mcp_status, %{alive?: false}}
+    end
+  end
 end
