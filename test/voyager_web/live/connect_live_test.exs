@@ -6,7 +6,6 @@ defmodule VoyagerWeb.ConnectLiveTest do
   alias Voyager.Actions.Connections, as: ConnectionActions
   alias Voyager.Fakes
   alias Voyager.NodeSession
-  alias Voyager.Services.Distribution
 
   setup do
     previous_state = :sys.get_state(NodeSession)
@@ -21,7 +20,6 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
   describe "disconnect" do
     test "clears the connected indicator and re-enables the form", %{conn: conn} do
-      assert :ok = Distribution.ensure_distributed(:longnames)
       Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
 
       {:ok, view, _html} = live(conn, ~p"/")
@@ -55,6 +53,9 @@ defmodule VoyagerWeb.ConnectLiveTest do
       render_click(view, "fill_recent", %{"id" => Integer.to_string(recent.id)})
 
       refute has_element?(view, ~s|#conn_node_name[value="#{recent.node_name}"]|)
+    end
+  end
+
   describe "settings link" do
     test "links to the settings page", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")

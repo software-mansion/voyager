@@ -86,10 +86,9 @@ defmodule Voyager.NodeSession do
   end
 
   def handle_call(:disconnect, _from, %{session: session} = state) do
-    Node.monitor(session.node, false)
+    if Node.alive?(), do: Node.monitor(session.node, false)
     NodeConnector.disconnect(session.node)
     broadcast({:node_disconnected, session.node})
-
     Voyager.Telemetry.dispatch!("voyager.node.disconnect",
       metadata: %{reason: "manual disconnect"}
     )
