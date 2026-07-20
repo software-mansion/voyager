@@ -8,6 +8,7 @@ defmodule Voyager.Services.NodeInfo.Snapshot do
   alias Voyager.Services.NodeInfo.Language
   alias Voyager.Services.NodeInfo.Limits
   alias Voyager.Services.NodeInfo.Memory
+  alias Voyager.Services.NodeInfo.RunningApplication
   alias Voyager.Services.NodeInfo.RunQueues
   alias Voyager.Services.NodeInfo.Schedulers
   alias Voyager.Services.NodeInfo.Statistics
@@ -22,7 +23,8 @@ defmodule Voyager.Services.NodeInfo.Snapshot do
           runtime: Statistics.t(),
           limits: Limits.t(),
           schedulers: Schedulers.t(),
-          run_queues: RunQueues.t()
+          run_queues: RunQueues.t(),
+          applications: [RunningApplication.t()]
         }
 
   @derive JSON.Encoder
@@ -35,6 +37,7 @@ defmodule Voyager.Services.NodeInfo.Snapshot do
     :runtime,
     :limits,
     :schedulers,
-    :run_queues
+    :run_queues,
+    :applications
   ]
 end

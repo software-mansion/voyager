@@ -84,7 +84,12 @@ defmodule Voyager.Fakes do
     # Application versions (nil => app not installed)
     stdlib_version: "5.2",
     elixir_version: "1.18.0",
-    gleam_version: nil
+    gleam_version: nil,
+    # Running applications: {name, description, version}
+    applications: [
+      {:kernel, "ERTS  CXC 138 10", "9.2"},
+      {:stdlib, "ERTS  CXC 138 10", "5.2"}
+    ]
   }
 
   @doc """
@@ -115,6 +120,12 @@ defmodule Voyager.Fakes do
     do: version_reply(data.gleam_version)
 
   def erpc_reply(:application, :get_key, [_app, :vsn], _data), do: :undefined
+
+  def erpc_reply(:application, :which_applications, [], data) do
+    Enum.map(data.applications, fn {name, desc, vsn} ->
+      {name, to_charlist(desc), to_charlist(vsn)}
+    end)
+  end
 
   # Mirrors what :erlang.system_info/1 and :erlang.statistics/1 return per key.
   defp system_value(:otp_release, d), do: to_charlist(d.otp_release)

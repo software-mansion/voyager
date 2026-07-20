@@ -5,6 +5,7 @@ defmodule Voyager.Services.NodeInfoTest do
   alias Voyager.Services.NodeInfo.Language
   alias Voyager.Services.NodeInfo.Limits
   alias Voyager.Services.NodeInfo.Memory
+  alias Voyager.Services.NodeInfo.RunningApplication
   alias Voyager.Services.NodeInfo.RunQueues
   alias Voyager.Services.NodeInfo.Schedulers
   alias Voyager.Services.NodeInfo.Snapshot
@@ -39,6 +40,15 @@ defmodule Voyager.Services.NodeInfoTest do
       assert is_list(languages)
       assert Enum.all?(languages, &match?(%Language{}, &1))
       assert Enum.any?(languages, &(&1.name == "Elixir"))
+    end
+
+    test "applications is a sorted list of RunningApplication structs including :kernel" do
+      assert {:ok, %Snapshot{applications: applications}} = NodeInfo.fetch(Node.self())
+
+      assert is_list(applications)
+      assert Enum.all?(applications, &match?(%RunningApplication{}, &1))
+      assert Enum.any?(applications, &(&1.name == :kernel))
+      assert applications == Enum.sort_by(applications, & &1.name)
     end
 
     test "system fields are populated from :erlang.system_info/1" do
