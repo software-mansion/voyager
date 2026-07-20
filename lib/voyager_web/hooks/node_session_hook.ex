@@ -60,7 +60,7 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
 
   defp handle_disconnect("disconnect", _params, socket) do
     Voyager.NodeSession.disconnect()
-    {:halt, redirect(socket, to: ~p"/")}
+    {:halt, socket}
   end
 
   defp handle_disconnect(_event, _params, socket), do: {:cont, socket}
