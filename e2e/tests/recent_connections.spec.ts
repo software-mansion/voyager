@@ -1,10 +1,5 @@
 import { test, expect } from '@playwright/test';
-import {
-  NODE_NAME,
-  sel,
-  fillRecentBtn,
-  ensureConnected,
-} from './fixtures';
+import { NODE_NAME, sel, fillRecentBtn, ensureConnected } from './fixtures';
 
 test.describe.configure({ mode: 'serial' });
 
