@@ -284,22 +284,19 @@ defmodule VoyagerWeb.NodeInfoComponents do
 
   @doc """
   Renders a running-applications table, capped to `visible_count` rows with a
-  "Load more" affordance for the remainder. `page_size` is only used to size
-  the "Load more" button label to how many rows the next click will reveal.
-  `load_more_event` is the `phx-click` event name the parent LiveView handles.
+  "Show all" affordance for the remainder. `load_more_event` is the
+  `phx-click` event name the parent LiveView handles.
 
   ## Examples
 
       <NodeInfoComponents.applications_card
         applications={snapshot.applications}
         visible_count={@visible_app_count}
-        page_size={@applications_page_size}
         load_more_event="load-more-apps"
       />
   """
   attr :applications, :list, required: true
   attr :visible_count, :integer, required: true
-  attr :page_size, :integer, required: true
   attr :load_more_event, :string, required: true
   attr :node_name, :string, required: true, doc: "used to link a row to its supervision tree"
   attr :help, :map, default: nil, doc: "optional help entry for the card title (see NodeInfoHelp)"
@@ -384,11 +381,11 @@ defmodule VoyagerWeb.NodeInfoComponents do
         <div :if={@remaining > 0} class="flex justify-center">
           <button
             type="button"
-            id="applications-load-more-button"
+            id="applications-show-all-button"
             class="btn btn-ghost btn-sm"
             phx-click={@load_more_event}
           >
-            Load {min(@remaining, @page_size)} more
+            Show all
           </button>
         </div>
       </div>

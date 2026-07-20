@@ -30,7 +30,6 @@ defmodule VoyagerWeb.NodeInfoLive do
       |> assign(:last_updated, nil)
       |> assign(:timer_ref, nil)
       |> assign(:visible_app_count, @applications_page_size)
-      |> assign(:applications_page_size, @applications_page_size)
 
     socket =
       if connected?(socket) do
@@ -138,8 +137,7 @@ defmodule VoyagerWeb.NodeInfoLive do
           <NodeInfoComponents.applications_card
             applications={snapshot.applications}
             visible_count={@visible_app_count}
-            page_size={@applications_page_size}
-            load_more_event="load-more-apps"
+            load_more_event="show-all-apps"
             node_name={@session.node_name}
             help={NodeInfoHelp.get(:applications)}
           />
@@ -161,9 +159,11 @@ defmodule VoyagerWeb.NodeInfoLive do
     |> noreply()
   end
 
-  def handle_event("load-more-apps", _params, socket) do
+  def handle_event("show-all-apps", _params, socket) do
+    total = length(socket.assigns.snapshot.result.applications)
+
     socket
-    |> update(:visible_app_count, &(&1 + @applications_page_size))
+    |> assign(:visible_app_count, total)
     |> noreply()
   end
 

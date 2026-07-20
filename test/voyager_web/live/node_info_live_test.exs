@@ -181,7 +181,7 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       assert has_element?(view, "#node-info-content", "9.2")
       assert has_element?(view, "#node-info-content", "ERTS CXC 138 10")
       assert has_element?(view, "#node-info-content", "stdlib")
-      refute has_element?(view, "#applications-load-more-button")
+      refute has_element?(view, "#applications-show-all-button")
     end
 
     test "clicking an application row navigates to its supervision tree", %{conn: conn} do
@@ -204,7 +204,7 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       refute html =~ "supervision-tree?apps=stdlib"
     end
 
-    test "shows a load-more button when applications exceed the page size, revealing the rest on click",
+    test "shows a show-all button when applications exceed the page size, revealing the rest on click",
          %{conn: conn} do
       applications =
         for n <- 1..12, do: {:"app#{String.pad_leading("#{n}", 2, "0")}", "d#{n}", "1.0.#{n}"}
@@ -216,13 +216,13 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
       assert has_element?(view, "#node-info-content", "app01")
       refute has_element?(view, "#node-info-content", "app11")
-      assert has_element?(view, "#applications-load-more-button", "Load 2 more")
+      assert has_element?(view, "#applications-show-all-button", "Show all")
 
-      view |> element("#applications-load-more-button") |> render_click()
+      view |> element("#applications-show-all-button") |> render_click()
 
       assert has_element?(view, "#node-info-content", "app11")
       assert has_element?(view, "#node-info-content", "app12")
-      refute has_element?(view, "#applications-load-more-button")
+      refute has_element?(view, "#applications-show-all-button")
     end
 
     test "renders the auto-refresh form defaulting to Off", %{conn: conn} do
