@@ -61,7 +61,7 @@ defmodule Voyager.Services.NodeInfo do
       limits: Limits.build(data.system_info),
       schedulers: Schedulers.build(data.system_info),
       run_queues: RunQueues.build(data.statistics),
-      applications: RunningApplication.build(data.applications)
+      applications: RunningApplication.build(data.applications, data.application_masters)
     }
 
     {:ok, snapshot}
@@ -103,7 +103,9 @@ defmodule Voyager.Services.NodeInfo do
             which_applications
             | language_versions
           ]} <-
-           run_parallel(base_funs ++ language_funs, timeout) do
+           run_parallel(base_funs ++ language_funs, timeout),
+         {:ok, application_masters} <-
+           fetch_application_masters(node, which_applications, timeout) do
       {:ok,
        %{
          system_info: system_info_keys |> Enum.zip(system_info_values) |> Map.new(),
@@ -111,9 +113,27 @@ defmodule Voyager.Services.NodeInfo do
          memory: Map.new(memory),
          stdlib_vsn: stdlib_vsn,
          applications: which_applications,
+         application_masters: application_masters,
          language_versions: language_versions
        }}
     end
+  end
+
+  defp fetch_application_masters(node, which_applications, timeout) do
+    app_names = Enum.map(which_applications, fn {app, _description, _vsn} -> app end)
+
+    masters =
+      Voyager.Erpc.call(
+        node,
+        :lists,
+        :map,
+        [&:application_controller.get_master/1, app_names],
+        timeout
+      )
+
+    {:ok, masters}
+  catch
+    kind, reason -> {:error, classify(kind, reason)}
   end
 
   defp run_parallel(funs, timeout) do

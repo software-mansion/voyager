@@ -89,7 +89,8 @@ defmodule Voyager.Fakes do
     applications: [
       {:kernel, "ERTS  CXC 138 10", "9.2"},
       {:stdlib, "ERTS  CXC 138 10", "5.2"}
-    ]
+    ],
+    application_masters: %{kernel: true, stdlib: false}
   }
 
   @doc """
@@ -107,7 +108,14 @@ defmodule Voyager.Fakes do
   `node_data/1`) and dispatched on the module/function and arguments the
   `Voyager.Services.NodeInfo` collector issues.
   """
-  def erpc_reply(:lists, :map, [_fun, keys], data), do: Enum.map(keys, &system_value(&1, data))
+  def erpc_reply(:lists, :map, [fun, list], data) do
+    if fun == (&:application_controller.get_master/1) do
+      Enum.map(list, &application_master_reply(&1, data))
+    else
+      Enum.map(list, &system_value(&1, data))
+    end
+  end
+
   def erpc_reply(:erlang, :memory, [], data), do: memory_kw(data)
 
   def erpc_reply(:application, :get_key, [:stdlib, :vsn], data),
@@ -162,6 +170,12 @@ defmodule Voyager.Fakes do
       code: d.mem_code,
       ets: d.mem_ets
     ]
+  end
+
+  defp application_master_reply(app_name, data) do
+    if Map.get(data.application_masters, app_name, true),
+      do: :mock_application_master,
+      else: :undefined
   end
 
   defp version_reply(nil), do: :undefined

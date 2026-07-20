@@ -301,6 +301,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
   attr :visible_count, :integer, required: true
   attr :page_size, :integer, required: true
   attr :load_more_event, :string, required: true
+  attr :node_name, :string, required: true, doc: "used to link a row to its supervision tree"
   attr :help, :map, default: nil, doc: "optional help entry for the card title (see NodeInfoHelp)"
 
   def applications_card(assigns) do
@@ -345,7 +346,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
             </thead>
             <tbody class="divide-base-200 divide-y">
               <tr :for={app <- @visible_applications}>
-                <td class="text-base-content px-2 py-2.5 text-sm font-medium">
+                <td class="text-base-content truncate px-2 py-2.5 text-sm font-medium">
                   {app.name}
                 </td>
                 <td class="px-2 py-2.5">
@@ -358,6 +359,22 @@ defmodule VoyagerWeb.NodeInfoComponents do
                   title={app.description}
                 >
                   {app.description}
+                </td>
+                <td class="px-2 py-2.5 text-right">
+                  <.tooltip
+                    :if={app.has_supervision_tree}
+                    id={"app-tree-#{app.name}"}
+                    position="left"
+                  >
+                    <.link
+                      navigate={application_href(@node_name, app.name)}
+                      aria-label={"View #{app.name} supervision tree"}
+                      class="text-base-content/40 transition-colors hover:text-primary"
+                    >
+                      <.icon name="icon-network" class="size-3.5" />
+                    </.link>
+                    <:content>View supervision tree</:content>
+                  </.tooltip>
                 </td>
               </tr>
             </tbody>
@@ -377,6 +394,10 @@ defmodule VoyagerWeb.NodeInfoComponents do
       </div>
     </div>
     """
+  end
+
+  defp application_href(node_name, app_name) do
+    "/node/#{URI.encode(node_name)}/supervision-tree?apps=#{URI.encode_www_form(to_string(app_name))}"
   end
 
   defp limit_rows(limits) do

@@ -184,6 +184,26 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       refute has_element?(view, "#applications-load-more-button")
     end
 
+    test "clicking an application row navigates to its supervision tree", %{conn: conn} do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      html = render(view)
+      assert html =~ "/node/#{@node_name}/supervision-tree?apps=kernel"
+    end
+
+    test "an application without a supervision tree is not clickable", %{conn: conn} do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      html = render(view)
+      refute html =~ "supervision-tree?apps=stdlib"
+    end
+
     test "shows a load-more button when applications exceed the page size, revealing the rest on click",
          %{conn: conn} do
       applications =

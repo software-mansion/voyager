@@ -49,6 +49,11 @@ defmodule Voyager.Services.NodeInfoTest do
       assert Enum.all?(applications, &match?(%RunningApplication{}, &1))
       assert Enum.any?(applications, &(&1.name == :kernel))
       assert applications == Enum.sort_by(applications, & &1.name)
+
+      kernel = Enum.find(applications, &(&1.name == :kernel))
+      stdlib = Enum.find(applications, &(&1.name == :stdlib))
+      assert kernel.has_supervision_tree
+      refute stdlib.has_supervision_tree
     end
 
     test "system fields are populated from :erlang.system_info/1" do
