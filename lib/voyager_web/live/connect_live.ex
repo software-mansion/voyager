@@ -82,6 +82,8 @@ defmodule VoyagerWeb.ConnectLive do
     {:noreply, assign(socket, :mode, :ssh)}
   end
 
+  def handle_event(_, _, socket), do: {:noreply, socket}
+
   @impl true
   def handle_info({:node_connected, _node}, socket) do
     {:noreply, assign(socket, :connected_session, NodeSession.current())}
