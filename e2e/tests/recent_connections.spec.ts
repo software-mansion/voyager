@@ -4,6 +4,12 @@ import { NODE_NAME, sel, fillRecentBtn, ensureConnected } from './fixtures';
 test.describe.configure({ mode: 'serial' });
 
 test.describe('ConnectLive › recent connections', () => {
+  test.beforeAll(async ({ browser }) => {
+    const page = await browser.newPage();
+    await ensureConnected(page);
+    await page.close();
+  });
+
   test.afterAll(async ({ browser }) => {
     const page = await browser.newPage();
     await ensureConnected(page);

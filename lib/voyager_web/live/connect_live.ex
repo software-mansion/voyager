@@ -110,8 +110,12 @@ defmodule VoyagerWeb.ConnectLive do
   end
 
   def handle_event("disconnect", _params, socket) do
-    NodeSession.disconnect()
-    {:noreply, socket}
+    _ = NodeSession.disconnect()
+
+    socket
+    |> assign(:connected_session, nil)
+    |> reset_connections()
+    |> noreply()
   end
 
   def handle_event("fill_recent", _params, %{assigns: %{connected_session: session}} = socket)

@@ -9,6 +9,7 @@ export const sel = {
   cookieInput: '#conn_cookie',
   connectBtn: '#connect-btn',
   disconnectFromConnect: '#disconnect-from-connect',
+  connectedIndicator: '#connected-indicator',
   recentConnections: '#recent-connections',
   nodeInfoContent: '#node-info-content',
   nodeInfoLoading: '#node-info-loading',
@@ -66,8 +67,20 @@ export async function ensureConnected(page: Page) {
   await page.goto('/');
   await waitForLiveView(page);
 
-  if (await page.locator(sel.disconnectFromConnect).isVisible()) {
-    return;
+  const disconnect = page.locator(sel.disconnectFromConnect);
+  if (await disconnect.isVisible()) {
+    const indicator = page.locator(sel.connectedIndicator);
+    if (await indicator.isVisible()) {
+      const text = await indicator.textContent();
+      if (text?.includes(NODE_NAME)) {
+        return;
+      }
+    }
+
+    await disconnect.click();
+    await expect(disconnect).toBeHidden();
+    await expect(page.locator(sel.connectBtn)).toBeEnabled();
+    await waitForLiveView(page);
   }
 
   await fillConnectForm(page, NODE_NAME, COOKIE);

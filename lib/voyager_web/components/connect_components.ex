@@ -17,7 +17,7 @@ defmodule VoyagerWeb.ConnectComponents do
     <div class="flex w-full items-center gap-1">
       <button
         type="button"
-        phx-click={unless @disabled, do: "fill_recent"}
+        phx-click="fill_recent"
         phx-value-id={@conn.id}
         data-testid="fill-recent-btn"
         disabled={@disabled}
@@ -78,7 +78,7 @@ defmodule VoyagerWeb.ConnectComponents do
 
   def connected_indicator(assigns) do
     ~H"""
-    <div class="mb-5">
+    <div id="connected-indicator" class="mb-5">
       <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
         Connected node
       </p>
@@ -99,6 +99,7 @@ defmodule VoyagerWeb.ConnectComponents do
             id="disconnect-from-connect"
             phx-click="disconnect"
             title="Disconnect"
+            aria-label="Disconnect"
             class="btn btn-ghost btn-xs text-base-content/50 hover:text-error"
           >
             <.icon name="icon-log-out" class="size-3.5" />
