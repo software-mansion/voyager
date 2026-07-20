@@ -17,8 +17,8 @@ defmodule Voyager.Actions.SshConnections do
   @type mutation_result :: {:ok, SshConnection.t()} | {:error, :not_found | Ecto.Changeset.t()}
 
   @doc """
-   Creates or updates an SSH connection profile when a node is successfully
-   connected.
+  Creates or updates an SSH connection profile when a node is successfully
+  connected.
   """
   @spec upsert_connected(String.t(), String.t(), integer(), String.t(), upsert_opts()) ::
           changeset_result()
