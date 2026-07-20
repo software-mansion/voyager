@@ -269,6 +269,10 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
         :erlang.error({:erpc, :noconnection})
       end)
 
+      stub(Voyager.ErpcMock, :call, fn _node, _mod, _fun, _args, _timeout ->
+        :erlang.error({:erpc, :noconnection})
+      end)
+
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
@@ -288,6 +292,10 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
   defp stub_erpc(data) do
     stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args ->
+      Fakes.erpc_reply(mod, fun, args, data)
+    end)
+
+    stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args, _timeout ->
       Fakes.erpc_reply(mod, fun, args, data)
     end)
   end
