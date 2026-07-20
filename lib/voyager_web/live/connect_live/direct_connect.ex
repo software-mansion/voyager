@@ -15,7 +15,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   alias Voyager.Actions.Connections, as: ConnectionActions
   alias Voyager.NodeSession
   alias Voyager.Queries.Connections, as: ConnectionQueries
-  alias VoyagerWeb.ConnectLive.Recents
+  alias VoyagerWeb.ConnectLive.RecentConnections
   alias VoyagerWeb.FormSchemas.ConnectionParams
 
   @recents_keys %{
@@ -36,7 +36,11 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
         socket
         |> assign(:form, empty_form())
         |> assign(:show_cookie, false)
-        |> reset_connections()
+        |> RecentConnections.init(
+          queries: ConnectionQueries,
+          actions: ConnectionActions,
+          keys: @recents_keys
+        )
         |> assign(:initialized, true)
       end
 
@@ -98,30 +102,16 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
         />
       </.form>
 
-      <div :if={@has_pinned} class="border-base-300 mt-7 border-t pt-5">
-        <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
-          Favourites
-        </p>
-        <ul id="pinned-connections" phx-update="stream" class="-mx-2 flex flex-col gap-0.5">
-          <li :for={{id, conn} <- @streams.pinned_connections} id={id} class="list-none">
-            <.direct_connection_row conn={conn} pinned={true} target={@myself} />
-          </li>
-        </ul>
-      </div>
-
-      <div
-        :if={@has_recent}
-        class={["border-base-300 border-t pt-5", if(@has_pinned, do: "mt-3", else: "mt-7")]}
+      <RecentConnections.render
+        streams={@streams}
+        keys={@recents.keys}
+        has_pinned={@has_pinned}
+        has_recent={@has_recent}
       >
-        <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
-          Recent connections
-        </p>
-        <ul id="recent-connections" phx-update="stream" class="-mx-2 flex flex-col gap-0.5">
-          <li :for={{id, conn} <- @streams.recent_connections} id={id} class="list-none">
-            <.direct_connection_row conn={conn} pinned={false} target={@myself} />
-          </li>
-        </ul>
-      </div>
+        <:row :let={{conn, pinned}}>
+          <.direct_connection_row conn={conn} pinned={pinned} target={@myself} />
+        </:row>
+      </RecentConnections.render>
 
       <p class="font-mono tracking-snug text-base-content/35 mt-6 text-center text-xs">
         Uses BEAM distribution
@@ -182,7 +172,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
       {int_id, ""} ->
         case ConnectionQueries.get(int_id) do
           nil ->
-            {:noreply, reset_connections(socket)}
+            {:noreply, RecentConnections.reset(socket)}
 
           conn ->
             changeset =
@@ -210,21 +200,6 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
     end
   end
 
-  def handle_event("pin", %{"id" => id}, socket) do
-    ConnectionActions.pin(String.to_integer(id))
-    {:noreply, reset_connections(socket)}
-  end
-
-  def handle_event("unpin", %{"id" => id}, socket) do
-    ConnectionActions.unpin(String.to_integer(id))
-    {:noreply, reset_connections(socket)}
-  end
-
-  def handle_event("delete_connection", %{"id" => id}, socket) do
-    ConnectionActions.delete(String.to_integer(id))
-    {:noreply, reset_connections(socket)}
-  end
-
   defp do_connect(socket, params, %ConnectionParams{
          node_name: node_name,
          cookie: cookie,
@@ -250,10 +225,6 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
 
         {:noreply, assign(socket, :form, to_form(changeset, as: :conn))}
     end
-  end
-
-  defp reset_connections(socket) do
-    Recents.reset(socket, ConnectionQueries.all(), @recents_keys)
   end
 
   defp empty_form do

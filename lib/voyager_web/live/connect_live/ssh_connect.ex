@@ -20,7 +20,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Connectors.Ssh, as: SshConnector
   alias Voyager.Queries.SshConnections, as: SshConnectionQueries
-  alias VoyagerWeb.ConnectLive.Recents
+  alias VoyagerWeb.ConnectLive.RecentConnections
   alias VoyagerWeb.FormSchemas.SshConnectionParams
 
   @recents_keys %{
@@ -45,7 +45,11 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         |> assign(:show_ssh_advanced, false)
         |> assign(:ssh_connecting, false)
         |> assign(:ssh_last_applied, nil)
-        |> reset_ssh_connections()
+        |> RecentConnections.init(
+          queries: SshConnectionQueries,
+          actions: SshConnectionActions,
+          keys: @recents_keys
+        )
         |> assign(:initialized, true)
       end
 
@@ -185,30 +189,17 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         />
       </.form>
 
-      <div :if={@has_pinned_ssh} class="border-base-300 mt-7 border-t pt-5">
-        <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
-          Favourites
-        </p>
-        <ul id="pinned-ssh-connections" phx-update="stream" class="-mx-2 flex flex-col gap-0.5">
-          <li :for={{id, conn} <- @streams.pinned_ssh_connections} id={id} class="list-none">
-            <.ssh_connection_row conn={conn} pinned={true} target={@myself} />
-          </li>
-        </ul>
-      </div>
-
-      <div
-        :if={@has_recent_ssh}
-        class={["border-base-300 border-t pt-5", if(@has_pinned_ssh, do: "mt-3", else: "mt-7")]}
+      <RecentConnections.render
+        dom_prefix="ssh-"
+        streams={@streams}
+        keys={@recents.keys}
+        has_pinned={@has_pinned_ssh}
+        has_recent={@has_recent_ssh}
       >
-        <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
-          Recent connections
-        </p>
-        <ul id="recent-ssh-connections" phx-update="stream" class="-mx-2 flex flex-col gap-0.5">
-          <li :for={{id, conn} <- @streams.recent_ssh_connections} id={id} class="list-none">
-            <.ssh_connection_row conn={conn} pinned={false} target={@myself} />
-          </li>
-        </ul>
-      </div>
+        <:row :let={{conn, pinned}}>
+          <.ssh_connection_row conn={conn} pinned={pinned} target={@myself} />
+        </:row>
+      </RecentConnections.render>
 
       <p class="font-mono tracking-snug text-base-content/35 mt-6 text-center text-xs">
         Connects via SSH tunnel
@@ -251,9 +242,9 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       <.row_actions
         id={@conn.id}
         pinned={@pinned}
-        pin_event="pin_ssh"
-        unpin_event="unpin_ssh"
-        delete_event="delete_ssh_connection"
+        pin_event="pin"
+        unpin_event="unpin"
+        delete_event="delete_connection"
         target={@target}
       />
     </div>
@@ -316,21 +307,6 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       |> assign(:show_ssh_cookie, false)
       |> assign(:show_ssh_password, false)
     end)
-  end
-
-  def handle_event("pin_ssh", %{"id" => id}, socket) do
-    SshConnectionActions.pin(String.to_integer(id))
-    {:noreply, reset_ssh_connections(socket)}
-  end
-
-  def handle_event("unpin_ssh", %{"id" => id}, socket) do
-    SshConnectionActions.unpin(String.to_integer(id))
-    {:noreply, reset_ssh_connections(socket)}
-  end
-
-  def handle_event("delete_ssh_connection", %{"id" => id}, socket) do
-    SshConnectionActions.delete(String.to_integer(id))
-    {:noreply, reset_ssh_connections(socket)}
   end
 
   @impl true
@@ -407,17 +383,13 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     case Integer.parse(id) do
       {int_id, ""} ->
         case SshConnectionQueries.get(int_id) do
-          nil -> {:noreply, reset_ssh_connections(socket)}
+          nil -> {:noreply, RecentConnections.reset(socket)}
           conn -> {:noreply, fun.(conn)}
         end
 
       _ ->
         {:noreply, socket}
     end
-  end
-
-  defp reset_ssh_connections(socket) do
-    Recents.reset(socket, SshConnectionQueries.all(), @recents_keys)
   end
 
   defp empty_ssh_form do
