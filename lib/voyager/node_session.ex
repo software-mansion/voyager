@@ -89,6 +89,7 @@ defmodule Voyager.NodeSession do
     if Node.alive?(), do: Node.monitor(session.node, false)
     NodeConnector.disconnect(session.node)
     broadcast({:node_disconnected, session.node})
+
     Voyager.Telemetry.dispatch!("voyager.node.disconnect",
       metadata: %{reason: "manual disconnect"}
     )
