@@ -32,11 +32,19 @@ defmodule Voyager.MCP.EndpointManager do
   @default_ip {127, 0, 0, 1}
   @default_port 4040
   @set_port_timeout 10_000
+  @pubsub_topic "mcp_status"
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(_opts \\ []) do
     GenServer.start_link(__MODULE__, [], name: __MODULE__)
   end
+
+  @doc """
+  Returns the PubSub topic broadcasting `{:mcp_status, %{alive?: boolean(), url: String.t()}}`
+  whenever the listener starts, stops, or its endpoint URL changes.
+  """
+  @spec topic() :: String.t()
+  def topic, do: @pubsub_topic
 
   @doc """
   Changes the listen port at runtime by binding Bandit to the new port.
@@ -80,16 +88,20 @@ defmodule Voyager.MCP.EndpointManager do
     ip = Settings.get(:mcp_ip, @default_ip)
     state = %{endpoint: nil, monitor: nil, enabled: true}
 
-    case start_endpoint(port, ip) do
-      {:ok, pid} ->
-        {:ok, monitor_endpoint(state, pid)}
+    state =
+      case start_endpoint(port, ip) do
+        {:ok, pid} ->
+          monitor_endpoint(state, pid)
 
-      {:error, reason} ->
-        # Don't take the whole MCP supervision tree down because the port is
-        # busy at boot — start idle and let the user rebind via `set_port/1`.
-        Logger.warning("MCP endpoint failed to start on port #{port}: #{inspect(reason)}")
-        {:ok, state}
-    end
+        {:error, reason} ->
+          # Don't take the whole MCP supervision tree down because the port is
+          # busy at boot — start idle and let the user rebind via `set_port/1`.
+          Logger.warning("MCP endpoint failed to start on port #{port}: #{inspect(reason)}")
+          state
+      end
+
+    broadcast_status(state)
+    {:ok, state}
   end
 
   @impl true
@@ -103,12 +115,14 @@ defmodule Voyager.MCP.EndpointManager do
 
   @impl true
   def handle_call(:info, _from, state) do
-    {:reply, %{alive?: is_pid(state.endpoint), url: endpoint_url()}, state}
+    {:reply, status(state), state}
   end
 
   def handle_call(:toggle, _from, %{endpoint: pid} = state) when is_pid(pid) do
     stop_endpoint(state)
-    {:reply, {:ok, :stopped}, %{state | endpoint: nil, monitor: nil, enabled: false}}
+    new_state = %{state | endpoint: nil, monitor: nil, enabled: false}
+    broadcast_status(new_state)
+    {:reply, {:ok, :stopped}, new_state}
   end
 
   def handle_call(:toggle, _from, state) do
@@ -116,8 +130,13 @@ defmodule Voyager.MCP.EndpointManager do
     ip = Settings.get(:mcp_ip, @default_ip)
 
     case start_endpoint(port, ip) do
-      {:ok, pid} -> {:reply, {:ok, :running}, %{monitor_endpoint(state, pid) | enabled: true}}
-      {:error, reason} -> {:reply, {:error, reason}, %{state | enabled: true}}
+      {:ok, pid} ->
+        new_state = %{monitor_endpoint(state, pid) | enabled: true}
+        broadcast_status(new_state)
+        {:reply, {:ok, :running}, new_state}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, %{state | enabled: true}}
     end
   end
 
@@ -140,8 +159,12 @@ defmodule Voyager.MCP.EndpointManager do
 
   defp persist_port(new_port, state) do
     case Settings.put(:mcp_port, new_port) do
-      {:ok, _} -> {:reply, :ok, state}
-      {:error, reason} -> {:reply, {:error, reason}, state}
+      {:ok, _} ->
+        broadcast_status(state)
+        {:reply, :ok, state}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
     end
   end
 
@@ -159,7 +182,9 @@ defmodule Voyager.MCP.EndpointManager do
     case Settings.put(:mcp_port, new_port) do
       {:ok, _} ->
         stop_endpoint(state)
-        {:reply, :ok, monitor_endpoint(state, pid)}
+        new_state = monitor_endpoint(state, pid)
+        broadcast_status(new_state)
+        {:reply, :ok, new_state}
 
       {:error, reason} ->
         DynamicSupervisor.terminate_child(@dynamic_supervisor, pid)
@@ -170,7 +195,9 @@ defmodule Voyager.MCP.EndpointManager do
   @impl true
   def handle_info({:DOWN, ref, :process, pid, reason}, %{monitor: ref, endpoint: pid} = state) do
     Logger.warning("MCP endpoint #{inspect(pid)} went down: #{inspect(reason)}")
-    {:noreply, %{state | endpoint: nil, monitor: nil}}
+    new_state = %{state | endpoint: nil, monitor: nil}
+    broadcast_status(new_state)
+    {:noreply, new_state}
   end
 
   def handle_info(_msg, state), do: {:noreply, state}
@@ -195,6 +222,13 @@ defmodule Voyager.MCP.EndpointManager do
   end
 
   defp stop_endpoint(_state), do: :ok
+
+  @spec status(state()) :: %{alive?: boolean(), url: String.t()}
+  defp status(state), do: %{alive?: is_pid(state.endpoint), url: endpoint_url()}
+
+  defp broadcast_status(state) do
+    Phoenix.PubSub.broadcast(Voyager.PubSub, @pubsub_topic, {:mcp_status, status(state)})
+  end
 
   @spec monitor_endpoint(state(), pid()) :: state()
   defp monitor_endpoint(state, pid) do

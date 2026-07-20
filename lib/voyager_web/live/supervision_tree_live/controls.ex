@@ -151,20 +151,17 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
               </p>
             </div>
           </.collapsible>
-          <div class="flex items-start gap-2">
+          <div class="flex items-start gap-3">
             <label class="label text-base-content/60 text-xs leading-8" for={@apps_form[:depth].id}>
               Depth
             </label>
-            <div class="w-20">
-              <.input
-                field={@apps_form[:depth]}
-                type="number"
-                step="1"
-                min={SupervisionTreeControls.min_depth()}
-                class="input-sm text-center"
-                phx-debounce="250"
-              />
-            </div>
+            <.input
+              field={@apps_form[:depth]}
+              type="number-stepper"
+              step="1"
+              min={SupervisionTreeControls.min_depth()}
+              phx-debounce="250"
+            />
           </div>
         </.form>
       </div>
