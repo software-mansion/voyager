@@ -26,13 +26,14 @@ import { hooks as colocatedHooks } from 'phoenix-colocated/voyager';
 import topbar from '../vendor/topbar';
 import SupervisionTree from './hooks/supervision_tree';
 import Tooltip from './hooks/tooltip';
+import NumberStepper from './hooks/number_stepper';
 
 const csrfToken = document
   .querySelector("meta[name='csrf-token']")
   .getAttribute('content');
 const liveSocket = new LiveSocket('/live', Socket, {
   params: { _csrf_token: csrfToken },
-  hooks: { SupervisionTree, Tooltip, ...colocatedHooks },
+  hooks: { SupervisionTree, Tooltip, NumberStepper, ...colocatedHooks },
 });
 
 // Inside the Tauri webview, `target="_blank"` links do nothing because there is

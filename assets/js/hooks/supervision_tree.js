@@ -47,33 +47,41 @@ const SupervisionTree = {
     /** @type {HTMLMetaElement | null} */
     const metaEnv = document.querySelector('meta[name="env"]');
 
+    this.animate = metaEnv?.content !== 'e2e';
     this.layoutTimer = null;
     this.overlayTimer = null;
     this.overlays = new Map();
     this.fadeTimers = new Map();
     this.disabledClick = false;
-    this.animate = metaEnv?.content !== 'e2e';
+    this.selectedEdgeId = null;
+    this.selectedPath = null;
 
-    this.cy.on('onetap', 'node', (e) => {
+    this.cy.on('onetap', 'node', (event) => {
       if (this.disabledClick) return;
-      this.pushEventTo(this.el, 'select-node', { key: e.target.id() });
+      this.applyEdgeHighlight(null);
+      this.pushEventTo(this.el, 'select-node', { key: event.target.id() });
     });
-    this.cy.on('dbltap', 'node', (e) => {
+    this.cy.on('tap', 'edge', (event) => {
       if (this.disabledClick) return;
-      this.toggleExpandNode(e.target);
+      this.selectEdge(event.target);
     });
-    this.cy.on('tap', (e) => {
+    this.cy.on('dbltap', 'node', (event) => {
       if (this.disabledClick) return;
-      if (e.target === this.cy)
+      this.toggleExpandNode(event.target);
+    });
+    this.cy.on('tap', (event) => {
+      if (this.disabledClick) return;
+      if (event.target === this.cy) {
+        this.applyEdgeHighlight(null);
         this.pushEventTo(this.el, 'select-node', { key: '' });
+      }
     });
 
-    this.cy.on('mouseover', 'node', function (event) {
+    this.cy.on('mouseover', 'node, edge', (event) => {
       event.target.addClass('hover');
       event.cy.container().style.cursor = 'pointer';
     });
-
-    this.cy.on('mouseout', 'node', function (event) {
+    this.cy.on('mouseout', 'node, edge', (event) => {
       event.target.removeClass('hover');
       event.cy.container().style.cursor = '';
     });
@@ -85,7 +93,7 @@ const SupervisionTree = {
     this.cy.on('render', () => this.repositionOverlays());
 
     this.handleEvent('tree-data', (p) => this.applyPayload(p));
-    this.handleEvent('path-highlight', (p) => this.applyHighlight(p));
+    this.handleEvent('path-highlight', (p) => this.applyPathHighlight(p));
     this.el.addEventListener('zoom-in', () => this.zoomBy(1.2));
     this.el.addEventListener('zoom-out', () => this.zoomBy(0.8));
     this.el.addEventListener('maximize', () =>
@@ -147,6 +155,12 @@ const SupervisionTree = {
       this.applyFull(payload);
     } else if (payload.kind === 'delta') {
       this.applyDelta(payload);
+    }
+
+    if (this.selectedEdgeId) {
+      this.applyEdgeHighlight(this.selectedEdgeId);
+    } else if (this.selectedPath) {
+      this.applyPathHighlight({ path: this.selectedPath });
     }
   },
 
@@ -326,15 +340,32 @@ const SupervisionTree = {
     }, LAYOUT_DEBOUNCE_MS);
   },
 
-  applyHighlight({ path }) {
+  applyPathHighlight({ path }) {
+    this.selectedEdgeId = null;
+    this.selectedPath = path && path.length > 0 ? path : null;
+
     this.cy.batch(() => {
-      this.cy.elements().removeClass('in-path');
-      if (!path || path.length === 0) return;
+      this.cy
+        .elements('.selected, .endpoint, .dimmed')
+        .removeClass('selected endpoint dimmed');
+
+      if (!this.selectedPath) return;
+
+      const selectedKey = this.selectedPath[this.selectedPath.length - 1];
+      if (this.cy.getElementById(selectedKey).empty()) {
+        this.selectedPath = null;
+        return;
+      }
 
       const nodeColl = this.cy.collection(
-        path.map((k) => this.cy.getElementById(k)).filter((n) => n.nonempty())
+        this.selectedPath
+          .map((k) => this.cy.getElementById(k))
+          .filter((n) => n.nonempty())
       );
-      if (nodeColl.empty()) return;
+      if (nodeColl.empty()) {
+        this.selectedPath = null;
+        return;
+      }
 
       const edgeColl = nodeColl.connectedEdges().filter((edge) => {
         return (
@@ -342,7 +373,40 @@ const SupervisionTree = {
         );
       });
 
-      nodeColl.union(edgeColl).addClass('in-path');
+      this.cy.edges().difference(edgeColl).addClass('dimmed');
+      edgeColl.addClass('selected');
+      nodeColl.addClass('selected');
+    });
+  },
+
+  selectEdge(edge) {
+    const clickedEdgeId = edge.id();
+    const nextEdgeId =
+      this.selectedEdgeId === clickedEdgeId ? null : clickedEdgeId;
+
+    this.applyEdgeHighlight(nextEdgeId);
+  },
+
+  applyEdgeHighlight(edgeId) {
+    this.selectedEdgeId = edgeId || null;
+    this.selectedPath = null;
+
+    this.cy.batch(() => {
+      this.cy
+        .elements('.selected, .endpoint, .dimmed')
+        .removeClass('selected endpoint dimmed');
+
+      if (!this.selectedEdgeId) return;
+
+      const edge = this.cy.getElementById(this.selectedEdgeId);
+      if (edge.empty() || !edge.isEdge()) {
+        this.selectedEdgeId = null;
+        return;
+      }
+
+      this.cy.edges().difference(edge).addClass('dimmed');
+      edge.addClass('selected');
+      edge.source().union(edge.target()).addClass('endpoint');
     });
   },
 

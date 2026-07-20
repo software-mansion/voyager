@@ -22,7 +22,7 @@ export function buildStyle(t) {
         color: t.baseContent,
         'overlay-padding': 8,
         'transition-property':
-          'background-color, border-color, opacity, text-opacity',
+          'background-color, border-color, border-width, opacity, text-opacity',
         'transition-duration': '80ms',
         'transition-timing-function': 'ease-out',
       },
@@ -99,24 +99,6 @@ export function buildStyle(t) {
       },
     },
     {
-      selector: 'node.in-path',
-      style: {
-        'background-color': t.primary,
-        'border-color': t.primary,
-        'text-opacity': 1,
-        'font-weight': 600,
-      },
-    },
-    {
-      selector: 'node.in-path.hover',
-      style: {
-        'background-color': t.primary,
-        'border-color': t.primary,
-        'text-background-opacity': 0,
-        'text-opacity': 0.3,
-      },
-    },
-    {
       selector: 'edge',
       style: {
         'curve-style': 'unbundled-bezier',
@@ -145,17 +127,10 @@ export function buildStyle(t) {
         },
         'line-color': t.base500,
         width: 1.4,
-        'transition-property': 'line-color, width, opacity',
+        'transition-property':
+          'line-color, target-arrow-color, width, opacity, arrow-scale',
         'transition-duration': '80ms',
-      },
-    },
-    {
-      selector: 'edge.in-path',
-      style: {
-        'line-color': t.primary,
-        width: 1.8,
-        opacity: 1,
-        'z-index': 10,
+        'transition-timing-function': 'ease-out',
       },
     },
     {
@@ -191,6 +166,92 @@ export function buildStyle(t) {
         'line-color': t.processMonitoredBy,
         'target-arrow-color': t.processMonitoredBy,
         'line-dash-offset': 12,
+      },
+    },
+    {
+      selector: 'edge.hover',
+      style: {
+        width: 2.4,
+        'arrow-scale': 1.25,
+        'z-index': 15,
+      },
+    },
+    {
+      selector: 'edge.selected',
+      style: {
+        width: 4.5,
+        opacity: 1,
+        'z-index': 20,
+      },
+    },
+    {
+      selector: 'edge.supervision-link.selected',
+      style: {
+        'line-color': t.primary,
+      },
+    },
+    {
+      // Directed relationship edges: amplify the tip and add a mid-arrow so
+      // direction stays readable when the tip sits under a right-side label.
+      selector: 'edge.monitor.selected, edge.monitored_by.selected',
+      style: {
+        'arrow-scale': 2,
+        'target-distance-from-node': 8,
+        'mid-target-arrow-shape': 'triangle',
+      },
+    },
+    {
+      selector: 'edge.monitor.selected',
+      style: {
+        'mid-target-arrow-color': t.processMonitor,
+      },
+    },
+    {
+      selector: 'edge.monitored_by.selected',
+      style: {
+        'mid-target-arrow-color': t.processMonitoredBy,
+      },
+    },
+    {
+      selector: 'node.selected',
+      style: {
+        'background-color': t.primary,
+        'border-color': t.primary,
+        'border-width': 3,
+        'text-opacity': 1,
+        'font-weight': 600,
+      },
+    },
+    {
+      selector: 'node.selected.hover',
+      style: {
+        'background-color': t.primary,
+        'border-color': t.primary,
+        'text-background-opacity': 0,
+        'text-opacity': 0.3,
+      },
+    },
+    {
+      selector: 'node.endpoint',
+      style: {
+        'border-color': t.primary,
+        'border-width': 3,
+        'font-weight': 600,
+      },
+    },
+    {
+      selector: 'node.endpoint.hover',
+      style: {
+        'background-color': t.primary,
+        'border-color': t.primary,
+        'text-background-opacity': 0,
+        'text-opacity': 0.3,
+      },
+    },
+    {
+      selector: 'edge.dimmed',
+      style: {
+        opacity: 0.5,
       },
     },
     {
