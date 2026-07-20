@@ -55,6 +55,11 @@ defmodule VoyagerWeb.ConnectLiveTest do
       render_click(view, "fill_recent", %{"id" => Integer.to_string(recent.id)})
 
       refute has_element?(view, ~s|#conn_node_name[value="#{recent.node_name}"]|)
+  describe "settings link" do
+    test "links to the settings page", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, ~s|a#open-settings[href="/settings?return_to=%2F"]|)
     end
   end
 end

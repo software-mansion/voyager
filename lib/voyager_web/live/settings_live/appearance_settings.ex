@@ -16,7 +16,7 @@ defmodule VoyagerWeb.SettingsLive.AppearanceSettings do
         <div id="theme-setting" phx-hook=".ThemeSetting" class="join self-start">
           <button
             type="button"
-            class="join-item btn"
+            class="join-item btn btn-soft text-base-content/70 gap-1.5"
             data-phx-theme="light"
             phx-click={JS.dispatch("phx:set-theme")}
           >
@@ -24,7 +24,7 @@ defmodule VoyagerWeb.SettingsLive.AppearanceSettings do
           </button>
           <button
             type="button"
-            class="join-item btn"
+            class="join-item btn btn-soft text-base-content/70 gap-1.5"
             data-phx-theme="dark"
             phx-click={JS.dispatch("phx:set-theme")}
           >
@@ -32,7 +32,7 @@ defmodule VoyagerWeb.SettingsLive.AppearanceSettings do
           </button>
           <button
             type="button"
-            class="join-item btn"
+            class="join-item btn btn-soft text-base-content/70 gap-1.5"
             data-phx-theme="system"
             phx-click={JS.dispatch("phx:set-theme")}
           >
@@ -44,7 +44,11 @@ defmodule VoyagerWeb.SettingsLive.AppearanceSettings do
                 this.sync = () => {
                   const active = localStorage.getItem("phx:theme") || "system"
                   this.el.querySelectorAll("[data-phx-theme]").forEach(btn => {
-                    btn.classList.toggle("btn-active", btn.dataset.phxTheme === active)
+                    const isActive = btn.dataset.phxTheme === active
+                    btn.classList.toggle("btn-primary", isActive)
+                    btn.classList.toggle("text-primary-content", isActive)
+                    btn.classList.toggle("btn-soft", !isActive)
+                    btn.classList.toggle("text-base-content/70", !isActive)
                   })
                 }
 

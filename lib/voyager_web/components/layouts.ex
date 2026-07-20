@@ -49,6 +49,7 @@ defmodule VoyagerWeb.Layouts do
     <VoyagerWeb.Components.Shell.shell
       active_nav={assigns[:active_nav]}
       session={@session}
+      mcp_status={assigns[:mcp_status]}
       current_path={assigns[:current_path]}
     >
       {@inner_content}

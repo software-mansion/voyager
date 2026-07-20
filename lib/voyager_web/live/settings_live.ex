@@ -4,6 +4,7 @@ defmodule VoyagerWeb.SettingsLive do
   alias Voyager.NodeSession
   alias VoyagerWeb.SettingsLive.AppearanceSettings
   alias VoyagerWeb.SettingsLive.DistributionSettings
+  alias VoyagerWeb.SettingsLive.McpSettings
 
   @impl true
   def mount(params, _session, socket) do
@@ -34,6 +35,7 @@ defmodule VoyagerWeb.SettingsLive do
         id="distribution-settings"
         connected?={@connected?}
       />
+      <.live_component module={McpSettings} id="mcp-settings" status={@mcp_status} />
     </div>
     """
   end
@@ -48,18 +50,6 @@ defmodule VoyagerWeb.SettingsLive do
   def handle_info({event, _node}, socket) when event in [:node_disconnected, :nodedown] do
     socket
     |> assign(:connected?, false)
-    |> noreply()
-  end
-
-  def handle_info({:distribution_settings, :saved}, socket) do
-    socket
-    |> put_flash(:info, "Distribution suffix saved")
-    |> noreply()
-  end
-
-  def handle_info({:distribution_settings, :locked}, socket) do
-    socket
-    |> put_flash(:error, "Distribution suffix is controlled by application config")
     |> noreply()
   end
 
