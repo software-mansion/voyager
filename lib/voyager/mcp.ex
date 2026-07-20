@@ -57,6 +57,13 @@ defmodule Voyager.MCP do
   @spec toggle() :: {:ok, :running | :stopped} | {:error, term()}
   defdelegate toggle, to: EndpointManager
 
+  @doc """
+  Returns the PubSub topic broadcasting `{:mcp_status, %{alive?: boolean(), url: String.t()}}`
+  whenever the listener starts, stops, or its endpoint URL changes.
+  """
+  @spec topic() :: String.t()
+  defdelegate topic, to: EndpointManager
+
   @impl Supervisor
   def init(_) do
     # `:one_for_all`: the three children form one logical MCP unit.

@@ -1,6 +1,6 @@
 defmodule Voyager.Schemas.SshConnection do
   @moduledoc """
-   Ecto schema for a persisted SSH tunnel connection profile.
+  Ecto schema for a persisted SSH tunnel connection profile.
   """
 
   use Ecto.Schema
