@@ -47,7 +47,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
     <div class="card bg-base-100 border-base-200 h-full border shadow-sm">
       <div class="card-body gap-4 p-5">
         <div class="flex items-baseline justify-between">
-          <div class="flex items-center gap-1">
+          <div class="min-h-6 flex items-center gap-1">
             <h3 class="text-base-content text-sm font-semibold">{@title}</h3>
             <.help_tooltip
               :if={@help}
@@ -105,7 +105,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
     <div class="card bg-base-100 border-base-200 flex min-h-0 flex-1 flex-col border shadow-sm">
       <div class="card-body flex flex-1 flex-col gap-4 p-5">
         <div class="flex items-baseline justify-between">
-          <div class="flex items-center gap-1">
+          <div class="min-h-6 flex items-center gap-1">
             <h3 class="text-base-content text-sm font-semibold">{@title}</h3>
             <.help_tooltip
               :if={@help}
@@ -153,7 +153,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
   def stat_tile(assigns) do
     ~H"""
     <div class="card bg-base-100 border-base-200 flex flex-col gap-1.5 border p-5 shadow-sm">
-      <div class="flex items-center gap-1">
+      <div class="min-h-6 flex items-center gap-1">
         <h3 class="text-base-content text-sm font-semibold">{@label}</h3>
         <.help_tooltip
           :if={@help}
@@ -188,7 +188,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
     <div class="card bg-base-100 border-base-200 border shadow-sm">
       <div class="card-body gap-4 p-5">
         <div class="flex items-baseline justify-between">
-          <div class="flex items-center gap-1">
+          <div class="min-h-6 flex items-center gap-1">
             <h3 class="text-base-content text-sm font-semibold">Memory breakdown</h3>
             <.help_tooltip
               :if={@help}
@@ -245,7 +245,9 @@ defmodule VoyagerWeb.NodeInfoComponents do
     <div class="card bg-base-100 border-base-200 flex h-full flex-col border shadow-sm">
       <div class="card-body flex flex-1 flex-col gap-4 p-5">
         <div class="flex items-baseline justify-between">
-          <h3 class="text-base-content text-sm font-semibold">System limits</h3>
+          <h3 class="text-base-content min-h-6 flex items-center text-sm font-semibold">
+            System limits
+          </h3>
           <span class="font-mono text-base-content/50 text-xs">current / max</span>
         </div>
 
@@ -313,7 +315,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
     <div class="card bg-base-100 border-base-200 border shadow-sm">
       <div class="card-body gap-4 p-5">
         <div class="mb-2 flex items-baseline justify-between">
-          <div class="flex items-center gap-1">
+          <div class="min-h-6 flex items-center gap-1">
             <h3 class="text-base-content text-sm font-semibold">Running applications</h3>
             <.help_tooltip
               :if={@help}
