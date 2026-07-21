@@ -164,7 +164,11 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
                 phx-debounce="250"
               />
             </div>
-            <div class="flex items-start gap-3">
+            <.tooltip
+              id="supervision-tree-relations-tip"
+              position="left"
+              class="flex items-start gap-3"
+            >
               <label
                 class="label text-base-content/60 text-xs leading-8"
                 for="supervision-tree-relations"
@@ -182,7 +186,12 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
                 checked={@apps_form[:include_relations?].value in [true, "true"]}
                 phx-debounce="200"
               />
-            </div>
+              <:content>
+                Show process relations that are <span class="font-bold">not</span>
+                part of the application's <span class="font-bold">base supervision tree</span>
+                (custom links and monitors)
+              </:content>
+            </.tooltip>
           </div>
         </.form>
       </div>
