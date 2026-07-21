@@ -18,8 +18,8 @@ defmodule Voyager.Telemetry do
 
   @impl Supervisor
   def init(_opts) do
-    telemetry_handler = Application.get_env(:voyager, :telemetry, :noop)
-    telemetry_config = Application.get_env(:voyager, :telemetry, [])
+    telemetry_handler = Application.get_env(:voyager, :telemetry_handler, :noop)
+    telemetry_config = Application.get_env(:voyager, :telemetry_config, [])
 
     children = [
       {Voyager.Telemetry.Manager,

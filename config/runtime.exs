@@ -4,11 +4,11 @@ telemetry_push_url = System.get_env("TELEMETRY_PUSH_URL")
 telemetry_api_key = System.get_env("TELEMETRY_API_KEY")
 
 config :voyager,
-  telemetry: [push_url: telemetry_push_url, api_key: telemetry_api_key]
+  telemetry_config: [push_url: telemetry_push_url, api_key: telemetry_api_key]
 
 if config_env() == :dev do
   config :voyager,
-         :telemetry,
+         :telemetry_handler,
          if(telemetry_push_url in [nil, ""] or telemetry_api_key in [nil, ""],
            do: :logger,
            else: :export
