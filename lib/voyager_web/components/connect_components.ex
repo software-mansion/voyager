@@ -105,8 +105,8 @@ defmodule VoyagerWeb.ConnectComponents do
             <.icon name="icon-log-out" class="size-3.5" />
           </button>
           <.link
-            navigate={~p"/node/#{@session.node_name}"}
-            class="btn btn-success btn-xs gap-1"
+            href={~p"/node/#{@session.node_name}"}
+            class="btn btn-success btn-xs shrink-0 gap-1"
           >
             Open <.icon name="icon-arrow-right" class="size-3" />
           </.link>
@@ -124,12 +124,12 @@ defmodule VoyagerWeb.ConnectComponents do
     doc: "Disables all form inputs when a node is already connected"
 
   def connect_form(assigns) do
+    cookie = assigns.form[:cookie].value
+
     assigns =
-      assign(
-        assigns,
-        :current_name_type,
-        to_string(assigns.form[:name_type].value || "longnames")
-      )
+      assigns
+      |> assign(:current_name_type, to_string(assigns.form[:name_type].value || "longnames"))
+      |> assign(:cookie_present?, is_binary(cookie) and cookie != "")
 
     ~H"""
     <.form
@@ -180,31 +180,38 @@ defmodule VoyagerWeb.ConnectComponents do
       </div>
 
       <div>
-        <div class="mb-1.5 flex items-center justify-between">
-          <label
-            class="font-mono tracking-label text-base-content/50 text-xs uppercase"
-            for={@form[:cookie].id}
-          >
-            Cookie
-          </label>
+        <label
+          class="font-mono tracking-label text-base-content/50 mb-1.5 block text-xs uppercase"
+          for={@form[:cookie].id}
+        >
+          Cookie
+        </label>
+        <div class="relative">
+          <.input
+            field={@form[:cookie]}
+            type={if @show_cookie, do: "text", else: "password"}
+            placeholder="••••••••••••••••"
+            autocomplete="off"
+            spellcheck="false"
+            disabled={@disabled}
+            class="font-mono pr-10 text-sm"
+          />
           <button
+            :if={@cookie_present?}
             type="button"
+            id="toggle-cookie-visibility"
             phx-click="toggle_cookie"
             disabled={@disabled}
-            class="font-mono tracking-loose text-base-content/40 cursor-pointer text-xs uppercase transition-colors hover:text-base-content"
+            aria-label={if @show_cookie, do: "Hide cookie", else: "Show cookie"}
+            title={if @show_cookie, do: "Hide cookie", else: "Show cookie"}
+            class="btn btn-ghost btn-square btn-sm text-base-content/40 absolute top-1 right-1.5 hover:text-base-content"
           >
-            {if @show_cookie, do: "Hide", else: "Show"}
+            <.icon
+              name={if @show_cookie, do: "icon-eye", else: "icon-eye-off"}
+              class="size-5"
+            />
           </button>
         </div>
-        <.input
-          field={@form[:cookie]}
-          type={if @show_cookie, do: "text", else: "password"}
-          placeholder="••••••••••••••••"
-          autocomplete="off"
-          spellcheck="false"
-          disabled={@disabled}
-          class="font-mono text-sm"
-        />
         <label class={[
           "mt-2.5 flex items-center gap-2",
           if(@disabled, do: "cursor-not-allowed", else: "cursor-pointer")
