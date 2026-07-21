@@ -48,18 +48,25 @@ export default defineConfig({
       testMatch: '**/recent_connections.spec.ts',
       dependencies: ['connect'],
     },
+    {
+      name: 'recent-connections firefox',
+      use: { ...devices['Desktop Firefox'] },
+      workers: 1,
+      testMatch: '**/recent_connections.spec.ts',
+      dependencies: ['recent-connections'],
+    },
 
     {
       name: 'node chromium',
       use: { ...devices['Desktop Chrome'] },
       testMatch: '**/node_info.spec.ts',
-      dependencies: ['recent-connections'],
+      dependencies: ['recent-connections firefox'],
     },
     {
       name: 'node firefox',
       use: { ...devices['Desktop Firefox'] },
       testMatch: '**/node_info.spec.ts',
-      dependencies: ['recent-connections'],
+      dependencies: ['recent-connections firefox'],
     },
 
     // Supervision Tree tests mutate shared state on the target node, so run them in order.
@@ -68,14 +75,14 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
       fullyParallel: false,
       testMatch: '**/supervision_tree.spec.ts',
-      dependencies: ['recent-connections'],
+      dependencies: ['recent-connections firefox'],
     },
     {
       name: 'supervision-tree firefox',
       use: { ...devices['Desktop Firefox'] },
       fullyParallel: false,
       testMatch: '**/supervision_tree.spec.ts',
-      dependencies: ['recent-connections', 'supervision-tree chromium'],
+      dependencies: ['recent-connections firefox', 'supervision-tree chromium'],
     },
   ],
 });

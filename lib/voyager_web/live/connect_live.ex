@@ -110,13 +110,17 @@ defmodule VoyagerWeb.ConnectLive do
   end
 
   def handle_event("disconnect", _params, socket) do
-    _ = NodeSession.disconnect()
+    case NodeSession.disconnect() do
+      :ok ->
+        # Re-stream rows: their `disabled` attr is derived from `@connected_session`.
+        socket
+        |> assign(:connected_session, nil)
+        |> reset_connections()
+        |> noreply()
 
-    # Re-stream rows: their `disabled` attr is derived from `@connected_session`.
-    socket
-    |> assign(:connected_session, nil)
-    |> reset_connections()
-    |> noreply()
+      {:error, :not_connected} ->
+        {:noreply, socket}
+    end
   end
 
   def handle_event("fill_recent", _params, %{assigns: %{connected_session: session}} = socket)

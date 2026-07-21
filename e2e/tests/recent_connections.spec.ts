@@ -4,6 +4,7 @@ import {
   sel,
   fillRecentBtn,
   ensureConnected,
+  ensureDisconnected,
   waitForLiveView,
 } from './fixtures';
 
@@ -42,9 +43,7 @@ test.describe('ConnectLive › recent connections', () => {
   });
 
   test('fills the form from a recent connection row', async ({ page }) => {
-    await page.goto('/');
-    await waitForLiveView(page);
-    await expect(page.locator(sel.connectBtn)).toBeEnabled();
+    await ensureDisconnected(page);
 
     await fillRecentBtn(page).first().click();
     await expect(page.locator(sel.nodeNameInput)).toHaveValue(NODE_NAME);
