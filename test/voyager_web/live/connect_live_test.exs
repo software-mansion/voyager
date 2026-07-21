@@ -20,6 +20,9 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
   describe "disconnect" do
     test "clears the connected indicator and re-enables the form", %{conn: conn} do
+      {:ok, _recent} =
+        ConnectionActions.upsert_connected("recent@127.0.0.1", cookie: "secret")
+
       Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
 
       {:ok, view, _html} = live(conn, ~p"/")
@@ -27,12 +30,14 @@ defmodule VoyagerWeb.ConnectLiveTest do
       assert has_element?(view, "#disconnect-from-connect")
       assert has_element?(view, "#connected-indicator", "demo@localhost")
       assert has_element?(view, ~s|#connect-btn[disabled]|)
+      assert has_element?(view, ~s|[data-testid="fill-recent-btn"][disabled]|)
 
       view |> element("#disconnect-from-connect") |> render_click()
 
       refute has_element?(view, "#disconnect-from-connect")
       refute has_element?(view, "#connected-indicator")
       assert has_element?(view, ~s|#connect-btn:not([disabled])|)
+      assert has_element?(view, ~s|[data-testid="fill-recent-btn"]:not([disabled])|)
       assert NodeSession.current() == nil
     end
   end
