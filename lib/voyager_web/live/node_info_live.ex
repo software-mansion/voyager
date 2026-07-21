@@ -48,18 +48,20 @@ defmodule VoyagerWeb.NodeInfoLive do
     <div class="mx-auto max-w-screen-2xl p-6 sm:p-8">
       <.node_header node_name={@session.node_name} last_updated={@last_updated}>
         <:actions>
-          <button
-            type="button"
-            id="show-node-info-json"
-            phx-click="show-json-modal"
-            phx-throttle="1000"
-            title="Show snapshot JSON"
-            aria-label="Show snapshot JSON"
-            disabled={not @snapshot.ok?}
-            class="btn btn-sm btn-ghost btn-square"
-          >
-            <.icon name="icon-braces" class="size-4" />
-          </button>
+          <.tooltip id="show-node-info-json-tip" position="top">
+            <button
+              type="button"
+              id="show-node-info-json"
+              phx-click="show-json-modal"
+              phx-throttle="1000"
+              aria-label="Show snapshot JSON"
+              disabled={not @snapshot.ok?}
+              class="btn btn-sm btn-ghost btn-square"
+            >
+              <.icon name="icon-braces" class="size-4" />
+            </button>
+            <:content>View snapshot JSON</:content>
+          </.tooltip>
           <.interval_select
             id="refresh-interval"
             options={interval_options()}
