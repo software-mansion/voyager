@@ -328,7 +328,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
       <div class="modal-box border-base-300 max-w-4xl overflow-hidden border p-0 shadow-2xl">
         <div class="border-base-300 flex items-start gap-4 border-b p-6">
           <div class="bg-primary/10 text-primary rounded-box size-11 flex shrink-0 items-center justify-center">
-            <.icon name="icon-braces" class="size-5" />
+            <.icon name="icon-file-braces" class="size-5" />
           </div>
           <div class="min-w-0 flex-1">
             <h2 id={@title_id} class="text-base-content text-xl font-semibold tracking-tight">
