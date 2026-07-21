@@ -274,7 +274,8 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         node: socket.assigns.session.node,
         apps: selected,
         depth: socket.assigns.depth,
-        expanded: socket.assigns.expanded_pids
+        expanded: socket.assigns.expanded_pids,
+        include_relations?: true
       }
 
       in_flight = Fetch.start(request)
