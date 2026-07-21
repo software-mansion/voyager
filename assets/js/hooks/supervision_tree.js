@@ -12,9 +12,11 @@ import {
   elementsFor,
   relEdgeElement,
   composeLabel,
+  formatName,
   edgeId,
   isRealPid,
   overlayButtonIntersectsExtent,
+  initialIsCollapsedState,
 } from './supervision_tree/elements';
 
 /**
@@ -39,32 +41,43 @@ const SupervisionTree = {
       autoungrabify: true,
     });
 
+    // Test handle: lets e2e tests inspect graph state via page.evaluate.
+    this.el._cy = this.cy;
+
     this.layoutTimer = null;
     this.overlayTimer = null;
     this.overlays = new Map();
     this.fadeTimers = new Map();
     this.disabledClick = false;
+    this.selectedEdgeId = null;
+    this.selectedPath = null;
 
-    this.cy.on('oneclick', 'node', (e) => {
+    this.cy.on('oneclick', 'node', (event) => {
       if (this.disabledClick) return;
-      this.pushEventTo(this.el, 'select-node', { key: e.target.id() });
+      this.applyEdgeHighlight(null);
+      this.pushEventTo(this.el, 'select-node', { key: event.target.id() });
     });
-    this.cy.on('dblclick', 'node', (e) => {
+    this.cy.on('tap', 'edge', (event) => {
       if (this.disabledClick) return;
-      this.toggleExpandNode(e.target);
+      this.selectEdge(event.target);
     });
-    this.cy.on('tap', (e) => {
+    this.cy.on('dblclick', 'node', (event) => {
       if (this.disabledClick) return;
-      if (e.target === this.cy)
+      this.toggleExpandNode(event.target);
+    });
+    this.cy.on('tap', (event) => {
+      if (this.disabledClick) return;
+      if (event.target === this.cy) {
+        this.applyEdgeHighlight(null);
         this.pushEventTo(this.el, 'select-node', { key: '' });
+      }
     });
 
-    this.cy.on('mouseover', 'node', function (event) {
+    this.cy.on('mouseover', 'node, edge', (event) => {
       event.target.addClass('hover');
       event.cy.container().style.cursor = 'pointer';
     });
-
-    this.cy.on('mouseout', 'node', function (event) {
+    this.cy.on('mouseout', 'node, edge', (event) => {
       event.target.removeClass('hover');
       event.cy.container().style.cursor = '';
     });
@@ -76,7 +89,7 @@ const SupervisionTree = {
     this.cy.on('render', () => this.repositionOverlays());
 
     this.handleEvent('tree-data', (p) => this.applyPayload(p));
-    this.handleEvent('path-highlight', (p) => this.applyHighlight(p));
+    this.handleEvent('path-highlight', (p) => this.applyPathHighlight(p));
     this.el.addEventListener('zoom-in', () => this.zoomBy(1.2));
     this.el.addEventListener('zoom-out', () => this.zoomBy(0.8));
     this.el.addEventListener('maximize', () =>
@@ -98,6 +111,7 @@ const SupervisionTree = {
     if (this.overlayTimer) clearTimeout(this.overlayTimer);
     if (this.themeObserver) this.themeObserver.disconnect();
     if (this.cy) this.cy.destroy();
+    this.el._cy = null;
   },
 
   // ---------------------------------------------------------------------------
@@ -136,6 +150,12 @@ const SupervisionTree = {
       this.applyFull(payload);
     } else if (payload.kind === 'delta') {
       this.applyDelta(payload);
+    }
+
+    if (this.selectedEdgeId) {
+      this.applyEdgeHighlight(this.selectedEdgeId);
+    } else if (this.selectedPath) {
+      this.applyPathHighlight({ path: this.selectedPath });
     }
   },
 
@@ -217,15 +237,19 @@ const SupervisionTree = {
                 data: { id: edgeId(value, key), source: value, target: key },
               });
             }
-          } else {
-            node.data(field, value);
           }
+
+          node.data(field, value);
 
           if (TOPOLOGY_FIELDS.has(field)) topologyChangeCounter++;
         }
 
         if (patch.name !== undefined || patch.child_count !== undefined) {
           node.data('displayLabel', composeLabel(node.data()));
+        }
+
+        if (patch.child_count !== undefined) {
+          node.data('is_collapsed', initialIsCollapsedState(node.data()));
         }
 
         if (patch.info !== undefined) {
@@ -248,6 +272,10 @@ const SupervisionTree = {
         const target = this.cy.getElementById(edge.target);
         if (source.nonempty() && target.nonempty()) {
           this.cy.add(relEdgeElement(edge));
+          source.data('hidden_count', 0);
+          target.data('hidden_count', 0);
+          source.removeClass('hidden');
+          target.removeClass('hidden');
         } else {
           console.warn(
             `Failed to add edge. At least one target empty: ${source.id()} - ${target.id()}`
@@ -305,15 +333,32 @@ const SupervisionTree = {
     }, LAYOUT_DEBOUNCE_MS);
   },
 
-  applyHighlight({ path }) {
+  applyPathHighlight({ path }) {
+    this.selectedEdgeId = null;
+    this.selectedPath = path && path.length > 0 ? path : null;
+
     this.cy.batch(() => {
-      this.cy.elements().removeClass('in-path');
-      if (!path || path.length === 0) return;
+      this.cy
+        .elements('.selected, .endpoint, .dimmed')
+        .removeClass('selected endpoint dimmed');
+
+      if (!this.selectedPath) return;
+
+      const selectedKey = this.selectedPath[this.selectedPath.length - 1];
+      if (this.cy.getElementById(selectedKey).empty()) {
+        this.selectedPath = null;
+        return;
+      }
 
       const nodeColl = this.cy.collection(
-        path.map((k) => this.cy.getElementById(k)).filter((n) => n.nonempty())
+        this.selectedPath
+          .map((k) => this.cy.getElementById(k))
+          .filter((n) => n.nonempty())
       );
-      if (nodeColl.empty()) return;
+      if (nodeColl.empty()) {
+        this.selectedPath = null;
+        return;
+      }
 
       const edgeColl = nodeColl.connectedEdges().filter((edge) => {
         return (
@@ -321,7 +366,40 @@ const SupervisionTree = {
         );
       });
 
-      nodeColl.union(edgeColl).addClass('in-path');
+      this.cy.edges().difference(edgeColl).addClass('dimmed');
+      edgeColl.addClass('selected');
+      nodeColl.addClass('selected');
+    });
+  },
+
+  selectEdge(edge) {
+    const clickedEdgeId = edge.id();
+    const nextEdgeId =
+      this.selectedEdgeId === clickedEdgeId ? null : clickedEdgeId;
+
+    this.applyEdgeHighlight(nextEdgeId);
+  },
+
+  applyEdgeHighlight(edgeId) {
+    this.selectedEdgeId = edgeId || null;
+    this.selectedPath = null;
+
+    this.cy.batch(() => {
+      this.cy
+        .elements('.selected, .endpoint, .dimmed')
+        .removeClass('selected endpoint dimmed');
+
+      if (!this.selectedEdgeId) return;
+
+      const edge = this.cy.getElementById(this.selectedEdgeId);
+      if (edge.empty() || !edge.isEdge()) {
+        this.selectedEdgeId = null;
+        return;
+      }
+
+      this.cy.edges().difference(edge).addClass('dimmed');
+      edge.addClass('selected');
+      edge.source().union(edge.target()).addClass('endpoint');
     });
   },
 
@@ -374,7 +452,7 @@ const SupervisionTree = {
     dom.type = 'button';
     dom.className = 'cy-toggle';
     dom.dataset.key = key;
-    dom.innerHTML = toggleIcon(this.isCollapsed(node));
+    this.decorateOverlay(dom, node);
     dom.addEventListener('click', (ev) => {
       if (this.disabledClick) return;
       ev.stopPropagation();
@@ -403,12 +481,27 @@ const SupervisionTree = {
     const y = (bb.y1 + bb.y2) / 2 - 11;
     entry.dom.style.transform = `translate(${x}px, ${y}px)`;
 
-    // Keep icon in sync with collapsed state.
+    // Keep icon and attributes in sync with the node's state.
     const collapsed = this.isCollapsed(node);
-    if (entry.collapsed !== collapsed) {
-      entry.dom.innerHTML = toggleIcon(collapsed);
+    const name = formatName(node.data('name'));
+    if (entry.collapsed !== collapsed || entry.name !== name) {
+      this.decorateOverlay(entry.dom, node);
       entry.collapsed = collapsed;
+      entry.name = name;
     }
+  },
+
+  // Sets the icon plus the a11y/testability attributes from the node's state.
+  decorateOverlay(dom, node) {
+    const collapsed = this.isCollapsed(node);
+    const name = formatName(node.data('name'));
+    dom.innerHTML = toggleIcon(collapsed);
+    dom.dataset.name = name;
+    dom.dataset.collapsed = String(collapsed);
+    dom.setAttribute(
+      'aria-label',
+      `${collapsed ? 'Expand' : 'Collapse'} ${name}`
+    );
   },
 
   repositionOverlays() {

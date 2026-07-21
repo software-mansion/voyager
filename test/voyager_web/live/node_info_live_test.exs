@@ -15,8 +15,19 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
   setup do
     # Inject an active session so the NodeSessionHook on_mount lets us through.
-    Fakes.connect_node!(Fakes.node_session(node_name: @node_name))
-    :ok
+    session = Fakes.node_session(node_name: @node_name)
+    Fakes.connect_node!(session)
+    %{node_session: session}
+  end
+
+  describe "navbar" do
+    test "shows the MCP status indicator", %{conn: conn} do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+
+      assert has_element?(view, "#mcp-status")
+    end
   end
 
   describe "mount with a reachable node" do
@@ -231,6 +242,38 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
       refute has_element?(view, "#node-info-json-modal")
     end
+
+    test "getting node disconnected redirects and displays appropriate flash", %{
+      conn: conn,
+      node_session: session
+    } do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+      assert has_element?(view, "#node-info-content")
+
+      broadcast(Voyager.NodeSession.topic(), {:node_disconnected, session.node})
+
+      {"/", flash} = assert_redirect(view)
+      assert flash["info"] == "Node disconnected: demo@localhost"
+    end
+
+    test "getting node down redirects and displays appropriate flash", %{
+      conn: conn,
+      node_session: session
+    } do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+      assert has_element?(view, "#node-info-content")
+
+      broadcast(Voyager.NodeSession.topic(), {:nodedown, session.node})
+
+      {"/", flash} = assert_redirect(view)
+      assert flash["error"] == "Node down: demo@localhost"
+    end
   end
 
   describe "mount with an unreachable node" do
@@ -265,5 +308,9 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
     stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args ->
       Fakes.erpc_reply(mod, fun, args, data)
     end)
+  end
+
+  defp broadcast(pubsub_topic, event) do
+    Phoenix.PubSub.broadcast(Voyager.PubSub, pubsub_topic, event)
   end
 end

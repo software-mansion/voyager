@@ -344,6 +344,47 @@ defmodule VoyagerWeb.CoreComponents do
     |> input()
   end
 
+  def input(%{type: "number-stepper"} = assigns) do
+    ~H"""
+    <div>
+      <div class="join" id={"#{@id}-stepper"} phx-hook="NumberStepper">
+        <button
+          type="button"
+          data-direction="-1"
+          tabindex="-1"
+          aria-label="Decrease"
+          class="btn btn-sm btn-square join-item border-base-content/20"
+        >
+          <.icon name="icon-minus" class="size-4" />
+        </button>
+        <input
+          type="number"
+          id={@id}
+          name={@name}
+          value={Phoenix.HTML.Form.normalize_value("number", @value)}
+          inputmode="numeric"
+          class={[
+            "input input-sm input-bordered join-item no-spinner font-mono w-14 text-center",
+            @errors != [] && "input-error",
+            @class
+          ]}
+          {@rest}
+        />
+        <button
+          type="button"
+          data-direction="1"
+          tabindex="-1"
+          aria-label="Increase"
+          class="btn btn-sm btn-square join-item border-base-content/20"
+        >
+          <.icon name="icon-plus" class="size-4" />
+        </button>
+      </div>
+      <p :for={error <- @errors} class="font-mono text-error mt-1.5 text-xs">{error}</p>
+    </div>
+    """
+  end
+
   def input(assigns) do
     ~H"""
     <div class="w-full">

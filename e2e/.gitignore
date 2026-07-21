@@ -1,3 +1,7 @@
+.node.pid
+
+# Mock app beams (compiled by node.sh)
+/mock_app/ebin/*.beam
 
 # Playwright
 node_modules/
