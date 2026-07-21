@@ -153,7 +153,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
           </.collapsible>
           <div class="flex items-start gap-6">
             <div class="flex items-start gap-3">
-              <label class="label text-base-content/60 text-xs leading-8">
+              <label class="label text-base-content/60 text-xs leading-8" for={@apps_form[:depth].id}>
                 Depth
               </label>
               <.input
