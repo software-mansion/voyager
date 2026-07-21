@@ -17,10 +17,6 @@ main() {
   mix_project_dir="${root_dir}/../.."
   app="Voyager"
 
-  # Export telemetry (and other) vars for `tauri.dev` runtime and for
-  # `option_env!` during `tauri.app` / `tauri.build` compile.
-  load_dotenv "$root_dir/.env"
-
   case "$(uname -s)" in
     Darwin*)
       os=darwin
@@ -57,10 +53,12 @@ main() {
 
   case "$command" in
     dev)
+      load_dotenv "$root_dir/.env"
       cargo_tauri "$@"
       ;;
     app)
       shift
+      load_dotenv "$root_dir/.env"
       mix_release
       bundles_flag=""
       if [ "$os" = "darwin" ]; then
@@ -80,6 +78,7 @@ main() {
   esac
 }
 
+# Export telemetry (and other) vars for `tauri.dev` runtime and for `option_env!` during `tauri.app` compile.
 load_dotenv() {
   local env_file="$1"
   if [ -f "$env_file" ]; then
