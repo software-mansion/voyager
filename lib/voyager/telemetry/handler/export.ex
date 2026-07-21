@@ -19,7 +19,7 @@ defmodule Voyager.Telemetry.Handler.Export do
   @api_key_header "x-api-key"
 
   @impl true
-  def handle_event(event, measurements, metadata, config) do
+  def handle_event(event, measurements, metadata, config) when is_map(config) do
     case config do
       %{push_url: push_url, api_key: api_key} when is_binary(push_url) and is_binary(api_key) ->
         payload = %{
@@ -33,7 +33,7 @@ defmodule Voyager.Telemetry.Handler.Export do
 
       config ->
         Logger.warning(
-          "[telemetry] telemetry config invalid: #{inspect(config)}. Expected %{push_url: binary(), api_key: binary()}"
+          "[telemetry] telemetry config invalid: #{inspect(Map.keys(config))}. Expected %{push_url: binary(), api_key: binary()}"
         )
     end
 
