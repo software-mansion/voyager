@@ -34,7 +34,8 @@ In `:dev`, if either variable is missing, Voyager falls back to the logger handl
 ### Desktop app
 
 - **`mix tauri.dev`** — `tauri.sh` sources `rel/app/.env` and the Rust side forwards those vars to Elixir at runtime.
-- **`mix tauri.app` / `mix tauri.build` / CI** — same `.env` (or CI secrets) must be present **at compile time**. GitHub Actions pass `TELEMETRY_PUSH_URL` and `TELEMETRY_API_KEY` from repository secrets.
+- **`mix tauri.app` CI** — same `.env` must be present **at compile time**. 
+- **`mix tauri.build`** - Needs exported envs when run. GitHub Actions pass `TELEMETRY_PUSH_URL` and `TELEMETRY_API_KEY` from repository secrets. 
 
 ```sh
 cp rel/app/.env.sample rel/app/.env
