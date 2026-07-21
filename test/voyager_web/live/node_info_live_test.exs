@@ -20,7 +20,7 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
   end
 
   describe "navbar" do
-    test "shows the MCP status indicator", %{conn: conn} do
+    test "shows the MCP status inasdasdasdicator", %{conn: conn} do
       stub_erpc(Fakes.node_data())
 
       {:ok, view, _html} = live(conn, @path)
