@@ -171,6 +171,26 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
     end
   end
 
+  describe "relations toggle" do
+    test "is on by default", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+
+      assert has_element?(view, "#supervision-tree-relations[checked]")
+    end
+
+    test "can be turned off", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+
+      view
+      |> form("#supervision-tree-controls", %{
+        "tree_controls" => %{"include_relations?" => "false"}
+      })
+      |> render_change()
+
+      refute has_element?(view, "#supervision-tree-relations[checked]")
+    end
+  end
+
   describe "controls" do
     test "collapses and expands the applications section", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)

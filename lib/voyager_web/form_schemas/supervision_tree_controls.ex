@@ -7,6 +7,9 @@ defmodule VoyagerWeb.FormSchemas.SupervisionTreeControls do
   template) and is filtered against the caller-supplied list of available
   application atoms — so a malicious or stale submission cannot smuggle in an
   arbitrary atom that happens to exist in the VM.
+
+  `include_relations?` toggles whether link/monitor relation edges are fetched
+  and drawn; it defaults to `true`.
   """
 
   use Ecto.Schema
@@ -15,11 +18,13 @@ defmodule VoyagerWeb.FormSchemas.SupervisionTreeControls do
   @max_apps 20
   @min_depth 2
   @default_depth 3
+  @default_include_relations? true
 
   @primary_key false
   embedded_schema do
     field :apps, {:array, :string}, default: []
     field :depth, :integer, default: @default_depth
+    field :include_relations?, :boolean, default: @default_include_relations?
   end
 
   @spec min_depth() :: pos_integer()
@@ -28,10 +33,13 @@ defmodule VoyagerWeb.FormSchemas.SupervisionTreeControls do
   @spec default_depth() :: pos_integer()
   def default_depth, do: @default_depth
 
+  @spec default_include_relations?() :: boolean()
+  def default_include_relations?, do: @default_include_relations?
+
   @spec changeset(map(), [atom()]) :: Ecto.Changeset.t()
   def changeset(attrs, available_apps) when is_list(available_apps) do
     %__MODULE__{}
-    |> cast(attrs, [:apps, :depth])
+    |> cast(attrs, [:apps, :depth, :include_relations?])
     |> update_change(:apps, &filter_map_known(&1, available_apps))
     |> validate_length(:apps,
       max: @max_apps,

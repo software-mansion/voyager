@@ -1,13 +1,13 @@
 defmodule VoyagerWeb.SupervisionTreeLive.Controls do
   @moduledoc """
-  Controls for the supervision-tree view: searching and selecting applications
-  and choosing the walk depth.
+  Controls for the supervision-tree view: searching and selecting applications,
+  choosing the walk depth, and toggling whether relation edges are drawn.
 
   Owns the ephemeral UI state (search text, the collapsible open state, the form
-  and the derived list of visible apps). Routed state — the selected apps and the
-  depth — still flows through the URL: this component builds the path and calls
-  `push_patch/2`, while the parent LiveView's `handle_params/3` validates the URL
-  and triggers fetches.
+  and the derived list of visible apps). Routed state — the selected apps, the
+  depth and the relations toggle — still flows through the URL: this component
+  builds the path and calls `push_patch/2`, while the parent LiveView's
+  `handle_params/3` validates the URL and triggers fetches.
   """
 
   use VoyagerWeb, :live_component
@@ -151,17 +151,38 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
               </p>
             </div>
           </.collapsible>
-          <div class="flex items-start gap-3">
-            <label class="label text-base-content/60 text-xs leading-8" for={@apps_form[:depth].id}>
-              Depth
-            </label>
-            <.input
-              field={@apps_form[:depth]}
-              type="number-stepper"
-              step="1"
-              min={SupervisionTreeControls.min_depth()}
-              phx-debounce="250"
-            />
+          <div class="flex items-start gap-6">
+            <div class="flex items-start gap-3">
+              <label class="label text-base-content/60 text-xs leading-8">
+                Depth
+              </label>
+              <.input
+                field={@apps_form[:depth]}
+                type="number-stepper"
+                step="1"
+                min={SupervisionTreeControls.min_depth()}
+                phx-debounce="250"
+              />
+            </div>
+            <div class="flex items-start gap-3">
+              <label
+                class="label text-base-content/60 text-xs leading-8"
+                for="supervision-tree-relations"
+              >
+                Relations
+              </label>
+              <input type="hidden" name="tree_controls[include_relations?]" value="false" />
+              <input
+                id="supervision-tree-relations"
+                type="checkbox"
+                name="tree_controls[include_relations?]"
+                value="true"
+                class="toggle toggle-primary mt-1"
+                aria-label="Toggle relation edges"
+                checked={@apps_form[:include_relations?].value in [true, "true"]}
+                phx-debounce="200"
+              />
+            </div>
           </div>
         </.form>
       </div>
@@ -188,8 +209,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
     |> SupervisionTreeControls.changeset(socket.assigns.available_app_atoms)
     |> Ecto.Changeset.apply_action(:validate)
     |> case do
-      {:ok, %SupervisionTreeControls{apps: apps, depth: depth}} ->
-        push_patch(socket, to: controls_path(socket, apps, depth))
+      {:ok,
+       %SupervisionTreeControls{apps: apps, depth: depth, include_relations?: include_relations?}} ->
+        push_patch(socket, to: controls_path(socket, apps, depth, include_relations?))
 
       {:error, changeset} ->
         assign(socket, :apps_form, to_form(changeset, as: :tree_controls))
@@ -206,14 +228,19 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
 
   def handle_event("clear_all_apps", _params, socket) do
     socket
-    |> push_patch(to: controls_path(socket, [], socket.assigns.depth))
+    |> push_patch(
+      to: controls_path(socket, [], socket.assigns.depth, socket.assigns.include_relations?)
+    )
     |> noreply()
   end
 
   defp assign_form(socket) do
     changeset =
       SupervisionTreeControls.changeset(
-        %{"depth" => socket.assigns.depth},
+        %{
+          "depth" => socket.assigns.depth,
+          "include_relations?" => socket.assigns.include_relations?
+        },
         socket.assigns.available_app_atoms
       )
 
@@ -232,11 +259,11 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
     assign(socket, :visible_apps, visible)
   end
 
-  defp controls_path(socket, apps, depth) do
+  defp controls_path(socket, apps, depth, include_relations?) do
     node = socket.assigns.node_name
 
     query =
-      %{"depth" => depth}
+      %{"depth" => depth, "relations" => to_string(include_relations?)}
       |> maybe_put_apps(apps)
 
     ~p"/node/#{node}/supervision-tree?#{query}"
