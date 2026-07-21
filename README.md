@@ -15,7 +15,7 @@ mix tauri.dev
 
 To check production app locally use
 
-```ssh
+```sh
 mix assets.deploy
 mix tauri.app
 ```
