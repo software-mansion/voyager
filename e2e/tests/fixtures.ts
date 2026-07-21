@@ -26,7 +26,7 @@ export function fillRecentBtn(page: Page) {
   );
 }
 
-async function waitForLiveView(page: Page) {
+export async function waitForLiveView(page: Page) {
   await page.waitForFunction(
     () =>
       (

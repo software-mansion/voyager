@@ -1,6 +1,6 @@
 import { execSync } from 'node:child_process';
 import { expect, type Page } from '@playwright/test';
-import { NODE_NAME, COOKIE, sel } from './fixtures';
+import { NODE_NAME, COOKIE, sel, ensureConnected } from './fixtures';
 
 /**
  * Runs `mock_app_ctl` (or any MFA) on the target node and returns the printed
@@ -68,6 +68,7 @@ export function cyNode(page: Page, ref: string): Promise<CyNodeSnapshot> {
  * has rendered and overlay buttons are in place.
  */
 export async function openTree(page: Page) {
+  await ensureConnected(page);
   await page.goto(`/node/${NODE_NAME}/supervision-tree`);
   await page
     .locator('input[name="tree_controls[apps][]"][value="mock_app"]')

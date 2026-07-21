@@ -1,5 +1,11 @@
 import { test, expect } from '@playwright/test';
-import { NODE_NAME, sel, fillRecentBtn, ensureConnected } from './fixtures';
+import {
+  NODE_NAME,
+  sel,
+  fillRecentBtn,
+  ensureConnected,
+  waitForLiveView,
+} from './fixtures';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -10,16 +16,11 @@ test.describe('ConnectLive › recent connections', () => {
     await page.close();
   });
 
-  test.afterAll(async ({ browser }) => {
-    const page = await browser.newPage();
-    await ensureConnected(page);
-    await page.close();
-  });
-
   test('shows recent connection and disables fill while connected', async ({
     page,
   }) => {
     await page.goto('/');
+    await waitForLiveView(page);
 
     await expect(page.locator(sel.recentConnections)).toBeVisible();
     await expect(page.locator(sel.recentConnections)).toContainText(NODE_NAME);
@@ -32,6 +33,7 @@ test.describe('ConnectLive › recent connections', () => {
     page,
   }) => {
     await page.goto('/');
+    await waitForLiveView(page);
     await page.locator(sel.disconnectFromConnect).click();
 
     await expect(page.locator(sel.disconnectFromConnect)).toBeHidden();
@@ -41,6 +43,7 @@ test.describe('ConnectLive › recent connections', () => {
 
   test('fills the form from a recent connection row', async ({ page }) => {
     await page.goto('/');
+    await waitForLiveView(page);
     await expect(page.locator(sel.connectBtn)).toBeEnabled();
 
     await fillRecentBtn(page).first().click();
