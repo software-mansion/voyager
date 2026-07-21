@@ -46,6 +46,10 @@ npm-debug.log
 # Environment secrets
 .env
 
+# Desktop app logs from `mix tauri.app`
+/rel/app/voyager-app.stdout.log
+/rel/app/voyager-app.stderr.log
+
 # Database files
 *.db
 *.db-*
