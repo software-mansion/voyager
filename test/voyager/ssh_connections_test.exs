@@ -1,6 +1,6 @@
 defmodule Voyager.SshConnectionsTest do
   @moduledoc false
-  use Voyager.DataCase, async: true
+  use Voyager.DataCase, async: false
 
   import Ecto.Query
 
