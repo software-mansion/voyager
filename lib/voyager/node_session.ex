@@ -74,7 +74,7 @@ defmodule Voyager.NodeSession do
   end
 
   def handle_call({:connect, connector, node_name, cookie, opts}, _from, %{session: nil} = state) do
-    case connector.connect(node_name, cookie, opts) do
+    case safe_connect(connector, node_name, cookie, opts) do
       {:ok, node, meta} ->
         Node.monitor(node, true)
         subscribe(connector)
@@ -148,6 +148,14 @@ defmodule Voyager.NodeSession do
     broadcast({:nodedown, session.node})
     Voyager.Telemetry.dispatch!("voyager.node.disconnect", metadata: %{reason: reason})
     {:noreply, %{state | session: nil}}
+  end
+
+  defp safe_connect(connector, node_name, cookie, opts) do
+    connector.connect(node_name, cookie, opts)
+  rescue
+    error -> {:error, {:connector_crashed, error}}
+  catch
+    kind, reason -> {:error, {:connector_crashed, {kind, reason}}}
   end
 
   defp subscribe(connector) do
