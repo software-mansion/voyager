@@ -3,7 +3,6 @@ defmodule Voyager.NodeSessionTest do
 
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Session
-  alias Voyager.Services.Distribution
 
   defmodule FakeConnector do
     @moduledoc false
@@ -16,7 +15,6 @@ defmodule Voyager.NodeSessionTest do
     def connect(_node_name, _cookie, opts) do
       case Keyword.get(opts, :fail) do
         nil ->
-          :ok = Distribution.ensure_distributed(:shortnames)
           meta = %{test_pid: Keyword.fetch!(opts, :test_pid), ref: Keyword.get(opts, :ref)}
           {:ok, Node.self(), meta}
 
