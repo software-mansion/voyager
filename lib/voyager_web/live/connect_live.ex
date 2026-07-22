@@ -36,10 +36,17 @@ defmodule VoyagerWeb.ConnectLive do
                 <.icon name="icon-settings" class="size-4" />
               </.link>
             </div>
+            <ConnectComponents.connected_indicator session={@connected_session} />
+
             <div class="mb-6">
-              <h1 class="text-base-content text-2xl font-semibold tracking-tight">
+              <h1 class="text-base-content mb-4 text-2xl font-semibold tracking-tight">
                 Connect to a node
               </h1>
+
+              <ConnectComponents.mode_toggle
+                mode={@mode}
+                disabled={not is_nil(@connected_session) or @connecting?}
+              />
               <p :if={@mode == :direct} class="text-base-content/60 mt-1 text-sm">
                 Enter the node name and Erlang cookie to inspect a local BEAM.
               </p>
@@ -47,11 +54,6 @@ defmodule VoyagerWeb.ConnectLive do
                 Connect to a remote node through an SSH tunnel.
               </p>
             </div>
-            <ConnectComponents.connected_indicator session={@connected_session} />
-            <ConnectComponents.mode_toggle
-              mode={@mode}
-              disabled={not is_nil(@connected_session) or @connecting?}
-            />
 
             <.live_component
               :if={@mode == :direct}
