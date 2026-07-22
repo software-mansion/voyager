@@ -21,7 +21,7 @@ defmodule VoyagerWeb.ConnectLive do
   def render(assigns) do
     ~H"""
     <div class="bg-base-200 h-full overflow-y-auto">
-      <div class="flex min-h-full items-center justify-center p-4">
+      <div class="min-w-96 flex min-h-full items-center justify-center p-4">
         <div class="card bg-base-100 w-full max-w-lg shadow-xl">
           <div class="card-body gap-0 p-10">
             <div class="mb-7 flex items-center gap-3">
