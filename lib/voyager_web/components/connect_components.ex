@@ -108,7 +108,7 @@ defmodule VoyagerWeb.ConnectComponents do
             href={~p"/node/#{@session.node_name}"}
             class="btn btn-success btn-xs shrink-0 gap-1"
           >
-            Open <.icon name="icon-arrow-right" class="size-3" />
+            Open <.icon name="icon-log-in" class="size-3.5" />
           </.link>
         </div>
       </div>
