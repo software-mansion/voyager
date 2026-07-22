@@ -29,6 +29,7 @@ const SupervisionTree = {
   mounted() {
     this.container = this.el.querySelector('[data-cy-container]');
     this.overlayLayer = this.el.querySelector('[data-cy-overlays]');
+    this.tooltip = this.el.querySelector('#supervision-tree-body-tip');
 
     this.tokens = this.readTokens();
     this.cy = cytoscape({
@@ -76,10 +77,12 @@ const SupervisionTree = {
     this.cy.on('mouseover', 'node, edge', (event) => {
       event.target.addClass('hover');
       event.cy.container().style.cursor = 'pointer';
+      if (event.target.isNode()) this.showTooltip(event.target);
     });
     this.cy.on('mouseout', 'node, edge', (event) => {
       event.target.removeClass('hover');
       event.cy.container().style.cursor = '';
+      if (event.target.isNode()) this.hideTooltip();
     });
 
     this.cy.on('viewport', () => {
@@ -517,6 +520,80 @@ const SupervisionTree = {
 
   tearDownAllOverlays() {
     for (const key of [...this.overlays.keys()]) this.tearDownOverlay(key);
+  },
+
+  showTooltip(node) {
+    this.fillTooltip(node);
+    this.positionTooltip(node);
+    this.tooltip.classList.add('is-open');
+  },
+
+  hideTooltip() {
+    this.tooltip.classList.remove('is-open');
+  },
+
+  fillTooltip(node) {
+    /**
+     * @param {string} type
+     */
+    function typeColorClass(type) {
+      switch (type) {
+        case 'supervisor':
+          return 'text-primary';
+        case 'worker':
+          return 'text-secondary';
+        case 'port':
+          return 'text-port';
+        case 'reference':
+          return 'text-success';
+        default:
+          return '';
+      }
+    }
+
+    /**
+     * @param {string[] | null} mfa
+     * @param {string} label
+     */
+    function parseMfa(mfa, label = '') {
+      if (!mfa || mfa.length != 3) return '';
+      const [m, f, a] = mfa;
+      return `<li>${label} <span class="text-primary font-semibold">${m}.${f}/${a}</span></li>`;
+    }
+
+    const { name, type, pid, info, app } = node.data();
+
+    this.tooltip.innerHTML = `
+          <ul class="flex flex-col gap-1">
+            <li class="${typeColorClass(type)}">${type}</li>
+            <li class="font-semibold">${info?.registered_name || name}</li>
+            ${app ? `<li>app: <span class="font-semibold">${app}</li>` : ''}
+            ${parseMfa(info?.initial_call, 'initial_call:')}
+            ${parseMfa(info?.current_function, 'current_function:')}
+            ${pid ? `<li>PID: <span class="font-semibold">${pid}</li>` : ''}
+          </ul>
+        `;
+  },
+
+  positionTooltip(node) {
+    const { x } = node.renderedPosition();
+    const { y1 } = node.renderedBoundingBox({ includeLabels: false });
+
+    const tip = this.tooltip.getBoundingClientRect();
+    let top = y1 - tip.height - 8;
+    let left = x - tip.width / 2;
+
+    left = Math.max(
+      8,
+      Math.min(left, this.container.clientWidth - tip.width - 8)
+    );
+    top = Math.max(
+      8,
+      Math.min(top, this.container.clientWidth - tip.height - 8)
+    );
+
+    this.tooltip.style.top = `${top}px`;
+    this.tooltip.style.left = `${left}px`;
   },
 
   isCollapsed(node) {

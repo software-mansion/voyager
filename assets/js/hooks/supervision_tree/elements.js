@@ -1,16 +1,19 @@
 /**
  * @typedef {Object} Info
- * @property {string|any[]} registered_name
+ * @property {string | any[] | undefined} registered_name
+ * @property {string[] | null} initial_call
+ * @property {string[] | null} current_function
  *
  * @typedef {Object} ServerNode
  * @property {string} key
- * @property {string|null} parent_key
- * @property {string|null} pid "<X.Y.Z>" (null for ghost children)
- * @property {string|any[]} name
- * @property {'app'|'supervisor'|'worker'|'port'|'reference'} type
+ * @property {string | null} app
+ * @property {string | null} parent_key
+ * @property {string | null} pid "<X.Y.Z>" (null for ghost children)
+ * @property {string | any[]} name
+ * @property {'app' | 'supervisor' | 'worker' | 'port' | 'reference'} type
  * @property {number} child_count
- * @property {Info|'dead'|null} info
- * @property {string[]|'not_loaded'} children_keys
+ * @property {Info | 'dead' | null} info
+ * @property {string[] | 'not_loaded'} children_keys
  */
 
 /**
@@ -18,7 +21,7 @@
  * @property {string} id
  * @property {string} source
  * @property {string} target
- * @property {'link'|'monitor'|'monitored_by'} kind
+ * @property {'link' | 'monitor' | 'monitored_by'} kind
  */
 
 /**
@@ -32,8 +35,10 @@ export function elementsFor(key, node) {
 
   const data = {
     id: key,
+    app: node.app,
     name: node.name,
     type: node.type,
+    pid: node.pid,
     info: node.info,
     child_count: child_count,
     parent_key: node.parent_key,
@@ -77,7 +82,7 @@ export function relEdgeElement(edge) {
 }
 
 /**
- * @param {{child_count:number,children_keys:string[]|'not_loaded'|null}} data
+ * @param { {child_count: number, children_keys: string[] | 'not_loaded' | null} } data
  */
 export function initialIsCollapsedState({ child_count, children_keys }) {
   return (

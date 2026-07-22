@@ -195,6 +195,16 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
             class="bg-base-100 relative h-full overflow-hidden rounded-lg"
           >
             <div
+              id="supervision-tree-body-tip"
+              role="tooltip"
+              class={[
+                "tooltip-pop bg-base-100 font-mono text-base-content rounded-box px-3 py-2",
+                "ring-base-content/15 text-sm leading-relaxed shadow-lg ring-1"
+              ]}
+              style="position: absolute;"
+            >
+            </div>
+            <div
               data-cy-container
               class="absolute inset-0 h-full cursor-grab active:cursor-grabbing"
             >
