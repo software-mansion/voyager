@@ -76,7 +76,7 @@ defmodule Voyager.NodeSession do
   def handle_call({:connect, connector, node_name, cookie, opts}, _from, %{session: nil} = state) do
     case safe_connect(connector, node_name, cookie, opts) do
       {:ok, node, meta} ->
-        Node.monitor(node, true)
+        if Node.alive?(), do: Node.monitor(node, true)
         subscribe(connector)
 
         session = %Session{
@@ -102,7 +102,7 @@ defmodule Voyager.NodeSession do
   end
 
   def handle_call(:disconnect, _from, %{session: session} = state) do
-    Node.monitor(session.node, false)
+    if Node.alive?(), do: Node.monitor(session.node, false)
     session.connector.disconnect(session.node, session.meta)
     unsubscribe(session.connector)
     broadcast({:node_disconnected, session.node})
@@ -125,14 +125,14 @@ defmodule Voyager.NodeSession do
   @impl GenServer
   def handle_info({:nodedown, node}, %{session: %Session{node: session_node} = session} = state)
       when node == session_node do
-    Node.monitor(session.node, false)
+    if Node.alive?(), do: Node.monitor(session.node, false)
     session.connector.disconnect(session.node, session.meta)
     drop_session(state, session, "node down")
   end
 
   def handle_info(msg, %{session: %Session{connector: connector, meta: meta} = session} = state) do
     if connector.teardown?(msg, meta) do
-      Node.monitor(session.node, false)
+      if Node.alive?(), do: Node.monitor(session.node, false)
       drop_session(state, session, "transport down")
     else
       {:noreply, state}

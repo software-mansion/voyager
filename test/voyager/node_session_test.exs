@@ -3,7 +3,6 @@ defmodule Voyager.NodeSessionTest do
 
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Session
-  alias Voyager.Services.Distribution
 
   defmodule FakeConnector do
     @moduledoc false
@@ -16,14 +15,8 @@ defmodule Voyager.NodeSessionTest do
     def connect(_node_name, _cookie, opts) do
       case Keyword.get(opts, :fail) do
         nil ->
-          case Distribution.ensure_distributed(:shortnames) do
-            :ok ->
-              meta = %{test_pid: Keyword.fetch!(opts, :test_pid), ref: Keyword.get(opts, :ref)}
-              {:ok, Node.self(), meta}
-
-            {:error, reason} ->
-              {:error, reason}
-          end
+          meta = %{test_pid: Keyword.fetch!(opts, :test_pid), ref: Keyword.get(opts, :ref)}
+          {:ok, Node.self(), meta}
 
         reason ->
           {:error, reason}
@@ -42,20 +35,6 @@ defmodule Voyager.NodeSessionTest do
     @impl true
     def teardown?({:fake_transport_down, ref}, %{ref: ref}), do: true
     def teardown?(_msg, _meta), do: false
-  end
-
-  setup_all do
-    previous_distribution_suffix = Application.get_env(:voyager, :distribution_suffix)
-    Application.put_env(:voyager, :distribution_suffix, "_test")
-
-    on_exit(fn ->
-      case previous_distribution_suffix do
-        nil -> Application.delete_env(:voyager, :distribution_suffix)
-        value -> Application.put_env(:voyager, :distribution_suffix, value)
-      end
-    end)
-
-    :ok
   end
 
   setup do
