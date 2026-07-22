@@ -200,8 +200,8 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
             >
             </div>
             <div data-cy-overlays class="pointer-events-none absolute inset-0"></div>
-            <div class="absolute right-2 bottom-2 left-2 flex items-end justify-between">
-              <div class="card bg-base-100 border-base-300 border">
+            <div class="pointer-events-none absolute right-2 bottom-2 left-2 flex items-end justify-between">
+              <div class="card bg-base-100 border-base-300 pointer-events-auto border">
                 <div class="card-body font-mono text-base-content/80 flex-row flex-wrap gap-4 px-4 py-3 text-xs">
                   <.legend_node_entry
                     :for={entry <- node_legends()}
@@ -215,7 +215,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                   />
                 </div>
               </div>
-              <div class="card bg-base-100 border-base-300 m-2 border shadow-md">
+              <div class="card bg-base-100 border-base-300 pointer-events-auto m-2 border shadow-md">
                 <div class="card-body p-1">
                   <button
                     type="button"
