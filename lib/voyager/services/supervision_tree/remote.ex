@@ -8,6 +8,8 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   @timeout_pinfo 1_000
   @process_info_keys [
     :registered_name,
+    :initial_call,
+    :current_function,
     :links,
     :monitors,
     :monitored_by
