@@ -16,6 +16,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   alias Voyager.NodeSession
   alias Voyager.Queries.Connections, as: ConnectionQueries
   alias VoyagerWeb.ConnectLive.RecentConnections
+  alias VoyagerWeb.ConnectLive.SecretVisibility
   alias VoyagerWeb.FormSchemas.ConnectionParams
 
   @recents_keys %{
@@ -35,7 +36,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
       else
         socket
         |> assign(:form, empty_form())
-        |> assign(:show_cookie, false)
+        |> SecretVisibility.init()
         |> RecentConnections.init(
           queries: ConnectionQueries,
           actions: ConnectionActions,
@@ -84,8 +85,8 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
         <.secret_field
           field={@form[:cookie]}
           label="Cookie"
-          shown={@show_cookie}
-          toggle_event="toggle_cookie"
+          secret_key="cookie"
+          shown={SecretVisibility.shown?(@secret_visibility, "cookie")}
           target={@myself}
           remember_name="conn[remember_cookie]"
           remember_checked={to_string(@form[:remember_cookie].value) == "true"}
@@ -163,10 +164,6 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
     {:noreply, assign(socket, :form, to_form(changeset, as: :conn))}
   end
 
-  def handle_event("toggle_cookie", _, socket) do
-    {:noreply, update(socket, :show_cookie, &(!&1))}
-  end
-
   def handle_event("fill_recent", %{"id" => id}, socket) do
     case Integer.parse(id) do
       {int_id, ""} ->
@@ -184,7 +181,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
 
             socket
             |> assign(:form, to_form(changeset, as: :conn))
-            |> assign(:show_cookie, false)
+            |> SecretVisibility.reset()
             |> noreply()
         end
 

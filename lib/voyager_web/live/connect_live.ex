@@ -42,15 +42,17 @@ defmodule VoyagerWeb.ConnectLive do
               <h1 class="text-base-content mb-4 text-2xl font-semibold tracking-tight">
                 Connect to a node
               </h1>
-
+              <h4 class="font-mono tracking-label text-base-content/60 mb-2 text-xs uppercase">
+                Connection type:
+              </h4>
               <ConnectComponents.mode_toggle
                 mode={@mode}
                 disabled={not is_nil(@connected_session) or @connecting?}
               />
-              <p :if={@mode == :direct} class="text-base-content/60 mt-1 text-sm">
-                Enter the node name and Erlang cookie to inspect a local BEAM.
+              <p :if={@mode == :direct} class="text-base-content/60 mt-1 text-lg">
+                Connect directly over Erlang distribution.
               </p>
-              <p :if={@mode == :ssh} class="text-base-content/60 mt-1 text-sm">
+              <p :if={@mode == :ssh} class="text-base-content/60 mt-1 text-lg">
                 Connect to a remote node through an SSH tunnel.
               </p>
             </div>

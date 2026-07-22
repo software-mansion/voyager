@@ -159,8 +159,12 @@ defmodule VoyagerWeb.ConnectComponents do
 
   attr :field, Phoenix.HTML.FormField, required: true
   attr :label, :string, required: true
+
+  attr :secret_key, :string,
+    required: true,
+    doc: "Identifies this field for the shared visibility-toggle hook"
+
   attr :shown, :boolean, default: false
-  attr :toggle_event, :string, required: true
   attr :remember_name, :string, required: true
   attr :remember_checked, :boolean, default: false
   attr :remember_label, :string, required: true
@@ -168,6 +172,9 @@ defmodule VoyagerWeb.ConnectComponents do
   attr :target, :any, default: nil
 
   def secret_field(assigns) do
+    value = assigns.field.value
+    assigns = assign(assigns, :value_present?, is_binary(value) and value != "")
+
     ~H"""
     <div>
       <label
@@ -187,9 +194,12 @@ defmodule VoyagerWeb.ConnectComponents do
           class="font-mono pr-10 text-sm"
         />
         <button
+          :if={@value_present?}
           type="button"
+          id={"toggle-#{@field.id}-visibility"}
           phx-target={@target}
-          phx-click={@toggle_event}
+          phx-click="toggle_secret_visibility"
+          phx-value-key={@secret_key}
           disabled={@disabled}
           aria-label={if @shown, do: "Hide", else: "Show"}
           title={if @shown, do: "Hide", else: "Show"}
