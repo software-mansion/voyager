@@ -400,7 +400,6 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   end
 
   defp ssh_connect_error({:invalid_node_name, _}), do: {:node_name, "Use the name@host format"}
-  defp ssh_connect_error({:invalid_node_format, _}), do: {:node_name, "Use the name@host format"}
 
   defp ssh_connect_error({:invalid_host, _}),
     do: {:ssh_host, "Invalid host — check the SSH hostname"}
@@ -415,6 +414,12 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
 
   defp ssh_connect_error(:econnrefused),
     do: {:ssh_host, "Connection refused — check the SSH host and port"}
+
+  defp ssh_connect_error(:nxdomain),
+    do: {:ssh_host, "Host not found — check the SSH hostname"}
+
+  defp ssh_connect_error(:ehostunreach),
+    do: {:ssh_host, "Host unreachable — check the SSH hostname and your network"}
 
   defp ssh_connect_error({:node_not_found, _, _}),
     do:
