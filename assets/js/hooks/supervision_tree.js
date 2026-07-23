@@ -538,6 +538,8 @@ const SupervisionTree = {
      */
     function typeColorClass(type) {
       switch (type) {
+        case 'app':
+          return 'text-primary';
         case 'supervisor':
           return 'text-primary';
         case 'worker':
@@ -552,25 +554,27 @@ const SupervisionTree = {
     }
 
     /**
-     * @param {string[] | null} mfa
-     * @param {string} label
+     * @param {[string, string, number] | undefined} mfa
+     * @param {string} [label]
      */
     function parseMfa(mfa, label = '') {
-      if (!mfa || mfa.length != 3) return '';
+      if (!Array.isArray(mfa) || mfa.length != 3) return '';
       const [m, f, a] = mfa;
-      return `<li>${label} <span class="text-primary font-semibold">${m}.${f}/${a}</span></li>`;
+      return `<li>${label} <span class="text-primary">${m}.${f}/${a}</span></li>`;
     }
 
     const { name, type, pid, info, app } = node.data();
 
+    const displayName = formatName(info?.registered_name) || formatName(name);
+
     this.tooltip.innerHTML = `
           <ul class="flex flex-col gap-1">
             <li class="${typeColorClass(type)}">${type}</li>
-            <li class="font-semibold">${info?.registered_name || name}</li>
-            ${app ? `<li>app: <span class="font-semibold">${app}</li>` : ''}
+            <li class="font-semibold">${displayName}</li>
+            ${app ? `<li>app: <span class="font-semibold">${app}</span></li>` : ''}
             ${parseMfa(info?.initial_call, 'initial_call:')}
             ${parseMfa(info?.current_function, 'current_function:')}
-            ${pid ? `<li>PID: <span class="font-semibold">${pid}</li>` : ''}
+            ${pid ? `<li>PID: <span class="font-semibold">${pid}</span></li>` : ''}
           </ul>
         `;
   },
@@ -589,7 +593,7 @@ const SupervisionTree = {
     );
     top = Math.max(
       8,
-      Math.min(top, this.container.clientWidth - tip.height - 8)
+      Math.min(top, this.container.clientHeight - tip.height - 8)
     );
 
     this.tooltip.style.top = `${top}px`;

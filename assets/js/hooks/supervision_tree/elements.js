@@ -1,8 +1,8 @@
 /**
  * @typedef {Object} Info
- * @property {string | any[] | undefined} registered_name
- * @property {string[] | null} initial_call
- * @property {string[] | null} current_function
+ * @property {string | []} registered_name
+ * @property {[string, string, number]} initial_call
+ * @property {[string, string, number]} current_function
  *
  * @typedef {Object} ServerNode
  * @property {string} key
