@@ -189,7 +189,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
     |> Ecto.Changeset.apply_action(:validate)
     |> case do
       {:ok, %SupervisionTreeControls{apps: apps, depth: depth}} ->
-        push_patch(socket, to: controls_path(socket, apps, depth))
+        socket
+        |> assign(:apps_form, to_form(params, as: :tree_controls))
+        |> push_patch(to: controls_path(socket, apps, depth))
 
       {:error, changeset} ->
         assign(socket, :apps_form, to_form(changeset, as: :tree_controls))

@@ -15,8 +15,9 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
   setup do
     # Inject an active session so the NodeSessionHook on_mount lets us through.
-    Fakes.connect_node!(Fakes.node_session(node_name: @node_name))
-    :ok
+    session = Fakes.node_session(node_name: @node_name)
+    Fakes.connect_node!(session)
+    %{node_session: session}
   end
 
   describe "navbar" do
@@ -207,6 +208,72 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
       assert has_element?(view, ~s|#refresh-interval option[value="5000"][selected]|)
     end
+
+    test "enables the JSON snapshot action after the async fetch resolves", %{conn: conn} do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      assert has_element?(view, "#show-node-info-json:not([disabled])")
+    end
+
+    test "opens and closes the JSON snapshot modal", %{conn: conn} do
+      stub_erpc(Fakes.node_data(otp_release: "99"))
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      view
+      |> element("#show-node-info-json")
+      |> render_click()
+
+      assert has_element?(view, "#node-info-json-modal[role='dialog']")
+      assert has_element?(view, "#node-info-json-modal-content", ~s|"otp_release": "99"|)
+
+      assert has_element?(
+               view,
+               ~s|#node-info-json-modal-copy[data-copy-target="#node-info-json-modal-content"]|
+             )
+
+      view
+      |> element("#node-info-json-modal-close")
+      |> render_click()
+
+      refute has_element?(view, "#node-info-json-modal")
+    end
+
+    test "getting node disconnected redirects and displays appropriate flash", %{
+      conn: conn,
+      node_session: session
+    } do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+      assert has_element?(view, "#node-info-content")
+
+      broadcast(Voyager.NodeSession.topic(), {:node_disconnected, session.node})
+
+      {"/", flash} = assert_redirect(view)
+      assert flash["info"] == "Node disconnected: demo@localhost"
+    end
+
+    test "getting node down redirects and displays appropriate flash", %{
+      conn: conn,
+      node_session: session
+    } do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+      assert has_element?(view, "#node-info-content")
+
+      broadcast(Voyager.NodeSession.topic(), {:nodedown, session.node})
+
+      {"/", flash} = assert_redirect(view)
+      assert flash["error"] == "Node down: demo@localhost"
+    end
   end
 
   describe "mount with an unreachable node" do
@@ -220,7 +287,12 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
       assert has_element?(view, "#node-info-error")
       assert has_element?(view, "#node-info-error", "Node is unreachable.")
+      assert has_element?(view, "#show-node-info-json[disabled]")
       refute has_element?(view, "#node-info-content")
+
+      render_click(view, "show-json-modal")
+
+      refute has_element?(view, "#node-info-json-modal")
     end
   end
 
@@ -236,5 +308,9 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
     stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args ->
       Fakes.erpc_reply(mod, fun, args, data)
     end)
+  end
+
+  defp broadcast(pubsub_topic, event) do
+    Phoenix.PubSub.broadcast(Voyager.PubSub, pubsub_topic, event)
   end
 end
