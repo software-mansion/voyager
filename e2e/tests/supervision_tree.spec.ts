@@ -3,6 +3,8 @@ import {
   rpcOk,
   toggle,
   cyNode,
+  relEdge,
+  floatingNodes,
   openTree,
   clickToggle,
   focusNode,
@@ -15,11 +17,20 @@ import {
 // the target node (see e2e/mock_app/) looks like:
 //
 //   app:mock_app (app's master process)
+//   │
 //   └── p (intermediate process)
+//       │
 //       └── mock_root_sup
 //           ├── mock_static_worker
+//           │
 //           ├── mock_deep_sup_1 ── mock_deep_sup_2 ── mock_deep_sup_3 ── mock_leaf_worker
+//           │
+//           ├── mock_rel_sup_a ── mock_rel_deep_sup_a ── mock_rel_leaf_a
+//           │
+//           ├── mock_rel_sup_b ── mock_rel_deep_sup_b ── mock_rel_leaf_b
+//           │
 //           ├── mock_dyn_sup_a        (0 children; tests add some at runtime)
+//           │
 //           └── mock_dyn_sup_b        (1 child: mock_dyn_worker_b1)
 //
 // At the default walk depth (3) every supervisor child of mock_root_sup is a
@@ -251,4 +262,136 @@ test.describe('SupervisionTreeLive › expand/collapse', () => {
       );
     }).toPass();
   });
+});
+
+// Regression coverage for PR #105 (floating nodes in the supervision tree).
+// A relationship edge (here a monitor; link / monitored_by collapse the same
+// way) can join two otherwise independent branches. Collapsing used to follow
+// those relation edges as if they were part of the supervision spine, which —
+// collapsing the two branches one at a time — produced two defects:
+//
+//   1. Collapsing one branch kept the relation *target* visible (correct) but
+//      wrongly hid that target's own strict-supervision subtree in the other,
+//      still-expanded branch — so after each collapse we assert the untouched
+//      branch stays fully visible.
+//   2. Once both joined branches were collapsed, a node was left "floating" —
+//      still drawn but with every edge gone — instead of being hidden.
+//
+// The scenario runs across a matrix so every collapse path is covered:
+//   * expansion — branches opened with the +/- toggle buttons, vs. opened
+//     wholesale by raising the walk depth (a structurally different path: the
+//     leaves are then discovered by the walk, not via the relation);
+//   * order — collapse branch A first then B, vs. B first then A.
+//
+const BRANCH = {
+  a: {
+    top: 'mock_rel_sup_a',
+    sup: 'mock_rel_deep_sup_a',
+    leaf: 'mock_rel_leaf_a',
+  },
+  b: {
+    top: 'mock_rel_sup_b',
+    sup: 'mock_rel_deep_sup_b',
+    leaf: 'mock_rel_leaf_b',
+  },
+} as const;
+
+test.describe('SupervisionTreeLive › relation-edge collapse', () => {
+  test.beforeAll(() => {
+    rpcOk('mock_app_ctl reset []');
+    // Two deep branches joined by a monitor between their leaves:
+    rpcOk('mock_worker monitor_process [mock_rel_leaf_a, mock_rel_leaf_b]');
+  });
+
+  test.afterAll(() => {
+    rpcOk('mock_worker clear_relations [mock_rel_leaf_a]');
+  });
+
+  for (const expansion of ['toggle', 'depth'] as const) {
+    for (const [first, second] of [
+      ['a', 'b'],
+      ['b', 'a'],
+    ] as const) {
+      test(`keeps the other branch and never floats a node (${expansion} expand, collapse ${first} then ${second})`, async ({
+        page,
+      }) => {
+        await openTree(page);
+
+        if (expansion === 'toggle') {
+          // Open branch A first, then B, via the overlay toggle buttons.
+          await clickToggle(page, BRANCH.a.top);
+          await expect(toggle(page, BRANCH.a.sup)).toBeVisible();
+          await clickToggle(page, BRANCH.a.sup);
+          await clickToggle(page, BRANCH.b.top);
+          await expect(toggle(page, BRANCH.b.sup)).toBeVisible();
+          await clickToggle(page, BRANCH.b.sup);
+        } else {
+          // Depth 5 reaches the leaves (app → p → root_sup → dyn_sup →
+          // rel_sup → rel_leaf), so both branches open structurally at once.
+          await page.locator('input[name="tree_controls[depth]"]').fill('5');
+        }
+
+        await expect(async () => {
+          expect(await cyNode(page, BRANCH.a.leaf)).toMatchObject({
+            exists: true,
+            hidden: false,
+          });
+          expect(await cyNode(page, BRANCH.b.leaf)).toMatchObject({
+            exists: true,
+            hidden: false,
+          });
+        }).toPass({ timeout: 5_000 });
+        // Guard: the collapses below only exercise the fix if the relation edge
+        // actually joins the two branches.
+        expect(
+          await relEdge(page, BRANCH.a.leaf, BRANCH.b.leaf, 'monitor')
+        ).toBe(true);
+
+        // Focusing re-zooms the node into view so its overlay toggle exists
+        // (depth-expanded trees fit too small for the buttons to render).
+        const collapse = async (key: 'a' | 'b') => {
+          await focusNode(page, BRANCH[key].top);
+          await clickToggle(page, BRANCH[key].top);
+        };
+
+        // Collapse the first branch: its supervisor hides, while the other
+        // branch — reachable only through the relation edge — must stay fully
+        // visible (buggy builds over-collapse into it), and nothing floats.
+        // (The first branch's own leaf is not asserted here: when it is the
+        // relation-discovered endpoint it legitimately lingers, still tied to
+        // its visible partner, until that partner is collapsed too, below.)
+        await collapse(first);
+        await expect(async () => {
+          expect(await cyNode(page, BRANCH[first].sup)).toMatchObject({
+            exists: true,
+            hidden: true,
+          });
+          expect(await cyNode(page, BRANCH[second].sup)).toMatchObject({
+            exists: true,
+            hidden: false,
+          });
+          expect(await cyNode(page, BRANCH[second].leaf)).toMatchObject({
+            exists: true,
+            hidden: false,
+          });
+          expect(await floatingNodes(page)).toEqual([]);
+        }).toPass({ timeout: 3_000 });
+
+        // Collapse the second branch too: everything joined by the relation is
+        // now hidden — nothing left floating (buggy builds strand a leaf here).
+        await collapse(second);
+        await expect(async () => {
+          expect(await cyNode(page, BRANCH[first].leaf)).toMatchObject({
+            exists: true,
+            hidden: true,
+          });
+          expect(await cyNode(page, BRANCH[second].leaf)).toMatchObject({
+            exists: true,
+            hidden: true,
+          });
+          expect(await floatingNodes(page)).toEqual([]);
+        }).toPass({ timeout: 3_000 });
+      });
+    }
+  }
 });

@@ -2,6 +2,7 @@ import Config
 
 telemetry_push_url = System.get_env("TELEMETRY_PUSH_URL")
 config :voyager, telemetry_push_url: telemetry_push_url
+config :voyager, :env, config_env()
 
 if config_env() == :dev do
   config :voyager, :telemetry, if(telemetry_push_url in [nil, ""], do: :logger, else: :export)

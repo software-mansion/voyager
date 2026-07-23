@@ -185,7 +185,7 @@ export function buildStyle(t) {
       },
     },
     {
-      selector: 'edge[^kind].selected',
+      selector: 'edge.supervision-link.selected',
       style: {
         'line-color': t.primary,
       },
