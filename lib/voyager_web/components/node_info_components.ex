@@ -395,6 +395,102 @@ defmodule VoyagerWeb.NodeInfoComponents do
     """
   end
 
+  @doc """
+  Renders a DaisyUI modal for displaying pre-encoded JSON with a copy action.
+
+  ## Examples
+
+      <NodeInfoComponents.json_snapshot_modal
+        id="node-info-json-modal"
+        show={@show_json_modal?}
+        title="Node snapshot JSON"
+        description="Point-in-time data from the latest successful node inspection."
+        json={@snapshot_json}
+        on_close="close-json-modal"
+      />
+  """
+  attr :id, :string, required: true
+  attr :show, :boolean, default: false
+  attr :title, :string, required: true
+  attr :description, :string, default: nil
+  attr :json, :string, default: nil
+  attr :on_close, :any, required: true
+  attr :copy_label, :string, default: "Copy JSON"
+
+  def json_snapshot_modal(assigns) do
+    content_id = "#{assigns.id}-content"
+
+    assigns =
+      assigns
+      |> assign(:title_id, "#{assigns.id}-title")
+      |> assign(:content_id, content_id)
+      |> assign(:close_id, "#{assigns.id}-close")
+      |> assign(:copy_id, "#{assigns.id}-copy")
+      |> assign(:backdrop_id, "#{assigns.id}-backdrop")
+      |> assign(:copy_target, "##{content_id}")
+
+    ~H"""
+    <div
+      :if={@show}
+      id={@id}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={@title_id}
+      phx-window-keydown={@on_close}
+      phx-key="Escape"
+      class="modal modal-open"
+    >
+      <div class="modal-box border-base-300 max-w-4xl overflow-hidden border p-0 shadow-2xl">
+        <div class="border-base-300 flex items-start gap-4 border-b p-6">
+          <div class="bg-primary/10 text-primary rounded-box size-11 flex shrink-0 items-center justify-center">
+            <.icon name="icon-file-braces" class="size-5" />
+          </div>
+          <div class="min-w-0 flex-1">
+            <h2 id={@title_id} class="text-base-content text-xl font-semibold tracking-tight">
+              {@title}
+            </h2>
+            <p :if={@description} class="text-base-content/60 mt-1 text-sm">
+              {@description}
+            </p>
+          </div>
+          <button
+            type="button"
+            id={@close_id}
+            phx-click={@on_close}
+            title="Close JSON snapshot"
+            aria-label="Close JSON snapshot"
+            class="btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-base-content"
+          >
+            <.icon name="icon-x" class="size-4" />
+          </button>
+        </div>
+
+        <div class="p-6">
+          <pre
+            id={@content_id}
+            phx-no-curly-interpolation
+            class="bg-base-200 text-base-content rounded-box font-mono max-h-96 overflow-auto p-5 text-xs leading-relaxed"
+          ><%= @json %></pre>
+        </div>
+
+        <div class="border-base-300 flex justify-end border-t p-4">
+          <.copy_button id={@copy_id} target={@copy_target} label={@copy_label} />
+        </div>
+      </div>
+
+      <button
+        type="button"
+        id={@backdrop_id}
+        phx-click={@on_close}
+        class="modal-backdrop"
+        aria-label="Close JSON snapshot"
+      >
+        Close
+      </button>
+    </div>
+    """
+  end
+
   defp application_href(node_name, app_name) do
     "/node/#{URI.encode(node_name)}/supervision-tree?apps=#{URI.encode_www_form(to_string(app_name))}"
   end
