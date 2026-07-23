@@ -19,7 +19,7 @@ defmodule VoyagerWeb.ConnectLiveTest do
   end
 
   describe "disconnect" do
-    test "clears the connected indicator and re-enables the form", %{conn: conn} do
+    test "clears the connected indicator, shows flash, and re-enables the form", %{conn: conn} do
       {:ok, _recent} =
         ConnectionActions.upsert_connected("recent@127.0.0.1", cookie: "secret")
 
@@ -34,11 +34,30 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
       view |> element("#disconnect-from-connect") |> render_click()
 
+      assert has_element?(view, "#flash-info", "Node disconnected: demo@localhost")
       refute has_element?(view, "#disconnect-from-connect")
       refute has_element?(view, "#connected-indicator")
       assert has_element?(view, ~s|#connect-btn:not([disabled])|)
       assert has_element?(view, ~s|[data-testid="fill-recent-btn"]:not([disabled])|)
       assert NodeSession.current() == nil
+    end
+
+    test "shows nodedown flash and clears the connected UI via PubSub", %{conn: conn} do
+      {:ok, _recent} =
+        ConnectionActions.upsert_connected("recent@127.0.0.1", cookie: "secret")
+
+      session = Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, "#connected-indicator", "demo@localhost")
+
+      broadcast(NodeSession.topic(), {:nodedown, session.node})
+
+      assert has_element?(view, "#flash-error", "Node down: demo@localhost")
+      refute has_element?(view, "#connected-indicator")
+      assert has_element?(view, ~s|#connect-btn:not([disabled])|)
+      assert has_element?(view, ~s|[data-testid="fill-recent-btn"]:not([disabled])|)
     end
   end
 
@@ -67,5 +86,9 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
       assert has_element?(view, ~s|a#open-settings[href="/settings?return_to=%2F"]|)
     end
+  end
+
+  defp broadcast(pubsub_topic, event) do
+    Phoenix.PubSub.broadcast(Voyager.PubSub, pubsub_topic, event)
   end
 end

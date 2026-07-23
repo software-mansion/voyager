@@ -9,10 +9,6 @@ defmodule VoyagerWeb.ConnectLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket) do
-      Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
-    end
-
     socket
     |> reset_connections()
     |> assign(:form, empty_form())
@@ -107,20 +103,6 @@ defmodule VoyagerWeb.ConnectLive do
 
   def handle_event("toggle_cookie", _, socket) do
     {:noreply, update(socket, :show_cookie, &(!&1))}
-  end
-
-  def handle_event("disconnect", _params, socket) do
-    case NodeSession.disconnect() do
-      :ok ->
-        # Re-stream rows: their `disabled` attr is derived from `@connected_session`.
-        socket
-        |> assign(:connected_session, nil)
-        |> reset_connections()
-        |> noreply()
-
-      {:error, :not_connected} ->
-        {:noreply, socket}
-    end
   end
 
   def handle_event("fill_recent", _params, %{assigns: %{connected_session: session}} = socket)
