@@ -70,7 +70,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
       id="process-panel"
       phx-hook="ProcessPanelResize"
       class={[
-        "border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex w-full flex-col overflow-hidden border-l shadow-2xl transition-transform duration-300 ease-in-out",
+        "border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex w-full flex-col border-l shadow-2xl transition-transform duration-300 ease-in-out",
         if(@open, do: "translate-x-0", else: "translate-x-full")
       ]}
     >
@@ -80,11 +80,14 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
         aria-orientation="vertical"
         aria-label="Resize process panel"
         class={[
-          "group absolute inset-y-0 -left-2 z-10 hidden w-3 cursor-col-resize touch-none items-center justify-center lg:flex"
+          "group absolute inset-y-0 -left-1.5 z-50 hidden w-3 cursor-col-resize touch-none items-center justify-center",
+          @open && "lg:flex"
         ]}
       >
-        <span class="absolute inset-y-0 left-1/2 w-2.5 -translate-x-1/2 transition-colors group-hover:bg-primary/50" />
-        <span class="bg-base-content/50 relative h-8 w-3 rounded-full transition-colors group-hover:hidden" />
+        <span class="w-0.75 absolute inset-y-0 left-1/2 -translate-x-1/2 transition-colors group-hover:bg-primary/50" />
+        <span class="bg-primary/50 relative z-50 flex h-10 w-1 shrink-0 flex-col items-center justify-center gap-0.5 rounded-full transition-colors group-hover:hidden">
+          <span :for={_ <- 1..3} class="size-0.5 rounded-full bg-black" />
+        </span>
       </div>
       <%= if @node do %>
         <%!-- Header --%>
