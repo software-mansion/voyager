@@ -341,7 +341,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
                 <th class="font-mono tracking-label text-base-content/50 px-2 pb-2 text-xs font-semibold uppercase">
                   Description
                 </th>
-                <th class="font-mono tracking-label text-base-content/50 w-10 px-2 pb-2 text-xs font-semibold uppercase text-right">
+                <th class="font-mono tracking-label text-base-content/50 w-10 px-2 pb-2 text-right text-xs font-semibold uppercase">
                   <span class="sr-only">Actions</span>
                 </th>
               </tr>
