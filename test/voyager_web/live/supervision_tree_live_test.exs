@@ -148,7 +148,8 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
   end
 
   describe "depth control" do
-    test "shows a validation error when depth is below the minimum", %{conn: conn} do
+    test "shows a validation error when depth is below the minimum and removes the error when depth is changed to valid",
+         %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
 
       html =
@@ -157,6 +158,13 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
         |> render_change()
 
       assert html =~ "min 2"
+
+      html =
+        view
+        |> form("#supervision-tree-controls", %{"tree_controls" => %{"depth" => "3"}})
+        |> render_change()
+
+      refute html =~ "min 2"
     end
 
     test "accepts a valid depth without a validation error", %{conn: conn} do

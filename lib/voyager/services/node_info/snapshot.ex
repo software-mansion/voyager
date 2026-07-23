@@ -37,4 +37,11 @@ defmodule Voyager.Services.NodeInfo.Snapshot do
     :schedulers,
     :run_queues
   ]
+
+  @spec to_pretty_json(t()) :: String.t()
+  def to_pretty_json(%__MODULE__{} = snapshot) do
+    snapshot
+    |> JSON.encode!()
+    |> Jason.Formatter.pretty_print()
+  end
 end

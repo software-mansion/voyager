@@ -220,7 +220,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
     |> case do
       {:ok,
        %SupervisionTreeControls{apps: apps, depth: depth, include_relations?: include_relations?}} ->
-        push_patch(socket, to: controls_path(socket, apps, depth, include_relations?))
+        socket
+        |> assign(:apps_form, to_form(params, as: :tree_controls))
+        |> push_patch(to: controls_path(socket, apps, depth, include_relations?))
 
       {:error, changeset} ->
         assign(socket, :apps_form, to_form(changeset, as: :tree_controls))
