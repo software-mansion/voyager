@@ -93,7 +93,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
             <p class="font-mono text-primary mb-1 text-xs uppercase tracking-widest">
               {type_label(@node.type)}
             </p>
-            <p class="font-mono text-base-content break-all text-sm font-medium">
+            <p class="font-mono text-base-content truncate break-all text-sm font-medium">
               {node_display_name(@node)}
             </p>
             <p class="font-mono text-base-content/50 mt-0.5 text-xs">
