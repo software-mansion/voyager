@@ -74,6 +74,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
 
   # A pending supervisor to resolve in the breadth-first level loop.
   @typep work_item :: %{
+           app: atom(),
            pid: pid(),
            key: String.t(),
            parent_key: String.t(),
