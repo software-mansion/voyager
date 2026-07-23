@@ -304,11 +304,13 @@ defmodule VoyagerWeb.NodeInfoComponents do
   attr :help, :map, default: nil, doc: "optional help entry for the card title (see NodeInfoHelp)"
 
   def applications_card(assigns) do
+    total = length(assigns.applications)
+
     assigns =
       assign(assigns,
         visible_applications: Enum.take(assigns.applications, assigns.visible_count),
-        total: length(assigns.applications),
-        remaining: max(length(assigns.applications) - assigns.visible_count, 0)
+        total: total,
+        remaining: max(total - assigns.visible_count, 0)
       )
 
     ~H"""
