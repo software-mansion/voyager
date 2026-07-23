@@ -155,7 +155,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
     node = socket.assigns.node_name
 
     query =
-      %{"depth" => depth, "relations" => to_string(include_relations?)}
+      %{"depth" => depth, "include_relations?" => to_string(include_relations?)}
       |> maybe_put_apps(apps)
 
     ~p"/node/#{node}/supervision-tree?#{query}"
