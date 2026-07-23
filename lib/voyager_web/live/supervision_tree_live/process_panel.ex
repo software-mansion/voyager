@@ -68,11 +68,19 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
     ~H"""
     <aside
       id="process-panel"
+      phx-hook="ProcessPanelResize"
       class={[
-        "border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex w-full flex-col overflow-hidden border-l shadow-2xl transition-transform duration-300 ease-in-out lg:w-80",
+        "border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex w-full flex-col overflow-hidden border-l shadow-2xl transition-transform duration-300 ease-in-out",
         if(@open, do: "translate-x-0", else: "translate-x-full")
       ]}
     >
+      <div
+        id="process-panel-resize-handle"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize process panel"
+        class="absolute inset-y-0 -left-1 z-10 hidden w-3 cursor-col-resize touch-none hover:bg-primary/20 lg:block"
+      />
       <%= if @node do %>
         <%!-- Header --%>
         <div class="border-base-200 flex items-start gap-3 border-b px-5 py-4">

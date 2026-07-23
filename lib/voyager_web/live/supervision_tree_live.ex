@@ -74,7 +74,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="relative flex h-full overflow-x-hidden">
+    <div id="supervision-tree" class="relative flex h-full overflow-x-hidden">
       <div class="flex h-full flex-1 flex-col gap-4 overflow-hidden p-6 sm:p-8">
         <SupervisionTreeComponents.header
           node_name={@session.node_name}
