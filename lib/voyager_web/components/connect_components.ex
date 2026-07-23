@@ -10,7 +10,7 @@ defmodule VoyagerWeb.ConnectComponents do
 
   attr :disabled, :boolean,
     default: false,
-    doc: "Disables fill-from-recent when a node is already connected"
+    doc: "Disables filling the connect form from this row when a node is already connected"
 
   def connection_row(assigns) do
     ~H"""
