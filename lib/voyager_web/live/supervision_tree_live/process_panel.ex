@@ -83,7 +83,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
             <p class="font-mono text-base-content break-all text-sm font-medium">
               {node_display_name(@node)}
             </p>
-            <p class="font-mono text-base-content/40 mt-0.5 text-xs">
+            <p class="font-mono text-base-content/50 mt-0.5 text-xs">
               {node_pid_string(@node)}
             </p>
           </div>
@@ -93,7 +93,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
             phx-click="close-process-panel"
             title="Close"
             aria-label="Close panel"
-            class="border-base-200 text-base-content/40 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border transition-all hover:border-base-300 hover:bg-base-200 hover:text-base-content"
+            class="border-base-200 text-base-content/50 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border transition-all hover:border-base-300 hover:bg-base-200 hover:text-base-content"
           >
             <.icon name="icon-x" class="size-3.5" />
           </button>
@@ -248,7 +248,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
       "font-mono grid grid-cols-2 items-baseline gap-4 py-2.5 text-xs",
       not @last && "border-base-300/60 border-b"
     ]}>
-      <span class="text-base-content/50 truncate">{@label}</span>
+      <span class="text-base-content/60 truncate">{@label}</span>
       <span class="text-base-content truncate text-right" title={@value}>{@value}</span>
     </div>
     """
@@ -290,7 +290,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
       "font-mono grid grid-cols-2 items-baseline gap-4 py-2.5 text-xs",
       not @last && "border-base-300/60 border-b"
     ]}>
-      <span class="text-base-content/50 truncate">{@label}</span>
+      <span class="text-base-content/60 truncate">{@label}</span>
       <div class={[
         "skeleton h-2.5 shrink-0 justify-self-end rounded",
         @narrow && "w-12",
