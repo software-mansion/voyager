@@ -37,7 +37,7 @@ defmodule VoyagerWeb.FormSchemas.SupervisionTreeControls do
   def default_include_relations?, do: @default_include_relations?
 
   @spec changeset(map(), [atom()]) :: Ecto.Changeset.t()
-  def changeset(attrs, available_apps) when is_list(available_apps) do
+  def changeset(attrs \\ %{}, available_apps) when is_list(available_apps) do
     %__MODULE__{}
     |> cast(attrs, [:apps, :depth, :include_relations?])
     |> update_change(:apps, &filter_map_known(&1, available_apps))

@@ -363,17 +363,12 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   end
 
   defp params_to_attrs(params) do
-    apps =
-      case params["apps"] do
-        value when is_binary(value) -> String.split(value, ",", trim: true)
-        _ -> []
-      end
+    case Map.get(params, "apps") do
+      value when is_binary(value) ->
+        Map.put(params, "apps", String.split(value, ",", trim: true))
 
-    depth = params["depth"] || SupervisionTreeControls.default_depth()
-
-    include_relations? =
-      params["relations"] || SupervisionTreeControls.default_include_relations?()
-
-    %{"apps" => apps, "depth" => depth, "include_relations?" => include_relations?}
+      _ ->
+        params
+    end
   end
 end
