@@ -64,8 +64,8 @@ defmodule VoyagerWeb.SupervisionTreeLive do
           socket
         end
 
-      {:error, changeset} ->
-        assign(socket, :apps_form, to_form(changeset, as: :tree_controls))
+      {:error, _} ->
+        socket
     end
     |> noreply()
   end
