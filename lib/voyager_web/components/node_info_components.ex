@@ -305,14 +305,16 @@ defmodule VoyagerWeb.NodeInfoComponents do
   attr :copy_label, :string, default: "Copy JSON"
 
   def json_snapshot_modal(assigns) do
+    content_id = "#{assigns.id}-content"
+
     assigns =
       assigns
       |> assign(:title_id, "#{assigns.id}-title")
-      |> assign(:content_id, "#{assigns.id}-content")
+      |> assign(:content_id, content_id)
       |> assign(:close_id, "#{assigns.id}-close")
       |> assign(:copy_id, "#{assigns.id}-copy")
       |> assign(:backdrop_id, "#{assigns.id}-backdrop")
-      |> assign(:copy_target, "##{assigns.id}-content")
+      |> assign(:copy_target, "##{content_id}")
 
     ~H"""
     <div
