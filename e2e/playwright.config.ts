@@ -14,7 +14,8 @@ export default defineConfig({
   },
 
   webServer: {
-    command: 'cd .. && MIX_ENV=e2e mix phx.server',
+    command:
+      'cd .. && ELIXIR_ERL_OPTIONS="-epmd_module Elixir.Voyager.ProxyEpmd -pa $ebin" MIX_ENV=e2e mix phx.server',
     url: 'http://localhost:4001',
     reuseExistingServer: !process.env.CI,
     stdout: 'pipe',
