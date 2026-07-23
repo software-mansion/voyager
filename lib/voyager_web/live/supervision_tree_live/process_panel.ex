@@ -79,8 +79,13 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize process panel"
-        class="absolute inset-y-0 -left-1 z-10 hidden w-3 cursor-col-resize touch-none hover:bg-primary/20 lg:block"
-      />
+        class={[
+          "group absolute inset-y-0 -left-2 z-10 hidden w-3 cursor-col-resize touch-none items-center justify-center lg:flex"
+        ]}
+      >
+        <span class="absolute inset-y-0 left-1/2 w-2.5 -translate-x-1/2 transition-colors group-hover:bg-primary/50" />
+        <span class="bg-base-content/50 relative h-8 w-3 rounded-full transition-colors group-hover:hidden" />
+      </div>
       <%= if @node do %>
         <%!-- Header --%>
         <div class="border-base-200 flex items-start gap-3 border-b px-5 py-4">
