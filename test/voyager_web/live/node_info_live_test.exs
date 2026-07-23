@@ -185,7 +185,7 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       refute has_element?(view, "#applications-show-all-button")
     end
 
-    test "clicking an application row navigates to its supervision tree", %{conn: conn} do
+    test "applications with a supervision tree render a link to that tree", %{conn: conn} do
       stub_erpc(Fakes.node_data())
 
       {:ok, view, _html} = live(conn, @path)
