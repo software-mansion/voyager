@@ -10,12 +10,17 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   alias Voyager.Services.SupervisionTree.TreeNode
   alias VoyagerWeb.Components.SupervisionTreeComponents
 
+  require Logger
+
+  @max_links 12
+
   @impl true
   def mount(socket) do
     socket
     |> assign(:node, nil)
     |> assign(:remote_node, nil)
     |> assign(:open, false)
+    |> assign(:links_expanded?, false)
     |> assign(:node_info, AsyncResult.loading())
     |> ok()
   end
@@ -29,6 +34,13 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> ok()
   end
 
+  @impl true
+  def handle_event("toggle-links", _params, socket) do
+    socket
+    |> assign(:links_expanded?, not socket.assigns.links_expanded?)
+    |> noreply()
+  end
+
   # Keep the last node while sliding out so the panel doesn't blank mid-animation
   defp maybe_assign_node(socket, nil), do: assign(socket, :open, false)
 
@@ -36,16 +48,25 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     socket = assign(socket, :open, true)
 
     if node_changed?(socket, node) do
-      remote_node = socket.assigns.remote_node
-      pid = node.pid
-
       socket
       |> assign(:node, node)
-      |> assign(:node_info, AsyncResult.loading())
-      |> assign_async(:node_info, fn -> fetch_node_info(remote_node, pid) end)
+      |> assign(:links_expanded?, false)
+      |> maybe_fetch_node_info(node)
     else
       socket
     end
+  end
+
+  defp maybe_fetch_node_info(socket, %TreeNode{pid: pid}) when is_pid(pid) do
+    remote_node = socket.assigns.remote_node
+
+    socket
+    |> assign(:node_info, AsyncResult.loading())
+    |> assign_async(:node_info, fn -> fetch_node_info(remote_node, pid) end)
+  end
+
+  defp maybe_fetch_node_info(socket, _node) do
+    assign(socket, :node_info, AsyncResult.ok(%{}))
   end
 
   defp node_changed?(socket, node) do
@@ -57,8 +78,15 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   defp fetch_node_info(remote_node, pid) do
     case ProcessInfo.fetch(remote_node, pid) do
-      {:ok, info} -> {:ok, %{node_info: info}}
-      {:error, reason} -> {:error, reason}
+      {:ok, info} ->
+        {:ok, %{node_info: info}}
+
+      {:error, reason} ->
+        Logger.warning(
+          "Failed to load node info for #{inspect(remote_node)}/#{inspect(pid)}: #{inspect(reason)}"
+        )
+
+        {:error, reason}
     end
   end
 
@@ -85,13 +113,13 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
       >
         <span class="w-0.75 absolute inset-y-0 left-1/2 -translate-x-1/2 transition-colors group-hover:bg-primary/50" />
         <span class="bg-primary/50 relative z-50 flex h-10 w-1 shrink-0 flex-col items-center justify-center gap-0.5 rounded-full transition-colors group-hover:hidden">
-          <span :for={_ <- 1..3} class="size-0.5 rounded-full bg-black" />
+          <span :for={_ <- 1..3} class="size-0.5 bg-base-100 rounded-full" />
         </span>
       </div>
       <%= if @node do %>
         <%!-- Header --%>
         <div class="border-base-200 flex items-start gap-3 border-b px-5 py-4">
-          <div class="min-w-0 flex-1">
+          <div class="flex min-w-0 flex-1 flex-col gap-1.5">
             <.node_type_label node_type={@node.type} />
             <.node_label node={@node} />
           </div>
@@ -107,7 +135,12 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
           </button>
         </div>
         <%!-- Scrollable body --%>
-        <.body node_info={@node_info} node={@node} />
+        <.body
+          node_info={@node_info}
+          node={@node}
+          links_expanded?={@links_expanded?}
+          myself={@myself}
+        />
       <% end %>
     </aside>
     """
@@ -117,26 +150,27 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   defp node_type_label(assigns) do
     node_label = assigns.node_type |> to_string() |> String.capitalize()
-    color_class = type_color_class(node_label)
+    icon = node_icon(node_label)
 
     assigns =
       assigns
       |> assign(:label, node_label)
-      |> assign(:color_class, color_class)
+      |> assign(:icon, icon)
 
     ~H"""
-    <p class={["font-mono mb-1 text-xs uppercase tracking-widest", @color_class]}>
-      {@label}
-    </p>
+    <div class="flex items-center gap-2">
+      <.icon :if={@icon.icon} name={@icon.icon} class={["size-3.5", @icon.color]} />
+      <div class="font-mono text-base-content text-xs uppercase">{@label}</div>
+    </div>
     """
   end
 
-  defp type_color_class(node_label) do
+  defp node_icon(node_label) do
     SupervisionTreeComponents.node_legends()
     |> Enum.find(fn legend -> legend.name == node_label end)
     |> case do
-      %{color_class: color_class} -> color_class
-      _ -> "text-base-content"
+      %{color_class: color_class, icon_name: icon_name} -> %{color: color_class, icon: icon_name}
+      _ -> %{color: "text-base-content", icon: nil}
     end
   end
 
@@ -170,15 +204,17 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   attr :node_info, AsyncResult, required: true
   attr :node, TreeNode, required: true
+  attr :links_expanded?, :boolean, required: true
+  attr :myself, :any, required: true
 
   defp body(assigns) do
-    assigns = assign(assigns, :process?, assigns.node.type in [:worker, :supervisor, :app])
+    assigns = assign(assigns, :process?, is_pid(assigns.node.pid))
 
     ~H"""
     <div class="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
       <%= if @process? do %>
         <.overview info={@node_info} />
-        <.links info={@node_info} />
+        <.links info={@node_info} links_expanded?={@links_expanded?} myself={@myself} />
         <.memory_and_garbage_collection info={@node_info} />
       <% else %>
         <div class="alert alert-info">
@@ -232,9 +268,14 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   end
 
   attr :info, AsyncResult, required: true
+  attr :links_expanded?, :boolean, required: true
+  attr :myself, :any, required: true
 
   defp links(assigns) do
-    assigns = assign(assigns, :links_count, links_count(assigns.info))
+    assigns =
+      assigns
+      |> assign(:links_count, links_count(assigns.info))
+      |> assign(:max_links, @max_links)
 
     ~H"""
     <.section title="Links" muted={@links_count}>
@@ -249,13 +290,52 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
         <:failed>
           <.load_error />
         </:failed>
-        <div class="flex flex-wrap gap-1.5">
-          <.chip :for={pid <- info.links} pid={pid} />
-        </div>
+        <.links_list
+          links={info.links}
+          links_expanded?={@links_expanded?}
+          max_links={@max_links}
+          myself={@myself}
+        />
       </.async_result>
     </.section>
     """
   end
+
+  attr :links, :list, required: true
+  attr :links_expanded?, :boolean, required: true
+  attr :max_links, :integer, required: true
+  attr :myself, :any, required: true
+
+  defp links_list(assigns) do
+    assigns =
+      assigns
+      |> assign(
+        :visible_links,
+        visible_links(assigns.links, assigns.links_expanded?, assigns.max_links)
+      )
+      |> assign(:toggle?, length(assigns.links) > assigns.max_links)
+
+    ~H"""
+    <div class="flex flex-col gap-2">
+      <div class="flex flex-wrap gap-1.5">
+        <.chip :for={pid <- @visible_links} pid={pid} />
+      </div>
+      <button
+        :if={@toggle?}
+        type="button"
+        id="details-panel-toggle-links"
+        phx-click="toggle-links"
+        phx-target={@myself}
+        class="btn btn-ghost btn-xs text-base-content/60 w-max items-center self-center px-3 py-2 hover:text-base-content"
+      >
+        {if(@links_expanded?, do: "Show Less", else: "Show More")}
+      </button>
+    </div>
+    """
+  end
+
+  defp visible_links(links, true, _max_links), do: links
+  defp visible_links(links, false, max_links), do: Enum.take(links, max_links)
 
   defp links_count(%AsyncResult{ok?: true, result: %{links: links}}), do: "(#{length(links)})"
   defp links_count(_), do: nil
@@ -301,7 +381,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     <div>
       <h4 class="text-base-content mb-2 text-sm font-semibold leading-none">
         {@title}
-        <span :if={@muted} class="font-mono text-base-content/30 ml-1 text-xs font-normal">
+        <span :if={@muted} class="font-mono text-base-content/50 ml-1 text-xs font-normal">
           {@muted}
         </span>
       </h4>
