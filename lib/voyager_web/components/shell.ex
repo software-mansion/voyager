@@ -345,14 +345,16 @@ defmodule VoyagerWeb.Components.Shell do
       <span class="font-mono text-base-content/70 max-w-40 truncate text-xs">
         {@session.node_name}
       </span>
-      <button
-        type="button"
-        phx-click="disconnect"
-        title="Disconnect"
-        class="btn btn-ghost btn-square btn-xs text-base-content/50 hover:text-error"
-      >
-        <.icon name="icon-log-out" class="size-3.5" />
-      </button>
+      <.tooltip id="disconnect-tip" position="bottom">
+        <button
+          type="button"
+          phx-click="disconnect"
+          class="btn btn-ghost btn-square btn-xs text-base-content/50 hover:text-error"
+        >
+          <.icon name="icon-unplug" class="size-3.5" />
+        </button>
+        <:content>Disconnect</:content>
+      </.tooltip>
     </div>
     """
   end
