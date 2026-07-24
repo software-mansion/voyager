@@ -362,9 +362,9 @@ defmodule VoyagerWeb.Components.Shell do
         <button
           type="button"
           phx-click="disconnect"
-          class="btn btn-ghost btn-square btn-xs text-base-content/50 hover:text-error"
+          class="btn btn-ghost btn-square btn-xs text-error/75 hover:text-error"
         >
-          <.icon name="icon-unplug" class="size-3.5" />
+          <.icon name="icon-power" class="size-3.5" />
         </button>
         <:content>Disconnect</:content>
       </.tooltip>
