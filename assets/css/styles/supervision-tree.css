@@ -2,15 +2,15 @@
 * These styles are meant to be used in SupervisionTree JS hook
 */
 
-/* Process panel width — set by ProcessPanelResize on #process-panel */
-#process-panel {
-  --process-panel-width: 320px;
+/* Details panel width — set by DetailsPanelResize on #details-panel */
+#details-panel {
+  --details-panel-width: 320px;
 }
 
 @media (min-width: 1024px) {
-  #process-panel {
+  #details-panel {
     left: auto;
-    width: var(--process-panel-width);
+    width: var(--details-panel-width);
     max-width: 100%;
     min-width: 17.5rem;
   }

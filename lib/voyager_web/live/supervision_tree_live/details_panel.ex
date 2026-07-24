@@ -1,8 +1,6 @@
-defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
+defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   @moduledoc """
-  Side panel that displays details for a selected supervisor or worker process
-  in the supervision tree. Styled after the Elixir Explorer prototype detail
-  panel — type label, process name, and info-box kv sections.
+  Side panel that displays details for a selected node in the supervision tree.
   """
 
   use VoyagerWeb, :live_component
@@ -17,7 +15,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
     |> assign(:node, nil)
     |> assign(:remote_node, nil)
     |> assign(:open, false)
-    |> assign(:process_info, AsyncResult.loading())
+    |> assign(:node_info, AsyncResult.loading())
     |> ok()
   end
 
@@ -42,8 +40,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
 
       socket
       |> assign(:node, node)
-      |> assign(:process_info, AsyncResult.loading())
-      |> assign_async(:process_info, fn -> fetch_process_info(remote_node, pid) end)
+      |> assign(:node_info, AsyncResult.loading())
+      |> assign_async(:node_info, fn -> fetch_node_info(remote_node, pid) end)
     else
       socket
     end
@@ -56,9 +54,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
     end
   end
 
-  defp fetch_process_info(remote_node, pid) do
+  defp fetch_node_info(remote_node, pid) do
     case ProcessInfo.fetch(remote_node, pid) do
-      {:ok, info} -> {:ok, %{process_info: info}}
+      {:ok, info} -> {:ok, %{node_info: info}}
       {:error, reason} -> {:error, reason}
     end
   end
@@ -67,18 +65,18 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
   def render(assigns) do
     ~H"""
     <aside
-      id="process-panel"
-      phx-hook="ProcessPanelResize"
+      id="details-panel"
+      phx-hook="DetailsPanelResize"
       class={[
         "border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex w-full flex-col border-l shadow-2xl transition-transform duration-300 ease-in-out",
         if(@open, do: "translate-x-0", else: "translate-x-full")
       ]}
     >
       <div
-        id="process-panel-resize-handle"
+        id="details-panel-resize-handle"
         role="separator"
         aria-orientation="vertical"
-        aria-label="Resize process panel"
+        aria-label="Resize details panel"
         class={[
           "group absolute inset-y-0 -left-1.5 z-50 hidden w-3 cursor-col-resize touch-none items-center justify-center",
           @open && "lg:flex"
@@ -105,8 +103,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
           </div>
           <button
             type="button"
-            id="process-panel-close"
-            phx-click="close-process-panel"
+            id="details-panel-close"
+            phx-click="close-details-panel"
             title="Close"
             aria-label="Close panel"
             class="border-base-200 text-base-content/50 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border transition-all hover:border-base-300 hover:bg-base-200 hover:text-base-content"
@@ -116,9 +114,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
         </div>
         <%!-- Scrollable body --%>
         <div class="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
-          <.overview info={@process_info} />
-          <.links info={@process_info} />
-          <.memory_and_garbage_collection info={@process_info} />
+          <.overview info={@node_info} />
+          <.links info={@node_info} />
+          <.memory_and_garbage_collection info={@node_info} />
         </div>
       <% end %>
     </aside>
@@ -290,7 +288,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.ProcessPanel do
   defp load_error(assigns) do
     ~H"""
     <div class="border-error/30 bg-error/10 text-error rounded-lg border px-3 py-2.5 text-xs">
-      Failed to load process info.
+      Failed to load node details.
     </div>
     """
   end

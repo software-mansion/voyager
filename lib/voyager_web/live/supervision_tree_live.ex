@@ -95,7 +95,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         <SupervisionTreeComponents.body selected_apps={@selected_apps} status={@status} />
       </div>
       <.live_component
-        module={VoyagerWeb.SupervisionTreeLive.ProcessPanel}
+        module={VoyagerWeb.SupervisionTreeLive.DetailsPanel}
         id="process-panel"
         node={@selected_node}
         remote_node={@session.node}
@@ -148,7 +148,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     |> noreply()
   end
 
-  def handle_event("close-process-panel", _params, socket) do
+  def handle_event("close-details-panel", _params, socket) do
     socket
     |> assign(:selected_node, nil)
     |> noreply()

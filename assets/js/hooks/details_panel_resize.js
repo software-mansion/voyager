@@ -26,7 +26,7 @@ function setStoredWidth(width) {
 const DetailsPanelResize = {
   mounted() {
     this.handle = this.el.querySelector('#details-panel-resize-handle');
-    this.width =  getStoredWidth();
+    this.width = getStoredWidth();
     this.apply();
 
     this.onPointerDown = (e) => this.begin(e);
@@ -93,4 +93,4 @@ const DetailsPanelResize = {
   },
 };
 
-export default ProcessPanelResize;
+export default DetailsPanelResize;
