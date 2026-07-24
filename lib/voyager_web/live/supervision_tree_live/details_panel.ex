@@ -8,6 +8,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   alias Phoenix.LiveView.AsyncResult
   alias Voyager.Services.ProcessInfo
   alias Voyager.Services.SupervisionTree.TreeNode
+  alias VoyagerWeb.Components.SupervisionTreeComponents
 
   @impl true
   def mount(socket) do
@@ -91,15 +92,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
         <%!-- Header --%>
         <div class="border-base-200 flex items-start gap-3 border-b px-5 py-4">
           <div class="min-w-0 flex-1">
-            <p class="font-mono text-primary mb-1 text-xs uppercase tracking-widest">
-              {type_label(@node.type)}
-            </p>
-            <p class="font-mono text-base-content truncate break-all text-sm font-medium">
-              {node_display_name(@node)}
-            </p>
-            <p class="font-mono text-base-content/50 mt-0.5 text-xs">
-              {node_pid_string(@node)}
-            </p>
+            <.node_type_label node_type={@node.type} />
+            <.node_label node={@node} />
           </div>
           <button
             type="button"
@@ -113,13 +107,87 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
           </button>
         </div>
         <%!-- Scrollable body --%>
-        <div class="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
-          <.overview info={@node_info} />
-          <.links info={@node_info} />
-          <.memory_and_garbage_collection info={@node_info} />
-        </div>
+        <.body node_info={@node_info} node={@node} />
       <% end %>
     </aside>
+    """
+  end
+
+  attr :node_type, :atom, required: true
+
+  defp node_type_label(assigns) do
+    node_label = assigns.node_type |> to_string() |> String.capitalize()
+    color_class = type_color_class(node_label)
+
+    assigns =
+      assigns
+      |> assign(:label, node_label)
+      |> assign(:color_class, color_class)
+
+    ~H"""
+    <p class={["font-mono mb-1 text-xs uppercase tracking-widest", @color_class]}>
+      {@label}
+    </p>
+    """
+  end
+
+  defp type_color_class(node_label) do
+    SupervisionTreeComponents.node_legends()
+    |> Enum.find(fn legend -> legend.name == node_label end)
+    |> case do
+      %{color_class: color_class} -> color_class
+      _ -> "text-base-content"
+    end
+  end
+
+  attr :node, TreeNode, required: true
+
+  defp node_label(assigns) do
+    assigns =
+      assigns
+      |> assign(:display_name, node_display_name(assigns.node))
+      |> assign(:pid_string, node_pid_string(assigns.node))
+
+    ~H"""
+    <div>
+      <p class="font-mono text-base-content truncate break-all text-sm font-medium">
+        {@display_name}
+      </p>
+      <p :if={@pid_string} class="font-mono text-base-content/50 mt-0.5 text-xs">
+        {@pid_string}
+      </p>
+    </div>
+    """
+  end
+
+  defp node_display_name(%TreeNode{name: name}) when is_atom(name), do: Atom.to_string(name)
+
+  defp node_display_name(%TreeNode{name: name}) when is_binary(name), do: name
+  defp node_display_name(%TreeNode{key: key}), do: key
+
+  defp node_pid_string(%TreeNode{pid: pid}) when is_pid(pid), do: inspect(pid)
+  defp node_pid_string(_), do: nil
+
+  attr :node_info, AsyncResult, required: true
+  attr :node, TreeNode, required: true
+
+  defp body(assigns) do
+    assigns = assign(assigns, :process?, assigns.node.type in [:worker, :supervisor, :app])
+
+    ~H"""
+    <div class="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
+      <%= if @process? do %>
+        <.overview info={@node_info} />
+        <.links info={@node_info} />
+        <.memory_and_garbage_collection info={@node_info} />
+      <% else %>
+        <div class="alert alert-info">
+          <p>
+            This is not a process node, so no process information is available.
+          </p>
+        </div>
+      <% end %>
+    </div>
     """
   end
 
@@ -320,17 +388,4 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     <div class="skeleton h-6 w-16 rounded" />
     """
   end
-
-  defp type_label(:supervisor), do: "Supervisor"
-  defp type_label(:worker), do: "Worker"
-  defp type_label(type), do: type |> to_string() |> String.capitalize()
-
-  defp node_display_name(%TreeNode{name: name}) when is_atom(name) and not is_nil(name),
-    do: inspect(name)
-
-  defp node_display_name(%TreeNode{name: name}) when is_binary(name), do: name
-  defp node_display_name(%TreeNode{key: key}), do: key
-
-  defp node_pid_string(%TreeNode{pid: pid}) when is_pid(pid), do: inspect(pid)
-  defp node_pid_string(%TreeNode{key: key}), do: key
 end

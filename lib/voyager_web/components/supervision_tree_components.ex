@@ -103,6 +103,17 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
     }
   ]
 
+  @spec node_legends() ::
+          list(%{
+            name: String.t(),
+            icon_name: String.t(),
+            text: String.t(),
+            color_class: String.t(),
+            doc_href: String.t(),
+            doc_label: String.t()
+          })
+  def node_legends, do: @node_legends
+
   attr :node_name, :string, required: true
   attr :status, :atom, required: true
   attr :last_updated, :any, required: true
@@ -313,7 +324,6 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
       |> elem(1)
       |> String.to_integer()
 
-  defp node_legends, do: @node_legends
   defp edge_legends, do: @edge_legends
 
   defp legend_entry_id(%{name: name}) do
