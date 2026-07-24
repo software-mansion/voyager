@@ -377,7 +377,11 @@ const SupervisionTree = {
     const nextEdgeId =
       this.selectedEdgeId === clickedEdgeId ? null : clickedEdgeId;
 
-    this.applyEdgeHighlight(nextEdgeId);
+    // Wait for node deselection to finish before highlighting the edge;
+    // otherwise an empty path-highlight can wipe the edge selection.
+    this.pushEventTo(this.el, 'select-node', { key: '' }, () => {
+      this.applyEdgeHighlight(nextEdgeId);
+    });
   },
 
   applyEdgeHighlight(edgeId) {
