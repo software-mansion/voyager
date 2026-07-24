@@ -418,6 +418,7 @@ defmodule VoyagerWeb.CoreComponents do
     doc: "preferred side to place the tooltip"
 
   attr :class, :any, default: nil, doc: "extra classes for the trigger wrapper"
+  attr :tip_class, :any, default: nil, doc: "extra classes for the tip"
 
   attr :interactive, :boolean,
     default: false,
@@ -447,7 +448,8 @@ defmodule VoyagerWeb.CoreComponents do
         class={[
           "tooltip-pop bg-base-100 text-base-content rounded-box max-w-xs px-3 py-2",
           "ring-base-content/15 text-xs leading-relaxed shadow-lg ring-1",
-          @interactive && "is-interactive"
+          @interactive && "is-interactive",
+          @tip_class
         ]}
       >
         {render_slot(@content)}

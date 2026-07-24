@@ -2,10 +2,13 @@ import cytoscape from 'cytoscape';
 import dagre from 'cytoscape-dagre';
 
 import {
+  TOOLTIP_DELAY_MS,
   LAYOUT_DEBOUNCE_MS,
   OVERLAY_DEBOUNCE_MS,
   OVERLAY_MIN_ZOOM,
   TOPOLOGY_FIELDS,
+  TOOLTIP_GAP,
+  VIEWPORT_MARGIN,
 } from './supervision_tree/constants';
 import { buildStyle, toggleIcon, getColor } from './supervision_tree/styles';
 import {
@@ -27,9 +30,12 @@ cytoscape.use(dagre);
 
 const SupervisionTree = {
   mounted() {
+    this._closeTimeout;
+    this._openTimeout;
+
     this.container = this.el.querySelector('[data-cy-container]');
     this.overlayLayer = this.el.querySelector('[data-cy-overlays]');
-    this.tooltip = this.el.querySelector('#supervision-tree-body-tip');
+    this.tooltip = document.querySelector('#supervision-tree-node-snippet-tip');
 
     this.tokens = this.readTokens();
     this.cy = cytoscape({
@@ -52,6 +58,7 @@ const SupervisionTree = {
     this.disabledClick = false;
     this.selectedEdgeId = null;
     this.selectedPath = null;
+    this.hoveredNodeId = null;
 
     this.cy.on('oneclick', 'node', (event) => {
       if (this.disabledClick) return;
@@ -77,19 +84,30 @@ const SupervisionTree = {
     this.cy.on('mouseover', 'node, edge', (event) => {
       event.target.addClass('hover');
       event.cy.container().style.cursor = 'pointer';
-      if (event.target.isNode()) this.showTooltip(event.target);
+
+      if (event.target.isNode()) {
+        this.hoveredNodeId = event.target.id();
+        this.scheduleShowTooltip();
+      }
     });
     this.cy.on('mouseout', 'node, edge', (event) => {
       event.target.removeClass('hover');
       event.cy.container().style.cursor = '';
-      if (event.target.isNode()) this.hideTooltip();
+
+      if (event.target.isNode()) {
+        this.hoveredNodeId = null;
+        this.scheduleCloseTooltip();
+      }
     });
 
     this.cy.on('viewport', () => {
       this.repositionOverlays();
       this.scheduleOverlayReconcile();
     });
-    this.cy.on('render', () => this.repositionOverlays());
+    this.cy.on('render', () => {
+      this.repositionOverlays();
+      this.reconcileTooltip();
+    });
 
     this.handleEvent('tree-data', (p) => this.applyPayload(p));
     this.handleEvent('path-highlight', (p) => this.applyPathHighlight(p));
@@ -522,17 +540,56 @@ const SupervisionTree = {
     for (const key of [...this.overlays.keys()]) this.tearDownOverlay(key);
   },
 
-  showTooltip(node) {
-    this.fillTooltip(node);
-    this.positionTooltip(node);
-    this.tooltip.classList.add('is-open');
+  scheduleShowTooltip() {
+    clearTimeout(this._closeTimeout);
+    clearTimeout(this._openTimeout);
+
+    this._togglingTooltip = true;
+
+    this._openTimeout = setTimeout(() => {
+      this.fillTooltip();
+      setTimeout(() => {
+        this.positionTooltip();
+        this._togglingTooltip = false;
+      });
+    }, TOOLTIP_DELAY_MS);
   },
 
-  hideTooltip() {
-    this.tooltip.classList.remove('is-open');
+  scheduleCloseTooltip() {
+    clearTimeout(this._closeTimeout);
+    clearTimeout(this._openTimeout);
+
+    this._togglingTooltip = true;
+
+    this._closeTimeout = setTimeout(() => {
+      this.toggleTooltipOpen(false);
+      this._togglingTooltip = false;
+    }, TOOLTIP_DELAY_MS);
   },
 
-  fillTooltip(node) {
+  reconcileTooltip() {
+    clearTimeout(this._tooltipReconcileTimeout);
+    if (this._togglingTooltip) return;
+    this._tooltipReconcileTimeout = setTimeout(() => {
+      this.positionTooltip();
+    }, TOOLTIP_DELAY_MS);
+  },
+
+  toggleTooltipOpen(isOpen) {
+    this.tooltip.classList.toggle('is-open', isOpen);
+  },
+
+  fillTooltip() {
+    if (!this.hoveredNodeId) return;
+
+    const node = this.cy.getElementById(this.hoveredNodeId);
+    if (
+      node.empty() ||
+      node.hasClass('hidden') ||
+      this.cy.zoom() < OVERLAY_MIN_ZOOM
+    )
+      return;
+
     /**
      * @param {string} type
      */
@@ -558,7 +615,7 @@ const SupervisionTree = {
      * @param {string} [label]
      */
     function parseMfa(mfa, label = '') {
-      if (!Array.isArray(mfa) || mfa.length != 3) return '';
+      if (!Array.isArray(mfa) || mfa.length !== 3) return '';
       const [m, f, a] = mfa;
       return `<li>${label} <span class="text-primary">${m}.${f}/${a}</span></li>`;
     }
@@ -568,9 +625,9 @@ const SupervisionTree = {
     const displayName = formatName(info?.registered_name) || formatName(name);
 
     this.tooltip.innerHTML = `
-          <ul class="flex flex-col gap-1">
+          <ul class="flex font-mono flex-col gap-1 break-all">
             <li class="${typeColorClass(type)}">${type}</li>
-            <li class="font-semibold">${displayName}</li>
+            <li class="font-semibold my-1">${displayName}</li>
             ${app ? `<li>app: <span class="font-semibold">${app}</span></li>` : ''}
             ${parseMfa(info?.initial_call, 'initial_call:')}
             ${parseMfa(info?.current_function, 'current_function:')}
@@ -579,25 +636,44 @@ const SupervisionTree = {
         `;
   },
 
-  positionTooltip(node) {
-    const { x } = node.renderedPosition();
-    const { y1 } = node.renderedBoundingBox({ includeLabels: false });
+  positionTooltip() {
+    if (!this.hoveredNodeId) return;
 
-    const tip = this.tooltip.getBoundingClientRect();
-    let top = y1 - tip.height - 8;
-    let left = x - tip.width / 2;
+    const node = this.cy.getElementById(this.hoveredNodeId);
+
+    if (
+      node.empty() ||
+      node.hasClass('hidden') ||
+      this.cy.zoom() < OVERLAY_MIN_ZOOM
+    ) {
+      this.toggleTooltipOpen(false);
+      return;
+    }
+
+    const { x: nodeCenterX } = node.renderedPosition();
+    const { y1: nodeY } = node.renderedBoundingBox({
+      includeLabels: false,
+    });
+
+    const tipRect = this.tooltip.getBoundingClientRect();
+    const containerRect = this.container.getBoundingClientRect();
+
+    let top = containerRect.y + nodeY - tipRect.height - TOOLTIP_GAP;
+    let left = containerRect.x + nodeCenterX - tipRect.width / 2;
 
     left = Math.max(
-      8,
-      Math.min(left, this.container.clientWidth - tip.width - 8)
+      VIEWPORT_MARGIN,
+      Math.min(left, window.innerWidth - tipRect.width - VIEWPORT_MARGIN)
     );
     top = Math.max(
-      8,
-      Math.min(top, this.container.clientHeight - tip.height - 8)
+      VIEWPORT_MARGIN,
+      Math.min(top, window.innerHeight - tipRect.height - VIEWPORT_MARGIN)
     );
 
     this.tooltip.style.top = `${top}px`;
     this.tooltip.style.left = `${left}px`;
+
+    this.toggleTooltipOpen(true);
   },
 
   isCollapsed(node) {
