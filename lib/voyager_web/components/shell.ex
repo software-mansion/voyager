@@ -15,25 +15,27 @@ defmodule VoyagerWeb.Components.Shell do
 
   def shell(assigns) do
     ~H"""
-    <div class="bg-base-200 flex h-screen flex-col overflow-hidden">
-      <.topbar
-        active_nav={@active_nav}
-        session={@session}
-        mcp_status={@mcp_status}
-        current_path={@current_path}
-      />
-
-      <div class="relative flex flex-1 overflow-x-auto overflow-y-hidden">
-        <.sidebar
+    <div class="bg-base-200 flex h-screen flex-col overflow-x-auto overflow-y-hidden">
+      <div class="min-w-md flex min-h-0 flex-1 flex-col">
+        <.topbar
           active_nav={@active_nav}
           session={@session}
           mcp_status={@mcp_status}
           current_path={@current_path}
         />
 
-        <main class="min-w-xl relative flex-1 overflow-y-auto">
-          {render_slot(@inner_block)}
-        </main>
+        <div class="relative flex flex-1 overflow-y-hidden">
+          <.sidebar
+            active_nav={@active_nav}
+            session={@session}
+            mcp_status={@mcp_status}
+            current_path={@current_path}
+          />
+
+          <main class="min-w-lg relative flex-1 overflow-y-auto">
+            {render_slot(@inner_block)}
+          </main>
+        </div>
       </div>
     </div>
     """
@@ -46,23 +48,19 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp topbar(assigns) do
     ~H"""
-    <div class="navbar bg-base-100 border-base-300 min-h-14 z-10 flex-none gap-4 border-b px-4">
-      <div class="navbar-start gap-5">
-        <.brand />
+    <div class="bg-base-100 border-base-300 min-h-14 grid-cols-[auto_1fr_auto] z-10 grid flex-none items-center gap-4 border-b px-4">
+      <.brand />
+      <div class="@container/nav-status flex min-w-0">
         <.node_indicator session={@session} />
       </div>
-      <div class="navbar-end gap-2">
-        <.link
-          href={
-            ~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_path)]}"
-          }
-          id="open-settings"
-          title="Settings"
-          class="btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-base-content"
-        >
-          <.icon name="icon-settings" class="size-4" />
-        </.link>
-      </div>
+      <.link
+        href={~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_path)]}"}
+        id="open-settings"
+        title="Settings"
+        class="btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-base-content"
+      >
+        <.icon name="icon-settings" class="size-4" />
+      </.link>
     </div>
     """
   end
@@ -336,18 +334,28 @@ defmodule VoyagerWeb.Components.Shell do
   attr :session, Session, required: true
 
   defp node_indicator(assigns) do
+    assigns = assign(assigns, :long_node_name?, String.length(assigns.session.node_name) > 24)
+
     ~H"""
     <div
       id="node-status"
-      class="border-base-300 flex items-center gap-1.5 rounded-lg border py-1 pr-1 pl-2.5"
+      class="border-base-300 flex w-fit min-w-0 max-w-full items-center gap-1.5 rounded-lg border py-1 pr-1 pl-2.5"
     >
       <span class="relative flex h-1.5 w-1.5 shrink-0">
         <span class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75">
         </span>
         <span class="bg-success relative inline-flex h-1.5 w-1.5 rounded-full"></span>
       </span>
-      <span class="text-base-content/50 text-xs">Connected</span>
-      <span class="font-mono text-base-content/70 max-w-40 truncate text-xs">
+      <span
+        :if={!@long_node_name?}
+        class="text-base-content/50 shrink-0 text-xs @max-[20rem]/nav-status:hidden"
+      >
+        Connected
+      </span>
+      <span
+        class={["font-mono text-base-content/70 min-w-0 truncate text-xs"]}
+        title={@session.node_name}
+      >
         {@session.node_name}
       </span>
       <.tooltip id="disconnect-tip" position="bottom">
