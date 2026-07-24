@@ -109,21 +109,21 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp mcp_status_indicator(assigns) do
     ~H"""
-    <.tooltip id={"mcp-status-tip-#{@status.alive?}"} interactive position="right" class="w-full">
+    <.tooltip id="mcp-status-tip" interactive position="right" class="w-full">
       <div
         id="mcp-status"
         class="sidebar-nav-row flex w-full cursor-default items-center justify-start gap-2 rounded-md px-2 py-1.5"
       >
         <span class="relative inline-flex shrink-0">
           <.icon name="icon-brain" class="text-base-content/50 size-4" />
-          <span class="absolute -right-0.5 -bottom-0.5 flex h-2 w-2">
+          <span class="absolute -right-0.5 -bottom-0.5 flex h-1.5 w-1.5">
             <span
               :if={@status.alive?}
               class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
             >
             </span>
             <span class={[
-              "ring-base-100 relative inline-flex h-2 w-2 rounded-full ring-2",
+              "ring-base-100 relative inline-flex h-1.5 w-1.5 rounded-full ring-2",
               if(@status.alive?, do: "bg-success", else: "bg-error")
             ]}>
             </span>
