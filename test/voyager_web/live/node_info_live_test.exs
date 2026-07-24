@@ -172,6 +172,60 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       assert has_element?(view, "#node-info-content", "1")
     end
 
+    test "lists running applications sorted alphabetically", %{conn: conn} do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      assert has_element?(view, "#node-info-content", "kernel")
+      assert has_element?(view, "#node-info-content", "9.2")
+      assert has_element?(view, "#node-info-content", "ERTS CXC 138 10")
+      assert has_element?(view, "#node-info-content", "stdlib")
+      refute has_element?(view, "#applications-show-all-button")
+    end
+
+    test "applications with a supervision tree render a link to that tree", %{conn: conn} do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      html = render(view)
+      assert html =~ "/node/#{@node_name}/supervision-tree?apps=kernel"
+    end
+
+    test "an application without a supervision tree is not clickable", %{conn: conn} do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      html = render(view)
+      refute html =~ "supervision-tree?apps=stdlib"
+    end
+
+    test "shows a show-all button when applications exceed the page size, revealing the rest on click",
+         %{conn: conn} do
+      applications =
+        for n <- 1..12, do: {:"app#{String.pad_leading("#{n}", 2, "0")}", "d#{n}", "1.0.#{n}"}
+
+      stub_erpc(Fakes.node_data(applications: applications))
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      assert has_element?(view, "#node-info-content", "app01")
+      refute has_element?(view, "#node-info-content", "app11")
+      assert has_element?(view, "#applications-show-all-button", "Show all")
+
+      view |> element("#applications-show-all-button") |> render_click()
+
+      assert has_element?(view, "#node-info-content", "app11")
+      assert has_element?(view, "#node-info-content", "app12")
+      refute has_element?(view, "#applications-show-all-button")
+    end
+
     test "renders the auto-refresh form defaulting to Off", %{conn: conn} do
       stub_erpc(Fakes.node_data())
 
@@ -282,6 +336,10 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
         :erlang.error({:erpc, :noconnection})
       end)
 
+      stub(Voyager.ErpcMock, :call, fn _node, _mod, _fun, _args, _timeout ->
+        :erlang.error({:erpc, :noconnection})
+      end)
+
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
@@ -306,6 +364,10 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
   defp stub_erpc(data) do
     stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args ->
+      Fakes.erpc_reply(mod, fun, args, data)
+    end)
+
+    stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args, _timeout ->
       Fakes.erpc_reply(mod, fun, args, data)
     end)
   end
