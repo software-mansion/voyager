@@ -112,7 +112,7 @@ defmodule VoyagerWeb.Components.Shell do
     <.tooltip
       id={"mcp-status-tip-#{@status.alive?}-#{:erlang.phash2(@status.url)}"}
       interactive
-      position="right"
+      position="top"
       class="w-full"
     >
       <div
@@ -128,7 +128,7 @@ defmodule VoyagerWeb.Components.Shell do
             >
             </span>
             <span class={[
-              "ring-base-100 relative inline-flex h-1.5 w-1.5 rounded-full ring-2",
+              "relative inline-flex h-1.5 w-1.5 rounded-full",
               if(@status.alive?, do: "bg-success", else: "bg-error")
             ]}>
             </span>
