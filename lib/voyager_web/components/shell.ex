@@ -115,7 +115,7 @@ defmodule VoyagerWeb.Components.Shell do
         class="sidebar-nav-row flex w-full cursor-default items-center justify-start gap-2 rounded-md px-2 py-1.5"
       >
         <span class="relative inline-flex shrink-0">
-          <.icon name="icon-plug" class="text-base-content/50 size-4" />
+          <.icon name="icon-brain" class="text-base-content/50 size-4" />
           <span class="absolute -right-0.5 -bottom-0.5 flex h-2 w-2">
             <span
               :if={@status.alive?}
