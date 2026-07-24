@@ -109,7 +109,12 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp mcp_status_indicator(assigns) do
     ~H"""
-    <.tooltip id="mcp-status-tip" interactive position="right" class="w-full">
+    <.tooltip
+      id={"mcp-status-tip-#{@status.alive?}-#{:erlang.phash2(@status.url)}"}
+      interactive
+      position="right"
+      class="w-full"
+    >
       <div
         id="mcp-status"
         class="sidebar-nav-row flex w-full cursor-default items-center justify-start gap-2 rounded-md px-2 py-1.5"
