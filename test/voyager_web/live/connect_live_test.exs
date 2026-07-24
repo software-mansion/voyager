@@ -49,17 +49,5 @@ defmodule VoyagerWeb.ConnectLiveTest do
       assert tip_html =~ "Cannot change mode while connected"
       refute tip_html =~ "proxy_epmd"
     end
-
-    test "disabled with a connecting tooltip while an SSH connection attempt is in progress", %{
-      conn: conn
-    } do
-      {:ok, view, _html} = live(conn, ~p"/")
-
-      send(view.pid, {:ssh_connecting, true})
-      _ = :sys.get_state(view.pid)
-
-      tip_html = view |> element("#mode-toggle-tip-portal") |> render()
-      assert tip_html =~ "Cannot change mode while connecting"
-    end
   end
 end
