@@ -24,14 +24,17 @@ defmodule VoyagerWeb.Components.Shell do
       />
 
       <div class="relative flex flex-1 overflow-x-auto overflow-y-hidden">
-        <.sidebar active_nav={@active_nav} session={@session} />
+        <.sidebar
+          active_nav={@active_nav}
+          session={@session}
+          mcp_status={@mcp_status}
+          current_path={@current_path}
+        />
 
         <main class="min-w-xl relative flex-1 overflow-y-auto">
           {render_slot(@inner_block)}
         </main>
       </div>
-
-      <.statusbar session={@session} />
     </div>
     """
   end
@@ -44,16 +47,11 @@ defmodule VoyagerWeb.Components.Shell do
   defp topbar(assigns) do
     ~H"""
     <div class="navbar bg-base-100 border-base-300 min-h-14 z-10 flex-none gap-4 border-b px-4">
-      <div class="navbar-start gap-2">
+      <div class="navbar-start gap-5">
         <.brand />
+        <.node_indicator session={@session} />
       </div>
-      <div class="navbar-end gap-1">
-        <.mcp_status_indicator
-          status={@mcp_status}
-          active_nav={@active_nav}
-          session={@session}
-          current_path={@current_path}
-        />
+      <div class="navbar-end gap-2">
         <.link
           href={
             ~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_path)]}"
@@ -64,14 +62,6 @@ defmodule VoyagerWeb.Components.Shell do
         >
           <.icon name="icon-settings" class="size-4" />
         </.link>
-        <button
-          type="button"
-          phx-click="disconnect"
-          title="Disconnect"
-          class="btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-error"
-        >
-          <.icon name="icon-log-out" class="size-4" />
-        </button>
       </div>
     </div>
     """
@@ -101,10 +91,13 @@ defmodule VoyagerWeb.Components.Shell do
   end
 
   defp brand(assigns) do
+    assigns = assign(assigns, :version, Voyager.version())
+
     ~H"""
     <div class="flex items-center gap-2.5 font-semibold tracking-tight">
       <.logo class="size-5.5 ml-px" />
       <span class="text-lg">Voyager</span>
+      <span class="font-mono text-base-content/35 mt-0.5 text-xs font-normal">v{@version}</span>
     </div>
     """
   end
@@ -116,24 +109,29 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp mcp_status_indicator(assigns) do
     ~H"""
-    <.tooltip id={"mcp-status-tip-#{@status.alive?}"} interactive position="bottom">
+    <.tooltip id={"mcp-status-tip-#{@status.alive?}"} interactive position="right" class="w-full">
       <div
         id="mcp-status"
-        class="font-mono text-base-content/60 flex cursor-default items-center gap-1.5 px-2 text-xs"
+        class="sidebar-nav-row flex w-full cursor-default items-center justify-start gap-2 rounded-md px-2 py-1.5"
       >
-        <span class="relative flex h-1.5 w-1.5">
-          <span
-            :if={@status.alive?}
-            class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
-          >
-          </span>
-          <span class={[
-            "relative inline-flex h-1.5 w-1.5 rounded-full",
-            if(@status.alive?, do: "bg-success", else: "bg-error")
-          ]}>
+        <span class="relative inline-flex shrink-0">
+          <.icon name="icon-plug" class="text-base-content/50 size-4" />
+          <span class="absolute -right-0.5 -bottom-0.5 flex h-2 w-2">
+            <span
+              :if={@status.alive?}
+              class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
+            >
+            </span>
+            <span class={[
+              "ring-base-100 relative inline-flex h-2 w-2 rounded-full ring-2",
+              if(@status.alive?, do: "bg-success", else: "bg-error")
+            ]}>
+            </span>
           </span>
         </span>
-        MCP {if @status.alive?, do: "running", else: "stopped"}
+        <span class="sidebar-label font-mono text-base-content/60 truncate text-xs">
+          MCP {if @status.alive?, do: "running", else: "stopped"}
+        </span>
       </div>
       <:content>
         <%= if @status.alive? do %>
@@ -156,6 +154,8 @@ defmodule VoyagerWeb.Components.Shell do
 
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
+  attr :mcp_status, :map, default: %{alive?: false, url: nil}
+  attr :current_path, :string, default: nil
 
   defp sidebar(assigns) do
     ~H"""
@@ -227,6 +227,17 @@ defmodule VoyagerWeb.Components.Shell do
           <:icon><.icon name={page.icon} class="size-4" /></:icon>
         </.nav_item>
       </ul>
+
+      <div class="border-base-content/10 mx-4 border-t"></div>
+
+      <div class="ml-1.5 flex flex-none flex-col gap-1 p-3">
+        <.mcp_status_indicator
+          status={@mcp_status}
+          active_nav={@active_nav}
+          session={@session}
+          current_path={@current_path}
+        />
+      </div>
     </aside>
     """
   end
@@ -319,16 +330,30 @@ defmodule VoyagerWeb.Components.Shell do
 
   attr :session, Session, required: true
 
-  defp statusbar(assigns) do
+  defp node_indicator(assigns) do
     ~H"""
-    <footer class="border-base-300 bg-base-100 font-mono text-base-content/60 tracking-snug flex flex-none items-center gap-4 border-t px-4 py-1.5 text-xs">
-      <div class="flex items-center gap-1.5">
-        <span class="bg-success h-1.5 w-1.5 rounded-full"></span>
+    <div
+      id="node-status"
+      class="border-base-300 flex items-center gap-1.5 rounded-lg border py-1 pr-1 pl-2.5"
+    >
+      <span class="relative flex h-1.5 w-1.5 shrink-0">
+        <span class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75">
+        </span>
+        <span class="bg-success relative inline-flex h-1.5 w-1.5 rounded-full"></span>
+      </span>
+      <span class="text-base-content/50 text-xs">Connected</span>
+      <span class="font-mono text-base-content/70 max-w-40 truncate text-xs">
         {@session.node_name}
-      </div>
-      <div class="flex-1"></div>
-      <div>v0.1.0</div>
-    </footer>
+      </span>
+      <button
+        type="button"
+        phx-click="disconnect"
+        title="Disconnect"
+        class="btn btn-ghost btn-square btn-xs text-base-content/50 hover:text-error"
+      >
+        <.icon name="icon-log-out" class="size-3.5" />
+      </button>
+    </div>
     """
   end
 end
