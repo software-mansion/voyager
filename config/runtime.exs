@@ -6,6 +6,8 @@ telemetry_api_key = System.get_env("TELEMETRY_API_KEY")
 config :voyager,
   telemetry_config: [push_url: telemetry_push_url, api_key: telemetry_api_key]
 
+config :voyager, :env, config_env()
+
 if config_env() == :dev do
   config :voyager,
          :telemetry_handler,

@@ -6,6 +6,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
+    <meta name="env" content={Application.get_env(:voyager, :env)} />
     <link
       rel="preload"
       href={~p"/fonts/dm-sans-latin-wght-normal.woff2"}

@@ -172,6 +172,60 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       assert has_element?(view, "#node-info-content", "1")
     end
 
+    test "lists running applications sorted alphabetically", %{conn: conn} do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      assert has_element?(view, "#node-info-content", "kernel")
+      assert has_element?(view, "#node-info-content", "9.2")
+      assert has_element?(view, "#node-info-content", "ERTS CXC 138 10")
+      assert has_element?(view, "#node-info-content", "stdlib")
+      refute has_element?(view, "#applications-show-all-button")
+    end
+
+    test "applications with a supervision tree render a link to that tree", %{conn: conn} do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      html = render(view)
+      assert html =~ "/node/#{@node_name}/supervision-tree?apps=kernel"
+    end
+
+    test "an application without a supervision tree is not clickable", %{conn: conn} do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      html = render(view)
+      refute html =~ "supervision-tree?apps=stdlib"
+    end
+
+    test "shows a show-all button when applications exceed the page size, revealing the rest on click",
+         %{conn: conn} do
+      applications =
+        for n <- 1..12, do: {:"app#{String.pad_leading("#{n}", 2, "0")}", "d#{n}", "1.0.#{n}"}
+
+      stub_erpc(Fakes.node_data(applications: applications))
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      assert has_element?(view, "#node-info-content", "app01")
+      refute has_element?(view, "#node-info-content", "app11")
+      assert has_element?(view, "#applications-show-all-button", "Show all")
+
+      view |> element("#applications-show-all-button") |> render_click()
+
+      assert has_element?(view, "#node-info-content", "app11")
+      assert has_element?(view, "#node-info-content", "app12")
+      refute has_element?(view, "#applications-show-all-button")
+    end
+
     test "renders the auto-refresh form defaulting to Off", %{conn: conn} do
       stub_erpc(Fakes.node_data())
 
@@ -209,6 +263,40 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       assert has_element?(view, ~s|#refresh-interval option[value="5000"][selected]|)
     end
 
+    test "enables the JSON snapshot action after the async fetch resolves", %{conn: conn} do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      assert has_element?(view, "#show-node-info-json:not([disabled])")
+    end
+
+    test "opens and closes the JSON snapshot modal", %{conn: conn} do
+      stub_erpc(Fakes.node_data(otp_release: "99"))
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      view
+      |> element("#show-node-info-json")
+      |> render_click()
+
+      assert has_element?(view, "#node-info-json-modal[role='dialog']")
+      assert has_element?(view, "#node-info-json-modal-content", ~s|"otp_release": "99"|)
+
+      assert has_element?(
+               view,
+               ~s|#node-info-json-modal-copy[data-copy-target="#node-info-json-modal-content"]|
+             )
+
+      view
+      |> element("#node-info-json-modal-close")
+      |> render_click()
+
+      refute has_element?(view, "#node-info-json-modal")
+    end
+
     test "getting node disconnected redirects and displays appropriate flash", %{
       conn: conn,
       node_session: session
@@ -221,7 +309,7 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
       broadcast(Voyager.NodeSession.topic(), {:node_disconnected, session.node})
 
-      {"/", flash} = assert_redirect view
+      {"/", flash} = assert_redirect(view)
       assert flash["info"] == "Node disconnected: demo@localhost"
     end
 
@@ -237,7 +325,7 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
       broadcast(Voyager.NodeSession.topic(), {:nodedown, session.node})
 
-      {"/", flash} = assert_redirect view
+      {"/", flash} = assert_redirect(view)
       assert flash["error"] == "Node down: demo@localhost"
     end
   end
@@ -248,12 +336,21 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
         :erlang.error({:erpc, :noconnection})
       end)
 
+      stub(Voyager.ErpcMock, :call, fn _node, _mod, _fun, _args, _timeout ->
+        :erlang.error({:erpc, :noconnection})
+      end)
+
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
       assert has_element?(view, "#node-info-error")
       assert has_element?(view, "#node-info-error", "Node is unreachable.")
+      assert has_element?(view, "#show-node-info-json[disabled]")
       refute has_element?(view, "#node-info-content")
+
+      render_click(view, "show-json-modal")
+
+      refute has_element?(view, "#node-info-json-modal")
     end
   end
 
@@ -267,6 +364,10 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
   defp stub_erpc(data) do
     stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args ->
+      Fakes.erpc_reply(mod, fun, args, data)
+    end)
+
+    stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args, _timeout ->
       Fakes.erpc_reply(mod, fun, args, data)
     end)
   end
