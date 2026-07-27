@@ -117,6 +117,12 @@ defmodule VoyagerWeb.NodeInfoHelp do
       text: "Maximum number of concurrently open ports (file descriptors, sockets, drivers).",
       doc_href: @erts <> "#system_info/1-system-limits",
       doc_label: "See erlang:system_info(port_limit)"
+    },
+    applications: %{
+      text:
+        "OTP applications currently running on this node. Description and version come from each application's own specification.",
+      doc_href: "https://www.erlang.org/doc/apps/kernel/application.html#which_applications/0",
+      doc_label: "See application:which_applications/0"
     }
   }
 

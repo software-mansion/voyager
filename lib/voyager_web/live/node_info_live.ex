@@ -9,6 +9,7 @@ defmodule VoyagerWeb.NodeInfoLive do
   alias VoyagerWeb.NodeInfoHelp
 
   @default_interval Application.compile_env(:voyager, :node_info_refresh_interval_ms, 5_000)
+  @applications_page_size 10
 
   @interval_options [
     {"Off", "off"},
@@ -29,6 +30,7 @@ defmodule VoyagerWeb.NodeInfoLive do
       |> assign(:snapshot, AsyncResult.loading())
       |> assign(:last_updated, nil)
       |> assign(:timer_ref, nil)
+      |> assign(:visible_app_count, @applications_page_size)
       |> assign(:show_json_modal?, false)
       |> assign(:snapshot_json, nil)
 
@@ -148,6 +150,14 @@ defmodule VoyagerWeb.NodeInfoLive do
               />
             </div>
           </div>
+
+          <NodeInfoComponents.applications_card
+            applications={snapshot.applications}
+            visible_count={@visible_app_count}
+            load_more_event="show-all-apps"
+            node_name={@session.node_name}
+            help={NodeInfoHelp.get(:applications)}
+          />
         </div>
       </.async_result>
 
@@ -193,6 +203,14 @@ defmodule VoyagerWeb.NodeInfoLive do
     socket
     |> assign(:refresh_interval, parse_interval(value))
     |> schedule_refresh()
+    |> noreply()
+  end
+
+  def handle_event("show-all-apps", _params, socket) do
+    total = length(socket.assigns.snapshot.result.applications)
+
+    socket
+    |> assign(:visible_app_count, total)
     |> noreply()
   end
 
