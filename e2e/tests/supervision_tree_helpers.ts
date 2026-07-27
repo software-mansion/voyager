@@ -246,13 +246,6 @@ export async function clearSelection(page: Page) {
   expect(ok).toBe(true);
 }
 
-/** Computed pixel width of `#details-panel`. */
-export function detailsPanelWidth(page: Page): Promise<number> {
-  return page
-    .locator('#details-panel')
-    .evaluate((el) => el.getBoundingClientRect().width);
-}
-
 /** CSS `--details-panel-width` in px (what DetailsPanelResize writes). */
 export function detailsPanelCssWidth(page: Page): Promise<number> {
   return page
