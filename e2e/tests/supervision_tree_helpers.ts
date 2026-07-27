@@ -237,7 +237,8 @@ export async function selectNode(page: Page, ref: string) {
  */
 export async function clearSelection(page: Page) {
   const ok = await page.evaluate(() => {
-    const cy = (document.getElementById('supervision-tree-body') as any)?._cy as cytoscape.Core;
+    const cy = (document.getElementById('supervision-tree-body') as any)
+      ?._cy as cytoscape.Core;
     if (!cy) return false;
     cy.emit('tap');
     return true;
