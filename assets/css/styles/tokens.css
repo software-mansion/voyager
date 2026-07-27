@@ -11,7 +11,15 @@
   /* Layout dimensions */
   --topbar-h: 56px;
   --statusbar-h: 28px;
-  --sidebar-w: 220px;
+
+  /* Toolbar / sidebar sizing — change --toolbar-btn-size to scale compact rail + nav squares */
+  --toolbar-btn-size: 2.5rem;
+  --toolbar-icon-size: 1.5rem;
+  --sidebar-compact-pad: 1rem;
+  --sidebar-compact-w: calc(
+    var(--toolbar-btn-size) + var(--sidebar-compact-pad) * 2
+  );
+  --sidebar-full-w: 16rem;
 
   /* Typography */
   --font-display: 'DM Sans Variable', system-ui, sans-serif;
