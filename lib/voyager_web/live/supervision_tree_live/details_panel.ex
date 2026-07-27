@@ -462,7 +462,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
       type="button"
       disabled
       title={@pid}
-      class="border-base-400 bg-base-200 text-base-content font-mono inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs"
+      class="border-base-content/60 bg-base-200 text-base-content font-mono inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs"
     >
       <span class="bg-primary h-1.5 w-1.5 rounded-full" />
       {@pid}
