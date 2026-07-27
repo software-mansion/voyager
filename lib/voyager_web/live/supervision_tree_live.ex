@@ -96,7 +96,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       </div>
       <.live_component
         module={VoyagerWeb.SupervisionTreeLive.DetailsPanel}
-        id="process-panel"
+        id="details-panel"
         node={@selected_node}
         remote_node={@session.node}
       />
