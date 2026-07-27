@@ -9,6 +9,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   alias Voyager.Services.ProcessInfo
   alias Voyager.Services.SupervisionTree.TreeNode
   alias VoyagerWeb.Components.SupervisionTreeComponents
+  alias VoyagerWeb.Formatters
 
   require Logger
 
@@ -281,23 +282,65 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
             <.kv_skeleton label="Priority" narrow />
             <.kv_skeleton label="Trap exit" narrow />
             <.kv_skeleton label="Reductions" />
-            <.kv_skeleton label="Catch level" narrow last />
+            <.kv_skeleton label="Binary" />
+            <.kv_skeleton label="Last calls" wide />
+            <.kv_skeleton label="Catch level" narrow />
+            <.kv_skeleton label="Trace" narrow />
+            <.kv_skeleton label="Suspending" />
+            <.kv_skeleton label="Sequential trace token" />
+            <.kv_skeleton label="Error handler" last />
           </.info_box>
         </:loading>
         <:failed>
           <.load_error />
         </:failed>
         <.info_box>
-          <.kv label="Initial call" value={info.initial_call} />
-          <.kv label="Current function" value={info.current_function} />
-          <.kv label="Registered name" value={info.registered_name} />
-          <.kv label="Status" value={info.status} />
-          <.kv label="Message queue len" value={info.message_queue_len} />
-          <.kv label="Group leader" value={info.group_leader} />
-          <.kv label="Priority" value={info.priority} />
-          <.kv label="Trap exit" value={info.trap_exit} />
-          <.kv label="Reductions" value={info.reductions} />
-          <.kv label="Catch level" value={info.catch_level} last />
+          <.kv label="Initial call">
+            {format_mfa(info.initial_call)}
+          </.kv>
+          <.kv label="Current function">
+            {format_mfa(info.current_function)}
+          </.kv>
+          <.kv label="Registered name">
+            {format_registered_name(info.registered_name)}
+          </.kv>
+          <.kv label="Status">
+            {to_string(info.status)}
+          </.kv>
+          <.kv label="Message queue len">
+            {Formatters.format_integer(info.message_queue_len)}
+          </.kv>
+          <.kv label="Group leader">
+            {format_identifier(info.group_leader)}
+          </.kv>
+          <.kv label="Priority">
+            {to_string(info.priority)}
+          </.kv>
+          <.kv label="Trap exit">
+            {to_string(info.trap_exit)}
+          </.kv>
+          <.kv label="Reductions">
+            {Formatters.format_integer(info.reductions)}
+          </.kv>
+          <.kv label="Binary">
+            {format_binary(info.binary)}
+          </.kv>
+          <.kv label="Last calls">
+            {format_last_calls(info.last_calls)}
+          </.kv>
+          <.kv label="Catch level">
+            {Formatters.format_integer(info.catch_level)}
+          </.kv>
+          <.kv label="Trace">
+            {Formatters.format_integer(info.trace)}
+          </.kv>
+          <.suspending_list suspending={info.suspending} />
+          <.kv label="Sequential trace token">
+            {format_sequential_trace_token(info.sequential_trace_token)}
+          </.kv>
+          <.kv label="Error handler">
+            {inspect(info.error_handler)}
+          </.kv>
         </.info_box>
       </.async_result>
     </.section>
@@ -328,7 +371,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
           <.load_error />
         </:failed>
         <.links_list
-          links={info.links}
+          links={Enum.map(info.links, &format_identifier/1)}
           links_expanded?={@links_expanded?}
           max_links={@max_links}
           myself={@myself}
@@ -397,12 +440,24 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
           <.load_error />
         </:failed>
         <.info_box>
-          <.kv label="Memory" value={info.memory} />
-          <.kv label="Stack and heaps" value={info.stack_and_heaps} />
-          <.kv label="Heap size" value={info.heap_size} />
-          <.kv label="Stack size" value={info.stack_size} />
-          <.kv label="GC min heap size" value={info.gc_min_heap_size} />
-          <.kv label="GC fullsweep after" value={info.gc_fullsweep_after} last />
+          <.kv label="Memory">
+            {Formatters.format_bytes(info.memory)}
+          </.kv>
+          <.kv label="Stack and heaps">
+            {Formatters.format_bytes(info.stack_and_heap_size)}
+          </.kv>
+          <.kv label="Heap size">
+            {Formatters.format_bytes(info.heap_size)}
+          </.kv>
+          <.kv label="Stack size">
+            {Formatters.format_bytes(info.stack_size)}
+          </.kv>
+          <.kv label="GC min heap size">
+            {Formatters.format_bytes(info.gc_min_heap_size)}
+          </.kv>
+          <.kv label="GC fullsweep after">
+            {format_count(info.gc_fullsweep_after)}
+          </.kv>
         </.info_box>
       </.async_result>
     </.section>
@@ -438,17 +493,22 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   end
 
   attr :label, :string, required: true
-  attr :value, :string, required: true
   attr :last, :boolean, default: false
+  attr :stacked, :boolean, default: false
+
+  slot :inner_block, required: true
 
   defp kv(assigns) do
     ~H"""
     <div class={[
-      "font-mono grid grid-cols-2 items-baseline gap-4 py-2.5 text-xs",
+      "font-mono flex gap-4 py-2.5 text-xs",
+      if(@stacked, do: "flex-col items-stretch", else: "items-baseline justify-between"),
       not @last && "border-base-300/60 border-b"
     ]}>
-      <span class="text-base-content/60 truncate">{@label}</span>
-      <span class="text-base-content truncate text-right" title={@value}>{@value}</span>
+      <span class="text-base-content/60 shrink-0">{@label}</span>
+      <div class={["text-base-content min-w-0", not @stacked && "truncate text-right"]}>
+        {render_slot(@inner_block)}
+      </div>
     </div>
     """
   end
@@ -486,12 +546,12 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   defp kv_skeleton(assigns) do
     ~H"""
     <div class={[
-      "font-mono grid grid-cols-2 items-baseline gap-4 py-2.5 text-xs",
+      "font-mono flex items-baseline justify-between gap-4 py-2.5 text-xs",
       not @last && "border-base-300/60 border-b"
     ]}>
-      <span class="text-base-content/60 truncate">{@label}</span>
+      <span class="text-base-content/60 shrink-0">{@label}</span>
       <div class={[
-        "skeleton h-2.5 shrink-0 justify-self-end rounded",
+        "skeleton h-2.5 shrink-0 rounded",
         @narrow && "w-12",
         @wide && "w-full",
         (not @narrow and not @wide) && "w-20"
@@ -505,4 +565,69 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     <div class="skeleton h-6 w-16 rounded" />
     """
   end
+
+  attr :suspending, :list, required: true
+
+  defp suspending_list(assigns) do
+    assigns = assign(assigns, :suspending_count, length(assigns.suspending))
+
+    ~H"""
+    <.kv label="Suspending" stacked={@suspending_count > 0}>
+      <span :if={@suspending == []}>[]</span>
+      <div
+        :if={@suspending != []}
+        class="grid-cols-[minmax(0,1fr)_auto_auto] grid w-full gap-x-3 gap-y-1 text-left"
+      >
+        <span class="text-base-content/50">Suspendee</span>
+        <span class="text-base-content/50 text-right">Active</span>
+        <span class="text-base-content/50 text-right">Outstanding</span>
+        <div
+          :for={{suspendee, active_suspend_count, outstanding_suspend_count} <- @suspending}
+          class="contents"
+        >
+          <span class="text-base-content truncate">{format_identifier(suspendee)}</span>
+          <span class="text-base-content text-right">{active_suspend_count}</span>
+          <span class="text-base-content text-right">{outstanding_suspend_count}</span>
+        </div>
+      </div>
+    </.kv>
+    """
+  end
+
+  defp format_mfa({mod, fun, arity}), do: "#{inspect(mod)}.#{fun}/#{arity}"
+
+  defp format_registered_name(nil), do: "—"
+  defp format_registered_name(name) when is_atom(name), do: inspect(name)
+
+  defp format_binary([]), do: "[]"
+
+  defp format_binary(binaries) when is_list(binaries) do
+    total_bytes =
+      Enum.reduce(binaries, 0, fn
+        {_id, size, _refs}, acc when is_integer(size) -> acc + size
+        _, acc -> acc
+      end)
+
+    "#{length(binaries)} (#{Formatters.format_bytes(total_bytes)})"
+  end
+
+  defp format_last_calls(false), do: "false"
+  defp format_last_calls([]), do: "[]"
+
+  defp format_last_calls(calls) when is_list(calls),
+    do: Enum.map_join(calls, ", ", &format_mfa/1)
+
+  defp format_sequential_trace_token(nil), do: "—"
+  defp format_sequential_trace_token(token), do: inspect(token)
+
+  defp format_count(nil), do: "—"
+  defp format_count(n) when is_integer(n), do: Formatters.format_integer(n)
+
+  defp format_identifier(pid) when is_pid(pid),
+    do: pid |> :erlang.pid_to_list() |> List.to_string()
+
+  defp format_identifier(port) when is_port(port),
+    do: port |> :erlang.port_to_list() |> List.to_string()
+
+  defp format_identifier(other), do: inspect(other)
 end

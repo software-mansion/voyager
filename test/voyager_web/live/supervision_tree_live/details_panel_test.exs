@@ -81,6 +81,13 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       assert has_element?(view, "#details-panel", "Supervisor")
       assert has_element?(view, "#details-panel", "demo_supervisor")
       assert has_element?(view, "#details-panel", "Overview")
+      assert has_element?(view, "#details-panel", "Binary")
+      assert has_element?(view, "#details-panel", "Last calls")
+      assert has_element?(view, "#details-panel", "Trace")
+      assert has_element?(view, "#details-panel", "Suspending")
+      assert has_element?(view, "#details-panel", "Sequential trace token")
+      assert has_element?(view, "#details-panel", "Error handler")
+      assert has_element?(view, "#details-panel", ":error_handler")
       assert has_element?(view, "#details-panel", "Links")
       assert has_element?(view, "#details-panel", "Memory and Garbage Collection")
       refute has_element?(view, "#details-panel", "This is not a process node")
@@ -350,7 +357,13 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
           priority: :normal,
           trap_exit: true,
           reductions: 1_234,
+          binary: [],
+          last_calls: false,
           catchlevel: 0,
+          trace: 0,
+          suspending: [],
+          sequential_trace_token: [],
+          error_handler: :error_handler,
           links: link_pids,
           memory: 2_048,
           total_heap_size: 233,
