@@ -62,7 +62,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       # 9 erpc calls: which_applications + app masters (mount), then masters +
       # root children + root ancestors + which_children batch + process_info
       # hydrate (walk), then process_info + wordsize (ProcessInfo.fetch)
-      expect_supervision_erpc(9, sup_pid, port, link_pids)
+      expect_supervision_erpc(9, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
@@ -89,7 +89,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
     } do
       # Same 9 calls as the supervisor test minus ProcessInfo.fetch's
       # process_info + wordsize: port nodes have no pid to inspect.
-      expect_supervision_erpc(7, sup_pid, port, link_pids)
+      expect_supervision_erpc(7, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => port_key})
@@ -116,7 +116,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       twentieth_link: twentieth_link
     } do
       # Same 9 calls as "renders process details for a supervisor".
-      expect_supervision_erpc(9, sup_pid, port, link_pids)
+      expect_supervision_erpc(9, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
@@ -144,7 +144,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       sup_key: sup_key
     } do
       # Open the panel with the default ProcessInfo payload (reductions 1,234).
-      expect_supervision_erpc(9, sup_pid, port, link_pids)
+      expect_supervision_erpc(9, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
@@ -188,7 +188,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       link_pids: link_pids,
       port_key: port_key
     } do
-      expect_supervision_erpc(7, sup_pid, port, link_pids)
+      expect_supervision_erpc(7, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => port_key})
@@ -197,11 +197,44 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       assert has_element?(view, "#details-panel.translate-x-0")
       refute has_element?(view, "#details-panel-refresh")
     end
+
+    test "closes the details panel when the selected node disappears on refresh", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      link_pids: link_pids,
+      port_key: port_key
+    } do
+      # Toggle whether the supervisor still links the port between fetches. The
+      # port only appears in the tree via that link, so dropping it on refresh
+      # removes the selected key and must close the panel.
+      {:ok, linked} = Agent.start_link(fn -> [port] end)
+      on_exit(fn -> if Process.alive?(linked), do: Agent.stop(linked) end)
+
+      stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args, _timeout ->
+        supervision_reply(mod, fun, args, sup_pid, Agent.get(linked, & &1), link_pids)
+      end)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => port_key})
+      render(view)
+
+      assert has_element?(view, "#details-panel.translate-x-0")
+      assert has_element?(view, "#details-panel", "Port")
+
+      Agent.update(linked, fn _ -> [] end)
+
+      view |> element("#refresh-interval-refresh-now-button") |> render_click()
+      await_tree_ok(view)
+
+      assert has_element?(view, "#details-panel.translate-x-full")
+      refute has_element?(view, "#details-panel.translate-x-0")
+    end
   end
 
-  defp expect_supervision_erpc(times, sup_pid, port, link_pids) do
+  defp expect_supervision_erpc(times, sup_pid, linked_ports, link_pids) do
     expect(Voyager.ErpcMock, :call, times, fn _node, mod, fun, args, _timeout ->
-      supervision_reply(mod, fun, args, sup_pid, port, link_pids)
+      supervision_reply(mod, fun, args, sup_pid, linked_ports, link_pids)
     end)
   end
 
@@ -244,9 +277,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
 
   defp pid_key(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
 
-  defp supervision_reply(:application, :which_applications, [], _sup, _port, _links), do: @apps
+  defp supervision_reply(:application, :which_applications, [], _sup, _linked, _links), do: @apps
 
-  defp supervision_reply(:lists, :map, [fun, list], sup_pid, _port, _links) do
+  defp supervision_reply(:lists, :map, [fun, list], sup_pid, _linked, _links) do
     case mfa(fun) do
       {:application_controller, :get_master, 1} ->
         Enum.map(list, fn _app -> sup_pid end)
@@ -262,7 +295,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
     end
   end
 
-  defp supervision_reply(:lists, :zipwith, [_fun, pids, dup_keys], _sup, port, _links) do
+  defp supervision_reply(:lists, :zipwith, [_fun, pids, dup_keys], _sup, linked_ports, _links) do
     keys = List.first(dup_keys) || []
 
     Enum.map(pids, fn _pid ->
@@ -273,7 +306,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
         Enum.sort(keys) == Enum.sort(@process_info_keys) ->
           [
             registered_name: :demo_supervisor,
-            links: [port],
+            links: linked_ports,
             monitors: [],
             monitored_by: []
           ]
@@ -284,9 +317,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
     end)
   end
 
-  defp supervision_reply(:erlang, :system_info, [:wordsize], _sup, _port, _links), do: 8
+  defp supervision_reply(:erlang, :system_info, [:wordsize], _sup, _linked, _links), do: 8
 
-  defp supervision_reply(:erlang, :process_info, [_pid, keys], _sup, _port, link_pids)
+  defp supervision_reply(:erlang, :process_info, [_pid, keys], _sup, _linked, link_pids)
        when is_list(keys) do
     process_info_kw(keys, link_pids)
   end

@@ -208,6 +208,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     |> assign(:last_tree_flat, new_flat)
     |> assign(:last_relations, new_edges)
     |> assign(:last_updated, DateTime.utc_now())
+    |> refresh_selected_node()
     |> push_event("tree-data", payload)
     |> start_timer()
     |> noreply()
@@ -351,6 +352,27 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     assign(socket, :selected_node, selected_node)
   end
 
+  # Re-resolve the open details panel against the freshly fetched tree. Updates
+  # the panel when the node is still present (fresh name / child_count / info);
+  # closes it when the key vanished (dead process, pruned subtree, etc.).
+  defp refresh_selected_node(socket) do
+    case socket.assigns.selected_node do
+      %{key: key} ->
+        case Map.get(socket.assigns.last_tree_flat, key) do
+          nil ->
+            socket
+            |> assign(:selected_node, nil)
+            |> push_event("path-highlight", %{path: []})
+
+          node ->
+            assign(socket, :selected_node, node)
+        end
+
+      _ ->
+        socket
+    end
+  end
+
   defp parse_pid(pid_str) when is_binary(pid_str) do
     pid_str |> String.to_charlist() |> :erlang.list_to_pid()
   rescue
@@ -359,7 +381,8 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   defp parse_pid(_), do: nil
 
-  defp reset_tree(socket), do: assign(socket, last_tree_flat: nil, last_relations: %{})
+  defp reset_tree(socket),
+    do: assign(socket, last_tree_flat: nil, last_relations: %{}, selected_node: nil)
 
   defp walk_to_root(_flat, ""), do: []
   defp walk_to_root(nil, _key), do: []
