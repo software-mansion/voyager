@@ -83,7 +83,7 @@ defmodule VoyagerWeb.ConnectComponents do
         Connected node
       </p>
       <div class="bg-success/10 border-success/25 flex items-center justify-between rounded-lg border px-3.5 py-2.5">
-        <div class="flex items-center gap-2.5">
+        <div class="flex min-w-0 items-center gap-1.5">
           <span class="size-2 relative flex shrink-0">
             <span class="bg-success size-full absolute inline-flex animate-ping rounded-full opacity-60">
             </span>
@@ -92,25 +92,23 @@ defmodule VoyagerWeb.ConnectComponents do
           <span class="font-mono text-base-content/75 min-w-0 truncate text-xs">
             {@session.node_name}
           </span>
-        </div>
-        <div class="ml-3 flex shrink-0 items-center gap-1">
           <button
             type="button"
             id="disconnect-from-connect"
             phx-click="disconnect"
             title="Disconnect"
             aria-label="Disconnect"
-            class="btn btn-ghost btn-square btn-xs btn-error text-error/75 hover:text-error/85 hover:bg-transparent active:text-error/60"
+            class="btn btn-ghost btn-square btn-xs text-error/75 hover:text-error shrink-0"
           >
-            <.icon name="icon-unplug" class="size-3.5" />
+            <.icon name="icon-power" class="size-3.5" />
           </button>
-          <.link
-            href={~p"/node/#{@session.node_name}"}
-            class="btn btn-success btn-xs shrink-0 gap-1"
-          >
-            Open <.icon name="icon-log-in" class="size-3.5" />
-          </.link>
         </div>
+        <.link
+          href={~p"/node/#{@session.node_name}"}
+          class="btn btn-success btn-xs ml-3 shrink-0 gap-1"
+        >
+          Open <.icon name="icon-log-in" class="size-3.5" />
+        </.link>
       </div>
     </div>
     """
