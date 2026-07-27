@@ -41,6 +41,12 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> noreply()
   end
 
+  def handle_event("refresh-node-info", _params, socket) do
+    socket
+    |> maybe_fetch_node_info(socket.assigns.node)
+    |> noreply()
+  end
+
   # Keep the last node while sliding out so the panel doesn't blank mid-animation
   defp maybe_assign_node(socket, nil), do: assign(socket, :open, false)
 
@@ -109,16 +115,39 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
             <.node_type_label node_type={@node.type} />
             <.node_label node={@node} />
           </div>
-          <button
-            type="button"
-            id="details-panel-close"
-            phx-click="close-details-panel"
-            title="Close"
-            aria-label="Close panel"
-            class="border-base-200 text-base-content/50 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md border transition-all hover:border-base-300 hover:bg-base-200 hover:text-base-content"
-          >
-            <.icon name="icon-x" class="size-3.5" />
-          </button>
+          <div class="flex shrink-0 items-center gap-1.5">
+            <.tooltip
+              :if={is_pid(@node.pid)}
+              id="details-panel-refresh-tip"
+              position="bottom"
+            >
+              <button
+                type="button"
+                id="details-panel-refresh"
+                phx-click="refresh-node-info"
+                phx-target={@myself}
+                phx-throttle="1000"
+                aria-label="Refresh fetched process information"
+                class="border-base-200 text-base-content/50 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border transition-all hover:border-base-300 hover:bg-base-200 hover:text-base-content"
+              >
+                <.icon
+                  name="icon-rotate-cw"
+                  class={["size-3.5", @node_info.loading && "motion-safe:animate-spin"]}
+                />
+              </button>
+              <:content>Refresh fetched process information</:content>
+            </.tooltip>
+            <button
+              type="button"
+              id="details-panel-close"
+              phx-click="close-details-panel"
+              title="Close"
+              aria-label="Close panel"
+              class="border-base-200 text-base-content/50 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border transition-all hover:border-base-300 hover:bg-base-200 hover:text-base-content"
+            >
+              <.icon name="icon-x" class="size-3.5" />
+            </button>
+          </div>
         </div>
         <%!-- Scrollable body --%>
         <.body

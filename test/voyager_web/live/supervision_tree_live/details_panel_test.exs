@@ -71,6 +71,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       # Assertions are scoped to #details-panel: words like "Supervisor" also
       # appear in the graph legend, so bare `html =~` checks would be vacuous.
       assert has_element?(view, "#details-panel.translate-x-0")
+      assert has_element?(view, "#details-panel-refresh")
       assert has_element?(view, "#details-panel", "Supervisor")
       assert has_element?(view, "#details-panel", "demo_supervisor")
       assert has_element?(view, "#details-panel", "Overview")
@@ -133,6 +134,68 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
 
       assert has_element?(view, "#details-panel-toggle-links", "Show More")
       refute has_element?(view, "#details-panel", twentieth_link)
+    end
+
+    test "refresh button re-fetches process information", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      link_pids: link_pids,
+      sup_key: sup_key
+    } do
+      # Open the panel with the default ProcessInfo payload (reductions 1,234).
+      expect_supervision_erpc(9, sup_pid, port, link_pids)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      assert has_element?(view, "#details-panel-refresh")
+      assert has_element?(view, "#details-panel", "1,234")
+      assert has_element?(view, "#details-panel", "waiting")
+      refute has_element?(view, "#details-panel", "9,999")
+      refute has_element?(view, "#details-panel", "running")
+      refute has_element?(view, "#details-panel", "Failed to load node details.")
+
+      # Refresh: ProcessInfo.fetch calls process_info then system_info — return
+      # a different snapshot so the panel content visibly changes.
+      expect(Voyager.ErpcMock, :call, fn _node, :erlang, :process_info, [_pid, keys], _timeout
+                                         when is_list(keys) ->
+        process_info_kw(keys, link_pids,
+          status: :running,
+          reductions: 9_999
+        )
+      end)
+
+      expect(Voyager.ErpcMock, :call, fn _node, :erlang, :system_info, [:wordsize], _timeout ->
+        8
+      end)
+
+      view |> element("#details-panel-refresh") |> render_click()
+      render_async(view)
+
+      assert has_element?(view, "#details-panel", "9,999")
+      assert has_element?(view, "#details-panel", "running")
+      refute has_element?(view, "#details-panel", "1,234")
+      refute has_element?(view, "#details-panel", "waiting")
+      refute has_element?(view, "#details-panel", "Failed to load node details.")
+    end
+
+    test "refresh button is hidden for non-process nodes", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      link_pids: link_pids,
+      port_key: port_key
+    } do
+      expect_supervision_erpc(7, sup_pid, port, link_pids)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => port_key})
+      render(view)
+
+      assert has_element?(view, "#details-panel.translate-x-0")
+      refute has_element?(view, "#details-panel-refresh")
     end
   end
 
@@ -225,24 +288,32 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
 
   defp supervision_reply(:erlang, :process_info, [_pid, keys], _sup, _port, link_pids)
        when is_list(keys) do
-    info = %{
-      initial_call: {:supervisor, :init, 1},
-      current_function: {:gen_server, :loop, 7},
-      registered_name: :demo_supervisor,
-      status: :waiting,
-      message_queue_len: 0,
-      group_leader: self(),
-      priority: :normal,
-      trap_exit: true,
-      reductions: 1_234,
-      catchlevel: 0,
-      links: link_pids,
-      memory: 2_048,
-      total_heap_size: 233,
-      heap_size: 100,
-      stack_size: 12,
-      garbage_collection: [min_heap_size: 233, fullsweep_after: 65_535]
-    }
+    process_info_kw(keys, link_pids)
+  end
+
+  defp process_info_kw(keys, link_pids, overrides \\ []) do
+    info =
+      Map.merge(
+        %{
+          initial_call: {:supervisor, :init, 1},
+          current_function: {:gen_server, :loop, 7},
+          registered_name: :demo_supervisor,
+          status: :waiting,
+          message_queue_len: 0,
+          group_leader: self(),
+          priority: :normal,
+          trap_exit: true,
+          reductions: 1_234,
+          catchlevel: 0,
+          links: link_pids,
+          memory: 2_048,
+          total_heap_size: 233,
+          heap_size: 100,
+          stack_size: 12,
+          garbage_collection: [min_heap_size: 233, fullsweep_after: 65_535]
+        },
+        Map.new(overrides)
+      )
 
     Enum.map(keys, fn key -> {key, Map.fetch!(info, key)} end)
   end
