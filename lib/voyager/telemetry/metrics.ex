@@ -39,8 +39,14 @@ defmodule Voyager.Telemetry.Metrics do
       counter("voyager.node.disconnect.count", measurement: fn _measurements, _metadata -> 1 end),
 
       # Voyager MCP server counters
-      counter("voyager.mcp.start.count", measurement: fn _measurements, _metadata -> 1 end),
-      counter("voyager.mcp.stop.count", measurement: fn _measurements, _metadata -> 1 end),
+      counter("voyager.mcp.start.count",
+        tags: [:reason],
+        measurement: fn _measurements, _metadata -> 1 end
+      ),
+      counter("voyager.mcp.stop.count",
+        tags: [:reason],
+        measurement: fn _measurements, _metadata -> 1 end
+      ),
       counter("server.tool_call.stop.count",
         tags: [:tool],
         measurement: fn _measurements, _metadata -> 1 end
