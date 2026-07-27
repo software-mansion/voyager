@@ -101,21 +101,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
         if(@open, do: "translate-x-0", else: "translate-x-full")
       ]}
     >
-      <div
-        id="details-panel-resize-handle"
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Resize details panel"
-        class={[
-          "group absolute inset-y-0 -left-1.5 z-50 hidden w-3 cursor-col-resize touch-none items-center justify-center",
-          @open && "lg:flex"
-        ]}
-      >
-        <span class="w-0.75 absolute inset-y-0 left-1/2 -translate-x-1/2 transition-colors group-hover:bg-primary/50" />
-        <span class="bg-primary/50 relative z-50 flex h-10 w-1 shrink-0 flex-col items-center justify-center gap-0.5 rounded-full transition-colors group-hover:hidden">
-          <span :for={_ <- 1..3} class="size-0.5 bg-base-100 rounded-full" />
-        </span>
-      </div>
+      <.resize_handle open={@open} />
       <%= if @node do %>
         <%!-- Header --%>
         <div class="border-base-200 flex items-start gap-3 border-b px-5 py-4">
@@ -143,6 +129,28 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
         />
       <% end %>
     </aside>
+    """
+  end
+
+  attr :open, :boolean, required: true
+
+  defp resize_handle(assigns) do
+    ~H"""
+    <div
+      id="details-panel-resize-handle"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize details panel"
+      class={[
+        "group absolute inset-y-0 -left-1.5 z-50 hidden w-3 cursor-col-resize touch-none items-center justify-center",
+        @open && "lg:flex"
+      ]}
+    >
+      <span class="w-0.75 absolute inset-y-0 left-1/2 -translate-x-1/2 transition-colors group-hover:bg-primary/50" />
+      <span class="bg-primary/50 relative z-50 flex h-10 w-1 shrink-0 flex-col items-center justify-center gap-0.5 rounded-full transition-colors group-hover:hidden">
+        <span :for={_ <- 1..3} class="size-0.5 bg-base-100 rounded-full" />
+      </span>
+    </div>
     """
   end
 
