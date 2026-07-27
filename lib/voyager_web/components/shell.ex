@@ -233,7 +233,7 @@ defmodule VoyagerWeb.Components.Shell do
 
       <div class="border-base-content/10 mx-4 border-t"></div>
 
-      <div class="ml-1.5 flex flex-none flex-col gap-1 p-3">
+      <div class="flex flex-none flex-col gap-1 p-3">
         <.mcp_status_indicator
           status={@mcp_status}
           active_nav={@active_nav}
