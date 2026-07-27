@@ -166,7 +166,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
     end
   end
 
-  describe "walk/4 relationships" do
+  describe "walk/5 relationships" do
     test "worker link to an external process yields a :link edge and a worker rel node",
          %{node: node} do
       {_mid_a, [w1 | _]} = midsup_a_workers(node)
@@ -181,7 +181,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
       :ok = :erpc.call(node, GenServer, :call, [w1, {:link, target}])
 
       {_status, %{nodes: nodes, edges: edges}, _errors} =
-        Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
+        Walker.walk(node, [:voyager_fixture], 4, MapSet.new(), true)
 
       assert Enum.any?(Map.values(edges), fn e ->
                e.source == w1 and e.target == target and e.kind == :link
@@ -198,7 +198,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
       _ref = :erpc.call(node, GenServer, :call, [w1, {:monitor, w2}])
 
       {_status, %{edges: edges}, _errors} =
-        Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
+        Walker.walk(node, [:voyager_fixture], 4, MapSet.new(), true)
 
       assert Enum.any?(Map.values(edges), fn e ->
                e.source == w1 and e.target == w2 and e.kind == :monitor
@@ -213,7 +213,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
       {mid_a, _workers} = midsup_a_workers(node)
 
       {_status, %{edges: edges}, _errors} =
-        Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
+        Walker.walk(node, [:voyager_fixture], 4, MapSet.new(), true)
 
       # A supervisor is linked to its parent and children, but those duplicate
       # the supervision spine and must not appear as :link edges.
@@ -237,7 +237,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
       end)
 
       {_status, %{nodes: nodes, edges: edges}, _errors} =
-        Walker.walk(node, [:voyager_fixture], 4, MapSet.new())
+        Walker.walk(node, [:voyager_fixture], 4, MapSet.new(), true)
 
       assert Enum.any?(Map.values(edges), fn e ->
                e.source == w1 and e.target == port and e.kind == :link
