@@ -1,5 +1,11 @@
 import { test, expect } from '@playwright/test';
-import { NODE_NAME, SSH_HOST, SSH_NODE_NAME, SSH_COOKIE, sel } from './fixtures';
+import {
+  NODE_NAME,
+  SSH_HOST,
+  SSH_NODE_NAME,
+  SSH_COOKIE,
+  sel,
+} from './fixtures';
 
 test.describe('ConnectLive › form validation', () => {
   test.beforeEach(async ({ page }) => {
@@ -93,18 +99,14 @@ test.describe('ConnectLive › SSH mode', () => {
     await expect(page.locator(sel.sshPasswordInput)).toBeVisible();
   });
 
-  test('switching back to agent hides the password field', async ({
-    page,
-  }) => {
+  test('switching back to agent hides the password field', async ({ page }) => {
     await page.locator(sel.modeSsh).check();
     await page.locator(sel.sshAuthPassword).check();
     await page.locator(sel.sshAuthAgent).check();
     await expect(page.locator(sel.sshPasswordInput)).toHaveCount(0);
   });
 
-  test('shows required field errors on empty submission', async ({
-    page,
-  }) => {
+  test('shows required field errors on empty submission', async ({ page }) => {
     await page.locator(sel.modeSsh).check();
     await page.locator(sel.sshConnectBtn).click();
     await expect(page.locator(sel.sshConnectForm)).toContainText(
