@@ -28,7 +28,13 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
   setup do
     Fakes.connect_node!(Fakes.node_session(node_name: @node_name))
 
-    sup_pid = spawn(fn -> Process.sleep(:infinity) end)
+    sup_pid =
+      spawn(fn ->
+        receive do
+          :stop -> :ok
+        end
+      end)
+
     port = Port.open({:spawn, "cat"}, [:binary])
 
     link_pids = for n <- 1..20, do: :erlang.list_to_pid(~c"<0.#{200 + n}.0>")
