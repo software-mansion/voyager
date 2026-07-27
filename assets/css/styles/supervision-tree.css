@@ -2,7 +2,7 @@
 * These styles are meant to be used in SupervisionTree JS hook
 */
 
-/* Details panel width — set by DetailsPanelResize on #details-panel */
+/* Details panel width — set by DetailsPanelResize */
 .details-panel {
   --details-panel-width: 320px;
 }

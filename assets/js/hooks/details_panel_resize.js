@@ -5,6 +5,7 @@
 
 const STORAGE_KEY = 'voyager:details-panel-width';
 const DEFAULT_WIDTH = 320;
+const DETAILS_PANEL_RESIZE_HANDLE = '#details-panel-resize-handle';
 
 /**
  * @returns {number}
@@ -25,7 +26,7 @@ function setStoredWidth(width) {
 
 const DetailsPanelResize = {
   mounted() {
-    this.handle = this.el.querySelector('#details-panel-resize-handle');
+    this.handle = this.el.querySelector(DETAILS_PANEL_RESIZE_HANDLE);
     this.width = getStoredWidth();
     this.apply();
 
@@ -34,7 +35,7 @@ const DetailsPanelResize = {
   },
 
   updated() {
-    const handle = this.el.querySelector('#details-panel-resize-handle');
+    const handle = this.el.querySelector(DETAILS_PANEL_RESIZE_HANDLE);
     if (handle && handle !== this.handle) {
       this.handle?.removeEventListener('pointerdown', this.onPointerDown);
       this.handle = handle;
