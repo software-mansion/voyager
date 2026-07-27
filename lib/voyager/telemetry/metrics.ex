@@ -38,6 +38,22 @@ defmodule Voyager.Telemetry.Metrics do
       counter("voyager.node.connect.count", measurement: fn _measurements, _metadata -> 1 end),
       counter("voyager.node.disconnect.count", measurement: fn _measurements, _metadata -> 1 end),
 
+      # Voyager MCP server counters
+      counter("voyager.mcp.start.count", measurement: fn _measurements, _metadata -> 1 end),
+      counter("voyager.mcp.stop.count", measurement: fn _measurements, _metadata -> 1 end),
+      counter("server.tool_call.stop.count",
+        tags: [:tool],
+        measurement: fn _measurements, _metadata -> 1 end
+      ),
+      counter("server.tool_call.exception.count",
+        tags: [:tool],
+        measurement: fn _measurements, _metadata -> 1 end
+      ),
+      summary("server.tool_call.stop.duration",
+        tags: [:tool],
+        unit: {:native, :millisecond}
+      ),
+
       # Voyager VM memory statistics
       summary("voyager.vm.memory.total", unit: {:byte, :kilobyte}),
       summary("voyager.vm.memory.processes", unit: {:byte, :kilobyte}),
