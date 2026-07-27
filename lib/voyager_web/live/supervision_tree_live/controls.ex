@@ -1,13 +1,13 @@
 defmodule VoyagerWeb.SupervisionTreeLive.Controls do
   @moduledoc """
-  Controls for the supervision-tree view: searching and selecting applications
-  and choosing the walk depth.
+  Controls for the supervision-tree view: searching and selecting applications,
+  choosing the walk depth, and toggling whether relation edges are drawn.
 
   Owns the ephemeral UI state (search text, the collapsible open state, the form
-  and the derived list of visible apps). Routed state — the selected apps and the
-  depth — still flows through the URL: this component builds the path and calls
-  `push_patch/2`, while the parent LiveView's `handle_params/3` validates the URL
-  and triggers fetches.
+  and the derived list of visible apps). Routed state — the selected apps, the
+  depth and the relations toggle — still flows through the URL: this component
+  builds the path and calls `push_patch/2`, while the parent LiveView's
+  `handle_params/3` validates the URL and triggers fetches.
   """
 
   use VoyagerWeb, :live_component
@@ -50,98 +50,21 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
             open={@apps_open?}
             class="flex-1"
           >
-            <:label>
-              <h2 class="text-base-content ml-2 text-center text-sm font-semibold leading-8">
-                Applications
-              </h2>
-              <.tooltip id="selected-apps-number-tip" class="ml-4">
-                <div
-                  :if={@selected_apps_count > 0}
-                  class="border-primary text-primary bg-primary/10 h-6.5 w-7.5 flex items-center justify-center rounded-lg border text-xs font-semibold"
-                >
-                  <span class="font-mono">{@selected_apps_count}</span>
-                </div>
-                <:content>
-                  Number of selected applications
-                </:content>
-              </.tooltip>
-            </:label>
+            <:label><.controls_label selected_apps_count={@selected_apps_count} /></:label>
+            <:right><.depth_and_relations_controls apps_form={@apps_form} /></:right>
             <div class="flex gap-4">
-              <label
-                :if={@available_apps != []}
-                class="input mt-2 flex max-w-xs items-center gap-2"
-              >
-                <.icon name="icon-search" class="size-4 text-base-content/50" />
-                <input
-                  type="text"
-                  id="supervision-tree-search"
-                  name="search"
-                  value={@search}
-                  placeholder="Filter applications…"
-                  autocomplete="off"
-                  class="grow"
-                  phx-debounce="150"
-                />
-                <button
-                  :if={@search != ""}
-                  type="button"
-                  phx-target={@myself}
-                  phx-click="clear_search"
-                  title="Clear search"
-                  aria-label="Clear search"
-                  class="cursor-pointer"
-                >
-                  <.icon name="icon-x" class="size-4" />
-                </button>
-              </label>
-              <button
-                :if={@selected_apps_count > 0}
-                type="button"
-                id="supervision-tree-clear-apps"
-                phx-target={@myself}
-                phx-click="clear_all_apps"
-                title="Clear all applications"
-                aria-label="Clear all applications"
-                class="btn btn-soft btn-primary mt-2 gap-2"
-              >
-                <.icon name="icon-x" class="size-4" />
-                <span>Clear all</span>
-              </button>
+              <.applications_search
+                available_apps={@available_apps}
+                search={@search}
+                target={@myself}
+              />
+              <.clear_all_button selected_apps_count={@selected_apps_count} target={@myself} />
             </div>
-            <div class="flex flex-wrap gap-2 py-4">
-              <%= cond do %>
-                <% @available_apps == [] -> %>
-                  <span class="text-base-content/50 text-sm italic">No applications available</span>
-                <% @visible_apps == [] -> %>
-                  <span class="text-base-content/50 text-sm italic">
-                    No applications match your search
-                  </span>
-                <% true -> %>
-                  <%= for {app, vsn} <- @visible_apps do %>
-                    <label
-                      id={"#{app}-#{vsn}-label"}
-                      class={[
-                        "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors",
-                        MapSet.member?(@selected_apps, app) &&
-                          "border-primary bg-primary/10 text-primary",
-                        not MapSet.member?(@selected_apps, app) &&
-                          "border-base-300 bg-base-200 text-base-content hover:border-primary/50"
-                      ]}
-                    >
-                      <input
-                        id={"#{app}-#{vsn}-input"}
-                        type="checkbox"
-                        name="tree_controls[apps][]"
-                        value={to_string(app)}
-                        checked={MapSet.member?(@selected_apps, app)}
-                        class="checkbox checkbox-xs checkbox-primary"
-                      />
-                      <span class="font-mono">{app}</span>
-                      <span class="badge badge-ghost badge-xs">{vsn}</span>
-                    </label>
-                  <% end %>
-              <% end %>
-            </div>
+            <.applications_list
+              available_apps={@available_apps}
+              visible_apps={@visible_apps}
+              selected_apps={@selected_apps}
+            />
             <div>
               <p
                 :for={error <- @apps_errors}
@@ -151,18 +74,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
               </p>
             </div>
           </.collapsible>
-          <div class="flex items-start gap-3">
-            <label class="label text-base-content/60 text-xs leading-8" for={@apps_form[:depth].id}>
-              Depth
-            </label>
-            <.input
-              field={@apps_form[:depth]}
-              type="number-stepper"
-              step="1"
-              min={SupervisionTreeControls.min_depth()}
-              phx-debounce="250"
-            />
-          </div>
         </.form>
       </div>
     </div>
@@ -188,8 +99,11 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
     |> SupervisionTreeControls.changeset(socket.assigns.available_app_atoms)
     |> Ecto.Changeset.apply_action(:validate)
     |> case do
-      {:ok, %SupervisionTreeControls{apps: apps, depth: depth}} ->
-        push_patch(socket, to: controls_path(socket, apps, depth))
+      {:ok,
+       %SupervisionTreeControls{apps: apps, depth: depth, include_relations?: include_relations?}} ->
+        socket
+        |> assign(:apps_form, to_form(params, as: :tree_controls))
+        |> push_patch(to: controls_path(socket, apps, depth, include_relations?))
 
       {:error, changeset} ->
         assign(socket, :apps_form, to_form(changeset, as: :tree_controls))
@@ -206,14 +120,19 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
 
   def handle_event("clear_all_apps", _params, socket) do
     socket
-    |> push_patch(to: controls_path(socket, [], socket.assigns.depth))
+    |> push_patch(
+      to: controls_path(socket, [], socket.assigns.depth, socket.assigns.include_relations?)
+    )
     |> noreply()
   end
 
   defp assign_form(socket) do
     changeset =
       SupervisionTreeControls.changeset(
-        %{"depth" => socket.assigns.depth},
+        %{
+          "depth" => socket.assigns.depth,
+          "include_relations?" => socket.assigns.include_relations?
+        },
         socket.assigns.available_app_atoms
       )
 
@@ -232,11 +151,11 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
     assign(socket, :visible_apps, visible)
   end
 
-  defp controls_path(socket, apps, depth) do
+  defp controls_path(socket, apps, depth, include_relations?) do
     node = socket.assigns.node_name
 
     query =
-      %{"depth" => depth}
+      %{"depth" => depth, "include_relations?" => to_string(include_relations?)}
       |> maybe_put_apps(apps)
 
     ~p"/node/#{node}/supervision-tree?#{query}"
@@ -266,5 +185,185 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
     Enum.reduce(opts, msg, fn {key, value}, acc ->
       String.replace(acc, "%{#{key}}", fn _ -> to_string(value) end)
     end)
+  end
+
+  attr :selected_apps_count, :integer, required: true
+
+  defp controls_label(assigns) do
+    ~H"""
+    <h2 class="text-base-content ml-2 text-center text-sm font-semibold leading-8">
+      Applications
+    </h2>
+    <.tooltip id="selected-apps-number-tip" class="ml-4">
+      <div
+        :if={@selected_apps_count > 0}
+        class="border-primary text-primary bg-primary/10 h-6.5 w-7.5 flex items-center justify-center rounded-lg border text-xs font-semibold"
+      >
+        <span class="font-mono">{@selected_apps_count}</span>
+      </div>
+      <:content>
+        Number of selected applications
+      </:content>
+    </.tooltip>
+    """
+  end
+
+  attr :apps_form, Phoenix.HTML.Form, required: true
+
+  defp depth_and_relations_controls(assigns) do
+    ~H"""
+    <div class="flex items-start gap-6">
+      <div class="flex items-start gap-3">
+        <label
+          class="label text-base-content/60 text-xs leading-8"
+          for={@apps_form[:depth].id}
+        >
+          Depth
+        </label>
+        <.input
+          field={@apps_form[:depth]}
+          type="number-stepper"
+          step="1"
+          min={SupervisionTreeControls.min_depth()}
+          phx-debounce="250"
+        />
+      </div>
+      <.tooltip
+        id="supervision-tree-relations-tip"
+        position="top"
+        class="flex items-start gap-3"
+      >
+        <label
+          class="label text-base-content/60 text-xs leading-8"
+          for="supervision-tree-relations"
+        >
+          Relations
+        </label>
+        <input type="hidden" name="tree_controls[include_relations?]" value="false" />
+        <input
+          id="supervision-tree-relations"
+          type="checkbox"
+          name="tree_controls[include_relations?]"
+          value="true"
+          class="toggle toggle-primary mt-1"
+          aria-label="Toggle relation edges"
+          checked={@apps_form[:include_relations?].value in [true, "true"]}
+          phx-debounce="200"
+        />
+        <:content>
+          Show process relations that are <span class="font-bold">not</span>
+          part of the application's <span class="font-bold">base supervision tree</span>
+          (custom links and monitors)
+        </:content>
+      </.tooltip>
+    </div>
+    """
+  end
+
+  attr :available_apps, :list, required: true
+  attr :search, :string, required: true
+  attr :target, :any, required: true
+
+  defp applications_search(assigns) do
+    ~H"""
+    <label
+      :if={@available_apps != []}
+      class="input mt-2 flex max-w-xs items-center gap-2"
+    >
+      <.icon name="icon-search" class="size-4 text-base-content/50" />
+      <input
+        type="text"
+        id="supervision-tree-search"
+        name="search"
+        value={@search}
+        placeholder="Filter applications…"
+        autocomplete="off"
+        class="grow"
+        phx-debounce="150"
+      />
+      <button
+        :if={@search != ""}
+        type="button"
+        phx-target={@target}
+        phx-click="clear_search"
+        title="Clear search"
+        aria-label="Clear search"
+        class="cursor-pointer"
+      >
+        <.icon name="icon-x" class="size-4" />
+      </button>
+    </label>
+    """
+  end
+
+  attr :selected_apps_count, :integer, required: true
+  attr :target, :any, required: true
+
+  defp clear_all_button(assigns) do
+    ~H"""
+    <button
+      :if={@selected_apps_count > 0}
+      type="button"
+      id="supervision-tree-clear-apps"
+      phx-target={@target}
+      phx-click="clear_all_apps"
+      title="Clear all applications"
+      aria-label="Clear all applications"
+      class="btn btn-soft btn-primary mt-2 gap-2"
+    >
+      <.icon name="icon-x" class="size-4" />
+      <span>Clear all</span>
+    </button>
+    """
+  end
+
+  attr :available_apps, :list, required: true
+  attr :visible_apps, :list, required: true
+  attr :selected_apps, MapSet, required: true
+
+  defp applications_list(%{available_apps: []} = assigns) do
+    ~H"""
+    <div class="flex flex-wrap gap-2 py-4">
+      <span class="text-base-content/50 text-sm italic">No applications available</span>
+    </div>
+    """
+  end
+
+  defp applications_list(%{visible_apps: []} = assigns) do
+    ~H"""
+    <div class="flex flex-wrap gap-2 py-4">
+      <span class="text-base-content/50 text-sm italic">
+        No applications match your search
+      </span>
+    </div>
+    """
+  end
+
+  defp applications_list(assigns) do
+    ~H"""
+    <div class="flex flex-wrap gap-2 py-4">
+      <label
+        :for={{app, vsn} <- @visible_apps}
+        id={"#{app}-#{vsn}-label"}
+        class={[
+          "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors",
+          MapSet.member?(@selected_apps, app) && "border-primary bg-primary/10 text-primary",
+          not MapSet.member?(@selected_apps, app) &&
+            "border-base-300 bg-base-200 text-base-content hover:border-primary/50"
+        ]}
+      >
+        <input
+          id={"#{app}-#{vsn}-input"}
+          type="checkbox"
+          name="tree_controls[apps][]"
+          value={to_string(app)}
+          checked={MapSet.member?(@selected_apps, app)}
+          class="checkbox checkbox-xs checkbox-primary"
+        />
+        <span class="font-mono">{app}</span>
+        <span class="badge badge-ghost badge-xs">{vsn}</span>
+      </label>
+    </div>
+    """
   end
 end

@@ -91,7 +91,7 @@ fn elixir_command(
         let mut command = elixirkit::mix("phx.server", &[]);
         command.current_dir("../../../");
         command.env("PORT", port.to_string());
-        command.env("TELEMETRY_PUSH_URL", "http://127.0.0.1:4310/telemetry");
+        set_telemetry_env_dev(&mut command);
         command
     } else {
         let mut command = elixirkit::release(rel_dir, "voyager");
@@ -100,7 +100,27 @@ fn elixir_command(
         command.env("PORT", port.to_string());
         command.env("SECRET_KEY_BASE", utils::secret_key_base(data_dir));
         command.env("DATABASE_PATH", data_dir.join("voyager.db"));
-        command.env("TELEMETRY_PUSH_URL", "http://127.0.0.1:4310/telemetry"); // This is temporary until we have a proper telemetry server #17
+        set_telemetry_env_prod(&mut command);
         command
+    }
+}
+
+fn set_telemetry_env_dev(command: &mut std::process::Command) {
+    if let Some(push_url) = std::env::var("TELEMETRY_PUSH_URL").ok() {
+        command.env("TELEMETRY_PUSH_URL", push_url);
+    }
+
+    if let Some(api_key) = std::env::var("TELEMETRY_API_KEY").ok() {
+        command.env("TELEMETRY_API_KEY", api_key);
+    }
+}
+
+fn set_telemetry_env_prod(command: &mut std::process::Command) {
+    if let Some(push_url) = option_env!("TELEMETRY_PUSH_URL") {
+        command.env("TELEMETRY_PUSH_URL", push_url);
+    }
+
+    if let Some(api_key) = option_env!("TELEMETRY_API_KEY") {
+        command.env("TELEMETRY_API_KEY", api_key);
     }
 }

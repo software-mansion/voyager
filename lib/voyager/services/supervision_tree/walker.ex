@@ -63,7 +63,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   alias Voyager.Services.SupervisionTree.Remote
   alias Voyager.Services.SupervisionTree.TreeNode
 
-  @walk_deadline_ms 3_000
+  @walk_deadline_ms 5_000
 
   @type walk_result :: %{
           nodes: %{String.t() => TreeNode.t()},
@@ -89,19 +89,23 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   expanded. `expanded` is a `MapSet` of PIDs that must be expanded regardless
   of depth — useful for user-triggered lazy loading.
 
+  `include_relations?` controls whether link/monitor relation info is fetched
+  during hydration so relation edges can be built. Defaults to `false`, which
+  skips the extra `:process_info` keys for a lighter walk.
+
   Returns `{:ok, walk_result, []}` on success, or `{:partial, walk_result,
   errors}` when some parts of the tree could not be retrieved.
   """
-  @spec walk(node(), [atom()], non_neg_integer(), MapSet.t(pid())) ::
+  @spec walk(node(), [atom()], non_neg_integer(), MapSet.t(pid()), boolean()) ::
           {:ok | :partial, walk_result(), [error()]}
-  def walk(node, apps, depth, expanded) do
+  def walk(node, apps, depth, expanded, include_relations? \\ false) do
     deadline = now_ms() + @walk_deadline_ms
 
     {nodes, worklist, root_errors} = build_roots(node, apps, depth)
 
     {nodes, walk_errors} = walk_levels(node, nodes, worklist, expanded, deadline, [])
 
-    {nodes, hydrate_errors} = hydrate(node, nodes)
+    {nodes, hydrate_errors} = hydrate(node, nodes, include_relations?)
 
     {nodes, edges, rel_errors} = build_relations(node, nodes)
 
@@ -478,7 +482,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   # info hydration
   # ---------------------------------------------------------------------------
 
-  defp hydrate(node, nodes) do
+  defp hydrate(node, nodes, include_relations?) do
     pids =
       nodes
       |> Map.values()
@@ -486,7 +490,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       |> Enum.filter(&is_pid/1)
       |> Enum.uniq()
 
-    case Remote.process_info_batch(node, pids) do
+    case Remote.process_info_batch(node, pids, include_relations?: include_relations?) do
       {:error, reason} ->
         {nodes, [{:process_info, :batch, reason}]}
 
@@ -559,7 +563,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   defp fetch_external_info(_node, []), do: {%{}, []}
 
   defp fetch_external_info(node, external_pids) do
-    case Remote.process_info_batch(node, external_pids) do
+    case Remote.process_info_batch(node, external_pids, include_relations?: true) do
       {:ok, info_map} -> {info_map, []}
       {:error, reason} -> {%{}, [{:process_info, :relations, reason}]}
     end
