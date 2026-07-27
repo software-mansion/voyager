@@ -138,7 +138,19 @@ defmodule VoyagerWeb.Components.Shell do
       </div>
       <:content>
         <%= if @status.alive? do %>
-          MCP server is running at <span class="font-mono">{@status.url}</span>.
+          <div>
+            <span>
+              MCP server is running at
+            </span>
+            <div class="flex items-center gap-1">
+              <span id="mcp-status-url" class="font-mono">{@status.url}</span>
+              <.copy_button
+                id="mcp-status-copy"
+                target="#mcp-status-url"
+                class="btn-xs shrink-0"
+              />
+            </div>
+          </div>
         <% else %>
           MCP server is not active. It can be enabled and configured in Settings.
           <.link
