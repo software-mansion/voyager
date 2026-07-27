@@ -13,6 +13,21 @@ defmodule VoyagerWeb.FormSchemas.SupervisionTreeControlsTest do
       changeset = SupervisionTreeControls.changeset(%{}, @available_apps)
       assert changeset.changes == %{}
       assert SupervisionTreeControls.default_depth() == 3
+      assert SupervisionTreeControls.default_include_relations?() == true
+      assert get_field(changeset, :include_relations?) == true
+    end
+
+    test "casts include_relations? boolean" do
+      changeset =
+        SupervisionTreeControls.changeset(%{"include_relations?" => "false"}, @available_apps)
+
+      assert changeset.valid?
+      assert get_field(changeset, :include_relations?) == false
+
+      changeset =
+        SupervisionTreeControls.changeset(%{"include_relations?" => "true"}, @available_apps)
+
+      assert get_field(changeset, :include_relations?) == true
     end
 
     test "filters out unknown apps" do

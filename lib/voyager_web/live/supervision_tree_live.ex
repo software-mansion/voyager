@@ -17,6 +17,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> assign(:available_app_atoms, [])
       |> assign(:selected_apps, MapSet.new())
       |> assign(:depth, SupervisionTreeControls.default_depth())
+      |> assign(:include_relations?, SupervisionTreeControls.default_include_relations?())
       |> assign(:expanded_pids, MapSet.new())
       |> assign(:last_tree_flat, nil)
       |> assign(:last_updated, nil)
@@ -44,20 +45,23 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     |> SupervisionTreeControls.changeset(socket.assigns.available_app_atoms)
     |> Ecto.Changeset.apply_action(:validate)
     |> case do
-      {:ok, %SupervisionTreeControls{apps: apps, depth: depth}} ->
+      {:ok,
+       %SupervisionTreeControls{apps: apps, depth: depth, include_relations?: include_relations?}} ->
         new_selected = MapSet.new(apps)
 
         apps_changed? = new_selected != socket.assigns.selected_apps
         depth_changed? = depth != socket.assigns.depth
+        relations_changed? = include_relations? != socket.assigns.include_relations?
 
         socket =
           socket
           |> assign(:selected_apps, new_selected)
           |> assign(:depth, depth)
+          |> assign(:include_relations?, include_relations?)
           |> assign_available_apps(new_selected)
           |> maybe_reset_expanded_pids(depth_changed?)
 
-        if connected?(socket) and (apps_changed? or depth_changed?) do
+        if connected?(socket) and (apps_changed? or depth_changed? or relations_changed?) do
           socket
           |> reset_tree()
           |> request_fetch()
@@ -89,6 +93,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
           available_apps={@available_apps}
           available_app_atoms={@available_app_atoms}
           selected_apps={@selected_apps}
+          include_relations?={@include_relations?}
           depth={@depth}
         />
         <SupervisionTreeComponents.errors errors={@errors} />
@@ -291,7 +296,8 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         node: socket.assigns.session.node,
         apps: selected,
         depth: socket.assigns.depth,
-        expanded: socket.assigns.expanded_pids
+        expanded: socket.assigns.expanded_pids,
+        include_relations?: socket.assigns.include_relations?
       }
 
       in_flight = Fetch.start(request)
@@ -398,14 +404,12 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   end
 
   defp params_to_attrs(params) do
-    apps =
-      case params["apps"] do
-        value when is_binary(value) -> String.split(value, ",", trim: true)
-        _ -> []
-      end
+    case Map.get(params, "apps") do
+      value when is_binary(value) ->
+        Map.put(params, "apps", String.split(value, ",", trim: true))
 
-    depth = params["depth"] || SupervisionTreeControls.default_depth()
-
-    %{"apps" => apps, "depth" => depth}
+      _ ->
+        params
+    end
   end
 end
