@@ -69,7 +69,8 @@ const DetailsPanelResize = {
     };
 
     this.onUp = () => {
-      this.width = Number.parseFloat(getComputedStyle(this.el).width);
+      const width = Number.parseFloat(getComputedStyle(this.el).width);
+      if (Number.isFinite(width) && width > 0) this.width = width;
       setStoredWidth(this.width);
       this.teardown();
     };
