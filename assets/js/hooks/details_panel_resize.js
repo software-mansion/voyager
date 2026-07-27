@@ -34,6 +34,12 @@ const DetailsPanelResize = {
   },
 
   updated() {
+    const handle = this.el.querySelector('#details-panel-resize-handle');
+    if (handle && handle !== this.handle) {
+      this.handle?.removeEventListener('pointerdown', this.onPointerDown);
+      this.handle = handle;
+      this.handle.addEventListener('pointerdown', this.onPointerDown);
+    }
     if (!this.dragging) this.apply();
   },
 
@@ -53,7 +59,6 @@ const DetailsPanelResize = {
     this.dragging = true;
     this.el.classList.add('select-none');
     document.body.style.cursor = 'col-resize';
-    this.handle.setPointerCapture(event.pointerId);
 
     const startX = event.clientX;
     const startWidth = this.el.getBoundingClientRect().width;
@@ -63,18 +68,17 @@ const DetailsPanelResize = {
       this.apply();
     };
 
-    this.onUp = (e) => {
-      if (this.handle.hasPointerCapture(e.pointerId)) {
-        this.handle.releasePointerCapture(e.pointerId);
-      }
+    this.onUp = () => {
       this.width = Number.parseFloat(getComputedStyle(this.el).width);
       setStoredWidth(this.width);
       this.teardown();
     };
 
-    this.handle.addEventListener('pointermove', this.onMove);
-    this.handle.addEventListener('pointerup', this.onUp);
-    this.handle.addEventListener('pointercancel', this.onUp);
+    // Document-level listeners so the drag keeps working if the pointer
+    // leaves the thin handle (and so Playwright mouse moves are reliable).
+    document.addEventListener('pointermove', this.onMove);
+    document.addEventListener('pointerup', this.onUp);
+    document.addEventListener('pointercancel', this.onUp);
   },
 
   teardown() {
@@ -82,12 +86,12 @@ const DetailsPanelResize = {
     this.el.classList.remove('select-none');
     document.body.style.cursor = '';
     if (this.onMove) {
-      this.handle?.removeEventListener('pointermove', this.onMove);
+      document.removeEventListener('pointermove', this.onMove);
       this.onMove = null;
     }
     if (this.onUp) {
-      this.handle?.removeEventListener('pointerup', this.onUp);
-      this.handle?.removeEventListener('pointercancel', this.onUp);
+      document.removeEventListener('pointerup', this.onUp);
+      document.removeEventListener('pointercancel', this.onUp);
       this.onUp = null;
     }
   },
