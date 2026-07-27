@@ -187,7 +187,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   defp node_type_label(assigns) do
     node_label = assigns.node_type |> to_string() |> String.capitalize()
-    icon = node_icon(node_label)
+    icon = node_icon(assigns.node_type)
 
     assigns =
       assigns
@@ -202,9 +202,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     """
   end
 
-  defp node_icon(node_label) do
+  defp node_icon(node_type) do
     SupervisionTreeComponents.node_legends()
-    |> Enum.find(fn legend -> legend.name == node_label end)
+    |> Enum.find(fn legend -> legend.type == node_type end)
     |> case do
       %{color_class: color_class, icon_name: icon_name} -> %{color: color_class, icon: icon_name}
       _ -> %{color: "text-base-content", icon: nil}

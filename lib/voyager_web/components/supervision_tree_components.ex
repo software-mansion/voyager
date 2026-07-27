@@ -18,6 +18,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
 
   @node_legends [
     %{
+      type: :app,
       name: "App",
       icon_name: "icon-diamond",
       text:
@@ -27,6 +28,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
       doc_label: "Learn about OTP applications"
     },
     %{
+      type: :supervisor,
       name: "Supervisor",
       icon_name: "icon-square",
       text:
@@ -36,6 +38,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
       doc_label: "See the supervisor behaviour"
     },
     %{
+      type: :worker,
       name: "Worker",
       icon_name: "icon-circle",
       text:
@@ -45,6 +48,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
       doc_label: "See supervisor worker children"
     },
     %{
+      type: :port,
       name: "Port",
       icon_name: "icon-triangle",
       text:
@@ -54,6 +58,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
       doc_label: "Learn about ports"
     },
     %{
+      type: :reference,
       name: "Reference",
       icon_name: "icon-square",
       text:
@@ -105,6 +110,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
 
   @spec node_legends() ::
           list(%{
+            type: atom(),
             name: String.t(),
             icon_name: String.t(),
             text: String.t(),
