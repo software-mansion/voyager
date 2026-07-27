@@ -98,7 +98,7 @@ defmodule VoyagerWeb.ConnectComponents do
             phx-click="disconnect"
             title="Disconnect"
             aria-label="Disconnect"
-            class="btn btn-ghost btn-square btn-xs text-error/75 hover:text-error shrink-0"
+            class="btn btn-ghost btn-square btn-xs text-error/75 shrink-0 hover:text-error"
           >
             <.icon name="icon-power" class="size-3.5" />
           </button>
