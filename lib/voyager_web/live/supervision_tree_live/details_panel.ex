@@ -52,7 +52,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     <aside
       id={@id}
       phx-hook="DetailsPanelResize"
-      aria-hidden={not @open}
       inert={not @open}
       class={[
         "details-panel",
