@@ -214,18 +214,19 @@ export async function refreshed(page: Page, assertion: () => Promise<void>) {
 }
 
 /**
- * Selects a graph node by emitting cytoscape's `oneclick` (the event the
+ * Selects a graph node by emitting cytoscape's `onetap` (the event the
  * SupervisionTree hook listens for). Avoids flaky canvas hit-testing.
  */
 export async function selectNode(page: Page, ref: string) {
   const ok = await page.evaluate((n) => {
-    const cy = (document.getElementById('supervision-tree-body') as any)?._cy as cytoscape.Core;
+    const cy = (document.getElementById('supervision-tree-body') as any)
+      ?._cy as cytoscape.Core;
     if (!cy) return false;
     const hit = cy
       .nodes()
       .filter((x) => x.id() === n || String(x.data('name')) === n);
     if (!hit.length || hit.hasClass('hidden')) return false;
-    hit[0].emit('oneclick');
+    hit[0].emit('onetap');
     return true;
   }, ref);
   expect(ok).toBe(true);
