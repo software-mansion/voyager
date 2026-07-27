@@ -91,6 +91,7 @@ defmodule Voyager.MCP.EndpointManager do
     state =
       case start_endpoint(port, ip) do
         {:ok, pid} ->
+          Voyager.Telemetry.dispatch!("voyager.mcp.start", metadata: %{reason: "boot"})
           monitor_endpoint(state, pid)
 
         {:error, reason} ->
@@ -121,6 +122,7 @@ defmodule Voyager.MCP.EndpointManager do
   def handle_call(:toggle, _from, %{endpoint: pid} = state) when is_pid(pid) do
     stop_endpoint(state)
     new_state = %{state | endpoint: nil, monitor: nil, enabled: false}
+    Voyager.Telemetry.dispatch!("voyager.mcp.stop", metadata: %{reason: "manual toggle"})
     broadcast_status(new_state)
     {:reply, {:ok, :stopped}, new_state}
   end
@@ -132,6 +134,7 @@ defmodule Voyager.MCP.EndpointManager do
     case start_endpoint(port, ip) do
       {:ok, pid} ->
         new_state = %{monitor_endpoint(state, pid) | enabled: true}
+        Voyager.Telemetry.dispatch!("voyager.mcp.start", metadata: %{reason: "manual toggle"})
         broadcast_status(new_state)
         {:reply, {:ok, :running}, new_state}
 
@@ -196,6 +199,7 @@ defmodule Voyager.MCP.EndpointManager do
   def handle_info({:DOWN, ref, :process, pid, reason}, %{monitor: ref, endpoint: pid} = state) do
     Logger.warning("MCP endpoint #{inspect(pid)} went down: #{inspect(reason)}")
     new_state = %{state | endpoint: nil, monitor: nil}
+    Voyager.Telemetry.dispatch!("voyager.mcp.stop", metadata: %{reason: "crash"})
     broadcast_status(new_state)
     {:noreply, new_state}
   end
