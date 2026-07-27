@@ -93,13 +93,21 @@ defmodule Voyager.Services.SupervisionTree.RemoteTest do
   end
 
   describe "process_info_batch/2" do
-    test "returns map with memory and status for mid-supervisor pids", %{node: node} do
+    test "returns map with info for mid-supervisor pids", %{node: node} do
       {:ok, [master]} = Remote.app_masters(node, [:voyager_fixture])
       {:ok, [{root_pid, _}]} = Remote.app_children(node, [master])
       {:ok, children} = Remote.which_children(node, root_pid)
       mid_pids = Enum.map(children, fn {_id, pid, _type, _mods} -> pid end)
 
       assert {:ok, info_map} = Remote.process_info_batch(node, mid_pids)
+
+      Enum.each(mid_pids, fn pid ->
+        assert Map.has_key?(info_map, pid)
+        pinfo = info_map[pid]
+        assert is_map(pinfo)
+      end)
+
+      assert {:ok, info_map} = Remote.process_info_batch(node, mid_pids, include_relations?: true)
 
       Enum.each(mid_pids, fn pid ->
         assert Map.has_key?(info_map, pid)
