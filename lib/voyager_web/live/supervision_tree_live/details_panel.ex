@@ -50,11 +50,12 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   def render(assigns) do
     ~H"""
     <aside
-      id="details-panel"
+      id={@id}
       phx-hook="DetailsPanelResize"
       aria-hidden={not @open}
       inert={not @open}
       class={[
+        "details-panel",
         "border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex w-full flex-col border-l p-2 shadow-2xl transition-transform duration-300 ease-in-out",
         if(@open, do: "translate-x-0", else: "translate-x-full")
       ]}

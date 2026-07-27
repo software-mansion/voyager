@@ -3,12 +3,12 @@
 */
 
 /* Details panel width — set by DetailsPanelResize on #details-panel */
-#details-panel {
+.details-panel {
   --details-panel-width: 320px;
 }
 
 @media (min-width: 1024px) {
-  #details-panel {
+  .details-panel {
     left: auto;
     width: var(--details-panel-width);
     max-width: 100%;
