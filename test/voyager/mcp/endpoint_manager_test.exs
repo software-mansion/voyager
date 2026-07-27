@@ -108,6 +108,67 @@ defmodule Voyager.MCP.EndpointManagerTest do
     end
   end
 
+  describe "telemetry" do
+    @tag skip_mcp: true
+    test "dispatches a start event with reason \"boot\" on successful boot" do
+      parent = self()
+      handler_id = "mcp-telemetry-boot-test-#{System.unique_integer()}"
+
+      :telemetry.attach(
+        handler_id,
+        [:voyager, :mcp, :start],
+        fn _event, _measurements, metadata, _config -> send(parent, metadata) end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      {:ok, _} = Settings.put(:mcp_port, unique_port())
+      start_supervised!({Voyager.MCP, enabled: true})
+
+      assert_receive %{reason: "boot"}
+    end
+
+    test "dispatches start/stop events on toggle" do
+      parent = self()
+      handler_id = "mcp-telemetry-test-#{System.unique_integer()}"
+
+      :telemetry.attach_many(
+        handler_id,
+        [[:voyager, :mcp, :start], [:voyager, :mcp, :stop]],
+        fn event, _measurements, metadata, _config -> send(parent, {event, metadata}) end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      assert {:ok, :stopped} = MCP.toggle()
+      assert_receive {[:voyager, :mcp, :stop], %{reason: "manual toggle"}}
+
+      assert {:ok, :running} = MCP.toggle()
+      assert_receive {[:voyager, :mcp, :start], %{reason: "manual toggle"}}
+    end
+
+    test "dispatches a stop event when the endpoint crashes" do
+      parent = self()
+      handler_id = "mcp-telemetry-crash-test-#{System.unique_integer()}"
+
+      :telemetry.attach(
+        handler_id,
+        [:voyager, :mcp, :stop],
+        fn _event, _measurements, metadata, _config -> send(parent, metadata) end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      %{endpoint: pid} = :sys.get_state(EndpointManager)
+      DynamicSupervisor.terminate_child(Voyager.MCP.DynamicSupervisor, pid)
+
+      assert_receive %{reason: "crash"}
+    end
+  end
+
   describe "status broadcasts" do
     test "broadcasts on toggle", %{mcp_port: port} do
       Phoenix.PubSub.subscribe(Voyager.PubSub, MCP.topic())
