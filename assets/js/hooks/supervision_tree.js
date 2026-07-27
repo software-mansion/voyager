@@ -93,9 +93,9 @@ const SupervisionTree = {
   },
 
   destroyed() {
-    this.tearDownAllOverlays();
-    if (this.layoutTimer) clearTimeout(this.layoutTimer);
-    if (this.overlayTimer) clearTimeout(this.overlayTimer);
+    this.cleanupGraph();
+    this.cleanupOverlay();
+    this.cleanupTooltip();
     if (this.themeObserver) this.themeObserver.disconnect();
     if (this.cy) this.cy.destroy();
     this.el._cy = null;

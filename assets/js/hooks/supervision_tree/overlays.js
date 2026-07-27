@@ -10,12 +10,17 @@ import { toggleIcon } from './styles';
  * mixin (e.g. `this.isCollapsed`, `this.toggleExpandNode`).
  */
 export const overlayMethods = {
-  /** @type {ReturnType<typeof setTimeout> | undefined} */ overlayTimer:
-    undefined,
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  overlayTimer: undefined,
   overlays: new Map(),
 
   initOverlay() {
     this.overlayLayer = this.el.querySelector('[data-cy-overlays]');
+  },
+
+  cleanupOverlay() {
+    this.tearDownAllOverlays();
+    clearTimeout(this.overlayTimer);
   },
 
   scheduleOverlayReconcile() {

@@ -199,6 +199,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
               class="absolute"
               tip_class="max-w-lg! text-sm!"
             >
+              <span class="hidden"></span>
               <:content></:content>
             </.tooltip>
             <div

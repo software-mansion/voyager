@@ -26,6 +26,12 @@ export const tooltipMethods = {
     this.tooltip = document.querySelector('#supervision-tree-node-snippet-tip');
   },
 
+  cleanupTooltip() {
+    clearTimeout(this.openTimer);
+    clearTimeout(this.closeTimer);
+    clearTimeout(this.reconcileTimer);
+  },
+
   scheduleShowTooltip(nodeId) {
     this.nodeId = nodeId;
 
@@ -51,7 +57,7 @@ export const tooltipMethods = {
 
     this.togglingTooltip = true;
 
-    this._closeTimeout = setTimeout(() => {
+    this.closeTimer = setTimeout(() => {
       this.toggleTooltipOpen(false);
       this.togglingTooltip = false;
     }, TOOLTIP_DELAY_MS);
@@ -60,7 +66,7 @@ export const tooltipMethods = {
   reconcileTooltip() {
     clearTimeout(this.reconcileTimer);
     if (this.togglingTooltip) return;
-    this._reconcileTimeout = setTimeout(() => {
+    this.reconcileTimer = setTimeout(() => {
       this.positionTooltip();
     }, TOOLTIP_DELAY_MS);
   },
@@ -80,48 +86,20 @@ export const tooltipMethods = {
     )
       return;
 
-    /**
-     * @param {string} type
-     */
-    function typeColorClass(type) {
-      switch (type) {
-        case 'app':
-          return 'text-primary';
-        case 'supervisor':
-          return 'text-primary';
-        case 'worker':
-          return 'text-secondary';
-        case 'port':
-          return 'text-port';
-        case 'reference':
-          return 'text-success';
-        default:
-          return '';
-      }
-    }
-
-    /**
-     * @param {[string, string, number] | undefined} mfa
-     * @param {string} [label]
-     */
-    function parseMfa(mfa, label = '') {
-      if (!Array.isArray(mfa) || mfa.length !== 3) return '';
-      const [m, f, a] = mfa;
-      return `<li>${label} <span class="text-primary">${m}.${f}/${a}</span></li>`;
-    }
-
     const { name, type, pid, info, app } = node.data();
 
     const displayName = formatName(info?.registered_name) || formatName(name);
 
+    console.log(pid, escapeHtml(pid));
+
     this.tooltip.innerHTML = `
           <ul class="flex font-mono flex-col gap-1 break-all">
-            <li class="${typeColorClass(type)}">${type}</li>
-            <li class="font-semibold my-1">${displayName}</li>
-            ${app ? `<li>app: <span class="font-semibold">${app}</span></li>` : ''}
+            <li class="${typeColorClass(type)}">${escapeHtml(type)}</li>
+            <li class="font-semibold my-1">${escapeHtml(displayName)}</li>
+            ${app ? `<li>app: <span class="font-semibold">${escapeHtml(app)}</span></li>` : ''}
             ${parseMfa(info?.initial_call, 'initial_call:')}
             ${parseMfa(info?.current_function, 'current_function:')}
-            ${pid ? `<li>PID: <span class="font-semibold">${pid}</span></li>` : ''}
+            ${pid ? `<li>PID: <span class="font-semibold">${escapeHtml(pid)}</span></li>` : ''}
           </ul>
         `;
   },
@@ -166,3 +144,42 @@ export const tooltipMethods = {
     this.toggleTooltipOpen(true);
   },
 };
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * @param {string} type
+ */
+function typeColorClass(type) {
+  switch (type) {
+    case 'app':
+      return 'text-primary';
+    case 'supervisor':
+      return 'text-primary';
+    case 'worker':
+      return 'text-secondary';
+    case 'port':
+      return 'text-port';
+    case 'reference':
+      return 'text-success';
+    default:
+      return '';
+  }
+}
+
+/**
+ * @param {[string, string, number] | undefined} mfa
+ * @param {string} [label]
+ */
+function parseMfa(mfa, label = '') {
+  if (!Array.isArray(mfa) || mfa.length !== 3) return '';
+  const [m, f, a] = mfa;
+  return `<li>${escapeHtml(label)} <span class="text-primary">${escapeHtml(m)}.${escapeHtml(f)}/${escapeHtml(a)}</span></li>`;
+}

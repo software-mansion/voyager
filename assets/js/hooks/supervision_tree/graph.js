@@ -34,6 +34,10 @@ export const graphMethods = {
     this.animate = metaEnv?.content !== 'e2e';
   },
 
+  cleanupGraph() {
+    clearTimeout(this.layoutTimer);
+  },
+
   // ---------------------------------------------------------------------------
   // Payload application
   // ---------------------------------------------------------------------------
