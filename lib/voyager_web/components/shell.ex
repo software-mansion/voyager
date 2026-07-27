@@ -360,7 +360,10 @@ defmodule VoyagerWeb.Components.Shell do
       </span>
       <.tooltip id="disconnect-tip" position="bottom">
         <button
+          id="disconnect"
           type="button"
+          title="Disconnect"
+          aria-label="Disconnect"
           phx-click="disconnect"
           class="btn btn-ghost btn-square btn-xs text-error/75 hover:text-error"
         >
