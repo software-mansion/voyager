@@ -165,6 +165,9 @@ defmodule Voyager.MCP.EndpointManagerTest do
       %{endpoint: pid} = :sys.get_state(EndpointManager)
       DynamicSupervisor.terminate_child(Voyager.MCP.DynamicSupervisor, pid)
 
+      # Wait for EndpointManager to handle the Bandit DOWN message and dispatch telemetry.
+      _ = :sys.get_state(EndpointManager)
+
       assert_receive %{reason: "crash"}
     end
   end
