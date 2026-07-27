@@ -59,20 +59,24 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       link_pids: link_pids,
       sup_key: sup_key
     } do
-      # mount + app list + tree walk + ProcessInfo.fetch (process_info + wordsize)
+      # 9 erpc calls: which_applications + app masters (mount), then masters +
+      # root children + root ancestors + which_children batch + process_info
+      # hydrate (walk), then process_info + wordsize (ProcessInfo.fetch)
       expect_supervision_erpc(9, sup_pid, port, link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
-      html = render_async(view)
+      render_async(view)
 
+      # Assertions are scoped to #details-panel: words like "Supervisor" also
+      # appear in the graph legend, so bare `html =~` checks would be vacuous.
       assert has_element?(view, "#details-panel.translate-x-0")
-      assert html =~ "Supervisor"
-      assert html =~ "demo_supervisor"
-      assert html =~ "Overview"
-      assert html =~ "Links"
-      assert html =~ "Memory and Garbage Collection"
-      refute html =~ "This is not a process node"
+      assert has_element?(view, "#details-panel", "Supervisor")
+      assert has_element?(view, "#details-panel", "demo_supervisor")
+      assert has_element?(view, "#details-panel", "Overview")
+      assert has_element?(view, "#details-panel", "Links")
+      assert has_element?(view, "#details-panel", "Memory and Garbage Collection")
+      refute has_element?(view, "#details-panel", "This is not a process node")
     end
 
     test "shows the non-process message for a port", %{
@@ -82,17 +86,24 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       link_pids: link_pids,
       port_key: port_key
     } do
-      # mount + app list + tree walk (port nodes skip ProcessInfo.fetch)
+      # Same 9 calls as the supervisor test minus ProcessInfo.fetch's
+      # process_info + wordsize: port nodes have no pid to inspect.
       expect_supervision_erpc(7, sup_pid, port, link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => port_key})
-      html = render(view)
+      render(view)
 
       assert has_element?(view, "#details-panel.translate-x-0")
-      assert html =~ "Port"
-      assert html =~ "This is not a process node, so no process information is available."
-      refute html =~ "Overview"
+      assert has_element?(view, "#details-panel", "Port")
+
+      assert has_element?(
+               view,
+               "#details-panel",
+               "This is not a process node, so no process information is available."
+             )
+
+      refute has_element?(view, "#details-panel", "Overview")
     end
 
     test "Show More and Show Less toggle truncated links", %{
@@ -103,6 +114,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       sup_key: sup_key,
       twentieth_link: twentieth_link
     } do
+      # Same 9 calls as "renders process details for a supervisor".
       expect_supervision_erpc(9, sup_pid, port, link_pids)
 
       view = open_tree!(conn)
@@ -145,6 +157,10 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
     view
   end
 
+  # Polls until the tree fetch lands. The fetch completes via a raw
+  # `{ref, result}` message from Task.Supervisor.async_nolink to the LiveView,
+  # so `render_async/1` cannot await it — polling is the only synchronization
+  # available here (worst case 50 × 20ms = 1s).
   defp await_tree_ok(view, attempts \\ 50)
 
   defp await_tree_ok(_view, 0), do: flunk("timed out waiting for supervision tree status ok")
