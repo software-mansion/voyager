@@ -18,3 +18,15 @@
 @utility grid-cols-limits {
   grid-template-columns: 1fr auto 1fr auto;
 }
+
+@utility toolbar-btn {
+  width: var(--toolbar-btn-size);
+  height: var(--toolbar-btn-size);
+  min-height: var(--toolbar-btn-size);
+  padding: 0;
+}
+
+@utility toolbar-icon {
+  width: var(--toolbar-icon-size);
+  height: var(--toolbar-icon-size);
+}

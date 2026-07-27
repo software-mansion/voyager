@@ -12,7 +12,10 @@
   --topbar-h: 56px;
   --statusbar-h: 28px;
 
-  /* Toolbar / sidebar sizing — change --toolbar-btn-size to scale compact rail + nav squares */
+  /* Toolbar / sidebar sizing:
+     --toolbar-btn-size  → chrome buttons + compact rail + nav squares (.toolbar-btn)
+     --toolbar-icon-size → chrome + sidebar nav icons (.toolbar-icon)
+     --sidebar-compact-pad → rail padding around the button */
   --toolbar-btn-size: 2.5rem;
   --toolbar-icon-size: 1.5rem;
   --sidebar-compact-pad: 1rem;

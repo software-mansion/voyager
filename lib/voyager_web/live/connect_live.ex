@@ -30,9 +30,9 @@ defmodule VoyagerWeb.ConnectLive do
               id="open-settings"
               href={~p"/settings?#{[return_to: "/"]}"}
               title="Settings"
-              class="btn btn-ghost btn-square btn-m text-base-content/50 ml-auto hover:text-base-content"
+              class="btn btn-ghost btn-square toolbar-btn text-base-content/50 ml-auto hover:text-base-content"
             >
-              <.icon name="icon-settings" class="size-6" />
+              <.icon name="icon-settings" class="toolbar-icon" />
             </.link>
           </div>
           <div class="mb-6">

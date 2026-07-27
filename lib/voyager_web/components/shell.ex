@@ -58,9 +58,9 @@ defmodule VoyagerWeb.Components.Shell do
         href={~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_url)]}"}
         id="open-settings"
         title="Settings"
-        class="btn btn-ghost btn-square btn-m text-base-content/50 hover:text-base-content"
+        class="btn btn-ghost btn-square toolbar-btn text-base-content/50 hover:text-base-content"
       >
-        <.icon name="icon-settings" class="size-6" />
+        <.icon name="icon-settings" class="toolbar-icon" />
       </.link>
     </div>
     """
@@ -197,7 +197,7 @@ defmodule VoyagerWeb.Components.Shell do
           navigate={nav_path(node_path(@session, page.path), @sidebar_mode)}
           label={page.label}
         >
-          <:icon><.icon name={page.icon} class="size-5" /></:icon>
+          <:icon><.icon name={page.icon} class="toolbar-icon" /></:icon>
         </.nav_item>
 
         <div class="border-base-content/10 my-4 border-t"></div>
@@ -210,7 +210,7 @@ defmodule VoyagerWeb.Components.Shell do
           label={page.label}
           coming_soon
         >
-          <:icon><.icon name={page.icon} class="size-5" /></:icon>
+          <:icon><.icon name={page.icon} class="toolbar-icon" /></:icon>
         </.nav_item>
       </ul>
 
@@ -249,11 +249,11 @@ defmodule VoyagerWeb.Components.Shell do
       patch={toggle_sidebar_path(@current_url, mode)}
       aria-label="Toggle sidebar width"
       class={[
-        "btn btn-ghost btn-square btn-m text-base-content/50 hover:text-base-content",
+        "btn btn-ghost btn-square toolbar-btn text-base-content/50 hover:text-base-content",
         visibility
       ]}
     >
-      <.icon name="icon-panel-left" class="size-6" />
+      <.icon name="icon-panel-left" class="toolbar-icon" />
     </.link>
     """
   end
