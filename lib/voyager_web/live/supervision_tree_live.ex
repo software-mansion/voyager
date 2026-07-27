@@ -358,21 +358,12 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     assign(socket, :selected_node, selected_node)
   end
 
-  # Closes panel when the selected node is removed from the tree.
   defp deselect_removed_nodes(socket) do
-    case socket.assigns.selected_node do
-      %{key: key} ->
-        case Map.get(socket.assigns.last_tree_flat, key) do
-          nil ->
-            socket
-            |> assign(:selected_node, nil)
-
-          _ ->
-            socket
-        end
-
-      _ ->
-        socket
+    with %{key: key} <- socket.assigns.selected_node,
+         nil <- Map.get(socket.assigns.last_tree_flat, key) do
+      assign(socket, :selected_node, nil)
+    else
+      _ -> socket
     end
   end
 
