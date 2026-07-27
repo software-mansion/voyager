@@ -117,13 +117,14 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   defp maybe_assign_node(socket, nil), do: assign(socket, :open, false)
 
   defp maybe_assign_node(socket, node) do
-    socket = assign(socket, :open, true)
+    socket =
+      socket
+      |> assign(:open, true)
+      |> assign(:node, node)
+      |> maybe_fetch_node_info(node)
 
     if node_changed?(socket, node) do
-      socket
-      |> assign(:node, node)
-      |> assign(:links_expanded?, false)
-      |> maybe_fetch_node_info(node)
+      assign(socket, :links_expanded?, false)
     else
       socket
     end
