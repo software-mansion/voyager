@@ -422,17 +422,15 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     """
   end
 
-  @doc false
-  def format_mfa({mod, fun, arity}), do: "#{inspect(mod)}.#{fun}/#{arity}"
+  defp format_mfa({mod, fun, arity}), do: "#{inspect(mod)}.#{fun}/#{arity}"
+  defp format_mfa(mfa), do: inspect(mfa)
 
-  @doc false
-  def format_registered_name(nil), do: "—"
-  def format_registered_name(name) when is_atom(name), do: inspect(name)
+  defp format_registered_name(nil), do: "—"
+  defp format_registered_name(name) when is_atom(name), do: inspect(name)
 
-  @doc false
-  def format_binary([]), do: "[]"
+  defp format_binary([]), do: "[]"
 
-  def format_binary(binaries) when is_list(binaries) do
+  defp format_binary(binaries) when is_list(binaries) do
     total_bytes =
       Enum.reduce(binaries, 0, fn
         {_id, size, _refs}, acc when is_integer(size) -> acc + size
@@ -442,29 +440,27 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     "#{length(binaries)} (#{Formatters.format_bytes(total_bytes)})"
   end
 
-  @doc false
-  def format_last_calls(false), do: "false"
-  def format_last_calls([]), do: "[]"
+  defp format_last_calls(false), do: "false"
+  defp format_last_calls([]), do: "[]"
 
-  def format_last_calls(calls) when is_list(calls),
+  defp format_last_calls(calls) when is_list(calls),
     do: Enum.map_join(calls, ", ", &format_mfa/1)
 
-  @doc false
-  def format_sequential_trace_token(nil), do: "—"
-  def format_sequential_trace_token(token), do: inspect(token)
+  defp format_last_calls(calls), do: inspect(calls)
 
-  @doc false
-  def format_count(nil), do: "—"
-  def format_count(n) when is_integer(n), do: Formatters.format_integer(n)
+  defp format_sequential_trace_token(nil), do: "—"
+  defp format_sequential_trace_token(token), do: inspect(token)
 
-  @doc false
-  def format_identifier(pid) when is_pid(pid),
+  defp format_count(nil), do: "—"
+  defp format_count(n) when is_integer(n), do: Formatters.format_integer(n)
+
+  defp format_identifier(pid) when is_pid(pid),
     do: pid |> :erlang.pid_to_list() |> List.to_string()
 
-  def format_identifier(port) when is_port(port),
+  defp format_identifier(port) when is_port(port),
     do: port |> :erlang.port_to_list() |> List.to_string()
 
-  def format_identifier(other), do: inspect(other)
+  defp format_identifier(other), do: inspect(other)
 
   defp node_icon(node_type) do
     SupervisionTreeComponents.node_legends()
