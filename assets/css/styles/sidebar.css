@@ -26,6 +26,10 @@
   justify-content: center;
 }
 
+#app-sidebar.mode-full #mcp-status {
+  margin-left: 0.5rem;
+}
+
 @media (max-width: 1023.98px) {
   #app-sidebar:not(.mode-full) .sidebar-label,
   #app-sidebar:not(.mode-full) .sidebar-badge,
@@ -44,6 +48,10 @@
     margin-inline: auto;
     display: flex;
     align-items: center;
+    justify-content: center;
+  }
+
+  #app-sidebar:not(.mode-full) .sidebar-nav-row > * {
     justify-content: center;
   }
 }

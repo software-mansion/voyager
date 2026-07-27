@@ -174,6 +174,7 @@ defmodule VoyagerWeb.CoreComponents do
   attr :target, :string, required: true, doc: "CSS selector for the element whose text is copied"
   attr :label, :string, default: "Copy"
   attr :copied_label, :string, default: "Copied"
+  attr :icon_only, :boolean, default: false, doc: "hides the visible label"
   attr :class, :any, default: nil
   attr :rest, :global
 
@@ -189,11 +190,11 @@ defmodule VoyagerWeb.CoreComponents do
       data-copy-copied-label={@copied_label}
       title={@label}
       aria-label={@label}
-      class={["btn btn-sm btn-ghost gap-2", @class]}
+      class={["btn btn-sm btn-ghost", if(@icon_only, do: "btn-square", else: "gap-2"), @class]}
       {@rest}
     >
       <.icon name="icon-copy" class="size-4" />
-      <span data-copy-button-label>{@label}</span>
+      <span data-copy-button-label class={@icon_only && "sr-only"}>{@label}</span>
       <span class="sr-only" aria-live="polite" data-copy-status></span>
     </button>
 
