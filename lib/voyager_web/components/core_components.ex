@@ -701,24 +701,28 @@ defmodule VoyagerWeb.CoreComponents do
 
   attr(:rest, :global)
 
+  slot(:right)
   slot(:label, required: true)
   slot(:inner_block, required: true)
 
   def collapsible(assigns) do
     ~H"""
     <div class={["block" | List.wrap(@class)]}>
-      <button
-        type="button"
-        aria-expanded={@open}
-        class={["flex w-full cursor-pointer items-center" | List.wrap(@label_class)]}
-        {@rest}
-      >
-        <.icon
-          name="icon-chevron-right"
-          class={["shrink-0", if(@open, do: "rotate-90") | List.wrap(@chevron_class)]}
-        />
-        {render_slot(@label, @open)}
-      </button>
+      <div class="flex">
+        <button
+          type="button"
+          aria-expanded={@open}
+          class={["flex w-full cursor-pointer items-center" | List.wrap(@label_class)]}
+          {@rest}
+        >
+          <.icon
+            name="icon-chevron-right"
+            class={["shrink-0", if(@open, do: "rotate-90") | List.wrap(@chevron_class)]}
+          />
+          {render_slot(@label, @open)}
+        </button>
+        {render_slot(@right, @open)}
+      </div>
       <div class={if not @open, do: "hidden"}>
         {render_slot(@inner_block)}
       </div>
