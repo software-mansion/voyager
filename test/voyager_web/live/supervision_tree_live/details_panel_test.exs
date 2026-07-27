@@ -149,6 +149,31 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       refute has_element?(view, "#details-panel", twentieth_link)
     end
 
+    test "caps the expanded link list", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      sup_key: sup_key
+    } do
+      # 205 links: expanding renders the first 200 and reports the rest as
+      # overflow rather than emitting a chip per link.
+      link_pids = for n <- 1..205, do: :erlang.list_to_pid(~c"<0.#{200 + n}.0>")
+      last_link = link_pids |> List.last() |> pid_key()
+
+      # Same 9 calls as "renders process details for a supervisor".
+      expect_supervision_erpc(9, sup_pid, [port], link_pids)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      view |> element("#details-panel-toggle-links") |> render_click()
+
+      assert has_element?(view, "#details-panel-toggle-links", "Show Less")
+      assert has_element?(view, "#details-panel", "+5 more")
+      refute has_element?(view, "#details-panel", last_link)
+    end
+
     test "refresh button re-fetches process information", %{
       conn: conn,
       sup_pid: sup_pid,

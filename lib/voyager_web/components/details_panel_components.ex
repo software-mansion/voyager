@@ -12,6 +12,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   alias VoyagerWeb.Formatters
 
   @max_links 12
+  @max_expanded_links 200
 
   attr :open, :boolean, required: true
 
@@ -186,10 +187,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :myself, :any, required: true
 
   def links(assigns) do
-    assigns =
-      assigns
-      |> assign(:links_count, links_count(assigns.info))
-      |> assign(:max_links, @max_links)
+    assigns = assign(assigns, :links_count, links_count(assigns.info))
 
     ~H"""
     <.section title="Links" muted={@links_count}>
@@ -204,12 +202,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         <:failed>
           <.load_error />
         </:failed>
-        <.links_list
-          links={Enum.map(info.links, &format_identifier/1)}
-          links_expanded?={@links_expanded?}
-          max_links={@max_links}
-          myself={@myself}
-        />
+        <.links_list links={info.links} links_expanded?={@links_expanded?} myself={@myself} />
       </.async_result>
     </.section>
     """
@@ -391,23 +384,29 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :links, :list, required: true
   attr :links_expanded?, :boolean, required: true
-  attr :max_links, :integer, required: true
   attr :myself, :any, required: true
 
   def links_list(assigns) do
+    total = length(assigns.links)
+    limit = if assigns.links_expanded?, do: @max_expanded_links, else: @max_links
+
     assigns =
       assigns
-      |> assign(
-        :visible_links,
-        visible_links(assigns.links, assigns.links_expanded?, assigns.max_links)
-      )
-      |> assign(:toggle?, length(assigns.links) > assigns.max_links)
+      |> assign(:visible_links, format_links(assigns.links, limit))
+      |> assign(:toggle?, total > @max_links)
+      |> assign(:overflow_count, max(total - limit, 0))
 
     ~H"""
     <div class="flex flex-col gap-2">
       <div class="flex flex-wrap gap-1.5">
         <.chip :for={pid <- @visible_links} pid={pid} />
       </div>
+      <p
+        :if={@links_expanded? and @overflow_count > 0}
+        class="font-mono text-base-content/50 self-center text-xs"
+      >
+        +{Formatters.format_integer(@overflow_count)} more
+      </p>
       <button
         :if={@toggle?}
         type="button"
@@ -478,8 +477,13 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp node_pid_string(%TreeNode{pid: pid}) when is_pid(pid), do: inspect(pid)
   defp node_pid_string(_), do: nil
 
-  defp visible_links(links, true, _max_links), do: links
-  defp visible_links(links, false, max_links), do: Enum.take(links, max_links)
+  # Formats only the slice that gets rendered: a process can hold thousands of
+  # links and every chip lands in the LiveView diff.
+  defp format_links(links, limit) do
+    links
+    |> Enum.take(limit)
+    |> Enum.map(&format_identifier/1)
+  end
 
   defp links_count(%AsyncResult{ok?: true, result: %{links: links}}), do: "(#{length(links)})"
   defp links_count(_), do: nil
