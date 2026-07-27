@@ -87,7 +87,7 @@ defmodule Voyager.Services.ProcessInfo do
 
   defp build(raw, word_size) when is_list(raw) do
     info = Map.new(raw)
-    gc = info.garbage_collection
+    gc = Map.get(info, :garbage_collection, [])
 
     try do
       {:ok,
