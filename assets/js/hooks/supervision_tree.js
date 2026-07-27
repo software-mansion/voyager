@@ -10,10 +10,10 @@ import {
 import { buildStyle, toggleIcon, getColor } from './supervision_tree/styles';
 import {
   elementsFor,
+  edgeElement,
   relEdgeElement,
   composeLabel,
   formatName,
-  edgeId,
   isRealPid,
   overlayButtonIntersectsExtent,
   initialIsCollapsedState,
@@ -44,6 +44,10 @@ const SupervisionTree = {
     // Test handle: lets e2e tests inspect graph state via page.evaluate.
     this.el._cy = this.cy;
 
+    /** @type {HTMLMetaElement | null} */
+    const metaEnv = document.querySelector('meta[name="env"]');
+
+    this.animate = metaEnv?.content !== 'e2e';
     this.layoutTimer = null;
     this.overlayTimer = null;
     this.overlays = new Map();
@@ -52,7 +56,7 @@ const SupervisionTree = {
     this.selectedEdgeId = null;
     this.selectedPath = null;
 
-    this.cy.on('oneclick', 'node', (event) => {
+    this.cy.on('onetap', 'node', (event) => {
       if (this.disabledClick) return;
       this.applyEdgeHighlight(null);
       this.pushEventTo(this.el, 'select-node', { key: event.target.id() });
@@ -61,7 +65,7 @@ const SupervisionTree = {
       if (this.disabledClick) return;
       this.selectEdge(event.target);
     });
-    this.cy.on('dblclick', 'node', (event) => {
+    this.cy.on('dbltap', 'node', (event) => {
       if (this.disabledClick) return;
       this.toggleExpandNode(event.target);
     });
@@ -127,6 +131,7 @@ const SupervisionTree = {
    *
    * @typedef {Object} Patch
    * @property {string} name
+   * @property {string|null} parent_key
    * @property {'app'|'supervisor'|'worker'|'port'|'reference'} type
    * @property {number} child_count
    * @property {Info|'dead'|null} info
@@ -231,12 +236,11 @@ const SupervisionTree = {
               .connectedEdges(`[source = "${parent_key}"][target = "${key}"]`)
               .remove();
 
-            if (value) {
-              this.cy.add({
-                group: 'edges',
-                data: { id: edgeId(value, key), source: value, target: key },
-              });
+            if (patch.parent_key) {
+              this.cy.add(edgeElement(patch.parent_key, key));
             }
+
+            node.data('is_from_relation', patch.parent_key === null);
           }
 
           node.data(field, value);
@@ -266,12 +270,14 @@ const SupervisionTree = {
 
       // Relationship edge additions — guard that both endpoints exist (their
       // rel-node additions were applied earlier in this batch).
+      const edgesAddBatch = [];
       for (const edge of Object.values(edgesAdded)) {
         if (this.cy.getElementById(edge.id).nonempty()) continue;
         const source = this.cy.getElementById(edge.source);
         const target = this.cy.getElementById(edge.target);
         if (source.nonempty() && target.nonempty()) {
-          this.cy.add(relEdgeElement(edge));
+          edgesAddBatch.push(relEdgeElement(edge));
+          topologyChangeCounter++;
           source.data('hidden_count', 0);
           target.data('hidden_count', 0);
           source.removeClass('hidden');
@@ -282,6 +288,7 @@ const SupervisionTree = {
           );
         }
       }
+      this.cy.add(edgesAddBatch);
     });
 
     if (topologyChangeCounter > 4 && payload.request_type !== 'toggle_expand') {
@@ -306,7 +313,7 @@ const SupervisionTree = {
       edgeSep: 8,
       rankSep: 180,
       spacingFactor: 1.3,
-      animate: true,
+      animate: this.animate,
       animationDuration: 280,
       animationEasing: 'ease-out',
       fit,
@@ -534,7 +541,9 @@ const SupervisionTree = {
 
     const bumpHiddenCount = (ele, delta) => {
       const current = ele.data('hidden_count') ?? 0;
-      ele.data('hidden_count', Math.max(current + delta, 0));
+      const next = Math.max(current + delta, 0);
+      ele.data('hidden_count', next);
+      return next;
     };
 
     this.cy.batch(() => {
@@ -542,34 +551,34 @@ const SupervisionTree = {
         // Expand: decrement the hidden_count of every successor, then reveal
         // those no longer hidden by any other collapsed ancestor.
         node.data('is_collapsed', false);
-        node.successors().forEach((ele) => bumpHiddenCount(ele, -1));
-        node.successors('[hidden_count = 0]').removeClass('hidden');
+
+        this.getSupervisionSuccessors(node).forEach((ele) => {
+          if (bumpHiddenCount(ele, -1) == 0) {
+            ele.removeClass('hidden');
+          }
+        });
+
+        this.getRelationsSuccessors(node).forEach((ele) => {
+          if (bumpHiddenCount(ele, -1) == 0) {
+            ele.removeClass('hidden');
+          }
+        });
       } else {
         // Collapse: hide tree successors outright.
         node.data('is_collapsed', true);
 
-        const treeSuccessors = node.successors('[!is_from_relation]');
+        this.getSupervisionSuccessors(node).forEach((ele) => {
+          bumpHiddenCount(ele, 1);
+          ele.addClass('hidden');
+        });
 
-        treeSuccessors
-          .filter((ele) => {
-            const incomers = ele.incomers('node');
-            return treeSuccessors.contains(incomers) || incomers.contains(node);
-          })
-          .forEach((ele) => {
-            bumpHiddenCount(ele, 1);
-            ele.addClass('hidden');
-          });
+        // Hide relation successors only once all they have no visible incoming nodes.
+        this.getRelationsSuccessors(node).forEach((ele) => {
+          const visibleConnectedNodes = ele
+            .incomers('node')
+            .difference('.hidden');
 
-        // Hide relation successors only once all of their edges are hidden.
-        node.successors('[?is_from_relation]').forEach((ele) => {
-          const connectedEdges = this.cy
-            .elements('edge[target="' + ele.id() + '"]')
-            .union(this.cy.elements('edge[source="' + ele.id() + '"]'));
-
-          const visibleEdges =
-            connectedEdges.length - connectedEdges.edges('.hidden').length;
-
-          if (visibleEdges == 0) {
+          if (visibleConnectedNodes.length == 0) {
             bumpHiddenCount(ele, 1);
             ele.addClass('hidden');
           }
@@ -578,6 +587,39 @@ const SupervisionTree = {
     });
 
     this.scheduleLayout();
+  },
+
+  /**
+   * Fetches strict supervision tree successors (nodes) of a given node.
+   * Omits graph successor branches created by additional process relations (custom link, monitor, monitored_by)
+   */
+  getSupervisionSuccessors(node) {
+    const treeSuccessors = node
+      .successors('[!is_from_relation]')
+      .union(node)
+      .difference('edge[kind!="supervision-link"]')
+      .components()
+      .filter((eles) => eles.contains(node))[0]
+      .nodes();
+
+    // Filter out nodes that have supervision parents outside of collapsing node successors (other applications tree)
+    return treeSuccessors.filter((ele) => {
+      const sources = ele
+        .connectedEdges(`[target="${ele.id()}"][kind="supervision-link"]`)
+        .sources();
+
+      if (sources.length == 0) return false;
+
+      return treeSuccessors.contains(sources);
+    });
+  },
+
+  /**
+   * Fetches tree successors (nodes) of a given node that are not strict part of a supervision tree
+   * but created by additional relations (custom link, monitor, monitored_by).
+   */
+  getRelationsSuccessors(node) {
+    return node.successors('node[?is_from_relation]');
   },
 
   zoomBy(factor) {

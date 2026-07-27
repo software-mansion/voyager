@@ -84,7 +84,13 @@ defmodule Voyager.Fakes do
     # Application versions (nil => app not installed)
     stdlib_version: "5.2",
     elixir_version: "1.18.0",
-    gleam_version: nil
+    gleam_version: nil,
+    # Running applications: {name, description, version}
+    applications: [
+      {:kernel, "ERTS  CXC 138 10", "9.2"},
+      {:stdlib, "ERTS  CXC 138 10", "5.2"}
+    ],
+    application_masters: %{kernel: true, stdlib: false}
   }
 
   @doc """
@@ -102,7 +108,14 @@ defmodule Voyager.Fakes do
   `node_data/1`) and dispatched on the module/function and arguments the
   `Voyager.Services.NodeInfo` collector issues.
   """
-  def erpc_reply(:lists, :map, [_fun, keys], data), do: Enum.map(keys, &system_value(&1, data))
+  def erpc_reply(:lists, :map, [fun, list], data) do
+    if fun == (&:application_controller.get_master/1) do
+      Enum.map(list, &application_master_reply(&1, data))
+    else
+      Enum.map(list, &system_value(&1, data))
+    end
+  end
+
   def erpc_reply(:erlang, :memory, [], data), do: memory_kw(data)
 
   def erpc_reply(:application, :get_key, [:stdlib, :vsn], data),
@@ -115,6 +128,12 @@ defmodule Voyager.Fakes do
     do: version_reply(data.gleam_version)
 
   def erpc_reply(:application, :get_key, [_app, :vsn], _data), do: :undefined
+
+  def erpc_reply(:application, :which_applications, [], data) do
+    Enum.map(data.applications, fn {name, desc, vsn} ->
+      {name, to_charlist(desc), to_charlist(vsn)}
+    end)
+  end
 
   # Mirrors what :erlang.system_info/1 and :erlang.statistics/1 return per key.
   defp system_value(:otp_release, d), do: to_charlist(d.otp_release)
@@ -151,6 +170,12 @@ defmodule Voyager.Fakes do
       code: d.mem_code,
       ets: d.mem_ets
     ]
+  end
+
+  defp application_master_reply(app_name, data) do
+    if Map.get(data.application_masters, app_name, true),
+      do: :mock_application_master,
+      else: :undefined
   end
 
   defp version_reply(nil), do: :undefined

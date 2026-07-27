@@ -25,7 +25,8 @@ defmodule Voyager.Services.SupervisionTree.FetchTest do
           node: node,
           apps: [:voyager_fixture],
           depth: 2,
-          expanded: MapSet.new()
+          expanded: MapSet.new(),
+          include_relations?: false
         })
 
       assert_receive {ref, {status, result, _errors}}, 2_000
@@ -44,7 +45,8 @@ defmodule Voyager.Services.SupervisionTree.FetchTest do
           node: node,
           apps: [:voyager_fixture],
           depth: 2,
-          expanded: MapSet.new()
+          expanded: MapSet.new(),
+          include_relations?: false
         })
 
       :ok = Fetch.cancel(task)
@@ -61,7 +63,8 @@ defmodule Voyager.Services.SupervisionTree.FetchTest do
           node: node,
           apps: [:voyager_fixture],
           depth: 2,
-          expanded: MapSet.new()
+          expanded: MapSet.new(),
+          include_relations?: false
         })
 
       # Wait for the task to finish so it is no longer a supervisor child.
@@ -78,7 +81,8 @@ defmodule Voyager.Services.SupervisionTree.FetchTest do
           node: node,
           apps: [:voyager_fixture],
           depth: 10,
-          expanded: MapSet.new()
+          expanded: MapSet.new(),
+          include_relations?: false
         })
 
       :ok = Fetch.cancel(task)
@@ -98,7 +102,8 @@ defmodule Voyager.Services.SupervisionTree.FetchTest do
           node: node,
           apps: [:voyager_fixture],
           depth: 2,
-          expanded: MapSet.new()
+          expanded: MapSet.new(),
+          include_relations?: false
         })
 
       Process.exit(task.pid, :kill)
