@@ -305,7 +305,7 @@ defmodule VoyagerWeb.CoreComponents do
 
   def logo(assigns) do
     ~H"""
-    <.icon name="icon-logo-voyager" class="text-logo" />
+    <.icon name="icon-logo-voyager" class={["text-logo", @class]} />
     """
   end
 
