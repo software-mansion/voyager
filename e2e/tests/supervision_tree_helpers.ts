@@ -137,3 +137,88 @@ export async function refreshed(page: Page, assertion: () => Promise<void>) {
   await page.locator(sel.stRefresh).click();
   await expect(assertion).toPass({ timeout: 2_000 });
 }
+
+/**
+ * Selects a graph node by emitting cytoscape's `oneclick` (the event the
+ * SupervisionTree hook listens for). Avoids flaky canvas hit-testing.
+ */
+export async function selectNode(page: Page, ref: string) {
+  const ok = await page.evaluate((n) => {
+    const cy = (document.getElementById('supervision-tree-body') as any)?._cy as Cytoscape.Core;
+    if (!cy) return false;
+    const hit = cy
+      .nodes()
+      .filter((x: any) => x.id() === n || String(x.data('name')) === n);
+    if (!hit.length || hit.hasClass('hidden')) return false;
+    hit[0].emit('oneclick');
+    return true;
+  }, ref);
+  expect(ok).toBe(true);
+}
+
+/**
+ * Clears the current selection by emitting a background `tap` on the cytoscape
+ * core, which pushes `select-node` with `{ key: '' }` and closes DetailsPanel.
+ */
+export async function clearSelection(page: Page) {
+  const ok = await page.evaluate(() => {
+    const cy = (document.getElementById('supervision-tree-body') as any)?._cy;
+    if (!cy) return false;
+    cy.emit('tap');
+    return true;
+  });
+  expect(ok).toBe(true);
+}
+
+/** Computed pixel width of `#details-panel`. */
+export function detailsPanelWidth(page: Page): Promise<number> {
+  return page
+    .locator('#details-panel')
+    .evaluate((el) => el.getBoundingClientRect().width);
+}
+
+/** CSS `--details-panel-width` in px (what DetailsPanelResize writes). */
+export function detailsPanelCssWidth(page: Page): Promise<number> {
+  return page
+    .locator('#details-panel')
+    .evaluate((el) =>
+      Number.parseFloat(
+        getComputedStyle(el).getPropertyValue('--details-panel-width')
+      )
+    );
+}
+
+/**
+ * Drags the details panel resize handle left by `deltaPx` (grows the panel).
+ * Uses PointerEvents so the hook's document-level move listeners fire reliably.
+ */
+export async function resizeDetailsPanel(page: Page, deltaPx: number) {
+  await page.evaluate((delta) => {
+    const handle = document.getElementById('details-panel-resize-handle');
+    if (!handle) throw new Error('resize handle missing');
+
+    const rect = handle.getBoundingClientRect();
+    const startX = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+
+    const fire = (target: EventTarget, type: string, clientX: number) => {
+      target.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          clientX,
+          clientY: y,
+          button: 0,
+          buttons: type === 'pointerup' || type === 'pointercancel' ? 0 : 1,
+          pointerId: 1,
+          pointerType: 'mouse',
+          isPrimary: true,
+        })
+      );
+    };
+
+    fire(handle, 'pointerdown', startX);
+    fire(document, 'pointermove', startX - delta);
+    fire(document, 'pointerup', startX - delta);
+  }, deltaPx);
+}
