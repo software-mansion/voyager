@@ -4,19 +4,23 @@ defmodule Voyager.NodeSession do
   """
 
   use GenServer
-  alias Voyager.Services.NodeConnector
+
+  alias Voyager.NodeSession.Connectors.Distribution
+
+  @default_connector Distribution
 
   defmodule Session do
     @moduledoc "Holds state for an active connection to a remote BEAM node."
-
     @type t :: %__MODULE__{
             node: atom(),
             node_name: String.t(),
             cookie: String.t(),
-            connected_at: DateTime.t()
+            connected_at: DateTime.t(),
+            connector: module(),
+            meta: map()
           }
 
-    defstruct [:node, :node_name, :cookie, :connected_at]
+    defstruct [:node, :node_name, :cookie, :connected_at, connector: Distribution, meta: %{}]
   end
 
   @pubsub_topic "node_session"
@@ -25,9 +29,16 @@ defmodule Voyager.NodeSession do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
   end
 
+  @doc "Connects via the default distribution connector."
   @spec connect(String.t(), String.t(), keyword()) :: :ok | {:error, term()}
   def connect(node_name, cookie, opts \\ []) do
-    GenServer.call(__MODULE__, {:connect, node_name, cookie, opts}, 15_000)
+    connect_via(@default_connector, node_name, cookie, opts)
+  end
+
+  @doc "Connects using an explicit `Voyager.NodeSession.Connector` module."
+  @spec connect_via(module(), String.t(), String.t(), keyword()) :: :ok | {:error, term()}
+  def connect_via(connector, node_name, cookie, opts \\ []) do
+    GenServer.call(__MODULE__, {:connect, connector, node_name, cookie, opts}, 30_000)
   end
 
   @spec disconnect() :: :ok | {:error, :not_connected}
@@ -53,27 +64,32 @@ defmodule Voyager.NodeSession do
   end
 
   @impl GenServer
-  def handle_call({:connect, _node_name, _cookie, _opts}, _from, %{session: session} = state)
+  def handle_call(
+        {:connect, _connector, _node_name, _cookie, _opts},
+        _from,
+        %{session: session} = state
+      )
       when not is_nil(session) do
     {:reply, {:error, :already_connected}, state}
   end
 
-  def handle_call({:connect, node_name, cookie, opts}, _from, %{session: nil} = state) do
-    name_type = Keyword.get(opts, :name_type, :longnames)
-
-    case NodeConnector.connect(node_name, cookie, name_type: name_type) do
-      {:ok, node} ->
-        Node.monitor(node, true)
+  def handle_call({:connect, connector, node_name, cookie, opts}, _from, %{session: nil} = state) do
+    case safe_connect(connector, node_name, cookie, opts) do
+      {:ok, node, meta} ->
+        if Node.alive?(), do: Node.monitor(node, true)
+        subscribe(connector)
 
         session = %Session{
           node: node,
           node_name: node_name,
           cookie: cookie,
-          connected_at: DateTime.utc_now()
+          connected_at: DateTime.utc_now(),
+          connector: connector,
+          meta: meta
         }
 
         broadcast({:node_connected, node})
-        Voyager.Telemetry.dispatch!("voyager.node.connect")
+        Voyager.Telemetry.dispatch!("voyager.node.connect", metadata: %{via: connector.name()})
         {:reply, :ok, %{state | session: session}}
 
       {:error, _} = err ->
@@ -86,8 +102,9 @@ defmodule Voyager.NodeSession do
   end
 
   def handle_call(:disconnect, _from, %{session: session} = state) do
-    Node.monitor(session.node, false)
-    NodeConnector.disconnect(session.node)
+    if Node.alive?(), do: Node.monitor(session.node, false)
+    session.connector.disconnect(session.node, session.meta)
+    unsubscribe(session.connector)
     broadcast({:node_disconnected, session.node})
 
     Voyager.Telemetry.dispatch!("voyager.node.disconnect",
@@ -106,16 +123,47 @@ defmodule Voyager.NodeSession do
   end
 
   @impl GenServer
-  def handle_info({:nodedown, node}, %{session: %Session{node: session_node}} = state)
+  def handle_info({:nodedown, node}, %{session: %Session{node: session_node} = session} = state)
       when node == session_node do
-    Node.monitor(node, false)
-    broadcast({:nodedown, node})
-    Voyager.Telemetry.dispatch!("voyager.node.disconnect", metadata: %{reason: "node down"})
-    {:noreply, %{state | session: nil}}
+    if Node.alive?(), do: Node.monitor(session.node, false)
+    session.connector.disconnect(session.node, session.meta)
+    drop_session(state, session, "node down")
+  end
+
+  def handle_info(msg, %{session: %Session{connector: connector, meta: meta} = session} = state) do
+    if connector.teardown?(msg, meta) do
+      if Node.alive?(), do: Node.monitor(session.node, false)
+      drop_session(state, session, "transport down")
+    else
+      {:noreply, state}
+    end
   end
 
   def handle_info(_msg, state) do
     {:noreply, state}
+  end
+
+  defp drop_session(state, session, reason) do
+    unsubscribe(session.connector)
+    broadcast({:nodedown, session.node})
+    Voyager.Telemetry.dispatch!("voyager.node.disconnect", metadata: %{reason: reason})
+    {:noreply, %{state | session: nil}}
+  end
+
+  defp safe_connect(connector, node_name, cookie, opts) do
+    connector.connect(node_name, cookie, opts)
+  rescue
+    error -> {:error, {:connector_crashed, error}}
+  catch
+    kind, reason -> {:error, {:connector_crashed, {kind, reason}}}
+  end
+
+  defp subscribe(connector) do
+    Enum.each(connector.subscriptions(), &Phoenix.PubSub.subscribe(Voyager.PubSub, &1))
+  end
+
+  defp unsubscribe(connector) do
+    Enum.each(connector.subscriptions(), &Phoenix.PubSub.unsubscribe(Voyager.PubSub, &1))
   end
 
   defp broadcast(event) do
