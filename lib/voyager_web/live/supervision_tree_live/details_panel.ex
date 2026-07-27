@@ -175,7 +175,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
         @open && "lg:flex"
       ]}
     >
-      <span class="w-0.75 absolute inset-y-0 left-1/2 -translate-x-1/2 transition-colors group-hover:bg-primary/50" />
+      <span class="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 transition-colors group-hover:bg-primary/50" />
       <span class="bg-primary/50 relative z-50 flex h-10 w-1 shrink-0 flex-col items-center justify-center gap-0.5 rounded-full transition-colors group-hover:hidden">
         <span :for={_ <- 1..3} class="size-0.5 bg-base-100 rounded-full" />
       </span>
