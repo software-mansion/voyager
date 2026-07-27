@@ -215,7 +215,14 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       # port only appears in the tree via that link, so dropping it on refresh
       # removes the selected key and must close the panel.
       {:ok, linked} = Agent.start_link(fn -> [port] end)
-      on_exit(fn -> if Process.alive?(linked), do: Agent.stop(linked) end)
+
+      on_exit(fn ->
+        try do
+          Agent.stop(linked)
+        catch
+          :exit, _ -> :ok
+        end
+      end)
 
       stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args, _timeout ->
         supervision_reply(mod, fun, args, sup_pid, Agent.get(linked, & &1), link_pids)
