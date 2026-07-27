@@ -147,7 +147,8 @@ defmodule VoyagerWeb.Components.Shell do
               <.copy_button
                 id="mcp-status-copy"
                 target="#mcp-status-url"
-                class="btn-xs shrink-0"
+                icon_only
+                class="btn-xs text-base-content/50 shrink-0 hover:text-base-content"
               />
             </div>
           </div>
