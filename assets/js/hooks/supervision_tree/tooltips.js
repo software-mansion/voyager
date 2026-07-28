@@ -30,6 +30,9 @@ export const tooltipMethods = {
     clearTimeout(this.openTimer);
     clearTimeout(this.closeTimer);
     clearTimeout(this.reconcileTimer);
+    clearTimeout(this.positionTimer);
+    this.nodeId = null;
+    this.toggleTooltipOpen(false);
   },
 
   scheduleShowTooltip(nodeId) {
@@ -42,7 +45,7 @@ export const tooltipMethods = {
 
     this.openTimer = setTimeout(() => {
       this.fillTooltip();
-      setTimeout(() => {
+      this.positionTimer = setTimeout(() => {
         this.positionTooltip();
         this.togglingTooltip = false;
       });
@@ -83,14 +86,14 @@ export const tooltipMethods = {
       node.empty() ||
       node.hasClass('hidden') ||
       this.cy.zoom() < OVERLAY_MIN_ZOOM
-    )
+    ) {
+      this.toggleTooltipOpen(false);
       return;
+    }
 
     const { name, type, pid, info, app } = node.data();
 
     const displayName = formatName(info?.registered_name) || formatName(name);
-
-    console.log(pid, escapeHtml(pid));
 
     this.tooltip.innerHTML = `
           <ul class="flex font-mono flex-col gap-1 break-all">

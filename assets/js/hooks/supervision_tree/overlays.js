@@ -12,9 +12,9 @@ import { toggleIcon } from './styles';
 export const overlayMethods = {
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   overlayTimer: undefined,
-  overlays: new Map(),
 
   initOverlay() {
+    this.overlays = new Map();
     this.overlayLayer = this.el.querySelector('[data-cy-overlays]');
   },
 

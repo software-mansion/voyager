@@ -194,14 +194,17 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
             phx-update="ignore"
             class="bg-base-100 relative h-full overflow-hidden rounded-lg"
           >
-            <.tooltip
-              id="supervision-tree-node-snippet"
-              class="absolute"
-              tip_class="max-w-lg! text-sm!"
-            >
-              <span class="hidden"></span>
-              <:content></:content>
-            </.tooltip>
+            <.portal id="supervision-tree-node-snippet-portal" target="#tooltip-portal-root">
+              <div
+                id="supervision-tree-node-snippet-tip"
+                role="tooltip"
+                class={[
+                  "tooltip-pop bg-base-100 text-base-content rounded-box max-w-lg px-3 py-2",
+                  "ring-base-content/15 text-sm leading-relaxed shadow-lg ring-1"
+                ]}
+              >
+              </div>
+            </.portal>
             <div
               data-cy-container
               class="absolute inset-0 h-full cursor-grab active:cursor-grabbing"
