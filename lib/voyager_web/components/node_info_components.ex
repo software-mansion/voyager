@@ -302,7 +302,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
   attr :visible_count, :integer, required: true
   attr :load_more_event, :string, required: true
   attr :node_name, :string, required: true, doc: "used to link a row to its supervision tree"
-  attr :current_url, :string, default: nil, doc: "used to preserve sidebar mode on tree links"
+  attr :current_url, :string, default: nil
   attr :help, :map, default: nil, doc: "optional help entry for the card title (see NodeInfoHelp)"
 
   def applications_card(assigns) do
