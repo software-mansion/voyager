@@ -15,6 +15,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
     socket
     |> assign(assigns)
     |> assign_new(:locked?, fn -> Settings.locked?(:mcp_port) end)
+    |> assign_new(:toggle_revision, fn -> 0 end)
     |> assign_new(:form, &mcp_port_form/0)
     |> ok()
   end
@@ -37,6 +38,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
             class="toggle toggle-primary mt-1"
             aria-label="Toggle MCP server"
             checked={@status.alive?}
+            data-toggle-revision={@toggle_revision}
             phx-click="toggle"
             phx-target={@myself}
           />
@@ -109,8 +111,13 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
         {:noreply, socket}
 
       {:error, reason} ->
+        # The browser already flipped the checkbox, and `@status` is unchanged,
+        # so without a diff the component is never patched and the toggle stays
+        # out of sync. Bumping the revision forces a patch, which makes
+        # LiveView re-apply the server-rendered `checked` state.
         socket
         |> push_flash(:error, "Failed to toggle MCP server: #{inspect(reason)}")
+        |> assign(:toggle_revision, socket.assigns.toggle_revision + 1)
         |> noreply()
     end
   end
