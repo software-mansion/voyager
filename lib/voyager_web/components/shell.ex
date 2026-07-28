@@ -6,12 +6,12 @@ defmodule VoyagerWeb.Components.Shell do
   use VoyagerWeb, :html
 
   alias Voyager.NodeSession.Session
+  alias VoyagerWeb.Utils.URL
 
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
   attr :mcp_status, :map, default: %{alive?: false, url: nil}
-  attr :current_path, :string, default: nil
-  attr :sidebar_mode, :string, default: nil
+  attr :current_url, :string, default: nil
   slot :inner_block, required: true
 
   def shell(assigns) do
@@ -22,7 +22,7 @@ defmodule VoyagerWeb.Components.Shell do
           active_nav={@active_nav}
           session={@session}
           mcp_status={@mcp_status}
-          current_path={@current_path}
+          current_url={@current_url}
         />
 
         <div class="relative flex flex-1 overflow-y-hidden">
@@ -30,8 +30,7 @@ defmodule VoyagerWeb.Components.Shell do
             active_nav={@active_nav}
             session={@session}
             mcp_status={@mcp_status}
-            current_path={@current_path}
-            sidebar_mode={@sidebar_mode}
+            current_url={@current_url}
           />
 
           <main class="min-w-lg relative flex-1 overflow-y-auto">
@@ -46,7 +45,7 @@ defmodule VoyagerWeb.Components.Shell do
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
   attr :mcp_status, :map, default: %{alive?: false, url: nil}
-  attr :current_path, :string, default: nil
+  attr :current_url, :string, default: nil
 
   defp topbar(assigns) do
     ~H"""
@@ -56,7 +55,7 @@ defmodule VoyagerWeb.Components.Shell do
         <.node_indicator session={@session} />
       </div>
       <.link
-        href={~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_path)]}"}
+        href={~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_url)]}"}
         id="open-settings"
         title="Settings"
         class="btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-base-content"
@@ -105,7 +104,7 @@ defmodule VoyagerWeb.Components.Shell do
   attr :status, :map, required: true
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
-  attr :current_path, :string, default: nil
+  attr :current_url, :string, default: nil
 
   defp mcp_status_indicator(assigns) do
     ~H"""
@@ -158,7 +157,7 @@ defmodule VoyagerWeb.Components.Shell do
           MCP server is not active. It can be enabled and configured in Settings.
           <.link
             href={
-              ~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_path)]}"
+              ~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_url)]}"
             }
             class="text-primary mt-2 flex w-fit items-center gap-1 font-medium underline-offset-2 hover:underline"
           >
@@ -173,10 +172,11 @@ defmodule VoyagerWeb.Components.Shell do
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
   attr :mcp_status, :map, default: %{alive?: false, url: nil}
-  attr :current_path, :string, default: nil
-  attr :sidebar_mode, :string, default: nil
+  attr :current_url, :string, default: nil
 
   defp sidebar(assigns) do
+    assigns = assign(assigns, :sidebar_mode, sidebar_mode(assigns.current_url))
+
     ~H"""
     <aside
       id="app-sidebar"
@@ -191,7 +191,7 @@ defmodule VoyagerWeb.Components.Shell do
           <span class="menu-title sidebar-label tracking-label p-0 text-xs uppercase">Inspect</span>
           <.link
             id="sidebar-compact-toggle"
-            patch={toggle_sidebar_path(@current_path, @sidebar_mode)}
+            patch={toggle_sidebar_path(@current_url, @sidebar_mode)}
             aria-label="Toggle sidebar width"
             class="btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-base-content"
           >
@@ -201,7 +201,7 @@ defmodule VoyagerWeb.Components.Shell do
         <.nav_item
           :for={page <- inspect_pages()}
           active={@active_nav == page.feature}
-          navigate={with_sidebar(node_path(@session, page.path), @sidebar_mode)}
+          navigate={nav_path(node_path(@session, page.path), @sidebar_mode)}
           label={page.label}
         >
           <:icon><.icon name={page.icon} class="size-4" /></:icon>
@@ -213,7 +213,7 @@ defmodule VoyagerWeb.Components.Shell do
         <.nav_item
           :for={page <- coming_soon_pages()}
           active={@active_nav == page.feature}
-          navigate={with_sidebar(node_path(@session, page.path), @sidebar_mode)}
+          navigate={nav_path(node_path(@session, page.path), @sidebar_mode)}
           label={page.label}
           coming_soon
         >
@@ -228,7 +228,7 @@ defmodule VoyagerWeb.Components.Shell do
           status={@mcp_status}
           active_nav={@active_nav}
           session={@session}
-          current_path={@current_path}
+          current_url={@current_url}
         />
       </div>
     </aside>
@@ -312,33 +312,29 @@ defmodule VoyagerWeb.Components.Shell do
   defp node_path(%Session{node_name: node_name}, path),
     do: "/node/#{URI.encode(node_name)}/#{path}"
 
-  # Appends the current sidebar mode to a link so the choice survives navigation.
-  defp with_sidebar(path, mode) when mode in ["compact", "full"],
-    do: put_query_param(path, "sidebar", mode)
+  defp sidebar_mode(url) when is_binary(url) do
+    case URL.get_query_param(url, "sidebar") do
+      mode when mode in ["compact", "full"] -> mode
+      _ -> nil
+    end
+  end
 
-  defp with_sidebar(path, _mode), do: path
+  defp sidebar_mode(_url), do: nil
 
-  # Flips the sidebar mode on the current URL while preserving any other query
-  # params (e.g. the supervision tree's selected apps/depth).
-  defp toggle_sidebar_path(current_path, sidebar_mode) do
+  # Carries the current sidebar mode onto a nav link so the choice survives
+  # navigation to another page.
+  defp nav_path(path, mode) when mode in ["compact", "full"],
+    do: URL.put_query_param(path, "sidebar", mode)
+
+  defp nav_path(path, _mode), do: path
+
+  defp toggle_sidebar_path(current_url, sidebar_mode) do
     next_mode = if sidebar_mode == "compact", do: "full", else: "compact"
-    put_query_param(current_path || "/", "sidebar", next_mode)
+    URL.put_query_param(current_url || "/", "sidebar", next_mode)
   end
 
-  defp put_query_param(path, key, value) do
-    uri = URI.parse(path)
-
-    query =
-      (uri.query || "")
-      |> URI.decode_query()
-      |> Map.put(key, value)
-      |> URI.encode_query()
-
-    URI.to_string(%{uri | query: query})
-  end
-
-  defp settings_return_to(active_nav, session, current_path) do
-    current_path || settings_return_to_fallback(active_nav, session)
+  defp settings_return_to(active_nav, session, current_url) do
+    current_url || settings_return_to_fallback(active_nav, session)
   end
 
   defp settings_return_to_fallback(:supervision_tree, session),

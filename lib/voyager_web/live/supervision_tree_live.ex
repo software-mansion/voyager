@@ -93,7 +93,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         selected_apps={@selected_apps}
         depth={@depth}
         include_relations?={@include_relations?}
-        sidebar_mode={@sidebar_mode}
+        current_url={@current_url}
       />
       <SupervisionTreeComponents.errors errors={@errors} />
       <SupervisionTreeComponents.body selected_apps={@selected_apps} status={@status} />

@@ -30,6 +30,7 @@ defmodule VoyagerWeb do
     quote do
       use Phoenix.LiveView
       on_mount VoyagerWeb.Hooks.FlashHook
+      on_mount VoyagerWeb.Hooks.UrlHook
       import VoyagerWeb.Helpers
       unquote(html_helpers())
 
