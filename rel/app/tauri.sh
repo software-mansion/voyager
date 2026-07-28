@@ -54,9 +54,20 @@ main() {
   case "$command" in
     dev)
       load_dotenv "$root_dir/.env"
+      
+      (
+        cd "$mix_project_dir"
+        mix compile
+      )
+      
+      local current_env="${MIX_ENV:-dev}"
+      local ebin="${mix_project_dir}/_build/${current_env}/lib/voyager/ebin"
+      
+      export ELIXIR_ERL_OPTIONS="-epmd_module Elixir.Voyager.ProxyEpmd -pa $ebin"
+      
       cargo_tauri "$@"
       ;;
-    app)
+     app)
       shift
       load_dotenv "$root_dir/.env"
       mix_release
