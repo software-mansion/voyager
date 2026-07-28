@@ -16,7 +16,7 @@ defmodule VoyagerWeb.Utils.URL do
   @spec to_relative(String.t()) :: String.t()
   def to_relative(url) when is_binary(url) do
     %URI{path: path, query: query} = URI.parse(url)
-    URI.to_string(%URI{path: path, query: query})
+    URI.to_string(%URI{path: path || "/", query: query})
   end
 
   @doc """
