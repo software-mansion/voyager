@@ -49,17 +49,6 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
     {:cont, socket}
   end
 
-  @doc """
-  Puts the shared disconnect / nodedown flash used across node and connect views.
-  """
-  def put_disconnect_flash(socket, {:node_disconnected, node}) do
-    put_flash(socket, :info, "Node disconnected: #{node}")
-  end
-
-  def put_disconnect_flash(socket, {:nodedown, node}) do
-    put_flash(socket, :error, "Node down: #{node}")
-  end
-
   defp track_current_path(_params, uri, socket) do
     {:cont, assign(socket, :current_path, current_path(uri))}
   end
@@ -99,4 +88,13 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
   end
 
   defp handle_disconnect(_event, _params, socket), do: {:cont, socket}
+
+  # Puts the shared disconnect / nodedown flash used across node and connect views.
+  defp put_disconnect_flash(socket, {:node_disconnected, node}) do
+    put_flash(socket, :info, "Node disconnected: #{node}")
+  end
+
+  defp put_disconnect_flash(socket, {:nodedown, node}) do
+    put_flash(socket, :error, "Node down: #{node}")
+  end
 end
