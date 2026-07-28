@@ -6,10 +6,10 @@ Fontsource/Google builds strip the `zero` feature, so we vendor the official fon
 
 ## Files
 
-| File | Purpose |
-| --- | --- |
+| File                                     | Purpose                                 |
+| ---------------------------------------- | --------------------------------------- |
 | `jetbrains-mono-latin-wght-normal.woff2` | Variable latin subset (weights 100–800) |
-| `OFL.txt` | SIL Open Font License 1.1 |
+| `OFL.txt`                                | SIL Open Font License 1.1               |
 
 ## Upstream
 
