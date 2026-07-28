@@ -203,9 +203,8 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
       assert has_element?(
                view,
-               ~s(a[href="/node/#{@node_name}/supervision-tree?apps=kernel&sidebar=compact"])
+               ~s(a[href*="/node/#{@node_name}/supervision-tree"][href*="apps=kernel"][href*="sidebar=compact"])
              )
-    end
 
     test "an application without a supervision tree is not clickable", %{conn: conn} do
       stub_erpc(Fakes.node_data())
