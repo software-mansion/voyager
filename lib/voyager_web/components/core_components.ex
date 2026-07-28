@@ -151,11 +151,11 @@ defmodule VoyagerWeb.CoreComponents do
         phx-throttle="1000"
         id={"#{@id}-refresh-now-button"}
         title="Refresh now"
-        class="btn btn-sm btn-ghost btn-square"
+        class="btn btn-md btn-ghost btn-square"
       >
         <.icon
           name="icon-rotate-cw"
-          class={["size-4", @loading && "animate-spin"]}
+          class={["size-6", @loading && "animate-spin"]}
         />
       </button>
     </div>
