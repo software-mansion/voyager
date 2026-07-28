@@ -108,17 +108,14 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
     }
   ]
 
-  @spec node_legends() ::
-          list(%{
-            type: atom(),
-            name: String.t(),
-            icon_name: String.t(),
-            text: String.t(),
-            color_class: String.t(),
-            doc_href: String.t(),
-            doc_label: String.t()
-          })
-  def node_legends, do: @node_legends
+  @node_icons Map.new(@node_legends, fn legend ->
+                {legend.type, %{name: legend.icon_name, color_class: legend.color_class}}
+              end)
+
+  @doc """
+    Returns the map with icon names and colors for node types.
+  """
+  def node_icons, do: @node_icons
 
   attr :node_name, :string, required: true
   attr :status, :atom, required: true
@@ -330,6 +327,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
       |> elem(1)
       |> String.to_integer()
 
+  defp node_legends, do: @node_legends
   defp edge_legends, do: @edge_legends
 
   defp legend_entry_id(%{name: name}) do

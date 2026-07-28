@@ -1,6 +1,18 @@
 defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   @moduledoc """
   Side panel that displays details for a selected node in the supervision tree.
+
+  The parent LiveView owns the selection: it passes the selected `TreeNode` (or
+  `nil` to close the panel) and must handle the `"close-details-panel"` event
+  the close button emits.
+
+  ## Example
+
+      def handle_event("close-details-panel", _params, socket) do
+        socket
+        |> assign(:tree_node, nil)
+        |> noreply()
+      end
   """
 
   use VoyagerWeb, :live_component
@@ -25,11 +37,11 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   end
 
   @impl true
-  def update(%{id: id, node: node, remote_node: remote_node}, socket) do
+  def update(%{id: id, tree_node: tree_node, remote_node: remote_node}, socket) do
     socket
     |> assign(:id, id)
     |> assign(:remote_node, remote_node)
-    |> maybe_assign_node(node)
+    |> maybe_assign_node(tree_node)
     |> ok()
   end
 
@@ -59,7 +71,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
         if(@open, do: "translate-x-0", else: "translate-x-full")
       ]}
     >
-      <.resize_handle open={@open} />
+      <.resize_handle panel_id={@id} open={@open} />
       <%= if @node do %>
         <%!-- Header --%>
         <div class="border-base-200 flex items-start gap-3 border-b px-5 py-4">
@@ -68,14 +80,10 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
             <.node_label node={@node} />
           </div>
           <div class="flex shrink-0 items-center gap-1.5">
-            <.tooltip
-              :if={is_pid(@node.pid)}
-              id="details-panel-refresh-tip"
-              position="bottom"
-            >
+            <.tooltip :if={is_pid(@node.pid)} id={"#{@id}-refresh-tip"} position="bottom">
               <button
                 type="button"
-                id="details-panel-refresh"
+                id={"#{@id}-refresh"}
                 phx-click="refresh-node-info"
                 phx-target={@myself}
                 phx-throttle="1000"
@@ -91,7 +99,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
             </.tooltip>
             <button
               type="button"
-              id="details-panel-close"
+              id={"#{@id}-close"}
               phx-click="close-details-panel"
               title="Close"
               aria-label="Close panel"
@@ -103,7 +111,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
         </div>
         <%!-- Scrollable body --%>
         <.body
-          node_info={@node_info}
+          panel_id={@id}
+          info={@node_info}
           node={@node}
           links_expanded?={@links_expanded?}
           myself={@myself}
@@ -137,8 +146,10 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign_async(:node_info, fn -> fetch_node_info(remote_node, pid) end)
   end
 
+  # Nothing to fetch for apps, ports and references: settle the async assign so
+  # the body never shows a load state it will not leave.
   defp maybe_fetch_node_info(socket, _node) do
-    assign(socket, :node_info, AsyncResult.ok(%{}))
+    assign(socket, :node_info, AsyncResult.ok(nil))
   end
 
   defp node_changed?(socket, node) do

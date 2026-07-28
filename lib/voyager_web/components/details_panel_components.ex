@@ -14,12 +14,14 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   @max_links 12
   @max_expanded_links 200
 
+  attr :panel_id, :string, required: true
   attr :open, :boolean, required: true
 
   def resize_handle(assigns) do
     ~H"""
     <div
-      id="details-panel-resize-handle"
+      id={"#{@panel_id}-resize-handle"}
+      data-resize-handle
       role="separator"
       aria-orientation="vertical"
       aria-label="Resize details panel"
@@ -39,17 +41,14 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :node_type, :atom, required: true
 
   def node_type_label(assigns) do
-    node_label = assigns.node_type |> to_string() |> String.capitalize()
-    icon = node_icon(assigns.node_type)
-
     assigns =
       assigns
-      |> assign(:label, node_label)
-      |> assign(:icon, icon)
+      |> assign(:label, assigns.node_type |> to_string() |> String.capitalize())
+      |> assign(:icon, SupervisionTreeComponents.node_icons() |> Map.get(assigns.node_type))
 
     ~H"""
     <div class="flex items-center gap-2">
-      <.icon :if={@icon.icon} name={@icon.icon} class={["size-3.5", @icon.color]} />
+      <.icon :if={@icon} name={@icon.name} class={["size-3.5", @icon.color_class]} />
       <div class="font-mono text-base-content text-xs uppercase">{@label}</div>
     </div>
     """
@@ -75,7 +74,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     """
   end
 
-  attr :node_info, AsyncResult, required: true
+  attr :panel_id, :string, required: true
+  attr :info, AsyncResult, required: true
   attr :node, TreeNode, required: true
   attr :links_expanded?, :boolean, required: true
   attr :myself, :any, required: true
@@ -86,9 +86,14 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     ~H"""
     <div class="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
       <%= if @process? do %>
-        <.overview info={@node_info} />
-        <.links info={@node_info} links_expanded?={@links_expanded?} myself={@myself} />
-        <.memory_and_garbage_collection info={@node_info} />
+        <.overview info={@info} />
+        <.links
+          panel_id={@panel_id}
+          info={@info}
+          links_expanded?={@links_expanded?}
+          myself={@myself}
+        />
+        <.memory_and_garbage_collection info={@info} />
       <% else %>
         <div class="alert alert-info">
           <p>
@@ -107,81 +112,54 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     <.section title="Overview">
       <.async_result :let={info} assign={@info}>
         <:loading>
-          <.info_box>
-            <.kv_skeleton label="Initial call" wide />
-            <.kv_skeleton label="Current function" wide />
-            <.kv_skeleton label="Registered name" />
-            <.kv_skeleton label="Status" narrow />
-            <.kv_skeleton label="Message queue len" narrow />
-            <.kv_skeleton label="Group leader" />
-            <.kv_skeleton label="Priority" narrow />
-            <.kv_skeleton label="Trap exit" narrow />
-            <.kv_skeleton label="Reductions" />
-            <.kv_skeleton label="Binary" />
-            <.kv_skeleton label="Last calls" wide />
-            <.kv_skeleton label="Catch level" narrow />
-            <.kv_skeleton label="Trace" narrow />
-            <.kv_skeleton label="Suspending" />
-            <.kv_skeleton label="Sequential trace token" />
-            <.kv_skeleton label="Error handler" last />
-          </.info_box>
+          <.kv_skeleton label="Initial call" wide />
+          <.kv_skeleton label="Current function" wide />
+          <.kv_skeleton label="Registered name" />
+          <.kv_skeleton label="Status" narrow />
+          <.kv_skeleton label="Message queue len" narrow />
+          <.kv_skeleton label="Group leader" />
+          <.kv_skeleton label="Priority" narrow />
+          <.kv_skeleton label="Trap exit" narrow />
+          <.kv_skeleton label="Reductions" />
+          <.kv_skeleton label="Binary" />
+          <.kv_skeleton label="Last calls" wide />
+          <.kv_skeleton label="Catch level" narrow />
+          <.kv_skeleton label="Trace" narrow />
+          <.kv_skeleton label="Suspending" />
+          <.kv_skeleton label="Sequential trace token" />
+          <.kv_skeleton label="Error handler" last />
         </:loading>
         <:failed>
           <.load_error />
         </:failed>
-        <.info_box>
-          <.kv label="Initial call">
-            {format_mfa(info.initial_call)}
-          </.kv>
-          <.kv label="Current function">
-            {format_mfa(info.current_function)}
-          </.kv>
-          <.kv label="Registered name">
-            {format_registered_name(info.registered_name)}
-          </.kv>
-          <.kv label="Status">
-            {to_string(info.status)}
-          </.kv>
-          <.kv label="Message queue len">
-            {Formatters.format_integer(info.message_queue_len)}
-          </.kv>
-          <.kv label="Group leader">
-            {format_identifier(info.group_leader)}
-          </.kv>
-          <.kv label="Priority">
-            {to_string(info.priority)}
-          </.kv>
-          <.kv label="Trap exit">
-            {to_string(info.trap_exit)}
-          </.kv>
-          <.kv label="Reductions">
-            {Formatters.format_integer(info.reductions)}
-          </.kv>
-          <.kv label="Binary">
-            {format_binary(info.binary)}
-          </.kv>
-          <.kv label="Last calls">
-            {format_last_calls(info.last_calls)}
-          </.kv>
-          <.kv label="Catch level">
-            {Formatters.format_integer(info.catch_level)}
-          </.kv>
-          <.kv label="Trace">
-            {Formatters.format_integer(info.trace)}
-          </.kv>
-          <.suspending_list suspending={info.suspending} />
-          <.kv label="Sequential trace token">
-            {format_sequential_trace_token(info.sequential_trace_token)}
-          </.kv>
-          <.kv label="Error handler">
-            {inspect(info.error_handler)}
-          </.kv>
-        </.info_box>
+        <.kv label="Initial call" value={format_mfa(info.initial_call)} />
+        <.kv label="Current function" value={format_mfa(info.current_function)} />
+        <.kv label="Registered name" value={format_registered_name(info.registered_name)} />
+        <.kv label="Status" value={to_string(info.status)} />
+        <.kv
+          label="Message queue len"
+          value={Formatters.format_integer(info.message_queue_len)}
+        />
+        <.kv label="Group leader" value={format_identifier(info.group_leader)} />
+        <.kv label="Priority" value={to_string(info.priority)} />
+        <.kv label="Trap exit" value={to_string(info.trap_exit)} />
+        <.kv label="Reductions" value={Formatters.format_integer(info.reductions)} />
+        <.kv label="Binary" value={format_binary(info.binary)} />
+        <.kv label="Last calls" value={format_last_calls(info.last_calls)} />
+        <.kv label="Catch level" value={Formatters.format_integer(info.catch_level)} />
+        <.kv label="Trace" value={Formatters.format_integer(info.trace)} />
+        <.suspending_list suspending={info.suspending} />
+        <.kv
+          label="Sequential trace token"
+          value={format_sequential_trace_token(info.sequential_trace_token)}
+        />
+        <.kv label="Error handler" value={inspect(info.error_handler)} />
       </.async_result>
     </.section>
     """
   end
 
+  attr :panel_id, :string, required: true
   attr :info, AsyncResult, required: true
   attr :links_expanded?, :boolean, required: true
   attr :myself, :any, required: true
@@ -202,7 +180,12 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         <:failed>
           <.load_error />
         </:failed>
-        <.links_list links={info.links} links_expanded?={@links_expanded?} myself={@myself} />
+        <.links_list
+          toggle_id={"#{@panel_id}-toggle-links"}
+          links={info.links}
+          links_expanded?={@links_expanded?}
+          myself={@myself}
+        />
       </.async_result>
     </.section>
     """
@@ -215,38 +198,22 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     <.section title="Memory and Garbage Collection">
       <.async_result :let={info} assign={@info}>
         <:loading>
-          <.info_box>
-            <.kv_skeleton label="Memory" narrow />
-            <.kv_skeleton label="Stack and heaps" narrow />
-            <.kv_skeleton label="Heap size" narrow />
-            <.kv_skeleton label="Stack size" narrow />
-            <.kv_skeleton label="GC min heap size" narrow />
-            <.kv_skeleton label="GC fullsweep after" narrow last />
-          </.info_box>
+          <.kv_skeleton label="Memory" narrow />
+          <.kv_skeleton label="Stack and heaps" narrow />
+          <.kv_skeleton label="Heap size" narrow />
+          <.kv_skeleton label="Stack size" narrow />
+          <.kv_skeleton label="GC min heap size" narrow />
+          <.kv_skeleton label="GC fullsweep after" narrow last />
         </:loading>
         <:failed>
           <.load_error />
         </:failed>
-        <.info_box>
-          <.kv label="Memory">
-            {Formatters.format_bytes(info.memory)}
-          </.kv>
-          <.kv label="Stack and heaps">
-            {Formatters.format_bytes(info.stack_and_heap_size)}
-          </.kv>
-          <.kv label="Heap size">
-            {Formatters.format_bytes(info.heap_size)}
-          </.kv>
-          <.kv label="Stack size">
-            {Formatters.format_bytes(info.stack_size)}
-          </.kv>
-          <.kv label="GC min heap size">
-            {Formatters.format_bytes(info.gc_min_heap_size)}
-          </.kv>
-          <.kv label="GC fullsweep after">
-            {format_count(info.gc_fullsweep_after)}
-          </.kv>
-        </.info_box>
+        <.kv label="Memory" value={Formatters.format_bytes(info.memory)} />
+        <.kv label="Stack and heaps" value={Formatters.format_bytes(info.stack_and_heap_size)} />
+        <.kv label="Heap size" value={Formatters.format_bytes(info.heap_size)} />
+        <.kv label="Stack size" value={Formatters.format_bytes(info.stack_size)} />
+        <.kv label="GC min heap size" value={Formatters.format_bytes(info.gc_min_heap_size)} />
+        <.kv label="GC fullsweep after" value={format_count(info.gc_fullsweep_after)} />
       </.async_result>
     </.section>
     """
@@ -270,21 +237,12 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     """
   end
 
-  slot :inner_block, required: true
-
-  def info_box(assigns) do
-    ~H"""
-    <div>
-      {render_slot(@inner_block)}
-    </div>
-    """
-  end
-
   attr :label, :string, required: true
+  attr :value, :string, default: nil, doc: "text value; truncated on overflow but kept in `title`"
   attr :last, :boolean, default: false
   attr :stacked, :boolean, default: false
 
-  slot :inner_block, required: true
+  slot :inner_block, doc: "markup value, for rows a plain `value` cannot express"
 
   def kv(assigns) do
     ~H"""
@@ -294,14 +252,17 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       not @last && "border-base-300/60 border-b"
     ]}>
       <span class="text-base-content/60 shrink-0">{@label}</span>
-      <div class={["text-base-content min-w-0", not @stacked && "truncate text-right"]}>
-        {render_slot(@inner_block)}
+      <div
+        class={["text-base-content min-w-0", not @stacked && "truncate text-right"]}
+        title={@value}
+      >
+        {@value}{render_slot(@inner_block)}
       </div>
     </div>
     """
   end
 
-  attr :pid, :string, required: true
+  attr :label, :string, required: true
 
   def chip(assigns) do
     # Redirecting will be available after #41 and #99
@@ -309,11 +270,10 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     <button
       type="button"
       disabled
-      title={@pid}
       class="border-base-content/60 bg-base-200 text-base-content font-mono inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs"
     >
       <span class="bg-primary h-1.5 w-1.5 rounded-full" />
-      {@pid}
+      {@label}
     </button>
     """
   end
@@ -382,6 +342,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     """
   end
 
+  attr :toggle_id, :string, required: true
   attr :links, :list, required: true
   attr :links_expanded?, :boolean, required: true
   attr :myself, :any, required: true
@@ -399,7 +360,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     ~H"""
     <div class="flex flex-col gap-2">
       <div class="flex flex-wrap gap-1.5">
-        <.chip :for={pid <- @visible_links} pid={pid} />
+        <.chip :for={link <- @visible_links} label={link} />
       </div>
       <p
         :if={@links_expanded? and @overflow_count > 0}
@@ -410,7 +371,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       <button
         :if={@toggle?}
         type="button"
-        id="details-panel-toggle-links"
+        id={@toggle_id}
         phx-click="toggle-links"
         phx-target={@myself}
         class="btn btn-ghost btn-xs text-base-content/60 w-max items-center self-center px-3 py-2 hover:text-base-content"
@@ -461,20 +422,11 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   defp format_identifier(other), do: inspect(other)
 
-  defp node_icon(node_type) do
-    SupervisionTreeComponents.node_legends()
-    |> Enum.find(fn legend -> legend.type == node_type end)
-    |> case do
-      %{color_class: color_class, icon_name: icon_name} -> %{color: color_class, icon: icon_name}
-      _ -> %{color: "text-base-content", icon: nil}
-    end
-  end
-
   defp node_display_name(%TreeNode{name: name}) when is_atom(name), do: Atom.to_string(name)
   defp node_display_name(%TreeNode{name: name}) when is_binary(name), do: name
   defp node_display_name(%TreeNode{key: key}), do: key
 
-  defp node_pid_string(%TreeNode{pid: pid}) when is_pid(pid), do: inspect(pid)
+  defp node_pid_string(%TreeNode{pid: pid}) when is_pid(pid), do: format_identifier(pid)
   defp node_pid_string(_), do: nil
 
   # Formats only the slice that gets rendered: a process can hold thousands of

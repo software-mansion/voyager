@@ -1,11 +1,11 @@
 // Resizes the DetailsPanel by dragging its left edge.
-// Width is --details-panel-width on #details-panel (px). CSS clamps via
+// Width is --details-panel-width on the panel (px). CSS clamps via
 // min-width / max-width: 100%. Kept on `this.width` so LiveView morphs
 // can restore it in `updated()` without snapping to the CSS default.
 
 const STORAGE_KEY = 'voyager:details-panel-width';
 const DEFAULT_WIDTH = 320;
-const DETAILS_PANEL_RESIZE_HANDLE = '#details-panel-resize-handle';
+const RESIZE_HANDLE = '[data-resize-handle]';
 
 /**
  * @returns {number}
@@ -26,27 +26,28 @@ function setStoredWidth(width) {
 
 const DetailsPanelResize = {
   mounted() {
-    this.handle = this.el.querySelector(DETAILS_PANEL_RESIZE_HANDLE);
     this.width = getStoredWidth();
     this.apply();
 
     this.onPointerDown = (e) => this.begin(e);
-    this.handle.addEventListener('pointerdown', this.onPointerDown);
+    this.bindHandle(this.el.querySelector(RESIZE_HANDLE));
   },
 
   updated() {
-    const handle = this.el.querySelector(DETAILS_PANEL_RESIZE_HANDLE);
-    if (handle && handle !== this.handle) {
-      this.handle?.removeEventListener('pointerdown', this.onPointerDown);
-      this.handle = handle;
-      this.handle.addEventListener('pointerdown', this.onPointerDown);
-    }
+    const handle = this.el.querySelector(RESIZE_HANDLE);
+    if (handle && handle !== this.handle) this.bindHandle(handle);
     if (!this.dragging) this.apply();
   },
 
   destroyed() {
-    this.handle?.removeEventListener('pointerdown', this.onPointerDown);
+    this.bindHandle(null);
     this.teardown();
+  },
+
+  bindHandle(handle) {
+    this.handle?.removeEventListener('pointerdown', this.onPointerDown);
+    this.handle = handle;
+    this.handle?.addEventListener('pointerdown', this.onPointerDown);
   },
 
   apply() {
