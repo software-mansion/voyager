@@ -19,6 +19,8 @@ export const tooltipMethods = {
   openTimer: undefined,
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   reconcileTimer: undefined,
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  positionTimer: undefined,
   /** @type {boolean} */ togglingTooltip: false,
   /** @type {string | null} */ nodeId: null,
 
@@ -40,6 +42,7 @@ export const tooltipMethods = {
 
     clearTimeout(this.closeTimer);
     clearTimeout(this.openTimer);
+    clearTimeout(this.positionTimer);
 
     this.togglingTooltip = true;
 
@@ -57,6 +60,7 @@ export const tooltipMethods = {
 
     clearTimeout(this.closeTimer);
     clearTimeout(this.openTimer);
+    clearTimeout(this.positionTimer);
 
     this.togglingTooltip = true;
 
