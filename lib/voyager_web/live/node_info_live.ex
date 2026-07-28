@@ -156,6 +156,7 @@ defmodule VoyagerWeb.NodeInfoLive do
             visible_count={@visible_app_count}
             load_more_event="show-all-apps"
             node_name={@session.node_name}
+            current_url={@current_url}
             help={NodeInfoHelp.get(:applications)}
           />
         </div>

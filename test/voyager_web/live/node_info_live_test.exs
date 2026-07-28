@@ -195,6 +195,18 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       assert html =~ "/node/#{@node_name}/supervision-tree?apps=kernel"
     end
 
+    test "supervision tree links preserve the current sidebar mode", %{conn: conn} do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, "#{@path}?sidebar=compact")
+      render_async(view)
+
+      assert has_element?(
+               view,
+               ~s(a[href="/node/#{@node_name}/supervision-tree?apps=kernel&sidebar=compact"])
+             )
+    end
+
     test "an application without a supervision tree is not clickable", %{conn: conn} do
       stub_erpc(Fakes.node_data())
 
