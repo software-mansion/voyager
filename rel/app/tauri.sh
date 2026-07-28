@@ -53,10 +53,12 @@ main() {
 
   case "$command" in
     dev)
+      load_dotenv "$root_dir/.env"
       cargo_tauri "$@"
       ;;
     app)
       shift
+      load_dotenv "$root_dir/.env"
       mix_release
       bundles_flag=""
       if [ "$os" = "darwin" ]; then
@@ -76,6 +78,17 @@ main() {
   esac
 }
 
+# Export telemetry (and other) vars for `tauri.dev` runtime and for `option_env!` during `tauri.app` compile.
+load_dotenv() {
+  local env_file="$1"
+  if [ -f "$env_file" ]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "$env_file"
+    set +a
+  fi
+}
+
 open_app() {
   case "$os" in
     darwin)
@@ -85,7 +98,12 @@ open_app() {
       $lsregister -u /Applications/${app}.app || true
 
       app_path="$root_dir/src-tauri/target/$profile/bundle/macos/${app}.app"
-      open -W --stdout "$(tty)" --stderr "$(tty)" "$app_path" --args "$@"
+      stdout_log="$root_dir/voyager-app.stdout.log"
+      stderr_log="$root_dir/voyager-app.stderr.log"
+      : >"$stdout_log"
+      : >"$stderr_log"
+
+      open -W --stdout "$stdout_log" --stderr "$stderr_log" "$app_path" --args "$@"
       ;;
   esac
 }

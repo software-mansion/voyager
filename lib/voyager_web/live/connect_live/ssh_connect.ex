@@ -95,7 +95,11 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         <.form_field
           field={@ssh_form[:node_name]}
           label="Node Name"
-          placeholder="myapp@127.0.0.1"
+          placeholder={
+            if @current_name_type == "longnames",
+              do: "my_app@server.company.com",
+              else: "my_app@my-machine"
+          }
           disabled={@connected?}
         >
           <:trailing>

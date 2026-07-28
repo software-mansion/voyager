@@ -199,6 +199,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MIX_ENV: prod
+          TELEMETRY_PUSH_URL: ${{ secrets.TELEMETRY_PUSH_URL }}
+          TELEMETRY_API_KEY: ${{ secrets.TELEMETRY_API_KEY }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_DEVELOPER_IDENTITY }}
           APPLE_CERTIFICATE: ${{ env.APPLE_CERTIFICATE_P12_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ env.APPLE_CERTIFICATE_P12_PASSWORD }}

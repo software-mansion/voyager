@@ -7,7 +7,9 @@ defmodule Voyager.Telemetry.Events do
 
   @custom_events [
     [:voyager, :node, :connect],
-    [:voyager, :node, :disconnect]
+    [:voyager, :node, :disconnect],
+    [:voyager, :mcp, :start],
+    [:voyager, :mcp, :stop]
   ]
 
   @system_events [
@@ -23,7 +25,14 @@ defmodule Voyager.Telemetry.Events do
     [:phoenix, :live_view, :handle_info, :exception]
   ]
 
-  @all_events @phoenix_events ++ @system_events ++ @custom_events
+  # Emitted by the `anubis_mcp` dependency itself (via `:telemetry.span/3`)
+  @mcp_events [
+    [:server, :tool_call, :start],
+    [:server, :tool_call, :stop],
+    [:server, :tool_call, :exception]
+  ]
+
+  @all_events @phoenix_events ++ @system_events ++ @custom_events ++ @mcp_events
 
   @doc """
   Returns telemetry events by type.
@@ -33,13 +42,15 @@ defmodule Voyager.Telemetry.Events do
   - `:phoenix`
   - `:system`
   - `:custom`
+  - `:mcp`
   """
-  @spec events(:all | :phoenix | :system | :custom) :: [event()]
+  @spec events(:all | :phoenix | :system | :custom | :mcp) :: [event()]
   def events(type \\ :all)
   def events(:all), do: @all_events
   def events(:phoenix), do: @phoenix_events
   def events(:system), do: @system_events
   def events(:custom), do: @custom_events
+  def events(:mcp), do: @mcp_events
 
   @doc """
   Checks if an event is a custom event.

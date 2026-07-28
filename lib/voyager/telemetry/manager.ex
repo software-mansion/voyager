@@ -4,10 +4,11 @@ defmodule Voyager.Telemetry.Manager do
 
   Options:
   - `:telemetry_handler` - The handler module to use. Can be one of:
-    - `:export` (requires `:telemetry_push_url`)
+    - `:export` (requires `:telemetry_config` with `:push_url` and `:api_key`)
     - `:logger`
     - `:noop`
-  - `:telemetry_push_url` - The URL to push telemetry events to.
+  - `:telemetry_config` - A keyword list of configuration options for the handler.
+    It must contain `:push_url` and `:api_key`.
   """
 
   use GenServer
@@ -54,9 +55,10 @@ defmodule Voyager.Telemetry.Manager do
   end
 
   defp handler_config(opts) do
-    case Keyword.get(opts, :telemetry_push_url) do
-      url when is_binary(url) -> %{telemetry_push_url: url}
-      _ -> %{}
-    end
+    opts
+    |> Keyword.get(:telemetry_config, [])
+    |> Keyword.take([:push_url, :api_key])
+    |> Enum.filter(fn {_key, value} -> is_binary(value) and value != "" end)
+    |> Enum.into(%{})
   end
 end

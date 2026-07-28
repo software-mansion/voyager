@@ -94,33 +94,60 @@ defmodule VoyagerWeb.ConnectComponents do
   attr :mode, :atom, required: true
   attr :disabled, :boolean, default: false
 
+  slot :disabled_reason, doc: "Tooltip content displayed when inputs are disabled"
+
   def mode_toggle(assigns) do
     ~H"""
     <form phx-change="switch_mode" id="mode-toggle" class="mb-6">
-      <div class="join w-full">
-        <input
-          type="radio"
-          name="mode"
-          value="direct"
-          aria-label="Direct"
-          id="mode-direct"
-          checked={@mode == :direct}
-          disabled={@disabled}
-          class="join-item btn btn-soft btn-sm font-mono flex-1 text-xs transition-colors checked:text-primary-content disabled:text-base-content/60"
-        />
-        <input
-          type="radio"
-          name="mode"
-          value="ssh"
-          aria-label="SSH Tunnel"
-          id="mode-ssh"
-          checked={@mode == :ssh}
-          disabled={@disabled}
-          class="join-item btn btn-soft btn-sm font-mono flex-1 text-xs transition-colors checked:text-primary-content disabled:text-base-content/60"
-        />
-      </div>
+      <.tooltip :if={@disabled} id="mode-toggle-tip" position="bottom" class="w-full">
+        <.mode_options mode={@mode} disabled={@disabled} />
+        <:content>{render_slot(@disabled_reason)}</:content>
+      </.tooltip>
+      <.mode_options :if={!@disabled} mode={@mode} disabled={@disabled} />
     </form>
     """
+  end
+
+  attr :mode, :atom, required: true
+  attr :disabled, :boolean, required: true
+
+  defp mode_options(assigns) do
+    ~H"""
+    <div class={["join w-full", @disabled && "pointer-events-none cursor-not-allowed"]}>
+      <input
+        type="radio"
+        name="mode"
+        value="direct"
+        aria-label="Direct"
+        id="mode-direct"
+        checked={@mode == :direct}
+        disabled={@disabled}
+        class={mode_radio_class(@disabled, @mode == :direct)}
+      />
+      <input
+        type="radio"
+        name="mode"
+        value="ssh"
+        aria-label="SSH Tunnel"
+        id="mode-ssh"
+        checked={@mode == :ssh}
+        disabled={@disabled}
+        class={mode_radio_class(@disabled, @mode == :ssh)}
+      />
+    </div>
+    """
+  end
+
+  defp mode_radio_class(disabled?, active?) do
+    [
+      "join-item btn btn-soft btn-sm font-mono flex-1 text-xs transition-opacity",
+      "checked:text-primary-content",
+      if(disabled? && active?,
+        do: "!opacity-100 !bg-base-content/20 !text-primary-content",
+        else: "text-base-content/60 disabled:text-base-content/60"
+      ),
+      disabled? && !active? && "opacity-40"
+    ]
   end
 
   attr :field, Phoenix.HTML.FormField, required: true

@@ -50,6 +50,37 @@ defmodule Voyager.Telemetry.ParserTest do
       result = Parser.parse_metadata([:voyager, :vm, :memory], %{foo: :bar})
       assert result == %{}
     end
+
+    test "returns reason for `mcp.start` and `mcp.stop`" do
+      assert Parser.parse_metadata([:voyager, :mcp, :start], %{reason: "boot"}) ==
+               %{reason: "boot"}
+
+      assert Parser.parse_metadata([:voyager, :mcp, :stop], %{reason: "crash"}) ==
+               %{reason: "crash"}
+    end
+  end
+
+  describe "parse_metadata/2 for mcp tool call events" do
+    test "includes tool name for `tool_call.start` and `tool_call.stop`" do
+      assert Parser.parse_metadata([:server, :tool_call, :start], %{
+               tool: "node_info"
+             }) == %{tool: "node_info"}
+
+      assert Parser.parse_metadata([:server, :tool_call, :stop], %{
+               tool: "node_info"
+             }) == %{tool: "node_info"}
+    end
+
+    test "includes tool name, kind and reason for `tool_call.exception`" do
+      meta = %{tool: "node_info", kind: :error, reason: %RuntimeError{message: "boom"}}
+      result = Parser.parse_metadata([:server, :tool_call, :exception], meta)
+
+      assert result == %{
+               tool: "node_info",
+               kind: :error,
+               reason: "%RuntimeError{message: \"boom\"}"
+             }
+    end
   end
 
   test "parse_metadata/2 returns empty map for unknown events" do
@@ -103,6 +134,38 @@ defmodule Voyager.Telemetry.ParserTest do
     test "returns empty map for `node.connect` and `node.disconnect`" do
       assert %{} == Parser.parse_measurements([:voyager, :node, :connect], %{foo: :bar})
       assert %{} == Parser.parse_measurements([:voyager, :node, :disconnect], %{foo: :bar})
+    end
+
+    test "returns empty map for `mcp.start` and `mcp.stop`" do
+      assert %{} == Parser.parse_measurements([:voyager, :mcp, :start], %{foo: :bar})
+      assert %{} == Parser.parse_measurements([:voyager, :mcp, :stop], %{foo: :bar})
+    end
+  end
+
+  describe "parse_measurements/2 for mcp tool call events" do
+    test "returns empty map for `tool_call.start`" do
+      result = Parser.parse_measurements([:server, :tool_call, :start], %{foo: :bar})
+      assert result == %{}
+    end
+
+    test "converts native duration to ms for `tool_call.stop`" do
+      native = System.convert_time_unit(42, :millisecond, :native)
+
+      result =
+        Parser.parse_measurements([:server, :tool_call, :stop], %{duration: native})
+
+      assert result == %{duration_ms: 42}
+    end
+
+    test "converts native duration to ms for `tool_call.exception`" do
+      native = System.convert_time_unit(7, :millisecond, :native)
+
+      result =
+        Parser.parse_measurements([:server, :tool_call, :exception], %{
+          duration: native
+        })
+
+      assert result == %{duration_ms: 7}
     end
   end
 

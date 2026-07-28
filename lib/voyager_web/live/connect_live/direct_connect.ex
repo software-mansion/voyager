@@ -70,7 +70,11 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
         <.form_field
           field={@form[:node_name]}
           label="Node name"
-          placeholder="my_app@127.0.0.1"
+          placeholder={
+            if @current_name_type == "longnames",
+              do: "my_app@server.company.com",
+              else: "my_app@my-machine"
+          }
           disabled={@connected?}
         >
           <:trailing>
