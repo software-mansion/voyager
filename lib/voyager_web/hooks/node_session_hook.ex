@@ -32,9 +32,17 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
     end
   end
 
-  defp track_current_path(_params, uri, socket) do
-    {:cont, assign(socket, :current_path, current_path(uri))}
+  defp track_current_path(params, uri, socket) do
+    socket =
+      socket
+      |> assign(:current_path, current_path(uri))
+      |> assign(:sidebar_mode, sidebar_mode(params))
+
+    {:cont, socket}
   end
+
+  defp sidebar_mode(%{"sidebar" => mode}) when mode in ["compact", "full"], do: mode
+  defp sidebar_mode(_params), do: nil
 
   defp current_path(uri) when is_binary(uri) do
     %URI{path: path, query: query} = URI.parse(uri)

@@ -11,6 +11,7 @@ defmodule VoyagerWeb.Components.Shell do
   attr :session, Session, required: true
   attr :mcp_status, :map, default: %{alive?: false, url: nil}
   attr :current_path, :string, default: nil
+  attr :sidebar_mode, :string, default: nil
   slot :inner_block, required: true
 
   def shell(assigns) do
@@ -30,6 +31,7 @@ defmodule VoyagerWeb.Components.Shell do
             session={@session}
             mcp_status={@mcp_status}
             current_path={@current_path}
+            sidebar_mode={@sidebar_mode}
           />
 
           <main class="min-w-lg relative flex-1 overflow-y-auto">
@@ -172,59 +174,34 @@ defmodule VoyagerWeb.Components.Shell do
   attr :session, Session, required: true
   attr :mcp_status, :map, default: %{alive?: false, url: nil}
   attr :current_path, :string, default: nil
+  attr :sidebar_mode, :string, default: nil
 
   defp sidebar(assigns) do
     ~H"""
     <aside
       id="app-sidebar"
-      class="bg-base-100 border-base-300 flex h-full w-16 flex-none flex-col overflow-y-auto overflow-x-hidden border-r transition-all duration-200 ease-out lg:w-64"
-      phx-hook=".SidebarPersistedMode"
+      class={[
+        "bg-base-100 border-base-300 flex h-full w-16 flex-none flex-col overflow-y-auto overflow-x-hidden border-r transition-all duration-200 ease-out lg:w-64",
+        @sidebar_mode == "compact" && "mode-compact",
+        @sidebar_mode == "full" && "mode-full"
+      ]}
     >
-      <script :type={Phoenix.LiveView.ColocatedHook} name=".SidebarPersistedMode">
-        export default {
-          mounted() {
-            const savedMode = sessionStorage.getItem("sidebar-mode")
-            if (savedMode === "compact" || savedMode === "full") {
-              this.el.classList.add(`mode-${savedMode}`)
-            }
-          }
-        }
-      </script>
       <ul class="menu font-sans w-full flex-1 gap-0.5 p-4">
         <li class="sidebar-toggle-row mb-3 flex flex-row items-center justify-between">
           <span class="menu-title sidebar-label tracking-label p-0 text-xs uppercase">Inspect</span>
-          <button
+          <.link
             id="sidebar-compact-toggle"
-            type="button"
+            patch={toggle_sidebar_path(@current_path, @sidebar_mode)}
             aria-label="Toggle sidebar width"
             class="btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-base-content"
-            phx-hook=".SidebarCompactToggle"
           >
             <.icon name="icon-panel-left" class="size-4" />
-          </button>
-          <script :type={Phoenix.LiveView.ColocatedHook} name=".SidebarCompactToggle">
-            export default {
-              mounted() {
-                this.el.addEventListener("click", () => {
-                  const sidebar = document.getElementById("app-sidebar")
-                  const isNarrowViewport = window.matchMedia("(max-width: 1023px)").matches
-                  const isCompactNow =
-                    sidebar.classList.contains("mode-compact") ||
-                    (!sidebar.classList.contains("mode-full") && isNarrowViewport)
-
-                  const nextMode = isCompactNow ? "full" : "compact"
-                  sidebar.classList.remove("mode-compact", "mode-full")
-                  sidebar.classList.add(`mode-${nextMode}`)
-                  sessionStorage.setItem("sidebar-mode", nextMode)
-                })
-              }
-            }
-          </script>
+          </.link>
         </li>
         <.nav_item
           :for={page <- inspect_pages()}
           active={@active_nav == page.feature}
-          navigate={node_path(@session, page.path)}
+          navigate={with_sidebar(node_path(@session, page.path), @sidebar_mode)}
           label={page.label}
         >
           <:icon><.icon name={page.icon} class="size-4" /></:icon>
@@ -236,7 +213,7 @@ defmodule VoyagerWeb.Components.Shell do
         <.nav_item
           :for={page <- coming_soon_pages()}
           active={@active_nav == page.feature}
-          navigate={node_path(@session, page.path)}
+          navigate={with_sidebar(node_path(@session, page.path), @sidebar_mode)}
           label={page.label}
           coming_soon
         >
@@ -334,6 +311,31 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp node_path(%Session{node_name: node_name}, path),
     do: "/node/#{URI.encode(node_name)}/#{path}"
+
+  # Appends the current sidebar mode to a link so the choice survives navigation.
+  defp with_sidebar(path, mode) when mode in ["compact", "full"],
+    do: put_query_param(path, "sidebar", mode)
+
+  defp with_sidebar(path, _mode), do: path
+
+  # Flips the sidebar mode on the current URL while preserving any other query
+  # params (e.g. the supervision tree's selected apps/depth).
+  defp toggle_sidebar_path(current_path, sidebar_mode) do
+    next_mode = if sidebar_mode == "compact", do: "full", else: "compact"
+    put_query_param(current_path || "/", "sidebar", next_mode)
+  end
+
+  defp put_query_param(path, key, value) do
+    uri = URI.parse(path)
+
+    query =
+      (uri.query || "")
+      |> URI.decode_query()
+      |> Map.put(key, value)
+      |> URI.encode_query()
+
+    URI.to_string(%{uri | query: query})
+  end
 
   defp settings_return_to(active_nav, session, current_path) do
     current_path || settings_return_to_fallback(active_nav, session)

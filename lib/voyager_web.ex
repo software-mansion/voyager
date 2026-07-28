@@ -32,6 +32,13 @@ defmodule VoyagerWeb do
       on_mount VoyagerWeb.Hooks.FlashHook
       import VoyagerWeb.Helpers
       unquote(html_helpers())
+
+      # Default no-op so `patch` navigation (e.g. the sidebar width toggle) works
+      # on every LiveView. Views that need to react to params override this.
+      @impl Phoenix.LiveView
+      def handle_params(_params, _uri, socket), do: {:noreply, socket}
+
+      defoverridable handle_params: 3
     end
   end
 

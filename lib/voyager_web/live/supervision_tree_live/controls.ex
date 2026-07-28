@@ -157,6 +157,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
     query =
       %{"depth" => depth, "include_relations?" => to_string(include_relations?)}
       |> maybe_put_apps(apps)
+      |> maybe_put_sidebar(socket.assigns[:sidebar_mode])
 
     ~p"/node/#{node}/supervision-tree?#{query}"
   end
@@ -166,6 +167,11 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
   defp maybe_put_apps(query, apps) do
     Map.put(query, "apps", Enum.map_join(apps, ",", &to_string/1))
   end
+
+  defp maybe_put_sidebar(query, mode) when mode in ["compact", "full"],
+    do: Map.put(query, "sidebar", mode)
+
+  defp maybe_put_sidebar(query, _mode), do: query
 
   defp fuzzy_match?(_str, search) when search in [nil, ""], do: true
 

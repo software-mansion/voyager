@@ -51,6 +51,7 @@ defmodule VoyagerWeb.Layouts do
       session={@session}
       mcp_status={assigns[:mcp_status]}
       current_path={assigns[:current_path]}
+      sidebar_mode={assigns[:sidebar_mode]}
     >
       {@inner_content}
     </VoyagerWeb.Components.Shell.shell>
