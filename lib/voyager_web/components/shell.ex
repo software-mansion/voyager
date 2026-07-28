@@ -189,14 +189,7 @@ defmodule VoyagerWeb.Components.Shell do
       <ul class="menu font-sans w-full flex-1 gap-0.5 p-4">
         <li class="sidebar-toggle-row mb-3 flex flex-row items-center justify-between">
           <span class="menu-title sidebar-label tracking-label p-0 text-xs uppercase">Inspect</span>
-          <.link
-            id="sidebar-compact-toggle"
-            patch={toggle_sidebar_path(@current_url, @sidebar_mode)}
-            aria-label="Toggle sidebar width"
-            class="btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-base-content"
-          >
-            <.icon name="icon-panel-left" class="size-4" />
-          </.link>
+          <.sidebar_toggle current_url={@current_url} sidebar_mode={@sidebar_mode} />
         </li>
         <.nav_item
           :for={page <- inspect_pages()}
@@ -232,6 +225,36 @@ defmodule VoyagerWeb.Components.Shell do
         />
       </div>
     </aside>
+    """
+  end
+
+  attr :current_url, :string, default: nil
+  attr :sidebar_mode, :string, default: nil
+
+  defp sidebar_toggle(assigns) do
+    # Without an explicit mode the width is decided by CSS: compact below `lg`,
+    # full from `lg` up. The server cannot know the viewport, so one toggle per
+    # breakpoint is rendered and CSS reveals the one matching the current width.
+    variants = [
+      {"sidebar-compact-toggle", "lg:hidden", assigns.sidebar_mode || "compact"},
+      {"sidebar-compact-toggle-wide", "max-lg:hidden", assigns.sidebar_mode || "full"}
+    ]
+
+    assigns = assign(assigns, :variants, variants)
+
+    ~H"""
+    <.link
+      :for={{id, visibility, mode} <- @variants}
+      id={id}
+      patch={toggle_sidebar_path(@current_url, mode)}
+      aria-label="Toggle sidebar width"
+      class={[
+        "btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-base-content",
+        visibility
+      ]}
+    >
+      <.icon name="icon-panel-left" class="size-4" />
+    </.link>
     """
   end
 
