@@ -141,11 +141,13 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
         socket
         |> push_flash(:error, "MCP port is controlled by application config")
         |> assign(:locked?, true)
+        |> assign(:form, mcp_port_form())
         |> noreply()
 
       {:error, :port_in_use} ->
         socket
         |> push_flash(:error, "That port is already in use")
+        |> assign(:form, mcp_port_form())
         |> noreply()
 
       {:error, reason} ->
@@ -153,6 +155,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
 
         socket
         |> push_flash(:error, "Failed to update MCP port: #{inspect(reason)}")
+        |> assign(:form, mcp_port_form())
         |> noreply()
     end
   end
