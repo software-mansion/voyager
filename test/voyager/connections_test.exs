@@ -1,6 +1,6 @@
 defmodule Voyager.ConnectionsTest do
   @moduledoc false
-  use Voyager.DataCase, async: true
+  use Voyager.DataCase, async: false
 
   alias Voyager.Actions.Connections, as: ConnectionActions
   alias Voyager.Queries.Connections, as: ConnectionQueries

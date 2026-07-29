@@ -13,6 +13,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
   use VoyagerWeb, :live_component
 
   alias VoyagerWeb.FormSchemas.SupervisionTreeControls
+  alias VoyagerWeb.Utils.URL
 
   @impl true
   def update(assigns, socket) do
@@ -151,20 +152,21 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
     assign(socket, :visible_apps, visible)
   end
 
+  # Rewrites only the params this component owns (depth, relations, apps) on top
+  # of the current URL, so unrelated params (e.g. the sidebar width) are kept.
   defp controls_path(socket, apps, depth, include_relations?) do
-    node = socket.assigns.node_name
-
-    query =
-      %{"depth" => depth, "include_relations?" => to_string(include_relations?)}
-      |> maybe_put_apps(apps)
-
-    ~p"/node/#{node}/supervision-tree?#{query}"
+    socket.assigns.current_url
+    |> URL.put_query_params(%{
+      "depth" => to_string(depth),
+      "include_relations?" => to_string(include_relations?)
+    })
+    |> put_apps(apps)
   end
 
-  defp maybe_put_apps(query, apps) when apps in [nil, []], do: query
+  defp put_apps(url, apps) when apps in [nil, []], do: URL.drop_query_param(url, "apps")
 
-  defp maybe_put_apps(query, apps) do
-    Map.put(query, "apps", Enum.map_join(apps, ",", &to_string/1))
+  defp put_apps(url, apps) do
+    URL.put_query_param(url, "apps", Enum.map_join(apps, ",", &to_string/1))
   end
 
   defp fuzzy_match?(_str, search) when search in [nil, ""], do: true

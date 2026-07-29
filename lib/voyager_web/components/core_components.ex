@@ -175,7 +175,7 @@ defmodule VoyagerWeb.CoreComponents do
   attr :target, :string, required: true, doc: "CSS selector for the element whose text is copied"
   attr :label, :string, default: "Copy"
   attr :copied_label, :string, default: "Copied"
-  attr :icon_only, :boolean, default: false, doc: "if true, the button will only show an icon"
+  attr :icon_only, :boolean, default: false, doc: "hides the visible label"
   attr :class, :any, default: nil
   attr :rest, :global
 
@@ -191,14 +191,10 @@ defmodule VoyagerWeb.CoreComponents do
       data-copy-copied-label={@copied_label}
       title={@label}
       aria-label={@label}
-      class={[
-        "btn btn-sm btn-ghost gap-2",
-        @icon_only && "btn-square size-6 min-h-0 gap-0 p-0",
-        @class
-      ]}
+      class={["btn btn-sm btn-ghost", if(@icon_only, do: "btn-square", else: "gap-2"), @class]}
       {@rest}
     >
-      <.icon name="icon-copy" class={if @icon_only, do: "size-3", else: "size-4"} />
+      <.icon name="icon-copy" class="size-4" />
       <span data-copy-button-label class={@icon_only && "sr-only"}>{@label}</span>
       <span class="sr-only" aria-live="polite" data-copy-status></span>
     </button>
@@ -311,12 +307,7 @@ defmodule VoyagerWeb.CoreComponents do
 
   def logo(assigns) do
     ~H"""
-    <div class={[
-      "from-primary to-secondary shadow-logo-glow relative m-1 h-7 w-7 shrink-0 rounded-md bg-gradient-to-br",
-      @class
-    ]}>
-      <div class="bg-base-100 shadow-logo-inset absolute inset-1 rounded-sm"></div>
-    </div>
+    <.icon name="icon-logo-voyager" class={["text-logo", @class]} />
     """
   end
 
@@ -532,6 +523,7 @@ defmodule VoyagerWeb.CoreComponents do
     doc: "preferred side to place the tooltip"
 
   attr :class, :any, default: nil, doc: "extra classes for the trigger wrapper"
+  attr :tip_class, :any, default: nil, doc: "extra classes for the tip"
 
   attr :interactive, :boolean,
     default: false,
@@ -561,7 +553,8 @@ defmodule VoyagerWeb.CoreComponents do
         class={[
           "tooltip-pop bg-base-100 text-base-content rounded-box max-w-xs px-3 py-2",
           "ring-base-content/15 text-xs leading-relaxed shadow-lg ring-1",
-          @interactive && "is-interactive"
+          @interactive && "is-interactive",
+          @tip_class
         ]}
       >
         {render_slot(@content)}

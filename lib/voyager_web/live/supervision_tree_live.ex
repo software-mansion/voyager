@@ -93,8 +93,9 @@ defmodule VoyagerWeb.SupervisionTreeLive do
           available_apps={@available_apps}
           available_app_atoms={@available_app_atoms}
           selected_apps={@selected_apps}
-          include_relations?={@include_relations?}
+          current_url={@current_url}
           depth={@depth}
+          include_relations?={@include_relations?}
         />
         <SupervisionTreeComponents.errors errors={@errors} />
         <SupervisionTreeComponents.body selected_apps={@selected_apps} status={@status} />
