@@ -20,6 +20,7 @@ defmodule Voyager.Services.SupervisionTree.TreeNode do
   @derive Jason.Encoder
   @enforce_keys [:key, :type]
   defstruct [
+    :app,
     :key,
     :type,
     parent_key: nil,
@@ -33,6 +34,7 @@ defmodule Voyager.Services.SupervisionTree.TreeNode do
   @type node_type :: :app | :supervisor | :worker | :port | :reference
 
   @type t :: %__MODULE__{
+          app: atom() | nil,
           key: String.t(),
           parent_key: String.t() | nil,
           pid: pid() | nil,
