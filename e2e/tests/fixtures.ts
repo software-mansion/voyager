@@ -9,10 +9,12 @@ export const SSH_NODE_NAME = 'ssh-test@127.0.0.1';
 export const SSH_COOKIE = 'e2e_ssh_cookie';
 
 export const sel = {
-  connectForm: '#connect-form',
+  connectForm: '#direct-connect-form',
+  connectBtn: '#direct-connect-btn',
+  sshConnectForm: '#ssh-connect-form',
+  sshConnectBtn: '#ssh-connect-btn',
   nodeNameInput: '#conn_node_name',
   cookieInput: '#conn_cookie',
-  connectBtn: '#connect-btn',
   disconnectFromConnect: '#disconnect-from-connect',
   connectedIndicator: '#connected-indicator',
   recentConnections: '#recent-connections',
@@ -25,12 +27,10 @@ export const sel = {
   stErrors: '#supervision-tree-errors',
   modeDirect: '#mode-direct',
   modeSsh: '#mode-ssh',
-  sshConnectForm: '#ssh-connect-form',
   sshUserInput: '#ssh_ssh_user',
   sshHostInput: '#ssh_ssh_host',
   sshNodeNameInput: '#ssh_node_name',
   sshCookieInput: '#ssh_cookie',
-  sshConnectBtn: '#ssh-connect-btn',
   sshAuthAgent: '#ssh-auth-agent',
   sshAuthPassword: '#ssh-auth-password',
   sshPasswordInput: '#ssh_password',
