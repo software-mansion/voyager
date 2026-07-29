@@ -299,7 +299,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     ]}>
       <span class="text-base-content/60 shrink-0">{@label}</span>
       <div class={[
-        "skeleton h-2.5 shrink-0 rounded",
+        "skeleton shrink-1 h-2.5 rounded",
         @narrow && "w-12",
         @wide && "w-full",
         (not @narrow and not @wide) && "w-20"
