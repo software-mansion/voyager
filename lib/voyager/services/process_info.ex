@@ -93,6 +93,7 @@ defmodule Voyager.Services.ProcessInfo do
       info =
         info
         |> Map.put(:registered_name, registered_name(info))
+        |> Map.put(:catch_level, info.catchlevel)
         |> Map.put(:sequential_trace_token, sequential_trace_token(info))
         |> Map.put(:stack_and_heap_size, info.total_heap_size * word_size)
         |> Map.put(:heap_size, info.heap_size * word_size)
