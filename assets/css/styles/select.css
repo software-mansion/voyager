@@ -3,10 +3,11 @@
    the control itself lands on subpixel coordinates) those halves misalign —
    the caret looks split, deformed, or half-missing.
 
-   Kill DaisyUI's dual-gradient caret globally, and render a single SVG caret
-   via `.select-caret` wrapper so there is no seam to break under fractional
-   device pixels. Color follows currentColor. */
-.select:not([multiple]) {
+   Wrap any DaisyUI `.select` in `.select-caret` to replace that dual-gradient
+   with a single SVG mask caret (no seam under fractional device pixels).
+   A wrapper is required: <select> does not reliably support ::after in
+   WebKit (Tauri on macOS/Linux). Unwrapped selects keep DaisyUI's caret. */
+.select-caret .select:not([multiple]) {
   background-image: none;
 }
 
@@ -15,6 +16,8 @@
   position: relative;
   display: inline-flex;
   align-items: center;
+  /* Match DaisyUI select text so the mask caret tracks light/dark themes. */
+  color: var(--color-base-content);
 }
 
 .select-caret::after {
@@ -22,8 +25,8 @@
   position: absolute;
   right: 0.75rem;
   top: 50%;
-  width: 0.85rem;
-  height: 0.85rem;
+  width: 1rem;
+  height: 1rem;
   translate: 0 -50%;
   pointer-events: none;
   background-color: currentColor;
