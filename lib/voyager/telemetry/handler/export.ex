@@ -5,11 +5,13 @@ defmodule Voyager.Telemetry.Handler.Export do
   Failed pushes are retried with backoff.
 
   Set `:push_url` (via `TELEMETRY_PUSH_URL`) and `:api_key` (via `TELEMETRY_API_KEY`).
-  Events are posted to the ingest server with the `X-API-Key` header.
+  Events are posted to the ingest server with the `X-API-Key` header and carry the
+  anonymous `Voyager.Telemetry.InstallId` so events from one installation can be correlated.
   """
 
   @behaviour Voyager.Telemetry.Handler
 
+  alias Voyager.Telemetry.InstallId
   alias Voyager.Telemetry.Parser
 
   require Logger
@@ -23,6 +25,7 @@ defmodule Voyager.Telemetry.Handler.Export do
     case config do
       %{push_url: push_url, api_key: api_key} when is_binary(push_url) and is_binary(api_key) ->
         payload = %{
+          install_id: InstallId.get(),
           event: Parser.parse_event(event),
           measurements: Parser.parse_measurements(event, measurements),
           metadata: Parser.parse_metadata(event, metadata),
