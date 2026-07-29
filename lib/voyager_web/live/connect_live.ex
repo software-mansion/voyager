@@ -57,19 +57,21 @@ defmodule VoyagerWeb.ConnectLive do
               </p>
             </div>
 
-            <.live_component
-              :if={@mode == :direct}
-              module={VoyagerWeb.ConnectLive.DirectConnect}
-              id="direct-connect"
-              connected?={not is_nil(@connected_session)}
-            />
+            <div class={@mode != :direct && "hidden"}>
+              <.live_component
+                module={VoyagerWeb.ConnectLive.DirectConnect}
+                id="direct-connect"
+                connected?={not is_nil(@connected_session)}
+              />
+            </div>
 
-            <.live_component
-              :if={@mode == :ssh}
-              module={VoyagerWeb.ConnectLive.SshConnect}
-              id="ssh-connect"
-              connected?={not is_nil(@connected_session)}
-            />
+            <div class={@mode != :ssh && "hidden"}>
+              <.live_component
+                module={VoyagerWeb.ConnectLive.SshConnect}
+                id="ssh-connect"
+                connected?={not is_nil(@connected_session)}
+              />
+            </div>
           </div>
         </div>
       </div>

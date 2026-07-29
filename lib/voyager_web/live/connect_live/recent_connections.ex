@@ -42,6 +42,7 @@ defmodule VoyagerWeb.ConnectLive.RecentConnections do
   attr :pinned_connections, :list, required: true
   attr :recent_connections, :list, required: true
   attr :disabled, :boolean, default: false
+  attr :id_prefix, :string, default: ""
   slot :row, required: true
 
   def render(assigns) do
@@ -53,7 +54,7 @@ defmodule VoyagerWeb.ConnectLive.RecentConnections do
       <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
         Favourites
       </p>
-      <ul class="-mx-2 flex flex-col gap-0.5">
+      <ul id={"#{@id_prefix}pinned-connections"} class="-mx-2 flex flex-col gap-0.5">
         <li :for={conn <- @pinned_connections} class="list-none">
           {render_slot(@row, {conn, true})}
         </li>
@@ -71,7 +72,7 @@ defmodule VoyagerWeb.ConnectLive.RecentConnections do
       <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
         Recent connections
       </p>
-      <ul class="-mx-2 flex flex-col gap-0.5">
+      <ul id={"#{@id_prefix}recent-connections"} class="-mx-2 flex flex-col gap-0.5">
         <li :for={conn <- @recent_connections} class="list-none">
           {render_slot(@row, {conn, false})}
         </li>

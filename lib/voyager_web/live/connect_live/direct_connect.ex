@@ -42,11 +42,88 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
     {:ok, assign(socket, assigns)}
   end
 
+  # @impl true
+  # def render(assigns) do
+  #   assigns =
+  #     assign(
+  #       assigns,
+  #       :current_name_type,
+  #       to_string(assigns.form[:name_type].value || "longnames")
+  #     )
+
+  #   ~H"""
+  #   <div id={@id}>
+  #     <.form
+  #       for={@form}
+  #       id="connect-form"
+  #       phx-target={@myself}
+  #       phx-change="validate"
+  #       phx-submit="connect"
+  #       class={["flex flex-col gap-4", @connected? && "pointer-events-none opacity-40"]}
+  #     >
+  #       <ConnectComponents.form_field
+  #         field={@form[:node_name]}
+  #         label="Node name"
+  #         placeholder={
+  #           if @current_name_type == "longnames",
+  #             do: "my_app@server.company.com",
+  #             else: "my_app@my-machine"
+  #         }
+  #         disabled={@connected?}
+  #       >
+  #         <:trailing>
+  #           <ConnectComponents.name_type_toggle
+  #             name="conn[name_type]"
+  #             value={@current_name_type}
+  #             disabled={@connected?}
+  #           />
+  #         </:trailing>
+  #       </ConnectComponents.form_field>
+
+  #       <ConnectComponents.secret_field
+  #         field={@form[:cookie]}
+  #         label="Cookie"
+  #         secret_key="cookie"
+  #         shown={SecretVisibility.shown?(@secret_visibility, "cookie")}
+  #         target={@myself}
+  #         remember_name="conn[remember_cookie]"
+  #         remember_checked={to_string(@form[:remember_cookie].value) == "true"}
+  #         remember_label="Remember cookie"
+  #         disabled={@connected?}
+  #       />
+
+  #       <ConnectComponents.connect_submit
+  #         id="connect-btn"
+  #         icon="icon-network"
+  #         label="Connect"
+  #         loading_label="Connecting…"
+  #         disabled={@connected?}
+  #       />
+  #     </.form>
+
+  #     <RecentConnections.render
+  #       pinned_connections={@pinned_connections}
+  #       recent_connections={@recent_connections}
+  #       disabled={@connected?}
+  #     >
+  #       <:row :let={{conn, pinned}}>
+  #         <.direct_connection_row conn={conn} pinned={pinned} target={@myself} disabled={@connected?} />
+  #       </:row>
+  #     </RecentConnections.render>
+
+  #     <p class="font-mono tracking-snug text-base-content/35 mt-6 text-center text-xs">
+  #       Uses BEAM distribution
+  #     </p>
+  #   </div>
+  #   """
+  # end
+
   @impl true
   def render(assigns) do
     assigns =
-      assign(
-        assigns,
+      assigns
+      |> assign_new(:id_prefix, fn -> "direct-" end)
+      |> assign(
         :current_name_type,
         to_string(assigns.form[:name_type].value || "longnames")
       )
@@ -55,7 +132,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
     <div id={@id}>
       <.form
         for={@form}
-        id="connect-form"
+        id={"#{@id_prefix}connect-form"}
         phx-target={@myself}
         phx-change="validate"
         phx-submit="connect"
@@ -93,7 +170,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
         />
 
         <ConnectComponents.connect_submit
-          id="connect-btn"
+          id={"#{@id_prefix}connect-btn"}
           icon="icon-network"
           label="Connect"
           loading_label="Connecting…"
@@ -102,6 +179,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
       </.form>
 
       <RecentConnections.render
+        id_prefix={@id_prefix}
         pinned_connections={@pinned_connections}
         recent_connections={@recent_connections}
         disabled={@connected?}
@@ -191,11 +269,6 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
       _ ->
         {:noreply, socket}
     end
-  end
-
-  def handle_event("fill_recent", _params, %{assigns: %{connected?: session}} = socket)
-      when not is_nil(session) do
-    {:noreply, socket}
   end
 
   def handle_event("connect", %{"conn" => params}, socket) do
