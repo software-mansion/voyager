@@ -54,6 +54,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     """
   end
 
+  attr :panel_id, :string, required: true
   attr :node, TreeNode, required: true
 
   def node_label(assigns) do
@@ -63,13 +64,20 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       |> assign(:pid_string, node_pid_string(assigns.node))
 
     ~H"""
-    <div>
-      <p class="font-mono text-base-content truncate break-all text-sm font-medium">
-        {@display_name}
-      </p>
-      <p :if={@pid_string} class="font-mono text-base-content/50 mt-0.5 text-xs">
-        {@pid_string}
-      </p>
+    <div class="flex min-w-0 flex-col gap-0.5">
+      <.copyable
+        id={"#{@panel_id}-name"}
+        class="font-mono text-base-content break-all text-sm font-medium"
+        text={@display_name}
+        label="Copy Node name"
+      />
+      <.copyable
+        :if={@pid_string}
+        id={"#{@panel_id}-pid"}
+        class="font-mono text-base-content/50 text-xs"
+        text={@pid_string}
+        label="Copy Node PID"
+      />
     </div>
     """
   end
@@ -422,6 +430,29 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       >
         {if(@links_expanded?, do: "Show Less", else: "Show More")}
       </button>
+    </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :text, :string, required: true
+  attr :label, :string, required: true
+  attr :class, :any, default: nil
+
+  defp copyable(assigns) do
+    ~H"""
+    <div class="group flex min-w-0 items-center gap-1">
+      <p id={@id} class={["min-w-0 truncate", @class]}>
+        {@text}
+      </p>
+      <div id={"#{@id}-copy-text"} class="hidden">{@text}</div>
+      <.copy_button
+        id={"#{@id}-copy"}
+        target={"##{@id}-copy-text"}
+        icon_only
+        label={@label}
+        class="text-base-content/50 opacity-0 transition-opacity hover:text-base-content focus-visible:opacity-100 group-hover:opacity-100"
+      />
     </div>
     """
   end

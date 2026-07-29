@@ -169,11 +169,13 @@ defmodule VoyagerWeb.CoreComponents do
   ## Examples
 
       <.copy_button id="copy-json" target="#json-content" />
+      <.copy_button id="copy-pid" target="#pid" label="Copy PID" icon_only />
   """
   attr :id, :string, required: true
   attr :target, :string, required: true, doc: "CSS selector for the element whose text is copied"
   attr :label, :string, default: "Copy"
   attr :copied_label, :string, default: "Copied"
+  attr :icon_only, :boolean, default: false, doc: "if true, the button will only show an icon"
   attr :class, :any, default: nil
   attr :rest, :global
 
@@ -189,11 +191,15 @@ defmodule VoyagerWeb.CoreComponents do
       data-copy-copied-label={@copied_label}
       title={@label}
       aria-label={@label}
-      class={["btn btn-sm btn-ghost gap-2", @class]}
+      class={[
+        "btn btn-sm btn-ghost gap-2",
+        @icon_only && "btn-square size-6 min-h-0 gap-0 p-0",
+        @class
+      ]}
       {@rest}
     >
-      <.icon name="icon-copy" class="size-4" />
-      <span data-copy-button-label>{@label}</span>
+      <.icon name="icon-copy" class={if @icon_only, do: "size-3", else: "size-4"} />
+      <span data-copy-button-label class={@icon_only && "sr-only"}>{@label}</span>
       <span class="sr-only" aria-live="polite" data-copy-status></span>
     </button>
 

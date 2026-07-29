@@ -77,7 +77,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
         <div class="border-base-200 flex items-start gap-3 border-b px-5 py-4">
           <div class="flex min-w-0 flex-1 flex-col gap-1.5">
             <.node_type_label node_type={@node.type} />
-            <.node_label node={@node} />
+            <.node_label panel_id={@id} node={@node} />
           </div>
           <div class="flex shrink-0 items-center gap-1.5">
             <.refresh_button
