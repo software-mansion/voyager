@@ -307,7 +307,11 @@ export const graphMethods = {
     const nextEdgeId =
       this.selectedEdgeId === clickedEdgeId ? null : clickedEdgeId;
 
-    this.applyEdgeHighlight(nextEdgeId);
+    // Wait for node deselection to finish before highlighting the edge;
+    // otherwise an empty path-highlight can wipe the edge selection.
+    this.pushEventTo(this.el, 'select-node', { key: '' }, () => {
+      this.applyEdgeHighlight(clickedEdgeId);
+    });
   },
 
   applyEdgeHighlight(edgeId) {
@@ -356,6 +360,12 @@ export const graphMethods = {
       ele.data('hidden_count', next);
       return next;
     };
+
+      // Wait for node deselection to finish before highlighting the edge;
+    // otherwise an empty path-highlight can wipe the edge selection.
+    this.pushEventTo(this.el, 'select-node', { key: '' }, () => {
+      this.applyEdgeHighlight(nextEdgeId);
+    });
 
     this.cy.batch(() => {
       if (this.isCollapsed(node)) {
