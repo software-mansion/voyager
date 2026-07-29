@@ -15,7 +15,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   @max_expanded_links 200
 
   attr :panel_id, :string, required: true
-  attr :open, :boolean, required: true
+  attr :open?, :boolean, required: true
 
   def resize_handle(assigns) do
     ~H"""
@@ -27,7 +27,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       aria-label="Resize details panel"
       class={[
         "group absolute inset-y-0 -left-1.5 z-50 hidden w-3 cursor-col-resize touch-none items-center justify-center",
-        @open && "lg:flex"
+        @open? && "lg:flex"
       ]}
     >
       <span class="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 transition-colors group-hover:bg-primary/50" />
@@ -278,6 +278,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     """
   end
 
+  @spec load_error(any()) :: Phoenix.LiveView.Rendered.t()
   def load_error(assigns) do
     ~H"""
     <div class="border-error/30 bg-error/10 text-error rounded-lg border px-3 py-2.5 text-xs">

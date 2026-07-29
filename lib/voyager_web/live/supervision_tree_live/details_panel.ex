@@ -30,7 +30,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     socket
     |> assign(:node, nil)
     |> assign(:remote_node, nil)
-    |> assign(:open, false)
+    |> assign(:open?, false)
     |> assign(:links_expanded?, false)
     |> assign(:node_info, AsyncResult.loading())
     |> ok()
@@ -64,14 +64,14 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     <aside
       id={@id}
       phx-hook="DetailsPanelResize"
-      inert={not @open}
+      inert={not @open?}
       class={[
         "details-panel",
         "border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex w-full flex-col border-l p-2 shadow-2xl transition-transform duration-300 ease-in-out",
-        if(@open, do: "translate-x-0", else: "translate-x-full")
+        if(@open?, do: "translate-x-0", else: "translate-x-full")
       ]}
     >
-      <.resize_handle panel_id={@id} open={@open} />
+      <.resize_handle panel_id={@id} open?={@open?} />
       <%= if @node do %>
         <%!-- Header --%>
         <div class="border-base-200 flex items-start gap-3 border-b px-5 py-4">
@@ -122,12 +122,12 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     """
   end
 
-  defp maybe_assign_node(socket, nil), do: assign(socket, :open, false)
+  defp maybe_assign_node(socket, nil), do: assign(socket, :open?, false)
 
   defp maybe_assign_node(socket, node) do
     socket =
       socket
-      |> assign(:open, true)
+      |> assign(:open?, true)
       |> assign(:node, node)
       |> maybe_fetch_node_info(node)
 
