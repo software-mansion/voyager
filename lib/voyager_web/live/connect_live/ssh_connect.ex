@@ -23,14 +23,6 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   alias VoyagerWeb.ConnectLive.RecentConnections
   alias VoyagerWeb.ConnectLive.SecretVisibility
   alias VoyagerWeb.FormSchemas.SshConnectionParams
-
-  @recents_keys %{
-    pinned: :pinned_ssh_connections,
-    recent: :recent_ssh_connections,
-    has_pinned: :has_pinned_ssh,
-    has_recent: :has_recent_ssh
-  }
-
   @impl true
   def update(%{id: id, connected?: connected?}, socket) do
     socket = assign(socket, id: id, connected?: connected?)
@@ -47,8 +39,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         |> assign(:ssh_last_applied, nil)
         |> RecentConnections.init(
           queries: SshConnectionQueries,
-          actions: SshConnectionActions,
-          keys: @recents_keys
+          actions: SshConnectionActions
         )
         |> assign(:initialized, true)
       end
@@ -197,11 +188,8 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       </.form>
 
       <RecentConnections.render
-        dom_prefix="ssh-"
-        streams={@streams}
-        keys={@recents.keys}
-        has_pinned={@has_pinned_ssh}
-        has_recent={@has_recent_ssh}
+        pinned_connections={@pinned_connections}
+        recent_connections={@recent_connections}
         disabled={@connected? or @ssh_connecting}
       >
         <:row :let={{conn, pinned}}>

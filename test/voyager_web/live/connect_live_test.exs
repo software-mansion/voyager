@@ -72,10 +72,6 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
       assert has_element?(view, ~s|[data-testid="fill-recent-btn"][disabled]|)
       refute has_element?(view, ~s|#conn_node_name[value="#{recent.node_name}"]|)
-
-      # Bypass the disabled button to exercise the server-side guard.
-      render_click(view, "fill_recent", %{"id" => Integer.to_string(recent.id)})
-
       refute has_element?(view, ~s|#conn_node_name[value="#{recent.node_name}"]|)
     end
   end

@@ -19,34 +19,60 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   alias VoyagerWeb.ConnectLive.SecretVisibility
   alias VoyagerWeb.FormSchemas.ConnectionParams
 
-  @recents_keys %{
-    pinned: :pinned_connections,
-    recent: :recent_connections,
-    has_pinned: :has_pinned,
-    has_recent: :has_recent
-  }
-
   @impl true
-  def update(%{id: id, connected?: connected?}, socket) do
-    socket = assign(socket, id: id, connected?: connected?)
-
+  def update(
+        %{connected?: new_status} = assigns,
+        %{assigns: %{initialized: true, connected?: old_status}} = socket
+      )
+      when new_status != old_status do
     socket =
-      if socket.assigns[:initialized] do
-        socket
-      else
-        socket
-        |> assign(:form, empty_form())
-        |> SecretVisibility.init()
-        |> RecentConnections.init(
-          queries: ConnectionQueries,
-          actions: ConnectionActions,
-          keys: @recents_keys
-        )
-        |> assign(:initialized, true)
-      end
+      socket
+      |> assign(assigns)
+      |> RecentConnections.reset()
 
-    ok(socket)
+    {:ok, socket}
   end
+
+  def update(assigns, socket) when not is_map_key(socket.assigns, :initialized) do
+    socket =
+      socket
+      |> assign(assigns)
+      |> assign(:form, empty_form())
+      |> SecretVisibility.init()
+      |> RecentConnections.init(
+        queries: ConnectionQueries,
+        actions: ConnectionActions
+      )
+      |> assign(:initialized, true)
+
+    {:ok, socket}
+  end
+
+  def update(assigns, socket) do
+    {:ok, assign(socket, assigns)}
+  end
+
+  # @impl true
+  # def update(%{id: id, connected?: connected?}, socket) do
+  #   socket = assign(socket, id: id, connected?: connected?)
+
+  #   socket =
+  #     if socket.assigns[:initialized] do
+  #       socket
+  #     else
+  #       socket
+  #       |> assign(:form, empty_form())
+  #       |> SecretVisibility.init()
+  #       |> RecentConnections.init(
+  #         queries: ConnectionQueries,
+  #         actions: ConnectionActions,
+  #         keys: @recents_keys
+  #       )
+  #       |> assign(:initialized, true)
+  #     end
+
+  #   ok(socket)
+  # end
 
   @impl true
   def render(assigns) do
@@ -108,14 +134,12 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
       </.form>
 
       <RecentConnections.render
-        streams={@streams}
-        keys={@recents.keys}
-        has_pinned={@has_pinned}
-        has_recent={@has_recent}
+        pinned_connections={@pinned_connections}
+        recent_connections={@recent_connections}
         disabled={@connected?}
       >
         <:row :let={{conn, pinned}}>
-          <.direct_connection_row conn={conn} pinned={pinned} target={@myself} />
+          <.direct_connection_row conn={conn} pinned={pinned} target={@myself} disabled={@connected?} />
         </:row>
       </RecentConnections.render>
 
@@ -129,6 +153,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   attr :conn, :map, required: true
   attr :pinned, :boolean, default: false
   attr :target, :any, required: true
+  attr :disabled, :boolean, default: false
 
   defp direct_connection_row(assigns) do
     ~H"""
@@ -139,6 +164,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
         phx-click="fill_recent"
         phx-value-id={@conn.id}
         data-testid="fill-recent-btn"
+        disabled={@disabled}
         class="font-mono text-base-content/60 flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-xs transition-colors hover:bg-base-200 hover:text-base-content"
       >
         <.icon name="icon-network" class="size-3.5 text-base-content/25 shrink-0" />
@@ -169,6 +195,10 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
     {:noreply, assign(socket, :form, to_form(changeset, as: :conn))}
   end
 
+  def handle_event("fill_recent", _params, %{assigns: %{connected?: true}} = socket) do
+    {:noreply, socket}
+  end
+
   def handle_event("fill_recent", %{"id" => id}, socket) do
     case Integer.parse(id) do
       {int_id, ""} ->
@@ -193,6 +223,11 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
       _ ->
         {:noreply, socket}
     end
+  end
+
+  def handle_event("fill_recent", _params, %{assigns: %{connected?: session}} = socket)
+      when not is_nil(session) do
+    {:noreply, socket}
   end
 
   def handle_event("connect", %{"conn" => params}, socket) do
