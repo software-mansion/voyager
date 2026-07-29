@@ -195,7 +195,7 @@ defmodule VoyagerWeb.CoreComponents do
       class={["btn btn-sm btn-ghost", if(@icon_only, do: "btn-square", else: "gap-2"), @class]}
       {@rest}
     >
-      <.icon name="icon-copy" class="size-4" />
+      <.icon name="icon-copy" class="toolbar-icon" />
       <span data-copy-button-label class={@icon_only && "sr-only"}>{@label}</span>
       <span class="sr-only" aria-live="polite" data-copy-status></span>
     </button>
@@ -351,7 +351,7 @@ defmodule VoyagerWeb.CoreComponents do
           data-direction="-1"
           tabindex="-1"
           aria-label="Decrease"
-          class="btn btn-sm btn-square join-item border-base-content/20"
+          class="btn btn-square toolbar-btn join-item border-base-content/20"
         >
           <.icon name="icon-minus" class="size-4" />
         </button>

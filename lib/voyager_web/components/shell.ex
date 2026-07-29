@@ -79,9 +79,9 @@ defmodule VoyagerWeb.Components.Shell do
         <.link
           href={@return_to || ~p"/"}
           title="Back"
-          class="btn btn-ghost btn-square text-base-content"
+          class="btn btn-ghost btn-square toolbar-btn text-base-content"
         >
-          <.icon name="icon-arrow-left" class="size-6" />
+          <.icon name="icon-arrow-left" class="toolbar-icon" />
         </.link>
         <.brand />
       </div>
@@ -186,7 +186,7 @@ defmodule VoyagerWeb.Components.Shell do
         @sidebar_mode == "full" && "mode-full"
       ]}
     >
-      <ul class="menu font-sans w-full flex-1 gap-2 p-4">
+      <ul class="menu font-sans w-full flex-1 gap-1.75">
         <li class="sidebar-toggle-row mb-3 flex flex-row items-center justify-between">
           <span class="menu-title sidebar-label tracking-label p-0 text-xs uppercase">Inspect</span>
           <.sidebar_toggle current_url={@current_url} sidebar_mode={@sidebar_mode} />
@@ -401,7 +401,7 @@ defmodule VoyagerWeb.Components.Shell do
           phx-click="disconnect"
           class="btn btn-ghost btn-square btn-xs text-error/75 hover:text-error"
         >
-          <.icon name="icon-power" class="size-3.5" />
+          <.icon name="icon-power" class="size-4" />
         </button>
         <:content>Disconnect</:content>
       </.tooltip>

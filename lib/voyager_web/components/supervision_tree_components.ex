@@ -235,7 +235,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                     aria-label="Zoom graph in"
                     class="btn btn-sm btn-ghost btn-square"
                   >
-                    <.icon name="icon-plus" class="size-5" />
+                    <.icon name="icon-plus" class="toolbar-icon" />
                   </button>
                   <button
                     type="button"
@@ -244,7 +244,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                     aria-label="Zoom graph out"
                     class="btn btn-sm btn-ghost btn-square"
                   >
-                    <.icon name="icon-minus" class="size-5" />
+                    <.icon name="icon-minus" class="toolbar-icon" />
                   </button>
                   <button
                     type="button"
@@ -253,7 +253,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                     aria-label="Fit graph to view"
                     class="btn btn-sm btn-ghost btn-square"
                   >
-                    <.icon name="icon-maximize" class="size-5" />
+                    <.icon name="icon-maximize" class="toolbar-icon" />
                   </button>
                 </div>
               </div>

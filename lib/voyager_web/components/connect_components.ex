@@ -52,7 +52,7 @@ defmodule VoyagerWeb.ConnectComponents do
         phx-value-id={@conn.id}
         title={if @pinned, do: "Remove from favourites", else: "Save as favourite"}
         class={[
-          "btn btn-ghost btn-xs px-0.5",
+          "btn btn-square btn-ghost btn-xs px-0.5",
           if(@pinned, do: "text-pinned", else: "text-base-content/20 hover:text-pinned")
         ]}
       >
@@ -64,7 +64,7 @@ defmodule VoyagerWeb.ConnectComponents do
         phx-click="delete_connection"
         phx-value-id={@conn.id}
         title="Remove"
-        class="btn btn-ghost btn-xs text-base-content/20 px-0.5 hover:text-error"
+        class="btn btn-square btn-ghost btn-xs text-base-content/20 px-0.5 hover:text-error"
       >
         <.icon name="icon-x" class="size-3.5" />
       </button>
