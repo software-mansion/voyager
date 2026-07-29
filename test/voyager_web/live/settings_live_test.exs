@@ -165,4 +165,38 @@ defmodule VoyagerWeb.SettingsLiveTest do
       assert has_element?(view, ~s|#mcp_port_port[disabled]|)
     end
   end
+
+  describe "telemetry settings" do
+    setup do
+      on_exit(fn -> Voyager.Telemetry.set_enabled(true) end)
+      :ok
+    end
+
+    test "shows telemetry as enabled by default and toggles it off/on", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      assert has_element?(view, ~s|#telemetry-toggle[checked]|)
+
+      view |> element("#telemetry-toggle") |> render_click()
+
+      refute has_element?(view, ~s|#telemetry-toggle[checked]|)
+      refute Settings.get(:telemetry_enabled, true)
+      refute Voyager.Telemetry.enabled?()
+
+      view |> element("#telemetry-toggle") |> render_click()
+
+      assert has_element?(view, ~s|#telemetry-toggle[checked]|)
+      assert Settings.get(:telemetry_enabled, true)
+    end
+
+    test "disables the toggle when locked by application config", %{conn: conn} do
+      Application.put_env(:voyager, :telemetry_enabled, false)
+      on_exit(fn -> Application.delete_env(:voyager, :telemetry_enabled) end)
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      assert has_element?(view, "#telemetry-locked")
+      assert has_element?(view, ~s|#telemetry-toggle[disabled]|)
+    end
+  end
 end
