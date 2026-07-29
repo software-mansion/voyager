@@ -361,7 +361,7 @@ export const graphMethods = {
       return next;
     };
 
-      // Wait for node deselection to finish before highlighting the edge;
+    // Wait for node deselection to finish before highlighting the edge;
     // otherwise an empty path-highlight can wipe the edge selection.
     this.pushEventTo(this.el, 'select-node', { key: '' }, () => {
       this.applyEdgeHighlight(nextEdgeId);
