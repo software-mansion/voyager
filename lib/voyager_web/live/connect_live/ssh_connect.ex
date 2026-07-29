@@ -4,18 +4,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   """
   use VoyagerWeb, :live_component
 
-  import VoyagerWeb.ConnectComponents,
-    only: [
-      form_field: 1,
-      secret_field: 1,
-      segmented: 1,
-      name_type_toggle: 1,
-      connect_submit: 1,
-      saved_badge: 1,
-      row_actions: 1,
-      relative_time: 1
-    ]
-
+  alias VoyagerWeb.ConnectComponents
   alias Voyager.Actions.SshConnections, as: SshConnectionActions
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Connectors.Ssh, as: SshConnector
@@ -23,6 +12,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   alias VoyagerWeb.ConnectLive.RecentConnections
   alias VoyagerWeb.ConnectLive.SecretVisibility
   alias VoyagerWeb.FormSchemas.SshConnectionParams
+
   @impl true
   def update(%{id: id, connected?: connected?}, socket) do
     socket = assign(socket, id: id, connected?: connected?)
@@ -69,7 +59,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       >
         <div class="flex gap-3">
           <div class="min-w-0 flex-1">
-            <.form_field
+            <ConnectComponents.form_field
               field={@ssh_form[:ssh_user]}
               label="SSH User"
               placeholder="voyager"
@@ -77,7 +67,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
             />
           </div>
           <div class="flex-2 min-w-0">
-            <.form_field
+            <ConnectComponents.form_field
               field={@ssh_form[:ssh_host]}
               label="SSH Host"
               placeholder="10.0.0.5"
@@ -86,7 +76,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
           </div>
         </div>
 
-        <.form_field
+        <ConnectComponents.form_field
           field={@ssh_form[:node_name]}
           label="Node Name"
           placeholder={
@@ -97,15 +87,15 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
           disabled={@connected? or @ssh_connecting}
         >
           <:trailing>
-            <.name_type_toggle
+            <ConnectComponents.name_type_toggle
               name="ssh[name_type]"
               value={@current_name_type}
               disabled={@connected? or @ssh_connecting}
             />
           </:trailing>
-        </.form_field>
+        </ConnectComponents.form_field>
 
-        <.secret_field
+        <ConnectComponents.secret_field
           field={@ssh_form[:cookie]}
           label="Cookie"
           secret_key="cookie"
@@ -121,7 +111,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
           <label class="font-mono tracking-label text-base-content/50 mb-1.5 block text-xs uppercase">
             Authentication
           </label>
-          <.segmented
+          <ConnectComponents.segmented
             name="ssh[auth_method]"
             value={@current_auth_method}
             disabled={@connected? or @ssh_connecting}
@@ -132,7 +122,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
           />
         </div>
 
-        <.secret_field
+        <ConnectComponents.secret_field
           :if={@current_auth_method == "password"}
           field={@ssh_form[:password]}
           label="SSH Password"
@@ -156,7 +146,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
           </button>
           <div :if={@show_ssh_advanced} class="border-base-300 mt-3 flex gap-3 rounded-lg border p-4">
             <div class="flex-1">
-              <.form_field
+              <ConnectComponents.form_field
                 field={@ssh_form[:ssh_port]}
                 label="SSH Port"
                 type="number"
@@ -166,7 +156,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
               />
             </div>
             <div class="flex-1">
-              <.form_field
+              <ConnectComponents.form_field
                 field={@ssh_form[:epmd_port]}
                 label="EPMD Port"
                 type="number"
@@ -178,7 +168,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
           </div>
         </div>
 
-        <.connect_submit
+        <ConnectComponents.connect_submit
           id="ssh-connect-btn"
           icon="icon-network"
           label="Connect via SSH"
@@ -226,16 +216,16 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
             <span class="font-mono text-base-content/30 border-base-300 rounded border px-1 text-xs">
               {@conn.ssh_user}@{@conn.ssh_host}
             </span>
-            <.saved_badge :if={@conn.cookie} label="cookie" title="Cookie saved" />
-            <.saved_badge :if={@conn.password} label="pass" title="Password saved" />
+            <ConnectComponents.saved_badge :if={@conn.cookie} label="cookie" title="Cookie saved" />
+            <ConnectComponents.saved_badge :if={@conn.password} label="pass" title="Password saved" />
           </div>
         </div>
         <span class="font-mono text-base-content/35 shrink-0 self-center text-xs">
-          {relative_time(@conn.last_connected_at)}
+          {ConnectComponents.relative_time(@conn.last_connected_at)}
         </span>
       </button>
 
-      <.row_actions
+      <ConnectComponents.row_actions
         id={@conn.id}
         pinned={@pinned}
         pin_event="pin"

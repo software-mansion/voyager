@@ -1,17 +1,7 @@
 defmodule VoyagerWeb.ConnectLive.DirectConnect do
   use VoyagerWeb, :live_component
 
-  import VoyagerWeb.ConnectComponents,
-    only: [
-      form_field: 1,
-      secret_field: 1,
-      name_type_toggle: 1,
-      connect_submit: 1,
-      saved_badge: 1,
-      row_actions: 1,
-      relative_time: 1
-    ]
-
+  alias VoyagerWeb.ConnectComponents
   alias Voyager.Actions.Connections, as: ConnectionActions
   alias Voyager.NodeSession
   alias Voyager.Queries.Connections, as: ConnectionQueries
@@ -52,28 +42,6 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
     {:ok, assign(socket, assigns)}
   end
 
-  # @impl true
-  # def update(%{id: id, connected?: connected?}, socket) do
-  #   socket = assign(socket, id: id, connected?: connected?)
-
-  #   socket =
-  #     if socket.assigns[:initialized] do
-  #       socket
-  #     else
-  #       socket
-  #       |> assign(:form, empty_form())
-  #       |> SecretVisibility.init()
-  #       |> RecentConnections.init(
-  #         queries: ConnectionQueries,
-  #         actions: ConnectionActions,
-  #         keys: @recents_keys
-  #       )
-  #       |> assign(:initialized, true)
-  #     end
-
-  #   ok(socket)
-  # end
-
   @impl true
   def render(assigns) do
     assigns =
@@ -93,7 +61,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
         phx-submit="connect"
         class={["flex flex-col gap-4", @connected? && "pointer-events-none opacity-40"]}
       >
-        <.form_field
+        <ConnectComponents.form_field
           field={@form[:node_name]}
           label="Node name"
           placeholder={
@@ -104,15 +72,15 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
           disabled={@connected?}
         >
           <:trailing>
-            <.name_type_toggle
+            <ConnectComponents.name_type_toggle
               name="conn[name_type]"
               value={@current_name_type}
               disabled={@connected?}
             />
           </:trailing>
-        </.form_field>
+        </ConnectComponents.form_field>
 
-        <.secret_field
+        <ConnectComponents.secret_field
           field={@form[:cookie]}
           label="Cookie"
           secret_key="cookie"
@@ -124,7 +92,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
           disabled={@connected?}
         />
 
-        <.connect_submit
+        <ConnectComponents.connect_submit
           id="connect-btn"
           icon="icon-network"
           label="Connect"
@@ -170,14 +138,14 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
         <.icon name="icon-network" class="size-3.5 text-base-content/25 shrink-0" />
         <div class="flex min-w-0 items-center gap-1.5">
           <span class="ml-2 truncate">{@conn.node_name}</span>
-          <.saved_badge :if={@conn.cookie} label="cookie" title="Cookie saved" />
+          <ConnectComponents.saved_badge :if={@conn.cookie} label="cookie" title="Cookie saved" />
         </div>
         <span class="font-mono text-base-content/35 ml-auto shrink-0 text-xs">
-          {relative_time(@conn.last_connected_at)}
+          {ConnectComponents.relative_time(@conn.last_connected_at)}
         </span>
       </button>
 
-      <.row_actions
+      <ConnectComponents.row_actions
         id={@conn.id}
         pinned={@pinned}
         pin_event="pin"
