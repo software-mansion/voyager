@@ -306,12 +306,7 @@ defmodule VoyagerWeb.CoreComponents do
 
   def logo(assigns) do
     ~H"""
-    <div class={[
-      "from-primary to-secondary shadow-logo-glow relative m-1 h-7 w-7 shrink-0 rounded-md bg-gradient-to-br",
-      @class
-    ]}>
-      <div class="bg-base-100 shadow-logo-inset absolute inset-1 rounded-sm"></div>
-    </div>
+    <.icon name="icon-logo-voyager" class={["text-logo", @class]} />
     """
   end
 
