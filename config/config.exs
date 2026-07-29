@@ -4,6 +4,9 @@ config :voyager,
   ecto_repos: [Voyager.Repo],
   generators: [timestamp_type: :utc_datetime]
 
+# Placeholder until the Terms of Use page is published on the Voyager website.
+config :voyager, :terms_of_use_url, "https://github.com/software-mansion/voyager"
+
 config :voyager, VoyagerWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,

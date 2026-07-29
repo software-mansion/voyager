@@ -17,7 +17,9 @@ defmodule VoyagerWeb.Router do
   scope "/", VoyagerWeb do
     pipe_through :browser
 
-    live_session :connect, layout: {VoyagerWeb.Layouts, :connect} do
+    live_session :connect,
+      layout: {VoyagerWeb.Layouts, :connect},
+      on_mount: VoyagerWeb.Hooks.OnboardingHook do
       live "/", ConnectLive, :index
     end
 
@@ -31,6 +33,7 @@ defmodule VoyagerWeb.Router do
       layout: {VoyagerWeb.Layouts, :app},
       on_mount: [
         {VoyagerWeb.Hooks.NodeSessionHook, :require_connected_node},
+        VoyagerWeb.Hooks.OnboardingHook,
         VoyagerWeb.Hooks.McpStatusHook
       ] do
       live "/node/:node", NodeInfoLive, :index

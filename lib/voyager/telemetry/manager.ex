@@ -13,8 +13,11 @@ defmodule Voyager.Telemetry.Manager do
 
   use GenServer
 
+  alias Voyager.Settings
   alias Voyager.Telemetry.Events
   alias Voyager.Telemetry.Handler
+
+  @enabled_key {__MODULE__, :enabled}
 
   @spec start_link(any()) :: :ignore | {:error, any()} | {:ok, pid()}
   def start_link(opts \\ []) do
@@ -26,14 +29,19 @@ defmodule Voyager.Telemetry.Manager do
     handler_module = handler_module(opts)
     handler_config = handler_config(opts)
 
+    # Cached in :persistent_term (rather than read from the DB on every
+    # dispatch) since `handle_event/4` runs synchronously in the caller's
+    # process for every telemetry event.
+    :persistent_term.put(@enabled_key, Settings.get(:telemetry_enabled, true))
+
     _ = :telemetry.detach(Handler.handler_id())
 
     :ok =
       :telemetry.attach_many(
         Handler.handler_id(),
         Events.events(),
-        &handler_module.handle_event/4,
-        handler_config
+        &__MODULE__.handle_event/4,
+        %{handler_module: handler_module, handler_config: handler_config}
       )
 
     {:ok, %{}}
@@ -42,6 +50,48 @@ defmodule Voyager.Telemetry.Manager do
   @impl GenServer
   def terminate(_reason, _state) do
     :telemetry.detach(Handler.handler_id())
+  end
+
+  @doc "Returns whether telemetry event forwarding is currently enabled."
+  @spec enabled?() :: boolean()
+  def enabled? do
+    :persistent_term.get(@enabled_key, true)
+  end
+
+  @doc """
+  Enables or disables telemetry event forwarding, persisting the choice via
+  `Voyager.Settings` and updating the in-memory cache read by `handle_event/4`.
+
+  Returns `{:error, :locked}` when `:telemetry_enabled` is set in application config.
+  """
+  @spec set_enabled(boolean()) ::
+          {:ok, Voyager.Schemas.Setting.t()} | {:error, :locked} | {:error, Ecto.Changeset.t()}
+  def set_enabled(enabled?) when is_boolean(enabled?) do
+    case Settings.put(:telemetry_enabled, enabled?) do
+      {:ok, _setting} = ok ->
+        :persistent_term.put(@enabled_key, enabled?)
+        ok
+
+      error ->
+        error
+    end
+  end
+
+  @doc """
+  Telemetry attach callback shared by every handler.
+
+  Checks the cached `:telemetry_enabled` setting before forwarding the event,
+  so users can disable telemetry from Settings without restarting the app.
+  """
+  def handle_event(event, measurements, metadata, %{
+        handler_module: handler_module,
+        handler_config: handler_config
+      }) do
+    if enabled?() do
+      handler_module.handle_event(event, measurements, metadata, handler_config)
+    else
+      :ok
+    end
   end
 
   defp handler_module(opts) do
