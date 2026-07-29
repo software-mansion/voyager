@@ -361,7 +361,6 @@ export const graphMethods = {
       return next;
     };
 
-
     this.cy.batch(() => {
       if (this.isCollapsed(node)) {
         // Expand: decrement the hidden_count of every successor, then reveal
