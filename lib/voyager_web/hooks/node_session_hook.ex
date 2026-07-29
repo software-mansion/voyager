@@ -26,24 +26,10 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
         |> assign(:session, session)
         |> attach_hook(:no_node_redirect, :handle_info, &handle_no_node/2)
         |> attach_hook(:disconnect, :handle_event, &handle_disconnect/3)
-        |> attach_hook(:track_current_path, :handle_params, &track_current_path/3)
 
       {:cont, socket}
     end
   end
-
-  defp track_current_path(_params, uri, socket) do
-    {:cont, assign(socket, :current_path, current_path(uri))}
-  end
-
-  defp current_path(uri) when is_binary(uri) do
-    %URI{path: path, query: query} = URI.parse(uri)
-    path = path || "/"
-
-    if query, do: path <> "?" <> query, else: path
-  end
-
-  defp current_path(_), do: "/"
 
   defp handle_no_node(
          {event, event_node},
