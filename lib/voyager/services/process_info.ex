@@ -90,32 +90,17 @@ defmodule Voyager.Services.ProcessInfo do
     gc = Map.get(info, :garbage_collection, [])
 
     try do
-      {:ok,
-       %{
-         initial_call: info.initial_call,
-         current_function: info.current_function,
-         registered_name: registered_name(info),
-         status: info.status,
-         message_queue_len: info.message_queue_len,
-         group_leader: info.group_leader,
-         priority: info.priority,
-         trap_exit: info.trap_exit,
-         reductions: info.reductions,
-         binary: info.binary,
-         last_calls: info.last_calls,
-         catch_level: info.catchlevel,
-         trace: info.trace,
-         suspending: info.suspending,
-         sequential_trace_token: sequential_trace_token(info),
-         error_handler: info.error_handler,
-         links: info.links,
-         memory: info.memory,
-         stack_and_heap_size: info.total_heap_size * word_size,
-         heap_size: info.heap_size * word_size,
-         stack_size: info.stack_size * word_size,
-         gc_min_heap_size: gc_min_heap_size(gc, word_size),
-         gc_fullsweep_after: gc_fullsweep_after(gc)
-       }}
+      info =
+        info
+        |> Map.put(:registered_name, registered_name(info))
+        |> Map.put(:sequential_trace_token, sequential_trace_token(info))
+        |> Map.put(:stack_and_heap_size, info.total_heap_size * word_size)
+        |> Map.put(:heap_size, info.heap_size * word_size)
+        |> Map.put(:stack_size, info.stack_size * word_size)
+        |> Map.put(:gc_min_heap_size, gc_min_heap_size(gc, word_size))
+        |> Map.put(:gc_fullsweep_after, gc_fullsweep_after(gc))
+
+      {:ok, info}
     catch
       :error, reason -> {:error, reason}
     end
