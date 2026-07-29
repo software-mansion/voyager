@@ -75,6 +75,49 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :panel_id, :string, required: true
+  attr :myself, :any, required: true
+  attr :loading?, :boolean, required: true
+
+  def refresh_button(assigns) do
+    ~H"""
+    <.tooltip id={"#{@panel_id}-refresh-tip"} position="bottom">
+      <button
+        type="button"
+        id={"#{@panel_id}-refresh"}
+        phx-click="refresh-node-info"
+        phx-target={@myself}
+        phx-throttle="1000"
+        aria-label="Refresh fetched process information"
+        class="border-base-200 text-base-content/50 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border transition-all hover:border-base-300 hover:bg-base-200 hover:text-base-content"
+      >
+        <.icon
+          name="icon-rotate-cw"
+          class={["size-3.5", @loading? && "motion-safe:animate-spin"]}
+        />
+      </button>
+      <:content>Refresh fetched process information</:content>
+    </.tooltip>
+    """
+  end
+
+  attr :panel_id, :string, required: true
+
+  def close_button(assigns) do
+    ~H"""
+    <button
+      type="button"
+      id={"#{@panel_id}-close"}
+      phx-click="close-details-panel"
+      title="Close"
+      aria-label="Close panel"
+      class="border-base-200 text-base-content/50 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border transition-all hover:border-base-300 hover:bg-base-200 hover:text-base-content"
+    >
+      <.icon name="icon-x" class="size-3.5" />
+    </button>
+    """
+  end
+
+  attr :panel_id, :string, required: true
   attr :info, AsyncResult, required: true
   attr :node, TreeNode, required: true
   attr :links_expanded?, :boolean, required: true
