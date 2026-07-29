@@ -18,3 +18,19 @@
 @utility grid-cols-limits {
   grid-template-columns: 1fr auto 1fr auto;
 }
+
+@utility alert-warning {
+  --alert-border-color: var(--color-warning-stroke);
+}
+
+@utility alert-error {
+  --alert-border-color: var(--color-error-stroke);
+}
+
+@utility alert-success {
+  --alert-border-color: var(--color-success-stroke);
+}
+
+@utility alert-info {
+  --alert-border-color: var(--color-info-stroke);
+}
