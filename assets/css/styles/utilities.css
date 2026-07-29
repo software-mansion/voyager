@@ -20,17 +20,17 @@
 }
 
 @utility alert-warning {
-  --alert-border-color: var(--color-warning-stroke);
+  --alert-color: var(--color-warning-bg);
 }
 
 @utility alert-error {
-  --alert-border-color: var(--color-error-stroke);
+  --alert-color: var(--color-error-bg);
 }
 
 @utility alert-success {
-  --alert-border-color: var(--color-success-stroke);
+  --alert-color: var(--color-success-bg);
 }
 
 @utility alert-info {
-  --alert-border-color: var(--color-info-stroke);
+  --alert-color: var(--color-info-bg);
 }

@@ -35,12 +35,12 @@ defmodule VoyagerWeb.SettingsLive.DistributionSettings do
           id="distribution-settings-connected"
           class="alert alert-warning text-sm"
         >
-          <.icon name="icon-circle-alert" class="size-4" />
+          <.icon name="icon-circle-alert" class="text-warning size-4" />
           <span>Cannot change settings when node is connected.</span>
         </div>
 
         <div :if={@locked?} id="distribution-settings-locked" class="alert alert-info text-sm">
-          <.icon name="icon-circle-alert" class="size-4" />
+          <.icon name="icon-info" class="text-info size-4" />
           <span>
             This value is set in application config, so changes are disabled.
           </span>

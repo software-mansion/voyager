@@ -117,7 +117,10 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
         waiting_message="waiting for first fetch…"
       >
         <:actions>
-          <span id="supervision-tree-status" class={["badge mr-2", status_badge_class(@status)]}>
+          <span
+            id="supervision-tree-status"
+            class={["badge mr-2 dark:text-base-100", status_badge_class(@status)]}
+          >
             {status_label(@status)}
           </span>
           <.interval_select
@@ -138,7 +141,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
     ~H"""
     <%= if @errors != [] do %>
       <div id="supervision-tree-errors" class="alert alert-error">
-        <.icon name="icon-circle-alert" class="size-5 shrink-0" />
+        <.icon name="icon-circle-alert" class="text-error size-5 shrink-0" />
         <div class="w-full">
           <p class="font-semibold">Errors encountered</p>
           <ul class="max-h-[10vh] mt-1 w-full list-inside list-disc overflow-auto text-sm">
@@ -331,7 +334,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
     "#{name |> String.downcase() |> String.replace(" ", "-")}-legend-entry"
   end
 
-  defp status_badge_class(:idle), do: "badge-ghost"
+  defp status_badge_class(:idle), do: "text-base-content!"
   defp status_badge_class(:loading), do: "badge-info"
   defp status_badge_class(:ok), do: "badge-success"
   defp status_badge_class(:partial), do: "badge-warning"

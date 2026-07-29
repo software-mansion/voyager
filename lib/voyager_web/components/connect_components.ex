@@ -82,7 +82,7 @@ defmodule VoyagerWeb.ConnectComponents do
       <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
         Connected node
       </p>
-      <div class="bg-success/10 border-success/25 flex items-center justify-between rounded-lg border px-3.5 py-2.5">
+      <div class="bg-success-bg border-success flex items-center justify-between rounded-lg border px-3.5 py-2.5">
         <div class="flex min-w-0 items-center gap-1.5">
           <span class="size-2 relative flex shrink-0">
             <span class="bg-success size-full absolute inline-flex animate-ping rounded-full opacity-60">
@@ -105,7 +105,7 @@ defmodule VoyagerWeb.ConnectComponents do
         </div>
         <.link
           href={~p"/node/#{@session.node_name}"}
-          class="btn btn-success btn-xs ml-3 shrink-0 gap-1"
+          class="btn btn-success btn-xs ml-3 shrink-0 gap-1 dark:text-base-100"
         >
           Open <.icon name="icon-log-in" class="size-3.5" />
         </.link>

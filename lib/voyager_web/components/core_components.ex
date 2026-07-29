@@ -55,8 +55,8 @@ defmodule VoyagerWeb.CoreComponents do
       ]}
       {@rest}
     >
-      <.icon :if={@kind == :info} name="icon-info" class="size-4 shrink-0" />
-      <.icon :if={@kind == :error} name="icon-circle-alert" class="size-4 shrink-0" />
+      <.icon :if={@kind == :info} name="icon-info" class="text-info size-4 shrink-0" />
+      <.icon :if={@kind == :error} name="icon-circle-alert" class="text-error size-4 shrink-0" />
       <div class="min-w-0 flex-1">
         <p :if={@title} class="font-bold">{@title}</p>
         <p>{msg}</p>

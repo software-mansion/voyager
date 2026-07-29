@@ -59,7 +59,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
         </div>
 
         <div :if={@locked?} id="mcp-port-locked" class="alert alert-info text-sm">
-          <.icon name="icon-circle-alert" class="size-4" />
+          <.icon name="icon-info" class="text-info size-4" />
           <span>
             This value is set in application config, so changes are disabled.
           </span>
