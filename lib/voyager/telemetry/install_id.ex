@@ -12,6 +12,8 @@ defmodule Voyager.Telemetry.InstallId do
 
   alias Voyager.Settings
 
+  require Logger
+
   @cache_key {__MODULE__, :install_id}
   @setting_key :install_id
 
@@ -40,7 +42,15 @@ defmodule Voyager.Telemetry.InstallId do
 
   defp generate do
     install_id = Ecto.UUID.generate()
-    _ = Settings.put(@setting_key, install_id)
+
+    case Settings.put(@setting_key, install_id) do
+      {:ok, _setting} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("Failed to persist telemetry install id: #{inspect(reason)}")
+    end
+
     install_id
   end
 end
