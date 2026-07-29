@@ -17,6 +17,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
 
   @process_info_keys [
     :registered_name,
+    :initial_call,
+    :current_function,
     :links,
     :monitors,
     :monitored_by
@@ -351,6 +353,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
         Enum.sort(keys) == Enum.sort(@process_info_keys) ->
           [
             registered_name: :demo_supervisor,
+            initial_call: {:supervisor, :init, 1},
+            current_function: {:gen_server, :loop, 7},
             links: linked_ports,
             monitors: [],
             monitored_by: []
