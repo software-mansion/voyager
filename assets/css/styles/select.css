@@ -1,0 +1,36 @@
+/* DaisyUI paints the <select> caret as two 4×4px CSS linear-gradient
+   triangles joined at a fractional 16.1px offset. At non-100% zoom (and when
+   the control itself lands on subpixel coordinates) those halves misalign —
+   the caret looks split, deformed, or half-missing.
+
+   Wrap any DaisyUI `.select` in `.select-caret` to replace that dual-gradient
+   with a single SVG mask caret (no seam under fractional device pixels).
+   A wrapper is required: <select> does not reliably support ::after in
+   WebKit (Tauri on macOS/Linux). Unwrapped selects keep DaisyUI's caret. */
+.select-caret .select:not([multiple]) {
+  background-image: none;
+}
+
+.select-caret {
+  --select-caret: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  /* Match DaisyUI select text so the mask caret tracks light/dark themes. */
+  color: var(--color-base-content);
+}
+
+.select-caret::after {
+  content: '';
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  width: 1rem;
+  height: 1rem;
+  translate: 0 -50%;
+  pointer-events: none;
+  background-color: currentColor;
+  opacity: 0.85;
+  -webkit-mask: var(--select-caret) center / contain no-repeat;
+  mask: var(--select-caret) center / contain no-repeat;
+}
