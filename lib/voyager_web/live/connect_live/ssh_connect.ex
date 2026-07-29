@@ -71,7 +71,10 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         phx-target={@myself}
         phx-change="validate_ssh"
         phx-submit="connect_ssh"
-        class={["flex flex-col gap-4", @connected? && "pointer-events-none opacity-40"]}
+        class={[
+          "flex flex-col gap-4",
+          (@connected? or @ssh_connecting) && "pointer-events-none opacity-40"
+        ]}
       >
         <div class="flex gap-3">
           <div class="min-w-0 flex-1">
@@ -79,7 +82,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
               field={@ssh_form[:ssh_user]}
               label="SSH User"
               placeholder="voyager"
-              disabled={@connected?}
+              disabled={@connected? or @ssh_connecting}
             />
           </div>
           <div class="flex-2 min-w-0">
@@ -87,7 +90,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
               field={@ssh_form[:ssh_host]}
               label="SSH Host"
               placeholder="10.0.0.5"
-              disabled={@connected?}
+              disabled={@connected? or @ssh_connecting}
             />
           </div>
         </div>
@@ -100,13 +103,13 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
               do: "my_app@server.company.com",
               else: "my_app@my-machine"
           }
-          disabled={@connected?}
+          disabled={@connected? or @ssh_connecting}
         >
           <:trailing>
             <.name_type_toggle
               name="ssh[name_type]"
               value={@current_name_type}
-              disabled={@connected?}
+              disabled={@connected? or @ssh_connecting}
             />
           </:trailing>
         </.form_field>
@@ -120,7 +123,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
           remember_name="ssh[remember_cookie]"
           remember_checked={to_string(@ssh_form[:remember_cookie].value) == "true"}
           remember_label="Remember cookie"
-          disabled={@connected?}
+          disabled={@connected? or @ssh_connecting}
         />
 
         <div>
@@ -130,7 +133,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
           <.segmented
             name="ssh[auth_method]"
             value={@current_auth_method}
-            disabled={@connected?}
+            disabled={@connected? or @ssh_connecting}
             options={[
               %{value: "agent", label: "SSH Agent", id: "ssh-auth-agent"},
               %{value: "password", label: "Password", id: "ssh-auth-password"}
@@ -148,7 +151,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
           remember_name="ssh[remember_password]"
           remember_checked={to_string(@ssh_form[:remember_password].value) == "true"}
           remember_label="Remember password"
-          disabled={@connected?}
+          disabled={@connected? or @ssh_connecting}
         />
 
         <div>
@@ -168,7 +171,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
                 type="number"
                 min="1"
                 max="65535"
-                disabled={@connected?}
+                disabled={@connected? or @ssh_connecting}
               />
             </div>
             <div class="flex-1">
@@ -178,7 +181,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
                 type="number"
                 min="1"
                 max="65535"
-                disabled={@connected?}
+                disabled={@connected? or @ssh_connecting}
               />
             </div>
           </div>
@@ -199,6 +202,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         keys={@recents.keys}
         has_pinned={@has_pinned_ssh}
         has_recent={@has_recent_ssh}
+        disabled={@connected? or @ssh_connecting}
       >
         <:row :let={{conn, pinned}}>
           <.ssh_connection_row conn={conn} pinned={pinned} target={@myself} />

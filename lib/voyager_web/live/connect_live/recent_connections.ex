@@ -78,12 +78,16 @@ defmodule VoyagerWeb.ConnectLive.RecentConnections do
   attr :has_pinned, :boolean, required: true
   attr :has_recent, :boolean, required: true
   attr :dom_prefix, :string, default: "", doc: "Prefix keeping list DOM ids unique per panel"
+  attr :disabled, :boolean, default: false
   slot :row, required: true, doc: "Row markup, receives `{conn, pinned?}`"
 
   @doc "Renders the favourites and recent-connections lists."
   def render(assigns) do
     ~H"""
-    <div :if={@has_pinned} class="border-base-300 mt-7 border-t pt-5">
+    <div
+      :if={@has_pinned}
+      class={["border-base-300 mt-7 border-t pt-5", @disabled && "pointer-events-none opacity-40"]}
+    >
       <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
         Favourites
       </p>
@@ -100,7 +104,11 @@ defmodule VoyagerWeb.ConnectLive.RecentConnections do
 
     <div
       :if={@has_recent}
-      class={["border-base-300 border-t pt-5", if(@has_pinned, do: "mt-3", else: "mt-7")]}
+      class={[
+        "border-base-300 border-t pt-5",
+        if(@has_pinned, do: "mt-3", else: "mt-7"),
+        @disabled && "pointer-events-none opacity-40"
+      ]}
     >
       <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
         Recent connections

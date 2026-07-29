@@ -112,6 +112,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
         keys={@recents.keys}
         has_pinned={@has_pinned}
         has_recent={@has_recent}
+        disabled={@connected?}
       >
         <:row :let={{conn, pinned}}>
           <.direct_connection_row conn={conn} pinned={pinned} target={@myself} />
