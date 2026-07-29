@@ -15,5 +15,8 @@ config :voyager, Voyager.Vault,
 
 config :voyager, :distribution_suffix, "_e2e"
 
+# Skip the first-launch onboarding modal so it doesn't block interactions.
+config :voyager, :terms_accepted, true
+
 config :logger, level: :warning
 config :phoenix, :plug_init_mode, :runtime
