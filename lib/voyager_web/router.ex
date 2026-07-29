@@ -19,7 +19,10 @@ defmodule VoyagerWeb.Router do
 
     live_session :connect,
       layout: {VoyagerWeb.Layouts, :connect},
-      on_mount: VoyagerWeb.Hooks.OnboardingHook do
+      on_mount: [
+        {VoyagerWeb.Hooks.NodeSessionHook, :observe_node_session},
+        VoyagerWeb.Hooks.OnboardingHook
+      ] do
       live "/", ConnectLive, :index
     end
 

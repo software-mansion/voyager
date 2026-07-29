@@ -6,12 +6,8 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   @timeout_fast 1_000
   @timeout_children 3_000
   @timeout_pinfo 2_000
-  @base_process_info_keys [:registered_name]
-  @relations_process_info_keys [
-    :links,
-    :monitors,
-    :monitored_by
-  ]
+  @base_process_info_keys [:registered_name, :initial_call, :current_function]
+  @relations_process_info_keys [:links, :monitors, :monitored_by]
 
   @doc """
   Returns the list of OTP applications running on `node`.
