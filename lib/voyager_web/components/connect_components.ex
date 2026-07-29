@@ -5,8 +5,7 @@ defmodule VoyagerWeb.ConnectComponents do
 
   use VoyagerWeb, :component
 
-
-@doc "Small bordered badge marking a stored element on a row."
+  @doc "Small bordered badge marking a stored element on a row."
   attr :label, :string, required: true
   attr :title, :string, required: true
 
@@ -22,6 +21,7 @@ defmodule VoyagerWeb.ConnectComponents do
   end
 
   attr :conn, :any, required: true
+
   attr :disabled, :boolean,
     default: false,
     doc: "Disables filling the connect form from this row when a node is already connected"
@@ -58,7 +58,7 @@ defmodule VoyagerWeb.ConnectComponents do
     """
   end
 
-   @doc """
+  @doc """
    Favourite and delete buttons shared by the connection-history rows.
   """
   attr :id, :any, required: true
