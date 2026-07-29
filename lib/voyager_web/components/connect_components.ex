@@ -5,7 +5,8 @@ defmodule VoyagerWeb.ConnectComponents do
 
   use VoyagerWeb, :component
 
-  @doc "Small bordered badge marking a stored element on a row."
+
+@doc "Small bordered badge marking a stored element on a row."
   attr :label, :string, required: true
   attr :title, :string, required: true
 
@@ -20,7 +21,44 @@ defmodule VoyagerWeb.ConnectComponents do
     """
   end
 
-  @doc """
+  attr :conn, :any, required: true
+  attr :disabled, :boolean,
+    default: false,
+    doc: "Disables filling the connect form from this row when a node is already connected"
+
+  def connection_row(assigns) do
+    ~H"""
+    <div class="flex w-full items-center gap-1">
+      <button
+        type="button"
+        phx-click="fill_recent"
+        phx-value-id={@conn.id}
+        data-testid="fill-recent-btn"
+        disabled={@disabled}
+        class={[
+          "font-mono text-base-content/60 flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-3 py-2 text-xs transition-colors",
+          if(@disabled,
+            do: "pointer-events-none opacity-40",
+            else: "cursor-pointer hover:bg-base-200 hover:text-base-content"
+          )
+        ]}
+      >
+        <.icon name="icon-network" class="size-3.5 text-base-content/25 shrink-0" />
+        <div class="flex min-w-0 items-center gap-1.5">
+          <span class="ml-2 truncate">{@conn.node_name}</span>
+          <%= if @conn.cookie do %>
+            <.saved_badge label="cookie" title="Cookie saved" />
+          <% end %>
+        </div>
+        <span class="font-mono text-base-content/35 ml-auto shrink-0 text-xs">
+          {relative_time(@conn.last_connected_at)}
+        </span>
+      </button>
+    </div>
+    """
+  end
+
+   @doc """
    Favourite and delete buttons shared by the connection-history rows.
   """
   attr :id, :any, required: true
@@ -65,12 +103,12 @@ defmodule VoyagerWeb.ConnectComponents do
 
   def connected_indicator(assigns) do
     ~H"""
-    <div class="mb-5">
+    <div id="connected-indicator" class="mb-5">
       <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
         Connected node
       </p>
       <div class="bg-success/10 border-success/25 flex items-center justify-between rounded-lg border px-3.5 py-2.5">
-        <div class="flex items-center gap-2.5">
+        <div class="flex min-w-0 items-center gap-1.5">
           <span class="size-2 relative flex shrink-0">
             <span class="bg-success size-full absolute inline-flex animate-ping rounded-full opacity-60">
             </span>
@@ -79,12 +117,22 @@ defmodule VoyagerWeb.ConnectComponents do
           <span class="font-mono text-base-content/75 min-w-0 truncate text-xs">
             {@session.node_name}
           </span>
+          <button
+            type="button"
+            id="disconnect-from-connect"
+            phx-click="disconnect"
+            title="Disconnect"
+            aria-label="Disconnect"
+            class="btn btn-ghost btn-square btn-xs text-error/75 shrink-0 hover:text-error"
+          >
+            <.icon name="icon-power" class="size-3.5" />
+          </button>
         </div>
         <.link
           href={~p"/node/#{@session.node_name}"}
           class="btn btn-success btn-xs ml-3 shrink-0 gap-1"
         >
-          Open <.icon name="icon-arrow-right" class="size-3" />
+          Open <.icon name="icon-log-in" class="size-3.5" />
         </.link>
       </div>
     </div>

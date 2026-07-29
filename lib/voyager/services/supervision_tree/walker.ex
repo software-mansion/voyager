@@ -74,6 +74,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
 
   # A pending supervisor to resolve in the breadth-first level loop.
   @typep work_item :: %{
+           app: atom(),
            pid: pid(),
            key: String.t(),
            parent_key: String.t(),
@@ -184,14 +185,14 @@ defmodule Voyager.Services.SupervisionTree.Walker do
 
     {root_parent_key, nodes} =
       if p_pid == root_pid or p_pid == master_pid do
-        {app_key, Map.put(nodes, app_key, app_node(app_key, master_pid, [root_key]))}
+        {app_key, Map.put(nodes, app_key, app_node(app, app_key, master_pid, [root_key]))}
       else
         p_key = id_key(p_pid)
 
         nodes =
           nodes
-          |> Map.put(app_key, app_node(app_key, master_pid, [p_key]))
-          |> Map.put(p_key, chain_node(p_key, app_key, p_pid, [root_key]))
+          |> Map.put(app_key, app_node(app, app_key, master_pid, [p_key]))
+          |> Map.put(p_key, chain_node(app, p_key, app_key, p_pid, [root_key]))
 
         {p_key, nodes}
       end
@@ -201,7 +202,8 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       key: root_key,
       parent_key: root_parent_key,
       name: root_pid,
-      depth_remaining: depth - 2
+      depth_remaining: depth - 2,
+      app: app
     }
 
     {nodes, [item | worklist]}
@@ -209,14 +211,15 @@ defmodule Voyager.Services.SupervisionTree.Walker do
 
   # The app wrapper always has exactly one child: the chain node or, when there
   # is no intermediate `p`, the root supervisor.
-  defp app_node(app_key, master_pid, [_single] = children_keys) do
+  defp app_node(app, app_key, master_pid, [_single] = children_keys) do
     build_node(%{
       key: app_key,
       pid: master_pid,
       name: master_pid,
       type: :app,
       child_count: 1,
-      children_keys: children_keys
+      children_keys: children_keys,
+      app: app
     })
   end
 
@@ -224,8 +227,9 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   # not a supervisor we walk; its single child is supplied directly. Typed
   # `:supervisor` so its pid-links (to the master and root supervisor) are
   # treated as structural rather than emitted as relationship edges.
-  defp chain_node(p_key, app_key, p_pid, [_single] = children_keys) do
+  defp chain_node(app, p_key, app_key, p_pid, [_single] = children_keys) do
     build_node(%{
+      app: app,
       key: p_key,
       parent_key: app_key,
       pid: p_pid,
@@ -355,7 +359,9 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   defp walk_child(item, {{child_id, status, type, _modules}, index}, nodes, worklist)
        when status in [:undefined, :restarting] do
     key = ghost_key(item.key, child_id, status, index)
-    {key, Map.put(nodes, key, ghost_node(key, item.key, child_id, type, status, index)), worklist}
+
+    {key, Map.put(nodes, key, ghost_node(item.app, key, item.key, child_id, type, status, index)),
+     worklist}
   end
 
   # Child supervisors are queued for the next level (their node is inserted when
@@ -365,6 +371,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
     key = id_key(child_pid)
 
     next_item = %{
+      app: item.app,
       pid: child_pid,
       key: key,
       parent_key: item.key,
@@ -379,7 +386,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   defp walk_child(item, {{child_id, child_pid, _type, _modules}, _}, nodes, worklist)
        when is_pid(child_pid) do
     key = id_key(child_pid)
-    {key, Map.put(nodes, key, leaf_node(key, item.key, child_pid, child_id)), worklist}
+    {key, Map.put(nodes, key, leaf_node(item.app, key, item.key, child_pid, child_id)), worklist}
   end
 
   # ---------------------------------------------------------------------------
@@ -423,6 +430,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   @spec sup_node(work_item(), [String.t()]) :: TreeNode.t()
   defp sup_node(item, child_keys) do
     build_node(%{
+      app: item.app,
       key: item.key,
       parent_key: item.parent_key,
       pid: item.pid,
@@ -435,6 +443,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
 
   defp stub_node(item, count) do
     build_node(%{
+      app: item.app,
       key: item.key,
       parent_key: item.parent_key,
       pid: item.pid,
@@ -448,6 +457,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   # reached before the deadline. The reason lives in the error tuple.
   defp unresolved_sup_node(item) do
     build_node(%{
+      app: item.app,
       key: item.key,
       parent_key: item.parent_key,
       pid: item.pid,
@@ -456,16 +466,16 @@ defmodule Voyager.Services.SupervisionTree.Walker do
     })
   end
 
-  defp leaf_node(key, parent_key, pid, name) do
-    build_node(%{key: key, parent_key: parent_key, pid: pid, name: name, type: :worker})
+  defp leaf_node(app, key, parent_key, pid, name) do
+    build_node(%{app: app, key: key, parent_key: parent_key, pid: pid, name: name, type: :worker})
   end
 
-  defp ghost_node(key, parent_key, :undefined, type, status, index) do
-    build_node(%{key: key, parent_key: parent_key, name: {status, index}, type: type})
+  defp ghost_node(app, key, parent_key, :undefined, type, status, index) do
+    build_node(%{app: app, key: key, parent_key: parent_key, name: {status, index}, type: type})
   end
 
-  defp ghost_node(key, parent_key, child_id, type, _, _) do
-    build_node(%{key: key, parent_key: parent_key, name: child_id, type: type})
+  defp ghost_node(app, key, parent_key, child_id, type, _, _) do
+    build_node(%{app: app, key: key, parent_key: parent_key, name: child_id, type: type})
   end
 
   # ---------------------------------------------------------------------------
