@@ -74,7 +74,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         class={["flex flex-col gap-4", @connected? && "pointer-events-none opacity-40"]}
       >
         <div class="flex gap-3">
-          <div class="flex-[1] min-w-0">
+          <div class="min-w-0 flex-1">
             <.form_field
               field={@ssh_form[:ssh_user]}
               label="SSH User"
@@ -82,7 +82,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
               disabled={@connected?}
             />
           </div>
-          <div class="flex-[2] min-w-0">
+          <div class="flex-2 min-w-0">
             <.form_field
               field={@ssh_form[:ssh_host]}
               label="SSH Host"
