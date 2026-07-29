@@ -56,13 +56,13 @@ test.describe('ConnectLive › SSH mode', () => {
 
   test('starts in direct mode showing the direct form', async ({ page }) => {
     await expect(page.locator(sel.connectForm)).toBeVisible();
-    await expect(page.locator(sel.sshConnectForm)).toHaveCount(0);
+    await expect(page.locator(sel.sshConnectForm)).toBeHidden();
   });
 
   test('switching to SSH mode shows the SSH form', async ({ page }) => {
     await page.locator(sel.modeSsh).check();
     await expect(page.locator(sel.sshConnectForm)).toBeVisible();
-    await expect(page.locator(sel.connectForm)).toHaveCount(0);
+    await expect(page.locator(sel.connectForm)).toBeHidden();
   });
 
   test('switching back to direct mode restores the direct form', async ({
@@ -71,7 +71,7 @@ test.describe('ConnectLive › SSH mode', () => {
     await page.locator(sel.modeSsh).check();
     await page.locator(sel.modeDirect).check();
     await expect(page.locator(sel.connectForm)).toBeVisible();
-    await expect(page.locator(sel.sshConnectForm)).toHaveCount(0);
+    await expect(page.locator(sel.sshConnectForm)).toBeHidden();
   });
 
   test('renders the SSH form fields', async ({ page }) => {
@@ -88,7 +88,7 @@ test.describe('ConnectLive › SSH mode', () => {
   }) => {
     await page.locator(sel.modeSsh).check();
     await expect(page.locator(sel.sshAuthAgent)).toBeChecked();
-    await expect(page.locator(sel.sshPasswordInput)).toHaveCount(0);
+    await expect(page.locator(sel.sshPasswordInput)).toBeHidden();
   });
 
   test('switching to password auth reveals the password field', async ({
@@ -103,7 +103,7 @@ test.describe('ConnectLive › SSH mode', () => {
     await page.locator(sel.modeSsh).check();
     await page.locator(sel.sshAuthPassword).check();
     await page.locator(sel.sshAuthAgent).check();
-    await expect(page.locator(sel.sshPasswordInput)).toHaveCount(0);
+    await expect(page.locator(sel.sshPasswordInput)).toBeHidden();
   });
 
   test('shows required field errors on empty submission', async ({ page }) => {
