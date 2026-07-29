@@ -19,7 +19,7 @@ export function buildStyle(t) {
         'text-background-color': t.base100,
         'font-size': 11,
         'font-family':
-          'JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, monospace',
+          'JetBrains Mono Voyager, ui-monospace, SFMono-Regular, Menlo, monospace',
         color: t.baseContent,
         'overlay-padding': 8,
         'transition-property':

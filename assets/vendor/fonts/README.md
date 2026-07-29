@@ -1,8 +1,10 @@
-# JetBrains Mono (vendored)
+# JetBrains Mono Voyager (vendored)
 
 Latin variable build of JetBrains Mono with the slashed zero (`zero` OpenType feature) baked into the default cmap.
 
 Fontsource/Google builds strip the `zero` feature, so we vendor the official font with that alternate remapped as default.
+
+The family is renamed to **JetBrains Mono Voyager** (a Modified Version under the OFL) so we do not use the reserved name “JetBrains Mono”.
 
 ## Files
 
@@ -37,6 +39,25 @@ pyftsubset JetBrainsMono\[wght\]-zero.ttf \
   --layout-features='*' \
   --flavor=woff2 \
   --output-file=jetbrains-mono-latin-wght-normal.woff2
+
+# 3. Rename the family (OFL reserved-name compliance)
+python3 - <<'PY'
+from fontTools.ttLib import TTFont
+path = "jetbrains-mono-latin-wght-normal.woff2"
+f = TTFont(path)
+for record in f["name"].names:
+    if record.nameID == 1:
+        record.string = "JetBrains Mono Voyager"
+    elif record.nameID == 3:
+        record.string = "2.304;JB;JetBrainsMonoVoyager-Regular"
+    elif record.nameID == 4:
+        record.string = "JetBrains Mono Voyager Regular"
+    elif record.nameID == 6:
+        record.string = "JetBrainsMonoVoyager-Regular"
+    elif record.nameID == 25:
+        record.string = "JetBrainsMonoVoyager"
+f.save(path)
+PY
 ```
 
 Copy the resulting `jetbrains-mono-latin-wght-normal.woff2` into this directory. `mix assets.build` copies it to `priv/static/fonts/`.
