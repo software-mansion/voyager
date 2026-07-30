@@ -6,10 +6,6 @@ defmodule VoyagerWeb.ConnectLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket) do
-      Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
-    end
-
     socket
     |> assign(:connected_session, NodeSession.current())
     |> assign(:mode, :direct)

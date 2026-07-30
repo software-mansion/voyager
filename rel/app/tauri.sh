@@ -67,7 +67,7 @@ main() {
       
       cargo_tauri "$@"
       ;;
-     app)
+    app)
       shift
       load_dotenv "$root_dir/.env"
       mix_release

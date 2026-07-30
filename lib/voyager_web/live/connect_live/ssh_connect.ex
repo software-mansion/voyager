@@ -461,7 +461,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     do: {:node_name, "Failed to restart local Erlang distribution"}
 
   defp ssh_connect_error(:invalid_name_type),
-    do: {:node_name, "Invalid name type — try switching in Advanced settings"}
+    do: {:node_name, "Invalid name type"}
 
   defp ssh_connect_error(:connection_lost),
     do: {:node_name, "Connection was lost before it completed — please try again"}
