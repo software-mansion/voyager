@@ -24,7 +24,7 @@ defmodule VoyagerWeb.ConnectLive.RecentConnections do
 
   defp handle_event("pin", %{"id" => id}, socket) do
     pin_id = String.to_integer(id)
-    socket.assigns.recents.actions.pin.(pin_id)
+    socket.assigns.recents.actions.pin(pin_id)
     {:halt, reset(socket)}
   end
 
