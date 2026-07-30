@@ -13,47 +13,41 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   alias VoyagerWeb.ConnectLive.SecretVisibility
   alias VoyagerWeb.FormSchemas.SshConnectionParams
 
+  @id_prefix "ssh-"
+
+  @impl true
+  def mount(socket) do
+    socket
+    |> assign(:id_prefix, @id_prefix)
+    |> ok()
+  end
+
   @impl true
   def update(
         %{connected?: new_status} = assigns,
         %{assigns: %{initialized: true, connected?: old_status}} = socket
       )
       when new_status != old_status do
-    socket =
-      socket
-      |> assign_new(:id_prefix, fn -> "ssh-" end)
-      |> assign(assigns)
-      |> RecentConnections.reset()
-
-    {:ok, socket}
+    socket
+    |> assign(assigns)
+    |> RecentConnections.reset()
+    |> ok()
   end
 
   def update(assigns, socket) when not is_map_key(socket.assigns, :initialized) do
-    socket =
-      socket
-      |> assign_new(:id_prefix, fn -> "ssh-" end)
-      |> assign(assigns)
-      |> assign(:ssh_form, empty_ssh_form())
-      |> SecretVisibility.init()
-      |> assign(:show_ssh_advanced, false)
-      |> assign(:ssh_connecting, false)
-      |> assign(:ssh_last_applied, nil)
-      |> RecentConnections.init(
-        queries: SshConnectionQueries,
-        actions: SshConnectionActions
-      )
-      |> assign(:initialized, true)
-
-    {:ok, socket}
-  end
-
-  def update(assigns, socket) do
-    socket =
-      socket
-      |> assign_new(:id_prefix, fn -> "ssh-" end)
-      |> assign(assigns)
-
-    {:ok, socket}
+    socket
+    |> assign(assigns)
+    |> assign(:ssh_form, empty_ssh_form())
+    |> SecretVisibility.init()
+    |> assign(:show_ssh_advanced, false)
+    |> assign(:ssh_connecting, false)
+    |> assign(:ssh_last_applied, nil)
+    |> RecentConnections.init(
+      queries: SshConnectionQueries,
+      actions: SshConnectionActions
+    )
+    |> assign(:initialized, true)
+    |> ok()
   end
 
   @impl true

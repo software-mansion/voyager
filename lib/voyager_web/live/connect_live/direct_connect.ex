@@ -51,7 +51,6 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   def render(assigns) do
     assigns =
       assigns
-      |> assign_new(:id_prefix, fn -> "direct-" end)
       |> assign(
         :current_name_type,
         to_string(assigns.form[:name_type].value || "longnames")
