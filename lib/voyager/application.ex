@@ -40,10 +40,10 @@ defmodule Voyager.Application do
   defp store_active_epmd_module() do
     epmd_mod =
       case :init.get_argument(:epmd_module) do
-        {:ok, [[mod_name]]} ->
+        {:ok, [[mod_name] | _]} ->
           mod_name |> List.to_string() |> String.to_atom()
 
-        :error ->
+        _ ->
           :erl_epmd
       end
 
