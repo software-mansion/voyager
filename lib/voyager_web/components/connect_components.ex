@@ -21,7 +21,7 @@ defmodule VoyagerWeb.ConnectComponents do
   end
 
   @doc """
-   Favourite and delete buttons shared by the connection-history rows.
+  Favourite and delete buttons shared by the connection-history rows.
   """
   attr :id, :any, required: true
   attr :pinned, :boolean, required: true
@@ -108,56 +108,31 @@ defmodule VoyagerWeb.ConnectComponents do
 
   def mode_toggle(assigns) do
     ~H"""
-    <form phx-change="switch_mode" id="mode-toggle" class="mb-6">
+    <form phx-change="switch_mode" id="mode-toggle" class="mb-6" disabled={@disabled}>
       <.tooltip :if={@disabled} id="mode-toggle-tip" position="bottom" class="w-full">
-        <.mode_options mode={@mode} disabled={@disabled} />
+        <.mode_segmented mode={@mode} disabled={@disabled} />
         <:content>{render_slot(@disabled_reason)}</:content>
       </.tooltip>
-      <.mode_options :if={!@disabled} mode={@mode} disabled={@disabled} />
+      <.mode_segmented :if={!@disabled} mode={@mode} disabled={@disabled} />
     </form>
     """
   end
 
-  attr :mode, :atom, required: true
-  attr :disabled, :boolean, required: true
-
-  defp mode_options(assigns) do
+  defp mode_segmented(assigns) do
     ~H"""
-    <div class={["join w-full", @disabled && "pointer-events-none cursor-not-allowed"]}>
-      <input
-        type="radio"
-        name="mode"
-        value="direct"
-        aria-label="Direct"
-        id="mode-direct"
-        checked={@mode == :direct}
-        disabled={@disabled}
-        class={mode_radio_class(@disabled, @mode == :direct)}
-      />
-      <input
-        type="radio"
-        name="mode"
-        value="ssh"
-        aria-label="SSH Tunnel"
-        id="mode-ssh"
-        checked={@mode == :ssh}
-        disabled={@disabled}
-        class={mode_radio_class(@disabled, @mode == :ssh)}
-      />
-    </div>
+    <.segmented
+      name="mode"
+      value={@mode}
+      disabled={@disabled}
+      size="sm"
+      full_width={true}
+      class={["w-full", @disabled && "pointer-events-none cursor-not-allowed"]}
+      options={[
+        %{value: "direct", label: "Direct", id: "mode-direct"},
+        %{value: "ssh", label: "SSH Tunnel", id: "mode-ssh"}
+      ]}
+    />
     """
-  end
-
-  defp mode_radio_class(disabled?, active?) do
-    [
-      "join-item btn btn-soft btn-sm font-mono flex-1 text-xs transition-opacity",
-      "checked:text-primary-content",
-      if(disabled? && active?,
-        do: "!opacity-100 !bg-base-content/20 !text-primary-content",
-        else: "text-base-content/60 disabled:text-base-content/60"
-      ),
-      disabled? && !active? && "opacity-40"
-    ]
   end
 
   attr :field, Phoenix.HTML.FormField, required: true
@@ -269,10 +244,13 @@ defmodule VoyagerWeb.ConnectComponents do
   attr :value, :any, required: true, doc: "Currently selected value (compared as a string)"
   attr :options, :list, required: true, doc: "List of `%{value:, label:, id: (optional)}` maps"
   attr :disabled, :boolean, default: false
+  attr :size, :string, default: "xs", doc: "DaisyUI button size class (xs, sm, md, lg)"
+  attr :full_width, :boolean, default: false
+  attr :class, :any, default: nil
 
   def segmented(assigns) do
     ~H"""
-    <div class="join">
+    <div class={["join", @class]}>
       <input
         :for={opt <- @options}
         type="radio"
@@ -282,10 +260,31 @@ defmodule VoyagerWeb.ConnectComponents do
         aria-label={opt.label}
         checked={to_string(@value) == to_string(opt.value)}
         disabled={@disabled}
-        class="join-item btn btn-soft btn-xs font-mono text-base-content/60 text-xs checked:text-primary-content disabled:text-base-content/60"
+        class={
+          segmented_radio_class(
+            @disabled,
+            to_string(@value) == to_string(opt.value),
+            @size,
+            @full_width
+          )
+        }
       />
     </div>
     """
+  end
+
+  defp segmented_radio_class(disabled?, active?, size, full_width?) do
+    [
+      "join-item btn btn-soft font-mono text-xs transition-opacity",
+      "btn-#{size}",
+      if(full_width?, do: "flex-1"),
+      "checked:text-primary-content",
+      if(disabled? && active?,
+        do: "!opacity-100 !bg-base-content/20 !text-primary-content",
+        else: "text-base-content/60 disabled:text-base-content/60"
+      ),
+      disabled? && !active? && "opacity-40"
+    ]
   end
 
   attr :name, :string, required: true
