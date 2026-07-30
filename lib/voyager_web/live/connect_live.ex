@@ -30,7 +30,7 @@ defmodule VoyagerWeb.ConnectLive do
               id="open-settings"
               href={~p"/settings?#{[return_to: "/"]}"}
               title="Settings"
-              class="btn btn-ghost btn-square btn-sm text-base-content/50 ml-auto hover:text-base-content"
+              class="btn btn-ghost btn-square btn-sm text-base-content/60 ml-auto hover:text-base-content"
             >
               <.icon name="icon-settings" class="size-4" />
             </.link>
@@ -39,7 +39,7 @@ defmodule VoyagerWeb.ConnectLive do
             <h1 class="text-base-content text-2xl font-semibold tracking-tight">
               Connect to a node
             </h1>
-            <p class="text-base-content/60 mt-1 text-sm">
+            <p class="text-base-content/70 mt-1 text-sm">
               Enter the node name and Erlang cookie to inspect a local or remote BEAM.
             </p>
           </div>
@@ -54,7 +54,7 @@ defmodule VoyagerWeb.ConnectLive do
 
           <%= if @has_pinned do %>
             <div class="border-base-300 mt-7 border-t pt-5">
-              <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
+              <p class="font-mono tracking-label text-base-content/70 mb-2.5 text-xs uppercase">
                 Favourites
               </p>
               <ul id="pinned-connections" phx-update="stream" class="-mx-2 flex flex-col gap-0.5">
@@ -71,7 +71,7 @@ defmodule VoyagerWeb.ConnectLive do
 
           <%= if @has_recent do %>
             <div class={["border-base-300 border-t pt-5", if(@has_pinned, do: "mt-3", else: "mt-7")]}>
-              <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
+              <p class="font-mono tracking-label text-base-content/70 mb-2.5 text-xs uppercase">
                 Recent connections
               </p>
               <ul id="recent-connections" phx-update="stream" class="-mx-2 flex flex-col gap-0.5">
@@ -86,7 +86,7 @@ defmodule VoyagerWeb.ConnectLive do
             </div>
           <% end %>
 
-          <p class="font-mono tracking-snug text-base-content/35 mt-6 text-center text-xs">
+          <p class="font-mono tracking-snug text-base-content/70 mt-6 text-center text-xs">
             Uses BEAM distribution
           </p>
         </div>

@@ -22,26 +22,26 @@ defmodule VoyagerWeb.ConnectComponents do
         data-testid="fill-recent-btn"
         disabled={@disabled}
         class={[
-          "font-mono text-base-content/60 flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-3 py-2 text-xs transition-colors",
+          "font-mono text-base-content/90 flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-3 py-2 text-xs transition-colors",
           if(@disabled,
-            do: "pointer-events-none opacity-40",
+            do: "pointer-events-none opacity-50",
             else: "cursor-pointer hover:bg-base-200 hover:text-base-content"
           )
         ]}
       >
-        <.icon name="icon-network" class="size-3.5 text-base-content/25 shrink-0" />
+        <.icon name="icon-network" class="size-3.5 text-base-content/60 shrink-0" />
         <div class="flex min-w-0 items-center gap-1.5">
           <span class="ml-2 truncate">{@conn.node_name}</span>
           <%= if @conn.cookie do %>
             <span
               title="Cookie saved"
-              class="font-mono text-base-content/30 border-base-300 shrink-0 rounded border px-1 text-xs"
+              class="font-mono text-base-content/70 border-base-400/50 shrink-0 rounded border px-1 text-xs"
             >
               cookie
             </span>
           <% end %>
         </div>
-        <span class="font-mono text-base-content/35 ml-auto shrink-0 text-xs">
+        <span class="font-mono text-base-content/70 ml-auto shrink-0 text-xs">
           {relative_time(@conn.last_connected_at)}
         </span>
       </button>
@@ -53,7 +53,7 @@ defmodule VoyagerWeb.ConnectComponents do
         title={if @pinned, do: "Remove from favourites", else: "Save as favourite"}
         class={[
           "btn btn-ghost btn-xs px-0.5",
-          if(@pinned, do: "text-pinned", else: "text-base-content/20 hover:text-pinned")
+          if(@pinned, do: "text-pinned", else: "text-base-content/60 hover:text-pinned")
         ]}
       >
         <.icon name={if @pinned, do: "icon-star-filled", else: "icon-star"} class="size-3.5" />
@@ -64,7 +64,7 @@ defmodule VoyagerWeb.ConnectComponents do
         phx-click="delete_connection"
         phx-value-id={@conn.id}
         title="Remove"
-        class="btn btn-ghost btn-xs text-base-content/20 px-0.5 hover:text-error"
+        class="btn btn-ghost btn-xs text-base-content/60 px-0.5 hover:text-error"
       >
         <.icon name="icon-x" class="size-3.5" />
       </button>
@@ -79,7 +79,7 @@ defmodule VoyagerWeb.ConnectComponents do
   def connected_indicator(assigns) do
     ~H"""
     <div id="connected-indicator" class="mb-5">
-      <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
+      <p class="font-mono tracking-label text-base-content/70 mb-2.5 text-xs uppercase">
         Connected node
       </p>
       <div class="bg-success-bg border-success flex items-center justify-between rounded-lg border px-3.5 py-2.5">
@@ -135,12 +135,12 @@ defmodule VoyagerWeb.ConnectComponents do
       id="connect-form"
       phx-change="validate"
       phx-submit="connect"
-      class={["flex flex-col gap-4", @disabled && "pointer-events-none opacity-40"]}
+      class={["flex flex-col gap-4", @disabled && "pointer-events-none"]}
     >
       <div>
         <div class="mb-1.5 flex items-center justify-between">
           <label
-            class="font-mono tracking-label text-base-content/50 text-xs uppercase"
+            class="font-mono tracking-label text-base-content/70 text-xs uppercase"
             for={@form[:node_name].id}
           >
             Node name
@@ -153,7 +153,7 @@ defmodule VoyagerWeb.ConnectComponents do
               aria-label="--name"
               checked={@current_name_type == "longnames"}
               disabled={@disabled}
-              class="join-item btn btn-soft btn-xs font-mono text-base-content/60 text-xs checked:text-primary-content disabled:text-base-content/60"
+              class="join-item btn btn-soft btn-xs font-mono text-base-content/70 text-xs checked:text-primary-content disabled:text-base-content/70"
             />
             <input
               type="radio"
@@ -162,7 +162,7 @@ defmodule VoyagerWeb.ConnectComponents do
               aria-label="--sname"
               checked={@current_name_type == "shortnames"}
               disabled={@disabled}
-              class="join-item btn btn-soft btn-xs font-mono text-base-content/60 text-xs checked:text-primary-content disabled:text-base-content/60"
+              class="join-item btn btn-soft btn-xs font-mono text-base-content/70 text-xs checked:text-primary-content disabled:text-base-content/70"
             />
           </div>
         </div>
@@ -183,7 +183,7 @@ defmodule VoyagerWeb.ConnectComponents do
 
       <div>
         <label
-          class="font-mono tracking-label text-base-content/50 mb-1.5 block text-xs uppercase"
+          class="font-mono tracking-label text-base-content/70 mb-1.5 block text-xs uppercase"
           for={@form[:cookie].id}
         >
           Cookie
@@ -206,7 +206,7 @@ defmodule VoyagerWeb.ConnectComponents do
             disabled={@disabled}
             aria-label={if @show_cookie, do: "Hide cookie", else: "Show cookie"}
             title={if @show_cookie, do: "Hide cookie", else: "Show cookie"}
-            class="btn btn-ghost btn-square btn-sm text-base-content/40 absolute top-1 right-1.5 hover:text-base-content"
+            class="btn btn-ghost btn-square btn-sm text-base-content/60 absolute top-1 right-1.5 hover:text-base-content"
           >
             <.icon
               name={if @show_cookie, do: "icon-eye", else: "icon-eye-off"}

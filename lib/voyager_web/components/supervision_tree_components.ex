@@ -175,19 +175,19 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
       <%= cond do %>
         <% MapSet.size(@selected_apps) == 0 -> %>
           <div class="border-base-300 flex h-full flex-col items-center justify-center gap-3 rounded-lg text-center">
-            <.icon name="icon-network" class="size-10 text-base-content/30" />
+            <.icon name="icon-network" class="size-10 text-base-content/60" />
             <div>
-              <p class="text-base-content/60 font-medium">No applications selected</p>
-              <p class="text-base-content/40 text-sm">
+              <p class="text-base-content/80 font-medium">No applications selected</p>
+              <p class="text-base-content/70 text-sm">
                 Select one or more applications to inspect.
               </p>
             </div>
           </div>
         <% @status == :idle -> %>
           <div class="border-base-300 flex h-full flex-col items-center justify-center gap-3 rounded-lg text-center">
-            <.icon name="icon-network" class="size-10 text-base-content/30" />
+            <.icon name="icon-network" class="size-10 text-base-content/60" />
             <div>
-              <p class="text-base-content/60 font-medium">Waiting…</p>
+              <p class="text-base-content/70 font-medium">Waiting…</p>
             </div>
           </div>
         <% true -> %>

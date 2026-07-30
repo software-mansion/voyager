@@ -23,7 +23,7 @@ defmodule VoyagerWeb.SettingsLive.DistributionSettings do
       <div class="card-body gap-4 p-5">
         <div>
           <h3 class="text-base-content text-sm font-semibold">Distribution</h3>
-          <p class="text-base-content/60 mt-1 text-sm">
+          <p class="text-base-content/70 mt-1 text-sm">
             To connect to a remote node, Voyager starts its own distribution named <span class="font-mono font-bold">voyager&lt;suffix&gt;</span>.
             This suffix allows multiple Voyager instances to run on the same network.
             Leave empty to use <span class="font-mono font-bold">voyager</span>.
@@ -57,7 +57,7 @@ defmodule VoyagerWeb.SettingsLive.DistributionSettings do
           <div>
             <div class="mb-1.5 flex items-center gap-2">
               <label
-                class="font-mono tracking-label text-base-content/50 flex items-center gap-0.5 text-xs font-semibold uppercase"
+                class="font-mono tracking-label text-base-content/70 flex items-center gap-0.5 text-xs font-semibold uppercase"
                 for={@form[:distribution_suffix].id}
               >
                 Distribution name suffix
@@ -132,7 +132,7 @@ defmodule VoyagerWeb.SettingsLive.DistributionSettings do
     assigns = assign(assigns, :name, distribution_name(assigns.suffix))
 
     ~H"""
-    <p class="text-base-content/50 mt-2 text-xs">
+    <p class="text-base-content/70 mt-2 text-xs">
       Effective distribution name: <span class="font-mono text-base-content">{@name}</span>
     </p>
     """

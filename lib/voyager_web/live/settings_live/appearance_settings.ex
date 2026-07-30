@@ -8,7 +8,7 @@ defmodule VoyagerWeb.SettingsLive.AppearanceSettings do
       <div class="card-body gap-4 p-5">
         <div>
           <h3 class="text-base-content text-sm font-semibold">Appearance</h3>
-          <p class="text-base-content/60 mt-1 text-sm">
+          <p class="text-base-content/70 mt-1 text-sm">
             Choose how Voyager looks on this device.
           </p>
         </div>
