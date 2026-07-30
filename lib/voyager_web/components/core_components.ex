@@ -85,17 +85,17 @@ defmodule VoyagerWeb.CoreComponents do
     ~H"""
     <header class="mb-8 flex items-center justify-between gap-4">
       <div class="min-w-0 flex-1">
-        <.tooltip
-          id="node-header-name-tip"
-          position="bottom"
-          class="w-full max-w-full"
-          tip_class="max-w-lg break-all font-mono"
-        >
-          <h1 class="font-mono text-base-content w-full truncate text-2xl font-bold tracking-tight">
-            {@node_name}
-          </h1>
-          <:content>{@node_name}</:content>
-        </.tooltip>
+        <h1 class="font-mono text-base-content min-w-0 text-2xl font-bold tracking-tight">
+          <.tooltip
+            id="node-header-name-tip"
+            position="bottom"
+            class="w-full max-w-full"
+            tip_class="max-w-lg break-all font-mono"
+          >
+            <span class="block truncate">{@node_name}</span>
+            <:content>{@node_name}</:content>
+          </.tooltip>
+        </h1>
         <p class="font-mono text-base-content/50 mt-0.5 text-xs">
           <%= if @last_updated do %>
             updated {Formatters.format_time(@last_updated)} UTC
