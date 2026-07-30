@@ -56,7 +56,7 @@ defmodule Voyager.ProxyEpmd do
     end
   end
 
-  def active?() do
+  def active? do
     :persistent_term.get(:voyager_epmd_module) == __MODULE__
   end
 

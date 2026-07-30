@@ -108,7 +108,9 @@ defmodule VoyagerWeb.ConnectLiveTest do
       assert tip_html =~ "Cannot change mode while connected"
       refute tip_html =~ "proxy_epmd"
     end
-  defp broadcast(pubsub_topic, event) do
-    Phoenix.PubSub.broadcast(Voyager.PubSub, pubsub_topic, event)
+
+    defp broadcast(pubsub_topic, event) do
+      Phoenix.PubSub.broadcast(Voyager.PubSub, pubsub_topic, event)
+    end
   end
 end

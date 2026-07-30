@@ -95,7 +95,8 @@ defmodule VoyagerWeb.ConnectLive do
   def handle_event("switch_mode", %{"mode" => "direct"}, socket) do
     {:noreply, assign(socket, :mode, :direct)}
   end
-def handle_event("switch_mode", %{"mode" => "ssh"}, socket) do
+
+  def handle_event("switch_mode", %{"mode" => "ssh"}, socket) do
     {:noreply, assign(socket, :mode, :ssh)}
   end
 
@@ -103,7 +104,6 @@ def handle_event("switch_mode", %{"mode" => "ssh"}, socket) do
   def handle_info({:node_connected, _node}, socket) do
     {:noreply, assign(socket, :connected_session, NodeSession.current())}
   end
-
 
   def handle_info({event, _node}, socket) when event in [:node_disconnected, :nodedown] do
     {:noreply, assign(socket, :connected_session, nil)}
@@ -123,4 +123,4 @@ def handle_event("switch_mode", %{"mode" => "ssh"}, socket) do
       true -> nil
     end
   end
-  end
+end

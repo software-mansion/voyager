@@ -37,7 +37,7 @@ defmodule Voyager.Application do
 
   defp skip_migrations?, do: System.get_env("RELEASE_NAME") == nil
 
-  defp store_active_epmd_module() do
+  defp store_active_epmd_module do
     epmd_mod =
       case :init.get_argument(:epmd_module) do
         {:ok, [[mod_name] | _]} ->

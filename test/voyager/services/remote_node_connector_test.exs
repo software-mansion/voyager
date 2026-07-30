@@ -39,7 +39,13 @@ defmodule Voyager.Services.RemoteNodeConnectorTest do
       :persistent_term.put(:voyager_epmd_module, :erl_epmd)
 
       assert {:error, :proxy_epmd_not_active} =
-               RemoteNodeConnector.connect("nobody", "127.0.0.1", "node@127.0.0.1", "cookie", :agent)
+               RemoteNodeConnector.connect(
+                 "nobody",
+                 "127.0.0.1",
+                 "node@127.0.0.1",
+                 "cookie",
+                 :agent
+               )
     end
   end
 end
