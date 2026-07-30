@@ -163,7 +163,11 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
           >
             Advanced {if @show_ssh_advanced, do: "▾", else: "▸"}
           </button>
-          <div :if={@show_ssh_advanced} class="border-base-300 mt-3 flex gap-3 rounded-lg border p-4">
+
+          <div class={[
+            "border-base-300 mt-3 flex gap-3 rounded-lg border p-4",
+            not @show_ssh_advanced && "hidden"
+          ]}>
             <div class="flex-1">
               <ConnectComponents.form_field
                 field={@ssh_form[:ssh_port]}
