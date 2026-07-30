@@ -111,7 +111,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
       </RecentConnections.render>
 
       <p class="font-mono tracking-snug text-base-content/50 mt-6 text-center text-xs">
-        Local nodes only
+        Nodes via distribution
       </p>
     </div>
     """
