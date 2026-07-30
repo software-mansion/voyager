@@ -17,7 +17,7 @@ export const sel = {
   cookieInput: '#conn_cookie',
   disconnectFromConnect: '#disconnect-from-connect',
   connectedIndicator: '#connected-indicator',
-  recentConnections: '#recent-connections',
+  recentConnections: '#direct-recent-connections',
   nodeInfoContent: '#node-info-content',
   nodeInfoLoading: '#node-info-loading',
   stStatus: '#supervision-tree-status',
