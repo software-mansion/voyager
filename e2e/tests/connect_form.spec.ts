@@ -1,9 +1,17 @@
 import { test, expect } from '@playwright/test';
-import { NODE_NAME, SSH_HOST, SSH_NODE_NAME, SSH_COOKIE, sel } from './fixtures';
+import {
+  NODE_NAME,
+  SSH_HOST,
+  SSH_NODE_NAME,
+  SSH_COOKIE,
+  sel,
+  ensureDisconnected,
+  fillConnectForm,
+} from './fixtures';
 
 test.describe('ConnectLive › form validation', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await ensureDisconnected(page);
   });
 
   test('renders the connection form', async ({ page }) => {
@@ -21,8 +29,7 @@ test.describe('ConnectLive › form validation', () => {
   test('shows format validation error for invalid node name', async ({
     page,
   }) => {
-    await page.locator(sel.nodeNameInput).fill('invalid');
-    await page.locator(sel.cookieInput).fill('somecookie');
+    await fillConnectForm(page, 'invalid', 'somecookie');
     await page.locator(sel.connectBtn).click();
     await expect(page.locator(sel.connectForm)).toContainText(
       'name@host format'
@@ -30,8 +37,7 @@ test.describe('ConnectLive › form validation', () => {
   });
 
   test('shows authentication error for wrong cookie', async ({ page }) => {
-    await page.locator(sel.nodeNameInput).fill(NODE_NAME);
-    await page.locator(sel.cookieInput).fill('wrong_cookie');
+    await fillConnectForm(page, NODE_NAME, 'wrong_cookie');
     await page.locator(sel.connectBtn).click();
     // A real distribution handshake with a mismatched cookie takes several
     // seconds (net_kernel's setup_time) plus the failure diagnosis round trip,
@@ -50,13 +56,13 @@ test.describe('ConnectLive › SSH mode', () => {
 
   test('starts in direct mode showing the direct form', async ({ page }) => {
     await expect(page.locator(sel.connectForm)).toBeVisible();
-    await expect(page.locator(sel.sshConnectForm)).toHaveCount(0);
+    await expect(page.locator(sel.sshConnectForm)).toBeHidden();
   });
 
   test('switching to SSH mode shows the SSH form', async ({ page }) => {
     await page.locator(sel.modeSsh).check();
     await expect(page.locator(sel.sshConnectForm)).toBeVisible();
-    await expect(page.locator(sel.connectForm)).toHaveCount(0);
+    await expect(page.locator(sel.connectForm)).toBeHidden();
   });
 
   test('switching back to direct mode restores the direct form', async ({
@@ -65,7 +71,7 @@ test.describe('ConnectLive › SSH mode', () => {
     await page.locator(sel.modeSsh).check();
     await page.locator(sel.modeDirect).check();
     await expect(page.locator(sel.connectForm)).toBeVisible();
-    await expect(page.locator(sel.sshConnectForm)).toHaveCount(0);
+    await expect(page.locator(sel.sshConnectForm)).toBeHidden();
   });
 
   test('renders the SSH form fields', async ({ page }) => {
@@ -82,7 +88,7 @@ test.describe('ConnectLive › SSH mode', () => {
   }) => {
     await page.locator(sel.modeSsh).check();
     await expect(page.locator(sel.sshAuthAgent)).toBeChecked();
-    await expect(page.locator(sel.sshPasswordInput)).toHaveCount(0);
+    await expect(page.locator(sel.sshPasswordInput)).toBeHidden();
   });
 
   test('switching to password auth reveals the password field', async ({
@@ -93,18 +99,14 @@ test.describe('ConnectLive › SSH mode', () => {
     await expect(page.locator(sel.sshPasswordInput)).toBeVisible();
   });
 
-  test('switching back to agent hides the password field', async ({
-    page,
-  }) => {
+  test('switching back to agent hides the password field', async ({ page }) => {
     await page.locator(sel.modeSsh).check();
     await page.locator(sel.sshAuthPassword).check();
     await page.locator(sel.sshAuthAgent).check();
-    await expect(page.locator(sel.sshPasswordInput)).toHaveCount(0);
+    await expect(page.locator(sel.sshPasswordInput)).toBeHidden();
   });
 
-  test('shows required field errors on empty submission', async ({
-    page,
-  }) => {
+  test('shows required field errors on empty submission', async ({ page }) => {
     await page.locator(sel.modeSsh).check();
     await page.locator(sel.sshConnectBtn).click();
     await expect(page.locator(sel.sshConnectForm)).toContainText(

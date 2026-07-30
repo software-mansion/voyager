@@ -3,15 +3,11 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   Thin `:erpc` wrappers for remote node inspection of supervision tree.
   """
 
-  @timeout_fast 500
-  @timeout_children 1_500
-  @timeout_pinfo 1_000
-  @process_info_keys [
-    :registered_name,
-    :links,
-    :monitors,
-    :monitored_by
-  ]
+  @timeout_fast 1_000
+  @timeout_children 3_000
+  @timeout_pinfo 2_000
+  @base_process_info_keys [:registered_name, :initial_call, :current_function]
+  @relations_process_info_keys [:links, :monitors, :monitored_by]
 
   @doc """
   Returns the list of OTP applications running on `node`.
@@ -134,13 +130,28 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   end
 
   @doc """
-  Fetches the `@process_info_keys` `:process_info` for a batch of PIDs on `node`
-  in a single `:erpc` call (see `process_info_many/3`). Returns a map keyed by
-  PID; dead processes map to `:dead`.
+  Fetches `:process_info` for a batch of PIDs on `node` in a single `:erpc`
+  call (see `process_info_many/3`). Returns a map keyed by PID; dead processes
+  map to `:dead`.
+
+  Always fetches the `@base_process_info_keys` (e.g. `:registered_name`). Pass
+  `include_relations?: true` to additionally fetch the
+  `@relations_process_info_keys` (`:links`, `:monitors`, `:monitored_by`),
+  which are needed to build inter-process relation edges.
+
+  ## Options
+
+    * `:include_relations?` — when `true`, also fetch link/monitor relation
+      keys. Defaults to `false`.
   """
-  @spec process_info_batch(node(), [pid()]) :: {:ok, %{pid() => map() | :dead}} | {:error, term()}
-  def process_info_batch(node, pids) do
-    process_info_many(node, pids, @process_info_keys)
+  @spec process_info_batch(node(), [pid()], include_relations?: boolean()) ::
+          {:ok, %{pid() => map() | :dead}} | {:error, term()}
+  def process_info_batch(node, pids, opts \\ []) do
+    if Keyword.get(opts, :include_relations?, false) do
+      process_info_many(node, pids, @base_process_info_keys ++ @relations_process_info_keys)
+    else
+      process_info_many(node, pids, @base_process_info_keys)
+    end
   end
 
   @doc """

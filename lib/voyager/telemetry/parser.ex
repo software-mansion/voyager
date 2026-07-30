@@ -33,6 +33,19 @@ defmodule Voyager.Telemetry.Parser do
 
   def parse_measurements([:voyager, :node, :connect], _m), do: %{}
   def parse_measurements([:voyager, :node, :disconnect], _m), do: %{}
+  def parse_measurements([:voyager, :mcp, :start], _m), do: %{}
+  def parse_measurements([:voyager, :mcp, :stop], _m), do: %{}
+
+  def parse_measurements([:server, :tool_call, :start], _m), do: %{}
+
+  def parse_measurements([:server, :tool_call, :stop], m) do
+    %{duration_ms: native_to_ms(m[:duration])}
+  end
+
+  def parse_measurements([:server, :tool_call, :exception], m) do
+    %{duration_ms: native_to_ms(m[:duration])}
+  end
+
   def parse_measurements(_event, _m), do: %{}
 
   @doc """
@@ -57,6 +70,21 @@ defmodule Voyager.Telemetry.Parser do
 
   def parse_metadata([:voyager, :node, :disconnect], meta) do
     %{reason: meta[:reason]}
+  end
+
+  def parse_metadata([:voyager, :mcp, :start], meta), do: %{reason: meta[:reason]}
+  def parse_metadata([:voyager, :mcp, :stop], meta), do: %{reason: meta[:reason]}
+
+  def parse_metadata([:server, :tool_call, :start], meta) do
+    %{tool: meta[:tool]}
+  end
+
+  def parse_metadata([:server, :tool_call, :stop], meta) do
+    %{tool: meta[:tool]}
+  end
+
+  def parse_metadata([:server, :tool_call, :exception], meta) do
+    %{tool: meta[:tool], kind: meta[:kind], reason: inspect(meta[:reason])}
   end
 
   def parse_metadata(_event, _meta), do: %{}

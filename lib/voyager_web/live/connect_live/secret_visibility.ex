@@ -7,7 +7,7 @@ defmodule VoyagerWeb.ConnectLive.SecretVisibility do
   need to hand-write a `toggle_x` event for every secret field.
   """
 
-  use Phoenix.Component
+  import Phoenix.Component
 
   import Phoenix.LiveView, only: [attach_hook: 4]
 

@@ -6,32 +6,38 @@ defmodule VoyagerWeb.Components.Shell do
   use VoyagerWeb, :html
 
   alias Voyager.NodeSession.Session
+  alias VoyagerWeb.Utils.URL
 
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
   attr :mcp_status, :map, default: %{alive?: false, url: nil}
-  attr :current_path, :string, default: nil
+  attr :current_url, :string, default: nil
   slot :inner_block, required: true
 
   def shell(assigns) do
     ~H"""
-    <div class="bg-base-200 flex h-screen flex-col overflow-hidden">
-      <.topbar
-        active_nav={@active_nav}
-        session={@session}
-        mcp_status={@mcp_status}
-        current_path={@current_path}
-      />
+    <div class="bg-base-200 flex h-screen flex-col overflow-x-auto overflow-y-hidden">
+      <div class="min-w-sm flex min-h-0 flex-1 flex-col">
+        <.topbar
+          active_nav={@active_nav}
+          session={@session}
+          mcp_status={@mcp_status}
+          current_url={@current_url}
+        />
 
-      <div class="relative flex flex-1 overflow-x-auto overflow-y-hidden">
-        <.sidebar active_nav={@active_nav} session={@session} />
+        <div class="relative flex flex-1 overflow-y-hidden">
+          <.sidebar
+            active_nav={@active_nav}
+            session={@session}
+            mcp_status={@mcp_status}
+            current_url={@current_url}
+          />
 
-        <main class="min-w-xl relative flex-1 overflow-y-auto">
-          {render_slot(@inner_block)}
-        </main>
+          <main class="min-w-lg relative flex-1 overflow-y-auto">
+            {render_slot(@inner_block)}
+          </main>
+        </div>
       </div>
-
-      <.statusbar session={@session} />
     </div>
     """
   end
@@ -39,40 +45,23 @@ defmodule VoyagerWeb.Components.Shell do
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
   attr :mcp_status, :map, default: %{alive?: false, url: nil}
-  attr :current_path, :string, default: nil
+  attr :current_url, :string, default: nil
 
   defp topbar(assigns) do
     ~H"""
-    <div class="navbar bg-base-100 border-base-300 min-h-14 z-10 flex-none gap-4 border-b px-4">
-      <div class="navbar-start gap-2">
-        <.brand />
+    <div class="bg-base-100 border-base-300 min-h-14 grid-cols-[auto_1fr_auto] z-10 grid flex-none items-center gap-4 border-b px-4">
+      <.brand />
+      <div class="@container/nav-status flex min-w-0">
+        <.node_indicator session={@session} />
       </div>
-      <div class="navbar-end gap-1">
-        <.mcp_status_indicator
-          status={@mcp_status}
-          active_nav={@active_nav}
-          session={@session}
-          current_path={@current_path}
-        />
-        <.link
-          href={
-            ~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_path)]}"
-          }
-          id="open-settings"
-          title="Settings"
-          class="btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-base-content"
-        >
-          <.icon name="icon-settings" class="size-4" />
-        </.link>
-        <button
-          type="button"
-          phx-click="disconnect"
-          title="Disconnect"
-          class="btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-error"
-        >
-          <.icon name="icon-log-out" class="size-4" />
-        </button>
-      </div>
+      <.link
+        href={~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_url)]}"}
+        id="open-settings"
+        title="Settings"
+        class="btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-base-content"
+      >
+        <.icon name="icon-settings" class="size-4" />
+      </.link>
     </div>
     """
   end
@@ -101,10 +90,13 @@ defmodule VoyagerWeb.Components.Shell do
   end
 
   defp brand(assigns) do
+    assigns = assign(assigns, :version, Voyager.version())
+
     ~H"""
     <div class="flex items-center gap-2.5 font-semibold tracking-tight">
       <.logo class="size-5.5 ml-px" />
       <span class="text-lg">Voyager</span>
+      <span class="font-mono text-base-content/35 mt-0.5 text-xs font-normal">v{@version}</span>
     </div>
     """
   end
@@ -112,37 +104,60 @@ defmodule VoyagerWeb.Components.Shell do
   attr :status, :map, required: true
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
-  attr :current_path, :string, default: nil
+  attr :current_url, :string, default: nil
 
   defp mcp_status_indicator(assigns) do
     ~H"""
-    <.tooltip id={"mcp-status-tip-#{@status.alive?}"} interactive position="bottom">
+    <.tooltip
+      id={"mcp-status-tip-#{@status.alive?}-#{:erlang.phash2(@status.url)}"}
+      interactive
+      position="top"
+      class="w-full"
+    >
       <div
         id="mcp-status"
-        class="font-mono text-base-content/60 flex cursor-default items-center gap-1.5 px-2 text-xs"
+        class="sidebar-nav-row flex w-full cursor-default items-center justify-start gap-2 rounded-md px-2 py-1.5"
       >
-        <span class="relative flex h-1.5 w-1.5">
-          <span
-            :if={@status.alive?}
-            class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
-          >
-          </span>
-          <span class={[
-            "relative inline-flex h-1.5 w-1.5 rounded-full",
-            if(@status.alive?, do: "bg-success", else: "bg-error")
-          ]}>
+        <span class="relative inline-flex shrink-0">
+          <.icon name="icon-brain" class="text-base-content/50 size-4" />
+          <span class="absolute -right-0.5 -bottom-0.5 flex h-1.5 w-1.5">
+            <span
+              :if={@status.alive?}
+              class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
+            >
+            </span>
+            <span class={[
+              "relative inline-flex h-1.5 w-1.5 rounded-full",
+              if(@status.alive?, do: "bg-success", else: "bg-error")
+            ]}>
+            </span>
           </span>
         </span>
-        MCP {if @status.alive?, do: "running", else: "stopped"}
+        <span class="sidebar-label font-mono text-base-content/60 truncate text-xs">
+          MCP {if @status.alive?, do: "running", else: "stopped"}
+        </span>
       </div>
       <:content>
         <%= if @status.alive? do %>
-          MCP server is running at <span class="font-mono">{@status.url}</span>.
+          <div>
+            <span>
+              MCP server is running at
+            </span>
+            <div class="flex items-center gap-1">
+              <span id="mcp-status-url" class="font-mono">{@status.url}</span>
+              <.copy_button
+                id="mcp-status-copy"
+                target="#mcp-status-url"
+                icon_only
+                class="btn-xs text-base-content/50 shrink-0 hover:text-base-content"
+              />
+            </div>
+          </div>
         <% else %>
           MCP server is not active. It can be enabled and configured in Settings.
           <.link
             href={
-              ~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_path)]}"
+              ~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_url)]}"
             }
             class="text-primary mt-2 flex w-fit items-center gap-1 font-medium underline-offset-2 hover:underline"
           >
@@ -156,59 +171,30 @@ defmodule VoyagerWeb.Components.Shell do
 
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
+  attr :mcp_status, :map, default: %{alive?: false, url: nil}
+  attr :current_url, :string, default: nil
 
   defp sidebar(assigns) do
+    assigns = assign(assigns, :sidebar_mode, sidebar_mode(assigns.current_url))
+
     ~H"""
     <aside
       id="app-sidebar"
-      class="bg-base-100 border-base-300 flex h-full w-16 flex-none flex-col overflow-y-auto overflow-x-hidden border-r transition-all duration-200 ease-out lg:w-64"
-      phx-hook=".SidebarPersistedMode"
+      class={[
+        "bg-base-100 border-base-300 flex h-full w-16 flex-none flex-col overflow-y-auto overflow-x-hidden border-r transition-all duration-200 ease-out lg:w-64",
+        @sidebar_mode == "compact" && "mode-compact",
+        @sidebar_mode == "full" && "mode-full"
+      ]}
     >
-      <script :type={Phoenix.LiveView.ColocatedHook} name=".SidebarPersistedMode">
-        export default {
-          mounted() {
-            const savedMode = sessionStorage.getItem("sidebar-mode")
-            if (savedMode === "compact" || savedMode === "full") {
-              this.el.classList.add(`mode-${savedMode}`)
-            }
-          }
-        }
-      </script>
       <ul class="menu font-sans w-full flex-1 gap-0.5 p-4">
         <li class="sidebar-toggle-row mb-3 flex flex-row items-center justify-between">
           <span class="menu-title sidebar-label tracking-label p-0 text-xs uppercase">Inspect</span>
-          <button
-            id="sidebar-compact-toggle"
-            type="button"
-            aria-label="Toggle sidebar width"
-            class="btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-base-content"
-            phx-hook=".SidebarCompactToggle"
-          >
-            <.icon name="icon-panel-left" class="size-4" />
-          </button>
-          <script :type={Phoenix.LiveView.ColocatedHook} name=".SidebarCompactToggle">
-            export default {
-              mounted() {
-                this.el.addEventListener("click", () => {
-                  const sidebar = document.getElementById("app-sidebar")
-                  const isNarrowViewport = window.matchMedia("(max-width: 1023px)").matches
-                  const isCompactNow =
-                    sidebar.classList.contains("mode-compact") ||
-                    (!sidebar.classList.contains("mode-full") && isNarrowViewport)
-
-                  const nextMode = isCompactNow ? "full" : "compact"
-                  sidebar.classList.remove("mode-compact", "mode-full")
-                  sidebar.classList.add(`mode-${nextMode}`)
-                  sessionStorage.setItem("sidebar-mode", nextMode)
-                })
-              }
-            }
-          </script>
+          <.sidebar_toggle current_url={@current_url} sidebar_mode={@sidebar_mode} />
         </li>
         <.nav_item
           :for={page <- inspect_pages()}
           active={@active_nav == page.feature}
-          navigate={node_path(@session, page.path)}
+          navigate={nav_path(node_path(@session, page.path), @sidebar_mode)}
           label={page.label}
         >
           <:icon><.icon name={page.icon} class="size-4" /></:icon>
@@ -220,14 +206,55 @@ defmodule VoyagerWeb.Components.Shell do
         <.nav_item
           :for={page <- coming_soon_pages()}
           active={@active_nav == page.feature}
-          navigate={node_path(@session, page.path)}
+          navigate={nav_path(node_path(@session, page.path), @sidebar_mode)}
           label={page.label}
           coming_soon
         >
           <:icon><.icon name={page.icon} class="size-4" /></:icon>
         </.nav_item>
       </ul>
+
+      <div class="border-base-content/10 mx-4 border-t"></div>
+
+      <div class="flex flex-none flex-col gap-1 p-3">
+        <.mcp_status_indicator
+          status={@mcp_status}
+          active_nav={@active_nav}
+          session={@session}
+          current_url={@current_url}
+        />
+      </div>
     </aside>
+    """
+  end
+
+  attr :current_url, :string, default: nil
+  attr :sidebar_mode, :string, default: nil
+
+  defp sidebar_toggle(assigns) do
+    # Without an explicit mode the width is decided by CSS: compact below `lg`,
+    # full from `lg` up. The server cannot know the viewport, so one toggle per
+    # breakpoint is rendered and CSS reveals the one matching the current width.
+    variants = [
+      {"sidebar-compact-toggle", "lg:hidden", assigns.sidebar_mode || "compact"},
+      {"sidebar-compact-toggle-wide", "max-lg:hidden", assigns.sidebar_mode || "full"}
+    ]
+
+    assigns = assign(assigns, :variants, variants)
+
+    ~H"""
+    <.link
+      :for={{id, visibility, mode} <- @variants}
+      id={id}
+      patch={toggle_sidebar_path(@current_url, mode)}
+      aria-label="Toggle sidebar width"
+      class={[
+        "btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-base-content",
+        visibility
+      ]}
+    >
+      <.icon name="icon-panel-left" class="size-4" />
+    </.link>
     """
   end
 
@@ -308,8 +335,29 @@ defmodule VoyagerWeb.Components.Shell do
   defp node_path(%Session{node_name: node_name}, path),
     do: "/node/#{URI.encode(node_name)}/#{path}"
 
-  defp settings_return_to(active_nav, session, current_path) do
-    current_path || settings_return_to_fallback(active_nav, session)
+  defp sidebar_mode(url) when is_binary(url) do
+    case URL.get_query_param(url, "sidebar") do
+      mode when mode in ["compact", "full"] -> mode
+      _ -> nil
+    end
+  end
+
+  defp sidebar_mode(_url), do: nil
+
+  # Carries the current sidebar mode onto a nav link so the choice survives
+  # navigation to another page.
+  defp nav_path(path, mode) when mode in ["compact", "full"],
+    do: URL.put_query_param(path, "sidebar", mode)
+
+  defp nav_path(path, _mode), do: path
+
+  defp toggle_sidebar_path(current_url, sidebar_mode) do
+    next_mode = if sidebar_mode == "compact", do: "full", else: "compact"
+    URL.put_query_param(current_url || "/", "sidebar", next_mode)
+  end
+
+  defp settings_return_to(active_nav, session, current_url) do
+    current_url || settings_return_to_fallback(active_nav, session)
   end
 
   defp settings_return_to_fallback(:supervision_tree, session),
@@ -319,16 +367,45 @@ defmodule VoyagerWeb.Components.Shell do
 
   attr :session, Session, required: true
 
-  defp statusbar(assigns) do
+  defp node_indicator(assigns) do
+    assigns = assign(assigns, :long_node_name?, String.length(assigns.session.node_name) > 24)
+
     ~H"""
-    <footer class="border-base-300 bg-base-100 font-mono text-base-content/60 tracking-snug flex flex-none items-center gap-4 border-t px-4 py-1.5 text-xs">
-      <div class="flex items-center gap-1.5">
-        <span class="bg-success h-1.5 w-1.5 rounded-full"></span>
+    <div
+      id="node-status"
+      class="border-base-300 flex w-fit min-w-0 max-w-full items-center gap-1.5 rounded-lg border py-1 pr-1 pl-2.5"
+    >
+      <span class="relative flex h-1.5 w-1.5 shrink-0">
+        <span class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75">
+        </span>
+        <span class="bg-success relative inline-flex h-1.5 w-1.5 rounded-full"></span>
+      </span>
+      <span
+        :if={!@long_node_name?}
+        class="text-base-content/50 shrink-0 text-xs @max-[20rem]/nav-status:hidden"
+      >
+        Connected
+      </span>
+      <span
+        class={["font-mono text-base-content/70 min-w-0 truncate text-xs"]}
+        title={@session.node_name}
+      >
         {@session.node_name}
-      </div>
-      <div class="flex-1"></div>
-      <div>v0.1.0</div>
-    </footer>
+      </span>
+      <.tooltip id="disconnect-tip" position="bottom">
+        <button
+          id="disconnect"
+          type="button"
+          title="Disconnect"
+          aria-label="Disconnect"
+          phx-click="disconnect"
+          class="btn btn-ghost btn-square btn-xs text-error/75 hover:text-error"
+        >
+          <.icon name="icon-power" class="size-3.5" />
+        </button>
+        <:content>Disconnect</:content>
+      </.tooltip>
+    </div>
     """
   end
 end

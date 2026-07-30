@@ -68,19 +68,20 @@ defmodule VoyagerWeb.ConnectLive do
               </p>
             </div>
 
-            <.live_component
-              :if={@mode == :direct}
-              module={VoyagerWeb.ConnectLive.DirectConnect}
-              id="direct-connect"
-              connected?={not is_nil(@connected_session)}
-            />
-
-            <.live_component
-              :if={@mode == :ssh && @proxy_epmd_active?}
-              module={VoyagerWeb.ConnectLive.SshConnect}
-              id="ssh-connect"
-              connected?={not is_nil(@connected_session)}
-            />
+            <div class={@mode != :direct && "hidden"}>
+              <.live_component
+                module={VoyagerWeb.ConnectLive.DirectConnect}
+                id="direct-connect"
+                connected?={not is_nil(@connected_session)}
+              />
+            </div>
+            <div class={@mode != :ssh && @proxy_epmd_active && "hidden"}>
+              <.live_component
+                module={VoyagerWeb.ConnectLive.SshConnect}
+                id="ssh-connect"
+                connected?={not is_nil(@connected_session)}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -96,8 +97,6 @@ defmodule VoyagerWeb.ConnectLive do
   def handle_event("switch_mode", %{"mode" => "ssh"}, socket) do
     {:noreply, assign(socket, :mode, :ssh)}
   end
-
-  def handle_event(_, _, socket), do: {:noreply, socket}
 
   @impl true
   def handle_info({:node_connected, _node}, socket) do

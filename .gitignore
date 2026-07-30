@@ -31,6 +31,7 @@ voyager-*.tar
 /priv/static/assets/css/*
 /priv/static/fonts/*
 /priv/static/cache_manifest.json
+!/priv/static/assets/css/favicon.svg
 !/priv/static/assets/css/.gitkeep
 !/priv/static/assets/js/.gitkeep
 
@@ -45,6 +46,10 @@ npm-debug.log
 
 # Environment secrets
 .env
+
+# Desktop app logs from `mix tauri.app`
+/rel/app/voyager-app.stdout.log
+/rel/app/voyager-app.stderr.log
 
 # Database files
 *.db

@@ -1,6 +1,6 @@
 defmodule Voyager.Services.SupervisionTree.Fetch do
   @moduledoc """
-  Wraps a `Voyager.Services.SupervisionTree.Walker.walk/4` call as a cancellable, monitored
+  Wraps a `Voyager.Services.SupervisionTree.Walker.walk/5` call as a cancellable, monitored
   async task that a LiveView can launch and abort.
 
   ## Usage
@@ -9,7 +9,8 @@ defmodule Voyager.Services.SupervisionTree.Fetch do
         node: :"target@localhost",
         apps: [:my_app],
         depth: 3,
-        expanded: MapSet.new()
+        expanded: MapSet.new(),
+        include_relations?: true
       }
 
       task = Fetch.start(request)
@@ -41,7 +42,8 @@ defmodule Voyager.Services.SupervisionTree.Fetch do
           node: node(),
           apps: [atom()],
           depth: non_neg_integer(),
-          expanded: MapSet.t(pid())
+          expanded: MapSet.t(pid()),
+          include_relations?: boolean()
         }
 
   @doc """
@@ -54,7 +56,13 @@ defmodule Voyager.Services.SupervisionTree.Fetch do
   @spec start(request()) :: Task.t()
   def start(request) do
     Task.Supervisor.async_nolink(Voyager.TaskSupervisor, fn ->
-      Walker.walk(request.node, request.apps, request.depth, request.expanded)
+      Walker.walk(
+        request.node,
+        request.apps,
+        request.depth,
+        request.expanded,
+        request.include_relations?
+      )
     end)
   end
 

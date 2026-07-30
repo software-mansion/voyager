@@ -1,59 +1,59 @@
 defmodule VoyagerWeb.ConnectLive.SshConnect do
   @moduledoc """
-   SSH-tunnel connection panel for `VoyagerWeb.ConnectLive`.
+  SSH-tunnel connection panel for `VoyagerWeb.ConnectLive`.
   """
   use VoyagerWeb, :live_component
-
-  import VoyagerWeb.ConnectComponents,
-    only: [
-      form_field: 1,
-      secret_field: 1,
-      segmented: 1,
-      name_type_toggle: 1,
-      connect_submit: 1,
-      saved_badge: 1,
-      row_actions: 1,
-      relative_time: 1
-    ]
 
   alias Voyager.Actions.SshConnections, as: SshConnectionActions
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Connectors.Ssh, as: SshConnector
   alias Voyager.Queries.SshConnections, as: SshConnectionQueries
+  alias VoyagerWeb.ConnectComponents
   alias VoyagerWeb.ConnectLive.RecentConnections
   alias VoyagerWeb.ConnectLive.SecretVisibility
   alias VoyagerWeb.FormSchemas.SshConnectionParams
 
-  @recents_keys %{
-    pinned: :pinned_ssh_connections,
-    recent: :recent_ssh_connections,
-    has_pinned: :has_pinned_ssh,
-    has_recent: :has_recent_ssh
-  }
-
   @impl true
-  def update(%{id: id, connected?: connected?}, socket) do
-    socket = assign(socket, id: id, connected?: connected?)
-
+  def update(
+        %{connected?: new_status} = assigns,
+        %{assigns: %{initialized: true, connected?: old_status}} = socket
+      )
+      when new_status != old_status do
     socket =
-      if socket.assigns[:initialized] do
-        socket
-      else
-        socket
-        |> assign(:ssh_form, empty_ssh_form())
-        |> SecretVisibility.init()
-        |> assign(:show_ssh_advanced, false)
-        |> assign(:ssh_connecting, false)
-        |> assign(:ssh_last_applied, nil)
-        |> RecentConnections.init(
-          queries: SshConnectionQueries,
-          actions: SshConnectionActions,
-          keys: @recents_keys
-        )
-        |> assign(:initialized, true)
-      end
+      socket
+      |> assign_new(:id_prefix, fn -> "ssh-" end)
+      |> assign(assigns)
+      |> RecentConnections.reset()
 
-    ok(socket)
+    {:ok, socket}
+  end
+
+  def update(assigns, socket) when not is_map_key(socket.assigns, :initialized) do
+    socket =
+      socket
+      |> assign_new(:id_prefix, fn -> "ssh-" end)
+      |> assign(assigns)
+      |> assign(:ssh_form, empty_ssh_form())
+      |> SecretVisibility.init()
+      |> assign(:show_ssh_advanced, false)
+      |> assign(:ssh_connecting, false)
+      |> assign(:ssh_last_applied, nil)
+      |> RecentConnections.init(
+        queries: SshConnectionQueries,
+        actions: SshConnectionActions
+      )
+      |> assign(:initialized, true)
+
+    {:ok, socket}
+  end
+
+  def update(assigns, socket) do
+    socket =
+      socket
+      |> assign_new(:id_prefix, fn -> "ssh-" end)
+      |> assign(assigns)
+
+    {:ok, socket}
   end
 
   @impl true
@@ -67,47 +67,54 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     <div id={@id}>
       <.form
         for={@ssh_form}
-        id="ssh-connect-form"
+        id={"#{@id_prefix}connect-form"}
         phx-target={@myself}
         phx-change="validate_ssh"
         phx-submit="connect_ssh"
-        class={["flex flex-col gap-4", @connected? && "pointer-events-none opacity-40"]}
+        class={[
+          "flex flex-col gap-4",
+          (@connected? or @ssh_connecting) && "pointer-events-none opacity-40"
+        ]}
       >
         <div class="flex gap-3">
-          <div class="flex-[1] min-w-0">
-            <.form_field
+          <div class="min-w-0 flex-1">
+            <ConnectComponents.form_field
               field={@ssh_form[:ssh_user]}
               label="SSH User"
               placeholder="voyager"
-              disabled={@connected?}
+              disabled={@connected? or @ssh_connecting}
             />
           </div>
-          <div class="flex-[2] min-w-0">
-            <.form_field
+          <div class="flex-2 min-w-0">
+            <ConnectComponents.form_field
               field={@ssh_form[:ssh_host]}
               label="SSH Host"
               placeholder="10.0.0.5"
-              disabled={@connected?}
+              disabled={@connected? or @ssh_connecting}
             />
           </div>
         </div>
 
-        <.form_field
+        <ConnectComponents.form_field
           field={@ssh_form[:node_name]}
           label="Node Name"
-          placeholder="myapp@127.0.0.1"
-          disabled={@connected?}
+          placeholder={
+            if @current_name_type == "longnames",
+              do: "my_app@server.company.com",
+              else: "my_app@my-machine"
+          }
+          disabled={@connected? or @ssh_connecting}
         >
           <:trailing>
-            <.name_type_toggle
+            <ConnectComponents.name_type_toggle
               name="ssh[name_type]"
               value={@current_name_type}
-              disabled={@connected?}
+              disabled={@connected? or @ssh_connecting}
             />
           </:trailing>
-        </.form_field>
+        </ConnectComponents.form_field>
 
-        <.secret_field
+        <ConnectComponents.secret_field
           field={@ssh_form[:cookie]}
           label="Cookie"
           secret_key="cookie"
@@ -116,17 +123,17 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
           remember_name="ssh[remember_cookie]"
           remember_checked={to_string(@ssh_form[:remember_cookie].value) == "true"}
           remember_label="Remember cookie"
-          disabled={@connected?}
+          disabled={@connected? or @ssh_connecting}
         />
 
         <div>
           <label class="font-mono tracking-label text-base-content/50 mb-1.5 block text-xs uppercase">
             Authentication
           </label>
-          <.segmented
+          <ConnectComponents.segmented
             name="ssh[auth_method]"
             value={@current_auth_method}
-            disabled={@connected?}
+            disabled={@connected? or @ssh_connecting}
             options={[
               %{value: "agent", label: "SSH Agent", id: "ssh-auth-agent"},
               %{value: "password", label: "Password", id: "ssh-auth-password"}
@@ -134,7 +141,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
           />
         </div>
 
-        <.secret_field
+        <ConnectComponents.secret_field
           :if={@current_auth_method == "password"}
           field={@ssh_form[:password]}
           label="SSH Password"
@@ -144,7 +151,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
           remember_name="ssh[remember_password]"
           remember_checked={to_string(@ssh_form[:remember_password].value) == "true"}
           remember_label="Remember password"
-          disabled={@connected?}
+          disabled={@connected? or @ssh_connecting}
         />
 
         <div>
@@ -158,30 +165,30 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
           </button>
           <div :if={@show_ssh_advanced} class="border-base-300 mt-3 flex gap-3 rounded-lg border p-4">
             <div class="flex-1">
-              <.form_field
+              <ConnectComponents.form_field
                 field={@ssh_form[:ssh_port]}
                 label="SSH Port"
                 type="number"
                 min="1"
                 max="65535"
-                disabled={@connected?}
+                disabled={@connected? or @ssh_connecting}
               />
             </div>
             <div class="flex-1">
-              <.form_field
+              <ConnectComponents.form_field
                 field={@ssh_form[:epmd_port]}
                 label="EPMD Port"
                 type="number"
                 min="1"
                 max="65535"
-                disabled={@connected?}
+                disabled={@connected? or @ssh_connecting}
               />
             </div>
           </div>
         </div>
 
-        <.connect_submit
-          id="ssh-connect-btn"
+        <ConnectComponents.connect_submit
+          id={"#{@id_prefix}connect-btn"}
           icon="icon-network"
           label="Connect via SSH"
           loading_label="Connecting over SSH…"
@@ -190,14 +197,18 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       </.form>
 
       <RecentConnections.render
-        dom_prefix="ssh-"
-        streams={@streams}
-        keys={@recents.keys}
-        has_pinned={@has_pinned_ssh}
-        has_recent={@has_recent_ssh}
+        id_prefix={@id_prefix}
+        pinned_connections={@pinned_connections}
+        recent_connections={@recent_connections}
+        disabled={@connected? or @ssh_connecting}
       >
         <:row :let={{conn, pinned}}>
-          <.ssh_connection_row conn={conn} pinned={pinned} target={@myself} />
+          <.ssh_connection_row
+            conn={conn}
+            pinned={pinned}
+            target={@myself}
+            disabled={@connected? or @ssh_connecting}
+          />
         </:row>
       </RecentConnections.render>
 
@@ -211,6 +222,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   attr :conn, :map, required: true, doc: "The SSH connection record from the database"
   attr :pinned, :boolean, default: false, doc: "Whether this connection is pinned"
   attr :target, :any, required: true, doc: "phx-target for the component's events"
+  attr :disabled, :boolean, default: false
 
   defp ssh_connection_row(assigns) do
     ~H"""
@@ -221,25 +233,26 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         phx-click="fill_ssh_recent"
         phx-value-id={@conn.id}
         data-testid="fill-ssh-recent-btn"
+        disabled={@disabled}
         class="font-mono text-base-content/60 flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-xs transition-colors hover:bg-base-200 hover:text-base-content"
       >
-        <.icon name="icon-network" class="size-3.5 text-base-content/25 mt-1 shrink-0 self-start" />
+        <.icon name="icon-network" class="size-3.5 text-base-content/25 shrink-0 self-center" />
         <div class="flex min-w-0 flex-1 flex-col gap-1">
-          <span class="ml-2 truncate">{@conn.node_name}</span>
+          <span class="ml-2 truncate text-left">{@conn.node_name}</span>
           <div class="ml-2 flex flex-wrap items-center gap-1">
             <span class="font-mono text-base-content/30 border-base-300 rounded border px-1 text-xs">
               {@conn.ssh_user}@{@conn.ssh_host}
             </span>
-            <.saved_badge :if={@conn.cookie} label="cookie" title="Cookie saved" />
-            <.saved_badge :if={@conn.password} label="pass" title="Password saved" />
+            <ConnectComponents.saved_badge :if={@conn.cookie} label="cookie" title="Cookie saved" />
+            <ConnectComponents.saved_badge :if={@conn.password} label="pass" title="Password saved" />
           </div>
         </div>
-        <span class="font-mono text-base-content/35 mt-0.5 shrink-0 self-start text-xs">
-          {relative_time(@conn.last_connected_at)}
+        <span class="font-mono text-base-content/35 shrink-0 self-center text-xs">
+          {ConnectComponents.relative_time(@conn.last_connected_at)}
         </span>
       </button>
 
-      <.row_actions
+      <ConnectComponents.row_actions
         id={@conn.id}
         pinned={@pinned}
         pin_event="pin"
@@ -278,6 +291,14 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       {:error, changeset} ->
         {:noreply, assign(socket, :ssh_form, to_form(changeset, as: :ssh))}
     end
+  end
+
+  def handle_event("fill_ssh_recent", _params, %{assigns: %{connected?: true}} = socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("fill_ssh_recent", _params, %{assigns: %{ssh_connecting: true}} = socket) do
+    {:noreply, socket}
   end
 
   def handle_event("fill_ssh_recent", %{"id" => id}, socket) do

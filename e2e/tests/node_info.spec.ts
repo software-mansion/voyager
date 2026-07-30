@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { execSync } from 'node:child_process';
-import { NODE_NAME, sel } from './fixtures';
+import { NODE_NAME, sel, ensureConnected } from './fixtures';
 
 const nodeUrl = `/node/${NODE_NAME}`;
 
@@ -13,6 +13,7 @@ function expectedOtpRelease(): string {
 
 test.describe('NodeInfoLive', () => {
   test.beforeEach(async ({ page }) => {
+    await ensureConnected(page);
     await page.goto(nodeUrl);
     await expect(page.locator(sel.nodeInfoLoading)).toBeHidden();
     await expect(page.locator(sel.nodeInfoContent)).toBeVisible();
