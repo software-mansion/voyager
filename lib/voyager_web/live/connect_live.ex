@@ -75,7 +75,7 @@ defmodule VoyagerWeb.ConnectLive do
                 connected?={not is_nil(@connected_session)}
               />
             </div>
-            <div class={@mode != :ssh && @proxy_epmd_active && "hidden"}>
+            <div class={@mode != :ssh && @proxy_epmd_active? && "hidden"}>
               <.live_component
                 module={VoyagerWeb.ConnectLive.SshConnect}
                 id="ssh-connect"
