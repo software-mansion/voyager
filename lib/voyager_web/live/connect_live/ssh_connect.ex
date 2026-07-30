@@ -211,7 +211,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       </RecentConnections.render>
 
       <p class="font-mono tracking-snug text-base-content/35 mt-6 text-center text-xs">
-        Connects via SSH tunnel
+        Remote nodes via SSH
       </p>
     </div>
     """

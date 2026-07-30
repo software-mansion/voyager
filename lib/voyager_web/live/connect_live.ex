@@ -49,11 +49,17 @@ defmodule VoyagerWeb.ConnectLive do
                 mode={@mode}
                 disabled={not is_nil(@connected_session) or @connecting?}
               />
-              <p :if={@mode == :direct} class="text-base-content/60 mt-1 text-lg">
-                Connect directly over Erlang distribution.
+              <p
+                :if={@mode == :direct}
+                class="font-mono text-base-content/50 text-md"
+              >
+                Inspect node on your machine.
               </p>
-              <p :if={@mode == :ssh} class="text-base-content/60 mt-1 text-lg">
-                Connect to a remote node through an SSH tunnel.
+              <p
+                :if={@mode == :ssh}
+                class="font-mono text-base-content/50 text-md"
+              >
+                Tunnel into a remote machine to reach its node.
               </p>
             </div>
 
