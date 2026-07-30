@@ -30,8 +30,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         @open? && "lg:flex"
       ]}
     >
-      <span class="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 transition-colors group-hover:bg-primary/50" />
-      <span class="bg-primary/50 relative z-50 flex h-10 w-1 shrink-0 flex-col items-center justify-center gap-0.5 rounded-full transition-colors group-hover:hidden">
+      <span class="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 transition-colors group-hover:bg-primary/60" />
+      <span class="bg-primary/60 relative z-50 flex h-10 w-1 shrink-0 flex-col items-center justify-center gap-0.5 rounded-full transition-colors group-hover:hidden">
         <span :for={_ <- 1..3} class="size-0.5 bg-base-100 rounded-full" />
       </span>
     </div>
@@ -74,7 +74,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       <.copyable
         :if={@pid_string}
         id={"#{@panel_id}-pid"}
-        class="font-mono text-base-content/50 text-xs"
+        class="font-mono text-base-content/60 text-xs"
         text={@pid_string}
         label="Copy Node PID"
       />
@@ -96,7 +96,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         phx-target={@myself}
         phx-throttle="1000"
         aria-label="Refresh fetched process information"
-        class="border-base-200 text-base-content/50 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border transition-all hover:border-base-300 hover:bg-base-200 hover:text-base-content"
+        class="border-base-200 text-base-content flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border transition-all hover:border-base-300 hover:bg-base-200 hover:text-base-content"
       >
         <.icon
           name="icon-rotate-cw"
@@ -118,7 +118,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       phx-click="close-details-panel"
       title="Close"
       aria-label="Close panel"
-      class="border-base-200 text-base-content/50 flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border transition-all hover:border-base-300 hover:bg-base-200 hover:text-base-content"
+      class="border-base-200 text-base-content flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border transition-all hover:border-base-300 hover:bg-base-200 hover:text-base-content"
     >
       <.icon name="icon-x" class="size-3.5" />
     </button>
@@ -279,7 +279,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     <div>
       <h4 class="text-base-content mb-2 text-sm font-semibold leading-none">
         {@title}
-        <span :if={@muted} class="font-mono text-base-content/50 ml-1 text-xs font-normal">
+        <span :if={@muted} class="font-mono text-base-content/60 ml-1 text-xs font-normal">
           {@muted}
         </span>
       </h4>
@@ -332,7 +332,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   @spec load_error(any()) :: Phoenix.LiveView.Rendered.t()
   def load_error(assigns) do
     ~H"""
-    <div class="border-error/30 bg-error/10 text-error rounded-lg border px-3 py-2.5 text-xs">
+    <div class="border-error bg-error text-error rounded-lg border px-3 py-2.5 text-xs">
       Failed to load node details.
     </div>
     """
@@ -378,9 +378,9 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         :if={@suspending != []}
         class="grid-cols-[minmax(0,1fr)_auto_auto] grid w-full gap-x-3 gap-y-1 text-left"
       >
-        <span class="text-base-content/50">Suspendee</span>
-        <span class="text-base-content/50 text-right">Active</span>
-        <span class="text-base-content/50 text-right">Outstanding</span>
+        <span class="text-base-content/60">Suspendee</span>
+        <span class="text-base-content/60 text-right">Active</span>
+        <span class="text-base-content/60 text-right">Outstanding</span>
         <div
           :for={{suspendee, active_suspend_count, outstanding_suspend_count} <- @suspending}
           class="contents"
@@ -416,7 +416,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       </div>
       <p
         :if={@links_expanded? and @overflow_count > 0}
-        class="font-mono text-base-content/50 self-center text-xs"
+        class="font-mono text-base-content/60 self-center text-xs"
       >
         +{Formatters.format_integer(@overflow_count)} more
       </p>
@@ -451,7 +451,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         target={"##{@id}-copy-text"}
         icon_only
         label={@label}
-        class="text-base-content/50 opacity-0 transition-opacity hover:text-base-content focus-visible:opacity-100 group-hover:opacity-100"
+        class="text-base-content/60 opacity-0 transition-opacity hover:text-base-content focus-visible:opacity-100 group-hover:opacity-100"
       />
     </div>
     """
