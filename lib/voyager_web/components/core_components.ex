@@ -59,7 +59,7 @@ defmodule VoyagerWeb.CoreComponents do
       <.icon :if={@kind == :error} name="icon-circle-alert" class="size-4 shrink-0" />
       <div class="min-w-0 flex-1">
         <p :if={@title} class="font-bold">{@title}</p>
-        <p>{msg}</p>
+        <p class="truncate" title={msg}>{msg}</p>
       </div>
       <button type="button" class="btn btn-ghost btn-xs btn-circle" aria-label="close">
         <.icon name="icon-x" class="size-3.5" />
@@ -83,11 +83,19 @@ defmodule VoyagerWeb.CoreComponents do
 
   def node_header(assigns) do
     ~H"""
-    <header class="mb-8 flex flex-wrap items-center justify-between gap-4">
-      <div>
-        <h1 class="font-mono text-base-content text-2xl font-bold tracking-tight">
-          {@node_name}
-        </h1>
+    <header class="mb-8 flex items-center justify-between gap-4">
+      <div class="min-w-0 flex-1">
+        <.tooltip
+          id="node-header-name-tip"
+          position="bottom"
+          class="w-full max-w-full"
+          tip_class="max-w-lg break-all font-mono"
+        >
+          <h1 class="font-mono text-base-content w-full truncate text-2xl font-bold tracking-tight">
+            {@node_name}
+          </h1>
+          <:content>{@node_name}</:content>
+        </.tooltip>
         <p class="font-mono text-base-content/50 mt-0.5 text-xs">
           <%= if @last_updated do %>
             updated {Formatters.format_time(@last_updated)} UTC
@@ -96,7 +104,7 @@ defmodule VoyagerWeb.CoreComponents do
           <% end %>
         </p>
       </div>
-      <div :if={@actions != []} class="flex items-center gap-2">{render_slot(@actions)}</div>
+      <div :if={@actions != []} class="flex shrink-0 items-center gap-2">{render_slot(@actions)}</div>
     </header>
     """
   end
