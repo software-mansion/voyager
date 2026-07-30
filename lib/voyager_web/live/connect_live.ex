@@ -47,13 +47,13 @@ defmodule VoyagerWeb.ConnectLive do
               />
               <p
                 :if={@mode == :direct}
-                class="font-mono text-base-content/70 text-md"
+                class="font-mono text-base-content/70"
               >
                 Inspect node on your machine.
               </p>
               <p
                 :if={@mode == :ssh}
-                class="font-mono text-base-content/70 text-md"
+                class="font-mono text-base-content/70"
               >
                 Tunnel into a remote machine to reach its node.
               </p>
