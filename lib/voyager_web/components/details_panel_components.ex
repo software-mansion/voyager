@@ -74,7 +74,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       <.copyable
         :if={@pid_string}
         id={"#{@panel_id}-pid"}
-        class="font-mono text-base-content/60 text-xs"
+        class="font-mono text-base-content/70 text-xs"
         text={@pid_string}
         label="Copy Node PID"
       />
@@ -279,7 +279,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     <div>
       <h4 class="text-base-content mb-2 text-sm font-semibold leading-none">
         {@title}
-        <span :if={@muted} class="font-mono text-base-content/60 ml-1 text-xs font-normal">
+        <span :if={@muted} class="font-mono text-base-content/70 ml-1 text-xs font-normal">
           {@muted}
         </span>
       </h4>
@@ -300,9 +300,9 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     <div class={[
       "font-mono flex gap-4 py-2.5 text-xs",
       if(@stacked, do: "flex-col items-stretch", else: "items-baseline justify-between"),
-      not @last && "border-base-300/60 border-b"
+      not @last && "border-base-300/70 border-b"
     ]}>
-      <span class="text-base-content/60 shrink-0">{@label}</span>
+      <span class="text-base-content/70 shrink-0">{@label}</span>
       <div
         class={["text-base-content min-w-0", not @stacked && "truncate text-right"]}
         title={@value}
@@ -321,7 +321,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     <button
       type="button"
       disabled
-      class="border-base-content/60 bg-base-200 text-base-content font-mono inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs"
+      class="border-base-content/70 bg-base-200 text-base-content font-mono inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs"
     >
       <span class="bg-primary h-1.5 w-1.5 rounded-full" />
       {@label}
@@ -347,9 +347,9 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     ~H"""
     <div class={[
       "font-mono flex items-baseline justify-between gap-4 py-2.5 text-xs",
-      not @last && "border-base-300/60 border-b"
+      not @last && "border-base-300/70 border-b"
     ]}>
-      <span class="text-base-content/60 shrink-0">{@label}</span>
+      <span class="text-base-content/70 shrink-0">{@label}</span>
       <div class={[
         "skeleton shrink-1 h-2.5 rounded",
         @narrow && "w-12",
@@ -378,9 +378,9 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         :if={@suspending != []}
         class="grid-cols-[minmax(0,1fr)_auto_auto] grid w-full gap-x-3 gap-y-1 text-left"
       >
-        <span class="text-base-content/60">Suspendee</span>
-        <span class="text-base-content/60 text-right">Active</span>
-        <span class="text-base-content/60 text-right">Outstanding</span>
+        <span class="text-base-content/70">Suspendee</span>
+        <span class="text-base-content/70 text-right">Active</span>
+        <span class="text-base-content/70 text-right">Outstanding</span>
         <div
           :for={{suspendee, active_suspend_count, outstanding_suspend_count} <- @suspending}
           class="contents"
@@ -416,7 +416,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       </div>
       <p
         :if={@links_expanded? and @overflow_count > 0}
-        class="font-mono text-base-content/60 self-center text-xs"
+        class="font-mono text-base-content/70 self-center text-xs"
       >
         +{Formatters.format_integer(@overflow_count)} more
       </p>
@@ -426,7 +426,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         id={@toggle_id}
         phx-click="toggle-links"
         phx-target={@myself}
-        class="btn btn-ghost btn-xs text-base-content/60 w-max items-center self-center px-3 py-2 hover:text-base-content"
+        class="btn btn-ghost btn-xs text-base-content/70 w-max items-center self-center px-3 py-2 hover:text-base-content"
       >
         {if(@links_expanded?, do: "Show Less", else: "Show More")}
       </button>
