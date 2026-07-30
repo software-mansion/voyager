@@ -59,7 +59,7 @@ defmodule VoyagerWeb.CoreComponents do
       <.icon :if={@kind == :error} name="icon-circle-alert" class="size-4 shrink-0" />
       <div class="min-w-0 flex-1">
         <p :if={@title} class="font-bold">{@title}</p>
-        <p class="truncate" title={msg}>{msg}</p>
+        <p class="truncate">{msg}</p>
       </div>
       <button type="button" class="btn btn-ghost btn-xs btn-circle" aria-label="close">
         <.icon name="icon-x" class="size-3.5" />
