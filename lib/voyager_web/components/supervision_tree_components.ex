@@ -233,7 +233,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                     phx-click={JS.dispatch("zoom-in", to: "#supervision-tree-body")}
                     title="Zoom graph in"
                     aria-label="Zoom graph in"
-                    class="btn btn-sm btn-ghost btn-square"
+                    class="btn btn-ghost btn-square toolbar-btn"
                   >
                     <.icon name="icon-plus" class="toolbar-icon" />
                   </button>
@@ -242,7 +242,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                     phx-click={JS.dispatch("zoom-out", to: "#supervision-tree-body")}
                     title="Zoom graph out"
                     aria-label="Zoom graph out"
-                    class="btn btn-sm btn-ghost btn-square"
+                    class="btn btn-ghost btn-square toolbar-btn"
                   >
                     <.icon name="icon-minus" class="toolbar-icon" />
                   </button>
@@ -251,7 +251,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                     phx-click={JS.dispatch("maximize", to: "#supervision-tree-body")}
                     title="Fit graph to view"
                     aria-label="Fit graph to view"
-                    class="btn btn-sm btn-ghost btn-square"
+                    class="btn btn-ghost btn-square toolbar-btn"
                   >
                     <.icon name="icon-maximize" class="toolbar-icon" />
                   </button>

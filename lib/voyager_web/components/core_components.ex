@@ -192,10 +192,14 @@ defmodule VoyagerWeb.CoreComponents do
       data-copy-copied-label={@copied_label}
       title={@label}
       aria-label={@label}
-      class={["btn btn-sm btn-ghost", if(@icon_only, do: "btn-square", else: "gap-2"), @class]}
+      class={[
+        "btn btn-ghost",
+        if(@icon_only, do: "btn-square toolbar-btn", else: "btn-sm gap-2"),
+        @class
+      ]}
       {@rest}
     >
-      <.icon name="icon-copy" class="toolbar-icon" />
+      <.icon name="icon-copy" class={if(@icon_only, do: "toolbar-icon", else: "size-4")} />
       <span data-copy-button-label class={@icon_only && "sr-only"}>{@label}</span>
       <span class="sr-only" aria-live="polite" data-copy-status></span>
     </button>
@@ -353,7 +357,7 @@ defmodule VoyagerWeb.CoreComponents do
           aria-label="Decrease"
           class="btn btn-square toolbar-btn join-item border-base-content/20"
         >
-          <.icon name="icon-minus" class="size-4" />
+          <.icon name="icon-minus" class="toolbar-icon" />
         </button>
         <input
           type="number"
@@ -373,9 +377,9 @@ defmodule VoyagerWeb.CoreComponents do
           data-direction="1"
           tabindex="-1"
           aria-label="Increase"
-          class="btn btn-sm btn-square join-item border-base-content/20"
+          class="btn btn-square toolbar-btn join-item border-base-content/20"
         >
-          <.icon name="icon-plus" class="size-4" />
+          <.icon name="icon-plus" class="toolbar-icon" />
         </button>
       </div>
       <p :for={error <- @errors} class="font-mono text-error mt-1.5 text-xs">{error}</p>

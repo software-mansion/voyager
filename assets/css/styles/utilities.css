@@ -30,3 +30,15 @@
   width: var(--toolbar-icon-size);
   height: var(--toolbar-icon-size);
 }
+
+@utility toolbar-btn-sm {
+  width: var(--toolbar-btn-size-sm);
+  height: var(--toolbar-btn-size-sm);
+  min-height: var(--toolbar-btn-size-sm);
+  padding: 0;
+}
+
+@utility toolbar-icon-sm {
+  width: var(--toolbar-icon-size-sm);
+  height: var(--toolbar-icon-size-sm);
+}

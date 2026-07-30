@@ -399,9 +399,9 @@ defmodule VoyagerWeb.Components.Shell do
           title="Disconnect"
           aria-label="Disconnect"
           phx-click="disconnect"
-          class="btn btn-ghost btn-square btn-xs text-error/75 hover:text-error"
+          class="btn btn-ghost btn-square toolbar-btn-sm text-error/75 hover:text-error"
         >
-          <.icon name="icon-power" class="size-4" />
+          <.icon name="icon-power" class="toolbar-icon-sm" />
         </button>
         <:content>Disconnect</:content>
       </.tooltip>

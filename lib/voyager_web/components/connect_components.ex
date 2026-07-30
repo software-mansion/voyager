@@ -52,11 +52,14 @@ defmodule VoyagerWeb.ConnectComponents do
         phx-value-id={@conn.id}
         title={if @pinned, do: "Remove from favourites", else: "Save as favourite"}
         class={[
-          "btn btn-square btn-ghost btn-xs px-0.5",
+          "btn btn-square btn-ghost toolbar-btn-sm",
           if(@pinned, do: "text-pinned", else: "text-base-content/20 hover:text-pinned")
         ]}
       >
-        <.icon name={if @pinned, do: "icon-star-filled", else: "icon-star"} class="size-3.5" />
+        <.icon
+          name={if @pinned, do: "icon-star-filled", else: "icon-star"}
+          class="toolbar-icon-sm"
+        />
       </button>
 
       <button
@@ -64,9 +67,9 @@ defmodule VoyagerWeb.ConnectComponents do
         phx-click="delete_connection"
         phx-value-id={@conn.id}
         title="Remove"
-        class="btn btn-square btn-ghost btn-xs text-base-content/20 px-0.5 hover:text-error"
+        class="btn btn-square btn-ghost toolbar-btn-sm text-base-content/20 hover:text-error"
       >
-        <.icon name="icon-x" class="size-3.5" />
+        <.icon name="icon-x" class="toolbar-icon-sm" />
       </button>
     </div>
     """
@@ -98,16 +101,16 @@ defmodule VoyagerWeb.ConnectComponents do
             phx-click="disconnect"
             title="Disconnect"
             aria-label="Disconnect"
-            class="btn btn-ghost btn-square btn-xs text-error/75 shrink-0 hover:text-error"
+            class="btn btn-ghost btn-square toolbar-btn-sm text-error/75 shrink-0 hover:text-error"
           >
-            <.icon name="icon-power" class="size-3.5" />
+            <.icon name="icon-power" class="toolbar-icon-sm" />
           </button>
         </div>
         <.link
           href={~p"/node/#{@session.node_name}"}
           class="btn btn-success btn-xs ml-3 shrink-0 gap-1"
         >
-          Open <.icon name="icon-log-in" class="size-3.5" />
+          Open <.icon name="icon-log-in" class="size-4" />
         </.link>
       </div>
     </div>
@@ -206,11 +209,11 @@ defmodule VoyagerWeb.ConnectComponents do
             disabled={@disabled}
             aria-label={if @show_cookie, do: "Hide cookie", else: "Show cookie"}
             title={if @show_cookie, do: "Hide cookie", else: "Show cookie"}
-            class="btn btn-ghost btn-square btn-sm text-base-content/40 absolute top-1 right-1.5 hover:text-base-content"
+            class="btn btn-ghost btn-square toolbar-btn text-base-content/40 absolute top-1 right-1.5 hover:text-base-content"
           >
             <.icon
               name={if @show_cookie, do: "icon-eye", else: "icon-eye-off"}
-              class="size-5"
+              class="toolbar-icon"
             />
           </button>
         </div>

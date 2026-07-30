@@ -15,10 +15,13 @@
   /* Toolbar / sidebar sizing:
      --toolbar-btn-size  → chrome buttons + compact rail + nav squares (.toolbar-btn)
      --toolbar-icon-size → chrome + sidebar nav icons (.toolbar-icon)
+     --toolbar-btn-size-sm / --toolbar-icon-size-sm → dense square controls (.toolbar-btn-sm)
      --sidebar-compact-pad → compact rail inset (also menu padding; keep icons centered)
      --sidebar-full-pad → expanded sidebar menu padding */
   --toolbar-btn-size: 2rem;
   --toolbar-icon-size: 1.25rem;
+  --toolbar-btn-size-sm: 1.6rem;
+  --toolbar-icon-size-sm: 1rem;
   --sidebar-compact-pad: 0.65rem;
   --sidebar-full-pad: 0.75rem;
   --sidebar-compact-w: calc(
