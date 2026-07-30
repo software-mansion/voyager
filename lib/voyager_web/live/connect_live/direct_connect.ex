@@ -1,10 +1,10 @@
 defmodule VoyagerWeb.ConnectLive.DirectConnect do
   use VoyagerWeb, :live_component
 
-  alias VoyagerWeb.ConnectComponents
   alias Voyager.Actions.Connections, as: ConnectionActions
   alias Voyager.NodeSession
   alias Voyager.Queries.Connections, as: ConnectionQueries
+  alias VoyagerWeb.ConnectComponents
   alias VoyagerWeb.ConnectLive.RecentConnections
   alias VoyagerWeb.ConnectLive.SecretVisibility
   alias VoyagerWeb.FormSchemas.ConnectionParams

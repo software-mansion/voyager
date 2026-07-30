@@ -23,17 +23,21 @@ defmodule VoyagerWeb.ConnectLive.RecentConnections do
   end
 
   defp handle_event("pin", %{"id" => id}, socket) do
-    socket.assigns.recents.actions.pin(String.to_integer(id))
+    pin_id = String.to_integer(id)
+    socket.assigns.recents.actions.pin.(pin_id)
     {:halt, reset(socket)}
   end
 
   defp handle_event("unpin", %{"id" => id}, socket) do
-    socket.assigns.recents.actions.unpin(String.to_integer(id))
+    pin_id = String.to_integer(id)
+
+    socket.assigns.recents.actions.unpin(pin_id)
     {:halt, reset(socket)}
   end
 
   defp handle_event("delete_connection", %{"id" => id}, socket) do
-    socket.assigns.recents.actions.delete(String.to_integer(id))
+    connection_id = String.to_integer(id)
+    socket.assigns.recents.actions.delete(connection_id)
     {:halt, reset(socket)}
   end
 

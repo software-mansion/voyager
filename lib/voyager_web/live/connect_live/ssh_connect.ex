@@ -4,11 +4,11 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   """
   use VoyagerWeb, :live_component
 
-  alias VoyagerWeb.ConnectComponents
   alias Voyager.Actions.SshConnections, as: SshConnectionActions
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Connectors.Ssh, as: SshConnector
   alias Voyager.Queries.SshConnections, as: SshConnectionQueries
+  alias VoyagerWeb.ConnectComponents
   alias VoyagerWeb.ConnectLive.RecentConnections
   alias VoyagerWeb.ConnectLive.SecretVisibility
   alias VoyagerWeb.FormSchemas.SshConnectionParams
