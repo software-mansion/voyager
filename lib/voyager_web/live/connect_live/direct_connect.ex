@@ -19,20 +19,10 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   end
 
   @impl true
-  def update(
-        %{connected?: new_status} = assigns,
-        %{assigns: %{initialized: true, connected?: old_status}} = socket
-      )
-      when new_status != old_status do
-    socket
-    |> assign(assigns)
-    |> RecentConnections.reset()
-    |> ok()
-  end
-
   def update(assigns, socket) when not is_map_key(socket.assigns, :initialized) do
     socket
-    |> assign(assigns)
+    |> assign(:id, assigns.id)
+    |> assign(:connected?, assigns.connected?)
     |> assign(:form, empty_form())
     |> SecretVisibility.init()
     |> RecentConnections.init(
@@ -44,7 +34,10 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   end
 
   def update(assigns, socket) do
-    {:ok, assign(socket, assigns)}
+    socket
+    |> assign(:id, assigns.id)
+    |> assign(:connected?, assigns.connected?)
+    |> ok()
   end
 
   @impl true
