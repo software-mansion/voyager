@@ -6,10 +6,6 @@ defmodule VoyagerWeb.ConnectLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket) do
-      Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
-    end
-
     socket
     |> assign(:proxy_epmd_active?, Voyager.ProxyEpmd.active?())
     |> assign(:connected_session, NodeSession.current())
@@ -60,11 +56,17 @@ defmodule VoyagerWeb.ConnectLive do
                   module is not active
                 </:disabled_reason>
               </ConnectComponents.mode_toggle>
-              <p :if={@mode == :direct} class="text-base-content/60 mt-1 text-lg">
-                Connect directly over Erlang distribution.
+              <p
+                :if={@mode == :direct}
+                class="font-mono text-base-content/70 text-md"
+              >
+                Inspect node on your machine.
               </p>
-              <p :if={@mode == :ssh} class="text-base-content/60 mt-1 text-lg">
-                Connect to a remote node through an SSH tunnel.
+              <p
+                :if={@mode == :ssh}
+                class="font-mono text-base-content/70 text-md"
+              >
+                Tunnel into a remote machine to reach its node.
               </p>
             </div>
 
@@ -94,7 +96,6 @@ defmodule VoyagerWeb.ConnectLive do
     {:noreply, assign(socket, :mode, :direct)}
   end
 
-  def handle_event("switch_mode", %{"mode" => "ssh"}, socket) do
     {:noreply, assign(socket, :mode, :ssh)}
   end
 
@@ -102,6 +103,7 @@ defmodule VoyagerWeb.ConnectLive do
   def handle_info({:node_connected, _node}, socket) do
     {:noreply, assign(socket, :connected_session, NodeSession.current())}
   end
+
 
   def handle_info({event, _node}, socket) when event in [:node_disconnected, :nodedown] do
     {:noreply, assign(socket, :connected_session, nil)}

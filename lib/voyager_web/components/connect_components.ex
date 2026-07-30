@@ -20,46 +20,8 @@ defmodule VoyagerWeb.ConnectComponents do
     """
   end
 
-  attr :conn, :any, required: true
-
-  attr :disabled, :boolean,
-    default: false,
-    doc: "Disables filling the connect form from this row when a node is already connected"
-
-  def connection_row(assigns) do
-    ~H"""
-    <div class="flex w-full items-center gap-1">
-      <button
-        type="button"
-        phx-click="fill_recent"
-        phx-value-id={@conn.id}
-        data-testid="fill-recent-btn"
-        disabled={@disabled}
-        class={[
-          "font-mono text-base-content/60 flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-3 py-2 text-xs transition-colors",
-          if(@disabled,
-            do: "pointer-events-none opacity-40",
-            else: "cursor-pointer hover:bg-base-200 hover:text-base-content"
-          )
-        ]}
-      >
-        <.icon name="icon-network" class="size-3.5 text-base-content/25 shrink-0" />
-        <div class="flex min-w-0 items-center gap-1.5">
-          <span class="ml-2 truncate">{@conn.node_name}</span>
-          <%= if @conn.cookie do %>
-            <.saved_badge label="cookie" title="Cookie saved" />
-          <% end %>
-        </div>
-        <span class="font-mono text-base-content/35 ml-auto shrink-0 text-xs">
-          {relative_time(@conn.last_connected_at)}
-        </span>
-      </button>
-    </div>
-    """
-  end
-
   @doc """
-   Favourite and delete buttons shared by the connection-history rows.
+  Favourite and delete buttons shared by the connection-history rows.
   """
   attr :id, :any, required: true
   attr :pinned, :boolean, required: true
@@ -146,56 +108,31 @@ defmodule VoyagerWeb.ConnectComponents do
 
   def mode_toggle(assigns) do
     ~H"""
-    <form phx-change="switch_mode" id="mode-toggle" class="mb-6">
+    <form phx-change="switch_mode" id="mode-toggle" class="mb-6" disabled={@disabled}>
       <.tooltip :if={@disabled} id="mode-toggle-tip" position="bottom" class="w-full">
-        <.mode_options mode={@mode} disabled={@disabled} />
+        <.mode_segmented mode={@mode} disabled={@disabled} />
         <:content>{render_slot(@disabled_reason)}</:content>
       </.tooltip>
-      <.mode_options :if={!@disabled} mode={@mode} disabled={@disabled} />
+      <.mode_segmented :if={!@disabled} mode={@mode} disabled={@disabled} />
     </form>
     """
   end
 
-  attr :mode, :atom, required: true
-  attr :disabled, :boolean, required: true
-
-  defp mode_options(assigns) do
+  defp mode_segmented(assigns) do
     ~H"""
-    <div class={["join w-full", @disabled && "pointer-events-none cursor-not-allowed"]}>
-      <input
-        type="radio"
-        name="mode"
-        value="direct"
-        aria-label="Direct"
-        id="mode-direct"
-        checked={@mode == :direct}
-        disabled={@disabled}
-        class={mode_radio_class(@disabled, @mode == :direct)}
-      />
-      <input
-        type="radio"
-        name="mode"
-        value="ssh"
-        aria-label="SSH Tunnel"
-        id="mode-ssh"
-        checked={@mode == :ssh}
-        disabled={@disabled}
-        class={mode_radio_class(@disabled, @mode == :ssh)}
-      />
-    </div>
+    <.segmented
+      name="mode"
+      value={@mode}
+      disabled={@disabled}
+      size="sm"
+      full_width={true}
+      class={["w-full", @disabled && "pointer-events-none cursor-not-allowed"]}
+      options={[
+        %{value: "direct", label: "Direct", id: "mode-direct"},
+        %{value: "ssh", label: "SSH Tunnel", id: "mode-ssh"}
+      ]}
+    />
     """
-  end
-
-  defp mode_radio_class(disabled?, active?) do
-    [
-      "join-item btn btn-soft btn-sm font-mono flex-1 text-xs transition-opacity",
-      "checked:text-primary-content",
-      if(disabled? && active?,
-        do: "!opacity-100 !bg-base-content/20 !text-primary-content",
-        else: "text-base-content/60 disabled:text-base-content/60"
-      ),
-      disabled? && !active? && "opacity-40"
-    ]
   end
 
   attr :field, Phoenix.HTML.FormField, required: true
@@ -307,10 +244,13 @@ defmodule VoyagerWeb.ConnectComponents do
   attr :value, :any, required: true, doc: "Currently selected value (compared as a string)"
   attr :options, :list, required: true, doc: "List of `%{value:, label:, id: (optional)}` maps"
   attr :disabled, :boolean, default: false
+  attr :size, :string, default: "xs", doc: "DaisyUI button size class (xs, sm, md, lg)"
+  attr :full_width, :boolean, default: false
+  attr :class, :any, default: nil
 
   def segmented(assigns) do
     ~H"""
-    <div class="join">
+    <div class={["join", @class]}>
       <input
         :for={opt <- @options}
         type="radio"
@@ -320,10 +260,31 @@ defmodule VoyagerWeb.ConnectComponents do
         aria-label={opt.label}
         checked={to_string(@value) == to_string(opt.value)}
         disabled={@disabled}
-        class="join-item btn btn-soft btn-xs font-mono text-base-content/60 text-xs checked:text-primary-content disabled:text-base-content/60"
+        class={
+          segmented_radio_class(
+            @disabled,
+            to_string(@value) == to_string(opt.value),
+            @size,
+            @full_width
+          )
+        }
       />
     </div>
     """
+  end
+
+  defp segmented_radio_class(disabled?, active?, size, full_width?) do
+    [
+      "join-item btn btn-soft font-mono text-xs transition-opacity",
+      "btn-#{size}",
+      if(full_width?, do: "flex-1"),
+      "checked:text-primary-content",
+      if(disabled? && active?,
+        do: "!opacity-100 !bg-base-content/20 !text-primary-content",
+        else: "text-base-content/60 disabled:text-base-content/60"
+      ),
+      disabled? && !active? && "opacity-40"
+    ]
   end
 
   attr :name, :string, required: true
@@ -348,6 +309,7 @@ defmodule VoyagerWeb.ConnectComponents do
   attr :icon, :string, required: true
   attr :label, :string, required: true
   attr :loading_label, :string, required: true
+  attr :loading, :boolean, default: false
   attr :disabled, :boolean, default: false
 
   def connect_submit(assigns) do
@@ -356,12 +318,21 @@ defmodule VoyagerWeb.ConnectComponents do
       type="submit"
       id={@id}
       disabled={@disabled}
-      class="btn btn-primary mt-2 w-full gap-2 phx-submit-loading:pointer-events-none phx-submit-loading:opacity-70"
+      class={[
+        "btn btn-primary mt-2 w-full gap-2 phx-submit-loading:pointer-events-none phx-submit-loading:opacity-70",
+        @loading && "pointer-events-none opacity-70"
+      ]}
     >
-      <.icon name={@icon} class="size-4 phx-submit-loading:hidden" />
-      <span class="phx-submit-loading:hidden">{@label}</span>
-      <span class="loading loading-spinner loading-sm hidden phx-submit-loading:inline-flex"></span>
-      <span class="hidden phx-submit-loading:inline">{@loading_label}</span>
+      <.icon name={@icon} class={["size-4", (@loading && "hidden") || "phx-submit-loading:hidden"]} />
+      <span class={[(@loading && "hidden") || "phx-submit-loading:hidden"]}>{@label}</span>
+      <span class={[
+        "loading loading-spinner loading-sm",
+        if(@loading, do: "inline-flex", else: "hidden phx-submit-loading:inline-flex")
+      ]}>
+      </span>
+      <span class={[if(@loading, do: "inline", else: "hidden phx-submit-loading:inline")]}>
+        {@loading_label}
+      </span>
     </button>
     """
   end

@@ -13,47 +13,37 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   alias VoyagerWeb.ConnectLive.SecretVisibility
   alias VoyagerWeb.FormSchemas.SshConnectionParams
 
+  @id_prefix "ssh-"
   @impl true
-  def update(
-        %{connected?: new_status} = assigns,
-        %{assigns: %{initialized: true, connected?: old_status}} = socket
-      )
-      when new_status != old_status do
-    socket =
-      socket
-      |> assign_new(:id_prefix, fn -> "ssh-" end)
-      |> assign(assigns)
-      |> RecentConnections.reset()
-
-    {:ok, socket}
+  def mount(socket) do
+    socket
+    |> assign(:id_prefix, @id_prefix)
+    |> ok()
   end
 
+  @impl true
   def update(assigns, socket) when not is_map_key(socket.assigns, :initialized) do
-    socket =
-      socket
-      |> assign_new(:id_prefix, fn -> "ssh-" end)
-      |> assign(assigns)
-      |> assign(:ssh_form, empty_ssh_form())
-      |> SecretVisibility.init()
-      |> assign(:show_ssh_advanced, false)
-      |> assign(:ssh_connecting, false)
-      |> assign(:ssh_last_applied, nil)
-      |> RecentConnections.init(
-        queries: SshConnectionQueries,
-        actions: SshConnectionActions
-      )
-      |> assign(:initialized, true)
-
-    {:ok, socket}
+    socket
+    |> assign(:id, assigns.id)
+    |> assign(:connected?, assigns.connected?)
+    |> assign(:ssh_form, empty_ssh_form())
+    |> SecretVisibility.init()
+    |> assign(:show_ssh_advanced, false)
+    |> assign(:ssh_connecting, false)
+    |> assign(:ssh_last_applied, nil)
+    |> RecentConnections.init(
+      queries: SshConnectionQueries,
+      actions: SshConnectionActions
+    )
+    |> assign(:initialized, true)
+    |> ok()
   end
 
   def update(assigns, socket) do
-    socket =
-      socket
-      |> assign_new(:id_prefix, fn -> "ssh-" end)
-      |> assign(assigns)
-
-    {:ok, socket}
+    socket
+    |> assign(:id, assigns.id)
+    |> assign(:connected?, assigns.connected?)
+    |> ok()
   end
 
   @impl true
@@ -163,7 +153,11 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
           >
             Advanced {if @show_ssh_advanced, do: "▾", else: "▸"}
           </button>
-          <div :if={@show_ssh_advanced} class="border-base-300 mt-3 flex gap-3 rounded-lg border p-4">
+
+          <div class={[
+            "border-base-300 mt-3 flex gap-3 rounded-lg border p-4",
+            not @show_ssh_advanced && "hidden"
+          ]}>
             <div class="flex-1">
               <ConnectComponents.form_field
                 field={@ssh_form[:ssh_port]}
@@ -192,6 +186,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
           icon="icon-network"
           label="Connect via SSH"
           loading_label="Connecting over SSH…"
+          loading={@ssh_connecting}
           disabled={@connected? or @ssh_connecting}
         />
       </.form>
@@ -212,8 +207,8 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         </:row>
       </RecentConnections.render>
 
-      <p class="font-mono tracking-snug text-base-content/35 mt-6 text-center text-xs">
-        Connects via SSH tunnel
+      <p class="font-mono tracking-snug text-base-content/50 mt-6 text-center text-xs">
+        Remote nodes via SSH
       </p>
     </div>
     """
@@ -463,7 +458,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     do: {:node_name, "Failed to restart local Erlang distribution"}
 
   defp ssh_connect_error(:invalid_name_type),
-    do: {:node_name, "Invalid name type — try switching in Advanced settings"}
+    do: {:node_name, "Invalid name type"}
 
   defp ssh_connect_error(:connection_lost),
     do: {:node_name, "Connection was lost before it completed — please try again"}

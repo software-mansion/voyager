@@ -9,120 +9,41 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   alias VoyagerWeb.ConnectLive.SecretVisibility
   alias VoyagerWeb.FormSchemas.ConnectionParams
 
-  @impl true
-  def update(
-        %{connected?: new_status} = assigns,
-        %{assigns: %{initialized: true, connected?: old_status}} = socket
-      )
-      when new_status != old_status do
-    socket =
-      socket
-      |> assign(assigns)
-      |> RecentConnections.reset()
+  @id_prefix "direct-"
 
-    {:ok, socket}
+  @impl true
+  def mount(socket) do
+    socket
+    |> assign(:id_prefix, @id_prefix)
+    |> ok()
   end
 
+  @impl true
   def update(assigns, socket) when not is_map_key(socket.assigns, :initialized) do
-    socket =
-      socket
-      |> assign(assigns)
-      |> assign(:form, empty_form())
-      |> SecretVisibility.init()
-      |> RecentConnections.init(
-        queries: ConnectionQueries,
-        actions: ConnectionActions
-      )
-      |> assign(:initialized, true)
-
-    {:ok, socket}
+    socket
+    |> assign(:id, assigns.id)
+    |> assign(:connected?, assigns.connected?)
+    |> assign(:form, empty_form())
+    |> SecretVisibility.init()
+    |> RecentConnections.init(
+      queries: ConnectionQueries,
+      actions: ConnectionActions
+    )
+    |> assign(:initialized, true)
+    |> ok()
   end
 
   def update(assigns, socket) do
-    {:ok, assign(socket, assigns)}
+    socket
+    |> assign(:id, assigns.id)
+    |> assign(:connected?, assigns.connected?)
+    |> ok()
   end
-
-  # @impl true
-  # def render(assigns) do
-  #   assigns =
-  #     assign(
-  #       assigns,
-  #       :current_name_type,
-  #       to_string(assigns.form[:name_type].value || "longnames")
-  #     )
-
-  #   ~H"""
-  #   <div id={@id}>
-  #     <.form
-  #       for={@form}
-  #       id="connect-form"
-  #       phx-target={@myself}
-  #       phx-change="validate"
-  #       phx-submit="connect"
-  #       class={["flex flex-col gap-4", @connected? && "pointer-events-none opacity-40"]}
-  #     >
-  #       <ConnectComponents.form_field
-  #         field={@form[:node_name]}
-  #         label="Node name"
-  #         placeholder={
-  #           if @current_name_type == "longnames",
-  #             do: "my_app@server.company.com",
-  #             else: "my_app@my-machine"
-  #         }
-  #         disabled={@connected?}
-  #       >
-  #         <:trailing>
-  #           <ConnectComponents.name_type_toggle
-  #             name="conn[name_type]"
-  #             value={@current_name_type}
-  #             disabled={@connected?}
-  #           />
-  #         </:trailing>
-  #       </ConnectComponents.form_field>
-
-  #       <ConnectComponents.secret_field
-  #         field={@form[:cookie]}
-  #         label="Cookie"
-  #         secret_key="cookie"
-  #         shown={SecretVisibility.shown?(@secret_visibility, "cookie")}
-  #         target={@myself}
-  #         remember_name="conn[remember_cookie]"
-  #         remember_checked={to_string(@form[:remember_cookie].value) == "true"}
-  #         remember_label="Remember cookie"
-  #         disabled={@connected?}
-  #       />
-
-  #       <ConnectComponents.connect_submit
-  #         id="connect-btn"
-  #         icon="icon-network"
-  #         label="Connect"
-  #         loading_label="Connecting…"
-  #         disabled={@connected?}
-  #       />
-  #     </.form>
-
-  #     <RecentConnections.render
-  #       pinned_connections={@pinned_connections}
-  #       recent_connections={@recent_connections}
-  #       disabled={@connected?}
-  #     >
-  #       <:row :let={{conn, pinned}}>
-  #         <.direct_connection_row conn={conn} pinned={pinned} target={@myself} disabled={@connected?} />
-  #       </:row>
-  #     </RecentConnections.render>
-
-  #     <p class="font-mono tracking-snug text-base-content/35 mt-6 text-center text-xs">
-  #       Uses BEAM distribution
-  #     </p>
-  #   </div>
-  #   """
-  # end
 
   @impl true
   def render(assigns) do
     assigns =
       assigns
-      |> assign_new(:id_prefix, fn -> "direct-" end)
       |> assign(
         :current_name_type,
         to_string(assigns.form[:name_type].value || "longnames")
@@ -189,8 +110,8 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
         </:row>
       </RecentConnections.render>
 
-      <p class="font-mono tracking-snug text-base-content/35 mt-6 text-center text-xs">
-        Uses BEAM distribution
+      <p class="font-mono tracking-snug text-base-content/50 mt-6 text-center text-xs">
+        Local nodes only
       </p>
     </div>
     """
