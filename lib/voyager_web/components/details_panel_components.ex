@@ -126,6 +126,23 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :panel_id, :string, required: true
+
+  def show_more_button(assigns) do
+    ~H"""
+    <div class="border-base-200 flex justify-center border-t px-5 py-3">
+      <button
+        type="button"
+        id={"#{@panel_id}-show-more"}
+        class="btn btn-ghost gap-2 hover:text-primary"
+        disabled
+      >
+        Show More <span class="badge badge-primary badge-soft badge-xs">Soon</span>
+      </button>
+    </div>
+    """
+  end
+
+  attr :panel_id, :string, required: true
   attr :info, AsyncResult, required: true
   attr :node, TreeNode, required: true
   attr :links_expanded?, :boolean, required: true

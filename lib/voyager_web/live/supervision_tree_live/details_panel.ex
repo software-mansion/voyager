@@ -97,6 +97,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
           links_expanded?={@links_expanded?}
           myself={@myself}
         />
+        <.show_more_button panel_id={@id} />
       <% end %>
     </aside>
     """
