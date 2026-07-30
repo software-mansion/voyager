@@ -309,6 +309,7 @@ defmodule VoyagerWeb.ConnectComponents do
   attr :icon, :string, required: true
   attr :label, :string, required: true
   attr :loading_label, :string, required: true
+  attr :loading, :boolean, default: false
   attr :disabled, :boolean, default: false
 
   def connect_submit(assigns) do
@@ -317,12 +318,21 @@ defmodule VoyagerWeb.ConnectComponents do
       type="submit"
       id={@id}
       disabled={@disabled}
-      class="btn btn-primary mt-2 w-full gap-2 phx-submit-loading:pointer-events-none phx-submit-loading:opacity-70"
+      class={[
+        "btn btn-primary mt-2 w-full gap-2 phx-submit-loading:pointer-events-none phx-submit-loading:opacity-70",
+        @loading && "pointer-events-none opacity-70"
+      ]}
     >
-      <.icon name={@icon} class="size-4 phx-submit-loading:hidden" />
-      <span class="phx-submit-loading:hidden">{@label}</span>
-      <span class="loading loading-spinner loading-sm hidden phx-submit-loading:inline-flex"></span>
-      <span class="hidden phx-submit-loading:inline">{@loading_label}</span>
+      <.icon name={@icon} class={["size-4", (@loading && "hidden") || "phx-submit-loading:hidden"]} />
+      <span class={[(@loading && "hidden") || "phx-submit-loading:hidden"]}>{@label}</span>
+      <span class={[
+        "loading loading-spinner loading-sm",
+        if(@loading, do: "inline-flex", else: "hidden phx-submit-loading:inline-flex")
+      ]}>
+      </span>
+      <span class={[if(@loading, do: "inline", else: "hidden phx-submit-loading:inline")]}>
+        {@loading_label}
+      </span>
     </button>
     """
   end

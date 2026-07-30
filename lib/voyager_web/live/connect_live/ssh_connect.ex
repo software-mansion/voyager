@@ -190,6 +190,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
           icon="icon-network"
           label="Connect via SSH"
           loading_label="Connecting over SSH…"
+          loading={@ssh_connecting}
           disabled={@connected? or @ssh_connecting}
         />
       </.form>
