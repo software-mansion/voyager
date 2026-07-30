@@ -26,6 +26,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> assign(:errors, [])
       |> assign(:status, :idle)
       |> assign(:refresh_timer, nil)
+      |> assign(:selected_node, nil)
 
     if connected?(socket) do
       socket
@@ -77,26 +78,34 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="flex h-full flex-col gap-4 p-6 sm:p-8">
-      <SupervisionTreeComponents.header
-        node_name={@session.node_name}
-        status={@status}
-        last_updated={@last_updated}
-        refresh_interval={@refresh_interval}
-      />
+    <div id="supervision-tree" class="relative flex h-full overflow-x-hidden">
+      <div class="flex h-full flex-1 flex-col gap-4 overflow-hidden p-6 sm:p-8">
+        <SupervisionTreeComponents.header
+          node_name={@session.node_name}
+          status={@status}
+          last_updated={@last_updated}
+          refresh_interval={@refresh_interval}
+        />
+        <.live_component
+          module={VoyagerWeb.SupervisionTreeLive.Controls}
+          id="controls"
+          node_name={@session.node_name}
+          available_apps={@available_apps}
+          available_app_atoms={@available_app_atoms}
+          selected_apps={@selected_apps}
+          current_url={@current_url}
+          depth={@depth}
+          include_relations?={@include_relations?}
+        />
+        <SupervisionTreeComponents.errors errors={@errors} />
+        <SupervisionTreeComponents.body selected_apps={@selected_apps} status={@status} />
+      </div>
       <.live_component
-        module={VoyagerWeb.SupervisionTreeLive.Controls}
-        id="controls"
-        node_name={@session.node_name}
-        available_apps={@available_apps}
-        available_app_atoms={@available_app_atoms}
-        selected_apps={@selected_apps}
-        depth={@depth}
-        include_relations?={@include_relations?}
-        current_url={@current_url}
+        module={VoyagerWeb.SupervisionTreeLive.DetailsPanel}
+        id="details-panel"
+        tree_node={@selected_node}
+        remote_node={@session.node}
       />
-      <SupervisionTreeComponents.errors errors={@errors} />
-      <SupervisionTreeComponents.body selected_apps={@selected_apps} status={@status} />
     </div>
     """
   end
@@ -141,6 +150,13 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
     socket
     |> push_event("path-highlight", %{path: path})
+    |> assign_selected_node(key)
+    |> noreply()
+  end
+
+  def handle_event("close-details-panel", _params, socket) do
+    socket
+    |> assign(:selected_node, nil)
     |> noreply()
   end
 
@@ -198,6 +214,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     |> assign(:last_tree_flat, new_flat)
     |> assign(:last_relations, new_edges)
     |> assign(:last_updated, DateTime.utc_now())
+    |> deselect_removed_nodes()
     |> push_event("tree-data", payload)
     |> start_timer()
     |> noreply()
@@ -337,6 +354,20 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     end
   end
 
+  defp assign_selected_node(socket, key) do
+    selected_node = socket.assigns.last_tree_flat && Map.get(socket.assigns.last_tree_flat, key)
+    assign(socket, :selected_node, selected_node)
+  end
+
+  defp deselect_removed_nodes(socket) do
+    with %{key: key} <- socket.assigns.selected_node,
+         nil <- Map.get(socket.assigns.last_tree_flat, key) do
+      assign(socket, :selected_node, nil)
+    else
+      _ -> socket
+    end
+  end
+
   defp parse_pid(pid_str) when is_binary(pid_str) do
     pid_str |> String.to_charlist() |> :erlang.list_to_pid()
   rescue
@@ -345,7 +376,8 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   defp parse_pid(_), do: nil
 
-  defp reset_tree(socket), do: assign(socket, last_tree_flat: nil, last_relations: %{})
+  defp reset_tree(socket),
+    do: assign(socket, last_tree_flat: nil, last_relations: %{}, selected_node: nil)
 
   defp walk_to_root(_flat, ""), do: []
   defp walk_to_root(nil, _key), do: []

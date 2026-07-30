@@ -34,6 +34,7 @@ export const tooltipMethods = {
     clearTimeout(this.reconcileTimer);
     clearTimeout(this.positionTimer);
     this.nodeId = null;
+    this.togglingTooltip = false;
     this.toggleTooltipOpen(false);
   },
 

@@ -171,6 +171,7 @@ defmodule VoyagerWeb.CoreComponents do
   ## Examples
 
       <.copy_button id="copy-json" target="#json-content" />
+      <.copy_button id="copy-pid" target="#pid" label="Copy PID" icon_only />
   """
   attr :id, :string, required: true
   attr :target, :string, required: true, doc: "CSS selector for the element whose text is copied"
