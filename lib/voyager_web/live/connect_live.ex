@@ -95,7 +95,7 @@ defmodule VoyagerWeb.ConnectLive do
   def handle_event("switch_mode", %{"mode" => "direct"}, socket) do
     {:noreply, assign(socket, :mode, :direct)}
   end
-
+def handle_event("switch_mode", %{"mode" => "ssh"}, socket) do
     {:noreply, assign(socket, :mode, :ssh)}
   end
 
@@ -123,4 +123,4 @@ defmodule VoyagerWeb.ConnectLive do
       true -> nil
     end
   end
-end
+  end
