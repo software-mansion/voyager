@@ -210,7 +210,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         </:row>
       </RecentConnections.render>
 
-      <p class="font-mono tracking-snug text-base-content/35 mt-6 text-center text-xs">
+      <p class="font-mono tracking-snug text-base-content/50 mt-6 text-center text-xs">
         Remote nodes via SSH
       </p>
     </div>
