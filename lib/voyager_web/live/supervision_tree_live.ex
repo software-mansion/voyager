@@ -1,6 +1,7 @@
 defmodule VoyagerWeb.SupervisionTreeLive do
   use VoyagerWeb, :live_view
 
+  alias Phoenix.LiveView.AsyncResult
   alias Voyager.Services.SupervisionTree.Fetch
   alias Voyager.Services.SupervisionTree.Remote
   alias VoyagerWeb.Components.SupervisionTreeComponents
@@ -13,11 +14,12 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       socket
       |> assign(:active_nav, :supervision_tree)
       |> assign(:refresh_interval, SupervisionTreeComponents.default_refresh_interval())
-      |> assign(:available_apps, [])
+      |> assign(:available_apps, AsyncResult.loading())
       |> assign(:available_app_atoms, [])
       |> assign(:selected_apps, MapSet.new())
       |> assign(:depth, SupervisionTreeControls.default_depth())
       |> assign(:include_relations?, SupervisionTreeControls.default_include_relations?())
+      |> assign(:params, nil)
       |> assign(:expanded_pids, MapSet.new())
       |> assign(:last_tree_flat, nil)
       |> assign(:last_updated, nil)
@@ -40,38 +42,9 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    params
-    |> params_to_attrs()
-    |> SupervisionTreeControls.changeset(socket.assigns.available_app_atoms)
-    |> Ecto.Changeset.apply_action(:validate)
-    |> case do
-      {:ok,
-       %SupervisionTreeControls{apps: apps, depth: depth, include_relations?: include_relations?}} ->
-        new_selected = MapSet.new(apps)
-
-        apps_changed? = new_selected != socket.assigns.selected_apps
-        depth_changed? = depth != socket.assigns.depth
-        relations_changed? = include_relations? != socket.assigns.include_relations?
-
-        socket =
-          socket
-          |> assign(:selected_apps, new_selected)
-          |> assign(:depth, depth)
-          |> assign(:include_relations?, include_relations?)
-          |> assign_available_apps(new_selected)
-          |> maybe_reset_expanded_pids(depth_changed?)
-
-        if connected?(socket) and (apps_changed? or depth_changed? or relations_changed?) do
-          socket
-          |> reset_tree()
-          |> request_fetch()
-        else
-          socket
-        end
-
-      {:error, _} ->
-        socket
-    end
+    socket
+    |> assign(:params, params)
+    |> apply_params(params)
     |> noreply()
   end
 
@@ -86,19 +59,34 @@ defmodule VoyagerWeb.SupervisionTreeLive do
           last_updated={@last_updated}
           refresh_interval={@refresh_interval}
         />
-        <.live_component
-          module={VoyagerWeb.SupervisionTreeLive.Controls}
-          id="controls"
-          node_name={@session.node_name}
-          available_apps={@available_apps}
-          available_app_atoms={@available_app_atoms}
-          selected_apps={@selected_apps}
-          current_url={@current_url}
-          depth={@depth}
-          include_relations?={@include_relations?}
-        />
-        <SupervisionTreeComponents.errors errors={@errors} />
-        <SupervisionTreeComponents.body selected_apps={@selected_apps} status={@status} />
+        <.async_result :let={available_apps} assign={@available_apps}>
+          <:loading>
+            <.loading_state
+              id="supervision-tree-loading"
+              message="Fetching available applications…"
+            />
+          </:loading>
+          <:failed :let={reason}>
+            <.error_state id="supervision-tree-error" message={format_error(reason)} />
+          </:failed>
+          <.live_component
+            module={VoyagerWeb.SupervisionTreeLive.Controls}
+            id="controls"
+            node_name={@session.node_name}
+            available_apps={available_apps}
+            available_app_atoms={@available_app_atoms}
+            selected_apps={@selected_apps}
+            current_url={@current_url}
+            depth={@depth}
+            include_relations?={@include_relations?}
+          />
+          <SupervisionTreeComponents.errors errors={@errors} />
+          <SupervisionTreeComponents.body
+            last_updated={@last_updated}
+            selected_apps={@selected_apps}
+            status={@status}
+          />
+        </.async_result>
       </div>
       <.live_component
         module={VoyagerWeb.SupervisionTreeLive.DetailsPanel}
@@ -157,6 +145,39 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   def handle_event("close-details-panel", _params, socket) do
     socket
     |> assign(:selected_node, nil)
+    |> noreply()
+  end
+
+  @impl true
+  def handle_async(:available_apps, {:ok, {:ok, apps}}, socket) do
+    available_apps =
+      apps
+      |> Enum.map(fn {a, _desc, vsn} -> {a, to_string(vsn)} end)
+      |> Enum.sort()
+
+    available_app_atoms = Enum.map(available_apps, &elem(&1, 0))
+
+    socket
+    |> assign(:available_apps, AsyncResult.ok(available_apps))
+    |> assign(:available_app_atoms, available_app_atoms)
+    |> apply_params(socket.assigns.params)
+    |> noreply()
+  end
+
+  def handle_async(:available_apps, {:ok, {:error, reason}}, socket) do
+    socket
+    |> assign(:status, :error)
+    |> assign(
+      :available_apps,
+      AsyncResult.failed(socket.assigns.available_apps, reason)
+    )
+    |> noreply()
+  end
+
+  def handle_async(:available_apps, {:exit, reason}, socket) do
+    socket
+    |> assign(:status, :error)
+    |> assign(:available_apps, AsyncResult.failed(socket.assigns.available_apps, reason))
     |> noreply()
   end
 
@@ -250,31 +271,61 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   end
 
   defp assign_applications(socket) do
-    case Remote.list_running_applications(socket.assigns.session.node) do
-      {:ok, apps} ->
-        available =
-          apps
-          |> Enum.map(fn {a, _desc, vsn} -> {a, to_string(vsn)} end)
-          |> Enum.sort()
+    node = socket.assigns.session.node
 
-        socket
-        |> assign(:available_apps, available)
-        |> assign(:available_app_atoms, Enum.map(available, &elem(&1, 0)))
+    start_async(socket, :available_apps, fn -> Remote.list_running_applications(node) end)
+  end
 
-      {:error, reason} ->
+  defp apply_params(socket, nil), do: socket
+
+  defp apply_params(socket, params) do
+    params
+    |> params_to_attrs()
+    |> SupervisionTreeControls.changeset(socket.assigns.available_app_atoms)
+    |> Ecto.Changeset.apply_action(:validate)
+    |> case do
+      {:ok,
+       %SupervisionTreeControls{apps: apps, depth: depth, include_relations?: include_relations?}} ->
+        new_selected = MapSet.new(apps)
+
+        apps_changed? = new_selected != socket.assigns.selected_apps
+        depth_changed? = depth != socket.assigns.depth
+        relations_changed? = include_relations? != socket.assigns.include_relations?
+
+        socket =
+          socket
+          |> assign(:selected_apps, new_selected)
+          |> assign(:depth, depth)
+          |> assign(:include_relations?, include_relations?)
+          |> assign_available_apps(new_selected)
+          |> maybe_reset_expanded_pids(depth_changed?)
+
+        if connected?(socket) and (apps_changed? or depth_changed? or relations_changed?) do
+          socket
+          |> reset_tree()
+          |> request_fetch()
+        else
+          socket
+        end
+
+      {:error, _} ->
         socket
-        |> assign(:status, :error)
-        |> assign(:errors, [{:list_running_applications, socket.assigns.session.node, reason}])
     end
   end
 
   defp assign_available_apps(socket, new_selected) do
-    {selected_apps, rest_apps} =
-      Enum.split_with(socket.assigns.available_apps, fn {app, _} ->
-        MapSet.member?(new_selected, app)
-      end)
+    case socket.assigns.available_apps do
+      %AsyncResult{ok?: true, result: available_apps} when not is_nil(available_apps) ->
+        {selected_apps, rest_apps} =
+          Enum.split_with(available_apps, fn {app, _} ->
+            MapSet.member?(new_selected, app)
+          end)
 
-    assign(socket, :available_apps, selected_apps ++ Enum.sort(rest_apps))
+        assign(socket, :available_apps, AsyncResult.ok(selected_apps ++ Enum.sort(rest_apps)))
+
+      %AsyncResult{} ->
+        socket
+    end
   end
 
   defp maybe_reset_expanded_pids(socket, true), do: assign(socket, :expanded_pids, MapSet.new())
@@ -291,6 +342,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       socket
       |> assign(:status, :idle)
       |> assign(:in_flight, nil)
+      |> assign(:last_updated, nil)
       |> reset_tree()
     else
       request = %{
@@ -404,4 +456,12 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         params
     end
   end
+
+  defp format_error(:timeout), do: "Timed out while fetching available applications."
+  defp format_error(:noconnection), do: "Node is unreachable."
+
+  defp format_error({:erpc, _reason}),
+    do: "RPC call failed while fetching available applications."
+
+  defp format_error(_), do: "Failed to fetch available applications."
 end
