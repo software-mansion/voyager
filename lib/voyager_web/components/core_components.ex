@@ -129,19 +129,21 @@ defmodule VoyagerWeb.CoreComponents do
         Auto-refresh
       </label>
       <form phx-change="set_interval" id={"#{@id}-form"}>
-        <select
-          name="interval"
-          id={@id}
-          class="select select-bordered select-sm font-mono pr-8 text-xs"
-        >
-          <option
-            :for={{label, value} <- @options}
-            value={value}
-            selected={value == interval_value(@refresh_interval)}
+        <div class="select-caret">
+          <select
+            name="interval"
+            id={@id}
+            class="select select-bordered select-sm font-mono pr-8 text-xs"
           >
-            {label}
-          </option>
-        </select>
+            <option
+              :for={{label, value} <- @options}
+              value={value}
+              selected={value == interval_value(@refresh_interval)}
+            >
+              {label}
+            </option>
+          </select>
+        </div>
       </form>
       <button
         type="button"
@@ -169,6 +171,7 @@ defmodule VoyagerWeb.CoreComponents do
   ## Examples
 
       <.copy_button id="copy-json" target="#json-content" />
+      <.copy_button id="copy-pid" target="#pid" label="Copy PID" icon_only />
   """
   attr :id, :string, required: true
   attr :target, :string, required: true, doc: "CSS selector for the element whose text is copied"

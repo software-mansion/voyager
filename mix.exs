@@ -129,7 +129,7 @@ defmodule Voyager.MixProject do
   defp copy_font_assets_cmd do
     script =
       "cp -f -- assets/node_modules/@fontsource-variable/dm-sans/files/dm-sans-latin-wght-normal.woff2 priv/static/fonts/ &&
-      cp -f -- assets/node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2 priv/static/fonts/"
+      cp -f -- assets/vendor/fonts/jetbrains-mono-latin-wght-normal.woff2 priv/static/fonts/"
 
     "cmd sh -c '#{script}'"
   end

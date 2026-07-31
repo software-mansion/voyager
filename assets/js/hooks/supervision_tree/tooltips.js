@@ -34,6 +34,7 @@ export const tooltipMethods = {
     clearTimeout(this.reconcileTimer);
     clearTimeout(this.positionTimer);
     this.nodeId = null;
+    this.togglingTooltip = false;
     this.toggleTooltipOpen(false);
   },
 
@@ -129,6 +130,11 @@ export const tooltipMethods = {
     const { y1: nodeY } = node.renderedBoundingBox({
       includeLabels: false,
     });
+
+    // Reset before measuring so a stale `left` near the right edge doesn't
+    // shrink shrink-to-fit width and inflate height (see Tooltip hook).
+    this.tooltip.style.top = '0px';
+    this.tooltip.style.left = '0px';
 
     const tipRect = this.tooltip.getBoundingClientRect();
     const containerRect = this.cy.container().getBoundingClientRect();

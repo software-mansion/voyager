@@ -3,6 +3,7 @@
 @import './styles/tokens.css';
 @import './styles/reset.css';
 @import './styles/number-input.css';
+@import './styles/select.css';
 @import './styles/supervision-tree.css';
 @import './styles/tooltip.css';
 @import './styles/sidebar.css';
