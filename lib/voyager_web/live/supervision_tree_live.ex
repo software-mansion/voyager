@@ -166,6 +166,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   def handle_async(:available_apps, {:ok, {:error, reason}}, socket) do
     socket
+    |> assign(:status, :error)
     |> assign(
       :available_apps,
       AsyncResult.failed(socket.assigns.available_apps, reason)
@@ -175,6 +176,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   def handle_async(:available_apps, {:exit, reason}, socket) do
     socket
+    |> assign(:status, :error)
     |> assign(:available_apps, AsyncResult.failed(socket.assigns.available_apps, reason))
     |> noreply()
   end
