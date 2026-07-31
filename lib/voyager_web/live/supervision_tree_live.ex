@@ -14,7 +14,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       socket
       |> assign(:active_nav, :supervision_tree)
       |> assign(:refresh_interval, SupervisionTreeComponents.default_refresh_interval())
-      |> assign(:available_apps, AsyncResult.loading([]))
+      |> assign(:available_apps, AsyncResult.loading())
       |> assign(:available_app_atoms, [])
       |> assign(:selected_apps, MapSet.new())
       |> assign(:depth, SupervisionTreeControls.default_depth())
@@ -175,7 +175,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   def handle_async(:available_apps, {:exit, reason}, socket) do
     socket
-    |> assign(:available_apps, AsyncResult.failed(socket.assigns.available_apps, {:rpc, reason}))
+    |> assign(:available_apps, AsyncResult.failed(socket.assigns.available_apps, reason))
     |> noreply()
   end
 
@@ -313,16 +313,16 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   defp assign_available_apps(socket, new_selected) do
     case socket.assigns.available_apps do
-      %AsyncResult{result: nil} ->
-        socket
-
-      %AsyncResult{result: available_apps} ->
+      %AsyncResult{ok?: true, result: available_apps} when not is_nil(available_apps) ->
         {selected_apps, rest_apps} =
           Enum.split_with(available_apps, fn {app, _} ->
             MapSet.member?(new_selected, app)
           end)
 
         assign(socket, :available_apps, AsyncResult.ok(selected_apps ++ Enum.sort(rest_apps)))
+
+      %AsyncResult{} ->
+        socket
     end
   end
 

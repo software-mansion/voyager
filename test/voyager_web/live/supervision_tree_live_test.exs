@@ -65,6 +65,7 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
 
     test "restores selected applications from URL parameters after async load", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path <> "?apps=demo_app")
+      render_async(view)
 
       assert has_element?(
                view,
@@ -260,6 +261,7 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
       end)
 
       {:ok, view, _html} = live(conn, @path)
+      render_async(view)
 
       assert has_element?(view, "#supervision-tree-error")
       assert render(view) =~ "error"
