@@ -180,6 +180,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
     """
   end
 
+  attr :last_updated, :any, required: true
   attr :selected_apps, MapSet, required: true
   attr :status, :atom, required: true
 
@@ -188,7 +189,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
     <div class="flex-1 overflow-auto">
       <%= cond do %>
         <% MapSet.size(@selected_apps) == 0 -> %>
-          <div class="border-base-300 flex h-full flex-col items-center justify-center gap-3 rounded-lg text-center">
+          <div class="flex h-full flex-col items-center justify-center gap-3 rounded-lg text-center">
             <.icon name="icon-network" class="size-10 text-base-content/60" />
             <div>
               <p class="text-base-content/80 font-medium">No applications selected</p>
@@ -197,12 +198,9 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
               </p>
             </div>
           </div>
-        <% @status == :idle -> %>
-          <div class="border-base-300 flex h-full flex-col items-center justify-center gap-3 rounded-lg text-center">
-            <.icon name="icon-network" class="size-10 text-base-content/60" />
-            <div>
-              <p class="text-base-content/70 font-medium">Waiting…</p>
-            </div>
+        <% @last_updated == nil && @status == :loading -> %>
+          <div class="flex h-full flex-col items-center justify-center rounded-lg text-center">
+            <.loading_state id="supervision-tree-graph-loading" message="Fetching…" />
           </div>
         <% true -> %>
           <div

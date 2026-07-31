@@ -324,6 +324,5 @@ defmodule VoyagerWeb.NodeInfoLive do
   defp format_error(:noconnection), do: "Node is unreachable."
   defp format_error(:timeout), do: "Timed out while fetching node info."
   defp format_error({:rpc, _reason}), do: "RPC call failed while fetching node info."
-  defp format_error({:internal, msg}), do: "Unexpected data from node: #{msg}"
   defp format_error(_), do: "Failed to fetch node info."
 end
