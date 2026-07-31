@@ -96,11 +96,12 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         phx-target={@myself}
         phx-throttle="1000"
         aria-label="Refresh fetched process information"
-        class="border-base-200 text-base-content flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border transition-all hover:border-base-300 hover:bg-base-200 hover:text-base-content"
+        title="Refresh fetched process information"
+        class="btn btn-ghost btn-square toolbar-btn"
       >
         <.icon
           name="icon-rotate-cw"
-          class={["size-3.5", @loading? && "motion-safe:animate-spin"]}
+          class={["toolbar-icon", @loading? && "motion-safe:animate-spin"]}
         />
       </button>
       <:content>Refresh fetched process information</:content>
@@ -118,9 +119,9 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       phx-click="close-details-panel"
       title="Close"
       aria-label="Close panel"
-      class="border-base-200 text-base-content flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border transition-all hover:border-base-300 hover:bg-base-200 hover:text-base-content"
+      class="btn btn-ghost btn-square toolbar-btn hover:text-base-content"
     >
-      <.icon name="icon-x" class="size-3.5" />
+      <.icon name="icon-x" class="size-6" />
     </button>
     """
   end
