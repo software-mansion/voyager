@@ -13,11 +13,11 @@ defmodule Voyager.Telemetry.Handler.ExportTest do
   test "build_payload/3 includes the anonymous install id in metadata" do
     install_id = InstallId.get()
 
-    payload = Export.build_payload([:voyager, :node, :connect], %{}, %{foo: :bar})
+    payload = Export.build_payload([:voyager, :node, :connect], %{}, %{via: :direct, foo: :bar})
 
     assert payload.event == "voyager.node.connect"
     assert payload.measurements == %{}
-    assert payload.metadata == %{install_id: install_id}
+    assert payload.metadata == %{via: :direct, install_id: install_id}
     assert is_integer(payload.ts)
   end
 
