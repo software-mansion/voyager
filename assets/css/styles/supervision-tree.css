@@ -2,6 +2,20 @@
 * These styles are meant to be used in SupervisionTree JS hook
 */
 
+/* Details panel width — set by DetailsPanelResize */
+.details-panel {
+  --details-panel-width: 320px;
+}
+
+@media (min-width: 1024px) {
+  .details-panel {
+    left: auto;
+    width: var(--details-panel-width);
+    max-width: 100%;
+    min-width: 17.5rem;
+  }
+}
+
 [data-cy-container] {
   --grid: rgba(148, 163, 184, 0.12);
   background:

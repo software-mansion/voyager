@@ -18,7 +18,8 @@ export function buildStyle(t) {
         'text-background-opacity': 1,
         'text-background-color': t.base100,
         'font-size': 11,
-        'font-family': 'ui-monospace, SFMono-Regular, Menlo, monospace',
+        'font-family':
+          'JetBrains Mono Voyager, ui-monospace, SFMono-Regular, Menlo, monospace',
         color: t.baseContent,
         'overlay-padding': 8,
         'transition-property':
