@@ -6,12 +6,19 @@ defmodule VoyagerWeb.SettingsLive.TelemetrySettings do
   alias Voyager.Telemetry
 
   @impl true
-  def update(assigns, socket) do
+  def mount(socket) do
     socket
-    |> assign(assigns)
-    |> assign_new(:locked?, fn -> Settings.locked?(:telemetry_enabled) end)
-    |> assign_new(:enabled?, fn -> Settings.get(:telemetry_enabled, true) end)
-    |> assign_new(:toggle_revision, fn -> 0 end)
+    |> assign(:locked?, Settings.locked?(:telemetry_enabled))
+    |> assign(:enabled?, Settings.get(:telemetry_enabled, true))
+    |> assign(:toggle_revision, 0)
+    |> ok()
+  end
+
+  @impl true
+  def update(%{id: id, terms_of_use_url: terms_of_use_url}, socket) do
+    socket
+    |> assign(:id, id)
+    |> assign(:terms_of_use_url, terms_of_use_url)
     |> ok()
   end
 
