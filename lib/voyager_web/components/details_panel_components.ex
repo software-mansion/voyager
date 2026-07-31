@@ -121,6 +121,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       aria-label="Close panel"
       class="btn btn-ghost btn-square toolbar-btn hover:text-base-content"
     >
+      <%!-- size-6 because icon-x is visually smaller than the refresh icon --%>
       <.icon name="icon-x" class="size-6" />
     </button>
     """

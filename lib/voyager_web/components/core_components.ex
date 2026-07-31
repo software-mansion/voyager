@@ -219,7 +219,7 @@ defmodule VoyagerWeb.CoreComponents do
       ]}
       {@rest}
     >
-      <.icon name="icon-copy" class={if(@icon_only, do: "toolbar-icon", else: "size-4")} />
+      <.icon name="icon-copy" class={if @icon_only, do: "toolbar-icon", else: "size-4"} />
       <span data-copy-button-label class={@icon_only && "sr-only"}>{@label}</span>
       <span class="sr-only" aria-live="polite" data-copy-status></span>
     </button>
