@@ -62,6 +62,17 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
 
       refute has_element?(view, "#supervision-tree-errors")
     end
+
+    test "restores selected applications from URL parameters after async load", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path <> "?apps=demo_app")
+
+      assert has_element?(
+               view,
+               ~s|input[name="tree_controls[apps][]"][value="demo_app"][checked]|
+             )
+
+      refute render(view) =~ "No applications selected"
+    end
   end
 
   describe "selecting applications" do
@@ -243,26 +254,31 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
   end
 
   describe "mount when the application list cannot be fetched" do
-    setup do
-      # Simulate an unreachable node: every erpc call raises a noconnection
-      # error, which `Remote` translates into `{:error, :noconnection}`.
-      stub(Voyager.ErpcMock, :call, fn _node, _mod, _fun, _args, _timeout ->
+    test "renders an error state and the error status", %{conn: conn} do
+      expect(Voyager.ErpcMock, :call, fn _node, _mod, _fun, _args, _timeout ->
         :erlang.error({:erpc, :noconnection})
       end)
 
-      :ok
-    end
-
-    test "renders an error alert and the error status", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
 
-      assert has_element?(view, "#supervision-tree-errors")
+      assert has_element?(view, "#supervision-tree-error")
       assert render(view) =~ "error"
       refute has_element?(view, "#supervision-tree-body")
     end
+  end
 
-    test "dismissing the errors removes the error alert", %{conn: conn} do
-      {:ok, view, _html} = live(conn, @path)
+  describe "supervision tree fetch errors" do
+    test "dismissing tree fetch errors removes the error alert", %{conn: conn} do
+      stub(Voyager.ErpcMock, :call, fn
+        _node, :lists, :zipwith, _args, _timeout ->
+          :erlang.error({:erpc, :timeout})
+
+        _node, mod, fun, args, _timeout ->
+          supervision_reply(mod, fun, args)
+      end)
+
+      {:ok, view, _html} = live(conn, @path <> "?apps=demo_app")
+      render_async(view)
 
       assert has_element?(view, "#supervision-tree-errors")
 
