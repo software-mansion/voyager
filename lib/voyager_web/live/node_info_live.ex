@@ -58,9 +58,9 @@ defmodule VoyagerWeb.NodeInfoLive do
               phx-throttle="1000"
               aria-label="Show snapshot JSON"
               disabled={not @snapshot.ok?}
-              class="btn btn-md btn-ghost btn-square"
+              class="btn btn-ghost btn-square toolbar-btn"
             >
-              <.icon name="icon-file-braces" class="size-6" />
+              <.icon name="icon-file-braces" class="toolbar-icon" />
             </button>
             <:content>View snapshot JSON</:content>
           </.tooltip>

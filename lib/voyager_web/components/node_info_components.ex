@@ -375,9 +375,9 @@ defmodule VoyagerWeb.NodeInfoComponents do
                     <.link
                       navigate={application_href(@node_name, app.name, @current_url)}
                       aria-label={"View #{app.name} supervision tree"}
-                      class="text-base-content/40 transition-colors hover:text-primary"
+                      class="btn btn-ghost btn-square toolbar-btn-sm text-base-content/40 hover:text-primary"
                     >
-                      <.icon name="icon-network" class="size-3.5" />
+                      <.icon name="icon-network" class="toolbar-icon-sm" />
                     </.link>
                     <:content>View supervision tree</:content>
                   </.tooltip>
@@ -466,9 +466,9 @@ defmodule VoyagerWeb.NodeInfoComponents do
             phx-click={@on_close}
             title="Close JSON snapshot"
             aria-label="Close JSON snapshot"
-            class="btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-base-content"
+            class="btn btn-ghost btn-square toolbar-btn text-base-content/50 hover:text-base-content"
           >
-            <.icon name="icon-x" class="size-4" />
+            <.icon name="icon-x" class="toolbar-icon" />
           </button>
         </div>
 

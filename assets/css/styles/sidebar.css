@@ -1,9 +1,37 @@
+/* Default: compact on narrow viewports; full at lg+ unless forced compact */
+#app-sidebar {
+  width: var(--sidebar-compact-w);
+}
+
+#app-sidebar .menu {
+  /* Match width formula: usable = btn-size when pad === compact pad */
+  padding: var(--sidebar-compact-pad);
+}
+
+@media (min-width: 1024px) {
+  #app-sidebar:not(.mode-compact) {
+    width: var(--sidebar-full-w);
+  }
+
+  #app-sidebar:not(.mode-compact) .menu {
+    padding: var(--sidebar-full-pad);
+  }
+}
+
 #app-sidebar.mode-compact {
-  width: 4rem;
+  width: var(--sidebar-compact-w);
+}
+
+#app-sidebar.mode-compact .menu {
+  padding: var(--sidebar-compact-pad);
 }
 
 #app-sidebar.mode-full {
-  width: 16rem;
+  width: var(--sidebar-full-w);
+}
+
+#app-sidebar.mode-full .menu {
+  padding: var(--sidebar-full-pad);
 }
 
 #app-sidebar.mode-compact .sidebar-label,
@@ -17,8 +45,8 @@
 }
 
 #app-sidebar.mode-compact .sidebar-nav-row {
-  width: 2rem;
-  height: 2rem;
+  width: var(--toolbar-btn-size);
+  height: var(--toolbar-btn-size);
   padding: 0;
   margin-inline: auto;
   display: flex;
@@ -37,13 +65,17 @@
     display: none;
   }
 
+  #app-sidebar:not(.mode-full) .menu {
+    padding: var(--sidebar-compact-pad);
+  }
+
   #app-sidebar:not(.mode-full) .sidebar-toggle-row {
     justify-content: center;
   }
 
   #app-sidebar:not(.mode-full) .sidebar-nav-row {
-    width: 2rem;
-    height: 2rem;
+    width: var(--toolbar-btn-size);
+    height: var(--toolbar-btn-size);
     padding: 0;
     margin-inline: auto;
     display: flex;
