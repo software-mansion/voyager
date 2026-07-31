@@ -56,6 +56,11 @@ defmodule Voyager.ProxyEpmd do
     end
   end
 
+  @spec active?() :: boolean()
+  def active? do
+    :persistent_term.get(:voyager_epmd_module, nil) == __MODULE__ || false
+  end
+
   defp lookup(name) when is_list(name) do
     with ref when ref != :undefined <- :ets.whereis(TunnelRegistry.table_name()),
          [{_key, entry}] <- :ets.lookup(ref, name) do

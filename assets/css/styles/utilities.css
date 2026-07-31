@@ -36,6 +36,10 @@
 }
 
 /* Disable DaisyUI depth shadows on checkbox/toggle (gray band when checked). */
-@utility checkbox, toggle {
+@utility checkbox {
+  --depth: 0;
+}
+
+@utility toggle {
   --depth: 0;
 }

@@ -7,6 +7,7 @@ defmodule VoyagerWeb.ConnectLive do
   @impl true
   def mount(_params, _session, socket) do
     socket
+    |> assign(:proxy_epmd_active?, Voyager.ProxyEpmd.active?())
     |> assign(:connected_session, NodeSession.current())
     |> assign(:mode, :direct)
     |> assign(:connecting?, false)
@@ -15,6 +16,8 @@ defmodule VoyagerWeb.ConnectLive do
 
   @impl true
   def render(assigns) do
+    assigns = assign(assigns, :mode_disabled_reason, mode_disabled_reason(assigns))
+
     ~H"""
     <div class="bg-base-200 h-full overflow-y-auto">
       <div class="min-w-96 flex min-h-full items-center justify-center p-4">
@@ -41,10 +44,18 @@ defmodule VoyagerWeb.ConnectLive do
               <h4 class="font-mono tracking-label text-base-content/70 mb-2 text-xs uppercase">
                 Connection type:
               </h4>
-              <ConnectComponents.mode_toggle
-                mode={@mode}
-                disabled={not is_nil(@connected_session) or @connecting?}
-              />
+              <ConnectComponents.mode_toggle mode={@mode} disabled={not is_nil(@mode_disabled_reason)}>
+                <:disabled_reason :if={@mode_disabled_reason == :connected}>
+                  Cannot change mode while connected
+                </:disabled_reason>
+                <:disabled_reason :if={@mode_disabled_reason == :connecting}>
+                  Cannot change mode while connecting
+                </:disabled_reason>
+                <:disabled_reason :if={@mode_disabled_reason == :proxy_epmd_inactive}>
+                  Cannot change to SSH tunnel mode while <strong>proxy_epmd</strong>
+                  module is not active
+                </:disabled_reason>
+              </ConnectComponents.mode_toggle>
               <p
                 :if={@mode == :direct}
                 class="font-mono text-base-content/70"
@@ -66,8 +77,7 @@ defmodule VoyagerWeb.ConnectLive do
                 connected?={not is_nil(@connected_session)}
               />
             </div>
-
-            <div class={@mode != :ssh && "hidden"}>
+            <div class={(@mode != :ssh or !@proxy_epmd_active?) && "hidden"}>
               <.live_component
                 module={VoyagerWeb.ConnectLive.SshConnect}
                 id="ssh-connect"
@@ -104,4 +114,13 @@ defmodule VoyagerWeb.ConnectLive do
   end
 
   def handle_info(_, socket), do: {:noreply, socket}
+
+  defp mode_disabled_reason(assigns) do
+    cond do
+      not is_nil(assigns.connected_session) -> :connected
+      assigns.connecting? -> :connecting
+      not assigns.proxy_epmd_active? -> :proxy_epmd_inactive
+      true -> nil
+    end
+  end
 end
