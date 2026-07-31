@@ -5,6 +5,7 @@ defmodule Voyager.Application do
 
   @impl true
   def start(_type, _args) do
+    store_active_epmd_module()
     # Elixirkit installation here: https://hexdocs.pm/elixirkit/tauri.html#phoenix-tauri
     elixirkit_pubsub = System.get_env("ELIXIRKIT_PUBSUB")
 
@@ -35,4 +36,17 @@ defmodule Voyager.Application do
   end
 
   defp skip_migrations?, do: System.get_env("RELEASE_NAME") == nil
+
+  defp store_active_epmd_module do
+    epmd_mod =
+      case :init.get_argument(:epmd_module) do
+        {:ok, [[mod_name] | _]} ->
+          mod_name |> List.to_string() |> String.to_atom()
+
+        _ ->
+          :erl_epmd
+      end
+
+    :persistent_term.put(:voyager_epmd_module, epmd_mod)
+  end
 end

@@ -43,6 +43,8 @@ defmodule Voyager.Services.RemoteNodeConnector do
       started. Defaults to `:longnames`.
   """
 
+  import Voyager.ProxyEpmd.Guard
+
   alias Voyager.ProxyEpmd.TunnelRegistry
   alias Voyager.Services.Distribution
   alias Voyager.Services.Erlssh.Auth
@@ -72,23 +74,27 @@ defmodule Voyager.Services.RemoteNodeConnector do
           | {:error, reason :: term()}
   def connect(ssh_user, ssh_host, full_node_name, cookie, auth, opts \\ [])
       when Auth.is_ssh_auth(auth) do
-    epmd_port = Keyword.get(opts, :epmd_port, 4369)
-    ssh_port = Keyword.get(opts, :ssh_port, 22)
-    name_type = Keyword.get(opts, :name_type, :longnames)
+    require_epmd do
+      epmd_port = Keyword.get(opts, :epmd_port, 4369)
+      ssh_port = Keyword.get(opts, :ssh_port, 22)
+      name_type = Keyword.get(opts, :name_type, :longnames)
 
-    with :ok <- Validate.node_name(full_node_name),
-         {:ok, node_name, node_host} <- Distribution.split_node_name(full_node_name),
-         :ok <- Validate.host(node_host),
-         :ok <- Validate.host(ssh_host),
-         {:ok, conn_ref} <- Connection.connect_ssh(ssh_host, ssh_port, ssh_user, auth) do
-      establish(conn_ref, full_node_name, node_name, name_type, cookie, epmd_port)
+      with :ok <- Validate.node_name(full_node_name),
+           {:ok, node_name, node_host} <- Distribution.split_node_name(full_node_name),
+           :ok <- Validate.host(node_host),
+           :ok <- Validate.host(ssh_host),
+           {:ok, conn_ref} <- Connection.connect_ssh(ssh_host, ssh_port, ssh_user, auth) do
+        establish(conn_ref, full_node_name, node_name, name_type, cookie, epmd_port)
+      end
     end
   end
 
   @spec stop(:ssh.connection_ref()) :: :ok
   def stop(conn_ref) when is_pid(conn_ref) do
-    TunnelRegistry.unregister_by_tunnel(conn_ref)
-    :ssh.close(conn_ref)
+    require_epmd do
+      TunnelRegistry.unregister_by_tunnel(conn_ref)
+      :ssh.close(conn_ref)
+    end
   end
 
   defp establish(conn_ref, full_node_name, node_name, name_type, cookie, epmd_port) do
