@@ -42,3 +42,12 @@
   width: var(--toolbar-icon-size-sm);
   height: var(--toolbar-icon-size-sm);
 }
+
+/* Disable DaisyUI depth shadows on checkbox/toggle (gray band when checked). */
+@utility checkbox {
+  --depth: 0;
+}
+
+@utility toggle {
+  --depth: 0;
+}

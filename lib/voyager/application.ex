@@ -9,18 +9,18 @@ defmodule Voyager.Application do
     elixirkit_pubsub = System.get_env("ELIXIRKIT_PUBSUB")
 
     children = [
-      Voyager.Telemetry,
       Voyager.Vault,
       Voyager.Repo,
       {Ecto.Migrator,
        repos: Application.fetch_env!(:voyager, :ecto_repos), skip: skip_migrations?()},
+      Voyager.Telemetry,
       {Phoenix.PubSub, name: Voyager.PubSub},
       {Task.Supervisor, name: Voyager.TaskSupervisor},
       Voyager.ProxyEpmd.TunnelRegistry,
       Voyager.NodeSession,
-      Voyager.MCP,
       {ElixirKit.PubSub, connect: elixirkit_pubsub || :ignore, on_exit: fn -> System.stop() end},
       VoyagerWeb.Endpoint,
+      Voyager.MCP,
       {Task, fn -> if elixirkit_pubsub, do: ElixirKit.PubSub.broadcast("messages", "ready") end}
     ]
 
