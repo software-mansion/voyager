@@ -118,7 +118,10 @@ defmodule Voyager.Telemetry.Manager do
 
   # Forwarding requires both the user preference and terms acceptance.
   defp cache_enabled do
-    enabled? = Settings.get(:telemetry_enabled, true) and Settings.get(:terms_accepted, false)
+    telemetry_enabled? = Settings.get(:telemetry_enabled, true) == true
+    terms_accepted? = Settings.get(:terms_accepted, false) == true
+    enabled? = telemetry_enabled? and terms_accepted?
+
     :persistent_term.put(@enabled_key, enabled?)
     enabled?
   end
