@@ -35,6 +35,30 @@
   --alert-color: var(--color-info-bg);
 }
 
+@utility toolbar-btn {
+  width: var(--toolbar-btn-size);
+  height: var(--toolbar-btn-size);
+  min-height: var(--toolbar-btn-size);
+  padding: 0;
+}
+
+@utility toolbar-icon {
+  width: var(--toolbar-icon-size);
+  height: var(--toolbar-icon-size);
+}
+
+@utility toolbar-btn-sm {
+  width: var(--toolbar-btn-size-sm);
+  height: var(--toolbar-btn-size-sm);
+  min-height: var(--toolbar-btn-size-sm);
+  padding: 0;
+}
+
+@utility toolbar-icon-sm {
+  width: var(--toolbar-icon-size-sm);
+  height: var(--toolbar-icon-size-sm);
+}
+
 /* Disable DaisyUI depth shadows on checkbox/toggle (gray band when checked). */
 @utility checkbox {
   --depth: 0;
