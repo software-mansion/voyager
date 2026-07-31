@@ -5,6 +5,7 @@ defmodule VoyagerWeb.SettingsLive do
   alias VoyagerWeb.SettingsLive.AppearanceSettings
   alias VoyagerWeb.SettingsLive.DistributionSettings
   alias VoyagerWeb.SettingsLive.McpSettings
+  alias VoyagerWeb.SettingsLive.TelemetrySettings
 
   @impl true
   def mount(params, _session, socket) do
@@ -15,6 +16,7 @@ defmodule VoyagerWeb.SettingsLive do
     socket
     |> assign(:return_to, safe_return_to(params["return_to"]))
     |> assign(:connected?, not is_nil(NodeSession.current()))
+    |> assign(:terms_of_use_url, Application.get_env(:voyager, :terms_of_use_url))
     |> ok()
   end
 
@@ -36,6 +38,11 @@ defmodule VoyagerWeb.SettingsLive do
         connected?={@connected?}
       />
       <.live_component module={McpSettings} id="mcp-settings" status={@mcp_status} />
+      <.live_component
+        module={TelemetrySettings}
+        id="telemetry-settings"
+        terms_of_use_url={@terms_of_use_url}
+      />
     </div>
     """
   end

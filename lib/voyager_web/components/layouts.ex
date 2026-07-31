@@ -19,6 +19,7 @@ defmodule VoyagerWeb.Layouts do
     ~H"""
     {@inner_content}
     <.flash_group flash={@flash} />
+    <.onboarding_modal show={assigns[:show_onboarding?]} />
     """
   end
 
@@ -54,6 +55,7 @@ defmodule VoyagerWeb.Layouts do
     >
       {@inner_content}
     </VoyagerWeb.Components.Shell.shell>
+    <.onboarding_modal show={assigns[:show_onboarding?]} />
     """
   end
 
@@ -72,6 +74,76 @@ defmodule VoyagerWeb.Layouts do
       <main class="flex-1 overflow-y-auto">
         {@inner_content}
       </main>
+    </div>
+    <.onboarding_modal show={assigns[:show_onboarding?]} />
+    """
+  end
+
+  @doc """
+  Renders the first-launch popup informing users about anonymous telemetry
+  collection and linking to the Terms of Use. Dismissed via the
+  `"dismiss-onboarding"` event, handled by `VoyagerWeb.Hooks.OnboardingHook`.
+  """
+  attr :show, :boolean, default: false
+
+  def onboarding_modal(assigns) do
+    assigns = assign(assigns, :terms_of_use_url, Application.get_env(:voyager, :terms_of_use_url))
+
+    ~H"""
+    <div
+      :if={@show}
+      id="onboarding-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="onboarding-modal-title"
+      class="modal modal-open"
+    >
+      <div class="modal-box border-base-300 max-w-xl border shadow-2xl">
+        <div class="mb-4 flex items-center gap-3">
+          <div class="bg-info text-info-content rounded-box size-11 flex shrink-0 items-center justify-center">
+            <.icon name="icon-info" class="size-5" />
+          </div>
+          <h2
+            id="onboarding-modal-title"
+            class="text-base-content text-lg font-semibold tracking-tight"
+          >
+            Help improve Voyager
+          </h2>
+        </div>
+
+        <div class="text-base-content/70 flex flex-col gap-3 text-sm">
+          <p>
+            Voyager collects anonymous usage and diagnostic telemetry to help us improve the product.
+          </p>
+          <p>
+            No data from your connected BEAM nodes is collected as part of this telemetry. You can disable telemetry at any time in <.link
+              navigate={~p"/settings"}
+              class="link link-primary"
+            >Settings</.link>.
+          </p>
+          <p>
+            By continuing, you acknowledge and agree to our <.link
+              href={@terms_of_use_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="link link-primary"
+            >
+              Terms of Use
+            </.link>.
+          </p>
+        </div>
+
+        <div class="modal-action">
+          <button
+            type="button"
+            id="onboarding-continue"
+            phx-click="dismiss-onboarding"
+            class="btn btn-primary"
+          >
+            Continue
+          </button>
+        </div>
+      </div>
     </div>
     """
   end

@@ -6,6 +6,7 @@ defmodule Voyager.Telemetry do
   use Supervisor
 
   alias Voyager.Telemetry.Events
+  alias Voyager.Telemetry.Manager
   alias Voyager.Telemetry.Measurements
 
   @type event() :: Events.event()
@@ -59,6 +60,26 @@ defmodule Voyager.Telemetry do
       raise ArgumentError, "Unknown event: #{inspect(event_name)}"
     end
   end
+
+  @doc "Returns whether telemetry event forwarding is currently enabled."
+  @spec enabled?() :: boolean()
+  defdelegate enabled?, to: Manager
+
+  @doc """
+  Persists terms acceptance so telemetry forwarding can start once the
+  first-launch notice is dismissed.
+  """
+  @spec accept_terms() ::
+          {:ok, Voyager.Schemas.Setting.t()} | {:error, :locked} | {:error, Ecto.Changeset.t()}
+  defdelegate accept_terms, to: Manager
+
+  @doc """
+  Enables or disables telemetry event forwarding, persisting the choice.
+  Returns `{:error, :locked}` when `:telemetry_enabled` is set in application config.
+  """
+  @spec set_enabled(boolean()) ::
+          {:ok, Voyager.Schemas.Setting.t()} | {:error, :locked} | {:error, Ecto.Changeset.t()}
+  defdelegate set_enabled(enabled?), to: Manager
 
   @doc "Periodically collected measurements for `telemetry_poller`."
   @spec periodic_measurements() :: [{module(), atom(), list()}]

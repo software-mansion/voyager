@@ -6,6 +6,7 @@ defmodule VoyagerWeb.ConnectLiveTest do
   alias Voyager.Actions.Connections, as: ConnectionActions
   alias Voyager.Fakes
   alias Voyager.NodeSession
+  alias Voyager.Settings
 
   setup do
     previous_state = :sys.get_state(NodeSession)
@@ -80,6 +81,37 @@ defmodule VoyagerWeb.ConnectLiveTest do
       {:ok, view, _html} = live(conn, ~p"/")
 
       assert has_element?(view, ~s|a#open-settings[href="/settings?return_to=%2F"]|)
+    end
+  end
+
+  describe "onboarding popup" do
+    setup do
+      # test.exs locks :terms_accepted so unrelated LiveViews skip the modal.
+      # Clear it here so we exercise the real first-launch / DB-backed path.
+      Application.delete_env(:voyager, :terms_accepted)
+      on_exit(fn -> Application.put_env(:voyager, :terms_accepted, true) end)
+      :ok
+    end
+
+    test "shows on first launch and dismissing it persists acceptance", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, "#onboarding-modal")
+      refute Settings.get(:terms_accepted, false)
+
+      view |> element("#onboarding-continue") |> render_click()
+
+      refute has_element?(view, "#onboarding-modal")
+      assert Settings.get(:terms_accepted, false)
+      assert Voyager.Telemetry.enabled?()
+    end
+
+    test "does not show once terms have been accepted", %{conn: conn} do
+      {:ok, _} = Voyager.Telemetry.accept_terms()
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      refute has_element?(view, "#onboarding-modal")
     end
   end
 
