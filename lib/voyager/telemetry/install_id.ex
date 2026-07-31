@@ -22,15 +22,7 @@ defmodule Voyager.Telemetry.InstallId do
   """
   @spec get() :: String.t()
   def get do
-    case :persistent_term.get(@cache_key, nil) do
-      nil ->
-        install_id = Settings.get(@setting_key) || generate()
-        :persistent_term.put(@cache_key, install_id)
-        install_id
-
-      install_id ->
-        install_id
-    end
+    :persistent_term.get(@cache_key, nil) || load_or_generate()
   end
 
   @doc false
@@ -40,17 +32,28 @@ defmodule Voyager.Telemetry.InstallId do
     :ok
   end
 
+  defp load_or_generate do
+    case Settings.get(@setting_key) do
+      nil -> generate()
+      install_id -> cache(install_id)
+    end
+  end
+
   defp generate do
     install_id = Ecto.UUID.generate()
 
     case Settings.put(@setting_key, install_id) do
       {:ok, _setting} ->
-        :ok
+        cache(install_id)
 
       {:error, reason} ->
         Logger.warning("Failed to persist telemetry install id: #{inspect(reason)}")
+        install_id
     end
+  end
 
+  defp cache(install_id) do
+    :persistent_term.put(@cache_key, install_id)
     install_id
   end
 end
