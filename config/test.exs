@@ -22,6 +22,9 @@ config :voyager, VoyagerWeb.Endpoint,
 
 config :voyager, :telemetry_handler, :noop
 
+# Skip the first-launch onboarding modal so unrelated LiveView tests are not blocked.
+config :voyager, :terms_accepted, true
+
 config :logger, level: :warning
 
 config :phoenix, :plug_init_mode, :runtime

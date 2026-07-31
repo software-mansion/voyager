@@ -5,11 +5,14 @@ defmodule Voyager.Telemetry.Handler.Export do
   Failed pushes are retried with backoff.
 
   Set `:push_url` (via `TELEMETRY_PUSH_URL`) and `:api_key` (via `TELEMETRY_API_KEY`).
-  Events are posted to the ingest server with the `X-API-Key` header.
+  Events are posted to the ingest server with the `X-API-Key` header. The anonymous
+  `Voyager.Telemetry.InstallId` is included in payload `metadata` so events from one
+  installation can be correlated.
   """
 
   @behaviour Voyager.Telemetry.Handler
 
+  alias Voyager.Telemetry.InstallId
   alias Voyager.Telemetry.Parser
 
   require Logger
@@ -22,14 +25,7 @@ defmodule Voyager.Telemetry.Handler.Export do
   def handle_event(event, measurements, metadata, config) when is_map(config) do
     case config do
       %{push_url: push_url, api_key: api_key} when is_binary(push_url) and is_binary(api_key) ->
-        payload = %{
-          event: Parser.parse_event(event),
-          measurements: Parser.parse_measurements(event, measurements),
-          metadata: Parser.parse_metadata(event, metadata),
-          ts: System.system_time(:millisecond)
-        }
-
-        send_event(push_url, api_key, payload)
+        send_event(push_url, api_key, build_payload(event, measurements, metadata))
 
       config ->
         Logger.warning(
@@ -38,6 +34,17 @@ defmodule Voyager.Telemetry.Handler.Export do
     end
 
     :ok
+  end
+
+  @doc false
+  @spec build_payload(list(atom()), map(), map()) :: map()
+  def build_payload(event, measurements, metadata) do
+    %{
+      event: Parser.parse_event(event),
+      measurements: Parser.parse_measurements(event, measurements),
+      metadata: export_metadata(event, metadata),
+      ts: System.system_time(:millisecond)
+    }
   end
 
   @doc "Schedules an async export task. Never blocks the caller."
@@ -84,6 +91,12 @@ defmodule Voyager.Telemetry.Handler.Export do
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  defp export_metadata(event, metadata) do
+    event
+    |> Parser.parse_metadata(metadata)
+    |> Map.put(:install_id, InstallId.get())
   end
 
   defp backoff_ms(attempt), do: Enum.at(@backoff_ms, attempt, 2000)
