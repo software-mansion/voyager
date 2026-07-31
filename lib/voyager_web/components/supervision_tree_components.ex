@@ -18,6 +18,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
 
   @node_legends [
     %{
+      type: :app,
       name: "App",
       icon_name: "icon-diamond",
       text:
@@ -27,6 +28,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
       doc_label: "Learn about OTP applications"
     },
     %{
+      type: :supervisor,
       name: "Supervisor",
       icon_name: "icon-square",
       text:
@@ -36,6 +38,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
       doc_label: "See the supervisor behaviour"
     },
     %{
+      type: :worker,
       name: "Worker",
       icon_name: "icon-circle",
       text:
@@ -45,6 +48,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
       doc_label: "See supervisor worker children"
     },
     %{
+      type: :port,
       name: "Port",
       icon_name: "icon-triangle",
       text:
@@ -54,6 +58,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
       doc_label: "Learn about ports"
     },
     %{
+      type: :reference,
       name: "Reference",
       icon_name: "icon-square",
       text:
@@ -102,6 +107,15 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
       dashed: true
     }
   ]
+
+  @node_icons Map.new(@node_legends, fn legend ->
+                {legend.type, %{name: legend.icon_name, color_class: legend.color_class}}
+              end)
+
+  @doc """
+    Returns the map with icon names and colors for node types.
+  """
+  def node_icons, do: @node_icons
 
   attr :node_name, :string, required: true
   attr :status, :atom, required: true

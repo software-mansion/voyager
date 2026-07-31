@@ -59,7 +59,7 @@ defmodule VoyagerWeb.CoreComponents do
       <.icon :if={@kind == :error} name="icon-circle-alert" class="size-4 shrink-0" />
       <div class="min-w-0 flex-1">
         <p :if={@title} class="font-bold">{@title}</p>
-        <p>{msg}</p>
+        <p class="truncate">{msg}</p>
       </div>
       <button type="button" class="btn btn-ghost btn-xs btn-circle" aria-label="close">
         <.icon name="icon-x" class="size-3.5" />
@@ -83,10 +83,29 @@ defmodule VoyagerWeb.CoreComponents do
 
   def node_header(assigns) do
     ~H"""
-    <header class="mb-8 flex flex-wrap items-center justify-between gap-4">
-      <div>
-        <h1 class="font-mono text-base-content text-2xl font-bold tracking-tight">
-          {@node_name}
+    <header class="mb-8 flex items-center justify-between gap-4">
+      <div class="min-w-0 flex-1">
+        <h1 class="font-mono text-base-content min-w-0 text-2xl font-bold tracking-tight">
+          <.tooltip
+            id="node-header-name-tip"
+            position="bottom"
+            interactive
+            class="min-w-0 max-w-full"
+            tip_class="max-w-lg break-all font-mono"
+          >
+            <span class="block truncate">{@node_name}</span>
+            <:content>
+              <div class="flex items-center gap-1">
+                <span id="node-header-name">{@node_name}</span>
+                <.copy_button
+                  id="node-header-name-copy"
+                  target="#node-header-name"
+                  icon_only
+                  class="btn-xs text-base-content/50 shrink-0 hover:text-base-content"
+                />
+              </div>
+            </:content>
+          </.tooltip>
         </h1>
         <p class="font-mono text-base-content/50 mt-0.5 text-xs">
           <%= if @last_updated do %>
@@ -96,7 +115,7 @@ defmodule VoyagerWeb.CoreComponents do
           <% end %>
         </p>
       </div>
-      <div :if={@actions != []} class="flex items-center gap-2">{render_slot(@actions)}</div>
+      <div :if={@actions != []} class="flex shrink-0 items-center gap-2">{render_slot(@actions)}</div>
     </header>
     """
   end
@@ -171,6 +190,7 @@ defmodule VoyagerWeb.CoreComponents do
   ## Examples
 
       <.copy_button id="copy-json" target="#json-content" />
+      <.copy_button id="copy-pid" target="#pid" label="Copy PID" icon_only />
   """
   attr :id, :string, required: true
   attr :target, :string, required: true, doc: "CSS selector for the element whose text is copied"
