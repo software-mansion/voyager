@@ -57,7 +57,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
         phx-target={@myself}
         phx-change="validate"
         phx-submit="connect"
-        class={["flex flex-col gap-4", @connected? && "pointer-events-none opacity-40"]}
+        class={["flex flex-col gap-4", @connected? && "pointer-events-none"]}
       >
         <ConnectComponents.form_field
           field={@form[:node_name]}
@@ -110,7 +110,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
         </:row>
       </RecentConnections.render>
 
-      <p class="font-mono tracking-snug text-base-content/50 mt-6 text-center text-xs">
+      <p class="font-mono tracking-snug text-base-content/70 mt-6 text-center text-xs">
         Nodes via distribution
       </p>
     </div>
@@ -132,14 +132,14 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
         phx-value-id={@conn.id}
         data-testid="fill-recent-btn"
         disabled={@disabled}
-        class="font-mono text-base-content/60 flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-xs transition-colors hover:bg-base-200 hover:text-base-content"
+        class="font-mono text-base-content/90 flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-xs transition-colors hover:bg-base-200 hover:text-base-content"
       >
-        <.icon name="icon-network" class="size-3.5 text-base-content/25 shrink-0" />
+        <.icon name="icon-network" class="size-3.5 text-base-content/60 shrink-0" />
         <div class="flex min-w-0 items-center gap-1.5">
           <span class="ml-2 truncate">{@conn.node_name}</span>
           <ConnectComponents.saved_badge :if={@conn.cookie} label="cookie" title="Cookie saved" />
         </div>
-        <span class="font-mono text-base-content/35 ml-auto shrink-0 text-xs">
+        <span class="font-mono text-base-content/70 ml-auto shrink-0 text-xs">
           {ConnectComponents.relative_time(@conn.last_connected_at)}
         </span>
       </button>

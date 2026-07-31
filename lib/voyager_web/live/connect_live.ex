@@ -30,7 +30,7 @@ defmodule VoyagerWeb.ConnectLive do
                 id="open-settings"
                 href={~p"/settings?#{[return_to: "/"]}"}
                 title="Settings"
-                class="btn btn-ghost btn-square toolbar-btn text-base-content/50 ml-auto hover:text-base-content"
+                class="btn btn-ghost btn-square toolbar-btn text-base-content/60 ml-auto hover:text-base-content"
               >
                 <.icon name="icon-settings" class="toolbar-icon" />
               </.link>
@@ -41,7 +41,7 @@ defmodule VoyagerWeb.ConnectLive do
               <h1 class="text-base-content mb-4 text-2xl font-semibold tracking-tight">
                 Connect to a node
               </h1>
-              <h4 class="font-mono tracking-label text-base-content/60 mb-2 text-xs uppercase">
+              <h4 class="font-mono tracking-label text-base-content/70 mb-2 text-xs uppercase">
                 Connection type:
               </h4>
               <ConnectComponents.mode_toggle mode={@mode} disabled={not is_nil(@mode_disabled_reason)}>

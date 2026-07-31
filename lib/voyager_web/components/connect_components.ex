@@ -13,7 +13,7 @@ defmodule VoyagerWeb.ConnectComponents do
     ~H"""
     <span
       title={@title}
-      class="font-mono text-base-content/30 border-base-300 shrink-0 rounded border px-1 text-xs"
+      class="font-mono text-base-content/70 border-base-400/50 shrink-0 rounded border px-1 text-xs"
     >
       {@label}
     </span>
@@ -40,7 +40,7 @@ defmodule VoyagerWeb.ConnectComponents do
       title={if @pinned, do: "Remove from favourites", else: "Save as favourite"}
       class={[
         "btn btn-square btn-ghost toolbar-btn-sm",
-        if(@pinned, do: "text-pinned", else: "text-base-content/20 hover:text-pinned")
+        if(@pinned, do: "text-pinned", else: "text-base-content/60 hover:text-pinned")
       ]}
     >
       <.icon
@@ -55,7 +55,7 @@ defmodule VoyagerWeb.ConnectComponents do
       phx-click={@delete_event}
       phx-value-id={@id}
       title="Remove"
-      class="btn btn-square btn-ghost toolbar-btn-sm text-base-content/20 hover:text-error"
+      class="btn btn-square btn-ghost toolbar-btn-sm text-base-content/60 hover:text-error"
     >
       <.icon name="icon-x" class="toolbar-icon-sm" />
     </button>
@@ -69,10 +69,10 @@ defmodule VoyagerWeb.ConnectComponents do
   def connected_indicator(assigns) do
     ~H"""
     <div id="connected-indicator" class="mb-5">
-      <p class="font-mono tracking-label text-base-content/50 mb-2.5 text-xs uppercase">
+      <p class="font-mono tracking-label text-base-content/70 mb-2.5 text-xs uppercase">
         Connected node
       </p>
-      <div class="bg-success/10 border-success/25 flex items-center justify-between rounded-lg border px-3.5 py-2.5">
+      <div class="bg-success-bg border-success flex items-center justify-between rounded-lg border px-3.5 py-2.5">
         <div class="flex min-w-0 items-center gap-1.5">
           <span class="size-2 relative flex shrink-0">
             <span class="bg-success size-full absolute inline-flex animate-ping rounded-full opacity-60">
@@ -88,14 +88,14 @@ defmodule VoyagerWeb.ConnectComponents do
             phx-click="disconnect"
             title="Disconnect"
             aria-label="Disconnect"
-            class="btn btn-ghost btn-square toolbar-btn-sm text-error/75 shrink-0 hover:text-error"
+            class="btn btn-ghost btn-square toolbar-btn-sm text-error/80 shrink-0 hover:text-error"
           >
             <.icon name="icon-power" class="toolbar-icon-sm" />
           </button>
         </div>
         <.link
           href={~p"/node/#{@session.node_name}"}
-          class="btn btn-success btn-xs ml-3 shrink-0 gap-1"
+          class="btn btn-success btn-xs ml-3 shrink-0 gap-1 dark:text-base-100"
         >
           Open <.icon name="icon-log-in" class="toolbar-icon-sm" />
         </.link>
@@ -151,7 +151,7 @@ defmodule VoyagerWeb.ConnectComponents do
     <div>
       <div class="mb-1.5 flex items-center justify-between">
         <label
-          class="font-mono tracking-label text-base-content/50 text-xs uppercase"
+          class="font-mono tracking-label text-base-content/70 text-xs uppercase"
           for={@field.id}
         >
           {@label}
@@ -193,7 +193,7 @@ defmodule VoyagerWeb.ConnectComponents do
     ~H"""
     <div>
       <label
-        class="font-mono tracking-label text-base-content/50 mb-1.5 block text-xs uppercase"
+        class="font-mono tracking-label text-base-content/70 mb-1.5 block text-xs uppercase"
         for={@field.id}
       >
         {@label}
@@ -218,7 +218,7 @@ defmodule VoyagerWeb.ConnectComponents do
           disabled={@disabled}
           aria-label={if @shown, do: "Hide", else: "Show"}
           title={if @shown, do: "Hide", else: "Show"}
-          class="btn btn-ghost btn-square toolbar-btn text-base-content/40 absolute top-1 right-1.5 hover:text-base-content"
+          class="btn btn-ghost btn-square toolbar-btn text-base-content/60 absolute top-1 right-1.5 hover:text-base-content"
         >
           <.icon name={if @shown, do: "icon-eye", else: "icon-eye-off"} class="toolbar-icon" />
         </button>
@@ -284,7 +284,7 @@ defmodule VoyagerWeb.ConnectComponents do
       "checked:text-primary-content",
       if(disabled? && active?,
         do: "!opacity-100 !bg-base-content/20 !text-primary-content",
-        else: "text-base-content/60 disabled:text-base-content/60"
+        else: "text-base-content/70 disabled:text-base-content/70"
       ),
       disabled? && !active? && "opacity-40"
     ]

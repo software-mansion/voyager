@@ -28,7 +28,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
         <div class="flex items-start justify-between gap-4">
           <div>
             <h3 class="text-base-content text-sm font-semibold">MCP Server</h3>
-            <p class="text-base-content/60 mt-1 text-sm">
+            <p class="text-base-content/70 mt-1 text-sm">
               Exposes node introspection tools to MCP clients over HTTP.
             </p>
           </div>
@@ -44,7 +44,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
           />
         </div>
 
-        <div class="text-base-content/60 font-mono flex items-center gap-1.5 text-xs">
+        <div class="text-base-content/70 font-mono flex items-center gap-1.5 text-xs">
           <span class="relative flex h-1.5 w-1.5">
             <span
               :if={@status.alive?}
@@ -61,7 +61,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
         </div>
 
         <div :if={@locked?} id="mcp-port-locked" class="alert alert-info text-sm">
-          <.icon name="icon-circle-alert" class="size-4" />
+          <.icon name="icon-info" class="text-info size-4" />
           <span>
             This value is set in application config, so changes are disabled.
           </span>
@@ -78,7 +78,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
           <div>
             <div class="mb-1.5 flex items-center gap-2">
               <label
-                class="font-mono tracking-label text-base-content/50 flex items-center gap-0.5 text-xs font-semibold uppercase"
+                class="font-mono tracking-label text-base-content/70 flex items-center gap-0.5 text-xs font-semibold uppercase"
                 for={@form[:port].id}
               >
                 Port

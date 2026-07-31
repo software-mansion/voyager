@@ -58,14 +58,14 @@ defmodule VoyagerWeb.NodeInfoComponents do
               doc_label={@help[:doc_label] || "Learn more"}
             />
           </div>
-          <span :if={@subtitle} class="font-mono text-base-content/50 text-xs">{@subtitle}</span>
+          <span :if={@subtitle} class="font-mono text-base-content/70 text-xs">{@subtitle}</span>
         </div>
 
         <div class="grid grid-cols-2 gap-x-6 gap-y-3">
           <%= for row <- @rows do %>
             <% {label, value, full_width?, help} = info_row(row) %>
             <div class={full_width? && "col-span-2 min-w-0"}>
-              <div class="font-mono tracking-label text-base-content/50 mb-0.5 flex items-center gap-0.5 text-xs font-semibold uppercase">
+              <div class="font-mono tracking-label text-base-content/70 mb-0.5 flex items-center gap-0.5 text-xs font-semibold uppercase">
                 {label}
                 <.help_tooltip
                   :if={help}
@@ -116,16 +116,16 @@ defmodule VoyagerWeb.NodeInfoComponents do
               doc_label={@help[:doc_label] || "Learn more"}
             />
           </div>
-          <span :if={@subtitle} class="font-mono text-base-content/50 text-xs">{@subtitle}</span>
+          <span :if={@subtitle} class="font-mono text-base-content/70 text-xs">{@subtitle}</span>
         </div>
 
         <div class="grid flex-1 auto-cols-fr grid-flow-col gap-3">
           <%= for {label, value} <- @metrics do %>
-            <div class="bg-base-200/60 border-base-200 flex flex-1 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-3">
+            <div class="bg-base-200 border-base-300 flex flex-1 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-3">
               <span class="font-mono text-base-content text-xl font-medium leading-none tracking-tight">
                 {value}
               </span>
-              <span class="font-mono tracking-label text-base-content/50 text-xs font-semibold uppercase">
+              <span class="font-mono tracking-label text-base-content/70 text-xs font-semibold uppercase">
                 {label}
               </span>
             </div>
@@ -169,7 +169,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
           {@value}
         </span>
       </div>
-      <div :if={@sub != []} class="font-mono text-base-content/50 text-xs">
+      <div :if={@sub != []} class="font-mono text-base-content/70 text-xs">
         {render_slot(@sub)}
       </div>
     </div>
@@ -199,7 +199,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
               doc_label={@help[:doc_label] || "Learn more"}
             />
           </div>
-          <span class="font-mono text-base-content/50 text-xs">
+          <span class="font-mono text-base-content/70 text-xs">
             {Formatters.format_bytes(@memory.total)} total
           </span>
         </div>
@@ -221,11 +221,11 @@ defmodule VoyagerWeb.NodeInfoComponents do
           <%= for {key, label, color_class, pct} <- @segments do %>
             <div class="font-mono flex items-center gap-2.5 text-xs">
               <div class={["size-2.5 shrink-0 rounded-sm", color_class]}></div>
-              <span class="text-base-content/70 min-w-0 flex-1">{label}</span>
+              <span class="text-base-content/80 min-w-0 flex-1">{label}</span>
               <span class="text-base-content tabular-nums">
                 {Formatters.format_bytes(Map.get(@memory, key))}
               </span>
-              <span class="text-base-content/40 w-12 text-right tabular-nums">
+              <span class="text-base-content/70 w-12 text-right tabular-nums">
                 {pct}%
               </span>
             </div>
@@ -249,13 +249,13 @@ defmodule VoyagerWeb.NodeInfoComponents do
           <h3 class="text-base-content min-h-6 flex items-center text-sm font-semibold">
             System limits
           </h3>
-          <span class="font-mono text-base-content/50 text-xs">current / max</span>
+          <span class="font-mono text-base-content/70 text-xs">current / max</span>
         </div>
 
-        <div class="divide-base-200 flex flex-1 flex-col divide-y">
+        <div class="divide-base-content/10 flex flex-1 flex-col divide-y">
           <%= for {label, usage, tooltip} <- limit_rows(@limits) do %>
             <div class="font-mono grid-cols-limits grid items-center gap-3 py-3 text-xs">
-              <span class="text-base-content/70 flex items-center gap-0.5">
+              <span class="text-base-content/80 flex items-center gap-0.5">
                 {label}
                 <.help_tooltip
                   id={"limit-#{label}-help"}
@@ -274,7 +274,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
                 >
                 </div>
               </div>
-              <span class="text-base-content/40 w-16 tabular-nums">
+              <span class="text-base-content/70 w-16 tabular-nums">
                 {Formatters.format_integer(usage.limit)}
               </span>
             </div>
@@ -329,34 +329,34 @@ defmodule VoyagerWeb.NodeInfoComponents do
               doc_label={@help[:doc_label] || "Learn more"}
             />
           </div>
-          <span class="font-mono text-base-content/50 text-xs">{@total} running</span>
+          <span class="font-mono text-base-content/70 text-xs">{@total} running</span>
         </div>
 
         <div class="overflow-x-auto">
           <table class="w-full table-fixed text-left">
             <thead>
-              <tr class="border-base-200 border-b">
-                <th class="font-mono tracking-label text-base-content/50 w-1/4 px-2 pb-2 text-xs font-semibold uppercase">
+              <tr class="border-base-content/10 border-b">
+                <th class="font-mono tracking-label text-base-content/70 w-1/4 px-2 pb-2 text-xs font-semibold uppercase">
                   Application
                 </th>
-                <th class="font-mono tracking-label text-base-content/50 w-28 px-2 pb-2 text-xs font-semibold uppercase">
+                <th class="font-mono tracking-label text-base-content/70 w-28 px-2 pb-2 text-xs font-semibold uppercase">
                   Version
                 </th>
-                <th class="font-mono tracking-label text-base-content/50 px-2 pb-2 text-xs font-semibold uppercase">
+                <th class="font-mono tracking-label text-base-content/70 px-2 pb-2 text-xs font-semibold uppercase">
                   Description
                 </th>
-                <th class="font-mono tracking-label text-base-content/50 w-10 px-2 pb-2 text-right text-xs font-semibold uppercase">
+                <th class="font-mono tracking-label text-base-content/70 w-10 px-2 pb-2 text-right text-xs font-semibold uppercase">
                   <span class="sr-only">Actions</span>
                 </th>
               </tr>
             </thead>
-            <tbody class="divide-base-200 divide-y">
+            <tbody class="divide-base-content/10 divide-y">
               <tr :for={app <- @visible_applications}>
                 <td class="text-base-content truncate px-2 py-2.5 text-sm font-medium">
                   {app.name}
                 </td>
                 <td class="px-2 py-2.5">
-                  <span class="bg-base-200/60 border-base-200 text-base-content/80 font-mono rounded border px-1.5 py-0.5 text-xs">
+                  <span class="bg-base-200/80 border-base-200 text-base-content/80 font-mono rounded border px-1.5 py-0.5 text-xs">
                     {app.version}
                   </span>
                 </td>
@@ -375,7 +375,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
                     <.link
                       navigate={application_href(@node_name, app.name, @current_url)}
                       aria-label={"View #{app.name} supervision tree"}
-                      class="btn btn-ghost btn-square toolbar-btn-sm text-base-content/40 hover:text-primary"
+                      class="btn btn-ghost btn-square toolbar-btn-sm text-base-content/70 hover:text-primary"
                     >
                       <.icon name="icon-network" class="toolbar-icon-sm" />
                     </.link>
@@ -456,7 +456,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
             <h2 id={@title_id} class="text-base-content text-xl font-semibold tracking-tight">
               {@title}
             </h2>
-            <p :if={@description} class="text-base-content/60 mt-1 text-sm">
+            <p :if={@description} class="text-base-content/70 mt-1 text-sm">
               {@description}
             </p>
           </div>
@@ -466,7 +466,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
             phx-click={@on_close}
             title="Close JSON snapshot"
             aria-label="Close JSON snapshot"
-            class="btn btn-ghost btn-square toolbar-btn text-base-content/50 hover:text-base-content"
+            class="btn btn-ghost btn-square toolbar-btn text-base-content/60 hover:text-base-content"
           >
             <.icon name="icon-x" class="toolbar-icon" />
           </button>

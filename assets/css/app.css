@@ -27,6 +27,13 @@
   --color-base-400: oklch(84.52% 0 0);
   --color-base-500: oklch(86.86% 0.022 252.51);
   --color-logo: oklch(0.2814 0.1517 263.58);
+  --color-warning: #ffc020;
+  --color-error: #fd6160;
+  --color-success: #00bd65;
+  --color-info: hsl(210, 100%, 56.27%);
+  --color-success-bg: #e0f7ec;
+  --color-warning-bg: #fff7e4;
+  --color-error-bg: #feecec;
 }
 
 @plugin 'daisyui/theme' {
@@ -51,14 +58,14 @@
   --color-accent-content: oklch(1 0 0);
   --color-neutral: oklch(0.2814 0.1517 263.58);
   --color-neutral-content: oklch(1 0 0);
-  --color-info: oklch(97% 0.014 254.604);
-  --color-info-content: oklch(48% 0.243 264.376);
-  --color-success: oklch(70% 0.14 182.503);
-  --color-success-content: oklch(27% 0.046 192.524);
-  --color-warning: oklch(98% 0.022 95.277);
-  --color-warning-content: oklch(55% 0.163 48.998);
-  --color-error: oklch(63% 0.237 25.331);
-  --color-error-content: oklch(25% 0.092 26.042);
+  --color-info-bg: hsl(212, 100%, 94.71%);
+  --color-info-content: var(--color-base-content);
+  --color-success-bg: #e0f7ec;
+  --color-success-content: var(--color-base-content);
+  --color-warning-bg: #fff7e4;
+  --color-warning-content: var(--color-base-content);
+  --color-error-bg: #feecec;
+  --color-error-content: var(--color-base-content);
   --radius-selector: 0.25rem;
   --radius-field: 0.5rem;
   --radius-box: 0.5rem;
@@ -91,14 +98,14 @@
   --color-accent-content: oklch(27% 0.041 260.031);
   --color-neutral: oklch(14% 0.005 285.823);
   --color-neutral-content: oklch(92% 0.004 286.32);
-  --color-info: oklch(70% 0.165 254.624);
-  --color-info-content: oklch(28% 0.091 267.935);
-  --color-success: oklch(76% 0.177 163.223);
-  --color-success-content: oklch(37% 0.077 168.94);
-  --color-warning: oklch(82% 0.189 84.429);
-  --color-warning-content: oklch(41% 0.112 45.904);
-  --color-error: oklch(71% 0.194 13.428);
-  --color-error-content: oklch(27% 0.105 12.094);
+  --color-info-bg: hsl(213.7, 29.53%, 19.02%);
+  --color-info-content: var(--color-neutral-content);
+  --color-success-bg: #1a3630;
+  --color-success-content: var(--color-neutral-content);
+  --color-warning-bg: #393628;
+  --color-warning-content: var(--color-neutral-content);
+  --color-error-bg: #382b30;
+  --color-error-content: var(--color-neutral-content);
   --radius-selector: 0.25rem;
   --radius-field: 0.5rem;
   --radius-box: 0.5rem;
@@ -112,3 +119,5 @@
 @custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
 @custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
 @custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
+
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));

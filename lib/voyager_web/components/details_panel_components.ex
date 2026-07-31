@@ -319,7 +319,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     <div class={[
       "font-mono flex gap-4 py-2.5 text-xs",
       if(@stacked, do: "flex-col items-stretch", else: "items-baseline justify-between"),
-      not @last && "border-base-300/70 border-b"
+      not @last && "border-base-content/10 border-b"
     ]}>
       <span class="text-base-content/70 shrink-0">{@label}</span>
       <div
@@ -366,7 +366,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     ~H"""
     <div class={[
       "font-mono flex items-baseline justify-between gap-4 py-2.5 text-xs",
-      not @last && "border-base-300/70 border-b"
+      not @last && "border-base-content/10 border-b"
     ]}>
       <span class="text-base-content/70 shrink-0">{@label}</span>
       <div class={[

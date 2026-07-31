@@ -19,6 +19,22 @@
   grid-template-columns: 1fr auto 1fr auto;
 }
 
+@utility alert-warning {
+  --alert-color: var(--color-warning-bg);
+}
+
+@utility alert-error {
+  --alert-color: var(--color-error-bg);
+}
+
+@utility alert-success {
+  --alert-color: var(--color-success-bg);
+}
+
+@utility alert-info {
+  --alert-color: var(--color-info-bg);
+}
+
 @utility toolbar-btn {
   width: var(--toolbar-btn-size);
   height: var(--toolbar-btn-size);

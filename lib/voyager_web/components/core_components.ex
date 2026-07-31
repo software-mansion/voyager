@@ -55,8 +55,8 @@ defmodule VoyagerWeb.CoreComponents do
       ]}
       {@rest}
     >
-      <.icon :if={@kind == :info} name="icon-info" class="size-4 shrink-0" />
-      <.icon :if={@kind == :error} name="icon-circle-alert" class="size-4 shrink-0" />
+      <.icon :if={@kind == :info} name="icon-info" class="text-info size-4 shrink-0" />
+      <.icon :if={@kind == :error} name="icon-circle-alert" class="text-error size-4 shrink-0" />
       <div class="min-w-0 flex-1">
         <p :if={@title} class="font-bold">{@title}</p>
         <p class="truncate">{msg}</p>
@@ -107,7 +107,7 @@ defmodule VoyagerWeb.CoreComponents do
             </:content>
           </.tooltip>
         </h1>
-        <p class="font-mono text-base-content/50 mt-0.5 text-xs">
+        <p class="font-mono text-base-content/70 mt-0.5 text-xs">
           <%= if @last_updated do %>
             updated {Formatters.format_time(@last_updated)} UTC
           <% else %>
@@ -144,7 +144,7 @@ defmodule VoyagerWeb.CoreComponents do
   def interval_select(assigns) do
     ~H"""
     <div class="flex items-center gap-2">
-      <label class="font-mono text-base-content/50 tracking-label text-xs uppercase">
+      <label class="font-mono text-base-content/70 tracking-label text-xs uppercase">
         Auto-refresh
       </label>
       <form phx-change="set_interval" id={"#{@id}-form"}>
@@ -460,7 +460,7 @@ defmodule VoyagerWeb.CoreComponents do
     ~H"""
     <div class="card bg-base-200 border-base-300 border shadow-sm" {@rest}>
       <div class="card-body justify-center gap-1 p-4">
-        <div class="font-mono text-base-content/50 tracking-label text-xs uppercase">
+        <div class="font-mono text-base-content/70 tracking-label text-xs uppercase">
           {@label}
         </div>
         <div class="font-mono text-base-content truncate text-sm font-semibold" title={@value}>
@@ -480,7 +480,7 @@ defmodule VoyagerWeb.CoreComponents do
   def info_section(assigns) do
     ~H"""
     <section class="mb-8">
-      <h2 class="font-mono tracking-display text-base-content/50 mb-3 ml-1 text-xs font-semibold uppercase">
+      <h2 class="font-mono tracking-display text-base-content/70 mb-3 ml-1 text-xs font-semibold uppercase">
         {@title}
       </h2>
       <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -501,7 +501,7 @@ defmodule VoyagerWeb.CoreComponents do
     ~H"""
     <div class="flex items-center justify-center gap-3 py-24" id={@id} {@rest}>
       <span class="loading loading-spinner loading-md text-primary"></span>
-      <span class="font-mono text-base-content/50 text-sm">{@message}</span>
+      <span class="font-mono text-base-content/70 text-sm">{@message}</span>
     </div>
     """
   end
@@ -686,7 +686,7 @@ defmodule VoyagerWeb.CoreComponents do
         aria-label="Help"
         aria-describedby={"#{@id}-tip"}
         class={[
-          "btn btn-circle btn-ghost btn-xs text-base-content/40 hover:text-base-content",
+          "btn btn-circle btn-ghost btn-xs text-base-content/60 hover:text-base-content",
           "transition-colors",
           @class
         ]}
