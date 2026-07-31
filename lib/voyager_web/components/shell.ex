@@ -186,7 +186,7 @@ defmodule VoyagerWeb.Components.Shell do
         @sidebar_mode == "full" && "mode-full"
       ]}
     >
-      <ul class="menu font-sans w-full flex-1 gap-1.75">
+      <ul class="menu font-sans gap-1.75 w-full flex-1">
         <li class="sidebar-toggle-row mb-3 flex flex-row items-center justify-between">
           <span class="menu-title sidebar-label tracking-label p-0 text-xs uppercase">Inspect</span>
           <.sidebar_toggle current_url={@current_url} sidebar_mode={@sidebar_mode} />
