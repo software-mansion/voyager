@@ -61,10 +61,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         phx-target={@myself}
         phx-change="validate_ssh"
         phx-submit="connect_ssh"
-        class={[
-          "flex flex-col gap-4",
-          (@connected? or @ssh_connecting) && "pointer-events-none opacity-40"
-        ]}
+        class={["flex flex-col gap-4", (@connected? or @ssh_connecting) && "pointer-events-none"]}
       >
         <div class="flex gap-3">
           <div class="min-w-0 flex-1">
@@ -117,7 +114,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         />
 
         <div>
-          <label class="font-mono tracking-label text-base-content/50 mb-1.5 block text-xs uppercase">
+          <label class="font-mono tracking-label text-base-content/70 mb-1.5 block text-xs uppercase">
             Authentication
           </label>
           <ConnectComponents.segmented
@@ -149,7 +146,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
             type="button"
             phx-target={@myself}
             phx-click="toggle_ssh_advanced"
-            class="font-mono tracking-label text-base-content/40 cursor-pointer select-none text-xs uppercase transition-colors hover:text-base-content/70"
+            class="font-mono tracking-label text-base-content/70 cursor-pointer select-none text-xs uppercase transition-colors hover:text-base-content/90"
           >
             Advanced {if @show_ssh_advanced, do: "▾", else: "▸"}
           </button>
@@ -207,7 +204,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         </:row>
       </RecentConnections.render>
 
-      <p class="font-mono tracking-snug text-base-content/50 mt-6 text-center text-xs">
+      <p class="font-mono tracking-snug text-base-content/70 mt-6 text-center text-xs">
         Remote nodes via SSH
       </p>
     </div>
@@ -229,20 +226,20 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         phx-value-id={@conn.id}
         data-testid="fill-ssh-recent-btn"
         disabled={@disabled}
-        class="font-mono text-base-content/60 flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-xs transition-colors hover:bg-base-200 hover:text-base-content"
+        class="font-mono text-base-content/90 flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-xs transition-colors hover:bg-base-200 hover:text-base-content"
       >
-        <.icon name="icon-network" class="size-3.5 text-base-content/25 shrink-0 self-center" />
+        <.icon name="icon-network" class="size-3.5 text-base-content/60 shrink-0 self-center" />
         <div class="flex min-w-0 flex-1 flex-col gap-1">
           <span class="ml-2 truncate text-left">{@conn.node_name}</span>
           <div class="ml-2 flex flex-wrap items-center gap-1">
-            <span class="font-mono text-base-content/30 border-base-300 rounded border px-1 text-xs">
+            <span class="font-mono text-base-content/70 border-base-400/50 rounded border px-1 text-xs">
               {@conn.ssh_user}@{@conn.ssh_host}
             </span>
             <ConnectComponents.saved_badge :if={@conn.cookie} label="cookie" title="Cookie saved" />
             <ConnectComponents.saved_badge :if={@conn.password} label="pass" title="Password saved" />
           </div>
         </div>
-        <span class="font-mono text-base-content/35 shrink-0 self-center text-xs">
+        <span class="font-mono text-base-content/70 shrink-0 self-center text-xs">
           {ConnectComponents.relative_time(@conn.last_connected_at)}
         </span>
       </button>

@@ -217,7 +217,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
     <div class="flex items-start gap-6">
       <div class="flex items-start gap-3">
         <label
-          class="label text-base-content/60 text-xs leading-8"
+          class="label text-base-content/70 text-xs leading-8"
           for={@apps_form[:depth].id}
         >
           Depth
@@ -236,7 +236,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
         class="flex items-start gap-3"
       >
         <label
-          class="label text-base-content/60 text-xs leading-8"
+          class="label text-base-content/70 text-xs leading-8"
           for="supervision-tree-relations"
         >
           Relations
@@ -272,7 +272,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
       :if={@available_apps != []}
       class="input mt-2 flex max-w-xs items-center gap-2"
     >
-      <.icon name="icon-search" class="size-4 text-base-content/50" />
+      <.icon name="icon-search" class="size-4 text-base-content/70" />
       <input
         type="text"
         id="supervision-tree-search"
@@ -326,7 +326,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
   defp applications_list(%{available_apps: []} = assigns) do
     ~H"""
     <div class="flex flex-wrap gap-2 py-4">
-      <span class="text-base-content/50 text-sm italic">No applications available</span>
+      <span class="text-base-content/70 text-sm italic">No applications available</span>
     </div>
     """
   end
@@ -334,7 +334,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
   defp applications_list(%{visible_apps: []} = assigns) do
     ~H"""
     <div class="flex flex-wrap gap-2 py-4">
-      <span class="text-base-content/50 text-sm italic">
+      <span class="text-base-content/70 text-sm italic">
         No applications match your search
       </span>
     </div>

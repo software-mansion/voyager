@@ -13,8 +13,12 @@ defmodule Voyager.Telemetry.Manager do
 
   use GenServer
 
+  alias Voyager.Settings
   alias Voyager.Telemetry.Events
   alias Voyager.Telemetry.Handler
+  alias Voyager.Telemetry.InstallId
+
+  @enabled_key {__MODULE__, :enabled}
 
   @spec start_link(any()) :: :ignore | {:error, any()} | {:ok, pid()}
   def start_link(opts \\ []) do
@@ -26,14 +30,21 @@ defmodule Voyager.Telemetry.Manager do
     handler_module = handler_module(opts)
     handler_config = handler_config(opts)
 
+    # Ensure the anonymous install id exists before the first export, and cache
+    # the effective enabled flag in :persistent_term (rather than read from the
+    # DB on every dispatch) since `handle_event/4` runs synchronously in the
+    # caller's process for every telemetry event.
+    _ = InstallId.get()
+    cache_enabled()
+
     _ = :telemetry.detach(Handler.handler_id())
 
     :ok =
       :telemetry.attach_many(
         Handler.handler_id(),
         Events.events(),
-        &handler_module.handle_event/4,
-        handler_config
+        &__MODULE__.handle_event/4,
+        %{handler_module: handler_module, handler_config: handler_config}
       )
 
     {:ok, %{}}
@@ -42,6 +53,77 @@ defmodule Voyager.Telemetry.Manager do
   @impl GenServer
   def terminate(_reason, _state) do
     :telemetry.detach(Handler.handler_id())
+  end
+
+  @doc "Returns whether telemetry event forwarding is currently enabled."
+  @spec enabled?() :: boolean()
+  def enabled? do
+    :persistent_term.get(@enabled_key, false)
+  end
+
+  @doc """
+  Persists terms acceptance and updates the forwarding cache.
+
+  Forwarding stays off until this succeeds, even when telemetry itself is enabled.
+  """
+  @spec accept_terms() ::
+          {:ok, Voyager.Schemas.Setting.t()} | {:error, :locked} | {:error, Ecto.Changeset.t()}
+  def accept_terms do
+    case Settings.put(:terms_accepted, true) do
+      {:ok, _setting} = ok ->
+        cache_enabled()
+        ok
+
+      error ->
+        error
+    end
+  end
+
+  @doc """
+  Enables or disables telemetry event forwarding, persisting the choice via
+  `Voyager.Settings` and updating the in-memory cache read by `handle_event/4`.
+
+  Returns `{:error, :locked}` when `:telemetry_enabled` is set in application config.
+  """
+  @spec set_enabled(boolean()) ::
+          {:ok, Voyager.Schemas.Setting.t()} | {:error, :locked} | {:error, Ecto.Changeset.t()}
+  def set_enabled(enabled?) when is_boolean(enabled?) do
+    case Settings.put(:telemetry_enabled, enabled?) do
+      {:ok, _setting} = ok ->
+        cache_enabled()
+        ok
+
+      error ->
+        error
+    end
+  end
+
+  @doc """
+  Telemetry attach callback shared by every handler.
+
+  Checks the cached enabled flag before forwarding the event. Forwarding stays
+  off until terms are accepted, and users can still disable telemetry from
+  Settings without restarting the app.
+  """
+  def handle_event(event, measurements, metadata, %{
+        handler_module: handler_module,
+        handler_config: handler_config
+      }) do
+    if enabled?() do
+      handler_module.handle_event(event, measurements, metadata, handler_config)
+    else
+      :ok
+    end
+  end
+
+  # Forwarding requires both the user preference and terms acceptance.
+  defp cache_enabled do
+    telemetry_enabled? = Settings.get(:telemetry_enabled, true) == true
+    terms_accepted? = Settings.get(:terms_accepted, false) == true
+    enabled? = telemetry_enabled? and terms_accepted?
+
+    :persistent_term.put(@enabled_key, enabled?)
+    enabled?
   end
 
   defp handler_module(opts) do

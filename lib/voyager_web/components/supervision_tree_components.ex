@@ -131,7 +131,10 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
         waiting_message="waiting for first fetch…"
       >
         <:actions>
-          <span id="supervision-tree-status" class={["badge mr-2", status_badge_class(@status)]}>
+          <span
+            id="supervision-tree-status"
+            class={["badge mr-2 dark:text-base-100", status_badge_class(@status)]}
+          >
             {status_label(@status)}
           </span>
           <.interval_select
@@ -152,7 +155,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
     ~H"""
     <%= if @errors != [] do %>
       <div id="supervision-tree-errors" class="alert alert-error">
-        <.icon name="icon-circle-alert" class="size-5 shrink-0" />
+        <.icon name="icon-circle-alert" class="text-error size-5 shrink-0" />
         <div class="w-full">
           <p class="font-semibold">Errors encountered</p>
           <ul class="max-h-[10vh] mt-1 w-full list-inside list-disc overflow-auto text-sm">
@@ -177,6 +180,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
     """
   end
 
+  attr :last_updated, :any, required: true
   attr :selected_apps, MapSet, required: true
   attr :status, :atom, required: true
 
@@ -185,21 +189,18 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
     <div class="flex-1 overflow-auto">
       <%= cond do %>
         <% MapSet.size(@selected_apps) == 0 -> %>
-          <div class="border-base-300 flex h-full flex-col items-center justify-center gap-3 rounded-lg text-center">
-            <.icon name="icon-network" class="size-10 text-base-content/30" />
+          <div class="flex h-full flex-col items-center justify-center gap-3 rounded-lg text-center">
+            <.icon name="icon-network" class="size-10 text-base-content/60" />
             <div>
-              <p class="text-base-content/60 font-medium">No applications selected</p>
-              <p class="text-base-content/40 text-sm">
+              <p class="text-base-content/80 font-medium">No applications selected</p>
+              <p class="text-base-content/70 text-sm">
                 Select one or more applications to inspect.
               </p>
             </div>
           </div>
-        <% @status == :idle -> %>
-          <div class="border-base-300 flex h-full flex-col items-center justify-center gap-3 rounded-lg text-center">
-            <.icon name="icon-network" class="size-10 text-base-content/30" />
-            <div>
-              <p class="text-base-content/60 font-medium">Waiting…</p>
-            </div>
+        <% @last_updated == nil && @status == :loading -> %>
+          <div class="flex h-full flex-col items-center justify-center rounded-lg text-center">
+            <.loading_state id="supervision-tree-graph-loading" message="Fetching…" />
           </div>
         <% true -> %>
           <div
@@ -247,27 +248,27 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
                     phx-click={JS.dispatch("zoom-in", to: "#supervision-tree-body")}
                     title="Zoom graph in"
                     aria-label="Zoom graph in"
-                    class="h-8 w-8 cursor-pointer rounded hover:bg-base-300"
+                    class="btn btn-ghost btn-square toolbar-btn"
                   >
-                    <.icon name="icon-plus" class="size-5" />
+                    <.icon name="icon-plus" class="toolbar-icon" />
                   </button>
                   <button
                     type="button"
                     phx-click={JS.dispatch("zoom-out", to: "#supervision-tree-body")}
                     title="Zoom graph out"
                     aria-label="Zoom graph out"
-                    class="h-8 w-8 cursor-pointer rounded hover:bg-base-300"
+                    class="btn btn-ghost btn-square toolbar-btn"
                   >
-                    <.icon name="icon-minus" class="size-5" />
+                    <.icon name="icon-minus" class="toolbar-icon" />
                   </button>
                   <button
                     type="button"
                     phx-click={JS.dispatch("maximize", to: "#supervision-tree-body")}
                     title="Fit graph to view"
                     aria-label="Fit graph to view"
-                    class="h-8 w-8 cursor-pointer rounded hover:bg-base-300"
+                    class="btn btn-ghost btn-square toolbar-btn"
                   >
-                    <.icon name="icon-maximize" class="size-5" />
+                    <.icon name="icon-maximize" class="toolbar-icon" />
                   </button>
                 </div>
               </div>
@@ -345,7 +346,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
     "#{name |> String.downcase() |> String.replace(" ", "-")}-legend-entry"
   end
 
-  defp status_badge_class(:idle), do: "badge-ghost"
+  defp status_badge_class(:idle), do: "text-base-content!"
   defp status_badge_class(:loading), do: "badge-info"
   defp status_badge_class(:ok), do: "badge-success"
   defp status_badge_class(:partial), do: "badge-warning"

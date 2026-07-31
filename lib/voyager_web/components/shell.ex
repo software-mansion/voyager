@@ -58,9 +58,9 @@ defmodule VoyagerWeb.Components.Shell do
         href={~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_url)]}"}
         id="open-settings"
         title="Settings"
-        class="btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-base-content"
+        class="btn btn-ghost btn-square toolbar-btn text-base-content/70 hover:text-base-content"
       >
-        <.icon name="icon-settings" class="size-4" />
+        <.icon name="icon-settings" class="toolbar-icon" />
       </.link>
     </div>
     """
@@ -79,9 +79,9 @@ defmodule VoyagerWeb.Components.Shell do
         <.link
           href={@return_to || ~p"/"}
           title="Back"
-          class="btn btn-ghost btn-square text-base-content"
+          class="btn btn-ghost btn-square toolbar-btn text-base-content"
         >
-          <.icon name="icon-arrow-left" class="size-6" />
+          <.icon name="icon-arrow-left" class="toolbar-icon" />
         </.link>
         <.brand />
       </div>
@@ -96,7 +96,7 @@ defmodule VoyagerWeb.Components.Shell do
     <div class="flex items-center gap-2.5 font-semibold tracking-tight">
       <.logo class="size-5.5 ml-px" />
       <span class="text-lg">Voyager</span>
-      <span class="font-mono text-base-content/35 mt-0.5 text-xs font-normal">v{@version}</span>
+      <span class="font-mono text-base-content/70 mt-0.5 text-xs font-normal">v{@version}</span>
     </div>
     """
   end
@@ -119,7 +119,7 @@ defmodule VoyagerWeb.Components.Shell do
         class="sidebar-nav-row flex w-full cursor-default items-center justify-start gap-2 rounded-md px-2 py-1.5"
       >
         <span class="relative inline-flex shrink-0">
-          <.icon name="icon-brain" class="text-base-content/50 size-4" />
+          <.icon name="icon-brain" class="text-base-content/70 size-4" />
           <span class="absolute -right-0.5 -bottom-0.5 flex h-1.5 w-1.5">
             <span
               :if={@status.alive?}
@@ -133,7 +133,7 @@ defmodule VoyagerWeb.Components.Shell do
             </span>
           </span>
         </span>
-        <span class="sidebar-label font-mono text-base-content/60 truncate text-xs">
+        <span class="sidebar-label font-mono text-base-content/70 truncate text-xs">
           MCP {if @status.alive?, do: "running", else: "stopped"}
         </span>
       </div>
@@ -149,7 +149,7 @@ defmodule VoyagerWeb.Components.Shell do
                 id="mcp-status-copy"
                 target="#mcp-status-url"
                 icon_only
-                class="btn-xs text-base-content/50 shrink-0 hover:text-base-content"
+                class="btn-xs text-base-content/70 shrink-0 hover:text-base-content"
               />
             </div>
           </div>
@@ -181,14 +181,16 @@ defmodule VoyagerWeb.Components.Shell do
     <aside
       id="app-sidebar"
       class={[
-        "bg-base-100 border-base-300 flex h-full w-16 flex-none flex-col overflow-y-auto overflow-x-hidden border-r transition-all duration-200 ease-out lg:w-64",
+        "bg-base-100 border-base-300 flex h-full flex-none flex-col overflow-y-auto overflow-x-hidden border-r transition-all duration-200 ease-out",
         @sidebar_mode == "compact" && "mode-compact",
         @sidebar_mode == "full" && "mode-full"
       ]}
     >
-      <ul class="menu font-sans w-full flex-1 gap-0.5 p-4">
+      <ul class="menu font-sans gap-1.75 w-full flex-1">
         <li class="sidebar-toggle-row mb-3 flex flex-row items-center justify-between">
-          <span class="menu-title sidebar-label tracking-label p-0 text-xs uppercase">Inspect</span>
+          <span class="menu-title text-base-content/70 sidebar-label tracking-label p-0 text-xs uppercase">
+            Inspect
+          </span>
           <.sidebar_toggle current_url={@current_url} sidebar_mode={@sidebar_mode} />
         </li>
         <.nav_item
@@ -197,11 +199,13 @@ defmodule VoyagerWeb.Components.Shell do
           navigate={nav_path(node_path(@session, page.path), @sidebar_mode)}
           label={page.label}
         >
-          <:icon><.icon name={page.icon} class="size-4" /></:icon>
+          <:icon><.icon name={page.icon} class="toolbar-icon" /></:icon>
         </.nav_item>
 
         <div class="border-base-content/10 my-4 border-t"></div>
-        <span class="menu-title tracking-label mb-3 p-0 text-xs uppercase">Coming Soon</span>
+        <span class="menu-title text-base-content/70 tracking-label mb-3 p-0 text-xs uppercase">
+          Coming Soon
+        </span>
 
         <.nav_item
           :for={page <- coming_soon_pages()}
@@ -210,7 +214,7 @@ defmodule VoyagerWeb.Components.Shell do
           label={page.label}
           coming_soon
         >
-          <:icon><.icon name={page.icon} class="size-4" /></:icon>
+          <:icon><.icon name={page.icon} class="toolbar-icon" /></:icon>
         </.nav_item>
       </ul>
 
@@ -249,11 +253,11 @@ defmodule VoyagerWeb.Components.Shell do
       patch={toggle_sidebar_path(@current_url, mode)}
       aria-label="Toggle sidebar width"
       class={[
-        "btn btn-ghost btn-square btn-sm text-base-content/50 hover:text-base-content",
+        "btn btn-ghost btn-square toolbar-btn text-base-content/70 hover:text-base-content",
         visibility
       ]}
     >
-      <.icon name="icon-panel-left" class="size-4" />
+      <.icon name="icon-panel-left" class="toolbar-icon" />
     </.link>
     """
   end
@@ -382,12 +386,12 @@ defmodule VoyagerWeb.Components.Shell do
       </span>
       <span
         :if={!@long_node_name?}
-        class="text-base-content/50 shrink-0 text-xs @max-[20rem]/nav-status:hidden"
+        class="text-base-content/70 shrink-0 text-xs @max-[20rem]/nav-status:hidden"
       >
         Connected
       </span>
       <span
-        class={["font-mono text-base-content/70 min-w-0 truncate text-xs"]}
+        class={["font-mono text-base-content/80 min-w-0 truncate text-xs"]}
         title={@session.node_name}
       >
         {@session.node_name}
@@ -399,9 +403,9 @@ defmodule VoyagerWeb.Components.Shell do
           title="Disconnect"
           aria-label="Disconnect"
           phx-click="disconnect"
-          class="btn btn-ghost btn-square btn-xs text-error/75 hover:text-error"
+          class="btn btn-ghost btn-square toolbar-btn-sm text-error/80 hover:text-error"
         >
-          <.icon name="icon-power" class="size-3.5" />
+          <.icon name="icon-power" class="toolbar-icon-sm" />
         </button>
         <:content>Disconnect</:content>
       </.tooltip>

@@ -58,9 +58,9 @@ defmodule VoyagerWeb.NodeInfoLive do
               phx-throttle="1000"
               aria-label="Show snapshot JSON"
               disabled={not @snapshot.ok?}
-              class="btn btn-md btn-ghost btn-square"
+              class="btn btn-ghost btn-square toolbar-btn"
             >
-              <.icon name="icon-file-braces" class="size-6" />
+              <.icon name="icon-file-braces" class="toolbar-icon" />
             </button>
             <:content>View snapshot JSON</:content>
           </.tooltip>
@@ -324,6 +324,5 @@ defmodule VoyagerWeb.NodeInfoLive do
   defp format_error(:noconnection), do: "Node is unreachable."
   defp format_error(:timeout), do: "Timed out while fetching node info."
   defp format_error({:rpc, _reason}), do: "RPC call failed while fetching node info."
-  defp format_error({:internal, msg}), do: "Unexpected data from node: #{msg}"
   defp format_error(_), do: "Failed to fetch node info."
 end

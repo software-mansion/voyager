@@ -96,11 +96,12 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         phx-target={@myself}
         phx-throttle="1000"
         aria-label="Refresh fetched process information"
-        class="border-base-200 text-base-content flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border transition-all hover:border-base-300 hover:bg-base-200 hover:text-base-content"
+        title="Refresh fetched process information"
+        class="btn btn-ghost btn-square toolbar-btn"
       >
         <.icon
           name="icon-rotate-cw"
-          class={["size-3.5", @loading? && "motion-safe:animate-spin"]}
+          class={["toolbar-icon", @loading? && "motion-safe:animate-spin"]}
         />
       </button>
       <:content>Refresh fetched process information</:content>
@@ -118,9 +119,10 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       phx-click="close-details-panel"
       title="Close"
       aria-label="Close panel"
-      class="border-base-200 text-base-content flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border transition-all hover:border-base-300 hover:bg-base-200 hover:text-base-content"
+      class="btn btn-ghost btn-square toolbar-btn hover:text-base-content"
     >
-      <.icon name="icon-x" class="size-3.5" />
+      <%!-- size-6 because icon-x is visually smaller than the refresh icon --%>
+      <.icon name="icon-x" class="size-6" />
     </button>
     """
   end
@@ -317,7 +319,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     <div class={[
       "font-mono flex gap-4 py-2.5 text-xs",
       if(@stacked, do: "flex-col items-stretch", else: "items-baseline justify-between"),
-      not @last && "border-base-300/70 border-b"
+      not @last && "border-base-content/10 border-b"
     ]}>
       <span class="text-base-content/70 shrink-0">{@label}</span>
       <div
@@ -364,7 +366,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     ~H"""
     <div class={[
       "font-mono flex items-baseline justify-between gap-4 py-2.5 text-xs",
-      not @last && "border-base-300/70 border-b"
+      not @last && "border-base-content/10 border-b"
     ]}>
       <span class="text-base-content/70 shrink-0">{@label}</span>
       <div class={[

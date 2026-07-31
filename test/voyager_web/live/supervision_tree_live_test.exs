@@ -45,6 +45,7 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
 
     test "lists the available applications as checkboxes", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
+      render_async(view)
 
       assert has_element?(view, ~s|input[name="tree_controls[apps][]"][value="demo_app"]|)
       assert has_element?(view, ~s|input[name="tree_controls[apps][]"][value="another_app"]|)
@@ -52,6 +53,7 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
 
     test "shows the empty state when no applications are selected", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
+      render_async(view)
 
       assert render(view) =~ "No applications selected"
       refute has_element?(view, "#supervision-tree-body")
@@ -59,14 +61,29 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
 
     test "does not render an error alert", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
+      render_async(view)
 
+      refute has_element?(view, "#supervision-tree-error")
       refute has_element?(view, "#supervision-tree-errors")
+    end
+
+    test "restores selected applications from URL parameters after async load", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path <> "?apps=demo_app")
+      render_async(view)
+
+      assert has_element?(
+               view,
+               ~s|input[name="tree_controls[apps][]"][value="demo_app"][checked]|
+             )
+
+      refute render(view) =~ "No applications selected"
     end
   end
 
   describe "selecting applications" do
     test "marks the chosen application as checked", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
+      render_async(view)
 
       view
       |> form("#supervision-tree-controls", %{"tree_controls" => %{"apps" => ["demo_app"]}})
@@ -80,6 +97,7 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
 
     test "kicks off a fetch and renders the graph body", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
+      render_async(view)
 
       html =
         view
@@ -98,6 +116,7 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
   describe "clearing all applications" do
     test "unchecks every selected application", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
+      render_async(view)
 
       view
       |> form("#supervision-tree-controls", %{
@@ -125,6 +144,7 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
 
     test "returns to the empty state and tears down the graph body", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
+      render_async(view)
 
       view
       |> form("#supervision-tree-controls", %{"tree_controls" => %{"apps" => ["demo_app"]}})
@@ -140,6 +160,7 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
 
     test "is unavailable when no applications are selected", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
+      render_async(view)
 
       assert render(view) =~ "No applications selected"
       refute has_element?(view, "#supervision-tree-clear-apps")
@@ -151,6 +172,7 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
     test "shows a validation error when depth is below the minimum and removes the error when depth is changed to valid",
          %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
+      render_async(view)
 
       html =
         view
@@ -169,6 +191,7 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
 
     test "accepts a valid depth without a validation error", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
+      render_async(view)
 
       html =
         view
@@ -182,12 +205,14 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
   describe "relations toggle" do
     test "is on by default", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
+      render_async(view)
 
       assert has_element?(view, "#supervision-tree-relations[checked]")
     end
 
     test "can be turned off", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
+      render_async(view)
 
       view
       |> form("#supervision-tree-controls", %{
@@ -202,6 +227,7 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
   describe "controls" do
     test "collapses and expands the applications section", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
+      render_async(view)
 
       # The collapsible toggle carries the `aria-expanded` attribute only while
       # open (HEEx drops a `false` boolean attribute entirely).
@@ -216,6 +242,7 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
 
     test "refresh_now with no applications selected stays idle", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
+      render_async(view)
 
       view |> element("#refresh-interval-refresh-now-button") |> render_click()
 
@@ -227,6 +254,7 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
   describe "graph interaction events" do
     setup %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
+      render_async(view)
 
       view
       |> form("#supervision-tree-controls", %{"tree_controls" => %{"apps" => ["demo_app"]}})
@@ -243,26 +271,32 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
   end
 
   describe "mount when the application list cannot be fetched" do
-    setup do
-      # Simulate an unreachable node: every erpc call raises a noconnection
-      # error, which `Remote` translates into `{:error, :noconnection}`.
-      stub(Voyager.ErpcMock, :call, fn _node, _mod, _fun, _args, _timeout ->
+    test "renders an error state and the error status", %{conn: conn} do
+      expect(Voyager.ErpcMock, :call, fn _node, _mod, _fun, _args, _timeout ->
         :erlang.error({:erpc, :noconnection})
       end)
 
-      :ok
-    end
-
-    test "renders an error alert and the error status", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
+      render_async(view)
 
-      assert has_element?(view, "#supervision-tree-errors")
-      assert render(view) =~ "error"
+      assert has_element?(view, "#supervision-tree-error")
+      assert has_element?(view, "#supervision-tree-status", "error")
       refute has_element?(view, "#supervision-tree-body")
     end
+  end
 
-    test "dismissing the errors removes the error alert", %{conn: conn} do
-      {:ok, view, _html} = live(conn, @path)
+  describe "supervision tree fetch errors" do
+    test "dismissing tree fetch errors removes the error alert", %{conn: conn} do
+      stub(Voyager.ErpcMock, :call, fn
+        _node, :lists, :zipwith, _args, _timeout ->
+          :erlang.error({:erpc, :timeout})
+
+        _node, mod, fun, args, _timeout ->
+          supervision_reply(mod, fun, args)
+      end)
+
+      {:ok, view, _html} = live(conn, @path <> "?apps=demo_app")
+      render_async(view)
 
       assert has_element?(view, "#supervision-tree-errors")
 
