@@ -90,6 +90,14 @@ defmodule VoyagerWeb.ConnectLiveTest do
   end
 
   describe "onboarding popup" do
+    setup do
+      # test.exs locks :terms_accepted so unrelated LiveViews skip the modal.
+      # Clear it here so we exercise the real first-launch / DB-backed path.
+      Application.delete_env(:voyager, :terms_accepted)
+      on_exit(fn -> Application.put_env(:voyager, :terms_accepted, true) end)
+      :ok
+    end
+
     test "shows on first launch and dismissing it persists acceptance", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 
@@ -100,10 +108,11 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
       refute has_element?(view, "#onboarding-modal")
       assert Settings.get(:terms_accepted, false)
+      assert Voyager.Telemetry.enabled?()
     end
 
     test "does not show once terms have been accepted", %{conn: conn} do
-      Settings.put(:terms_accepted, true)
+      {:ok, _} = Voyager.Telemetry.accept_terms()
 
       {:ok, view, _html} = live(conn, ~p"/")
 

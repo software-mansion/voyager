@@ -17,12 +17,16 @@ defmodule Voyager.Telemetry.ManagerTest do
   end
 
   setup do
-    on_exit(fn -> Manager.set_enabled(true) end)
+    on_exit(fn ->
+      Application.put_env(:voyager, :terms_accepted, true)
+      Manager.set_enabled(true)
+    end)
+
     :ok
   end
 
   describe "enabled?/0 and set_enabled/1" do
-    test "defaults to enabled" do
+    test "defaults to enabled when terms are accepted" do
       assert Telemetry.enabled?()
     end
 
@@ -32,6 +36,16 @@ defmodule Voyager.Telemetry.ManagerTest do
       assert Settings.get(:telemetry_enabled) == false
 
       assert {:ok, _setting} = Telemetry.set_enabled(true)
+      assert Telemetry.enabled?()
+    end
+
+    test "stays disabled until terms are accepted" do
+      Application.delete_env(:voyager, :terms_accepted)
+      assert {:ok, _setting} = Telemetry.set_enabled(true)
+
+      refute Telemetry.enabled?()
+
+      assert {:ok, _setting} = Telemetry.accept_terms()
       assert Telemetry.enabled?()
     end
 
@@ -54,6 +68,15 @@ defmodule Voyager.Telemetry.ManagerTest do
 
     test "skips the handler module when disabled" do
       Manager.set_enabled(false)
+      config = %{handler_module: SpyHandler, handler_config: %{parent: self()}}
+
+      assert :ok = Manager.handle_event([:voyager, :node, :connect], %{}, %{}, config)
+      refute_received {:handled, _event, _measurements, _metadata}
+    end
+
+    test "skips the handler module before terms are accepted" do
+      Application.delete_env(:voyager, :terms_accepted)
+      Manager.set_enabled(true)
       config = %{handler_module: SpyHandler, handler_config: %{parent: self()}}
 
       assert :ok = Manager.handle_event([:voyager, :node, :connect], %{}, %{}, config)
