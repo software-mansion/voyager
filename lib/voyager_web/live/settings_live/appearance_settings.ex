@@ -9,11 +9,20 @@ defmodule VoyagerWeb.SettingsLive.AppearanceSettings do
         <div>
           <h3 class="text-base-content text-sm font-semibold">Appearance</h3>
           <p class="text-base-content/60 mt-1 text-sm">
-            Choose how Voyager looks on this device.
+            Choose how Voyager looks on this device. Auto follows your operating system
+            and is the default.
           </p>
         </div>
 
         <div id="theme-setting" phx-hook=".ThemeSetting" class="join self-start">
+          <button
+            type="button"
+            class="join-item btn btn-soft text-base-content/70 gap-1.5"
+            data-phx-theme="system"
+            phx-click={JS.dispatch("phx:set-theme")}
+          >
+            <.icon name="icon-monitor" class="size-4" /> Auto
+          </button>
           <button
             type="button"
             class="join-item btn btn-soft text-base-content/70 gap-1.5"
@@ -29,14 +38,6 @@ defmodule VoyagerWeb.SettingsLive.AppearanceSettings do
             phx-click={JS.dispatch("phx:set-theme")}
           >
             <.icon name="icon-moon" class="size-4" /> Dark
-          </button>
-          <button
-            type="button"
-            class="join-item btn btn-soft text-base-content/70 gap-1.5"
-            data-phx-theme="system"
-            phx-click={JS.dispatch("phx:set-theme")}
-          >
-            <.icon name="icon-monitor" class="size-4" /> Auto
           </button>
           <script :type={Phoenix.LiveView.ColocatedHook} name=".ThemeSetting">
             export default {

@@ -28,43 +28,106 @@
     </script>
     <script>
       (() => {
-        const getSystemTheme = () =>
+        const THEME_KEY = "phx:theme";
+
+        const mediaTheme = () =>
           window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+
+        // Prefer the OS theme exposed by Tauri. In the desktop webview,
+        // prefers-color-scheme can reflect the webview/browser preference
+        // rather than the operating system appearance.
+        const getTauriWindow = () => {
+          try {
+            return window.__TAURI__?.window?.getCurrentWindow?.() ?? null;
+          } catch (_error) {
+            return null;
+          }
+        };
+
+        const getTauriThemeViaInternals = async () => {
+          const internals = window.__TAURI_INTERNALS__;
+          const label = internals?.metadata?.currentWindow?.label;
+          if (!internals?.invoke || !label) return null;
+
+          try {
+            const theme = await internals.invoke("plugin:window|theme", { label });
+            if (theme === "dark" || theme === "light") return theme;
+          } catch (_error) {}
+
+          return null;
+        };
+
+        const getSystemTheme = async () => {
+          const win = getTauriWindow();
+          if (win) {
+            try {
+              const theme = await win.theme();
+              if (theme === "dark" || theme === "light") return theme;
+            } catch (_error) {}
+          }
+
+          const internalsTheme = await getTauriThemeViaInternals();
+          if (internalsTheme) return internalsTheme;
+
+          return mediaTheme();
+        };
 
         const applyTheme = (theme) => {
           document.documentElement.setAttribute("data-theme", theme);
         };
 
         const setTheme = (theme) => {
-          localStorage.setItem("phx:theme", theme);
+          localStorage.setItem(THEME_KEY, theme);
           applyTheme(theme);
         };
 
-        const syncTheme = () => {
-          applyTheme(localStorage.getItem("phx:theme") || getSystemTheme());
+        const syncTheme = async () => {
+          const stored = localStorage.getItem(THEME_KEY);
+          applyTheme(stored || (await getSystemTheme()));
         };
 
+        // Paint immediately from sync sources, then refine with the OS theme
+        // when running inside Tauri (default preference is Auto / system).
+        applyTheme(localStorage.getItem(THEME_KEY) || mediaTheme());
         syncTheme();
 
         window
           .matchMedia("(prefers-color-scheme: dark)")
           .addEventListener("change", () => {
-            if (!localStorage.getItem("phx:theme")) syncTheme();
+            if (!localStorage.getItem(THEME_KEY)) syncTheme();
           });
 
         window.addEventListener("storage", (e) => {
-          if (e.key === "phx:theme") syncTheme();
+          if (e.key === THEME_KEY) syncTheme();
         });
 
         window.addEventListener("phx:set-theme", (e) => {
           const theme = e.target.dataset.phxTheme;
           if (theme === "system") {
-            localStorage.removeItem("phx:theme");
+            localStorage.removeItem(THEME_KEY);
             syncTheme();
           } else {
             setTheme(theme);
           }
         });
+
+        const listenForOsThemeChanges = () => {
+          const win = getTauriWindow();
+          if (!win?.onThemeChanged) return false;
+
+          win.onThemeChanged(() => {
+            if (!localStorage.getItem(THEME_KEY)) syncTheme();
+          });
+          return true;
+        };
+
+        if (!listenForOsThemeChanges() && window.__TAURI_INTERNALS__) {
+          let attempts = 0;
+          const retry = setInterval(() => {
+            attempts += 1;
+            if (listenForOsThemeChanges() || attempts >= 20) clearInterval(retry);
+          }, 50);
+        }
       })();
     </script>
   </head>
