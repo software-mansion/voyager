@@ -89,11 +89,22 @@ defmodule VoyagerWeb.CoreComponents do
           <.tooltip
             id="node-header-name-tip"
             position="bottom"
-            class="w-full max-w-full"
+            interactive
+            class="max-w-full min-w-0"
             tip_class="max-w-lg break-all font-mono"
           >
             <span class="block truncate">{@node_name}</span>
-            <:content>{@node_name}</:content>
+            <:content>
+              <div class="flex items-center gap-1">
+                <span id="node-header-name">{@node_name}</span>
+                <.copy_button
+                  id="node-header-name-copy"
+                  target="#node-header-name"
+                  icon_only
+                  class="btn-xs text-base-content/50 shrink-0 hover:text-base-content"
+                />
+              </div>
+            </:content>
           </.tooltip>
         </h1>
         <p class="font-mono text-base-content/50 mt-0.5 text-xs">
