@@ -90,7 +90,7 @@ defmodule VoyagerWeb.CoreComponents do
             id="node-header-name-tip"
             position="bottom"
             interactive
-            class="max-w-full min-w-0"
+            class="min-w-0 max-w-full"
             tip_class="max-w-lg break-all font-mono"
           >
             <span class="block truncate">{@node_name}</span>
