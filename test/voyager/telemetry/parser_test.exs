@@ -32,9 +32,11 @@ defmodule Voyager.Telemetry.ParserTest do
   end
 
   describe "parse_metadata/2 for voyager events" do
-    test "returns empty map for `node.connect`" do
-      result = Parser.parse_metadata([:voyager, :node, :connect], %{foo: :bar})
-      assert result == %{}
+    test "parse connectors for `node.connect`" do
+      result_ssh = Parser.parse_metadata([:voyager, :node, :connect], %{via: :ssh})
+      result_direct = Parser.parse_metadata([:voyager, :node, :connect], %{via: :direct})
+      assert result_ssh[:via] == :ssh
+      assert result_direct[:via] == :direct
     end
 
     test "returns reason for `node.disconnect`" do

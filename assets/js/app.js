@@ -27,13 +27,20 @@ import topbar from '../vendor/topbar';
 import SupervisionTree from './hooks/supervision_tree';
 import Tooltip from './hooks/tooltip';
 import NumberStepper from './hooks/number_stepper';
+import DetailsPanelResize from './hooks/details_panel_resize';
 
 const csrfToken = document
   .querySelector("meta[name='csrf-token']")
   .getAttribute('content');
 const liveSocket = new LiveSocket('/live', Socket, {
   params: { _csrf_token: csrfToken },
-  hooks: { SupervisionTree, Tooltip, NumberStepper, ...colocatedHooks },
+  hooks: {
+    SupervisionTree,
+    Tooltip,
+    NumberStepper,
+    DetailsPanelResize,
+    ...colocatedHooks,
+  },
 });
 
 // Inside the Tauri webview, `target="_blank"` links do nothing because there is

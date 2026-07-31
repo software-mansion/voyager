@@ -32,6 +32,7 @@ const SupervisionTree = {
 
     this.cy.on('onetap', 'node', (event) => {
       if (this.disabledClick) return;
+      this.cleanupTooltip();
       this.applyEdgeHighlight(null);
       this.pushEventTo(this.el, 'select-node', { key: event.target.id() });
     });

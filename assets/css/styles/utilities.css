@@ -34,3 +34,8 @@
 @utility alert-info {
   --alert-color: var(--color-info-bg);
 }
+
+/* Disable DaisyUI depth shadows on checkbox/toggle (gray band when checked). */
+@utility checkbox, toggle {
+  --depth: 0;
+}

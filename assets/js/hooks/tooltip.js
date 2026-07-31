@@ -21,6 +21,13 @@ const VIEWPORT_MARGIN = 8;
 
 function positionTooltip(tipEl, trigger) {
   const position = trigger.dataset.tooltipPosition || 'top';
+
+  // Reset before measuring. A stale `left` near the right edge shrinks the
+  // shrink-to-fit available width, so the tip wraps into a tall column; the
+  // inflated height then gets clamped to the top of the viewport.
+  tipEl.style.top = '0px';
+  tipEl.style.left = '0px';
+
   const tip = tipEl.getBoundingClientRect();
   const rect = trigger.getBoundingClientRect();
 
@@ -140,7 +147,11 @@ const Tooltip = {
       clearTimeout(this._closeTimeout);
       this._pinned = false;
       const tipEl = this.getTip();
-      if (tipEl) tipEl.classList.remove('is-open', 'is-pinned');
+      if (tipEl) {
+        tipEl.classList.remove('is-open', 'is-pinned');
+        tipEl.style.top = '';
+        tipEl.style.left = '';
+      }
       this.unbindScrollResize();
       this.unbindPinListeners();
     };

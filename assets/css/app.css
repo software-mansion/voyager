@@ -3,6 +3,7 @@
 @import './styles/tokens.css';
 @import './styles/reset.css';
 @import './styles/number-input.css';
+@import './styles/select.css';
 @import './styles/supervision-tree.css';
 @import './styles/tooltip.css';
 @import './styles/sidebar.css';
@@ -87,7 +88,7 @@
   --color-base-200: oklch(23.26% 0.014 253.1);
   --color-base-300: oklch(21.15% 0.012 254.09);
   --color-base-500: oklch(42% 0.042 252.51);
-  --color-logo: oklch(92% 0.004 286.32);
+  --color-logo: oklch(97.807% 0.029 256.847);
   --color-base-content: oklch(97.807% 0.029 256.847);
   --color-primary: oklch(0.8093 0.0798 225.54);
   --color-primary-content: oklch(27% 0.041 260.031);

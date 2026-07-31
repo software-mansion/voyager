@@ -125,6 +125,22 @@ defmodule VoyagerWeb.SettingsLiveTest do
       assert render(view) =~ "Running at http://127.0.0.1:#{port}/mcp"
     end
 
+    test "re-renders the toggle when starting the server fails", %{conn: conn, mcp_port: port} do
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      view |> element("#mcp-toggle") |> render_click()
+      assert render(view) =~ "Stopped"
+
+      {:ok, socket} = :gen_tcp.listen(port, [:binary, active: false, ip: {127, 0, 0, 1}])
+      on_exit(fn -> :gen_tcp.close(socket) end)
+
+      view |> element("#mcp-toggle") |> render_click()
+
+      assert render(view) =~ "Stopped"
+      refute has_element?(view, "#mcp-toggle[checked]")
+      assert has_element?(view, ~s|#mcp-toggle[data-toggle-revision="1"]|)
+    end
+
     test "updates the port", %{conn: conn, mcp_port: port} do
       {:ok, view, _html} = live(conn, ~p"/settings")
 
@@ -163,6 +179,40 @@ defmodule VoyagerWeb.SettingsLiveTest do
 
       assert has_element?(view, "#mcp-port-locked")
       assert has_element?(view, ~s|#mcp_port_port[disabled]|)
+    end
+  end
+
+  describe "telemetry settings" do
+    setup do
+      on_exit(fn -> Voyager.Telemetry.set_enabled(true) end)
+      :ok
+    end
+
+    test "shows telemetry as enabled by default and toggles it off/on", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      assert has_element?(view, ~s|#telemetry-toggle[checked]|)
+
+      view |> element("#telemetry-toggle") |> render_click()
+
+      refute has_element?(view, ~s|#telemetry-toggle[checked]|)
+      refute Settings.get(:telemetry_enabled, true)
+      refute Voyager.Telemetry.enabled?()
+
+      view |> element("#telemetry-toggle") |> render_click()
+
+      assert has_element?(view, ~s|#telemetry-toggle[checked]|)
+      assert Settings.get(:telemetry_enabled, true)
+    end
+
+    test "disables the toggle when locked by application config", %{conn: conn} do
+      Application.put_env(:voyager, :telemetry_enabled, false)
+      on_exit(fn -> Application.delete_env(:voyager, :telemetry_enabled) end)
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      assert has_element?(view, "#telemetry-locked")
+      assert has_element?(view, ~s|#telemetry-toggle[disabled]|)
     end
   end
 end
