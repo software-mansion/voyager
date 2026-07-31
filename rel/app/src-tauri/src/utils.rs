@@ -42,6 +42,64 @@ fn random_secret(len: usize) -> String {
         .collect()
 }
 
+/// Best-effort OS appearance for first-paint theming in the webview.
+///
+/// Returns `"dark"` or `"light"`. Used from an initialization script so Auto
+/// mode can apply the correct theme before `prefers-color-scheme` (which may
+/// reflect the webview, not the OS) is consulted.
+pub fn os_theme_hint() -> &'static str {
+    #[cfg(target_os = "macos")]
+    {
+        match std::process::Command::new("defaults")
+            .args(["read", "-g", "AppleInterfaceStyle"])
+            .output()
+        {
+            Ok(output)
+                if String::from_utf8_lossy(&output.stdout)
+                    .trim()
+                    .eq_ignore_ascii_case("Dark") =>
+            {
+                "dark"
+            }
+            _ => "light",
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        match std::process::Command::new("reg")
+            .args([
+                "query",
+                r"HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize",
+                "/v",
+                "AppsUseLightTheme",
+            ])
+            .output()
+        {
+            Ok(output) if String::from_utf8_lossy(&output.stdout).contains("0x0") => "dark",
+            _ => "light",
+        }
+    }
+
+    #[cfg(all(unix, not(target_os = "macos")))]
+    {
+        if let Ok(output) = std::process::Command::new("gsettings")
+            .args(["get", "org.gnome.desktop.interface", "color-scheme"])
+            .output()
+        {
+            if String::from_utf8_lossy(&output.stdout).contains("dark") {
+                return "dark";
+            }
+        }
+        "light"
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows", unix)))]
+    {
+        "light"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

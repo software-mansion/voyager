@@ -74,10 +74,18 @@ pub fn run() {
 fn create_window(app_handle: &tauri::AppHandle, port: u16) {
     let n = app_handle.webview_windows().len() + 1;
     let url = tauri::WebviewUrl::External(format!("http://127.0.0.1:{port}").parse().unwrap());
+    // Inject the OS appearance before page scripts run so Auto mode can paint
+    // the correct DaisyUI theme on first frame (webview prefers-color-scheme
+    // often disagrees with the real OS theme).
+    let theme_init = format!(
+        r#"window.__VOYAGER_OS_THEME__="{}";"#,
+        utils::os_theme_hint()
+    );
     tauri::WebviewWindowBuilder::new(app_handle, format!("window-{}", n), url)
         .title("Voyager")
         .inner_size(800.0, 800.0)
         .min_inner_size(800.0, 800.0)
+        .initialization_script(theme_init)
         .build()
         .unwrap();
 }
