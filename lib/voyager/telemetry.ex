@@ -66,6 +66,14 @@ defmodule Voyager.Telemetry do
   defdelegate enabled?, to: Manager
 
   @doc """
+  Persists terms acceptance so telemetry forwarding can start once the
+  first-launch notice is dismissed.
+  """
+  @spec accept_terms() ::
+          {:ok, Voyager.Schemas.Setting.t()} | {:error, :locked} | {:error, Ecto.Changeset.t()}
+  defdelegate accept_terms, to: Manager
+
+  @doc """
   Enables or disables telemetry event forwarding, persisting the choice.
   Returns `{:error, :locked}` when `:telemetry_enabled` is set in application config.
   """

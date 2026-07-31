@@ -1,13 +1,14 @@
 defmodule VoyagerWeb.Hooks.OnboardingHook do
   @moduledoc """
   LiveView hook that shows the first-launch telemetry/terms notice until the
-  user dismisses it, persisting acceptance via `Voyager.Settings`.
+  user dismisses it, persisting acceptance via `Voyager.Telemetry.accept_terms/0`.
   """
 
   import Phoenix.LiveView
   import Phoenix.Component
 
   alias Voyager.Settings
+  alias Voyager.Telemetry
 
   def on_mount(:default, _params, _session, socket) do
     socket =
@@ -19,8 +20,13 @@ defmodule VoyagerWeb.Hooks.OnboardingHook do
   end
 
   defp handle_dismiss("dismiss-onboarding", _params, socket) do
-    Settings.put(:terms_accepted, true)
-    {:halt, assign(socket, :show_onboarding?, false)}
+    case Telemetry.accept_terms() do
+      {:ok, _} ->
+        {:halt, assign(socket, :show_onboarding?, false)}
+
+      {:error, _} ->
+        {:halt, put_flash(socket, :error, "Failed to save terms acceptance")}
+    end
   end
 
   defp handle_dismiss(_event, _params, socket), do: {:cont, socket}

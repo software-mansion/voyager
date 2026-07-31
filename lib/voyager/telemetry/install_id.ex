@@ -2,9 +2,9 @@ defmodule Voyager.Telemetry.InstallId do
   @moduledoc """
   Anonymous installation identifier attached to exported telemetry events.
 
-  A random UUID is generated the first time an event is exported and persisted
-  via `Voyager.Settings`, so events from the same installation can be correlated
-  without identifying the user.
+  A random UUID is generated and persisted via `Voyager.Settings` during
+  telemetry manager init (with lazy fallback on first `get/0`), so events from
+  the same installation can be correlated without identifying the user.
 
   The value is cached in `:persistent_term` because `get/0` is called while
   building the payload for every exported event.
