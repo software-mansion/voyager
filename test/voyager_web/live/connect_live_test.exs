@@ -109,10 +109,8 @@ defmodule VoyagerWeb.ConnectLiveTest do
       assert tip_html =~ "Cannot change mode while connected"
       refute tip_html =~ "proxy_epmd"
     end
+  end
 
-    defp broadcast(pubsub_topic, event) do
-      Phoenix.PubSub.broadcast(Voyager.PubSub, pubsub_topic, event)
-    end
   describe "onboarding popup" do
     setup do
       # test.exs locks :terms_accepted so unrelated LiveViews skip the modal.
