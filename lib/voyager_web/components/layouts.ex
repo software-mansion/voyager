@@ -100,7 +100,7 @@ defmodule VoyagerWeb.Layouts do
     >
       <div class="modal-box border-base-300 max-w-xl border shadow-2xl">
         <div class="mb-4 flex items-center gap-3">
-          <div class="bg-primary/10 text-primary rounded-box size-11 flex shrink-0 items-center justify-center">
+          <div class="bg-info text-info-content rounded-box size-11 flex shrink-0 items-center justify-center">
             <.icon name="icon-info" class="size-5" />
           </div>
           <h2
