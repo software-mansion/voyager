@@ -1,9 +1,18 @@
 mod utils;
 
+use std::sync::Mutex;
+
 use tauri::{
     Manager,
-    menu::{MenuBuilder, SubmenuBuilder},
+    menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder},
 };
+
+const ZOOM_STEP: f64 = 0.1;
+const MIN_ZOOM: f64 = 0.5;
+const MAX_ZOOM: f64 = 3.0;
+
+/// Current zoom factor, since the webview does not expose a getter.
+struct ZoomLevel(Mutex<f64>);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -12,6 +21,12 @@ pub fn run() {
     tauri::Builder::default()
         .enable_macos_default_menu(false)
         .plugin(tauri_plugin_opener::init())
+        .manage(ZoomLevel(Mutex::new(1.0)))
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "zoom_in" => zoom_by(app, ZOOM_STEP),
+            "zoom_out" => zoom_by(app, -ZOOM_STEP),
+            _ => {}
+        })
         .setup(move |app| {
             #[cfg(target_os = "macos")]
             {
@@ -29,8 +44,21 @@ pub fn run() {
                     .select_all()
                     .build()?;
 
+                let view_menu = SubmenuBuilder::new(app, "View")
+                    .item(
+                        &MenuItemBuilder::with_id("zoom_in", "Zoom In")
+                            .accelerator("CmdOrCtrl+=")
+                            .build(app)?,
+                    )
+                    .item(
+                        &MenuItemBuilder::with_id("zoom_out", "Zoom Out")
+                            .accelerator("CmdOrCtrl+-")
+                            .build(app)?,
+                    )
+                    .build()?;
+
                 let menu = MenuBuilder::new(app)
-                    .items(&[&app_menu, &edit_menu])
+                    .items(&[&app_menu, &edit_menu, &view_menu])
                     .build()?;
                 app.set_menu(menu)?;
             }
@@ -69,6 +97,16 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+fn zoom_by(app_handle: &tauri::AppHandle, delta: f64) {
+    let zoom_level = app_handle.state::<ZoomLevel>();
+    let mut level = zoom_level.0.lock().expect("zoom level poisoned");
+    *level = (*level + delta).clamp(MIN_ZOOM, MAX_ZOOM);
+
+    for window in app_handle.webview_windows().into_values() {
+        let _ = window.set_zoom(*level);
+    }
 }
 
 fn create_window(app_handle: &tauri::AppHandle, port: u16) {
