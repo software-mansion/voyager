@@ -88,13 +88,8 @@
           }
         });
 
-        const getTauriWindow = () => {
-          try {
-            return window.__TAURI__?.window?.getCurrentWindow?.() ?? null;
-          } catch (_error) {
-            return null;
-          }
-        };
+        const getTauriWindow = () =>
+          window.__TAURI__?.window?.getCurrentWindow?.() ?? null;
 
         const listenForOsThemeChanges = async () => {
           const win = getTauriWindow();
@@ -102,14 +97,9 @@
 
           try {
             await win.onThemeChanged(({ payload }) => {
-              if (localStorage.getItem(THEME_KEY)) return;
-              if (isTheme(payload)) {
-                window.__VOYAGER_OS_THEME__ = payload;
-                applyTheme(payload);
-              } else {
-                delete window.__VOYAGER_OS_THEME__;
-                syncTheme();
-              }
+              if (localStorage.getItem(THEME_KEY) || !isTheme(payload)) return;
+              window.__VOYAGER_OS_THEME__ = payload;
+              applyTheme(payload);
             });
             trustOsThemeListener = true;
             return true;
