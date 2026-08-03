@@ -1,0 +1,44 @@
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+version: 2
+updates:
+  # Assets JS deps (assets/package.json)
+  - package-ecosystem: "npm"
+    directory: "/assets"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      assets-npm:
+        patterns:
+          - "*"
+
+  # e2e: only shared runtime types dep (cytoscape). Other e2e deps stay manual.
+  - package-ecosystem: "npm"
+    directory: "/e2e"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    allow:
+      - dependency-name: "cytoscape"
+
+  # Elixir deps (mix.exs / mix.lock)
+  - package-ecosystem: "mix"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      elixir-deps:
+        patterns:
+          - "*"
+
+  # Tauri Rust deps (rel/app/src-tauri/Cargo.toml)
+  - package-ecosystem: "cargo"
+    directory: "/rel/app/src-tauri"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    groups:
+      tauri-rust:
+        patterns:
+          - "*"
