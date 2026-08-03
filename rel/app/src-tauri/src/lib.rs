@@ -101,11 +101,15 @@ pub fn run() {
 
 fn zoom_by(app_handle: &tauri::AppHandle, delta: f64) {
     let zoom_level = app_handle.state::<ZoomLevel>();
-    let mut level = zoom_level.0.lock().expect("zoom level poisoned");
-    *level = (*level + delta).clamp(MIN_ZOOM, MAX_ZOOM);
+
+    let level = {
+        let mut level = zoom_level.0.lock().expect("zoom level poisoned");
+        *level = (*level + delta).clamp(MIN_ZOOM, MAX_ZOOM);
+        *level
+    };
 
     for window in app_handle.webview_windows().into_values() {
-        let _ = window.set_zoom(*level);
+        let _ = window.set_zoom(level);
     }
 }
 
