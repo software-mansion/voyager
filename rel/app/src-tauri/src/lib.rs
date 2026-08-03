@@ -5,7 +5,7 @@ use tauri::{
     menu::{MenuBuilder, SubmenuBuilder},
 };
 
-/// Current OS appearance for Auto theme sync after full page reloads.
+/// Current OS appearance for Auto theme after full page reloads.
 #[tauri::command]
 fn os_theme() -> &'static str {
     utils::os_theme_hint()
@@ -81,14 +81,23 @@ pub fn run() {
 fn create_window(app_handle: &tauri::AppHandle, port: u16) {
     let n = app_handle.webview_windows().len() + 1;
     let url = tauri::WebviewUrl::External(format!("http://127.0.0.1:{port}").parse().unwrap());
-    // Inject OS appearance before page scripts. Prefer sessionStorage over the
-    // create-time detect(): that value is baked into this script and would be
-    // stale after the OS theme changes, then re-applied on every full reload
-    // (e.g. LiveView live_session navigations).
+    // Prefer sessionStorage over create-time detect on reload.
     let theme = utils::os_theme_hint();
-    let theme_init = format!(
-        r#"(function(){{try{{var k="voyager:os-theme";var r=sessionStorage.getItem(k);if(r==="dark"||r==="light"){{window.__VOYAGER_OS_THEME__=r;return;}}}}catch(e){{}}window.__VOYAGER_OS_THEME__="{theme}";}})();"#
-    );
+    let theme_init = [
+        r#"(function () {
+  try {
+    var remembered = sessionStorage.getItem("voyager:os-theme");
+    if (remembered === "dark" || remembered === "light") {
+      window.__VOYAGER_OS_THEME__ = remembered;
+      return;
+    }
+  } catch (e) {}
+  window.__VOYAGER_OS_THEME__ = ""#,
+        theme,
+        r#"";
+})();"#,
+    ]
+    .concat();
     tauri::WebviewWindowBuilder::new(app_handle, format!("window-{}", n), url)
         .title("Voyager")
         .inner_size(1280.0, 960.0)

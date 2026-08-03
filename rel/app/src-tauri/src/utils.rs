@@ -42,12 +42,8 @@ fn random_secret(len: usize) -> String {
         .collect()
 }
 
-/// Best-effort OS appearance for first-paint theming in the webview.
-///
-/// Returns `"dark"` or `"light"`. Used from an initialization script so Auto
-/// mode can apply the correct theme before `prefers-color-scheme` (which may
-/// reflect the webview, not the OS) is consulted. Falls back to `"dark"` when
-/// the OS preference is unspecified or detection fails.
+/// Best-effort OS appearance (`"dark"` / `"light"`). Falls back to `"dark"`
+/// when unspecified or detection fails.
 pub fn os_theme_hint() -> &'static str {
     match dark_light::detect() {
         Ok(dark_light::Mode::Light) => "light",
