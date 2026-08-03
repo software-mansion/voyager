@@ -54,19 +54,24 @@
           applyTheme(theme);
         };
 
-        // Runtime Auto sync must not prefer the launch-time OS hint — it goes
-        // stale after OS appearance changes and can overwrite onThemeChanged.
+        // Prefer the OS hint when present (Tauri first paint / onThemeChanged).
+        // Falls back to prefers-color-scheme in the browser, where the hint is absent.
         const syncTheme = () => {
-          applyTheme(localStorage.getItem(THEME_KEY) || mediaTheme());
+          applyTheme(localStorage.getItem(THEME_KEY) || getSystemTheme());
         };
 
-        // First paint: prefer dark-light hint (webview prefers-color-scheme can disagree).
-        applyTheme(localStorage.getItem(THEME_KEY) || getSystemTheme());
+        // Once Tauri onThemeChanged is attached, ignore matchMedia — the webview's
+        // prefers-color-scheme can disagree with the real OS appearance and would
+        // overwrite the correct theme.
+        let trustOsThemeListener = false;
+
+        syncTheme();
 
         window
           .matchMedia("(prefers-color-scheme: dark)")
           .addEventListener("change", () => {
-            if (!localStorage.getItem(THEME_KEY)) syncTheme();
+            if (trustOsThemeListener || localStorage.getItem(THEME_KEY)) return;
+            syncTheme();
           });
 
         window.addEventListener("storage", (e) => {
@@ -102,9 +107,11 @@
                 window.__VOYAGER_OS_THEME__ = payload;
                 applyTheme(payload);
               } else {
+                delete window.__VOYAGER_OS_THEME__;
                 syncTheme();
               }
             });
+            trustOsThemeListener = true;
             return true;
           } catch (_error) {
             return false;
