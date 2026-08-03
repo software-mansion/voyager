@@ -119,12 +119,24 @@
           if (theme) applyOsTheme(theme);
         };
 
+        // Tauri listeners are native-side; must unlisten or they stack on reload.
+        let unlistenOsTheme = null;
+
+        const stopListeningForOsThemeChanges = () => {
+          if (typeof unlistenOsTheme === "function") {
+            unlistenOsTheme();
+            unlistenOsTheme = null;
+          }
+          trustOsThemeListener = false;
+        };
+
         const listenForOsThemeChanges = async () => {
           const win = window.__TAURI__?.window?.getCurrentWindow?.();
           if (!win?.onThemeChanged) return false;
+          if (unlistenOsTheme) return true;
 
           try {
-            await win.onThemeChanged(({ payload }) => {
+            unlistenOsTheme = await win.onThemeChanged(({ payload }) => {
               if (isTheme(payload)) applyOsTheme(payload);
             });
             trustOsThemeListener = true;
@@ -144,6 +156,8 @@
             if (attempts < 20) setTimeout(tryListen, 50);
           };
           tryListen();
+
+          window.addEventListener("pagehide", stopListeningForOsThemeChanges);
         }
       })();
     </script>
