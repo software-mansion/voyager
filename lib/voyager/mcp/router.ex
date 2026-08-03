@@ -16,11 +16,18 @@ defmodule Voyager.MCP.Router do
   plug :match
   plug :dispatch
 
+  # Anubis passes `:subscriber_metadata` to the `forward` without using MFA format which results in errors.
   forward "/mcp",
     to: Anubis.Server.Transport.StreamableHTTP.Plug,
-    init_opts: [server: Voyager.MCP.Server]
+    init_opts: [
+      server: Voyager.MCP.Server,
+      subscriber_metadata: &__MODULE__.subscriber_metadata/1
+    ]
 
   match _ do
     send_resp(conn, 404, "Not found")
   end
+
+  @doc false
+  def subscriber_metadata(_conn), do: %{}
 end
