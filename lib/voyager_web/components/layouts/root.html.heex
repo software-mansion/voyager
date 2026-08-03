@@ -28,43 +28,137 @@
     </script>
     <script>
       (() => {
-        const getSystemTheme = () =>
+        const THEME_KEY = "phx:theme";
+        // Survives full reloads; prefer over create-time Tauri hint.
+        const OS_THEME_KEY = "voyager:os-theme";
+
+        const mediaTheme = () =>
           window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+
+        const isTheme = (theme) => theme === "dark" || theme === "light";
+
+        const rememberOsTheme = (theme) => {
+          if (!isTheme(theme)) return;
+          window.__VOYAGER_OS_THEME__ = theme;
+          try {
+            sessionStorage.setItem(OS_THEME_KEY, theme);
+          } catch (_error) {}
+        };
+
+        // sessionStorage → Tauri init hint → matchMedia
+        const osThemeHint = () => {
+          try {
+            const remembered = sessionStorage.getItem(OS_THEME_KEY);
+            if (isTheme(remembered)) return remembered;
+          } catch (_error) {}
+          const hint = window.__VOYAGER_OS_THEME__;
+          return isTheme(hint) ? hint : null;
+        };
+
+        const getSystemTheme = () => osThemeHint() || mediaTheme();
 
         const applyTheme = (theme) => {
           document.documentElement.setAttribute("data-theme", theme);
         };
 
+        const applyOsTheme = (theme) => {
+          rememberOsTheme(theme);
+          if (!localStorage.getItem(THEME_KEY)) applyTheme(theme);
+        };
+
         const setTheme = (theme) => {
-          localStorage.setItem("phx:theme", theme);
+          localStorage.setItem(THEME_KEY, theme);
           applyTheme(theme);
         };
 
+        // Read-only; live updates remember via rememberOsTheme.
         const syncTheme = () => {
-          applyTheme(localStorage.getItem("phx:theme") || getSystemTheme());
+          applyTheme(localStorage.getItem(THEME_KEY) || getSystemTheme());
         };
+
+        // Ignore matchMedia once Tauri theme events are live.
+        let trustOsThemeListener = false;
 
         syncTheme();
 
         window
           .matchMedia("(prefers-color-scheme: dark)")
           .addEventListener("change", () => {
-            if (!localStorage.getItem("phx:theme")) syncTheme();
+            if (trustOsThemeListener || localStorage.getItem(THEME_KEY)) return;
+            syncTheme();
           });
 
         window.addEventListener("storage", (e) => {
-          if (e.key === "phx:theme") syncTheme();
+          if (e.key === THEME_KEY) syncTheme();
         });
 
         window.addEventListener("phx:set-theme", (e) => {
           const theme = e.target.dataset.phxTheme;
           if (theme === "system") {
-            localStorage.removeItem("phx:theme");
+            localStorage.removeItem(THEME_KEY);
             syncTheme();
+            refreshOsThemeFromTauri();
           } else {
             setTheme(theme);
           }
         });
+
+        const invokeOsTheme = async () => {
+          const invoke = window.__TAURI__?.core?.invoke;
+          if (typeof invoke !== "function") return null;
+          try {
+            const theme = await invoke("os_theme");
+            return isTheme(theme) ? theme : null;
+          } catch (_error) {
+            return null;
+          }
+        };
+
+        const refreshOsThemeFromTauri = async () => {
+          const theme = await invokeOsTheme();
+          if (theme) applyOsTheme(theme);
+        };
+
+        // Tauri listeners are native-side; must unlisten or they stack on reload.
+        let unlistenOsTheme = null;
+
+        const stopListeningForOsThemeChanges = () => {
+          if (typeof unlistenOsTheme === "function") {
+            unlistenOsTheme();
+            unlistenOsTheme = null;
+          }
+          trustOsThemeListener = false;
+        };
+
+        const listenForOsThemeChanges = async () => {
+          const win = window.__TAURI__?.window?.getCurrentWindow?.();
+          if (!win?.onThemeChanged) return false;
+          if (unlistenOsTheme) return true;
+
+          try {
+            unlistenOsTheme = await win.onThemeChanged(({ payload }) => {
+              if (isTheme(payload)) applyOsTheme(payload);
+            });
+            trustOsThemeListener = true;
+            return true;
+          } catch (_error) {
+            return false;
+          }
+        };
+
+        if (window.__TAURI_INTERNALS__) {
+          refreshOsThemeFromTauri();
+
+          let attempts = 0;
+          const tryListen = async () => {
+            if (await listenForOsThemeChanges()) return;
+            attempts += 1;
+            if (attempts < 20) setTimeout(tryListen, 50);
+          };
+          tryListen();
+
+          window.addEventListener("pagehide", stopListeningForOsThemeChanges);
+        }
       })();
     </script>
   </head>
