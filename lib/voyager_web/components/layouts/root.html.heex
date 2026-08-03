@@ -35,50 +35,15 @@
 
         const isTheme = (theme) => theme === "dark" || theme === "light";
 
-        // Prefer the OS theme exposed by Tauri. In the desktop webview,
-        // prefers-color-scheme can reflect the webview/browser preference
-        // rather than the operating system appearance.
-        // `__VOYAGER_OS_THEME__` is injected by Tauri before page scripts run.
+        // Injected by Tauri via dark-light before page scripts run. Prefer this
+        // over prefers-color-scheme in the desktop webview, which can disagree
+        // with the real OS appearance.
         const osThemeHint = () => {
           const hint = window.__VOYAGER_OS_THEME__;
           return isTheme(hint) ? hint : null;
         };
 
-        const getTauriWindow = () => {
-          try {
-            return window.__TAURI__?.window?.getCurrentWindow?.() ?? null;
-          } catch (_error) {
-            return null;
-          }
-        };
-
-        const getTauriThemeViaInternals = async () => {
-          const internals = window.__TAURI_INTERNALS__;
-          const label = internals?.metadata?.currentWindow?.label;
-          if (!internals?.invoke || !label) return null;
-
-          try {
-            const theme = await internals.invoke("plugin:window|theme", { label });
-            if (isTheme(theme)) return theme;
-          } catch (_error) {}
-
-          return null;
-        };
-
-        const getSystemTheme = async () => {
-          const win = getTauriWindow();
-          if (win) {
-            try {
-              const theme = await win.theme();
-              if (isTheme(theme)) return theme;
-            } catch (_error) {}
-          }
-
-          const internalsTheme = await getTauriThemeViaInternals();
-          if (internalsTheme) return internalsTheme;
-
-          return osThemeHint() || mediaTheme();
-        };
+        const getSystemTheme = () => osThemeHint() || mediaTheme();
 
         const applyTheme = (theme) => {
           document.documentElement.setAttribute("data-theme", theme);
@@ -89,15 +54,14 @@
           applyTheme(theme);
         };
 
-        const syncTheme = async () => {
-          const stored = localStorage.getItem(THEME_KEY);
-          applyTheme(stored || (await getSystemTheme()));
+        // Runtime Auto sync must not prefer the launch-time OS hint — it goes
+        // stale after OS appearance changes and can overwrite onThemeChanged.
+        const syncTheme = () => {
+          applyTheme(localStorage.getItem(THEME_KEY) || mediaTheme());
         };
 
-        // Paint immediately from sync sources (stored preference, Tauri OS
-        // hint, then media query), then refine asynchronously via Tauri APIs.
-        applyTheme(localStorage.getItem(THEME_KEY) || osThemeHint() || mediaTheme());
-        syncTheme();
+        // First paint: prefer dark-light hint (webview prefers-color-scheme can disagree).
+        applyTheme(localStorage.getItem(THEME_KEY) || getSystemTheme());
 
         window
           .matchMedia("(prefers-color-scheme: dark)")
@@ -119,6 +83,14 @@
           }
         });
 
+        const getTauriWindow = () => {
+          try {
+            return window.__TAURI__?.window?.getCurrentWindow?.() ?? null;
+          } catch (_error) {
+            return null;
+          }
+        };
+
         const listenForOsThemeChanges = async () => {
           const win = getTauriWindow();
           if (!win?.onThemeChanged) return false;
@@ -126,8 +98,12 @@
           try {
             await win.onThemeChanged(({ payload }) => {
               if (localStorage.getItem(THEME_KEY)) return;
-              if (isTheme(payload)) applyTheme(payload);
-              else syncTheme();
+              if (isTheme(payload)) {
+                window.__VOYAGER_OS_THEME__ = payload;
+                applyTheme(payload);
+              } else {
+                syncTheme();
+              }
             });
             return true;
           } catch (_error) {
