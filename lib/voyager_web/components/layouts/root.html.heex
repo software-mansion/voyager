@@ -29,16 +29,30 @@
     <script>
       (() => {
         const THEME_KEY = "phx:theme";
+        // Survives full document reloads within the webview (live_session hops).
+        // The Tauri init script's create-time detect() is otherwise re-injected
+        // stale on every navigation after the OS theme changes.
+        const OS_THEME_KEY = "voyager:os-theme";
 
         const mediaTheme = () =>
           window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 
         const isTheme = (theme) => theme === "dark" || theme === "light";
 
-        // Injected by Tauri via dark-light before page scripts run. Prefer this
-        // over prefers-color-scheme in the desktop webview, which can disagree
-        // with the real OS appearance.
+        const rememberOsTheme = (theme) => {
+          if (!isTheme(theme)) return;
+          window.__VOYAGER_OS_THEME__ = theme;
+          try {
+            sessionStorage.setItem(OS_THEME_KEY, theme);
+          } catch (_error) {}
+        };
+
+        // Prefer remembered OS theme, then Tauri init hint, then matchMedia.
         const osThemeHint = () => {
+          try {
+            const remembered = sessionStorage.getItem(OS_THEME_KEY);
+            if (isTheme(remembered)) return remembered;
+          } catch (_error) {}
           const hint = window.__VOYAGER_OS_THEME__;
           return isTheme(hint) ? hint : null;
         };
@@ -56,6 +70,8 @@
 
         // Prefer the OS hint when present (Tauri first paint / onThemeChanged).
         // Falls back to prefers-color-scheme in the browser, where the hint is absent.
+        // Do not write sessionStorage here — a create-time init hint can be stale
+        // after an OS change; only onThemeChanged should remember the live value.
         const syncTheme = () => {
           applyTheme(localStorage.getItem(THEME_KEY) || getSystemTheme());
         };
@@ -83,6 +99,7 @@
           if (theme === "system") {
             localStorage.removeItem(THEME_KEY);
             syncTheme();
+            refreshOsThemeFromTauri();
           } else {
             setTheme(theme);
           }
@@ -91,15 +108,37 @@
         const getTauriWindow = () =>
           window.__TAURI__?.window?.getCurrentWindow?.() ?? null;
 
+        const invokeOsTheme = async () => {
+          const invoke = window.__TAURI__?.core?.invoke;
+          if (typeof invoke !== "function") return null;
+          try {
+            const theme = await invoke("os_theme");
+            return isTheme(theme) ? theme : null;
+          } catch (_error) {
+            return null;
+          }
+        };
+
+        // Re-detect OS appearance after full reloads (live_session navigations).
+        // The init script value is fixed at window create and goes stale.
+        const refreshOsThemeFromTauri = async () => {
+          const theme = await invokeOsTheme();
+          if (!theme) return;
+          rememberOsTheme(theme);
+          if (!localStorage.getItem(THEME_KEY)) applyTheme(theme);
+        };
+
         const listenForOsThemeChanges = async () => {
           const win = getTauriWindow();
           if (!win?.onThemeChanged) return false;
 
           try {
             await win.onThemeChanged(({ payload }) => {
-              if (localStorage.getItem(THEME_KEY) || !isTheme(payload)) return;
-              window.__VOYAGER_OS_THEME__ = payload;
-              applyTheme(payload);
+              if (!isTheme(payload)) return;
+              // Always keep OS appearance fresh so Auto can use it later,
+              // even while Light/Dark is locked in localStorage.
+              rememberOsTheme(payload);
+              if (!localStorage.getItem(THEME_KEY)) applyTheme(payload);
             });
             trustOsThemeListener = true;
             return true;
@@ -109,6 +148,8 @@
         };
 
         if (window.__TAURI_INTERNALS__) {
+          refreshOsThemeFromTauri();
+
           let attempts = 0;
           const tryListen = async () => {
             if (await listenForOsThemeChanges()) return;

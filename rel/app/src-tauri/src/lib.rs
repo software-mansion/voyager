@@ -5,6 +5,12 @@ use tauri::{
     menu::{MenuBuilder, SubmenuBuilder},
 };
 
+/// Current OS appearance for Auto theme sync after full page reloads.
+#[tauri::command]
+fn os_theme() -> &'static str {
+    utils::os_theme_hint()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let pubsub = elixirkit::PubSub::listen("tcp://127.0.0.1:0").expect("failed to listen");
@@ -12,6 +18,7 @@ pub fn run() {
     tauri::Builder::default()
         .enable_macos_default_menu(false)
         .plugin(tauri_plugin_opener::init())
+        .invoke_handler(tauri::generate_handler![os_theme])
         .setup(move |app| {
             #[cfg(target_os = "macos")]
             {
@@ -74,12 +81,13 @@ pub fn run() {
 fn create_window(app_handle: &tauri::AppHandle, port: u16) {
     let n = app_handle.webview_windows().len() + 1;
     let url = tauri::WebviewUrl::External(format!("http://127.0.0.1:{port}").parse().unwrap());
-    // Inject the OS appearance before page scripts run so Auto mode can paint
-    // the correct DaisyUI theme on first frame (webview prefers-color-scheme
-    // often disagrees with the real OS theme).
+    // Inject OS appearance before page scripts. Prefer sessionStorage over the
+    // create-time detect(): that value is baked into this script and would be
+    // stale after the OS theme changes, then re-applied on every full reload
+    // (e.g. LiveView live_session navigations).
+    let theme = utils::os_theme_hint();
     let theme_init = format!(
-        r#"window.__VOYAGER_OS_THEME__="{}";"#,
-        utils::os_theme_hint()
+        r#"(function(){{try{{var k="voyager:os-theme";var r=sessionStorage.getItem(k);if(r==="dark"||r==="light"){{window.__VOYAGER_OS_THEME__=r;return;}}}}catch(e){{}}window.__VOYAGER_OS_THEME__="{theme}";}})();"#
     );
     tauri::WebviewWindowBuilder::new(app_handle, format!("window-{}", n), url)
         .title("Voyager")
