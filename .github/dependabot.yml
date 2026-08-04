@@ -6,39 +6,103 @@ updates:
     directory: "/assets"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Etc/UTC"
     open-pull-requests-limit: 10
+    commit-message:
+      prefix: "Chore"
     groups:
-      assets-npm:
+      assets-npm-minor-patch:
+        applies-to: version-updates
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      assets-npm-major:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "major"
 
   # e2e: only shared runtime types dep (cytoscape). Other e2e deps stay manual.
   - package-ecosystem: "npm"
     directory: "/e2e"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Etc/UTC"
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: "Chore"
     allow:
       - dependency-name: "cytoscape"
+    groups:
+      e2e-cytoscape-minor-patch:
+        applies-to: version-updates
+        patterns:
+          - "cytoscape"
+        update-types:
+          - "minor"
+          - "patch"
+      e2e-cytoscape-major:
+        applies-to: version-updates
+        patterns:
+          - "cytoscape"
+        update-types:
+          - "major"
 
   # Elixir deps (mix.exs / mix.lock)
   - package-ecosystem: "mix"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Etc/UTC"
     open-pull-requests-limit: 10
+    commit-message:
+      prefix: "Chore"
     groups:
-      elixir-deps:
+      elixir-minor-patch:
+        applies-to: version-updates
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      elixir-major:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "major"
 
   # Tauri Rust deps (rel/app/src-tauri/Cargo.toml)
   - package-ecosystem: "cargo"
     directory: "/rel/app/src-tauri"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Etc/UTC"
     open-pull-requests-limit: 10
+    commit-message:
+      prefix: "Chore"
     groups:
-      tauri-rust:
+      tauri-rust-minor-patch:
+        applies-to: version-updates
         patterns:
           - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      tauri-rust-major:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "major"
