@@ -58,10 +58,12 @@ export async function fillConnectForm(
   nodeName: string,
   cookie: string
 ) {
-  await page.locator(sel.nodeNameInput).fill(nodeName);
-  await page.locator(sel.cookieInput).fill(cookie);
-  await expect(page.locator(sel.nodeNameInput)).toHaveValue(nodeName);
-  await expect(page.locator(sel.cookieInput)).toHaveValue(cookie);
+  await expect(async () => {
+    await page.locator(sel.nodeNameInput).fill(nodeName);
+    await page.locator(sel.cookieInput).fill(cookie);
+    await expect(page.locator(sel.nodeNameInput)).toHaveValue(nodeName);
+    await expect(page.locator(sel.cookieInput)).toHaveValue(cookie);
+  }).toPass({ timeout: 1000 });
 }
 
 export async function switchConnectMode(page: Page, modeSelector: string) {

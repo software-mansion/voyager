@@ -10,3 +10,6 @@ node_modules/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+
+# Flakiness benchmark output
+/flakiness-results/

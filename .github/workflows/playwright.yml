@@ -86,6 +86,9 @@ jobs:
       - name: Run e2e tests
         run: mix e2e
 
+      - name: Run e2e tests flakiness benchmark
+        run: ./e2e/bench-flakiness.sh
+
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
