@@ -113,16 +113,19 @@ defmodule VoyagerWeb.ConnectLiveTest do
     test "updates the tooltip after disconnecting, instead of keeping the stale reason", %{
       conn: conn
     } do
-      Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
+      Fakes.connect_node!(Fakes.node_session())
 
       {:ok, view, _html} = live(conn, ~p"/")
 
+      assert has_element?(view, "input#mode-direct[disabled]")
       tip_html = view |> element("#mode-toggle-tip-connected-portal") |> render()
       assert tip_html =~ "Cannot change mode while connected"
 
       view |> element("#disconnect-from-connect") |> render_click()
 
       assert NodeSession.current() == nil
+
+      assert has_element?(view, "input#mode-direct[disabled]")
       refute has_element?(view, "#mode-toggle-tip-connected-portal")
 
       tip_html = view |> element("#mode-toggle-tip-proxy_epmd_inactive-portal") |> render()
