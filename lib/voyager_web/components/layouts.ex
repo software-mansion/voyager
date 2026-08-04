@@ -81,13 +81,13 @@ defmodule VoyagerWeb.Layouts do
 
   @doc """
   Renders the first-launch popup informing users about anonymous telemetry
-  collection and linking to the Terms of Use. Dismissed via the
+  collection and linking to the Terms of Service. Dismissed via the
   `"dismiss-onboarding"` event, handled by `VoyagerWeb.Hooks.OnboardingHook`.
   """
   attr :show, :boolean, default: false
 
   def onboarding_modal(assigns) do
-    assigns = assign(assigns, :terms_of_use_url, Application.get_env(:voyager, :terms_of_use_url))
+    assigns = assign(assigns, :terms_of_service_url, Application.get_env(:voyager, :terms_of_service_url))
 
     ~H"""
     <div
@@ -123,12 +123,12 @@ defmodule VoyagerWeb.Layouts do
           </p>
           <p>
             By continuing, you acknowledge and agree to our <.link
-              href={@terms_of_use_url}
+              href={@terms_of_service_url}
               target="_blank"
               rel="noopener noreferrer"
               class="link link-primary"
             >
-              Terms of Use
+              Terms of Service
             </.link>.
           </p>
         </div>

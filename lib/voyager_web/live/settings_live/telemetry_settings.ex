@@ -15,10 +15,10 @@ defmodule VoyagerWeb.SettingsLive.TelemetrySettings do
   end
 
   @impl true
-  def update(%{id: id, terms_of_use_url: terms_of_use_url}, socket) do
+  def update(%{id: id, terms_of_service_url: terms_of_service_url}, socket) do
     socket
     |> assign(:id, id)
-    |> assign(:terms_of_use_url, terms_of_use_url)
+    |> assign(:terms_of_service_url, terms_of_service_url)
     |> ok()
   end
 
@@ -55,12 +55,12 @@ defmodule VoyagerWeb.SettingsLive.TelemetrySettings do
         </div>
 
         <.link
-          href={@terms_of_use_url}
+          href={@terms_of_service_url}
           target="_blank"
           rel="noopener noreferrer"
           class="link link-primary self-start text-xs"
         >
-          Terms of Use
+          Terms of Service
         </.link>
       </div>
     </div>
