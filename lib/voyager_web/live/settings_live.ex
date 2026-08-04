@@ -16,7 +16,7 @@ defmodule VoyagerWeb.SettingsLive do
     socket
     |> assign(:return_to, safe_return_to(params["return_to"]))
     |> assign(:connected?, not is_nil(NodeSession.current()))
-    |> assign(:terms_of_use_url, Application.get_env(:voyager, :terms_of_use_url))
+    |> assign(:terms_of_service_url, Application.get_env(:voyager, :terms_of_service_url))
     |> ok()
   end
 
@@ -41,7 +41,7 @@ defmodule VoyagerWeb.SettingsLive do
       <.live_component
         module={TelemetrySettings}
         id="telemetry-settings"
-        terms_of_use_url={@terms_of_use_url}
+        terms_of_service_url={@terms_of_service_url}
       />
     </div>
     """
