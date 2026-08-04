@@ -26,6 +26,10 @@ updates:
           - "*"
         update-types:
           - "major"
+      assets-npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
 
   # e2e: only shared runtime types dep (cytoscape). Other e2e deps stay manual.
   - package-ecosystem: "npm"
@@ -54,6 +58,10 @@ updates:
           - "cytoscape"
         update-types:
           - "major"
+      e2e-cytoscape-security:
+        applies-to: security-updates
+        patterns:
+          - "cytoscape"
 
   # Elixir deps (mix.exs / mix.lock)
   - package-ecosystem: "mix"
@@ -80,6 +88,10 @@ updates:
           - "*"
         update-types:
           - "major"
+      elixir-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
 
   # Tauri Rust deps (rel/app/src-tauri/Cargo.toml)
   - package-ecosystem: "cargo"
@@ -106,3 +118,7 @@ updates:
           - "*"
         update-types:
           - "major"
+      tauri-rust-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
