@@ -106,13 +106,19 @@ defmodule VoyagerWeb.ConnectComponents do
 
   attr :mode, :atom, required: true
   attr :disabled, :boolean, default: false
+  attr :reason, :atom, default: nil
 
   slot :disabled_reason, doc: "Tooltip content displayed when inputs are disabled"
 
   def mode_toggle(assigns) do
     ~H"""
     <form phx-change="switch_mode" id="mode-toggle" class="mb-6" disabled={@disabled}>
-      <.tooltip :if={@disabled} id="mode-toggle-tip" position="bottom" class="w-full">
+      <.tooltip
+        :if={@disabled}
+        id={"mode-toggle-tip-#{@reason}"}
+        position="bottom"
+        class="w-full"
+      >
         <.mode_segmented mode={@mode} disabled={@disabled} />
         <:content>{render_slot(@disabled_reason)}</:content>
       </.tooltip>
