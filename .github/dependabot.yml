@@ -44,24 +44,6 @@ updates:
       prefix: "Chore"
     allow:
       - dependency-name: "cytoscape"
-    groups:
-      e2e-cytoscape-minor-patch:
-        applies-to: version-updates
-        patterns:
-          - "cytoscape"
-        update-types:
-          - "minor"
-          - "patch"
-      e2e-cytoscape-major:
-        applies-to: version-updates
-        patterns:
-          - "cytoscape"
-        update-types:
-          - "major"
-      e2e-cytoscape-security:
-        applies-to: security-updates
-        patterns:
-          - "cytoscape"
 
   # Elixir deps (mix.exs / mix.lock)
   - package-ecosystem: "mix"
