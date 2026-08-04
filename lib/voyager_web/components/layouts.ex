@@ -87,7 +87,8 @@ defmodule VoyagerWeb.Layouts do
   attr :show, :boolean, default: false
 
   def onboarding_modal(assigns) do
-    assigns = assign(assigns, :terms_of_service_url, Application.get_env(:voyager, :terms_of_service_url))
+    assigns =
+      assign(assigns, :terms_of_service_url, Application.get_env(:voyager, :terms_of_service_url))
 
     ~H"""
     <div
