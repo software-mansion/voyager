@@ -55,13 +55,13 @@ defmodule Voyager.Services.Distribution do
   end
 
   @doc """
-  Returns the local distribution base name (`:"voyager<suffix>"`) built from the
+  Returns the local distribution base name (`"voyager<suffix>"`) built from the
   `:distribution_suffix` setting.
   """
-  @spec distribution_name() :: atom()
+  @spec distribution_name() :: String.t()
   def distribution_name do
     suffix = Settings.get(:distribution_suffix, "")
-    String.to_atom("voyager#{suffix}")
+    "voyager#{suffix}"
   end
 
   defp matches_name_type?(:longnames), do: :net_kernel.longnames() == true
@@ -76,7 +76,7 @@ defmodule Voyager.Services.Distribution do
       |> Atom.to_string()
       |> split_node_name()
 
-    name == Atom.to_string(distribution_name())
+    name == distribution_name()
   end
 
   defp start_distribution(name_type) do
