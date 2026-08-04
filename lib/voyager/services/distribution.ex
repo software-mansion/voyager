@@ -5,9 +5,8 @@ defmodule Voyager.Services.Distribution do
   `Voyager.Services.RemoteNodeConnector`.
 
   The local distribution name is `voyager<suffix>`, where `<suffix>` comes from
-  the `:distribution_suffix` setting. Only the base name is passed to
-  `:net_kernel.start/2`; the host part is derived from `name_domain`, so the
-  same base name is valid for both `:longnames` and `:shortnames`.
+  the `:distribution_suffix` setting. The host part is pinned to `127.0.0.1`
+  for `:longnames` and `localhost` for `:shortnames`.
   """
 
   alias Voyager.Settings
@@ -68,6 +67,9 @@ defmodule Voyager.Services.Distribution do
   defp matches_name_type?(:longnames), do: :net_kernel.longnames() == true
   defp matches_name_type?(:shortnames), do: :net_kernel.longnames() == false
 
+  defp local_node_name(:longnames), do: String.to_atom("#{distribution_name()}@127.0.0.1")
+  defp local_node_name(:shortnames), do: String.to_atom("#{distribution_name()}@localhost")
+
   defp distribution_name_matches? do
     {:ok, name, _host} =
       Node.self()
@@ -78,7 +80,7 @@ defmodule Voyager.Services.Distribution do
   end
 
   defp start_distribution(name_type) do
-    node_name = distribution_name()
+    node_name = local_node_name(name_type)
 
     case :net_kernel.start(node_name, %{name_domain: name_type, hidden: true}) do
       {:ok, _pid} ->
