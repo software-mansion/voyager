@@ -56,6 +56,7 @@ for i in $(seq 1 "$RUNS"); do
 
   if [ -f "$run_json" ]; then
     echo "  report: $run_json"
+    node "$SCRIPT_DIR/aggregate-flakiness.mjs" "$RESULTS_DIR"
   else
     echo "  WARNING: no JSON report produced (see $run_log)"
   fi
