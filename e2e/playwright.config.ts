@@ -43,7 +43,7 @@ export default defineConfig({
     },
 
     {
-      name: 'recent-connections',
+      name: 'recent-connections chrome',
       use: { ...devices['Desktop Chrome'] },
       workers: 1,
       testMatch: '**/recent_connections.spec.ts',
@@ -54,7 +54,7 @@ export default defineConfig({
       use: { ...devices['Desktop Firefox'] },
       workers: 1,
       testMatch: '**/recent_connections.spec.ts',
-      dependencies: ['recent-connections'],
+      dependencies: ['recent-connections chrome'],
     },
 
     {
@@ -83,7 +83,7 @@ export default defineConfig({
       use: { ...devices['Desktop Firefox'] },
       fullyParallel: false,
       testMatch: ['**/supervision_tree.spec.ts', '**/details_panel.spec.ts'],
-      dependencies: ['recent-connections firefox', 'supervision-tree chromium'],
+      dependencies: ['supervision-tree chromium'],
     },
   ],
 });

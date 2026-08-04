@@ -64,6 +64,13 @@ export async function fillConnectForm(
   await expect(page.locator(sel.cookieInput)).toHaveValue(cookie);
 }
 
+export async function switchConnectMode(page: Page, modeSelector: string) {
+  await expect(async () => {
+    await page.locator(modeSelector).check();
+    await expect(page.locator(modeSelector)).toBeChecked();
+  }).toPass();
+}
+
 /** Ensures the connect page is interactive (no active NodeSession). */
 export async function ensureDisconnected(page: Page) {
   await page.goto('/');
@@ -84,23 +91,25 @@ export async function ensureConnected(page: Page) {
   await page.goto('/');
   await waitForLiveView(page);
 
-  const disconnect = page.locator(sel.disconnectFromConnect);
-  if (await disconnect.isVisible()) {
-    const indicator = page.locator(sel.connectedIndicator);
-    if (await indicator.isVisible()) {
-      const text = await indicator.textContent();
-      if (text?.includes(NODE_NAME)) {
-        return;
+  await expect(async () => {
+    const disconnect = page.locator(sel.disconnectFromConnect);
+    if (await disconnect.isVisible()) {
+      const indicator = page.locator(sel.connectedIndicator);
+      if (await indicator.isVisible()) {
+        const text = await indicator.textContent();
+        if (text?.includes(NODE_NAME)) {
+          return;
+        }
       }
+
+      await disconnect.click();
+      await expect(disconnect).toBeHidden();
+      await expect(page.locator(sel.connectBtn)).toBeEnabled();
+      await waitForLiveView(page);
     }
 
-    await disconnect.click();
-    await expect(disconnect).toBeHidden();
-    await expect(page.locator(sel.connectBtn)).toBeEnabled();
-    await waitForLiveView(page);
-  }
-
-  await fillConnectForm(page, NODE_NAME, COOKIE);
-  await page.locator(sel.connectBtn).click();
-  await expect(page).toHaveURL(/\/node\//);
+    await fillConnectForm(page, NODE_NAME, COOKIE);
+    await page.locator(sel.connectBtn).click({ timeout: 1000 });
+    await expect(page).toHaveURL(/\/node\//);
+  }).toPass();
 }

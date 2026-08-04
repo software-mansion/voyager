@@ -10,7 +10,6 @@ import {
 
 test.describe('SupervisionTreeLive › DetailsPanel', () => {
   test.beforeEach(async ({ page }) => {
-    rpcOk('mock_app_ctl reset []');
     await page.addInitScript(() => {
       localStorage.removeItem('voyager:details-panel-width');
     });
