@@ -93,7 +93,7 @@ defmodule VoyagerWeb.ConnectLiveTest do
       assert has_element?(view, "input#mode-direct[disabled]")
       assert has_element?(view, "input#mode-ssh[disabled]")
 
-      tip_html = view |> element("#mode-toggle-tip-portal") |> render()
+      tip_html = view |> element("#mode-toggle-tip-proxy_epmd_inactive-portal") |> render()
       assert tip_html =~ "<strong>proxy_epmd</strong>"
       assert tip_html =~ "module is not active"
     end
@@ -105,9 +105,32 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
       assert has_element?(view, "input#mode-direct[disabled]")
 
-      tip_html = view |> element("#mode-toggle-tip-portal") |> render()
+      tip_html = view |> element("#mode-toggle-tip-connected-portal") |> render()
       assert tip_html =~ "Cannot change mode while connected"
       refute tip_html =~ "proxy_epmd"
+    end
+
+    test "updates the tooltip after disconnecting, instead of keeping the stale reason", %{
+      conn: conn
+    } do
+      Fakes.connect_node!(Fakes.node_session())
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, "input#mode-direct[disabled]")
+      tip_html = view |> element("#mode-toggle-tip-connected-portal") |> render()
+      assert tip_html =~ "Cannot change mode while connected"
+
+      view |> element("#disconnect-from-connect") |> render_click()
+
+      assert NodeSession.current() == nil
+
+      assert has_element?(view, "input#mode-direct[disabled]")
+      refute has_element?(view, "#mode-toggle-tip-connected-portal")
+
+      tip_html = view |> element("#mode-toggle-tip-proxy_epmd_inactive-portal") |> render()
+      assert tip_html =~ "<strong>proxy_epmd</strong>"
+      refute tip_html =~ "Cannot change mode while connected"
     end
   end
 

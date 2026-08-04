@@ -44,7 +44,11 @@ defmodule VoyagerWeb.ConnectLive do
               <h4 class="font-mono tracking-label text-base-content/70 mb-2 text-xs uppercase">
                 Connection type:
               </h4>
-              <ConnectComponents.mode_toggle mode={@mode} disabled={not is_nil(@mode_disabled_reason)}>
+              <ConnectComponents.mode_toggle
+                mode={@mode}
+                disabled={not is_nil(@mode_disabled_reason)}
+                reason={@mode_disabled_reason}
+              >
                 <:disabled_reason :if={@mode_disabled_reason == :connected}>
                   Cannot change mode while connected
                 </:disabled_reason>
