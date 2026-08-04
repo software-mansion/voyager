@@ -54,12 +54,7 @@ defmodule Voyager.Services.Distribution do
     end
   end
 
-  @doc """
-  Returns the local distribution base name (`"voyager<suffix>"`) built from the
-  `:distribution_suffix` setting.
-  """
-  @spec distribution_name() :: String.t()
-  def distribution_name do
+  defp distribution_name do
     suffix = Settings.get(:distribution_suffix, "")
     "voyager#{suffix}"
   end
