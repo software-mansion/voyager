@@ -46,7 +46,7 @@ defmodule Voyager.Services.DistributionTest do
     end
 
     test "rejects an invalid name_type" do
-      assert {:error, :invalid_name_type} = Distribution.ensure_distributed(:bogus)
+      assert {:error, :invalid_name_type} = Distribution.ensure_distributed(:invalid)
     end
   end
 end
