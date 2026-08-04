@@ -4,7 +4,7 @@ config :voyager,
   ecto_repos: [Voyager.Repo],
   generators: [timestamp_type: :utc_datetime]
 
-config :voyager, :terms_of_use_url, "https://swmansion.com/legal/voyager/terms-of-use/"
+config :voyager, :terms_of_service_url, "https://swmansion.com/legal/voyager/terms-of-service/"
 
 config :voyager, VoyagerWeb.Endpoint,
   url: [host: "localhost"],
