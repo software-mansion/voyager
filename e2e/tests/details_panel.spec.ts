@@ -1,6 +1,5 @@
 import { test, expect } from '@playwright/test';
 import {
-  rpcOk,
   openTree,
   selectNode,
   clearSelection,
