@@ -102,7 +102,7 @@ jobs:
           FLAKINESS_THRESHOLD: ${{ github.event.inputs.threshold || '2' }}
         # RUNS RETRIES THRESHOLD. On threshold breach the script exits non-zero,
         # failing the job (GitHub then notifies) — the upload below still runs.
-        run: ./e2e/bench-flakiness.sh "$RUNS" 2 "$FLAKINESS_THRESHOLD"
+        run: mix ecto.reset && ./e2e/bench-flakiness.sh "$RUNS" 2 "$FLAKINESS_THRESHOLD"
 
       - name: Upload flakiness results
         uses: actions/upload-artifact@v7

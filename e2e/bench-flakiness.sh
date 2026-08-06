@@ -69,13 +69,13 @@ for i in $(seq 1 "$RUNS"); do
   # `|| true` keeps a failing suite from killing the batch — a fail is data.
   PLAYWRIGHT_JSON_OUTPUT_FILE="$run_json" \
   PLAYWRIGHT_BLOB_OUTPUT_FILE="$run_blob" \
-    npx playwright test --retries="$RETRIES" --reporter=blob,json \
-    >"$run_log" 2>&1 || true
+    npx playwright test --quiet --retries="$RETRIES" --reporter=blob,json \
+    2>&1 | tee "$run_log" || true
 
   bash "$SCRIPT_DIR/node.sh" stop >/dev/null 2>&1
 
   if [ -f "$run_json" ]; then
-    echo "  report: $run_json"
+    echo "report: $run_json"
     node "$SCRIPT_DIR/aggregate-flakiness.mjs" "$RESULTS_DIR"
   else
     echo "  WARNING: no JSON report produced (see $run_log)"
