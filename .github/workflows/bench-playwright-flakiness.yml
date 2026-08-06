@@ -1,14 +1,27 @@
-name: Playwright Test
+name: Benchmark E2E Flakiness
 
 on:
-  push:
-    branches:
-      - main
-      - "v*.*"
+  ################################################
+  # TODO: Remove this trigger
+  # temporary trigger to index workflow on github
+  ################################################
   pull_request:
     branches:
       - main
-      - "v*.*"
+  ################################################
+
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: "Number of full suite runs"
+        required: false
+        default: "30"
+      threshold:
+        description: "Max allowed failures (flaky+fail) per test before the benchmark fails"
+        required: false
+        default: "2"
+  schedule:
+    - cron: "0 0 * * 0"
 
 permissions:
   contents: read
@@ -18,8 +31,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  e2e:
-    name: e2e
+  benchmark:
+    name: Benchmark E2E tests flakiness
     runs-on: ubuntu-24.04
 
     env:
@@ -83,12 +96,20 @@ jobs:
       - name: Setup and build assets
         run: mix assets.setup && mix assets.deploy
 
-      - name: Run e2e tests
-        run: mix e2e
+      - name: Run benchmark
+        env:
+          RUNS: ${{ github.event.inputs.runs || '30' }}
+          FLAKINESS_THRESHOLD: ${{ github.event.inputs.threshold || '2' }}
+        # RUNS RETRIES THRESHOLD. On threshold breach the script exits non-zero,
+        # failing the job (GitHub then notifies) — the upload below still runs.
+        run: ./e2e/bench-flakiness.sh "$RUNS" 2 "$FLAKINESS_THRESHOLD"
 
-      - uses: actions/upload-artifact@v7
+      - name: Upload flakiness results
+        uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
-          name: playwright-report
-          path: e2e/playwright-report/
+          name: flakiness-report
+          # Full batch output: summary.txt/json, per-run json + logs, blob
+          # reports, and the merged HTML report (with traces of failed tests).
+          path: e2e/flakiness-results/
           retention-days: 7
