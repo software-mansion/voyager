@@ -62,18 +62,18 @@ defmodule Voyager.Telemetry.ParserTest do
 
   describe "parse_metadata/2 for mcp tool call events" do
     test "includes tool name for `tool_call.start` and `tool_call.stop`" do
-      assert Parser.parse_metadata([:server, :tool_call, :start], %{
+      assert Parser.parse_metadata([:anubis_mcp, :server, :tool_call, :start], %{
                tool: "node_info"
              }) == %{tool: "node_info"}
 
-      assert Parser.parse_metadata([:server, :tool_call, :stop], %{
+      assert Parser.parse_metadata([:anubis_mcp, :server, :tool_call, :stop], %{
                tool: "node_info"
              }) == %{tool: "node_info"}
     end
 
     test "includes tool name, kind and reason for `tool_call.exception`" do
       meta = %{tool: "node_info", kind: :error, reason: %RuntimeError{message: "boom"}}
-      result = Parser.parse_metadata([:server, :tool_call, :exception], meta)
+      result = Parser.parse_metadata([:anubis_mcp, :server, :tool_call, :exception], meta)
 
       assert result == %{
                tool: "node_info",
@@ -144,7 +144,7 @@ defmodule Voyager.Telemetry.ParserTest do
 
   describe "parse_measurements/2 for mcp tool call events" do
     test "returns empty map for `tool_call.start`" do
-      result = Parser.parse_measurements([:server, :tool_call, :start], %{foo: :bar})
+      result = Parser.parse_measurements([:anubis_mcp, :server, :tool_call, :start], %{foo: :bar})
       assert result == %{}
     end
 
@@ -152,7 +152,7 @@ defmodule Voyager.Telemetry.ParserTest do
       native = System.convert_time_unit(42, :millisecond, :native)
 
       result =
-        Parser.parse_measurements([:server, :tool_call, :stop], %{duration: native})
+        Parser.parse_measurements([:anubis_mcp, :server, :tool_call, :stop], %{duration: native})
 
       assert result == %{duration_ms: 42}
     end
@@ -161,7 +161,7 @@ defmodule Voyager.Telemetry.ParserTest do
       native = System.convert_time_unit(7, :millisecond, :native)
 
       result =
-        Parser.parse_measurements([:server, :tool_call, :exception], %{
+        Parser.parse_measurements([:anubis_mcp, :server, :tool_call, :exception], %{
           duration: native
         })
 

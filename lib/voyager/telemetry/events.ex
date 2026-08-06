@@ -27,9 +27,9 @@ defmodule Voyager.Telemetry.Events do
 
   # Emitted by the `anubis_mcp` dependency itself (via `:telemetry.span/3`)
   @mcp_events [
-    [:server, :tool_call, :start],
-    [:server, :tool_call, :stop],
-    [:server, :tool_call, :exception]
+    [:anubis_mcp, :server, :tool_call, :start],
+    [:anubis_mcp, :server, :tool_call, :stop],
+    [:anubis_mcp, :server, :tool_call, :exception]
   ]
 
   @all_events @phoenix_events ++ @system_events ++ @custom_events ++ @mcp_events

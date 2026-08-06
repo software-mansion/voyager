@@ -36,13 +36,13 @@ defmodule Voyager.Telemetry.Parser do
   def parse_measurements([:voyager, :mcp, :start], _m), do: %{}
   def parse_measurements([:voyager, :mcp, :stop], _m), do: %{}
 
-  def parse_measurements([:server, :tool_call, :start], _m), do: %{}
+  def parse_measurements([:anubis_mcp, :server, :tool_call, :start], _m), do: %{}
 
-  def parse_measurements([:server, :tool_call, :stop], m) do
+  def parse_measurements([:anubis_mcp, :server, :tool_call, :stop], m) do
     %{duration_ms: native_to_ms(m[:duration])}
   end
 
-  def parse_measurements([:server, :tool_call, :exception], m) do
+  def parse_measurements([:anubis_mcp, :server, :tool_call, :exception], m) do
     %{duration_ms: native_to_ms(m[:duration])}
   end
 
@@ -75,15 +75,15 @@ defmodule Voyager.Telemetry.Parser do
   def parse_metadata([:voyager, :mcp, :start], meta), do: %{reason: meta[:reason]}
   def parse_metadata([:voyager, :mcp, :stop], meta), do: %{reason: meta[:reason]}
 
-  def parse_metadata([:server, :tool_call, :start], meta) do
+  def parse_metadata([:anubis_mcp, :server, :tool_call, :start], meta) do
     %{tool: meta[:tool]}
   end
 
-  def parse_metadata([:server, :tool_call, :stop], meta) do
+  def parse_metadata([:anubis_mcp, :server, :tool_call, :stop], meta) do
     %{tool: meta[:tool]}
   end
 
-  def parse_metadata([:server, :tool_call, :exception], meta) do
+  def parse_metadata([:anubis_mcp, :server, :tool_call, :exception], meta) do
     %{tool: meta[:tool], kind: meta[:kind], reason: inspect(meta[:reason])}
   end
 

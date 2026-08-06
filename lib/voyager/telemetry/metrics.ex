@@ -47,15 +47,15 @@ defmodule Voyager.Telemetry.Metrics do
         tags: [:reason],
         measurement: fn _measurements, _metadata -> 1 end
       ),
-      counter("server.tool_call.stop.count",
+      counter("anubis_mcp.server.tool_call.stop.count",
         tags: [:tool],
         measurement: fn _measurements, _metadata -> 1 end
       ),
-      counter("server.tool_call.exception.count",
+      counter("anubis_mcp.server.tool_call.exception.count",
         tags: [:tool],
         measurement: fn _measurements, _metadata -> 1 end
       ),
-      summary("server.tool_call.stop.duration",
+      summary("anubis_mcp.server.tool_call.stop.duration",
         tags: [:tool],
         unit: {:native, :millisecond}
       ),
