@@ -8,15 +8,15 @@
     "check-types": "tsc --project ./jsconfig.json"
   },
   "dependencies": {
-    "@fontsource-variable/dm-sans": "^5.2.8",
-    "colorjs.io": "^0.6.1",
-    "cytoscape": "3.33.4",
+    "@fontsource-variable/dm-sans": "^5.3.0",
+    "colorjs.io": "^0.7.1",
+    "cytoscape": "3.34.0",
     "cytoscape-dagre": "^2.5.0",
     "dagre": "^0.8.5",
-    "daisyui": "^5.0.0"
+    "daisyui": "^5.7.14"
   },
   "devDependencies": {
-    "prettier": "^3.8.3",
+    "prettier": "^3.9.6",
     "typescript": "^5.9.2"
   }
 }
