@@ -38,9 +38,15 @@ let write = false;
 let threshold = null;
 for (const a of process.argv.slice(2)) {
   if (a === '--write') write = true;
-  else if (a.startsWith('--threshold='))
-    threshold = Number(a.slice('--threshold='.length));
-  else if (!a.startsWith('--')) dir = a;
+  else if (a.startsWith('--threshold=')) {
+    const raw = a.slice('--threshold='.length);
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n < 0) {
+      console.error(`❗Invalid --threshold value: ${raw}\n`);
+      continue;
+    }
+    threshold = n;
+  } else if (!a.startsWith('--')) dir = a;
 }
 dir ||= join(process.cwd(), 'flakiness-results');
 
@@ -49,7 +55,7 @@ const files = readdirSync(dir)
   .sort();
 
 if (files.length === 0) {
-  console.error(`No run-*.json reports found in ${dir}`);
+  console.error(`❗No run-*.json reports found in ${dir}`);
   process.exit(1);
 }
 
@@ -101,7 +107,7 @@ for (const file of files) {
   try {
     report = JSON.parse(readFileSync(join(dir, file), 'utf8'));
   } catch (e) {
-    console.error(`  skipping unreadable report ${file}: ${e.message}`);
+    console.error(`  ❗skipping unreadable report ${file}: ${e.message}`);
     brokenReports.push(file);
     continue;
   }
@@ -261,7 +267,7 @@ if (write) {
     try {
       appendFileSync(process.env.GITHUB_STEP_SUMMARY, md.join('\n') + '\n');
     } catch (e) {
-      console.error(`Could not write GITHUB_STEP_SUMMARY: ${e.message}`);
+      console.error(`❗Could not write GITHUB_STEP_SUMMARY: ${e.message}`);
     }
   }
 
