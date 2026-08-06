@@ -82,16 +82,18 @@ defmodule VoyagerWeb.ConnectComponents do
           <span class="font-mono text-base-content/75 min-w-0 truncate text-xs">
             {@session.node_name}
           </span>
-          <button
-            type="button"
-            id="disconnect-from-connect"
-            phx-click="disconnect"
-            title="Disconnect"
-            aria-label="Disconnect"
-            class="btn btn-ghost btn-square toolbar-btn-sm text-error/80 shrink-0 hover:text-error"
-          >
-            <.icon name="icon-power" class="toolbar-icon-sm" />
-          </button>
+          <.tooltip id="disconnect-from-connect-tip" position="bottom">
+            <button
+              type="button"
+              id="disconnect-from-connect"
+              phx-click="disconnect"
+              aria-label="Disconnect"
+              class="btn btn-ghost btn-square toolbar-btn-sm text-error/80 shrink-0 hover:text-error"
+            >
+              <.icon name="icon-power" class="toolbar-icon-sm" />
+            </button>
+            <:content>Disconnect</:content>
+          </.tooltip>
         </div>
         <.link
           href={~p"/node/#{@session.node_name}"}
