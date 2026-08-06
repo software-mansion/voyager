@@ -1,15 +1,6 @@
 name: Benchmark E2E Flakiness
 
 on:
-  ################################################
-  # TODO: Remove this trigger
-  # temporary trigger to index workflow on github
-  ################################################
-  pull_request:
-    branches:
-      - main
-  ################################################
-
   workflow_dispatch:
     inputs:
       runs:
