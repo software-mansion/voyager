@@ -1,0 +1,106 @@
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+version: 2
+updates:
+  # Assets JS deps (assets/package.json)
+  - package-ecosystem: "npm"
+    directory: "/assets"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "Chore"
+    groups:
+      assets-npm-minor-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      assets-npm-major:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+      assets-npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # e2e: only shared runtime types dep (cytoscape). Other e2e deps stay manual.
+  - package-ecosystem: "npm"
+    directory: "/e2e"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "Chore"
+    allow:
+      - dependency-name: "cytoscape"
+
+  # Elixir deps (mix.exs / mix.lock)
+  - package-ecosystem: "mix"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "Chore"
+    groups:
+      elixir-minor-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      elixir-major:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+      elixir-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # Tauri Rust deps (rel/app/src-tauri/Cargo.toml)
+  - package-ecosystem: "cargo"
+    directory: "/rel/app/src-tauri"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Etc/UTC"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "Chore"
+    groups:
+      tauri-rust-minor-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      tauri-rust-major:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+      tauri-rust-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
