@@ -245,7 +245,7 @@ defmodule VoyagerWeb.Components.Shell do
         <.feedback_link />
       </div>
 
-      <div class="border-base-content/10 mx-4 border-t"></div>
+      <div class="border-base-content/10 mx-[length:var(--sidebar-compact-pad)] border-t"></div>
 
       <div class="flex flex-none flex-col gap-1 p-3">
         <.mcp_status_indicator
