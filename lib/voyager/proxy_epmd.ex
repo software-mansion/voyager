@@ -52,13 +52,29 @@ defmodule Voyager.ProxyEpmd do
   def address_please(name, host, family) do
     case lookup(name) do
       {:ok, %{address: address}} -> {:ok, address}
-      :error -> :erl_epmd.address_please(name, host, family)
+      :error -> resolve(name, host, family)
     end
   end
 
   @spec active?() :: boolean()
   def active? do
     :persistent_term.get(:voyager_epmd_module, nil) == __MODULE__ || false
+  end
+
+  defp resolve(name, host, :inet6) do
+    case :erl_epmd.address_please(name, host, :inet6) do
+      {:ok, _} = ok -> ok
+      _ -> as_v4_mapped(host)
+    end
+  end
+
+  defp resolve(name, host, family), do: :erl_epmd.address_please(name, host, family)
+
+  defp as_v4_mapped(host) do
+    case :inet.getaddr(host, :inet) do
+      {:ok, {a, b, c, d}} -> {:ok, {0, 0, 0, 0, 0, 0xFFFF, a * 256 + b, c * 256 + d}}
+      error -> error
+    end
   end
 
   defp lookup(name) when is_list(name) do
