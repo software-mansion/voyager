@@ -101,6 +101,28 @@ defmodule VoyagerWeb.Components.Shell do
     """
   end
 
+  @feedback_url "https://github.com/software-mansion-labs/voyager-early-access-feedback/issues/new/choose"
+
+  defp feedback_link(assigns) do
+    assigns = assign(assigns, :feedback_url, @feedback_url)
+
+    ~H"""
+    <.tooltip id="sidebar-feedback-tip" position="top" class="w-full">
+      <a
+        id="sidebar-feedback"
+        href={@feedback_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        class="sidebar-nav-row text-base-content/70 flex w-full items-center justify-start gap-2 rounded-md px-2 py-1.5 hover:text-base-content"
+      >
+        <.icon name="icon-message-square-share" class="toolbar-icon text-base-content/70 shrink-0" />
+        <span class="sidebar-label text-base-content/70 truncate">Feedback</span>
+      </a>
+      <:content>Share your feedback with us here!</:content>
+    </.tooltip>
+    """
+  end
+
   attr :status, :map, required: true
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
@@ -217,6 +239,10 @@ defmodule VoyagerWeb.Components.Shell do
           <:icon><.icon name={page.icon} class="toolbar-icon" /></:icon>
         </.nav_item>
       </ul>
+
+      <div class="flex flex-none flex-col p-3 pb-0 mb-1.5">
+        <.feedback_link />
+      </div>
 
       <div class="border-base-content/10 mx-4 border-t"></div>
 
