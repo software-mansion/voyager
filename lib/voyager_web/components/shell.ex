@@ -241,7 +241,7 @@ defmodule VoyagerWeb.Components.Shell do
         </.nav_item>
       </ul>
 
-      <div class="mb-1.5 flex flex-none flex-col p-3 pb-0">
+      <div class="mb-2.5 flex flex-none flex-col p-3 pb-0">
         <.feedback_link />
       </div>
 
