@@ -11,12 +11,12 @@
     "@fontsource-variable/dm-sans": "^5.3.0",
     "colorjs.io": "^0.7.1",
     "cytoscape": "3.34.0",
-    "cytoscape-dagre": "^2.5.0",
+    "cytoscape-dagre": "^4.0.0",
     "dagre": "^0.8.5",
     "daisyui": "^5.7.14"
   },
   "devDependencies": {
     "prettier": "^3.9.6",
-    "typescript": "^5.9.2"
+    "typescript": "^7.0.2"
   }
 }
