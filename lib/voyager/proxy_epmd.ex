@@ -51,8 +51,12 @@ defmodule Voyager.ProxyEpmd do
           {:ok, :inet.ip_address()} | {:error, term()}
   def address_please(name, host, family) do
     case lookup(name) do
-      {:ok, %{address: address}} -> {:ok, address}
-      :error -> resolve(name, host, family)
+      {:ok, %{address: address}} ->
+        dbg(address)
+        {:ok, family_match(address, family)}
+
+      :error ->
+        resolve(name, host, family)
     end
   end
 
@@ -71,11 +75,18 @@ defmodule Voyager.ProxyEpmd do
   defp resolve(name, host, family), do: :erl_epmd.address_please(name, host, family)
 
   defp as_v4_mapped(host) do
+    dbg(host)
+
     case :inet.getaddr(host, :inet) do
-      {:ok, {a, b, c, d}} -> {:ok, {0, 0, 0, 0, 0, 0xFFFF, a * 256 + b, c * 256 + d}}
+      {:ok, address} -> {:ok, v4_mapped(address)}
       error -> error
     end
   end
+
+  defp family_match({_, _, _, _} = address, :inet6), do: v4_mapped(address)
+  defp family_match(address, _family), do: address
+
+  defp v4_mapped({a, b, c, d}), do: {0, 0, 0, 0, 0, 0xFFFF, a * 256 + b, c * 256 + d}
 
   defp lookup(name) when is_list(name) do
     with ref when ref != :undefined <- :ets.whereis(TunnelRegistry.table_name()),
