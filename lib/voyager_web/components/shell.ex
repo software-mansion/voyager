@@ -116,7 +116,7 @@ defmodule VoyagerWeb.Components.Shell do
         class="sidebar-nav-row text-base-content/70 flex w-full items-center justify-start gap-2 rounded-md px-2 py-1.5 hover:text-base-content"
       >
         <.icon name="icon-message-square-share" class="toolbar-icon text-base-content/70 shrink-0" />
-        <span class="sidebar-label text-base-content/70 truncate">Feedback</span>
+        <span class="sidebar-label font-mono text-base-content/70 truncate text-xs">Feedback</span>
       </a>
       <:content>Share your feedback with us here!</:content>
     </.tooltip>
