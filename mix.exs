@@ -104,6 +104,7 @@ defmodule Voyager.MixProject do
       ],
       precommit: [
         tauri_check_version_cmd(),
+        elixirkit_check_rev_cmd(),
         "deps.unlock --unused",
         "compile --warnings-as-errors",
         "format",
@@ -135,4 +136,6 @@ defmodule Voyager.MixProject do
   end
 
   defp tauri_check_version_cmd, do: "cmd dev/tauri_check_version.sh"
+
+  defp elixirkit_check_rev_cmd, do: "cmd dev/elixirkit_check_rev.sh"
 end
