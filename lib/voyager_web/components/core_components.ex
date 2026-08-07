@@ -282,7 +282,7 @@ defmodule VoyagerWeb.CoreComponents do
           const icon = this.el.querySelector("[data-copy-icon]")
           if (!icon) return
 
-          icon.classList.remove("icon-copy", "icon-copy-check", "icon-copy-x")
+          icon.classList.remove("icon-copy", "icon-check", "icon-x")
           icon.classList.add(name)
         },
 
@@ -292,7 +292,7 @@ defmodule VoyagerWeb.CoreComponents do
           const originalLabel = this.el.dataset.copyLabel
           const resultLabel = copied ? this.el.dataset.copyCopiedLabel : "Copy failed"
 
-          this.setIcon(copied ? "icon-copy-check" : "icon-copy-x")
+          this.setIcon(copied ? "icon-check" : "icon-x")
           label.textContent = resultLabel
           status.textContent = resultLabel
           this.el.setAttribute("aria-label", resultLabel)
@@ -305,7 +305,7 @@ defmodule VoyagerWeb.CoreComponents do
             status.textContent = ""
             this.el.setAttribute("aria-label", originalLabel)
             this.el.setAttribute("title", originalLabel)
-          }, 1200)
+          }, 1500)
         }
       }
     </script>
