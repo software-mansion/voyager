@@ -53,6 +53,10 @@ defmodule Voyager.Telemetry.Parser do
   """
   @spec parse_metadata(Events.event(), map()) :: map()
 
+  def parse_metadata([:phoenix, :live_view, _, :stop], %{socket: socket, event: event}) do
+    %{view: inspect(socket.view), event: event}
+  end
+
   def parse_metadata([:phoenix, :live_view, _, :stop], %{socket: socket}) do
     %{view: inspect(socket.view)}
   end
@@ -66,7 +70,10 @@ defmodule Voyager.Telemetry.Parser do
   end
 
   def parse_metadata([:voyager, :vm, :memory], _meta), do: %{}
-  def parse_metadata([:voyager, :node, :connect], meta), do: %{via: meta[:via]}
+
+  def parse_metadata([:voyager, :node, :connect], meta) do
+    %{connected_via: meta[:connected_via]}
+  end
 
   def parse_metadata([:voyager, :node, :disconnect], meta) do
     %{reason: meta[:reason]}

@@ -33,10 +33,13 @@ defmodule Voyager.Telemetry.ParserTest do
 
   describe "parse_metadata/2 for voyager events" do
     test "parse connectors for `node.connect`" do
-      result_ssh = Parser.parse_metadata([:voyager, :node, :connect], %{via: :ssh})
-      result_direct = Parser.parse_metadata([:voyager, :node, :connect], %{via: :direct})
-      assert result_ssh[:via] == :ssh
-      assert result_direct[:via] == :direct
+      result_ssh = Parser.parse_metadata([:voyager, :node, :connect], %{connected_via: :ssh})
+
+      result_direct =
+        Parser.parse_metadata([:voyager, :node, :connect], %{connected_via: :direct})
+
+      assert result_ssh[:connected_via] == :ssh
+      assert result_direct[:connected_via] == :direct
     end
 
     test "returns reason for `node.disconnect`" do
