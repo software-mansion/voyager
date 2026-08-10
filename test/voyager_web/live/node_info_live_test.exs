@@ -28,6 +28,17 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
       assert has_element?(view, "#mcp-status")
     end
+
+    test "shows the feedback link", %{conn: conn} do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+
+      assert has_element?(
+               view,
+               "#sidebar-feedback[href='https://github.com/software-mansion-labs/voyager-early-access-feedback/issues/new/choose']"
+             )
+    end
   end
 
   describe "mount with a reachable node" do

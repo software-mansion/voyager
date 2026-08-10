@@ -54,7 +54,8 @@
   justify-content: center;
 }
 
-#app-sidebar.mode-full #mcp-status {
+#app-sidebar.mode-full #mcp-status,
+#app-sidebar.mode-full #sidebar-feedback {
   margin-left: 0.5rem;
 }
 

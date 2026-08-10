@@ -101,6 +101,29 @@ defmodule VoyagerWeb.Components.Shell do
     """
   end
 
+  @feedback_url "https://github.com/software-mansion-labs/voyager-early-access-feedback/issues/new/choose"
+
+  defp feedback_link(assigns) do
+    assigns = assign(assigns, :feedback_url, @feedback_url)
+
+    ~H"""
+    <.tooltip id="sidebar-feedback-tip" position="top" class="w-full">
+      <a
+        id="sidebar-feedback"
+        href={@feedback_url}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Feedback"
+        class="sidebar-nav-row text-base-content/70 flex w-full items-center justify-start gap-2 rounded-md px-2 py-1.5 hover:text-base-content"
+      >
+        <.icon name="icon-message-square-share" class="toolbar-icon shrink-0" />
+        <span class="sidebar-label font-mono truncate text-xs">Feedback</span>
+      </a>
+      <:content>Share your feedback with us here!</:content>
+    </.tooltip>
+    """
+  end
+
   attr :status, :map, required: true
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
@@ -218,7 +241,11 @@ defmodule VoyagerWeb.Components.Shell do
         </.nav_item>
       </ul>
 
-      <div class="border-base-content/10 mx-4 border-t"></div>
+      <div class="mb-2.5 flex flex-none flex-col p-3 pb-0">
+        <.feedback_link />
+      </div>
+
+      <div class="border-base-content/10 border-t mx-[length:var(--sidebar-compact-pad)]"></div>
 
       <div class="flex flex-none flex-col gap-1 p-3">
         <.mcp_status_indicator
