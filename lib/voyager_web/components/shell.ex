@@ -400,7 +400,6 @@ defmodule VoyagerWeb.Components.Shell do
         <button
           id="disconnect"
           type="button"
-          title="Disconnect"
           aria-label="Disconnect"
           phx-click="disconnect"
           class="btn btn-ghost btn-square toolbar-btn-sm text-error/80 hover:text-error"
