@@ -124,13 +124,11 @@ defmodule VoyagerWeb.Components.Shell do
             <span
               :if={@status.alive?}
               class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
-            >
-            </span>
+            ></span>
             <span class={[
               "relative inline-flex h-1.5 w-1.5 rounded-full",
               if(@status.alive?, do: "bg-success", else: "bg-error")
-            ]}>
-            </span>
+            ]}></span>
           </span>
         </span>
         <span class="sidebar-label font-mono text-base-content/70 truncate text-xs">
@@ -380,8 +378,7 @@ defmodule VoyagerWeb.Components.Shell do
       class="border-base-300 flex w-fit min-w-0 max-w-full items-center gap-1.5 rounded-lg border py-1 pr-1 pl-2.5"
     >
       <span class="relative flex h-1.5 w-1.5 shrink-0">
-        <span class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75">
-        </span>
+        <span class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"></span>
         <span class="bg-success relative inline-flex h-1.5 w-1.5 rounded-full"></span>
       </span>
       <span
