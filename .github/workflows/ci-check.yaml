@@ -43,6 +43,10 @@ jobs:
         working-directory: ./dev
         run: bash ./tauri_check_version.sh
 
+      - name: Check ElixirKit rev
+        working-directory: ./dev
+        run: bash ./elixirkit_check_rev.sh
+
       - uses: actions/setup-node@v6
         with:
           node-version-file: .tool-versions

@@ -75,23 +75,24 @@ defmodule VoyagerWeb.ConnectComponents do
       <div class="bg-success-bg border-success flex items-center justify-between rounded-lg border px-3.5 py-2.5">
         <div class="flex min-w-0 items-center gap-1.5">
           <span class="size-2 relative flex shrink-0">
-            <span class="bg-success size-full absolute inline-flex animate-ping rounded-full opacity-60">
-            </span>
+            <span class="bg-success size-full absolute inline-flex animate-ping rounded-full opacity-60"></span>
             <span class="bg-success size-2 relative inline-flex rounded-full"></span>
           </span>
           <span class="font-mono text-base-content/75 min-w-0 truncate text-xs">
             {@session.node_name}
           </span>
-          <button
-            type="button"
-            id="disconnect-from-connect"
-            phx-click="disconnect"
-            title="Disconnect"
-            aria-label="Disconnect"
-            class="btn btn-ghost btn-square toolbar-btn-sm text-error/80 shrink-0 hover:text-error"
-          >
-            <.icon name="icon-power" class="toolbar-icon-sm" />
-          </button>
+          <.tooltip id="disconnect-from-connect-tip" position="bottom">
+            <button
+              type="button"
+              id="disconnect-from-connect"
+              phx-click="disconnect"
+              aria-label="Disconnect"
+              class="btn btn-ghost btn-square toolbar-btn-sm text-error/80 shrink-0 hover:text-error"
+            >
+              <.icon name="icon-power" class="toolbar-icon-sm" />
+            </button>
+            <:content>Disconnect</:content>
+          </.tooltip>
         </div>
         <.link
           href={~p"/node/#{@session.node_name}"}
@@ -337,8 +338,7 @@ defmodule VoyagerWeb.ConnectComponents do
       <span class={[
         "loading loading-spinner loading-sm",
         if(@loading, do: "inline-flex", else: "hidden phx-submit-loading:inline-flex")
-      ]}>
-      </span>
+      ]}></span>
       <span class={[if(@loading, do: "inline", else: "hidden phx-submit-loading:inline")]}>
         {@loading_label}
       </span>

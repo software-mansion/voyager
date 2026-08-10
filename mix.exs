@@ -48,7 +48,7 @@ defmodule Voyager.MixProject do
       {:phoenix_ecto, "~> 4.5"},
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_dashboard, "~> 0.8.3"},
-      {:phoenix_live_view, "~> 1.1.0"},
+      {:phoenix_live_view, "~> 1.2.8"},
       {:req, "~> 0.7"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
@@ -104,6 +104,7 @@ defmodule Voyager.MixProject do
       ],
       precommit: [
         tauri_check_version_cmd(),
+        elixirkit_check_rev_cmd(),
         "deps.unlock --unused",
         "compile --warnings-as-errors",
         "format",
@@ -135,4 +136,6 @@ defmodule Voyager.MixProject do
   end
 
   defp tauri_check_version_cmd, do: "cmd dev/tauri_check_version.sh"
+
+  defp elixirkit_check_rev_cmd, do: "cmd dev/elixirkit_check_rev.sh"
 end
