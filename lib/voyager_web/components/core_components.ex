@@ -555,6 +555,12 @@ defmodule VoyagerWeb.CoreComponents do
     doc:
       "when true, the tip stays open while hovered and can be pinned open with a click — required if the content holds clickable elements"
 
+  attr :show_when, :string,
+    default: nil,
+    values: [nil, "sidebar-compact"],
+    doc:
+      "when set to sidebar-compact, the tip only opens while the app sidebar is in compact (icon-only) mode"
+
   slot :inner_block, required: true, doc: "the hover/focus target"
   slot :content, required: true, doc: "tooltip content"
 
@@ -567,9 +573,34 @@ defmodule VoyagerWeb.CoreComponents do
       data-tooltip-target={"##{@id}-tip"}
       data-tooltip-position={@position}
       data-tooltip-interactive={to_string(@interactive)}
+      data-tooltip-show-when={@show_when}
     >
       {render_slot(@inner_block)}
     </span>
+    <.tooltip_portal id={@id} interactive={@interactive} tip_class={@tip_class}>
+      {render_slot(@content)}
+    </.tooltip_portal>
+    """
+  end
+
+  @doc """
+  Renders only the portaled tooltip content for a trigger that already owns the
+  `Tooltip` hook attrs (id, `phx-hook`, `data-tooltip-*`).
+
+  Use this when wrapping the trigger in `<.tooltip>` would break parent CSS that
+  targets a direct child (for example DaisyUI `.menu > li > *`).
+  """
+  attr :id, :string, required: true, doc: "same id as the trigger element"
+  attr :tip_class, :any, default: nil, doc: "extra classes for the tip"
+
+  attr :interactive, :boolean,
+    default: false,
+    doc: "must match the trigger's data-tooltip-interactive value"
+
+  slot :inner_block, required: true, doc: "tooltip content"
+
+  def tooltip_portal(assigns) do
+    ~H"""
     <.portal id={"#{@id}-portal"} target="#tooltip-portal-root">
       <div
         id={"#{@id}-tip"}
@@ -582,7 +613,7 @@ defmodule VoyagerWeb.CoreComponents do
           @tip_class
         ]}
       >
-        {render_slot(@content)}
+        {render_slot(@inner_block)}
       </div>
     </.portal>
     """

@@ -218,6 +218,7 @@ defmodule VoyagerWeb.Components.Shell do
         </li>
         <.nav_item
           :for={page <- inspect_pages()}
+          id={"sidebar-nav-#{page.feature}"}
           active={@active_nav == page.feature}
           navigate={nav_path(node_path(@session, page.path), @sidebar_mode)}
           label={page.label}
@@ -232,6 +233,7 @@ defmodule VoyagerWeb.Components.Shell do
 
         <.nav_item
           :for={page <- coming_soon_pages()}
+          id={"sidebar-nav-#{page.feature}"}
           active={@active_nav == page.feature}
           navigate={nav_path(node_path(@session, page.path), @sidebar_mode)}
           label={page.label}
@@ -322,6 +324,7 @@ defmodule VoyagerWeb.Components.Shell do
   defp inspect_pages, do: @inspect_pages
   defp coming_soon_pages, do: @coming_soon_pages
 
+  attr :id, :string, required: true
   attr :active, :boolean, default: false
   attr :navigate, :any, default: nil
   attr :label, :string, required: true
@@ -331,7 +334,15 @@ defmodule VoyagerWeb.Components.Shell do
   defp nav_item(%{navigate: nil} = assigns) do
     ~H"""
     <li class="pointer-events-none opacity-40">
-      <span class="sidebar-nav-row" title={@label}>
+      <span
+        id={@id}
+        class="sidebar-nav-row"
+        phx-hook="Tooltip"
+        data-tooltip-target={"##{@id}-tip"}
+        data-tooltip-position="right"
+        data-tooltip-interactive="false"
+        data-tooltip-show-when="sidebar-compact"
+      >
         {render_slot(@icon)}
         <span class="sidebar-label flex-1 truncate">{@label}</span>
         <span :if={@coming_soon} class="sidebar-badge badge badge-primary badge-soft badge-xs">
@@ -339,6 +350,7 @@ defmodule VoyagerWeb.Components.Shell do
         </span>
       </span>
     </li>
+    <.tooltip_portal id={@id}>{@label}</.tooltip_portal>
     """
   end
 
@@ -346,9 +358,14 @@ defmodule VoyagerWeb.Components.Shell do
     ~H"""
     <li>
       <.link
+        id={@id}
         navigate={@navigate}
         class={["sidebar-nav-row", @active && "menu-active"]}
-        title={@label}
+        phx-hook="Tooltip"
+        data-tooltip-target={"##{@id}-tip"}
+        data-tooltip-position="right"
+        data-tooltip-interactive="false"
+        data-tooltip-show-when="sidebar-compact"
       >
         {render_slot(@icon)}
         <span class="sidebar-label flex-1 truncate">{@label}</span>
@@ -357,6 +374,7 @@ defmodule VoyagerWeb.Components.Shell do
         </span>
       </.link>
     </li>
+    <.tooltip_portal id={@id}>{@label}</.tooltip_portal>
     """
   end
 
