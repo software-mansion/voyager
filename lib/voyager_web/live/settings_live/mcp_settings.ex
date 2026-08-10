@@ -49,13 +49,11 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
             <span
               :if={@status.alive?}
               class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
-            >
-            </span>
+            ></span>
             <span class={[
               "relative inline-flex h-1.5 w-1.5 rounded-full",
               if(@status.alive?, do: "bg-success", else: "bg-error")
-            ]}>
-            </span>
+            ]}></span>
           </span>
           {if @status.alive?, do: "Running at #{@status.url}", else: "Stopped"}
         </div>
