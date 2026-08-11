@@ -3,4 +3,4 @@
 ## Resolve remote nodes through SSH tunnels set up by
 ## Voyager.Services.RemoteNodeConnector. Must be set at VM boot so net_kernel
 ## picks it up when distribution starts at runtime. Mirrors dev/server.sh.
--proto_dist inet6_tcp -epmd_module Elixir.Voyager.ProxyEpmd
+-proto_dist dual_tcp -epmd_module Elixir.Voyager.ProxyEpmd
