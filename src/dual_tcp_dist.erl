@@ -24,6 +24,8 @@
 ]).
 -export([setopts/2, getopts/2]).
 
+-export([choose_driver/1, family_of/1]).
+
 listen(Name, Host) ->
     inet_tcp_dist:gen_listen(inet_tcp, Name, Host).
 
