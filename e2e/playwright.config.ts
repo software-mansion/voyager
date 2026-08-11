@@ -43,7 +43,7 @@ export default defineConfig({
     },
 
     {
-      name: 'recent-connections chrome',
+      name: 'recent-connections chromium',
       use: { ...devices['Desktop Chrome'] },
       workers: 1,
       testMatch: '**/recent_connections.spec.ts',
@@ -54,7 +54,7 @@ export default defineConfig({
       use: { ...devices['Desktop Firefox'] },
       workers: 1,
       testMatch: '**/recent_connections.spec.ts',
-      dependencies: ['recent-connections chrome'],
+      dependencies: ['recent-connections chromium'],
     },
 
     {

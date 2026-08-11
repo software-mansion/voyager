@@ -42,10 +42,6 @@ jobs:
         working-directory: ./e2e
         run: npm ci
 
-      - name: Check prettier
-        working-directory: ./e2e
-        run: npx prettier . --check
-
       - name: Set up Elixir
         id: beam
         uses: erlef/setup-beam@v1
