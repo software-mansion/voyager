@@ -326,33 +326,10 @@ defmodule VoyagerWeb.Components.Shell do
 
   attr :id, :string, required: true
   attr :active, :boolean, default: false
-  attr :navigate, :any, default: nil
+  attr :navigate, :any, required: true
   attr :label, :string, required: true
   attr :coming_soon, :boolean, default: false
   slot :icon, required: true
-
-  defp nav_item(%{navigate: nil} = assigns) do
-    ~H"""
-    <li class="pointer-events-none opacity-40">
-      <span
-        id={@id}
-        class="sidebar-nav-row"
-        phx-hook="Tooltip"
-        data-tooltip-target={"##{@id}-tip"}
-        data-tooltip-position="right"
-        data-tooltip-interactive="false"
-        data-tooltip-show-when="sidebar-compact"
-      >
-        {render_slot(@icon)}
-        <span class="sidebar-label flex-1 truncate">{@label}</span>
-        <span :if={@coming_soon} class="sidebar-badge badge badge-primary badge-soft badge-xs">
-          Soon
-        </span>
-      </span>
-    </li>
-    <.tooltip_portal id={@id}>{@label}</.tooltip_portal>
-    """
-  end
 
   defp nav_item(assigns) do
     ~H"""
