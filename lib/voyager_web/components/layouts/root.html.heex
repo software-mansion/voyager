@@ -76,8 +76,6 @@
           applyTheme(localStorage.getItem(THEME_KEY) || getSystemTheme());
         };
 
-        const autoMode = () => !localStorage.getItem(THEME_KEY);
-
         syncTheme();
 
         window.addEventListener("storage", (e) => {
@@ -109,8 +107,8 @@
         // Always re-read OS appearance via dark_light. Do not trust Tauri's
         // onThemeChanged payload alone — on Linux it often never fires, and
         // when it does it can disagree with dark_light / portal settings.
+        // applyOsTheme remembers even in manual mode so Auto is fresh on switch-back.
         const refreshOsThemeFromTauri = async () => {
-          if (!autoMode()) return false;
           const theme = await invokeOsTheme();
           if (theme) {
             applyOsTheme(theme);
@@ -123,7 +121,6 @@
         window
           .matchMedia("(prefers-color-scheme: dark)")
           .addEventListener("change", async () => {
-            if (!autoMode()) return;
             if (await refreshOsThemeFromTauri()) return;
             applyOsTheme(mediaTheme());
           });
