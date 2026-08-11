@@ -76,17 +76,9 @@
           applyTheme(localStorage.getItem(THEME_KEY) || getSystemTheme());
         };
 
-        // Ignore matchMedia once Tauri theme events are live.
-        let trustOsThemeListener = false;
+        const autoMode = () => !localStorage.getItem(THEME_KEY);
 
         syncTheme();
-
-        window
-          .matchMedia("(prefers-color-scheme: dark)")
-          .addEventListener("change", () => {
-            if (trustOsThemeListener || localStorage.getItem(THEME_KEY)) return;
-            syncTheme();
-          });
 
         window.addEventListener("storage", (e) => {
           if (e.key === THEME_KEY) syncTheme();
@@ -114,10 +106,27 @@
           }
         };
 
+        // Always re-read OS appearance via dark_light. Do not trust Tauri's
+        // onThemeChanged payload alone — on Linux it often never fires, and
+        // when it does it can disagree with dark_light / portal settings.
         const refreshOsThemeFromTauri = async () => {
+          if (!autoMode()) return false;
           const theme = await invokeOsTheme();
-          if (theme) applyOsTheme(theme);
+          if (theme) {
+            applyOsTheme(theme);
+            return true;
+          }
+          return false;
         };
+
+        // Browser / webview media-query fallback when Tauri probe is unavailable.
+        window
+          .matchMedia("(prefers-color-scheme: dark)")
+          .addEventListener("change", async () => {
+            if (!autoMode()) return;
+            if (await refreshOsThemeFromTauri()) return;
+            applyOsTheme(mediaTheme());
+          });
 
         // Tauri listeners are native-side; must unlisten or they stack on reload.
         let unlistenOsTheme = null;
@@ -127,7 +136,6 @@
             unlistenOsTheme();
             unlistenOsTheme = null;
           }
-          trustOsThemeListener = false;
         };
 
         const listenForOsThemeChanges = async () => {
@@ -136,10 +144,9 @@
           if (unlistenOsTheme) return true;
 
           try {
-            unlistenOsTheme = await win.onThemeChanged(({ payload }) => {
-              if (isTheme(payload)) applyOsTheme(payload);
+            unlistenOsTheme = await win.onThemeChanged(() => {
+              refreshOsThemeFromTauri();
             });
-            trustOsThemeListener = true;
             return true;
           } catch (_error) {
             return false;
@@ -156,6 +163,12 @@
             if (attempts < 20) setTimeout(tryListen, 50);
           };
           tryListen();
+
+          // If the OS theme changed while Voyager was unfocused, catch up on return.
+          document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible") refreshOsThemeFromTauri();
+          });
+          window.addEventListener("focus", () => refreshOsThemeFromTauri());
 
           window.addEventListener("pagehide", stopListeningForOsThemeChanges);
         }
