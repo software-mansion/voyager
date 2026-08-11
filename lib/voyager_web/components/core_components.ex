@@ -219,7 +219,11 @@ defmodule VoyagerWeb.CoreComponents do
       ]}
       {@rest}
     >
-      <.icon name="icon-copy" class={if @icon_only, do: "toolbar-icon", else: "size-4"} />
+      <.icon
+        name="icon-copy"
+        data-copy-icon
+        class={if @icon_only, do: "toolbar-icon", else: "size-4"}
+      />
       <span data-copy-button-label class={@icon_only && "sr-only"}>{@label}</span>
       <span class="sr-only" aria-live="polite" data-copy-status></span>
     </button>
@@ -274,12 +278,21 @@ defmodule VoyagerWeb.CoreComponents do
           }
         },
 
+        setIcon(name) {
+          const icon = this.el.querySelector("[data-copy-icon]")
+          if (!icon) return
+
+          icon.classList.remove("icon-copy", "icon-check", "icon-x")
+          icon.classList.add(name)
+        },
+
         showResult(copied) {
           const label = this.el.querySelector("[data-copy-button-label]")
           const status = this.el.querySelector("[data-copy-status]")
           const originalLabel = this.el.dataset.copyLabel
           const resultLabel = copied ? this.el.dataset.copyCopiedLabel : "Copy failed"
 
+          this.setIcon(copied ? "icon-check" : "icon-x")
           label.textContent = resultLabel
           status.textContent = resultLabel
           this.el.setAttribute("aria-label", resultLabel)
@@ -287,11 +300,12 @@ defmodule VoyagerWeb.CoreComponents do
 
           window.clearTimeout(this.resetTimer)
           this.resetTimer = window.setTimeout(() => {
+            this.setIcon("icon-copy")
             label.textContent = originalLabel
             status.textContent = ""
             this.el.setAttribute("aria-label", originalLabel)
             this.el.setAttribute("title", originalLabel)
-          }, 1800)
+          }, 1500)
         }
       }
     </script>
