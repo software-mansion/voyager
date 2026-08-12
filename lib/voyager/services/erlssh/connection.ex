@@ -15,18 +15,19 @@ defmodule Voyager.Services.Erlssh.Connection do
 
   @spec connect_ssh(String.t(), :inet.port_number(), String.t(), Auth.auth()) ::
           {:ok, conn_ref :: :ssh.connection_ref()} | {:error, reason :: term()}
+
   def connect_ssh(host, ssh_port, ssh_user, auth \\ :agent) when Auth.is_ssh_auth(auth) do
-    char_host = String.to_charlist(host)
     char_user = String.to_charlist(ssh_user)
 
-    base_opts = [
-      user: char_user,
-      user_interaction: false,
-      silently_accept_hosts: true,
-      connect_timeout: @ssh_timeout
-    ]
+    base_opts =
+      [
+        user: char_user,
+        user_interaction: false,
+        silently_accept_hosts: true,
+        connect_timeout: @ssh_timeout
+      ] ++ auth_opts(auth)
 
-    :ssh.connect(char_host, ssh_port, base_opts ++ auth_opts(auth))
+    :ssh.connect(ssh_host_arg(host), ssh_port, base_opts)
   end
 
   @spec open_tunnel(:ssh.connection_ref(), integer(), integer()) ::
@@ -48,6 +49,15 @@ defmodule Voyager.Services.Erlssh.Connection do
     with {:ok, epmd_local_port} <- open_tunnel(conn_ref, epmd_port),
          {:ok, output} <- query_epmd_names(epmd_local_port) do
       parse_epmd_names(output, node_name)
+    end
+  end
+
+  defp ssh_host_arg(host) do
+    charlist = String.to_charlist(host)
+
+    case :inet.parse_address(charlist) do
+      {:ok, addr} -> addr
+      {:error, _} -> charlist
     end
   end
 
