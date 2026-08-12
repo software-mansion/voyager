@@ -61,22 +61,30 @@ setup(Node, Type, MyNode, LongOrShortNames, SetupTime) ->
 %% The epmd module's resolved address is ground truth: SSH-tunnelled nodes
 %% always resolve to a v4 loopback address, direct IPv6 nodes to a v6 address.
 %% Prefer IPv4 when a host answers both ways.
+%%
+%% The v4 branch uses dual_tcp (a thin inet_tcp wrapper), not bare inet_tcp:
+%% an SSH-tunnelled node's literal name can carry a real IPv6 host (e.g.
+%% `app@::1`) even though the tunnel is always IPv4 -- :ssh cannot bind a v6
+%% forward listener, so the local socket is v4 loopback -- and OTP's own
+%% literal-host validation inside gen_setup (splitnode/3) would otherwise reject
+%% that dotless IPv6 host under plain inet_tcp before a socket is opened.
+%% See dual_tcp:parse_address/1.
 choose_driver(Node) ->
     case dist_util:split_node(Node) of
         {node, Name, Host} ->
             case resolved_family(Name, Host, inet) of
                 inet ->
-                    inet_tcp;
+                    dual_tcp;
                 _ ->
                     case resolved_family(Name, Host, inet6) of
                         inet6 -> inet6_tcp;
-                        %% Unreachable both ways: hand to inet_tcp so gen_setup
+                        %% Unreachable both ways: hand to dual_tcp so gen_setup
                         %% fails with the normal distribution error.
-                        _ -> inet_tcp
+                        _ -> dual_tcp
                     end
             end;
         _ ->
-            inet_tcp
+            dual_tcp
     end.
 
 resolved_family(Name, Host, Family) ->
