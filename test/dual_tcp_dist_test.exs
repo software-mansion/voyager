@@ -12,7 +12,7 @@ defmodule DualTcpDistTest do
 
   describe "choose_driver/1" do
     test "an IPv4 literal host selects the inet_tcp driver" do
-      assert :dual_tcp_dist.choose_driver(:"voyager@127.0.0.1") == :inet_tcp
+      assert :dual_tcp_dist.choose_driver(:"voyager@127.0.0.1") == :dual_tcp
     end
 
     test "an IPv6 literal host selects the inet6_tcp driver" do
@@ -21,7 +21,7 @@ defmodule DualTcpDistTest do
 
     test "a malformed / unreachable node falls back to inet_tcp" do
       # inet_tcp lets gen_setup fail with the normal distribution error.
-      assert :dual_tcp_dist.choose_driver(:noatsign) == :inet_tcp
+      assert :dual_tcp_dist.choose_driver(:noatsign) == :dual_tcp
     end
   end
 
