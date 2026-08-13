@@ -28,146 +28,64 @@
     </script>
     <script>
       (() => {
-        const THEME_KEY = "phx:theme";
-        // Survives full reloads; prefer over create-time Tauri hint.
-        const OS_THEME_KEY = "voyager:os-theme";
-
-        const mediaTheme = () =>
+        const KEY = "phx:theme";
+        const media = () =>
           window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+        let osTheme = media();
 
-        const isTheme = (theme) => theme === "dark" || theme === "light";
-
-        const rememberOsTheme = (theme) => {
-          if (!isTheme(theme)) return;
-          window.__VOYAGER_OS_THEME__ = theme;
-          try {
-            sessionStorage.setItem(OS_THEME_KEY, theme);
-          } catch (_error) {}
+        const preference = () => {
+          const value = localStorage.getItem(KEY);
+          return value === "light" || value === "dark" ? value : "system";
         };
 
-        // sessionStorage → Tauri init hint → matchMedia
-        const osThemeHint = () => {
-          try {
-            const remembered = sessionStorage.getItem(OS_THEME_KEY);
-            if (isTheme(remembered)) return remembered;
-          } catch (_error) {}
-          const hint = window.__VOYAGER_OS_THEME__;
-          return isTheme(hint) ? hint : null;
+        const resolve = () => {
+          const pref = preference();
+          document.documentElement.setAttribute(
+            "data-theme",
+            pref === "system" ? osTheme : pref
+          );
         };
 
-        const getSystemTheme = () => osThemeHint() || mediaTheme();
-
-        const applyTheme = (theme) => {
-          document.documentElement.setAttribute("data-theme", theme);
+        const setOs = (theme) => {
+          if (theme !== "dark" && theme !== "light") return;
+          osTheme = theme;
+          resolve();
         };
 
-        const applyOsTheme = (theme) => {
-          rememberOsTheme(theme);
-          if (!localStorage.getItem(THEME_KEY)) applyTheme(theme);
-        };
-
-        const setTheme = (theme) => {
-          localStorage.setItem(THEME_KEY, theme);
-          applyTheme(theme);
-        };
-
-        // Read-only; live updates remember via rememberOsTheme.
-        const syncTheme = () => {
-          applyTheme(localStorage.getItem(THEME_KEY) || getSystemTheme());
-        };
-
-        syncTheme();
+        resolve();
 
         window.addEventListener("storage", (e) => {
-          if (e.key === THEME_KEY) syncTheme();
+          if (e.key === KEY) resolve();
         });
 
         window.addEventListener("phx:set-theme", (e) => {
           const theme = e.target.dataset.phxTheme;
-          if (theme === "system") {
-            localStorage.removeItem(THEME_KEY);
-            syncTheme();
-            refreshOsThemeFromTauri();
-          } else {
-            setTheme(theme);
-          }
+          if (theme === "system") localStorage.removeItem(KEY);
+          else if (theme === "light" || theme === "dark") localStorage.setItem(KEY, theme);
+          else return;
+          resolve();
         });
 
-        const invokeOsTheme = async () => {
-          const invoke = window.__TAURI__?.core?.invoke;
-          if (typeof invoke !== "function") return null;
-          try {
-            const theme = await invoke("os_theme");
-            return isTheme(theme) ? theme : null;
-          } catch (_error) {
-            return null;
-          }
-        };
-
-        // Always re-read OS appearance via dark_light. Do not trust Tauri's
-        // onThemeChanged payload alone — on Linux it often never fires, and
-        // when it does it can disagree with dark_light / portal settings.
-        // applyOsTheme remembers even in manual mode so Auto is fresh on switch-back.
-        const refreshOsThemeFromTauri = async () => {
-          const theme = await invokeOsTheme();
-          if (theme) {
-            applyOsTheme(theme);
-            return true;
-          }
-          return false;
-        };
-
-        // Browser / webview media-query fallback when Tauri probe is unavailable.
-        window
-          .matchMedia("(prefers-color-scheme: dark)")
-          .addEventListener("change", async () => {
-            if (await refreshOsThemeFromTauri()) return;
-            applyOsTheme(mediaTheme());
-          });
-
-        // Tauri listeners are native-side; must unlisten or they stack on reload.
-        let unlistenOsTheme = null;
-
-        const stopListeningForOsThemeChanges = () => {
-          if (typeof unlistenOsTheme === "function") {
-            unlistenOsTheme();
-            unlistenOsTheme = null;
-          }
-        };
-
-        const listenForOsThemeChanges = async () => {
-          const win = window.__TAURI__?.window?.getCurrentWindow?.();
-          if (!win?.onThemeChanged) return false;
-          if (unlistenOsTheme) return true;
-
-          try {
-            unlistenOsTheme = await win.onThemeChanged(() => {
-              refreshOsThemeFromTauri();
+        const tauri = window.__TAURI__;
+        if (typeof tauri?.core?.invoke === "function") {
+          tauri.core.invoke("os_theme").then(setOs).catch(() => {});
+          if (typeof tauri.event?.listen === "function") {
+            let unlisten;
+            tauri.event
+              .listen("os-theme-changed", (event) => setOs(event.payload))
+              .then((fn) => {
+                unlisten = fn;
+              });
+            window.addEventListener("pagehide", () => {
+              if (typeof unlisten === "function") unlisten();
             });
-            return true;
-          } catch (_error) {
-            return false;
           }
-        };
-
-        if (window.__TAURI_INTERNALS__) {
-          refreshOsThemeFromTauri();
-
-          let attempts = 0;
-          const tryListen = async () => {
-            if (await listenForOsThemeChanges()) return;
-            attempts += 1;
-            if (attempts < 20) setTimeout(tryListen, 50);
-          };
-          tryListen();
-
-          // If the OS theme changed while Voyager was unfocused, catch up on return.
-          document.addEventListener("visibilitychange", () => {
-            if (document.visibilityState === "visible") refreshOsThemeFromTauri();
-          });
-          window.addEventListener("focus", () => refreshOsThemeFromTauri());
-
-          window.addEventListener("pagehide", stopListeningForOsThemeChanges);
+        } else {
+          window
+            .matchMedia("(prefers-color-scheme: dark)")
+            .addEventListener("change", (e) => {
+              setOs(e.matches ? "dark" : "light");
+            });
         }
       })();
     </script>
