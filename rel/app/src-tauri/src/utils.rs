@@ -42,12 +42,69 @@ fn random_secret(len: usize) -> String {
         .collect()
 }
 
-/// Best-effort OS appearance (`"dark"` / `"light"`). Falls back to `"dark"`
-/// when unspecified or detection fails.
+/// Best-effort OS appearance (`"dark"` / `"light"`).
+///
+/// Dark → `"dark"`; light and unspecified/default → `"light"`; detection
+/// errors → `"dark"`.
 pub fn os_theme_hint() -> &'static str {
+    theme_hint_from_detect(detect_os_theme())
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DetectedTheme {
+    Dark,
+    Light,
+    Unspecified,
+}
+
+fn theme_hint_from_detect(result: std::result::Result<DetectedTheme, ()>) -> &'static str {
+    match result {
+        Ok(DetectedTheme::Dark) => "dark",
+        Ok(DetectedTheme::Light) | Ok(DetectedTheme::Unspecified) => "light",
+        Err(()) => "dark",
+    }
+}
+
+#[cfg(any(
+    target_os = "linux",
+    target_os = "freebsd",
+    target_os = "dragonfly",
+    target_os = "netbsd",
+    target_os = "openbsd"
+))]
+fn detect_os_theme() -> std::result::Result<DetectedTheme, ()> {
+    use std::time::Duration;
+
+    use ashpd::desktop::settings::ColorScheme as PortalColorScheme;
+    use ashpd::desktop::settings::Settings as XdgPortalSettings;
+    use async_std::future;
+    use async_std::task;
+
+    task::block_on(future::timeout(Duration::from_secs(1), async {
+        let settings = XdgPortalSettings::new().await.map_err(|_| ())?;
+        let color_scheme = settings.color_scheme().await.map_err(|_| ())?;
+        Ok(match color_scheme {
+            PortalColorScheme::PreferDark => DetectedTheme::Dark,
+            PortalColorScheme::PreferLight => DetectedTheme::Light,
+            PortalColorScheme::NoPreference => DetectedTheme::Unspecified,
+        })
+    }))
+    .map_err(|_| ())?
+}
+
+#[cfg(not(any(
+    target_os = "linux",
+    target_os = "freebsd",
+    target_os = "dragonfly",
+    target_os = "netbsd",
+    target_os = "openbsd"
+)))]
+fn detect_os_theme() -> std::result::Result<DetectedTheme, ()> {
     match dark_light::detect() {
-        Ok(dark_light::Mode::Light) => "light",
-        Ok(dark_light::Mode::Dark) | Ok(dark_light::Mode::Unspecified) | Err(_) => "dark",
+        Ok(dark_light::Mode::Dark) => Ok(DetectedTheme::Dark),
+        Ok(dark_light::Mode::Light) => Ok(DetectedTheme::Light),
+        Ok(dark_light::Mode::Unspecified) => Ok(DetectedTheme::Unspecified),
+        Err(_) => Err(()),
     }
 }
 
@@ -96,6 +153,25 @@ mod tests {
         assert_ne!(secret, "too-short");
 
         std::fs::remove_dir_all(data_dir).unwrap();
+    }
+
+    #[test]
+    fn theme_hint_maps_dark_to_dark() {
+        assert_eq!(theme_hint_from_detect(Ok(DetectedTheme::Dark)), "dark");
+    }
+
+    #[test]
+    fn theme_hint_maps_light_and_unspecified_to_light() {
+        assert_eq!(theme_hint_from_detect(Ok(DetectedTheme::Light)), "light");
+        assert_eq!(
+            theme_hint_from_detect(Ok(DetectedTheme::Unspecified)),
+            "light"
+        );
+    }
+
+    #[test]
+    fn theme_hint_maps_detection_error_to_dark() {
+        assert_eq!(theme_hint_from_detect(Err(())), "dark");
     }
 
     #[test]

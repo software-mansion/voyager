@@ -6,6 +6,8 @@ version = 4
 name = "Voyager"
 version = "0.1.0"
 dependencies = [
+ "ashpd",
+ "async-std",
  "dark-light",
  "elixirkit",
  "fix-path-env",
