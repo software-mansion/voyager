@@ -1,3 +1,9 @@
+# Wired via bundle.linux.deb.desktopTemplate (AppImage reuses that) and rpm.
+# SingleMainWindow hides GNOME "New Window" only when this .desktop is registered
+# (installed package or AppImageLauncher). A raw AppImage / mix tauri.dev may still
+# show the menu item; tauri-plugin-single-instance still prevents a second Elixir.
+# StartupWMClass={{exec}} is the binary name (Voyager). On Linux verify it matches
+# the window: xprop WM_CLASS (X11) or the Wayland app id. If not, set the observed class.
 [Desktop Entry]
 Categories={{categories}}
 {{#if comment}}

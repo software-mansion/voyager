@@ -85,11 +85,9 @@ pub fn run() {
 }
 
 fn focus_existing_window(app: &tauri::AppHandle) {
-    if let Some(window) = app
-        .get_webview_window(MAIN_WINDOW_LABEL)
-        .or_else(|| app.webview_windows().into_values().next())
-    {
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
         let _ = window.unminimize();
+        let _ = window.show();
         let _ = window.set_focus();
     }
 }
@@ -118,13 +116,24 @@ fn create_window(app_handle: &tauri::AppHandle, port: u16) {
 })();"#,
     ]
     .concat();
-    tauri::WebviewWindowBuilder::new(app_handle, MAIN_WINDOW_LABEL, url)
+    let builder = tauri::WebviewWindowBuilder::new(app_handle, MAIN_WINDOW_LABEL, url)
         .title("Voyager")
         .inner_size(1280.0, 960.0)
         .min_inner_size(800.0, 800.0)
-        .initialization_script(theme_init)
-        .build()
-        .unwrap();
+        .initialization_script(theme_init);
+
+    #[cfg_attr(target_os = "macos", allow(unused_variables))]
+    let window = builder.build().unwrap();
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        let app_handle = window.app_handle().clone();
+        window.on_window_event(move |event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                app_handle.exit(0);
+            }
+        });
+    }
 }
 
 fn elixir_command(
