@@ -14,9 +14,17 @@ defmodule Voyager.Telemetry.ParserTest do
       %{socket: socket}
     end
 
-    test "includes only view name for `:stop` events", %{socket: socket} do
+    test "includes only view name and event for `:stop` events", %{socket: socket} do
       result = Parser.parse_metadata([:phoenix, :live_view, :mount, :stop], %{socket: socket})
       assert result == %{view: "MyApp.SomeLive"}
+
+      result =
+        Parser.parse_metadata([:phoenix, :live_view, :handle_event, :stop], %{
+          socket: socket,
+          event: "refresh"
+        })
+
+      assert result == %{view: "MyApp.SomeLive", event: "refresh"}
     end
 
     test "includes kind and reason for `:exception` events", %{socket: socket} do

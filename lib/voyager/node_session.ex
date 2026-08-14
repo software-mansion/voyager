@@ -65,6 +65,7 @@ defmodule Voyager.NodeSession do
 
   @impl GenServer
   def init(_opts) do
+    cache_connector_name(nil)
     {:ok, %{session: nil}}
   end
 
