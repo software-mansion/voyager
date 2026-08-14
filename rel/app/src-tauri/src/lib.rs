@@ -5,6 +5,8 @@ use tauri::{
     menu::{MenuBuilder, SubmenuBuilder},
 };
 
+const MAIN_WINDOW_LABEL: &str = "main";
+
 /// Current OS appearance for Auto theme after full page reloads.
 #[tauri::command]
 fn os_theme() -> &'static str {
@@ -13,9 +15,11 @@ fn os_theme() -> &'static str {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let pubsub = elixirkit::PubSub::listen("tcp://127.0.0.1:0").expect("failed to listen");
-
     tauri::Builder::default()
+        // Must be registered first so a second launch exits before Elixir starts.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            focus_existing_window(app);
+        }))
         .enable_macos_default_menu(false)
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![os_theme])
@@ -41,6 +45,8 @@ pub fn run() {
                     .build()?;
                 app.set_menu(menu)?;
             }
+
+            let pubsub = elixirkit::PubSub::listen("tcp://127.0.0.1:0").expect("failed to listen");
 
             let app_handle = app.handle().clone();
             let port =
@@ -78,8 +84,22 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
+fn focus_existing_window(app: &tauri::AppHandle) {
+    if let Some(window) = app
+        .get_webview_window(MAIN_WINDOW_LABEL)
+        .or_else(|| app.webview_windows().into_values().next())
+    {
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
 fn create_window(app_handle: &tauri::AppHandle, port: u16) {
-    let n = app_handle.webview_windows().len() + 1;
+    if app_handle.get_webview_window(MAIN_WINDOW_LABEL).is_some() {
+        focus_existing_window(app_handle);
+        return;
+    }
+
     let url = tauri::WebviewUrl::External(format!("http://127.0.0.1:{port}").parse().unwrap());
     // Prefer sessionStorage over create-time detect on reload.
     let theme = utils::os_theme_hint();
@@ -98,7 +118,7 @@ fn create_window(app_handle: &tauri::AppHandle, port: u16) {
 })();"#,
     ]
     .concat();
-    tauri::WebviewWindowBuilder::new(app_handle, format!("window-{}", n), url)
+    tauri::WebviewWindowBuilder::new(app_handle, MAIN_WINDOW_LABEL, url)
         .title("Voyager")
         .inner_size(1280.0, 960.0)
         .min_inner_size(800.0, 800.0)
