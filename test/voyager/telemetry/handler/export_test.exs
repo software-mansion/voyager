@@ -43,4 +43,25 @@ defmodule Voyager.Telemetry.Handler.ExportTest do
              os_type: :os.type()
            }
   end
+
+  test "build_payload/3 includes connector and inspected reason for connect_failed" do
+    install_id = InstallId.get()
+
+    payload =
+      Export.build_payload([:voyager, :node, :connect_failed], %{}, %{
+        connected_via: :ssh,
+        reason: :connection_failed
+      })
+
+    assert payload.event == "voyager.node.connect_failed"
+    assert payload.measurements == %{}
+
+    assert payload.metadata == %{
+             connected_via: :ssh,
+             reason: "connection_failed",
+             install_id: install_id,
+             vsn: Voyager.version(),
+             os_type: :os.type()
+           }
+  end
 end

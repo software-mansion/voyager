@@ -78,6 +78,28 @@ defmodule Voyager.NodeSessionTest do
 
       refute NodeSession.connected?()
     end
+
+    test "emits connect_failed telemetry with connector and reason on failure" do
+      handler_id = "test-connect-failed-#{System.unique_integer([:positive])}"
+      test_pid = self()
+
+      :telemetry.attach(
+        handler_id,
+        [:voyager, :node, :connect_failed],
+        fn event, measurements, metadata, _config ->
+          send(test_pid, {:telemetry, event, measurements, metadata})
+        end,
+        nil
+      )
+
+      on_exit(fn -> :telemetry.detach(handler_id) end)
+
+      assert {:error, :boom} =
+               NodeSession.connect_via(FakeConnector, "demo@localhost", "secret", fail: :boom)
+
+      assert_receive {:telemetry, [:voyager, :node, :connect_failed], %{},
+                      %{connected_via: :fake, reason: :boom}}
+    end
   end
 
   describe "disconnect/0" do

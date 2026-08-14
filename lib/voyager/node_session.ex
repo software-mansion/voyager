@@ -103,7 +103,11 @@ defmodule Voyager.NodeSession do
 
         {:reply, :ok, %{state | session: session}}
 
-      {:error, _} = err ->
+      {:error, reason} = err ->
+        Voyager.Telemetry.dispatch!("voyager.node.connect_failed",
+          metadata: %{connected_via: connector.name(), reason: reason}
+        )
+
         {:reply, err, state}
     end
   end
