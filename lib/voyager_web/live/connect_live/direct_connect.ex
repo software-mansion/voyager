@@ -233,6 +233,29 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   defp connect_error(:connection_failed),
     do: "Node unreachable - check the name is correct and the node is running"
 
+  defp connect_error(:epmd_timeout),
+    do: "Node unreachable - the host didn't respond in time, check your network connection"
+
+  defp connect_error({:epmd_error, :nxdomain}),
+    do: "Host not found - check the node's hostname"
+
+  defp connect_error({:epmd_error, :econnrefused}),
+    do: "Connection refused - check the node's hostname and that epmd is running"
+
+  defp connect_error({:epmd_error, :ehostunreach}),
+    do: "Host unreachable - check the node's hostname and your network"
+
+  defp connect_error({:epmd_error, :etimedout}),
+    do: "Connection timed out - check the node's hostname and your network"
+
+  defp connect_error({:epmd_error, _}), do: "Could not reach host"
+
+  defp connect_error(:node_not_registered),
+    do: "Node not found - check the node name is correct and the node is running"
+
+  defp connect_error({:node_unreachable, reason}),
+    do: "Node port unreachable (#{inspect(reason)})"
+
   defp connect_error(:bad_cookie),
     do: "Authentication failed - the Erlang cookie does not match"
 
@@ -240,7 +263,12 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
     do: "Name type mismatch - try switching between --sname and --name"
 
   defp connect_error(:not_distributed), do: "Failed to start Erlang distribution"
-  defp connect_error({:net_kernel, _}), do: "Failed to start Erlang distribution"
-  defp connect_error({:net_kernel_stop, _}), do: "Failed to restart Erlang distribution"
+
+  defp connect_error({:net_kernel, reason}),
+    do: "Failed to start Erlang distribution: #{inspect(reason)}"
+
+  defp connect_error({:net_kernel_stop, reason}),
+    do: "Failed to restart Erlang distribution: #{inspect(reason)}"
+
   defp connect_error(_), do: "Could not connect to node"
 end
