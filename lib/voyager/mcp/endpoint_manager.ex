@@ -84,21 +84,27 @@ defmodule Voyager.MCP.EndpointManager do
 
   @impl true
   def init(_) do
-    port = Settings.get(:mcp_port, @default_port)
-    ip = Settings.get(:mcp_ip, @default_ip)
-    state = %{endpoint: nil, monitor: nil, enabled: true}
+    enabled = Settings.get(:mcp_enabled, true)
+    state = %{endpoint: nil, monitor: nil, enabled: enabled}
 
     state =
-      case start_endpoint(port, ip) do
-        {:ok, pid} ->
-          Voyager.Telemetry.dispatch!("voyager.mcp.start", metadata: %{reason: "boot"})
-          monitor_endpoint(state, pid)
+      if enabled do
+        port = Settings.get(:mcp_port, @default_port)
+        ip = Settings.get(:mcp_ip, @default_ip)
 
-        {:error, reason} ->
-          # Don't take the whole MCP supervision tree down because the port is
-          # busy at boot — start idle and let the user rebind via `set_port/1`.
-          Logger.warning("MCP endpoint failed to start on port #{port}: #{inspect(reason)}")
-          state
+        case start_endpoint(port, ip) do
+          {:ok, pid} ->
+            Voyager.Telemetry.dispatch!("voyager.mcp.start", metadata: %{reason: "boot"})
+            monitor_endpoint(state, pid)
+
+          {:error, reason} ->
+            # Don't take the whole MCP supervision tree down because the port is
+            # busy at boot — start idle and let the user rebind via `set_port/1`.
+            Logger.warning("MCP endpoint failed to start on port #{port}: #{inspect(reason)}")
+            state
+        end
+      else
+        state
       end
 
     broadcast_status(state)
@@ -122,6 +128,7 @@ defmodule Voyager.MCP.EndpointManager do
   def handle_call(:toggle, _from, %{endpoint: pid} = state) when is_pid(pid) do
     stop_endpoint(state)
     new_state = %{state | endpoint: nil, monitor: nil, enabled: false}
+    Settings.put(:mcp_enabled, false)
     Voyager.Telemetry.dispatch!("voyager.mcp.stop", metadata: %{reason: "manual toggle"})
     broadcast_status(new_state)
     {:reply, {:ok, :stopped}, new_state}
@@ -134,6 +141,7 @@ defmodule Voyager.MCP.EndpointManager do
     case start_endpoint(port, ip) do
       {:ok, pid} ->
         new_state = %{monitor_endpoint(state, pid) | enabled: true}
+        Settings.put(:mcp_enabled, true)
         Voyager.Telemetry.dispatch!("voyager.mcp.start", metadata: %{reason: "manual toggle"})
         broadcast_status(new_state)
         {:reply, {:ok, :running}, new_state}
