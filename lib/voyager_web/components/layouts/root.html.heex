@@ -97,7 +97,12 @@
 
         const tauri = window.__TAURI__;
         if (typeof tauri?.core?.invoke === "function") {
-          tauri.core.invoke("os_theme").then(setOsFromNative).catch(() => {});
+          const refreshOs = () =>
+            tauri.core.invoke("os_theme").then(setOsFromNative).catch(() => {});
+          refreshOs();
+          document.addEventListener("visibilitychange", () => {
+            if (document.visibilityState === "visible") refreshOs();
+          });
           if (typeof tauri.event?.listen === "function") {
             const listenPromise = tauri.event.listen("os-theme-changed", (event) =>
               setOsFromNative(event.payload)
