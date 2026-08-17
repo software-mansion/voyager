@@ -43,7 +43,10 @@ pub fn run() {
 
             pubsub.subscribe("messages", move |msg| {
                 if msg == b"ready" {
-                    create_window(&app_handle, port);
+                    let app_handle = app_handle.clone();
+                    tauri::async_runtime::spawn(async move {
+                        create_window(&app_handle, port).await;
+                    });
                 } else {
                     println!("[rust] {}", String::from_utf8_lossy(msg));
                 }
@@ -73,13 +76,10 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-fn create_window(app_handle: &tauri::AppHandle, port: u16) {
+async fn create_window(app_handle: &tauri::AppHandle, port: u16) {
     let n = app_handle.webview_windows().len() + 1;
     let url = tauri::WebviewUrl::External(format!("http://127.0.0.1:{port}").parse().unwrap());
-    let seed = app_handle
-        .webview_windows()
-        .values()
-        .find_map(|window| theme::current(window).and_then(theme::seed_script));
+    let seed = theme::snapshot().await.and_then(theme::seed_script);
 
     let builder = tauri::WebviewWindowBuilder::new(app_handle, format!("window-{}", n), url)
         .title("Voyager")
@@ -92,11 +92,6 @@ fn create_window(app_handle: &tauri::AppHandle, port: u16) {
     };
 
     let window = builder.build().unwrap();
-
-    if let Some(script) = theme::current(&window).and_then(theme::seed_script) {
-        let _ = window.eval(&script);
-    }
-
     theme::listen(&window);
 }
 

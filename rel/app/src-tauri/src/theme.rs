@@ -47,12 +47,38 @@ pub fn current(window: &tauri::WebviewWindow) -> Option<&'static str> {
     appearance_str(window.theme().ok())
 }
 
+/// Create-time OS appearance for the window init script.
+///
+/// Linux reads the settings portal (same source as live updates). Other
+/// desktops return `None` so the page may first-paint from `matchMedia`.
+pub async fn snapshot() -> Option<&'static str> {
+    #[cfg(target_os = "linux")]
+    {
+        portal_appearance().await
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        None
+    }
+}
+
 /// Initialization script that seeds `window.__VOYAGER_OS_THEME__` before the
-/// page head script runs. Only `"dark"` and `"light"` are injected.
+/// page head script runs. Prefers a live `sessionStorage` value on reload,
+/// then the create-time snapshot. Only `"dark"` and `"light"` are injected.
 pub fn seed_script(appearance: &str) -> Option<String> {
     match appearance {
         "dark" | "light" => Some(format!(
-            r#"(function(){{window.__VOYAGER_OS_THEME__="{appearance}";}})();"#
+            r#"(function(){{
+  try {{
+    var remembered = sessionStorage.getItem("voyager:os-theme");
+    if (remembered === "dark" || remembered === "light") {{
+      window.__VOYAGER_OS_THEME__ = remembered;
+      return;
+    }}
+  }} catch (e) {{}}
+  window.__VOYAGER_OS_THEME__ = "{appearance}";
+}})();"#
         )),
         _ => None,
     }
@@ -156,8 +182,12 @@ mod tests {
 
     #[test]
     fn seed_script_injects_only_dark_and_light() {
-        assert!(seed_script("dark").unwrap().contains(r#"="dark""#));
-        assert!(seed_script("light").unwrap().contains(r#"="light""#));
+        let dark = seed_script("dark").unwrap();
+        assert!(dark.contains(r#"sessionStorage.getItem("voyager:os-theme")"#));
+        assert!(dark.contains(r#"window.__VOYAGER_OS_THEME__ = "dark""#));
+        let light = seed_script("light").unwrap();
+        assert!(light.contains(r#"sessionStorage.getItem("voyager:os-theme")"#));
+        assert!(light.contains(r#"window.__VOYAGER_OS_THEME__ = "light""#));
         assert_eq!(seed_script("system"), None);
     }
 }
