@@ -128,7 +128,7 @@ defmodule Voyager.MCP.EndpointManager do
   def handle_call(:toggle, _from, %{endpoint: pid} = state) when is_pid(pid) do
     stop_endpoint(state)
     new_state = %{state | endpoint: nil, monitor: nil, enabled: false}
-    Settings.put(:mcp_enabled, false)
+    persist_enabled(false)
     Voyager.Telemetry.dispatch!("voyager.mcp.stop", metadata: %{reason: "manual toggle"})
     broadcast_status(new_state)
     {:reply, {:ok, :stopped}, new_state}
@@ -141,7 +141,7 @@ defmodule Voyager.MCP.EndpointManager do
     case start_endpoint(port, ip) do
       {:ok, pid} ->
         new_state = %{monitor_endpoint(state, pid) | enabled: true}
-        Settings.put(:mcp_enabled, true)
+        persist_enabled(true)
         Voyager.Telemetry.dispatch!("voyager.mcp.start", metadata: %{reason: "manual toggle"})
         broadcast_status(new_state)
         {:reply, {:ok, :running}, new_state}
@@ -165,6 +165,16 @@ defmodule Voyager.MCP.EndpointManager do
       true ->
         ip = Settings.get(:mcp_ip, @default_ip)
         swap_endpoint(new_port, ip, state)
+    end
+  end
+
+  defp persist_enabled(enabled) do
+    case Settings.put(:mcp_enabled, enabled) do
+      {:ok, _} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("Failed to persist mcp_enabled=#{enabled}: #{inspect(reason)}")
     end
   end
 

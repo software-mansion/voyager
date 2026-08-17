@@ -115,7 +115,7 @@ defmodule Voyager.MCP.EndpointManagerTest do
     end
 
     test "persists the running state to settings" do
-      assert Settings.get(:mcp_enabled, true) == true
+      {:ok, _} = Settings.put(:mcp_enabled, true)
 
       assert {:ok, :stopped} = MCP.toggle()
       assert Settings.get(:mcp_enabled) == false
