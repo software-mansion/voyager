@@ -29,9 +29,22 @@
     <script>
       (() => {
         const KEY = "phx:theme";
+        const OS_KEY = "voyager:os-theme";
         const media = () =>
           window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-        let osTheme = media();
+        const isTheme = (theme) => theme === "dark" || theme === "light";
+        const storedOs = () => {
+          try {
+            return sessionStorage.getItem(OS_KEY);
+          } catch (_error) {
+            return null;
+          }
+        };
+
+        const hint = window.__VOYAGER_OS_THEME__;
+        const stored = storedOs();
+        let osTheme = isTheme(hint) ? hint : isTheme(stored) ? stored : media();
+        let nativeOs = isTheme(hint) || isTheme(stored);
 
         const preference = () => {
           const value = localStorage.getItem(KEY);
@@ -47,9 +60,18 @@
         };
 
         const setOs = (theme) => {
-          if (theme !== "dark" && theme !== "light") return;
+          if (!isTheme(theme)) return;
           osTheme = theme;
+          try {
+            sessionStorage.setItem(OS_KEY, theme);
+          } catch (_error) {}
           resolve();
+        };
+
+        const setOsFromNative = (theme) => {
+          if (!isTheme(theme)) return;
+          nativeOs = true;
+          setOs(theme);
         };
 
         resolve();
@@ -66,26 +88,24 @@
           resolve();
         });
 
+        window
+          .matchMedia("(prefers-color-scheme: dark)")
+          .addEventListener("change", (e) => {
+            if (nativeOs) return;
+            setOs(e.matches ? "dark" : "light");
+          });
+
         const tauri = window.__TAURI__;
         if (typeof tauri?.core?.invoke === "function") {
-          tauri.core.invoke("os_theme").then(setOs).catch(() => {});
+          tauri.core.invoke("os_theme").then(setOsFromNative).catch(() => {});
           if (typeof tauri.event?.listen === "function") {
-            let unlisten;
-            tauri.event
-              .listen("os-theme-changed", (event) => setOs(event.payload))
-              .then((fn) => {
-                unlisten = fn;
-              });
+            const listenPromise = tauri.event.listen("os-theme-changed", (event) =>
+              setOsFromNative(event.payload)
+            );
             window.addEventListener("pagehide", () => {
-              if (typeof unlisten === "function") unlisten();
+              listenPromise.then((unlisten) => unlisten());
             });
           }
-        } else {
-          window
-            .matchMedia("(prefers-color-scheme: dark)")
-            .addEventListener("change", (e) => {
-              setOs(e.matches ? "dark" : "light");
-            });
         }
       })();
     </script>

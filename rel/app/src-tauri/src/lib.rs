@@ -76,12 +76,27 @@ pub fn run() {
 fn create_window(app_handle: &tauri::AppHandle, port: u16) {
     let n = app_handle.webview_windows().len() + 1;
     let url = tauri::WebviewUrl::External(format!("http://127.0.0.1:{port}").parse().unwrap());
-    let window = tauri::WebviewWindowBuilder::new(app_handle, format!("window-{}", n), url)
+    let seed = app_handle
+        .webview_windows()
+        .values()
+        .find_map(|window| theme::current(window).and_then(theme::seed_script));
+
+    let builder = tauri::WebviewWindowBuilder::new(app_handle, format!("window-{}", n), url)
         .title("Voyager")
         .inner_size(1280.0, 960.0)
-        .min_inner_size(800.0, 800.0)
-        .build()
-        .unwrap();
+        .min_inner_size(800.0, 800.0);
+
+    let builder = match seed {
+        Some(script) => builder.initialization_script(script),
+        None => builder,
+    };
+
+    let window = builder.build().unwrap();
+
+    if let Some(script) = theme::current(&window).and_then(theme::seed_script) {
+        let _ = window.eval(&script);
+    }
+
     theme::listen(&window);
 }
 
