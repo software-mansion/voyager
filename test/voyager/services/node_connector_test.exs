@@ -5,6 +5,11 @@ defmodule Voyager.Services.NodeConnectorTest do
 
   @moduletag capture_log: true
 
+  setup_all do
+    System.cmd("epmd", ["-daemon"])
+    :ok
+  end
+
   describe "connect/3" do
     test "returns :node_not_registered when the host's epmd has no matching name" do
       assert {:error, :node_not_registered} =
