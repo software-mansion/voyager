@@ -47,9 +47,10 @@ pub fn current(window: &tauri::WebviewWindow) -> Option<&'static str> {
     appearance_str(window.theme().ok())
 }
 
-/// Create-time OS appearance for the window init script.
+/// Create-time OS appearance for the window init script and native fill.
 ///
-/// Linux reads the settings portal (same source as live updates). Other
+/// Linux reads the settings portal. macOS reads `AppleInterfaceStyle` (no
+/// window yet; WKWebView must get `background_color` at build time). Other
 /// desktops return `None` so the page may first-paint from `matchMedia`.
 pub async fn snapshot() -> Option<&'static str> {
     #[cfg(target_os = "linux")]
@@ -57,31 +58,79 @@ pub async fn snapshot() -> Option<&'static str> {
         portal_appearance().await
     }
 
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "macos")]
+    {
+        macos_appearance()
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
         None
     }
 }
 
-/// Initialization script that seeds `window.__VOYAGER_OS_THEME__` before the
-/// page head script runs. Prefers a live `sessionStorage` value on reload,
-/// then the create-time snapshot. Only `"dark"` and `"light"` are injected.
-pub fn seed_script(appearance: &str) -> Option<String> {
+/// Light mode omits `AppleInterfaceStyle`; Dark sets it to `Dark`.
+#[cfg(target_os = "macos")]
+fn macos_appearance() -> Option<&'static str> {
+    let output = std::process::Command::new("defaults")
+        .args(["read", "-g", "AppleInterfaceStyle"])
+        .output()
+        .ok()?;
+
+    if output.status.success() {
+        let value = String::from_utf8_lossy(&output.stdout);
+        if value.trim().eq_ignore_ascii_case("dark") {
+            Some("dark")
+        } else {
+            Some("light")
+        }
+    } else {
+        Some("light")
+    }
+}
+
+/// DaisyUI `--color-base-200` used by `html, body` (`assets/css/app.css`).
+/// dark: oklch(23.26% 0.014 253.1); light: oklch(98% 0.003 247.858).
+const BASE_200_DARK: tauri::window::Color = tauri::window::Color(32, 36, 41, 255);
+const BASE_200_LIGHT: tauri::window::Color = tauri::window::Color(247, 248, 250, 255);
+
+/// Native window/webview fill matching DaisyUI `base-200`.
+pub fn surface_color(appearance: &str) -> Option<tauri::window::Color> {
     match appearance {
-        "dark" | "light" => Some(format!(
-            r#"(function(){{
-  try {{
-    var remembered = sessionStorage.getItem("voyager:os-theme");
-    if (remembered === "dark" || remembered === "light") {{
-      window.__VOYAGER_OS_THEME__ = remembered;
-      return;
-    }}
-  }} catch (e) {{}}
-  window.__VOYAGER_OS_THEME__ = "{appearance}";
-}})();"#
-        )),
+        "dark" => Some(BASE_200_DARK),
+        "light" => Some(BASE_200_LIGHT),
         _ => None,
     }
+}
+
+/// Initialization script that sets `data-theme` and `__VOYAGER_OS_THEME__`
+/// at document-start, before the page stylesheet.
+///
+/// OS: sessionStorage, then the create-time snapshot when present, then
+/// matchMedia. Preference: localStorage `phx:theme` (light/dark/system).
+pub fn seed_script(appearance: Option<&str>) -> String {
+    let snapshot = match appearance {
+        Some("dark") => "dark",
+        Some("light") => "light",
+        _ => "",
+    };
+
+    format!(
+        r#"(function(){{
+  var os;
+  try {{
+    var remembered = sessionStorage.getItem("voyager:os-theme");
+    if (remembered === "dark" || remembered === "light") os = remembered;
+  }} catch (e) {{}}
+  if (!os && "{snapshot}") os = "{snapshot}";
+  if (!os) os = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  window.__VOYAGER_OS_THEME__ = os;
+  var pref;
+  try {{ pref = localStorage.getItem("phx:theme"); }} catch (e) {{}}
+  var theme = (pref === "light" || pref === "dark") ? pref : os;
+  document.documentElement.setAttribute("data-theme", theme);
+}})();"#
+    )
 }
 
 /// Subscribe to OS appearance changes and emit `os-theme-changed`.
@@ -181,13 +230,28 @@ mod tests {
     }
 
     #[test]
-    fn seed_script_injects_only_dark_and_light() {
-        let dark = seed_script("dark").unwrap();
+    fn seed_script_sets_data_theme_and_prefers_session_storage() {
+        let dark = seed_script(Some("dark"));
         assert!(dark.contains(r#"sessionStorage.getItem("voyager:os-theme")"#));
-        assert!(dark.contains(r#"window.__VOYAGER_OS_THEME__ = "dark""#));
-        let light = seed_script("light").unwrap();
+        assert!(dark.contains(r#"setAttribute("data-theme""#));
+        assert!(dark.contains(r#"os = "dark""#));
+
+        let light = seed_script(Some("light"));
         assert!(light.contains(r#"sessionStorage.getItem("voyager:os-theme")"#));
-        assert!(light.contains(r#"window.__VOYAGER_OS_THEME__ = "light""#));
-        assert_eq!(seed_script("system"), None);
+        assert!(light.contains(r#"setAttribute("data-theme""#));
+        assert!(light.contains(r#"os = "light""#));
+
+        let none = seed_script(None);
+        assert!(none.contains(r#"setAttribute("data-theme""#));
+        assert!(none.contains("matchMedia"));
+        assert!(!none.contains(r#"os = "dark""#));
+        assert!(!none.contains(r#"os = "light""#));
+    }
+
+    #[test]
+    fn surface_color_maps_dark_and_light() {
+        assert_eq!(surface_color("dark"), Some(BASE_200_DARK));
+        assert_eq!(surface_color("light"), Some(BASE_200_LIGHT));
+        assert_eq!(surface_color("system"), None);
     }
 }

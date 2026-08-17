@@ -79,15 +79,16 @@ pub fn run() {
 async fn create_window(app_handle: &tauri::AppHandle, port: u16) {
     let n = app_handle.webview_windows().len() + 1;
     let url = tauri::WebviewUrl::External(format!("http://127.0.0.1:{port}").parse().unwrap());
-    let seed = theme::snapshot().await.and_then(theme::seed_script);
+    let appearance = theme::snapshot().await;
 
     let builder = tauri::WebviewWindowBuilder::new(app_handle, format!("window-{}", n), url)
         .title("Voyager")
         .inner_size(1280.0, 960.0)
-        .min_inner_size(800.0, 800.0);
+        .min_inner_size(800.0, 800.0)
+        .initialization_script(theme::seed_script(appearance));
 
-    let builder = match seed {
-        Some(script) => builder.initialization_script(script),
+    let builder = match appearance.and_then(theme::surface_color) {
+        Some(color) => builder.background_color(color),
         None => builder,
     };
 
