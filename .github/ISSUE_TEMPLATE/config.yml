@@ -1,1 +1,8 @@
 blank_issues_enabled: false
+contact_links:
+  - name: Voyager website
+    url: https://voyager.swmansion.com/
+    about: Pricing, license terms, and purchasing a Company License.
+  - name: Licensing questions
+    url: https://github.com/software-mansion-labs/voyager/blob/main/LICENSE.md
+    about: Read the Voyager User License and FAQ before opening an issue about licensing.

@@ -1,7 +1,7 @@
-name: "Bug Report"
+name: 'Bug Report'
 description: Report something that isn't working as expected
-title: "[Bug]: "
-labels: ["bug"]
+title: '[Bug]: '
+labels: ['bug']
 
 body:
   - type: markdown
@@ -14,9 +14,18 @@ body:
     attributes:
       label: Operating system
       options:
-        - "macOS (Apple Silicon)"
-        - "macOS (Intel)"
-        - "Linux (x64)"
+        - 'macOS (Apple Silicon)'
+        - 'macOS (Intel)'
+        - 'Linux (x64)'
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Voyager version
+      description: Shown at the bottom of the sidebar, next to the Voyager logo.
+      placeholder: 'v0.1.0'
     validations:
       required: true
 
