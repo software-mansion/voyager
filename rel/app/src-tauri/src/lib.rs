@@ -13,7 +13,10 @@ pub fn run() {
     tauri::Builder::default()
         .enable_macos_default_menu(false)
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![theme::os_theme])
+        .invoke_handler(tauri::generate_handler![
+            theme::os_theme,
+            theme::set_surface
+        ])
         .setup(move |app| {
             #[cfg(target_os = "macos")]
             {
@@ -85,12 +88,8 @@ async fn create_window(app_handle: &tauri::AppHandle, port: u16) {
         .title("Voyager")
         .inner_size(1280.0, 960.0)
         .min_inner_size(800.0, 800.0)
+        .background_color(theme::default_surface())
         .initialization_script(theme::seed_script(appearance));
-
-    let builder = match appearance.and_then(theme::surface_color) {
-        Some(color) => builder.background_color(color),
-        None => builder,
-    };
 
     let window = builder.build().unwrap();
     theme::listen(&window);

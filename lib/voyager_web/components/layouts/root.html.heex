@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     {Application.get_env(:live_debugger, :live_debugger_tags)}
 
@@ -50,10 +50,12 @@
 
         const resolve = () => {
           const pref = preference();
-          document.documentElement.setAttribute(
-            "data-theme",
-            pref === "system" ? osTheme : pref
-          );
+          const theme = pref === "system" ? osTheme : pref;
+          document.documentElement.setAttribute("data-theme", theme);
+          const invoke = window.__TAURI__?.core?.invoke;
+          if (typeof invoke === "function" && isTheme(theme)) {
+            invoke("set_surface", { theme }).catch(() => {});
+          }
         };
 
         const setOs = (theme) => {

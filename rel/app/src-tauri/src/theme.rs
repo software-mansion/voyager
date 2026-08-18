@@ -47,11 +47,11 @@ pub fn current(window: &tauri::WebviewWindow) -> Option<&'static str> {
     appearance_str(window.theme().ok())
 }
 
-/// Create-time OS appearance for the window init script and native fill.
+/// Create-time OS appearance for the window init script.
 ///
-/// Linux reads the settings portal. macOS reads `AppleInterfaceStyle` (no
-/// window yet; WKWebView must get `background_color` at build time). Other
-/// desktops return `None` so the page may first-paint from `matchMedia`.
+/// Linux reads the settings portal. macOS reads `AppleInterfaceStyle`.
+/// Other desktops return `None` so the page may first-paint from `matchMedia`.
+/// Native window fill is always dark until JS calls `set_surface`.
 pub async fn snapshot() -> Option<&'static str> {
     #[cfg(target_os = "linux")]
     {
@@ -103,11 +103,26 @@ pub fn surface_color(appearance: &str) -> Option<tauri::window::Color> {
     }
 }
 
+/// Dark `base-200` used until JS knows the resolved theme is light.
+pub fn default_surface() -> tauri::window::Color {
+    BASE_200_DARK
+}
+
+/// Syncs the native window/webview fill to the resolved DaisyUI theme.
+#[tauri::command]
+pub fn set_surface(window: tauri::WebviewWindow, theme: String) {
+    if let Some(color) = surface_color(&theme) {
+        let _ = window.set_background_color(Some(color));
+    }
+}
+
 /// Initialization script that sets `data-theme` and `__VOYAGER_OS_THEME__`
 /// at document-start, before the page stylesheet.
 ///
 /// OS: sessionStorage, then the create-time snapshot when present, then
-/// matchMedia. Preference: localStorage `phx:theme` (light/dark/system).
+/// matchMedia. Preference: localStorage `phx:theme`. Native `set_surface` is
+/// left to the page script so we never paint light before `phx:theme` is
+/// readable. Unknown preference stays dark.
 pub fn seed_script(appearance: Option<&str>) -> String {
     let snapshot = match appearance {
         Some("dark") => "dark",
@@ -127,7 +142,9 @@ pub fn seed_script(appearance: Option<&str>) -> String {
   window.__VOYAGER_OS_THEME__ = os;
   var pref;
   try {{ pref = localStorage.getItem("phx:theme"); }} catch (e) {{}}
-  var theme = (pref === "light" || pref === "dark") ? pref : os;
+  var theme = "dark";
+  if (pref === "light") theme = "light";
+  else if (pref !== "dark" && os === "light") theme = "light";
   document.documentElement.setAttribute("data-theme", theme);
 }})();"#
     )
@@ -234,6 +251,8 @@ mod tests {
         let dark = seed_script(Some("dark"));
         assert!(dark.contains(r#"sessionStorage.getItem("voyager:os-theme")"#));
         assert!(dark.contains(r#"setAttribute("data-theme""#));
+        assert!(dark.contains(r#"theme = "dark""#));
+        assert!(!dark.contains("set_surface"));
         assert!(dark.contains(r#"os = "dark""#));
 
         let light = seed_script(Some("light"));
@@ -253,5 +272,6 @@ mod tests {
         assert_eq!(surface_color("dark"), Some(BASE_200_DARK));
         assert_eq!(surface_color("light"), Some(BASE_200_LIGHT));
         assert_eq!(surface_color("system"), None);
+        assert_eq!(default_surface(), BASE_200_DARK);
     }
 }
