@@ -1,0 +1,18 @@
+name: "General Feedback"
+description: Share impressions, UX feedback, or ideas that don't fit the other categories
+title: "[Feedback]: "
+labels: ["feedback"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Using Voyager and have thoughts to share? Tell us what's on your mind, big or small.
+
+  - type: textarea
+    id: feedback
+    attributes:
+      label: Your feedback
+      placeholder: "What's working well? What's confusing? What would you change?"
+    validations:
+      required: true
