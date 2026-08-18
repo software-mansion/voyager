@@ -1,5 +1,5 @@
 defmodule Voyager.Services.DistributionTest do
-  use Voyager.DataCase, async: false
+  use ExUnit.Case, async: false
 
   alias Voyager.Services.Distribution
 
