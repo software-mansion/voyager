@@ -1,7 +1,7 @@
-name: "General Feedback"
+name: 'General Feedback'
 description: Share impressions, UX feedback, or ideas that don't fit the other categories
-title: "[Feedback]: "
-labels: ["feedback"]
+title: '[Feedback]: '
+labels: ['feedback']
 
 body:
   - type: markdown
@@ -13,6 +13,6 @@ body:
     id: feedback
     attributes:
       label: Your feedback
-      placeholder: "What's working well? What's confusing? What would you change?"
+      placeholder: What's working well? What's confusing? What would you change?
     validations:
       required: true

@@ -25,9 +25,30 @@ body:
     attributes:
       label: Voyager version
       description: Shown at the bottom of the sidebar, next to the Voyager logo.
-      placeholder: 'v0.1.0'
+      placeholder: '0.1.0'
     validations:
       required: true
+
+  - type: dropdown
+    id: connection
+    attributes:
+      label: How were you connected to the node?
+      options:
+        - 'Local node'
+        - 'Remote node (direct)'
+        - 'Remote node over SSH'
+        - 'Not connected / not applicable'
+    validations:
+      required: true
+
+  - type: input
+    id: node_versions
+    attributes:
+      label: Target node Erlang/Elixir version
+      description: Versions the inspected node runs on, if you know them.
+      placeholder: 'OTP 27.2, Elixir 1.18.1'
+    validations:
+      required: false
 
   - type: textarea
     id: description

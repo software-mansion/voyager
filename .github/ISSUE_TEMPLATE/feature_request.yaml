@@ -1,7 +1,7 @@
-name: "Feature Request"
+name: 'Feature Request'
 description: Suggest an idea or improvement for Voyager
-title: "[Feature]: "
-labels: ["enhancement"]
+title: '[Feature]: '
+labels: ['enhancement']
 
 body:
   - type: markdown
