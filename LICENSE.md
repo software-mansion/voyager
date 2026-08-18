@@ -49,7 +49,7 @@ The software is provided “as is”, without warranty of any kind, express or i
 
 ### Is Voyager open source?
 
-No. Voyager's source code is publicly available (source-available), but it is not open source under the OSI definition. Its use is governed by the Voyager License, which includes conditions not found in OSI-approved licenses.
+No. Voyager's source code is publicly available (source-available), but it is not open source under the OSI definition. Its use is governed by the Voyager User License, which includes conditions not found in OSI-approved licenses.
 
 ### Why is Voyager free for some and paid for others?
 
