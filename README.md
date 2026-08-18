@@ -12,7 +12,7 @@
   <p>
     <a href="https://voyager.swmansion.com/">Website</a>
     ·
-    <a href="https://github.com/software-mansion-labs/voyager/releases/latest">Download</a>
+    <a href="https://voyager.swmansion.com/">Download</a>
     ·
     <a href="https://github.com/software-mansion-labs/voyager/issues/new/choose">Give feedback</a>
     ·
@@ -65,7 +65,7 @@ For a Mix release, set the equivalent environment variables instead:
 RELEASE_DISTRIBUTION=name RELEASE_NODE=my_app@10.0.0.5 RELEASE_COOKIE=my-secret-cookie bin/my_app start
 ```
 
-Recent connections are saved in a local SQLite database; secrets are encrypted before being written.
+Recent connections are saved in a local SQLite database; secrets are encrypted before being written. The encryption key never leaves your machine — it is generated on first boot at `~/.voyager/vault.key` (readable only by you), so losing that file makes previously stored secrets unrecoverable.
 
 Distribution settings (node name, cookie handling) are configurable under **Settings → Distribution**.
 
@@ -85,14 +85,7 @@ Voyager is in active development and feedback shapes what gets built next.
 
 ## Development
 
-Prerequisites are pinned in [`.tool-versions`](.tool-versions):
-
-```
-elixir 1.20.2-otp-29
-erlang 29.0.2
-nodejs 26.4.0
-rust  1.96.0
-```
+Required Elixir, Erlang, Node.js, and Rust versions are pinned in [`.tool-versions`](.tool-versions).
 
 Install dependencies and set up the database:
 
