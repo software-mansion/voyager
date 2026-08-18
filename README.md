@@ -16,7 +16,7 @@
     ·
     <a href="https://github.com/software-mansion-labs/voyager/issues/new/choose">Give feedback</a>
     ·
-    <a href="https://github.com/software-mansion-labs/voyager/blob/main/LICENSE.md">License</a>
+    <a href="LICENSE.md">License</a>
   </p>
 
 </div>
