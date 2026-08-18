@@ -11,7 +11,7 @@ defmodule DualTcpDistTest do
   use ExUnit.Case, async: true
 
   describe "choose_driver/1" do
-    test "an IPv4 literal host selects the inet_tcp driver" do
+    test "an IPv4 literal host selects the dual_tcp driver" do
       assert :dual_tcp_dist.choose_driver(:"voyager@127.0.0.1") == :dual_tcp
     end
 
@@ -19,8 +19,7 @@ defmodule DualTcpDistTest do
       assert :dual_tcp_dist.choose_driver(:"target@::1") == :inet6_tcp
     end
 
-    test "a malformed / unreachable node falls back to inet_tcp" do
-      # inet_tcp lets gen_setup fail with the normal distribution error.
+    test "a malformed / unreachable node falls back to dual_tcp" do
       assert :dual_tcp_dist.choose_driver(:noatsign) == :dual_tcp
     end
   end
