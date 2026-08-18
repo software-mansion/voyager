@@ -1,0 +1,102 @@
+name: Benchmark E2E Flakiness
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: "Number of full suite runs"
+        required: false
+        default: "30"
+      threshold:
+        description: "Max allowed failures (flaky+fail) per test before the benchmark fails"
+        required: false
+        default: "2"
+  schedule:
+    - cron: "0 0 * * 0"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    name: Benchmark
+    runs-on: ubuntu-24.04
+
+    env:
+      MIX_ENV: "e2e"
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .tool-versions
+          cache: "npm"
+          cache-dependency-path: "./e2e/package-lock.json"
+
+      - name: Install Node dependencies
+        working-directory: ./e2e
+        run: npm ci
+
+      - name: Set up Elixir
+        id: beam
+        uses: erlef/setup-beam@v1
+        with:
+          version-file: .tool-versions
+          version-type: strict
+
+      - name: Cache Mix dependencies
+        uses: actions/cache@v6
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version}}-${{ steps.beam.outputs.otp-version}}-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-${{ steps.beam.outputs.elixir-version}}-${{ steps.beam.outputs.otp-version}}-
+
+      - name: Install Mix dependencies
+        run: mix deps.get
+
+      - name: Compile project
+        run: mix compile --warnings-as-errors
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('e2e/package-lock.json') }}
+
+      - name: Install Playwright browsers
+        working-directory: ./e2e
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install
+
+      - name: Install Playwright OS dependencies
+        working-directory: ./e2e
+        run: npx playwright install-deps
+
+      - name: Setup and build assets
+        run: mix assets.setup && mix assets.deploy
+
+      - name: Run benchmark
+        env:
+          RUNS: ${{ github.event.inputs.runs || '30' }}
+          FLAKINESS_THRESHOLD: ${{ github.event.inputs.threshold || '2' }}
+        # RUNS RETRIES THRESHOLD. On threshold breach the script exits non-zero,
+        # failing the job (GitHub then notifies) — the upload below still runs.
+        run: mix ecto.reset && ./e2e/bench-flakiness.sh "$RUNS" 2 "$FLAKINESS_THRESHOLD"
+
+      - name: Upload flakiness results
+        uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: flakiness-report
+          # Full batch output: summary.txt/json, per-run json + logs, blob
+          # reports, and the merged HTML report (with traces of failed tests).
+          path: e2e/flakiness-results/
+          retention-days: 7

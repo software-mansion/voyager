@@ -24,9 +24,14 @@ defmodule Voyager.NodeSession do
   end
 
   @pubsub_topic "node_session"
+  @connector_name_cache_key :connected_via
 
   def start_link(_opts \\ []) do
     GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
+  end
+
+  def cached_connector_name do
+    :persistent_term.get(@connector_name_cache_key, nil)
   end
 
   @doc "Connects via the default distribution connector."
@@ -60,6 +65,7 @@ defmodule Voyager.NodeSession do
 
   @impl GenServer
   def init(_opts) do
+    cache_connector_name(nil)
     {:ok, %{session: nil}}
   end
 
@@ -88,11 +94,21 @@ defmodule Voyager.NodeSession do
           meta: meta
         }
 
+        cache_connector_name(connector.name())
+
         broadcast({:node_connected, node})
-        Voyager.Telemetry.dispatch!("voyager.node.connect", metadata: %{via: connector.name()})
+
+        Voyager.Telemetry.dispatch!("voyager.node.connect",
+          metadata: %{connected_via: connector.name()}
+        )
+
         {:reply, :ok, %{state | session: session}}
 
-      {:error, _} = err ->
+      {:error, reason} = err ->
+        Voyager.Telemetry.dispatch!("voyager.node.connect_failed",
+          metadata: %{connected_via: connector.name(), reason: reason}
+        )
+
         {:reply, err, state}
     end
   end
@@ -105,6 +121,8 @@ defmodule Voyager.NodeSession do
     if Node.alive?(), do: Node.monitor(session.node, false)
     session.connector.disconnect(session.node, session.meta)
     unsubscribe(session.connector)
+    cache_connector_name(nil)
+
     broadcast({:node_disconnected, session.node})
 
     Voyager.Telemetry.dispatch!("voyager.node.disconnect",
@@ -145,6 +163,8 @@ defmodule Voyager.NodeSession do
 
   defp drop_session(state, session, reason) do
     unsubscribe(session.connector)
+    cache_connector_name(nil)
+
     broadcast({:nodedown, session.node})
     Voyager.Telemetry.dispatch!("voyager.node.disconnect", metadata: %{reason: reason})
     {:noreply, %{state | session: nil}}
@@ -168,5 +188,9 @@ defmodule Voyager.NodeSession do
 
   defp broadcast(event) do
     Phoenix.PubSub.broadcast(Voyager.PubSub, @pubsub_topic, event)
+  end
+
+  defp cache_connector_name(via) do
+    :persistent_term.put(@connector_name_cache_key, via)
   end
 end
