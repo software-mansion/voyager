@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Questions and ideas
+    url: https://github.com/software-mansion-labs/voyager/discussions
+    about: Ask for help, propose a feature, or share first impressions in Discussions.
   - name: Voyager website
     url: https://voyager.swmansion.com/
     about: Pricing, license terms, and purchasing a Company License.

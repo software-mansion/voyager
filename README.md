@@ -79,7 +79,8 @@ Enable it under **Settings → MCP** and pick a port. Point your MCP client at t
 
 Voyager is in active development and feedback shapes what gets built next.
 
-- Found a bug, want a feature, or just have thoughts? [Open an issue](https://github.com/software-mansion-labs/voyager/issues/new/choose) — there are templates for bug reports, feature requests, and general feedback.
+- Questions, ideas, or first impressions? Head to [Discussions](https://github.com/software-mansion-labs/voyager/discussions) — [Q&A](https://github.com/software-mansion-labs/voyager/discussions/categories/q-a) for help, [Ideas](https://github.com/software-mansion-labs/voyager/discussions/categories/ideas) for feature proposals, [General](https://github.com/software-mansion-labs/voyager/discussions/categories/general) for everything else.
+- Found a reproducible bug or want to file a concrete request? [Open an issue](https://github.com/software-mansion-labs/voyager/issues/new/choose) — there are templates for bug reports, feature requests, and general feedback.
 - Pull requests are welcome. Fork the repo, run `mix precommit` before pushing, and describe what you changed and why.
 
 ## Development
