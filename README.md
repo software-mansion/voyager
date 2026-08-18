@@ -21,20 +21,7 @@
 
 </div>
 
----
-
-## See it in action
-
-<!--
-  TODO: replace this block with the feature video.
-
-  On GitHub, drag & drop the .mp4 into a comment box (issue, PR, or the README editor) and paste the resulting https://github.com/user-attachments/assets/... URL here.
-  Video files uploaded that way render as an inline player; a file committed to the repo does not.
--->
-
-_A short video walkthrough of Voyager's features goes here._
-
----
+https://github.com/user-attachments/assets/8aa3f69e-a692-4b9d-9bf5-75d972f6370f
 
 ## Overview
 
@@ -46,7 +33,7 @@ TODO
 
 ## Installation
 
-Download the latest build for your platform from the [website](https://voyager.swmansion.com). Voyager ships for:
+Download the latest build for your platform from the [website](https://voyager.swmansion.com). Voyager currently ships for:
 
 - macOS (Apple Silicon)
 - macOS (Intel)
@@ -68,6 +55,13 @@ Distribution settings (node name, cookie handling) are configurable under **Sett
 Voyager can expose the connected node to MCP clients such as Claude Code or Cursor, so an agent can inspect a live system instead of guessing from source code.
 
 Enable it under **Settings → MCP** and pick a port. Point your MCP client at the resulting HTTP endpoint. The tool operates on whichever node Voyager is currently connected to.
+
+## Feedback and contributing
+
+Voyager is in active development and feedback shapes what gets built next.
+
+- Found a bug, want a feature, or just have thoughts? [Open an issue](https://github.com/software-mansion-labs/voyager/issues/new/choose) — there are templates for bug reports, feature requests, and general feedback.
+- Pull requests are welcome. Fork the repo, run `mix precommit` before pushing, and describe what you changed and why.
 
 ## Development
 
@@ -115,13 +109,6 @@ Before opening a pull request, run:
 mix precommit
 ```
 
-## Feedback and contributing
-
-Voyager is in active development and feedback shapes what gets built next.
-
-- Found a bug, want a feature, or just have thoughts? [Open an issue](https://github.com/software-mansion-labs/voyager/issues/new/choose) — there are templates for bug reports, feature requests, and general feedback.
-- Pull requests are welcome. Fork the repo, run `mix precommit` before pushing, and describe what you changed and why.
-
 ## License
 
 Voyager's source code is publicly available, but it is **not** open source under the OSI definition. Use is governed by the [Voyager User License](LICENSE.md):
@@ -133,14 +120,14 @@ Either tier lets you observe, debug, and understand running systems, and modify 
 
 There is a 90-day free evaluation period, and a 90-day grace period if you grow past the size threshold while using Voyager.
 
-See [LICENSE.md](LICENSE.md) for the exact terms and a detailed FAQ, and [voyager.swmansion.com](https://voyager.swmansion.com/) for pricing and to purchase a Company License.
+See [LICENSE.md](LICENSE.md) for the exact terms and a detailed FAQ, and [website](https://voyager.swmansion.com/) for pricing and to purchase a Company License.
 
----
+## Authors
 
-## Voyager is created by Software Mansion
-
-[![Software Mansion](https://logo.swmansion.com/logo?color=white&variant=desktop&width=200&tag=voyager-github)](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=voyager)
+Voyager is created by Software Mansion
 
 Since 2012 [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=voyager) is a software agency with experience in building web and mobile apps as well as complex multimedia solutions. We are Core React Native Contributors, Elixir ecosystem experts, and live streaming and broadcasting technologies specialists. We can help you build your next dream product – [Hire us](https://swmansion.com/contact/projects?utm_source=git&utm_medium=readme&utm_campaign=voyager).
+
+[![Software Mansion](https://logo.swmansion.com/logo?color=white&variant=desktop&width=200&tag=voyager-github)](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=voyager)
 
 Copyright 2026, [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=voyager)
