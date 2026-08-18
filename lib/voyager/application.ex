@@ -2,6 +2,7 @@ defmodule Voyager.Application do
   @moduledoc false
 
   use Application
+  alias Voyager.Services.Distribution
 
   @impl true
   def start(_type, _args) do
@@ -17,7 +18,7 @@ defmodule Voyager.Application do
       Voyager.Telemetry,
       {Phoenix.PubSub, name: Voyager.PubSub},
       {Task.Supervisor, name: Voyager.TaskSupervisor},
-      Supervisor.child_spec({Task, &Voyager.Services.Distribution.start_epmd/0}, id: :start_epmd),
+      Supervisor.child_spec({Task, &Distribution.start_epmd/0}, id: :start_epmd),
       Voyager.ProxyEpmd.TunnelRegistry,
       Voyager.NodeSession,
       {ElixirKit.PubSub, connect: elixirkit_pubsub || :ignore, on_exit: fn -> System.stop() end},
