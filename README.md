@@ -46,6 +46,19 @@ Voyager needs to reach the target node over Erlang distribution and needs its co
 - **Local / remote node** — provide the node name (`myapp@host`) and the cookie. Voyager starts distribution on demand and connects.
 - **Over SSH** — provide SSH credentials to a host that can reach the node. Voyager tunnels the distribution connection through it, which is the usual path to a production node behind a bastion.
 
+The target node must have distribution enabled — a node started without a name is not distributed and cannot be connected to at all. Give it a name and a cookie at boot, and make sure the name type matches the toggle next to the node name field:
+
+```sh
+# long names — use the `--name` toggle in Voyager
+iex --name my_app@127.0.0.1 --cookie my-secret-cookie -S mix phx.server
+```
+
+For a Mix release, set the equivalent environment variables instead:
+
+```sh
+RELEASE_DISTRIBUTION=name RELEASE_NODE=my_app@10.0.0.5 RELEASE_COOKIE=my-secret-cookie bin/my_app start
+```
+
 Recent connections are saved in a local SQLite database; secrets are encrypted before being written.
 
 Distribution settings (node name, cookie handling) are configurable under **Settings → Distribution**.
