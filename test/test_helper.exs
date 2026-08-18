@@ -1,4 +1,3 @@
-System.cmd("epmd", ["-daemon"])
 ExUnit.start(exclude: [:integration])
 Ecto.Adapters.SQL.Sandbox.mode(Voyager.Repo, :manual)
 

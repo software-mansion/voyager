@@ -102,6 +102,9 @@ jobs:
       - name: Run unit tests
         run: mix test
 
+      - name: Run integration tests
+        run: mix test --include integration --only integration
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
