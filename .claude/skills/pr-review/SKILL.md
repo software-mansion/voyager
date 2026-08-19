@@ -30,8 +30,10 @@ Before reviewing, check with `gh pr view`:
   trivial, no findings, stop.
 
 Someone typing the trigger is asking for a fresh pass, so a PR reviewed before is still
-eligible. Read the existing review comments first and do not re-raise a point already made or
-already resolved — a repeated finding is noise, not thoroughness.
+eligible. Read the existing threads first — `gh pr view --comments` for the conversation and
+`gh api repos/{owner}/{repo}/pulls/{number}/comments` for inline review comments — and do not
+re-raise a point already made, already resolved, or that a human dismissed ("ignore",
+"won't fix", "intended"). A repeated finding is noise, not thoroughness.
 
 ## Process
 
