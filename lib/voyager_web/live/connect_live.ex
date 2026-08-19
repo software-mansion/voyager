@@ -6,10 +6,12 @@ defmodule VoyagerWeb.ConnectLive do
 
   @impl true
   def mount(_params, _session, socket) do
+    connected_session = NodeSession.current()
+
     socket
     |> assign(:proxy_epmd_active?, Voyager.ProxyEpmd.active?())
-    |> assign(:connected_session, NodeSession.current())
-    |> assign(:mode, :direct)
+    |> assign(:connected_session, connected_session)
+    |> assign(:mode, connection_mode(connected_session))
     |> assign(:connecting?, false)
     |> ok()
   end
@@ -106,7 +108,12 @@ defmodule VoyagerWeb.ConnectLive do
 
   @impl true
   def handle_info({:node_connected, _node}, socket) do
-    {:noreply, assign(socket, :connected_session, NodeSession.current())}
+    connected_session = NodeSession.current()
+
+    socket
+    |> assign(:connected_session, connected_session)
+    |> assign(:mode, connection_mode(connected_session))
+    |> noreply()
   end
 
   def handle_info({event, _node}, socket) when event in [:node_disconnected, :nodedown] do
@@ -127,4 +134,15 @@ defmodule VoyagerWeb.ConnectLive do
       true -> nil
     end
   end
+
+  defp connection_mode(%NodeSession.Session{connector: connector}) do
+    ui_mode(connector.name())
+  end
+
+  defp connection_mode(nil) do
+    ui_mode(NodeSession.last_via())
+  end
+
+  defp ui_mode(:ssh), do: :ssh
+  defp ui_mode(_), do: :direct
 end

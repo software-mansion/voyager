@@ -6,11 +6,18 @@ defmodule VoyagerWeb.ConnectLiveTest do
   alias Voyager.Actions.Connections, as: ConnectionActions
   alias Voyager.Fakes
   alias Voyager.NodeSession
+  alias Voyager.NodeSession.Connectors.Ssh, as: SshConnector
+  alias Voyager.ProxyEpmd
   alias Voyager.Settings
 
   setup do
     previous_state = :sys.get_state(NodeSession)
-    Fakes.put_session(nil)
+
+    :sys.replace_state(NodeSession, fn state ->
+      state
+      |> Map.put(:session, nil)
+      |> Map.put(:last_via, nil)
+    end)
 
     on_exit(fn ->
       :sys.replace_state(NodeSession, fn _ -> previous_state end)
@@ -134,6 +141,75 @@ defmodule VoyagerWeb.ConnectLiveTest do
     end
   end
 
+  describe "connection mode" do
+    setup :enable_proxy_epmd
+
+    test "selects Direct while connected via distribution", %{conn: conn} do
+      Fakes.connect_node!(Fakes.node_session())
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, "input#mode-direct[checked]")
+      refute has_element?(view, "input#mode-ssh[checked]")
+      assert has_element?(view, ~s|#direct-connect-btn[disabled]|)
+    end
+
+    test "selects SSH Tunnel while connected via SSH", %{conn: conn} do
+      Fakes.connect_node!(Fakes.node_session(connector: SshConnector))
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, "input#mode-ssh[checked]")
+      refute has_element?(view, "input#mode-direct[checked]")
+      assert has_element?(view, "#ssh-connect-form")
+      assert has_element?(view, ~s|#ssh-connect-btn[disabled]|)
+      assert has_element?(view, "input#mode-ssh[disabled]")
+
+      tip_html = view |> element("#mode-toggle-tip-connected-portal") |> render()
+      assert tip_html =~ "Cannot change mode while connected"
+    end
+
+    test "keeps SSH selected and re-enables the form after disconnect", %{conn: conn} do
+      session = Fakes.connect_node!(Fakes.node_session(connector: SshConnector))
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      Fakes.put_session(nil)
+      broadcast(NodeSession.topic(), {:node_disconnected, session.node})
+
+      refute has_element?(view, "#connected-indicator")
+      assert has_element?(view, "input#mode-ssh[checked]")
+      refute has_element?(view, "input#mode-direct[checked]")
+      assert has_element?(view, ~s|#ssh-connect-btn:not([disabled])|)
+      refute has_element?(view, "input#mode-ssh[disabled]")
+    end
+
+    test "keeps SSH selected after nodedown", %{conn: conn} do
+      session = Fakes.connect_node!(Fakes.node_session(connector: SshConnector))
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      broadcast(NodeSession.topic(), {:nodedown, session.node})
+
+      refute has_element?(view, "#connected-indicator")
+      assert has_element?(view, "input#mode-ssh[checked]")
+      refute has_element?(view, "input#mode-direct[checked]")
+      assert has_element?(view, ~s|#ssh-connect-btn:not([disabled])|)
+    end
+
+    test "selects SSH on remount after the SSH session has been cleared", %{conn: conn} do
+      Fakes.connect_node!(Fakes.node_session(connector: SshConnector))
+      Fakes.put_session(nil)
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      refute has_element?(view, "#connected-indicator")
+      assert has_element?(view, "input#mode-ssh[checked]")
+      refute has_element?(view, "input#mode-direct[checked]")
+      assert has_element?(view, ~s|#ssh-connect-btn:not([disabled])|)
+    end
+  end
+
   describe "onboarding popup" do
     setup do
       # test.exs locks :terms_accepted so unrelated LiveViews skip the modal.
@@ -167,5 +243,14 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
   defp broadcast(pubsub_topic, event) do
     Phoenix.PubSub.broadcast(Voyager.PubSub, pubsub_topic, event)
+  end
+
+  defp enable_proxy_epmd(_context) do
+    previous_epmd_module = :persistent_term.get(:voyager_epmd_module, :erl_epmd)
+    :persistent_term.put(:voyager_epmd_module, ProxyEpmd)
+
+    on_exit(fn -> :persistent_term.put(:voyager_epmd_module, previous_epmd_module) end)
+
+    :ok
   end
 end
