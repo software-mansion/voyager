@@ -23,7 +23,7 @@ jobs:
       pull-requests: write
       issues: read
       id-token: write
-      actions: read # Required for Claude to read CI results on PRs
+      actions: read
 
     steps:
       - name: Checkout repository
@@ -31,8 +31,6 @@ jobs:
         with:
           fetch-depth: 1
 
-      # issue_comment checks out the default branch, not the PR — switch to the PR head
-      # so the reviewer's file reads see the PR's versions, not main's.
       - name: Check out the PR branch
         env:
           GH_TOKEN: ${{ github.token }}
