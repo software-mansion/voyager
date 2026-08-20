@@ -39,7 +39,7 @@ Nothing is installed on the target node. Voyager gathers everything through Erla
 
 ## Installation
 
-Download the latest build for your platform from the [website](https://voyager.swmansion.com). Voyager currently ships for:
+Download the latest build for your platform from the [releases]("https://github.com/software-mansion/voyager/releases/latest). Voyager currently ships for:
 
 - macOS (Apple Silicon)
 - macOS (Intel)
