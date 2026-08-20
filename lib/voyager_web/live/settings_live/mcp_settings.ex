@@ -15,6 +15,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
     socket
     |> assign(assigns)
     |> assign_new(:locked?, fn -> Settings.locked?(:mcp_port) end)
+    |> assign_new(:enabled_locked?, fn -> Settings.locked?(:mcp_enabled) end)
     |> assign_new(:toggle_revision, fn -> 0 end)
     |> assign_new(:form, &mcp_port_form/0)
     |> ok()
@@ -38,10 +39,18 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
             class="toggle toggle-primary mt-1"
             aria-label="Toggle MCP server"
             checked={@status.alive?}
+            disabled={@enabled_locked?}
             data-toggle-revision={@toggle_revision}
             phx-click="toggle"
             phx-target={@myself}
           />
+        </div>
+
+        <div :if={@enabled_locked?} id="mcp-enabled-locked" class="alert alert-info text-sm">
+          <.icon name="icon-info" class="text-info size-4" />
+          <span>
+            This value is set in application config, so changes are disabled.
+          </span>
         </div>
 
         <div class="text-base-content/70 font-mono flex items-center gap-1.5 text-xs">
