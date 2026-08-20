@@ -12,9 +12,9 @@
   <p>
     <a href="https://voyager.swmansion.com/">Website</a>
     ·
-    <a href="https://voyager.swmansion.com/">Download</a>
+    <a href="https://github.com/software-mansion/voyager/releases/latest">Download</a>
     ·
-    <a href="https://github.com/software-mansion-labs/voyager/issues/new/choose">Give feedback</a>
+    <a href="https://github.com/software-mansion/voyager/issues/new/choose">Give feedback</a>
     ·
     <a href="LICENSE.md">License</a>
   </p>
@@ -27,7 +27,7 @@ https://github.com/user-attachments/assets/8aa3f69e-a692-4b9d-9bf5-75d972f6370f
 
 Voyager is a desktop app that inspects running BEAM systems — supervision trees, processes, memory and IO usage, running applications, and more — through one interface instead of a patchwork of shell commands copy-pasted into `iex`. It connects to any node, local or remote, over plain Erlang distribution and surfaces the information the BEAM already exposes, in a form that is actually pleasant to read.
 
-Nothing is installed on the target node. Voyager gathers everything through Erlang's built-in introspection functions over RPC, and all calculation, rendering, and storage happens on your machine — the node you are inspecting is only ever asked for information, never put under extra memory pressure.
+Nothing is installed on the target node. Voyager gathers everything through Erlang's built-in introspection functions over RPC, and all rendering and storage happens on your machine — the node you are inspecting is only ever asked for information.
 
 ### Why Voyager
 
@@ -79,8 +79,8 @@ Enable it under **Settings → MCP** and pick a port. Point your MCP client at t
 
 Voyager is in active development and feedback shapes what gets built next.
 
-- Questions, ideas, or first impressions? Head to [Discussions](https://github.com/software-mansion-labs/voyager/discussions) — [Q&A](https://github.com/software-mansion-labs/voyager/discussions/categories/q-a) for help, [Ideas](https://github.com/software-mansion-labs/voyager/discussions/categories/ideas) for feature proposals, [General](https://github.com/software-mansion-labs/voyager/discussions/categories/general) for everything else.
-- Found a reproducible bug or want to file a concrete request? [Open an issue](https://github.com/software-mansion-labs/voyager/issues/new/choose) — there are templates for bug reports, feature requests, and general feedback.
+- Questions, ideas, or first impressions? Head to [Discussions](https://github.com/software-mansion/voyager/discussions) — [Q&A](https://github.com/software-mansion/voyager/discussions/categories/q-a) for help, [Ideas](https://github.com/software-mansion/voyager/discussions/categories/ideas) for feature proposals, [General](https://github.com/software-mansion/voyager/discussions/categories/general) for everything else.
+- Found a reproducible bug or want to file a concrete request? [Open an issue](https://github.com/software-mansion/voyager/issues/new/choose) — there are templates for bug reports, feature requests, and general feedback.
 - Pull requests are welcome. Fork the repo, run `mix precommit` before pushing, and describe what you changed and why.
 
 ## Development

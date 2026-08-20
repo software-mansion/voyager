@@ -7,7 +7,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for helping us squash bugs during the alpha! The more detail you share, the easier it is for us to track it down.
+        Thanks for helping us squash bugs! The more detail you share, the easier it is for us to track it down.
 
   - type: dropdown
     id: os
