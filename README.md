@@ -43,7 +43,7 @@ Download the latest build for your platform from the [website](https://voyager.s
 
 - macOS (Apple Silicon)
 - macOS (Intel)
-- Linux (x64)
+- Linux (x64) — distributed as an AppImage, see [docs/linux_appimage_guide.md](docs/linux_appimage_guide.md) for how to run and install it
 
 ## Connecting to a node
 
