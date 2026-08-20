@@ -26,12 +26,25 @@ defmodule Voyager.Settings do
 
       # Check whether config controls this key (UI should disable editing)
       Settings.locked?(:mcp_port)
+
+  Successful `put/2` calls broadcast `{:setting_changed, key, value}` on
+  `topic(key)` so LiveViews can keep a cached assign in sync.
   """
 
   import Ecto.Query
 
   alias Voyager.Repo
   alias Voyager.Schemas.Setting
+
+  @pubsub_topic_base "settings"
+
+  @doc "PubSub topic for all setting changes."
+  @spec topic() :: String.t()
+  def topic, do: "#{@pubsub_topic_base}:*"
+
+  @doc "PubSub topic for changes to a single setting key."
+  @spec topic(atom()) :: String.t()
+  def topic(key) when is_atom(key), do: "#{@pubsub_topic_base}:#{key}"
 
   @doc """
   Gets a setting value.
@@ -68,12 +81,23 @@ defmodule Voyager.Settings do
       db_key = Atom.to_string(key)
       encoded = encode(value)
 
-      %Setting{}
-      |> Setting.changeset(%{key: db_key, value: encoded})
-      |> Repo.insert(
-        on_conflict: [set: [value: encoded, updated_at: now]],
-        conflict_target: :key
-      )
+      result =
+        %Setting{}
+        |> Setting.changeset(%{key: db_key, value: encoded})
+        |> Repo.insert(
+          on_conflict: [set: [value: encoded, updated_at: now]],
+          conflict_target: :key
+        )
+
+      case result do
+        {:ok, setting} ->
+          Phoenix.PubSub.broadcast(Voyager.PubSub, topic(key), {:setting_changed, key, value})
+          Phoenix.PubSub.broadcast(Voyager.PubSub, topic(), {:setting_changed, key, value})
+          {:ok, setting}
+
+        error ->
+          error
+      end
     end
   end
 
