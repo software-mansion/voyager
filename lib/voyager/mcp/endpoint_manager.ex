@@ -11,6 +11,7 @@ defmodule Voyager.MCP.EndpointManager do
 
       config :voyager, :mcp_port, 4040
       config :voyager, :mcp_ip, {127, 0, 0, 1}
+      config :voyager, :mcp_enabled, true
   """
 
   use GenServer
@@ -125,7 +126,15 @@ defmodule Voyager.MCP.EndpointManager do
     {:reply, status(state), state}
   end
 
-  def handle_call(:toggle, _from, %{endpoint: pid} = state) when is_pid(pid) do
+  def handle_call(:toggle, _from, state) do
+    if Settings.locked?(:mcp_enabled) do
+      {:reply, {:error, :locked}, state}
+    else
+      do_toggle(state)
+    end
+  end
+
+  defp do_toggle(%{endpoint: pid} = state) when is_pid(pid) do
     stop_endpoint(state)
     new_state = %{state | endpoint: nil, monitor: nil, enabled: false}
     persist_enabled(false)
@@ -134,7 +143,7 @@ defmodule Voyager.MCP.EndpointManager do
     {:reply, {:ok, :stopped}, new_state}
   end
 
-  def handle_call(:toggle, _from, state) do
+  defp do_toggle(state) do
     port = Settings.get(:mcp_port, @default_port)
     ip = Settings.get(:mcp_ip, @default_ip)
 
@@ -147,7 +156,7 @@ defmodule Voyager.MCP.EndpointManager do
         {:reply, {:ok, :running}, new_state}
 
       {:error, reason} ->
-        {:reply, {:error, reason}, %{state | enabled: true}}
+        {:reply, {:error, reason}, state}
     end
   end
 
