@@ -2,8 +2,7 @@ defmodule VoyagerWeb.Hooks.PidFormatHook do
   @moduledoc """
   LiveView hook that keeps `@pid_format` in sync with the persisted setting.
 
-  LiveViews read the assign (or pass the socket into `Formatters.format_pid/2`)
-  instead of calling `Settings.get/2` on every render.
+  LiveViews read the assign instead of calling `Settings.get/2` on every render.
   """
 
   import Phoenix.LiveView

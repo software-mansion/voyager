@@ -31,7 +31,6 @@ defmodule VoyagerWeb do
       use Phoenix.LiveView
       on_mount VoyagerWeb.Hooks.FlashHook
       on_mount VoyagerWeb.Hooks.UrlHook
-      on_mount VoyagerWeb.Hooks.PidFormatHook
       import VoyagerWeb.Helpers
       unquote(html_helpers())
 
