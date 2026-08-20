@@ -57,7 +57,6 @@ defmodule Voyager.NodeSessionTest do
                NodeSession.current()
 
       assert NodeSession.connected?()
-      assert NodeSession.last_via() == :fake
       assert_receive {:node_connected, ^node}
     end
 
@@ -74,13 +73,10 @@ defmodule Voyager.NodeSessionTest do
     end
 
     test "surfaces the connector's error without establishing a session" do
-      previous_via = NodeSession.last_via()
-
       assert {:error, :boom} =
                NodeSession.connect_via(FakeConnector, "demo@localhost", "secret", fail: :boom)
 
       refute NodeSession.connected?()
-      assert NodeSession.last_via() == previous_via
     end
 
     test "emits connect_failed telemetry with connector and reason on failure" do
@@ -121,7 +117,6 @@ defmodule Voyager.NodeSessionTest do
       assert_receive {:connector_disconnect, ^node}
       assert_receive {:node_disconnected, ^node}
       refute NodeSession.connected?()
-      assert NodeSession.last_via() == :fake
       assert {:error, :not_connected} = NodeSession.disconnect()
     end
   end
@@ -137,7 +132,6 @@ defmodule Voyager.NodeSessionTest do
       assert_receive {:connector_disconnect, ^node}
       assert_receive {:nodedown, ^node}
       refute NodeSession.connected?()
-      assert NodeSession.last_via() == :fake
     end
   end
 
@@ -157,7 +151,6 @@ defmodule Voyager.NodeSessionTest do
       assert_receive {:nodedown, ^node}
       refute_received {:connector_disconnect, _}
       refute NodeSession.connected?()
-      assert NodeSession.last_via() == :fake
     end
 
     test "ignores messages the connector does not recognize as teardown" do

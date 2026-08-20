@@ -12,12 +12,7 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
   setup do
     previous_state = :sys.get_state(NodeSession)
-
-    :sys.replace_state(NodeSession, fn state ->
-      state
-      |> Map.put(:session, nil)
-      |> Map.put(:last_via, nil)
-    end)
+    Fakes.put_session(nil)
 
     on_exit(fn ->
       :sys.replace_state(NodeSession, fn _ -> previous_state end)
@@ -89,6 +84,15 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
       assert has_element?(view, ~s|a#open-settings[href="/settings?return_to=%2F"]|)
     end
+
+    test "preserves SSH mode in the settings return_to", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
+
+      assert has_element?(
+               view,
+               ~s|a#open-settings[href="/settings?return_to=%2F%3Fmode%3Dssh"]|
+             )
+    end
   end
 
   describe "mode toggle" do
@@ -154,10 +158,13 @@ defmodule VoyagerWeb.ConnectLiveTest do
       assert has_element?(view, ~s|#direct-connect-btn[disabled]|)
     end
 
-    test "selects SSH Tunnel while connected via SSH", %{conn: conn} do
+    test "selects SSH Tunnel while connected via SSH and patches the URL", %{conn: conn} do
       Fakes.connect_node!(Fakes.node_session(connector: SshConnector))
 
-      {:ok, view, _html} = live(conn, ~p"/")
+      {:ok, view, _html} =
+        conn
+        |> live(~p"/")
+        |> follow_redirect(conn, "/?mode=ssh")
 
       assert has_element?(view, "input#mode-ssh[checked]")
       refute has_element?(view, "input#mode-direct[checked]")
@@ -169,10 +176,29 @@ defmodule VoyagerWeb.ConnectLiveTest do
       assert tip_html =~ "Cannot change mode while connected"
     end
 
+    test "patches between Direct and SSH from the mode toggle", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      view |> element("#mode-toggle") |> render_change(%{"mode" => "ssh"})
+
+      assert_patch(view, "/?mode=ssh")
+      assert has_element?(view, "input#mode-ssh[checked]")
+      refute has_element?(view, "input#mode-direct[checked]")
+
+      view |> element("#mode-toggle") |> render_change(%{"mode" => "direct"})
+
+      assert_patch(view, "/")
+      assert has_element?(view, "input#mode-direct[checked]")
+      refute has_element?(view, "input#mode-ssh[checked]")
+    end
+
     test "keeps SSH selected and re-enables the form after disconnect", %{conn: conn} do
       session = Fakes.connect_node!(Fakes.node_session(connector: SshConnector))
 
-      {:ok, view, _html} = live(conn, ~p"/")
+      {:ok, view, _html} =
+        conn
+        |> live(~p"/")
+        |> follow_redirect(conn, "/?mode=ssh")
 
       Fakes.put_session(nil)
       broadcast(NodeSession.topic(), {:node_disconnected, session.node})
@@ -187,7 +213,10 @@ defmodule VoyagerWeb.ConnectLiveTest do
     test "keeps SSH selected after nodedown", %{conn: conn} do
       session = Fakes.connect_node!(Fakes.node_session(connector: SshConnector))
 
-      {:ok, view, _html} = live(conn, ~p"/")
+      {:ok, view, _html} =
+        conn
+        |> live(~p"/")
+        |> follow_redirect(conn, "/?mode=ssh")
 
       broadcast(NodeSession.topic(), {:nodedown, session.node})
 
@@ -197,16 +226,25 @@ defmodule VoyagerWeb.ConnectLiveTest do
       assert has_element?(view, ~s|#ssh-connect-btn:not([disabled])|)
     end
 
-    test "selects SSH on remount after the SSH session has been cleared", %{conn: conn} do
-      Fakes.connect_node!(Fakes.node_session(connector: SshConnector))
-      Fakes.put_session(nil)
-
-      {:ok, view, _html} = live(conn, ~p"/")
+    test "selects SSH from the mode query param while disconnected", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
 
       refute has_element?(view, "#connected-indicator")
       assert has_element?(view, "input#mode-ssh[checked]")
       refute has_element?(view, "input#mode-direct[checked]")
       assert has_element?(view, ~s|#ssh-connect-btn:not([disabled])|)
+    end
+
+    test "stays on Direct after switching away from SSH and remounting", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
+
+      view |> element("#mode-toggle") |> render_change(%{"mode" => "direct"})
+      assert_patch(view, "/")
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, "input#mode-direct[checked]")
+      refute has_element?(view, "input#mode-ssh[checked]")
     end
   end
 

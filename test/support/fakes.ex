@@ -42,19 +42,8 @@ defmodule Voyager.Fakes do
   """
   @spec put_session(Session.t() | nil) :: :ok
   def put_session(session) do
-    :sys.replace_state(NodeSession, fn state ->
-      state
-      |> Map.put(:session, session)
-      |> remember_via(session)
-    end)
-
+    :sys.replace_state(NodeSession, fn state -> Map.put(state, :session, session) end)
     :ok
-  end
-
-  defp remember_via(state, nil), do: state
-
-  defp remember_via(state, session) do
-    Map.put(state, :last_via, session.connector.name())
   end
 
   @default_node_data %{

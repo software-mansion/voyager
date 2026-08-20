@@ -61,18 +61,12 @@ defmodule Voyager.NodeSession do
     GenServer.call(__MODULE__, :connected?)
   end
 
-  @doc "Name of the last successful connector (`:ssh`, `:distribution`, …), or `nil`."
-  @spec last_via() :: atom() | nil
-  def last_via do
-    GenServer.call(__MODULE__, :last_via)
-  end
-
   def topic, do: @pubsub_topic
 
   @impl GenServer
   def init(_opts) do
     cache_connector_name(nil)
-    {:ok, %{session: nil, last_via: nil}}
+    {:ok, %{session: nil}}
   end
 
   @impl GenServer
@@ -108,7 +102,7 @@ defmodule Voyager.NodeSession do
           metadata: %{connected_via: connector.name()}
         )
 
-        {:reply, :ok, %{state | session: session, last_via: connector.name()}}
+        {:reply, :ok, %{state | session: session}}
 
       {:error, reason} = err ->
         Voyager.Telemetry.dispatch!("voyager.node.connect_failed",
@@ -144,10 +138,6 @@ defmodule Voyager.NodeSession do
 
   def handle_call(:connected?, _from, state) do
     {:reply, match?(%Session{}, state.session), state}
-  end
-
-  def handle_call(:last_via, _from, state) do
-    {:reply, Map.get(state, :last_via), state}
   end
 
   @impl GenServer

@@ -14,24 +14,36 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
   import VoyagerWeb.Helpers
 
   alias Voyager.NodeSession
+  alias Voyager.NodeSession.Session
+
+  @doc "Connect page path for a session or connector name. Direct is `/`; SSH is `/?mode=ssh`."
+  @spec connect_path(Session.t() | atom() | nil) :: String.t()
+  def connect_path(%Session{connector: connector}), do: connect_path(connector.name())
+  def connect_path(:ssh), do: ~p"/?#{[mode: "ssh"]}"
+  def connect_path(_), do: ~p"/"
 
   def on_mount(:require_connected_node, %{"node" => node_name}, _session, socket) do
     session = NodeSession.current()
 
-    if is_nil(session) or session.node_name != node_name do
-      {:halt, push_navigate(socket, to: ~p"/")}
-    else
-      if connected?(socket) do
-        Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
-      end
+    cond do
+      is_nil(session) ->
+        {:halt, push_navigate(socket, to: connect_path(nil))}
 
-      socket =
-        socket
-        |> assign(:session, session)
-        |> attach_hook(:no_node_redirect, :handle_info, &handle_no_node/2)
-        |> attach_hook(:disconnect, :handle_event, &handle_disconnect/3)
+      session.node_name != node_name ->
+        {:halt, push_navigate(socket, to: connect_path(session))}
 
-      {:cont, socket}
+      true ->
+        if connected?(socket) do
+          Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
+        end
+
+        socket =
+          socket
+          |> assign(:session, session)
+          |> attach_hook(:no_node_redirect, :handle_info, &handle_no_node/2)
+          |> attach_hook(:disconnect, :handle_event, &handle_disconnect/3)
+
+        {:cont, socket}
     end
   end
 
@@ -55,7 +67,7 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
        when event in [:node_disconnected, :nodedown] do
     socket
     |> put_disconnect_flash({event, event_node})
-    |> redirect(to: ~p"/")
+    |> redirect(to: connect_path(socket.assigns.session))
     |> halt()
   end
 
