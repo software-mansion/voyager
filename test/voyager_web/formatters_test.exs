@@ -130,4 +130,33 @@ defmodule VoyagerWeb.FormattersTest do
       assert Formatters.format_uptime(31_536_000_000) == "1yr 0d"
     end
   end
+
+  describe "format_pid/2" do
+    setup do
+      data = [
+        {"<123.1.0>", "<123.1.0>", "<0.1.0>"},
+        {"<123.23.423>", "<123.23.423>", "<0.23.423>"},
+        {"<0.1.0>", "<0.1.0>", "<0.1.0>"}
+      ]
+
+      %{
+        data: data
+      }
+    end
+
+    test "formats a pid from a string", %{data: data} do
+      Enum.each(data, fn {pid_string, pid_distribution_string, pid_local_string} ->
+        assert Formatters.format_pid(pid_string, :distribution) == pid_distribution_string
+        assert Formatters.format_pid(pid_string, :local) == pid_local_string
+      end)
+    end
+
+    test "defaults to distribution", %{
+      data: data
+    } do
+      Enum.each(data, fn {pid_string, pid_distribution_string, _} ->
+        assert Formatters.format_pid(pid_string) == pid_distribution_string
+      end)
+    end
+  end
 end
