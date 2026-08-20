@@ -17,7 +17,7 @@ defmodule VoyagerWeb.Hooks.PidFormatHook do
 
     socket =
       socket
-      |> assign(:pid_format, normalize_pid_format(Settings.get(:pid_format, :distribution)))
+      |> assign(:pid_format, Settings.get(:pid_format, :distribution))
       |> attach_hook(:pid_format, :handle_info, &handle_pid_format/2)
 
     {:cont, socket}
