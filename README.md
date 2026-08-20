@@ -1,111 +1,146 @@
-# Voyager
+<div align="center">
+  <a href="https://voyager.swmansion.com/" target="_blank">
+    <img src=".github/assets/voyager-logo.png" alt="Voyager" width="140" />
+  </a>
+
+  <h1>Voyager</h1>
+
+  <p><strong>Observe, debug, and understand running BEAM systems</strong></p>
+
+  <p>A desktop app that connects to any BEAM node and shows you what is actually going on inside it</p>
+
+  <p>
+    <a href="https://voyager.swmansion.com/">Website</a>
+    ·
+    <a href="https://voyager.swmansion.com/download">Download</a>
+    ·
+    <a href="https://github.com/software-mansion/voyager/issues/new/choose">Give feedback</a>
+    ·
+    <a href="LICENSE.md">License</a>
+  </p>
+
+</div>
+
+https://github.com/user-attachments/assets/8aa3f69e-a692-4b9d-9bf5-75d972f6370f
+
+## Overview
+
+Voyager is a desktop app that inspects running BEAM systems — supervision trees, processes, memory and IO usage, running applications, and more — through one interface instead of a patchwork of shell commands copy-pasted into `iex`. It connects to any node, local or remote, over plain Erlang distribution and surfaces the information the BEAM already exposes, in a form that is actually pleasant to read.
+
+Nothing is installed on the target node. Voyager gathers everything through Erlang's built-in introspection functions over RPC, and all rendering and storage happens on your machine — the node you are inspecting is only ever asked for information.
+
+### Why Voyager
+
+- **Nothing to install on the target** — no dependency in your app, no hook in your release. If the node is distributed, Voyager can attach to it.
+- **The whole BEAM, not one framework** — Erlang, Elixir, Gleam. Voyager speaks the distribution protocol, not framework internals.
+- **Production without a remote shell** — connect over SSH and inspect a deployed node directly, instead of opening a shell and piecing the picture together by hand.
+- **First-class AI support** — the same data is exposed over MCP, so a coding agent can read a live system instead of guessing from source code.
+- **Built to be read** — a graphical, navigable view of process hierarchies and runtime numbers, which also makes it a good way to learn how OTP actually behaves.
+
+## Installation
+
+Download the latest build for your platform from the [website](https://voyager.swmansion.com/download). Voyager currently ships for:
+
+- macOS (Apple Silicon)
+- macOS (Intel)
+- Linux (x64) — distributed as an AppImage, see [docs/linux_appimage_guide.md](docs/linux_appimage_guide.md) for how to run and install it
+
+## Connecting to a node
+
+Voyager needs to reach the target node over Erlang distribution and needs its cookie.
+
+- **Local / remote node** — provide the node name (`myapp@host`) and the cookie. Voyager starts distribution on demand and connects.
+- **Over SSH** — provide SSH credentials to a host that can reach the node. Voyager tunnels the distribution connection through it, which is the usual path to a production node behind a bastion.
+
+The target node must have distribution enabled — a node started without a name is not distributed and cannot be connected to at all. Give it a name and a cookie at boot, and make sure the name type matches the toggle next to the node name field:
+
+```sh
+# long names — use the `--name` toggle in Voyager
+iex --name my_app@127.0.0.1 --cookie my-secret-cookie -S mix phx.server
+```
+
+For a Mix release, set the equivalent environment variables instead:
+
+```sh
+RELEASE_DISTRIBUTION=name RELEASE_NODE=my_app@10.0.0.5 RELEASE_COOKIE=my-secret-cookie bin/my_app start
+```
+
+Recent connections are saved in a local SQLite database; secrets are encrypted before being written. The encryption key never leaves your machine — it is generated on first boot at `~/.voyager/vault.key` (readable only by you), so losing that file makes previously stored secrets unrecoverable.
+
+Distribution settings (node name, cookie handling) are configurable under **Settings → Distribution**.
+
+## MCP server
+
+Voyager can expose the connected node to MCP clients such as Claude Code or Cursor, so an agent can inspect a live system instead of guessing from source code.
+
+Enable it under **Settings → MCP** and pick a port. Point your MCP client at the resulting HTTP endpoint. The tool operates on whichever node Voyager is currently connected to.
+
+## Feedback and contributing
+
+Voyager is in active development and feedback shapes what gets built next.
+
+- Questions, ideas, or first impressions? Head to [Discussions](https://github.com/software-mansion/voyager/discussions) — [Q&A](https://github.com/software-mansion/voyager/discussions/categories/q-a) for help, [Ideas](https://github.com/software-mansion/voyager/discussions/categories/ideas) for feature proposals, [General](https://github.com/software-mansion/voyager/discussions/categories/general) for everything else.
+- Found a reproducible bug or want to file a concrete request? [Open an issue](https://github.com/software-mansion/voyager/issues/new/choose) — there are templates for bug reports, feature requests, and general feedback.
+- Pull requests are welcome. Fork the repo, run `mix precommit` before pushing, and describe what you changed and why.
 
 ## Development
 
-- Run `mix setup` to install and setup dependencies.
-- Start the Phoenix endpoint with `mix phx.server` or inside IEx with `iex -S mix phx.server`.
+Required Elixir, Erlang, Node.js, and Rust versions are pinned in [`.tool-versions`](.tool-versions).
 
-Now you can visit [localhost:4000](http://localhost:4000) from your browser.
+Install dependencies and set up the database:
 
-For running desktop application in development use:
+```sh
+mix setup
+```
+
+Run the web app on its own:
+
+```sh
+mix phx.server
+# or
+iex -S mix phx.server
+```
+
+Then visit [localhost:4000](http://localhost:4000).
+
+Run the desktop application in development:
 
 ```sh
 mix tauri.dev
 ```
 
-To check production app locally use
+To check the production desktop app locally:
 
 ```sh
 mix assets.deploy
 mix tauri.app
 ```
 
-## Telemetry
-
-Voyager can export telemetry events to a remote ingest server. Export mode needs both:
-
-| Variable | Purpose |
-| --- | --- |
-| `TELEMETRY_PUSH_URL` | Ingest endpoint, e.g. `https://host/telemetry` |
-| `TELEMETRY_API_KEY` | API Key sent as the `X-API-Key` request header |
-
-In `:dev`, if either variable is missing, Voyager falls back to the logger handler instead of export.
-
-### Desktop app
-
-- **`mix tauri.dev`** — `tauri.sh` sources `rel/app/.env` and the Rust side forwards those vars to Elixir at runtime.
-- **`mix tauri.app`** — the same `.env` must be present **at compile time**.
-- **`mix tauri.build`** — requires those env vars to be exported in the shell when run. GitHub Actions pass `TELEMETRY_PUSH_URL` and `TELEMETRY_API_KEY` from repository secrets.
+Before opening a pull request, run:
 
 ```sh
-cp rel/app/.env.sample rel/app/.env
-# edit rel/app/.env with TELEMETRY_PUSH_URL and TELEMETRY_API_KEY
-mix tauri.dev
+mix precommit
 ```
 
-## How to build
+## License
 
-### Mix release
+Voyager's source code is publicly available, but it is **not** open source under the OSI definition. Use is governed by the [Voyager User License](LICENSE.md):
 
-Build the Phoenix release:
+- **Free License** — free for individuals, for-profit organizations with up to 10 employees, and non-profits, including commercial use.
+- **Company License** — required for larger for-profit organizations using Voyager commercially. Includes prioritized support.
 
-```sh
-mix setup
-MIX_ENV=prod mix assets.deploy
-MIX_ENV=prod mix release voyager
-```
+Either tier lets you observe, debug, and understand running systems, and modify the code for internal use or to contribute back. Reselling Voyager or offering it as a hosted "as-a-Service" product is not permitted.
 
-The production release needs these environment variables when it starts:
+There is a 90-day free evaluation period, and a 90-day grace period if you grow past the size threshold while using Voyager.
 
-- `DATABASE_PATH` - SQLite database path, for example `/etc/voyager/voyager.db`
-- `SECRET_KEY_BASE` - Phoenix secret key base (see: [mix phx.gen.secret](https://phoenix.hexdocs.pm/Mix.Tasks.Phx.Gen.Secret.html))
+See [LICENSE.md](LICENSE.md) for the exact terms and a detailed FAQ, and [website](https://voyager.swmansion.com/) for pricing and to purchase a Company License.
 
-### Tauri desktop app
+## Authors
 
-Voyager uses [ElixirKit](https://hexdocs.pm/elixirkit/tauri.html) to bundle the Phoenix release into a Tauri desktop app.
+Voyager is created by Software Mansion
 
-Before creating the desktop app, first run:
-```sh
-mix setup
-MIX_ENV=prod mix assets.deploy
-```
+Since 2012 [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=voyager) is a software agency with experience in building web and mobile apps as well as complex multimedia solutions. We are Core React Native Contributors, Elixir ecosystem experts, and live streaming and broadcasting technologies specialists. We can help you build your next dream product – [Hire us](https://swmansion.com/contact/projects?utm_source=git&utm_medium=readme&utm_campaign=voyager).
 
-#### Prerequisites
+[![Software Mansion](https://logo.swmansion.com/logo?color=white&variant=desktop&width=200&tag=voyager-github)](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=voyager)
 
-- `rust`
-- `tauri-cli`
-
-```sh
-cargo install tauri-cli --version "=2.8.0" --locked
-```
-
-#### Linux
-
-Install system packages:
-
-```sh
-sudo apt-get update
-sudo apt-get install -y \
-  libwebkit2gtk-4.1-dev \
-  libappindicator3-dev \
-  librsvg2-dev \
-  patchelf
-```
-
-Build the app:
-
-```sh
-mix tauri.build
-```
-
-#### macOS
-
-Install Xcode Command Line Tools, then build:
-
-```sh
-mix tauri.build
-```
-
-## Linux AppImage
-
-See [docs/linux_appimage_guide.md](docs/linux_appimage_guide.md) for how to run and install the Voyager AppImage on Linux.
+Copyright 2026, [Software Mansion](https://swmansion.com/?utm_source=git&utm_medium=readme&utm_campaign=voyager)
