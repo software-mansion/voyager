@@ -33,16 +33,31 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(:open?, false)
     |> assign(:links_expanded?, false)
     |> assign(:node_info, AsyncResult.loading())
+    |> assign(:pid_format, :distribution)
     |> ok()
   end
 
   @impl true
-  def update(%{id: id, tree_node: tree_node, remote_node: remote_node}, socket) do
-    socket
-    |> assign(:id, id)
-    |> assign(:remote_node, remote_node)
-    |> maybe_assign_node(tree_node)
-    |> ok()
+  def update(
+        %{id: id, tree_node: tree_node, remote_node: remote_node, pid_format: pid_format},
+        socket
+      ) do
+    format_only? = pid_format_only_change?(socket, tree_node, remote_node, pid_format)
+
+    socket =
+      socket
+      |> assign(:id, id)
+      |> assign(:remote_node, remote_node)
+      |> assign(:pid_format, pid_format)
+
+    socket =
+      if format_only? do
+        socket
+      else
+        maybe_assign_node(socket, tree_node)
+      end
+
+    ok(socket)
   end
 
   @impl true
@@ -77,7 +92,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
         <div class="border-base-200 flex items-start gap-3 border-b px-5 py-4">
           <div class="flex min-w-0 flex-1 flex-col gap-1.5">
             <.node_type_label node_type={@node.type} />
-            <.node_label panel_id={@id} node={@node} />
+            <.node_label panel_id={@id} node={@node} pid_format={@pid_format} />
           </div>
           <div class="flex shrink-0 items-center gap-1.5">
             <.refresh_button
@@ -96,6 +111,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
           node={@node}
           links_expanded?={@links_expanded?}
           myself={@myself}
+          pid_format={@pid_format}
         />
         <.show_more_button panel_id={@id} />
       <% end %>
@@ -106,13 +122,15 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   defp maybe_assign_node(socket, nil), do: assign(socket, :open?, false)
 
   defp maybe_assign_node(socket, node) do
+    changed? = node_changed?(socket, node)
+
     socket =
       socket
       |> assign(:open?, true)
       |> assign(:node, node)
       |> maybe_fetch_node_info(node)
 
-    if node_changed?(socket, node) do
+    if changed? do
       assign(socket, :links_expanded?, false)
     else
       socket
@@ -139,6 +157,16 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
       _ -> true
     end
   end
+
+  defp pid_format_only_change?(socket, tree_node, remote_node, pid_format) do
+    socket.assigns.pid_format != pid_format and
+      socket.assigns.remote_node == remote_node and
+      same_node?(socket.assigns.node, tree_node)
+  end
+
+  defp same_node?(%TreeNode{key: key}, %TreeNode{key: key}), do: true
+  defp same_node?(nil, nil), do: true
+  defp same_node?(_, _), do: false
 
   defp fetch_node_info(remote_node, pid) do
     case ProcessInfo.fetch(remote_node, pid) do

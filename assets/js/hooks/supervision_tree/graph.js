@@ -32,6 +32,8 @@ export const graphMethods = {
     const metaEnv = document.querySelector('meta[name="env"]');
 
     this.animate = metaEnv?.content !== 'e2e';
+    /** @type {'distribution' | 'local'} */
+    this.pidFormat = 'distribution';
   },
 
   cleanupGraph() {
@@ -66,15 +68,18 @@ export const graphMethods = {
    * @property {Record<string, ServerEdge>} edges_added
    * @property {string[]} edges_removed
    *
-   * @param {FullPayload | DeltaPayload} payload
+   * @param {(FullPayload | DeltaPayload) & {pid_format?: 'distribution' | 'local'}} payload
    */
   applyPayload(payload) {
     if (!payload) return;
+
+    const formatChanged = this.setPidFormat(payload.pid_format);
 
     if (payload.kind === 'full') {
       this.applyFull(payload);
     } else if (payload.kind === 'delta') {
       this.applyDelta(payload);
+      if (formatChanged) this.relabelPids();
     }
 
     if (this.selectedEdgeId) {
@@ -97,7 +102,7 @@ export const graphMethods = {
 
       const addBatch = [];
       for (const [key, node] of Object.entries(incoming)) {
-        addBatch.push(...elementsFor(key, node));
+        addBatch.push(...elementsFor(key, node, this.pidFormat));
       }
       // Relationship edges are appended after all nodes so their endpoints
       // already exist when cytoscape processes the batch.
@@ -138,7 +143,7 @@ export const graphMethods = {
       // Additions
       const addBatch = [];
       for (const [key, node] of Object.entries(added)) {
-        addBatch.push(...elementsFor(key, node));
+        addBatch.push(...elementsFor(key, node, this.pidFormat));
         topologyChangeCounter++;
       }
       this.cy.add(addBatch);
@@ -169,7 +174,7 @@ export const graphMethods = {
         }
 
         if (patch.name !== undefined || patch.child_count !== undefined) {
-          node.data('displayLabel', composeLabel(node.data()));
+          node.data('displayLabel', composeLabel(node.data(), this.pidFormat));
         }
 
         if (patch.child_count !== undefined) {
@@ -218,6 +223,31 @@ export const graphMethods = {
     }
   },
 
+  /**
+   * @param {'distribution' | 'local' | undefined} format
+   * @returns {boolean} whether the stored format changed
+   */
+  setPidFormat(format) {
+    if (!format || format === this.pidFormat) return false;
+    this.pidFormat = format;
+    return true;
+  },
+
+  relabelPids() {
+    if (!this.cy) return;
+
+    this.cy.batch(() => {
+      this.cy.nodes().forEach((node) => {
+        node.data('displayLabel', composeLabel(node.data(), this.pidFormat));
+      });
+    });
+
+    if (this.nodeId) this.fillTooltip();
+    if (typeof this.repositionOverlays === 'function') {
+      this.repositionOverlays();
+    }
+  },
+
   // ---------------------------------------------------------------------------
   // Layout
   // ---------------------------------------------------------------------------
@@ -263,7 +293,9 @@ export const graphMethods = {
   // Selection highlighting
   // ---------------------------------------------------------------------------
 
-  applyPathHighlight({ path }) {
+  applyPathHighlight({ path, pid_format }) {
+    if (this.setPidFormat(pid_format)) this.relabelPids();
+
     this.selectedEdgeId = null;
     this.selectedPath = path && path.length > 0 ? path : null;
 
