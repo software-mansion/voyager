@@ -14,9 +14,17 @@ defmodule Voyager.Telemetry.ParserTest do
       %{socket: socket}
     end
 
-    test "includes only view name for `:stop` events", %{socket: socket} do
+    test "includes only view name and event for `:stop` events", %{socket: socket} do
       result = Parser.parse_metadata([:phoenix, :live_view, :mount, :stop], %{socket: socket})
       assert result == %{view: "MyApp.SomeLive"}
+
+      result =
+        Parser.parse_metadata([:phoenix, :live_view, :handle_event, :stop], %{
+          socket: socket,
+          event: "refresh"
+        })
+
+      assert result == %{view: "MyApp.SomeLive", event: "refresh"}
     end
 
     test "includes kind and reason for `:exception` events", %{socket: socket} do
@@ -33,10 +41,65 @@ defmodule Voyager.Telemetry.ParserTest do
 
   describe "parse_metadata/2 for voyager events" do
     test "parse connectors for `node.connect`" do
-      result_ssh = Parser.parse_metadata([:voyager, :node, :connect], %{via: :ssh})
-      result_direct = Parser.parse_metadata([:voyager, :node, :connect], %{via: :direct})
-      assert result_ssh[:via] == :ssh
-      assert result_direct[:via] == :direct
+      result_ssh = Parser.parse_metadata([:voyager, :node, :connect], %{connected_via: :ssh})
+
+      result_direct =
+        Parser.parse_metadata([:voyager, :node, :connect], %{connected_via: :direct})
+
+      assert result_ssh[:connected_via] == :ssh
+      assert result_direct[:connected_via] == :direct
+    end
+
+    test "returns connector and safe reason for `node.connect_failed`" do
+      result =
+        Parser.parse_metadata([:voyager, :node, :connect_failed], %{
+          connected_via: :direct,
+          reason: :bad_cookie
+        })
+
+      assert result == %{connected_via: :direct, reason: "bad_cookie"}
+    end
+
+    test "keeps the option key for a `missing_option` connect failure" do
+      result =
+        Parser.parse_metadata([:voyager, :node, :connect_failed], %{
+          connected_via: :ssh,
+          reason: {:missing_option, :ssh_user}
+        })
+
+      assert result == %{connected_via: :ssh, reason: "missing_option:ssh_user"}
+    end
+
+    test "strips sensitive payloads from tagged `node.connect_failed` reasons" do
+      # host, node name, raw epmd output and nested errors must never leak
+      sensitive = [
+        {{:invalid_host, "prod.internal.example.com"}, "invalid_host"},
+        {{:invalid_node_name, "app@10.0.0.5"}, "invalid_node_name"},
+        {{:invalid_node_format, "app@10.0.0.5"}, "invalid_node_format"},
+        {{:node_not_found, "app", "raw epmd dump with secrets"}, "node_not_found"},
+        {{:net_kernel, {:some, "internal", "detail"}}, "net_kernel"},
+        {{:connector_crashed, %RuntimeError{message: "s3cret-cookie"}}, "connector_crashed"}
+      ]
+
+      for {reason, expected} <- sensitive do
+        result =
+          Parser.parse_metadata([:voyager, :node, :connect_failed], %{
+            connected_via: :ssh,
+            reason: reason
+          })
+
+        assert result == %{connected_via: :ssh, reason: expected}
+      end
+    end
+
+    test "collapses unknown `node.connect_failed` reasons to \"unknown\"" do
+      result =
+        Parser.parse_metadata([:voyager, :node, :connect_failed], %{
+          connected_via: :ssh,
+          reason: {:some_unexpected, "cookie-or-host-here"}
+        })
+
+      assert result == %{connected_via: :ssh, reason: "unknown"}
     end
 
     test "returns reason for `node.disconnect`" do
@@ -131,8 +194,9 @@ defmodule Voyager.Telemetry.ParserTest do
       assert result == measurements
     end
 
-    test "returns empty map for `node.connect` and `node.disconnect`" do
+    test "returns empty map for `node.connect`, `node.connect_failed` and `node.disconnect`" do
       assert %{} == Parser.parse_measurements([:voyager, :node, :connect], %{foo: :bar})
+      assert %{} == Parser.parse_measurements([:voyager, :node, :connect_failed], %{foo: :bar})
       assert %{} == Parser.parse_measurements([:voyager, :node, :disconnect], %{foo: :bar})
     end
 

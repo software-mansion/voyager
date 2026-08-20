@@ -141,15 +141,18 @@ export function floatingNodes(page: Page): Promise<string[]> {
  */
 export async function openTree(page: Page) {
   await ensureConnected(page);
-  await page.goto(`/node/${NODE_NAME}/supervision-tree`);
-  await page
-    .locator('input[name="tree_controls[apps][]"][value="mock_app"]')
-    .check();
-  await expect(page.locator(sel.stStatus)).toHaveText('ok', {
-    timeout: 1_000,
-  });
-  await expect(page.locator(sel.stBody)).toBeVisible();
-  await expect(toggle(page, 'mock_deep_sup_1')).toBeVisible();
+
+  await expect(async () => {
+    await page.goto(`/node/${NODE_NAME}/supervision-tree`);
+    await page
+      .locator('input[name="tree_controls[apps][]"][value="mock_app"]')
+      .check();
+    await expect(page.locator(sel.stStatus)).toHaveText('ok', {
+      timeout: 1_000,
+    });
+    await expect(page.locator(sel.stBody)).toBeVisible();
+    await expect(toggle(page, 'mock_deep_sup_1')).toBeVisible();
+  }).toPass();
 }
 
 /**

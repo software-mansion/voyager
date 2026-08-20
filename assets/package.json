@@ -10,7 +10,7 @@
   "dependencies": {
     "@fontsource-variable/dm-sans": "^5.3.0",
     "colorjs.io": "^0.7.1",
-    "cytoscape": "3.34.0",
+    "cytoscape": "3.34.1",
     "cytoscape-dagre": "^4.0.0",
     "dagre": "^0.8.5",
     "daisyui": "^5.7.16"

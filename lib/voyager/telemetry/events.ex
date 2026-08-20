@@ -7,6 +7,7 @@ defmodule Voyager.Telemetry.Events do
 
   @custom_events [
     [:voyager, :node, :connect],
+    [:voyager, :node, :connect_failed],
     [:voyager, :node, :disconnect],
     [:voyager, :mcp, :start],
     [:voyager, :mcp, :stop]

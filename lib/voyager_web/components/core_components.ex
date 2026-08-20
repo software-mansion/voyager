@@ -219,7 +219,11 @@ defmodule VoyagerWeb.CoreComponents do
       ]}
       {@rest}
     >
-      <.icon name="icon-copy" class={if @icon_only, do: "toolbar-icon", else: "size-4"} />
+      <.icon
+        name="icon-copy"
+        data-copy-icon
+        class={if @icon_only, do: "toolbar-icon", else: "size-4"}
+      />
       <span data-copy-button-label class={@icon_only && "sr-only"}>{@label}</span>
       <span class="sr-only" aria-live="polite" data-copy-status></span>
     </button>
@@ -274,12 +278,21 @@ defmodule VoyagerWeb.CoreComponents do
           }
         },
 
+        setIcon(name) {
+          const icon = this.el.querySelector("[data-copy-icon]")
+          if (!icon) return
+
+          icon.classList.remove("icon-copy", "icon-check", "icon-x")
+          icon.classList.add(name)
+        },
+
         showResult(copied) {
           const label = this.el.querySelector("[data-copy-button-label]")
           const status = this.el.querySelector("[data-copy-status]")
           const originalLabel = this.el.dataset.copyLabel
           const resultLabel = copied ? this.el.dataset.copyCopiedLabel : "Copy failed"
 
+          this.setIcon(copied ? "icon-check" : "icon-x")
           label.textContent = resultLabel
           status.textContent = resultLabel
           this.el.setAttribute("aria-label", resultLabel)
@@ -287,11 +300,12 @@ defmodule VoyagerWeb.CoreComponents do
 
           window.clearTimeout(this.resetTimer)
           this.resetTimer = window.setTimeout(() => {
+            this.setIcon("icon-copy")
             label.textContent = originalLabel
             status.textContent = ""
             this.el.setAttribute("aria-label", originalLabel)
             this.el.setAttribute("title", originalLabel)
-          }, 1800)
+          }, 1500)
         }
       }
     </script>
@@ -555,6 +569,12 @@ defmodule VoyagerWeb.CoreComponents do
     doc:
       "when true, the tip stays open while hovered and can be pinned open with a click — required if the content holds clickable elements"
 
+  attr :show_when, :string,
+    default: nil,
+    values: [nil, "sidebar-compact"],
+    doc:
+      "when set to sidebar-compact, the tip only opens while the app sidebar is in compact (icon-only) mode"
+
   slot :inner_block, required: true, doc: "the hover/focus target"
   slot :content, required: true, doc: "tooltip content"
 
@@ -567,9 +587,34 @@ defmodule VoyagerWeb.CoreComponents do
       data-tooltip-target={"##{@id}-tip"}
       data-tooltip-position={@position}
       data-tooltip-interactive={to_string(@interactive)}
+      data-tooltip-show-when={@show_when}
     >
       {render_slot(@inner_block)}
     </span>
+    <.tooltip_portal id={@id} interactive={@interactive} tip_class={@tip_class}>
+      {render_slot(@content)}
+    </.tooltip_portal>
+    """
+  end
+
+  @doc """
+  Renders only the portaled tooltip content for a trigger that already owns the
+  `Tooltip` hook attrs (id, `phx-hook`, `data-tooltip-*`).
+
+  Use this when wrapping the trigger in `<.tooltip>` would break parent CSS that
+  targets a direct child (for example DaisyUI `.menu > li > *`).
+  """
+  attr :id, :string, required: true, doc: "same id as the trigger element"
+  attr :tip_class, :any, default: nil, doc: "extra classes for the tip"
+
+  attr :interactive, :boolean,
+    default: false,
+    doc: "must match the trigger's data-tooltip-interactive value"
+
+  slot :inner_block, required: true, doc: "tooltip content"
+
+  def tooltip_portal(assigns) do
+    ~H"""
     <.portal id={"#{@id}-portal"} target="#tooltip-portal-root">
       <div
         id={"#{@id}-tip"}
@@ -582,7 +627,7 @@ defmodule VoyagerWeb.CoreComponents do
           @tip_class
         ]}
       >
-        {render_slot(@content)}
+        {render_slot(@inner_block)}
       </div>
     </.portal>
     """

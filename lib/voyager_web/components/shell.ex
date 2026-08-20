@@ -147,13 +147,11 @@ defmodule VoyagerWeb.Components.Shell do
             <span
               :if={@status.alive?}
               class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
-            >
-            </span>
+            ></span>
             <span class={[
               "relative inline-flex h-1.5 w-1.5 rounded-full",
               if(@status.alive?, do: "bg-success", else: "bg-error")
-            ]}>
-            </span>
+            ]}></span>
           </span>
         </span>
         <span class="sidebar-label font-mono text-base-content/70 truncate text-xs">
@@ -218,6 +216,7 @@ defmodule VoyagerWeb.Components.Shell do
         </li>
         <.nav_item
           :for={page <- inspect_pages()}
+          id={"sidebar-nav-#{page.feature}"}
           active={@active_nav == page.feature}
           navigate={nav_path(node_path(@session, page.path), @sidebar_mode)}
           label={page.label}
@@ -232,6 +231,7 @@ defmodule VoyagerWeb.Components.Shell do
 
         <.nav_item
           :for={page <- coming_soon_pages()}
+          id={"sidebar-nav-#{page.feature}"}
           active={@active_nav == page.feature}
           navigate={nav_path(node_path(@session, page.path), @sidebar_mode)}
           label={page.label}
@@ -322,33 +322,25 @@ defmodule VoyagerWeb.Components.Shell do
   defp inspect_pages, do: @inspect_pages
   defp coming_soon_pages, do: @coming_soon_pages
 
+  attr :id, :string, required: true
   attr :active, :boolean, default: false
-  attr :navigate, :any, default: nil
+  attr :navigate, :any, required: true
   attr :label, :string, required: true
   attr :coming_soon, :boolean, default: false
   slot :icon, required: true
-
-  defp nav_item(%{navigate: nil} = assigns) do
-    ~H"""
-    <li class="pointer-events-none opacity-40">
-      <span class="sidebar-nav-row" title={@label}>
-        {render_slot(@icon)}
-        <span class="sidebar-label flex-1 truncate">{@label}</span>
-        <span :if={@coming_soon} class="sidebar-badge badge badge-primary badge-soft badge-xs">
-          Soon
-        </span>
-      </span>
-    </li>
-    """
-  end
 
   defp nav_item(assigns) do
     ~H"""
     <li>
       <.link
+        id={@id}
         navigate={@navigate}
         class={["sidebar-nav-row", @active && "menu-active"]}
-        title={@label}
+        phx-hook="Tooltip"
+        data-tooltip-target={"##{@id}-tip"}
+        data-tooltip-position="right"
+        data-tooltip-interactive="false"
+        data-tooltip-show-when="sidebar-compact"
       >
         {render_slot(@icon)}
         <span class="sidebar-label flex-1 truncate">{@label}</span>
@@ -357,6 +349,7 @@ defmodule VoyagerWeb.Components.Shell do
         </span>
       </.link>
     </li>
+    <.tooltip_portal id={@id}>{@label}</.tooltip_portal>
     """
   end
 
@@ -407,8 +400,7 @@ defmodule VoyagerWeb.Components.Shell do
       class="border-base-300 flex w-fit min-w-0 max-w-full items-center gap-1.5 rounded-lg border py-1 pr-1 pl-2.5"
     >
       <span class="relative flex h-1.5 w-1.5 shrink-0">
-        <span class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75">
-        </span>
+        <span class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"></span>
         <span class="bg-success relative inline-flex h-1.5 w-1.5 rounded-full"></span>
       </span>
       <span

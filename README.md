@@ -105,3 +105,7 @@ Install Xcode Command Line Tools, then build:
 ```sh
 mix tauri.build
 ```
+
+## Linux AppImage
+
+See [docs/linux_appimage_guide.md](docs/linux_appimage_guide.md) for how to run and install the Voyager AppImage on Linux.
