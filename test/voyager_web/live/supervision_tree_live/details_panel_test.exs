@@ -7,6 +7,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
   import Mox
 
   alias Voyager.Fakes
+  alias Voyager.Services.SupervisionTree.TreeNode
+  alias Voyager.Settings
+  alias VoyagerWeb.Components.DetailsPanelComponents
 
   @node_name "demo@localhost"
   @path "/node/demo@localhost/supervision-tree"
@@ -93,6 +96,49 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       assert has_element?(view, "#details-panel", "Links")
       assert has_element?(view, "#details-panel", "Memory and Garbage Collection")
       refute has_element?(view, "#details-panel", "This is not a process node")
+      assert has_element?(view, "#details-panel-pid", pid_key(sup_pid))
+    end
+
+    test "formats a pid-shaped name in the details panel label as local" do
+      node = %TreeNode{
+        key: "<123.45.0>",
+        type: :worker,
+        name: "<123.45.0>",
+        pid: self()
+      }
+
+      html =
+        render_component(&DetailsPanelComponents.node_label/1, %{
+          panel_id: "details-panel",
+          node: node,
+          pid_format: :local
+        })
+
+      assert html =~ "&lt;0.45.0&gt;"
+      refute html =~ "&lt;123.45.0&gt;"
+    end
+
+    test "does not refetch process info when pid_format changes", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      link_pids: link_pids,
+      sup_key: sup_key
+    } do
+      expect_supervision_erpc(9, sup_pid, [port], link_pids)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      assert has_element?(view, "#details-panel", "1,234")
+
+      {:ok, _} = Settings.put(:pid_format, :local)
+      on_exit(fn -> Settings.put(:pid_format, :distribution) end)
+      html = render(view)
+
+      assert html =~ "1,234"
+      refute html =~ "Failed to load node details."
     end
 
     test "shows the non-process message for a port", %{
