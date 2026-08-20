@@ -38,10 +38,6 @@ defmodule Voyager.Settings do
 
   @pubsub_topic_base "settings"
 
-  @doc "PubSub topic for all setting changes."
-  @spec topic() :: String.t()
-  def topic, do: "#{@pubsub_topic_base}:*"
-
   @doc "PubSub topic for changes to a single setting key."
   @spec topic(atom()) :: String.t()
   def topic(key) when is_atom(key), do: "#{@pubsub_topic_base}:#{key}"
@@ -92,7 +88,6 @@ defmodule Voyager.Settings do
       case result do
         {:ok, setting} ->
           Phoenix.PubSub.broadcast(Voyager.PubSub, topic(key), {:setting_changed, key, value})
-          Phoenix.PubSub.broadcast(Voyager.PubSub, topic(), {:setting_changed, key, value})
           {:ok, setting}
 
         error ->
