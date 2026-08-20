@@ -42,15 +42,6 @@ fn random_secret(len: usize) -> String {
         .collect()
 }
 
-/// Best-effort OS appearance (`"dark"` / `"light"`). Falls back to `"dark"`
-/// when unspecified or detection fails.
-pub fn os_theme_hint() -> &'static str {
-    match dark_light::detect() {
-        Ok(dark_light::Mode::Light) => "light",
-        Ok(dark_light::Mode::Dark) | Ok(dark_light::Mode::Unspecified) | Err(_) => "dark",
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
