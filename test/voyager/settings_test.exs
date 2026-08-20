@@ -44,6 +44,30 @@ defmodule Voyager.SettingsTest do
                |> Setting.changeset(%{})
                |> Voyager.Repo.insert()
     end
+
+    test "broadcasts setting_changed after a successful put" do
+      Phoenix.PubSub.subscribe(Voyager.PubSub, Settings.topic(:pid_format))
+
+      assert {:ok, _} = Settings.put(:pid_format, :local)
+      assert_receive {:setting_changed, :pid_format, :local}
+    end
+
+    test "does not broadcast when the key is locked" do
+      Application.put_env(:voyager, :pid_format, :distribution)
+      on_exit(fn -> Application.delete_env(:voyager, :pid_format) end)
+
+      Phoenix.PubSub.subscribe(Voyager.PubSub, Settings.topic(:pid_format))
+
+      assert {:error, :locked} = Settings.put(:pid_format, :local)
+      refute_received {:setting_changed, :pid_format, _}
+    end
+  end
+
+  describe "topic/1" do
+    test "namespaces the key" do
+      assert Settings.topic() == "settings:*"
+      assert Settings.topic(:pid_format) == "settings:pid_format"
+    end
   end
 
   describe "locked?/1" do
