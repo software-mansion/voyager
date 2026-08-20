@@ -8,7 +8,7 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
   def mount(socket) do
     socket
     |> assign(:locked?, Settings.locked?(:pid_format))
-    |> assign(:pid_format, normalize(Settings.get(:pid_format, :distribution)))
+    |> assign(:pid_format, Settings.get(:pid_format, :distribution))
     |> ok()
   end
 
@@ -139,7 +139,4 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
       )
     ]
   end
-
-  defp normalize(format) when format in [:distribution, :local], do: format
-  defp normalize(_), do: :distribution
 end
