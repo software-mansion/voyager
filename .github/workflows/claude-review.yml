@@ -37,7 +37,12 @@ jobs:
       - name: Check out the PR branch
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh pr checkout ${{ github.event.issue.number || github.event.pull_request.number }}
+        run: |
+          BASE_SHA=$(git rev-parse HEAD)
+          gh pr checkout ${{ github.event.issue.number || github.event.pull_request.number }}
+          # agent config comes from base, never from the PR head
+          rm -rf .claude CLAUDE.md AGENTS.md
+          git checkout "$BASE_SHA" -- .claude CLAUDE.md AGENTS.md
 
       - name: Run Claude Code Review
         uses: anthropics/claude-code-action@v1.0.195
