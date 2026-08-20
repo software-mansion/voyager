@@ -71,7 +71,7 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
             phx-value-format="distribution"
             phx-target={@myself}
           >
-            <.icon name="icon-connect" class="size-4" /> Distribution
+            <.icon name="icon-network" class="size-4" /> Distribution
           </button>
           <button
             type="button"
