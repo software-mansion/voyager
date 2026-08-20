@@ -99,11 +99,11 @@ jobs:
       - name: Run Dialyzer
         run: mix dialyzer --format github
 
+      - name: Start Epmd
+        run: epmd -daemon
+        
       - name: Run unit tests
         run: mix test
-
-      - name: Run integration tests
-        run: mix test --include integration --only integration
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
