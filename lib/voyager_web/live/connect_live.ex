@@ -28,10 +28,7 @@ defmodule VoyagerWeb.ConnectLive do
 
   @impl true
   def render(assigns) do
-    assigns =
-      assigns
-      |> assign_new(:current_url, fn -> "/" end)
-      |> assign(:mode_disabled_reason, mode_disabled_reason(assigns))
+    assigns = assign(assigns, :mode_disabled_reason, mode_disabled_reason(assigns))
 
     ~H"""
     <div class="bg-base-200 h-full overflow-y-auto">
@@ -43,7 +40,7 @@ defmodule VoyagerWeb.ConnectLive do
               <div class="text-base-content text-lg font-semibold tracking-tight">Voyager</div>
               <.link
                 id="open-settings"
-                href={~p"/settings?#{[return_to: @current_url || "/"]}"}
+                href={~p"/settings?#{[return_to: @current_url]}"}
                 title="Settings"
                 class="btn btn-ghost btn-square toolbar-btn text-base-content/60 ml-auto hover:text-base-content"
               >
@@ -125,12 +122,7 @@ defmodule VoyagerWeb.ConnectLive do
 
   @impl true
   def handle_info({:node_connected, _node}, socket) do
-    connected_session = NodeSession.current()
-
-    socket
-    |> assign(:connected_session, connected_session)
-    |> push_patch(to: NodeSessionHook.connect_path(connected_session))
-    |> noreply()
+    {:noreply, assign(socket, :connected_session, NodeSession.current())}
   end
 
   def handle_info({event, _node}, socket) when event in [:node_disconnected, :nodedown] do

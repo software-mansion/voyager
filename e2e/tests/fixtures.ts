@@ -87,6 +87,8 @@ export async function ensureDisconnected(page: Page) {
     await disconnect.click();
     await expect(disconnect).toBeHidden();
     await waitForLiveView(page);
+    await page.goto('/');
+    await waitForLiveView(page);
   }
 
   await expect(page.locator(sel.connectBtn)).toBeEnabled();
