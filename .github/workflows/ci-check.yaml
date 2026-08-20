@@ -99,6 +99,9 @@ jobs:
       - name: Run Dialyzer
         run: mix dialyzer --format github
 
+      - name: Start Epmd
+        run: epmd -daemon
+        
       - name: Run unit tests
         run: mix test
 
