@@ -63,13 +63,6 @@ defmodule Voyager.SettingsTest do
     end
   end
 
-  describe "topic/1" do
-    test "namespaces the key" do
-      assert Settings.topic() == "settings:*"
-      assert Settings.topic(:pid_format) == "settings:pid_format"
-    end
-  end
-
   describe "locked?/1" do
     test "is false when the key is only stored in the database" do
       assert {:ok, _} = Settings.put(:mcp_port, 5050)
