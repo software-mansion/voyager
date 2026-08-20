@@ -448,11 +448,11 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   defp ssh_connect_error(:not_distributed),
     do: {:node_name, "Failed to start local Erlang distribution"}
 
-  defp ssh_connect_error({:net_kernel, _}),
-    do: {:node_name, "Failed to start local Erlang distribution"}
+  defp ssh_connect_error({:net_kernel, reason}),
+    do: {:node_name, "Failed to start local Erlang distribution: #{inspect(reason)}"}
 
-  defp ssh_connect_error({:net_kernel_stop, _}),
-    do: {:node_name, "Failed to restart local Erlang distribution"}
+  defp ssh_connect_error({:net_kernel_stop, reason}),
+    do: {:node_name, "Failed to restart local Erlang distribution: #{inspect(reason)}"}
 
   defp ssh_connect_error(:invalid_name_type),
     do: {:node_name, "Invalid name type"}
