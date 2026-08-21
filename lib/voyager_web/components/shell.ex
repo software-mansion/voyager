@@ -101,7 +101,7 @@ defmodule VoyagerWeb.Components.Shell do
     """
   end
 
-  @feedback_url "https://github.com/software-mansion-labs/voyager-early-access-feedback/issues/new/choose"
+  @feedback_url "https://github.com/software-mansion/voyager/issues/new/choose"
 
   defp feedback_link(assigns) do
     assigns = assign(assigns, :feedback_url, @feedback_url)
