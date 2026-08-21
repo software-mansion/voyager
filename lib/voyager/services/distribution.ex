@@ -126,7 +126,9 @@ defmodule Voyager.Services.Distribution do
         :ok
 
       {:error, reason} when retry_with_epmd? ->
-        if not epmd_running?() do
+        if epmd_running?() do
+          {:error, {:net_kernel, reason}}
+        else
           Logger.warning(
             "net_kernel.start/2 failed and epmd appears down. Starting epmd and retrying..."
           )
@@ -135,8 +137,6 @@ defmodule Voyager.Services.Distribution do
           # Wait for epmd daemon to start
           Process.sleep(200)
           start_distribution(name_type, false)
-        else
-          {:error, {:net_kernel, reason}}
         end
 
       {:error, reason} ->
