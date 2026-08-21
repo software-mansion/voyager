@@ -6,6 +6,8 @@ defmodule VoyagerWeb.ConnectLiveTest do
   alias Voyager.Actions.Connections, as: ConnectionActions
   alias Voyager.Fakes
   alias Voyager.NodeSession
+  alias Voyager.NodeSession.Connectors.Ssh, as: SshConnector
+  alias Voyager.ProxyEpmd
   alias Voyager.Settings
 
   setup do
@@ -82,6 +84,15 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
       assert has_element?(view, ~s|a#open-settings[href="/settings?return_to=%2F"]|)
     end
+
+    test "preserves SSH mode in the settings return_to", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
+
+      assert has_element?(
+               view,
+               ~s|a#open-settings[href="/settings?return_to=%2F%3Fmode%3Dssh"]|
+             )
+    end
   end
 
   describe "mode toggle" do
@@ -134,6 +145,127 @@ defmodule VoyagerWeb.ConnectLiveTest do
     end
   end
 
+  describe "connection mode" do
+    setup :enable_proxy_epmd
+
+    test "selects Direct while connected via distribution", %{conn: conn} do
+      Fakes.connect_node!(Fakes.node_session())
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, "input#mode-direct[checked]")
+      refute has_element?(view, "input#mode-ssh[checked]")
+      assert has_element?(view, ~s|#direct-connect-btn[disabled]|)
+    end
+
+    test "selects SSH Tunnel while connected via SSH and patches the URL", %{conn: conn} do
+      Fakes.connect_node!(Fakes.node_session(connector: SshConnector))
+
+      {:ok, view, _html} =
+        conn
+        |> live(~p"/")
+        |> follow_redirect(conn, "/?mode=ssh")
+
+      assert has_element?(view, "input#mode-ssh[checked]")
+      refute has_element?(view, "input#mode-direct[checked]")
+      assert has_element?(view, "#ssh-connect-form")
+      assert has_element?(view, ~s|#ssh-connect-btn[disabled]|)
+      assert has_element?(view, "input#mode-ssh[disabled]")
+
+      tip_html = view |> element("#mode-toggle-tip-connected-portal") |> render()
+      assert tip_html =~ "Cannot change mode while connected"
+    end
+
+    test "selects SSH and patches the URL when a session connects while idle on Direct", %{
+      conn: conn
+    } do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, "input#mode-direct[checked]")
+
+      session = Fakes.connect_node!(Fakes.node_session(connector: SshConnector))
+      broadcast(NodeSession.topic(), {:node_connected, session.node})
+
+      assert_patch(view, "/?mode=ssh")
+      assert has_element?(view, "input#mode-ssh[checked]")
+      refute has_element?(view, "input#mode-direct[checked]")
+      assert has_element?(view, "#ssh-connect-form")
+      assert has_element?(view, ~s|#ssh-connect-btn[disabled]|)
+      assert has_element?(view, "input#mode-ssh[disabled]")
+    end
+
+    test "patches between Direct and SSH from the mode toggle", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      view |> element("#mode-toggle") |> render_change(%{"mode" => "ssh"})
+
+      assert_patch(view, "/?mode=ssh")
+      assert has_element?(view, "input#mode-ssh[checked]")
+      refute has_element?(view, "input#mode-direct[checked]")
+
+      view |> element("#mode-toggle") |> render_change(%{"mode" => "direct"})
+
+      assert_patch(view, "/")
+      assert has_element?(view, "input#mode-direct[checked]")
+      refute has_element?(view, "input#mode-ssh[checked]")
+    end
+
+    test "keeps SSH selected and re-enables the form after disconnect", %{conn: conn} do
+      session = Fakes.connect_node!(Fakes.node_session(connector: SshConnector))
+
+      {:ok, view, _html} =
+        conn
+        |> live(~p"/")
+        |> follow_redirect(conn, "/?mode=ssh")
+
+      Fakes.put_session(nil)
+      broadcast(NodeSession.topic(), {:node_disconnected, session.node})
+
+      refute has_element?(view, "#connected-indicator")
+      assert has_element?(view, "input#mode-ssh[checked]")
+      refute has_element?(view, "input#mode-direct[checked]")
+      assert has_element?(view, ~s|#ssh-connect-btn:not([disabled])|)
+      refute has_element?(view, "input#mode-ssh[disabled]")
+    end
+
+    test "keeps SSH selected after nodedown", %{conn: conn} do
+      session = Fakes.connect_node!(Fakes.node_session(connector: SshConnector))
+
+      {:ok, view, _html} =
+        conn
+        |> live(~p"/")
+        |> follow_redirect(conn, "/?mode=ssh")
+
+      broadcast(NodeSession.topic(), {:nodedown, session.node})
+
+      refute has_element?(view, "#connected-indicator")
+      assert has_element?(view, "input#mode-ssh[checked]")
+      refute has_element?(view, "input#mode-direct[checked]")
+      assert has_element?(view, ~s|#ssh-connect-btn:not([disabled])|)
+    end
+
+    test "selects SSH from the mode query param while disconnected", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
+
+      refute has_element?(view, "#connected-indicator")
+      assert has_element?(view, "input#mode-ssh[checked]")
+      refute has_element?(view, "input#mode-direct[checked]")
+      assert has_element?(view, ~s|#ssh-connect-btn:not([disabled])|)
+    end
+
+    test "stays on Direct after switching away from SSH and remounting", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
+
+      view |> element("#mode-toggle") |> render_change(%{"mode" => "direct"})
+      assert_patch(view, "/")
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, "input#mode-direct[checked]")
+      refute has_element?(view, "input#mode-ssh[checked]")
+    end
+  end
+
   describe "onboarding popup" do
     setup do
       # test.exs locks :terms_accepted so unrelated LiveViews skip the modal.
@@ -167,5 +299,14 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
   defp broadcast(pubsub_topic, event) do
     Phoenix.PubSub.broadcast(Voyager.PubSub, pubsub_topic, event)
+  end
+
+  defp enable_proxy_epmd(_context) do
+    previous_epmd_module = :persistent_term.get(:voyager_epmd_module, :erl_epmd)
+    :persistent_term.put(:voyager_epmd_module, ProxyEpmd)
+
+    on_exit(fn -> :persistent_term.put(:voyager_epmd_module, previous_epmd_module) end)
+
+    :ok
   end
 end
