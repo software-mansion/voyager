@@ -143,8 +143,7 @@ They are not in `CLAUDE.md`.
 ### OTP and error handling
 
 - 🔴 `GenServer.init/1` returning anything but `{:ok, state} | {:stop, reason} | :ignore`.
-- 🟡 Write results ignored (`Settings.put/2`, `:telemetry.attach_many/4`, `Repo` calls) — the
-  in-memory state silently desyncs from the DB.
+- 🟡 Write results ignored (`Settings.put/2`, `:telemetry.attach_many/4`, `Repo` calls) OR use the data passed to them if they are not changed by these functions.
 - 🟡 Error tuples the callee documents but the caller collapses (`{:error, :locked}` turned into
   a generic flash).
 - 🟡 `Task` children are `restart: :temporary`, so a crashing startup task is never retried.
