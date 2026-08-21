@@ -4,6 +4,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   alias Phoenix.LiveView.AsyncResult
   alias Voyager.Services.SupervisionTree.Fetch
   alias Voyager.Services.SupervisionTree.Remote
+  alias Voyager.Settings
   alias VoyagerWeb.Components.SupervisionTreeComponents
   alias VoyagerWeb.FormSchemas.SupervisionTreeControls
   alias VoyagerWeb.SupervisionTreeLive.Diff
@@ -29,8 +30,11 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> assign(:status, :idle)
       |> assign(:refresh_timer, nil)
       |> assign(:selected_node, nil)
+      |> assign(:pid_format, Settings.get(:pid_format, :distribution))
 
     if connected?(socket) do
+      Phoenix.PubSub.subscribe(Voyager.PubSub, Settings.topic(:pid_format))
+
       socket
       |> assign_applications()
       |> start_timer()
@@ -256,8 +260,9 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     |> noreply()
   end
 
-  def handle_info({:setting_changed, :pid_format, _format}, socket) do
+  def handle_info({:setting_changed, :pid_format, format}, socket) do
     socket
+    |> assign(:pid_format, format)
     |> push_tree_event("tree-data", %{
       kind: "delta",
       request_type: :pid_format,
