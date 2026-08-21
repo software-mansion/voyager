@@ -16,10 +16,15 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Session
 
-  @doc "Connect page path for a session or connector name. Direct is `/`; SSH is `/?mode=ssh`."
-  @spec connect_path(Session.t() | atom() | nil) :: String.t()
+  @doc """
+  Connect page path for a session, UI mode (`:direct` | `:ssh`), or connector name.
+
+  Direct (`:direct`, `:distribution`, or `nil`) is `/`. SSH (`:ssh`) is `/?mode=ssh`.
+  """
+  @spec connect_path(Session.t() | :direct | :ssh | :distribution | nil) :: String.t()
   def connect_path(%Session{connector: connector}), do: connect_path(connector.name())
   def connect_path(:ssh), do: ~p"/?#{[mode: "ssh"]}"
+  def connect_path(mode) when mode in [:direct, :distribution, nil], do: ~p"/"
   def connect_path(_), do: ~p"/"
 
   def on_mount(:require_connected_node, %{"node" => node_name}, _session, socket) do
