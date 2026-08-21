@@ -175,7 +175,6 @@ They are not in `CLAUDE.md`.
 - 🔴 A `return_to`-style redirect validated with `"/" <> _` — `//evil.example` is
   protocol-relative and leaves the app.
 - 🔴 Secrets in logs — `inspect(config)` on a struct holding `api_key`.
-- 🔴 `silently_accept_hosts: true` or any host-key check disabled by default.
 - 🔴 User-supplied host or option strings passed to `ssh`/`System.cmd` unvalidated (a value
   starting with `-` becomes `-oProxyCommand`).
 - 🔴 `innerHTML` built from server-provided process metadata without escaping.
