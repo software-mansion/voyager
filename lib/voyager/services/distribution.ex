@@ -87,11 +87,10 @@ defmodule Voyager.Services.Distribution do
     :ok
   end
 
-  @doc "Checks if the local EPMD daemon is running and responding."
   def epmd_running? do
-    case :erl_epmd.names() do
-      {:ok, _} -> true
-      {:error, _} -> false
+    case Voyager.EPMDClient.get_names(~c"127.0.0.1", 4369, 500) do
+      {:ok, _text} -> true
+      {:error, _reason} -> false
     end
   end
 
