@@ -65,11 +65,16 @@ defmodule Voyager.Settings do
   @doc """
   Persists a setting to the database.
 
+  Options:
+  - `:broadcast?` (boolean): Whether to broadcast the setting change to the pubsub topic. Default is `false`.
+
   Returns `{:error, :locked}` when the key is set in application config.
   """
-  @spec put(atom(), term()) ::
+  @spec put(atom(), term(), Keyword.t()) ::
           {:ok, Setting.t()} | {:error, :locked} | {:error, Ecto.Changeset.t()}
-  def put(key, value) when is_atom(key) do
+  def put(key, value, options \\ []) when is_atom(key) do
+    broadcast? = Keyword.get(options, :broadcast?, false)
+
     if locked?(key) do
       {:error, :locked}
     else
@@ -87,7 +92,10 @@ defmodule Voyager.Settings do
 
       case result do
         {:ok, setting} ->
-          Phoenix.PubSub.broadcast(Voyager.PubSub, topic(key), {:setting_changed, key, value})
+          if broadcast? do
+            Phoenix.PubSub.broadcast(Voyager.PubSub, topic(key), {:setting_changed, key, value})
+          end
+
           {:ok, setting}
 
         error ->
