@@ -9,6 +9,7 @@ defmodule Voyager.Services.Distribution do
   for `:longnames` and `localhost` for `:shortnames`.
   """
 
+  alias Voyager.Epmd.Daemon
   alias Voyager.Settings
 
   require Logger
@@ -27,13 +28,10 @@ defmodule Voyager.Services.Distribution do
         start_distribution(name_type)
 
       matches_name_type?(name_type) and distribution_name_matches?() ->
-        :ok
+        ensure_epmd_alive(name_type)
 
       true ->
-        case :net_kernel.stop() do
-          :ok -> start_distribution(name_type)
-          {:error, reason} -> {:error, {:net_kernel_stop, reason}}
-        end
+        restart_distribution(name_type)
     end
   end
 
@@ -74,23 +72,62 @@ defmodule Voyager.Services.Distribution do
     name == distribution_name()
   end
 
-  defp start_distribution(name_type) do
+  defp ensure_epmd_alive(name_type) do
+    if Daemon.running?() do
+      :ok
+    else
+      Logger.warning("Node is alive but local EPMD is dead. Restarting distribution...")
+      restart_distribution(name_type)
+    end
+  end
+
+  defp restart_distribution(name_type) do
+    case :net_kernel.stop() do
+      :ok ->
+        start_distribution(name_type)
+
+      {:error, reason} ->
+        {:error, {:net_kernel_stop, reason}}
+    end
+  end
+
+  defp start_distribution(name_type, retry_with_epmd? \\ true) do
     node_name = local_node_name(name_type)
 
     case :net_kernel.start(node_name, %{name_domain: name_type, hidden: true}) do
       {:ok, _pid} ->
         :ok
 
-      {:error, {:already_started, pid}} ->
-        Logger.warning(
-          "net_kernel.start/2 returned {:already_started, #{inspect(pid)}} " <>
-            "for #{inspect(node_name)} name_type=#{inspect(name_type)}"
-        )
-
+      {:error, {:already_started, _pid}} ->
         :ok
+
+      {:error, reason} when retry_with_epmd? ->
+        handle_net_kernel_error(name_type, reason)
 
       {:error, reason} ->
         {:error, {:net_kernel, reason}}
+    end
+  end
+
+  defp handle_net_kernel_error(name_type, reason) do
+    if Daemon.running?() do
+      {:error, {:net_kernel, reason}}
+    else
+      Logger.warning(
+        "net_kernel.start/2 failed and epmd appears down. Starting epmd and retrying..."
+      )
+
+      restart_epmd_and_distribute(name_type, reason)
+    end
+  end
+
+  defp restart_epmd_and_distribute(name_type, reason) do
+    case Daemon.start() do
+      :ok ->
+        start_distribution(name_type, false)
+
+      {:error, _start_err} ->
+        {:error, {:epmd_start_failed, reason}}
     end
   end
 end
