@@ -154,6 +154,7 @@ defmodule VoyagerWeb.Formatters do
 
   defp maybe_localize_pid(pid_string, :distribution), do: pid_string
 
-  defp maybe_localize_pid(pid_string, :local),
-    do: String.replace(pid_string, ~r/^<\d+\./, "<0.")
+  defp maybe_localize_pid(pid_string, :local) do
+    String.replace(pid_string, ~r/^<\d+\.(\d+\.\d+)>$/, "<0.\\1>")
+  end
 end
