@@ -13,13 +13,15 @@ defmodule Voyager.Epmd.Client do
   def get_names(host \\ ~c"127.0.0.1", port \\ 4369, timeout \\ 1_000) do
     opts = [:binary, active: false, packet: :raw]
 
-    with {:ok, sock} <- :gen_tcp.connect(host, port, opts, timeout),
-         :ok <- :gen_tcp.send(sock, <<1::16, @epmd_names_req>>),
-         {:ok, resp} <- recv_until_closed(sock, <<>>, timeout) do
+    with {:ok, sock} <- :gen_tcp.connect(host, port, opts, timeout) do
+      result =
+        with :ok <- :gen_tcp.send(sock, <<1::16, @epmd_names_req>>),
+             {:ok, resp} <- recv_until_closed(sock, <<>>, timeout) do
+          parse_names_response(resp)
+        end
+
       :gen_tcp.close(sock)
-      parse_names_response(resp)
-    else
-      err -> err
+      result
     end
   end
 

@@ -28,22 +28,10 @@ defmodule Voyager.Services.Distribution do
         start_distribution(name_type)
 
       matches_name_type?(name_type) and distribution_name_matches?() ->
-        if Daemon.running?() do
-          :ok
-        else
-          Logger.warning("Node is alive but local EPMD is dead. Restarting distribution...")
-          :net_kernel.stop()
-          start_distribution(name_type)
-        end
+        ensure_epmd_alive(name_type)
 
       true ->
-        case :net_kernel.stop() do
-          :ok ->
-            start_distribution(name_type)
-
-          {:error, reason} ->
-            {:error, {:net_kernel_stop, reason}}
-        end
+        restart_distribution(name_type)
     end
   end
 
@@ -84,6 +72,25 @@ defmodule Voyager.Services.Distribution do
     name == distribution_name()
   end
 
+  defp ensure_epmd_alive(name_type) do
+    if Daemon.running?() do
+      :ok
+    else
+      Logger.warning("Node is alive but local EPMD is dead. Restarting distribution...")
+      restart_distribution(name_type)
+    end
+  end
+
+  defp restart_distribution(name_type) do
+    case :net_kernel.stop() do
+      :ok ->
+        start_distribution(name_type)
+
+      {:error, reason} ->
+        {:error, {:net_kernel_stop, reason}}
+    end
+  end
+
   defp start_distribution(name_type, retry_with_epmd? \\ true) do
     node_name = local_node_name(name_type)
 
@@ -117,7 +124,6 @@ defmodule Voyager.Services.Distribution do
   defp restart_epmd_and_distribute(name_type, reason) do
     case Daemon.start() do
       :ok ->
-        Process.sleep(200)
         start_distribution(name_type, false)
 
       {:error, _start_err} ->
