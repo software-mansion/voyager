@@ -176,6 +176,24 @@ defmodule VoyagerWeb.ConnectLiveTest do
       assert tip_html =~ "Cannot change mode while connected"
     end
 
+    test "selects SSH and patches the URL when a session connects while idle on Direct", %{
+      conn: conn
+    } do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, "input#mode-direct[checked]")
+
+      session = Fakes.connect_node!(Fakes.node_session(connector: SshConnector))
+      broadcast(NodeSession.topic(), {:node_connected, session.node})
+
+      assert_patch(view, "/?mode=ssh")
+      assert has_element?(view, "input#mode-ssh[checked]")
+      refute has_element?(view, "input#mode-direct[checked]")
+      assert has_element?(view, "#ssh-connect-form")
+      assert has_element?(view, ~s|#ssh-connect-btn[disabled]|)
+      assert has_element?(view, "input#mode-ssh[disabled]")
+    end
+
     test "patches between Direct and SSH from the mode toggle", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 

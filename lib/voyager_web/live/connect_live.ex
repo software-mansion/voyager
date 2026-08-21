@@ -122,7 +122,12 @@ defmodule VoyagerWeb.ConnectLive do
 
   @impl true
   def handle_info({:node_connected, _node}, socket) do
-    {:noreply, assign(socket, :connected_session, NodeSession.current())}
+    connected_session = NodeSession.current()
+
+    socket
+    |> assign(:connected_session, connected_session)
+    |> maybe_sync_connected_mode(connected_session)
+    |> noreply()
   end
 
   def handle_info({event, _node}, socket) when event in [:node_disconnected, :nodedown] do
@@ -153,6 +158,21 @@ defmodule VoyagerWeb.ConnectLive do
       not proxy_epmd_active? -> :direct
       params["mode"] == "ssh" -> :ssh
       true -> :direct
+    end
+  end
+
+  defp maybe_sync_connected_mode(socket, nil), do: socket
+
+  defp maybe_sync_connected_mode(socket, connected_session) do
+    mode = resolve_mode(connected_session, %{}, socket.assigns.proxy_epmd_active?)
+    path = NodeSessionHook.connect_path(mode)
+
+    socket = assign(socket, :mode, mode)
+
+    if socket.assigns.current_url != path do
+      push_patch(socket, to: path)
+    else
+      socket
     end
   end
 
