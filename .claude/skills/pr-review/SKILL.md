@@ -138,8 +138,7 @@ They are not in `CLAUDE.md`.
   known list first.
 - 🔴 Raising calls (`System.cmd/3`, `Map.fetch!/2`, `String.trim/1` on `nil`, `hd/1`) on a path
   reachable from a supervised process or from params.
-- 🔴 `String.to_atom/1` reachable from user input. `CLAUDE.md` states the rule; the repeat
-  offenders are cookies, node names and the settings-driven distribution suffix.
+- 🔴 `String.to_atom/1` reachable from user input which are NOT cookies, node names and the settings-driven distribution suffix. If the code can work without changing String to Atom then don't change it.
 
 ### OTP and error handling
 
