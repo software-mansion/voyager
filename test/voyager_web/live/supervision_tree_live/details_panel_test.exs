@@ -8,7 +8,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
 
   alias Voyager.Fakes
   alias Voyager.Services.SupervisionTree.TreeNode
-  alias Voyager.Settings
   alias VoyagerWeb.Components.DetailsPanelComponents
 
   @node_name "demo@localhost"
