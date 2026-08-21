@@ -87,7 +87,7 @@ export const graphMethods = {
     if (this.selectedEdgeId) {
       this.applyEdgeHighlight(this.selectedEdgeId);
     } else if (this.selectedPath) {
-      this.applyPathHighlight({ path: this.selectedPath });
+      this.applyPathHighlight({ path: this.selectedPath, pid_format: payload.pid_format });
     }
   },
 
