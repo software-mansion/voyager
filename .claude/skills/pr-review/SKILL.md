@@ -100,6 +100,14 @@ Severity: 🔴 blocking · 🟡 should-fix · 🟢 nit
 <verdict: 1 blocking, 1 should-fix, 1 nit>
 ```
 
+The summary is that block and nothing else. No notes section, no table of earlier findings
+re-checked, no correction to a previous run, no remark about the trigger or about what you could
+not do. Anything that is not a finding does not go on the pull request.
+
+Keep an inline comment to two or three sentences: the defect, the failure it causes, the fix. The
+reasoning that got you there stays out. A finding that needs a wall of proof to be believed did
+not clear the confidence bar in step 3.
+
 ---
 
 
