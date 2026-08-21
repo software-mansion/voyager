@@ -3,6 +3,7 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
   use VoyagerWeb, :live_component
 
   alias Voyager.Settings
+  alias VoyagerWeb.SettingsComponents
 
   @impl true
   def mount(socket) do
@@ -57,6 +58,8 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
           </ul>
         </div>
 
+        <SettingsComponents.locked_alert id="pid-format-locked" locked?={@locked?} />
+
         <div
           id="pid-format-setting"
           class="join inline-grid grid-cols-2 self-start"
@@ -85,13 +88,6 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
           >
             <.icon name="icon-laptop" class="size-4" /> Local
           </button>
-        </div>
-
-        <div :if={@locked?} id="pid-format-locked" class="alert alert-info text-sm">
-          <.icon name="icon-circle-alert" class="size-4" />
-          <span>
-            This value is set in application config, so changes are disabled.
-          </span>
         </div>
       </div>
     </div>
