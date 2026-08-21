@@ -65,7 +65,7 @@ defmodule Voyager.SettingsTest do
 
       Phoenix.PubSub.subscribe(Voyager.PubSub, Settings.topic(:pid_format))
 
-      assert {:error, :locked} = Settings.put(:pid_format, :local)
+      assert {:error, :locked} = Settings.put(:pid_format, :local, broadcast?: true)
       refute_received {:setting_changed, :pid_format, _}
     end
   end
