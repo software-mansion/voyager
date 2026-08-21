@@ -39,6 +39,11 @@ eligible. Read the existing threads first — `gh pr view --comments` for the co
 re-raise a point already made, already resolved, or that a human dismissed ("ignore",
 "won't fix", "intended"). A repeated finding is noise, not thoroughness.
 
+Write that `gh api` call with the endpoint first and every flag after it — `… /comments
+--paginate --jq '.[].path'`. The workflow allows it by matching the command prefix, so a flag
+placed before the endpoint (`gh api --paginate repos/…`) does not match and is refused. The
+refusal is silent in effect: you lose the existing comments and start re-raising settled points.
+
 ## Process
 
 1. Read the diff (`gh pr diff`) and open the changed files for context — a diff hunk alone hides the caller.
