@@ -1,4 +1,4 @@
-defmodule Voyager.EPMDClient do
+defmodule Voyager.Epmd.Client do
   @moduledoc """
   Raw TCP client for communicating with EPMD.
   """

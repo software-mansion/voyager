@@ -9,6 +9,7 @@ defmodule Voyager.Services.Distribution do
   for `:longnames` and `localhost` for `:shortnames`.
   """
 
+  alias Voyager.Epmd.Daemon
   alias Voyager.Settings
 
   require Logger
@@ -27,7 +28,7 @@ defmodule Voyager.Services.Distribution do
         start_distribution(name_type)
 
       matches_name_type?(name_type) and distribution_name_matches?() ->
-        if epmd_running?() do
+        if Daemon.running?() do
           :ok
         else
           Logger.warning("Node is alive but local EPMD is dead. Restarting distribution...")
@@ -63,37 +64,6 @@ defmodule Voyager.Services.Distribution do
     end
   end
 
-  @doc """
-  Starts the bundled `epmd` if it isn't already running.
-
-  OTP only auto-starts epmd when the node boots with `--name`/`--sname`.
-  Voyager boots undistributed and calls `:net_kernel.start/2` later, so epmd
-  must be started explicitly. `epmd -daemon` is idempotent: if one is already
-  running on the port it detects that and exits without error.
-  """
-  @spec start_epmd() :: :ok
-  def start_epmd do
-    case epmd_path() do
-      nil ->
-        Logger.warning("Could not locate bundled epmd binary")
-
-      path ->
-        case System.cmd(path, ["-daemon"], stderr_to_stdout: true) do
-          {_output, 0} -> :ok
-          {output, status} -> Logger.warning("epmd -daemon exited #{status}: #{output}")
-        end
-    end
-
-    :ok
-  end
-
-  def epmd_running? do
-    case Voyager.EPMDClient.get_names(~c"127.0.0.1", 4369, 500) do
-      {:ok, _text} -> true
-      {:error, _reason} -> false
-    end
-  end
-
   defp distribution_name do
     suffix = Settings.get(:distribution_suffix, "")
     "voyager#{suffix}"
@@ -125,38 +95,33 @@ defmodule Voyager.Services.Distribution do
         :ok
 
       {:error, reason} when retry_with_epmd? ->
-        if epmd_running?() do
-          {:error, {:net_kernel, reason}}
-        else
-          Logger.warning(
-            "net_kernel.start/2 failed and epmd appears down. Starting epmd and retrying..."
-          )
-
-          start_epmd()
-          # Wait for epmd daemon to start
-          Process.sleep(200)
-          start_distribution(name_type, false)
-        end
+        handle_net_kernel_error(name_type, reason)
 
       {:error, reason} ->
         {:error, {:net_kernel, reason}}
     end
   end
 
-  defp epmd_path do
-    candidate = Path.join([:code.root_dir(), "bin", "epmd"])
-
-    if File.exists?(candidate) do
-      candidate
+  defp handle_net_kernel_error(name_type, reason) do
+    if Daemon.running?() do
+      {:error, {:net_kernel, reason}}
     else
-      :code.root_dir()
-      |> Path.join("erts-*")
-      |> Path.wildcard()
-      |> List.first()
-      |> case do
-        nil -> nil
-        erts_dir -> Path.join([erts_dir, "bin", "epmd"])
-      end
+      Logger.warning(
+        "net_kernel.start/2 failed and epmd appears down. Starting epmd and retrying..."
+      )
+
+      restart_epmd_and_distribute(name_type, reason)
+    end
+  end
+
+  defp restart_epmd_and_distribute(name_type, reason) do
+    case Daemon.start() do
+      :ok ->
+        Process.sleep(200)
+        start_distribution(name_type, false)
+
+      {:error, _start_err} ->
+        {:error, {:epmd_start_failed, reason}}
     end
   end
 end

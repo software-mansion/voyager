@@ -5,7 +5,7 @@ defmodule Voyager.Services.Erlssh.Connection do
   the tunnel.
   """
 
-  alias Voyager.EPMDClient
+  alias Voyager.Epmd.Client
   alias Voyager.Services.Erlssh.Auth
 
   require Auth
@@ -43,7 +43,7 @@ defmodule Voyager.Services.Erlssh.Connection do
   def discover_dist_port(conn_ref, node_name, epmd_port \\ @epmd_port) do
     with {:ok, epmd_local_port} <- open_tunnel(conn_ref, epmd_port),
          {:ok, output} <-
-           EPMDClient.get_names(~c"127.0.0.1", epmd_local_port, @ssh_timeout) do
+           Client.get_names(~c"127.0.0.1", epmd_local_port, @ssh_timeout) do
       parse_epmd_names(output, node_name)
     end
   end
