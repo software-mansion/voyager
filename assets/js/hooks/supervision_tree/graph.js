@@ -50,6 +50,7 @@ export const graphMethods = {
    * @property {'initial' | 'auto_refresh' | 'manual_refresh' | 'toggle_expand'} request_type
    * @property {Record<string, ServerNode>} nodes
    * @property {Record<string, ServerEdge>} edges
+   * @property {'distribution' | 'local'} pid_format
    *
    * @typedef {Object} Patch
    * @property {string} name
@@ -67,8 +68,9 @@ export const graphMethods = {
    * @property {Record<string, Patch>} updated
    * @property {Record<string, ServerEdge>} edges_added
    * @property {string[]} edges_removed
+   * @property {'distribution' | 'local'} pid_format
    *
-   * @param {(FullPayload | DeltaPayload) & {pid_format?: 'distribution' | 'local'}} payload
+   * @param {FullPayload | DeltaPayload} payload
    */
   applyPayload(payload) {
     if (!payload) return;
