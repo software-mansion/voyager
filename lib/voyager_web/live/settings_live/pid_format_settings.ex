@@ -9,14 +9,14 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
   def mount(socket) do
     socket
     |> assign(:locked?, Settings.locked?(:pid_format))
-    |> assign(:pid_format, Settings.get(:pid_format, :distribution))
     |> ok()
   end
 
   @impl true
-  def update(%{id: id}, socket) do
+  def update(%{id: id, pid_format: pid_format}, socket) do
     socket
     |> assign(:id, id)
+    |> assign(:pid_format, pid_format)
     |> ok()
   end
 

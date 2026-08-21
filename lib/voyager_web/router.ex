@@ -36,7 +36,6 @@ defmodule VoyagerWeb.Router do
       layout: {VoyagerWeb.Layouts, :app},
       on_mount: [
         {VoyagerWeb.Hooks.NodeSessionHook, :require_connected_node},
-        VoyagerWeb.Hooks.PidFormatHook,
         VoyagerWeb.Hooks.OnboardingHook,
         VoyagerWeb.Hooks.McpStatusHook
       ] do
