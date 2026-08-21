@@ -4,6 +4,7 @@ defmodule VoyagerWeb.SettingsLive.DistributionSettings do
 
   alias Voyager.Settings
   alias VoyagerWeb.FormSchemas.DistributionSettings, as: DistributionSettingsParams
+  alias VoyagerWeb.SettingsComponents
 
   require Logger
 
@@ -39,12 +40,7 @@ defmodule VoyagerWeb.SettingsLive.DistributionSettings do
           <span>Cannot change settings when node is connected.</span>
         </div>
 
-        <div :if={@locked?} id="distribution-settings-locked" class="alert alert-info text-sm">
-          <.icon name="icon-info" class="text-info size-4" />
-          <span>
-            This value is set in application config, so changes are disabled.
-          </span>
-        </div>
+        <SettingsComponents.locked_alert id="distribution-settings-locked" locked?={@locked?} />
 
         <.form
           for={@form}

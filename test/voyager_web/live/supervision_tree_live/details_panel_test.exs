@@ -7,6 +7,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
   import Mox
 
   alias Voyager.Fakes
+  alias Voyager.Services.SupervisionTree.TreeNode
+  alias VoyagerWeb.Components.DetailsPanelComponents
 
   @node_name "demo@localhost"
   @path "/node/demo@localhost/supervision-tree"
@@ -93,6 +95,26 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       assert has_element?(view, "#details-panel", "Links")
       assert has_element?(view, "#details-panel", "Memory and Garbage Collection")
       refute has_element?(view, "#details-panel", "This is not a process node")
+      assert has_element?(view, "#details-panel-pid", pid_key(sup_pid))
+    end
+
+    test "formats a pid-shaped name in the details panel label as local" do
+      node = %TreeNode{
+        key: "<123.45.0>",
+        type: :worker,
+        name: "<123.45.0>",
+        pid: self()
+      }
+
+      html =
+        render_component(&DetailsPanelComponents.node_label/1, %{
+          panel_id: "details-panel",
+          node: node,
+          pid_format: :local
+        })
+
+      assert html =~ "&lt;0.45.0&gt;"
+      refute html =~ "&lt;123.45.0&gt;"
     end
 
     test "shows the non-process message for a port", %{

@@ -215,4 +215,44 @@ defmodule VoyagerWeb.SettingsLiveTest do
       assert has_element?(view, ~s|#telemetry-toggle[disabled]|)
     end
   end
+
+  describe "pid format settings" do
+    setup do
+      on_exit(fn -> Settings.put(:pid_format, :distribution) end)
+      :ok
+    end
+
+    test "selects distribution by default and switches to local", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      assert has_element?(view, ~s|#pid-format-distribution[aria-pressed="true"]|)
+      assert has_element?(view, ~s|#pid-format-local[aria-pressed="false"]|)
+      assert has_element?(view, "#pid-format-distribution", "Distribution")
+      assert has_element?(view, "#pid-format-local", "Local")
+
+      view |> element("#pid-format-local") |> render_click()
+
+      assert has_element?(view, ~s|#pid-format-local[aria-pressed="true"]|)
+      assert has_element?(view, ~s|#pid-format-distribution[aria-pressed="false"]|)
+      assert Settings.get(:pid_format, :distribution) == :local
+
+      view |> element("#pid-format-distribution") |> render_click()
+
+      assert has_element?(view, ~s|#pid-format-distribution[aria-pressed="true"]|)
+      assert has_element?(view, ~s|#pid-format-local[aria-pressed="false"]|)
+      assert Settings.get(:pid_format, :distribution) == :distribution
+    end
+
+    test "disables the buttons when locked by application config", %{conn: conn} do
+      Application.put_env(:voyager, :pid_format, :local)
+      on_exit(fn -> Application.delete_env(:voyager, :pid_format) end)
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      assert has_element?(view, "#pid-format-locked")
+      assert has_element?(view, ~s|#pid-format-distribution[disabled]|)
+      assert has_element?(view, ~s|#pid-format-local[disabled]|)
+      assert has_element?(view, ~s|#pid-format-local[aria-pressed="true"]|)
+    end
+  end
 end

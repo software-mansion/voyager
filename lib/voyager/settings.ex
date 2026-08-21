@@ -33,6 +33,12 @@ defmodule Voyager.Settings do
   alias Voyager.Repo
   alias Voyager.Schemas.Setting
 
+  @pubsub_topic_base "settings"
+
+  @doc "PubSub topic for changes to a single setting key."
+  @spec topic(atom()) :: String.t()
+  def topic(key) when is_atom(key), do: "#{@pubsub_topic_base}:#{key}"
+
   @doc """
   Gets a setting value.
 
@@ -56,25 +62,40 @@ defmodule Voyager.Settings do
   @doc """
   Persists a setting to the database.
 
+  Options:
+  - `:broadcast?` (boolean): Whether to broadcast the setting change to the pubsub topic. Default is `false`.
+
   Returns `{:error, :locked}` when the key is set in application config.
   """
-  @spec put(atom(), term()) ::
+  @spec put(atom(), term(), Keyword.t()) ::
           {:ok, Setting.t()} | {:error, :locked} | {:error, Ecto.Changeset.t()}
-  def put(key, value) when is_atom(key) do
-    if locked?(key) do
-      {:error, :locked}
-    else
-      now = DateTime.utc_now() |> DateTime.truncate(:second)
-      db_key = Atom.to_string(key)
-      encoded = encode(value)
+  def put(key, value, options \\ []) when is_atom(key) do
+    broadcast? = Keyword.get(options, :broadcast?, false)
 
-      %Setting{}
-      |> Setting.changeset(%{key: db_key, value: encoded})
-      |> Repo.insert(
-        on_conflict: [set: [value: encoded, updated_at: now]],
-        conflict_target: :key
-      )
+    with false <- locked?(key),
+         {:ok, setting} <- insert_setting(key, value) do
+      if broadcast? do
+        Phoenix.PubSub.broadcast(Voyager.PubSub, topic(key), {:setting_changed, key, value})
+      end
+
+      {:ok, setting}
+    else
+      true -> {:error, :locked}
+      error -> error
     end
+  end
+
+  defp insert_setting(key, value) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    db_key = Atom.to_string(key)
+    encoded = encode(value)
+
+    %Setting{}
+    |> Setting.changeset(%{key: db_key, value: encoded})
+    |> Repo.insert(
+      on_conflict: [set: [value: encoded, updated_at: now]],
+      conflict_target: :key
+    )
   end
 
   @doc """

@@ -27,8 +27,9 @@
 /**
  * @param {string} key
  * @param {ServerNode} node
+ * @param {'distribution' | 'local'} [format]
  */
-export function elementsFor(key, node) {
+export function elementsFor(key, node, format = 'distribution') {
   const child_count = node.child_count ?? 0;
   const children_keys =
     node.children_keys === 'not_loaded' ? null : node.children_keys;
@@ -47,7 +48,7 @@ export function elementsFor(key, node) {
     is_collapsed: initialIsCollapsedState({ child_count, children_keys }),
     is_from_relation: node.parent_key === null,
   };
-  data.displayLabel = composeLabel(data);
+  data.displayLabel = composeLabel(data, format);
 
   /** @type {Array<{group: string, data: Object, classes?: string}>} */
   const els = [{ group: 'nodes', data }];
@@ -105,19 +106,31 @@ export function initialIsCollapsedState({ child_count, children_keys }) {
 // The label is the process's registered name, or its pid when unregistered —
 // the server resolves this into `name`. Nodes with children also show their
 // direct child count as `(N)`.
-export function composeLabel(d) {
-  const name = formatName(d.name);
+export function composeLabel(d, format = 'distribution') {
+  const name = formatName(d.name, format);
   if (d.type === 'worker' || d.child_count === 0) {
     return name;
   }
   return `${name} (${d.child_count})`;
 }
 
-export function formatName(name) {
+export function formatName(name, format = 'distribution') {
   if (name === null || name === undefined) return '';
-  if (Array.isArray(name)) return name.map(formatName).join(':');
-  if (typeof name === 'string') return name;
+  if (Array.isArray(name))
+    return name.map((part) => formatName(part, format)).join(':');
+  if (typeof name === 'string') {
+    return isRealPid(name) ? formatPid(name, format) : name;
+  }
   return String(name);
+}
+
+export function formatPid(pid, format = 'distribution') {
+  if (!pid) return '';
+  const value = String(pid);
+  if (format === 'local') {
+    return value.replace(/^<(\d+)\.(\d+)\.(\d+)>$/, '<0.$2.$3>');
+  }
+  return value;
 }
 
 export function edgeId(parentKey, childKey) {
@@ -125,8 +138,7 @@ export function edgeId(parentKey, childKey) {
 }
 
 export function isRealPid(key) {
-  const re = /^<\d+\.\d+\.\d+>$/;
-  return re.test(key);
+  return /^<\d+\.\d+\.\d+>$/.test(key);
 }
 
 /**

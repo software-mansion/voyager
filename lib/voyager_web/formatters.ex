@@ -1,7 +1,7 @@
 defmodule VoyagerWeb.Formatters do
   @moduledoc """
   Generic value formatters for display in templates — byte sizes, large
-  counts, integers, durations, booleans, and timestamps.
+  counts, integers, durations, booleans, timestamps, and PIDs.
 
   These are presentation helpers with no domain knowledge, intended to be
   reused across LiveViews and components (imported via `VoyagerWeb`).
@@ -123,5 +123,44 @@ defmodule VoyagerWeb.Formatters do
       minutes > 0 -> "#{minutes}m"
       true -> "#{seconds}s"
     end
+  end
+
+  @doc """
+  Default PID display format when no setting is stored.
+  """
+  @spec default_pid_format() :: :distribution
+  def default_pid_format, do: :distribution
+
+  @doc """
+  Formats a PID for display.
+
+  The second argument is an explicit format atom. Omitting it defaults to `:distribution`.
+
+      iex> pid = self()
+      iex> VoyagerWeb.Formatters.format_pid(pid) ==
+      ...>   pid |> :erlang.pid_to_list() |> List.to_string()
+      true
+      iex> VoyagerWeb.Formatters.format_pid("<123.23.423>", :local)
+      "<0.23.423>"
+  """
+  @spec format_pid(
+          pid() | String.t(),
+          :distribution | :local
+        ) :: String.t()
+  def format_pid(pid, format \\ default_pid_format())
+
+  def format_pid(pid, format) when format in [:distribution, :local] do
+    pid
+    |> pid_to_string()
+    |> maybe_localize_pid(format)
+  end
+
+  defp pid_to_string(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
+  defp pid_to_string(pid) when is_binary(pid), do: pid
+
+  defp maybe_localize_pid(pid_string, :distribution), do: pid_string
+
+  defp maybe_localize_pid(pid_string, :local) do
+    String.replace(pid_string, ~r/^<\d+\.(\d+\.\d+)>$/, "<0.\\1>")
   end
 end

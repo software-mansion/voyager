@@ -2,21 +2,26 @@ defmodule VoyagerWeb.SettingsLive do
   use VoyagerWeb, :live_view
 
   alias Voyager.NodeSession
+  alias Voyager.Settings
+  alias VoyagerWeb.Formatters
   alias VoyagerWeb.SettingsLive.AppearanceSettings
   alias VoyagerWeb.SettingsLive.DistributionSettings
   alias VoyagerWeb.SettingsLive.McpSettings
+  alias VoyagerWeb.SettingsLive.PidFormatSettings
   alias VoyagerWeb.SettingsLive.TelemetrySettings
 
   @impl true
   def mount(params, _session, socket) do
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
+      Phoenix.PubSub.subscribe(Voyager.PubSub, Settings.topic(:pid_format))
     end
 
     socket
     |> assign(:return_to, safe_return_to(params["return_to"]))
     |> assign(:connected?, not is_nil(NodeSession.current()))
     |> assign(:terms_of_service_url, Application.get_env(:voyager, :terms_of_service_url))
+    |> assign(:pid_format, Settings.get(:pid_format, Formatters.default_pid_format()))
     |> ok()
   end
 
@@ -32,6 +37,7 @@ defmodule VoyagerWeb.SettingsLive do
       </div>
 
       <AppearanceSettings.appearance_settings />
+      <.live_component module={PidFormatSettings} id="pid-format-settings" pid_format={@pid_format} />
       <.live_component
         module={DistributionSettings}
         id="distribution-settings"
@@ -48,6 +54,12 @@ defmodule VoyagerWeb.SettingsLive do
   end
 
   @impl true
+  def handle_info({:setting_changed, :pid_format, format}, socket) do
+    socket
+    |> assign(:pid_format, format)
+    |> noreply()
+  end
+
   def handle_info({:node_connected, _node}, socket) do
     socket
     |> assign(:connected?, not is_nil(NodeSession.current()))

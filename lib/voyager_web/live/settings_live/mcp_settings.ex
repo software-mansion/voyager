@@ -5,6 +5,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
   alias Voyager.MCP
   alias Voyager.Settings
   alias VoyagerWeb.FormSchemas.McpPort
+  alias VoyagerWeb.SettingsComponents
 
   require Logger
 
@@ -58,12 +59,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
           {if @status.alive?, do: "Running at #{@status.url}", else: "Stopped"}
         </div>
 
-        <div :if={@locked?} id="mcp-port-locked" class="alert alert-info text-sm">
-          <.icon name="icon-info" class="text-info size-4" />
-          <span>
-            This value is set in application config, so changes are disabled.
-          </span>
-        </div>
+        <SettingsComponents.locked_alert id="mcp-port-locked" locked?={@locked?} />
 
         <.form
           for={@form}
