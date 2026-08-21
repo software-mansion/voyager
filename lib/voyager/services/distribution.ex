@@ -27,12 +27,21 @@ defmodule Voyager.Services.Distribution do
         start_distribution(name_type)
 
       matches_name_type?(name_type) and distribution_name_matches?() ->
-        :ok
+        if epmd_running?() do
+          :ok
+        else
+          Logger.warning("Node is alive but local EPMD is dead. Restarting distribution...")
+          :net_kernel.stop()
+          start_distribution(name_type)
+        end
 
       true ->
         case :net_kernel.stop() do
-          :ok -> start_distribution(name_type)
-          {:error, reason} -> {:error, {:net_kernel_stop, reason}}
+          :ok ->
+            start_distribution(name_type)
+
+          {:error, reason} ->
+            {:error, {:net_kernel_stop, reason}}
         end
     end
   end
@@ -51,6 +60,38 @@ defmodule Voyager.Services.Distribution do
     case String.split(full_node_name, "@", parts: 2) do
       [name, host] -> {:ok, name, host}
       _ -> {:error, {:invalid_node_format, full_node_name}}
+    end
+  end
+
+  @doc """
+  Starts the bundled `epmd` if it isn't already running.
+
+  OTP only auto-starts epmd when the node boots with `--name`/`--sname`.
+  Voyager boots undistributed and calls `:net_kernel.start/2` later, so epmd
+  must be started explicitly. `epmd -daemon` is idempotent: if one is already
+  running on the port it detects that and exits without error.
+  """
+  @spec start_epmd() :: :ok
+  def start_epmd do
+    case epmd_path() do
+      nil ->
+        Logger.warning("Could not locate bundled epmd binary")
+
+      path ->
+        case System.cmd(path, ["-daemon"], stderr_to_stdout: true) do
+          {_output, 0} -> :ok
+          {output, status} -> Logger.warning("epmd -daemon exited #{status}: #{output}")
+        end
+    end
+
+    :ok
+  end
+
+  @doc "Checks if the local EPMD daemon is running and responding."
+  def epmd_running? do
+    case :erl_epmd.names() do
+      {:ok, _} -> true
+      {:error, _} -> false
     end
   end
 
@@ -81,50 +122,26 @@ defmodule Voyager.Services.Distribution do
       {:ok, _pid} ->
         :ok
 
-      {:error, {:already_started, pid}} ->
-        Logger.warning(
-          "net_kernel.start/2 returned {:already_started, #{inspect(pid)}} " <>
-            "for #{inspect(node_name)} name_type=#{inspect(name_type)}"
-        )
-
+      {:error, {:already_started, _pid}} ->
         :ok
 
       {:error, reason} when retry_with_epmd? ->
-        Logger.warning(
-          "net_kernel.start/2 failed with #{inspect(reason)}, " <>
-            "attempting to start epmd and retry"
-        )
+        if not epmd_running?() do
+          Logger.warning(
+            "net_kernel.start/2 failed and epmd appears down. Starting epmd and retrying..."
+          )
 
-        start_epmd()
-        start_distribution(name_type, false)
+          start_epmd()
+          # Wait for epmd daemon to start
+          Process.sleep(200)
+          start_distribution(name_type, false)
+        else
+          {:error, {:net_kernel, reason}}
+        end
 
       {:error, reason} ->
         {:error, {:net_kernel, reason}}
     end
-  end
-
-  @doc """
-  Starts the bundled `epmd` if it isn't already running.
-
-  OTP only auto-starts epmd when the node boots with `--name`/`--sname`.
-  Voyager boots undistributed and calls `:net_kernel.start/2` later, so epmd
-  must be started explicitly. `epmd -daemon` is idempotent: if one is already
-  running on the port it detects that and exits without error.
-  """
-  @spec start_epmd() :: :ok
-  def start_epmd do
-    case epmd_path() do
-      nil ->
-        Logger.warning("Could not locate bundled epmd binary")
-
-      path ->
-        case System.cmd(path, ["-daemon"], stderr_to_stdout: true) do
-          {_output, 0} -> :ok
-          {output, status} -> Logger.warning("epmd -daemon exited #{status}: #{output}")
-        end
-    end
-
-    :ok
   end
 
   defp epmd_path do
