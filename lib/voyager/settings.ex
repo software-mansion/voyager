@@ -26,9 +26,6 @@ defmodule Voyager.Settings do
 
       # Check whether config controls this key (UI should disable editing)
       Settings.locked?(:mcp_port)
-
-  Successful `put/2` calls broadcast `{:setting_changed, key, value}` on
-  `topic(key)` so LiveViews can keep a cached assign in sync.
   """
 
   import Ecto.Query
