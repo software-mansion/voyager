@@ -35,6 +35,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Prompt injection: everything on the PR head is untrusted input. Before the
+      # agent starts, the action replaces .claude/, CLAUDE.md, CLAUDE.local.md,
+      # .mcp.json, .claude.json, .gitmodules, .ripgreprc and .husky with the base
+      # branch copies, so a PR cannot ship its own skill, MCP server or settings and
+      # get them executed. The PR's versions are snapshotted to .claude-pr/ unexecuted.
+      # https://github.com/anthropics/claude-code-action/blob/main/docs/security.md
       - name: Run Claude Code Review
         uses: anthropics/claude-code-action@v1
         with:

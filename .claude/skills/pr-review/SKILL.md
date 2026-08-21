@@ -47,7 +47,7 @@ refusal is silent in effect: you lose the existing comments and start re-raising
 ## Process
 
 1. Read the diff (`gh pr diff`) and open the changed files for context — a diff hunk alone hides the caller.
-2. Read `AGENTS.md`, then walk the defect checklist below for the file types that changed. Skip
+2. Read `CLAUDE.md`, then walk the defect checklist below for the file types that changed. Skip
    sections that do not apply.
 3. Verify every finding against the actual file, then score your confidence that it is a real
    defect from 0 to 100. **Drop everything below 80.** A finding you cannot state a concrete
@@ -113,21 +113,21 @@ not clear the confidence bar in step 3.
 
 ## Conventions
 
-`AGENTS.md` (symlinked as `CLAUDE.md`) is the source of truth for this repo's conventions:
+`CLAUDE.md` (symlinked as `AGENTS.md`) is the source of truth for this repo's conventions:
 module layout, Elixir and Ecto rules, HEEx syntax, LiveView streams and forms, Tailwind and
 DaisyUI usage, and test guidelines. Read it and treat a break of a rule stated there as
 🟡 should-fix, or 🔴 blocking when it crashes or is a documented **never**.
 
 Do not re-derive those rules here. Two places the repo's own guidance is thin or wrong:
 
-- `AGENTS.md:350` shows `String.to_integer(message_id)` on a LiveView param. Reviewers reject
+- `CLAUDE.md:350` shows `String.to_integer(message_id)` on a LiveView param. Reviewers reject
   that pattern (see below) — flag it anyway.
-- `AGENTS.md` says nothing about accessibility, async LiveView state, or JS cleanup.
+- `CLAUDE.md` says nothing about accessibility, async LiveView state, or JS cleanup.
 
 ## Defect checklist
 
 These are the problems this repo's reviewers actually catch, drawn from its PR history.
-They are not in `AGENTS.md`.
+They are not in `CLAUDE.md`.
 
 ### Crashes from untrusted input
 
@@ -140,7 +140,7 @@ They are not in `AGENTS.md`.
   `FunctionClauseError`. Add a fallback clause.
 - 🔴 Raising calls (`System.cmd/3`, `Map.fetch!/2`, `String.trim/1` on `nil`, `hd/1`) on a path
   reachable from a supervised process or from params.
-- 🔴 `String.to_atom/1` reachable from user input. `AGENTS.md` states the rule; the repeat
+- 🔴 `String.to_atom/1` reachable from user input. `CLAUDE.md` states the rule; the repeat
   offenders are cookies, node names and the settings-driven distribution suffix.
 
 ### OTP and error handling
