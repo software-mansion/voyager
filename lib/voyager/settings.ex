@@ -75,33 +75,30 @@ defmodule Voyager.Settings do
   def put(key, value, options \\ []) when is_atom(key) do
     broadcast? = Keyword.get(options, :broadcast?, false)
 
-    if locked?(key) do
-      {:error, :locked}
-    else
-      now = DateTime.utc_now() |> DateTime.truncate(:second)
-      db_key = Atom.to_string(key)
-      encoded = encode(value)
-
-      result =
-        %Setting{}
-        |> Setting.changeset(%{key: db_key, value: encoded})
-        |> Repo.insert(
-          on_conflict: [set: [value: encoded, updated_at: now]],
-          conflict_target: :key
-        )
-
-      case result do
-        {:ok, setting} ->
-          if broadcast? do
-            Phoenix.PubSub.broadcast(Voyager.PubSub, topic(key), {:setting_changed, key, value})
-          end
-
-          {:ok, setting}
-
-        error ->
-          error
+    with false <- locked?(key),
+         {:ok, setting} <- insert_setting(key, value) do
+      if broadcast? do
+        Phoenix.PubSub.broadcast(Voyager.PubSub, topic(key), {:setting_changed, key, value})
       end
+
+      {:ok, setting}
+    else
+      true -> {:error, :locked}
+      error -> error
     end
+  end
+
+  defp insert_setting(key, value) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+    db_key = Atom.to_string(key)
+    encoded = encode(value)
+
+    %Setting{}
+    |> Setting.changeset(%{key: db_key, value: encoded})
+    |> Repo.insert(
+      on_conflict: [set: [value: encoded, updated_at: now]],
+      conflict_target: :key
+    )
   end
 
   @doc """
