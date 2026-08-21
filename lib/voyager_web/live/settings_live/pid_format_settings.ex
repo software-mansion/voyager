@@ -112,7 +112,7 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
         noreply(socket)
 
       true ->
-        case Settings.put(:pid_format, format) do
+        case Settings.put(:pid_format, format, broadcast?: true) do
           {:ok, _setting} ->
             socket
             |> assign(:pid_format, format)

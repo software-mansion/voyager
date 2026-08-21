@@ -45,11 +45,18 @@ defmodule Voyager.SettingsTest do
                |> Voyager.Repo.insert()
     end
 
-    test "broadcasts setting_changed after a successful put" do
+    test "broadcasts setting_changed after a successful put with broadcast?: true" do
       Phoenix.PubSub.subscribe(Voyager.PubSub, Settings.topic(:pid_format))
 
-      assert {:ok, _} = Settings.put(:pid_format, :local)
+      assert {:ok, _} = Settings.put(:pid_format, :local, broadcast?: true)
       assert_receive {:setting_changed, :pid_format, :local}
+    end
+
+    test "does not broadcast when broadcast?: false" do
+      Phoenix.PubSub.subscribe(Voyager.PubSub, Settings.topic(:pid_format))
+
+      assert {:ok, _} = Settings.put(:pid_format, :local, broadcast?: false)
+      refute_received {:setting_changed, :pid_format, _}
     end
 
     test "does not broadcast when the key is locked" do
