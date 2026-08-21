@@ -136,20 +136,14 @@ They are not in `CLAUDE.md`.
 - 🔴 `String.to_existing_atom/1` on persisted or stale input (DB setting keys, query params,
   submitted app names). Raises when the atom is not interned in a fresh VM. Filter against a
   known list first.
-- 🔴 `handle_event/3` that only matches the values today's UI sends. A crafted payload hits
-  `FunctionClauseError`. Add a fallback clause.
 - 🔴 Raising calls (`System.cmd/3`, `Map.fetch!/2`, `String.trim/1` on `nil`, `hd/1`) on a path
   reachable from a supervised process or from params.
-- 🔴 `String.to_atom/1` reachable from user input. `CLAUDE.md` states the rule; the repeat
-  offenders are cookies, node names and the settings-driven distribution suffix.
+- 🔴 `String.to_atom/1` reachable from user input which are NOT cookies, node names and the settings-driven distribution suffix. If the code can work without changing String to Atom then don't change it.
 
 ### OTP and error handling
 
 - 🔴 `GenServer.init/1` returning anything but `{:ok, state} | {:stop, reason} | :ignore`.
-- 🟡 Write results ignored (`Settings.put/2`, `:telemetry.attach_many/4`, `Repo` calls) — the
-  in-memory state silently desyncs from the DB.
-- 🟡 Error tuples the callee documents but the caller collapses (`{:error, :locked}` turned into
-  a generic flash).
+- 🟡 Write results ignored (`Settings.put/2`, `:telemetry.attach_many/4`, `Repo` calls) OR use the data passed to them if they are not changed by these functions.
 - 🟡 `Task` children are `restart: :temporary`, so a crashing startup task is never retried.
 - 🟡 Pipe/comparison precedence: `a == b |> f()` parses as `a == f(b)`. Parenthesise.
 - 🟡 `@type`/`@spec` that does not match reality (`DateTime.t()` vs `NaiveDateTime`, `atom()` for
@@ -181,7 +175,6 @@ They are not in `CLAUDE.md`.
 - 🔴 A `return_to`-style redirect validated with `"/" <> _` — `//evil.example` is
   protocol-relative and leaves the app.
 - 🔴 Secrets in logs — `inspect(config)` on a struct holding `api_key`.
-- 🔴 `silently_accept_hosts: true` or any host-key check disabled by default.
 - 🔴 User-supplied host or option strings passed to `ssh`/`System.cmd` unvalidated (a value
   starting with `-` becomes `-oProxyCommand`).
 - 🔴 `innerHTML` built from server-provided process metadata without escaping.
