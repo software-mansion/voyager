@@ -226,11 +226,11 @@ export const graphMethods = {
   },
 
   /**
-   * @param {'distribution' | 'local' | undefined} format
+   * @param {'distribution' | 'local' } format
    * @returns {boolean} whether the stored format changed
    */
   setPidFormat(format) {
-    if (!format || format === this.pidFormat) return false;
+    if (format === this.pidFormat) return false;
     this.pidFormat = format;
     return true;
   },
