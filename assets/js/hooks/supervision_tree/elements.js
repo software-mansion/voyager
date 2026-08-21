@@ -127,7 +127,9 @@ export function formatName(name, format = 'distribution') {
 export function formatPid(pid, format = 'distribution') {
   if (!pid) return '';
   const value = String(pid);
-  if (format === 'local') return value.replace(/^<(\d+)\.(\d+)\.(\d+)>$/, '<0.$2.$3>');
+  if (format === 'local') {
+    return value.replace(/^<(\d+)\.(\d+)\.(\d+)>$/, '<0.$2.$3>');
+  }
   return value;
 }
 
