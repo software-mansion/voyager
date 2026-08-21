@@ -10,7 +10,6 @@ defmodule VoyagerWeb.ConnectLive do
     socket
     |> assign(:proxy_epmd_active?, Voyager.ProxyEpmd.active?())
     |> assign(:connected_session, NodeSession.current())
-    |> assign(:mode, :direct)
     |> assign(:connecting?, false)
     |> ok()
   end
