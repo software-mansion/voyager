@@ -49,12 +49,13 @@ defmodule Voyager.Epmd.Daemon do
   end
 
   defp epmd_path do
-    candidate = Path.join([:code.root_dir(), "bin", "epmd"])
+    root_dir = :code.root_dir() |> IO.chardata_to_string()
+    candidate = Path.join([root_dir, "bin", "epmd"])
 
     if File.exists?(candidate) do
       candidate
     else
-      :code.root_dir()
+      root_dir
       |> Path.join("erts-*")
       |> Path.wildcard()
       |> Enum.sort(:desc)
