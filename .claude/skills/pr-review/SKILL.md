@@ -29,8 +29,8 @@ Before reviewing, check with `gh pr view`:
 - The diff is only lockfiles, generated assets, or a version bump → one line saying it is
   trivial, no findings, stop.
 
-Every "say so and stop" above means **posting that line to the pull request** with
-`gh pr comment`, not just ending your turn. A human asked by commenting and is watching the
+Every "say so and stop" above means **posting that line to the pull request** by updating the
+tracking comment with `mcp__github_comment__update_claude_comment`, not just ending your turn. A human asked by commenting and is watching the
 thread; silence there is indistinguishable from a crashed job.
 
 Someone typing the trigger is asking for a fresh pass, so a PR reviewed before is still
@@ -53,13 +53,13 @@ refusal is silent in effect: you lose the existing comments and start re-raising
    defect from 0 to 100. **Drop everything below 80.** A finding you cannot state a concrete
    failure for — the input that triggers it and the wrong result it produces — is below 80 by
    definition.
-4. Post inline comments on the exact line for anything anchored to code, and one summary comment
-   with the full list. GitHub only accepts an inline comment on a line inside a diff hunk, so a
+4. Post inline comments on the exact line for anything anchored to code, and put the full list in
+   the tracking comment. GitHub only accepts an inline comment on a line inside a diff hunk, so a
    finding on a line this PR did not touch goes in the summary alone — with its `file:line` so it
    is still findable. Do not move it onto a nearby touched line to make it postable.
 5. If nothing survives the filter, say so in one line, posted to the PR. Do not pad the review.
 
-Sign the summary comment with 🦀 — every reviewer on this team has a sea animal, that one is
+Sign the summary with 🦀 — every reviewer on this team has a sea animal, that one is
 Claude's.
 
 ### Never report
