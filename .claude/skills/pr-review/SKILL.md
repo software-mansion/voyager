@@ -93,9 +93,9 @@ Summary comment:
 
 Severity: 🔴 blocking · 🟡 should-fix · 🟢 nit
 
-- 🔴 `lib/voyager/services/node_connector.ex:42` — atom created from user-supplied cookie; atoms are never GC'd (DoS).
-- 🟡 `lib/voyager_web/live/connect_live.ex:88` — `Settings.put/2` result ignored; a failed write silently desyncs the UI.
-- 🟢 `assets/css/icons/menu.svg` — icon is not referenced anywhere.
+- 🔴 `lib/voyager_web/live/connect_live.ex:88` — `String.to_integer/1` on a LiveView param; a tampered `id` raises and kills the LiveView. Use `Integer.parse/1` and ignore invalid values.
+- 🟡 `lib/voyager/services/node_connector.ex:42` — `@default_port` is duplicated in three modules; keep it in one place behind a function.
+- 🟢 `lib/voyager/services/node_connector.ex:12` — comment restates the line below it.
 
 <verdict: 1 blocking, 1 should-fix, 1 nit>
 ```
