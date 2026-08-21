@@ -36,7 +36,7 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
         <div>
           <h3 class="text-base-content text-sm font-semibold">PID format</h3>
           <p class="text-base-content/70 mt-1 text-sm">
-            Choose how process identifiers are shown in the tree and details panel.
+            Choose how process identifiers are shown in the Voyager UI.
           </p>
           <ul class="list mt-3">
             <li

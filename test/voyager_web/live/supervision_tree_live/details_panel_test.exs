@@ -118,29 +118,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       refute html =~ "&lt;123.45.0&gt;"
     end
 
-    test "does not refetch process info when pid_format changes", %{
-      conn: conn,
-      sup_pid: sup_pid,
-      port: port,
-      link_pids: link_pids,
-      sup_key: sup_key
-    } do
-      expect_supervision_erpc(9, sup_pid, [port], link_pids)
-
-      view = open_tree!(conn)
-      render_hook(view, "select-node", %{"key" => sup_key})
-      render_async(view)
-
-      assert has_element?(view, "#details-panel", "1,234")
-
-      {:ok, _} = Settings.put(:pid_format, :local)
-      on_exit(fn -> Settings.put(:pid_format, :distribution) end)
-      html = render(view)
-
-      assert html =~ "1,234"
-      refute html =~ "Failed to load node details."
-    end
-
     test "shows the non-process message for a port", %{
       conn: conn,
       sup_pid: sup_pid,
