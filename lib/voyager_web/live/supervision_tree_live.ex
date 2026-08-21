@@ -6,6 +6,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   alias Voyager.Services.SupervisionTree.Remote
   alias Voyager.Settings
   alias VoyagerWeb.Components.SupervisionTreeComponents
+  alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.SupervisionTreeControls
   alias VoyagerWeb.SupervisionTreeLive.Diff
 
@@ -30,7 +31,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> assign(:status, :idle)
       |> assign(:refresh_timer, nil)
       |> assign(:selected_node, nil)
-      |> assign(:pid_format, Settings.get(:pid_format, :distribution))
+      |> assign(:pid_format, Settings.get(:pid_format, Formatters.default_pid_format()))
 
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Voyager.PubSub, Settings.topic(:pid_format))

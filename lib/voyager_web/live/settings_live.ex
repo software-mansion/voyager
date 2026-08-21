@@ -3,6 +3,7 @@ defmodule VoyagerWeb.SettingsLive do
 
   alias Voyager.NodeSession
   alias Voyager.Settings
+  alias VoyagerWeb.Formatters
   alias VoyagerWeb.SettingsLive.AppearanceSettings
   alias VoyagerWeb.SettingsLive.DistributionSettings
   alias VoyagerWeb.SettingsLive.McpSettings
@@ -20,7 +21,7 @@ defmodule VoyagerWeb.SettingsLive do
     |> assign(:return_to, safe_return_to(params["return_to"]))
     |> assign(:connected?, not is_nil(NodeSession.current()))
     |> assign(:terms_of_service_url, Application.get_env(:voyager, :terms_of_service_url))
-    |> assign(:pid_format, Settings.get(:pid_format, :distribution))
+    |> assign(:pid_format, Settings.get(:pid_format, Formatters.default_pid_format()))
     |> ok()
   end
 

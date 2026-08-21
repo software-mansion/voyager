@@ -22,6 +22,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   alias Phoenix.LiveView.AsyncResult
   alias Voyager.Services.ProcessInfo
   alias Voyager.Services.SupervisionTree.TreeNode
+  alias VoyagerWeb.Formatters
 
   require Logger
 
@@ -33,7 +34,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(:open?, false)
     |> assign(:links_expanded?, false)
     |> assign(:node_info, AsyncResult.loading())
-    |> assign(:pid_format, :distribution)
+    |> assign(:pid_format, Formatters.default_pid_format())
     |> ok()
   end
 

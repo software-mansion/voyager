@@ -126,6 +126,12 @@ defmodule VoyagerWeb.Formatters do
   end
 
   @doc """
+  Default PID display format when no setting is stored.
+  """
+  @spec default_pid_format() :: :distribution
+  def default_pid_format, do: :distribution
+
+  @doc """
   Formats a PID for display.
 
   The second argument is an explicit format atom. Omitting it defaults to `:distribution`.
@@ -141,7 +147,7 @@ defmodule VoyagerWeb.Formatters do
           pid() | String.t(),
           :distribution | :local
         ) :: String.t()
-  def format_pid(pid, format \\ :distribution)
+  def format_pid(pid, format \\ default_pid_format())
 
   def format_pid(pid, format) when format in [:distribution, :local] do
     pid
