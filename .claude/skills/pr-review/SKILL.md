@@ -136,8 +136,6 @@ They are not in `CLAUDE.md`.
 - 🔴 `String.to_existing_atom/1` on persisted or stale input (DB setting keys, query params,
   submitted app names). Raises when the atom is not interned in a fresh VM. Filter against a
   known list first.
-- 🔴 `handle_event/3` that only matches the values today's UI sends. A crafted payload hits
-  `FunctionClauseError`. Add a fallback clause.
 - 🔴 Raising calls (`System.cmd/3`, `Map.fetch!/2`, `String.trim/1` on `nil`, `hd/1`) on a path
   reachable from a supervised process or from params.
 - 🔴 `String.to_atom/1` reachable from user input. `CLAUDE.md` states the rule; the repeat
