@@ -1,15 +1,10 @@
+mod theme;
 mod utils;
 
 use tauri::{
     Manager,
     menu::{MenuBuilder, SubmenuBuilder},
 };
-
-/// Current OS appearance for Auto theme after full page reloads.
-#[tauri::command]
-fn os_theme() -> &'static str {
-    utils::os_theme_hint()
-}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -18,7 +13,10 @@ pub fn run() {
     tauri::Builder::default()
         .enable_macos_default_menu(false)
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![os_theme])
+        .invoke_handler(tauri::generate_handler![
+            theme::os_theme,
+            theme::set_surface
+        ])
         .setup(move |app| {
             #[cfg(target_os = "macos")]
             {
@@ -48,7 +46,10 @@ pub fn run() {
 
             pubsub.subscribe("messages", move |msg| {
                 if msg == b"ready" {
-                    create_window(&app_handle, port);
+                    let app_handle = app_handle.clone();
+                    tauri::async_runtime::spawn(async move {
+                        create_window(&app_handle, port).await;
+                    });
                 } else {
                     println!("[rust] {}", String::from_utf8_lossy(msg));
                 }
@@ -78,33 +79,20 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-fn create_window(app_handle: &tauri::AppHandle, port: u16) {
+async fn create_window(app_handle: &tauri::AppHandle, port: u16) {
     let n = app_handle.webview_windows().len() + 1;
     let url = tauri::WebviewUrl::External(format!("http://127.0.0.1:{port}").parse().unwrap());
-    // Prefer sessionStorage over create-time detect on reload.
-    let theme = utils::os_theme_hint();
-    let theme_init = [
-        r#"(function () {
-  try {
-    var remembered = sessionStorage.getItem("voyager:os-theme");
-    if (remembered === "dark" || remembered === "light") {
-      window.__VOYAGER_OS_THEME__ = remembered;
-      return;
-    }
-  } catch (e) {}
-  window.__VOYAGER_OS_THEME__ = ""#,
-        theme,
-        r#"";
-})();"#,
-    ]
-    .concat();
-    tauri::WebviewWindowBuilder::new(app_handle, format!("window-{}", n), url)
+    let appearance = theme::snapshot().await;
+
+    let builder = tauri::WebviewWindowBuilder::new(app_handle, format!("window-{}", n), url)
         .title("Voyager")
         .inner_size(1280.0, 960.0)
         .min_inner_size(800.0, 800.0)
-        .initialization_script(theme_init)
-        .build()
-        .unwrap();
+        .background_color(theme::default_surface())
+        .initialization_script(theme::seed_script(appearance));
+
+    let window = builder.build().unwrap();
+    theme::listen(&window);
 }
 
 fn elixir_command(
