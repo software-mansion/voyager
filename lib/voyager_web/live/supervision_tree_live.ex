@@ -4,6 +4,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   alias Phoenix.LiveView.AsyncResult
   alias Voyager.Services.SupervisionTree.Fetch
   alias Voyager.Services.SupervisionTree.Remote
+  alias Voyager.Services.SupervisionTree.TreeNode
   alias VoyagerWeb.Components.SupervisionTreeComponents
   alias VoyagerWeb.FormSchemas.SupervisionTreeControls
   alias VoyagerWeb.SupervisionTreeLive.Diff
@@ -29,6 +30,8 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> assign(:status, :idle)
       |> assign(:refresh_timer, nil)
       |> assign(:selected_node, nil)
+      |> assign(:selection_history, [])
+      |> assign(:pending_reveal, nil)
 
     if connected?(socket) do
       socket
@@ -93,6 +96,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         id="details-panel"
         tree_node={@selected_node}
         remote_node={@session.node}
+        can_go_back?={@selection_history != []}
       />
     </div>
     """
@@ -134,17 +138,22 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   end
 
   def handle_event("select-node", %{"key" => key}, socket) do
-    path = walk_to_root(socket.assigns.last_tree_flat, key)
-
     socket
-    |> push_event("path-highlight", %{path: path})
-    |> assign_selected_node(key)
+    |> select_node(key)
     |> noreply()
   end
 
   def handle_event("close-details-panel", _params, socket) do
     socket
     |> assign(:selected_node, nil)
+    |> assign(:selection_history, [])
+    |> assign(:pending_reveal, nil)
+    |> noreply()
+  end
+
+  def handle_event("back-details-node", _params, socket) do
+    socket
+    |> pop_selection_history()
     |> noreply()
   end
 
@@ -235,8 +244,9 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     |> assign(:last_tree_flat, new_flat)
     |> assign(:last_relations, new_edges)
     |> assign(:last_updated, DateTime.utc_now())
-    |> deselect_removed_nodes()
+    |> deselect_removed_nodes(prev_flat)
     |> push_event("tree-data", payload)
+    |> maybe_reveal_pending()
     |> start_timer()
     |> noreply()
   end
@@ -252,6 +262,12 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     |> assign(:status, :error)
     |> assign(:errors, socket.assigns.errors ++ [{:fetch, reason}])
     |> reset_tree()
+    |> noreply()
+  end
+
+  def handle_info({:select_link, identifier}, socket) do
+    socket
+    |> select_identifier(identifier)
     |> noreply()
   end
 
@@ -406,17 +422,234 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     end
   end
 
-  defp assign_selected_node(socket, key) do
-    selected_node = socket.assigns.last_tree_flat && Map.get(socket.assigns.last_tree_flat, key)
-    assign(socket, :selected_node, selected_node)
+  defp select_node(socket, key) when key in [nil, ""] do
+    socket
+    |> push_event("path-highlight", %{path: []})
+    |> assign(:selected_node, nil)
+    |> assign(:selection_history, [])
+    |> assign(:pending_reveal, nil)
   end
 
-  defp deselect_removed_nodes(socket) do
-    with %{key: key} <- socket.assigns.selected_node,
-         nil <- Map.get(socket.assigns.last_tree_flat, key) do
-      assign(socket, :selected_node, nil)
+  defp select_node(socket, key) do
+    case lookup_tree_node(socket, key) do
+      nil ->
+        socket
+
+      node ->
+        socket
+        |> assign(:selection_history, [])
+        |> assign(:pending_reveal, nil)
+        |> put_selected_node(node)
+    end
+  end
+
+  defp select_identifier(socket, identifier) do
+    key = TreeNode.key(identifier)
+    in_tree = lookup_tree_node(socket, key)
+
+    cond do
+      is_nil(in_tree) and is_nil(tree_node_from_identifier(identifier)) ->
+        socket
+
+      in_tree && socket.assigns.selected_node &&
+          socket.assigns.selected_node.key == in_tree.key ->
+        put_selected_node(socket, in_tree, focus: true)
+
+      in_tree ->
+        socket
+        |> push_selection_history()
+        |> put_selected_node(in_tree, focus: true)
+
+      true ->
+        socket
+        |> push_selection_history()
+        |> put_selected_node(tree_node_from_identifier(identifier))
+        |> maybe_expand_to_reveal(identifier)
+    end
+  end
+
+  defp push_selection_history(socket) do
+    case socket.assigns.selected_node do
+      nil -> socket
+      node -> assign(socket, :selection_history, [node | socket.assigns.selection_history])
+    end
+  end
+
+  defp pop_selection_history(socket) do
+    case socket.assigns.selection_history do
+      [prev | rest] ->
+        node = lookup_tree_node(socket, prev.key) || prev
+
+        socket
+        |> assign(:selection_history, rest)
+        |> assign(:pending_reveal, nil)
+        |> put_selected_node(node, focus: true)
+
+      [] ->
+        socket
+    end
+  end
+
+  # When a PID-link isn't in the loaded walk, expand one already-visible stub
+  # supervisor (the node we came from, or a stub that lists this pid in its
+  # links). That is the same work as a manual +/- expand: one `which_children`
+  # plus hydrate for that supervisor's direct children.
+  defp maybe_expand_to_reveal(socket, identifier) when is_pid(identifier) do
+    stub = stub_to_expand(socket, identifier)
+
+    cond do
+      is_nil(stub) ->
+        socket
+
+      MapSet.member?(socket.assigns.expanded_pids, stub.pid) ->
+        socket
+
+      true ->
+        socket
+        |> assign(:expanded_pids, MapSet.put(socket.assigns.expanded_pids, stub.pid))
+        |> assign(:pending_reveal, identifier)
+        |> request_fetch(:toggle_expand)
+    end
+  end
+
+  defp maybe_expand_to_reveal(socket, _identifier), do: socket
+
+  defp stub_to_expand(socket, identifier) do
+    prev =
+      case socket.assigns.selection_history do
+        [node | _] -> node
+        _ -> nil
+      end
+
+    if expandable_stub?(prev) do
+      prev
     else
-      _ -> socket
+      find_stub_linking_to(socket.assigns.last_tree_flat, identifier)
+    end
+  end
+
+  defp expandable_stub?(%TreeNode{
+         type: type,
+         pid: pid,
+         children_keys: :not_loaded,
+         child_count: n
+       })
+       when type in [:supervisor, :app] and is_pid(pid) and is_integer(n) and n > 0,
+       do: true
+
+  defp expandable_stub?(_), do: false
+
+  defp find_stub_linking_to(flat, identifier) when is_map(flat) do
+    Enum.find_value(flat, fn
+      {_key, %TreeNode{} = node} ->
+        if expandable_stub?(node) and linked_to?(node, identifier), do: node
+
+      _ ->
+        nil
+    end)
+  end
+
+  defp find_stub_linking_to(_flat, _identifier), do: nil
+
+  defp linked_to?(%TreeNode{info: %{links: links}}, identifier) when is_list(links),
+    do: identifier in links
+
+  defp linked_to?(_node, _identifier), do: false
+
+  defp maybe_reveal_pending(socket) do
+    case socket.assigns[:pending_reveal] do
+      nil ->
+        socket
+
+      identifier ->
+        socket = assign(socket, :pending_reveal, nil)
+
+        case lookup_tree_node(socket, TreeNode.key(identifier)) do
+          nil -> socket
+          node -> put_selected_node(socket, node, focus: true)
+        end
+    end
+  end
+
+  defp put_selected_node(socket, node, opts \\ [])
+  defp put_selected_node(socket, nil, _opts), do: socket
+
+  defp put_selected_node(socket, node, opts) do
+    in_tree? = match?(%TreeNode{}, lookup_tree_node(socket, node.key))
+    path = if in_tree?, do: walk_to_root(socket.assigns.last_tree_flat, node.key), else: []
+    focus? = Keyword.get(opts, :focus, false)
+
+    socket = push_event(socket, "path-highlight", %{path: path})
+
+    socket =
+      if focus? and in_tree? do
+        push_event(socket, "focus-node", %{key: node.key})
+      else
+        socket
+      end
+
+    assign(socket, :selected_node, node)
+  end
+
+  defp lookup_tree_node(socket, key) do
+    case socket.assigns.last_tree_flat do
+      %{^key => %TreeNode{} = node} ->
+        node
+
+      flat when is_map(flat) ->
+        find_node_by_pid_key(flat, key)
+
+      _ ->
+        nil
+    end
+  end
+
+  # App wrappers are keyed `app:<name>` while PID-links look up `<X.Y.Z>`.
+  # Fall back to matching the live pid so those nodes still highlight.
+  defp find_node_by_pid_key(flat, key) do
+    matches =
+      Enum.filter(flat, fn
+        {_k, %TreeNode{pid: pid}} when is_pid(pid) -> TreeNode.key(pid) == key
+        _ -> false
+      end)
+
+    nodes = Enum.map(matches, &elem(&1, 1))
+    Enum.find(nodes, &(&1.type == :app)) || List.first(nodes)
+  end
+
+  defp tree_node_from_identifier(pid) when is_pid(pid) do
+    %TreeNode{key: TreeNode.key(pid), pid: pid, name: pid, type: :process}
+  end
+
+  defp tree_node_from_identifier(port) when is_port(port) do
+    %TreeNode{key: TreeNode.key(port), name: port, type: :port}
+  end
+
+  defp tree_node_from_identifier(_), do: nil
+
+  # Drop a graph-backed selection when its key disappears from the tree. Keep
+  # selections opened from a PID link that were never in the graph.
+  defp deselect_removed_nodes(socket, prev_flat) do
+    case socket.assigns.selected_node do
+      %{key: key} ->
+        new_flat = socket.assigns.last_tree_flat
+
+        cond do
+          is_map(new_flat) and Map.has_key?(new_flat, key) ->
+            assign(socket, :selected_node, Map.fetch!(new_flat, key))
+
+          is_map(prev_flat) and Map.has_key?(prev_flat, key) ->
+            socket
+            |> assign(:selected_node, nil)
+            |> assign(:selection_history, [])
+            |> assign(:pending_reveal, nil)
+
+          true ->
+            socket
+        end
+
+      _ ->
+        socket
     end
   end
 
@@ -429,7 +662,14 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   defp parse_pid(_), do: nil
 
   defp reset_tree(socket),
-    do: assign(socket, last_tree_flat: nil, last_relations: %{}, selected_node: nil)
+    do:
+      assign(socket,
+        last_tree_flat: nil,
+        last_relations: %{},
+        selected_node: nil,
+        selection_history: [],
+        pending_reveal: nil
+      )
 
   defp walk_to_root(_flat, ""), do: []
   defp walk_to_root(nil, _key), do: []

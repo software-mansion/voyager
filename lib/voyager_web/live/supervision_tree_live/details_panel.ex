@@ -32,15 +32,17 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(:remote_node, nil)
     |> assign(:open?, false)
     |> assign(:links_expanded?, false)
+    |> assign(:can_go_back?, false)
     |> assign(:node_info, AsyncResult.loading())
     |> ok()
   end
 
   @impl true
-  def update(%{id: id, tree_node: tree_node, remote_node: remote_node}, socket) do
+  def update(%{id: id, tree_node: tree_node, remote_node: remote_node} = assigns, socket) do
     socket
     |> assign(:id, id)
     |> assign(:remote_node, remote_node)
+    |> assign(:can_go_back?, Map.get(assigns, :can_go_back?, false))
     |> maybe_assign_node(tree_node)
     |> ok()
   end
@@ -50,6 +52,17 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     socket
     |> assign(:links_expanded?, not socket.assigns.links_expanded?)
     |> noreply()
+  end
+
+  def handle_event("select-link", %{"key" => key}, socket) do
+    case link_by_key(socket.assigns.node_info, key) do
+      nil ->
+        noreply(socket)
+
+      identifier ->
+        send(self(), {:select_link, identifier})
+        noreply(socket)
+    end
   end
 
   def handle_event("refresh-node-info", _params, socket) do
@@ -75,6 +88,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
       <%= if @node do %>
         <%!-- Header --%>
         <div class="border-base-200 flex items-start gap-3 border-b px-5 py-4">
+          <.back_button :if={@can_go_back?} panel_id={@id} />
           <div class="flex min-w-0 flex-1 flex-col gap-1.5">
             <.node_type_label node_type={@node.type} />
             <.node_label panel_id={@id} node={@node} />
@@ -106,17 +120,15 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   defp maybe_assign_node(socket, nil), do: assign(socket, :open?, false)
 
   defp maybe_assign_node(socket, node) do
-    socket =
-      socket
-      |> assign(:open?, true)
-      |> assign(:node, node)
-      |> maybe_fetch_node_info(node)
+    changed? = node_changed?(socket, node)
 
-    if node_changed?(socket, node) do
-      assign(socket, :links_expanded?, false)
-    else
-      socket
-    end
+    socket
+    |> assign(:open?, true)
+    |> assign(:node, node)
+    |> then(fn socket ->
+      if changed?, do: assign(socket, :links_expanded?, false), else: socket
+    end)
+    |> maybe_fetch_node_info(node)
   end
 
   defp maybe_fetch_node_info(socket, %TreeNode{pid: pid}) when is_pid(pid) do
@@ -153,4 +165,10 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
         {:error, reason}
     end
   end
+
+  defp link_by_key(%AsyncResult{ok?: true, result: %{links: links}}, key) when is_list(links) do
+    Enum.find(links, &(TreeNode.key(&1) == key))
+  end
+
+  defp link_by_key(_, _), do: nil
 end

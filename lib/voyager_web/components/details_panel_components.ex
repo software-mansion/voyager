@@ -41,15 +41,24 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :node_type, :atom, required: true
 
   def node_type_label(assigns) do
+    icons = SupervisionTreeComponents.node_icons()
+
     assigns =
       assigns
       |> assign(:label, assigns.node_type |> to_string() |> String.capitalize())
-      |> assign(:icon, SupervisionTreeComponents.node_icons() |> Map.get(assigns.node_type))
+      |> assign(:icon, Map.get(icons, assigns.node_type) || Map.get(icons, :worker))
+      |> assign(:off_tree?, assigns.node_type == :process)
 
     ~H"""
-    <div class="flex items-center gap-2">
+    <div class="flex flex-wrap items-center gap-2">
       <.icon :if={@icon} name={@icon.name} class={["size-3.5", @icon.color_class]} />
       <div class="font-mono text-base-content text-xs uppercase">{@label}</div>
+      <span
+        :if={@off_tree?}
+        class="badge badge-warning badge-sm font-sans font-semibold tracking-wide"
+      >
+        Not in tree
+      </span>
     </div>
     """
   end
@@ -105,6 +114,26 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         />
       </button>
       <:content>Refresh fetched process information</:content>
+    </.tooltip>
+    """
+  end
+
+  attr :panel_id, :string, required: true
+
+  def back_button(assigns) do
+    ~H"""
+    <.tooltip id={"#{@panel_id}-back-tip"} position="bottom">
+      <button
+        type="button"
+        id={"#{@panel_id}-back"}
+        phx-click="back-details-node"
+        title="Back to previous process"
+        aria-label="Back to previous process"
+        class="btn btn-ghost btn-square toolbar-btn hover:text-base-content"
+      >
+        <.icon name="icon-arrow-left" class="toolbar-icon" />
+      </button>
+      <:content>Back to previous process</:content>
     </.tooltip>
     """
   end
@@ -251,6 +280,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           <.load_error />
         </:failed>
         <.links_list
+          panel_id={@panel_id}
           toggle_id={"#{@panel_id}-toggle-links"}
           links={info.links}
           links_expanded?={@links_expanded?}
@@ -333,14 +363,21 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :label, :string, required: true
+  attr :id, :string, required: true
+  attr :node_key, :string, required: true
+  attr :myself, :any, required: true
 
   def chip(assigns) do
-    # Redirecting will be available after #41 and #99
     ~H"""
     <button
       type="button"
-      disabled
-      class="border-base-content/70 bg-base-200 text-base-content font-mono inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs"
+      id={@id}
+      phx-click="select-link"
+      phx-value-key={@node_key}
+      phx-target={@myself}
+      title={"Select #{@label}"}
+      aria-label={"Select #{@label}"}
+      class="border-base-content/70 bg-base-200 text-base-content font-mono inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors hover:border-primary hover:bg-primary/10"
     >
       <span class="bg-primary h-1.5 w-1.5 rounded-full" />
       {@label}
@@ -414,6 +451,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :toggle_id, :string, required: true
+  attr :panel_id, :string, required: true
   attr :links, :list, required: true
   attr :links_expanded?, :boolean, required: true
   attr :myself, :any, required: true
@@ -422,16 +460,24 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     total = length(assigns.links)
     limit = if assigns.links_expanded?, do: @max_expanded_links, else: @max_links
 
+    # Only the slice that gets rendered: a process can hold thousands of links
+    # and every chip lands in the LiveView diff.
     assigns =
       assigns
-      |> assign(:visible_links, format_links(assigns.links, limit))
+      |> assign(:visible_links, Enum.take(assigns.links, limit))
       |> assign(:toggle?, total > @max_links)
       |> assign(:overflow_count, max(total - limit, 0))
 
     ~H"""
     <div class="flex flex-col gap-2">
       <div class="flex flex-wrap gap-1.5">
-        <.chip :for={link <- @visible_links} label={link} />
+        <.chip
+          :for={{link, index} <- Enum.with_index(@visible_links)}
+          id={"#{@panel_id}-link-#{index}"}
+          label={format_identifier(link)}
+          node_key={TreeNode.key(link)}
+          myself={@myself}
+        />
       </div>
       <p
         :if={@links_expanded? and @overflow_count > 0}
@@ -508,12 +554,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp format_count(nil), do: "—"
   defp format_count(n) when is_integer(n), do: Formatters.format_integer(n)
 
-  defp format_identifier(pid) when is_pid(pid),
-    do: pid |> :erlang.pid_to_list() |> List.to_string()
-
-  defp format_identifier(port) when is_port(port),
-    do: port |> :erlang.port_to_list() |> List.to_string()
-
+  defp format_identifier(pid) when is_pid(pid), do: TreeNode.key(pid)
+  defp format_identifier(port) when is_port(port), do: TreeNode.key(port)
   defp format_identifier(other), do: inspect(other)
 
   defp node_display_name(%TreeNode{name: name}) when is_atom(name), do: Atom.to_string(name)
@@ -522,14 +564,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   defp node_pid_string(%TreeNode{pid: pid}) when is_pid(pid), do: format_identifier(pid)
   defp node_pid_string(_), do: nil
-
-  # Formats only the slice that gets rendered: a process can hold thousands of
-  # links and every chip lands in the LiveView diff.
-  defp format_links(links, limit) do
-    links
-    |> Enum.take(limit)
-    |> Enum.map(&format_identifier/1)
-  end
 
   defp links_count(%AsyncResult{ok?: true, result: %{links: links}}), do: "(#{length(links)})"
   defp links_count(_), do: nil

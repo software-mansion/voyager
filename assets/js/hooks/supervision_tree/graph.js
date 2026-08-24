@@ -172,7 +172,10 @@ export const graphMethods = {
           node.data('displayLabel', composeLabel(node.data()));
         }
 
-        if (patch.child_count !== undefined) {
+        if (
+          patch.child_count !== undefined ||
+          patch.children_keys !== undefined
+        ) {
           node.data('is_collapsed', initialIsCollapsedState(node.data()));
         }
 
@@ -223,7 +226,10 @@ export const graphMethods = {
   // ---------------------------------------------------------------------------
 
   runLayout({ fit }) {
-    if (this.cy.elements().empty()) return;
+    if (this.cy.elements().empty()) {
+      this.layoutPending = false;
+      return;
+    }
 
     const layout = this.cy.layout({
       name: 'dagre',
@@ -242,8 +248,10 @@ export const graphMethods = {
     });
 
     layout.on('layoutstop', () => {
+      this.layoutPending = false;
       this.cy.style().update();
       this.disabledClick = false;
+      this.applyPendingFocus();
     });
 
     this.disabledClick = true;
@@ -252,6 +260,7 @@ export const graphMethods = {
   },
 
   scheduleLayout({ fit = false } = {}) {
+    this.layoutPending = true;
     clearTimeout(this.layoutTimer);
     this.layoutTimer = setTimeout(() => {
       this.runLayout({ fit });
@@ -448,6 +457,31 @@ export const graphMethods = {
         position: { x, y },
       },
       duration: 200,
+      queue: false,
+    });
+  },
+
+  focusNode({ key }) {
+    if (!key || !this.cy) return;
+
+    this.pendingFocusKey = key;
+    if (this.layoutPending || this.disabledClick) return;
+    this.applyPendingFocus();
+  },
+
+  applyPendingFocus() {
+    const key = this.pendingFocusKey;
+    if (!key || !this.cy) return;
+
+    const node = this.cy.getElementById(key);
+    if (node.empty() || node.hasClass('hidden')) return;
+
+    this.pendingFocusKey = null;
+    this.cy.stop();
+    this.cy.animate({
+      center: { eles: node },
+      duration: this.animate ? 350 : 0,
+      easing: 'ease-in-out',
       queue: false,
     });
   },
