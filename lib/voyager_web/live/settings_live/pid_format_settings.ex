@@ -106,10 +106,10 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
   defp put_format(socket, format) do
     cond do
       socket.assigns.locked? ->
-        noreply(socket)
+        {:noreply, socket}
 
       socket.assigns.pid_format == format ->
-        noreply(socket)
+        {:noreply, socket}
 
       true ->
         case Settings.put(:pid_format, format, broadcast?: true) do
