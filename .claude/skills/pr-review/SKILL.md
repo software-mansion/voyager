@@ -67,7 +67,7 @@ Claude's.
 - A problem that already existed on the base branch. Only lines this PR touched — and a line the
   PR merely rewrote does not put its pre-existing defect back in scope. Ask whether the defect
   arrived with this PR, not whether the line did.
-- The exception: a defect the PR *caused* on a line it did not touch — a fix applied to one
+- The exception: a defect the PR _caused_ on a line it did not touch — a fix applied to one
   branch of a `case` but not another, an assign left dead by a new code path. That is in scope,
   and belongs in the summary per step 4.
 - Anything `mix format`, `credo --strict`, prettier or the compiler already catches — CI runs
@@ -109,7 +109,6 @@ reasoning that got you there stays out. A finding that needs a wall of proof to 
 not clear the confidence bar in step 3.
 
 ---
-
 
 ## Conventions
 
@@ -187,7 +186,6 @@ They are not in `CLAUDE.md`.
   `clearTimeout`.
 - 🟡 Hook state on the module object instead of per-instance — build it in `mounted()`, or it
   leaks between hook instances.
-- 🟡 A Tailwind class that does not exist (`min-w-xl`, `w-0.75`) — it compiles to nothing.
 - 🟡 `<.icon>` colored with `bg-*`. Icons are CSS masks using `currentColor`, so they take
   `text-*`.
 - 🟡 `<.icon name="icon-foo">` with no `assets/css/icons/foo.svg` — renders as an empty span.
