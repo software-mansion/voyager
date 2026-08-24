@@ -9,7 +9,7 @@ import {
   waitForLiveView,
 } from './fixtures';
 
-const PID_RE = /^<\d+\.\d+\.\d+>$/;
+export const RE_PID = /^<\d+\.\d+\.\d+>$/;
 
 /**
  * Runs `mock_app_ctl` (or any MFA) on the target node and returns the printed
@@ -340,7 +340,7 @@ export function pidNamedNode(page: Page): Promise<PidNamedNode | null> {
       pid: String(n.data('pid') ?? ''),
       label: String(n.data('displayLabel')),
     };
-  }, PID_RE.source);
+  }, RE_PID.source);
 }
 
 /**

@@ -11,6 +11,7 @@ import {
   refreshed,
   pidNamedNode,
   setPidFormat,
+  RE_PID,
 } from './supervision_tree_helpers';
 
 // The graph is a cytoscape canvas: nodes are not DOM elements. Tests interact
@@ -416,12 +417,12 @@ test.describe('SupervisionTreeLive › pid format', () => {
       await expect(async () => {
         const node = await pidNamedNode(page);
         expect(node).not.toBeNull();
-        expect(node!.name).toMatch(/^<\d+\.\d+\.\d+>./);
+        expect(node!.name).toMatch(RE_PID);
         expect(node!.name).not.toMatch(/^<0\./);
-        expect(node!.label).toMatch(/^<\d+\.\d+\.\d+>./);
-        expect(node!.label).not.toMatch(/^<0\./);
-        expect(node!.pid).toMatch(/^<\d+\.\d+\.\d+>./);
+        expect(node!.pid).toMatch(RE_PID);
         expect(node!.pid).not.toMatch(/^<0\./);
+        expect(node!.label.split(/\s/)[0]).toMatch(RE_PID);
+        expect(node!.label).not.toMatch(/^<0\./);
       }).toPass();
 
       await setPidFormat(settings, 'local');
@@ -429,9 +430,12 @@ test.describe('SupervisionTreeLive › pid format', () => {
       await expect(async () => {
         const newNode = await pidNamedNode(page);
         expect(newNode).not.toBeNull();
-        expect(newNode!.label).toMatch(/^<0\.\d+\.\d+>./);
+        expect(newNode!.name).toMatch(RE_PID);
         expect(newNode!.name).not.toMatch(/^<0\./);
+        expect(newNode!.pid).toMatch(RE_PID);
         expect(newNode!.pid).not.toMatch(/^<0\./);
+        expect(newNode!.label.split(/\s/)[0]).toMatch(RE_PID);
+        expect(newNode!.label).toMatch(/^<0\./);
       }).toPass();
     } finally {
       await setPidFormat(settings, 'distribution');
