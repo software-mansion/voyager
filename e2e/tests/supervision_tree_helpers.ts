@@ -1,7 +1,15 @@
 import cytoscape, { EdgeSingular } from 'cytoscape';
 import { execSync } from 'node:child_process';
 import { expect, type Page } from '@playwright/test';
-import { NODE_NAME, COOKIE, sel, ensureConnected } from './fixtures';
+import {
+  NODE_NAME,
+  COOKIE,
+  sel,
+  ensureConnected,
+  waitForLiveView,
+} from './fixtures';
+
+const PID_RE = /^<\d+\.\d+\.\d+>$/;
 
 /**
  * Runs `mock_app_ctl` (or any MFA) on the target node and returns the printed
@@ -294,4 +302,59 @@ export async function resizeDetailsPanel(page: Page, deltaPx: number) {
     fire(document, 'pointermove', startX - delta);
     fire(document, 'pointerup', startX - delta);
   }, deltaPx);
+}
+
+type PidNamedNode = {
+  id: string;
+  name: string;
+  pid: string;
+  label: string;
+};
+
+/**
+ * A visible graph node whose display name is a raw PID (the intermediate `p`
+ * under app:mock_app). Registered names never change with pid_format, so this
+ * is the node whose label `relabelPids` actually rewrites.
+ */
+export function pidNamedNode(page: Page): Promise<PidNamedNode | null> {
+  return page.evaluate((reSrc) => {
+    const re = new RegExp(reSrc);
+    const cy = (document.getElementById('supervision-tree-body') as any)
+      ?._cy as cytoscape.Core;
+    if (!cy) return null;
+
+    const hit = cy.nodes().filter((n) => {
+      return (
+        n.data('type') !== 'app' &&
+        !n.hasClass('hidden') &&
+        re.test(String(n.data('name')))
+      );
+    });
+
+    if (!hit.length) return null;
+
+    const n = hit[0];
+    return {
+      id: n.id(),
+      name: String(n.data('name')),
+      pid: String(n.data('pid') ?? ''),
+      label: String(n.data('displayLabel')),
+    };
+  }, PID_RE.source);
+}
+
+/**
+ * Sets PID format on `/settings`. The settings LiveView broadcasts the change
+ * so any already-open supervision-tree LiveView relabels without a refetch.
+ */
+export async function setPidFormat(
+  page: Page,
+  format: 'distribution' | 'local'
+) {
+  await page.goto('/settings');
+  await waitForLiveView(page);
+
+  const btn = page.locator(`#pid-format-${format}`);
+  await btn.click();
+  await expect(btn).toHaveAttribute('aria-pressed', 'true');
 }
