@@ -5,6 +5,11 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
   alias Voyager.Settings
   alias VoyagerWeb.SettingsComponents
 
+  @pid_formats_info [
+    {"icon-network", "Distribution", "<123.23.423>", :distribution},
+    {"icon-laptop", "Local", "<0.23.423>", :local}
+  ]
+
   @impl true
   def mount(socket) do
     socket
@@ -22,14 +27,7 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
 
   @impl true
   def render(assigns) do
-    data = [
-      {"icon-network", "Distribution", "<123.23.423>",
-       "Keeps the remote node index, which identifies a process across a cluster."},
-      {"icon-laptop", "Local", "<0.23.423>",
-       "Replaces the node index with <span class='font-mono'>0</span>, so you can use it on remote shells."}
-    ]
-
-    assigns = assign(assigns, :data, data)
+    assigns = assign(assigns, :pid_formats_info, @pid_formats_info)
 
     ~H"""
     <div id={@id} class="card bg-base-100 border-base-200 border shadow-sm">
@@ -41,7 +39,7 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
           </p>
           <ul class="list mt-3">
             <li
-              :for={{icon, text, pid_string, description} <- @data}
+              :for={{icon, text, pid_string, format} <- @pid_formats_info}
               class="list-row flex items-center gap-4"
             >
               <.icon name={icon} class="text-base-content/70 size-4" />
@@ -50,9 +48,7 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
                   <span class="text-base-content font-medium">{text}</span>
                   <kbd class="font-mono">{pid_string}</kbd>
                 </div>
-                <p class="text-base-content/60 text-xs">
-                  {raw(description)}
-                </p>
+                <.format_description format={format} />
               </div>
             </li>
           </ul>
@@ -91,6 +87,19 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
         </div>
       </div>
     </div>
+    """
+  end
+
+  attr :format, :atom, required: true
+
+  defp format_description(assigns) do
+    ~H"""
+    <p :if={@format == :distribution} class="text-base-content/60 text-xs">
+      Keeps the remote node index, which identifies a process across a cluster.
+    </p>
+    <p :if={@format == :local} class="text-base-content/60 text-xs">
+      Replaces the node index with <span class="font-mono">0</span>, so you can use it on remote shells.
+    </p>
     """
   end
 
