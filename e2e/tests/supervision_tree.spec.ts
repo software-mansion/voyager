@@ -416,20 +416,20 @@ test.describe('SupervisionTreeLive › pid format', () => {
       await expect(async () => {
         const node = await pidNamedNode(page);
         expect(node).not.toBeNull();
-        expect(node!.name).toMatch(/^<\d+\.\d+\.\d+>$/);
+        expect(node!.name).toMatch(/^<\d+\.\d+\.\d+>./);
         expect(node!.name).not.toMatch(/^<0\./);
-        expect(node!.label).toMatch(/^<\d+\.\d+\.\d+>$/);
+        expect(node!.label).toMatch(/^<\d+\.\d+\.\d+>./);
         expect(node!.label).not.toMatch(/^<0\./);
-        expect(node!.pid).toMatch(/^<\d+\.\d+\.\d+>$/);
+        expect(node!.pid).toMatch(/^<\d+\.\d+\.\d+>./);
         expect(node!.pid).not.toMatch(/^<0\./);
       }).toPass();
 
-      // await setPidFormat(settings, 'local');
+      await setPidFormat(settings, 'local');
 
       await expect(async () => {
         const newNode = await pidNamedNode(page);
         expect(newNode).not.toBeNull();
-        expect(newNode!.label).toMatch(/^<0\.\d+\.\d+>$/);
+        expect(newNode!.label).toMatch(/^<0\.\d+\.\d+>./);
         expect(newNode!.name).not.toMatch(/^<0\./);
         expect(newNode!.pid).not.toMatch(/^<0\./);
       }).toPass();
