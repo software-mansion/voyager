@@ -141,7 +141,13 @@ They are not in `CLAUDE.md`.
 
 ### OTP and error handling
 
-- 🔴 `GenServer.init/1` returning anything but `{:ok, state} | {:stop, reason} | :ignore`.
+- 🔴 An `init/1` callback in a module that `use GenServer` (or declares `@behaviour GenServer`)
+  returning anything outside `{:ok, state} | {:ok, state, timeout} | {:ok, state, :hibernate} |
+  {:ok, state, {:continue, term}} | :ignore | {:stop, reason}`. `{:continue, term}` is the normal
+  way to do post-init work without blocking `start_link/1` — it is correct, not a finding. Check
+  the module's behaviour before flagging: a bare `init/1` is just as often `Supervisor.init/2`
+  in a supervisor module or an `on_mount`/hook module's own `init/1`, and neither is bound by
+  this list.
 - 🟡 Write results ignored (`Settings.put/2`, `:telemetry.attach_many/4`, `Repo` calls) OR use the data passed to them if they are not changed by these functions.
 - 🟡 `Task` children are `restart: :temporary`, so a crashing startup task is never retried.
 - 🟡 Pipe/comparison precedence: `a == b |> f()` parses as `a == f(b)`. Parenthesise.
