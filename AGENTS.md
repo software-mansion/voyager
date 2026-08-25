@@ -168,6 +168,11 @@ This is a web application written using the Phoenix web framework.
 - Use services for non-CRUD operations such as connecting to remote nodes, wrapping external systems, or coordinating side effects
 - Add `@spec` and `@doc` if necessary (`@doc` its not a must-have in simple cases) on public functions
 - GenServers and LiveViews call services directly; avoid extra abstraction layers unless needed
+
+### LiveComponents
+
+- Initialize component-owned assigns (`form`, lock flags, counters) in `mount/1`. **Do not** use `assign_new/3` in `update/2` for this
+- `update/2` should only assign values received from the parent
 <!-- voyager:architecture-end -->
 
 <!-- phoenix:html-start -->
