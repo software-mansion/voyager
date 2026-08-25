@@ -98,7 +98,7 @@ export const overlayMethods = {
 
     // Keep icon and attributes in sync with the node's state.
     const collapsed = this.isCollapsed(node);
-    const name = formatName(node.data('name'), this.pidFormat);
+    const name = formatName(node.data('name'));
     if (entry.collapsed !== collapsed || entry.name !== name) {
       this.decorateOverlay(entry.dom, node);
       entry.collapsed = collapsed;
@@ -109,7 +109,7 @@ export const overlayMethods = {
   // Sets the icon plus the a11y/testability attributes from the node's state.
   decorateOverlay(dom, node) {
     const collapsed = this.isCollapsed(node);
-    const name = formatName(node.data('name'), this.pidFormat);
+    const name = formatName(node.data('name'));
     dom.innerHTML = toggleIcon(collapsed);
     dom.dataset.name = name;
     dom.dataset.collapsed = String(collapsed);

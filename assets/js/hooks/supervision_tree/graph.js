@@ -84,9 +84,7 @@ export const graphMethods = {
     if (this.selectedEdgeId) {
       this.applyEdgeHighlight(this.selectedEdgeId);
     } else if (this.selectedPath) {
-      this.applyPathHighlight({
-        path: this.selectedPath,
-      });
+      this.applyPathHighlight({ path: this.selectedPath });
     }
   },
 
@@ -232,21 +230,6 @@ export const graphMethods = {
     if (format === this.pidFormat) return false;
     this.pidFormat = format;
     return true;
-  },
-
-  relabelPids() {
-    if (!this.cy) return;
-
-    this.cy.batch(() => {
-      this.cy.nodes().forEach((node) => {
-        node.data('displayLabel', composeLabel(node.data()));
-      });
-    });
-
-    if (this.nodeId) this.fillTooltip();
-    if (typeof this.repositionOverlays === 'function') {
-      this.repositionOverlays();
-    }
   },
 
   // ---------------------------------------------------------------------------

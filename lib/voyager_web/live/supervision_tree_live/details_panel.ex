@@ -37,10 +37,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   end
 
   @impl true
-  def update(
-        %{id: id, tree_node: tree_node, remote_node: remote_node},
-        socket
-      ) do
+  def update(%{id: id, tree_node: tree_node, remote_node: remote_node}, socket) do
     socket
     |> assign(:id, id)
     |> assign(:remote_node, remote_node)

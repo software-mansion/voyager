@@ -405,7 +405,7 @@ test.describe('SupervisionTreeLive › pid format', () => {
     await openTree(page);
   });
 
-  test('pid format updates in', async ({ page }) => {
+  test('updates when settings change', async ({ page }) => {
     try {
       await setPidFormat(page, 'distribution');
 

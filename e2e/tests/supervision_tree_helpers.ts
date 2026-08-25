@@ -313,8 +313,7 @@ type PidNamedNode = {
 
 /**
  * A visible graph node whose display name is a raw PID (the intermediate `p`
- * under app:mock_app). Registered names never change with pid_format, so this
- * is the node whose label `relabelPids` actually rewrites.
+ * under app:mock_app). Registered names never change with pid_format.
  */
 export function pidNamedNode(page: Page): Promise<PidNamedNode | null> {
   return page.evaluate((reSrc) => {
