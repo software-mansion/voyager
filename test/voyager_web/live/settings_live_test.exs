@@ -177,7 +177,7 @@ defmodule VoyagerWeb.SettingsLiveTest do
 
       {:ok, view, _html} = live(conn, ~p"/settings")
 
-      assert has_element?(view, "#mcp-port-locked")
+      assert has_element?(view, "#mcp-locked")
       assert has_element?(view, ~s|#mcp_port_port[disabled]|)
     end
 
@@ -189,7 +189,7 @@ defmodule VoyagerWeb.SettingsLiveTest do
 
       {:ok, view, _html} = live(conn, ~p"/settings")
 
-      assert has_element?(view, "#mcp-enabled-locked")
+      assert has_element?(view, "#mcp-locked")
       assert has_element?(view, ~s|#mcp-toggle[disabled]|)
     end
   end
