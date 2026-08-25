@@ -122,8 +122,11 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
           node: node
         })
 
-      assert html =~ "&lt;0.45.0&gt;"
-      refute html =~ "&lt;123.45.0&gt;"
+      document = LazyHTML.from_fragment(html)
+      name = document |> LazyHTML.query("#details-panel-name") |> LazyHTML.text()
+
+      assert name =~ "<0.45.0>"
+      refute LazyHTML.text(document) =~ "<123.45.0>"
     end
 
     test "shows the non-process message for a port", %{
