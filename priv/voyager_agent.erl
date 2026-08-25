@@ -17,7 +17,10 @@
 -spec proc_top([atom()], atom(), pos_integer()) -> [map()].
 proc_top(Attrs, SortBy, Limit) ->
     %% ~4MB on 64-bit; kill this worker (not the node) if it blows up.
-    process_flag(max_heap_size, #{size => 500000, kill => true, error_logger => true}),
+    process_flag(max_heap_size,
+                 #{size => 500000,
+                   kill => true,
+                   error_logger => true}),
     Top = fold(iterator(), Attrs, SortBy, Limit, [], 0),
     %% `Top' is ascending by sort value; emit descending as maps.
     [to_map(Entry) || Entry <- lists:reverse(Top)].
@@ -25,14 +28,18 @@ proc_top(Attrs, SortBy, Limit) ->
 %% Prefer the incremental iterator (OTP 27+); fall back to a plain list.
 iterator() ->
     case erlang:function_exported(erlang, processes_iterator, 0) of
-        true -> {iter, erlang:processes_iterator()};
-        false -> {list, erlang:processes()}
+        true ->
+            {iter, erlang:processes_iterator()};
+        false ->
+            {list, erlang:processes()}
     end.
 
 next({iter, Iter}) ->
     case erlang:processes_next(Iter) of
-        {Pid, NextIter} -> {Pid, {iter, NextIter}};
-        none -> none
+        {Pid, NextIter} ->
+            {Pid, {iter, NextIter}};
+        none ->
+            none
     end;
 next({list, []}) ->
     none;
@@ -80,8 +87,10 @@ insert_sorted(Rest, Value, Pid, Info) ->
 
 value(SortBy, Info) ->
     case lists:keyfind(SortBy, 1, Info) of
-        {SortBy, Value} -> Value;
-        false -> undefined
+        {SortBy, Value} ->
+            Value;
+        false ->
+            undefined
     end.
 
 to_map({_Value, Pid, Info}) ->
