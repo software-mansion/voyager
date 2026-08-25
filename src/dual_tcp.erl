@@ -16,8 +16,8 @@
 %% A tunnelled node's literal identity can be a real IPv6 address (e.g.
 %% `app@::1`, or a Fly.io 6PN address) even though the tunnel itself is v4, so
 %% this accepts IPv6 literal syntax too, purely to satisfy that gate.
--export([family/0, parse_address/1, connect/3, send/2, recv/3]).
 
+-export([family/0, parse_address/1, connect/3, send/2, send/3, recv/3]).
 family() -> inet.
 
 parse_address(Host) ->
@@ -28,4 +28,5 @@ parse_address(Host) ->
 
 connect(Ip, Port, Opts) -> inet_tcp:connect(Ip, Port, Opts).
 send(Socket, Packet) -> inet_tcp:send(Socket, Packet).
+send(Socket, Packet, Opts) -> inet_tcp:send(Socket, Packet, Opts).
 recv(Socket, Length, Timeout) -> inet_tcp:recv(Socket, Length, Timeout).
