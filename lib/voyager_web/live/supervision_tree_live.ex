@@ -30,7 +30,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> assign(:status, :idle)
       |> assign(:refresh_timer, nil)
       |> assign(:selected_node, nil)
-      |> assign(:selection_history, [])
       |> assign(:pending_reveal, nil)
 
     if connected?(socket) do
@@ -96,7 +95,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         id="details-panel"
         tree_node={@selected_node}
         remote_node={@session.node}
-        can_go_back?={@selection_history != []}
       />
     </div>
     """
@@ -146,14 +144,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   def handle_event("close-details-panel", _params, socket) do
     socket
     |> assign(:selected_node, nil)
-    |> assign(:selection_history, [])
     |> assign(:pending_reveal, nil)
-    |> noreply()
-  end
-
-  def handle_event("back-details-node", _params, socket) do
-    socket
-    |> pop_selection_history()
     |> noreply()
   end
 
@@ -268,6 +259,15 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   def handle_info({:select_link, identifier}, socket) do
     socket
     |> select_identifier(identifier)
+    |> noreply()
+  end
+
+  def handle_info({:restore_details_node, node}, socket) do
+    node = lookup_tree_node(socket, node.key) || node
+
+    socket
+    |> assign(:pending_reveal, nil)
+    |> put_selected_node(node, focus: true)
     |> noreply()
   end
 
@@ -426,7 +426,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     socket
     |> push_event("path-highlight", %{path: []})
     |> assign(:selected_node, nil)
-    |> assign(:selection_history, [])
     |> assign(:pending_reveal, nil)
   end
 
@@ -437,7 +436,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
       node ->
         socket
-        |> assign(:selection_history, [])
         |> assign(:pending_reveal, nil)
         |> put_selected_node(node)
     end
@@ -446,47 +444,19 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   defp select_identifier(socket, identifier) do
     key = TreeNode.key(identifier)
     in_tree = lookup_tree_node(socket, key)
+    from = socket.assigns.selected_node
 
     cond do
       is_nil(in_tree) and is_nil(tree_node_from_identifier(identifier)) ->
         socket
 
-      in_tree && socket.assigns.selected_node &&
-          socket.assigns.selected_node.key == in_tree.key ->
-        put_selected_node(socket, in_tree, focus: true)
-
       in_tree ->
-        socket
-        |> push_selection_history()
-        |> put_selected_node(in_tree, focus: true)
+        put_selected_node(socket, in_tree, focus: true)
 
       true ->
         socket
-        |> push_selection_history()
         |> put_selected_node(tree_node_from_identifier(identifier))
-        |> maybe_expand_to_reveal(identifier)
-    end
-  end
-
-  defp push_selection_history(socket) do
-    case socket.assigns.selected_node do
-      nil -> socket
-      node -> assign(socket, :selection_history, [node | socket.assigns.selection_history])
-    end
-  end
-
-  defp pop_selection_history(socket) do
-    case socket.assigns.selection_history do
-      [prev | rest] ->
-        node = lookup_tree_node(socket, prev.key) || prev
-
-        socket
-        |> assign(:selection_history, rest)
-        |> assign(:pending_reveal, nil)
-        |> put_selected_node(node, focus: true)
-
-      [] ->
-        socket
+        |> maybe_expand_to_reveal(identifier, from)
     end
   end
 
@@ -494,8 +464,8 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   # supervisor (the node we came from, or a stub that lists this pid in its
   # links). That is the same work as a manual +/- expand: one `which_children`
   # plus hydrate for that supervisor's direct children.
-  defp maybe_expand_to_reveal(socket, identifier) when is_pid(identifier) do
-    stub = stub_to_expand(socket, identifier)
+  defp maybe_expand_to_reveal(socket, identifier, from) when is_pid(identifier) do
+    stub = stub_to_expand(socket, identifier, from)
 
     cond do
       is_nil(stub) ->
@@ -512,17 +482,11 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     end
   end
 
-  defp maybe_expand_to_reveal(socket, _identifier), do: socket
+  defp maybe_expand_to_reveal(socket, _identifier, _from), do: socket
 
-  defp stub_to_expand(socket, identifier) do
-    prev =
-      case socket.assigns.selection_history do
-        [node | _] -> node
-        _ -> nil
-      end
-
-    if expandable_stub?(prev) do
-      prev
+  defp stub_to_expand(socket, identifier, from) do
+    if expandable_stub?(from) do
+      from
     else
       find_stub_linking_to(socket.assigns.last_tree_flat, identifier)
     end
@@ -641,7 +605,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
           is_map(prev_flat) and Map.has_key?(prev_flat, key) ->
             socket
             |> assign(:selected_node, nil)
-            |> assign(:selection_history, [])
             |> assign(:pending_reveal, nil)
 
           true ->
@@ -667,7 +630,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         last_tree_flat: nil,
         last_relations: %{},
         selected_node: nil,
-        selection_history: [],
         pending_reveal: nil
       )
 

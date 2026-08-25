@@ -168,6 +168,14 @@ This is a web application written using the Phoenix web framework.
 - Use services for non-CRUD operations such as connecting to remote nodes, wrapping external systems, or coordinating side effects
 - Add `@spec` and `@doc` if necessary (`@doc` its not a must-have in simple cases) on public functions
 - GenServers and LiveViews call services directly; avoid extra abstraction layers unless needed
+
+### LiveComponents and function components
+
+- Function components must not hardcode `phx-click` / `phx-target`. The LiveComponent (or LiveView) that defines `handle_event/3` passes the event name and target as attributes so the mapping is explicit at the call site:
+
+      <.chip on_select="select-link" target={@myself} node_key={key} />
+
+      def handle_event("select-link", %{"key" => key}, socket)
 <!-- voyager:architecture-end -->
 
 <!-- phoenix:html-start -->

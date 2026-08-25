@@ -92,7 +92,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :panel_id, :string, required: true
-  attr :myself, :any, required: true
+  attr :on_refresh, :string, required: true
+  attr :target, :any, required: true
   attr :loading?, :boolean, required: true
 
   def refresh_button(assigns) do
@@ -101,8 +102,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       <button
         type="button"
         id={"#{@panel_id}-refresh"}
-        phx-click="refresh-node-info"
-        phx-target={@myself}
+        phx-click={@on_refresh}
+        phx-target={@target}
         phx-throttle="1000"
         aria-label="Refresh fetched process information"
         title="Refresh fetched process information"
@@ -119,6 +120,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :panel_id, :string, required: true
+  attr :on_back, :string, required: true
+  attr :target, :any, required: true
 
   def back_button(assigns) do
     ~H"""
@@ -126,7 +129,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       <button
         type="button"
         id={"#{@panel_id}-back"}
-        phx-click="back-details-node"
+        phx-click={@on_back}
+        phx-target={@target}
         title="Back to previous process"
         aria-label="Back to previous process"
         class="btn btn-ghost btn-square toolbar-btn hover:text-base-content"
@@ -139,13 +143,14 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :panel_id, :string, required: true
+  attr :on_close, :string, required: true
 
   def close_button(assigns) do
     ~H"""
     <button
       type="button"
       id={"#{@panel_id}-close"}
-      phx-click="close-details-panel"
+      phx-click={@on_close}
       title="Close"
       aria-label="Close panel"
       class="btn btn-ghost btn-square toolbar-btn hover:text-base-content"
@@ -177,7 +182,9 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :info, AsyncResult, required: true
   attr :node, TreeNode, required: true
   attr :links_expanded?, :boolean, required: true
-  attr :myself, :any, required: true
+  attr :on_select, :string, required: true
+  attr :on_toggle_links, :string, required: true
+  attr :target, :any, required: true
 
   def body(assigns) do
     assigns = assign(assigns, :process?, is_pid(assigns.node.pid))
@@ -190,7 +197,9 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           panel_id={@panel_id}
           info={@info}
           links_expanded?={@links_expanded?}
-          myself={@myself}
+          on_select={@on_select}
+          on_toggle_links={@on_toggle_links}
+          target={@target}
         />
         <.memory_and_garbage_collection info={@info} />
       <% else %>
@@ -261,7 +270,9 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :panel_id, :string, required: true
   attr :info, AsyncResult, required: true
   attr :links_expanded?, :boolean, required: true
-  attr :myself, :any, required: true
+  attr :on_select, :string, required: true
+  attr :on_toggle_links, :string, required: true
+  attr :target, :any, required: true
 
   def links(assigns) do
     assigns = assign(assigns, :links_count, links_count(assigns.info))
@@ -284,7 +295,9 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           toggle_id={"#{@panel_id}-toggle-links"}
           links={info.links}
           links_expanded?={@links_expanded?}
-          myself={@myself}
+          on_select={@on_select}
+          on_toggle_links={@on_toggle_links}
+          target={@target}
         />
       </.async_result>
     </.section>
@@ -365,16 +378,17 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :label, :string, required: true
   attr :id, :string, required: true
   attr :node_key, :string, required: true
-  attr :myself, :any, required: true
+  attr :on_select, :string, required: true
+  attr :target, :any, required: true
 
   def chip(assigns) do
     ~H"""
     <button
       type="button"
       id={@id}
-      phx-click="select-link"
+      phx-click={@on_select}
       phx-value-key={@node_key}
-      phx-target={@myself}
+      phx-target={@target}
       title={"Select #{@label}"}
       aria-label={"Select #{@label}"}
       class="border-base-content/70 bg-base-200 text-base-content font-mono inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors hover:border-primary hover:bg-primary/10"
@@ -454,7 +468,9 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :panel_id, :string, required: true
   attr :links, :list, required: true
   attr :links_expanded?, :boolean, required: true
-  attr :myself, :any, required: true
+  attr :on_select, :string, required: true
+  attr :on_toggle_links, :string, required: true
+  attr :target, :any, required: true
 
   def links_list(assigns) do
     total = length(assigns.links)
@@ -476,7 +492,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           id={"#{@panel_id}-link-#{index}"}
           label={format_identifier(link)}
           node_key={TreeNode.key(link)}
-          myself={@myself}
+          on_select={@on_select}
+          target={@target}
         />
       </div>
       <p
@@ -489,8 +506,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         :if={@toggle?}
         type="button"
         id={@toggle_id}
-        phx-click="toggle-links"
-        phx-target={@myself}
+        phx-click={@on_toggle_links}
+        phx-target={@target}
         class="btn btn-ghost btn-xs text-base-content/70 w-max items-center self-center px-3 py-2 hover:text-base-content"
       >
         {if(@links_expanded?, do: "Show Less", else: "Show More")}

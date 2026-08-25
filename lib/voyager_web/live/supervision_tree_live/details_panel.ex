@@ -2,17 +2,14 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   @moduledoc """
   Side panel that displays details for a selected node in the supervision tree.
 
-  The parent LiveView owns the selection: it passes the selected `TreeNode` (or
-  `nil` to close the panel) and must handle the `"close-details-panel"` event
-  the close button emits.
+  The parent LiveView owns the current selection (graph highlight / focus) and
+  passes the selected `TreeNode` (or `nil` to close). This component owns the
+  in-panel navigation history: link clicks push the current node, Back pops it,
+  and a parent-driven selection (graph click, close) resets the stack.
 
-  ## Example
-
-      def handle_event("close-details-panel", _params, socket) do
-        socket
-        |> assign(:tree_node, nil)
-        |> noreply()
-      end
+  Link / back notify the parent via `send/2` (`{:select_link, id}` /
+  `{:restore_details_node, node}`). Close has no `phx-target`, so it is handled
+  on the parent as `"close-details-panel"`.
   """
 
   use VoyagerWeb, :live_component
@@ -32,17 +29,17 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(:remote_node, nil)
     |> assign(:open?, false)
     |> assign(:links_expanded?, false)
-    |> assign(:can_go_back?, false)
+    |> assign(:selection_history, [])
+    |> assign(:awaiting_parent_selection?, false)
     |> assign(:node_info, AsyncResult.loading())
     |> ok()
   end
 
   @impl true
-  def update(%{id: id, tree_node: tree_node, remote_node: remote_node} = assigns, socket) do
+  def update(%{id: id, tree_node: tree_node, remote_node: remote_node}, socket) do
     socket
     |> assign(:id, id)
     |> assign(:remote_node, remote_node)
-    |> assign(:can_go_back?, Map.get(assigns, :can_go_back?, false))
     |> maybe_assign_node(tree_node)
     |> ok()
   end
@@ -61,6 +58,25 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
       identifier ->
         send(self(), {:select_link, identifier})
+
+        socket
+        |> push_history(identifier)
+        |> assign(:awaiting_parent_selection?, true)
+        |> noreply()
+    end
+  end
+
+  def handle_event("back-details-node", _params, socket) do
+    case socket.assigns.selection_history do
+      [prev | rest] ->
+        send(self(), {:restore_details_node, prev})
+
+        socket
+        |> assign(:selection_history, rest)
+        |> assign(:awaiting_parent_selection?, true)
+        |> noreply()
+
+      [] ->
         noreply(socket)
     end
   end
@@ -88,7 +104,12 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
       <%= if @node do %>
         <%!-- Header --%>
         <div class="border-base-200 flex items-start gap-3 border-b px-5 py-4">
-          <.back_button :if={@can_go_back?} panel_id={@id} />
+          <.back_button
+            :if={@selection_history != []}
+            panel_id={@id}
+            on_back="back-details-node"
+            target={@myself}
+          />
           <div class="flex min-w-0 flex-1 flex-col gap-1.5">
             <.node_type_label node_type={@node.type} />
             <.node_label panel_id={@id} node={@node} />
@@ -97,10 +118,11 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
             <.refresh_button
               :if={is_pid(@node.pid)}
               panel_id={@id}
-              myself={@myself}
+              on_refresh="refresh-node-info"
+              target={@myself}
               loading?={@node_info.loading}
             />
-            <.close_button panel_id={@id} />
+            <.close_button panel_id={@id} on_close="close-details-panel" />
           </div>
         </div>
         <%!-- Scrollable body --%>
@@ -109,7 +131,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
           info={@node_info}
           node={@node}
           links_expanded?={@links_expanded?}
-          myself={@myself}
+          on_select="select-link"
+          on_toggle_links="toggle-links"
+          target={@myself}
         />
         <.show_more_button panel_id={@id} />
       <% end %>
@@ -117,18 +141,46 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     """
   end
 
-  defp maybe_assign_node(socket, nil), do: assign(socket, :open?, false)
+  defp maybe_assign_node(socket, nil) do
+    socket
+    |> assign(:open?, false)
+    |> assign(:selection_history, [])
+    |> assign(:awaiting_parent_selection?, false)
+  end
 
   defp maybe_assign_node(socket, node) do
     changed? = node_changed?(socket, node)
+    awaiting? = socket.assigns.awaiting_parent_selection?
 
     socket
     |> assign(:open?, true)
     |> assign(:node, node)
+    |> assign(:awaiting_parent_selection?, false)
+    |> then(fn socket ->
+      cond do
+        awaiting? -> socket
+        changed? -> assign(socket, :selection_history, [])
+        true -> socket
+      end
+    end)
     |> then(fn socket ->
       if changed?, do: assign(socket, :links_expanded?, false), else: socket
     end)
     |> maybe_fetch_node_info(node)
+  end
+
+  defp push_history(socket, identifier) do
+    case socket.assigns.node do
+      %TreeNode{key: key} = node ->
+        if key == TreeNode.key(identifier) do
+          socket
+        else
+          assign(socket, :selection_history, [node | socket.assigns.selection_history])
+        end
+
+      _ ->
+        socket
+    end
   end
 
   defp maybe_fetch_node_info(socket, %TreeNode{pid: pid}) when is_pid(pid) do

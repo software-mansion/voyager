@@ -271,6 +271,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       expect_process_info_fetch(sup_pid, [port | link_pids])
 
       view |> element("#details-panel-back") |> render_click()
+      flush(view)
       render_async(view)
 
       assert has_element?(view, "#details-panel", "Supervisor")
@@ -318,6 +319,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       expect_process_info_fetch(sup_pid, [port | link_pids])
 
       view |> element("#details-panel-back") |> render_click()
+      flush(view)
       render_async(view)
 
       assert has_element?(view, "#details-panel", "Supervisor")
@@ -507,8 +509,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
     end
   end
 
-  # `select-link` notifies the parent LiveView via send/2; drain that message
-  # before asserting on the updated selection.
+  # `select-link` / `back-details-node` notify the parent LiveView via send/2;
+  # drain that message before asserting on the updated selection.
   defp flush(view), do: _ = :sys.get_state(view.pid)
 
   defp pid_key(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
