@@ -36,7 +36,7 @@ defmodule Voyager.MixProject do
 
   defp deps do
     [
-      {:anubis_mcp, "~> 1.14"},
+      {:anubis_mcp, "~> 2.0"},
       {:bandit, "~> 1.12"},
       {:cloak, "~> 1.1"},
       {:cloak_ecto, "~> 1.3"},
@@ -47,7 +47,7 @@ defmodule Voyager.MixProject do
       {:phoenix, "~> 1.8.7"},
       {:phoenix_ecto, "~> 4.5"},
       {:phoenix_html, "~> 4.1"},
-      {:phoenix_live_dashboard, "~> 0.8.3"},
+      {:phoenix_live_dashboard, "~> 0.9.0"},
       {:phoenix_live_view, "~> 1.2.8"},
       {:req, "~> 0.7"},
       {:telemetry_metrics, "~> 1.0"},
