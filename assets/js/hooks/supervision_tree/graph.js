@@ -6,6 +6,8 @@ import {
   isRealPid,
   initialIsCollapsedState,
   edgeElement,
+  storedPidFormat,
+  PID_FORMAT_STORAGE_KEY,
 } from './elements';
 import { buildStyle, getColor } from './styles';
 
@@ -33,7 +35,7 @@ export const graphMethods = {
 
     this.animate = metaEnv?.content !== 'e2e';
     /** @type {'distribution' | 'local'} */
-    this.pidFormat = 'distribution';
+    this.pidFormat = storedPidFormat();
   },
 
   cleanupGraph() {
@@ -50,7 +52,6 @@ export const graphMethods = {
    * @property {'initial' | 'auto_refresh' | 'manual_refresh' | 'toggle_expand'} request_type
    * @property {Record<string, ServerNode>} nodes
    * @property {Record<string, ServerEdge>} edges
-   * @property {'distribution' | 'local'} pid_format
    *
    * @typedef {Object} Patch
    * @property {string} name
@@ -68,20 +69,16 @@ export const graphMethods = {
    * @property {Record<string, Patch>} updated
    * @property {Record<string, ServerEdge>} edges_added
    * @property {string[]} edges_removed
-   * @property {'distribution' | 'local'} pid_format
    *
    * @param {FullPayload | DeltaPayload} payload
    */
   applyPayload(payload) {
     if (!payload) return;
 
-    const formatChanged = this.setPidFormat(payload.pid_format);
-
     if (payload.kind === 'full') {
       this.applyFull(payload);
     } else if (payload.kind === 'delta') {
       this.applyDelta(payload);
-      if (formatChanged) this.relabelPids();
     }
 
     if (this.selectedEdgeId) {
@@ -89,7 +86,6 @@ export const graphMethods = {
     } else if (this.selectedPath) {
       this.applyPathHighlight({
         path: this.selectedPath,
-        pid_format: payload.pid_format,
       });
     }
   },
@@ -107,7 +103,7 @@ export const graphMethods = {
 
       const addBatch = [];
       for (const [key, node] of Object.entries(incoming)) {
-        addBatch.push(...elementsFor(key, node, this.pidFormat));
+        addBatch.push(...elementsFor(key, node));
       }
       // Relationship edges are appended after all nodes so their endpoints
       // already exist when cytoscape processes the batch.
@@ -148,7 +144,7 @@ export const graphMethods = {
       // Additions
       const addBatch = [];
       for (const [key, node] of Object.entries(added)) {
-        addBatch.push(...elementsFor(key, node, this.pidFormat));
+        addBatch.push(...elementsFor(key, node));
         topologyChangeCounter++;
       }
       this.cy.add(addBatch);
@@ -179,7 +175,7 @@ export const graphMethods = {
         }
 
         if (patch.name !== undefined || patch.child_count !== undefined) {
-          node.data('displayLabel', composeLabel(node.data(), this.pidFormat));
+          node.data('displayLabel', composeLabel(node.data()));
         }
 
         if (patch.child_count !== undefined) {
@@ -243,7 +239,7 @@ export const graphMethods = {
 
     this.cy.batch(() => {
       this.cy.nodes().forEach((node) => {
-        node.data('displayLabel', composeLabel(node.data(), this.pidFormat));
+        node.data('displayLabel', composeLabel(node.data()));
       });
     });
 
@@ -298,9 +294,7 @@ export const graphMethods = {
   // Selection highlighting
   // ---------------------------------------------------------------------------
 
-  applyPathHighlight({ path, pid_format }) {
-    if (this.setPidFormat(pid_format)) this.relabelPids();
-
+  applyPathHighlight({ path }) {
     this.selectedEdgeId = null;
     this.selectedPath = path && path.length > 0 ? path : null;
 

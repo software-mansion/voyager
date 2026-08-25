@@ -24,12 +24,19 @@
  * @property {'link' | 'monitor' | 'monitored_by'} kind
  */
 
+export const PID_FORMAT_STORAGE_KEY = 'voyager:pid-format';
+
+export function storedPidFormat() {
+  return localStorage.getItem(PID_FORMAT_STORAGE_KEY) === 'local'
+    ? 'local'
+    : 'distribution';
+}
+
 /**
  * @param {string} key
  * @param {ServerNode} node
- * @param {'distribution' | 'local'} [format]
  */
-export function elementsFor(key, node, format = 'distribution') {
+export function elementsFor(key, node) {
   const child_count = node.child_count ?? 0;
   const children_keys =
     node.children_keys === 'not_loaded' ? null : node.children_keys;
@@ -48,7 +55,7 @@ export function elementsFor(key, node, format = 'distribution') {
     is_collapsed: initialIsCollapsedState({ child_count, children_keys }),
     is_from_relation: node.parent_key === null,
   };
-  data.displayLabel = composeLabel(data, format);
+  data.displayLabel = composeLabel(data);
 
   /** @type {Array<{group: string, data: Object, classes?: string}>} */
   const els = [{ group: 'nodes', data }];
@@ -106,25 +113,26 @@ export function initialIsCollapsedState({ child_count, children_keys }) {
 // The label is the process's registered name, or its pid when unregistered —
 // the server resolves this into `name`. Nodes with children also show their
 // direct child count as `(N)`.
-export function composeLabel(d, format = 'distribution') {
-  const name = formatName(d.name, format);
+export function composeLabel(d) {
+  const name = formatName(d.name);
   if (d.type === 'worker' || d.child_count === 0) {
     return name;
   }
   return `${name} (${d.child_count})`;
 }
 
-export function formatName(name, format = 'distribution') {
+export function formatName(name) {
   if (name === null || name === undefined) return '';
   if (Array.isArray(name))
-    return name.map((part) => formatName(part, format)).join(':');
+    return name.map((part) => formatName(part)).join(':');
   if (typeof name === 'string') {
-    return isRealPid(name) ? formatPid(name, format) : name;
+    return isRealPid(name) ? formatPid(name) : name;
   }
   return String(name);
 }
 
-export function formatPid(pid, format = 'distribution') {
+export function formatPid(pid) {
+  const format = storedPidFormat();
   if (!pid) return '';
   const value = String(pid);
   if (format === 'local') {

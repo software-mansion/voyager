@@ -150,8 +150,8 @@ defmodule VoyagerWeb.FormattersTest do
 
     test "formats a pid from a string", %{data: data} do
       Enum.each(data, fn {pid_string, pid_distribution_string, pid_local_string} ->
-        assert Formatters.format_pid(pid_string, :distribution) == pid_distribution_string
-        assert Formatters.format_pid(pid_string, :local) == pid_local_string
+        assert Formatters.pid(pid_string, :distribution) == pid_distribution_string
+        assert Formatters.pid(pid_string, :local) == pid_local_string
       end)
     end
 
@@ -159,7 +159,7 @@ defmodule VoyagerWeb.FormattersTest do
       data: data
     } do
       Enum.each(data, fn {pid_string, pid_distribution_string, _} ->
-        assert Formatters.format_pid(pid_string) == pid_distribution_string
+        assert Formatters.pid(pid_string) == pid_distribution_string
       end)
     end
   end

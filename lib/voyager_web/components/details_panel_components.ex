@@ -56,13 +56,12 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :panel_id, :string, required: true
   attr :node, TreeNode, required: true
-  attr :pid_format, :atom, required: true
 
   def node_label(assigns) do
     assigns =
       assigns
-      |> assign(:display_name, node_display_name(assigns.node, assigns.pid_format))
-      |> assign(:pid_string, node_pid_string(assigns.node, assigns.pid_format))
+      |> assign(:display_name, node_display_name(assigns.node))
+      |> assign(:pid_string, node_pid_string(assigns.node))
 
     ~H"""
     <div class="flex min-w-0 flex-col gap-0.5">
@@ -150,7 +149,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :node, TreeNode, required: true
   attr :links_expanded?, :boolean, required: true
   attr :myself, :any, required: true
-  attr :pid_format, :atom, required: true
 
   def body(assigns) do
     assigns = assign(assigns, :process?, is_pid(assigns.node.pid))
@@ -158,13 +156,12 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     ~H"""
     <div class="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
       <%= if @process? do %>
-        <.overview info={@info} pid_format={@pid_format} />
+        <.overview info={@info} />
         <.links
           panel_id={@panel_id}
           info={@info}
           links_expanded?={@links_expanded?}
           myself={@myself}
-          pid_format={@pid_format}
         />
         <.memory_and_garbage_collection info={@info} />
       <% else %>
@@ -179,7 +176,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :info, AsyncResult, required: true
-  attr :pid_format, :atom, required: true
 
   def overview(assigns) do
     ~H"""
@@ -214,7 +210,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           label="Message queue len"
           value={Formatters.format_integer(info.message_queue_len)}
         />
-        <.kv label="Group leader" value={format_identifier(info.group_leader, @pid_format)} />
+        <.kv label="Group leader" value={format_identifier(info.group_leader)} />
         <.kv label="Priority" value={to_string(info.priority)} />
         <.kv label="Trap exit" value={to_string(info.trap_exit)} />
         <.kv label="Reductions" value={Formatters.format_integer(info.reductions)} />
@@ -222,7 +218,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         <.kv label="Last calls" value={format_last_calls(info.last_calls)} />
         <.kv label="Catch level" value={Formatters.format_integer(info.catch_level)} />
         <.kv label="Trace" value={Formatters.format_integer(info.trace)} />
-        <.suspending_list suspending={info.suspending} pid_format={@pid_format} />
+        <.suspending_list suspending={info.suspending} />
         <.kv
           label="Sequential trace token"
           value={format_sequential_trace_token(info.sequential_trace_token)}
@@ -237,7 +233,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :info, AsyncResult, required: true
   attr :links_expanded?, :boolean, required: true
   attr :myself, :any, required: true
-  attr :pid_format, :atom, required: true
 
   def links(assigns) do
     assigns = assign(assigns, :links_count, links_count(assigns.info))
@@ -260,7 +255,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           links={info.links}
           links_expanded?={@links_expanded?}
           myself={@myself}
-          pid_format={@pid_format}
         />
       </.async_result>
     </.section>
@@ -392,7 +386,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :suspending, :list, required: true
-  attr :pid_format, :atom, required: true
 
   def suspending_list(assigns) do
     assigns = assign(assigns, :suspending_count, length(assigns.suspending))
@@ -411,7 +404,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           :for={{suspendee, active_suspend_count, outstanding_suspend_count} <- @suspending}
           class="contents"
         >
-          <span class="text-base-content truncate">{format_identifier(suspendee, @pid_format)}</span>
+          <span class="text-base-content truncate">{format_identifier(suspendee)}</span>
           <span class="text-base-content text-right">{active_suspend_count}</span>
           <span class="text-base-content text-right">{outstanding_suspend_count}</span>
         </div>
@@ -424,7 +417,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :links, :list, required: true
   attr :links_expanded?, :boolean, required: true
   attr :myself, :any, required: true
-  attr :pid_format, :atom, required: true
 
   def links_list(assigns) do
     total = length(assigns.links)
@@ -432,7 +424,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
     assigns =
       assigns
-      |> assign(:visible_links, format_links(assigns.links, limit, assigns.pid_format))
+      |> assign(:visible_links, format_links(assigns.links, limit))
       |> assign(:toggle?, total > @max_links)
       |> assign(:overflow_count, max(total - limit, 0))
 
@@ -516,37 +508,37 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp format_count(nil), do: "—"
   defp format_count(n) when is_integer(n), do: Formatters.format_integer(n)
 
-  defp format_identifier(pid, pid_format) when is_pid(pid),
-    do: Formatters.format_pid(pid, pid_format)
+  defp format_identifier(pid) when is_pid(pid),
+    do: Formatters.pid(pid)
 
-  defp format_identifier(port, _pid_format) when is_port(port),
+  defp format_identifier(port) when is_port(port),
     do: port |> :erlang.port_to_list() |> List.to_string()
 
-  defp format_identifier(other, _pid_format), do: inspect(other)
+  defp format_identifier(other), do: inspect(other)
 
-  defp node_display_name(%TreeNode{name: name}, pid_format) when is_pid(name),
-    do: Formatters.format_pid(name, pid_format)
+  defp node_display_name(%TreeNode{name: name}) when is_pid(name),
+    do: Formatters.pid(name)
 
-  defp node_display_name(%TreeNode{name: name}, _pid_format) when is_atom(name),
+  defp node_display_name(%TreeNode{name: name}) when is_atom(name),
     do: Atom.to_string(name)
 
-  defp node_display_name(%TreeNode{name: name}, pid_format) when is_binary(name),
-    do: Formatters.format_pid(name, pid_format)
+  defp node_display_name(%TreeNode{name: name}) when is_binary(name),
+    do: Formatters.pid(name)
 
-  defp node_display_name(%TreeNode{key: key}, pid_format),
-    do: Formatters.format_pid(key, pid_format)
+  defp node_display_name(%TreeNode{key: key}),
+    do: Formatters.pid(key)
 
-  defp node_pid_string(%TreeNode{pid: pid}, pid_format) when is_pid(pid),
-    do: Formatters.format_pid(pid, pid_format)
+  defp node_pid_string(%TreeNode{pid: pid}) when is_pid(pid),
+    do: Formatters.pid(pid)
 
-  defp node_pid_string(_, _), do: nil
+  defp node_pid_string(_), do: nil
 
   # Formats only the slice that gets rendered: a process can hold thousands of
   # links and every chip lands in the LiveView diff.
-  defp format_links(links, limit, pid_format) do
+  defp format_links(links, limit) do
     links
     |> Enum.take(limit)
-    |> Enum.map(&format_identifier(&1, pid_format))
+    |> Enum.map(&format_identifier/1)
   end
 
   defp links_count(%AsyncResult{ok?: true, result: %{links: links}}), do: "(#{length(links)})"

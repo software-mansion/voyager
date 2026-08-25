@@ -3,6 +3,7 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
   use VoyagerWeb, :live_component
 
   alias Voyager.Settings
+  alias VoyagerWeb.Formatters
   alias VoyagerWeb.SettingsComponents
 
   @pid_formats_info [
@@ -14,14 +15,14 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
   def mount(socket) do
     socket
     |> assign(:locked?, Settings.locked?(:pid_format))
+    |> assign(:pid_format, Settings.get(:pid_format, :distribution))
     |> ok()
   end
 
   @impl true
-  def update(%{id: id, pid_format: pid_format}, socket) do
+  def update(%{id: id}, socket) do
     socket
     |> assign(:id, id)
-    |> assign(:pid_format, pid_format)
     |> ok()
   end
 
@@ -58,6 +59,8 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
 
         <div
           id="pid-format-setting"
+          phx-hook=".PidFormatSetting"
+          data-pid-format={@pid_format}
           class="join inline-grid grid-cols-2 self-start"
         >
           <button
@@ -84,6 +87,20 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
           >
             <.icon name="icon-laptop" class="size-4" /> Local
           </button>
+          <script :type={Phoenix.LiveView.ColocatedHook} name=".PidFormatSetting">
+            export default {
+              mounted() {
+                this.syncToStorage()
+              },
+              updated() {
+                this.syncToStorage()
+              },
+              syncToStorage() {
+                const format = this.el.dataset.pidFormat
+                if (format) localStorage.setItem("voyager:pid-format", format)
+              }
+            }
+          </script>
         </div>
       </div>
     </div>
@@ -121,8 +138,10 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
         {:noreply, socket}
 
       true ->
-        case Settings.put(:pid_format, format, broadcast?: true) do
+        case Settings.put(:pid_format, format) do
           {:ok, _setting} ->
+            Formatters.put_pid_format(format)
+
             socket
             |> assign(:pid_format, format)
             |> noreply()

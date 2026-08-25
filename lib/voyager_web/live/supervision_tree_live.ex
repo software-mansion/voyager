@@ -4,9 +4,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   alias Phoenix.LiveView.AsyncResult
   alias Voyager.Services.SupervisionTree.Fetch
   alias Voyager.Services.SupervisionTree.Remote
-  alias Voyager.Settings
   alias VoyagerWeb.Components.SupervisionTreeComponents
-  alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.SupervisionTreeControls
   alias VoyagerWeb.SupervisionTreeLive.Diff
 
@@ -31,11 +29,8 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> assign(:status, :idle)
       |> assign(:refresh_timer, nil)
       |> assign(:selected_node, nil)
-      |> assign(:pid_format, Settings.get(:pid_format, Formatters.default_pid_format()))
 
     if connected?(socket) do
-      Phoenix.PubSub.subscribe(Voyager.PubSub, Settings.topic(:pid_format))
-
       socket
       |> assign_applications()
       |> start_timer()
@@ -98,7 +93,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         id="details-panel"
         tree_node={@selected_node}
         remote_node={@session.node}
-        pid_format={@pid_format}
       />
     </div>
     """
@@ -143,7 +137,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     path = walk_to_root(socket.assigns.last_tree_flat, key)
 
     socket
-    |> push_tree_event("path-highlight", %{path: path})
+    |> push_event("path-highlight", %{path: path})
     |> assign_selected_node(key)
     |> noreply()
   end
@@ -242,7 +236,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     |> assign(:last_relations, new_edges)
     |> assign(:last_updated, DateTime.utc_now())
     |> deselect_removed_nodes()
-    |> push_tree_event("tree-data", payload)
+    |> push_event("tree-data", payload)
     |> start_timer()
     |> noreply()
   end
@@ -258,21 +252,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     |> assign(:status, :error)
     |> assign(:errors, socket.assigns.errors ++ [{:fetch, reason}])
     |> reset_tree()
-    |> noreply()
-  end
-
-  def handle_info({:setting_changed, :pid_format, format}, socket) do
-    socket
-    |> assign(:pid_format, format)
-    |> push_tree_event("tree-data", %{
-      kind: "delta",
-      request_type: :pid_format,
-      added: %{},
-      removed: [],
-      updated: %{},
-      edges_added: %{},
-      edges_removed: []
-    })
     |> noreply()
   end
 
@@ -485,8 +464,4 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     do: "RPC call failed while fetching available applications."
 
   defp format_error(_), do: "Failed to fetch available applications."
-
-  defp push_tree_event(socket, event, payload) do
-    push_event(socket, event, Map.put(payload, :pid_format, socket.assigns.pid_format))
-  end
 end

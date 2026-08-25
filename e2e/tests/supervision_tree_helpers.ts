@@ -344,17 +344,24 @@ export function pidNamedNode(page: Page): Promise<PidNamedNode | null> {
 }
 
 /**
- * Sets PID format on `/settings`. The settings LiveView broadcasts the change
- * so any already-open supervision-tree LiveView relabels without a refetch.
+ * Sets PID format from Settings and returns to the supervision tree.
+ * Opens Settings via the toolbar so `return_to` points back at the tree;
+ * after saving, the back control restores that page and the graph remounts
+ * from localStorage.
  */
 export async function setPidFormat(
   page: Page,
   format: 'distribution' | 'local'
 ) {
-  await page.goto('/settings');
+  await page.locator('#open-settings').click();
   await waitForLiveView(page);
 
   const btn = page.locator(`#pid-format-${format}`);
   await btn.click();
   await expect(btn).toHaveAttribute('aria-pressed', 'true');
+
+  await page.locator('[aria-label="Return from settings"]').click();
+  await waitForLiveView(page);
+  await expect(page.locator(sel.stBody)).toBeVisible();
+  await expect(page.locator(sel.stStatus)).toHaveText('ok');
 }

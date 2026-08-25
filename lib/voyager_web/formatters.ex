@@ -7,6 +7,11 @@ defmodule VoyagerWeb.Formatters do
   reused across LiveViews and components (imported via `VoyagerWeb`).
   """
 
+  alias Voyager.Settings
+
+  @pid_format_key :pid_format
+  @default_pid_format :distribution
+
   @kib 1_024
   @mib 1_048_576
   @gib 1_073_741_824
@@ -126,33 +131,46 @@ defmodule VoyagerWeb.Formatters do
   end
 
   @doc """
-  Default PID display format when no setting is stored.
+  Stores the PID display format in `:persistent_term` for `pid/2`.
   """
-  @spec default_pid_format() :: :distribution
-  def default_pid_format, do: :distribution
+  @spec put_pid_format(:distribution | :local) :: :ok
+  def put_pid_format(format) when format in [:distribution, :local] do
+    :persistent_term.put(@pid_format_key, format)
+  end
 
   @doc """
   Formats a PID for display.
 
-  The second argument is an explicit format atom. Omitting it defaults to `:distribution`.
+  The second argument is an explicit format atom. Omitting it reads the format
+  from `:persistent_term`.
 
       iex> pid = self()
-      iex> VoyagerWeb.Formatters.format_pid(pid) ==
+      iex> VoyagerWeb.Formatters.pid(pid) ==
       ...>   pid |> :erlang.pid_to_list() |> List.to_string()
       true
-      iex> VoyagerWeb.Formatters.format_pid("<123.23.423>", :local)
+      iex> VoyagerWeb.Formatters.pid("<123.23.423>", :local)
       "<0.23.423>"
   """
-  @spec format_pid(
+  @spec pid(
           pid() | String.t(),
           :distribution | :local
         ) :: String.t()
-  def format_pid(pid, format \\ default_pid_format())
+  def pid(pid, format \\ get_pid_format())
 
-  def format_pid(pid, format) when format in [:distribution, :local] do
+  def pid(pid, format) when format in [:distribution, :local] do
     pid
     |> pid_to_string()
     |> maybe_localize_pid(format)
+  end
+
+  defp get_pid_format do
+    case :persistent_term.get(@pid_format_key, nil) do
+      nil ->
+        Settings.get(:pid_format, @default_pid_format)
+
+      format ->
+        format
+    end
   end
 
   defp pid_to_string(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()

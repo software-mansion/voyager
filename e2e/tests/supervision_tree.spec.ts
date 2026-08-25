@@ -405,14 +405,13 @@ test.describe('SupervisionTreeLive › pid format', () => {
     await openTree(page);
   });
 
-  test('broadcast pid format change relabels pid nodes', async ({
+  test('pid format updates in', async ({
     page,
-    context,
   }) => {
-    const settings = await context.newPage();
+
 
     try {
-      await setPidFormat(settings, 'distribution');
+      await setPidFormat(page, 'distribution');
 
       await expect(async () => {
         const node = await pidNamedNode(page);
@@ -425,7 +424,7 @@ test.describe('SupervisionTreeLive › pid format', () => {
         expect(node!.label).not.toMatch(/^<0\./);
       }).toPass();
 
-      await setPidFormat(settings, 'local');
+      await setPidFormat(page, 'local');
 
       await expect(async () => {
         const newNode = await pidNamedNode(page);
@@ -438,8 +437,7 @@ test.describe('SupervisionTreeLive › pid format', () => {
         expect(newNode!.label).toMatch(/^<0\./);
       }).toPass();
     } finally {
-      await setPidFormat(settings, 'distribution');
-      await settings.close();
+      await setPidFormat(page, 'distribution');
     }
   });
 });
