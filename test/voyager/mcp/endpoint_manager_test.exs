@@ -123,6 +123,16 @@ defmodule Voyager.MCP.EndpointManagerTest do
       assert {:ok, :running} = MCP.toggle()
       assert Settings.get(:mcp_enabled) == true
     end
+
+    test "returns {:error, :locked} when mcp_enabled is controlled by config", %{mcp_port: port} do
+      Application.put_env(:voyager, :mcp_enabled, false)
+      on_exit(fn -> Application.delete_env(:voyager, :mcp_enabled) end)
+
+      assert {:error, :locked} = MCP.toggle()
+
+      assert %{alive?: true, url: url} = MCP.info()
+      assert url == "http://127.0.0.1:#{port}/mcp"
+    end
   end
 
   describe "endpoint crash handling" do
