@@ -79,6 +79,7 @@ defmodule VoyagerWeb.Components.Shell do
         <.link
           href={@return_to || ~p"/"}
           title="Back"
+          aria-label="Return from settings"
           class="btn btn-ghost btn-square toolbar-btn text-base-content"
         >
           <.icon name="icon-arrow-left" class="toolbar-icon" />
