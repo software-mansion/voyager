@@ -32,6 +32,17 @@ defmodule Voyager.MCP.EndpointManagerTest do
       assert %{alive?: false, url: url} = MCP.info()
       assert url == "http://127.0.0.1:#{port}/mcp"
     end
+
+    @tag skip_mcp: true
+    test "stays idle on boot when mcp_enabled was persisted as false" do
+      port = unique_port()
+      {:ok, _} = Settings.put(:mcp_port, port)
+      {:ok, _} = Settings.put(:mcp_enabled, false)
+      start_supervised!({Voyager.MCP, enabled: true})
+
+      assert %{alive?: false, url: url} = MCP.info()
+      assert url == "http://127.0.0.1:#{port}/mcp"
+    end
   end
 
   describe "set_port/1" do
@@ -90,6 +101,26 @@ defmodule Voyager.MCP.EndpointManagerTest do
 
       assert %{alive?: true, url: running_url} = MCP.info()
       assert running_url == "http://127.0.0.1:#{port}/mcp"
+    end
+
+    test "persists the running state to settings" do
+      {:ok, _} = Settings.put(:mcp_enabled, true)
+
+      assert {:ok, :stopped} = MCP.toggle()
+      assert Settings.get(:mcp_enabled) == false
+
+      assert {:ok, :running} = MCP.toggle()
+      assert Settings.get(:mcp_enabled) == true
+    end
+
+    test "returns {:error, :locked} when mcp_enabled is controlled by config", %{mcp_port: port} do
+      Application.put_env(:voyager, :mcp_enabled, false)
+      on_exit(fn -> Application.delete_env(:voyager, :mcp_enabled) end)
+
+      assert {:error, :locked} = MCP.toggle()
+
+      assert %{alive?: true, url: url} = MCP.info()
+      assert url == "http://127.0.0.1:#{port}/mcp"
     end
   end
 
