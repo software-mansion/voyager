@@ -1,0 +1,89 @@
+name: 'Bug Report'
+description: Report something that isn't working as expected
+title: '[Bug]: '
+labels: ['bug']
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping us squash bugs! The more detail you share, the easier it is for us to track it down.
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - 'macOS (Apple Silicon)'
+        - 'macOS (Intel)'
+        - 'Linux (x64)'
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Voyager version
+      description: Shown at the bottom of the sidebar, next to the Voyager logo.
+      placeholder: '0.1.0'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: connection
+    attributes:
+      label: How were you connected to the node?
+      options:
+        - 'Local node'
+        - 'Remote node (direct)'
+        - 'Remote node over SSH'
+        - 'Not connected / not applicable'
+    validations:
+      required: true
+
+  - type: input
+    id: node_versions
+    attributes:
+      label: Target node Erlang/Elixir version
+      description: Versions the inspected node runs on, if you know them.
+      placeholder: 'OTP 27.2, Elixir 1.18.1'
+    validations:
+      required: false
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: |
+        What happened? Feel free to include anything relevant here, such as what you expected to happen vs. what actually happened, or any error messages you saw.
+      placeholder: Tell us what happened...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: If you can, walk us through how to trigger the bug.
+      placeholder: |
+        1. Go to...
+        2. Click on...
+        3. See error
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else worth mentioning?
+    validations:
+      required: false
+
+  - type: textarea
+    id: attachments
+    attributes:
+      label: Screenshots, videos, or logs
+      description: Drag and drop images, screen recordings, or log files here — they can be a huge help.
+    validations:
+      required: false

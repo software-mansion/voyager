@@ -36,8 +36,31 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
       assert has_element?(
                view,
-               "#sidebar-feedback[href='https://github.com/software-mansion-labs/voyager-early-access-feedback/issues/new/choose']"
+               "#sidebar-feedback[href='https://github.com/software-mansion/voyager/issues/new/choose']"
              )
+    end
+
+    test "renders compact-mode label tooltips for sidebar nav tabs", %{conn: conn} do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+
+      assert has_element?(
+               view,
+               "#sidebar-nav-node_info[data-tooltip-show-when='sidebar-compact']"
+             )
+
+      assert has_element?(
+               view,
+               "#sidebar-nav-supervision_tree[data-tooltip-show-when='sidebar-compact']"
+             )
+
+      assert view |> element("#sidebar-nav-node_info-portal") |> render() =~ "Node Info"
+
+      assert view |> element("#sidebar-nav-supervision_tree-portal") |> render() =~
+               "Supervision Tree"
+
+      assert view |> element("#sidebar-nav-processes-portal") |> render() =~ "Processes"
     end
   end
 

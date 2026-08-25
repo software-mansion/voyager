@@ -97,6 +97,9 @@ defmodule Voyager.Telemetry.Handler.Export do
     event
     |> Parser.parse_metadata(metadata)
     |> Map.put(:install_id, InstallId.get())
+    |> Map.put(:vsn, Voyager.version())
+    |> Map.put(:os_type, :os.type())
+    |> Map.put_new(:connected_via, Voyager.NodeSession.cached_connector_name())
   end
 
   defp backoff_ms(attempt), do: Enum.at(@backoff_ms, attempt, 2000)

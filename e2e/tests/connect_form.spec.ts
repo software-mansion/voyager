@@ -7,11 +7,17 @@ import {
   sel,
   ensureDisconnected,
   fillConnectForm,
+  switchConnectMode,
 } from './fixtures';
 
 test.describe('ConnectLive › form validation', () => {
   test.beforeEach(async ({ page }) => {
     await ensureDisconnected(page);
+  });
+
+  test('starts in direct mode showing the direct form', async ({ page }) => {
+    await expect(page.locator(sel.connectForm)).toBeVisible();
+    await expect(page.locator(sel.sshConnectForm)).toBeHidden();
   });
 
   test('renders the connection form', async ({ page }) => {
@@ -54,13 +60,8 @@ test.describe('ConnectLive › SSH mode', () => {
     await page.goto('/');
   });
 
-  test('starts in direct mode showing the direct form', async ({ page }) => {
-    await expect(page.locator(sel.connectForm)).toBeVisible();
-    await expect(page.locator(sel.sshConnectForm)).toBeHidden();
-  });
-
   test('switching to SSH mode shows the SSH form', async ({ page }) => {
-    await page.locator(sel.modeSsh).check();
+    await switchConnectMode(page, sel.modeSsh);
     await expect(page.locator(sel.sshConnectForm)).toBeVisible();
     await expect(page.locator(sel.connectForm)).toBeHidden();
   });
@@ -68,14 +69,14 @@ test.describe('ConnectLive › SSH mode', () => {
   test('switching back to direct mode restores the direct form', async ({
     page,
   }) => {
-    await page.locator(sel.modeSsh).check();
-    await page.locator(sel.modeDirect).check();
+    await switchConnectMode(page, sel.modeSsh);
+    await switchConnectMode(page, sel.modeDirect);
     await expect(page.locator(sel.connectForm)).toBeVisible();
     await expect(page.locator(sel.sshConnectForm)).toBeHidden();
   });
 
   test('renders the SSH form fields', async ({ page }) => {
-    await page.locator(sel.modeSsh).check();
+    await switchConnectMode(page, sel.modeSsh);
     await expect(page.locator(sel.sshUserInput)).toBeVisible();
     await expect(page.locator(sel.sshHostInput)).toBeVisible();
     await expect(page.locator(sel.sshNodeNameInput)).toBeVisible();
@@ -86,7 +87,7 @@ test.describe('ConnectLive › SSH mode', () => {
   test('shows Agent auth selected by default with the password field hidden', async ({
     page,
   }) => {
-    await page.locator(sel.modeSsh).check();
+    await switchConnectMode(page, sel.modeSsh);
     await expect(page.locator(sel.sshAuthAgent)).toBeChecked();
     await expect(page.locator(sel.sshPasswordInput)).toBeHidden();
   });
@@ -94,20 +95,20 @@ test.describe('ConnectLive › SSH mode', () => {
   test('switching to password auth reveals the password field', async ({
     page,
   }) => {
-    await page.locator(sel.modeSsh).check();
+    await switchConnectMode(page, sel.modeSsh);
     await page.locator(sel.sshAuthPassword).check();
     await expect(page.locator(sel.sshPasswordInput)).toBeVisible();
   });
 
   test('switching back to agent hides the password field', async ({ page }) => {
-    await page.locator(sel.modeSsh).check();
+    await switchConnectMode(page, sel.modeSsh);
     await page.locator(sel.sshAuthPassword).check();
     await page.locator(sel.sshAuthAgent).check();
     await expect(page.locator(sel.sshPasswordInput)).toBeHidden();
   });
 
   test('shows required field errors on empty submission', async ({ page }) => {
-    await page.locator(sel.modeSsh).check();
+    await switchConnectMode(page, sel.modeSsh);
     await page.locator(sel.sshConnectBtn).click();
     await expect(page.locator(sel.sshConnectForm)).toContainText(
       "can't be blank"
@@ -117,7 +118,7 @@ test.describe('ConnectLive › SSH mode', () => {
   test('shows format validation error for invalid node name', async ({
     page,
   }) => {
-    await page.locator(sel.modeSsh).check();
+    await switchConnectMode(page, sel.modeSsh);
     await page.locator(sel.sshUserInput).fill('alice');
     await page.locator(sel.sshHostInput).fill(SSH_HOST);
     await page.locator(sel.sshNodeNameInput).fill('noatsign');
@@ -131,7 +132,7 @@ test.describe('ConnectLive › SSH mode', () => {
   test('requires the password field when password auth is selected', async ({
     page,
   }) => {
-    await page.locator(sel.modeSsh).check();
+    await switchConnectMode(page, sel.modeSsh);
     await page.locator(sel.sshAuthPassword).check();
     await page.locator(sel.sshUserInput).fill('alice');
     await page.locator(sel.sshHostInput).fill(SSH_HOST);
