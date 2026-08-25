@@ -5,7 +5,6 @@ defmodule VoyagerWeb.SettingsLiveTest do
 
   alias Voyager.Fakes
   alias Voyager.Settings
-  alias VoyagerWeb.Formatters
 
   setup do
     previous_state = :sys.get_state(Voyager.NodeSession)
@@ -235,13 +234,13 @@ defmodule VoyagerWeb.SettingsLiveTest do
 
       assert has_element?(view, ~s|#pid-format-local[aria-pressed="true"]|)
       assert has_element?(view, ~s|#pid-format-distribution[aria-pressed="false"]|)
-      assert Formatters.get_pid_format() == :local
+      assert Settings.get(:pid_format, :distribution) == :local
 
       view |> element("#pid-format-distribution") |> render_click()
 
       assert has_element?(view, ~s|#pid-format-distribution[aria-pressed="true"]|)
       assert has_element?(view, ~s|#pid-format-local[aria-pressed="false"]|)
-      assert Formatters.get_pid_format() == :distribution
+      assert Settings.get(:pid_format, :distribution) == :distribution
     end
 
     test "disables the buttons when locked by application config", %{conn: conn} do

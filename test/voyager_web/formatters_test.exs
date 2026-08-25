@@ -1,5 +1,5 @@
 defmodule VoyagerWeb.FormattersTest do
-  use ExUnit.Case, async: true
+  use Voyager.DataCase, async: true
 
   alias VoyagerWeb.Formatters
 
