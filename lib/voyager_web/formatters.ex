@@ -1,11 +1,16 @@
 defmodule VoyagerWeb.Formatters do
   @moduledoc """
   Generic value formatters for display in templates — byte sizes, large
-  counts, integers, durations, booleans, and timestamps.
+  counts, integers, durations, booleans, timestamps, and PIDs.
 
   These are presentation helpers with no domain knowledge, intended to be
   reused across LiveViews and components (imported via `VoyagerWeb`).
   """
+
+  alias Voyager.Settings
+
+  @pid_format_key :pid_format
+  @default_pid_format :distribution
 
   @kib 1_024
   @mib 1_048_576
@@ -123,5 +128,57 @@ defmodule VoyagerWeb.Formatters do
       minutes > 0 -> "#{minutes}m"
       true -> "#{seconds}s"
     end
+  end
+
+  @doc """
+  Stores the PID display format in `:persistent_term` for `pid/2`.
+  """
+  @spec put_pid_format(:distribution | :local) :: :ok
+  def put_pid_format(format) when format in [:distribution, :local] do
+    :persistent_term.put(@pid_format_key, format)
+  end
+
+  @doc """
+  Formats a PID for display.
+
+  The second argument is an explicit format atom. Omitting it reads the format
+  from `:persistent_term`.
+
+      iex> pid = self()
+      iex> VoyagerWeb.Formatters.pid(pid) ==
+      ...>   pid |> :erlang.pid_to_list() |> List.to_string()
+      true
+      iex> VoyagerWeb.Formatters.pid("<123.23.423>", :local)
+      "<0.23.423>"
+  """
+  @spec pid(
+          pid() | String.t(),
+          :distribution | :local
+        ) :: String.t()
+  def pid(pid, format \\ get_pid_format())
+
+  def pid(pid, format) when format in [:distribution, :local] do
+    pid
+    |> pid_to_string()
+    |> maybe_localize_pid(format)
+  end
+
+  defp get_pid_format do
+    case :persistent_term.get(@pid_format_key, nil) do
+      nil ->
+        Settings.get(:pid_format, @default_pid_format)
+
+      format ->
+        format
+    end
+  end
+
+  defp pid_to_string(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
+  defp pid_to_string(pid) when is_binary(pid), do: pid
+
+  defp maybe_localize_pid(pid_string, :distribution), do: pid_string
+
+  defp maybe_localize_pid(pid_string, :local) do
+    String.replace(pid_string, ~r/^<\d+\.(\d+\.\d+)>$/, "<0.\\1>")
   end
 end

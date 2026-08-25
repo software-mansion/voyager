@@ -1,7 +1,15 @@
 import cytoscape, { EdgeSingular } from 'cytoscape';
 import { execSync } from 'node:child_process';
 import { expect, type Page } from '@playwright/test';
-import { NODE_NAME, COOKIE, sel, ensureConnected } from './fixtures';
+import {
+  NODE_NAME,
+  COOKIE,
+  sel,
+  ensureConnected,
+  waitForLiveView,
+} from './fixtures';
+
+export const RE_PID = /^<\d+\.\d+\.\d+>$/;
 
 /**
  * Runs `mock_app_ctl` (or any MFA) on the target node and returns the printed
@@ -294,4 +302,65 @@ export async function resizeDetailsPanel(page: Page, deltaPx: number) {
     fire(document, 'pointermove', startX - delta);
     fire(document, 'pointerup', startX - delta);
   }, deltaPx);
+}
+
+type PidNamedNode = {
+  id: string;
+  name: string;
+  pid: string;
+  label: string;
+};
+
+/**
+ * A visible graph node whose display name is a raw PID (the intermediate `p`
+ * under app:mock_app). Registered names never change with pid_format.
+ */
+export function pidNamedNode(page: Page): Promise<PidNamedNode | null> {
+  return page.evaluate((reSrc) => {
+    const re = new RegExp(reSrc);
+    const cy = (document.getElementById('supervision-tree-body') as any)
+      ?._cy as cytoscape.Core;
+    if (!cy) return null;
+
+    const hit = cy.nodes().filter((n) => {
+      return (
+        n.data('type') !== 'app' &&
+        !n.hasClass('hidden') &&
+        re.test(String(n.data('name')))
+      );
+    });
+
+    if (!hit.length) return null;
+
+    const n = hit[0];
+    return {
+      id: n.id(),
+      name: String(n.data('name')),
+      pid: String(n.data('pid') ?? ''),
+      label: String(n.data('displayLabel')),
+    };
+  }, RE_PID.source);
+}
+
+/**
+ * Sets PID format from Settings and returns to the supervision tree.
+ * Opens Settings via the toolbar so `return_to` points back at the tree;
+ * after saving, the back control restores that page and the graph remounts
+ * from localStorage.
+ */
+export async function setPidFormat(
+  page: Page,
+  format: 'distribution' | 'local'
+) {
+  await page.locator('#open-settings').click();
+  await waitForLiveView(page);
+
+  const btn = page.locator(`#pid-format-${format}`);
+  await btn.click();
+  await expect(btn).toHaveAttribute('aria-pressed', 'true');
+
+  await page.locator('[aria-label="Return from settings"]').click();
+  await waitForLiveView(page);
+  await expect(page.locator(sel.stBody)).toBeVisible();
+  await expect(page.locator(sel.stStatus)).toHaveText('ok');
 }

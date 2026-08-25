@@ -24,6 +24,14 @@
  * @property {'link' | 'monitor' | 'monitored_by'} kind
  */
 
+export const PID_FORMAT_STORAGE_KEY = 'voyager:pid-format';
+
+export function storedPidFormat() {
+  return localStorage.getItem(PID_FORMAT_STORAGE_KEY) === 'local'
+    ? 'local'
+    : 'distribution';
+}
+
 /**
  * @param {string} key
  * @param {ServerNode} node
@@ -115,9 +123,22 @@ export function composeLabel(d) {
 
 export function formatName(name) {
   if (name === null || name === undefined) return '';
-  if (Array.isArray(name)) return name.map(formatName).join(':');
-  if (typeof name === 'string') return name;
+  if (Array.isArray(name))
+    return name.map((part) => formatName(part)).join(':');
+  if (typeof name === 'string') {
+    return isRealPid(name) ? formatPid(name) : name;
+  }
   return String(name);
+}
+
+export function formatPid(pid) {
+  const format = storedPidFormat();
+  if (!pid) return '';
+  const value = String(pid);
+  if (format === 'local') {
+    return value.replace(/^<(\d+)\.(\d+)\.(\d+)>$/, '<0.$2.$3>');
+  }
+  return value;
 }
 
 export function edgeId(parentKey, childKey) {
@@ -125,8 +146,7 @@ export function edgeId(parentKey, childKey) {
 }
 
 export function isRealPid(key) {
-  const re = /^<\d+\.\d+\.\d+>$/;
-  return re.test(key);
+  return /^<\d+\.\d+\.\d+>$/.test(key);
 }
 
 /**

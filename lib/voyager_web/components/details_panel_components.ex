@@ -508,8 +508,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp format_count(nil), do: "—"
   defp format_count(n) when is_integer(n), do: Formatters.format_integer(n)
 
-  defp format_identifier(pid) when is_pid(pid),
-    do: pid |> :erlang.pid_to_list() |> List.to_string()
+  defp format_identifier(pid) when is_pid(pid), do: Formatters.pid(pid)
 
   defp format_identifier(port) when is_port(port),
     do: port |> :erlang.port_to_list() |> List.to_string()
@@ -517,10 +516,11 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp format_identifier(other), do: inspect(other)
 
   defp node_display_name(%TreeNode{name: name}) when is_atom(name), do: Atom.to_string(name)
-  defp node_display_name(%TreeNode{name: name}) when is_binary(name), do: name
-  defp node_display_name(%TreeNode{key: key}), do: key
+  defp node_display_name(%TreeNode{name: name}) when is_pid(name), do: Formatters.pid(name)
+  defp node_display_name(%TreeNode{name: name}) when is_binary(name), do: Formatters.pid(name)
+  defp node_display_name(%TreeNode{key: key}), do: Formatters.pid(key)
 
-  defp node_pid_string(%TreeNode{pid: pid}) when is_pid(pid), do: format_identifier(pid)
+  defp node_pid_string(%TreeNode{pid: pid}) when is_pid(pid), do: Formatters.pid(pid)
   defp node_pid_string(_), do: nil
 
   # Formats only the slice that gets rendered: a process can hold thousands of
