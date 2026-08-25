@@ -177,7 +177,12 @@ defmodule VoyagerWeb.SettingsLiveTest do
 
       {:ok, view, _html} = live(conn, ~p"/settings")
 
-      assert has_element?(view, "#mcp-locked")
+      assert has_element?(
+               view,
+               "#mcp-locked",
+               "The MCP port is controlled by application config, so it cannot be changed here."
+             )
+
       assert has_element?(view, ~s|#mcp_port_port[disabled]|)
     end
 
@@ -189,8 +194,31 @@ defmodule VoyagerWeb.SettingsLiveTest do
 
       {:ok, view, _html} = live(conn, ~p"/settings")
 
-      assert has_element?(view, "#mcp-locked")
+      assert has_element?(
+               view,
+               "#mcp-locked",
+               "The MCP server is controlled by application config, so it cannot be turned on or off here."
+             )
+
       assert has_element?(view, ~s|#mcp-toggle[disabled]|)
+    end
+
+    test "names both locked values in a single alert", %{conn: conn, mcp_port: port} do
+      Application.put_env(:voyager, :mcp_port, port)
+      Application.put_env(:voyager, :mcp_enabled, true)
+
+      on_exit(fn ->
+        Application.delete_env(:voyager, :mcp_port)
+        Application.delete_env(:voyager, :mcp_enabled)
+      end)
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      assert has_element?(
+               view,
+               "#mcp-locked",
+               "The MCP server and its port are controlled by application config, so changes are disabled."
+             )
     end
   end
 

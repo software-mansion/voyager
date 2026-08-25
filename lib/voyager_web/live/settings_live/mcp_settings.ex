@@ -55,7 +55,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
         <div :if={@enabled_locked? or @port_locked?} id="mcp-locked" class="alert alert-info text-sm">
           <.icon name="icon-info" class="text-info size-4" />
           <span>
-            This value is set in application config, so changes are disabled.
+            {locked_alert_text(@enabled_locked?, @port_locked?)}
           </span>
         </div>
 
@@ -178,4 +178,15 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
     |> McpPort.changeset()
     |> to_form(as: :mcp_port)
   end
+
+  defp locked_alert_text(true, true),
+    do:
+      "The MCP server and its port are controlled by application config, so changes are disabled."
+
+  defp locked_alert_text(true, false),
+    do:
+      "The MCP server is controlled by application config, so it cannot be turned on or off here."
+
+  defp locked_alert_text(false, true),
+    do: "The MCP port is controlled by application config, so it cannot be changed here."
 end
