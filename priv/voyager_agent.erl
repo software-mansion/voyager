@@ -13,7 +13,7 @@
 %% its own code when this map becomes empty (last ParentNode is gone).
 -record(state, {nodes = #{} :: #{node() => true}}).
 
--type state() :: #state{}.
+-type state() :: #state{nodes :: #{node() => true}}.
 
 %% =====================================================================
 %% API - functions exposed to be used by the Voyager via erpc.
@@ -79,7 +79,7 @@ info() ->
 init(ParentNode) when is_atom(ParentNode) ->
     %% So terminate/2 runs on shutdown and can purge injected code.
     process_flag(trap_exit, true),
-    case add_node(#state{}, ParentNode) of
+    case add_node(#state{nodes = #{}}, ParentNode) of
         {ok, State} ->
             {ok, State};
         {error, Reason} ->
@@ -135,15 +135,20 @@ code_change(_Vsn, State, _Extra) ->
 %% so we do not stack erlang:monitor_node/2 subscriptions.
 -spec add_node(state(), node()) -> {ok, state()} | {error, notalive}.
 add_node(#state{nodes = Nodes} = State, ParentNode)
-    when is_atom(ParentNode), is_map(Nodes), not is_map_key(Nodes, ParentNode) ->
-    case monitor_node(ParentNode) of
-        false ->
-            {error, notalive};
+    when is_atom(ParentNode), is_map(Nodes) ->
+    case maps:is_key(ParentNode, Nodes) of
         true ->
-            {ok, State#state{nodes = Nodes#{ParentNode => true}}}
+            {error, {already_registered, ParentNode}};
+        false ->
+            case monitor_node(ParentNode) of
+                false ->
+                    {error, notalive};
+                true ->
+                    {ok, State#state{nodes = Nodes#{ParentNode => true}}}
+            end
     end;
 add_node(State, _ParentNode) ->
-    {ok, State}.
+    {error, {wrong_state, State}}.
 
 %% erlang:monitor_node/2 also delivers nodedown if the connection cannot
 %% be (re)established. It raises notalive when this VM is not distributed.
