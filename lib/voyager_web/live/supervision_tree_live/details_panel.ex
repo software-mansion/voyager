@@ -110,7 +110,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
             target={@myself}
           />
           <div class="flex min-w-0 flex-1 flex-col gap-1.5">
-            <.node_type_label node_type={@node.type} />
+            <.node_type_label node_type={@node.type} off_tree?={@node.placeholder?} />
             <.node_label panel_id={@id} node={@node} />
           </div>
           <div class="flex shrink-0 items-center gap-1.5">

@@ -28,7 +28,8 @@ defmodule Voyager.Services.SupervisionTree.TreeNode do
     name: nil,
     child_count: 0,
     info: nil,
-    children_keys: :not_loaded
+    children_keys: :not_loaded,
+    placeholder?: false
   ]
 
   @type node_type :: :app | :supervisor | :worker | :port | :reference | :process
@@ -44,7 +45,8 @@ defmodule Voyager.Services.SupervisionTree.TreeNode do
           type: node_type(),
           child_count: non_neg_integer(),
           info: map() | :dead | nil,
-          children_keys: [String.t()] | :not_loaded
+          children_keys: [String.t()] | :not_loaded,
+          placeholder?: boolean()
         }
 
   @spec key(pid() | port() | reference()) :: String.t()

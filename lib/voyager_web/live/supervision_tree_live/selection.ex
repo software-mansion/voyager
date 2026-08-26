@@ -59,11 +59,11 @@ defmodule VoyagerWeb.SupervisionTreeLive.Selection do
   """
   @spec placeholder(link_identifier() | term()) :: TreeNode.t() | nil
   def placeholder(pid) when is_pid(pid) do
-    %TreeNode{key: TreeNode.key(pid), pid: pid, name: pid, type: :process}
+    %TreeNode{key: TreeNode.key(pid), pid: pid, name: pid, type: :process, placeholder?: true}
   end
 
   def placeholder(port) when is_port(port) do
-    %TreeNode{key: TreeNode.key(port), name: port, type: :port}
+    %TreeNode{key: TreeNode.key(port), name: port, type: :port, placeholder?: true}
   end
 
   def placeholder(_), do: nil

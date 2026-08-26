@@ -39,6 +39,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :node_type, :atom, required: true
+  attr :off_tree?, :boolean, default: false
 
   def node_type_label(assigns) do
     icons = SupervisionTreeComponents.node_icons()
@@ -47,7 +48,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       assigns
       |> assign(:label, assigns.node_type |> to_string() |> String.capitalize())
       |> assign(:icon, Map.get(icons, assigns.node_type) || Map.get(icons, :worker))
-      |> assign(:off_tree?, assigns.node_type == :process)
 
     ~H"""
     <div class="flex flex-wrap items-center gap-2">
