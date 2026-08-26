@@ -138,7 +138,7 @@ add_node(#state{nodes = Nodes} = State, ParentNode)
     when is_atom(ParentNode), is_map(Nodes) ->
     case maps:is_key(ParentNode, Nodes) of
         true ->
-            {error, {already_registered, ParentNode}};
+            {ok, State};
         false ->
             case monitor_node(ParentNode) of
                 false ->
