@@ -15,10 +15,10 @@ defmodule Voyager.Erpc do
           :timeout
           | :noconnection
           | {:erpc, term()}
+          | {:remote_error, term()}
           | {:remote_exception, term()}
           | {:remote_exit, term()}
           | {:remote_throw, term()}
-          | term()
 
   @doc """
   Invokes `fun` in `mod` with `args` on `node`, mirroring `:erpc.call/4`.
@@ -50,7 +50,7 @@ defmodule Voyager.Erpc do
     do: {:error, {:remote_exception, reason}}
 
   def format_error(:error, {:erpc, _} = reason), do: {:error, reason}
-  def format_error(:error, reason), do: {:error, reason}
+  def format_error(:error, reason), do: {:error, {:remote_error, reason}}
   def format_error(:exit, reason), do: {:error, {:remote_exit, reason}}
   def format_error(:throw, value), do: {:error, {:remote_throw, value}}
 

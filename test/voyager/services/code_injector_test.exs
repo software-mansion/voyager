@@ -19,7 +19,6 @@ defmodule Voyager.Services.CodeInjectorTest do
       unload(:voyager_remote_code_file)
       unload(:voyager_remote_code_macro)
       unload(:voyager_remote_code_bad)
-      unload(:voyager_agent)
     end)
 
     :ok
