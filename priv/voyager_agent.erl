@@ -1,14 +1,19 @@
 -module(voyager_agent).
 
--export([proc_top/3, proc_top/4]).
+-export([proc_top/3, proc_top/4, proc_top/5]).
 
-%% @equiv proc_top(Attrs, SortBy, Limit, desc)
+%% @equiv proc_top(Attrs, SortBy, Limit, desc, undefined)
 -spec proc_top([atom()], atom(), pos_integer()) -> [map()].
 proc_top(Attrs, SortBy, Limit) ->
-    proc_top(Attrs, SortBy, Limit, desc).
+    proc_top(Attrs, SortBy, Limit, desc, undefined).
+
+%% @equiv proc_top(Attrs, SortBy, Limit, Direction, undefined)
+-spec proc_top([atom()], atom(), pos_integer(), asc | desc) -> [map()].
+proc_top(Attrs, SortBy, Limit, Direction) ->
+    proc_top(Attrs, SortBy, Limit, Direction, undefined).
 
 %% @doc Returns the top `Limit' processes sorted by `SortBy' in `Direction'
-%% (`desc' keeps the largest, `asc' the smallest).
+%% (`desc' keeps the largest, `asc' the smallest) and number of all processes.
 %%
 %% Runs on the remote node (shipped via the agent). Walks the process table
 %% with an iterator and keeps only the running top-`Limit' in memory, so peak
@@ -20,17 +25,25 @@ proc_top(Attrs, SortBy, Limit) ->
 %% Each returned entry is a map of the requested `Attrs' plus `pid'. `SortBy'
 %% must be one of `Attrs' and resolve to an integer; processes missing it (or
 %% that died mid-scan) are skipped.
--spec proc_top([atom()], atom(), pos_integer(), asc | desc) -> [map()].
-proc_top(Attrs, SortBy, Limit, Direction) ->
+%%
+%% `Search' filters the population before ranking: `undefined' (or an empty
+%% string) applies no filter, otherwise only processes whose `pid' or any
+%% requested non-numeric attribute contains `Search' (case-insensitive
+%% substring) are considered. Numeric attributes are never searched. The needle
+%% is lowercased once; matching is per-process and only pays its cost when a
+%% search is active.
+-spec proc_top([atom()], atom(), pos_integer(), asc | desc, undefined | iodata()) ->
+                  [map()].
+proc_top(Attrs, SortBy, Limit, Direction, Search) ->
     %% ~4MB on 64-bit;
     process_flag(max_heap_size,
                  #{size => 500000,
                    kill => true,
                    error_logger => true}),
-    Top = fold(iterator(), Attrs, SortBy, Limit, Direction, [], 0),
+    Top = fold(iterator(), Attrs, SortBy, Limit, Direction, needle(Search), [], 0),
     %% `Top' keeps the eviction candidate ("worst kept") at the head, so
     %% reversing always yields best-to-worst in the requested direction.
-    [to_map(Entry) || Entry <- lists:reverse(Top)].
+    {[to_map(Entry) || Entry <- lists:reverse(Top)], erlang:system_info(process_count)}.
 
 %% Prefer the incremental iterator (OTP 27+); fall back to a plain list.
 iterator() ->
@@ -53,21 +66,27 @@ next({list, []}) ->
 next({list, [Pid | Rest]}) ->
     {Pid, {list, Rest}}.
 
-fold(State, Attrs, SortBy, Limit, Direction, Top, Size) ->
+fold(State, Attrs, SortBy, Limit, Direction, Needle, Top, Size) ->
     case next(State) of
         {Pid, NextState} ->
-            {NewTop, NewSize} = maybe_insert(Pid, Attrs, SortBy, Limit, Direction, Top, Size),
-            fold(NextState, Attrs, SortBy, Limit, Direction, NewTop, NewSize);
+            {NewTop, NewSize} =
+                maybe_insert(Pid, Attrs, SortBy, Limit, Direction, Needle, Top, Size),
+            fold(NextState, Attrs, SortBy, Limit, Direction, Needle, NewTop, NewSize);
         none ->
             Top
     end.
 
-maybe_insert(Pid, Attrs, SortBy, Limit, Direction, Top, Size) ->
+maybe_insert(Pid, Attrs, SortBy, Limit, Direction, Needle, Top, Size) ->
     case erlang:process_info(Pid, Attrs) of
         Info when is_list(Info) ->
             case value(SortBy, Info) of
                 Value when is_integer(Value) ->
-                    insert(Top, Size, Limit, Direction, Value, Pid, Info);
+                    case matches(Needle, Pid, Info) of
+                        true ->
+                            insert(Top, Size, Limit, Direction, Value, Pid, Info);
+                        false ->
+                            {Top, Size}
+                    end;
                 _ ->
                     {Top, Size}
             end;
@@ -111,6 +130,39 @@ value(SortBy, Info) ->
         false ->
             undefined
     end.
+
+%% Lowercase the search term once; `undefined'/empty means "no filter".
+needle(undefined) ->
+    undefined;
+needle(Search) ->
+    case string:lowercase(unicode:characters_to_binary(Search)) of
+        <<>> ->
+            undefined;
+        Needle ->
+            Needle
+    end.
+
+%% A process matches when its `pid' or any requested non-numeric attribute
+%% contains the (already lowercased) needle. Integer attributes are skipped.
+matches(undefined, _Pid, _Info) ->
+    true;
+matches(Needle, Pid, Info) ->
+    contains(Needle, list_to_binary(erlang:pid_to_list(Pid)))
+    orelse lists:any(fun({_Key, Value}) -> contains(Needle, Value) end, Info).
+
+contains(_Needle, Value) when is_integer(Value) ->
+    false;
+contains(Needle, Value) ->
+    Haystack = string:lowercase(to_search_string(Value)),
+    string:find(Haystack, Needle) =/= nomatch.
+
+to_search_string(Value) when is_binary(Value) ->
+    Value;
+to_search_string(Value) when is_atom(Value) ->
+    atom_to_binary(Value, utf8);
+to_search_string(Value) ->
+    unicode:characters_to_binary(
+        io_lib:format("~p", [Value])).
 
 to_map({_Value, Pid, Info}) ->
     maps:from_list([{pid, Pid} | Info]).

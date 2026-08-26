@@ -65,6 +65,70 @@ defmodule VoyagerAgentTest do
       assert Enum.min(asc) <= Enum.min(desc)
     end
 
+    test "an undefined search applies no filter" do
+      pids =
+        Enum.map(
+          :voyager_agent.proc_top([:memory], :memory, 1_000_000, :desc, :undefined),
+          & &1.pid
+        )
+
+      assert self() in pids
+    end
+
+    test "filters by a registered name (case-insensitive substring)" do
+      # self() is auto-unregistered when this test process exits.
+      name = :voyager_agent_test_needle
+      Process.register(self(), name)
+
+      attrs = [:memory, :registered_name]
+
+      matched =
+        :voyager_agent.proc_top(attrs, :memory, 1_000_000, :desc, "AGENT_TEST_NEEDLE")
+
+      names = Enum.map(matched, & &1.registered_name)
+      assert name in names
+      assert Enum.all?(names, &(&1 != []))
+    end
+
+    test "filters by pid" do
+      pid_fragment =
+        self()
+        |> :erlang.pid_to_list()
+        |> to_string()
+        |> String.trim_leading("<")
+        |> String.trim_trailing(">")
+
+      pids =
+        Enum.map(
+          :voyager_agent.proc_top([:memory], :memory, 1_000_000, :desc, pid_fragment),
+          & &1.pid
+        )
+
+      assert self() in pids
+    end
+
+    test "a search matching nothing returns an empty list" do
+      assert :voyager_agent.proc_top(
+               [:memory, :registered_name],
+               :memory,
+               100,
+               :desc,
+               "zzz_no_such_process_zzz"
+             ) ==
+               []
+    end
+
+    test "does not match against numeric attributes" do
+      # `1` appears in almost every process's memory/reductions; searching for it
+      # must not match numerically-typed attributes.
+      attrs = [:memory, :registered_name]
+
+      matched =
+        :voyager_agent.proc_top(attrs, :memory, 1_000_000, :desc, "no_numeric_match_9e9e9e")
+
+      assert matched == []
+    end
+
     test "captures a memory-heavy process when the whole table is returned" do
       parent = self()
 

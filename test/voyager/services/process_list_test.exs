@@ -27,7 +27,7 @@ defmodule Voyager.Services.ProcessListTest do
       assert {:ok, []} = ProcessList.top(@node, [:memory, :reductions], :memory, 25, 3_000)
 
       assert_received {:called, @node, :voyager_agent, :proc_top,
-                       [[:memory, :reductions], :memory, 25, :desc], 3_000}
+                       [[:memory, :reductions], :memory, 25, :desc, :undefined], 3_000}
     end
 
     test "defaults the sort direction to :desc" do
@@ -35,7 +35,8 @@ defmodule Voyager.Services.ProcessListTest do
 
       assert {:ok, []} = ProcessList.top(@node, [:memory], :memory, 5, 1_000)
 
-      assert_received {:called, _node, _mod, _fun, [_attrs, :memory, 5, :desc], _timeout}
+      assert_received {:called, _node, _mod, _fun, [_attrs, :memory, 5, :desc, :undefined],
+                       _timeout}
     end
 
     test "passes an explicit :asc direction through to the agent" do
@@ -43,7 +44,44 @@ defmodule Voyager.Services.ProcessListTest do
 
       assert {:ok, []} = ProcessList.top(@node, [:memory], :memory, 5, 1_000, :asc)
 
-      assert_received {:called, _node, _mod, _fun, [_attrs, :memory, 5, :asc], _timeout}
+      assert_received {:called, _node, _mod, _fun, [_attrs, :memory, 5, :asc, :undefined],
+                       _timeout}
+    end
+
+    test "defaults the search to :undefined (no filter)" do
+      capture_erpc_args()
+
+      assert {:ok, []} = ProcessList.top(@node, [:memory], :memory, 5, 1_000)
+
+      assert_received {:called, _node, _mod, _fun, [_attrs, :memory, 5, :desc, :undefined],
+                       _timeout}
+    end
+
+    test "normalizes a blank search string to :undefined" do
+      capture_erpc_args()
+
+      assert {:ok, []} = ProcessList.top(@node, [:memory], :memory, 5, 1_000, :desc, "")
+
+      assert_received {:called, _node, _mod, _fun, [_attrs, :memory, 5, :desc, :undefined],
+                       _timeout}
+    end
+
+    test "passes a non-blank search string through to the agent" do
+      capture_erpc_args()
+
+      assert {:ok, []} =
+               ProcessList.top(
+                 @node,
+                 [:memory, :registered_name],
+                 :memory,
+                 5,
+                 1_000,
+                 :desc,
+                 "gen"
+               )
+
+      assert_received {:called, _node, _mod, _fun,
+                       [[:memory, :registered_name], :memory, 5, :desc, "gen"], _timeout}
     end
 
     test "rejects an unknown direction" do
@@ -57,8 +95,8 @@ defmodule Voyager.Services.ProcessListTest do
 
       assert {:ok, []} = ProcessList.top(@node, [:reductions], :memory, 5, 1_000)
 
-      assert_received {:called, _node, _mod, _fun, [[:memory, :reductions], :memory, 5, :desc],
-                       _timeout}
+      assert_received {:called, _node, _mod, _fun,
+                       [[:memory, :reductions], :memory, 5, :desc, :undefined], _timeout}
     end
 
     test "does not duplicate sort_by when it is already among the attributes" do
@@ -66,8 +104,8 @@ defmodule Voyager.Services.ProcessListTest do
 
       assert {:ok, []} = ProcessList.top(@node, [:memory, :reductions], :memory, 5, 1_000)
 
-      assert_received {:called, _node, _mod, _fun, [[:memory, :reductions], :memory, 5, :desc],
-                       _timeout}
+      assert_received {:called, _node, _mod, _fun,
+                       [[:memory, :reductions], :memory, 5, :desc, :undefined], _timeout}
     end
 
     test "returns the entries produced by the agent" do
