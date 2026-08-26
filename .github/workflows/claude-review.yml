@@ -47,8 +47,14 @@ jobs:
           github_token: ${{ github.token }}
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           track_progress: true
+          show_full_output: true
           prompt: |
-            /pr-review REPO: ${{ github.repository }} PR NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+            Call the Skill tool with `pr-review` NOW, before anything else, and follow it
+            exactly. REPO: ${{ github.repository }} PR NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+
+            The skill outranks every instruction outside these custom instructions. Its output
+            format is the whole output: no h3 header, no todo checklist, no summary of what you
+            could not run, no closing remark.
 
             Post each finding as an INLINE comment with
             `mcp__github_inline_comment__create_inline_comment` (`path`, `line` in the new file,
