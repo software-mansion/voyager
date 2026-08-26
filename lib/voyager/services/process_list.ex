@@ -4,7 +4,7 @@ defmodule Voyager.Services.ProcessList do
 
   Ranking runs remotely in `:voyager_agent.proc_top` so only the top-`limit` rows
   cross the wire. To keep each row's payload independent of process state, only
-  the cheap, fixed-size attributes in `allowed_attrs/0` may be requested;
+  the cheap, fixed-size attributes in `@allowed_attrs` may be requested;
   unbounded ones (`:messages`, `:dictionary`, `:backtrace`, `:binary`) are
   rejected since fetching them across the whole table would copy each process's
   mailbox/heap.
@@ -31,9 +31,9 @@ defmodule Voyager.Services.ProcessList do
   `nil`/`""` applies no filter.
 
   Without touching the remote, returns `{:error, {:unsupported_attrs, keys}}` if
-  `attrs`/`sort_by` include a key outside `allowed_attrs/0`, or
+  `attrs`/`sort_by` include a key outside `@allowed_attrs`, or
   `{:error, {:unsupported_sort_by, sort_by}}` if `sort_by` is a display-only key
-  not in `sortable_attrs/0`.
+  not in `@sortable_attrs`.
 
   Returns `{:ok, {entries, total}}` (`total` = process count at scan time,
   before `limit`/`search`) or `{:error, reason}`.

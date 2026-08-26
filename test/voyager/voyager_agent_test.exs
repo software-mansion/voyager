@@ -124,19 +124,30 @@ defmodule VoyagerAgentTest do
                )
     end
 
-    test "does not match against numeric attributes" do
-      # `1` appears in almost every process's memory/reductions; searching for it
-      # must not match numerically-typed attributes.
-      attrs = [:memory, :registered_name]
+    test "does not match against numeric attribute values" do
+      parent = self()
 
-      assert {[], _total} =
-               :voyager_agent.proc_top(
-                 attrs,
-                 :memory,
-                 1_000_000,
-                 :desc,
-                 "no_numeric_match_9e9e9e"
-               )
+      hog =
+        spawn(fn ->
+          big = Enum.to_list(1..50_000)
+          send(parent, {:ready, self()})
+
+          receive do
+            :stop -> big
+          end
+        end)
+
+      on_exit(fn -> send(hog, :stop) end)
+      assert_receive {:ready, ^hog}
+
+      # `hog`'s memory is a many-digit integer that cannot appear in a pid
+      # string, so if the search matched it that could only be via the numeric
+      # :memory attribute — which contains/2 must skip.
+      {:memory, mem} = Process.info(hog, :memory)
+      needle = Integer.to_string(mem)
+
+      {rows, _} = :voyager_agent.proc_top([:memory], :memory, 1_000_000, :desc, needle)
+      refute hog in Enum.map(rows, & &1.pid)
     end
 
     test "captures a memory-heavy process when the whole table is returned" do

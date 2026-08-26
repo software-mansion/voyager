@@ -13,17 +13,17 @@ defmodule Voyager.AgentTest do
 
   describe "call/4" do
     test "returns {:ok, result} and targets the :voyager_agent module" do
+      test = self()
+
       expect(Voyager.ErpcMock, :call, fn node, mod, fun, args, timeout ->
-        assert node == @node
-        assert mod == :voyager_agent
-        assert fun == :proc_top
-        assert args == [[:memory], :memory, 10]
-        assert timeout == 5_000
-        [%{pid: self(), memory: 1}]
+        send(test, {:called, node, mod, fun, args, timeout})
+        [%{pid: test, memory: 1}]
       end)
 
       assert {:ok, [%{memory: 1}]} =
                Agent.call(@node, :proc_top, [[:memory], :memory, 10], 5_000)
+
+      assert_received {:called, @node, :voyager_agent, :proc_top, [[:memory], :memory, 10], 5_000}
     end
 
     test "translates an :erpc timeout" do
