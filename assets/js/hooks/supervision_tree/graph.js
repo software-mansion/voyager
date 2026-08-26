@@ -148,6 +148,8 @@ export const graphMethods = {
         const node = this.cy.getElementById(key);
         if (node.empty()) continue;
 
+        const childrenKeysWereLoaded = node.data('children_keys') != null;
+
         for (const [field, value] of Object.entries(patch)) {
           if (field === 'parent_key') {
             const parent_key = node.data('parent_key');
@@ -172,11 +174,20 @@ export const graphMethods = {
           node.data('displayLabel', composeLabel(node.data()));
         }
 
-        if (
-          patch.child_count !== undefined ||
-          patch.children_keys !== undefined
-        ) {
+        if (patch.child_count !== undefined) {
           node.data('is_collapsed', initialIsCollapsedState(node.data()));
+        } else if (
+          !childrenKeysWereLoaded &&
+          patch.children_keys !== undefined &&
+          patch.children_keys !== 'not_loaded'
+        ) {
+          // Only flip on the not_loaded -> loaded transition (a stub just
+          // got hydrated). Ordinary child churn (a restarted child's key
+          // changing) also patches `children_keys` on an already-loaded
+          // node — recomputing from scratch there would clobber a manual
+          // client-side collapse even though the hidden descendants never
+          // moved.
+          node.data('is_collapsed', false);
         }
 
         if (patch.info !== undefined) {
@@ -363,36 +374,15 @@ export const graphMethods = {
       this.pushEventTo(this.el, 'toggle-expand', { pid: node.id() });
     }
 
-    const bumpHiddenCount = (ele, delta) => {
-      const current = ele.data('hidden_count') ?? 0;
-      const next = Math.max(current + delta, 0);
-      ele.data('hidden_count', next);
-      return next;
-    };
-
     this.cy.batch(() => {
       if (this.isCollapsed(node)) {
-        // Expand: decrement the hidden_count of every successor, then reveal
-        // those no longer hidden by any other collapsed ancestor.
-        node.data('is_collapsed', false);
-
-        this.getSupervisionSuccessors(node).forEach((ele) => {
-          if (bumpHiddenCount(ele, -1) == 0) {
-            ele.removeClass('hidden');
-          }
-        });
-
-        this.getRelationsSuccessors(node).forEach((ele) => {
-          if (bumpHiddenCount(ele, -1) == 0) {
-            ele.removeClass('hidden');
-          }
-        });
+        this.expandCollapsedNode(node);
       } else {
         // Collapse: hide tree successors outright.
         node.data('is_collapsed', true);
 
         this.getSupervisionSuccessors(node).forEach((ele) => {
-          bumpHiddenCount(ele, 1);
+          this.bumpHiddenCount(ele, 1);
           ele.addClass('hidden');
         });
 
@@ -403,7 +393,7 @@ export const graphMethods = {
             .difference('.hidden');
 
           if (visibleConnectedNodes.length == 0) {
-            bumpHiddenCount(ele, 1);
+            this.bumpHiddenCount(ele, 1);
             ele.addClass('hidden');
           }
         });
@@ -411,6 +401,61 @@ export const graphMethods = {
     });
 
     this.scheduleLayout();
+  },
+
+  bumpHiddenCount(ele, delta) {
+    const current = ele.data('hidden_count') ?? 0;
+    const next = Math.max(current + delta, 0);
+    ele.data('hidden_count', next);
+    return next;
+  },
+
+  // Decrement the hidden_count of every successor, then reveal those no
+  // longer hidden by any other collapsed ancestor. Shared by the manual
+  // +/- toggle and by revealing a client-side-collapsed ancestor on focus.
+  expandCollapsedNode(node) {
+    node.data('is_collapsed', false);
+
+    this.getSupervisionSuccessors(node).forEach((ele) => {
+      if (this.bumpHiddenCount(ele, -1) == 0) {
+        ele.removeClass('hidden');
+      }
+    });
+
+    this.getRelationsSuccessors(node).forEach((ele) => {
+      if (this.bumpHiddenCount(ele, -1) == 0) {
+        ele.removeClass('hidden');
+      }
+    });
+  },
+
+  // Walks a node's supervision ancestors and expands any that are
+  // client-side collapsed, so a node already loaded into the graph but
+  // hidden under a collapsed ancestor becomes visible again.
+  revealCollapsedAncestors(node) {
+    const seen = new Set();
+    let current = node;
+    let expanded = false;
+
+    this.cy.batch(() => {
+      while (current && current.nonempty()) {
+        const parentKey = current.data('parent_key');
+        if (!parentKey || seen.has(parentKey)) break;
+        seen.add(parentKey);
+
+        const parent = this.cy.getElementById(parentKey);
+        if (parent.empty()) break;
+
+        if (this.isCollapsed(parent)) {
+          this.expandCollapsedNode(parent);
+          expanded = true;
+        }
+
+        current = parent;
+      }
+    });
+
+    if (expanded) this.scheduleLayout();
   },
 
   /**
@@ -471,12 +516,20 @@ export const graphMethods = {
 
   applyPendingFocus() {
     const key = this.pendingFocusKey;
+    // Clear eagerly: whatever happens below, a focus request that cannot be
+    // honoured now must not linger and fire later on an unrelated selection.
+    this.pendingFocusKey = null;
     if (!key || !this.cy) return;
 
     const node = this.cy.getElementById(key);
-    if (node.empty() || node.hasClass('hidden')) return;
+    if (node.empty()) return;
 
-    this.pendingFocusKey = null;
+    if (node.hasClass('hidden')) {
+      this.revealCollapsedAncestors(node);
+    }
+
+    if (node.hasClass('hidden')) return;
+
     this.cy.stop();
     this.cy.animate({
       center: { eles: node },
