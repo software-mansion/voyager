@@ -12,40 +12,27 @@ proc_top(Attrs, SortBy, Limit) ->
 proc_top(Attrs, SortBy, Limit, Direction) ->
     proc_top(Attrs, SortBy, Limit, Direction, undefined).
 
-%% @doc Returns the top `Limit' processes sorted by `SortBy' in `Direction'
-%% (`desc' keeps the largest, `asc' the smallest) and number of all processes.
+%% @doc Returns `{Entries, TotalCount}': the top `Limit' processes by `SortBy'
+%% (`desc' largest first, `asc' smallest), and the node's process count at scan
+%% time (before `Limit'/`Search').
 %%
-%% Runs on the remote node (shipped via the agent). Walks the process table
-%% with an iterator and keeps only the running top-`Limit' in memory, so peak
-%% memory is bounded by `Limit' rather than the process count. The transient
-%% erpc worker is guarded with a `max_heap_size' flag so a pathological scan
-%% kills the worker instead of the node, and only the top-`Limit' rows cross
-%% the wire.
+%% Runs on the remote node, walking the process table with an iterator and
+%% keeping only the top-`Limit' in memory, guarded by a `max_heap_size' flag
+%% that kills the transient worker (not the node) on a pathological scan.
 %%
-%% Each returned entry is a map of the requested `Attrs' plus `pid'. `SortBy'
-%% must be one of `Attrs' and resolve to an integer; processes missing it (or
-%% that died mid-scan) are skipped.
-%%
-%% `Search' filters the population before ranking: `undefined' (or an empty
-%% string) applies no filter, otherwise only processes whose `pid' or any
-%% requested non-numeric attribute contains `Search' (case-insensitive
-%% substring) are considered. Numeric attributes are never searched. The needle
-%% is lowercased once; matching is per-process and only pays its cost when a
-%% search is active.
-%%
-%% Returns `{Entries, TotalCount}' where `TotalCount' is the total number of
-%% processes on the node at scan time (before `Limit'/`Search' were applied).
+%% Each entry is a map of the requested `Attrs' plus `pid'; `SortBy' must be one
+%% of `Attrs' and resolve to an integer. A non-`undefined'/non-empty `Search'
+%% keeps only processes whose `pid' or a non-numeric attribute contains it,
+%% case-insensitively.
 -spec proc_top([atom()], atom(), pos_integer(), asc | desc, undefined | iodata()) ->
                   {[map()], non_neg_integer()}.
 proc_top(Attrs, SortBy, Limit, Direction, Search) ->
-    %% ~4MB on 64-bit;
+    %% 500000 words ~= 4MB on 64-bit.
     process_flag(max_heap_size,
                  #{size => 500000,
                    kill => true,
                    error_logger => true}),
     Top = fold(iterator(), Attrs, SortBy, Limit, Direction, needle(Search), [], 0),
-    %% `Top' keeps the eviction candidate ("worst kept") at the head, so
-    %% reversing always yields best-to-worst in the requested direction.
     {[to_map(Entry) || Entry <- lists:reverse(Top)], erlang:system_info(process_count)}.
 
 %% Prefer the incremental iterator (OTP 27+); fall back to a plain list.
@@ -97,9 +84,9 @@ maybe_insert(Pid, Attrs, SortBy, Limit, Direction, Needle, Top, Size) ->
             {Top, Size}
     end.
 
-%% `Top' is kept with the "worst kept" entry at the head (the smallest for
-%% `desc', the largest for `asc'), so it is the O(1) admission threshold once
-%% we are at capacity.
+%% `Top' is ordered worst-kept-first (min at head for `desc', max for `asc'), so
+%% the head is the O(1) eviction threshold at capacity and reversing yields
+%% best-to-worst.
 insert(_Top, _Size, Limit, _Direction, _Value, _Pid, _Info) when Limit =< 0 ->
     {[], 0};
 insert(Top, Size, Limit, Direction, Value, Pid, Info) when Size < Limit ->
@@ -112,8 +99,6 @@ insert([{WorstValue, _, _} | Rest] = Top, Size, _Limit, Direction, Value, Pid, I
             {Top, Size}
     end.
 
-%% Keeps the list ordered worst-first: ascending for `desc' (min at head),
-%% descending for `asc' (max at head).
 insert_sorted([{V, _, _} = Entry | Rest], desc, Value, Pid, Info) when Value > V ->
     [Entry | insert_sorted(Rest, desc, Value, Pid, Info)];
 insert_sorted([{V, _, _} = Entry | Rest], asc, Value, Pid, Info) when Value < V ->
