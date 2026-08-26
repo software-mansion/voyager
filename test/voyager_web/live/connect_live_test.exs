@@ -85,13 +85,18 @@ defmodule VoyagerWeb.ConnectLiveTest do
       assert has_element?(view, ~s|a#open-settings[href="/settings?return_to=%2F"]|)
     end
 
-    test "preserves SSH mode in the settings return_to", %{conn: conn} do
+    test "drops SSH mode from settings return_to when proxy_epmd is inactive", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
 
-      assert has_element?(
-               view,
-               ~s|a#open-settings[href="/settings?return_to=%2F%3Fmode%3Dssh"]|
-             )
+      assert has_element?(view, "input#mode-direct[checked]")
+      assert has_element?(view, ~s|a#open-settings[href="/settings?return_to=%2F"]|)
+    end
+
+    test "drops an unknown mode query param from settings return_to", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/?mode=garbage")
+
+      assert has_element?(view, "input#mode-direct[checked]")
+      assert has_element?(view, ~s|a#open-settings[href="/settings?return_to=%2F"]|)
     end
   end
 
@@ -247,6 +252,11 @@ defmodule VoyagerWeb.ConnectLiveTest do
       assert has_element?(view, "input#mode-ssh[checked]")
       refute has_element?(view, "input#mode-direct[checked]")
       assert has_element?(view, ~s|#ssh-connect-btn:not([disabled])|)
+
+      assert has_element?(
+               view,
+               ~s|a#open-settings[href="/settings?return_to=%2F%3Fmode%3Dssh"]|
+             )
     end
 
     test "stays on Direct after switching away from SSH and remounting", %{conn: conn} do

@@ -152,11 +152,7 @@ defmodule VoyagerWeb.ConnectLive do
   end
 
   defp resolve_mode(nil, params, proxy_epmd_active?) do
-    cond do
-      not proxy_epmd_active? -> :direct
-      params["mode"] == "ssh" -> :ssh
-      true -> :direct
-    end
+    if proxy_epmd_active?, do: param_mode(params), else: :direct
   end
 
   defp maybe_patch_connected_session(socket, nil), do: socket
@@ -166,18 +162,19 @@ defmodule VoyagerWeb.ConnectLive do
   end
 
   defp maybe_sync_mode_url(socket, mode, params) do
-    if connected?(socket) && socket.assigns.connected_session && param_mode(params) != mode do
-      push_patch(socket,
-        to: connect_path(socket.assigns.connected_session),
-        replace: true
-      )
+    if connected?(socket) && params["mode"] != mode_param(mode) do
+      push_patch(socket, to: connect_path(mode), replace: true)
     else
       socket
     end
   end
 
-  defp param_mode(%{"mode" => "ssh"}), do: :ssh
-  defp param_mode(_), do: :direct
+  defp param_mode(params) do
+    if params["mode"] == mode_param(:ssh), do: :ssh, else: :direct
+  end
+
+  defp mode_param(:ssh), do: "ssh"
+  defp mode_param(:direct), do: nil
 
   defp ui_mode(:ssh), do: :ssh
   defp ui_mode(_), do: :direct
