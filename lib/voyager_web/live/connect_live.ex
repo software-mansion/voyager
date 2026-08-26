@@ -3,7 +3,6 @@ defmodule VoyagerWeb.ConnectLive do
 
   alias Voyager.NodeSession
   alias VoyagerWeb.ConnectComponents
-  alias VoyagerWeb.Hooks.NodeSessionHook
 
   @impl true
   def mount(_params, _session, socket) do
@@ -109,13 +108,13 @@ defmodule VoyagerWeb.ConnectLive do
   @impl true
   def handle_event("switch_mode", %{"mode" => "direct"}, socket) do
     socket
-    |> push_patch(to: NodeSessionHook.connect_path(:direct))
+    |> push_patch(to: connect_path(:direct))
     |> noreply()
   end
 
   def handle_event("switch_mode", %{"mode" => "ssh"}, socket) do
     socket
-    |> push_patch(to: NodeSessionHook.connect_path(:ssh))
+    |> push_patch(to: connect_path(:ssh))
     |> noreply()
   end
 
@@ -163,13 +162,13 @@ defmodule VoyagerWeb.ConnectLive do
   defp maybe_patch_connected_session(socket, nil), do: socket
 
   defp maybe_patch_connected_session(socket, session) do
-    push_patch(socket, to: NodeSessionHook.connect_path(session), replace: true)
+    push_patch(socket, to: connect_path(session), replace: true)
   end
 
   defp maybe_sync_mode_url(socket, mode, params) do
     if connected?(socket) && socket.assigns.connected_session && param_mode(params) != mode do
       push_patch(socket,
-        to: NodeSessionHook.connect_path(socket.assigns.connected_session),
+        to: connect_path(socket.assigns.connected_session),
         replace: true
       )
     else
