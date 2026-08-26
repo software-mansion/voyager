@@ -121,11 +121,11 @@ defmodule VoyagerWeb.ConnectLive do
 
   @impl true
   def handle_info({:node_connected, _node}, socket) do
-    connected_session = NodeSession.current()
+    session = NodeSession.current()
 
     socket
-    |> assign(:connected_session, connected_session)
-    |> maybe_sync_connected_mode(connected_session)
+    |> assign(:connected_session, session)
+    |> maybe_patch_connected_session(session)
     |> noreply()
   end
 
@@ -160,24 +160,18 @@ defmodule VoyagerWeb.ConnectLive do
     end
   end
 
-  defp maybe_sync_connected_mode(socket, nil), do: socket
+  defp maybe_patch_connected_session(socket, nil), do: socket
 
-  defp maybe_sync_connected_mode(socket, connected_session) do
-    mode = resolve_mode(connected_session, %{}, socket.assigns.proxy_epmd_active?)
-    path = NodeSessionHook.connect_path(mode)
-
-    socket = assign(socket, :mode, mode)
-
-    if socket.assigns.current_url != path do
-      push_patch(socket, to: path, replace: true)
-    else
-      socket
-    end
+  defp maybe_patch_connected_session(socket, session) do
+    push_patch(socket, to: NodeSessionHook.connect_path(session), replace: true)
   end
 
   defp maybe_sync_mode_url(socket, mode, params) do
     if connected?(socket) && socket.assigns.connected_session && param_mode(params) != mode do
-      push_patch(socket, to: NodeSessionHook.connect_path(mode), replace: true)
+      push_patch(socket,
+        to: NodeSessionHook.connect_path(socket.assigns.connected_session),
+        replace: true
+      )
     else
       socket
     end
