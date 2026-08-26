@@ -11,12 +11,19 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
   @default_port 4040
 
   @impl true
+  def mount(socket) do
+    socket
+    |> assign(:port_locked?, Settings.locked?(:mcp_port))
+    |> assign(:enabled_locked?, Settings.locked?(:mcp_enabled))
+    |> assign(:toggle_revision, 0)
+    |> assign(:form, mcp_port_form())
+    |> ok()
+  end
+
+  @impl true
   def update(assigns, socket) do
     socket
     |> assign(assigns)
-    |> assign_new(:locked?, fn -> Settings.locked?(:mcp_port) end)
-    |> assign_new(:toggle_revision, fn -> 0 end)
-    |> assign_new(:form, &mcp_port_form/0)
     |> ok()
   end
 
@@ -38,10 +45,18 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
             class="toggle toggle-primary mt-1"
             aria-label="Toggle MCP server"
             checked={@status.alive?}
+            disabled={@enabled_locked?}
             data-toggle-revision={@toggle_revision}
             phx-click="toggle"
             phx-target={@myself}
           />
+        </div>
+
+        <div :if={@enabled_locked? or @port_locked?} id="mcp-locked" class="alert alert-info text-sm">
+          <.icon name="icon-info" class="text-info size-4" />
+          <span>
+            {locked_alert_text(@enabled_locked?, @port_locked?)}
+          </span>
         </div>
 
         <div class="text-base-content/70 font-mono flex items-center gap-1.5 text-xs">
@@ -56,13 +71,6 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
             ]}></span>
           </span>
           {if @status.alive?, do: "Running at #{@status.url}", else: "Stopped"}
-        </div>
-
-        <div :if={@locked?} id="mcp-port-locked" class="alert alert-info text-sm">
-          <.icon name="icon-info" class="text-info size-4" />
-          <span>
-            This value is set in application config, so changes are disabled.
-          </span>
         </div>
 
         <.form
@@ -86,13 +94,13 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
               field={@form[:port]}
               type="number"
               placeholder="4040"
-              disabled={@locked?}
+              disabled={@port_locked?}
               class="font-mono text-sm"
             />
           </div>
 
           <div class="card-actions justify-end">
-            <button type="submit" class="btn btn-primary" disabled={@locked?}>
+            <button type="submit" class="btn btn-primary" disabled={@port_locked?}>
               Save port
             </button>
           </div>
@@ -145,7 +153,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
       {:error, :locked} ->
         socket
         |> push_flash(:error, "MCP port is controlled by application config")
-        |> assign(:locked?, true)
+        |> assign(:port_locked?, true)
         |> assign(:form, mcp_port_form())
         |> noreply()
 
@@ -170,4 +178,15 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
     |> McpPort.changeset()
     |> to_form(as: :mcp_port)
   end
+
+  defp locked_alert_text(true, true),
+    do:
+      "The MCP server and its port are controlled by application config, so changes are disabled."
+
+  defp locked_alert_text(true, false),
+    do:
+      "The MCP server is controlled by application config, so it cannot be turned on or off here."
+
+  defp locked_alert_text(false, true),
+    do: "The MCP port is controlled by application config, so it cannot be changed here."
 end

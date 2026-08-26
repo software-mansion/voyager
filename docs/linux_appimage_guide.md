@@ -1,6 +1,6 @@
 ## Install the desktop app (Linux)
 
-Voyager on Linux is distributed as an [AppImage](https://appimage.org/). Download the latest `Voyager-*-AppImage` from [GitHub Releases](https://github.com/software-mansion/voyager/releases).
+Voyager on Linux is distributed as an [AppImage](https://appimage.org/). Download the app from the [website](https://voyager.swmansion.com/download).
 
 ### Run directly
 

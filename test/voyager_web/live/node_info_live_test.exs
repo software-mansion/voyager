@@ -37,7 +37,7 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
       assert has_element?(
                view,
-               "#sidebar-feedback[href='https://github.com/software-mansion-labs/voyager-early-access-feedback/issues/new/choose']"
+               "#sidebar-feedback[href='https://github.com/software-mansion/voyager/issues/new/choose']"
              )
     end
 
