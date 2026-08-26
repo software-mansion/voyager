@@ -3,7 +3,7 @@
 -behaviour(gen_server).
 
 %% API
--export([start/1, register/1]).
+-export([register/1]).
 -export([info/0]).
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
@@ -20,37 +20,26 @@
 %% =====================================================================
 
 %% =====================================================================
-%% Injected onto a remote node. start/1 uses gen_server:start/4 (not
-%% start_link) so the process outlives the transient erpc caller.
-%%
-%% The server monitors each registered ParentNode and exits when the
-%% last of them goes down, purging this module from the host.
+%% Adds the parent to the list of nodes and returns the server pid.
+%% If the server is not running, it starts it and registers the parent.
+%% Uses `gen_server:start/4` so the process outlives the transient erpc caller.
 %% =====================================================================
 
--spec start(node()) -> {ok, pid()} | {error, term()}.
-start(ParentNode) when is_atom(ParentNode) ->
+-spec register(node()) -> {ok, pid()} | {error, nodedown} | {error, term()}.
+register(ParentNode) when is_atom(ParentNode) ->
     case whereis(?MODULE) of
         undefined ->
-            case gen_server:start({local, ?MODULE}, ?MODULE, ParentNode, []) of
-                {ok, _} = Ok ->
-                    Ok;
-                {error, {already_started, Pid}} ->
-                    ok = register(ParentNode),
+            case gen_server:start(?MODULE, ?MODULE, ParentNode, []) of
+                {ok, Pid} ->
                     {ok, Pid};
+                {error, {already_started, Pid}} ->
+                    do_register(Pid, ParentNode);
                 Error ->
                     Error
             end;
         Pid ->
-            ok = register(ParentNode),
-            {ok, Pid}
+            do_register(Pid, ParentNode)
     end.
-
-%% =====================================================================
-%% Register a parent node and listen for nodedown messages.
-%% =====================================================================
--spec register(node()) -> ok | {error, term()}.
-register(ParentNode) when is_atom(ParentNode) ->
-    gen_server:call(?MODULE, {register, ParentNode}).
 
 %% =====================================================================
 %% Information about the node and its metrics.
@@ -75,7 +64,7 @@ info() ->
 %% `gen_server` callbacks implementation.
 %% =====================================================================
 
--spec init(node()) -> {ok, state()} | {stop, notalive}.
+-spec init(node()) -> {ok, state()} | {stop, term()}.
 init(ParentNode) when is_atom(ParentNode) ->
     %% So terminate/2 runs on shutdown and can purge injected code.
     process_flag(trap_exit, true),
@@ -118,8 +107,8 @@ handle_info(_Info, State) ->
 
 -spec terminate(term(), state()) -> ok.
 terminate(_Reason, _State) ->
-    %% The second code:purge/1 kills processes still running this
-    %% module. Spawn so this gen_server can finish stopping first.
+    %% The second `code:purge/1` kills processes still running this module.
+    %% Spawn so this gen_server can finish stopping first.
     spawn(fun purge_code/0),
     ok.
 
@@ -131,35 +120,33 @@ code_change(_Vsn, State, _Extra) ->
 %% Internal
 %% =====================================================================
 
-%% Subscribe to nodedown for ParentNode. Duplicate registers are a no-op
-%% so we do not stack erlang:monitor_node/2 subscriptions.
--spec add_node(state(), node()) -> {ok, state()} | {error, notalive}.
+-spec do_register(pid(), node()) -> {ok, pid()} | {error, term()}.
+do_register(ServerPid, ParentNode) ->
+    case gen_server:call(?MODULE, {register, ParentNode}) of
+        ok ->
+            {ok, ServerPid};
+        {error, _} = Error ->
+            Error
+    end.
+
+%% Subscribe to nodedown for ParentNode.
+%% Duplicate registers are a no-op so `erlang:monitor_node/2` does not stack subscriptions.
+%% If Node cannot be reached, `erlang:monitor_node(Node, true)` delivers `{nodedown, Node}` to this process.
+%% `erlang:monitor_node/2` raises `notalive` only when this VM is not distributed and Node is not 'nonode@nohost'.
+-spec add_node(state(), node()) -> {ok, state()} | {error, nodedown}.
 add_node(#state{nodes = Nodes} = State, ParentNode)
     when is_atom(ParentNode), is_map(Nodes) ->
     case maps:is_key(ParentNode, Nodes) of
         true ->
             {ok, State};
         false ->
-            case monitor_node(ParentNode) of
-                false ->
-                    {error, notalive};
-                true ->
+            try erlang:monitor_node(ParentNode) of
+                _ ->
                     {ok, State#state{nodes = Nodes#{ParentNode => true}}}
+            catch
+                error:notalive ->
+                    {error, nodedown}
             end
-    end;
-add_node(State, _ParentNode) ->
-    {error, {wrong_state, State}}.
-
-%% erlang:monitor_node/2 also delivers nodedown if the connection cannot
-%% be (re)established. It raises notalive when this VM is not distributed.
--spec monitor_node(node()) -> boolean().
-monitor_node(ParentNode) ->
-    try erlang:monitor_node(ParentNode, true) of
-        _ ->
-            true
-    catch
-        error:notalive ->
-            false
     end.
 
 -spec purge_code() -> boolean().
