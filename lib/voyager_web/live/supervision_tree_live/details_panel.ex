@@ -3,9 +3,11 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   Side panel that displays details for a selected node in the supervision tree.
 
   The parent LiveView owns the current selection (graph highlight / focus) and
-  passes the selected `TreeNode` (or `nil` to close). This component owns the
+  passes the selected `TreeNode` (or `nil` to close) together with
+  `selection_origin` — why the selection changed. This component owns the
   in-panel navigation history: link clicks push the current node, Back pops it,
-  and a parent-driven selection (graph click, close) resets the stack.
+  and an `:external` selection (graph click, close) resets the stack, while
+  `:link` / `:restore` selections keep it.
 
   Link / back notify the parent via `send/2` (`{:select_link, id}` /
   `{:restore_details_node, node}`). Close has no `phx-target`, so it is handled
@@ -30,17 +32,16 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(:open?, false)
     |> assign(:links_expanded?, false)
     |> assign(:selection_history, [])
-    |> assign(:awaiting_parent_selection?, false)
     |> assign(:node_info, AsyncResult.loading())
     |> ok()
   end
 
   @impl true
-  def update(%{id: id, tree_node: tree_node, remote_node: remote_node}, socket) do
+  def update(%{id: id, tree_node: tree_node, remote_node: remote_node} = assigns, socket) do
     socket
     |> assign(:id, id)
     |> assign(:remote_node, remote_node)
-    |> maybe_assign_node(tree_node)
+    |> maybe_assign_node(tree_node, Map.get(assigns, :selection_origin, :external))
     |> ok()
   end
 
@@ -61,7 +62,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
         socket
         |> push_history(identifier)
-        |> assign(:awaiting_parent_selection?, true)
         |> noreply()
     end
   end
@@ -73,7 +73,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
         socket
         |> assign(:selection_history, rest)
-        |> assign(:awaiting_parent_selection?, true)
         |> noreply()
 
       [] ->
@@ -141,26 +140,23 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     """
   end
 
-  defp maybe_assign_node(socket, nil) do
+  defp maybe_assign_node(socket, nil, _origin) do
     socket
     |> assign(:open?, false)
     |> assign(:selection_history, [])
-    |> assign(:awaiting_parent_selection?, false)
   end
 
-  defp maybe_assign_node(socket, node) do
+  defp maybe_assign_node(socket, node, origin) do
     changed? = node_changed?(socket, node)
-    awaiting? = socket.assigns.awaiting_parent_selection?
 
     socket
     |> assign(:open?, true)
     |> assign(:node, node)
-    |> assign(:awaiting_parent_selection?, false)
     |> then(fn socket ->
-      cond do
-        awaiting? -> socket
-        changed? -> assign(socket, :selection_history, [])
-        true -> socket
+      if changed? and origin == :external do
+        assign(socket, :selection_history, [])
+      else
+        socket
       end
     end)
     |> then(fn socket ->
