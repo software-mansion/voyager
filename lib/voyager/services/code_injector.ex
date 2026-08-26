@@ -17,7 +17,7 @@ defmodule Voyager.Services.CodeInjector do
   @type error_reason ::
           {:read_failed, {Path.t(), File.posix()}}
           | {:parse_failed, term()}
-          | {:compile_failed, term(), term()}
+          | {:compile_failed, term()}
           | {:load_failed, term()}
           | {:unexpected_compile_result, term()}
           | Erpc.erpc_error()
@@ -69,10 +69,10 @@ defmodule Voyager.Services.CodeInjector do
         {:ok, module, binary}
 
       {:ok, {:error, errors, warnings}} ->
-        {:error, {:compile_failed, errors, warnings}}
+        {:error, {:compile_failed, {errors, warnings}}}
 
       {:ok, :error} ->
-        {:error, {:compile_failed, [], []}}
+        {:error, {:compile_failed, {[], []}}}
 
       {:ok, other} ->
         {:error, {:unexpected_compile_result, other}}
