@@ -39,12 +39,30 @@ defmodule VoyagerAgentTest do
       assert entry |> Map.keys() |> Enum.sort() == [:memory, :pid, :reductions]
     end
 
-    test "entries are sorted by the sort key, descending" do
+    test "defaults to descending order via the /3 arity" do
       mems = Enum.map(:voyager_agent.proc_top([:memory], :memory, 20), & &1.memory)
       assert mems == Enum.sort(mems, :desc)
 
       reds = Enum.map(:voyager_agent.proc_top([:reductions], :reductions, 20), & &1.reductions)
       assert reds == Enum.sort(reds, :desc)
+    end
+
+    test "sorts descending (largest first) with direction :desc" do
+      mems = Enum.map(:voyager_agent.proc_top([:memory], :memory, 20, :desc), & &1.memory)
+      assert mems == Enum.sort(mems, :desc)
+    end
+
+    test "sorts ascending (smallest first) with direction :asc" do
+      mems = Enum.map(:voyager_agent.proc_top([:memory], :memory, 20, :asc), & &1.memory)
+      assert mems == Enum.sort(mems, :asc)
+    end
+
+    test ":asc keeps the smallest values, not the largest" do
+      # The smallest-N by memory must not exceed the largest-N by memory.
+      asc = Enum.map(:voyager_agent.proc_top([:memory], :memory, 10, :asc), & &1.memory)
+      desc = Enum.map(:voyager_agent.proc_top([:memory], :memory, 10, :desc), & &1.memory)
+      assert Enum.max(asc) <= Enum.max(desc)
+      assert Enum.min(asc) <= Enum.min(desc)
     end
 
     test "captures a memory-heavy process when the whole table is returned" do

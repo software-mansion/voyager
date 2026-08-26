@@ -1,8 +1,14 @@
 -module(voyager_agent).
 
--export([proc_top/3]).
+-export([proc_top/3, proc_top/4]).
 
-%% @doc Returns the top `Limit' processes sorted by `SortBy' (descending).
+%% @equiv proc_top(Attrs, SortBy, Limit, desc)
+-spec proc_top([atom()], atom(), pos_integer()) -> [map()].
+proc_top(Attrs, SortBy, Limit) ->
+    proc_top(Attrs, SortBy, Limit, desc).
+
+%% @doc Returns the top `Limit' processes sorted by `SortBy' in `Direction'
+%% (`desc' keeps the largest, `asc' the smallest).
 %%
 %% Runs on the remote node (shipped via the agent). Walks the process table
 %% with an iterator and keeps only the running top-`Limit' in memory, so peak
@@ -14,15 +20,16 @@
 %% Each returned entry is a map of the requested `Attrs' plus `pid'. `SortBy'
 %% must be one of `Attrs' and resolve to an integer; processes missing it (or
 %% that died mid-scan) are skipped.
--spec proc_top([atom()], atom(), pos_integer()) -> [map()].
-proc_top(Attrs, SortBy, Limit) ->
-    %% ~4MB on 64-bit; kill this worker (not the node) if it blows up.
+-spec proc_top([atom()], atom(), pos_integer(), asc | desc) -> [map()].
+proc_top(Attrs, SortBy, Limit, Direction) ->
+    %% ~4MB on 64-bit;
     process_flag(max_heap_size,
                  #{size => 500000,
                    kill => true,
                    error_logger => true}),
-    Top = fold(iterator(), Attrs, SortBy, Limit, [], 0),
-    %% `Top' is ascending by sort value; emit descending as maps.
+    Top = fold(iterator(), Attrs, SortBy, Limit, Direction, [], 0),
+    %% `Top' keeps the eviction candidate ("worst kept") at the head, so
+    %% reversing always yields best-to-worst in the requested direction.
     [to_map(Entry) || Entry <- lists:reverse(Top)].
 
 %% Prefer the incremental iterator (OTP 27+); fall back to a plain list.
@@ -46,21 +53,21 @@ next({list, []}) ->
 next({list, [Pid | Rest]}) ->
     {Pid, {list, Rest}}.
 
-fold(State, Attrs, SortBy, Limit, Top, Size) ->
+fold(State, Attrs, SortBy, Limit, Direction, Top, Size) ->
     case next(State) of
         {Pid, NextState} ->
-            {NewTop, NewSize} = maybe_insert(Pid, Attrs, SortBy, Limit, Top, Size),
-            fold(NextState, Attrs, SortBy, Limit, NewTop, NewSize);
+            {NewTop, NewSize} = maybe_insert(Pid, Attrs, SortBy, Limit, Direction, Top, Size),
+            fold(NextState, Attrs, SortBy, Limit, Direction, NewTop, NewSize);
         none ->
             Top
     end.
 
-maybe_insert(Pid, Attrs, SortBy, Limit, Top, Size) ->
+maybe_insert(Pid, Attrs, SortBy, Limit, Direction, Top, Size) ->
     case erlang:process_info(Pid, Attrs) of
         Info when is_list(Info) ->
             case value(SortBy, Info) of
                 Value when is_integer(Value) ->
-                    insert(Top, Size, Limit, Value, Pid, Info);
+                    insert(Top, Size, Limit, Direction, Value, Pid, Info);
                 _ ->
                     {Top, Size}
             end;
@@ -68,22 +75,34 @@ maybe_insert(Pid, Attrs, SortBy, Limit, Top, Size) ->
             {Top, Size}
     end.
 
-%% `Top' is kept ascending by sort value, so the smallest kept value is at the
-%% head and acts as the O(1) admission threshold once we are at capacity.
-insert(_Top, _Size, Limit, _Value, _Pid, _Info) when Limit =< 0 ->
+%% `Top' is kept with the "worst kept" entry at the head (the smallest for
+%% `desc', the largest for `asc'), so it is the O(1) admission threshold once
+%% we are at capacity.
+insert(_Top, _Size, Limit, _Direction, _Value, _Pid, _Info) when Limit =< 0 ->
     {[], 0};
-insert(Top, Size, Limit, Value, Pid, Info) when Size < Limit ->
-    {insert_sorted(Top, Value, Pid, Info), Size + 1};
-insert([{MinValue, _, _} | _] = Top, Size, _Limit, Value, _Pid, _Info)
-    when Value =< MinValue ->
-    {Top, Size};
-insert([_Min | Rest], Size, _Limit, Value, Pid, Info) ->
-    {insert_sorted(Rest, Value, Pid, Info), Size}.
+insert(Top, Size, Limit, Direction, Value, Pid, Info) when Size < Limit ->
+    {insert_sorted(Top, Direction, Value, Pid, Info), Size + 1};
+insert([{WorstValue, _, _} | Rest] = Top, Size, _Limit, Direction, Value, Pid, Info) ->
+    case better(Direction, Value, WorstValue) of
+        true ->
+            {insert_sorted(Rest, Direction, Value, Pid, Info), Size};
+        false ->
+            {Top, Size}
+    end.
 
-insert_sorted([{V, _, _} = Entry | Rest], Value, Pid, Info) when Value > V ->
-    [Entry | insert_sorted(Rest, Value, Pid, Info)];
-insert_sorted(Rest, Value, Pid, Info) ->
+%% Keeps the list ordered worst-first: ascending for `desc' (min at head),
+%% descending for `asc' (max at head).
+insert_sorted([{V, _, _} = Entry | Rest], desc, Value, Pid, Info) when Value > V ->
+    [Entry | insert_sorted(Rest, desc, Value, Pid, Info)];
+insert_sorted([{V, _, _} = Entry | Rest], asc, Value, Pid, Info) when Value < V ->
+    [Entry | insert_sorted(Rest, asc, Value, Pid, Info)];
+insert_sorted(Rest, _Direction, Value, Pid, Info) ->
     [{Value, Pid, Info} | Rest].
+
+better(desc, Value, Threshold) ->
+    Value > Threshold;
+better(asc, Value, Threshold) ->
+    Value < Threshold.
 
 value(SortBy, Info) ->
     case lists:keyfind(SortBy, 1, Info) of

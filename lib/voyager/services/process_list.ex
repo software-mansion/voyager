@@ -15,21 +15,29 @@ defmodule Voyager.Services.ProcessList do
   alias Voyager.Agent
 
   @type entry :: %{required(:pid) => pid(), optional(atom()) => term()}
+  @type direction :: :asc | :desc
 
   @doc """
-  Returns the top `limit` processes on `node` sorted by `sort_by` (descending),
-  each carrying the requested `attrs`.
+  Returns the top `limit` processes on `node` sorted by `sort_by`, each carrying
+  the requested `attrs`.
 
-  `sort_by` is always included in the fetched attributes and must resolve to an
-  integer on the remote (e.g. `:memory`, `:reductions`, `:message_queue_len`).
-  `timeout` bounds the whole remote scan.
+  `direction` selects which end to keep and defaults to `:desc` (largest first);
+  `:asc` keeps the smallest first. `sort_by` is always included in the fetched
+  attributes and must resolve to an integer on the remote (e.g. `:memory`,
+  `:reductions`, `:message_queue_len`). `timeout` bounds the whole remote scan.
 
   Returns `{:ok, entries}` or `{:error, reason}` on remote/transport failure.
   """
-  @spec top(node(), [atom()], atom(), pos_integer(), timeout()) ::
+  @spec top(node(), [atom()], atom(), pos_integer(), timeout(), direction()) ::
           {:ok, [entry()]} | {:error, term()}
-  def top(node, attrs, sort_by, limit, timeout) do
-    Agent.call(node, :proc_top, [ensure_sort_by(attrs, sort_by), sort_by, limit], timeout)
+  def top(node, attrs, sort_by, limit, timeout, direction \\ :desc)
+      when direction in [:asc, :desc] do
+    Agent.call(
+      node,
+      :proc_top,
+      [ensure_sort_by(attrs, sort_by), sort_by, limit, direction],
+      timeout
+    )
   end
 
   defp ensure_sort_by(attrs, sort_by) do
