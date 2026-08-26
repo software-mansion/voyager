@@ -125,6 +125,11 @@ defmodule Voyager.Services.ProcessListTest do
                ProcessList.top(@node, [:memory], :dictionary, 5, 1_000)
     end
 
+    test "rejects a display-only attribute as sort_by without touching the remote" do
+      assert {:error, {:unsupported_sort_by, :registered_name}} =
+               ProcessList.top(@node, [:memory], :registered_name, 5, 1_000)
+    end
+
     test "propagates transport errors from the agent seam" do
       expect(Voyager.ErpcMock, :call, fn _, _, _, _, _ ->
         :erlang.error({:erpc, :noconnection})
