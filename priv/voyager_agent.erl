@@ -29,7 +29,7 @@
 register(ParentNode) when is_atom(ParentNode) ->
     case whereis(?MODULE) of
         undefined ->
-            case gen_server:start(?MODULE, ?MODULE, ParentNode, []) of
+            case gen_server:start({local, ?MODULE}, ?MODULE, ParentNode, []) of
                 {ok, Pid} ->
                     {ok, Pid};
                 {error, {already_started, Pid}} ->
@@ -140,7 +140,7 @@ add_node(#state{nodes = Nodes} = State, ParentNode)
         true ->
             {ok, State};
         false ->
-            try erlang:monitor_node(ParentNode) of
+            try erlang:monitor_node(ParentNode, true) of
                 _ ->
                     {ok, State#state{nodes = Nodes#{ParentNode => true}}}
             catch
