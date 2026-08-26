@@ -135,17 +135,9 @@ defmodule Voyager.Services.ProcessInfo do
     end
   end
 
-  # Translates every `:erpc.call` failure into an `{:error, reason}` tuple so no
-  # raw exception escapes to the caller.
   defp call(node, mod, fun, args) do
     {:ok, Erpc.call(node, mod, fun, args, @timeout)}
   catch
-    :error, {:erpc, :timeout} -> {:error, :timeout}
-    :error, {:erpc, :noconnection} -> {:error, :noconnection}
-    :error, {:exception, reason, _stack} -> {:error, {:remote_exception, reason}}
-    :error, {:erpc, _} = reason -> {:error, reason}
-    :error, reason -> {:error, reason}
-    :exit, reason -> {:error, {:remote_exit, reason}}
-    :throw, value -> {:error, {:remote_throw, value}}
+    kind, reason -> Erpc.format_error(kind, reason)
   end
 end

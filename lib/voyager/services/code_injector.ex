@@ -1,14 +1,10 @@
-defmodule Voyager.Services.RemoteCode do
+defmodule Voyager.Services.CodeInjector do
   @moduledoc """
   Reads Erlang source, runs the preprocessor locally, then compiles and loads
   the forms on a remote node via `:erpc`.
 
-  `?MODULE` and friends are expanded here with `:epp`. Do not use
-  `-if(?OTP_RELEASE ...)` for APIs that differ across OTP versions; check
-  `erlang:function_exported/3` at runtime instead so the same forms work on
-  older targets.
-
-  Injected agent source lives in `priv/voyager_agent.erl` (see `agent_path/0`).
+  Macro such as `?MODULE` is expanded with :eep locally.
+  Do not use `-if(?OTP_RELEASE ...)` since it shows Voyager's OTP version.
   """
 
   alias Voyager.Erpc
@@ -19,18 +15,12 @@ defmodule Voyager.Services.RemoteCode do
   @compile_opts [:binary, :return_errors]
 
   @type error_reason ::
-          {:read_failed, Path.t(), File.posix()}
+          {:read_failed, {Path.t(), File.posix()}}
           | {:parse_failed, term()}
           | {:compile_failed, term(), term()}
           | {:load_failed, term()}
           | {:unexpected_compile_result, term()}
-          | :timeout
-          | :noconnection
-          | {:erpc, term()}
-          | {:remote_exception, term()}
-          | {:remote_exit, term()}
-          | {:remote_throw, term()}
-          | term()
+          | Erpc.erpc_error()
 
   @doc """
   Preprocesses Erlang source from `path` on this node, compiles the forms on
@@ -66,7 +56,7 @@ defmodule Voyager.Services.RemoteCode do
         end
 
       {:error, reason} ->
-        {:error, {:read_failed, path, reason}}
+        {:error, {:read_failed, {path, reason}}}
     end
   end
 
@@ -116,25 +106,6 @@ defmodule Voyager.Services.RemoteCode do
   defp call(node, mod, fun, args, timeout) do
     {:ok, Erpc.call(node, mod, fun, args, timeout)}
   catch
-    :error, {:erpc, :timeout} ->
-      {:error, :timeout}
-
-    :error, {:erpc, :noconnection} ->
-      {:error, :noconnection}
-
-    :error, {:exception, reason, _stack} ->
-      {:error, {:remote_exception, reason}}
-
-    :error, {:erpc, _} = reason ->
-      {:error, reason}
-
-    :error, reason ->
-      {:error, reason}
-
-    :exit, reason ->
-      {:error, {:remote_exit, reason}}
-
-    :throw, value ->
-      {:error, {:remote_throw, value}}
+    kind, reason -> Erpc.format_error(kind, reason)
   end
 end
