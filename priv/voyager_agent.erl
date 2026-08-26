@@ -3,12 +3,12 @@
 -export([proc_top/3, proc_top/4, proc_top/5]).
 
 %% @equiv proc_top(Attrs, SortBy, Limit, desc, undefined)
--spec proc_top([atom()], atom(), pos_integer()) -> [map()].
+-spec proc_top([atom()], atom(), pos_integer()) -> {[map()], non_neg_integer()}.
 proc_top(Attrs, SortBy, Limit) ->
     proc_top(Attrs, SortBy, Limit, desc, undefined).
 
 %% @equiv proc_top(Attrs, SortBy, Limit, Direction, undefined)
--spec proc_top([atom()], atom(), pos_integer(), asc | desc) -> [map()].
+-spec proc_top([atom()], atom(), pos_integer(), asc | desc) -> {[map()], non_neg_integer()}.
 proc_top(Attrs, SortBy, Limit, Direction) ->
     proc_top(Attrs, SortBy, Limit, Direction, undefined).
 
@@ -32,8 +32,11 @@ proc_top(Attrs, SortBy, Limit, Direction) ->
 %% substring) are considered. Numeric attributes are never searched. The needle
 %% is lowercased once; matching is per-process and only pays its cost when a
 %% search is active.
+%%
+%% Returns `{Entries, TotalCount}' where `TotalCount' is the total number of
+%% processes on the node at scan time (before `Limit'/`Search' were applied).
 -spec proc_top([atom()], atom(), pos_integer(), asc | desc, undefined | iodata()) ->
-                  [map()].
+                  {[map()], non_neg_integer()}.
 proc_top(Attrs, SortBy, Limit, Direction, Search) ->
     %% ~4MB on 64-bit;
     process_flag(max_heap_size,

@@ -33,7 +33,7 @@ defmodule Voyager.Services.ProcessList do
   )a
 
   @doc """
-  Returns the cheap-scan attributes that may be requested via `top/6`.
+  Returns the cheap-scan attributes that may be requested via `top/7`.
   """
   @spec allowed_attrs() :: [atom()]
   def allowed_attrs, do: @allowed_attrs
@@ -58,10 +58,12 @@ defmodule Voyager.Services.ProcessList do
   `attrs` and `sort_by` must be drawn from `allowed_attrs/0`; otherwise the call
   returns `{:error, {:unsupported_attrs, keys}}` without touching the remote.
 
-  Returns `{:ok, entries}` or `{:error, reason}` on remote/transport failure.
+  Returns `{:ok, {entries, total}}` where `total` is the number of processes on
+  the node at scan time (before `limit`/`search` were applied), or
+  `{:error, reason}` on remote/transport failure.
   """
   @spec top(node(), [atom()], atom(), pos_integer(), timeout(), direction(), String.t() | nil) ::
-          {:ok, [entry()]} | {:error, term()}
+          {:ok, {[entry()], non_neg_integer()}} | {:error, term()}
   def top(node, attrs, sort_by, limit, timeout, direction \\ :desc, search \\ nil)
       when direction in [:asc, :desc] do
     requested = ensure_sort_by(attrs, sort_by)

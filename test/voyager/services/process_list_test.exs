@@ -10,21 +10,21 @@ defmodule Voyager.Services.ProcessListTest do
   @node :"peer@127.0.0.1"
 
   # Captures the args reaching the (mocked) :erpc transport and returns an empty
-  # process list so `top/5` yields `{:ok, []}`.
+  # top-N with a total count, so `top/7` yields `{:ok, {[], 0}}`.
   defp capture_erpc_args do
     test = self()
 
     expect(Voyager.ErpcMock, :call, fn node, mod, fun, args, timeout ->
       send(test, {:called, node, mod, fun, args, timeout})
-      []
+      {[], 0}
     end)
   end
 
-  describe "top/5" do
+  describe "top/7" do
     test "invokes :voyager_agent.proc_top on the given node with node, args and timeout" do
       capture_erpc_args()
 
-      assert {:ok, []} = ProcessList.top(@node, [:memory, :reductions], :memory, 25, 3_000)
+      assert {:ok, {[], _}} = ProcessList.top(@node, [:memory, :reductions], :memory, 25, 3_000)
 
       assert_received {:called, @node, :voyager_agent, :proc_top,
                        [[:memory, :reductions], :memory, 25, :desc, :undefined], 3_000}
@@ -33,7 +33,7 @@ defmodule Voyager.Services.ProcessListTest do
     test "defaults the sort direction to :desc" do
       capture_erpc_args()
 
-      assert {:ok, []} = ProcessList.top(@node, [:memory], :memory, 5, 1_000)
+      assert {:ok, {[], _}} = ProcessList.top(@node, [:memory], :memory, 5, 1_000)
 
       assert_received {:called, _node, _mod, _fun, [_attrs, :memory, 5, :desc, :undefined],
                        _timeout}
@@ -42,7 +42,7 @@ defmodule Voyager.Services.ProcessListTest do
     test "passes an explicit :asc direction through to the agent" do
       capture_erpc_args()
 
-      assert {:ok, []} = ProcessList.top(@node, [:memory], :memory, 5, 1_000, :asc)
+      assert {:ok, {[], _}} = ProcessList.top(@node, [:memory], :memory, 5, 1_000, :asc)
 
       assert_received {:called, _node, _mod, _fun, [_attrs, :memory, 5, :asc, :undefined],
                        _timeout}
@@ -51,7 +51,7 @@ defmodule Voyager.Services.ProcessListTest do
     test "defaults the search to :undefined (no filter)" do
       capture_erpc_args()
 
-      assert {:ok, []} = ProcessList.top(@node, [:memory], :memory, 5, 1_000)
+      assert {:ok, {[], _}} = ProcessList.top(@node, [:memory], :memory, 5, 1_000)
 
       assert_received {:called, _node, _mod, _fun, [_attrs, :memory, 5, :desc, :undefined],
                        _timeout}
@@ -60,7 +60,7 @@ defmodule Voyager.Services.ProcessListTest do
     test "normalizes a blank search string to :undefined" do
       capture_erpc_args()
 
-      assert {:ok, []} = ProcessList.top(@node, [:memory], :memory, 5, 1_000, :desc, "")
+      assert {:ok, {[], _}} = ProcessList.top(@node, [:memory], :memory, 5, 1_000, :desc, "")
 
       assert_received {:called, _node, _mod, _fun, [_attrs, :memory, 5, :desc, :undefined],
                        _timeout}
@@ -69,7 +69,7 @@ defmodule Voyager.Services.ProcessListTest do
     test "passes a non-blank search string through to the agent" do
       capture_erpc_args()
 
-      assert {:ok, []} =
+      assert {:ok, {[], _}} =
                ProcessList.top(
                  @node,
                  [:memory, :registered_name],
@@ -93,7 +93,7 @@ defmodule Voyager.Services.ProcessListTest do
     test "adds sort_by to the fetched attributes when missing" do
       capture_erpc_args()
 
-      assert {:ok, []} = ProcessList.top(@node, [:reductions], :memory, 5, 1_000)
+      assert {:ok, {[], _}} = ProcessList.top(@node, [:reductions], :memory, 5, 1_000)
 
       assert_received {:called, _node, _mod, _fun,
                        [[:memory, :reductions], :memory, 5, :desc, :undefined], _timeout}
@@ -102,17 +102,17 @@ defmodule Voyager.Services.ProcessListTest do
     test "does not duplicate sort_by when it is already among the attributes" do
       capture_erpc_args()
 
-      assert {:ok, []} = ProcessList.top(@node, [:memory, :reductions], :memory, 5, 1_000)
+      assert {:ok, {[], _}} = ProcessList.top(@node, [:memory, :reductions], :memory, 5, 1_000)
 
       assert_received {:called, _node, _mod, _fun,
                        [[:memory, :reductions], :memory, 5, :desc, :undefined], _timeout}
     end
 
-    test "returns the entries produced by the agent" do
+    test "returns the entries and total count produced by the agent" do
       rows = [%{pid: self(), memory: 10}]
-      expect(Voyager.ErpcMock, :call, fn _, _, _, _, _ -> rows end)
+      expect(Voyager.ErpcMock, :call, fn _, _, _, _, _ -> {rows, 42} end)
 
-      assert {:ok, ^rows} = ProcessList.top(@node, [:memory], :memory, 5, 1_000)
+      assert {:ok, {^rows, 42}} = ProcessList.top(@node, [:memory], :memory, 5, 1_000)
     end
 
     test "rejects a disallowed attribute without touching the remote" do
