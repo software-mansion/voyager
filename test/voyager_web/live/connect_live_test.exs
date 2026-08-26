@@ -161,10 +161,12 @@ defmodule VoyagerWeb.ConnectLiveTest do
     test "selects SSH Tunnel while connected via SSH and patches the URL", %{conn: conn} do
       Fakes.connect_node!(Fakes.node_session(connector: SshConnector))
 
-      {:ok, view, _html} =
-        conn
-        |> live(~p"/")
-        |> follow_redirect(conn, "/?mode=ssh")
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(
+               view,
+               ~s|a#open-settings[href="/settings?return_to=%2F%3Fmode%3Dssh"]|
+             )
 
       assert has_element?(view, "input#mode-ssh[checked]")
       refute has_element?(view, "input#mode-direct[checked]")
@@ -213,10 +215,7 @@ defmodule VoyagerWeb.ConnectLiveTest do
     test "keeps SSH selected and re-enables the form after disconnect", %{conn: conn} do
       session = Fakes.connect_node!(Fakes.node_session(connector: SshConnector))
 
-      {:ok, view, _html} =
-        conn
-        |> live(~p"/")
-        |> follow_redirect(conn, "/?mode=ssh")
+      {:ok, view, _html} = live(conn, ~p"/")
 
       Fakes.put_session(nil)
       broadcast(NodeSession.topic(), {:node_disconnected, session.node})
@@ -231,10 +230,7 @@ defmodule VoyagerWeb.ConnectLiveTest do
     test "keeps SSH selected after nodedown", %{conn: conn} do
       session = Fakes.connect_node!(Fakes.node_session(connector: SshConnector))
 
-      {:ok, view, _html} =
-        conn
-        |> live(~p"/")
-        |> follow_redirect(conn, "/?mode=ssh")
+      {:ok, view, _html} = live(conn, ~p"/")
 
       broadcast(NodeSession.topic(), {:nodedown, session.node})
 

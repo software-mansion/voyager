@@ -169,15 +169,15 @@ defmodule VoyagerWeb.ConnectLive do
     socket = assign(socket, :mode, mode)
 
     if socket.assigns.current_url != path do
-      push_patch(socket, to: path)
+      push_patch(socket, to: path, replace: true)
     else
       socket
     end
   end
 
   defp maybe_sync_mode_url(socket, mode, params) do
-    if socket.assigns.connected_session && param_mode(params) != mode do
-      push_patch(socket, to: NodeSessionHook.connect_path(mode))
+    if connected?(socket) && socket.assigns.connected_session && param_mode(params) != mode do
+      push_patch(socket, to: NodeSessionHook.connect_path(mode), replace: true)
     else
       socket
     end
