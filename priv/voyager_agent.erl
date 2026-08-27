@@ -4,7 +4,7 @@
 
 %% API
 -export([register/1]).
--export([info/0]).
+-export([ping/0]).
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
@@ -51,23 +51,12 @@ do_register(ParentNode) ->
     end.
 
 %% =====================================================================
-%%  NODE INFO - Information about the node and its metrics.
+%%  TESTING - Test functions for the agent.
 %% =====================================================================
 
--type metric() ::
-    {node, node()} |
-    {erlang_version, string()} |
-    {memory, [{atom(), non_neg_integer()}]} |
-    {process_count, non_neg_integer()} |
-    {reductions, {non_neg_integer(), non_neg_integer()}}.
-
--spec info() -> [metric()].
-info() ->
-    [{node, node()},
-     {erlang_version, erlang:system_info(otp_release)},
-     {memory, erlang:memory()},
-     {process_count, erlang:system_info(process_count)},
-     {reductions, erlang:statistics(reductions)}].
+-spec ping() -> ok.
+ping() ->
+    ok.
 
 %% =====================================================================
 %% NODE WATCHER - gen_server callbacks and watcher for Nodes.
