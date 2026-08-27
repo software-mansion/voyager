@@ -3,6 +3,9 @@ defmodule Voyager.Application do
 
   use Application
 
+  alias Voyager.Epmd.Daemon
+  require Logger
+
   @impl true
   def start(_type, _args) do
     ensure_epmd_started()
@@ -51,8 +54,8 @@ defmodule Voyager.Application do
     :persistent_term.put(:voyager_epmd_module, epmd_mod)
   end
 
-  defp ensure_epmd_started() do
-    case Voyager.Epmd.Daemon.start() do
+  defp ensure_epmd_started do
+    case Daemon.start() do
       :ok ->
         :ok
 
