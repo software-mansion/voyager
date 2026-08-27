@@ -11,7 +11,6 @@ defmodule Voyager.Services.Erlssh.Connection do
   require Auth
 
   @ssh_timeout 5000
-  @epmd_port 4369
 
   @spec connect_ssh(String.t(), :inet.port_number(), String.t(), Auth.auth()) ::
           {:ok, conn_ref :: :ssh.connection_ref()} | {:error, reason :: term()}
@@ -40,7 +39,7 @@ defmodule Voyager.Services.Erlssh.Connection do
   """
   @spec discover_dist_port(:ssh.connection_ref(), String.t(), integer()) ::
           {:ok, pos_integer()} | {:error, term()}
-  def discover_dist_port(conn_ref, node_name, epmd_port \\ @epmd_port) do
+  def discover_dist_port(conn_ref, node_name, epmd_port \\ Voyager.Epmd.Daemon.port()) do
     with {:ok, epmd_local_port} <- open_tunnel(conn_ref, epmd_port),
          {:ok, output} <-
            Client.get_names(~c"127.0.0.1", epmd_local_port, @ssh_timeout) do

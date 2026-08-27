@@ -5,6 +5,9 @@ defmodule Voyager.Epmd.Daemon do
   alias Voyager.Epmd.Client
   require Logger
 
+  @epmd_port 4369
+  def port, do: @epmd_port
+
   @doc """
   Starts the bundled `epmd` if it isn't already running.
 
@@ -50,7 +53,7 @@ defmodule Voyager.Epmd.Daemon do
   """
   @spec running?() :: boolean()
   def running? do
-    case Client.get_names(~c"127.0.0.1", 4369, 500) do
+    case Client.get_names(~c"127.0.0.1", Voyager.Epmd.Client.port(), 500) do
       {:ok, _text} -> true
       {:error, _reason} -> false
     end
