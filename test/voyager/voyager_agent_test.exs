@@ -28,6 +28,10 @@ defmodule Voyager.VoyagerAgentTest do
             {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
           end
       end
+
+      :code.purge(@agent_module)
+      :code.delete(@agent_module)
+      :code.purge(@agent_module)
     end)
   end
 
