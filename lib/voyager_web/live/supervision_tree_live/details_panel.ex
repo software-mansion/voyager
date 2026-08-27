@@ -25,6 +25,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   require Logger
 
+  @default_min_refresh_ms 1_000
+
   @impl true
   def mount(socket) do
     socket
@@ -33,6 +35,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(:open?, false)
     |> assign(:links_expanded?, false)
     |> assign(:node_info, AsyncResult.loading())
+    |> assign(:last_fetched_at, nil)
     |> ok()
   end
 
@@ -106,32 +109,51 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   defp maybe_assign_node(socket, nil), do: assign(socket, :open?, false)
 
   defp maybe_assign_node(socket, node) do
+    changed? = node_changed?(socket, node)
+
     socket =
       socket
       |> assign(:open?, true)
       |> assign(:node, node)
-      |> maybe_fetch_node_info(node)
+      |> maybe_fetch_node_info(node, changed?)
 
-    if node_changed?(socket, node) do
+    if changed? do
       assign(socket, :links_expanded?, false)
     else
       socket
     end
   end
 
-  defp maybe_fetch_node_info(socket, %TreeNode{pid: pid}) when is_pid(pid) do
-    remote_node = socket.assigns.remote_node
+  # Manual refreshes and parent tree updates both land here, so the rate limit
+  # lives at the single fetch point. Selecting another node always fetches.
+  defp maybe_fetch_node_info(socket, node, force? \\ false)
 
-    socket
-    |> assign(:node_info, AsyncResult.loading())
-    |> assign_async(:node_info, fn -> fetch_node_info(remote_node, pid) end)
+  defp maybe_fetch_node_info(socket, %TreeNode{pid: pid}, force?) when is_pid(pid) do
+    now = System.monotonic_time(:millisecond)
+
+    if force? or stale?(socket.assigns.last_fetched_at, now) do
+      remote_node = socket.assigns.remote_node
+
+      socket
+      |> assign(:last_fetched_at, now)
+      |> assign(:node_info, AsyncResult.loading())
+      |> assign_async(:node_info, fn -> fetch_node_info(remote_node, pid) end)
+    else
+      socket
+    end
   end
 
   # Nothing to fetch for apps, ports and references: settle the async assign so
   # the body never shows a load state it will not leave.
-  defp maybe_fetch_node_info(socket, _node) do
+  defp maybe_fetch_node_info(socket, _node, _force?) do
     assign(socket, :node_info, AsyncResult.ok(nil))
   end
+
+  defp stale?(nil, _now), do: true
+  defp stale?(last_fetched_at, now), do: now - last_fetched_at >= min_refresh_ms()
+
+  defp min_refresh_ms,
+    do: Application.get_env(:voyager, :process_info_min_refresh_ms, @default_min_refresh_ms)
 
   defp node_changed?(socket, node) do
     case socket.assigns[:node] do

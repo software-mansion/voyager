@@ -221,6 +221,31 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       refute has_element?(view, "#details-panel", "Failed to load node details.")
     end
 
+    test "refresh button is rate limited", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      link_pids: link_pids,
+      sup_key: sup_key
+    } do
+      Application.put_env(:voyager, :process_info_min_refresh_ms, 1_000)
+      on_exit(fn -> Application.put_env(:voyager, :process_info_min_refresh_ms, 0) end)
+
+      # Exactly the calls the initial open needs: a second fetch would blow the
+      # expectation and surface as a failed panel.
+      expect_supervision_erpc(9, sup_pid, [port], link_pids)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      view |> element("#details-panel-refresh") |> render_click()
+      render_async(view)
+
+      assert has_element?(view, "#details-panel", "1,234")
+      refute has_element?(view, "#details-panel", "Failed to load node details.")
+    end
+
     test "refresh button is hidden for non-process nodes", %{
       conn: conn,
       sup_pid: sup_pid,
