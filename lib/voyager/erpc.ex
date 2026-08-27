@@ -30,6 +30,36 @@ defmodule Voyager.Erpc do
   def call(node, mod, fun, args, timeout_or_options),
     do: impl().call(node, mod, fun, args, timeout_or_options)
 
+  @doc """
+  Translates a `catch` kind/reason from `call/4`/`call/5` into `{:error, reason}`.
+
+  Prefer `safe_call/5` at call sites. Use `format_error/2` when a `catch` is
+  already in hand (parallel tasks, custom wrappers).
+  """
+  @spec format_error(:error | :exit | :throw, term()) :: {:error, term()}
+  def format_error(:error, {:erpc, :timeout}), do: {:error, :timeout}
+  def format_error(:error, {:erpc, :noconnection}), do: {:error, :noconnection}
+
+  def format_error(:error, {:exception, reason, _stack}),
+    do: {:error, {:remote_exception, reason}}
+
+  def format_error(:error, {:erpc, _} = reason), do: {:error, reason}
+  def format_error(:error, reason), do: {:error, reason}
+  def format_error(:exit, reason), do: {:error, {:remote_exit, reason}}
+  def format_error(:throw, value), do: {:error, {:remote_throw, value}}
+
+  @doc """
+  Like `call/5`, but returns `{:ok, result}` or `{:error, reason}` instead of
+  raising.
+  """
+  @spec safe_call(node(), module(), atom(), [term()], timeout_time() | call_options()) ::
+          {:ok, term()} | {:error, term()}
+  def safe_call(node, mod, fun, args, timeout_or_options) do
+    {:ok, call(node, mod, fun, args, timeout_or_options)}
+  catch
+    kind, reason -> format_error(kind, reason)
+  end
+
   defmodule Impl do
     @moduledoc """
     Default `Voyager.Erpc` implementation that delegates to Erlang's `:erpc`.
