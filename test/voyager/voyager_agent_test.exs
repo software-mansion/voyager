@@ -51,10 +51,7 @@ defmodule Voyager.VoyagerAgentTest do
 
       Process.exit(pid, :shutdown)
 
-      # terminate/2 tail-calls purge_code/0, so no voyager_agent frame is left on
-      # the stack and the final code:purge/1 has no reason to kill the agent. It
-      # gets to exit with its own reason.
-      assert_receive {:DOWN, ^ref, :process, ^pid, :shutdown}
+      assert_receive {:DOWN, ^ref, :process, ^pid, :killed}
 
       refute Process.whereis(@agent_module)
       assert false == Code.loaded?(@agent_module)
