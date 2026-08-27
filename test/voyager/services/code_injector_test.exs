@@ -12,10 +12,11 @@ defmodule Voyager.Services.CodeInjectorTest do
             ]}
 
   setup do
+    previous_erpc = Application.get_env(:voyager, :erpc)
     Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
 
     on_exit(fn ->
-      Application.put_env(:voyager, :erpc, Voyager.ErpcMock)
+      Application.put_env(:voyager, :erpc, previous_erpc)
       unload(:voyager_remote_code_file)
       unload(:voyager_remote_code_macro)
       unload(:voyager_remote_code_bad)

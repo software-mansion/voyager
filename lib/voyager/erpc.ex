@@ -53,6 +53,7 @@ defmodule Voyager.Erpc do
   def format_error(:error, reason), do: {:error, {:remote_error, reason}}
   def format_error(:exit, reason), do: {:error, {:remote_exit, reason}}
   def format_error(:throw, value), do: {:error, {:remote_throw, value}}
+  def format_error(_, error), do: {:error, {:unknown_error, error}}
 
   defmodule Impl do
     @moduledoc """
