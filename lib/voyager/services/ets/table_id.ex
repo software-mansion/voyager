@@ -100,7 +100,6 @@ defmodule Voyager.Services.Ets.TableId do
   defp unwrap(id) when is_atom(id) or is_reference(id), do: id
   defp unwrap(_), do: nil
 
-  defp reference_inspect?(<<"#Reference", _::binary>>), do: true
   defp reference_inspect?(<<"#Ref", _::binary>>), do: true
   defp reference_inspect?(_), do: false
 
