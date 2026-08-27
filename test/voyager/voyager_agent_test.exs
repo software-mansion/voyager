@@ -83,8 +83,7 @@ defmodule VoyagerAgentTest do
       {desc_rows, _} = :voyager_agent.proc_top([:memory], :memory, 10, :desc)
       asc = Enum.map(asc_rows, & &1.memory)
       desc = Enum.map(desc_rows, & &1.memory)
-      assert Enum.max(asc) <= Enum.max(desc)
-      assert Enum.min(asc) <= Enum.min(desc)
+      assert Enum.max(asc) <= Enum.min(desc)
     end
 
     test "an undefined search applies no filter" do
@@ -134,14 +133,17 @@ defmodule VoyagerAgentTest do
       parent = self()
 
       hog =
-        spawn(fn ->
-          big = Enum.to_list(1..50_000)
-          send(parent, {:ready, self()})
+        start_supervised!(
+          {Task,
+           fn ->
+             big = Enum.to_list(1..50_000)
+             send(parent, {:ready, self()})
 
-          receive do
-            :stop -> big
-          end
-        end)
+             receive do
+               :stop -> big
+             end
+           end}
+        )
 
       on_exit(fn -> send(hog, :stop) end)
       assert_receive {:ready, ^hog}
@@ -160,17 +162,20 @@ defmodule VoyagerAgentTest do
       parent = self()
 
       hog =
-        spawn(fn ->
-          big = Enum.to_list(1..200_000)
-          send(parent, :ready)
+        start_supervised!(
+          {Task,
+           fn ->
+             big = Enum.to_list(1..200_000)
+             send(parent, {:ready, self()})
 
-          receive do
-            :stop -> big
-          end
-        end)
+             receive do
+               :stop -> big
+             end
+           end}
+        )
 
       on_exit(fn -> send(hog, :stop) end)
-      assert_receive :ready
+      assert_receive {:ready, ^hog}
 
       # A limit larger than the process count returns every live process.
       {rows, _} = :voyager_agent.proc_top([:memory], :memory, 1_000_000)

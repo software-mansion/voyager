@@ -3,13 +3,12 @@
 -export([proc_top/3, proc_top/4, proc_top/5]).
 
 %% @equiv proc_top(Attrs, SortBy, Limit, desc, undefined)
--spec proc_top([atom()], atom(), pos_integer()) -> {[map()], non_neg_integer()}.
+-spec proc_top([atom()], atom(), integer()) -> {[map()], non_neg_integer()}.
 proc_top(Attrs, SortBy, Limit) ->
     proc_top(Attrs, SortBy, Limit, desc, undefined).
 
 %% @equiv proc_top(Attrs, SortBy, Limit, Direction, undefined)
--spec proc_top([atom()], atom(), pos_integer(), asc | desc) ->
-                  {[map()], non_neg_integer()}.
+-spec proc_top([atom()], atom(), integer(), asc | desc) -> {[map()], non_neg_integer()}.
 proc_top(Attrs, SortBy, Limit, Direction) ->
     proc_top(Attrs, SortBy, Limit, Direction, undefined).
 
@@ -25,7 +24,7 @@ proc_top(Attrs, SortBy, Limit, Direction) ->
 %% of `Attrs' and resolve to an integer. A non-`undefined'/non-empty `Search'
 %% keeps only processes whose `pid' or a non-numeric attribute contains it,
 %% case-insensitively.
--spec proc_top([atom()], atom(), pos_integer(), asc | desc, undefined | iodata()) ->
+-spec proc_top([atom()], atom(), integer(), asc | desc, undefined | iodata()) ->
                   {[map()], non_neg_integer()}.
 proc_top(Attrs, SortBy, Limit, Direction, Search) ->
     with_bounded_heap(fun() -> scan(Attrs, SortBy, Limit, Direction, needle(Search)) end).
