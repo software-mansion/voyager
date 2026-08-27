@@ -3,11 +3,17 @@ defmodule Voyager.VoyagerAgentTest do
 
   @compile {:no_warn_undefined, :voyager_agent}
   @agent_module :voyager_agent
-  @agent_path Path.join(:code.priv_dir(:voyager), "voyager_agent.erl")
+  @agent_filename "voyager_agent.erl"
 
   setup_all do
-    {:ok, @agent_module, binary} = :compile.file(@agent_path, [:binary, :return_errors])
-    {:module, @agent_module} = :code.load_binary(@agent_module, @agent_path, binary)
+    path =
+      :voyager
+      |> :code.priv_dir()
+      |> Path.join(@agent_filename)
+      |> String.to_charlist()
+
+    {:ok, @agent_module, binary} = :compile.file(path, [:binary, :return_errors])
+    {:module, @agent_module} = :code.load_binary(@agent_module, path, binary)
 
     on_exit(fn ->
       :code.purge(@agent_module)
@@ -54,9 +60,9 @@ defmodule Voyager.VoyagerAgentTest do
       Process.exit(pid, :shutdown)
 
       assert_receive {:DOWN, ^ref, :process, ^pid, :shutdown}
+      refute Process.whereis(@agent_module)
       # wait for the code to be purged
       Process.sleep(200)
-      refute Process.whereis(@agent_module)
       assert false == :code.is_loaded(@agent_module)
     end
   end
