@@ -92,21 +92,21 @@ defmodule Voyager.Services.NodeConnector do
   end
 
   defp diagnose_registered_failure(host) do
-    local_longnames? = :net_kernel.longnames() == true
+    longnames? = :net_kernel.longnames() == true
     has_dots? = String.contains?(host, ".")
 
-    is_ip_literal? =
-      case :inet.parse_address(String.to_charlist(host)) do
-        {:ok, _address} -> true
-        {:error, _} -> false
-      end
-
     cond do
-      not local_longnames? and has_dots? ->
+      not longnames? and has_dots? ->
         {:error, :name_type_mismatch}
 
-      local_longnames? and not has_dots? and not is_ip_literal? ->
-        {:error, :name_type_mismatch}
+      longnames? and not has_dots? ->
+        case :inet.parse_address(String.to_charlist(host)) do
+          {:ok, _address} ->
+            {:error, :bad_cookie}
+
+          {:error, _} ->
+            {:error, :name_type_mismatch}
+        end
 
       true ->
         {:error, :bad_cookie}
