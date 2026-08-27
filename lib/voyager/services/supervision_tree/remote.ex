@@ -203,9 +203,6 @@ defmodule Voyager.Services.SupervisionTree.Remote do
     :error, {:exception, reason, _stack} ->
       {:error, {:remote_exception, reason}}
 
-    :error, {:erpc, _} = reason ->
-      {:error, reason}
-
     :error, reason ->
       {:error, reason}
 

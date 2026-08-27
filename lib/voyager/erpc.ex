@@ -43,7 +43,6 @@ defmodule Voyager.Erpc do
   def format_error(:error, {:exception, reason, _stack}),
     do: {:error, {:remote_exception, reason}}
 
-  def format_error(:error, {:erpc, _} = reason), do: {:error, reason}
   def format_error(:error, reason), do: {:error, reason}
   def format_error(:exit, reason), do: {:error, {:remote_exit, reason}}
   def format_error(:throw, value), do: {:error, {:remote_throw, value}}

@@ -143,7 +143,6 @@ defmodule Voyager.Services.ProcessInfo do
     :error, {:erpc, :timeout} -> {:error, :timeout}
     :error, {:erpc, :noconnection} -> {:error, :noconnection}
     :error, {:exception, reason, _stack} -> {:error, {:remote_exception, reason}}
-    :error, {:erpc, _} = reason -> {:error, reason}
     :error, reason -> {:error, reason}
     :exit, reason -> {:error, {:remote_exit, reason}}
     :throw, value -> {:error, {:remote_throw, value}}
