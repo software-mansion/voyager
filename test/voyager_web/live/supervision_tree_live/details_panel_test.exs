@@ -151,6 +151,39 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       refute has_element?(view, "#details-panel", twentieth_link)
     end
 
+    test "collapses expanded links when another node is selected", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      link_pids: link_pids,
+      sup_key: sup_key,
+      port_key: port_key,
+      twentieth_link: twentieth_link
+    } do
+      # The 9 calls of the initial open plus the process_info/system_info pair
+      # of re-selecting the supervisor.
+      expect_supervision_erpc(11, sup_pid, [port], link_pids)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      view |> element("#details-panel-toggle-links") |> render_click()
+
+      assert has_element?(view, "#details-panel-toggle-links", "Show Less")
+      assert has_element?(view, "#details-panel", twentieth_link)
+
+      # The port carries no process info, so only the selection changes.
+      render_hook(view, "select-node", %{"key" => port_key})
+      render(view)
+
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      assert has_element?(view, "#details-panel-toggle-links", "Show More")
+      refute has_element?(view, "#details-panel", twentieth_link)
+    end
+
     test "caps the expanded link list", %{
       conn: conn,
       sup_pid: sup_pid,
@@ -228,8 +261,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       link_pids: link_pids,
       sup_key: sup_key
     } do
+      previous = Application.get_env(:voyager, :process_info_min_refresh_ms)
       Application.put_env(:voyager, :process_info_min_refresh_ms, 1_000)
-      on_exit(fn -> Application.put_env(:voyager, :process_info_min_refresh_ms, 0) end)
+      on_exit(fn -> Application.put_env(:voyager, :process_info_min_refresh_ms, previous) end)
 
       # Exactly the calls the initial open needs: a second fetch would blow the
       # expectation and surface as a failed panel.
