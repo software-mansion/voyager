@@ -3,16 +3,34 @@ defmodule Voyager.VoyagerAgentTest do
 
   @compile {:no_warn_undefined, :voyager_agent}
   @agent_module :voyager_agent
+  @agent_path Path.join(:code.priv_dir(:voyager), "voyager_agent.erl")
 
-  setup do
-    load_agent()
+  setup_all do
+    {:ok, @agent_module, binary} = :compile.file(@agent_path, [:binary, :return_errors])
+    {:module, @agent_module} = :code.load_binary(@agent_module, @agent_path, binary)
 
     on_exit(fn ->
-      stop_agent()
-      purge_agent()
+      :code.purge(@agent_module)
     end)
 
     :ok
+  end
+
+  setup do
+    on_exit(fn ->
+      case Process.whereis(@agent_module) do
+        nil ->
+          :ok
+
+        pid ->
+          ref = Process.monitor(pid)
+          Process.exit(pid, :kill)
+
+          receive do
+            {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
+          end
+      end
+    end)
   end
 
   describe "register/1" do
@@ -40,38 +58,6 @@ defmodule Voyager.VoyagerAgentTest do
       Process.sleep(200)
       refute Process.whereis(@agent_module)
       assert false == :code.is_loaded(@agent_module)
-    end
-  end
-
-  defp load_agent do
-    path =
-      :voyager
-      |> :code.priv_dir()
-      |> Path.join("voyager_agent.erl")
-      |> String.to_charlist()
-
-    {:ok, @agent_module, binary} = :compile.file(path, [:binary, :return_errors])
-    {:module, @agent_module} = :code.load_binary(@agent_module, path, binary)
-  end
-
-  # Only purge: the agent deletes the module itself from terminate/2, and a
-  # competing :code.delete/1 here would race that. setup/0 reloads it anyway.
-  defp purge_agent do
-    :code.purge(@agent_module)
-  end
-
-  defp stop_agent do
-    case Process.whereis(@agent_module) do
-      nil ->
-        :ok
-
-      pid ->
-        ref = Process.monitor(pid)
-        Process.exit(pid, :kill)
-
-        receive do
-          {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
-        end
     end
   end
 end
