@@ -16,15 +16,12 @@
 -type state() :: #state{nodes :: #{node() => true}}.
 
 %% =====================================================================
-%% API - functions exposed to be used by the Voyager via erpc.
-%% =====================================================================
+%% REGISTER - Adds the parent to the list of nodes and returns the server pid.
+%% %% =====================================================================
 
-%% =====================================================================
 %% Adds the parent to the list of nodes and returns the server pid.
 %% If the server is not running, it starts it and registers the parent.
 %% Uses `gen_server:start/4` so the process outlives the transient erpc caller.
-%% =====================================================================
-
 -spec register(node()) -> {ok, pid()} | {error, nodedown} | {error, term()}.
 register(ParentNode) when is_atom(ParentNode) ->
     case whereis(?MODULE) of
@@ -41,8 +38,17 @@ register(ParentNode) when is_atom(ParentNode) ->
             do_register(Pid, ParentNode)
     end.
 
+-spec do_register(pid(), node()) -> {ok, pid()} | {error, term()}.
+do_register(ServerPid, ParentNode) ->
+    case gen_server:call(?MODULE, {register, ParentNode}) of
+        ok ->
+            {ok, ServerPid};
+        {error, _} = Error ->
+            Error
+    end.
+
 %% =====================================================================
-%% Information about the node and its metrics.
+%%  NODE INFO - Information about the node and its metrics.
 %% =====================================================================
 
 -type metric() ::
@@ -61,12 +67,12 @@ info() ->
      {reductions, erlang:statistics(reductions)}].
 
 %% =====================================================================
-%% `gen_server` callbacks implementation.
+%% NODE WATCHER - gen_server callbacks and watcher for Nodes.
 %% =====================================================================
 
 -spec init(node()) -> {ok, state()} | {stop, term()}.
 init(ParentNode) when is_atom(ParentNode) ->
-    %% So terminate/2 runs on shutdown and can purge injected code.
+    %% Turns an incoming exit signal into an {'EXIT', _, _} message that handle_info/2 stops on.
     process_flag(trap_exit, true),
     case add_node(#state{nodes = #{}}, ParentNode) of
         {ok, State} ->
@@ -91,8 +97,8 @@ handle_call(_Msg, _From, State) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
--spec handle_info({nodedown, node()} | term(), state()) ->
-                     {noreply, state()} | {stop, normal, state()}.
+-spec handle_info(term(), state()) ->
+                     {noreply, state()} | {stop, normal | shutdown, state()}.
 handle_info({nodedown, ParentNode}, #state{nodes = Nodes} = State) ->
     NewNodes = maps:remove(ParentNode, Nodes),
     NewState = State#state{nodes = NewNodes},
@@ -102,6 +108,8 @@ handle_info({nodedown, ParentNode}, #state{nodes = Nodes} = State) ->
         _ ->
             {noreply, NewState}
     end;
+handle_info({'EXIT', _From, _Reason}, State) ->
+    {stop, shutdown, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -115,19 +123,6 @@ terminate(_Reason, _State) ->
 -spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_Vsn, State, _Extra) ->
     {ok, State}.
-
-%% =====================================================================
-%% Internal
-%% =====================================================================
-
--spec do_register(pid(), node()) -> {ok, pid()} | {error, term()}.
-do_register(ServerPid, ParentNode) ->
-    case gen_server:call(?MODULE, {register, ParentNode}) of
-        ok ->
-            {ok, ServerPid};
-        {error, _} = Error ->
-            Error
-    end.
 
 %% Subscribe to nodedown for ParentNode.
 %% Duplicate registers are a no-op so `erlang:monitor_node/2` does not stack subscriptions.
