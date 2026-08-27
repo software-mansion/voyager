@@ -32,6 +32,12 @@ defmodule VoyagerAgentTest do
       assert total > 0
     end
 
+    test "restores the caller's max_heap_size instead of leaving it capped" do
+      before = Process.info(self(), :max_heap_size)
+      {_rows, _total} = :voyager_agent.proc_top([:memory], :memory, 5)
+      assert Process.info(self(), :max_heap_size) == before
+    end
+
     test "returns the total process count alongside the entries" do
       assert {rows, total} = :voyager_agent.proc_top([:memory], :memory, 5)
       assert is_integer(total)

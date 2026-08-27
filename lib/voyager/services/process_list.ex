@@ -41,7 +41,7 @@ defmodule Voyager.Services.ProcessList do
   @spec top(node(), [atom()], atom(), pos_integer(), timeout(), direction(), String.t() | nil) ::
           {:ok, {[entry()], non_neg_integer()}} | {:error, term()}
   def top(node, attrs, sort_by, limit, timeout, direction \\ :desc, search \\ nil)
-      when direction in [:asc, :desc] do
+      when is_integer(limit) and limit > 0 and direction in [:asc, :desc] do
     requested = ensure_sort_by(attrs, sort_by)
 
     cond do

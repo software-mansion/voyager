@@ -90,6 +90,16 @@ defmodule Voyager.Services.ProcessListTest do
       end
     end
 
+    test "rejects a non-positive limit" do
+      assert_raise FunctionClauseError, fn ->
+        ProcessList.top(@node, [:memory], :memory, 0, 1_000)
+      end
+
+      assert_raise FunctionClauseError, fn ->
+        ProcessList.top(@node, [:memory], :memory, -1, 1_000)
+      end
+    end
+
     test "adds sort_by to the fetched attributes when missing" do
       capture_erpc_args()
 

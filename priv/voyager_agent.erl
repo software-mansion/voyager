@@ -8,7 +8,8 @@ proc_top(Attrs, SortBy, Limit) ->
     proc_top(Attrs, SortBy, Limit, desc, undefined).
 
 %% @equiv proc_top(Attrs, SortBy, Limit, Direction, undefined)
--spec proc_top([atom()], atom(), pos_integer(), asc | desc) -> {[map()], non_neg_integer()}.
+-spec proc_top([atom()], atom(), pos_integer(), asc | desc) ->
+                  {[map()], non_neg_integer()}.
 proc_top(Attrs, SortBy, Limit, Direction) ->
     proc_top(Attrs, SortBy, Limit, Direction, undefined).
 
@@ -27,12 +28,10 @@ proc_top(Attrs, SortBy, Limit, Direction) ->
 -spec proc_top([atom()], atom(), pos_integer(), asc | desc, undefined | iodata()) ->
                   {[map()], non_neg_integer()}.
 proc_top(Attrs, SortBy, Limit, Direction, Search) ->
-    %% 500000 words ~= 4MB on 64-bit.
-    process_flag(max_heap_size,
-                 #{size => 500000,
-                   kill => true,
-                   error_logger => true}),
-    Top = fold(iterator(), Attrs, SortBy, Limit, Direction, needle(Search), [], 0),
+    with_bounded_heap(fun() -> scan(Attrs, SortBy, Limit, Direction, needle(Search)) end).
+
+scan(Attrs, SortBy, Limit, Direction, Needle) ->
+    Top = fold(iterator(), Attrs, SortBy, Limit, Direction, Needle, [], 0),
     {[to_map(Entry) || Entry <- lists:reverse(Top)], erlang:system_info(process_count)}.
 
 %% Prefer the incremental iterator (OTP 27+); fall back to a plain list.
@@ -123,7 +122,9 @@ value(SortBy, Info) ->
 needle(undefined) ->
     undefined;
 needle(Search) ->
-    case string:lowercase(unicode:characters_to_binary(Search)) of
+    case string:lowercase(
+             unicode:characters_to_binary(Search))
+    of
         <<>> ->
             undefined;
         Needle ->
@@ -154,3 +155,19 @@ to_search_string(Value) ->
 
 to_map({_Value, Pid, Info}) ->
     maps:from_list([{pid, Pid} | Info]).
+
+%% Runs `Fun' with this process' heap capped (500000 words ~= 4MB on 64-bit) so
+%% a pathological scan is killed rather than the node, restoring the previous
+%% `max_heap_size' afterwards. The scanning functions are also called in-process
+%% (not only from a throwaway erpc worker), so the flag must not leak out.
+-spec with_bounded_heap(fun(() -> Result)) -> Result.
+with_bounded_heap(Fun) ->
+    Old = process_flag(max_heap_size,
+                       #{size => 500000,
+                         kill => true,
+                         error_logger => true}),
+    try
+        Fun()
+    after
+        process_flag(max_heap_size, Old)
+    end.
