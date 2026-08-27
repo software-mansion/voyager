@@ -22,7 +22,8 @@
 %% Adds the parent to the list of nodes and returns the server pid.
 %% If the server is not running, it starts it and registers the parent.
 %% Uses `gen_server:start/4` so the process outlives the transient erpc caller.
--spec register(node()) -> {ok, pid()} | {error, nodedown} | {error, term()}.
+%% This function can crash if the `init/1` function fails.
+-spec register(node()) -> {ok, pid()} | {error, term()}.
 register(ParentNode) when is_atom(ParentNode) ->
     case whereis(?MODULE) of
         undefined ->
@@ -31,11 +32,11 @@ register(ParentNode) when is_atom(ParentNode) ->
                     {ok, Pid};
                 {error, {already_started, _Pid}} ->
                     do_register(ParentNode);
-                Error ->
+                _Error ->
                     %% terminate/2 is not called when init/1 fails, so unload here or the
                     %% module stays loaded on the node after a failed register/1.
-                    purge_code(),
-                    Error
+                    %% it purges the code so this return value is ignored.
+                    purge_code()
             end;
         _Pid ->
             do_register(ParentNode)
@@ -133,11 +134,12 @@ add_node(#state{nodes = Nodes} = State, ParentNode)
             end
     end.
 
-%% `purge` stopps all processes running this module and deletes the module old module code.
-%% `delete` moves current module code to old
-%% second `purge` purges the old module code
--spec purge_code() -> boolean().
+%% `purge` stops all processes running this module and deletes the module old module code.
+%% `delete` moves current module code to old code.
+%% second `purge` purges the old module code.
+-spec purge_code() -> ok.
 purge_code() ->
     code:purge(?MODULE),
     code:delete(?MODULE),
-    code:purge(?MODULE).
+    code:purge(?MODULE),
+    ok.
