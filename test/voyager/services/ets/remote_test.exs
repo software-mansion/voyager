@@ -98,12 +98,16 @@ defmodule Voyager.Services.Ets.RemoteTest do
     end
 
     test "does not call :voyager_agent" do
+      test = self()
+
       expect(Voyager.ErpcMock, :call, fn _node, mod, _fun, _args, _timeout ->
-        refute mod == :voyager_agent
+        send(test, {:called_mod, mod})
         []
       end)
 
       assert {:ok, []} = Remote.list(@node, @timeout)
+      assert_received {:called_mod, mod}
+      refute mod == :voyager_agent
     end
 
     test "propagates :noconnection from the first erpc call" do
