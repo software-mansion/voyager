@@ -10,7 +10,7 @@ defmodule Voyager.Epmd.Client do
   """
   @spec get_names(:inet.ip_address() | :inet.hostname(), :inet.port_number(), timeout()) ::
           {:ok, String.t()} | {:error, term()}
-  def get_names(host \\ ~c"127.0.0.1", port \\ Voyager.Epmd.Daemon.port(), timeout \\ 1_000) do
+  def get_names(host, port, timeout \\ 1_000) do
     opts = [:binary, active: false, packet: :raw]
 
     with {:ok, sock} <- :gen_tcp.connect(host, port, opts, timeout) do
