@@ -24,6 +24,37 @@ defmodule Voyager.Epmd.Daemon do
     end
   end
 
+  @doc """
+  Checks if the local EPMD is reachable via TCP.
+  """
+  @spec running?() :: boolean()
+  def running? do
+    case Client.get_names(~c"127.0.0.1", port(), 500) do
+      {:ok, _text} -> true
+      {:error, _reason} -> false
+    end
+  end
+
+  @doc """
+  Starts EPMD if needed and verifies it is actually responding.
+  """
+  @spec ensure_running() :: :ok | {:error, term()}
+  def ensure_running do
+    if running?() do
+      :ok
+    else
+      handle_start(start())
+    end
+  end
+
+  defp handle_start(:ok) do
+    if running?(), do: :ok, else: {:error, :not_running}
+  end
+
+  defp handle_start({:error, reason}) do
+    {:error, {:start_failed, reason}}
+  end
+
   defp do_start do
     case epmd_path() do
       nil ->
@@ -45,17 +76,6 @@ defmodule Voyager.Epmd.Daemon do
             Logger.warning("Failed to execute epmd at #{path}: #{inspect(e)}")
             {:error, {:exception, e}}
         end
-    end
-  end
-
-  @doc """
-  Checks if the local EPMD is reachable via TCP.
-  """
-  @spec running?() :: boolean()
-  def running? do
-    case Client.get_names(~c"127.0.0.1", port(), 500) do
-      {:ok, _text} -> true
-      {:error, _reason} -> false
     end
   end
 

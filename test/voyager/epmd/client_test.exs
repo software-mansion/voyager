@@ -6,7 +6,7 @@ defmodule Voyager.Epmd.ClientTest do
   describe "get_names/3" do
     test "returns names text from the local running EPMD" do
       # EPMD is always running during tests
-      assert {:ok, text} = Client.get_names(~c"127.0.0.1", 1, 500)
+      assert {:ok, text} = Client.get_names(~c"127.0.0.1", 4369, 500)
       assert is_binary(text)
     end
 

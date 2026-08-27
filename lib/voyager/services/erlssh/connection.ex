@@ -4,8 +4,8 @@ defmodule Voyager.Services.Erlssh.Connection do
   and discover the Erlang distribution port by querying the remote `epmd` over
   the tunnel.
   """
-
   alias Voyager.Epmd.Client
+  alias Voyager.Epmd.Daemon
   alias Voyager.Services.Erlssh.Auth
 
   require Auth
@@ -39,7 +39,7 @@ defmodule Voyager.Services.Erlssh.Connection do
   """
   @spec discover_dist_port(:ssh.connection_ref(), String.t(), integer()) ::
           {:ok, pos_integer()} | {:error, term()}
-  def discover_dist_port(conn_ref, node_name, epmd_port \\ Voyager.Epmd.Daemon.port()) do
+  def discover_dist_port(conn_ref, node_name, epmd_port \\ Daemon.port()) do
     with {:ok, epmd_local_port} <- open_tunnel(conn_ref, epmd_port),
          {:ok, output} <-
            Client.get_names(~c"127.0.0.1", epmd_local_port, @ssh_timeout) do

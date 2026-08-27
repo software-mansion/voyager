@@ -14,4 +14,10 @@ defmodule Voyager.Epmd.DaemonTest do
       assert :ok = Daemon.start()
     end
   end
+
+  describe "ensure_running/0" do
+    test "returns :ok when EPMD is running and responding" do
+      assert :ok = Daemon.ensure_running()
+    end
+  end
 end
