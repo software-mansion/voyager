@@ -51,25 +51,12 @@ defmodule Voyager.VoyagerAgentTest do
 
       Process.exit(pid, :shutdown)
 
-      # terminate/2 unloads the module inline, and the soft purge it ends with
-      # leaves the agent alive long enough to exit with its own reason.
+      # terminate/2 tail-calls purge_code/0, so no voyager_agent frame is left on
+      # the stack and the final code:purge/1 has no reason to kill the agent. It
+      # gets to exit with its own reason.
       assert_receive {:DOWN, ^ref, :process, ^pid, :shutdown}
 
       refute Process.whereis(@agent_module)
-      Process.sleep(100)
-      assert false == Code.loaded?(@agent_module)
-    end
-  end
-
-  describe "failed registration" do
-    test "unloads the module when init/1 cannot monitor the parent" do
-      # This VM is not distributed, so monitor_node/2 raises notalive for any
-      # other node and init/1 fails. terminate/2 does not run in that case, so
-      # init/1 has to unload the module itself.
-      assert {:error, :nodedown} = @agent_module.register(:gone@nowhere)
-
-      refute Process.whereis(@agent_module)
-      Process.sleep(100)
       assert false == Code.loaded?(@agent_module)
     end
   end

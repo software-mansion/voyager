@@ -32,6 +32,9 @@ register(ParentNode) when is_atom(ParentNode) ->
                 {error, {already_started, _Pid}} ->
                     do_register(ParentNode);
                 Error ->
+                    %% terminate/2 is not called when init/1 fails, so unload here or the
+                    %% module stays loaded on the node after a failed register/1.
+                    purge_code(),
                     Error
             end;
         _Pid ->
@@ -78,9 +81,6 @@ init(ParentNode) when is_atom(ParentNode) ->
         {ok, State} ->
             {ok, State};
         {error, Reason} ->
-            %% terminate/2 is not called when init/1 fails, so unload here or the
-            %% module stays loaded on the node after a failed register/1.
-            spawn(fun purge_code/0),
             {stop, Reason}
     end.
 
@@ -118,9 +118,7 @@ handle_info(_Info, State) ->
 
 -spec terminate(term(), state()) -> ok.
 terminate(_Reason, _State) ->
-    %% Spawn so this gen_server can finish stopping first.
-    spawn(fun purge_code/0),
-    ok.
+    purge_code().
 
 -spec code_change(term(), state(), term()) -> {ok, state()}.
 code_change(_Vsn, State, _Extra) ->
