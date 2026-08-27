@@ -29,20 +29,20 @@ register(ParentNode) when is_atom(ParentNode) ->
             case gen_server:start({local, ?MODULE}, ?MODULE, ParentNode, []) of
                 {ok, Pid} ->
                     {ok, Pid};
-                {error, {already_started, Pid}} ->
-                    do_register(Pid, ParentNode);
+                {error, {already_started, _Pid}} ->
+                    do_register(ParentNode);
                 Error ->
                     Error
             end;
-        Pid ->
-            do_register(Pid, ParentNode)
+        _Pid ->
+            do_register(ParentNode)
     end.
 
--spec do_register(pid(), node()) -> {ok, pid()} | {error, term()}.
-do_register(ServerPid, ParentNode) ->
+-spec do_register(node()) -> {ok, pid()} | {error, term()}.
+do_register(ParentNode) ->
     case gen_server:call(?MODULE, {register, ParentNode}) of
-        ok ->
-            {ok, ServerPid};
+        {ok, Pid} ->
+            {ok, Pid};
         {error, _} = Error ->
             Error
     end.
@@ -78,15 +78,18 @@ init(ParentNode) when is_atom(ParentNode) ->
         {ok, State} ->
             {ok, State};
         {error, Reason} ->
+            %% terminate/2 is not called when init/1 fails, so unload here or the
+            %% module stays loaded on the node after a failed register/1.
+            spawn(fun purge_code/0),
             {stop, Reason}
     end.
 
 -spec handle_call({register, node()} | term(), {pid(), term()}, state()) ->
-                     {reply, ok | {error, term()}, state()}.
+                     {reply, {ok, pid()} | {error, term()}, state()}.
 handle_call({register, ParentNode}, _From, State) when is_atom(ParentNode) ->
     case add_node(State, ParentNode) of
         {ok, NewState} ->
-            {reply, ok, NewState};
+            {reply, {ok, self()}, NewState};
         {error, _} = Error ->
             {reply, Error, State}
     end;
@@ -115,7 +118,6 @@ handle_info(_Info, State) ->
 
 -spec terminate(term(), state()) -> ok.
 terminate(_Reason, _State) ->
-    %% The second `code:purge/1` kills processes still running this module.
     %% Spawn so this gen_server can finish stopping first.
     spawn(fun purge_code/0),
     ok.
@@ -144,6 +146,9 @@ add_node(#state{nodes = Nodes} = State, ParentNode)
             end
     end.
 
+%% `purge` stopps all processes running this module and deletes the module old module code.
+%% `delete` moves current module code to old
+%% second `purge` purges the old module code
 -spec purge_code() -> boolean().
 purge_code() ->
     code:purge(?MODULE),

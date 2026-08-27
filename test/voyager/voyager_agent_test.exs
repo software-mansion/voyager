@@ -5,7 +5,7 @@ defmodule Voyager.VoyagerAgentTest do
   @agent_module :voyager_agent
   @agent_filename "voyager_agent.erl"
 
-  setup_all do
+  setup do
     path =
       :voyager
       |> :code.priv_dir()
@@ -15,14 +15,6 @@ defmodule Voyager.VoyagerAgentTest do
     {:ok, @agent_module, binary} = :compile.file(path, [:binary, :return_errors])
     {:module, @agent_module} = :code.load_binary(@agent_module, path, binary)
 
-    on_exit(fn ->
-      :code.purge(@agent_module)
-    end)
-
-    :ok
-  end
-
-  setup do
     on_exit(fn ->
       case Process.whereis(@agent_module) do
         nil ->
@@ -59,11 +51,26 @@ defmodule Voyager.VoyagerAgentTest do
 
       Process.exit(pid, :shutdown)
 
+      # terminate/2 unloads the module inline, and the soft purge it ends with
+      # leaves the agent alive long enough to exit with its own reason.
       assert_receive {:DOWN, ^ref, :process, ^pid, :shutdown}
+
       refute Process.whereis(@agent_module)
-      # wait for the code to be purged
-      Process.sleep(200)
-      assert false == :code.is_loaded(@agent_module)
+      Process.sleep(100)
+      assert false == Code.loaded?(@agent_module)
+    end
+  end
+
+  describe "failed registration" do
+    test "unloads the module when init/1 cannot monitor the parent" do
+      # This VM is not distributed, so monitor_node/2 raises notalive for any
+      # other node and init/1 fails. terminate/2 does not run in that case, so
+      # init/1 has to unload the module itself.
+      assert {:error, :nodedown} = @agent_module.register(:gone@nowhere)
+
+      refute Process.whereis(@agent_module)
+      Process.sleep(100)
+      assert false == Code.loaded?(@agent_module)
     end
   end
 end
