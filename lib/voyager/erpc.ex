@@ -19,6 +19,7 @@ defmodule Voyager.Erpc do
           | {:remote_exception, term()}
           | {:remote_exit, term()}
           | {:remote_throw, term()}
+          | {:unknown_error, term()}
 
   @doc """
   Invokes `fun` in `mod` with `args` on `node`, mirroring `:erpc.call/4`.
