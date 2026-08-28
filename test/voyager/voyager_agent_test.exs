@@ -17,7 +17,7 @@ defmodule VoyagerAgentTest do
     :ok
   end
 
-  describe "proc_top/3" do
+  describe "proc_top/5" do
     test "returns at most `limit` entries" do
       assert {rows, _total} = :voyager_agent.proc_top([:memory], :memory, 3, :desc, :undefined)
       assert length(rows) == 3
