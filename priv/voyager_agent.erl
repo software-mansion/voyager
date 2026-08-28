@@ -9,6 +9,10 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
 
+%% Bounds the start/register retry so a node whose agent keeps stopping
+%% cannot spin here forever.
+-define(REGISTER_ATTEMPTS, 3).
+
 %% Voyager nodes currently attached. The agent stops and purges
 %% its own code when this map becomes empty (last ParentNode is gone).
 -record(state, {nodes = #{} :: #{node() => true}}).
@@ -25,13 +29,19 @@
 %% This function can crash if the `init/1` function fails.
 -spec register(node()) -> {ok, pid()} | {error, term()}.
 register(ParentNode) when is_atom(ParentNode) ->
+    do_start(ParentNode, ?REGISTER_ATTEMPTS).
+
+-spec do_start(node(), non_neg_integer()) -> {ok, pid()} | {error, term()}.
+do_start(_ParentNode, 0) ->
+    {error, unavailable};
+do_start(ParentNode, Attempts) ->
     case whereis(?MODULE) of
         undefined ->
             case gen_server:start({local, ?MODULE}, ?MODULE, ParentNode, []) of
                 {ok, Pid} ->
                     {ok, Pid};
                 {error, {already_started, _Pid}} ->
-                    do_register(ParentNode);
+                    do_register(ParentNode, Attempts);
                 _Error ->
                     %% terminate/2 is not called when init/1 fails, so unload here or the
                     %% module stays loaded on the node after a failed register/1.
@@ -39,16 +49,24 @@ register(ParentNode) when is_atom(ParentNode) ->
                     purge_code()
             end;
         _Pid ->
-            do_register(ParentNode)
+            do_register(ParentNode, Attempts)
     end.
 
--spec do_register(node()) -> {ok, pid()} | {error, term()}.
-do_register(ParentNode) ->
-    case gen_server:call(?MODULE, {register, ParentNode}) of
+%% The agent stops itself when its last parent goes down, so it can be gone
+%% between `whereis/1` above and this call. That exits with `noproc`, so retry
+%% the whole start/register sequence instead of letting the exit escape.
+-spec do_register(node(), pos_integer()) -> {ok, pid()} | {error, term()}.
+do_register(ParentNode, Attempts) ->
+    try gen_server:call(?MODULE, {register, ParentNode}) of
         {ok, Pid} ->
             {ok, Pid};
         {error, _} = Error ->
             Error
+    catch
+        exit:{noproc, _} ->
+            do_start(ParentNode, Attempts - 1);
+        exit:{normal, _} ->
+            do_start(ParentNode, Attempts - 1)
     end.
 
 %% =====================================================================
@@ -93,6 +111,14 @@ handle_cast(_Msg, State) ->
 -spec handle_info(term(), state()) ->
                      {noreply, state()} | {stop, normal | shutdown, state()}.
 handle_info({nodedown, ParentNode}, #state{nodes = Nodes} = State) ->
+    %% Each monitor_node(N, true) is one subscription, so drop ours or it
+    %% accumulates across parent churn.
+    try
+        erlang:monitor_node(ParentNode, false)
+    catch
+        error:notalive ->
+            ok
+    end,
     NewNodes = maps:remove(ParentNode, Nodes),
     NewState = State#state{nodes = NewNodes},
     case maps:size(NewNodes) of

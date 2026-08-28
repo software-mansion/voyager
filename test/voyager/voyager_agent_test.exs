@@ -46,6 +46,27 @@ defmodule Voyager.VoyagerAgentTest do
       assert {:ok, ^pid} = @agent_module.register(Node.self())
       assert :sys.get_state(@agent_module) == {:state, %{Node.self() => true}}
     end
+
+    test "restarts instead of exiting when the agent dies during the call" do
+      # Stand in for the agent so the name is registered and whereis/1 succeeds,
+      # then die without replying. That is the race window: register/1 has
+      # already committed to do_register/2 when the process disappears.
+      stub =
+        spawn(fn ->
+          receive do
+            {:"$gen_call", _from, {:register, _node}} -> exit(:normal)
+          end
+        end)
+
+      Process.register(stub, @agent_module)
+      ref = Process.monitor(stub)
+
+      assert {:ok, pid} = @agent_module.register(Node.self())
+
+      assert_receive {:DOWN, ^ref, :process, ^stub, :normal}
+      assert is_pid(pid)
+      assert pid == Process.whereis(@agent_module)
+    end
   end
 
   describe "exit signals" do

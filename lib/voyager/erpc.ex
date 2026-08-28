@@ -43,7 +43,7 @@ defmodule Voyager.Erpc do
   @doc """
   Maps an `:erpc.call` catch kind/reason into `{:error, reason}`.
   """
-  @spec format_error(atom(), term()) :: {:error, erpc_error()}
+  @spec format_error(:error | :exit | :throw, term()) :: {:error, erpc_error()}
   def format_error(:error, {:erpc, :timeout}), do: {:error, :timeout}
   def format_error(:error, {:erpc, :noconnection}), do: {:error, :noconnection}
 
