@@ -9,7 +9,6 @@ defmodule Voyager.Services.CodeInjector do
 
   alias Voyager.Erpc
 
-  @agent_file "voyager_agent.erl"
   @compile_timeout 15_000
   @load_timeout 5_000
   @compile_opts [:binary, :return_errors]
@@ -32,16 +31,6 @@ defmodule Voyager.Services.CodeInjector do
          {:ok, module, binary} <- remote_compile(node, forms) do
       remote_load(node, module, Path.basename(path), binary)
     end
-  end
-
-  @doc """
-  Path to the Voyager agent source shipped in this application's `priv` directory.
-  """
-  @spec agent_path() :: Path.t()
-  def agent_path do
-    :voyager
-    |> :code.priv_dir()
-    |> Path.join(@agent_file)
   end
 
   defp preprocess(path) do
