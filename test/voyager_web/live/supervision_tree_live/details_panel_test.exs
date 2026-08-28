@@ -83,7 +83,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       assert has_element?(view, "#details-panel", "Supervisor")
       assert has_element?(view, "#details-panel", "demo_supervisor")
       assert has_element?(view, "#details-panel", "Overview")
-      assert has_element?(view, "#details-panel", "Binary")
+      assert has_element?(view, "#details-panel", "Message queue data")
       assert has_element?(view, "#details-panel", "Last calls")
       assert has_element?(view, "#details-panel", "Trace")
       assert has_element?(view, "#details-panel", "Suspending")
@@ -130,11 +130,15 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       sup_key: sup_key,
       twentieth_link: twentieth_link
     } do
-      # Same 9 calls as "renders process details for a supervisor".
-      expect_supervision_erpc(9, sup_pid, [port], link_pids)
+      # Same 9 calls as "renders process details for a supervisor", plus the
+      # explicit fetch_links call triggered by clicking "Show links" below.
+      expect_supervision_erpc(10, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      view |> element("#details-panel-load-links") |> render_click()
       render_async(view)
 
       assert has_element?(view, "#details-panel-toggle-links", "Show More")
@@ -162,11 +166,15 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       link_pids = for n <- 1..205, do: :erlang.list_to_pid(~c"<0.#{200 + n}.0>")
       last_link = link_pids |> List.last() |> pid_key()
 
-      # Same 9 calls as "renders process details for a supervisor".
-      expect_supervision_erpc(9, sup_pid, [port], link_pids)
+      # Same 9 calls as "renders process details for a supervisor", plus the
+      # explicit fetch_links call triggered by clicking "Show links" below.
+      expect_supervision_erpc(10, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      view |> element("#details-panel-load-links") |> render_click()
       render_async(view)
 
       view |> element("#details-panel-toggle-links") |> render_click()
@@ -201,10 +209,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       # a different snapshot so the panel content visibly changes.
       expect(Voyager.ErpcMock, :call, fn _node, :erlang, :process_info, [_pid, keys], _timeout
                                          when is_list(keys) ->
-        process_info_kw(keys, link_pids,
-          status: :running,
-          reductions: 9_999
-        )
+        process_info_kw(keys, status: :running, reductions: 9_999)
       end)
 
       expect(Voyager.ErpcMock, :call, fn _node, :erlang, :system_info, [:wordsize], _timeout ->
@@ -368,32 +373,45 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
 
   defp supervision_reply(:erlang, :system_info, [:wordsize], _sup, _linked, _links), do: 8
 
-  defp supervision_reply(:erlang, :process_info, [_pid, keys], _sup, _linked, link_pids)
+  defp supervision_reply(:erlang, :process_info, [_pid, keys], _sup, _linked, _links)
        when is_list(keys) do
-    process_info_kw(keys, link_pids)
+    process_info_kw(keys)
   end
 
-  defp process_info_kw(keys, link_pids, overrides \\ []) do
+  # Links are fetched from the remote agent, which truncates to `limit` and
+  # reports the real total alongside the kept items.
+  defp supervision_reply(:voyager_agent, :proc_links, [_pid, limit], _sup, _linked, link_pids) do
+    {:ok,
+     %{
+       total: length(link_pids),
+       truncated: length(link_pids) > limit,
+       items: Enum.take(link_pids, limit)
+     }}
+  end
+
+  defp process_info_kw(keys, overrides \\ []) do
     info =
       Map.merge(
         %{
           initial_call: {:supervisor, :init, 1},
           current_function: {:gen_server, :loop, 7},
+          current_stacktrace: [],
           registered_name: :demo_supervisor,
+          label: :undefined,
+          parent: self(),
           status: :waiting,
           message_queue_len: 0,
+          message_queue_data: :on_heap,
           group_leader: self(),
           priority: :normal,
           trap_exit: true,
           reductions: 1_234,
-          binary: [],
           last_calls: false,
           catchlevel: 0,
           trace: 0,
           suspending: [],
           sequential_trace_token: [],
           error_handler: :error_handler,
-          links: link_pids,
           memory: 2_048,
           total_heap_size: 233,
           heap_size: 100,

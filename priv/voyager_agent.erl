@@ -1,6 +1,15 @@
 -module(voyager_agent).
 
+%% Process list API
 -export([proc_top/5]).
+%% Process info API
+-export([proc_links/2, proc_monitors/2, proc_monitored_by/2, proc_dictionary/2]).
+
+-export_type([bounded/1, monitor/0, dict_entry/0]).
+
+%% =====================================================================
+%% Process list API
+%% %% =====================================================================
 
 %% @doc Returns `{Entries, TotalCount}': the top `Limit' processes by `SortBy'
 %% (`desc' largest first, `asc' smallest), and the number of processes actually
@@ -152,6 +161,75 @@ to_search_string(Value) ->
 
 to_map({{_Value, Pid}, Info}) ->
     maps:from_list([{pid, Pid} | Info]).
+
+%% =====================================================================
+%% Process info API
+%% %% =====================================================================
+
+%% A truncated view of an unbounded attribute. `total' is the real length on the
+%% remote, `items' holds at most `Limit' entries, and `truncated' says whether
+%% anything was dropped - so callers can surface the gap instead of silently
+%% showing a partial list as if it were complete.
+-type bounded(Item) ::
+    #{total := non_neg_integer(),
+      truncated := boolean(),
+      items := [Item]}.
+-type monitor() :: {process, pid() | {atom(), node()}} | {port, port()} | term().
+-type dict_entry() :: {term(), term()}.
+
+%% Links and monitors are returned as raw terms - they are needed as identifiers
+%% (navigating to a process), and only their length is unbounded, which `Limit'
+%% caps on the remote.
+-spec proc_links(pid(), non_neg_integer()) ->
+                    {ok, bounded(pid() | port())} | {error, dead}.
+proc_links(Pid, Limit) ->
+    bounded_attribute(Pid, links, Limit).
+
+-spec proc_monitors(pid(), non_neg_integer()) -> {ok, bounded(monitor())} | {error, dead}.
+proc_monitors(Pid, Limit) ->
+    bounded_attribute(Pid, monitors, Limit).
+
+-spec proc_monitored_by(pid(), non_neg_integer()) ->
+                           {ok, bounded(pid() | port())} | {error, dead}.
+proc_monitored_by(Pid, Limit) ->
+    bounded_attribute(Pid, monitored_by, Limit).
+
+%% Entries are shipped as raw `{Key, Value}' terms. Only the entry count is
+%% capped here (`Limit'); an individual term can still be large, which the
+%% `max_heap_size' cap in `with_bounded_heap/1' is there to survive.
+-spec proc_dictionary(pid(), non_neg_integer()) ->
+                         {ok, bounded(dict_entry())} | {error, dead}.
+proc_dictionary(Pid, Limit) ->
+    bounded_attribute(Pid, dictionary, Limit).
+
+-spec bounded_attribute(pid(),
+                        links | monitors | monitored_by | dictionary,
+                        non_neg_integer()) ->
+                           {ok, bounded(term())} | {error, dead}.
+bounded_attribute(Pid, Key, Limit) when is_pid(Pid), is_integer(Limit), Limit >= 0 ->
+    with_bounded_heap(fun() -> do_bounded_attribute(Pid, Key, Limit) end).
+
+-spec do_bounded_attribute(pid(),
+                           links | monitors | monitored_by | dictionary,
+                           non_neg_integer()) ->
+                              {ok, bounded(term())} | {error, dead}.
+do_bounded_attribute(Pid, Key, Limit) ->
+    case erlang:process_info(Pid, Key) of
+        undefined ->
+            {error, dead};
+        {Key, Items} when is_list(Items) ->
+            {ok, bounded(length(Items), Limit, lists:sublist(Items, Limit))}
+    end.
+
+%% =====================================================================
+%% HELPERS
+%% =====================================================================
+
+-spec bounded(non_neg_integer(), non_neg_integer(), [term()]) -> bounded(term()).
+bounded(Total, Limit, Items) ->
+    #{total => Total,
+      truncated => Total > Limit,
+      items => Items}.
 
 %% Runs `Fun' with this process' heap capped (10_000_000 words ~= 76MB on 64-bit, 8 bytes word size) so
 %% a pathological scan is killed rather than the node, restoring the previous

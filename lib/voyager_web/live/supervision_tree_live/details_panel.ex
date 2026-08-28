@@ -25,6 +25,10 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   require Logger
 
+  # How many links this panel is willing to render; the remote truncates to it
+  # and reports the real total so the gap can be surfaced.
+  @links_limit 1_000
+
   @impl true
   def mount(socket) do
     socket
@@ -32,7 +36,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(:remote_node, nil)
     |> assign(:open?, false)
     |> assign(:links_expanded?, false)
+    |> assign(:links_requested?, false)
     |> assign(:node_info, AsyncResult.loading())
+    |> assign(:links, AsyncResult.loading())
     |> ok()
   end
 
@@ -52,9 +58,17 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> noreply()
   end
 
+  def handle_event("load-links", _params, socket) do
+    socket
+    |> assign(:links_requested?, true)
+    |> fetch_links(socket.assigns.node)
+    |> noreply()
+  end
+
   def handle_event("refresh-node-info", _params, socket) do
     socket
     |> maybe_fetch_node_info(socket.assigns.node)
+    |> maybe_refresh_links(socket.assigns.node)
     |> noreply()
   end
 
@@ -93,6 +107,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
         <.body
           panel_id={@id}
           info={@node_info}
+          links_info={@links}
+          links_requested?={@links_requested?}
           node={@node}
           links_expanded?={@links_expanded?}
           myself={@myself}
@@ -106,14 +122,19 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   defp maybe_assign_node(socket, nil), do: assign(socket, :open?, false)
 
   defp maybe_assign_node(socket, node) do
+    node_changed? = node_changed?(socket, node)
+
     socket =
       socket
       |> assign(:open?, true)
       |> assign(:node, node)
       |> maybe_fetch_node_info(node)
 
-    if node_changed?(socket, node) do
-      assign(socket, :links_expanded?, false)
+    if node_changed? do
+      socket
+      |> assign(:links_expanded?, false)
+      |> assign(:links_requested?, false)
+      |> assign(:links, AsyncResult.loading())
     else
       socket
     end
@@ -133,6 +154,24 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     assign(socket, :node_info, AsyncResult.ok(nil))
   end
 
+  defp maybe_refresh_links(socket, node) do
+    if socket.assigns.links_requested? do
+      fetch_links(socket, node)
+    else
+      socket
+    end
+  end
+
+  defp fetch_links(socket, %TreeNode{pid: pid}) when is_pid(pid) do
+    remote_node = socket.assigns.remote_node
+
+    socket
+    |> assign(:links, AsyncResult.loading())
+    |> assign_async(:links, fn -> fetch_links_result(remote_node, pid) end)
+  end
+
+  defp fetch_links(socket, _node), do: socket
+
   defp node_changed?(socket, node) do
     case socket.assigns[:node] do
       %TreeNode{key: key} -> key != node.key
@@ -148,6 +187,20 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
       {:error, reason} ->
         Logger.warning(
           "Failed to load node info for #{inspect(remote_node)}/#{inspect(pid)}: #{inspect(reason)}"
+        )
+
+        {:error, reason}
+    end
+  end
+
+  defp fetch_links_result(remote_node, pid) do
+    case ProcessInfo.fetch_links(remote_node, pid, @links_limit) do
+      {:ok, bounded} ->
+        {:ok, %{links: bounded}}
+
+      {:error, reason} ->
+        Logger.warning(
+          "Failed to load links for #{inspect(remote_node)}/#{inspect(pid)}: #{inspect(reason)}"
         )
 
         {:error, reason}
