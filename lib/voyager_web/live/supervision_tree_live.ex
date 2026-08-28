@@ -8,7 +8,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   alias VoyagerWeb.FormSchemas.SupervisionTreeControls
   alias VoyagerWeb.SupervisionTreeLive.Diff
   alias VoyagerWeb.Utils.RefreshInterval
-  alias VoyagerWeb.Utils.URL
 
   @impl true
   def mount(_params, _session, socket) do
@@ -103,17 +102,15 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   @impl true
   def handle_event("set_interval", %{"interval" => value}, socket) do
-    param =
-      value
-      |> RefreshInterval.from_value(
-        SupervisionTreeComponents.interval_options(),
-        SupervisionTreeComponents.default_refresh_interval()
-      )
-      |> RefreshInterval.to_param()
-
     socket
     |> push_patch(
-      to: URL.put_query_param(socket.assigns.current_url, RefreshInterval.param(), param)
+      to:
+        RefreshInterval.put_param(
+          socket.assigns.current_url,
+          value,
+          SupervisionTreeComponents.interval_options(),
+          SupervisionTreeComponents.default_refresh_interval()
+        )
     )
     |> noreply()
   end

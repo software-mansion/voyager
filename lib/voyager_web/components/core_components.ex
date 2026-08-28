@@ -14,6 +14,7 @@ defmodule VoyagerWeb.CoreComponents do
 
   alias Phoenix.LiveView.JS
   alias VoyagerWeb.Formatters
+  alias VoyagerWeb.Utils.RefreshInterval
 
   @doc """
   Renders flash notices.
@@ -157,7 +158,7 @@ defmodule VoyagerWeb.CoreComponents do
             <option
               :for={{label, value} <- @options}
               value={value}
-              selected={value == interval_value(@refresh_interval)}
+              selected={value == RefreshInterval.to_param(@refresh_interval)}
             >
               {label}
             </option>
@@ -180,9 +181,6 @@ defmodule VoyagerWeb.CoreComponents do
     </div>
     """
   end
-
-  defp interval_value(nil), do: "off"
-  defp interval_value(ms), do: Integer.to_string(ms)
 
   @doc """
   Renders a button that copies text from another element.
