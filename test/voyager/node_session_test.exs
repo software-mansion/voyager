@@ -1,6 +1,8 @@
 defmodule Voyager.NodeSessionTest do
   use Voyager.DataCase, async: false
 
+  import Voyager.TestUtils, only: [isolate_persistent_term: 1]
+
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Session
 
@@ -39,6 +41,7 @@ defmodule Voyager.NodeSessionTest do
 
   setup do
     previous_state = :sys.get_state(NodeSession)
+    isolate_persistent_term(:connected_via)
     on_exit(fn -> :sys.replace_state(NodeSession, fn _ -> previous_state end) end)
     Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
     :ok

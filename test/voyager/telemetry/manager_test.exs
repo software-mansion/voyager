@@ -1,6 +1,8 @@
 defmodule Voyager.Telemetry.ManagerTest do
   use Voyager.DataCase, async: false
 
+  import Voyager.TestUtils, only: [isolate_persistent_term: 1]
+
   alias Voyager.Settings
   alias Voyager.Telemetry
   alias Voyager.Telemetry.Manager
@@ -17,6 +19,8 @@ defmodule Voyager.Telemetry.ManagerTest do
   end
 
   setup do
+    isolate_persistent_term({Manager, :enabled})
+
     on_exit(fn ->
       Application.put_env(:voyager, :terms_accepted, true)
       Manager.set_enabled(true)
