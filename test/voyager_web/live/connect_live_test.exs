@@ -10,10 +10,12 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
   setup do
     previous_state = :sys.get_state(NodeSession)
+    previous_via = NodeSession.cached_connector_name()
     Fakes.put_session(nil)
 
     on_exit(fn ->
       :sys.replace_state(NodeSession, fn _ -> previous_state end)
+      :persistent_term.put(:connected_via, previous_via)
     end)
 
     :ok

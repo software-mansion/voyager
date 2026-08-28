@@ -6,7 +6,14 @@ defmodule Voyager.Telemetry.Handler.ExportTest do
 
   setup do
     InstallId.clear_cache()
-    on_exit(&InstallId.clear_cache/0)
+    previous_via = Voyager.NodeSession.cached_connector_name()
+    :persistent_term.put(:connected_via, nil)
+
+    on_exit(fn ->
+      InstallId.clear_cache()
+      :persistent_term.put(:connected_via, previous_via)
+    end)
+
     :ok
   end
 
