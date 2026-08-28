@@ -8,7 +8,8 @@ defmodule Voyager.Services.CodeInjectorTest do
   @compile {:no_warn_undefined,
             [
               :voyager_remote_code_file,
-              :voyager_remote_code_macro
+              :voyager_remote_code_macro,
+              :voyager_remote_code_path
             ]}
 
   setup do
@@ -20,6 +21,7 @@ defmodule Voyager.Services.CodeInjectorTest do
       unload(:voyager_remote_code_file)
       unload(:voyager_remote_code_macro)
       unload(:voyager_remote_code_bad)
+      unload(:voyager_remote_code_path)
     end)
 
     :ok
@@ -83,6 +85,29 @@ defmodule Voyager.Services.CodeInjectorTest do
 
       assert {:ok, :voyager_remote_code_macro} = CodeInjector.load(Node.self(), path)
       assert :voyager_remote_code_macro.name() == :voyager_remote_code_macro
+    end
+
+    test "keeps the local source path out of the loaded module" do
+      path =
+        tmp_erl("voyager_remote_code_path.erl", """
+        -module(voyager_remote_code_path).
+        -export([boom/0, source/0]).
+        boom() -> erlang:error(oops).
+        source() -> ?FILE.
+        """)
+
+      assert {:ok, :voyager_remote_code_path} = CodeInjector.load(Node.self(), path)
+
+      stacktrace =
+        try do
+          :voyager_remote_code_path.boom()
+        rescue
+          _ -> __STACKTRACE__
+        end
+
+      assert {:voyager_remote_code_path, :boom, 0, meta} = hd(stacktrace)
+      assert meta[:file] == ~c"voyager_remote_code_path.erl"
+      assert :voyager_remote_code_path.source() == ~c"voyager_remote_code_path.erl"
     end
 
     test "returns load_failed when the binary cannot be loaded" do

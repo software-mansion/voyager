@@ -34,9 +34,12 @@ defmodule Voyager.Services.CodeInjector do
   end
 
   defp preprocess(path) do
+    # `source_name` keeps the local source path out of the `file` attributes and `?FILE`
+    source_name = path |> Path.basename() |> String.to_charlist()
+
     path
     |> String.to_charlist()
-    |> :epp.parse_file([])
+    |> :epp.parse_file(source_name: source_name)
     |> case do
       {:ok, forms} ->
         case Enum.filter(forms, &match?({:error, _}, &1)) do
