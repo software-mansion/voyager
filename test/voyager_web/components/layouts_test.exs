@@ -15,16 +15,18 @@ defmodule VoyagerWeb.LayoutsTest do
     test "renders nothing on a released build" do
       Application.put_env(:voyager, :dev_build?, false)
 
-      assert render_component(&Layouts.dev_banner/1) =~ ~r/\A\s*\z/
+      # Emptiness, not just the absence of the banner id: the component must add
+      # no markup at all to a released build.
+      assert render_component(&Layouts.dev_banner/1) |> String.trim() == ""
     end
 
     test "names the build on a local build" do
       Application.put_env(:voyager, :dev_build?, true)
 
-      html = render_component(&Layouts.dev_banner/1)
+      banner = render_banner()
 
-      assert html |> LazyHTML.from_fragment() |> banner_count() == 1
-      assert html =~ "Dev Build"
+      assert Enum.count(banner) == 1
+      assert banner |> LazyHTML.text() |> String.trim() == "Dev Build"
     end
   end
 
@@ -46,6 +48,12 @@ defmodule VoyagerWeb.LayoutsTest do
         assert conn |> render_page(unquote(path)) |> banner_count() == 0
       end
     end
+  end
+
+  defp render_banner do
+    render_component(&Layouts.dev_banner/1)
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query_by_id("dev-build-banner")
   end
 
   defp render_page(conn, path) do
