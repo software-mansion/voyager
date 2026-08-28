@@ -23,21 +23,24 @@ defmodule Voyager.Services.ProcessList do
   @allowed_attrs @sortable_attrs ++ @display_attrs
 
   @doc """
-  Returns the top `limit` processes on `node` sorted by `sort_by` (`:desc`, the
-  default, largest first), each carrying the requested `attrs`.
+  Returns `{:ok, {entries, total}}`, where `entries` are the ranked processes and
+  `total` is the number of processes walked during the scan (before
+  `limit`/`search`), or
+  `{:error, reason}`. Fails before touching the remote with
+  `{:error, {:unsupported_attrs, keys}}` or `{:error, {:unsupported_sort_by, sort_by}}`.
 
-  `sort_by` is added to `attrs` if missing. A non-blank `search` keeps only
-  processes whose `:pid` or a non-numeric attribute contains it (case-insensitive);
-  `nil`/`""` applies no filter.
+  ## Arguments
 
-  Without touching the remote, returns `{:error, {:unsupported_attrs, keys}}` if
-  `attrs`/`sort_by` include a key outside `@allowed_attrs`, or
-  `{:error, {:unsupported_sort_by, sort_by}}` if `sort_by` is a display-only key
-  not in `@sortable_attrs`.
-
-  Returns `{:ok, {entries, total}}` (`total` = process count at scan time,
-  before `limit`/`search`) or `{:error, reason}`.
-  """
+    * `node` — remote node to scan.
+    * `attrs` — attributes to fetch per process; must be within `@allowed_attrs`.
+      `sort_by` is added if missing.
+    * `sort_by` — attribute to rank on; must be within `@sortable_attrs`.
+    * `limit` — maximum number of entries returned.
+    * `timeout` — remote call timeout.
+    * `direction` — `:desc` (default, largest first) or `:asc`.
+    * `search` — case-insensitive filter on `:pid` or non-numeric attributes;
+      `nil`/`""` applies no filter.
+"""
   @spec top(node(), [atom()], atom(), pos_integer(), timeout(), direction(), String.t() | nil) ::
           {:ok, {[entry()], non_neg_integer()}} | {:error, term()}
   def top(node, attrs, sort_by, limit, timeout, direction \\ :desc, search \\ nil)
