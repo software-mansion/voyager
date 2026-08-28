@@ -225,7 +225,10 @@ defmodule VoyagerWeb.ConnectComponents do
           disabled={@disabled}
           aria-label={if @shown, do: "Hide", else: "Show"}
           title={if @shown, do: "Hide", else: "Show"}
-          class="btn btn-ghost btn-square toolbar-btn text-base-content/60 absolute top-1 right-1.5 hover:text-base-content"
+          class={[
+            "btn btn-ghost btn-square toolbar-btn text-base-content/60 absolute top-1 right-1.5 hover:text-base-content",
+            @disabled && "opacity-40"
+          ]}
         >
           <.icon name={if @shown, do: "icon-eye", else: "icon-eye-off"} class="toolbar-icon" />
         </button>

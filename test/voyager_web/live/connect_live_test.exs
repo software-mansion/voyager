@@ -84,6 +84,26 @@ defmodule VoyagerWeb.ConnectLiveTest do
     end
   end
 
+  describe "secret visibility toggle" do
+    test "is dimmed like other disabled controls while the form is locked", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      view
+      |> form("#direct-connect-form", conn: %{cookie: "secret"})
+      |> render_change()
+
+      assert has_element?(view, "#toggle-conn_cookie-visibility")
+      refute has_element?(view, "#toggle-conn_cookie-visibility[disabled]")
+      refute has_element?(view, "#toggle-conn_cookie-visibility.opacity-40")
+
+      Fakes.connect_node!(Fakes.node_session())
+      broadcast(NodeSession.topic(), {:node_connected, :demo@localhost})
+
+      assert has_element?(view, "#toggle-conn_cookie-visibility[disabled]")
+      assert has_element?(view, "#toggle-conn_cookie-visibility.opacity-40")
+    end
+  end
+
   describe "mode toggle" do
     test "disabled with a proxy_epmd tooltip when the proxy epmd module is not active", %{
       conn: conn
