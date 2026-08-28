@@ -1,16 +1,6 @@
 -module(voyager_agent).
 
--export([proc_top/3, proc_top/4, proc_top/5]).
-
-%% @equiv proc_top(Attrs, SortBy, Limit, desc, undefined)
--spec proc_top([atom()], atom(), integer()) -> {[map()], non_neg_integer()}.
-proc_top(Attrs, SortBy, Limit) ->
-    proc_top(Attrs, SortBy, Limit, desc, undefined).
-
-%% @equiv proc_top(Attrs, SortBy, Limit, Direction, undefined)
--spec proc_top([atom()], atom(), integer(), asc | desc) -> {[map()], non_neg_integer()}.
-proc_top(Attrs, SortBy, Limit, Direction) ->
-    proc_top(Attrs, SortBy, Limit, Direction, undefined).
+-export([proc_top/5]).
 
 %% @doc Returns `{Entries, TotalCount}': the top `Limit' processes by `SortBy'
 %% (`desc' largest first, `asc' smallest), and the node's process count at scan
