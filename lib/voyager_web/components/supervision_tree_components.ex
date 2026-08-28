@@ -330,8 +330,14 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
     """
   end
 
-  defp interval_options, do: @interval_options
+  @doc """
+  Auto-refresh options offered by the supervision-tree header, as
+  `{label, param value}` pairs.
+  """
+  @spec interval_options() :: [{String.t(), String.t()}]
+  def interval_options, do: @interval_options
 
+  @spec default_refresh_interval() :: pos_integer()
   def default_refresh_interval,
     do:
       interval_options()

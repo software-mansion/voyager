@@ -309,6 +309,37 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       assert has_element?(view, ~s|#refresh-interval option[value="5000"][selected]|)
     end
 
+    test "changing the interval writes it to the query params", %{conn: conn} do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      view
+      |> form("#refresh-interval-form")
+      |> render_change(%{"interval" => "30000"})
+
+      assert assert_patch(view) =~ "refresh=30000"
+    end
+
+    test "restores the interval from the query params", %{conn: conn} do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path <> "?refresh=30000")
+      render_async(view)
+
+      assert has_element?(view, ~s|#refresh-interval option[value="30000"][selected]|)
+    end
+
+    test "falls back to the default interval for an unsupported param", %{conn: conn} do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path <> "?refresh=1")
+      render_async(view)
+
+      assert has_element?(view, ~s|#refresh-interval option[value="off"][selected]|)
+    end
+
     test "enables the JSON snapshot action after the async fetch resolves", %{conn: conn} do
       stub_erpc(Fakes.node_data())
 
