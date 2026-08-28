@@ -20,8 +20,20 @@ proc_top(Attrs, SortBy, Limit, Direction, Search) ->
     with_bounded_heap(fun() -> scan(Attrs, SortBy, Limit, Direction, needle(Search)) end).
 
 scan(Attrs, SortBy, Limit, Direction, Needle) ->
-    {Top, Scanned} = fold(iterator(), Attrs, SortBy, Limit, Direction, Needle, [], 0, 0),
-    {[to_map(Entry) || Entry <- lists:reverse(Top)], Scanned}.
+    {Top, Scanned} =
+        fold(iterator(), Attrs, SortBy, Limit, Direction, Needle, gb_trees:empty(), 0, 0),
+    {finalize(Top, Direction), Scanned}.
+
+%% `gb_trees:to_list/1' yields entries ascending by `{Value, Pid}', which is
+%% already best-to-worst for `asc' and needs reversing for `desc'.
+finalize(Top, Direction) ->
+    Entries = [to_map(Entry) || Entry <- gb_trees:to_list(Top)],
+    case Direction of
+        asc ->
+            Entries;
+        desc ->
+            lists:reverse(Entries)
+    end.
 
 %% Prefer the incremental iterator (OTP 27+); fall back to a plain list.
 iterator() ->
@@ -72,27 +84,23 @@ maybe_insert(Pid, Attrs, SortBy, Limit, Direction, Needle, Top, Size) ->
             {Top, Size}
     end.
 
-%% `Top' is ordered worst-kept-first (min at head for `desc', max for `asc'), so
-%% the head is the O(1) eviction threshold at capacity and reversing yields
-%% best-to-worst.
-insert(_Top, _Size, Limit, _Direction, _Value, _Pid, _Info) when Limit =< 0 ->
-    {[], 0};
-insert(Top, Size, Limit, Direction, Value, Pid, Info) when Size < Limit ->
-    {insert_sorted(Top, Direction, Value, Pid, Info), Size + 1};
-insert([{WorstValue, _, _} | Rest] = Top, Size, _Limit, Direction, Value, Pid, Info) ->
+insert(Top, Size, Limit, _Direction, _Value, _Pid, _Info) when Limit =< 0 ->
+    {Top, Size};
+insert(Top, Size, Limit, _Direction, Value, Pid, Info) when Size < Limit ->
+    {gb_trees:insert({Value, Pid}, Info, Top), Size + 1};
+insert(Top, Size, _Limit, Direction, Value, Pid, Info) ->
+    {{WorstValue, _}, _, Rest} = take_worst(Direction, Top),
     case better(Direction, Value, WorstValue) of
         true ->
-            {insert_sorted(Rest, Direction, Value, Pid, Info), Size};
+            {gb_trees:insert({Value, Pid}, Info, Rest), Size};
         false ->
             {Top, Size}
     end.
 
-insert_sorted([{V, _, _} = Entry | Rest], desc, Value, Pid, Info) when Value > V ->
-    [Entry | insert_sorted(Rest, desc, Value, Pid, Info)];
-insert_sorted([{V, _, _} = Entry | Rest], asc, Value, Pid, Info) when Value < V ->
-    [Entry | insert_sorted(Rest, asc, Value, Pid, Info)];
-insert_sorted(Rest, _Direction, Value, Pid, Info) ->
-    [{Value, Pid, Info} | Rest].
+take_worst(desc, Top) ->
+    gb_trees:take_smallest(Top);
+take_worst(asc, Top) ->
+    gb_trees:take_largest(Top).
 
 better(desc, Value, Threshold) ->
     Value > Threshold;
@@ -142,7 +150,7 @@ to_search_string(Value) ->
     unicode:characters_to_binary(
         io_lib:format("~p", [Value])).
 
-to_map({_Value, Pid, Info}) ->
+to_map({{_Value, Pid}, Info}) ->
     maps:from_list([{pid, Pid} | Info]).
 
 %% Runs `Fun' with this process' heap capped (10_000_000 words ~= 76MB on 64-bit, 6 bytes word size) so
