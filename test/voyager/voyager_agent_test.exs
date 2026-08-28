@@ -1,4 +1,5 @@
 defmodule Voyager.VoyagerAgentTest do
+  @moduledoc "Test for voyager_agent.erl"
   use ExUnit.Case, async: false
 
   @compile {:no_warn_undefined, :voyager_agent}
