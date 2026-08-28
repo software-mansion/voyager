@@ -1,4 +1,4 @@
-defmodule Voyager.VoyagerAgentTest do
+defmodule VoyagerAgentTest do
   use ExUnit.Case, async: false
 
   @compile {:no_warn_undefined, :voyager_agent}
