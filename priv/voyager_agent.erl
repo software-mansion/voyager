@@ -3,8 +3,8 @@
 -export([proc_top/5]).
 
 %% @doc Returns `{Entries, TotalCount}': the top `Limit' processes by `SortBy'
-%% (`desc' largest first, `asc' smallest), and the node's process count at scan
-%% time (before `Limit'/`Search').
+%% (`desc' largest first, `asc' smallest), and the number of processes actually
+%% walked during the scan (before `Limit'/`Search').
 %%
 %% Runs on the remote node, walking the process table with an iterator and
 %% keeping only the top-`Limit' in memory, guarded by a `max_heap_size' flag
@@ -20,8 +20,8 @@ proc_top(Attrs, SortBy, Limit, Direction, Search) ->
     with_bounded_heap(fun() -> scan(Attrs, SortBy, Limit, Direction, needle(Search)) end).
 
 scan(Attrs, SortBy, Limit, Direction, Needle) ->
-    Top = fold(iterator(), Attrs, SortBy, Limit, Direction, Needle, [], 0),
-    {[to_map(Entry) || Entry <- lists:reverse(Top)], erlang:system_info(process_count)}.
+    {Top, Scanned} = fold(iterator(), Attrs, SortBy, Limit, Direction, Needle, [], 0, 0),
+    {[to_map(Entry) || Entry <- lists:reverse(Top)], Scanned}.
 
 %% Prefer the incremental iterator (OTP 27+); fall back to a plain list.
 iterator() ->
@@ -44,14 +44,14 @@ next({list, []}) ->
 next({list, [Pid | Rest]}) ->
     {Pid, {list, Rest}}.
 
-fold(State, Attrs, SortBy, Limit, Direction, Needle, Top, Size) ->
+fold(State, Attrs, SortBy, Limit, Direction, Needle, Top, Size, Scanned) ->
     case next(State) of
         {Pid, NextState} ->
             {NewTop, NewSize} =
                 maybe_insert(Pid, Attrs, SortBy, Limit, Direction, Needle, Top, Size),
-            fold(NextState, Attrs, SortBy, Limit, Direction, Needle, NewTop, NewSize);
+            fold(NextState, Attrs, SortBy, Limit, Direction, Needle, NewTop, NewSize, Scanned + 1);
         none ->
-            Top
+            {Top, Scanned}
     end.
 
 maybe_insert(Pid, Attrs, SortBy, Limit, Direction, Needle, Top, Size) ->
