@@ -72,9 +72,10 @@ defmodule Voyager.Services.ProcessInfo do
   """
   @spec fetch(node(), pid() | nil) :: {:ok, info()} | {:error, term()}
   def fetch(node, pid) when is_pid(pid) do
-    with {:ok, raw} when is_list(raw) <- call(node, :erlang, :process_info, [pid, @keys]),
+    with {:ok, raw} when is_list(raw) <-
+           Erpc.safe_call(node, :erlang, :process_info, [pid, @keys], @timeout),
          {:ok, word_size} when is_integer(word_size) and word_size > 0 <-
-           call(node, :erlang, :system_info, [:wordsize]),
+           Erpc.safe_call(node, :erlang, :system_info, [:wordsize], @timeout),
          {:ok, info} <- build(raw, word_size) do
       {:ok, info}
     else
@@ -133,18 +134,5 @@ defmodule Voyager.Services.ProcessInfo do
       {:ok, fullsweep_after} -> fullsweep_after
       _ -> nil
     end
-  end
-
-  # Translates every `:erpc.call` failure into an `{:error, reason}` tuple so no
-  # raw exception escapes to the caller.
-  defp call(node, mod, fun, args) do
-    {:ok, Erpc.call(node, mod, fun, args, @timeout)}
-  catch
-    :error, {:erpc, :timeout} -> {:error, :timeout}
-    :error, {:erpc, :noconnection} -> {:error, :noconnection}
-    :error, {:exception, reason, _stack} -> {:error, {:remote_exception, reason}}
-    :error, reason -> {:error, reason}
-    :exit, reason -> {:error, {:remote_exit, reason}}
-    :throw, value -> {:error, {:remote_throw, value}}
   end
 end
