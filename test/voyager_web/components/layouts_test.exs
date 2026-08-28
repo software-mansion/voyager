@@ -29,21 +29,27 @@ defmodule VoyagerWeb.LayoutsTest do
   end
 
   describe "root layout" do
-    test "tops the page with the banner on a local build", %{conn: conn} do
-      Application.put_env(:voyager, :dev_build?, true)
+    # Every `live_session` brings its own layout, so each is checked against the
+    # shared root that carries the banner.
+    @pages [connect: "/", settings: "/settings"]
 
-      assert conn |> render_page() |> banner_count() == 1
-    end
+    for {name, path} <- @pages do
+      test "tops the #{name} page with the banner on a local build", %{conn: conn} do
+        Application.put_env(:voyager, :dev_build?, true)
 
-    test "leaves the page unmarked on a released build", %{conn: conn} do
-      Application.put_env(:voyager, :dev_build?, false)
+        assert conn |> render_page(unquote(path)) |> banner_count() == 1
+      end
 
-      assert conn |> render_page() |> banner_count() == 0
+      test "leaves the #{name} page unmarked on a released build", %{conn: conn} do
+        Application.put_env(:voyager, :dev_build?, false)
+
+        assert conn |> render_page(unquote(path)) |> banner_count() == 0
+      end
     end
   end
 
-  defp render_page(conn) do
-    conn |> get(~p"/") |> html_response(200) |> LazyHTML.from_document()
+  defp render_page(conn, path) do
+    conn |> get(path) |> html_response(200) |> LazyHTML.from_document()
   end
 
   defp banner_count(document) do
