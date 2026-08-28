@@ -155,14 +155,14 @@ to_search_string(Value) ->
 to_map({_Value, Pid, Info}) ->
     maps:from_list([{pid, Pid} | Info]).
 
-%% Runs `Fun' with this process' heap capped (500000 words ~= 4MB on 64-bit) so
+%% Runs `Fun' with this process' heap capped (10_000_000 words ~= 76MB on 64-bit, 6 bytes word size) so
 %% a pathological scan is killed rather than the node, restoring the previous
 %% `max_heap_size' afterwards. The scanning functions are also called in-process
 %% (not only from a throwaway erpc worker), so the flag must not leak out.
 -spec with_bounded_heap(fun(() -> Result)) -> Result.
 with_bounded_heap(Fun) ->
     Old = process_flag(max_heap_size,
-                       #{size => 500000,
+                       #{size => 10_000_000,
                          kill => true,
                          error_logger => true}),
     try
