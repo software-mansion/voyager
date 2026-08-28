@@ -113,35 +113,49 @@ defmodule Voyager.Services.Ets.Remote do
   defp build(id, info, word_size) do
     info = Map.new(info)
 
-    case Map.get(info, :memory, 0) do
-      memory when is_integer(memory) and memory >= 0 ->
-        table = %{
-          id: id,
-          name: Map.get(info, :name),
-          named_table: Map.get(info, :named_table, false),
-          protection: Map.get(info, :protection),
-          type: Map.get(info, :type),
-          size: Map.get(info, :size, 0),
-          memory: memory * word_size,
-          owner: Map.get(info, :owner),
-          heir: Map.get(info, :heir),
-          keypos: Map.get(info, :keypos),
-          compressed: Map.get(info, :compressed, false),
-          read_concurrency: Map.get(info, :read_concurrency, false),
-          write_concurrency: Map.get(info, :write_concurrency, false)
-        }
+    with {:ok, name} when is_atom(name) <- Map.fetch(info, :name),
+         {:ok, named_table} when is_boolean(named_table) <- Map.fetch(info, :named_table),
+         {:ok, protection} when protection in [:public, :protected, :private] <-
+           Map.fetch(info, :protection),
+         {:ok, type} when type in [:set, :ordered_set, :bag, :duplicate_bag] <-
+           Map.fetch(info, :type),
+         {:ok, size} when is_integer(size) and size >= 0 <- Map.fetch(info, :size),
+         {:ok, memory} when is_integer(memory) and memory >= 0 <- Map.fetch(info, :memory),
+         {:ok, owner} when is_pid(owner) <- Map.fetch(info, :owner),
+         {:ok, heir} when heir == :none or is_pid(heir) <- Map.fetch(info, :heir),
+         {:ok, keypos} when is_integer(keypos) and keypos >= 1 <- Map.fetch(info, :keypos),
+         {:ok, compressed} when is_boolean(compressed) <- Map.fetch(info, :compressed),
+         {:ok, read_concurrency} when is_boolean(read_concurrency) <-
+           Map.fetch(info, :read_concurrency),
+         {:ok, write_concurrency}
+         when is_boolean(write_concurrency) or write_concurrency == :auto <-
+           Map.fetch(info, :write_concurrency) do
+      table = %{
+        id: id,
+        name: name,
+        named_table: named_table,
+        protection: protection,
+        type: type,
+        size: size,
+        memory: memory * word_size,
+        owner: owner,
+        heir: heir,
+        keypos: keypos,
+        compressed: compressed,
+        read_concurrency: read_concurrency,
+        write_concurrency: write_concurrency
+      }
 
-        {:ok, put_decentralized_counters(table, info)}
-
-      _ ->
-        :error
+      {:ok, put_decentralized_counters(table, info)}
+    else
+      _ -> :error
     end
   end
 
   defp put_decentralized_counters(table, info) do
     case Map.fetch(info, :decentralized_counters) do
-      {:ok, value} -> Map.put(table, :decentralized_counters, value)
-      :error -> table
+      {:ok, value} when is_boolean(value) -> Map.put(table, :decentralized_counters, value)
+      _ -> table
     end
   end
 end

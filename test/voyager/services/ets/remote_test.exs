@@ -71,6 +71,14 @@ defmodule Voyager.Services.Ets.RemoteTest do
       assert table.memory == 8
     end
 
+    test "drops a row missing required info keys" do
+      incomplete = Keyword.delete(info_kw(name: :bad), :protection)
+      stub_list([:bad, :ok], 8, [incomplete, info_kw(name: :ok, memory: 1)])
+
+      assert {:ok, [table]} = Remote.list(@node, @timeout)
+      assert table.id == :ok
+    end
+
     test "returns :invalid_response when info rows are not aligned with :ets.all/0" do
       expect(Voyager.ErpcMock, :call, fn @node, :ets, :all, [], @timeout -> [:a, :b] end)
 
@@ -178,6 +186,18 @@ defmodule Voyager.Services.Ets.RemoteTest do
     test "returns :invalid_response when memory cannot be converted to bytes" do
       expect(Voyager.ErpcMock, :call, fn @node, :ets, :info, [:t], @timeout ->
         info_kw(memory: :oops)
+      end)
+
+      expect(Voyager.ErpcMock, :call, fn @node, :erlang, :system_info, [:wordsize], @timeout ->
+        8
+      end)
+
+      assert {:error, :invalid_response} = Remote.info(@node, :t, @timeout)
+    end
+
+    test "returns :invalid_response when required info keys are missing" do
+      expect(Voyager.ErpcMock, :call, fn @node, :ets, :info, [:t], @timeout ->
+        Keyword.delete(info_kw([]), :owner)
       end)
 
       expect(Voyager.ErpcMock, :call, fn @node, :erlang, :system_info, [:wordsize], @timeout ->
