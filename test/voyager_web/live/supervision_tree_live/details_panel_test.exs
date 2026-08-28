@@ -261,8 +261,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       link_pids: link_pids,
       sup_key: sup_key
     } do
+      # Large enough that a slow CI run cannot outwait the window mid-test.
       previous = Application.get_env(:voyager, :process_info_min_refresh_ms)
-      Application.put_env(:voyager, :process_info_min_refresh_ms, 1_000)
+      Application.put_env(:voyager, :process_info_min_refresh_ms, :timer.hours(1))
       on_exit(fn -> Application.put_env(:voyager, :process_info_min_refresh_ms, previous) end)
 
       # Exactly the calls the initial open needs: a second fetch would blow the
