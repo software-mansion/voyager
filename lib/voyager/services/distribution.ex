@@ -79,8 +79,6 @@ defmodule Voyager.Services.Distribution do
 
     case :net_kernel.start(node_name, %{name_domain: name_type, hidden: true}) do
       {:ok, _pid} ->
-        # The boot cookie is visible in argv (`ps`); replace it before anyone can
-        # use it. Outbound peers use :erlang.set_cookie(node, cookie), unaffected.
         Node.set_cookie(random_cookie())
         :ok
 
