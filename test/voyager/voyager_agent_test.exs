@@ -52,11 +52,14 @@ defmodule VoyagerAgentTest do
       # then die without replying. That is the race window: register/1 has
       # already committed to do_register/2 when the process disappears.
       stub =
-        spawn(fn ->
-          receive do
-            {:"$gen_call", _from, {:register, _node}} -> exit(:normal)
-          end
-        end)
+        start_supervised!(
+          {Task,
+           fn ->
+             receive do
+               {:"$gen_call", _from, {:register, _node}} -> exit(:normal)
+             end
+           end}
+        )
 
       Process.register(stub, @agent_module)
       ref = Process.monitor(stub)

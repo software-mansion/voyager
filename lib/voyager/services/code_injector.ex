@@ -3,7 +3,7 @@ defmodule Voyager.Services.CodeInjector do
   Reads Erlang source, runs the preprocessor locally, then compiles and loads
   the forms on a remote node via `:erpc`.
 
-  Macro such as `?MODULE` is expanded with :epp locally.
+  Macros such as `?MODULE` is expanded with :epp locally.
   Do not use `-if(?OTP_RELEASE ...)` since it shows Voyager's OTP version.
   """
 
