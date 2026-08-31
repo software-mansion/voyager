@@ -1,4 +1,4 @@
-defmodule Voyager.RateLimiter do
+defmodule Voyager.Services.RateLimiter do
   @moduledoc """
   Global token-bucket rate limiter for remote-node introspection calls.
 
@@ -18,44 +18,63 @@ defmodule Voyager.RateLimiter do
   @type result :: term()
 
   @ewma_alpha 0.3
+  @default_config %{
+    high_capacity: 10,
+    high_refill: 5,
+    low_capacity: 2,
+    low_refill: 1,
+    low_starvation_threshold: 2,
+    refill_interval_ms: 1_000,
+    latency_threshold_ms: 3_000
+  }
 
   def start_link(opts \\ []) do
-    GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+    name = Keyword.get(opts, :name, __MODULE__)
+    GenServer.start_link(__MODULE__, opts, name: name)
   end
 
   @doc """
   Runs the given function if the rate limit for the specified priority allows it.
-  Returns `{:ok, result}` on success, or `{:error, :rate_limited, retry_after_ms}`.
+  Returns `{:ok, result, elapsed_us}` on success, or `{:error, :rate_limited, retry_after_ms}`.
   """
   @spec run(priority(), (-> result)) ::
-          {:ok, result} | {:error, :rate_limited, non_neg_integer()}
+          {:ok, result, non_neg_integer()} | {:error, :rate_limited, non_neg_integer()}
   def run(priority, fun) when priority in [:high, :low] and is_function(fun, 0) do
-    case GenServer.call(__MODULE__, {:acquire, priority}) do
+    run(__MODULE__, priority, fun)
+  end
+
+  @doc """
+  Like `run/2`, but targets a specific named server.
+  """
+  @spec run(GenServer.server(), priority(), (-> result)) ::
+          {:ok, result, non_neg_integer()} | {:error, :rate_limited, non_neg_integer()}
+  def run(server, priority, fun) when priority in [:high, :low] and is_function(fun, 0) do
+    case GenServer.call(server, {:acquire, priority}) do
       :ok ->
-        {elapsed_us, result} = :timer.tc(fun)
-        GenServer.cast(__MODULE__, {:report_latency, elapsed_us})
-        {:ok, result}
+        start = System.monotonic_time(:microsecond)
+
+        try do
+          result = fun.()
+          elapsed_us = System.monotonic_time(:microsecond) - start
+          {:ok, result, elapsed_us}
+        after
+          elapsed_us = System.monotonic_time(:microsecond) - start
+          GenServer.cast(server, {:report_latency, elapsed_us})
+        end
 
       {:error, retry_after_ms} ->
         {:error, :rate_limited, retry_after_ms}
     end
   end
 
-  @default_config %{
-    high_capacity: 20,
-    high_refill: 20,
-    low_capacity: 5,
-    low_refill: 5,
-    refill_interval_ms: 1_000,
-    latency_threshold_ms: 3_000
-  }
-
   @impl GenServer
-  def init(_opts) do
+  def init(opts) do
+    config = Keyword.get(opts, :config, @default_config)
+
     state = %{
-      config: @default_config,
-      tokens_high: @default_config.high_capacity,
-      tokens_low: @default_config.low_capacity,
+      config: config,
+      tokens_high: config.high_capacity,
+      tokens_low: config.low_capacity,
       last_refill_at: System.monotonic_time(:millisecond),
       ewma_ms: 0.0,
       low_refill_factor: 1.0,
@@ -75,15 +94,16 @@ defmodule Voyager.RateLimiter do
   end
 
   def handle_call({:acquire, :low}, _from, state) do
-    if state.tokens_high < 2 do
-      # Starvation guard: if high is running low, refuse low priority traffic.
-      {:reply, {:error, retry_after(state)}, state}
-    else
-      if state.tokens_low > 0 do
-        {:reply, :ok, %{state | tokens_low: state.tokens_low - 1}}
-      else
+    cond do
+      state.tokens_high < state.config.low_starvation_threshold ->
+        # Starvation guard: if high is running low, refuse low priority traffic.
         {:reply, {:error, retry_after(state)}, state}
-      end
+
+      state.tokens_low > 0 ->
+        {:reply, :ok, %{state | tokens_low: state.tokens_low - 1}}
+
+      true ->
+        {:reply, {:error, retry_after(state)}, state}
     end
   end
 
@@ -105,7 +125,13 @@ defmodule Voyager.RateLimiter do
   @impl GenServer
   def handle_info(:refill, state) do
     now = System.monotonic_time(:millisecond)
-    low_refill_actual = trunc(state.config.low_refill * state.low_refill_factor)
+
+    low_refill_actual =
+      if state.config.low_refill > 0 do
+        max(trunc(state.config.low_refill * state.low_refill_factor), 1)
+      else
+        0
+      end
 
     new_state =
       state
