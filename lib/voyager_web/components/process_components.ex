@@ -50,10 +50,6 @@ defmodule VoyagerWeb.Components.ProcessComponents do
     priority: "Priority"
   }
 
-  @doc "Every column definition, in display order."
-  @spec columns() :: [map()]
-  def columns, do: @columns
-
   @doc """
   Column definitions for the given selected attributes, in display order.
   """

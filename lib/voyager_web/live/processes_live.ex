@@ -50,11 +50,11 @@ defmodule VoyagerWeb.ProcessesLive do
   # what was already fetched, so changing it must not trigger a refetch.
   @impl true
   def handle_params(params, _uri, socket) do
-    limit = Processes.clamp_limit(param_integer(params["limit"], socket.assigns.limit))
-    timeout = Processes.clamp_timeout(param_integer(params["timeout"], socket.assigns.timeout))
+    limit = Processes.clamp_limit(parse_integer(params["limit"], socket.assigns.limit))
+    timeout = Processes.clamp_timeout(parse_integer(params["timeout"], socket.assigns.timeout))
 
     page_size =
-      Processes.clamp_page_size(param_integer(params["page_size"], socket.assigns.page_size))
+      Processes.clamp_page_size(parse_integer(params["page_size"], socket.assigns.page_size))
 
     attrs = param_attrs(params["columns"], socket.assigns.selected_attrs)
 
@@ -130,7 +130,6 @@ defmodule VoyagerWeb.ProcessesLive do
         timeout={@timeout}
         timeout_min={elem(Processes.timeout_bounds(), 0)}
         timeout_max={elem(Processes.timeout_bounds(), 1)}
-        loading?={@page_result.loading}
       />
 
       <%!-- The table is rendered outside any loading branch so a refetch only
@@ -396,11 +395,6 @@ defmodule VoyagerWeb.ProcessesLive do
   end
 
   defp parse_integer(_value, fallback), do: fallback
-
-  # A blank or malformed query param falls back rather than erroring: the URL is
-  # user-editable.
-  defp param_integer(nil, fallback), do: fallback
-  defp param_integer(value, fallback), do: parse_integer(value, fallback)
 
   # `{value, label, locked?}` triples for the columns multiselect, required
   # attributes first so they read as the fixed part of the selection.

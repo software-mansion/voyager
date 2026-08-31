@@ -5,8 +5,8 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   These components are deliberately domain-agnostic so every list page
   (processes, ETS tables, ports, …) shares one table, toolbar and pager. They
   own no state: the caller supplies the rows and the current sort/page/limit,
-  and receives events (`sort`, `paginate`, `set_limit`, `search`, `refresh`)
-  which it is free to name via the `*_event` attributes.
+  and handles the events they emit (`sort`, `paginate`, `set_limit`,
+  `set_page_size`, `set_timeout`, `set_columns`, `search`).
 
   Columns are described as maps rather than slots so a page can keep its column
   list in one place and reuse it for both the header and the body:
@@ -16,9 +16,9 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         %{key: :memory, label: "Memory", sortable?: true, align: :right, width: :sm}
       ]
 
-  An optional `:width` (`:xs`, `:sm`, `:md`, `:lg`) fixes a column's width so
-  its values cannot resize the table as they change; longer content truncates.
-  Columns without one size to their content.
+  An optional `:width` (`:sm` or `:md`) fixes a column's width so its values
+  cannot resize the table as they change; longer content truncates. Columns
+  without one size to their content.
   """
 
   use VoyagerWeb, :component
@@ -26,8 +26,8 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   alias VoyagerWeb.Formatters
 
   @doc """
-  Toolbar with a search box, a result-size selector, a timeout selector and a
-  manual refresh button.
+  Toolbar with a search box, a result-size selector, a timeout input and a
+  column picker.
 
   Every control is optional: omit the matching attribute to leave it out.
   """
@@ -46,7 +46,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   attr :columns_options, :list, default: [], doc: "`{value, label, locked?}` triples"
   attr :columns_selected, :list, default: []
   attr :columns_event, :string, default: "set_columns"
-  attr :loading?, :boolean, default: false
 
   def toolbar(assigns) do
     ~H"""
@@ -159,7 +158,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
 
   `rows` is a list of `{dom_id, row}` tuples so the caller can drive it from a
   LiveView stream or a plain list. Each column renders through the `:cell` slot,
-  which receives `%{column: column, row: row}`.
+  which receives `%{column: column, row: row, row_id: dom_id}`.
   """
   attr :id, :string, required: true
   attr :columns, :list, required: true
@@ -167,9 +166,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   attr :sort_by, :atom, default: nil
   attr :direction, :atom, default: :desc
   attr :sort_event, :string, default: "sort"
-  attr :row_click_event, :string, default: nil
-  attr :row_id_key, :atom, default: :id, doc: "row key holding the value sent on row click"
-  attr :selected_id, :string, default: nil
   attr :empty_message, :string, default: "No results."
 
   slot :cell, required: true
@@ -177,9 +173,8 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   def table(assigns) do
     ~H"""
     <div class="card bg-base-100 border-base-200 border shadow-sm">
-      <%!-- No horizontal scroll: the columns are percentages of the table and
-            resizing trades width between neighbours, so the total always fits
-            and overflowing content truncates instead. --%>
+      <%!-- No horizontal scroll: fixed layout keeps the columns inside the
+            card, and overflowing content truncates. --%>
       <div class="p-5">
         <%!-- DaisyUI `table`, sized to match the node-info tables: `table-md`
               for their row height and `table-fixed` so the column widths
@@ -202,16 +197,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
                 {@empty_message}
               </td>
             </tr>
-            <tr
-              :for={{dom_id, row} <- @rows}
-              id={dom_id}
-              phx-click={@row_click_event}
-              phx-value-id={row_id(row, @row_id_key)}
-              class={[
-                @row_click_event && "cursor-pointer transition-colors hover:bg-primary/15",
-                @selected_id && @selected_id == row_id(row, @row_id_key) && "bg-primary/20"
-              ]}
-            >
+            <tr :for={{dom_id, row} <- @rows} id={dom_id}>
               <%!-- `truncate` needs a block-level box to clamp against, so the
                     cell content is wrapped rather than truncated on the td. --%>
               <td
@@ -224,15 +210,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
                 </div>
               </td>
             </tr>
-            <%!-- Blank filler rows keep the table the same height when a fetch
-                  returns fewer rows, so the page does not jump. --%>
-            <%!-- An empty line box is a fraction shorter than one holding text,
-                  so the filler's inner height is pinned to match a real row
-                  exactly and the table height cannot drift. --%>
-            <%!-- An empty cell's line box is a fraction shorter than one
-                  holding glyphs, so the row height is pinned directly (h-10 =
-                  the 2.5rem a populated row settles at) rather than being left
-                  to the text metrics. --%>
           </tbody>
         </table>
       </div>
@@ -422,7 +399,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   end
 
   @doc """
-  Dismissable explanation of how a page's data is fetched and paged.
+  Explanation of how a page's data is fetched and paged.
   """
   attr :id, :string, required: true
   slot :inner_block, required: true
@@ -436,22 +413,10 @@ defmodule VoyagerWeb.Components.DataTableComponents do
     """
   end
 
-  # Row ids double as `phx-value-id`, so they must survive values that have no
-  # `String.Chars` implementation (a pid identifying a process row, say).
-  defp row_id(row, key), do: row |> Map.get(key) |> to_dom_value()
-
-  defp to_dom_value(value) when is_binary(value), do: value
-  defp to_dom_value(value) when is_pid(value), do: value |> :erlang.pid_to_list() |> to_string()
-  defp to_dom_value(value) when is_port(value), do: value |> :erlang.port_to_list() |> to_string()
-  defp to_dom_value(value) when is_atom(value) or is_number(value), do: to_string(value)
-  defp to_dom_value(value), do: inspect(value)
-
   defp justify_class(%{align: :right}), do: "justify-end"
-  defp justify_class(%{align: :center}), do: "justify-center"
   defp justify_class(_column), do: "justify-start"
 
   defp align_class(%{align: :right}), do: "text-right"
-  defp align_class(%{align: :center}), do: "text-center"
   defp align_class(_column), do: "text-left"
 
   # A column may declare a fixed width so its values cannot widen the table as
@@ -459,9 +424,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   # interpolated value, since Tailwind only emits classes it can see literally.
   # `w-*` on a table cell is a minimum unless the table is fixed-layout, so the
   # matching `max-w-*` is what actually forces truncation.
-  defp width_class(%{width: :xs}), do: "w-20 max-w-20"
   defp width_class(%{width: :sm}), do: "w-28 max-w-28"
   defp width_class(%{width: :md}), do: "w-36 max-w-36"
-  defp width_class(%{width: :lg}), do: "w-48 max-w-48"
   defp width_class(_column), do: nil
 end
