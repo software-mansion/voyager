@@ -63,9 +63,6 @@ defmodule Voyager.Services.CodeInjector do
       {:ok, {:error, errors, warnings}} ->
         {:error, {:compile_failed, {errors, warnings}}}
 
-      {:ok, :error} ->
-        {:error, {:compile_failed, {[], []}}}
-
       {:ok, other} ->
         {:error, {:unexpected_compile_result, other}}
 

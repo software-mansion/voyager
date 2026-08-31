@@ -9,27 +9,26 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
 
-%% Bounds the start/register retry so a node whose agent keeps stopping
-%% cannot spin here forever.
--define(REGISTER_ATTEMPTS, 3).
 
-%% Voyager nodes currently attached. The agent stops and purges
-%% its own code when this map becomes empty (last ParentNode is gone).
 -record(state, {nodes = #{} :: #{node() => true}}).
 
 -type state() :: #state{nodes :: #{node() => true}}.
 
 %% =====================================================================
 %% REGISTER - Adds the parent to the list of nodes and returns the server pid.
-%% %% =====================================================================
+%% =====================================================================
+
+%% Bounds the start/register retry so a node whose agent keeps stopping
+%% cannot spin here forever.
+-define(MAX_REGISTER_ATTEMPTS, 3).
 
 %% Adds the parent to the list of nodes and returns the server pid.
 %% If the server is not running, it starts it and registers the parent.
 %% Uses `gen_server:start/4` so the process outlives the transient erpc caller.
-%% This function can crash if the `init/1` function fails.
+%% A failed `init/1` purges the module
 -spec register(node()) -> {ok, pid()} | {error, term()}.
 register(ParentNode) when is_atom(ParentNode) ->
-    do_start(ParentNode, ?REGISTER_ATTEMPTS).
+    do_start(ParentNode, ?MAX_REGISTER_ATTEMPTS).
 
 -spec do_start(node(), non_neg_integer()) -> {ok, pid()} | {error, term()}.
 do_start(_ParentNode, 0) ->
@@ -52,9 +51,9 @@ do_start(ParentNode, Attempts) ->
             do_register(ParentNode, Attempts)
     end.
 
-%% The agent stops itself when its last parent goes down, so it can be gone
-%% between `whereis/1` above and this call. That exits with `noproc`, so retry
-%% the whole start/register sequence instead of letting the exit escape.
+%% The agent stops itself when its last parent goes down, so it can be gone between `whereis/1` above and this call. 
+%% Depending on timing the call then exits with `noproc` (already gone), or with the server's stop reason (`normal` from a last-parent nodedown). 
+%% Retry the whole start/register sequence when that occurs.
 -spec do_register(node(), pos_integer()) -> {ok, pid()} | {error, term()}.
 do_register(ParentNode, Attempts) ->
     try gen_server:call(?MODULE, {register, ParentNode}) of
@@ -66,7 +65,7 @@ do_register(ParentNode, Attempts) ->
         exit:{noproc, _} ->
             do_start(ParentNode, Attempts - 1);
         exit:{normal, _} ->
-            do_start(ParentNode, Attempts - 1)
+            do_start(ParentNode, Attempts - 1);
     end.
 
 %% =====================================================================
@@ -274,14 +273,6 @@ handle_cast(_Msg, State) ->
 -spec handle_info(term(), state()) ->
                      {noreply, state()} | {stop, normal | shutdown, state()}.
 handle_info({nodedown, ParentNode}, #state{nodes = Nodes} = State) ->
-    %% Each monitor_node(N, true) is one subscription, so drop ours or it
-    %% accumulates across parent churn.
-    try
-        erlang:monitor_node(ParentNode, false)
-    catch
-        error:notalive ->
-            ok
-    end,
     NewNodes = maps:remove(ParentNode, Nodes),
     NewState = State#state{nodes = NewNodes},
     case maps:size(NewNodes) of
