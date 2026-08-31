@@ -296,11 +296,11 @@ defmodule VoyagerWeb.Components.Shell do
       path: "supervision-tree",
       label: "Supervision Tree",
       icon: "icon-network"
-    }
+    },
+    %{feature: :processes, path: "processes", label: "Processes", icon: "icon-cpu"}
   ]
 
   @coming_soon_pages [
-    %{feature: :processes, path: "processes", label: "Processes", icon: "icon-cpu"},
     %{
       feature: :ets_tables,
       path: "ets-tables",
