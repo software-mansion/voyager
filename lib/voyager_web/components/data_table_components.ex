@@ -31,10 +31,14 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   attr :search, :string, default: nil
   attr :search_placeholder, :string, default: "Search…"
   attr :search_event, :string, default: "search"
-  attr :limit, :integer, default: nil
-  attr :limit_options, :list, default: []
+  attr :limit, :integer, default: nil, doc: "how many rows to fetch from the remote"
+  attr :limit_min, :integer, default: 1
+  attr :limit_max, :integer, default: 1_000
   attr :limit_event, :string, default: "set_limit"
-  attr :limit_label, :string, default: "Rows"
+  attr :limit_label, :string, default: "Fetch"
+  attr :page_size, :integer, default: nil, doc: "how many fetched rows to show per page"
+  attr :page_size_options, :list, default: []
+  attr :page_size_event, :string, default: "set_page_size"
   attr :timeout, :integer, default: nil, doc: "request timeout in whole seconds"
   attr :timeout_min, :integer, default: 1
   attr :timeout_max, :integer, default: 30
@@ -67,14 +71,39 @@ defmodule VoyagerWeb.Components.DataTableComponents do
       </form>
 
       <div class="flex flex-wrap items-end gap-2">
-        <.select_control
+        <%!-- The limit is a remote cost (rows copied off the node), so it is a
+              free integer up to a ceiling; page size only slices what was
+              already fetched, so it stays a small discrete choice. --%>
+        <form
           :if={@limit != nil}
-          id={"#{@id}-limit"}
-          label={@limit_label}
-          name="limit"
-          event={@limit_event}
-          value={to_string(@limit)}
-          options={Enum.map(@limit_options, &{to_string(&1), to_string(&1)})}
+          id={"#{@id}-limit-form"}
+          phx-change={@limit_event}
+          class="flex flex-col gap-1"
+        >
+          <label for={"#{@id}-limit"} class="text-base-content/70 text-xs font-medium">
+            {@limit_label}
+          </label>
+          <.input
+            id={"#{@id}-limit"}
+            type="number-stepper"
+            name="limit"
+            value={@limit}
+            min={@limit_min}
+            max={@limit_max}
+            step="1"
+            phx-debounce="500"
+            aria-label="Number of processes to fetch"
+          />
+        </form>
+
+        <.select_control
+          :if={@page_size != nil}
+          id={"#{@id}-page-size"}
+          label="Per page"
+          name="page_size"
+          event={@page_size_event}
+          value={to_string(@page_size)}
+          options={Enum.map(@page_size_options, &{to_string(&1), to_string(&1)})}
         />
 
         <form

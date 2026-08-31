@@ -64,6 +64,7 @@ defmodule VoyagerWeb.ProcessesLiveTest do
 
       assert has_element?(view, "#processes-toolbar-search")
       assert has_element?(view, "#processes-toolbar-limit")
+      assert has_element?(view, "#processes-toolbar-page-size")
       assert has_element?(view, "#processes-toolbar-timeout")
       assert has_element?(view, "#processes-toolbar-refresh")
     end
@@ -253,6 +254,37 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       assert_received {:scanned, _args, 10_000}
     end
 
+    test "accepts an arbitrary integer limit", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      # The fetch limit is a free integer, not one of a fixed set of options.
+      view
+      |> element("#processes-toolbar-limit-form")
+      |> render_change(%{"limit" => "137"})
+
+      render_async(view)
+
+      assert_received {:scanned, [_attrs, _sort, 137, _dir, _search], _timeout}
+    end
+
+    test "clamps an out-of-range limit to the supported bounds", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      {_min, max} = Processes.limit_bounds()
+
+      view
+      |> element("#processes-toolbar-limit-form")
+      |> render_change(%{"limit" => "999999"})
+
+      render_async(view)
+
+      assert_received {:scanned, [_attrs, _sort, ^max, _dir, _search], _timeout}
+    end
+
     test "clamps an out-of-range timeout to the supported bounds", %{conn: conn} do
       stub_scan([])
       {:ok, view, _html} = live(conn, @path)
@@ -304,6 +336,27 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       assert_patched(view, "#{@path}?timeout=3000")
     end
 
+    test "writes the page size into the query string", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      view
+      |> element("#processes-toolbar-page-size-form")
+      |> render_change(%{"page_size" => "50"})
+
+      assert_patched(view, "#{@path}?page_size=50")
+    end
+
+    test "restores the page size from the URL", %{conn: conn} do
+      stub_scan([])
+
+      {:ok, view, _html} = live(conn, "#{@path}?page_size=50")
+      render_async(view)
+
+      assert has_element?(view, ~s|#processes-toolbar-page-size option[value="50"][selected]|)
+    end
+
     test "ignores malformed query params instead of crashing", %{conn: conn} do
       stub_scan([])
 
@@ -349,6 +402,39 @@ defmodule VoyagerWeb.ProcessesLiveTest do
 
       assert has_element?(view, "##{ProcessesLive.row_dom_id(second_page_first)}")
       refute has_element?(view, "##{ProcessesLive.row_dom_id(first_page_last)}")
+    end
+
+    test "changing rows per page reslices without refetching", %{conn: conn} do
+      pids = fake_pids(30)
+      stub_scan(Enum.map(pids, &entry(pid: &1)))
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      # Drop the mount scan so a later scan would be visible.
+      assert_received {:scanned, _args, _timeout}
+
+      view
+      |> element("#processes-toolbar-page-size-form")
+      |> render_change(%{"page_size" => "10"})
+
+      # Page size only slices the rows already fetched.
+      refute_received {:scanned, _args, _timeout}
+
+      assert render(view) =~ "1 / 3"
+    end
+
+    test "shows the number of rows the page size asks for", %{conn: conn} do
+      pids = fake_pids(30)
+      stub_scan(Enum.map(pids, &entry(pid: &1)))
+
+      {:ok, view, _html} = live(conn, "#{@path}?page_size=10")
+      render_async(view)
+
+      # 10 per page over 30 rows: the 10th row is on page 1, the 11th is not.
+      assert has_element?(view, "##{ProcessesLive.row_dom_id(Enum.at(pids, 9))}")
+      refute has_element?(view, "##{ProcessesLive.row_dom_id(Enum.at(pids, 10))}")
+      assert render(view) =~ "1 / 3"
     end
 
     test "hides the pager when everything fits on one page", %{conn: conn} do

@@ -92,11 +92,32 @@ defmodule Voyager.Queries.ProcessesTest do
                Processes.page(@node,
                  sort_by: :registered_name,
                  direction: :sideways,
-                 limit: 7
+                 limit: :lots
                )
 
       assert_received {:called, _node, _mod, _fun, [_attrs, :memory, 100, :desc, :undefined],
                        _timeout}
+    end
+
+    test "accepts any integer limit within bounds" do
+      capture_erpc_args()
+
+      # The limit is a free integer now, not one of a fixed set.
+      assert {:ok, _page} = Processes.page(@node, limit: 7)
+
+      assert_received {:called, _node, _mod, _fun, [_attrs, _sort, 7, _dir, _search], _timeout}
+    end
+
+    test "clamps an out-of-range limit to the supported bounds" do
+      {min, max} = Processes.limit_bounds()
+
+      capture_erpc_args()
+      assert {:ok, _page} = Processes.page(@node, limit: 0)
+      assert_received {:called, _node, _mod, _fun, [_attrs, _sort, ^min, _dir, _search], _timeout}
+
+      capture_erpc_args()
+      assert {:ok, _page} = Processes.page(@node, limit: 10_000_000)
+      assert_received {:called, _node, _mod, _fun, [_attrs, _sort, ^max, _dir, _search], _timeout}
     end
 
     test "clamps the timeout into the supported bounds" do
@@ -161,8 +182,25 @@ defmodule Voyager.Queries.ProcessesTest do
       assert Enum.all?(Processes.sortable_attrs(), &(&1 in Processes.attrs()))
     end
 
-    test "the default limit is selectable" do
-      assert Processes.default_limit() in Processes.limit_options()
+    test "the default limit is within bounds" do
+      {min, max} = Processes.limit_bounds()
+      assert Processes.default_limit() >= min
+      assert Processes.default_limit() <= max
+    end
+
+    test "the default page size is selectable" do
+      assert Processes.default_page_size() in Processes.page_size_options()
+    end
+
+    test "clamp_page_size/1 falls back to the default for a non-selectable value" do
+      assert Processes.clamp_page_size(7) == Processes.default_page_size()
+      assert Processes.clamp_page_size(nil) == Processes.default_page_size()
+    end
+
+    test "clamp_page_size/1 keeps a selectable value" do
+      for size <- Processes.page_size_options() do
+        assert Processes.clamp_page_size(size) == size
+      end
     end
 
     test "the default sort_by is sortable" do

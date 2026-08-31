@@ -18,9 +18,17 @@ defmodule Voyager.Queries.Processes do
 
   @sortable ~w(memory reductions message_queue_len)a
 
-  @limits [25, 50, 100, 250, 500]
-
   @default_limit 100
+
+  @min_limit 1
+
+  # Each returned row is copied off the remote node, so the ceiling bounds the
+  # payload a single scan can pull across the wire.
+  @max_limit 1_000
+
+  @page_sizes [10, 25, 50, 100]
+
+  @default_page_size 25
 
   @default_sort_by :memory
 
@@ -57,9 +65,25 @@ defmodule Voyager.Queries.Processes do
   @spec sortable_attrs() :: [atom()]
   def sortable_attrs, do: @sortable
 
-  @doc "Selectable values for the number of fetched processes."
-  @spec limit_options() :: [pos_integer()]
-  def limit_options, do: @limits
+  @doc """
+  Inclusive bounds for the number of processes fetched from the remote node.
+  """
+  @spec limit_bounds() :: {pos_integer(), pos_integer()}
+  def limit_bounds, do: {@min_limit, @max_limit}
+
+  @doc "Selectable values for how many fetched rows are shown per page."
+  @spec page_size_options() :: [pos_integer()]
+  def page_size_options, do: @page_sizes
+
+  @spec default_page_size() :: pos_integer()
+  def default_page_size, do: @default_page_size
+
+  @doc """
+  Coerces `value` to a selectable page size, falling back to the default.
+  """
+  @spec clamp_page_size(term()) :: pos_integer()
+  def clamp_page_size(value) when value in @page_sizes, do: value
+  def clamp_page_size(_value), do: @default_page_size
 
   @spec default_limit() :: pos_integer()
   def default_limit, do: @default_limit
@@ -78,7 +102,8 @@ defmodule Voyager.Queries.Processes do
   def timeout_bounds, do: {@min_timeout, @max_timeout}
 
   @doc """
-  Coerces `value` to a selectable limit, falling back to the default.
+  Clamps `value` into `limit_bounds/0`, falling back to the default when it is
+  not an integer.
 
   Callers take the limit from user-editable input (a query param), so it is
   normalized here rather than at each call site.
@@ -162,7 +187,9 @@ defmodule Voyager.Queries.Processes do
   defp direction(value) when value in [:asc, :desc], do: value
   defp direction(_value), do: @default_direction
 
-  defp limit(value) when value in @limits, do: value
+  defp limit(value) when is_integer(value),
+    do: value |> max(@min_limit) |> min(@max_limit)
+
   defp limit(_value), do: @default_limit
 
   defp timeout(value) when is_integer(value),

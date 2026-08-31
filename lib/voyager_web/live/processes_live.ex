@@ -7,7 +7,9 @@ defmodule VoyagerWeb.ProcessesLive do
   run on the remote node and therefore trigger a new fetch, while paging walks
   the already-fetched rows locally.
 
-  The result size and the request timeout are kept in the query string so a
+  Two separate sizes: `limit` is how many rows the remote fetches (a cost paid
+  on the node and over the wire), while `page_size` only slices those rows for
+  display. Both, plus the request timeout, are kept in the query string so a
   configured view survives a reload and can be shared as a link.
   """
 
@@ -21,8 +23,6 @@ defmodule VoyagerWeb.ProcessesLive do
 
   require Logger
 
-  @page_size 25
-
   @impl true
   def mount(_params, _session, socket) do
     socket
@@ -34,28 +34,36 @@ defmodule VoyagerWeb.ProcessesLive do
     |> assign(:timeout, Processes.default_timeout())
     |> assign(:search, "")
     |> assign(:page, 1)
-    |> assign(:page_size, @page_size)
+    |> assign(:page_size, Processes.default_page_size())
     |> assign(:last_updated, nil)
     |> assign(:params_applied?, false)
     |> ok()
   end
 
-  # The URL is the source of truth for `limit`/`timeout`, so the first fetch
-  # waits for handle_params rather than firing with the defaults and again with
-  # the real values.
+  # The URL is the source of truth for the controls, so the first fetch waits
+  # for handle_params rather than firing with the defaults and again with the
+  # real values. Only `limit`/`timeout` reach the remote; `page_size` slices
+  # what was already fetched, so changing it must not trigger a refetch.
   @impl true
   def handle_params(params, _uri, socket) do
-    limit = param_integer(params["limit"], socket.assigns.limit)
-    timeout = param_integer(params["timeout"], socket.assigns.timeout)
+    limit = Processes.clamp_limit(param_integer(params["limit"], socket.assigns.limit))
+    timeout = Processes.clamp_timeout(param_integer(params["timeout"], socket.assigns.timeout))
 
-    changed? = limit != socket.assigns.limit or timeout != socket.assigns.timeout
+    page_size =
+      Processes.clamp_page_size(param_integer(params["page_size"], socket.assigns.page_size))
+
+    refetch? = limit != socket.assigns.limit or timeout != socket.assigns.timeout
 
     socket =
       socket
-      |> assign(:limit, Processes.clamp_limit(limit))
-      |> assign(:timeout, Processes.clamp_timeout(timeout))
+      |> assign(:limit, limit)
+      |> assign(:timeout, timeout)
+      |> assign(:page_size, page_size)
 
-    if connected?(socket) and (changed? or not socket.assigns.params_applied?) do
+    # Clamped after page_size is assigned: a larger page size means fewer pages.
+    socket = assign(socket, :page, clamp_page(socket, socket.assigns.page))
+
+    if connected?(socket) and (refetch? or not socket.assigns.params_applied?) do
       socket
       |> assign(:params_applied?, true)
       |> assign(:page, 1)
@@ -79,9 +87,9 @@ defmodule VoyagerWeb.ProcessesLive do
       <DataTableComponents.info_note id="processes-info">
         Processes are fetched from the remote node once per refresh — ranked and
         limited on the node itself — and then paged here in the browser. Sorting,
-        searching and changing the number of processes re-run the scan; moving
-        between pages does not. Figures are a snapshot from the last fetch, not a
-        live view.
+        searching and changing how many processes to fetch re-run the scan;
+        changing rows per page or moving between pages does not. Figures are a
+        snapshot from the last fetch, not a live view.
       </DataTableComponents.info_note>
 
       <DataTableComponents.toolbar
@@ -89,8 +97,11 @@ defmodule VoyagerWeb.ProcessesLive do
         search={@search}
         search_placeholder="Search by PID, name or initial call"
         limit={@limit}
-        limit_options={Processes.limit_options()}
-        limit_label="Processes"
+        limit_min={elem(Processes.limit_bounds(), 0)}
+        limit_max={elem(Processes.limit_bounds(), 1)}
+        limit_label="Fetch"
+        page_size={@page_size}
+        page_size_options={Processes.page_size_options()}
         timeout={timeout_seconds(@timeout)}
         timeout_min={timeout_seconds(elem(Processes.timeout_bounds(), 0))}
         timeout_max={timeout_seconds(elem(Processes.timeout_bounds(), 1))}
@@ -116,7 +127,7 @@ defmodule VoyagerWeb.ProcessesLive do
         <DataTableComponents.table
           id="processes-table"
           columns={ProcessComponents.columns()}
-          rows={rows(result.entries, @page)}
+          rows={rows(result.entries, @page, @page_size)}
           sort_by={@sort_by}
           direction={@direction}
           row_click_event="select-process"
@@ -177,6 +188,15 @@ defmodule VoyagerWeb.ProcessesLive do
     |> noreply()
   end
 
+  def handle_event("set_page_size", %{"page_size" => page_size}, socket) do
+    page_size =
+      page_size |> parse_integer(socket.assigns.page_size) |> Processes.clamp_page_size()
+
+    socket
+    |> push_patch(to: controls_path(socket, %{"page_size" => to_string(page_size)}))
+    |> noreply()
+  end
+
   def handle_event("set_timeout", %{"timeout" => seconds}, socket) do
     timeout =
       seconds
@@ -212,7 +232,10 @@ defmodule VoyagerWeb.ProcessesLive do
     socket
     |> assign(:page_result, AsyncResult.ok(socket.assigns.page_result, page))
     |> assign(:last_updated, page.fetched_at)
-    |> assign(:page, clamp_page_to(socket.assigns.page, length(page.entries)))
+    |> assign(
+      :page,
+      clamp_page_to(socket.assigns.page, length(page.entries), socket.assigns.page_size)
+    )
     |> noreply()
   end
 
@@ -258,9 +281,9 @@ defmodule VoyagerWeb.ProcessesLive do
   end
 
   # The remote already returned them ranked; paging only walks that result.
-  defp rows(entries, page) do
+  defp rows(entries, page, page_size) do
     entries
-    |> Enum.slice((page - 1) * @page_size, @page_size)
+    |> Enum.slice((page - 1) * page_size, page_size)
     |> Enum.map(&{row_dom_id(&1.pid), &1})
   end
 
@@ -290,11 +313,11 @@ defmodule VoyagerWeb.ProcessesLive do
         _ -> 0
       end
 
-    clamp_page_to(page, total)
+    clamp_page_to(page, total, socket.assigns.page_size)
   end
 
-  defp clamp_page_to(page, total) do
-    total_pages = max(div(total + @page_size - 1, @page_size), 1)
+  defp clamp_page_to(page, total, page_size) do
+    total_pages = max(div(total + page_size - 1, page_size), 1)
 
     page |> max(1) |> min(total_pages)
   end
