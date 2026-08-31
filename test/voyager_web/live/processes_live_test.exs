@@ -187,6 +187,7 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       view
       |> element("#processes-toolbar-search-form")
       |> render_change(%{"search" => "worker"})
+
       render_async(view)
 
       assert_received {:scanned, [_attrs, _sort, _limit, _dir, "worker"], _timeout}

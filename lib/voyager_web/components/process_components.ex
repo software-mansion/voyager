@@ -38,7 +38,10 @@ defmodule VoyagerWeb.Components.ProcessComponents do
       <% :name -> %>
         <span class="font-mono text-xs" title={display_name(@row)}>{display_name(@row)}</span>
       <% :current_function -> %>
-        <span class="font-mono text-base-content/70 text-xs" title={format_mfa(@row[:current_function])}>
+        <span
+          class="font-mono text-base-content/70 text-xs"
+          title={format_mfa(@row[:current_function])}
+        >
           {format_mfa(@row[:current_function])}
         </span>
       <% :memory -> %>

@@ -170,9 +170,7 @@ defmodule VoyagerWeb.ProcessesLive do
 
   def handle_event("select-process", %{"id" => pid_string}, socket) do
     socket
-    |> push_navigate(
-      to: ~p"/node/#{socket.assigns.session.node_name}/processes/#{pid_string}"
-    )
+    |> push_navigate(to: ~p"/node/#{socket.assigns.session.node_name}/processes/#{pid_string}")
     |> noreply()
   end
 

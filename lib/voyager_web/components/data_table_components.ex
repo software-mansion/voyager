@@ -153,7 +153,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   def table(assigns) do
     ~H"""
     <div class="border-base-300 bg-base-100 overflow-x-auto rounded-lg border">
-      <table id={@id} class="table-zebra table-pin-rows table table-sm">
+      <table id={@id} class="table-zebra table-pin-rows table-sm table">
         <thead>
           <tr>
             <.column_header
@@ -177,7 +177,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
             phx-click={@row_click_event}
             phx-value-id={row_id(row, @row_id_key)}
             class={[
-              @row_click_event && "hover:bg-base-200 cursor-pointer transition-colors",
+              @row_click_event && "cursor-pointer transition-colors hover:bg-base-200",
               @selected_id && @selected_id == row_id(row, @row_id_key) && "bg-base-200"
             ]}
           >
@@ -209,7 +209,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         phx-click={@sort_event}
         phx-value-key={@column.key}
         class={[
-          "hover:text-base-content inline-flex items-center gap-1 transition-colors",
+          "inline-flex items-center gap-1 transition-colors hover:text-base-content",
           @active? && "text-base-content",
           not @active? && "text-base-content/70"
         ]}
@@ -258,7 +258,8 @@ defmodule VoyagerWeb.Components.DataTableComponents do
     ~H"""
     <div id={@id} class="flex flex-wrap items-center justify-between gap-3">
       <p class="text-base-content/70 text-xs">
-        Showing <span class="font-mono">{Formatters.format_integer(@first)}</span>–<span class="font-mono">{Formatters.format_integer(@last)}</span>
+        Showing
+        <span class="font-mono">{Formatters.format_integer(@first)}–{Formatters.format_integer(@last)}</span>
         of <span class="font-mono">{Formatters.format_integer(@total)}</span>
       </p>
 
@@ -274,7 +275,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         >
           <.icon name="icon-chevron-right" class="size-4 rotate-180" />
         </button>
-        <span class="join-item btn btn-sm btn-ghost pointer-events-none font-mono">
+        <span class="join-item btn btn-sm btn-ghost font-mono pointer-events-none">
           {@page} / {@total_pages}
         </span>
         <button
@@ -310,7 +311,8 @@ defmodule VoyagerWeb.Components.DataTableComponents do
     <div id={@id} class="text-base-content/70 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
       <span>
         Ranked <span class="font-mono">{Formatters.format_integer(@shown)}</span>
-        of <span class="font-mono">{Formatters.format_integer(@scanned)}</span> scanned
+        of <span class="font-mono">{Formatters.format_integer(@scanned)}</span>
+        scanned
       </span>
       <span :if={@truncated?} class="badge badge-warning badge-soft badge-xs">truncated</span>
       <span :if={@last_updated} class="text-base-content/60">
