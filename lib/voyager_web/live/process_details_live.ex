@@ -10,12 +10,23 @@ defmodule VoyagerWeb.ProcessDetailsLive do
   use VoyagerWeb, :live_view
 
   @impl true
-  def mount(%{"pid" => pid_string}, _session, socket) do
+  def mount(%{"pid" => pid_string} = params, _session, socket) do
     socket
     |> assign(:active_nav, :processes)
     |> assign(:pid_string, pid_string)
+    |> assign(:return_to, return_to(params["return_to"], socket.assigns.session.node_name))
     |> ok()
   end
+
+  # Only a local path is accepted, so a crafted `return_to` cannot send the user
+  # to another host; anything else falls back to the unconfigured list.
+  defp return_to("/" <> _rest = path, node_name) do
+    if String.starts_with?(path, "//"), do: fallback_path(node_name), else: path
+  end
+
+  defp return_to(_value, node_name), do: fallback_path(node_name)
+
+  defp fallback_path(node_name), do: ~p"/node/#{node_name}/processes"
 
   @impl true
   def render(assigns) do
@@ -24,7 +35,7 @@ defmodule VoyagerWeb.ProcessDetailsLive do
       <div class="flex flex-wrap items-center gap-3">
         <.link
           id="back-to-processes"
-          navigate={~p"/node/#{@session.node_name}/processes"}
+          navigate={@return_to}
           class="btn btn-ghost btn-sm gap-2"
         >
           <.icon name="icon-arrow-left" class="size-4" /> Processes

@@ -190,6 +190,112 @@ defmodule VoyagerWeb.ProcessesLiveTest do
     end
   end
 
+  describe "column selection" do
+    test "renders a chip per selectable attribute", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      for attr <- Processes.required_attrs() ++ Processes.optional_attrs() do
+        assert has_element?(view, "#column-#{attr}-input")
+      end
+    end
+
+    test "required columns are checked and cannot be deselected", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      for attr <- Processes.required_attrs() do
+        assert has_element?(view, "#column-#{attr}-input[checked][disabled]")
+      end
+    end
+
+    test "selecting a column adds it to the URL and refetches", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      # Drop the mount scan so the assertion can only match the new one.
+      assert_received {:scanned, _args, _timeout}
+
+      view
+      |> element("#process-column-controls-form")
+      |> render_change(%{"columns" => ["status"]})
+
+      render_async(view)
+
+      # Required attrs survive even though a disabled checkbox submits nothing.
+      assert_received {:scanned, [attrs, _sort, _limit, _dir, _search], _timeout}
+      assert :status in attrs
+      assert :memory in attrs
+    end
+
+    test "restores the selected columns from the URL", %{conn: conn} do
+      stub_scan([])
+
+      {:ok, view, _html} = live(conn, "#{@path}?columns=status")
+      render_async(view)
+
+      assert has_element?(view, "#column-status-input[checked]")
+
+      # The selected column appears in the table; the unselected one does not.
+      headers = view |> element("#processes-table thead") |> render()
+      assert headers =~ "Status"
+      refute headers =~ "Priority"
+    end
+
+    test "a hand-edited URL cannot drop a required column", %{conn: conn} do
+      stub_scan([])
+
+      {:ok, view, _html} = live(conn, "#{@path}?columns=status")
+      render_async(view)
+
+      assert_received {:scanned, [attrs, _sort, _limit, _dir, _search], _timeout}
+      assert :memory in attrs
+    end
+  end
+
+  describe "auto refresh" do
+    test "offers the interval selector", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      assert has_element?(view, "#processes-toolbar-interval")
+    end
+
+    test "refetches on the chosen interval", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      # Drop the mount scan so only an auto-refresh can satisfy the assertion.
+      assert_received {:scanned, _args, _timeout}
+
+      view
+      |> element("#processes-toolbar-interval-form")
+      |> render_change(%{"interval" => "5000"})
+
+      send(view.pid, :auto_refresh)
+      render_async(view)
+
+      assert_received {:scanned, _args, _timeout}
+    end
+
+    test "does nothing when switched off", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      view
+      |> element("#processes-toolbar-interval-form")
+      |> render_change(%{"interval" => "off"})
+
+      assert render(view) =~ "processes-toolbar-interval"
+    end
+  end
+
   describe "column widths" do
     test "numeric columns carry a fixed width and truncate", %{conn: conn} do
       [pid] = fake_pids(1)
@@ -213,7 +319,8 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      header = view |> element("#processes-table thead th:first-child") |> render()
+      # PID is narrow and fixed now; the name column is the flexible one.
+      header = view |> element("#processes-table thead th:nth-child(2)") |> render()
 
       refute header =~ ~r/\bmax-w-\d+\b/
     end
@@ -418,49 +525,18 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       assert_received {:scanned, [_attrs, _sort, 250, _dir, _search], _timeout}
     end
 
-    test "the timeout is entered in seconds and sent as milliseconds", %{conn: conn} do
+    test "the timeout is entered and sent in milliseconds", %{conn: conn} do
       stub_scan([])
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
       view
       |> element("#processes-toolbar-timeout-form")
-      |> render_change(%{"timeout" => "10"})
+      |> render_change(%{"timeout" => "10000"})
 
       render_async(view)
 
       assert_received {:scanned, _args, 10_000}
-    end
-
-    test "accepts an arbitrary integer limit", %{conn: conn} do
-      stub_scan([])
-      {:ok, view, _html} = live(conn, @path)
-      render_async(view)
-
-      # The fetch limit is a free integer, not one of a fixed set of options.
-      view
-      |> element("#processes-toolbar-limit-form")
-      |> render_change(%{"limit" => "137"})
-
-      render_async(view)
-
-      assert_received {:scanned, [_attrs, _sort, 137, _dir, _search], _timeout}
-    end
-
-    test "clamps an out-of-range limit to the supported bounds", %{conn: conn} do
-      stub_scan([])
-      {:ok, view, _html} = live(conn, @path)
-      render_async(view)
-
-      {_min, max} = Processes.limit_bounds()
-
-      view
-      |> element("#processes-toolbar-limit-form")
-      |> render_change(%{"limit" => "999999"})
-
-      render_async(view)
-
-      assert_received {:scanned, [_attrs, _sort, ^max, _dir, _search], _timeout}
     end
 
     test "clamps an out-of-range timeout to the supported bounds", %{conn: conn} do
@@ -472,7 +548,7 @@ defmodule VoyagerWeb.ProcessesLiveTest do
 
       view
       |> element("#processes-toolbar-timeout-form")
-      |> render_change(%{"timeout" => "9999"})
+      |> render_change(%{"timeout" => "999999"})
 
       render_async(view)
 
@@ -509,7 +585,7 @@ defmodule VoyagerWeb.ProcessesLiveTest do
 
       view
       |> element("#processes-toolbar-timeout-form")
-      |> render_change(%{"timeout" => "3"})
+      |> render_change(%{"timeout" => "3000"})
 
       assert_patched(view, "#{@path}?timeout=3000")
     end
@@ -638,10 +714,11 @@ defmodule VoyagerWeb.ProcessesLiveTest do
 
       view |> element("##{ProcessesLive.row_dom_id(pid)}") |> render_click()
 
-      assert_redirect(
-        view,
-        "/node/#{URI.encode_www_form(@node_name)}/processes/#{URI.encode_www_form(pid_string)}"
-      )
+      {to, _flash} = assert_redirect(view)
+
+      assert to =~ "/processes/#{URI.encode_www_form(pid_string)}"
+      # The configured view is carried so the details page can return to it.
+      assert to =~ "return_to="
     end
   end
 

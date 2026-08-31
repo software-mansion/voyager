@@ -14,17 +14,29 @@ defmodule Voyager.Queries.Processes do
   alias Voyager.Services.ProcessInfo
   alias Voyager.Services.ProcessList
 
-  @attrs ~w(registered_name initial_call current_function memory reductions message_queue_len)a
-
   @sortable ~w(memory reductions message_queue_len)a
+
+  @limits [25, 50, 100, 250, 500, 1_000]
 
   @default_limit 100
 
-  @min_limit 1
+  # Always fetched and always shown: `pid` identifies the row and `memory` is
+  # the default ranking, so neither can be turned off.
+  @required_attrs ~w(pid memory)a
 
-  # Each returned row is copied off the remote node, so the ceiling bounds the
-  # payload a single scan can pull across the wire.
-  @max_limit 1_000
+  # Selectable display attributes, mirroring the allowlist the remote enforces
+  # in `Voyager.Services.ProcessList`.
+  @optional_attrs ~w(registered_name initial_call current_function reductions message_queue_len status priority)a
+
+  @default_attrs ~w(registered_name initial_call current_function reductions message_queue_len)a
+
+  @refresh_intervals [
+    {"Off", "off"},
+    {"5s", "5000"},
+    {"10s", "10000"},
+    {"30s", "30000"},
+    {"60s", "60000"}
+  ]
 
   @page_sizes [10, 25, 50, 100]
 
@@ -54,22 +66,45 @@ defmodule Voyager.Queries.Processes do
           direction: ProcessList.direction(),
           limit: pos_integer(),
           timeout: timeout(),
-          search: String.t() | nil
+          search: String.t() | nil,
+          attrs: [atom()]
         ]
-
-  @doc "Attributes fetched for every listed process."
-  @spec attrs() :: [atom()]
-  def attrs, do: @attrs
 
   @doc "Attributes the remote can rank on."
   @spec sortable_attrs() :: [atom()]
   def sortable_attrs, do: @sortable
 
+  @doc "Selectable values for the number of processes fetched from the remote."
+  @spec limit_options() :: [pos_integer()]
+  def limit_options, do: @limits
+
+  @doc "Attributes that are always fetched and cannot be deselected."
+  @spec required_attrs() :: [atom()]
+  def required_attrs, do: @required_attrs
+
+  @doc "Display attributes the user may add to or remove from the table."
+  @spec optional_attrs() :: [atom()]
+  def optional_attrs, do: @optional_attrs
+
+  @spec default_attrs() :: [atom()]
+  def default_attrs, do: @default_attrs
+
+  @doc "Selectable auto-refresh intervals as `{label, value}` pairs."
+  @spec refresh_interval_options() :: [{String.t(), String.t()}]
+  def refresh_interval_options, do: @refresh_intervals
+
   @doc """
-  Inclusive bounds for the number of processes fetched from the remote node.
+  Normalizes a list of selected attributes: keeps only known ones and always
+  includes `required_attrs/0`.
   """
-  @spec limit_bounds() :: {pos_integer(), pos_integer()}
-  def limit_bounds, do: {@min_limit, @max_limit}
+  @spec clamp_attrs(term()) :: [atom()]
+  def clamp_attrs(attrs) when is_list(attrs) do
+    selected = Enum.filter(attrs, &(&1 in @optional_attrs))
+
+    Enum.filter(@required_attrs ++ @optional_attrs, &(&1 in @required_attrs or &1 in selected))
+  end
+
+  def clamp_attrs(_attrs), do: clamp_attrs(@default_attrs)
 
   @doc "Selectable values for how many fetched rows are shown per page."
   @spec page_size_options() :: [pos_integer()]
@@ -102,8 +137,7 @@ defmodule Voyager.Queries.Processes do
   def timeout_bounds, do: {@min_timeout, @max_timeout}
 
   @doc """
-  Clamps `value` into `limit_bounds/0`, falling back to the default when it is
-  not an integer.
+  Coerces `value` to a selectable limit, falling back to the default.
 
   Callers take the limit from user-editable input (a query param), so it is
   normalized here rather than at each call site.
@@ -132,8 +166,10 @@ defmodule Voyager.Queries.Processes do
     limit = limit(opts[:limit])
     timeout = timeout(opts[:timeout])
     search = search(opts[:search])
+    # `pid` comes back on every entry regardless, so it is not requested.
+    attrs = opts |> Keyword.get(:attrs) |> clamp_attrs() |> Enum.reject(&(&1 == :pid))
 
-    case ProcessList.top(node, @attrs, sort_by, limit, timeout, direction, search) do
+    case ProcessList.top(node, attrs, sort_by, limit, timeout, direction, search) do
       {:ok, {entries, scanned}} ->
         {:ok,
          %{
@@ -187,9 +223,7 @@ defmodule Voyager.Queries.Processes do
   defp direction(value) when value in [:asc, :desc], do: value
   defp direction(_value), do: @default_direction
 
-  defp limit(value) when is_integer(value),
-    do: value |> max(@min_limit) |> min(@max_limit)
-
+  defp limit(value) when value in @limits, do: value
   defp limit(_value), do: @default_limit
 
   defp timeout(value) when is_integer(value),

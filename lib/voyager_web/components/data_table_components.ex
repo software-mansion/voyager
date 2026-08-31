@@ -36,17 +36,18 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   attr :search_placeholder, :string, default: "Search…"
   attr :search_event, :string, default: "search"
   attr :limit, :integer, default: nil, doc: "how many rows to fetch from the remote"
-  attr :limit_min, :integer, default: 1
-  attr :limit_max, :integer, default: 1_000
+  attr :limit_options, :list, default: []
   attr :limit_event, :string, default: "set_limit"
   attr :limit_label, :string, default: "Fetch"
   attr :page_size, :integer, default: nil, doc: "how many fetched rows to show per page"
   attr :page_size_options, :list, default: []
   attr :page_size_event, :string, default: "set_page_size"
-  attr :timeout, :integer, default: nil, doc: "request timeout in whole seconds"
-  attr :timeout_min, :integer, default: 1
-  attr :timeout_max, :integer, default: 30
+  attr :timeout, :integer, default: nil, doc: "request timeout in milliseconds"
+  attr :timeout_min, :integer, default: 1_000
+  attr :timeout_max, :integer, default: 30_000
   attr :timeout_event, :string, default: "set_timeout"
+  attr :refresh_interval, :integer, default: nil
+  attr :refresh_interval_options, :list, default: []
   attr :refresh_event, :string, default: "refresh"
   attr :loading?, :boolean, default: false
 
@@ -75,30 +76,17 @@ defmodule VoyagerWeb.Components.DataTableComponents do
       </form>
 
       <div class="flex flex-wrap items-end gap-2">
-        <%!-- The limit is a remote cost (rows copied off the node), so it is a
-              free integer up to a ceiling; page size only slices what was
-              already fetched, so it stays a small discrete choice. --%>
-        <form
+        <%!-- The limit is a remote cost (rows copied off the node); page size
+              only slices what was already fetched. --%>
+        <.select_control
           :if={@limit != nil}
-          id={"#{@id}-limit-form"}
-          phx-change={@limit_event}
-          class="flex flex-col gap-1"
-        >
-          <label for={"#{@id}-limit"} class="text-base-content/70 text-xs font-medium">
-            {@limit_label}
-          </label>
-          <.input
-            id={"#{@id}-limit"}
-            type="number-stepper"
-            name="limit"
-            value={@limit}
-            min={@limit_min}
-            max={@limit_max}
-            step="1"
-            phx-debounce="500"
-            aria-label="Number of processes to fetch"
-          />
-        </form>
+          id={"#{@id}-limit"}
+          label={@limit_label}
+          name="limit"
+          event={@limit_event}
+          value={to_string(@limit)}
+          options={Enum.map(@limit_options, &{to_string(&1), to_string(&1)})}
+        />
 
         <.select_control
           :if={@page_size != nil}
@@ -117,20 +105,34 @@ defmodule VoyagerWeb.Components.DataTableComponents do
           class="flex flex-col gap-1"
         >
           <label for={"#{@id}-timeout"} class="text-base-content/70 text-xs font-medium">
-            Timeout (s)
+            Timeout (ms)
           </label>
-          <.input
+          <%!-- A plain number input: the stepper's arrows are unhelpful at a
+                millisecond granularity. --%>
+          <input
             id={"#{@id}-timeout"}
-            type="number-stepper"
+            type="number"
             name="timeout"
             value={@timeout}
             min={@timeout_min}
             max={@timeout_max}
-            step="1"
+            step="100"
+            inputmode="numeric"
             phx-debounce="500"
-            aria-label="Request timeout in seconds"
+            aria-label="Request timeout in milliseconds"
+            class="input input-sm input-bordered no-spinner font-mono w-24"
           />
         </form>
+
+        <.select_control
+          :if={@refresh_interval_options != []}
+          id={"#{@id}-interval"}
+          label="Auto-refresh"
+          name="interval"
+          event="set_interval"
+          value={interval_value(@refresh_interval)}
+          options={@refresh_interval_options}
+        />
 
         <.tooltip id={"#{@id}-refresh-tip"} position="bottom">
           <button
@@ -441,6 +443,9 @@ defmodule VoyagerWeb.Components.DataTableComponents do
 
   # Row ids double as `phx-value-id`, so they must survive values that have no
   # `String.Chars` implementation (a pid identifying a process row, say).
+  defp interval_value(nil), do: "off"
+  defp interval_value(ms), do: Integer.to_string(ms)
+
   defp row_id(row, key), do: row |> Map.get(key) |> to_dom_value()
 
   defp to_dom_value(value) when is_binary(value), do: value

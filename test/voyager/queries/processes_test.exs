@@ -32,7 +32,8 @@ defmodule Voyager.Queries.ProcessesTest do
       assert_received {:called, @node, :voyager_agent, :proc_top,
                        [attrs, :memory, 100, :desc, :undefined], 5_000}
 
-      assert Enum.sort(attrs) == Enum.sort(Processes.attrs())
+      expected = Processes.default_attrs() |> Processes.clamp_attrs() |> List.delete(:pid)
+      assert Enum.sort(attrs) == Enum.sort(expected)
     end
 
     test "passes sort_by, direction, limit and search through to the remote" do
@@ -99,25 +100,47 @@ defmodule Voyager.Queries.ProcessesTest do
                        _timeout}
     end
 
-    test "accepts any integer limit within bounds" do
-      capture_erpc_args()
+    test "accepts any selectable limit" do
+      for limit <- Processes.limit_options() do
+        capture_erpc_args()
+        assert {:ok, _page} = Processes.page(@node, limit: limit)
 
-      # The limit is a free integer now, not one of a fixed set.
-      assert {:ok, _page} = Processes.page(@node, limit: 7)
-
-      assert_received {:called, _node, _mod, _fun, [_attrs, _sort, 7, _dir, _search], _timeout}
+        assert_received {:called, _node, _mod, _fun, [_attrs, _sort, ^limit, _dir, _search],
+                         _timeout}
+      end
     end
 
-    test "clamps an out-of-range limit to the supported bounds" do
-      {min, max} = Processes.limit_bounds()
+    test "falls back to the default for a non-selectable limit" do
+      default = Processes.default_limit()
 
       capture_erpc_args()
-      assert {:ok, _page} = Processes.page(@node, limit: 0)
-      assert_received {:called, _node, _mod, _fun, [_attrs, _sort, ^min, _dir, _search], _timeout}
+      assert {:ok, _page} = Processes.page(@node, limit: 7)
 
+      assert_received {:called, _node, _mod, _fun, [_attrs, _sort, ^default, _dir, _search],
+                       _timeout}
+    end
+
+    test "requests only the selected attributes" do
       capture_erpc_args()
-      assert {:ok, _page} = Processes.page(@node, limit: 10_000_000)
-      assert_received {:called, _node, _mod, _fun, [_attrs, _sort, ^max, _dir, _search], _timeout}
+
+      assert {:ok, _page} = Processes.page(@node, attrs: [:memory, :status])
+
+      # :pid is implicit on every entry, so it is never requested.
+      assert_received {:called, _node, _mod, _fun, [attrs, _sort, _limit, _dir, _search],
+                       _timeout}
+
+      assert Enum.sort(attrs) == [:memory, :status]
+    end
+
+    test "always requests the required attributes" do
+      capture_erpc_args()
+
+      assert {:ok, _page} = Processes.page(@node, attrs: [:status])
+
+      assert_received {:called, _node, _mod, _fun, [attrs, _sort, _limit, _dir, _search],
+                       _timeout}
+
+      assert :memory in attrs
     end
 
     test "clamps the timeout into the supported bounds" do
@@ -178,14 +201,29 @@ defmodule Voyager.Queries.ProcessesTest do
   end
 
   describe "option metadata" do
-    test "every sortable attribute is among the fetched attributes" do
-      assert Enum.all?(Processes.sortable_attrs(), &(&1 in Processes.attrs()))
+    test "every sortable attribute is selectable or required" do
+      known = Processes.required_attrs() ++ Processes.optional_attrs()
+      assert Enum.all?(Processes.sortable_attrs(), &(&1 in known))
     end
 
-    test "the default limit is within bounds" do
-      {min, max} = Processes.limit_bounds()
-      assert Processes.default_limit() >= min
-      assert Processes.default_limit() <= max
+    test "the default limit is selectable" do
+      assert Processes.default_limit() in Processes.limit_options()
+    end
+
+    test "clamp_attrs/1 always includes the required attributes" do
+      for required <- Processes.required_attrs() do
+        assert required in Processes.clamp_attrs([])
+        assert required in Processes.clamp_attrs([:status])
+      end
+    end
+
+    test "clamp_attrs/1 drops unknown attributes" do
+      refute :messages in Processes.clamp_attrs([:messages, :status])
+      assert :status in Processes.clamp_attrs([:messages, :status])
+    end
+
+    test "clamp_attrs/1 falls back to the defaults for a non-list" do
+      assert Processes.clamp_attrs(nil) == Processes.clamp_attrs(Processes.default_attrs())
     end
 
     test "the default page size is selectable" do
