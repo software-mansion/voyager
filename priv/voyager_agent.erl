@@ -218,18 +218,16 @@ do_bounded_attribute(Pid, Key, Limit) ->
         undefined ->
             {error, dead};
         {Key, Items} when is_list(Items) ->
-            {ok, bounded(length(Items), Limit, lists:sublist(Items, Limit))}
+            Total = length(Items),
+            {ok,
+             #{total => Total,
+               truncated => Total > Limit,
+               items => lists:sublist(Items, Limit)}}
     end.
 
 %% =====================================================================
 %% HELPERS
 %% =====================================================================
-
--spec bounded(non_neg_integer(), non_neg_integer(), [term()]) -> bounded(term()).
-bounded(Total, Limit, Items) ->
-    #{total => Total,
-      truncated => Total > Limit,
-      items => Items}.
 
 %% Runs `Fun' with this process' heap capped (10_000_000 words ~= 76MB on 64-bit, 8 bytes word size) so
 %% a pathological scan is killed rather than the node, restoring the previous

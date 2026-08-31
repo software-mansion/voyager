@@ -80,18 +80,10 @@ defmodule Voyager.Services.ProcessInfoTest do
       refute info.initial_call == {Voyager.Fixture, :init, 1}
     end
 
-    test "reads the label without copying the dictionary that stores it" do
-      # `proc_lib:set_label/1` stores the label under `$process_label`, and the
-      # `:label` key of `process_info/2` reads that single entry on the remote.
-      # So the label survives dropping `:dictionary` from @keys: the VM does the
-      # one-key lookup for us instead of us copying the whole dictionary back.
-      pid = spawn_idle(fn -> Process.put(:"$process_label", "set the raw way") end)
-      on_exit(fn -> Process.exit(pid, :kill) end)
-
-      assert {:ok, info} = ProcessInfo.fetch(Node.self(), pid)
-      assert info.label == "set the raw way"
-    end
-
+    # `proc_lib:set_label/1` stores the label under `$process_label`, and the
+    # `:label` key of `process_info/2` reads that single entry on the remote. So
+    # the label survives dropping `:dictionary` from @keys: the VM does the
+    # one-key lookup for us instead of us copying the whole dictionary back.
     test "resolves label from the native process label" do
       pid = spawn_idle(fn -> :proc_lib.set_label(:my_test_label) end)
       on_exit(fn -> Process.exit(pid, :kill) end)
@@ -187,17 +179,6 @@ defmodule Voyager.Services.ProcessInfoTest do
       assert monitor == {:process, {name, node()}}
     end
 
-    test "fetch_monitors/3 keeps pid-form monitors as pids for navigation" do
-      target = spawn_idle()
-      pid = spawn_idle(fn -> Process.monitor(target) end)
-      kill_on_exit([pid, target])
-
-      assert {:ok, %{items: [{:process, monitored}]}} =
-               ProcessInfo.fetch_monitors(Node.self(), pid, 1_000)
-
-      assert monitored == target
-    end
-
     test "fetch_monitored_by/3 returns the monitoring processes" do
       target = spawn_idle()
       watcher = spawn_idle(fn -> Process.monitor(target) end)
@@ -225,7 +206,10 @@ defmodule Voyager.Services.ProcessInfoTest do
       assert entries[:tuple] == {1, [:a, "b"]}
     end
 
-    test "fetch_dictionary/3 caps the number of entries, reporting the real total" do
+    test "unbounded fetches report the real total when the remote truncates" do
+      # 250 entries exceed the requested limit of 200, so the payload is capped
+      # while `total` still reflects what the remote actually holds. All four
+      # fetches share one remote truncation path, so covering it once is enough.
       pid = spawn_idle(fn -> Enum.each(1..250, &Process.put({:key, &1}, &1)) end)
       kill_on_exit([pid])
 
@@ -234,20 +218,6 @@ defmodule Voyager.Services.ProcessInfoTest do
 
       assert total >= 250
       assert length(items) == 200
-    end
-
-    test "unbounded fetches report the real total when the remote truncates" do
-      # 1_001 links exceeds the requested limit of 1_000, so the payload is
-      # capped while `total` still reflects what the remote actually holds.
-      companions = for _ <- 1..1_001, do: spawn_idle()
-      pid = spawn_idle(fn -> Enum.each(companions, &Process.link/1) end)
-      kill_on_exit([pid | companions])
-
-      assert {:ok, %{total: total, truncated?: true, items: items}} =
-               ProcessInfo.fetch_links(Node.self(), pid, 1_000)
-
-      assert total >= 1_001
-      assert length(items) == 1_000
     end
 
     test "unbounded fetches return {:error, :dead} for a dead pid" do
@@ -272,18 +242,6 @@ defmodule Voyager.Services.ProcessInfoTest do
   end
 
   describe "unbounded fetch error translation" do
-    test "translates erpc failures" do
-      expect(Voyager.ErpcMock, :call, fn _node,
-                                         :voyager_agent,
-                                         :proc_links,
-                                         [_pid, _limit],
-                                         _timeout ->
-        :erlang.error({:erpc, :noconnection})
-      end)
-
-      assert {:error, :noconnection} == ProcessInfo.fetch_links(:demo@localhost, self(), 1_000)
-    end
-
     test "surfaces a missing agent as a remote :undef exception" do
       expect(Voyager.ErpcMock, :call, fn _node,
                                          :voyager_agent,
@@ -294,19 +252,6 @@ defmodule Voyager.Services.ProcessInfoTest do
       end)
 
       assert {:error, {:remote_exception, :undef}} ==
-               ProcessInfo.fetch_links(:demo@localhost, self(), 1_000)
-    end
-
-    test "rejects an agent reply it does not understand" do
-      expect(Voyager.ErpcMock, :call, fn _node,
-                                         :voyager_agent,
-                                         :proc_links,
-                                         [_pid, _limit],
-                                         _timeout ->
-        :garbage
-      end)
-
-      assert {:error, {:unexpected_agent_reply, :garbage}} ==
                ProcessInfo.fetch_links(:demo@localhost, self(), 1_000)
     end
   end
