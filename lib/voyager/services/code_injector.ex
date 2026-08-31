@@ -57,9 +57,6 @@ defmodule Voyager.Services.CodeInjector do
       {:ok, {:ok, module, binary}} when is_atom(module) and is_binary(binary) ->
         {:ok, module, binary}
 
-      {:ok, {:ok, module, binary, _warnings}} when is_atom(module) and is_binary(binary) ->
-        {:ok, module, binary}
-
       {:ok, {:error, errors, warnings}} ->
         {:error, {:compile_failed, {errors, warnings}}}
 
