@@ -28,7 +28,7 @@ import SupervisionTree from './hooks/supervision_tree';
 import Tooltip from './hooks/tooltip';
 import NumberStepper from './hooks/number_stepper';
 import DetailsPanelResize from './hooks/details_panel_resize';
-import TableColumnResize from './hooks/table_column_resize';
+import TableSettings from './hooks/table_settings';
 
 const csrfToken = document
   .querySelector("meta[name='csrf-token']")
@@ -40,7 +40,7 @@ const liveSocket = new LiveSocket('/live', Socket, {
     Tooltip,
     NumberStepper,
     DetailsPanelResize,
-    TableColumnResize,
+    TableSettings,
     ...colocatedHooks,
   },
 });

@@ -172,10 +172,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   attr :selected_id, :string, default: nil
   attr :empty_message, :string, default: "No results."
 
-  attr :resizable?, :boolean,
-    default: false,
-    doc: "adds a drag handle to each header; widths persist per table id"
-
   slot :cell, required: true
 
   def table(assigns) do
@@ -188,22 +184,15 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         <%!-- DaisyUI `table`, sized to match the node-info tables: `table-md`
               for their row height and `table-fixed` so the column widths
               actually hold. --%>
-        <table
-          id={@id}
-          phx-hook={@resizable? && "TableColumnResize"}
-          class="table-pin-rows table-md table w-full table-fixed"
-        >
+        <table id={@id} class="table-pin-rows table-md table w-full table-fixed">
           <thead>
             <tr>
-              <%!-- The last column has nothing to its right to give or take
-                    space from, so it gets no handle. --%>
               <.column_header
-                :for={{column, index} <- Enum.with_index(@columns)}
+                :for={column <- @columns}
                 column={column}
                 sort_by={@sort_by}
                 direction={@direction}
                 sort_event={@sort_event}
-                resizable?={@resizable? and index < length(@columns) - 1}
               />
             </tr>
           </thead>
@@ -231,7 +220,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
                 class={["text-sm", align_class(column), width_class(column)]}
               >
                 <div class="truncate">
-                  {render_slot(@cell, %{column: column, row: row})}
+                  {render_slot(@cell, %{column: column, row: row, row_id: dom_id})}
                 </div>
               </td>
             </tr>
@@ -255,7 +244,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   attr :sort_by, :atom, default: nil
   attr :direction, :atom, required: true
   attr :sort_event, :string, required: true
-  attr :resizable?, :boolean, default: false
 
   defp column_header(%{column: %{sortable?: true}} = assigns) do
     assigns = assign(assigns, :active?, assigns.column.key == assigns.sort_by)
@@ -263,7 +251,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
     ~H"""
     <th
       data-column={@column.key}
-      class={["relative", align_class(@column), width_class(@column)]}
+      class={[align_class(@column), width_class(@column)]}
       aria-sort={aria_sort(@active?, @direction)}
     >
       <button
@@ -290,7 +278,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
           />
         </span>
       </button>
-      <.resize_handle :if={@resizable?} label={@column.label} />
     </th>
     """
   end
@@ -299,12 +286,11 @@ defmodule VoyagerWeb.Components.DataTableComponents do
     ~H"""
     <th
       data-column={@column.key}
-      class={["relative", align_class(@column), width_class(@column)]}
+      class={[align_class(@column), width_class(@column)]}
     >
       <div class="font-mono tracking-label text-base-content/70 truncate text-xs font-semibold uppercase">
         {@column.label}
       </div>
-      <.resize_handle :if={@resizable?} label={@column.label} />
     </th>
     """
   end
@@ -317,22 +303,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   defp aria_sort(true, :asc), do: "ascending"
   defp aria_sort(true, :desc), do: "descending"
   defp aria_sort(_active?, _direction), do: "none"
-
-  attr :label, :string, required: true
-
-  defp resize_handle(assigns) do
-    ~H"""
-    <span
-      data-resize-handle
-      role="separator"
-      aria-orientation="vertical"
-      aria-label={"Resize #{@label} column"}
-      class="group absolute inset-y-0 -right-1 z-20 flex w-2 cursor-col-resize touch-none items-center justify-center"
-    >
-      <span class="bg-base-content/20 h-1/2 w-px transition-colors group-hover:bg-primary" />
-    </span>
-    """
-  end
 
   @doc """
   Pager for a client-side page over an already-fetched result set.

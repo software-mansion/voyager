@@ -73,86 +73,68 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   """
   attr :column, :map, required: true
   attr :row, :map, required: true
+  attr :row_id, :string, required: true, doc: "stable prefix for this row's element ids"
+  attr :pid_href, :string, required: true, doc: "details page for this row's process"
 
   def cell(assigns) do
     ~H"""
     <%= case @column.key do %>
       <% :pid -> %>
-        <.pid_cell pid={@row.pid} />
+        <.pid_cell pid={@row.pid} row_id={@row_id} href={@pid_href} />
       <% :registered_name -> %>
-        <span class="font-mono text-sm" title={format_name(@row[:registered_name])}>
-          {format_name(@row[:registered_name])}
-        </span>
+        <.value_cell id={"#{@row_id}-name"} value={format_name(@row[:registered_name])} />
       <% :initial_call -> %>
-        <span class="font-mono text-base-content/70 text-sm" title={format_mfa(@row[:initial_call])}>
-          {format_mfa(@row[:initial_call])}
-        </span>
+        <.value_cell id={"#{@row_id}-initial-call"} value={format_mfa(@row[:initial_call])} muted />
       <% :current_function -> %>
-        <span
-          class="font-mono text-base-content/70 text-sm"
-          title={format_mfa(@row[:current_function])}
-        >
-          {format_mfa(@row[:current_function])}
-        </span>
-        <%!-- Numeric columns are fixed-width, so the full value stays reachable
-            via the title when it truncates. --%>
+        <.value_cell
+          id={"#{@row_id}-current-function"}
+          value={format_mfa(@row[:current_function])}
+          muted
+        />
       <% :memory -> %>
-        <span class="font-mono text-sm" title={Formatters.format_bytes(@row[:memory])}>
-          {Formatters.format_bytes(@row[:memory])}
-        </span>
+        <.value_cell id={"#{@row_id}-memory"} value={Formatters.format_bytes(@row[:memory])} />
       <% :reductions -> %>
-        <span class="font-mono text-sm" title={format_number(@row[:reductions])}>
-          {format_number(@row[:reductions])}
-        </span>
+        <.value_cell id={"#{@row_id}-reductions"} value={format_number(@row[:reductions])} />
       <% :status -> %>
-        <span class="font-mono text-base-content/70 text-sm">{format_atom(@row[:status])}</span>
+        <.value_cell id={"#{@row_id}-status"} value={format_atom(@row[:status])} muted />
       <% :priority -> %>
-        <span class="font-mono text-base-content/70 text-sm">{format_atom(@row[:priority])}</span>
+        <.value_cell id={"#{@row_id}-priority"} value={format_atom(@row[:priority])} muted />
       <% :message_queue_len -> %>
-        <span
-          class={[
-            "font-mono text-sm",
-            queue_warning?(@row[:message_queue_len]) && "text-warning font-medium"
-          ]}
-          title={format_number(@row[:message_queue_len])}
-        >
-          {format_number(@row[:message_queue_len])}
-        </span>
+        <.value_cell
+          id={"#{@row_id}-msgq"}
+          value={format_number(@row[:message_queue_len])}
+          class={queue_warning?(@row[:message_queue_len]) && "text-warning font-medium"}
+        />
     <% end %>
     """
   end
 
   @doc """
-  PID cell: the (possibly truncated) pid with a tooltip carrying the full value
-  and a button to copy it.
+  A table value with a tooltip carrying the full text and a button to copy it.
+
+  Cells are narrow and truncate, so every value needs a way to be read and
+  copied in full.
   """
-  attr :pid, :any, required: true
+  attr :id, :string, required: true
+  attr :value, :string, required: true
+  attr :muted, :boolean, default: false
+  attr :class, :any, default: nil
 
-  def pid_cell(assigns) do
-    assigns =
-      assigns
-      |> assign(:pid_string, Processes.format_pid(assigns.pid))
-      |> then(&assign(&1, :key, dom_id(&1.pid_string)))
-
+  def value_cell(assigns) do
     ~H"""
-    <%!-- The copy button lives in the tooltip so the cell stays a plain value
-          and the full pid is what gets copied, whatever the column width. --%>
-    <.tooltip
-      id={"pid-tip-#{@key}"}
-      position="right"
-      interactive
-      class="min-w-0 max-w-full"
-      tip_class="font-mono"
-    >
-      <span class="font-mono text-primary block truncate text-sm">{@pid_string}</span>
+    <.tooltip id={"#{@id}-tip"} interactive class="min-w-0 max-w-full" tip_class="font-mono">
+      <span class={["font-mono block truncate text-sm", @muted && "text-base-content/70", @class]}>
+        {@value}
+      </span>
       <:content>
         <div class="flex items-center gap-1">
-          <span id={"pid-copy-text-#{@key}"}>{@pid_string}</span>
+          <span id={"#{@id}-copy-text"}>{@value}</span>
           <.copy_button
-            id={"pid-copy-#{@key}"}
-            target={"#pid-copy-text-#{@key}"}
-            label="Copy PID"
+            id={"#{@id}-copy"}
+            target={"##{@id}-copy-text"}
+            label="Copy value"
             icon_only
+            size={:sm}
             class="text-base-content/60 shrink-0 hover:text-primary"
           />
         </div>
@@ -161,9 +143,46 @@ defmodule VoyagerWeb.Components.ProcessComponents do
     """
   end
 
-  # `<0.123.0>` is not a valid DOM id, so ids are keyed on the digits.
-  defp dom_id(pid_string) do
-    pid_string |> String.replace(~r/[^\d]+/, "-") |> String.trim("-")
+  @doc """
+  PID cell: a link to the process details page, with a tooltip carrying the
+  full pid and a button to copy it.
+  """
+  attr :pid, :any, required: true
+  attr :row_id, :string, required: true
+  attr :href, :string, required: true
+
+  def pid_cell(assigns) do
+    assigns = assign(assigns, :pid_string, Processes.format_pid(assigns.pid))
+
+    ~H"""
+    <.tooltip
+      id={"#{@row_id}-pid-tip"}
+      interactive
+      class="min-w-0 max-w-full"
+      tip_class="font-mono"
+    >
+      <%!-- Only the pid navigates, so it carries the affordances of a link. --%>
+      <.link
+        navigate={@href}
+        class="font-mono text-primary block truncate text-sm hover:underline focus-visible:underline"
+      >
+        {@pid_string}
+      </.link>
+      <:content>
+        <div class="flex items-center gap-1">
+          <span id={"#{@row_id}-pid-copy-text"}>{@pid_string}</span>
+          <.copy_button
+            id={"#{@row_id}-pid-copy"}
+            target={"##{@row_id}-pid-copy-text"}
+            label="Copy PID"
+            icon_only
+            size={:sm}
+            class="text-base-content/60 shrink-0 hover:text-primary"
+          />
+        </div>
+      </:content>
+    </.tooltip>
+    """
   end
 
   @doc """

@@ -285,81 +285,53 @@ defmodule VoyagerWeb.ProcessesLiveTest do
     end
   end
 
-  describe "resizable columns" do
-    test "the table opts into the resize hook", %{conn: conn} do
-      stub_scan([])
-      {:ok, view, _html} = live(conn, @path)
-      render_async(view)
-
-      assert has_element?(view, ~s|#processes-table[phx-hook="TableColumnResize"]|)
-    end
-
-    test "every header carries a resize handle and a column key", %{conn: conn} do
-      stub_scan([])
-      {:ok, view, _html} = live(conn, @path)
-      render_async(view)
-
-      headers = view |> element("#processes-table thead") |> render()
-
-      for %{key: key} <- ProcessComponents.columns(Processes.default_attrs()) do
-        assert headers =~ ~s|data-column="#{key}"|
-      end
-
-      assert headers =~ "data-resize-handle"
-    end
-
-    test "the last column has no resize handle", %{conn: conn} do
-      stub_scan([])
-      {:ok, view, _html} = live(conn, @path)
-      render_async(view)
-
-      columns = ProcessComponents.columns(Processes.default_attrs())
-      last = List.last(columns)
-
-      header = view |> element(~s|th[data-column="#{last.key}"]|) |> render()
-      refute header =~ "data-resize-handle"
-
-      # Every other column still has one.
-      first = List.first(columns)
-
-      assert view |> element(~s|th[data-column="#{first.key}"]|) |> render() =~
-               "data-resize-handle"
-    end
-
-    test "body cells are keyed so the hook can size them", %{conn: conn} do
+  describe "PID cell" do
+    test "links to the details page, carrying the list's params", %{conn: conn} do
       [pid] = fake_pids(1)
       stub_scan([entry(pid: pid)])
+
+      {:ok, view, _html} = live(conn, "#{@path}?page_size=50")
+      render_async(view)
+
+      link = view |> element(~s|td[data-column="pid"] a|) |> render()
+
+      assert link =~ URI.encode_www_form(Processes.format_pid(pid))
+      assert link =~ "return_to="
+      # Reads as a link on hover.
+      assert link =~ "hover:underline"
+    end
+
+    test "only the pid navigates", %{conn: conn} do
+      [pid] = fake_pids(1)
+      stub_scan([entry(pid: pid, registered_name: :my_worker)])
 
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
       row = view |> element("##{ProcessesLive.row_dom_id(pid)}") |> render()
 
-      assert row =~ ~s|data-column="pid"|
-      assert row =~ ~s|data-column="memory"|
+      # The row itself is not clickable, and no other cell holds a link.
+      refute row =~ "phx-click=\"select-process\""
+      assert row |> String.split("<a ") |> length() == 2
     end
-  end
 
-  describe "PID cell" do
-    test "offers a copy button and a tooltip with the full pid", %{conn: conn} do
+    test "every cell offers a tooltip with a copy button", %{conn: conn} do
       [pid] = fake_pids(1)
-      stub_scan([entry(pid: pid)])
+      stub_scan([entry(pid: pid, registered_name: :my_worker)])
 
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      pid_string = Processes.format_pid(pid)
-      key = pid_string |> String.replace(~r/[^\d]+/, "-") |> String.trim("-")
-
+      row_id = ProcessesLive.row_dom_id(pid)
       html = render(view)
 
-      # The copy button lives in the tooltip content, alongside the full pid.
-      assert html =~ ~s|id="pid-tip-#{key}"|
-      assert html =~ ~s|id="pid-copy-#{key}"|
-      assert html =~ ~s|id="pid-copy-text-#{key}"|
+      # Not just the pid: each value is reachable and copyable in full.
+      for suffix <- ~w(pid name initial-call memory reductions msgq) do
+        assert html =~ ~s|id="#{row_id}-#{suffix}|
+      end
 
-      escaped = pid_string |> String.replace("<", "&lt;") |> String.replace(">", "&gt;")
-      assert html =~ escaped
+      assert html =~ ~s|id="#{row_id}-memory-copy"|
+      assert html =~ ~s|id="#{row_id}-memory-copy-text"|
     end
   end
 
@@ -439,8 +411,12 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      # The title carries the untruncated value.
-      assert render(view) =~ ~s|title="999,999,999,999"|
+      row_id = ProcessesLive.row_dom_id(pid)
+
+      # The tooltip's copy source carries the untruncated value.
+      html = render(view)
+      assert html =~ ~s|id="#{row_id}-reductions-copy-text"|
+      assert html =~ "999,999,999,999"
     end
   end
 
@@ -810,7 +786,7 @@ defmodule VoyagerWeb.ProcessesLiveTest do
   end
 
   describe "drill-in" do
-    test "navigates to the details page for the clicked process", %{conn: conn} do
+    test "the pid link points at the details page", %{conn: conn} do
       [pid] = fake_pids(1)
       stub_scan([entry(pid: pid)])
 
@@ -818,14 +794,9 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       render_async(view)
 
       pid_string = Processes.format_pid(pid)
+      href = view |> element(~s|td[data-column="pid"] a|) |> render()
 
-      view |> element("##{ProcessesLive.row_dom_id(pid)}") |> render_click()
-
-      {to, _flash} = assert_redirect(view)
-
-      assert to =~ "/processes/#{URI.encode_www_form(pid_string)}"
-      # The configured view is carried so the details page can return to it.
-      assert to =~ "return_to="
+      assert href =~ "/processes/#{URI.encode_www_form(pid_string)}"
     end
   end
 

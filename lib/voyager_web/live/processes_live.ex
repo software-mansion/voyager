@@ -86,7 +86,15 @@ defmodule VoyagerWeb.ProcessesLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="mx-auto flex h-full max-w-screen-2xl flex-col gap-4 p-6 pb-12 sm:p-8 sm:pb-12">
+    <%!-- The table's settings live in the query string; the hook mirrors them
+          to localStorage and restores them when the page is opened without
+          any, so an explicit link still wins. --%>
+    <div
+      id="processes-page"
+      phx-hook="TableSettings"
+      data-settings-key="processes"
+      class="mx-auto flex h-full max-w-screen-2xl flex-col gap-4 p-6 pb-12 sm:p-8 sm:pb-12"
+    >
       <.node_header
         node_name={@session.node_name}
         last_updated={@last_updated}
@@ -148,13 +156,15 @@ defmodule VoyagerWeb.ProcessesLive do
         rows={rows(current_entries(@page_result), @page, @page_size)}
         sort_by={@sort_by}
         direction={@direction}
-        row_click_event="select-process"
-        row_id_key={:pid}
         empty_message={if @page_result.ok?, do: "No processes matched.", else: "Scanning processes…"}
-        resizable?={true}
       >
-        <:cell :let={%{column: column, row: row}}>
-          <ProcessComponents.cell column={column} row={row} />
+        <:cell :let={%{column: column, row: row, row_id: row_id}}>
+          <ProcessComponents.cell
+            column={column}
+            row={row}
+            row_id={row_id}
+            pid_href={process_path(@session.node_name, row.pid, @current_url)}
+          />
         </:cell>
       </DataTableComponents.table>
 
@@ -262,17 +272,6 @@ defmodule VoyagerWeb.ProcessesLive do
     |> noreply()
   end
 
-  def handle_event("select-process", %{"id" => pid_string}, socket) do
-    # The configured view (columns, limit, page size, timeout) lives in the
-    # query string, so it is carried along for the details page's back link.
-    node_name = socket.assigns.session.node_name
-    return_to = socket.assigns.current_url
-
-    socket
-    |> push_navigate(to: ~p"/node/#{node_name}/processes/#{pid_string}?#{[return_to: return_to]}")
-    |> noreply()
-  end
-
   @impl true
   def handle_info(:auto_refresh, socket) do
     socket = restart_refresh_timer(socket)
@@ -337,6 +336,14 @@ defmodule VoyagerWeb.ProcessesLive do
           {:error, reason}
       end
     end)
+  end
+
+  # The details page carries the list's query string so its back link can
+  # restore the configured view.
+  defp process_path(node_name, pid, current_url) do
+    pid_string = Processes.format_pid(pid)
+
+    ~p"/node/#{node_name}/processes/#{pid_string}?#{[return_to: current_url]}"
   end
 
   # The remote already returned them ranked; paging only walks that result.

@@ -197,6 +197,12 @@ defmodule VoyagerWeb.CoreComponents do
   attr :label, :string, default: "Copy"
   attr :copied_label, :string, default: "Copied"
   attr :icon_only, :boolean, default: false, doc: "hides the visible label"
+
+  attr :size, :atom,
+    default: :md,
+    values: [:md, :sm],
+    doc: "`:sm` for dense contexts such as table cells"
+
   attr :class, :any, default: nil
   attr :rest, :global
 
@@ -214,16 +220,15 @@ defmodule VoyagerWeb.CoreComponents do
       aria-label={@label}
       class={[
         "btn btn-ghost",
-        if(@icon_only, do: "btn-square toolbar-btn", else: "btn-sm gap-2"),
+        if(@icon_only,
+          do: ["btn-square", if(@size == :sm, do: "toolbar-btn-sm", else: "toolbar-btn")],
+          else: "btn-sm gap-2"
+        ),
         @class
       ]}
       {@rest}
     >
-      <.icon
-        name="icon-copy"
-        data-copy-icon
-        class={if @icon_only, do: "toolbar-icon", else: "size-4"}
-      />
+      <.icon name="icon-copy" data-copy-icon class={copy_icon_class(@icon_only, @size)} />
       <span data-copy-button-label class={@icon_only && "sr-only"}>{@label}</span>
       <span class="sr-only" aria-live="polite" data-copy-status></span>
     </button>
@@ -436,6 +441,10 @@ defmodule VoyagerWeb.CoreComponents do
     </div>
     """
   end
+
+  defp copy_icon_class(true, :sm), do: "toolbar-icon-sm"
+  defp copy_icon_class(true, _size), do: "toolbar-icon"
+  defp copy_icon_class(false, _size), do: "size-4"
 
   defp translate_error({msg, opts}) do
     Enum.reduce(opts, msg, fn {key, value}, acc ->
