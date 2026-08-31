@@ -265,4 +265,250 @@ defmodule Voyager.Services.Ets.RemoteTest do
     ]
     |> Keyword.merge(overrides)
   end
+
+  describe "select_chunk/5" do
+    test "probes ets_select_chunk/3 then match-all :ets.select/3 with the timeout" do
+      test = self()
+      table = :voyager_chunk
+      cont = make_ref()
+
+      stub_exported(:ets_select_chunk, 3, false)
+
+      expect(Voyager.ErpcMock, :call, fn node, :ets, :select, [^table, spec, 10], timeout ->
+        send(test, {:called, :select, node, spec, timeout})
+        {[{:a, 1}], cont}
+      end)
+
+      assert {:ok, chunk} = Remote.select_chunk(@node, table, 10, nil, @timeout)
+      assert chunk.records == [{:a, 1}]
+      assert chunk.continuation == cont
+      assert chunk.via == :mfa
+
+      assert_received {:called, :select, @node, [{:"$1", [], [:"$1"]}], @timeout}
+    end
+
+    test "uses :ets.select/1 for a continuation page" do
+      cont = make_ref()
+      stub_exported(:ets_select_chunk, 3, false)
+
+      expect(Voyager.ErpcMock, :call, fn @node, :ets, :select, [^cont], @timeout ->
+        :"$end_of_table"
+      end)
+
+      assert {:ok, chunk} = Remote.select_chunk(@node, :t, 10, cont, @timeout)
+      assert chunk.records == []
+      assert chunk.continuation == nil
+      assert chunk.via == :mfa
+    end
+
+    test "calls :voyager_agent.ets_select_chunk/3 when the export is present" do
+      test = self()
+      table = :cached
+      cont = make_ref()
+
+      stub_exported(:ets_select_chunk, 3, true)
+
+      expect(Voyager.ErpcMock, :call, fn node, :voyager_agent, :ets_select_chunk, args, timeout ->
+        send(test, {:called, node, args, timeout})
+        {[{:ok, 1}], cont}
+      end)
+
+      assert {:ok, chunk} = Remote.select_chunk(@node, table, 10, nil, @timeout)
+      assert chunk.via == :agent
+      assert chunk.records == [{:ok, 1}]
+      assert chunk.continuation == cont
+
+      assert_received {:called, @node, [^table, 10, :undefined], @timeout}
+    end
+
+    test "passes a raw continuation through to the agent, not :undefined" do
+      cont = {:ets_cont, 1}
+      stub_exported(:ets_select_chunk, 3, true)
+
+      expect(Voyager.ErpcMock, :call, fn @node,
+                                         :voyager_agent,
+                                         :ets_select_chunk,
+                                         [:t, 20, ^cont],
+                                         @timeout ->
+        :"$end_of_table"
+      end)
+
+      assert {:ok, chunk} = Remote.select_chunk(@node, :t, 20, cont, @timeout)
+      assert chunk.via == :agent
+      assert chunk.continuation == nil
+    end
+
+    test "does not call :voyager_agent when exports are missing" do
+      test = self()
+      stub_exported(:ets_select_chunk, 3, false)
+
+      expect(Voyager.ErpcMock, :call, fn _node, mod, fun, _args, _timeout ->
+        send(test, {:called, mod, fun})
+        :"$end_of_table"
+      end)
+
+      assert {:ok, %{via: :mfa}} = Remote.select_chunk(@node, :t, 10, nil, @timeout)
+      assert_received {:called, :ets, :select}
+      refute_received {:called, :voyager_agent, _}
+    end
+
+    test "does not fall back to MFA when the agent is undef after a successful probe" do
+      stub_exported(:ets_select_chunk, 3, true)
+
+      expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_chunk, _, _ ->
+        :erlang.error({:exception, :undef, []})
+      end)
+
+      assert {:error, {:remote_exception, :undef}} =
+               Remote.select_chunk(@node, :t, 10, nil, @timeout)
+    end
+
+    test "does not fall back to MFA when the probe returns :noconnection" do
+      expect(Voyager.ErpcMock, :call, fn _, :erlang, :function_exported, _, _ ->
+        :erlang.error({:erpc, :noconnection})
+      end)
+
+      assert {:error, :noconnection} = Remote.select_chunk(@node, :t, 10, nil, @timeout)
+    end
+
+    test "does not fall back to MFA when :ets.select times out" do
+      stub_exported(:ets_select_chunk, 3, false)
+
+      expect(Voyager.ErpcMock, :call, fn @node, :ets, :select, _, _ ->
+        :erlang.error({:erpc, :timeout})
+      end)
+
+      assert {:error, :timeout} = Remote.select_chunk(@node, :t, 10, nil, @timeout)
+    end
+
+    test "maps remote badarg to :cannot_read without MFA fallback" do
+      stub_exported(:ets_select_chunk, 3, true)
+
+      expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_chunk, _, _ ->
+        :erlang.error({:exception, :badarg, []})
+      end)
+
+      assert {:error, :cannot_read} = Remote.select_chunk(@node, :t, 10, nil, @timeout)
+    end
+
+    test "maps MFA badarg to :cannot_read" do
+      stub_exported(:ets_select_chunk, 3, false)
+
+      expect(Voyager.ErpcMock, :call, fn @node, :ets, :select, _, _ ->
+        :erlang.error({:exception, :badarg, []})
+      end)
+
+      assert {:error, :cannot_read} = Remote.select_chunk(@node, :t, 10, nil, @timeout)
+    end
+
+    test "returns :invalid_response when select does not return a chunk" do
+      stub_exported(:ets_select_chunk, 3, false)
+
+      expect(Voyager.ErpcMock, :call, fn @node, :ets, :select, _, _ -> :oops end)
+
+      assert {:error, :invalid_response} = Remote.select_chunk(@node, :t, 10, nil, @timeout)
+    end
+
+    test "rejects a limit outside 10, 20, 50 without touching the remote" do
+      assert {:error, :invalid_limit} = Remote.select_chunk(@node, :t, 15, nil, @timeout)
+      assert {:error, :invalid_limit} = Remote.select_chunk(@node, :t, 1, nil, @timeout)
+    end
+
+    test "rejects a handle that is not an atom or reference without touching the remote" do
+      assert {:error, :invalid_table} = Remote.select_chunk(@node, self(), 10, nil, @timeout)
+    end
+
+    test "defaults the timeout to 5_000 ms" do
+      expect(Voyager.ErpcMock, :call, fn @node,
+                                         :erlang,
+                                         :function_exported,
+                                         [:voyager_agent, :ets_select_chunk, 3],
+                                         5_000 ->
+        false
+      end)
+
+      expect(Voyager.ErpcMock, :call, fn @node, :ets, :select, [:t, _spec, 10], 5_000 ->
+        :"$end_of_table"
+      end)
+
+      assert {:ok, %{via: :mfa}} = Remote.select_chunk(@node, :t, 10)
+    end
+  end
+
+  describe "lookup/4" do
+    test "probes ets_lookup/2 then :ets.lookup/2 with the timeout" do
+      test = self()
+      stub_exported(:ets_lookup, 2, false)
+
+      expect(Voyager.ErpcMock, :call, fn node, :ets, :lookup, [:t, :k], timeout ->
+        send(test, {:called, node, timeout})
+        [{:t, :k, 1}]
+      end)
+
+      assert {:ok, chunk} = Remote.lookup(@node, :t, :k, @timeout)
+      assert chunk.records == [{:t, :k, 1}]
+      assert chunk.continuation == nil
+      assert chunk.via == :mfa
+      assert_received {:called, @node, @timeout}
+    end
+
+    test "calls :voyager_agent.ets_lookup/2 when the export is present" do
+      stub_exported(:ets_lookup, 2, true)
+
+      expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_lookup, [:t, 7], @timeout ->
+        [{7, :ok}]
+      end)
+
+      assert {:ok, chunk} = Remote.lookup(@node, :t, 7, @timeout)
+      assert chunk.via == :agent
+      assert chunk.records == [{7, :ok}]
+    end
+
+    test "does not fall back to MFA when the agent is undef after a successful probe" do
+      stub_exported(:ets_lookup, 2, true)
+
+      expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_lookup, _, _ ->
+        :erlang.error({:exception, :undef, []})
+      end)
+
+      assert {:error, {:remote_exception, :undef}} = Remote.lookup(@node, :t, :k, @timeout)
+    end
+
+    test "maps remote badarg to :cannot_read" do
+      stub_exported(:ets_lookup, 2, false)
+
+      expect(Voyager.ErpcMock, :call, fn @node, :ets, :lookup, _, _ ->
+        :erlang.error({:exception, :badarg, []})
+      end)
+
+      assert {:error, :cannot_read} = Remote.lookup(@node, :t, <<"k">>, @timeout)
+    end
+
+    test "rejects a key that is not an atom, integer, or binary without touching the remote" do
+      assert {:error, :invalid_key} = Remote.lookup(@node, :t, {:tuple, 1}, @timeout)
+      assert {:error, :invalid_key} = Remote.lookup(@node, :t, self(), @timeout)
+    end
+
+    test "rejects a handle that is not an atom or reference without touching the remote" do
+      assert {:error, :invalid_table} = Remote.lookup(@node, self(), :k, @timeout)
+    end
+
+    test "returns :invalid_response when lookup does not return a list" do
+      stub_exported(:ets_lookup, 2, false)
+
+      expect(Voyager.ErpcMock, :call, fn @node, :ets, :lookup, _, _ -> :undefined end)
+
+      assert {:error, :invalid_response} = Remote.lookup(@node, :t, :k, @timeout)
+    end
+  end
+
+  defp stub_exported(fun, arity, exported?) do
+    expect(Voyager.ErpcMock, :call, fn @node,
+                                       :erlang,
+                                       :function_exported,
+                                       [:voyager_agent, ^fun, ^arity],
+                                       @timeout ->
+      exported?
+    end)
+  end
 end
