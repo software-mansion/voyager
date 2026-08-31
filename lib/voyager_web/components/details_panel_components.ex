@@ -514,7 +514,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp format_stack_entry(entry), do: inspect(entry)
 
   defp format_optional(nil), do: "—"
-  defp format_optional(value) when is_binary(value), do: value
   defp format_optional(value), do: inspect(value)
 
   defp format_optional_identifier(nil), do: "—"

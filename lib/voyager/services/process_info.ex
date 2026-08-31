@@ -2,32 +2,17 @@ defmodule Voyager.Services.ProcessInfo do
   @moduledoc """
   Fetches runtime details for a single process on a remote node via `:erpc`.
 
-  `fetch/2` returns only fixed-size, cheap-to-copy attributes, so it is safe to
-  call eagerly and on every refresh regardless of the target process's state.
-  It reads `:erlang.process_info/2` directly, since the payload is bounded by
-  construction.
+  `fetch/2` reads `:erlang.process_info/2` directly and returns only fixed-size
+  attributes, so it is safe to call eagerly on every refresh. Unbounded
+  attributes are excluded from it and exposed as separate `fetch_*/3` functions,
+  which go through `:voyager_agent` on the remote node so the payload is capped
+  and truncated *before* it crosses the distribution channel; each returns a
+  `bounded/1` map carrying the real `:total` alongside the truncated `:items`.
+  Missing agent surfaces as `{:error, {:remote_exception, :undef}}`.
 
-  Attributes with no upper bound are excluded from `fetch/2` and exposed as
-  separate, explicitly-invoked functions (`fetch_links/3`, `fetch_monitors/3`,
-  `fetch_monitored_by/3`, `fetch_dictionary/3`), each taking the entry `limit`
-  from its caller. Those never read
-  `:erlang.process_info/2` over the wire: they call the `:voyager_agent` module
-  on the remote node via `Voyager.Agent`, which caps its heap and truncates the
-  payload *before* it crosses the distribution channel. A process holding
-  millions of links therefore cannot flood either node.
-
-  Each of those returns a `bounded/1` map carrying the real `:total` alongside
-  the truncated `:items`, so callers can surface the gap rather than presenting
-  a partial list as complete. The agent is assumed to be present on the node;
-  when it is not, calls fail with `{:error, {:remote_exception, :undef}}`.
-
-  The process dictionary is not read by `fetch/2` at all, not even to derive
-  single fields from it: it is unbounded in both length and term size, so
-  pulling it in for a projection would put an unbounded copy on the eager path.
-  Callers that need anything from it use `fetch_dictionary/3`. As a consequence
-  `:initial_call` here is the raw one, which for an OTP-behaviour process is its
-  `proc_lib` entry point rather than the spawn MFA recorded under
-  `$initial_call`.
+  The process dictionary is not read by `fetch/2` at all, so `:initial_call` is
+  the raw one — for an OTP-behaviour process its `proc_lib` entry point, not the
+  spawn MFA recorded under `$initial_call`.
 
   Returns a structured `info` map with Erlang-native values (MFAs, pids, atoms,
   integers). Word-counted sizes from `:erlang.process_info/2` are converted to
@@ -205,9 +190,6 @@ defmodule Voyager.Services.ProcessInfo do
 
       {:ok, {:error, :dead}} ->
         {:error, :dead}
-
-      {:ok, other} ->
-        {:error, {:unexpected_agent_reply, other}}
 
       {:error, _} = err ->
         err
