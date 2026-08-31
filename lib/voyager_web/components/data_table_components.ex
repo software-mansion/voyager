@@ -182,9 +182,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
       <%!-- No horizontal scroll: fixed layout keeps the columns inside the
             card, and overflowing content truncates. --%>
       <div class="p-5">
-        <%!-- DaisyUI `table`, sized to match the node-info tables: `table-md`
-              for their row height and `table-fixed` so the column widths
-              actually hold. --%>
         <table id={@id} class="table-pin-rows table-md table w-full table-fixed">
           <thead>
             <tr>
@@ -204,8 +201,8 @@ defmodule VoyagerWeb.Components.DataTableComponents do
               </td>
             </tr>
             <tr :for={{dom_id, row} <- @rows} id={dom_id}>
-              <%!-- `truncate` needs a block-level box to clamp against, so the
-                    cell content is wrapped rather than truncated on the td. --%>
+              <%!-- `truncate` needs a block box, so it wraps the content
+                    rather than sitting on the td. --%>
               <td
                 :for={column <- @columns}
                 data-column={column.key}

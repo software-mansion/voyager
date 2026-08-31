@@ -133,13 +133,13 @@ defmodule VoyagerWeb.ProcessesLive do
         timeout_max={elem(Processes.timeout_bounds(), 1)}
       />
 
-      <%!-- The table is rendered outside any loading branch so a refetch only
-            swaps the rows inside it; replacing the whole block tore the table
-            down and rebuilt it, which flickered. --%>
+      <%!-- Rendered outside any loading branch: a refetch swaps only the rows,
+            rather than tearing the table down and rebuilding it (which
+            flickered). --%>
       <.error_state
-        :if={failed_reason(@page_result)}
+        :if={@page_result.failed}
         id="processes-error"
-        message={format_error(failed_reason(@page_result))}
+        message={format_error(@page_result.failed)}
       />
 
       <DataTableComponents.scan_summary
@@ -207,42 +207,20 @@ defmodule VoyagerWeb.ProcessesLive do
     |> noreply()
   end
 
-  # Both controls live in the query string: patch the URL and let
-  # handle_params/3 apply the value and trigger the refetch.
-  def handle_event("set_limit", %{"limit" => limit}, socket) do
-    limit = limit |> parse_integer(socket.assigns.limit) |> Processes.clamp_limit()
-
+  # The table's controls are routed state: patch the URL and let
+  # handle_params/3 validate the value and trigger any refetch.
+  def handle_event("set_" <> control, params, socket)
+      when control in ~w(limit page_size timeout) do
     socket
-    |> push_patch(to: controls_path(socket, %{"limit" => to_string(limit)}))
-    |> noreply()
-  end
-
-  def handle_event("set_page_size", %{"page_size" => page_size}, socket) do
-    page_size =
-      page_size |> parse_integer(socket.assigns.page_size) |> Processes.clamp_page_size()
-
-    socket
-    |> push_patch(to: controls_path(socket, %{"page_size" => to_string(page_size)}))
-    |> noreply()
-  end
-
-  def handle_event("set_timeout", %{"timeout" => ms}, socket) do
-    timeout = ms |> parse_integer(socket.assigns.timeout) |> Processes.clamp_timeout()
-
-    socket
-    |> push_patch(to: controls_path(socket, %{"timeout" => to_string(timeout)}))
+    |> push_patch(to: controls_path(socket, %{control => params[control]}))
     |> noreply()
   end
 
   def handle_event("set_columns", params, socket) do
-    selected =
-      params
-      |> Map.get("columns", [])
-      |> param_attr_list()
-      |> Processes.clamp_attrs()
+    columns = params |> Map.get("columns", []) |> Enum.join(",")
 
     socket
-    |> push_patch(to: controls_path(socket, %{"columns" => Enum.join(selected, ",")}))
+    |> push_patch(to: controls_path(socket, %{"columns" => columns}))
     |> noreply()
   end
 
@@ -254,12 +232,6 @@ defmodule VoyagerWeb.ProcessesLive do
   end
 
   def handle_event("refresh_now", _params, socket) do
-    socket
-    |> fetch()
-    |> noreply()
-  end
-
-  def handle_event("refresh", _params, socket) do
     socket
     |> fetch()
     |> noreply()
@@ -337,8 +309,8 @@ defmodule VoyagerWeb.ProcessesLive do
     end)
   end
 
-  # The details page carries the list's query string so its back link can
-  # restore the configured view.
+  # `return_to` carries the list's query string so the details page can come back
+  # to the configured view.
   defp process_path(node_name, pid, current_url) do
     pid_string = Processes.format_pid(pid)
 
@@ -399,23 +371,12 @@ defmodule VoyagerWeb.ProcessesLive do
   # `{value, label, locked?}` triples for the columns multiselect, required
   # attributes first so they read as the fixed part of the selection.
   defp column_options do
-    required = Enum.map(Processes.required_attrs(), &{to_string(&1), label(&1), true})
-    optional = Enum.map(Processes.optional_attrs(), &{to_string(&1), label(&1), false})
-
-    required ++ optional
+    Enum.map(Processes.required_attrs(), &column_option(&1, true)) ++
+      Enum.map(Processes.optional_attrs(), &column_option(&1, false))
   end
 
-  defp label(attr), do: ProcessComponents.column_label(attr)
-
-  # Names come from the client, so only known attributes are converted; anything
-  # else is dropped rather than creating an atom.
-  defp param_attr_list(names) do
-    known = Processes.required_attrs() ++ Processes.optional_attrs()
-
-    names
-    |> Enum.map(fn name -> Enum.find(known, &(to_string(&1) == name)) end)
-    |> Enum.reject(&is_nil/1)
-  end
+  defp column_option(attr, locked?),
+    do: {to_string(attr), ProcessComponents.column_label(attr), locked?}
 
   defp parse_interval("off"), do: nil
 
@@ -435,34 +396,27 @@ defmodule VoyagerWeb.ProcessesLive do
     end
   end
 
-  # Columns arrive as a comma-separated query param; unknown names are dropped
-  # and the required ones are always re-added.
+  # Columns arrive as a comma-separated query param. Names come from the client,
+  # so only known ones are converted rather than creating arbitrary atoms.
   defp param_attrs(nil, fallback), do: Processes.clamp_attrs(fallback)
 
   defp param_attrs(value, _fallback) when is_binary(value) do
+    known = Processes.required_attrs() ++ Processes.optional_attrs()
+
     value
     |> String.split(",", trim: true)
-    |> param_attr_list()
+    |> Enum.map(fn name -> Enum.find(known, &(to_string(&1) == name)) end)
     |> Processes.clamp_attrs()
   end
 
-  # Rows survive a refetch: the previous result stays assigned, so the table
-  # keeps rendering it until the new one lands.
+  # Rows survive a refetch: the previous result stays assigned until the new
+  # one lands.
   defp current_entries(%AsyncResult{ok?: true, result: %{entries: entries}}), do: entries
   defp current_entries(_page_result), do: []
-
-  # A failure keeps whatever rows were already on screen, so the error is shown
-  # above them rather than replacing them.
-  defp failed_reason(%AsyncResult{failed: nil}), do: nil
-  defp failed_reason(%AsyncResult{failed: reason}), do: reason
 
   defp controls_path(socket, params) do
     URL.put_query_params(socket.assigns.current_url, params)
   end
-
-  # `assign_async` wraps a returned `{:error, reason}` before it reaches the
-  # `:failed` slot, so unwrap it before matching on the reason itself.
-  defp format_error({:error, reason}), do: format_error(reason)
 
   defp format_error(:timeout),
     do: "Timed out while scanning processes. Try a longer timeout or fewer processes."
