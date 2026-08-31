@@ -182,6 +182,72 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       assert_received {:scanned, [_attrs, :reductions, _limit, :desc, _search], _timeout}
     end
 
+    test "shows both arrows on every sortable column", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      for key <- Processes.sortable_attrs() do
+        header = view |> element(~s|th:has(button[phx-value-key="#{key}"])|) |> render()
+
+        assert header =~ "icon-move-up"
+        assert header =~ "icon-move-down"
+      end
+    end
+
+    test "dims both arrows on a column that is not sorted", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      # :memory is the default sort column, so :reductions is unsorted.
+      header = view |> element(~s|th:has(button[phx-value-key="reductions"])|) |> render()
+
+      refute header =~ "text-primary"
+      assert header =~ "text-base-content/30"
+      assert header =~ ~s|aria-sort="none"|
+    end
+
+    test "highlights only the descending arrow when sorted descending", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      header = view |> element(~s|th:has(button[phx-value-key="memory"])|) |> render()
+
+      assert header =~ ~s|aria-sort="descending"|
+      # The highlighted arrow is the down one; the up arrow stays dimmed.
+      assert header =~ ~r/icon-move-down[^"]*text-primary/
+      assert header =~ ~r/icon-move-up[^"]*text-base-content\/30/
+    end
+
+    test "highlights only the ascending arrow when sorted ascending", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      # Re-selecting the active column flips it to :asc.
+      view |> element(~s|button[phx-value-key="memory"]|) |> render_click()
+      render_async(view)
+
+      header = view |> element(~s|th:has(button[phx-value-key="memory"])|) |> render()
+
+      assert header =~ ~s|aria-sort="ascending"|
+      assert header =~ ~r/icon-move-up[^"]*text-primary/
+      assert header =~ ~r/icon-move-down[^"]*text-base-content\/30/
+    end
+
+    test "does not render sort arrows on a non-sortable column", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      header = view |> element("#processes-table thead th:first-child") |> render()
+
+      refute header =~ "icon-move-up"
+      refute header =~ "icon-move-down"
+    end
+
     test "toggles the direction when the active column is re-selected", %{conn: conn} do
       stub_scan([])
       {:ok, view, _html} = live(conn, @path)

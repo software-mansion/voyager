@@ -248,7 +248,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
     assigns = assign(assigns, :active?, assigns.column.key == assigns.sort_by)
 
     ~H"""
-    <th class={align_class(@column)}>
+    <th class={align_class(@column)} aria-sort={aria_sort(@active?, @direction)}>
       <button
         type="button"
         phx-click={@sort_event}
@@ -261,12 +261,15 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         aria-label={"Sort by #{@column.label}"}
       >
         {@column.label}
-        <%!-- Only chevron-right ships as an icon; rotate it to point down/up. --%>
-        <.icon
-          :if={@active?}
-          name="icon-chevron-right"
-          class={["size-3.5", if(@direction == :desc, do: "rotate-90", else: "-rotate-90")]}
-        />
+        <%!-- Both directions are always shown so a sortable column is
+              recognisable at a glance; the active one is undimmed. --%>
+        <span class="inline-flex shrink-0 items-center" aria-hidden="true">
+          <.icon name="icon-move-up" class={["size-3", arrow_class(@active?, @direction, :asc)]} />
+          <.icon
+            name="icon-move-down"
+            class={["size-3 -ml-0.5", arrow_class(@active?, @direction, :desc)]}
+          />
+        </span>
       </button>
     </th>
     """
@@ -277,6 +280,15 @@ defmodule VoyagerWeb.Components.DataTableComponents do
     <th class={["text-base-content/70", align_class(@column)]}>{@column.label}</th>
     """
   end
+
+  # Only the arrow matching the active sort direction is undimmed; every other
+  # arrow stays grayed so it reads as "sortable" rather than "sorted".
+  defp arrow_class(true, direction, direction), do: "text-primary"
+  defp arrow_class(_active?, _direction, _arrow), do: "text-base-content/30"
+
+  defp aria_sort(true, :asc), do: "ascending"
+  defp aria_sort(true, :desc), do: "descending"
+  defp aria_sort(_active?, _direction), do: "none"
 
   @doc """
   Pager for a client-side page over an already-fetched result set.
