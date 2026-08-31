@@ -86,7 +86,8 @@ defmodule Voyager.Services.ProcessListTest do
 
     test "rejects an unknown direction" do
       assert_raise FunctionClauseError, fn ->
-        # apply/3 silences the type checker
+        # apply/3 keeps the invalid direction opaque to the type checker
+        # credo:disable-for-next-line Credo.Check.Refactor.Apply
         apply(ProcessList, :top, [@node, [:memory], :memory, 5, 1_000, :sideways])
       end
     end

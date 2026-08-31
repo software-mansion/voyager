@@ -47,28 +47,39 @@ defmodule VoyagerAgentTest do
       assert :sys.get_state(@agent_module) == {:state, %{Node.self() => true}}
     end
 
-    test "restarts instead of exiting when the agent dies during the call" do
-      # Stand in for the agent so the name is registered and whereis/1 succeeds,
-      # then die without replying. That is the race window: register/1 has
-      # already committed to do_register/2 when the process disappears.
+    test "restarts instead of exiting when the agent is killed during the call" do
+      # Both tasks are start_supervised! so they are cleaned up between tests.
+      # The stub holds the agent name and dies from a genuine :kill mid-call.
       stub =
         start_supervised!(
           {Task,
            fn ->
              receive do
-               {:"$gen_call", _from, {:register, _node}} -> exit(:normal)
+               {:"$gen_call", _from, {:register, _node}} -> Process.exit(self(), :kill)
              end
-           end}
+           end},
+          id: :agent_stub
         )
 
       Process.register(stub, @agent_module)
-      ref = Process.monitor(stub)
+      stub_ref = Process.monitor(stub)
+      test_pid = self()
 
-      assert {:ok, pid} = @agent_module.register(Node.self())
+      # The probe calls register/1 in its own process: if the kill escapes the
+      # retry, the probe dies and the :normal DOWN assertion below fails
+      # showing the escaped reason, instead of crashing this test process.
+      probe =
+        start_supervised!(
+          {Task, fn -> send(test_pid, {:registered, @agent_module.register(Node.self())}) end},
+          id: :register_probe
+        )
 
-      assert_receive {:DOWN, ^ref, :process, ^stub, :normal}
-      assert is_pid(pid)
-      assert pid == Process.whereis(@agent_module)
+      probe_ref = Process.monitor(probe)
+
+      assert_receive {:DOWN, ^stub_ref, :process, ^stub, :killed}
+      assert_receive {:DOWN, ^probe_ref, :process, ^probe, :normal}
+      assert_receive {:registered, {:ok, agent}}
+      assert agent == Process.whereis(@agent_module)
     end
   end
 

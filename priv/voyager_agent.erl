@@ -52,7 +52,7 @@ do_start(ParentNode, Attempts) ->
     end.
 
 %% The agent stops itself when its last parent goes down, so it can be gone between `whereis/1` above and this call. 
-%% Depending on timing the call then exits with `noproc` (already gone), or with the server's stop reason (`normal` from a last-parent nodedown). 
+%% Depending on timing the call then exits with `noproc` (already gone), or with the server's being `killed`. 
 %% Retry the whole start/register sequence when that occurs.
 -spec do_register(node(), pos_integer()) -> {ok, pid()} | {error, term()}.
 do_register(ParentNode, Attempts) ->
@@ -64,7 +64,7 @@ do_register(ParentNode, Attempts) ->
     catch
         exit:{noproc, _} ->
             do_start(ParentNode, Attempts - 1);
-        exit:{normal, _} ->
+        exit:{killed, _} ->
             do_start(ParentNode, Attempts - 1)
     end.
 
