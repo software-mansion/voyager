@@ -22,6 +22,8 @@ defmodule Voyager.Services.ProcessInfo do
   alias Voyager.Agent
   alias Voyager.Erpc
 
+  # Default `:erpc` timeout for every fetch; each takes it as a trailing
+  # argument so a caller on a slow link can override it.
   @timeout 5_000
 
   @keys [
@@ -104,12 +106,14 @@ defmodule Voyager.Services.ProcessInfo do
   for non-process nodes (apps, ports, references), or `{:error, reason}` on
   remote/transport failures.
   """
-  @spec fetch(node(), pid() | nil) :: {:ok, info()} | {:error, term()}
-  def fetch(node, pid) when is_pid(pid) do
+  @spec fetch(node(), pid() | nil, timeout()) :: {:ok, info()} | {:error, term()}
+  def fetch(node, pid, timeout \\ @timeout)
+
+  def fetch(node, pid, timeout) when is_pid(pid) do
     with {:ok, raw} when is_list(raw) <-
-           Erpc.safe_call(node, :erlang, :process_info, [pid, @keys]),
+           Erpc.safe_call(node, :erlang, :process_info, [pid, @keys], timeout),
          {:ok, word_size} when is_integer(word_size) and word_size > 0 <-
-           Erpc.safe_call(node, :erlang, :system_info, [:wordsize]),
+           Erpc.safe_call(node, :erlang, :system_info, [:wordsize], timeout),
          {:ok, info} <- build(raw, word_size) do
       {:ok, info}
     else
@@ -118,7 +122,7 @@ defmodule Voyager.Services.ProcessInfo do
     end
   end
 
-  def fetch(_node, _pid), do: {:error, :not_a_pid}
+  def fetch(_node, _pid, _timeout), do: {:error, :not_a_pid}
 
   @doc """
   Fetches the current link set for `pid` on `node`, truncated on the remote to
@@ -128,13 +132,16 @@ defmodule Voyager.Services.ProcessInfo do
   explicitly-invoked call: callers should only reach for it on demand (e.g.
   expanding a "Links" section), not as part of the default per-process payload.
   """
-  @spec fetch_links(node(), pid(), non_neg_integer()) ::
+  @spec fetch_links(node(), pid(), non_neg_integer(), timeout()) ::
           {:ok, bounded(pid() | port())} | {:error, term()}
-  def fetch_links(node, pid, limit) when is_pid(pid) and is_integer(limit) and limit >= 0 do
-    agent_fetch(node, :proc_links, [pid, limit])
+  def fetch_links(node, pid, limit, timeout \\ @timeout)
+
+  def fetch_links(node, pid, limit, timeout)
+      when is_pid(pid) and is_integer(limit) and limit >= 0 do
+    agent_fetch(node, :proc_links, [pid, limit], timeout)
   end
 
-  def fetch_links(_node, _pid, _limit), do: {:error, :not_a_pid}
+  def fetch_links(_node, _pid, _limit, _timeout), do: {:error, :not_a_pid}
 
   @doc """
   Fetches the monitors `pid` holds on `node`, truncated on the remote to at most
@@ -143,26 +150,31 @@ defmodule Voyager.Services.ProcessInfo do
   Entries arrive as raw `:erlang.process_info/2` monitor terms
   (`{:process, pid | {name, node}}`, `{:port, port}`).
   """
-  @spec fetch_monitors(node(), pid(), non_neg_integer()) ::
+  @spec fetch_monitors(node(), pid(), non_neg_integer(), timeout()) ::
           {:ok, bounded(monitor())} | {:error, term()}
-  def fetch_monitors(node, pid, limit) when is_pid(pid) and is_integer(limit) and limit >= 0 do
-    agent_fetch(node, :proc_monitors, [pid, limit])
+  def fetch_monitors(node, pid, limit, timeout \\ @timeout)
+
+  def fetch_monitors(node, pid, limit, timeout)
+      when is_pid(pid) and is_integer(limit) and limit >= 0 do
+    agent_fetch(node, :proc_monitors, [pid, limit], timeout)
   end
 
-  def fetch_monitors(_node, _pid, _limit), do: {:error, :not_a_pid}
+  def fetch_monitors(_node, _pid, _limit, _timeout), do: {:error, :not_a_pid}
 
   @doc """
   Fetches the processes and ports monitoring `pid` on `node`, truncated on the
   remote to at most `limit` entries.
   """
-  @spec fetch_monitored_by(node(), pid(), non_neg_integer()) ::
+  @spec fetch_monitored_by(node(), pid(), non_neg_integer(), timeout()) ::
           {:ok, bounded(pid() | port())} | {:error, term()}
-  def fetch_monitored_by(node, pid, limit)
+  def fetch_monitored_by(node, pid, limit, timeout \\ @timeout)
+
+  def fetch_monitored_by(node, pid, limit, timeout)
       when is_pid(pid) and is_integer(limit) and limit >= 0 do
-    agent_fetch(node, :proc_monitored_by, [pid, limit])
+    agent_fetch(node, :proc_monitored_by, [pid, limit], timeout)
   end
 
-  def fetch_monitored_by(_node, _pid, _limit), do: {:error, :not_a_pid}
+  def fetch_monitored_by(_node, _pid, _limit, _timeout), do: {:error, :not_a_pid}
 
   @doc """
   Fetches the process dictionary of `pid` on `node`, truncated on the remote to
@@ -172,19 +184,22 @@ defmodule Voyager.Services.ProcessInfo do
   an individual term can be large, which the agent's `max_heap_size` cap is
   there to survive.
   """
-  @spec fetch_dictionary(node(), pid(), non_neg_integer()) ::
+  @spec fetch_dictionary(node(), pid(), non_neg_integer(), timeout()) ::
           {:ok, bounded(dictionary_entry())} | {:error, term()}
-  def fetch_dictionary(node, pid, limit) when is_pid(pid) and is_integer(limit) and limit >= 0 do
-    agent_fetch(node, :proc_dictionary, [pid, limit])
+  def fetch_dictionary(node, pid, limit, timeout \\ @timeout)
+
+  def fetch_dictionary(node, pid, limit, timeout)
+      when is_pid(pid) and is_integer(limit) and limit >= 0 do
+    agent_fetch(node, :proc_dictionary, [pid, limit], timeout)
   end
 
-  def fetch_dictionary(_node, _pid, _limit), do: {:error, :not_a_pid}
+  def fetch_dictionary(_node, _pid, _limit, _timeout), do: {:error, :not_a_pid}
 
   # The agent replies {:ok, payload} | {:error, :dead}, and `Agent.call/4` wraps
   # that in its own {:ok, _} | {:error, _}. Flatten both layers, and rename
   # `truncated` to the `truncated?` boolean convention used on this side.
-  defp agent_fetch(node, fun, args) do
-    case Agent.call(node, fun, args, @timeout) do
+  defp agent_fetch(node, fun, args, timeout) do
+    case Agent.call(node, fun, args, timeout) do
       {:ok, {:ok, %{total: total, truncated: truncated, items: items}}} ->
         {:ok, %{total: total, truncated?: truncated, items: items}}
 
