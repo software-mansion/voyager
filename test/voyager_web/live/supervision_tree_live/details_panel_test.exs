@@ -67,10 +67,11 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       link_pids: link_pids,
       sup_key: sup_key
     } do
-      # 9 erpc calls: which_applications + app masters (mount), then masters +
+      # 10 erpc calls: which_applications + app masters (mount), then masters +
       # root children + root ancestors + which_children batch + process_info
-      # hydrate (walk), then process_info + wordsize (ProcessInfo.fetch)
-      expect_supervision_erpc(9, sup_pid, [port], link_pids)
+      # hydrate (walk), then process_info + wordsize + proc_links
+      # (ProcessInfo.fetch/fetch_links, both eager on selection)
+      expect_supervision_erpc(10, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
@@ -102,8 +103,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       link_pids: link_pids,
       port_key: port_key
     } do
-      # Same 9 calls as the supervisor test minus ProcessInfo.fetch's
-      # process_info + wordsize: port nodes have no pid to inspect.
+      # Same 10 calls as the supervisor test minus process_info + wordsize +
+      # proc_links: port nodes have no pid to inspect.
       expect_supervision_erpc(7, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
@@ -130,15 +131,12 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       sup_key: sup_key,
       twentieth_link: twentieth_link
     } do
-      # Same 9 calls as "renders process details for a supervisor", plus the
-      # explicit fetch_links call triggered by clicking "Show links" below.
+      # Same 10 calls as "renders process details for a supervisor" — links are
+      # fetched eagerly alongside the rest on selection.
       expect_supervision_erpc(10, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
-      render_async(view)
-
-      view |> element("#details-panel-load-links") |> render_click()
       render_async(view)
 
       assert has_element?(view, "#details-panel-toggle-links", "Show More")
@@ -166,15 +164,12 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       link_pids = for n <- 1..205, do: :erlang.list_to_pid(~c"<0.#{200 + n}.0>")
       last_link = link_pids |> List.last() |> pid_key()
 
-      # Same 9 calls as "renders process details for a supervisor", plus the
-      # explicit fetch_links call triggered by clicking "Show links" below.
+      # Same 10 calls as "renders process details for a supervisor" — links are
+      # fetched eagerly alongside the rest on selection.
       expect_supervision_erpc(10, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
-      render_async(view)
-
-      view |> element("#details-panel-load-links") |> render_click()
       render_async(view)
 
       view |> element("#details-panel-toggle-links") |> render_click()
@@ -192,7 +187,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       sup_key: sup_key
     } do
       # Open the panel with the default ProcessInfo payload (reductions 1,234).
-      expect_supervision_erpc(9, sup_pid, [port], link_pids)
+      expect_supervision_erpc(10, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
@@ -205,15 +200,19 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       refute has_element?(view, "#details-panel", "running")
       refute has_element?(view, "#details-panel", "Failed to load node details.")
 
-      # Refresh: ProcessInfo.fetch calls process_info then system_info — return
-      # a different snapshot so the panel content visibly changes.
-      expect(Voyager.ErpcMock, :call, fn _node, :erlang, :process_info, [_pid, keys], _timeout
-                                         when is_list(keys) ->
-        process_info_kw(keys, status: :running, reductions: 9_999)
-      end)
+      # Refresh re-fetches process_info, system_info, and proc_links as
+      # concurrent async tasks, so the erpc calls can land in any order —
+      # dispatch on mod/fun rather than a fixed sequence. Return a different
+      # snapshot so the panel content visibly changes.
+      expect(Voyager.ErpcMock, :call, 3, fn
+        _node, :erlang, :process_info, [_pid, keys], _timeout when is_list(keys) ->
+          process_info_kw(keys, status: :running, reductions: 9_999)
 
-      expect(Voyager.ErpcMock, :call, fn _node, :erlang, :system_info, [:wordsize], _timeout ->
-        8
+        _node, :erlang, :system_info, [:wordsize], _timeout ->
+          8
+
+        _node, :voyager_agent, :proc_links, [pid, limit], _timeout ->
+          supervision_reply(:voyager_agent, :proc_links, [pid, limit], sup_pid, [port], link_pids)
       end)
 
       view |> element("#details-panel-refresh") |> render_click()
@@ -226,31 +225,26 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       refute has_element?(view, "#details-panel", "Failed to load node details.")
     end
 
-    test "refresh re-fetches already-requested links", %{
+    test "refresh re-fetches links", %{
       conn: conn,
       sup_pid: sup_pid,
       port: port,
       link_pids: link_pids,
       sup_key: sup_key
     } do
-      # Same 9 calls as "renders process details for a supervisor", plus the
-      # explicit fetch_links call triggered by clicking "Show links" below.
+      # Same 10 calls as "renders process details for a supervisor" — links
+      # are fetched eagerly alongside the rest on selection.
       expect_supervision_erpc(10, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
       render_async(view)
 
-      view |> element("#details-panel-load-links") |> render_click()
-      render_async(view)
-
       assert has_element?(view, "#details-panel", "(20)")
 
-      # Refresh: process_info, system_info, and proc_links (links were already
-      # requested) run as concurrent async tasks, so their erpc calls can land
-      # in any order — dispatch on mod/fun like `expect_supervision_erpc`
-      # rather than a fixed sequence. A different link set proves the refresh
-      # actually re-fetches instead of leaving the stale result.
+      # Refresh: process_info, system_info, and proc_links again — a different
+      # link set proves the refresh actually re-fetches instead of leaving the
+      # stale result.
       new_links = for n <- 1..3, do: :erlang.list_to_pid(~c"<0.#{300 + n}.0>")
       expect_supervision_erpc(3, sup_pid, [port], new_links)
 

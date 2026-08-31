@@ -150,7 +150,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :panel_id, :string, required: true
   attr :info, AsyncResult, required: true
   attr :links_info, AsyncResult, required: true
-  attr :links_requested?, :boolean, required: true
   attr :node, TreeNode, required: true
   attr :links_expanded?, :boolean, required: true
   attr :myself, :any, required: true
@@ -165,7 +164,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         <.links
           panel_id={@panel_id}
           links_info={@links_info}
-          links_requested?={@links_requested?}
           links_expanded?={@links_expanded?}
           myself={@myself}
         />
@@ -243,7 +241,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :panel_id, :string, required: true
   attr :links_info, AsyncResult, required: true
-  attr :links_requested?, :boolean, required: true
   attr :links_expanded?, :boolean, required: true
   attr :myself, :any, required: true
 
@@ -252,37 +249,25 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
     ~H"""
     <.section title="Links" muted={@links_count}>
-      <%= if @links_requested? do %>
-        <.async_result :let={info} assign={@links_info}>
-          <:loading>
-            <div class="flex flex-wrap gap-1.5">
-              <.chip_skeleton />
-              <.chip_skeleton />
-              <.chip_skeleton />
-            </div>
-          </:loading>
-          <:failed>
-            <.load_error />
-          </:failed>
-          <.links_list
-            toggle_id={"#{@panel_id}-toggle-links"}
-            links={info.items}
-            total={info.total}
-            links_expanded?={@links_expanded?}
-            myself={@myself}
-          />
-        </.async_result>
-      <% else %>
-        <button
-          type="button"
-          id={"#{@panel_id}-load-links"}
-          phx-click="load-links"
-          phx-target={@myself}
-          class="btn btn-ghost btn-xs text-base-content/70 hover:text-base-content"
-        >
-          Show links
-        </button>
-      <% end %>
+      <.async_result :let={info} assign={@links_info}>
+        <:loading>
+          <div class="flex flex-wrap gap-1.5">
+            <.chip_skeleton />
+            <.chip_skeleton />
+            <.chip_skeleton />
+          </div>
+        </:loading>
+        <:failed>
+          <.load_error />
+        </:failed>
+        <.links_list
+          toggle_id={"#{@panel_id}-toggle-links"}
+          links={info.items}
+          total={info.total}
+          links_expanded?={@links_expanded?}
+          myself={@myself}
+        />
+      </.async_result>
     </.section>
     """
   end
