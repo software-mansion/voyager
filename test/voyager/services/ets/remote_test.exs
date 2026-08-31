@@ -79,6 +79,13 @@ defmodule Voyager.Services.Ets.RemoteTest do
       assert table.id == :ok
     end
 
+    test "drops a row whose info list is not a keyword list" do
+      stub_list([:bad, :ok], 8, [[:foo], info_kw(name: :ok, memory: 1)])
+
+      assert {:ok, [table]} = Remote.list(@node, @timeout)
+      assert table.id == :ok
+    end
+
     test "returns :invalid_response when info rows are not aligned with :ets.all/0" do
       expect(Voyager.ErpcMock, :call, fn @node, :ets, :all, [], @timeout -> [:a, :b] end)
 
@@ -199,6 +206,16 @@ defmodule Voyager.Services.Ets.RemoteTest do
       expect(Voyager.ErpcMock, :call, fn @node, :ets, :info, [:t], @timeout ->
         Keyword.delete(info_kw([]), :owner)
       end)
+
+      expect(Voyager.ErpcMock, :call, fn @node, :erlang, :system_info, [:wordsize], @timeout ->
+        8
+      end)
+
+      assert {:error, :invalid_response} = Remote.info(@node, :t, @timeout)
+    end
+
+    test "returns :invalid_response when the info list is not a keyword list" do
+      expect(Voyager.ErpcMock, :call, fn @node, :ets, :info, [:t], @timeout -> [:foo] end)
 
       expect(Voyager.ErpcMock, :call, fn @node, :erlang, :system_info, [:wordsize], @timeout ->
         8

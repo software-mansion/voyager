@@ -111,9 +111,9 @@ defmodule Voyager.Services.Ets.Remote do
   end
 
   defp build(id, info, word_size) do
-    info = Map.new(info)
-
-    with {:ok, name} when is_atom(name) <- Map.fetch(info, :name),
+    with true <- Keyword.keyword?(info),
+         info = Map.new(info),
+         {:ok, name} when is_atom(name) <- Map.fetch(info, :name),
          {:ok, named_table} when is_boolean(named_table) <- Map.fetch(info, :named_table),
          {:ok, protection} when protection in [:public, :protected, :private] <-
            Map.fetch(info, :protection),
