@@ -70,7 +70,8 @@ defmodule Voyager.Services.RateLimiter do
 
   @impl GenServer
   def init(opts) do
-    config = Keyword.get(opts, :config, @default_config)
+    user_config = Keyword.get(opts, :config, %{})
+    config = Map.merge(@default_config, user_config)
 
     state = %{
       config: config,
