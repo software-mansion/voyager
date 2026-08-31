@@ -31,9 +31,24 @@ defmodule Voyager.Erpc do
 
   @doc """
   Returns the configured `Voyager.Erpc` implementation.
+
+  A process dictionary override (`bind_impl/1`) wins over application env so
+  live tests can use `Erpc.Impl` without racing async Mox tests that share
+  `config :voyager, :erpc`.
   """
   @spec impl() :: module()
-  def impl, do: Application.get_env(:voyager, :erpc, __MODULE__.Impl)
+  def impl do
+    Process.get(impl_key()) || Application.get_env(:voyager, :erpc, __MODULE__.Impl)
+  end
+
+  @doc false
+  @spec bind_impl(module()) :: :ok
+  def bind_impl(module) when is_atom(module) do
+    Process.put(impl_key(), module)
+    :ok
+  end
+
+  defp impl_key, do: {__MODULE__, :impl}
 
   @doc """
   Default timeout for `safe_call/4`, matching `:erpc.call/4`.
