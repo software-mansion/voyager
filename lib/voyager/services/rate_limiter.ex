@@ -74,7 +74,7 @@ defmodule Voyager.Services.RateLimiter do
     state = %{
       config: config,
       tokens_high: config.high_capacity,
-      tokens_low: config.low_capacity,
+      tokens_low: config.low_capacity * 1.0,
       last_refill_at: System.monotonic_time(:millisecond),
       ewma_ms: 0.0,
       low_refill_factor: 1.0,
@@ -99,8 +99,8 @@ defmodule Voyager.Services.RateLimiter do
         # Starvation guard: if high is running low, refuse low priority traffic.
         {:reply, {:error, retry_after(state)}, state}
 
-      state.tokens_low > 0 ->
-        {:reply, :ok, %{state | tokens_low: state.tokens_low - 1}}
+      state.tokens_low >= 1.0 ->
+        {:reply, :ok, %{state | tokens_low: state.tokens_low - 1.0}}
 
       true ->
         {:reply, {:error, retry_after(state)}, state}
@@ -126,12 +126,7 @@ defmodule Voyager.Services.RateLimiter do
   def handle_info(:refill, state) do
     now = System.monotonic_time(:millisecond)
 
-    low_refill_actual =
-      if state.config.low_refill > 0 do
-        max(trunc(state.config.low_refill * state.low_refill_factor), 1)
-      else
-        0
-      end
+    low_refill_actual = state.config.low_refill * state.low_refill_factor
 
     new_state =
       state
@@ -141,7 +136,7 @@ defmodule Voyager.Services.RateLimiter do
       )
       |> Map.put(
         :tokens_low,
-        min(state.config.low_capacity, state.tokens_low + low_refill_actual)
+        min(state.config.low_capacity * 1.0, state.tokens_low + low_refill_actual)
       )
       |> Map.put(:last_refill_at, now)
       |> schedule_refill()

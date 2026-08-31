@@ -122,15 +122,24 @@ defmodule Voyager.Services.RateLimiterTest do
     assert state.ewma_ms > 0.0
   end
 
-  test "low refill never drops to zero when low_refill is positive", %{server: server} do
+  test "low refill accumulates fractional tokens over multiple ticks", %{server: server} do
     :sys.replace_state(server, fn state ->
-      %{state | low_refill_factor: 0.05, tokens_low: 0}
+      %{state | low_refill_factor: 0.4, tokens_low: 0.0}
     end)
 
+    # Tick 1: 0.0 + (2 * 0.4) = 0.8 tokens. Not enough to run (needs >= 1.0)
     send(server, :refill)
     _ = :sys.get_state(server)
 
-    state = :sys.get_state(server)
-    assert state.tokens_low >= 1
+    assert {:error, :rate_limited, _} = RateLimiter.run(server, :low, fn -> :res end)
+
+    # Tick 2: 0.8 + 0.8 = 1.6 tokens. Enough to run once.
+    send(server, :refill)
+    _ = :sys.get_state(server)
+
+    assert {:ok, _, _} = RateLimiter.run(server, :low, fn -> :res end)
+
+    # 1.6 - 1.0 = 0.6 left. Not enough to run a second time.
+    assert {:error, :rate_limited, _} = RateLimiter.run(server, :low, fn -> :res end)
   end
 end
