@@ -46,8 +46,8 @@ defmodule Voyager.MCP.EndpointManagerTest do
   end
 
   describe "set_port/1" do
-    test "restarts the endpoint on a new port", %{mcp_port: port} do
-      new_port = port + 1
+    test "restarts the endpoint on a new port" do
+      new_port = unique_port()
       assert :ok = MCP.set_port(new_port)
       assert Settings.get(:mcp_port) == new_port
 
@@ -59,27 +59,28 @@ defmodule Voyager.MCP.EndpointManagerTest do
       Application.put_env(:voyager, :mcp_port, port)
       on_exit(fn -> Application.delete_env(:voyager, :mcp_port) end)
 
-      assert {:error, :locked} = MCP.set_port(port + 1)
+      assert {:error, :locked} = MCP.set_port(unique_port())
 
       assert %{alive?: true, url: url} = MCP.info()
       assert url == "http://127.0.0.1:#{port}/mcp"
     end
 
     test "returns {:error, :port_in_use} and keeps the current listener", %{mcp_port: port} do
-      {:ok, socket} = :gen_tcp.listen(port + 1, [:binary, active: false, ip: {127, 0, 0, 1}])
+      busy_port = unique_port()
+      {:ok, socket} = :gen_tcp.listen(busy_port, [:binary, active: false, ip: {127, 0, 0, 1}])
       on_exit(fn -> :gen_tcp.close(socket) end)
 
-      assert {:error, :port_in_use} = MCP.set_port(port + 1)
+      assert {:error, :port_in_use} = MCP.set_port(busy_port)
 
       assert %{alive?: true, url: url} = MCP.info()
       assert url == "http://127.0.0.1:#{port}/mcp"
     end
 
-    test "persists a new port while the listener stays down after toggle", %{mcp_port: port} do
+    test "persists a new port while the listener stays down after toggle" do
       assert {:ok, :stopped} = MCP.toggle()
       assert %{alive?: false} = MCP.info()
 
-      new_port = port + 2
+      new_port = unique_port()
       assert :ok = MCP.set_port(new_port)
       assert Settings.get(:mcp_port) == new_port
 
