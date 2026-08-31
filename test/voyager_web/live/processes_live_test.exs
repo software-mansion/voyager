@@ -195,18 +195,28 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      for attr <- Processes.required_attrs() ++ Processes.optional_attrs() do
+      for attr <- Processes.optional_attrs() do
         assert has_element?(view, "#processes-toolbar-columns-#{attr}-input")
+      end
+
+      # Locked attrs are listed, but without a control to toggle.
+      for attr <- Processes.required_attrs() do
+        assert has_element?(view, "#processes-toolbar-columns-#{attr}-option")
+        refute has_element?(view, "#processes-toolbar-columns-#{attr}-input")
       end
     end
 
-    test "required columns are checked and cannot be deselected", %{conn: conn} do
+    test "required columns render without a toggle", %{conn: conn} do
       stub_scan([])
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
       for attr <- Processes.required_attrs() do
-        assert has_element?(view, "#processes-toolbar-columns-#{attr}-input[checked][disabled]")
+        option = view |> element("#processes-toolbar-columns-#{attr}-option") |> render()
+
+        refute option =~ ~s|type="checkbox"|
+        # Still submitted, so the value survives a change event.
+        assert option =~ ~s|type="hidden"|
       end
     end
 
@@ -224,7 +234,7 @@ defmodule VoyagerWeb.ProcessesLiveTest do
 
       render_async(view)
 
-      # Required attrs survive even though a disabled checkbox submits nothing.
+      # Required attrs survive regardless of what the form submits.
       assert_received {:scanned, [attrs, _sort, _limit, _dir, _search], _timeout}
       assert :status in attrs
       assert :memory in attrs

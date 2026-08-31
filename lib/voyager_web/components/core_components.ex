@@ -473,7 +473,9 @@ defmodule VoyagerWeb.CoreComponents do
     assigns = assign(assigns, :count, length(assigns.selected))
 
     ~H"""
-    <div class={["dropdown", @class]}>
+    <%!-- `dropdown-end` aligns the panel's right edge with the trigger's, so a
+          panel wider than its button opens inwards instead of off the edge. --%>
+    <div class={["dropdown dropdown-end", @class]}>
       <div
         tabindex="0"
         role="button"
@@ -501,17 +503,20 @@ defmodule VoyagerWeb.CoreComponents do
           ]}
           title={locked? && @locked_hint}
         >
+          <%!-- A locked option shows no control at all: there is nothing to
+                toggle. It is still submitted as a hidden field so the value
+                survives a change event, and re-added server-side regardless. --%>
+          <input :if={locked?} type="hidden" name={"#{@name}[]"} value={value} />
           <input
+            :if={not locked?}
             id={"#{@id}-#{value}-input"}
             type="checkbox"
             name={"#{@name}[]"}
             value={value}
             checked={value in @selected}
-            disabled={locked?}
             class="checkbox checkbox-xs checkbox-primary"
           />
-          <span class="font-mono">{label}</span>
-          <.icon :if={locked?} name="icon-check" class="size-3.5 ml-auto" />
+          <span class={["font-mono", locked? && "pl-6"]}>{label}</span>
         </label>
       </div>
     </div>

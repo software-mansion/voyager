@@ -358,6 +358,14 @@ defmodule VoyagerWeb.Components.DataTableComponents do
     ~H"""
     <div id={@id} class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-3">
+        <p class="text-base-content/70 text-xs">
+          Showing
+          <span class="font-mono">{Formatters.format_integer(@first)}–{Formatters.format_integer(
+            @last
+          )}</span>
+          of <span class="font-mono">{Formatters.format_integer(@total)}</span>
+        </p>
+
         <%!-- Rows per page belongs with the paging controls: it only reslices
               what was already fetched. --%>
         <form
@@ -381,14 +389,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
             </option>
           </select>
         </form>
-
-        <p class="text-base-content/70 text-xs">
-          Showing
-          <span class="font-mono">{Formatters.format_integer(@first)}–{Formatters.format_integer(
-            @last
-          )}</span>
-          of <span class="font-mono">{Formatters.format_integer(@total)}</span>
-        </p>
       </div>
 
       <div :if={@total_pages > 1} class="join">

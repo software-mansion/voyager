@@ -86,7 +86,7 @@ defmodule VoyagerWeb.ProcessesLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="mx-auto flex h-full max-w-screen-2xl flex-col gap-4 p-6 sm:p-8">
+    <div class="mx-auto flex h-full max-w-screen-2xl flex-col gap-4 p-6 pb-12 sm:p-8 sm:pb-12">
       <.node_header
         node_name={@session.node_name}
         last_updated={@last_updated}
