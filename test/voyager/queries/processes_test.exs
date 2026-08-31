@@ -62,6 +62,22 @@ defmodule Voyager.Queries.ProcessesTest do
       assert %DateTime{} = page.fetched_at
     end
 
+    test "a search that filters results is not reported as truncated" do
+      rows = [%{pid: self(), memory: 10}]
+      capture_erpc_args({rows, 83})
+
+      # The remote ranked every match; the smaller row count is the filter, not
+      # a cut-off, so the UI must not warn about truncation.
+      assert {:ok, %{truncated?: false, scanned: 83}} = Processes.page(@node, search: "hog")
+    end
+
+    test "is truncated when the limit cut the ranking short" do
+      rows = for _ <- 1..25, do: %{pid: self(), memory: 10}
+      capture_erpc_args({rows, 83})
+
+      assert {:ok, %{truncated?: true}} = Processes.page(@node, limit: 25)
+    end
+
     test "is not truncated when every scanned process was returned" do
       rows = [%{pid: self(), memory: 10}]
       capture_erpc_args({rows, 1})

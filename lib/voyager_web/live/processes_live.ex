@@ -175,7 +175,7 @@ defmodule VoyagerWeb.ProcessesLive do
   end
 
   @impl true
-  def handle_async(:page_result, {:ok, {:ok, %{page_result: page}}}, socket) do
+  def handle_async(:page_result, {:ok, {:ok, page}}, socket) do
     socket
     |> assign(:page_result, AsyncResult.ok(socket.assigns.page_result, page))
     |> assign(:last_updated, page.fetched_at)
@@ -199,9 +199,11 @@ defmodule VoyagerWeb.ProcessesLive do
     %{session: session, sort_by: sort_by, direction: direction} = socket.assigns
     %{limit: limit, timeout: timeout, search: search} = socket.assigns
 
+    # start_async (not assign_async): the result is handled in handle_async/3
+    # above, which also stamps `last_updated` from the completed fetch.
     socket
     |> assign(:page_result, AsyncResult.loading())
-    |> assign_async(:page_result, fn ->
+    |> start_async(:page_result, fn ->
       case Processes.page(session.node,
              sort_by: sort_by,
              direction: direction,
@@ -210,7 +212,7 @@ defmodule VoyagerWeb.ProcessesLive do
              search: search
            ) do
         {:ok, page} ->
-          {:ok, %{page_result: page}}
+          {:ok, page}
 
         {:error, reason} ->
           Logger.warning(

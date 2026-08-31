@@ -97,6 +97,17 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       assert render(view) =~ "MyApp.Worker.start_link/1"
     end
 
+    test "stamps the header with the fetch time once results arrive", %{conn: conn} do
+      [pid] = fake_pids(1)
+      stub_scan([entry(pid: pid)])
+
+      {:ok, view, _html} = live(conn, @path)
+      html = render_async(view)
+
+      # The header must leave its waiting state once a fetch completes.
+      refute html =~ "waiting for first fetch"
+    end
+
     test "shows the empty state when nothing matched", %{conn: conn} do
       stub_scan([])
       {:ok, view, _html} = live(conn, @path)
