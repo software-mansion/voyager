@@ -13,8 +13,12 @@ defmodule VoyagerWeb.Components.DataTableComponents do
 
       @columns [
         %{key: :pid, label: "PID", sortable?: false, align: :left},
-        %{key: :memory, label: "Memory", sortable?: true, align: :right}
+        %{key: :memory, label: "Memory", sortable?: true, align: :right, width: :sm}
       ]
+
+  An optional `:width` (`:xs`, `:sm`, `:md`, `:lg`) fixes a column's width so
+  its values cannot resize the table as they change; longer content truncates.
+  Columns without one size to their content.
   """
 
   use VoyagerWeb, :component
@@ -226,11 +230,15 @@ defmodule VoyagerWeb.Components.DataTableComponents do
               @selected_id && @selected_id == row_id(row, @row_id_key) && "!bg-primary/30"
             ]}
           >
+            <%!-- `truncate` needs a block-level box to clamp against, so the
+                  cell content is wrapped rather than truncated on the td. --%>
             <td
               :for={column <- @columns}
-              class={["whitespace-nowrap py-3", align_class(column)]}
+              class={["py-3", align_class(column), width_class(column)]}
             >
-              {render_slot(@cell, %{column: column, row: row})}
+              <div class="truncate">
+                {render_slot(@cell, %{column: column, row: row})}
+              </div>
             </td>
           </tr>
         </tbody>
@@ -248,7 +256,10 @@ defmodule VoyagerWeb.Components.DataTableComponents do
     assigns = assign(assigns, :active?, assigns.column.key == assigns.sort_by)
 
     ~H"""
-    <th class={align_class(@column)} aria-sort={aria_sort(@active?, @direction)}>
+    <th
+      class={[align_class(@column), width_class(@column)]}
+      aria-sort={aria_sort(@active?, @direction)}
+    >
       <button
         type="button"
         phx-click={@sort_event}
@@ -277,7 +288,9 @@ defmodule VoyagerWeb.Components.DataTableComponents do
 
   defp column_header(assigns) do
     ~H"""
-    <th class={["text-base-content/70", align_class(@column)]}>{@column.label}</th>
+    <th class={["text-base-content/70", align_class(@column), width_class(@column)]}>
+      <div class="truncate">{@column.label}</div>
+    </th>
     """
   end
 
@@ -409,4 +422,15 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   defp align_class(%{align: :right}), do: "text-right"
   defp align_class(%{align: :center}), do: "text-center"
   defp align_class(_column), do: "text-left"
+
+  # A column may declare a fixed width so its values cannot widen the table as
+  # they change; anything longer truncates. Named sizes rather than an
+  # interpolated value, since Tailwind only emits classes it can see literally.
+  # `w-*` on a table cell is a minimum unless the table is fixed-layout, so the
+  # matching `max-w-*` is what actually forces truncation.
+  defp width_class(%{width: :xs}), do: "w-20 max-w-20"
+  defp width_class(%{width: :sm}), do: "w-28 max-w-28"
+  defp width_class(%{width: :md}), do: "w-36 max-w-36"
+  defp width_class(%{width: :lg}), do: "w-48 max-w-48"
+  defp width_class(_column), do: nil
 end

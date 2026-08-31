@@ -15,9 +15,11 @@ defmodule VoyagerWeb.Components.ProcessComponents do
     %{key: :pid, label: "PID", sortable?: false, align: :left},
     %{key: :name, label: "Name or initial call", sortable?: false, align: :left},
     %{key: :current_function, label: "Current function", sortable?: false, align: :left},
-    %{key: :memory, label: "Memory", sortable?: true, align: :right},
-    %{key: :reductions, label: "Reductions", sortable?: true, align: :right},
-    %{key: :message_queue_len, label: "MsgQ", sortable?: true, align: :right}
+    # Fixed widths so the metrics, which change on every refresh, cannot shift
+    # the columns around under the cursor.
+    %{key: :memory, label: "Memory", sortable?: true, align: :right, width: :sm},
+    %{key: :reductions, label: "Reductions", sortable?: true, align: :right, width: :md},
+    %{key: :message_queue_len, label: "MsgQ", sortable?: true, align: :right, width: :sm}
   ]
 
   @doc "Column definitions for the process list table."
@@ -44,15 +46,24 @@ defmodule VoyagerWeb.Components.ProcessComponents do
         >
           {format_mfa(@row[:current_function])}
         </span>
+        <%!-- Numeric columns are fixed-width, so the full value stays reachable
+            via the title when it truncates. --%>
       <% :memory -> %>
-        <span class="font-mono text-xs">{Formatters.format_bytes(@row[:memory])}</span>
+        <span class="font-mono text-xs" title={Formatters.format_bytes(@row[:memory])}>
+          {Formatters.format_bytes(@row[:memory])}
+        </span>
       <% :reductions -> %>
-        <span class="font-mono text-xs">{format_number(@row[:reductions])}</span>
+        <span class="font-mono text-xs" title={format_number(@row[:reductions])}>
+          {format_number(@row[:reductions])}
+        </span>
       <% :message_queue_len -> %>
-        <span class={[
-          "font-mono text-xs",
-          queue_warning?(@row[:message_queue_len]) && "text-warning font-medium"
-        ]}>
+        <span
+          class={[
+            "font-mono text-xs",
+            queue_warning?(@row[:message_queue_len]) && "text-warning font-medium"
+          ]}
+          title={format_number(@row[:message_queue_len])}
+        >
           {format_number(@row[:message_queue_len])}
         </span>
     <% end %>

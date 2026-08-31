@@ -118,6 +118,46 @@ defmodule VoyagerWeb.ProcessesLiveTest do
     end
   end
 
+  describe "column widths" do
+    test "numeric columns carry a fixed width and truncate", %{conn: conn} do
+      [pid] = fake_pids(1)
+      stub_scan([entry(pid: pid, reductions: 999_999_999_999)])
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      for key <- Processes.sortable_attrs() do
+        header = view |> element(~s|th:has(button[phx-value-key="#{key}"])|) |> render()
+
+        # A width plus its max-w counterpart is what actually stops a long
+        # value widening the column under auto table layout.
+        assert header =~ ~r/\bw-\d+\b/
+        assert header =~ ~r/\bmax-w-\d+\b/
+      end
+    end
+
+    test "text columns are left to size themselves", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      header = view |> element("#processes-table thead th:first-child") |> render()
+
+      refute header =~ ~r/\bmax-w-\d+\b/
+    end
+
+    test "keeps the full numeric value reachable when truncated", %{conn: conn} do
+      [pid] = fake_pids(1)
+      stub_scan([entry(pid: pid, reductions: 999_999_999_999)])
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      # The title carries the untruncated value.
+      assert render(view) =~ ~s|title="999,999,999,999"|
+    end
+  end
+
   describe "info note" do
     test "explains that data is fetched once and then paged locally", %{conn: conn} do
       stub_scan([])
