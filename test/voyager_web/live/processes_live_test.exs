@@ -44,6 +44,17 @@ defmodule VoyagerWeb.ProcessesLiveTest do
     end)
   end
 
+  # Total body rows, real plus the blank fillers that hold the height.
+  defp rendered_body_rows(view) do
+    view
+    |> render()
+    |> String.split("<tbody")
+    |> Enum.at(1)
+    |> String.split("</tbody>")
+    |> hd()
+    |> then(&(length(String.split(&1, "<tr")) - 1))
+  end
+
   defp fake_pids(count) do
     Enum.map(1..count, fn _ -> spawn(fn -> :ok end) end)
   end
@@ -115,6 +126,67 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       render_async(view)
 
       assert render(view) =~ "No processes matched."
+    end
+  end
+
+  describe "refetching" do
+    test "keeps the table and its rows mounted while refetching", %{conn: conn} do
+      [pid] = fake_pids(1)
+      stub_scan([entry(pid: pid)])
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      row = "##{ProcessesLive.row_dom_id(pid)}"
+      assert has_element?(view, row)
+
+      # Sorting triggers a remote refetch; the previous rows must stay on
+      # screen rather than the table being torn down and rebuilt.
+      view |> element(~s|button[phx-value-key="reductions"]|) |> render_click()
+
+      assert has_element?(view, "#processes-table")
+      assert has_element?(view, row)
+    end
+
+    test "keeps the table the same height when fewer rows come back", %{conn: conn} do
+      pids = fake_pids(25)
+      stub_scan(Enum.map(pids, &entry(pid: &1)))
+
+      {:ok, view, _html} = live(conn, "#{@path}?page_size=25")
+      render_async(view)
+
+      full = rendered_body_rows(view)
+
+      # A search that matches one process must not collapse the table: the body
+      # is padded to the page size so the page does not jump.
+      stub_scan([entry(pid: hd(pids))], 25)
+
+      view
+      |> element("#processes-toolbar-search-form")
+      |> render_change(%{"search" => "worker"})
+
+      render_async(view)
+
+      assert rendered_body_rows(view) == full
+    end
+
+    test "keeps the rows visible when a refetch fails", %{conn: conn} do
+      [pid] = fake_pids(1)
+      stub_scan([entry(pid: pid)])
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      stub(Voyager.ErpcMock, :call, fn _, _, _, _, _ ->
+        :erlang.error({:erpc, :noconnection})
+      end)
+
+      view |> element("#processes-toolbar-refresh") |> render_click()
+      render_async(view)
+
+      # The error is shown above the table, not instead of it.
+      assert has_element?(view, "#processes-error")
+      assert has_element?(view, "##{ProcessesLive.row_dom_id(pid)}")
     end
   end
 

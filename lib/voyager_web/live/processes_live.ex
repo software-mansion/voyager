@@ -108,44 +108,47 @@ defmodule VoyagerWeb.ProcessesLive do
         loading?={@page_result.loading}
       />
 
-      <.async_result :let={result} assign={@page_result}>
-        <:loading>
-          <.loading_state id="processes-loading" message="Scanning processes…" />
-        </:loading>
-        <:failed :let={reason}>
-          <.error_state id="processes-error" message={format_error(reason)} />
-        </:failed>
+      <%!-- The table is rendered outside any loading branch so a refetch only
+            swaps the rows inside it; replacing the whole block tore the table
+            down and rebuilt it, which flickered. --%>
+      <.error_state
+        :if={failed_reason(@page_result)}
+        id="processes-error"
+        message={format_error(failed_reason(@page_result))}
+      />
 
-        <DataTableComponents.scan_summary
-          id="processes-scan-summary"
-          shown={length(result.entries)}
-          scanned={result.scanned}
-          truncated?={result.truncated?}
-          last_updated={@last_updated}
-        />
+      <DataTableComponents.scan_summary
+        :if={@page_result.ok?}
+        id="processes-scan-summary"
+        shown={length(@page_result.result.entries)}
+        scanned={@page_result.result.scanned}
+        truncated?={@page_result.result.truncated?}
+        last_updated={@last_updated}
+      />
 
-        <DataTableComponents.table
-          id="processes-table"
-          columns={ProcessComponents.columns()}
-          rows={rows(result.entries, @page, @page_size)}
-          sort_by={@sort_by}
-          direction={@direction}
-          row_click_event="select-process"
-          row_id_key={:pid}
-          empty_message="No processes matched."
-        >
-          <:cell :let={%{column: column, row: row}}>
-            <ProcessComponents.cell column={column} row={row} />
-          </:cell>
-        </DataTableComponents.table>
+      <DataTableComponents.table
+        id="processes-table"
+        columns={ProcessComponents.columns()}
+        rows={rows(current_entries(@page_result), @page, @page_size)}
+        sort_by={@sort_by}
+        direction={@direction}
+        row_click_event="select-process"
+        row_id_key={:pid}
+        empty_message={if @page_result.ok?, do: "No processes matched.", else: "Scanning processes…"}
+        min_rows={@page_size}
+      >
+        <:cell :let={%{column: column, row: row}}>
+          <ProcessComponents.cell column={column} row={row} />
+        </:cell>
+      </DataTableComponents.table>
 
-        <DataTableComponents.pager
-          id="processes-pager"
-          page={@page}
-          page_size={@page_size}
-          total={length(result.entries)}
-        />
-      </.async_result>
+      <DataTableComponents.pager
+        :if={@page_result.ok?}
+        id="processes-pager"
+        page={@page}
+        page_size={@page_size}
+        total={length(@page_result.result.entries)}
+      />
     </div>
     """
   end
@@ -255,10 +258,9 @@ defmodule VoyagerWeb.ProcessesLive do
     %{session: session, sort_by: sort_by, direction: direction} = socket.assigns
     %{limit: limit, timeout: timeout, search: search} = socket.assigns
 
-    # start_async (not assign_async): the result is handled in handle_async/3
-    # above, which also stamps `last_updated` from the completed fetch.
+    # The previous result stays assigned while a refetch runs, so the table
+    # keeps its rows instead of being torn down and rebuilt (which flickered).
     socket
-    |> assign(:page_result, AsyncResult.loading())
     |> start_async(:page_result, fn ->
       case Processes.page(session.node,
              sort_by: sort_by,
@@ -339,6 +341,16 @@ defmodule VoyagerWeb.ProcessesLive do
   # The remote takes milliseconds; the control is in whole seconds.
   defp timeout_seconds(ms), do: div(ms, 1_000)
   defp timeout_ms(seconds), do: seconds * 1_000
+
+  # Rows survive a refetch: the previous result stays assigned, so the table
+  # keeps rendering it until the new one lands.
+  defp current_entries(%AsyncResult{ok?: true, result: %{entries: entries}}), do: entries
+  defp current_entries(_page_result), do: []
+
+  # A failure keeps whatever rows were already on screen, so the error is shown
+  # above them rather than replacing them.
+  defp failed_reason(%AsyncResult{failed: nil}), do: nil
+  defp failed_reason(%AsyncResult{failed: reason}), do: reason
 
   defp controls_path(socket, params) do
     URL.put_query_params(socket.assigns.current_url, params)

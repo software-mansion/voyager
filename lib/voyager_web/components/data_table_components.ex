@@ -194,55 +194,82 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   attr :selected_id, :string, default: nil
   attr :empty_message, :string, default: "No results."
 
+  attr :min_rows, :integer,
+    default: 0,
+    doc: "pad the body to this many rows so the table keeps its height between fetches"
+
   slot :cell, required: true
 
   def table(assigns) do
     ~H"""
-    <div class="border-base-300 bg-base-100 overflow-x-auto rounded-lg border">
-      <table id={@id} class="table-zebra table-pin-rows table">
-        <thead>
-          <tr>
-            <.column_header
-              :for={column <- @columns}
-              column={column}
-              sort_by={@sort_by}
-              direction={@direction}
-              sort_event={@sort_event}
-            />
-          </tr>
-        </thead>
-        <tbody>
-          <tr :if={@rows == []}>
-            <td colspan={length(@columns)} class="text-base-content/70 py-8 text-center">
-              {@empty_message}
-            </td>
-          </tr>
-          <%!-- The zebra stripe already tints alternate rows, so a plain
-                `hover:bg-base-200` is invisible on half the table; hover uses
-                the primary tint (and `!` to win over the stripe) instead. --%>
-          <tr
-            :for={{dom_id, row} <- @rows}
-            id={dom_id}
-            phx-click={@row_click_event}
-            phx-value-id={row_id(row, @row_id_key)}
-            class={[
-              @row_click_event && "cursor-pointer transition-colors hover:!bg-primary/25",
-              @selected_id && @selected_id == row_id(row, @row_id_key) && "!bg-primary/30"
-            ]}
-          >
-            <%!-- `truncate` needs a block-level box to clamp against, so the
-                  cell content is wrapped rather than truncated on the td. --%>
-            <td
-              :for={column <- @columns}
-              class={["py-3", align_class(column), width_class(column)]}
+    <div class="card bg-base-100 border-base-200 border shadow-sm">
+      <div class="overflow-x-auto p-5">
+        <%!-- DaisyUI `table`, sized to match the node-info tables: `table-md`
+              for their row height and `table-fixed` so the column widths
+              actually hold. --%>
+        <table id={@id} class="table-pin-rows table-md table w-full table-fixed">
+          <thead>
+            <tr>
+              <.column_header
+                :for={column <- @columns}
+                column={column}
+                sort_by={@sort_by}
+                direction={@direction}
+                sort_event={@sort_event}
+              />
+            </tr>
+          </thead>
+          <tbody>
+            <tr :if={@rows == []}>
+              <td colspan={length(@columns)} class="text-base-content/70 py-8 text-center text-sm">
+                {@empty_message}
+              </td>
+            </tr>
+            <tr
+              :for={{dom_id, row} <- @rows}
+              id={dom_id}
+              phx-click={@row_click_event}
+              phx-value-id={row_id(row, @row_id_key)}
+              class={[
+                @row_click_event && "cursor-pointer transition-colors hover:bg-primary/15",
+                @selected_id && @selected_id == row_id(row, @row_id_key) && "bg-primary/20"
+              ]}
             >
-              <div class="truncate">
-                {render_slot(@cell, %{column: column, row: row})}
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+              <%!-- `truncate` needs a block-level box to clamp against, so the
+                    cell content is wrapped rather than truncated on the td. --%>
+              <td
+                :for={column <- @columns}
+                class={["text-sm", align_class(column), width_class(column)]}
+              >
+                <div class="truncate">
+                  {render_slot(@cell, %{column: column, row: row})}
+                </div>
+              </td>
+            </tr>
+            <%!-- Blank filler rows keep the table the same height when a fetch
+                  returns fewer rows, so the page does not jump. --%>
+            <%!-- An empty line box is a fraction shorter than one holding text,
+                  so the filler's inner height is pinned to match a real row
+                  exactly and the table height cannot drift. --%>
+            <%!-- An empty cell's line box is a fraction shorter than one
+                  holding glyphs, so the row height is pinned directly (h-10 =
+                  the 2.5rem a populated row settles at) rather than being left
+                  to the text metrics. --%>
+            <%!-- Mirrors a populated cell's structure and font: the monospace
+                  metrics make the line box taller than a proportional or empty
+                  one would be, so without matching them the filler rows come up
+                  short and the table height drifts between fetches. --%>
+            <tr :for={_n <- filler_rows(@rows, @min_rows)} aria-hidden="true">
+              <td
+                :for={column <- @columns}
+                class={["text-sm", align_class(column), width_class(column)]}
+              >
+                <div class="truncate"><span class="font-mono text-sm">&nbsp;</span></div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
     """
   end
@@ -265,13 +292,14 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         phx-click={@sort_event}
         phx-value-key={@column.key}
         class={[
-          "inline-flex items-center gap-1 transition-colors hover:text-base-content",
+          "font-mono tracking-label inline-flex max-w-full items-center gap-1 text-xs",
+          "font-semibold uppercase transition-colors hover:text-base-content",
           @active? && "text-base-content",
           not @active? && "text-base-content/70"
         ]}
         aria-label={"Sort by #{@column.label}"}
       >
-        {@column.label}
+        <span class="truncate">{@column.label}</span>
         <%!-- Both directions are always shown so a sortable column is
               recognisable at a glance; the active one is undimmed. --%>
         <span class="inline-flex shrink-0 items-center" aria-hidden="true">
@@ -288,8 +316,10 @@ defmodule VoyagerWeb.Components.DataTableComponents do
 
   defp column_header(assigns) do
     ~H"""
-    <th class={["text-base-content/70", align_class(@column), width_class(@column)]}>
-      <div class="truncate">{@column.label}</div>
+    <th class={[align_class(@column), width_class(@column)]}>
+      <div class="font-mono tracking-label text-base-content/70 truncate text-xs font-semibold uppercase">
+        {@column.label}
+      </div>
     </th>
     """
   end
@@ -402,8 +432,8 @@ defmodule VoyagerWeb.Components.DataTableComponents do
 
   def info_note(assigns) do
     ~H"""
-    <div id={@id} role="note" class="alert alert-info py-2.5 text-xs">
-      <.icon name="icon-info" class="size-4 shrink-0" />
+    <div id={@id} role="note" class="alert alert-info py-3 text-sm">
+      <.icon name="icon-info" class="size-5 shrink-0" />
       <span>{render_slot(@inner_block)}</span>
     </div>
     """
@@ -418,6 +448,10 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   defp to_dom_value(value) when is_port(value), do: value |> :erlang.port_to_list() |> to_string()
   defp to_dom_value(value) when is_atom(value) or is_number(value), do: to_string(value)
   defp to_dom_value(value), do: inspect(value)
+
+  # Only pads a non-empty result: the empty state has its own single row.
+  defp filler_rows([], _min_rows), do: []
+  defp filler_rows(rows, min_rows), do: 1..max(min_rows - length(rows), 0)//1
 
   defp align_class(%{align: :right}), do: "text-right"
   defp align_class(%{align: :center}), do: "text-center"

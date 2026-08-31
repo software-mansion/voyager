@@ -36,12 +36,12 @@ defmodule VoyagerWeb.Components.ProcessComponents do
     ~H"""
     <%= case @column.key do %>
       <% :pid -> %>
-        <span class="font-mono text-primary text-xs">{Processes.format_pid(@row.pid)}</span>
+        <span class="font-mono text-primary text-sm">{Processes.format_pid(@row.pid)}</span>
       <% :name -> %>
-        <span class="font-mono text-xs" title={display_name(@row)}>{display_name(@row)}</span>
+        <span class="font-mono text-sm" title={display_name(@row)}>{display_name(@row)}</span>
       <% :current_function -> %>
         <span
-          class="font-mono text-base-content/70 text-xs"
+          class="font-mono text-base-content/70 text-sm"
           title={format_mfa(@row[:current_function])}
         >
           {format_mfa(@row[:current_function])}
@@ -49,17 +49,17 @@ defmodule VoyagerWeb.Components.ProcessComponents do
         <%!-- Numeric columns are fixed-width, so the full value stays reachable
             via the title when it truncates. --%>
       <% :memory -> %>
-        <span class="font-mono text-xs" title={Formatters.format_bytes(@row[:memory])}>
+        <span class="font-mono text-sm" title={Formatters.format_bytes(@row[:memory])}>
           {Formatters.format_bytes(@row[:memory])}
         </span>
       <% :reductions -> %>
-        <span class="font-mono text-xs" title={format_number(@row[:reductions])}>
+        <span class="font-mono text-sm" title={format_number(@row[:reductions])}>
           {format_number(@row[:reductions])}
         </span>
       <% :message_queue_len -> %>
         <span
           class={[
-            "font-mono text-xs",
+            "font-mono text-sm",
             queue_warning?(@row[:message_queue_len]) && "text-warning font-medium"
           ]}
           title={format_number(@row[:message_queue_len])}
