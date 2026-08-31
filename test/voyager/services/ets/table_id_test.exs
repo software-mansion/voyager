@@ -16,6 +16,10 @@ defmodule Voyager.Services.Ets.TableIdTest do
       assert TableId.display(:my_table) == inspect(:my_table)
       assert TableId.display(ref) == inspect(ref)
     end
+
+    test "uses the alias inspect-form for module-named tables" do
+      assert TableId.display(MyApp.Cache) == "MyApp.Cache"
+    end
   end
 
   describe "find/2" do
@@ -24,6 +28,13 @@ defmodule Voyager.Services.Ets.TableIdTest do
 
       assert {:ok, :my_table} = TableId.find(inspect(:my_table), ids)
       assert {:ok, :my_table} = TableId.find("my_table", ids)
+    end
+
+    test "matches a module-named table by alias inspect-form and Atom.to_string/1" do
+      ids = [MyApp.Cache]
+
+      assert {:ok, MyApp.Cache} = TableId.find("MyApp.Cache", ids)
+      assert {:ok, MyApp.Cache} = TableId.find("Elixir.MyApp.Cache", ids)
     end
 
     test "matches an unnamed table only by inspect of the live reference" do
@@ -70,6 +81,18 @@ defmodule Voyager.Services.Ets.TableIdTest do
 
       assert {:ok, :cache} = TableId.resolve(@node, "cache", [], @timeout)
     end
+
+    test "interns a module alias inspect-form on the target when last all misses" do
+      expect(Voyager.ErpcMock, :call, fn @node,
+                                         :erlang,
+                                         :list_to_existing_atom,
+                                         [~c"Elixir.MyApp.Cache"],
+                                         @timeout ->
+        MyApp.Cache
+      end)
+
+      assert {:ok, MyApp.Cache} = TableId.resolve(@node, "MyApp.Cache", [], @timeout)
+    end
   end
 
   describe "existing_atom/3" do
@@ -96,6 +119,42 @@ defmodule Voyager.Services.Ets.TableIdTest do
       end)
 
       assert {:ok, :bar} = TableId.existing_atom(@node, ":bar", @timeout)
+    end
+
+    test "prepends Elixir. for alias inspect-forms" do
+      expect(Voyager.ErpcMock, :call, fn _node,
+                                         :erlang,
+                                         :list_to_existing_atom,
+                                         [~c"Elixir.MyApp.Cache"],
+                                         _timeout ->
+        MyApp.Cache
+      end)
+
+      assert {:ok, MyApp.Cache} = TableId.existing_atom(@node, "MyApp.Cache", @timeout)
+    end
+
+    test "does not double-prefix Atom.to_string/1 module names" do
+      expect(Voyager.ErpcMock, :call, fn _node,
+                                         :erlang,
+                                         :list_to_existing_atom,
+                                         [~c"Elixir.MyApp.Cache"],
+                                         _timeout ->
+        MyApp.Cache
+      end)
+
+      assert {:ok, MyApp.Cache} = TableId.existing_atom(@node, "Elixir.MyApp.Cache", @timeout)
+    end
+
+    test "does not prepend Elixir. after stripping a quoted uppercase inspect-form" do
+      expect(Voyager.ErpcMock, :call, fn _node,
+                                         :erlang,
+                                         :list_to_existing_atom,
+                                         [~c"MyApp.Cache"],
+                                         _timeout ->
+        :"MyApp.Cache"
+      end)
+
+      assert {:ok, :"MyApp.Cache"} = TableId.existing_atom(@node, ":MyApp.Cache", @timeout)
     end
 
     test "rejects a blank name without touching the remote" do

@@ -77,8 +77,10 @@ defmodule Voyager.Services.Ets.TableId do
   Interns `name` as an existing atom **on `node`**.
 
   A leading Elixir colon (`":foo"`) is stripped so inspect-forms of simple
-  atoms can be typed without a prior `all`. Returns `{:error, :not_found}`
-  when the atom is not interned on the target.
+  atoms can be typed without a prior `all`. Alias inspect-forms (`"MyApp.Cache"`)
+  are interned as `:"Elixir.MyApp.Cache"`; a string that already starts with
+  `"Elixir."` is left as-is. Returns `{:error, :not_found}` when the atom is
+  not interned on the target.
   """
   @spec existing_atom(node(), String.t(), timeout()) :: {:ok, atom()} | {:error, term()}
   def existing_atom(node, name, timeout) when is_binary(name) do
@@ -104,14 +106,22 @@ defmodule Voyager.Services.Ets.TableId do
   defp reference_inspect?(_), do: false
 
   defp atom_charlist(name) do
-    trimmed = String.trim(name)
+    case String.trim(name) do
+      "" -> :invalid
+      ":" -> :invalid
+      ":" <> rest -> chars_or_invalid(rest)
+      other -> chars_or_invalid(alias_name(other))
+    end
+  end
 
-    chars =
-      case trimmed do
-        ":" <> rest -> String.to_charlist(rest)
-        other -> String.to_charlist(other)
-      end
+  defp alias_name(<<"Elixir.", _::binary>> = name), do: name
+  defp alias_name(<<c, _::binary>> = name) when c in ?A..?Z, do: "Elixir." <> name
+  defp alias_name(name), do: name
 
-    if chars == [], do: :invalid, else: chars
+  defp chars_or_invalid(name) do
+    case String.to_charlist(name) do
+      [] -> :invalid
+      chars -> chars
+    end
   end
 end
