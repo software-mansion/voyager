@@ -228,7 +228,20 @@ defmodule VoyagerWeb.ProcessesLive do
   defp rows(entries, page) do
     entries
     |> Enum.slice((page - 1) * @page_size, @page_size)
-    |> Enum.map(&{"process-#{Processes.format_pid(&1.pid)}", &1})
+    |> Enum.map(&{row_dom_id(&1.pid), &1})
+  end
+
+  @doc false
+  # `<0.123.0>` is not a usable DOM id or CSS selector, so reduce a pid to its
+  # digits: `process-0-123-0`.
+  def row_dom_id(pid) when is_pid(pid) do
+    digits =
+      pid
+      |> Processes.format_pid()
+      |> String.replace(~r/[^\d]+/, "-")
+      |> String.trim("-")
+
+    "process-#{digits}"
   end
 
   # Re-selecting the active column flips the direction; a new column starts
@@ -261,6 +274,10 @@ defmodule VoyagerWeb.ProcessesLive do
   end
 
   defp timeout_options, do: @timeout_options
+
+  # `assign_async` wraps a returned `{:error, reason}` before it reaches the
+  # `:failed` slot, so unwrap it before matching on the reason itself.
+  defp format_error({:error, reason}), do: format_error(reason)
 
   defp format_error(:timeout),
     do: "Timed out while scanning processes. Try a longer timeout or fewer processes."

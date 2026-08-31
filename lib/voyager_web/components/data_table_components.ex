@@ -44,7 +44,13 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   def toolbar(assigns) do
     ~H"""
     <div id={@id} class="flex flex-wrap items-end justify-between gap-3">
-      <form :if={@search != nil} phx-change={@search_event} phx-submit={@search_event} class="grow">
+      <form
+        :if={@search != nil}
+        id={"#{@id}-search-form"}
+        phx-change={@search_event}
+        phx-submit={@search_event}
+        class="grow"
+      >
         <label class="input input-sm w-full max-w-xs">
           <.icon name="icon-search" class="text-base-content/60 size-4" />
           <input
@@ -113,7 +119,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
 
   def select_control(assigns) do
     ~H"""
-    <form phx-change={@event} class="flex flex-col gap-1">
+    <form id={"#{@id}-form"} phx-change={@event} class="flex flex-col gap-1">
       <label for={@id} class="text-base-content/70 text-xs font-medium">{@label}</label>
       <select id={@id} name={@name} class="select select-sm w-24">
         <option :for={{label, value} <- @options} value={value} selected={value == @value}>
@@ -314,7 +320,15 @@ defmodule VoyagerWeb.Components.DataTableComponents do
     """
   end
 
-  defp row_id(row, key), do: row |> Map.get(key) |> to_string()
+  # Row ids double as `phx-value-id`, so they must survive values that have no
+  # `String.Chars` implementation (a pid identifying a process row, say).
+  defp row_id(row, key), do: row |> Map.get(key) |> to_dom_value()
+
+  defp to_dom_value(value) when is_binary(value), do: value
+  defp to_dom_value(value) when is_pid(value), do: value |> :erlang.pid_to_list() |> to_string()
+  defp to_dom_value(value) when is_port(value), do: value |> :erlang.port_to_list() |> to_string()
+  defp to_dom_value(value) when is_atom(value) or is_number(value), do: to_string(value)
+  defp to_dom_value(value), do: inspect(value)
 
   defp align_class(%{align: :right}), do: "text-right"
   defp align_class(%{align: :center}), do: "text-center"

@@ -143,6 +143,10 @@ defmodule VoyagerWeb.ProcessDetailsLive do
     end)
   end
 
+  # `assign_async` wraps a returned `{:error, reason}` before it reaches the
+  # `:failed` slot, so unwrap it before matching on the reason itself.
+  defp format_error({:error, reason}), do: format_error(reason)
+
   defp format_error(:not_a_pid), do: "That is not a valid process identifier."
   defp format_error(:dead), do: "This process is no longer alive."
   defp format_error(:incomplete), do: "Process information was incomplete."
