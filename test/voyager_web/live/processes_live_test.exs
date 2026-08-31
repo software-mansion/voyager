@@ -8,6 +8,7 @@ defmodule VoyagerWeb.ProcessesLiveTest do
 
   alias Voyager.Fakes
   alias Voyager.Queries.Processes
+  alias VoyagerWeb.Components.ProcessComponents
   alias VoyagerWeb.ProcessesLive
 
   @node_name "demo@localhost"
@@ -197,7 +198,7 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       render_async(view)
 
       for attr <- Processes.required_attrs() ++ Processes.optional_attrs() do
-        assert has_element?(view, "#column-#{attr}-input")
+        assert has_element?(view, "#processes-toolbar-columns-#{attr}-input")
       end
     end
 
@@ -207,7 +208,7 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       render_async(view)
 
       for attr <- Processes.required_attrs() do
-        assert has_element?(view, "#column-#{attr}-input[checked][disabled]")
+        assert has_element?(view, "#processes-toolbar-columns-#{attr}-input[checked][disabled]")
       end
     end
 
@@ -220,7 +221,7 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       assert_received {:scanned, _args, _timeout}
 
       view
-      |> element("#process-column-controls-form")
+      |> element("#processes-toolbar-columns-form")
       |> render_change(%{"columns" => ["status"]})
 
       render_async(view)
@@ -237,7 +238,7 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       {:ok, view, _html} = live(conn, "#{@path}?columns=status")
       render_async(view)
 
-      assert has_element?(view, "#column-status-input[checked]")
+      assert has_element?(view, "#processes-toolbar-columns-status-input[checked]")
 
       # The selected column appears in the table; the unselected one does not.
       headers = view |> element("#processes-table thead") |> render()
@@ -253,6 +254,62 @@ defmodule VoyagerWeb.ProcessesLiveTest do
 
       assert_received {:scanned, [attrs, _sort, _limit, _dir, _search], _timeout}
       assert :memory in attrs
+    end
+  end
+
+  describe "resizable columns" do
+    test "the table opts into the resize hook", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      assert has_element?(view, ~s|#processes-table[phx-hook="TableColumnResize"]|)
+    end
+
+    test "every header carries a resize handle and a column key", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      headers = view |> element("#processes-table thead") |> render()
+
+      for %{key: key} <- ProcessComponents.columns(Processes.default_attrs()) do
+        assert headers =~ ~s|data-column="#{key}"|
+      end
+
+      assert headers =~ "data-resize-handle"
+    end
+
+    test "body cells are keyed so the hook can size them", %{conn: conn} do
+      [pid] = fake_pids(1)
+      stub_scan([entry(pid: pid)])
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      row = view |> element("##{ProcessesLive.row_dom_id(pid)}") |> render()
+
+      assert row =~ ~s|data-column="pid"|
+      assert row =~ ~s|data-column="memory"|
+    end
+  end
+
+  describe "PID cell" do
+    test "offers a copy button and a tooltip with the full pid", %{conn: conn} do
+      [pid] = fake_pids(1)
+      stub_scan([entry(pid: pid)])
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      pid_string = Processes.format_pid(pid)
+      key = pid_string |> String.replace(~r/[^\d]+/, "-") |> String.trim("-")
+
+      assert has_element?(view, "#pid-copy-#{key}")
+      assert has_element?(view, "#pid-tip-#{key}")
+      # The copy source keeps the untruncated pid (HTML-escaped in the markup).
+      escaped = pid_string |> String.replace("<", "&lt;") |> String.replace(">", "&gt;")
+      assert view |> element("#pid-copy-text-#{key}") |> render() =~ escaped
     end
   end
 

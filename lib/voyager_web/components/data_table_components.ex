@@ -46,6 +46,9 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   attr :timeout_min, :integer, default: 1_000
   attr :timeout_max, :integer, default: 30_000
   attr :timeout_event, :string, default: "set_timeout"
+  attr :columns_options, :list, default: [], doc: "`{value, label, locked?}` triples"
+  attr :columns_selected, :list, default: []
+  attr :columns_event, :string, default: "set_columns"
   attr :refresh_interval, :integer, default: nil
   attr :refresh_interval_options, :list, default: []
   attr :refresh_event, :string, default: "refresh"
@@ -121,6 +124,22 @@ defmodule VoyagerWeb.Components.DataTableComponents do
             phx-debounce="500"
             aria-label="Request timeout in milliseconds"
             class="input input-sm input-bordered no-spinner font-mono w-24"
+          />
+        </form>
+
+        <form
+          :if={@columns_options != []}
+          id={"#{@id}-columns-form"}
+          phx-change={@columns_event}
+          class="flex flex-col gap-1"
+        >
+          <span class="text-base-content/70 text-xs font-medium">Columns</span>
+          <.multiselect
+            id={"#{@id}-columns"}
+            name="columns"
+            label="Columns"
+            options={@columns_options}
+            selected={@columns_selected}
           />
         </form>
 
@@ -200,6 +219,10 @@ defmodule VoyagerWeb.Components.DataTableComponents do
     default: 0,
     doc: "pad the body to this many rows so the table keeps its height between fetches"
 
+  attr :resizable?, :boolean,
+    default: false,
+    doc: "adds a drag handle to each header; widths persist per table id"
+
   slot :cell, required: true
 
   def table(assigns) do
@@ -209,7 +232,11 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         <%!-- DaisyUI `table`, sized to match the node-info tables: `table-md`
               for their row height and `table-fixed` so the column widths
               actually hold. --%>
-        <table id={@id} class="table-pin-rows table-md table w-full table-fixed">
+        <table
+          id={@id}
+          phx-hook={@resizable? && "TableColumnResize"}
+          class="table-pin-rows table-md table w-full table-fixed"
+        >
           <thead>
             <tr>
               <.column_header
@@ -218,6 +245,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
                 sort_by={@sort_by}
                 direction={@direction}
                 sort_event={@sort_event}
+                resizable?={@resizable?}
               />
             </tr>
           </thead>
@@ -241,6 +269,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
                     cell content is wrapped rather than truncated on the td. --%>
               <td
                 :for={column <- @columns}
+                data-column={column.key}
                 class={["text-sm", align_class(column), width_class(column)]}
               >
                 <div class="truncate">
@@ -264,6 +293,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
             <tr :for={_n <- filler_rows(@rows, @min_rows)} aria-hidden="true">
               <td
                 :for={column <- @columns}
+                data-column={column.key}
                 class={["text-sm", align_class(column), width_class(column)]}
               >
                 <div class="truncate"><span class="font-mono text-sm">&nbsp;</span></div>
@@ -280,13 +310,15 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   attr :sort_by, :atom, default: nil
   attr :direction, :atom, required: true
   attr :sort_event, :string, required: true
+  attr :resizable?, :boolean, default: false
 
   defp column_header(%{column: %{sortable?: true}} = assigns) do
     assigns = assign(assigns, :active?, assigns.column.key == assigns.sort_by)
 
     ~H"""
     <th
-      class={[align_class(@column), width_class(@column)]}
+      data-column={@column.key}
+      class={["relative", align_class(@column), width_class(@column)]}
       aria-sort={aria_sort(@active?, @direction)}
     >
       <button
@@ -312,16 +344,21 @@ defmodule VoyagerWeb.Components.DataTableComponents do
           />
         </span>
       </button>
+      <.resize_handle :if={@resizable?} label={@column.label} />
     </th>
     """
   end
 
   defp column_header(assigns) do
     ~H"""
-    <th class={[align_class(@column), width_class(@column)]}>
+    <th
+      data-column={@column.key}
+      class={["relative", align_class(@column), width_class(@column)]}
+    >
       <div class="font-mono tracking-label text-base-content/70 truncate text-xs font-semibold uppercase">
         {@column.label}
       </div>
+      <.resize_handle :if={@resizable?} label={@column.label} />
     </th>
     """
   end
@@ -334,6 +371,22 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   defp aria_sort(true, :asc), do: "ascending"
   defp aria_sort(true, :desc), do: "descending"
   defp aria_sort(_active?, _direction), do: "none"
+
+  attr :label, :string, required: true
+
+  defp resize_handle(assigns) do
+    ~H"""
+    <span
+      data-resize-handle
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={"Resize #{@label} column"}
+      class="group absolute inset-y-0 -right-1 z-20 flex w-2 cursor-col-resize touch-none items-center justify-center"
+    >
+      <span class="bg-base-content/20 h-1/2 w-px transition-colors group-hover:bg-primary" />
+    </span>
+    """
+  end
 
   @doc """
   Pager for a client-side page over an already-fetched result set.

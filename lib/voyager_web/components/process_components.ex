@@ -79,7 +79,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
     ~H"""
     <%= case @column.key do %>
       <% :pid -> %>
-        <span class="font-mono text-primary text-sm">{Processes.format_pid(@row.pid)}</span>
+        <.pid_cell pid={@row.pid} />
       <% :name -> %>
         <span class="font-mono text-sm" title={display_name(@row)}>{display_name(@row)}</span>
       <% :current_function -> %>
@@ -115,6 +115,42 @@ defmodule VoyagerWeb.Components.ProcessComponents do
         </span>
     <% end %>
     """
+  end
+
+  @doc """
+  PID cell: the (possibly truncated) pid with a tooltip carrying the full value
+  and a button to copy it.
+  """
+  attr :pid, :any, required: true
+
+  def pid_cell(assigns) do
+    assigns = assign(assigns, :pid_string, Processes.format_pid(assigns.pid))
+
+    ~H"""
+    <div class="group flex min-w-0 items-center gap-1">
+      <.tooltip id={"pid-tip-#{dom_id(@pid_string)}"} position="right" class="min-w-0">
+        <span class="font-mono text-primary block truncate text-sm">{@pid_string}</span>
+        <:content>
+          <span class="font-mono">{@pid_string}</span>
+        </:content>
+      </.tooltip>
+      <%!-- The copy button reads its text from the DOM, so the full pid is kept
+            in a hidden node that truncation cannot clip. --%>
+      <div id={"pid-copy-text-#{dom_id(@pid_string)}"} class="hidden">{@pid_string}</div>
+      <.copy_button
+        id={"pid-copy-#{dom_id(@pid_string)}"}
+        target={"#pid-copy-text-#{dom_id(@pid_string)}"}
+        label="Copy PID"
+        icon_only
+        class="text-base-content/60 shrink-0 opacity-0 transition-opacity hover:text-primary focus-visible:opacity-100 group-hover:opacity-100"
+      />
+    </div>
+    """
+  end
+
+  # `<0.123.0>` is not a valid DOM id, so ids are keyed on the digits.
+  defp dom_id(pid_string) do
+    pid_string |> String.replace(~r/[^\d]+/, "-") |> String.trim("-")
   end
 
   @doc """

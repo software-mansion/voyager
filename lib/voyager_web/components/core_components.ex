@@ -444,6 +444,81 @@ defmodule VoyagerWeb.CoreComponents do
   end
 
   @doc """
+  Multi-select dropdown: a DaisyUI dropdown holding a checkbox per option.
+
+  Values are submitted as `name[]`, so the enclosing form's change event
+  receives a list. Options are `{value, label, locked?}` triples; a locked
+  option renders checked and disabled and must be re-added server-side, since a
+  disabled checkbox submits nothing.
+
+  ## Examples
+
+      <.multiselect
+        id="columns"
+        name="columns"
+        label="Columns"
+        options={[{"pid", "PID", true}, {"status", "Status", false}]}
+        selected={["pid"]}
+      />
+  """
+  attr :id, :string, required: true
+  attr :name, :string, required: true
+  attr :label, :string, required: true
+  attr :options, :list, required: true, doc: "list of `{value, label, locked?}` triples"
+  attr :selected, :list, required: true, doc: "list of selected values"
+  attr :locked_hint, :string, default: "Always shown"
+  attr :class, :any, default: nil
+
+  def multiselect(assigns) do
+    assigns = assign(assigns, :count, length(assigns.selected))
+
+    ~H"""
+    <div class={["dropdown", @class]}>
+      <div
+        tabindex="0"
+        role="button"
+        id={@id}
+        aria-haspopup="listbox"
+        class="btn btn-sm btn-outline border-base-content/20 font-normal"
+      >
+        {@label}
+        <span class="badge badge-primary badge-sm font-mono">{@count}</span>
+        <.icon name="icon-chevron-right" class="size-3.5 rotate-90" />
+      </div>
+
+      <div
+        tabindex="0"
+        role="listbox"
+        class="dropdown-content bg-base-100 rounded-box border-base-300 z-50 mt-1 w-56 border p-2 shadow-lg"
+      >
+        <label
+          :for={{value, label, locked?} <- @options}
+          id={"#{@id}-#{value}-option"}
+          class={[
+            "flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm",
+            locked? && "text-base-content/60 cursor-not-allowed",
+            not locked? && "cursor-pointer hover:bg-base-200"
+          ]}
+          title={locked? && @locked_hint}
+        >
+          <input
+            id={"#{@id}-#{value}-input"}
+            type="checkbox"
+            name={"#{@name}[]"}
+            value={value}
+            checked={value in @selected}
+            disabled={locked?}
+            class="checkbox checkbox-xs checkbox-primary"
+          />
+          <span class="font-mono">{label}</span>
+          <.icon :if={locked?} name="icon-check" class="size-3.5 ml-auto" />
+        </label>
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
   Renders a single DaisyUI `stat` tile.
 
   ## Examples

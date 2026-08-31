@@ -20,7 +20,6 @@ defmodule VoyagerWeb.ProcessesLive do
   alias Voyager.Queries.Processes
   alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Components.ProcessComponents
-  alias VoyagerWeb.ProcessesLive.ColumnControls
   alias VoyagerWeb.Utils.URL
 
   require Logger
@@ -102,13 +101,6 @@ defmodule VoyagerWeb.ProcessesLive do
         snapshot from the last fetch, not a live view.
       </DataTableComponents.info_note>
 
-      <.live_component
-        module={ColumnControls}
-        id="process-column-controls"
-        selected={@selected_attrs}
-        current_url={@current_url}
-      />
-
       <DataTableComponents.toolbar
         id="processes-toolbar"
         search={@search}
@@ -118,6 +110,8 @@ defmodule VoyagerWeb.ProcessesLive do
         limit_label="Fetch"
         page_size={@page_size}
         page_size_options={Processes.page_size_options()}
+        columns_options={column_options()}
+        columns_selected={Enum.map(@selected_attrs, &to_string/1)}
         timeout={@timeout}
         timeout_min={elem(Processes.timeout_bounds(), 0)}
         timeout_max={elem(Processes.timeout_bounds(), 1)}
@@ -154,6 +148,7 @@ defmodule VoyagerWeb.ProcessesLive do
         row_id_key={:pid}
         empty_message={if @page_result.ok?, do: "No processes matched.", else: "Scanning processes…"}
         min_rows={@page_size}
+        resizable?={true}
       >
         <:cell :let={%{column: column, row: row}}>
           <ProcessComponents.cell column={column} row={row} />
@@ -223,6 +218,18 @@ defmodule VoyagerWeb.ProcessesLive do
 
     socket
     |> push_patch(to: controls_path(socket, %{"timeout" => to_string(timeout)}))
+    |> noreply()
+  end
+
+  def handle_event("set_columns", params, socket) do
+    selected =
+      params
+      |> Map.get("columns", [])
+      |> param_attr_list()
+      |> Processes.clamp_attrs()
+
+    socket
+    |> push_patch(to: controls_path(socket, %{"columns" => Enum.join(selected, ",")}))
     |> noreply()
   end
 
@@ -378,6 +385,27 @@ defmodule VoyagerWeb.ProcessesLive do
   defp param_integer(nil, fallback), do: fallback
   defp param_integer(value, fallback), do: parse_integer(value, fallback)
 
+  # `{value, label, locked?}` triples for the columns multiselect, required
+  # attributes first so they read as the fixed part of the selection.
+  defp column_options do
+    required = Enum.map(Processes.required_attrs(), &{to_string(&1), label(&1), true})
+    optional = Enum.map(Processes.optional_attrs(), &{to_string(&1), label(&1), false})
+
+    required ++ optional
+  end
+
+  defp label(attr), do: ProcessComponents.column_label(attr)
+
+  # Names come from the client, so only known attributes are converted; anything
+  # else is dropped rather than creating an atom.
+  defp param_attr_list(names) do
+    known = Processes.required_attrs() ++ Processes.optional_attrs()
+
+    names
+    |> Enum.map(fn name -> Enum.find(known, &(to_string(&1) == name)) end)
+    |> Enum.reject(&is_nil/1)
+  end
+
   defp parse_interval("off"), do: nil
 
   defp parse_interval(value) do
@@ -401,12 +429,9 @@ defmodule VoyagerWeb.ProcessesLive do
   defp param_attrs(nil, fallback), do: Processes.clamp_attrs(fallback)
 
   defp param_attrs(value, _fallback) when is_binary(value) do
-    known = Processes.required_attrs() ++ Processes.optional_attrs()
-
     value
     |> String.split(",", trim: true)
-    |> Enum.map(fn name -> Enum.find(known, &(to_string(&1) == name)) end)
-    |> Enum.reject(&is_nil/1)
+    |> param_attr_list()
     |> Processes.clamp_attrs()
   end
 
