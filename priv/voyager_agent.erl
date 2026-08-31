@@ -65,7 +65,7 @@ do_register(ParentNode, Attempts) ->
         exit:{noproc, _} ->
             do_start(ParentNode, Attempts - 1);
         exit:{normal, _} ->
-            do_start(ParentNode, Attempts - 1);
+            do_start(ParentNode, Attempts - 1)
     end.
 
 %% =====================================================================

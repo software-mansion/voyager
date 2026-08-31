@@ -117,26 +117,26 @@ defmodule VoyagerAgentTest do
 
   describe "proc_top/5" do
     test "returns at most `limit` entries" do
-      assert {rows, _total} = :voyager_agent.proc_top([:memory], :memory, 3, :desc, :undefined)
+      assert {rows, _total} = @agent_module.proc_top([:memory], :memory, 3, :desc, :undefined)
       assert length(rows) == 3
 
       assert {[_entry], _total} =
-               :voyager_agent.proc_top([:memory], :memory, 1, :desc, :undefined)
+               @agent_module.proc_top([:memory], :memory, 1, :desc, :undefined)
     end
 
     test "returns an empty list for a non-positive limit" do
-      assert {[], total} = :voyager_agent.proc_top([:memory], :memory, 0, :desc, :undefined)
+      assert {[], total} = @agent_module.proc_top([:memory], :memory, 0, :desc, :undefined)
       assert total > 0
     end
 
     test "restores the caller's max_heap_size instead of leaving it capped" do
       before = Process.info(self(), :max_heap_size)
-      {_rows, _total} = :voyager_agent.proc_top([:memory], :memory, 5, :desc, :undefined)
+      {_rows, _total} = @agent_module.proc_top([:memory], :memory, 5, :desc, :undefined)
       assert Process.info(self(), :max_heap_size) == before
     end
 
     test "returns the total process count alongside the entries" do
-      assert {rows, total} = :voyager_agent.proc_top([:memory], :memory, 5, :desc, :undefined)
+      assert {rows, total} = @agent_module.proc_top([:memory], :memory, 5, :desc, :undefined)
       assert is_integer(total)
       assert total > 0
       assert total >= length(rows)
@@ -144,7 +144,7 @@ defmodule VoyagerAgentTest do
 
     test "each entry is a map carrying :pid plus the requested attributes" do
       assert {[entry | _], _total} =
-               :voyager_agent.proc_top([:memory, :reductions], :memory, 5, :desc, :undefined)
+               @agent_module.proc_top([:memory, :reductions], :memory, 5, :desc, :undefined)
 
       assert is_map(entry)
       assert is_pid(entry.pid)
@@ -154,28 +154,28 @@ defmodule VoyagerAgentTest do
     end
 
     test "sorts descending (largest first) with direction :desc" do
-      {rows, _} = :voyager_agent.proc_top([:memory], :memory, 20, :desc, :undefined)
+      {rows, _} = @agent_module.proc_top([:memory], :memory, 20, :desc, :undefined)
       mems = Enum.map(rows, & &1.memory)
       assert mems == Enum.sort(mems, :desc)
     end
 
     test "sorts ascending (smallest first) with direction :asc" do
-      {rows, _} = :voyager_agent.proc_top([:memory], :memory, 20, :asc, :undefined)
+      {rows, _} = @agent_module.proc_top([:memory], :memory, 20, :asc, :undefined)
       mems = Enum.map(rows, & &1.memory)
       assert mems == Enum.sort(mems, :asc)
     end
 
     test ":asc keeps the smallest values, not the largest" do
       # The smallest-N by memory must not exceed the largest-N by memory.
-      {asc_rows, _} = :voyager_agent.proc_top([:memory], :memory, 10, :asc, :undefined)
-      {desc_rows, _} = :voyager_agent.proc_top([:memory], :memory, 10, :desc, :undefined)
+      {asc_rows, _} = @agent_module.proc_top([:memory], :memory, 10, :asc, :undefined)
+      {desc_rows, _} = @agent_module.proc_top([:memory], :memory, 10, :desc, :undefined)
       asc = Enum.map(asc_rows, & &1.memory)
       desc = Enum.map(desc_rows, & &1.memory)
       assert Enum.max(asc) <= Enum.min(desc)
     end
 
     test "an undefined search applies no filter" do
-      {rows, _} = :voyager_agent.proc_top([:memory], :memory, 1_000_000, :desc, :undefined)
+      {rows, _} = @agent_module.proc_top([:memory], :memory, 1_000_000, :desc, :undefined)
       assert self() in Enum.map(rows, & &1.pid)
     end
 
@@ -187,7 +187,7 @@ defmodule VoyagerAgentTest do
       attrs = [:memory, :registered_name]
 
       {matched, _} =
-        :voyager_agent.proc_top(attrs, :memory, 1_000_000, :desc, "AGENT_TEST_NEEDLE")
+        @agent_module.proc_top(attrs, :memory, 1_000_000, :desc, "AGENT_TEST_NEEDLE")
 
       names = Enum.map(matched, & &1.registered_name)
       assert name in names
@@ -202,13 +202,13 @@ defmodule VoyagerAgentTest do
         |> String.trim_leading("<")
         |> String.trim_trailing(">")
 
-      {rows, _} = :voyager_agent.proc_top([:memory], :memory, 1_000_000, :desc, pid_fragment)
+      {rows, _} = @agent_module.proc_top([:memory], :memory, 1_000_000, :desc, pid_fragment)
       assert self() in Enum.map(rows, & &1.pid)
     end
 
     test "a search matching nothing returns an empty list" do
       assert {[], _total} =
-               :voyager_agent.proc_top(
+               @agent_module.proc_top(
                  [:memory, :registered_name],
                  :memory,
                  100,
@@ -242,7 +242,7 @@ defmodule VoyagerAgentTest do
       {:memory, mem} = Process.info(hog, :memory)
       needle = Integer.to_string(mem)
 
-      {rows, _} = :voyager_agent.proc_top([:memory], :memory, 1_000_000, :desc, needle)
+      {rows, _} = @agent_module.proc_top([:memory], :memory, 1_000_000, :desc, needle)
       refute hog in Enum.map(rows, & &1.pid)
     end
 
@@ -266,7 +266,7 @@ defmodule VoyagerAgentTest do
       assert_receive {:ready, ^hog}
 
       # A limit larger than the process count returns every live process.
-      {rows, _} = :voyager_agent.proc_top([:memory], :memory, 1_000_000, :desc, :undefined)
+      {rows, _} = @agent_module.proc_top([:memory], :memory, 1_000_000, :desc, :undefined)
       assert hog in Enum.map(rows, & &1.pid)
     end
   end
