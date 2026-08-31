@@ -39,7 +39,16 @@ defmodule Voyager.NodeSessionTest do
 
   setup do
     previous_state = :sys.get_state(NodeSession)
-    on_exit(fn -> :sys.replace_state(NodeSession, fn _ -> previous_state end) end)
+    # Connecting caches the connector name in a :persistent_term, which outlives
+    # the GenServer state restore below and would otherwise leak `:fake` into
+    # every later test that reads it (e.g. the telemetry export payload).
+    previous_connector_name = NodeSession.cached_connector_name()
+
+    on_exit(fn ->
+      :sys.replace_state(NodeSession, fn _ -> previous_state end)
+      NodeSession.restore_cached_connector_name(previous_connector_name)
+    end)
+
     Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
     :ok
   end
