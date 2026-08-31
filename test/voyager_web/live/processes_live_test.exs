@@ -117,16 +117,30 @@ defmodule VoyagerWeb.ProcessesLiveTest do
     end
   end
 
+  describe "info note" do
+    test "explains that data is fetched once and then paged locally", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      assert has_element?(view, "#processes-info")
+      assert render(view) =~ "paged here in the browser"
+    end
+  end
+
   describe "scan summary" do
-    test "reports how many processes were ranked out of those scanned", %{conn: conn} do
+    test "reports how many processes were found and how many returned", %{conn: conn} do
       pids = fake_pids(2)
       stub_scan(Enum.map(pids, &entry(pid: &1)), 500)
 
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      assert has_element?(view, "#processes-scan-summary")
-      assert render(view) =~ "500"
+      summary = view |> element("#processes-scan-summary") |> render()
+
+      assert summary =~ "Found"
+      assert summary =~ "500"
+      assert summary =~ "returned"
     end
 
     test "flags a truncated scan", %{conn: conn} do
@@ -136,7 +150,12 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      assert render(view) =~ "truncated"
+      summary = view |> element("#processes-scan-summary") |> render()
+
+      assert summary =~ "truncated"
+      # Truncation is expected whenever the limit bites, so it reads as info.
+      assert summary =~ "badge-info"
+      refute summary =~ "badge-warning"
     end
 
     test "does not flag an exhaustive scan", %{conn: conn} do
@@ -220,19 +239,79 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       assert_received {:scanned, [_attrs, _sort, 250, _dir, _search], _timeout}
     end
 
-    test "the timeout applies to the next scan", %{conn: conn} do
+    test "the timeout is entered in seconds and sent as milliseconds", %{conn: conn} do
       stub_scan([])
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
       view
       |> element("#processes-toolbar-timeout-form")
-      |> render_change(%{"timeout" => "10000"})
+      |> render_change(%{"timeout" => "10"})
 
-      view |> element("#processes-toolbar-refresh") |> render_click()
       render_async(view)
 
       assert_received {:scanned, _args, 10_000}
+    end
+
+    test "clamps an out-of-range timeout to the supported bounds", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      {_min, max} = Processes.timeout_bounds()
+
+      view
+      |> element("#processes-toolbar-timeout-form")
+      |> render_change(%{"timeout" => "9999"})
+
+      render_async(view)
+
+      assert_received {:scanned, _args, ^max}
+    end
+  end
+
+  describe "query params" do
+    test "restores the limit and timeout from the URL", %{conn: conn} do
+      stub_scan([])
+
+      {:ok, view, _html} = live(conn, "#{@path}?limit=250&timeout=10000")
+      render_async(view)
+
+      assert_received {:scanned, [_attrs, _sort, 250, _dir, _search], 10_000}
+    end
+
+    test "writes the limit into the query string", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      view
+      |> element("#processes-toolbar-limit-form")
+      |> render_change(%{"limit" => "50"})
+
+      assert_patched(view, "#{@path}?limit=50")
+    end
+
+    test "writes the timeout into the query string as milliseconds", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      view
+      |> element("#processes-toolbar-timeout-form")
+      |> render_change(%{"timeout" => "3"})
+
+      assert_patched(view, "#{@path}?timeout=3000")
+    end
+
+    test "ignores malformed query params instead of crashing", %{conn: conn} do
+      stub_scan([])
+
+      {:ok, view, _html} = live(conn, "#{@path}?limit=abc&timeout=xyz")
+      render_async(view)
+
+      # Falls back to the defaults rather than raising on a hand-edited URL.
+      assert_received {:scanned, [_attrs, _sort, 100, _dir, _search], 5_000}
     end
   end
 

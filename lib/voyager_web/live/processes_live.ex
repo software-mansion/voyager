@@ -6,6 +6,9 @@ defmodule VoyagerWeb.ProcessesLive do
   so nothing is fetched on a timer. Sorting, searching and the result size all
   run on the remote node and therefore trigger a new fetch, while paging walks
   the already-fetched rows locally.
+
+  The result size and the request timeout are kept in the query string so a
+  configured view survives a reload and can be shared as a link.
   """
 
   use VoyagerWeb, :live_view
@@ -14,40 +17,53 @@ defmodule VoyagerWeb.ProcessesLive do
   alias Voyager.Queries.Processes
   alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Components.ProcessComponents
+  alias VoyagerWeb.Utils.URL
 
   require Logger
 
   @page_size 25
 
-  @timeout_options [
-    {"1s", "1000"},
-    {"3s", "3000"},
-    {"5s", "5000"},
-    {"10s", "10000"},
-    {"30s", "30000"}
-  ]
-
   @impl true
   def mount(_params, _session, socket) do
+    socket
+    |> assign(:active_nav, :processes)
+    |> assign(:page_result, AsyncResult.loading())
+    |> assign(:sort_by, Processes.default_sort_by())
+    |> assign(:direction, Processes.default_direction())
+    |> assign(:limit, Processes.default_limit())
+    |> assign(:timeout, Processes.default_timeout())
+    |> assign(:search, "")
+    |> assign(:page, 1)
+    |> assign(:page_size, @page_size)
+    |> assign(:last_updated, nil)
+    |> assign(:params_applied?, false)
+    |> ok()
+  end
+
+  # The URL is the source of truth for `limit`/`timeout`, so the first fetch
+  # waits for handle_params rather than firing with the defaults and again with
+  # the real values.
+  @impl true
+  def handle_params(params, _uri, socket) do
+    limit = param_integer(params["limit"], socket.assigns.limit)
+    timeout = param_integer(params["timeout"], socket.assigns.timeout)
+
+    changed? = limit != socket.assigns.limit or timeout != socket.assigns.timeout
+
     socket =
       socket
-      |> assign(:active_nav, :processes)
-      |> assign(:page_result, AsyncResult.loading())
-      |> assign(:sort_by, Processes.default_sort_by())
-      |> assign(:direction, Processes.default_direction())
-      |> assign(:limit, Processes.default_limit())
-      |> assign(:timeout, Processes.default_timeout())
-      |> assign(:search, "")
-      |> assign(:page, 1)
-      |> assign(:page_size, @page_size)
-      |> assign(:last_updated, nil)
+      |> assign(:limit, Processes.clamp_limit(limit))
+      |> assign(:timeout, Processes.clamp_timeout(timeout))
 
-    if connected?(socket) do
-      fetch(socket)
+    if connected?(socket) and (changed? or not socket.assigns.params_applied?) do
+      socket
+      |> assign(:params_applied?, true)
+      |> assign(:page, 1)
+      |> fetch()
     else
       socket
     end
-    |> ok()
+    |> noreply()
   end
 
   @impl true
@@ -60,6 +76,14 @@ defmodule VoyagerWeb.ProcessesLive do
         waiting_message="waiting for first fetch…"
       />
 
+      <DataTableComponents.info_note id="processes-info">
+        Processes are fetched from the remote node once per refresh — ranked and
+        limited on the node itself — and then paged here in the browser. Sorting,
+        searching and changing the number of processes re-run the scan; moving
+        between pages does not. Figures are a snapshot from the last fetch, not a
+        live view.
+      </DataTableComponents.info_note>
+
       <DataTableComponents.toolbar
         id="processes-toolbar"
         search={@search}
@@ -67,8 +91,9 @@ defmodule VoyagerWeb.ProcessesLive do
         limit={@limit}
         limit_options={Processes.limit_options()}
         limit_label="Processes"
-        timeout={@timeout}
-        timeout_options={timeout_options()}
+        timeout={timeout_seconds(@timeout)}
+        timeout_min={timeout_seconds(elem(Processes.timeout_bounds(), 0))}
+        timeout_max={timeout_seconds(elem(Processes.timeout_bounds(), 1))}
         loading?={@page_result.loading}
       />
 
@@ -142,17 +167,25 @@ defmodule VoyagerWeb.ProcessesLive do
     |> noreply()
   end
 
+  # Both controls live in the query string: patch the URL and let
+  # handle_params/3 apply the value and trigger the refetch.
   def handle_event("set_limit", %{"limit" => limit}, socket) do
+    limit = limit |> parse_integer(socket.assigns.limit) |> Processes.clamp_limit()
+
     socket
-    |> assign(:limit, parse_integer(limit, socket.assigns.limit))
-    |> assign(:page, 1)
-    |> fetch()
+    |> push_patch(to: controls_path(socket, %{"limit" => to_string(limit)}))
     |> noreply()
   end
 
-  def handle_event("set_timeout", %{"timeout" => timeout}, socket) do
+  def handle_event("set_timeout", %{"timeout" => seconds}, socket) do
+    timeout =
+      seconds
+      |> parse_integer(timeout_seconds(socket.assigns.timeout))
+      |> timeout_ms()
+      |> Processes.clamp_timeout()
+
     socket
-    |> assign(:timeout, parse_integer(timeout, socket.assigns.timeout))
+    |> push_patch(to: controls_path(socket, %{"timeout" => to_string(timeout)}))
     |> noreply()
   end
 
@@ -266,14 +299,27 @@ defmodule VoyagerWeb.ProcessesLive do
     page |> max(1) |> min(total_pages)
   end
 
-  defp parse_integer(value, fallback) do
+  defp parse_integer(value, fallback) when is_binary(value) do
     case Integer.parse(value) do
       {int, ""} -> int
       _ -> fallback
     end
   end
 
-  defp timeout_options, do: @timeout_options
+  defp parse_integer(_value, fallback), do: fallback
+
+  # A blank or malformed query param falls back rather than erroring: the URL is
+  # user-editable.
+  defp param_integer(nil, fallback), do: fallback
+  defp param_integer(value, fallback), do: parse_integer(value, fallback)
+
+  # The remote takes milliseconds; the control is in whole seconds.
+  defp timeout_seconds(ms), do: div(ms, 1_000)
+  defp timeout_ms(seconds), do: seconds * 1_000
+
+  defp controls_path(socket, params) do
+    URL.put_query_params(socket.assigns.current_url, params)
+  end
 
   # `assign_async` wraps a returned `{:error, reason}` before it reaches the
   # `:failed` slot, so unwrap it before matching on the reason itself.

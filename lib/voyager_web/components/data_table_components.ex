@@ -35,8 +35,9 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   attr :limit_options, :list, default: []
   attr :limit_event, :string, default: "set_limit"
   attr :limit_label, :string, default: "Rows"
-  attr :timeout, :integer, default: nil
-  attr :timeout_options, :list, default: []
+  attr :timeout, :integer, default: nil, doc: "request timeout in whole seconds"
+  attr :timeout_min, :integer, default: 1
+  attr :timeout_max, :integer, default: 30
   attr :timeout_event, :string, default: "set_timeout"
   attr :refresh_event, :string, default: "refresh"
   attr :loading?, :boolean, default: false
@@ -76,15 +77,27 @@ defmodule VoyagerWeb.Components.DataTableComponents do
           options={Enum.map(@limit_options, &{to_string(&1), to_string(&1)})}
         />
 
-        <.select_control
+        <form
           :if={@timeout != nil}
-          id={"#{@id}-timeout"}
-          label="Timeout"
-          name="timeout"
-          event={@timeout_event}
-          value={to_string(@timeout)}
-          options={@timeout_options}
-        />
+          id={"#{@id}-timeout-form"}
+          phx-change={@timeout_event}
+          class="flex flex-col gap-1"
+        >
+          <label for={"#{@id}-timeout"} class="text-base-content/70 text-xs font-medium">
+            Timeout (s)
+          </label>
+          <.input
+            id={"#{@id}-timeout"}
+            type="number-stepper"
+            name="timeout"
+            value={@timeout}
+            min={@timeout_min}
+            max={@timeout_max}
+            step="1"
+            phx-debounce="500"
+            aria-label="Request timeout in seconds"
+          />
+        </form>
 
         <.tooltip id={"#{@id}-refresh-tip"} position="bottom">
           <button
@@ -153,7 +166,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   def table(assigns) do
     ~H"""
     <div class="border-base-300 bg-base-100 overflow-x-auto rounded-lg border">
-      <table id={@id} class="table-zebra table-pin-rows table-sm table">
+      <table id={@id} class="table-zebra table-pin-rows table">
         <thead>
           <tr>
             <.column_header
@@ -171,19 +184,22 @@ defmodule VoyagerWeb.Components.DataTableComponents do
               {@empty_message}
             </td>
           </tr>
+          <%!-- The zebra stripe already tints alternate rows, so a plain
+                `hover:bg-base-200` is invisible on half the table; hover uses
+                the primary tint (and `!` to win over the stripe) instead. --%>
           <tr
             :for={{dom_id, row} <- @rows}
             id={dom_id}
             phx-click={@row_click_event}
             phx-value-id={row_id(row, @row_id_key)}
             class={[
-              @row_click_event && "cursor-pointer transition-colors hover:bg-base-200",
-              @selected_id && @selected_id == row_id(row, @row_id_key) && "bg-base-200"
+              @row_click_event && "cursor-pointer transition-colors hover:!bg-primary/25",
+              @selected_id && @selected_id == row_id(row, @row_id_key) && "!bg-primary/30"
             ]}
           >
             <td
               :for={column <- @columns}
-              class={["whitespace-nowrap", align_class(column)]}
+              class={["whitespace-nowrap py-3", align_class(column)]}
             >
               {render_slot(@cell, %{column: column, row: row})}
             </td>
@@ -295,14 +311,16 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   end
 
   @doc """
-  Caption describing the scan behind the current result set.
+  Caption describing the scan behind the current result set: how many rows the
+  scan found and how many of them were returned.
 
   Ranking runs over the scanned population, so a truncated scan is surfaced
-  explicitly rather than implying the list is exhaustive.
+  explicitly rather than implying the list is exhaustive. Truncation is normal
+  whenever the limit is smaller than the population, so it reads as info.
   """
   attr :id, :string, required: true
-  attr :shown, :integer, required: true
-  attr :scanned, :integer, required: true
+  attr :shown, :integer, required: true, doc: "rows returned by the remote"
+  attr :scanned, :integer, required: true, doc: "rows found during the scan"
   attr :truncated?, :boolean, default: false
   attr :last_updated, :any, default: nil
 
@@ -310,14 +328,29 @@ defmodule VoyagerWeb.Components.DataTableComponents do
     ~H"""
     <div id={@id} class="text-base-content/70 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
       <span>
-        Ranked <span class="font-mono">{Formatters.format_integer(@shown)}</span>
-        of <span class="font-mono">{Formatters.format_integer(@scanned)}</span>
-        scanned
+        Found <span class="font-mono text-base-content">{Formatters.format_integer(@scanned)}</span>
+        processes, returned
+        <span class="font-mono text-base-content">{Formatters.format_integer(@shown)}</span>
       </span>
-      <span :if={@truncated?} class="badge badge-warning badge-soft badge-xs">truncated</span>
+      <span :if={@truncated?} class="badge badge-info badge-soft badge-xs">truncated</span>
       <span :if={@last_updated} class="text-base-content/60">
         · updated {Formatters.format_time(@last_updated)}
       </span>
+    </div>
+    """
+  end
+
+  @doc """
+  Dismissable explanation of how a page's data is fetched and paged.
+  """
+  attr :id, :string, required: true
+  slot :inner_block, required: true
+
+  def info_note(assigns) do
+    ~H"""
+    <div id={@id} role="note" class="alert alert-info py-2.5 text-xs">
+      <.icon name="icon-info" class="size-4 shrink-0" />
+      <span>{render_slot(@inner_block)}</span>
     </div>
     """
   end

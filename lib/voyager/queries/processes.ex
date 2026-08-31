@@ -78,6 +78,22 @@ defmodule Voyager.Queries.Processes do
   def timeout_bounds, do: {@min_timeout, @max_timeout}
 
   @doc """
+  Coerces `value` to a selectable limit, falling back to the default.
+
+  Callers take the limit from user-editable input (a query param), so it is
+  normalized here rather than at each call site.
+  """
+  @spec clamp_limit(term()) :: pos_integer()
+  def clamp_limit(value), do: limit(value)
+
+  @doc """
+  Clamps `value` into `timeout_bounds/0`, falling back to the default when it is
+  not an integer.
+  """
+  @spec clamp_timeout(term()) :: pos_integer()
+  def clamp_timeout(value), do: timeout(value)
+
+  @doc """
   Fetches a ranked page of processes from `node`.
 
   Returns `{:ok, page}` or `{:error, reason}`. Unknown options fall back to the
