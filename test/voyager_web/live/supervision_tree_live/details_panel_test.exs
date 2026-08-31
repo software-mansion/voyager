@@ -153,6 +153,32 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       refute has_element?(view, "#details-panel", twentieth_link)
     end
 
+    test "collapses expanded links when a different node is selected", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      link_pids: link_pids,
+      sup_key: sup_key,
+      port_key: port_key
+    } do
+      # 7 base calls, plus 3 for each of the two supervisor selections; the port
+      # selection fetches nothing.
+      expect_supervision_erpc(13, sup_pid, [port], link_pids)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      view |> element("#details-panel-toggle-links") |> render_click()
+      assert has_element?(view, "#details-panel-toggle-links", "Show Less")
+
+      render_hook(view, "select-node", %{"key" => port_key})
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      assert has_element?(view, "#details-panel-toggle-links", "Show More")
+    end
+
     test "caps the expanded link list", %{
       conn: conn,
       sup_pid: sup_pid,

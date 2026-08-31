@@ -127,9 +127,8 @@ defmodule Voyager.Services.ProcessInfo do
   Fetches the current link set for `pid` on `node`, truncated on the remote to
   at most `limit` entries.
 
-  `:links` has no upper bound, so unlike `fetch/2` this is a separate,
-  explicitly-invoked call: callers should only reach for it on demand (e.g.
-  expanding a "Links" section), not as part of the default per-process payload.
+  `:links` is unbounded, hence the separate call and explicit `limit`. Safe to
+  fetch eagerly; pass a `limit` no larger than what you can render.
   """
   @spec fetch_links(node(), pid(), non_neg_integer(), timeout()) ::
           {:ok, bounded(pid() | port())} | {:error, term()}

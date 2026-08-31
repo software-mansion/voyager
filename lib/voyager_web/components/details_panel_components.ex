@@ -498,8 +498,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp format_stacktrace(stacktrace) when is_list(stacktrace),
     do: Enum.map_join(stacktrace, ", ", &format_stack_entry/1)
 
-  defp format_stack_entry({mod, fun, arity, _location}), do: "#{inspect(mod)}.#{fun}/#{arity}"
-  defp format_stack_entry(entry), do: inspect(entry)
+  defp format_stack_entry({mod, fun, arity, _location}), do: format_mfa({mod, fun, arity})
+  defp format_stack_entry(entry), do: format_mfa(entry)
 
   defp format_optional(nil), do: "—"
   defp format_optional(value), do: inspect(value)
