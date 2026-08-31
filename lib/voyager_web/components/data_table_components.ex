@@ -181,7 +181,10 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   def table(assigns) do
     ~H"""
     <div class="card bg-base-100 border-base-200 border shadow-sm">
-      <div class="overflow-x-auto p-5">
+      <%!-- No horizontal scroll: the columns are percentages of the table and
+            resizing trades width between neighbours, so the total always fits
+            and overflowing content truncates instead. --%>
+      <div class="p-5">
         <%!-- DaisyUI `table`, sized to match the node-info tables: `table-md`
               for their row height and `table-fixed` so the column widths
               actually hold. --%>
