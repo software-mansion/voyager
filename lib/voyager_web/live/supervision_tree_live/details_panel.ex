@@ -35,7 +35,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(:remote_node, nil)
     |> assign(:open?, false)
     |> assign(:links_expanded?, false)
-    |> assign(:links_requested?, false)
     |> assign(:node_info, AsyncResult.loading())
     |> assign(:links, AsyncResult.loading())
     |> ok()
@@ -57,17 +56,10 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> noreply()
   end
 
-  def handle_event("load-links", _params, socket) do
-    socket
-    |> assign(:links_requested?, true)
-    |> fetch_links(socket.assigns.node)
-    |> noreply()
-  end
-
   def handle_event("refresh-node-info", _params, socket) do
     socket
     |> maybe_fetch_node_info(socket.assigns.node)
-    |> maybe_refresh_links(socket.assigns.node)
+    |> maybe_fetch_links(socket.assigns.node)
     |> noreply()
   end
 
@@ -107,7 +99,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
           panel_id={@id}
           info={@node_info}
           links_info={@links}
-          links_requested?={@links_requested?}
           node={@node}
           links_expanded?={@links_expanded?}
           myself={@myself}
@@ -128,13 +119,10 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
       |> assign(:open?, true)
       |> assign(:node, node)
       |> maybe_fetch_node_info(node)
+      |> maybe_fetch_links(node)
 
     if node_changed? do
-      socket
-      |> assign(:links_expanded?, false)
-      |> assign(:links_requested?, false)
-      |> cancel_async(:links)
-      |> assign(:links, AsyncResult.loading())
+      assign(socket, :links_expanded?, false)
     else
       socket
     end
@@ -154,15 +142,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     assign(socket, :node_info, AsyncResult.ok(nil))
   end
 
-  defp maybe_refresh_links(socket, node) do
-    if socket.assigns.links_requested? do
-      fetch_links(socket, node)
-    else
-      socket
-    end
-  end
-
-  defp fetch_links(socket, %TreeNode{pid: pid}) when is_pid(pid) do
+  defp maybe_fetch_links(socket, %TreeNode{pid: pid}) when is_pid(pid) do
     remote_node = socket.assigns.remote_node
 
     socket
@@ -170,7 +150,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign_async(:links, fn -> fetch_links_result(remote_node, pid) end)
   end
 
-  defp fetch_links(socket, _node), do: socket
+  defp maybe_fetch_links(socket, _node) do
+    assign(socket, :links, AsyncResult.ok(nil))
+  end
 
   defp node_changed?(socket, node) do
     case socket.assigns[:node] do
