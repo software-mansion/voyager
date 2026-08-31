@@ -12,7 +12,10 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   alias VoyagerWeb.Formatters
 
   @max_links 12
+  # Public so callers that must fetch no more links than this panel can ever
+  # render (e.g. DetailsPanel's remote fetch limit) can reuse it.
   @max_expanded_links 200
+  def max_expanded_links, do: @max_expanded_links
 
   attr :panel_id, :string, required: true
   attr :open?, :boolean, required: true

@@ -227,7 +227,7 @@ to_map({{_Value, Pid}, Info}) ->
 
 %% =====================================================================
 %% Process info API
-%% ========================================================================
+%% =====================================================================
 
 %% A truncated view of an unbounded attribute. `total' is the real length on the
 %% remote, `items' holds at most `Limit' entries, and `truncated' says whether
@@ -237,7 +237,7 @@ to_map({{_Value, Pid}, Info}) ->
     #{total := non_neg_integer(),
       truncated := boolean(),
       items := [Item]}.
--type monitor() :: {process, pid() | {atom(), node()}} | {port, port()} | term().
+-type monitor() :: {process, pid() | {atom(), node()}} | {port, port()}.
 -type dict_entry() :: {term(), term()}.
 
 %% Links and monitors are returned as raw terms - they are needed as identifiers

@@ -226,6 +226,41 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       refute has_element?(view, "#details-panel", "Failed to load node details.")
     end
 
+    test "refresh re-fetches already-requested links", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      link_pids: link_pids,
+      sup_key: sup_key
+    } do
+      # Same 9 calls as "renders process details for a supervisor", plus the
+      # explicit fetch_links call triggered by clicking "Show links" below.
+      expect_supervision_erpc(10, sup_pid, [port], link_pids)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      view |> element("#details-panel-load-links") |> render_click()
+      render_async(view)
+
+      assert has_element?(view, "#details-panel", "(20)")
+
+      # Refresh: process_info, system_info, and proc_links (links were already
+      # requested) run as concurrent async tasks, so their erpc calls can land
+      # in any order — dispatch on mod/fun like `expect_supervision_erpc`
+      # rather than a fixed sequence. A different link set proves the refresh
+      # actually re-fetches instead of leaving the stale result.
+      new_links = for n <- 1..3, do: :erlang.list_to_pid(~c"<0.#{300 + n}.0>")
+      expect_supervision_erpc(3, sup_pid, [port], new_links)
+
+      view |> element("#details-panel-refresh") |> render_click()
+      render_async(view)
+
+      assert has_element?(view, "#details-panel", "(3)")
+      refute has_element?(view, "#details-panel", "(20)")
+    end
+
     test "refresh button is hidden for non-process nodes", %{
       conn: conn,
       sup_pid: sup_pid,
