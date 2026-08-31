@@ -11,13 +11,12 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   alias Voyager.Queries.Processes
   alias VoyagerWeb.Formatters
 
-  # Ordered as they appear in the table. `name` is the display column backed by
-  # `registered_name`/`initial_call`, so it is shown whenever either is selected.
-  # Fixed widths on the numeric columns keep values that change every refresh
-  # from shifting the layout.
+  # Ordered as they appear in the table. Fixed widths on the numeric columns
+  # keep values that change every refresh from shifting the layout.
   @columns [
     %{key: :pid, label: "PID", sortable?: false, align: :left, width: :md},
-    %{key: :name, label: "Name or initial call", sortable?: false, align: :left},
+    %{key: :registered_name, label: "Name", sortable?: false, align: :left},
+    %{key: :initial_call, label: "Initial call", sortable?: false, align: :left},
     %{key: :memory, label: "Memory", sortable?: true, align: :right, width: :sm},
     %{key: :reductions, label: "Reductions", sortable?: true, align: :right, width: :md},
     %{key: :message_queue_len, label: "MsgQ", sortable?: true, align: :right, width: :sm},
@@ -26,11 +25,11 @@ defmodule VoyagerWeb.Components.ProcessComponents do
     %{key: :current_function, label: "Current function", sortable?: false, align: :left}
   ]
 
-  # Which selected attributes make a column visible. `name` needs either of the
-  # two attributes it is derived from.
+  # Which selected attribute makes a column visible.
   @column_attrs %{
     pid: [:pid],
-    name: [:registered_name, :initial_call],
+    registered_name: [:registered_name],
+    initial_call: [:initial_call],
     memory: [:memory],
     reductions: [:reductions],
     message_queue_len: [:message_queue_len],
@@ -80,8 +79,14 @@ defmodule VoyagerWeb.Components.ProcessComponents do
     <%= case @column.key do %>
       <% :pid -> %>
         <.pid_cell pid={@row.pid} />
-      <% :name -> %>
-        <span class="font-mono text-sm" title={display_name(@row)}>{display_name(@row)}</span>
+      <% :registered_name -> %>
+        <span class="font-mono text-sm" title={format_name(@row[:registered_name])}>
+          {format_name(@row[:registered_name])}
+        </span>
+      <% :initial_call -> %>
+        <span class="font-mono text-base-content/70 text-sm" title={format_mfa(@row[:initial_call])}>
+          {format_mfa(@row[:initial_call])}
+        </span>
       <% :current_function -> %>
         <span
           class="font-mono text-base-content/70 text-sm"
@@ -162,18 +167,15 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   end
 
   @doc """
-  Human label for a process: its registered name when it has one, otherwise its
-  initial call.
+  Formats a process's registered name.
+
+  `:erlang.process_info/2` reports an unregistered process as `[]`, and a
+  registered one as a bare atom.
   """
-  @spec display_name(map()) :: String.t()
-  def display_name(%{registered_name: name}) when is_atom(name) and not is_nil(name),
-    do: inspect(name)
-
-  def display_name(%{registered_name: name}) when is_list(name) and name != [],
-    do: name |> List.first() |> inspect()
-
-  def display_name(%{initial_call: mfa}), do: format_mfa(mfa)
-  def display_name(_row), do: "—"
+  @spec format_name(term()) :: String.t()
+  def format_name(name) when is_atom(name) and not is_nil(name), do: inspect(name)
+  def format_name([name | _rest]), do: inspect(name)
+  def format_name(_name), do: "—"
 
   @doc """
   Formats an MFA tuple as `Module.function/arity`.

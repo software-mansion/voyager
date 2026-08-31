@@ -99,14 +99,34 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       assert render(view) =~ ":my_worker"
     end
 
-    test "falls back to the initial call when there is no registered name", %{conn: conn} do
+    test "renders the name and initial call as separate columns", %{conn: conn} do
       [pid] = fake_pids(1)
-      stub_scan([entry(pid: pid, initial_call: {MyApp.Worker, :start_link, 1})])
+
+      stub_scan([
+        entry(pid: pid, registered_name: :my_worker, initial_call: {MyApp.Worker, :start_link, 1})
+      ])
 
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      assert render(view) =~ "MyApp.Worker.start_link/1"
+      row = view |> element("##{ProcessesLive.row_dom_id(pid)}") |> render()
+
+      assert row =~ ~s|data-column="registered_name"|
+      assert row =~ ~s|data-column="initial_call"|
+      assert row =~ ":my_worker"
+      assert row =~ "MyApp.Worker.start_link/1"
+    end
+
+    test "shows a placeholder when a process has no registered name", %{conn: conn} do
+      [pid] = fake_pids(1)
+      stub_scan([entry(pid: pid, registered_name: [])])
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      # The columns are independent now: an unregistered process leaves the
+      # name blank rather than borrowing its initial call.
+      assert view |> element(~s|td[data-column="registered_name"]|) |> render() =~ "—"
     end
 
     test "stamps the header with the fetch time once results arrive", %{conn: conn} do
