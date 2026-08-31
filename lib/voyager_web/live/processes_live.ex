@@ -146,7 +146,6 @@ defmodule VoyagerWeb.ProcessesLive do
         id="processes-scan-summary"
         shown={length(@page_result.result.entries)}
         scanned={@page_result.result.scanned}
-        truncated?={@page_result.result.truncated?}
       />
 
       <DataTableComponents.table

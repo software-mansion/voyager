@@ -57,7 +57,6 @@ defmodule Voyager.Queries.Processes do
   @type page :: %{
           entries: [entry()],
           scanned: non_neg_integer(),
-          truncated?: boolean(),
           fetched_at: DateTime.t()
         }
 
@@ -177,10 +176,6 @@ defmodule Voyager.Queries.Processes do
          %{
            entries: entries,
            scanned: scanned,
-           # Only the limit truncates the ranking. A search returning fewer rows
-           # than were scanned is a filter, not a cut-off, and ranking over the
-           # matches is still complete.
-           truncated?: is_nil(search) and length(entries) < scanned,
            fetched_at: DateTime.utc_now()
          }}
 

@@ -432,7 +432,7 @@ defmodule VoyagerWeb.ProcessesLiveTest do
   end
 
   describe "scan summary" do
-    test "reports how many processes were found and how many returned", %{conn: conn} do
+    test "reports how many processes were fetched out of those scanned", %{conn: conn} do
       pids = fake_pids(2)
       stub_scan(Enum.map(pids, &entry(pid: &1)), 500)
 
@@ -441,34 +441,9 @@ defmodule VoyagerWeb.ProcessesLiveTest do
 
       summary = view |> element("#processes-scan-summary") |> render()
 
-      assert summary =~ "Found"
+      assert summary =~ "Fetched"
+      assert summary =~ "out of"
       assert summary =~ "500"
-      assert summary =~ "returned"
-    end
-
-    test "flags a truncated scan", %{conn: conn} do
-      [pid] = fake_pids(1)
-      stub_scan([entry(pid: pid)], 900)
-
-      {:ok, view, _html} = live(conn, @path)
-      render_async(view)
-
-      summary = view |> element("#processes-scan-summary") |> render()
-
-      assert summary =~ "truncated"
-      # Truncation is expected whenever the limit bites, so it reads as info.
-      assert summary =~ "badge-info"
-      refute summary =~ "badge-warning"
-    end
-
-    test "does not flag an exhaustive scan", %{conn: conn} do
-      [pid] = fake_pids(1)
-      stub_scan([entry(pid: pid)], 1)
-
-      {:ok, view, _html} = live(conn, @path)
-      render_async(view)
-
-      refute render(view) =~ "truncated"
     end
   end
 

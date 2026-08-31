@@ -373,27 +373,19 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   end
 
   @doc """
-  Caption describing the scan behind the current result set: how many rows the
-  scan found and how many of them were returned.
-
-  Ranking runs over the scanned population, so a truncated scan is surfaced
-  explicitly rather than implying the list is exhaustive. Truncation is normal
-  whenever the limit is smaller than the population, so it reads as info.
+  Caption describing the scan behind the current result set: how many rows were
+  fetched out of the population the remote walked.
   """
   attr :id, :string, required: true
   attr :shown, :integer, required: true, doc: "rows returned by the remote"
   attr :scanned, :integer, required: true, doc: "rows found during the scan"
-  attr :truncated?, :boolean, default: false
 
   def scan_summary(assigns) do
     ~H"""
-    <div id={@id} class="text-base-content/70 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-      <span>
-        Found <span class="font-mono text-base-content">{Formatters.format_integer(@scanned)}</span>
-        processes, returned
-        <span class="font-mono text-base-content">{Formatters.format_integer(@shown)}</span>
-      </span>
-      <span :if={@truncated?} class="badge badge-info badge-soft badge-xs">truncated</span>
+    <div id={@id} class="text-base-content/70 text-xs">
+      Fetched <span class="font-mono text-base-content">{Formatters.format_integer(@shown)}</span>
+      processes out of
+      <span class="font-mono text-base-content">{Formatters.format_integer(@scanned)}</span>
     </div>
     """
   end
