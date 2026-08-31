@@ -29,8 +29,9 @@ defmodule Voyager.Services.ProcessInfoTest do
 
   describe "fetch/2 against a live local process" do
     setup do
+      prev_erpc = Application.get_env(:voyager, :erpc)
       Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
-      on_exit(fn -> Application.put_env(:voyager, :erpc, Voyager.ErpcMock) end)
+      on_exit(fn -> Application.put_env(:voyager, :erpc, prev_erpc) end)
       :ok
     end
 
@@ -145,8 +146,9 @@ defmodule Voyager.Services.ProcessInfoTest do
 
   describe "unbounded fetches against a live local process" do
     setup do
+      prev_erpc = Application.get_env(:voyager, :erpc)
       Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
-      on_exit(fn -> Application.put_env(:voyager, :erpc, Voyager.ErpcMock) end)
+      on_exit(fn -> Application.put_env(:voyager, :erpc, prev_erpc) end)
       :ok
     end
 
