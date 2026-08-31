@@ -25,9 +25,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   require Logger
 
-  # How many links this panel is willing to render; the remote truncates to it
-  # and reports the real total so the gap can be surfaced.
-  @links_limit 1_000
+  # No point fetching more links than the panel can ever render.
+  @links_limit max_expanded_links()
 
   @impl true
   def mount(socket) do
@@ -134,6 +133,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
       socket
       |> assign(:links_expanded?, false)
       |> assign(:links_requested?, false)
+      |> cancel_async(:links)
       |> assign(:links, AsyncResult.loading())
     else
       socket

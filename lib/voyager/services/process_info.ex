@@ -67,7 +67,6 @@ defmodule Voyager.Services.ProcessInfo do
   @type monitor ::
           {:process, pid() | {atom(), node()}}
           | {:port, port()}
-          | term()
 
   @type dictionary_entry :: {term(), term()}
 
