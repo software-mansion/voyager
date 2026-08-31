@@ -169,6 +169,8 @@ defmodule Voyager.Queries.Processes do
     # `pid` comes back on every entry regardless, so it is not requested.
     attrs = opts |> Keyword.get(:attrs) |> clamp_attrs() |> Enum.reject(&(&1 == :pid))
 
+    simulate_latency()
+
     case ProcessList.top(node, attrs, sort_by, limit, timeout, direction, search) do
       {:ok, {entries, scanned}} ->
         {:ok,
@@ -216,6 +218,19 @@ defmodule Voyager.Queries.Processes do
   """
   @spec format_pid(pid()) :: String.t()
   def format_pid(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
+
+  # Development aid for exercising the loading and auto-refresh behaviour
+  # against a fast local node. Read at call time, so it can be toggled from a
+  # running IEx session without a restart:
+  #
+  #     Application.put_env(:voyager, :process_list_delay_ms, 2_000)
+  #     Application.delete_env(:voyager, :process_list_delay_ms)
+  defp simulate_latency do
+    case Application.get_env(:voyager, :process_list_delay_ms) do
+      ms when is_integer(ms) and ms > 0 -> Process.sleep(ms)
+      _ -> :ok
+    end
+  end
 
   defp sort_by(value) when value in @sortable, do: value
   defp sort_by(_value), do: @default_sort_by
