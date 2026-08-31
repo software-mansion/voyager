@@ -124,7 +124,8 @@ defmodule VoyagerWeb.ProcessesLive do
         search_placeholder="Search by PID, name or initial call"
         limit={@limit}
         limit_options={Processes.limit_options()}
-        limit_label="Fetch"
+        limit_label="Limit"
+        limit_help={"Limit of processes which are fetched from #{@session.node_name}"}
         columns_options={column_options()}
         columns_selected={Enum.map(@selected_attrs, &to_string/1)}
         timeout={@timeout}

@@ -38,7 +38,8 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   attr :limit, :integer, default: nil, doc: "how many rows to fetch from the remote"
   attr :limit_options, :list, default: []
   attr :limit_event, :string, default: "set_limit"
-  attr :limit_label, :string, default: "Fetch"
+  attr :limit_label, :string, default: "Limit"
+  attr :limit_help, :string, default: nil
   attr :timeout, :integer, default: nil, doc: "request timeout in milliseconds"
   attr :timeout_min, :integer, default: 1_000
   attr :timeout_max, :integer, default: 30_000
@@ -82,6 +83,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
           event={@limit_event}
           value={to_string(@limit)}
           options={Enum.map(@limit_options, &{to_string(&1), to_string(&1)})}
+          help={@limit_help}
         />
 
         <form
@@ -139,11 +141,15 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   attr :event, :string, required: true
   attr :value, :string, required: true
   attr :options, :list, required: true, doc: "list of `{label, value}` tuples"
+  attr :help, :string, default: nil, doc: "adds a `?` tooltip beside the label"
 
   def select_control(assigns) do
     ~H"""
     <form id={"#{@id}-form"} phx-change={@event} class="flex flex-col gap-1">
-      <label for={@id} class="text-base-content/70 text-xs font-medium">{@label}</label>
+      <div class="flex items-center gap-1">
+        <label for={@id} class="text-base-content/70 text-xs font-medium">{@label}</label>
+        <.help_tooltip :if={@help} id={"#{@id}-help"} text={@help} />
+      </div>
       <select id={@id} name={@name} class="select select-sm w-24">
         <option :for={{label, value} <- @options} value={value} selected={value == @value}>
           {label}
