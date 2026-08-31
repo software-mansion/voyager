@@ -1,14 +1,11 @@
 defmodule Voyager.Services.Ets.RemoteLiveTest do
   use ExUnit.Case, async: false
 
+  alias Voyager.Erpc
   alias Voyager.Services.Ets.Remote
 
   setup do
-    prev = Application.get_env(:voyager, :erpc)
-    Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
-
-    on_exit(fn -> Application.put_env(:voyager, :erpc, prev) end)
-
+    Erpc.bind_impl(Voyager.Erpc.Impl)
     :ok
   end
 
@@ -65,6 +62,69 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
     assert is_reference(tid)
     assert {:ok, tables} = Remote.list(Node.self())
     assert Enum.any?(tables, &(&1.id == tid))
+  end
+
+  test "select_chunk/3 pages a named public table until continuation is nil" do
+    name = unique_name()
+    :ets.new(name, [:named_table, :public, :set])
+    on_exit(fn -> safe_delete(name) end)
+
+    for i <- 1..25, do: :ets.insert(name, {i, i})
+
+    {records, pages} = drain_chunks(name)
+    assert pages >= 3
+    assert Enum.sort(Enum.map(records, &elem(&1, 0))) == Enum.to_list(1..25)
+  end
+
+  test "lookup/3 fetches a named table by atom, integer, and binary keys" do
+    name = unique_name()
+    :ets.new(name, [:named_table, :public, :set])
+    on_exit(fn -> safe_delete(name) end)
+
+    :ets.insert(name, {:atom_key, 1})
+    :ets.insert(name, {7, 2})
+    :ets.insert(name, {<<"bin">>, 3})
+
+    assert {:ok, %{records: [{:atom_key, 1}], via: :mfa}} =
+             Remote.lookup(Node.self(), name, :atom_key)
+
+    assert {:ok, %{records: [{7, 2}]}} = Remote.lookup(Node.self(), name, 7)
+    assert {:ok, %{records: [{<<"bin">>, 3}]}} = Remote.lookup(Node.self(), name, <<"bin">>)
+  end
+
+  test "select_chunk/3 and lookup/3 use an unnamed table reference as the handle" do
+    tid = :ets.new(unique_name(), [:public])
+    on_exit(fn -> safe_delete(tid) end)
+    :ets.insert(tid, {:k, 1})
+
+    assert is_reference(tid)
+    assert {:ok, %{records: [{:k, 1}]}} = Remote.lookup(Node.self(), tid, :k)
+
+    assert {:ok, %{records: [{:k, 1}], via: :mfa}} =
+             Remote.select_chunk(Node.self(), tid, 10)
+  end
+
+  test "select_chunk/3 cannot read a private table owned by another process" do
+    pid = start_supervised!({Agent, fn -> :ets.new(unique_name(), [:private]) end})
+    tid = Agent.get(pid, & &1)
+
+    assert {:error, :cannot_read} = Remote.select_chunk(Node.self(), tid, 10)
+    assert {:error, :cannot_read} = Remote.lookup(Node.self(), tid, :k)
+  end
+
+  defp drain_chunks(table) do
+    drain_chunks(table, nil, [], 0)
+  end
+
+  defp drain_chunks(table, continuation, acc, pages) do
+    assert {:ok, chunk} = Remote.select_chunk(Node.self(), table, 10, continuation)
+    records = acc ++ chunk.records
+
+    if chunk.continuation do
+      drain_chunks(table, chunk.continuation, records, pages + 1)
+    else
+      {records, pages + 1}
+    end
   end
 
   defp unique_name do
