@@ -124,27 +124,35 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   attr :pid, :any, required: true
 
   def pid_cell(assigns) do
-    assigns = assign(assigns, :pid_string, Processes.format_pid(assigns.pid))
+    assigns =
+      assigns
+      |> assign(:pid_string, Processes.format_pid(assigns.pid))
+      |> then(&assign(&1, :key, dom_id(&1.pid_string)))
 
     ~H"""
-    <div class="group flex min-w-0 items-center gap-1">
-      <.tooltip id={"pid-tip-#{dom_id(@pid_string)}"} position="right" class="min-w-0">
-        <span class="font-mono text-primary block truncate text-sm">{@pid_string}</span>
-        <:content>
-          <span class="font-mono">{@pid_string}</span>
-        </:content>
-      </.tooltip>
-      <%!-- The copy button reads its text from the DOM, so the full pid is kept
-            in a hidden node that truncation cannot clip. --%>
-      <div id={"pid-copy-text-#{dom_id(@pid_string)}"} class="hidden">{@pid_string}</div>
-      <.copy_button
-        id={"pid-copy-#{dom_id(@pid_string)}"}
-        target={"#pid-copy-text-#{dom_id(@pid_string)}"}
-        label="Copy PID"
-        icon_only
-        class="text-base-content/60 shrink-0 opacity-0 transition-opacity hover:text-primary focus-visible:opacity-100 group-hover:opacity-100"
-      />
-    </div>
+    <%!-- The copy button lives in the tooltip so the cell stays a plain value
+          and the full pid is what gets copied, whatever the column width. --%>
+    <.tooltip
+      id={"pid-tip-#{@key}"}
+      position="right"
+      interactive
+      class="min-w-0 max-w-full"
+      tip_class="font-mono"
+    >
+      <span class="font-mono text-primary block truncate text-sm">{@pid_string}</span>
+      <:content>
+        <div class="flex items-center gap-1">
+          <span id={"pid-copy-text-#{@key}"}>{@pid_string}</span>
+          <.copy_button
+            id={"pid-copy-#{@key}"}
+            target={"#pid-copy-text-#{@key}"}
+            label="Copy PID"
+            icon_only
+            class="text-base-content/60 shrink-0 hover:text-primary"
+          />
+        </div>
+      </:content>
+    </.tooltip>
     """
   end
 

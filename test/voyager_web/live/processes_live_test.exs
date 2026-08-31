@@ -76,9 +76,8 @@ defmodule VoyagerWeb.ProcessesLiveTest do
 
       assert has_element?(view, "#processes-toolbar-search")
       assert has_element?(view, "#processes-toolbar-limit")
-      assert has_element?(view, "#processes-toolbar-page-size")
       assert has_element?(view, "#processes-toolbar-timeout")
-      assert has_element?(view, "#processes-toolbar-refresh")
+      assert has_element?(view, "#processes-refresh-interval-refresh-now-button")
     end
 
     test "scans with the default options", %{conn: conn} do
@@ -149,17 +148,16 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       assert has_element?(view, row)
     end
 
-    test "keeps the table the same height when fewer rows come back", %{conn: conn} do
+    test "renders only the rows that came back", %{conn: conn} do
       pids = fake_pids(25)
       stub_scan(Enum.map(pids, &entry(pid: &1)))
 
       {:ok, view, _html} = live(conn, "#{@path}?page_size=25")
       render_async(view)
 
-      full = rendered_body_rows(view)
+      assert rendered_body_rows(view) == 25
 
-      # A search that matches one process must not collapse the table: the body
-      # is padded to the page size so the page does not jump.
+      # A filtering search shrinks the table rather than padding it out.
       stub_scan([entry(pid: hd(pids))], 25)
 
       view
@@ -168,7 +166,7 @@ defmodule VoyagerWeb.ProcessesLiveTest do
 
       render_async(view)
 
-      assert rendered_body_rows(view) == full
+      assert rendered_body_rows(view) == 1
     end
 
     test "keeps the rows visible when a refetch fails", %{conn: conn} do
@@ -182,7 +180,7 @@ defmodule VoyagerWeb.ProcessesLiveTest do
         :erlang.error({:erpc, :noconnection})
       end)
 
-      view |> element("#processes-toolbar-refresh") |> render_click()
+      view |> element("#processes-refresh-interval-refresh-now-button") |> render_click()
       render_async(view)
 
       # The error is shown above the table, not instead of it.
@@ -280,6 +278,24 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       assert headers =~ "data-resize-handle"
     end
 
+    test "the last column has no resize handle", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      columns = ProcessComponents.columns(Processes.default_attrs())
+      last = List.last(columns)
+
+      header = view |> element(~s|th[data-column="#{last.key}"]|) |> render()
+      refute header =~ "data-resize-handle"
+
+      # Every other column still has one.
+      first = List.first(columns)
+
+      assert view |> element(~s|th[data-column="#{first.key}"]|) |> render() =~
+               "data-resize-handle"
+    end
+
     test "body cells are keyed so the hook can size them", %{conn: conn} do
       [pid] = fake_pids(1)
       stub_scan([entry(pid: pid)])
@@ -305,11 +321,15 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       pid_string = Processes.format_pid(pid)
       key = pid_string |> String.replace(~r/[^\d]+/, "-") |> String.trim("-")
 
-      assert has_element?(view, "#pid-copy-#{key}")
-      assert has_element?(view, "#pid-tip-#{key}")
-      # The copy source keeps the untruncated pid (HTML-escaped in the markup).
+      html = render(view)
+
+      # The copy button lives in the tooltip content, alongside the full pid.
+      assert html =~ ~s|id="pid-tip-#{key}"|
+      assert html =~ ~s|id="pid-copy-#{key}"|
+      assert html =~ ~s|id="pid-copy-text-#{key}"|
+
       escaped = pid_string |> String.replace("<", "&lt;") |> String.replace(">", "&gt;")
-      assert view |> element("#pid-copy-text-#{key}") |> render() =~ escaped
+      assert html =~ escaped
     end
   end
 
@@ -319,7 +339,7 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      assert has_element?(view, "#processes-toolbar-interval")
+      assert has_element?(view, "#processes-refresh-interval")
     end
 
     test "refetches on the chosen interval", %{conn: conn} do
@@ -331,7 +351,7 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       assert_received {:scanned, _args, _timeout}
 
       view
-      |> element("#processes-toolbar-interval-form")
+      |> element("#processes-refresh-interval-form")
       |> render_change(%{"interval" => "5000"})
 
       send(view.pid, :auto_refresh)
@@ -346,10 +366,10 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       render_async(view)
 
       view
-      |> element("#processes-toolbar-interval-form")
+      |> element("#processes-refresh-interval-form")
       |> render_change(%{"interval" => "off"})
 
-      assert render(view) =~ "processes-toolbar-interval"
+      assert has_element?(view, "#processes-refresh-interval")
     end
   end
 
@@ -653,7 +673,7 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       render_async(view)
 
       view
-      |> element("#processes-toolbar-page-size-form")
+      |> element("#processes-pager-page-size-form")
       |> render_change(%{"page_size" => "50"})
 
       assert_patched(view, "#{@path}?page_size=50")
@@ -665,7 +685,7 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       {:ok, view, _html} = live(conn, "#{@path}?page_size=50")
       render_async(view)
 
-      assert has_element?(view, ~s|#processes-toolbar-page-size option[value="50"][selected]|)
+      assert has_element?(view, ~s|#processes-pager-page-size option[value="50"][selected]|)
     end
 
     test "ignores malformed query params instead of crashing", %{conn: conn} do
@@ -688,7 +708,7 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       # Drop the mount scan so the next assertion can only match the refresh.
       assert_received {:scanned, _args, _timeout}
 
-      view |> element("#processes-toolbar-refresh") |> render_click()
+      view |> element("#processes-refresh-interval-refresh-now-button") |> render_click()
       render_async(view)
 
       assert_received {:scanned, _args, _timeout}
@@ -726,7 +746,7 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       assert_received {:scanned, _args, _timeout}
 
       view
-      |> element("#processes-toolbar-page-size-form")
+      |> element("#processes-pager-page-size-form")
       |> render_change(%{"page_size" => "10"})
 
       # Page size only slices the rows already fetched.

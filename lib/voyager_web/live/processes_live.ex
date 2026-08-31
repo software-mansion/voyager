@@ -91,7 +91,16 @@ defmodule VoyagerWeb.ProcessesLive do
         node_name={@session.node_name}
         last_updated={@last_updated}
         waiting_message="waiting for first fetch…"
-      />
+      >
+        <:actions>
+          <.interval_select
+            id="processes-refresh-interval"
+            options={Processes.refresh_interval_options()}
+            refresh_interval={@refresh_interval}
+            loading={@page_result.loading}
+          />
+        </:actions>
+      </.node_header>
 
       <DataTableComponents.info_note id="processes-info">
         Processes are fetched from the remote node once per refresh — ranked and
@@ -108,15 +117,11 @@ defmodule VoyagerWeb.ProcessesLive do
         limit={@limit}
         limit_options={Processes.limit_options()}
         limit_label="Fetch"
-        page_size={@page_size}
-        page_size_options={Processes.page_size_options()}
         columns_options={column_options()}
         columns_selected={Enum.map(@selected_attrs, &to_string/1)}
         timeout={@timeout}
         timeout_min={elem(Processes.timeout_bounds(), 0)}
         timeout_max={elem(Processes.timeout_bounds(), 1)}
-        refresh_interval={@refresh_interval}
-        refresh_interval_options={Processes.refresh_interval_options()}
         loading?={@page_result.loading}
       />
 
@@ -135,7 +140,6 @@ defmodule VoyagerWeb.ProcessesLive do
         shown={length(@page_result.result.entries)}
         scanned={@page_result.result.scanned}
         truncated?={@page_result.result.truncated?}
-        last_updated={@last_updated}
       />
 
       <DataTableComponents.table
@@ -147,7 +151,6 @@ defmodule VoyagerWeb.ProcessesLive do
         row_click_event="select-process"
         row_id_key={:pid}
         empty_message={if @page_result.ok?, do: "No processes matched.", else: "Scanning processes…"}
-        min_rows={@page_size}
         resizable?={true}
       >
         <:cell :let={%{column: column, row: row}}>
@@ -160,6 +163,7 @@ defmodule VoyagerWeb.ProcessesLive do
         id="processes-pager"
         page={@page}
         page_size={@page_size}
+        page_size_options={Processes.page_size_options()}
         total={length(@page_result.result.entries)}
       />
     </div>
@@ -237,6 +241,12 @@ defmodule VoyagerWeb.ProcessesLive do
     socket
     |> assign(:refresh_interval, parse_interval(value))
     |> restart_refresh_timer()
+    |> noreply()
+  end
+
+  def handle_event("refresh_now", _params, socket) do
+    socket
+    |> fetch()
     |> noreply()
   end
 

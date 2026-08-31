@@ -39,9 +39,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   attr :limit_options, :list, default: []
   attr :limit_event, :string, default: "set_limit"
   attr :limit_label, :string, default: "Fetch"
-  attr :page_size, :integer, default: nil, doc: "how many fetched rows to show per page"
-  attr :page_size_options, :list, default: []
-  attr :page_size_event, :string, default: "set_page_size"
   attr :timeout, :integer, default: nil, doc: "request timeout in milliseconds"
   attr :timeout_min, :integer, default: 1_000
   attr :timeout_max, :integer, default: 30_000
@@ -49,9 +46,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   attr :columns_options, :list, default: [], doc: "`{value, label, locked?}` triples"
   attr :columns_selected, :list, default: []
   attr :columns_event, :string, default: "set_columns"
-  attr :refresh_interval, :integer, default: nil
-  attr :refresh_interval_options, :list, default: []
-  attr :refresh_event, :string, default: "refresh"
   attr :loading?, :boolean, default: false
 
   def toolbar(assigns) do
@@ -64,7 +58,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         phx-submit={@search_event}
         class="grow"
       >
-        <label class="input input-sm w-full max-w-xs">
+        <label class="input w-full max-w-md">
           <.icon name="icon-search" class="text-base-content/60 size-4" />
           <input
             id={"#{@id}-search"}
@@ -89,16 +83,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
           event={@limit_event}
           value={to_string(@limit)}
           options={Enum.map(@limit_options, &{to_string(&1), to_string(&1)})}
-        />
-
-        <.select_control
-          :if={@page_size != nil}
-          id={"#{@id}-page-size"}
-          label="Per page"
-          name="page_size"
-          event={@page_size_event}
-          value={to_string(@page_size)}
-          options={Enum.map(@page_size_options, &{to_string(&1), to_string(&1)})}
         />
 
         <form
@@ -142,33 +126,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
             selected={@columns_selected}
           />
         </form>
-
-        <.select_control
-          :if={@refresh_interval_options != []}
-          id={"#{@id}-interval"}
-          label="Auto-refresh"
-          name="interval"
-          event="set_interval"
-          value={interval_value(@refresh_interval)}
-          options={@refresh_interval_options}
-        />
-
-        <.tooltip id={"#{@id}-refresh-tip"} position="bottom">
-          <button
-            type="button"
-            id={"#{@id}-refresh"}
-            phx-click={@refresh_event}
-            phx-throttle="1000"
-            aria-label="Refresh"
-            class="btn btn-ghost btn-square toolbar-btn"
-          >
-            <.icon
-              name="icon-rotate-cw"
-              class={["toolbar-icon", @loading? && "motion-safe:animate-spin"]}
-            />
-          </button>
-          <:content>Refresh</:content>
-        </.tooltip>
       </div>
     </div>
     """
@@ -215,10 +172,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   attr :selected_id, :string, default: nil
   attr :empty_message, :string, default: "No results."
 
-  attr :min_rows, :integer,
-    default: 0,
-    doc: "pad the body to this many rows so the table keeps its height between fetches"
-
   attr :resizable?, :boolean,
     default: false,
     doc: "adds a drag handle to each header; widths persist per table id"
@@ -239,13 +192,15 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         >
           <thead>
             <tr>
+              <%!-- The last column has nothing to its right to give or take
+                    space from, so it gets no handle. --%>
               <.column_header
-                :for={column <- @columns}
+                :for={{column, index} <- Enum.with_index(@columns)}
                 column={column}
                 sort_by={@sort_by}
                 direction={@direction}
                 sort_event={@sort_event}
-                resizable?={@resizable?}
+                resizable?={@resizable? and index < length(@columns) - 1}
               />
             </tr>
           </thead>
@@ -286,19 +241,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
                   holding glyphs, so the row height is pinned directly (h-10 =
                   the 2.5rem a populated row settles at) rather than being left
                   to the text metrics. --%>
-            <%!-- Mirrors a populated cell's structure and font: the monospace
-                  metrics make the line box taller than a proportional or empty
-                  one would be, so without matching them the filler rows come up
-                  short and the table height drifts between fetches. --%>
-            <tr :for={_n <- filler_rows(@rows, @min_rows)} aria-hidden="true">
-              <td
-                :for={column <- @columns}
-                data-column={column.key}
-                class={["text-sm", align_class(column), width_class(column)]}
-              >
-                <div class="truncate"><span class="font-mono text-sm">&nbsp;</span></div>
-              </td>
-            </tr>
           </tbody>
         </table>
       </div>
@@ -326,8 +268,9 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         phx-click={@sort_event}
         phx-value-key={@column.key}
         class={[
-          "font-mono tracking-label inline-flex max-w-full items-center gap-1 text-xs",
+          "font-mono tracking-label flex w-full max-w-full items-center gap-1 text-xs",
           "font-semibold uppercase transition-colors hover:text-base-content",
+          justify_class(@column),
           @active? && "text-base-content",
           not @active? && "text-base-content/70"
         ]}
@@ -398,6 +341,8 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   attr :page_size, :integer, required: true
   attr :total, :integer, required: true
   attr :event, :string, default: "paginate"
+  attr :page_size_options, :list, default: [], doc: "adds a rows-per-page selector"
+  attr :page_size_event, :string, default: "set_page_size"
 
   def pager(assigns) do
     total_pages = max(div(assigns.total + assigns.page_size - 1, assigns.page_size), 1)
@@ -412,11 +357,39 @@ defmodule VoyagerWeb.Components.DataTableComponents do
 
     ~H"""
     <div id={@id} class="flex flex-wrap items-center justify-between gap-3">
-      <p class="text-base-content/70 text-xs">
-        Showing
-        <span class="font-mono">{Formatters.format_integer(@first)}–{Formatters.format_integer(@last)}</span>
-        of <span class="font-mono">{Formatters.format_integer(@total)}</span>
-      </p>
+      <div class="flex items-center gap-3">
+        <%!-- Rows per page belongs with the paging controls: it only reslices
+              what was already fetched. --%>
+        <form
+          :if={@page_size_options != []}
+          id={"#{@id}-page-size-form"}
+          phx-change={@page_size_event}
+          class="flex items-center gap-2"
+        >
+          <label for={"#{@id}-page-size"} class="text-base-content/70 text-xs">Per page</label>
+          <select
+            id={"#{@id}-page-size"}
+            name="page_size"
+            class="select select-sm w-20"
+          >
+            <option
+              :for={size <- @page_size_options}
+              value={to_string(size)}
+              selected={size == @page_size}
+            >
+              {size}
+            </option>
+          </select>
+        </form>
+
+        <p class="text-base-content/70 text-xs">
+          Showing
+          <span class="font-mono">{Formatters.format_integer(@first)}–{Formatters.format_integer(
+            @last
+          )}</span>
+          of <span class="font-mono">{Formatters.format_integer(@total)}</span>
+        </p>
+      </div>
 
       <div :if={@total_pages > 1} class="join">
         <button
@@ -461,7 +434,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   attr :shown, :integer, required: true, doc: "rows returned by the remote"
   attr :scanned, :integer, required: true, doc: "rows found during the scan"
   attr :truncated?, :boolean, default: false
-  attr :last_updated, :any, default: nil
 
   def scan_summary(assigns) do
     ~H"""
@@ -472,9 +444,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         <span class="font-mono text-base-content">{Formatters.format_integer(@shown)}</span>
       </span>
       <span :if={@truncated?} class="badge badge-info badge-soft badge-xs">truncated</span>
-      <span :if={@last_updated} class="text-base-content/60">
-        · updated {Formatters.format_time(@last_updated)}
-      </span>
     </div>
     """
   end
@@ -496,9 +465,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
 
   # Row ids double as `phx-value-id`, so they must survive values that have no
   # `String.Chars` implementation (a pid identifying a process row, say).
-  defp interval_value(nil), do: "off"
-  defp interval_value(ms), do: Integer.to_string(ms)
-
   defp row_id(row, key), do: row |> Map.get(key) |> to_dom_value()
 
   defp to_dom_value(value) when is_binary(value), do: value
@@ -507,9 +473,9 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   defp to_dom_value(value) when is_atom(value) or is_number(value), do: to_string(value)
   defp to_dom_value(value), do: inspect(value)
 
-  # Only pads a non-empty result: the empty state has its own single row.
-  defp filler_rows([], _min_rows), do: []
-  defp filler_rows(rows, min_rows), do: 1..max(min_rows - length(rows), 0)//1
+  defp justify_class(%{align: :right}), do: "justify-end"
+  defp justify_class(%{align: :center}), do: "justify-center"
+  defp justify_class(_column), do: "justify-start"
 
   defp align_class(%{align: :right}), do: "text-right"
   defp align_class(%{align: :center}), do: "text-center"
