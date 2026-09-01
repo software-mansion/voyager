@@ -9,8 +9,7 @@ defmodule Voyager.Services.RateLimiterTest do
     low_capacity: 2,
     low_refill: 2,
     low_starvation_threshold: 2,
-    refill_interval_ms: 60_000,
-    latency_threshold_ms: 3_000
+    refill_interval_ms: 60_000
   }
 
   setup do
@@ -88,58 +87,12 @@ defmodule Voyager.Services.RateLimiterTest do
     assert {:ok, _, _} = RateLimiter.run(server, :high, fn -> :res end)
   end
 
-  test "latency reporting over threshold tightens low refill factor", %{server: server} do
-    GenServer.cast(server, {:report_latency, 5_000_000})
-    _ = :sys.get_state(server)
-
-    GenServer.cast(server, {:report_latency, 20_000_000})
-    _ = :sys.get_state(server)
-
-    state = :sys.get_state(server)
-    assert state.ewma_ms > 3_000
-    assert state.low_refill_factor < 1.0
-  end
-
-  test "latency reporting under threshold relaxes low refill factor", %{server: server} do
-    :sys.replace_state(server, fn state ->
-      %{state | ewma_ms: 1000.0, low_refill_factor: 0.5}
-    end)
-
-    GenServer.cast(server, {:report_latency, 10_000})
-    _ = :sys.get_state(server)
-
-    state = :sys.get_state(server)
-    assert state.low_refill_factor > 0.5
-  end
-
-  test "latency is reported even when function raises", %{server: server} do
+  test "a raising function still consumes its token", %{server: server} do
     assert_raise RuntimeError, fn ->
       RateLimiter.run(server, :high, fn -> raise "boom" end)
     end
 
-    # The cast was sent before the exception propagated — sync with the server
     state = :sys.get_state(server)
-    assert state.ewma_ms > 0.0
-  end
-
-  test "low refill accumulates fractional tokens over multiple ticks", %{server: server} do
-    :sys.replace_state(server, fn state ->
-      %{state | low_refill_factor: 0.4, tokens_low: 0.0}
-    end)
-
-    # Tick 1: 0.0 + (2 * 0.4) = 0.8 tokens. Not enough to run (needs >= 1.0)
-    send(server, :refill)
-    _ = :sys.get_state(server)
-
-    assert {:error, :rate_limited, _} = RateLimiter.run(server, :low, fn -> :res end)
-
-    # Tick 2: 0.8 + 0.8 = 1.6 tokens. Enough to run once.
-    send(server, :refill)
-    _ = :sys.get_state(server)
-
-    assert {:ok, _, _} = RateLimiter.run(server, :low, fn -> :res end)
-
-    # 1.6 - 1.0 = 0.6 left. Not enough to run a second time.
-    assert {:error, :rate_limited, _} = RateLimiter.run(server, :low, fn -> :res end)
+    assert state.tokens_high == 1
   end
 end

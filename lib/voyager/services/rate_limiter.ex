@@ -17,15 +17,13 @@ defmodule Voyager.Services.RateLimiter do
   @type priority :: :high | :low
   @type result :: term()
 
-  @ewma_alpha 0.3
   @default_config %{
     high_capacity: 10,
     high_refill: 5,
     low_capacity: 2,
     low_refill: 1,
     low_starvation_threshold: 2,
-    refill_interval_ms: 1_000,
-    latency_threshold_ms: 3_000
+    refill_interval_ms: 1_000
   }
 
   @spec start_link(keyword()) :: GenServer.on_start()
@@ -53,15 +51,8 @@ defmodule Voyager.Services.RateLimiter do
     case GenServer.call(server, {:acquire, priority}) do
       :ok ->
         start = System.monotonic_time(:microsecond)
-
-        try do
-          result = fun.()
-          elapsed_us = System.monotonic_time(:microsecond) - start
-          {:ok, result, elapsed_us}
-        after
-          elapsed_us = System.monotonic_time(:microsecond) - start
-          GenServer.cast(server, {:report_latency, elapsed_us})
-        end
+        result = fun.()
+        {:ok, result, System.monotonic_time(:microsecond) - start}
 
       {:error, retry_after_ms} ->
         {:error, :rate_limited, retry_after_ms}
@@ -76,10 +67,8 @@ defmodule Voyager.Services.RateLimiter do
     state = %{
       config: config,
       tokens_high: config.high_capacity,
-      tokens_low: config.low_capacity * 1.0,
+      tokens_low: config.low_capacity,
       last_refill_at: System.monotonic_time(:millisecond),
-      ewma_ms: 0.0,
-      low_refill_factor: 1.0,
       timer_ref: nil
     }
 
@@ -101,8 +90,8 @@ defmodule Voyager.Services.RateLimiter do
         # Starvation guard: if high is running low, refuse low priority traffic.
         {:reply, {:error, retry_after(state)}, state}
 
-      state.tokens_low >= 1.0 ->
-        {:reply, :ok, %{state | tokens_low: state.tokens_low - 1.0}}
+      state.tokens_low > 0 ->
+        {:reply, :ok, %{state | tokens_low: state.tokens_low - 1}}
 
       true ->
         {:reply, {:error, retry_after(state)}, state}
@@ -110,25 +99,8 @@ defmodule Voyager.Services.RateLimiter do
   end
 
   @impl GenServer
-  def handle_cast({:report_latency, elapsed_us}, state) do
-    elapsed_ms = elapsed_us / 1000.0
-    new_ewma = @ewma_alpha * elapsed_ms + (1.0 - @ewma_alpha) * state.ewma_ms
-
-    factor =
-      if new_ewma > state.config.latency_threshold_ms do
-        max(state.low_refill_factor * 0.5, 0.1)
-      else
-        min(state.low_refill_factor * 1.1, 1.0)
-      end
-
-    {:noreply, %{state | ewma_ms: new_ewma, low_refill_factor: factor}}
-  end
-
-  @impl GenServer
   def handle_info(:refill, state) do
     now = System.monotonic_time(:millisecond)
-
-    low_refill_actual = state.config.low_refill * state.low_refill_factor
 
     new_state =
       state
@@ -138,7 +110,7 @@ defmodule Voyager.Services.RateLimiter do
       )
       |> Map.put(
         :tokens_low,
-        min(state.config.low_capacity * 1.0, state.tokens_low + low_refill_actual)
+        min(state.config.low_capacity, state.tokens_low + state.config.low_refill)
       )
       |> Map.put(:last_refill_at, now)
       |> schedule_refill()
