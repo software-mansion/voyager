@@ -124,6 +124,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
               label="Columns"
               options={@column_options}
               selected={List.wrap(@form[:columns].value)}
+              disabled={@loading?}
             />
 
             <.field_error field={@form[:limit]} />

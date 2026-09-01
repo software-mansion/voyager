@@ -480,6 +480,7 @@ defmodule VoyagerWeb.CoreComponents do
   attr :label, :string, required: true
   attr :options, :list, required: true, doc: "list of `{value, label, locked?}` triples"
   attr :selected, :list, required: true, doc: "list of selected values"
+  attr :disabled, :boolean, default: false
   attr :locked_hint, :string, default: "Always shown"
   attr :class, :any, default: nil
 
@@ -491,11 +492,15 @@ defmodule VoyagerWeb.CoreComponents do
           panel wider than its button opens inwards instead of off the edge. --%>
     <div class={["dropdown dropdown-end", @class]}>
       <div
-        tabindex="0"
+        tabindex={if @disabled, do: "-1", else: "0"}
         role="button"
         id={@id}
         aria-haspopup="listbox"
-        class="input input-sm cursor-pointer items-center gap-2"
+        aria-disabled={@disabled}
+        class={[
+          "input input-sm items-center gap-2",
+          if(@disabled, do: "pointer-events-none opacity-50", else: "cursor-pointer")
+        ]}
       >
         <span class="grow text-left">{@label}</span>
         <span class="font-mono text-base-content/60">{@count}</span>

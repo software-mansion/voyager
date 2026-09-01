@@ -555,27 +555,55 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       assert_received {:scanned, [_attrs, _sort, 250, _dir, _search], _timeout}
     end
 
-    test "locks the controls while a fetch is in flight", %{conn: conn} do
+    test "shows a status badge like the supervision tree", %{conn: conn} do
       stub_scan([])
-      {:ok, view, html} = live(conn, @path)
-
-      # The initial render is taken before the async result lands, so it shows
-      # the locked state; once the fetch settles the form is usable again.
-      assert html =~ "disabled"
+      {:ok, view, _html} = live(conn, @path)
       render_async(view)
-      refute has_element?(view, "#process-controls fieldset[disabled]")
+
+      assert view |> element("#processes-status") |> render() =~ "ok"
     end
 
-    test "selecting columns changes the table without refetching", %{conn: conn} do
+    test "the status badge reflects a timeout", %{conn: conn} do
+      stub(Voyager.ErpcMock, :call, fn _, _, _, _, _ -> :erlang.error({:erpc, :timeout}) end)
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      badge = view |> element("#processes-status") |> render()
+      assert badge =~ "timeout"
+      assert badge =~ "badge-warning"
+    end
+
+    test "locks the UI only for control-triggered fetches", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      # Auto/manual refresh stays quiet: no dim, no disable.
+      refute has_element?(view, "#process-controls fieldset[disabled]")
+
+      # A control change dims the stale table until its fetch lands.
+      change(view, %{"limit" => "250"})
+      assert render(view) =~ "pointer-events-none select-none opacity-60"
+
+      send(view.pid, :refetch)
+      render_async(view)
+      refute render(view) =~ "pointer-events-none select-none opacity-60"
+    end
+
+    test "column changes apply only once their fetch lands", %{conn: conn} do
       [pid] = fake_pids(1)
       stub_scan([entry(pid: pid)])
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
-      assert_received {:scanned, _args, _timeout}
 
       change(view, %{"columns" => ["status"]})
 
-      refute_received {:scanned, _args, _timeout}
+      # Still the old columns: the data on screen was fetched without :status.
+      refute view |> element("#processes-table thead") |> render() =~ "Status"
+
+      send(view.pid, :refetch)
+      render_async(view)
+
       headers = view |> element("#processes-table thead") |> render()
       assert headers =~ "Status"
       refute headers =~ "Reductions"

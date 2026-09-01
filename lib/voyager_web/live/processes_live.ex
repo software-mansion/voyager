@@ -37,6 +37,8 @@ defmodule VoyagerWeb.ProcessesLive do
     |> assign(:controls, controls)
     |> assign(:form, to_form(ProcessListControls.changeset(controls), as: :controls))
     |> assign(:refetch_timer, nil)
+    |> assign(:fetched_with, controls)
+    |> assign(:dirty?, false)
     |> assign(:sort_by, sort_by)
     |> assign(:direction, direction)
     |> assign(:page, 1)
@@ -69,6 +71,12 @@ defmodule VoyagerWeb.ProcessesLive do
         waiting_message="waiting for first fetch…"
       >
         <:actions>
+          <span
+            id="processes-status"
+            class={["badge mr-2 dark:text-base-100", status_badge_class(status(@page_result))]}
+          >
+            {status(@page_result)}
+          </span>
           <.interval_select
             id="processes-refresh-interval"
             options={Processes.refresh_interval_options()}
@@ -81,7 +89,7 @@ defmodule VoyagerWeb.ProcessesLive do
       <ProcessComponents.controls
         form={@form}
         node_name={@session.node_name}
-        loading?={loading?(@page_result)}
+        loading?={@dirty? and loading?(@page_result)}
       />
 
       <%!-- Rendered outside any loading branch: a refetch swaps only the rows,
@@ -100,10 +108,10 @@ defmodule VoyagerWeb.ProcessesLive do
         scanned={@page_result.result.scanned}
       />
 
-      <div class={loading?(@page_result) && "pointer-events-none select-none opacity-60"}>
+      <div class={@dirty? && "pointer-events-none select-none opacity-60"}>
         <DataTableComponents.table
           id="processes-table"
-          columns={ProcessComponents.columns(ProcessListControls.attrs(@controls))}
+          columns={ProcessComponents.columns(ProcessListControls.attrs(@fetched_with))}
           rows={rows(entries(@page_result), @page, @page_size)}
           sort_by={@sort_by}
           direction={@direction}
@@ -138,6 +146,7 @@ defmodule VoyagerWeb.ProcessesLive do
   def handle_event("validate", %{"controls" => params}, socket) do
     socket
     |> apply_controls(params)
+    |> assign(:dirty?, true)
     |> store_settings(params)
     |> debounce_refetch()
     |> noreply()
@@ -220,9 +229,11 @@ defmodule VoyagerWeb.ProcessesLive do
   end
 
   @impl true
-  def handle_async(:page_result, {:ok, {:ok, page}}, socket) do
+  def handle_async(:page_result, {:ok, {:ok, page, fetched_with}}, socket) do
     socket
     |> assign(:page_result, AsyncResult.ok(socket.assigns.page_result, page))
+    |> assign(:fetched_with, fetched_with)
+    |> assign(:dirty?, false)
     |> assign(:last_updated, page.fetched_at)
     |> assign(
       :page,
@@ -234,6 +245,7 @@ defmodule VoyagerWeb.ProcessesLive do
   def handle_async(:page_result, {:ok, {:error, reason}}, socket) do
     socket
     |> assign(:page_result, AsyncResult.failed(socket.assigns.page_result, reason))
+    |> assign(:dirty?, false)
     |> noreply()
   end
 
@@ -263,7 +275,7 @@ defmodule VoyagerWeb.ProcessesLive do
     |> start_async(:page_result, fn ->
       case Processes.page(session.node, controls, {sort_by, direction}) do
         {:ok, page} ->
-          {:ok, page}
+          {:ok, page, controls}
 
         {:error, reason} ->
           Logger.warning(
@@ -284,6 +296,19 @@ defmodule VoyagerWeb.ProcessesLive do
   end
 
   defp loading?(%AsyncResult{loading: loading}), do: loading != nil
+
+  # Same vocabulary as the supervision tree's header badge.
+  defp status(%AsyncResult{loading: loading}) when loading != nil, do: :loading
+  defp status(%AsyncResult{failed: :timeout}), do: :timeout
+  defp status(%AsyncResult{failed: failed}) when failed != nil, do: :error
+  defp status(%AsyncResult{ok?: true}), do: :ok
+  defp status(_page_result), do: :idle
+
+  defp status_badge_class(:idle), do: "text-base-content!"
+  defp status_badge_class(:loading), do: "badge-info"
+  defp status_badge_class(:ok), do: "badge-success"
+  defp status_badge_class(:timeout), do: "badge-warning"
+  defp status_badge_class(:error), do: "badge-error"
 
   # Only validated values are stored, so nothing invalid can come back on the
   # next visit. `search` is taken as typed, since anything is valid there.
