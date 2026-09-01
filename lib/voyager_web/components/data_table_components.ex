@@ -2,11 +2,13 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   @moduledoc """
   Reusable building blocks for the node inspection list pages.
 
-  These components are deliberately domain-agnostic so every list page
-  (processes, ETS tables, ports, …) shares one table, toolbar and pager. They
-  own no state: the caller supplies the rows and the current sort/page/limit,
-  and handles the events they emit (`sort`, `paginate`, `set_limit`,
-  `set_page_size`, `set_timeout`, `set_columns`, `search`).
+  Two domain-agnostic pieces every list page (processes, ETS tables, ports, …)
+  can share: a sortable `table/1` and a `pager/1`. Both are stateless — the
+  caller holds the sort and the page, and handles the `sort` and `paginate`
+  events they emit.
+
+  Page-specific controls (search, filters, fetch options) belong with the page,
+  not here.
 
   Columns are described as maps rather than slots so a page can keep its column
   list in one place and reuse it for both the header and the body:
@@ -24,140 +26,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   use VoyagerWeb, :component
 
   alias VoyagerWeb.Formatters
-
-  @doc """
-  Toolbar with a search box, a result-size selector, a timeout input and a
-  column picker.
-
-  Every control is optional: omit the matching attribute to leave it out.
-  """
-  attr :id, :string, required: true
-  attr :search, :string, default: nil
-  attr :search_placeholder, :string, default: "Search…"
-  attr :search_event, :string, default: "search"
-  attr :limit, :integer, default: nil, doc: "how many rows to fetch from the remote"
-  attr :limit_options, :list, default: []
-  attr :limit_event, :string, default: "set_limit"
-  attr :limit_label, :string, default: "Limit"
-  attr :limit_help, :string, default: nil
-  attr :timeout, :integer, default: nil, doc: "request timeout in milliseconds"
-  attr :timeout_min, :integer, default: 1_000
-  attr :timeout_max, :integer, default: 30_000
-  attr :timeout_event, :string, default: "set_timeout"
-  attr :columns_options, :list, default: [], doc: "`{value, label, locked?}` triples"
-  attr :columns_selected, :list, default: []
-  attr :columns_event, :string, default: "set_columns"
-
-  def toolbar(assigns) do
-    ~H"""
-    <div id={@id} class="flex flex-wrap items-end justify-between gap-3">
-      <form
-        :if={@search != nil}
-        id={"#{@id}-search-form"}
-        phx-change={@search_event}
-        phx-submit={@search_event}
-        class="grow"
-      >
-        <label class="input w-full max-w-md">
-          <.icon name="icon-search" class="text-base-content/60 size-4" />
-          <input
-            id={"#{@id}-search"}
-            type="search"
-            name="search"
-            value={@search}
-            phx-debounce="300"
-            placeholder={@search_placeholder}
-            aria-label={@search_placeholder}
-          />
-        </label>
-      </form>
-
-      <div class="flex flex-wrap items-end gap-2">
-        <%!-- The limit is a remote cost (rows copied off the node); page size
-              only slices what was already fetched. --%>
-        <.select_control
-          :if={@limit != nil}
-          id={"#{@id}-limit"}
-          label={@limit_label}
-          name="limit"
-          event={@limit_event}
-          value={to_string(@limit)}
-          options={Enum.map(@limit_options, &{to_string(&1), to_string(&1)})}
-          help={@limit_help}
-        />
-
-        <form
-          :if={@timeout != nil}
-          id={"#{@id}-timeout-form"}
-          phx-change={@timeout_event}
-          class="flex flex-col gap-1"
-        >
-          <label for={"#{@id}-timeout"} class="text-base-content/70 text-xs font-medium">
-            Timeout (ms)
-          </label>
-          <%!-- A plain number input: the stepper's arrows are unhelpful at a
-                millisecond granularity. --%>
-          <input
-            id={"#{@id}-timeout"}
-            type="number"
-            name="timeout"
-            value={@timeout}
-            min={@timeout_min}
-            max={@timeout_max}
-            step="100"
-            inputmode="numeric"
-            phx-debounce="500"
-            aria-label="Request timeout in milliseconds"
-            class="input input-sm input-bordered no-spinner font-mono w-24"
-          />
-        </form>
-
-        <form
-          :if={@columns_options != []}
-          id={"#{@id}-columns-form"}
-          phx-change={@columns_event}
-          class="flex flex-col gap-1"
-        >
-          <span class="text-base-content/70 text-xs font-medium">Columns</span>
-          <.multiselect
-            id={"#{@id}-columns"}
-            name="columns"
-            label="Columns"
-            options={@columns_options}
-            selected={@columns_selected}
-          />
-        </form>
-      </div>
-    </div>
-    """
-  end
-
-  @doc """
-  Labelled `<select>` that pushes `event` with the given `name` on change.
-  """
-  attr :id, :string, required: true
-  attr :label, :string, required: true
-  attr :name, :string, required: true
-  attr :event, :string, required: true
-  attr :value, :string, required: true
-  attr :options, :list, required: true, doc: "list of `{label, value}` tuples"
-  attr :help, :string, default: nil, doc: "adds a `?` tooltip beside the label"
-
-  def select_control(assigns) do
-    ~H"""
-    <form id={"#{@id}-form"} phx-change={@event} class="flex flex-col gap-1">
-      <div class="flex items-center gap-1">
-        <label for={@id} class="text-base-content/70 text-xs font-medium">{@label}</label>
-        <.help_tooltip :if={@help} id={"#{@id}-help"} text={@help} />
-      </div>
-      <select id={@id} name={@name} class="select select-sm w-24">
-        <option :for={{label, value} <- @options} value={value} selected={value == @value}>
-          {label}
-        </option>
-      </select>
-    </form>
-    """
-  end
 
   @doc """
   Sortable table.
@@ -371,39 +239,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
           <.icon name="icon-chevron-right" class="size-4" />
         </button>
       </div>
-    </div>
-    """
-  end
-
-  @doc """
-  Caption describing the scan behind the current result set: how many rows were
-  fetched out of the population the remote walked.
-  """
-  attr :id, :string, required: true
-  attr :shown, :integer, required: true, doc: "rows returned by the remote"
-  attr :scanned, :integer, required: true, doc: "rows found during the scan"
-
-  def scan_summary(assigns) do
-    ~H"""
-    <div id={@id} class="text-base-content/70 text-xs">
-      Fetched <span class="font-mono text-base-content">{Formatters.format_integer(@shown)}</span>
-      processes out of
-      <span class="font-mono text-base-content">{Formatters.format_integer(@scanned)}</span>
-    </div>
-    """
-  end
-
-  @doc """
-  Explanation of how a page's data is fetched and paged.
-  """
-  attr :id, :string, required: true
-  slot :inner_block, required: true
-
-  def info_note(assigns) do
-    ~H"""
-    <div id={@id} role="note" class="alert alert-info py-3 text-sm">
-      <.icon name="icon-info" class="size-5 shrink-0" />
-      <span>{render_slot(@inner_block)}</span>
     </div>
     """
   end

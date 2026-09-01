@@ -56,6 +56,15 @@ defmodule VoyagerWeb.ProcessesLiveTest do
     |> then(&(length(String.split(&1, "<tr")) - 1))
   end
 
+  defp change(view, attrs) do
+    view |> element("#process-controls") |> render_change(%{"controls" => attrs})
+  end
+
+  defp refresh(view) do
+    view |> element("#processes-refresh-interval-refresh-now-button") |> render_click()
+    render_async(view)
+  end
+
   defp fake_pids(count) do
     Enum.map(1..count, fn _ -> spawn(fn -> :ok end) end)
   end
@@ -74,9 +83,9 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      assert has_element?(view, "#processes-toolbar-search")
-      assert has_element?(view, "#processes-toolbar-limit")
-      assert has_element?(view, "#processes-toolbar-timeout")
+      assert has_element?(view, "#controls_search")
+      assert has_element?(view, "#controls_limit")
+      assert has_element?(view, "#controls_timeout")
       assert has_element?(view, "#processes-refresh-interval-refresh-now-button")
     end
 
@@ -180,11 +189,8 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       # A filtering search shrinks the table rather than padding it out.
       stub_scan([entry(pid: hd(pids))], 25)
 
-      view
-      |> element("#processes-toolbar-search-form")
-      |> render_change(%{"search" => "worker"})
-
-      render_async(view)
+      change(view, %{"search" => "worker"})
+      refresh(view)
 
       assert rendered_body_rows(view) == 1
     end
@@ -209,82 +215,6 @@ defmodule VoyagerWeb.ProcessesLiveTest do
     end
   end
 
-  describe "column selection" do
-    test "renders a chip per selectable attribute", %{conn: conn} do
-      stub_scan([])
-      {:ok, view, _html} = live(conn, @path)
-      render_async(view)
-
-      for attr <- Processes.optional_attrs() do
-        assert has_element?(view, "#processes-toolbar-columns-#{attr}-input")
-      end
-
-      # Locked attrs are listed, but without a control to toggle.
-      for attr <- Processes.required_attrs() do
-        assert has_element?(view, "#processes-toolbar-columns-#{attr}-option")
-        refute has_element?(view, "#processes-toolbar-columns-#{attr}-input")
-      end
-    end
-
-    test "required columns render without a toggle", %{conn: conn} do
-      stub_scan([])
-      {:ok, view, _html} = live(conn, @path)
-      render_async(view)
-
-      for attr <- Processes.required_attrs() do
-        option = view |> element("#processes-toolbar-columns-#{attr}-option") |> render()
-
-        refute option =~ ~s|type="checkbox"|
-        # Still submitted, so the value survives a change event.
-        assert option =~ ~s|type="hidden"|
-      end
-    end
-
-    test "selecting a column adds it to the URL and refetches", %{conn: conn} do
-      stub_scan([])
-      {:ok, view, _html} = live(conn, @path)
-      render_async(view)
-
-      # Drop the mount scan so the assertion can only match the new one.
-      assert_received {:scanned, _args, _timeout}
-
-      view
-      |> element("#processes-toolbar-columns-form")
-      |> render_change(%{"columns" => ["status"]})
-
-      render_async(view)
-
-      # Required attrs survive regardless of what the form submits.
-      assert_received {:scanned, [attrs, _sort, _limit, _dir, _search], _timeout}
-      assert :status in attrs
-      assert :memory in attrs
-    end
-
-    test "restores the selected columns from the URL", %{conn: conn} do
-      stub_scan([])
-
-      {:ok, view, _html} = live(conn, "#{@path}?columns=status")
-      render_async(view)
-
-      assert has_element?(view, "#processes-toolbar-columns-status-input[checked]")
-
-      # The selected column appears in the table; the unselected one does not.
-      headers = view |> element("#processes-table thead") |> render()
-      assert headers =~ "Status"
-      refute headers =~ "Priority"
-    end
-
-    test "a hand-edited URL cannot drop a required column", %{conn: conn} do
-      stub_scan([])
-
-      {:ok, view, _html} = live(conn, "#{@path}?columns=status")
-      render_async(view)
-
-      assert_received {:scanned, [attrs, _sort, _limit, _dir, _search], _timeout}
-      assert :memory in attrs
-    end
-  end
-
   describe "PID cell" do
     test "links to the details page, carrying the list's params", %{conn: conn} do
       [pid] = fake_pids(1)
@@ -296,7 +226,6 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       link = view |> element(~s|td[data-column="pid"] a|) |> render()
 
       assert link =~ URI.encode_www_form(Processes.format_pid(pid))
-      assert link =~ "return_to="
       # Reads as a link on hover.
       assert link =~ "hover:underline"
     end
@@ -417,17 +346,6 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       html = render(view)
       assert html =~ ~s|id="#{row_id}-reductions-copy-text"|
       assert html =~ "999,999,999,999"
-    end
-  end
-
-  describe "info note" do
-    test "explains that data is fetched once and then paged locally", %{conn: conn} do
-      stub_scan([])
-      {:ok, view, _html} = live(conn, @path)
-      render_async(view)
-
-      assert has_element?(view, "#processes-info")
-      assert render(view) =~ "paged here in the browser"
     end
   end
 
@@ -552,131 +470,121 @@ defmodule VoyagerWeb.ProcessesLiveTest do
     end
   end
 
-  describe "search" do
-    test "passes the search term to the remote", %{conn: conn} do
+  describe "controls form" do
+    test "renders one form over every control", %{conn: conn} do
       stub_scan([])
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      view
-      |> element("#processes-toolbar-search-form")
-      |> render_change(%{"search" => "worker"})
-
-      render_async(view)
-
-      assert_received {:scanned, [_attrs, _sort, _limit, _dir, "worker"], _timeout}
+      assert has_element?(view, "#process-controls")
+      assert has_element?(view, "#controls_search")
+      assert has_element?(view, "#controls_limit")
+      assert has_element?(view, "#controls_timeout")
+      assert has_element?(view, "#process-controls-columns")
     end
-  end
 
-  describe "result size and timeout" do
-    test "changing the limit refetches with the new size", %{conn: conn} do
+    test "changing the form does not refetch", %{conn: conn} do
       stub_scan([])
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      view
-      |> element("#processes-toolbar-limit-form")
-      |> render_change(%{"limit" => "250"})
+      # Drop the mount scan; nothing after this should produce another.
+      assert_received {:scanned, _args, _timeout}
 
-      render_async(view)
+      change(view, %{"limit" => "250", "timeout" => "10000", "search" => "worker"})
 
-      assert_received {:scanned, [_attrs, _sort, 250, _dir, _search], _timeout}
+      refute_received {:scanned, _args, _timeout}
     end
 
-    test "the timeout is entered and sent in milliseconds", %{conn: conn} do
+    test "the validated values reach the next fetch", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+      assert_received {:scanned, _args, _timeout}
+
+      change(view, %{"limit" => "250", "timeout" => "10000", "search" => "worker"})
+      refresh(view)
+
+      assert_received {:scanned, [_attrs, _sort, 250, _dir, "worker"], 10_000}
+    end
+
+    test "an invalid value shows an error and is not used", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+      assert_received {:scanned, _args, _timeout}
+
+      html = change(view, %{"timeout" => "999999"})
+      assert html =~ "must be between"
+
+      refresh(view)
+
+      # The previous valid timeout is what actually gets used.
+      assert_received {:scanned, _args, 5_000}
+    end
+
+    test "flags that the fetch options changed since the rows loaded", %{conn: conn} do
       stub_scan([])
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      view
-      |> element("#processes-toolbar-timeout-form")
-      |> render_change(%{"timeout" => "10000"})
+      refute has_element?(view, "#process-controls-pending")
 
-      render_async(view)
+      change(view, %{"limit" => "250"})
+      assert has_element?(view, "#process-controls-pending")
 
-      assert_received {:scanned, _args, 10_000}
+      refresh(view)
+      refute has_element?(view, "#process-controls-pending")
     end
 
-    test "clamps an out-of-range timeout to the supported bounds", %{conn: conn} do
+    test "selecting columns changes the table without refetching", %{conn: conn} do
+      [pid] = fake_pids(1)
+      stub_scan([entry(pid: pid)])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+      assert_received {:scanned, _args, _timeout}
+
+      change(view, %{"columns" => ["status"]})
+
+      refute_received {:scanned, _args, _timeout}
+      headers = view |> element("#processes-table thead") |> render()
+      assert headers =~ "Status"
+      refute headers =~ "Reductions"
+    end
+
+    test "required columns cannot be deselected", %{conn: conn} do
       stub_scan([])
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      {_min, max} = Processes.timeout_bounds()
+      change(view, %{"columns" => []})
 
-      view
-      |> element("#processes-toolbar-timeout-form")
-      |> render_change(%{"timeout" => "999999"})
-
-      render_async(view)
-
-      assert_received {:scanned, _args, ^max}
-    end
-  end
-
-  describe "query params" do
-    test "restores the limit and timeout from the URL", %{conn: conn} do
-      stub_scan([])
-
-      {:ok, view, _html} = live(conn, "#{@path}?limit=250&timeout=10000")
-      render_async(view)
-
-      assert_received {:scanned, [_attrs, _sort, 250, _dir, _search], 10_000}
+      headers = view |> element("#processes-table thead") |> render()
+      assert headers =~ "PID"
+      assert headers =~ "Memory"
     end
 
-    test "writes the limit into the query string", %{conn: conn} do
+    test "stores the validated settings for the next visit", %{conn: conn} do
       stub_scan([])
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      view
-      |> element("#processes-toolbar-limit-form")
-      |> render_change(%{"limit" => "50"})
+      change(view, %{"limit" => "250"})
 
-      assert_patched(view, "#{@path}?limit=50")
+      assert_push_event(view, "store-settings", %{settings: settings})
+      assert settings["limit"] == "250"
     end
 
-    test "writes the timeout into the query string as milliseconds", %{conn: conn} do
+    test "restores stored settings and fetches with them", %{conn: conn} do
       stub_scan([])
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
+      assert_received {:scanned, _args, _timeout}
 
-      view
-      |> element("#processes-toolbar-timeout-form")
-      |> render_change(%{"timeout" => "3000"})
-
-      assert_patched(view, "#{@path}?timeout=3000")
-    end
-
-    test "writes the page size into the query string", %{conn: conn} do
-      stub_scan([])
-      {:ok, view, _html} = live(conn, @path)
+      render_hook(view, "restore_settings", %{"limit" => "500", "search" => "hog"})
       render_async(view)
 
-      view
-      |> element("#processes-pager-page-size-form")
-      |> render_change(%{"page_size" => "50"})
-
-      assert_patched(view, "#{@path}?page_size=50")
-    end
-
-    test "restores the page size from the URL", %{conn: conn} do
-      stub_scan([])
-
-      {:ok, view, _html} = live(conn, "#{@path}?page_size=50")
-      render_async(view)
-
-      assert has_element?(view, ~s|#processes-pager-page-size option[value="50"][selected]|)
-    end
-
-    test "ignores malformed query params instead of crashing", %{conn: conn} do
-      stub_scan([])
-
-      {:ok, view, _html} = live(conn, "#{@path}?limit=abc&timeout=xyz")
-      render_async(view)
-
-      # Falls back to the defaults rather than raising on a hand-edited URL.
-      assert_received {:scanned, [_attrs, _sort, 100, _dir, _search], 5_000}
+      assert_received {:scanned, [_attrs, _sort, 500, _dir, "hog"], _timeout}
     end
   end
 
@@ -740,8 +648,12 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       pids = fake_pids(30)
       stub_scan(Enum.map(pids, &entry(pid: &1)))
 
-      {:ok, view, _html} = live(conn, "#{@path}?page_size=10")
+      {:ok, view, _html} = live(conn, @path)
       render_async(view)
+
+      view
+      |> element("#processes-pager-page-size-form")
+      |> render_change(%{"page_size" => "10"})
 
       # 10 per page over 30 rows: the 10th row is on page 1, the 11th is not.
       assert has_element?(view, "##{ProcessesLive.row_dom_id(Enum.at(pids, 9))}")

@@ -7,6 +7,7 @@ defmodule Voyager.Queries.ProcessesTest do
   import Mox
 
   alias Voyager.Queries.Processes
+  alias VoyagerWeb.FormSchemas.ProcessListControls
 
   setup :verify_on_exit!
 
@@ -23,31 +24,42 @@ defmodule Voyager.Queries.ProcessesTest do
     end)
   end
 
-  describe "page/2" do
-    test "requests the fixed attribute set with the defaults" do
+  defp controls(attrs \\ %{}) do
+    {controls, _changeset} = ProcessListControls.apply(ProcessListControls.default(), attrs)
+    controls
+  end
+
+  describe "page/3" do
+    test "requests the selected attributes with the form's defaults" do
       capture_erpc_args()
 
-      assert {:ok, _page} = Processes.page(@node)
+      assert {:ok, _page} = Processes.page(@node, controls())
 
       assert_received {:called, @node, :voyager_agent, :proc_top,
                        [attrs, :memory, 100, :desc, :undefined], 5_000}
 
-      expected = Processes.default_attrs() |> Processes.clamp_attrs() |> List.delete(:pid)
+      expected = ProcessListControls.default() |> ProcessListControls.attrs() |> List.delete(:pid)
       assert Enum.sort(attrs) == Enum.sort(expected)
     end
 
-    test "passes sort_by, direction, limit and search through to the remote" do
+    test "passes the form's limit, timeout and search through to the remote" do
       capture_erpc_args()
 
       assert {:ok, _page} =
-               Processes.page(@node,
-                 sort_by: :reductions,
-                 direction: :asc,
-                 limit: 25,
-                 search: "gen"
+               Processes.page(
+                 @node,
+                 controls(%{"limit" => 25, "timeout" => 3_000, "search" => "gen"})
                )
 
-      assert_received {:called, _node, _mod, _fun, [_attrs, :reductions, 25, :asc, "gen"],
+      assert_received {:called, _node, _mod, _fun, [_attrs, _sort, 25, _dir, "gen"], 3_000}
+    end
+
+    test "passes the sort through, separately from the form" do
+      capture_erpc_args()
+
+      assert {:ok, _page} = Processes.page(@node, controls(), {:reductions, :asc})
+
+      assert_received {:called, _node, _mod, _fun, [_attrs, :reductions, _limit, :asc, _search],
                        _timeout}
     end
 
@@ -55,51 +67,17 @@ defmodule Voyager.Queries.ProcessesTest do
       rows = [%{pid: self(), memory: 10}]
       capture_erpc_args({rows, 42})
 
-      assert {:ok, page} = Processes.page(@node, limit: 25)
+      assert {:ok, page} = Processes.page(@node, controls())
 
       assert page.entries == rows
       assert page.scanned == 42
       assert %DateTime{} = page.fetched_at
     end
 
-    test "falls back to the defaults for unknown options" do
+    test "requests only the selected columns, plus the required ones" do
       capture_erpc_args()
 
-      assert {:ok, _page} =
-               Processes.page(@node,
-                 sort_by: :registered_name,
-                 direction: :sideways,
-                 limit: :lots
-               )
-
-      assert_received {:called, _node, _mod, _fun, [_attrs, :memory, 100, :desc, :undefined],
-                       _timeout}
-    end
-
-    test "accepts any selectable limit" do
-      for limit <- Processes.limit_options() do
-        capture_erpc_args()
-        assert {:ok, _page} = Processes.page(@node, limit: limit)
-
-        assert_received {:called, _node, _mod, _fun, [_attrs, _sort, ^limit, _dir, _search],
-                         _timeout}
-      end
-    end
-
-    test "falls back to the default for a non-selectable limit" do
-      default = Processes.default_limit()
-
-      capture_erpc_args()
-      assert {:ok, _page} = Processes.page(@node, limit: 7)
-
-      assert_received {:called, _node, _mod, _fun, [_attrs, _sort, ^default, _dir, _search],
-                       _timeout}
-    end
-
-    test "requests only the selected attributes" do
-      capture_erpc_args()
-
-      assert {:ok, _page} = Processes.page(@node, attrs: [:memory, :status])
+      assert {:ok, _page} = Processes.page(@node, controls(%{"columns" => ["status"]}))
 
       # :pid is implicit on every entry, so it is never requested.
       assert_received {:called, _node, _mod, _fun, [attrs, _sort, _limit, _dir, _search],
@@ -108,42 +86,13 @@ defmodule Voyager.Queries.ProcessesTest do
       assert Enum.sort(attrs) == [:memory, :status]
     end
 
-    test "always requests the required attributes" do
+    test "normalizes a blank search to no filter" do
       capture_erpc_args()
 
-      assert {:ok, _page} = Processes.page(@node, attrs: [:status])
-
-      assert_received {:called, _node, _mod, _fun, [attrs, _sort, _limit, _dir, _search],
-                       _timeout}
-
-      assert :memory in attrs
-    end
-
-    test "clamps the timeout into the supported bounds" do
-      {min, max} = Processes.timeout_bounds()
-
-      capture_erpc_args()
-      assert {:ok, _page} = Processes.page(@node, timeout: 1)
-      assert_received {:called, _node, _mod, _fun, _args, ^min}
-
-      capture_erpc_args()
-      assert {:ok, _page} = Processes.page(@node, timeout: 10_000_000)
-      assert_received {:called, _node, _mod, _fun, _args, ^max}
-    end
-
-    test "normalizes a blank or whitespace-only search to no filter" do
-      capture_erpc_args()
-      assert {:ok, _page} = Processes.page(@node, search: "   ")
+      assert {:ok, _page} = Processes.page(@node, controls(%{"search" => "   "}))
 
       assert_received {:called, _node, _mod, _fun, [_attrs, _sort, _limit, _dir, :undefined],
                        _timeout}
-    end
-
-    test "trims a padded search term" do
-      capture_erpc_args()
-      assert {:ok, _page} = Processes.page(@node, search: "  gen  ")
-
-      assert_received {:called, _node, _mod, _fun, [_attrs, _sort, _limit, _dir, "gen"], _timeout}
     end
 
     test "propagates transport errors" do
@@ -151,7 +100,7 @@ defmodule Voyager.Queries.ProcessesTest do
         :erlang.error({:erpc, :noconnection})
       end)
 
-      assert {:error, :noconnection} = Processes.page(@node)
+      assert {:error, :noconnection} = Processes.page(@node, controls())
     end
   end
 
@@ -176,14 +125,10 @@ defmodule Voyager.Queries.ProcessesTest do
     end
   end
 
-  describe "option metadata" do
+  describe "attribute metadata" do
     test "every sortable attribute is selectable or required" do
       known = Processes.required_attrs() ++ Processes.optional_attrs()
       assert Enum.all?(Processes.sortable_attrs(), &(&1 in known))
-    end
-
-    test "the default limit is selectable" do
-      assert Processes.default_limit() in Processes.limit_options()
     end
 
     test "clamp_attrs/1 always includes the required attributes" do
@@ -196,35 +141,6 @@ defmodule Voyager.Queries.ProcessesTest do
     test "clamp_attrs/1 drops unknown attributes" do
       refute :messages in Processes.clamp_attrs([:messages, :status])
       assert :status in Processes.clamp_attrs([:messages, :status])
-    end
-
-    test "clamp_attrs/1 falls back to the defaults for a non-list" do
-      assert Processes.clamp_attrs(nil) == Processes.clamp_attrs(Processes.default_attrs())
-    end
-
-    test "the default page size is selectable" do
-      assert Processes.default_page_size() in Processes.page_size_options()
-    end
-
-    test "clamp_page_size/1 falls back to the default for a non-selectable value" do
-      assert Processes.clamp_page_size(7) == Processes.default_page_size()
-      assert Processes.clamp_page_size(nil) == Processes.default_page_size()
-    end
-
-    test "clamp_page_size/1 keeps a selectable value" do
-      for size <- Processes.page_size_options() do
-        assert Processes.clamp_page_size(size) == size
-      end
-    end
-
-    test "the default sort_by is sortable" do
-      assert Processes.default_sort_by() in Processes.sortable_attrs()
-    end
-
-    test "the default timeout is within bounds" do
-      {min, max} = Processes.timeout_bounds()
-      assert Processes.default_timeout() >= min
-      assert Processes.default_timeout() <= max
     end
   end
 end

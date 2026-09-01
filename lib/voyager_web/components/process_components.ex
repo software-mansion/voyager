@@ -10,6 +10,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
 
   alias Voyager.Queries.Processes
   alias VoyagerWeb.Formatters
+  alias VoyagerWeb.FormSchemas.ProcessListControls
 
   # Ordered as they appear in the table. Fixed widths on the numeric columns
   # keep values that change every refresh from shifting the layout.
@@ -49,6 +50,133 @@ defmodule VoyagerWeb.Components.ProcessComponents do
     status: "Status",
     priority: "Priority"
   }
+
+  @doc """
+  The controls form: search, fetch limit, request timeout and the column
+  picker.
+
+  One `<.form>` over `ProcessListControls`, so every field validates together
+  and the parent gets a single `validate` event carrying the whole set. None of
+  it refetches — the values apply on the next fetch.
+  """
+  attr :form, Phoenix.HTML.Form, required: true
+  attr :node_name, :string, required: true
+  attr :pending?, :boolean, default: false, doc: "fetch options differ from the loaded rows"
+
+  def controls(assigns) do
+    assigns =
+      assign(assigns, :column_options, ProcessListControls.column_options(&column_label/1))
+
+    ~H"""
+    <.form
+      for={@form}
+      id="process-controls"
+      phx-change="validate"
+      class="flex flex-wrap items-end justify-between gap-3"
+    >
+      <label class="input w-full max-w-md">
+        <.icon name="icon-search" class="text-base-content/60 size-4" />
+        <input
+          id={@form[:search].id}
+          type="search"
+          name={@form[:search].name}
+          value={@form[:search].value}
+          phx-debounce="300"
+          placeholder="Search by PID, name or initial call"
+          aria-label="Search by PID, name or initial call"
+        />
+      </label>
+
+      <div class="flex flex-wrap items-end gap-2">
+        <.labelled_field
+          field={@form[:limit]}
+          label="Limit"
+          help={"Limit of processes which are fetched from #{@node_name}"}
+          show_errors
+        >
+          <select id={@form[:limit].id} name={@form[:limit].name} class="select select-sm w-24">
+            <option
+              :for={value <- ProcessListControls.limit_options()}
+              value={value}
+              selected={to_string(value) == to_string(@form[:limit].value)}
+            >
+              {value}
+            </option>
+          </select>
+        </.labelled_field>
+
+        <.labelled_field field={@form[:timeout]} label="Timeout (ms)">
+          <.input
+            field={@form[:timeout]}
+            type="number"
+            min={elem(ProcessListControls.timeout_bounds(), 0)}
+            max={elem(ProcessListControls.timeout_bounds(), 1)}
+            step="100"
+            inputmode="numeric"
+            phx-debounce="500"
+            class="input input-sm input-bordered no-spinner font-mono w-24"
+          />
+        </.labelled_field>
+
+        <.labelled_field field={@form[:columns]} label="Columns">
+          <.multiselect
+            id="process-controls-columns"
+            name={@form[:columns].name}
+            label="Columns"
+            options={@column_options}
+            selected={List.wrap(@form[:columns].value)}
+          />
+        </.labelled_field>
+      </div>
+
+      <p :if={@pending?} id="process-controls-pending" class="text-base-content/70 basis-full text-xs">
+        <.icon name="icon-info" class="size-3.5" /> Limit and timeout apply on the next refresh.
+      </p>
+    </.form>
+    """
+  end
+
+  attr :field, Phoenix.HTML.FormField, required: true
+  attr :label, :string, required: true
+  attr :help, :string, default: nil
+
+  attr :show_errors, :boolean,
+    default: false,
+    doc: "for controls that are not an `<.input>`, which renders its own"
+
+  slot :inner_block, required: true
+
+  defp labelled_field(assigns) do
+    ~H"""
+    <div class="flex flex-col gap-1">
+      <div class="flex items-center gap-1">
+        <label for={@field.id} class="text-base-content/70 text-xs font-medium">{@label}</label>
+        <.help_tooltip :if={@help} id={"#{@field.id}-help"} text={@help} />
+      </div>
+      {render_slot(@inner_block)}
+      <p :for={{msg, _} <- @field.errors} :if={@show_errors} class="font-mono text-error text-xs">
+        {msg}
+      </p>
+    </div>
+    """
+  end
+
+  @doc """
+  Caption describing the scan behind the current rows.
+  """
+  attr :id, :string, required: true
+  attr :shown, :integer, required: true
+  attr :scanned, :integer, required: true
+
+  def scan_summary(assigns) do
+    ~H"""
+    <div id={@id} class="text-base-content/70 text-xs">
+      Fetched <span class="font-mono text-base-content">{Formatters.format_integer(@shown)}</span>
+      processes out of
+      <span class="font-mono text-base-content">{Formatters.format_integer(@scanned)}</span>
+    </div>
+    """
+  end
 
   @doc """
   Column definitions for the given selected attributes, in display order.

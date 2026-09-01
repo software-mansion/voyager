@@ -2,16 +2,14 @@ defmodule VoyagerWeb.ProcessesLive do
   @moduledoc """
   Lists the top processes of the connected node, ranked remotely.
 
-  Every refresh is a full scan of the remote process table, so auto-refresh is
-  opt-in and defaults to off. Sorting, searching, the fetch size and the chosen
-  columns all run on the remote node and therefore trigger a new fetch, while
-  paging walks the already-fetched rows locally.
+  Every fetch is a full scan of the remote process table, so nothing fetches
+  implicitly: the controls form only validates and remembers what the *next*
+  fetch will ask for, and the rows change on a manual refresh, on the
+  auto-refresh tick, or when a column is sorted.
 
-  Two separate sizes: `limit` is how many rows the remote fetches (a cost paid
-  on the node and over the wire), while `page_size` only slices those rows for
-  display. Both, plus the timeout and the selected columns, are kept in the
-  query string so a configured view survives a reload, can be shared as a link,
-  and is restored when returning from a process's details page.
+  Paging is local to whatever the last fetch returned, and is a separate
+  setting from the fetch limit — one is a display slice, the other a cost paid
+  on the node and over the wire.
   """
 
   use VoyagerWeb, :live_view
@@ -20,75 +18,41 @@ defmodule VoyagerWeb.ProcessesLive do
   alias Voyager.Queries.Processes
   alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Components.ProcessComponents
-  alias VoyagerWeb.Utils.URL
+  alias VoyagerWeb.FormSchemas.ProcessListControls
 
   require Logger
 
+  @page_sizes [10, 25, 50, 100]
+  @default_page_size 25
+
   @impl true
   def mount(_params, _session, socket) do
+    controls = ProcessListControls.default()
+    {sort_by, direction} = Processes.default_sort()
+
     socket
     |> assign(:active_nav, :processes)
     |> assign(:page_result, AsyncResult.loading())
-    |> assign(:sort_by, Processes.default_sort_by())
-    |> assign(:direction, Processes.default_direction())
-    |> assign(:limit, Processes.default_limit())
-    |> assign(:timeout, Processes.default_timeout())
-    |> assign(:search, "")
+    |> assign(:controls, controls)
+    |> assign(:form, to_form(ProcessListControls.changeset(controls), as: :controls))
+    |> assign(:fetched_with, nil)
+    |> assign(:sort_by, sort_by)
+    |> assign(:direction, direction)
     |> assign(:page, 1)
-    |> assign(:page_size, Processes.default_page_size())
-    |> assign(:selected_attrs, Processes.default_attrs())
+    |> assign(:page_size, @default_page_size)
+    |> assign(:page_sizes, @page_sizes)
     |> assign(:refresh_interval, nil)
     |> assign(:refresh_timer, nil)
     |> assign(:last_updated, nil)
-    |> assign(:params_applied?, false)
+    |> then(&if(connected?(&1), do: fetch(&1), else: &1))
     |> ok()
-  end
-
-  # The URL is the source of truth for the controls, so the first fetch waits
-  # for handle_params rather than firing with the defaults and again with the
-  # real values. Only `limit`/`timeout` reach the remote; `page_size` slices
-  # what was already fetched, so changing it must not trigger a refetch.
-  @impl true
-  def handle_params(params, _uri, socket) do
-    limit = Processes.clamp_limit(parse_integer(params["limit"], socket.assigns.limit))
-    timeout = Processes.clamp_timeout(parse_integer(params["timeout"], socket.assigns.timeout))
-
-    page_size =
-      Processes.clamp_page_size(parse_integer(params["page_size"], socket.assigns.page_size))
-
-    attrs = param_attrs(params["columns"], socket.assigns.selected_attrs)
-
-    refetch? =
-      limit != socket.assigns.limit or timeout != socket.assigns.timeout or
-        attrs != socket.assigns.selected_attrs
-
-    socket =
-      socket
-      |> assign(:limit, limit)
-      |> assign(:timeout, timeout)
-      |> assign(:page_size, page_size)
-      |> assign(:selected_attrs, attrs)
-
-    # Clamped after page_size is assigned: a larger page size means fewer pages.
-    socket = assign(socket, :page, clamp_page(socket, socket.assigns.page))
-
-    if connected?(socket) and (refetch? or not socket.assigns.params_applied?) do
-      socket
-      |> assign(:params_applied?, true)
-      |> assign(:page, 1)
-      |> fetch()
-    else
-      socket
-    end
-    |> noreply()
   end
 
   @impl true
   def render(assigns) do
     ~H"""
-    <%!-- The table's settings live in the query string; the hook mirrors them
-          to localStorage and restores them when the page is opened without
-          any, so an explicit link still wins. --%>
+    <%!-- The hook restores the saved controls on mount and stores them on every
+          change, so the page comes back configured. --%>
     <div
       id="processes-page"
       phx-hook="TableSettings"
@@ -110,27 +74,10 @@ defmodule VoyagerWeb.ProcessesLive do
         </:actions>
       </.node_header>
 
-      <DataTableComponents.info_note id="processes-info">
-        Processes are fetched from the remote node once per refresh — ranked and
-        limited on the node itself — and then paged here in the browser. Sorting,
-        searching and changing the columns or how many processes to fetch re-run
-        the scan; changing rows per page or moving between pages does not. Figures are a
-        snapshot from the last fetch, not a live view.
-      </DataTableComponents.info_note>
-
-      <DataTableComponents.toolbar
-        id="processes-toolbar"
-        search={@search}
-        search_placeholder="Search by PID, name or initial call"
-        limit={@limit}
-        limit_options={Processes.limit_options()}
-        limit_label="Limit"
-        limit_help={"Limit of processes which are fetched from #{@session.node_name}"}
-        columns_options={column_options()}
-        columns_selected={Enum.map(@selected_attrs, &to_string/1)}
-        timeout={@timeout}
-        timeout_min={elem(Processes.timeout_bounds(), 0)}
-        timeout_max={elem(Processes.timeout_bounds(), 1)}
+      <ProcessComponents.controls
+        form={@form}
+        node_name={@session.node_name}
+        pending?={pending?(@controls, @fetched_with)}
       />
 
       <%!-- Rendered outside any loading branch: a refetch swaps only the rows,
@@ -142,17 +89,17 @@ defmodule VoyagerWeb.ProcessesLive do
         message={format_error(@page_result.failed)}
       />
 
-      <DataTableComponents.scan_summary
+      <ProcessComponents.scan_summary
         :if={@page_result.ok?}
         id="processes-scan-summary"
-        shown={length(@page_result.result.entries)}
+        shown={length(entries(@page_result))}
         scanned={@page_result.result.scanned}
       />
 
       <DataTableComponents.table
         id="processes-table"
-        columns={ProcessComponents.columns(@selected_attrs)}
-        rows={rows(current_entries(@page_result), @page, @page_size)}
+        columns={ProcessComponents.columns(ProcessListControls.attrs(@controls))}
+        rows={rows(entries(@page_result), @page, @page_size)}
         sort_by={@sort_by}
         direction={@direction}
         empty_message={if @page_result.ok?, do: "No processes matched.", else: "Scanning processes…"}
@@ -162,7 +109,7 @@ defmodule VoyagerWeb.ProcessesLive do
             column={column}
             row={row}
             row_id={row_id}
-            pid_href={process_path(@session.node_name, row.pid, @current_url)}
+            pid_href={process_path(@session.node_name, row.pid)}
           />
         </:cell>
       </DataTableComponents.table>
@@ -172,14 +119,31 @@ defmodule VoyagerWeb.ProcessesLive do
         id="processes-pager"
         page={@page}
         page_size={@page_size}
-        page_size_options={Processes.page_size_options()}
-        total={length(@page_result.result.entries)}
+        page_size_options={@page_sizes}
+        total={length(entries(@page_result))}
       />
     </div>
     """
   end
 
   @impl true
+  def handle_event("validate", %{"controls" => params}, socket) do
+    socket = apply_controls(socket, params)
+
+    socket
+    |> push_event("store-settings", %{settings: settings(socket.assigns.controls, params)})
+    |> noreply()
+  end
+
+  # Restored from localStorage on mount: same validation, then a first fetch
+  # with the remembered options rather than the defaults.
+  def handle_event("restore_settings", params, socket) do
+    socket
+    |> apply_controls(params)
+    |> fetch()
+    |> noreply()
+  end
+
   def handle_event("sort", %{"key" => key}, socket) do
     key = String.to_existing_atom(key)
 
@@ -195,32 +159,20 @@ defmodule VoyagerWeb.ProcessesLive do
     |> noreply()
   end
 
-  def handle_event("search", %{"search" => search}, socket) do
-    if search == socket.assigns.search do
-      socket
-    else
-      socket
-      |> assign(:search, search)
-      |> assign(:page, 1)
-      |> fetch()
-    end
+  def handle_event("set_page_size", %{"page_size" => size}, socket) do
+    size = page_size(parse_integer(size))
+
+    socket
+    |> assign(:page_size, size)
+    |> assign(:page, clamp_page(socket, 1, size))
     |> noreply()
   end
 
-  # The table's controls are routed state: patch the URL and let
-  # handle_params/3 validate the value and trigger any refetch.
-  def handle_event("set_" <> control, params, socket)
-      when control in ~w(limit page_size timeout) do
-    socket
-    |> push_patch(to: controls_path(socket, %{control => params[control]}))
-    |> noreply()
-  end
-
-  def handle_event("set_columns", params, socket) do
-    columns = params |> Map.get("columns", []) |> Enum.join(",")
+  def handle_event("paginate", %{"page" => page}, socket) do
+    page = parse_integer(page) || socket.assigns.page
 
     socket
-    |> push_patch(to: controls_path(socket, %{"columns" => columns}))
+    |> assign(:page, clamp_page(socket, page, socket.assigns.page_size))
     |> noreply()
   end
 
@@ -237,16 +189,11 @@ defmodule VoyagerWeb.ProcessesLive do
     |> noreply()
   end
 
-  def handle_event("paginate", %{"page" => page}, socket) do
-    socket
-    |> assign(:page, clamp_page(socket, parse_integer(page, socket.assigns.page)))
-    |> noreply()
-  end
-
   @impl true
   def handle_info(:auto_refresh, socket) do
     socket = restart_refresh_timer(socket)
 
+    # A tick while a scan is still running is dropped rather than queued.
     if socket.assigns.page_result.loading do
       socket
     else
@@ -279,23 +226,25 @@ defmodule VoyagerWeb.ProcessesLive do
     |> noreply()
   end
 
+  defp apply_controls(socket, params) do
+    {controls, changeset} = ProcessListControls.apply(socket.assigns.controls, params)
+
+    socket
+    |> assign(:controls, controls)
+    |> assign(:form, to_form(changeset, as: :controls))
+    |> assign(:page, 1)
+  end
+
   defp fetch(socket) do
-    %{session: session, sort_by: sort_by, direction: direction} = socket.assigns
-    %{limit: limit, timeout: timeout, search: search} = socket.assigns
-    attrs = socket.assigns.selected_attrs
+    %{session: session, controls: controls, sort_by: sort_by, direction: direction} =
+      socket.assigns
 
     # The previous result stays assigned while a refetch runs, so the table
-    # keeps its rows instead of being torn down and rebuilt (which flickered).
+    # keeps its rows instead of being torn down and rebuilt.
     socket
+    |> assign(:fetched_with, controls)
     |> start_async(:page_result, fn ->
-      case Processes.page(session.node,
-             sort_by: sort_by,
-             direction: direction,
-             limit: limit,
-             timeout: timeout,
-             search: search,
-             attrs: attrs
-           ) do
+      case Processes.page(session.node, controls, {sort_by, direction}) do
         {:ok, page} ->
           {:ok, page}
 
@@ -309,13 +258,26 @@ defmodule VoyagerWeb.ProcessesLive do
     end)
   end
 
-  # `return_to` carries the list's query string so the details page can come back
-  # to the configured view.
-  defp process_path(node_name, pid, current_url) do
-    pid_string = Processes.format_pid(pid)
+  # `fetched_with` is what the options were when the current rows arrived, so a
+  # difference means a refresh would return something else.
+  defp pending?(_controls, nil), do: false
 
-    ~p"/node/#{node_name}/processes/#{pid_string}?#{[return_to: current_url]}"
+  defp pending?(controls, fetched_with),
+    do: ProcessListControls.fetch_differs?(controls, fetched_with)
+
+  # Stored as submitted rather than as applied: an invalid value the user is
+  # still typing should not be silently replaced on the next visit.
+  defp settings(%ProcessListControls{} = controls, params) do
+    %{
+      "search" => params["search"] || controls.search,
+      "limit" => to_string(controls.limit),
+      "timeout" => to_string(controls.timeout),
+      "columns" => controls.columns
+    }
   end
+
+  defp entries(%AsyncResult{ok?: true, result: %{entries: entries}}), do: entries
+  defp entries(_page_result), do: []
 
   # The remote already returned them ranked; paging only walks that result.
   defp rows(entries, page, page_size) do
@@ -328,13 +290,13 @@ defmodule VoyagerWeb.ProcessesLive do
   # `<0.123.0>` is not a usable DOM id or CSS selector, so reduce a pid to its
   # digits: `process-0-123-0`.
   def row_dom_id(pid) when is_pid(pid) do
-    digits =
-      pid
-      |> Processes.format_pid()
-      |> String.replace(~r/[^\d]+/, "-")
-      |> String.trim("-")
+    digits = pid |> Processes.format_pid() |> String.replace(~r/[^\d]+/, "-") |> String.trim("-")
 
     "process-#{digits}"
+  end
+
+  defp process_path(node_name, pid) do
+    ~p"/node/#{node_name}/processes/#{Processes.format_pid(pid)}"
   end
 
   # Re-selecting the active column flips the direction; a new column starts
@@ -343,49 +305,28 @@ defmodule VoyagerWeb.ProcessesLive do
   defp toggle_direction(%{assigns: %{sort_by: key}}, key) when is_atom(key), do: :desc
   defp toggle_direction(_socket, _key), do: :desc
 
-  defp clamp_page(socket, page) do
-    total =
-      case socket.assigns.page_result do
-        %AsyncResult{ok?: true, result: %{entries: entries}} -> length(entries)
-        _ -> 0
-      end
-
-    clamp_page_to(page, total, socket.assigns.page_size)
+  defp clamp_page(socket, page, page_size) do
+    clamp_page_to(page, length(entries(socket.assigns.page_result)), page_size)
   end
 
   defp clamp_page_to(page, total, page_size) do
-    total_pages = max(div(total + page_size - 1, page_size), 1)
-
-    page |> max(1) |> min(total_pages)
+    page |> max(1) |> min(max(div(total + page_size - 1, page_size), 1))
   end
 
-  defp parse_integer(value, fallback) when is_binary(value) do
+  defp parse_integer(value) when is_binary(value) do
     case Integer.parse(value) do
       {int, ""} -> int
-      _ -> fallback
-    end
-  end
-
-  defp parse_integer(_value, fallback), do: fallback
-
-  # `{value, label, locked?}` triples for the columns multiselect, required
-  # attributes first so they read as the fixed part of the selection.
-  defp column_options do
-    Enum.map(Processes.required_attrs(), &column_option(&1, true)) ++
-      Enum.map(Processes.optional_attrs(), &column_option(&1, false))
-  end
-
-  defp column_option(attr, locked?),
-    do: {to_string(attr), ProcessComponents.column_label(attr), locked?}
-
-  defp parse_interval("off"), do: nil
-
-  defp parse_interval(value) do
-    case Integer.parse(value) do
-      {ms, ""} when ms > 0 -> ms
       _ -> nil
     end
   end
+
+  defp parse_integer(_value), do: nil
+
+  defp page_size(size) when size in @page_sizes, do: size
+  defp page_size(_size), do: @default_page_size
+
+  defp parse_interval("off"), do: nil
+  defp parse_interval(value), do: parse_integer(value)
 
   defp restart_refresh_timer(socket) do
     if timer = socket.assigns.refresh_timer, do: Process.cancel_timer(timer)
@@ -394,28 +335,6 @@ defmodule VoyagerWeb.ProcessesLive do
       nil -> assign(socket, :refresh_timer, nil)
       ms -> assign(socket, :refresh_timer, Process.send_after(self(), :auto_refresh, ms))
     end
-  end
-
-  # Columns arrive as a comma-separated query param. Names come from the client,
-  # so only known ones are converted rather than creating arbitrary atoms.
-  defp param_attrs(nil, fallback), do: Processes.clamp_attrs(fallback)
-
-  defp param_attrs(value, _fallback) when is_binary(value) do
-    known = Processes.required_attrs() ++ Processes.optional_attrs()
-
-    value
-    |> String.split(",", trim: true)
-    |> Enum.map(fn name -> Enum.find(known, &(to_string(&1) == name)) end)
-    |> Processes.clamp_attrs()
-  end
-
-  # Rows survive a refetch: the previous result stays assigned until the new
-  # one lands.
-  defp current_entries(%AsyncResult{ok?: true, result: %{entries: entries}}), do: entries
-  defp current_entries(_page_result), do: []
-
-  defp controls_path(socket, params) do
-    URL.put_query_params(socket.assigns.current_url, params)
   end
 
   defp format_error(:timeout),

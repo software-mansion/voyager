@@ -3,22 +3,21 @@ defmodule Voyager.Queries.Processes do
   Read queries for the process list and process details of a remote node.
 
   Wraps `Voyager.Services.ProcessList` and `Voyager.Services.ProcessInfo` with
-  the shape the UI needs: a validated set of options, a `page/2` result carrying
-  the scan metadata the list page surfaces, and pid parsing/formatting so
-  LiveViews never touch `:erlang.list_to_pid/1` themselves.
+  the shape the UI needs: `page/3` takes the already-validated
+  `VoyagerWeb.FormSchemas.ProcessListControls` and returns the rows with the
+  scan metadata the list page surfaces, plus pid parsing/formatting so LiveViews
+  never touch `:erlang.list_to_pid/1` themselves.
 
-  Ranking, searching and truncation all run remotely, so `page/2` returns at
-  most `limit` entries out of `scanned` walked processes.
+  Ranking, searching and truncation all run remotely, so `page/3` returns at
+  most `limit` entries out of `scanned` walked processes. Paging is the
+  caller's: every fetched row comes back.
   """
 
   alias Voyager.Services.ProcessInfo
   alias Voyager.Services.ProcessList
+  alias VoyagerWeb.FormSchemas.ProcessListControls
 
   @sortable ~w(memory reductions message_queue_len)a
-
-  @limits [25, 50, 100, 250, 500, 1_000]
-
-  @default_limit 100
 
   # Always fetched and always shown: `pid` identifies the row and `memory` is
   # the default ranking, so neither can be turned off.
@@ -38,19 +37,9 @@ defmodule Voyager.Queries.Processes do
     {"60s", "60000"}
   ]
 
-  @page_sizes [10, 25, 50, 100]
-
-  @default_page_size 25
-
   @default_sort_by :memory
 
   @default_direction :desc
-
-  @default_timeout 5_000
-
-  @min_timeout 1_000
-
-  @max_timeout 30_000
 
   @type entry :: %{required(:pid) => pid(), optional(atom()) => term()}
 
@@ -60,22 +49,13 @@ defmodule Voyager.Queries.Processes do
           fetched_at: DateTime.t()
         }
 
-  @type opts :: [
-          sort_by: atom(),
-          direction: ProcessList.direction(),
-          limit: pos_integer(),
-          timeout: timeout(),
-          search: String.t() | nil,
-          attrs: [atom()]
-        ]
+  @doc "Default `{sort_by, direction}` for a fresh table."
+  @spec default_sort() :: {atom(), ProcessList.direction()}
+  def default_sort, do: {@default_sort_by, @default_direction}
 
   @doc "Attributes the remote can rank on."
   @spec sortable_attrs() :: [atom()]
   def sortable_attrs, do: @sortable
-
-  @doc "Selectable values for the number of processes fetched from the remote."
-  @spec limit_options() :: [pos_integer()]
-  def limit_options, do: @limits
 
   @doc "Attributes that are always fetched and cannot be deselected."
   @spec required_attrs() :: [atom()]
@@ -105,84 +85,44 @@ defmodule Voyager.Queries.Processes do
 
   def clamp_attrs(_attrs), do: clamp_attrs(@default_attrs)
 
-  @doc "Selectable values for how many fetched rows are shown per page."
-  @spec page_size_options() :: [pos_integer()]
-  def page_size_options, do: @page_sizes
-
-  @spec default_page_size() :: pos_integer()
-  def default_page_size, do: @default_page_size
-
   @doc """
-  Coerces `value` to a selectable page size, falling back to the default.
+  Fetches the ranked processes `controls` asks for from `node`.
+
+  The controls are already validated, so this only translates them into the
+  remote call. `sort` is separate: it is a table interaction rather than a form
+  field. Returns `{:ok, page}` or `{:error, reason}`.
   """
-  @spec clamp_page_size(term()) :: pos_integer()
-  def clamp_page_size(value) when value in @page_sizes, do: value
-  def clamp_page_size(_value), do: @default_page_size
-
-  @spec default_limit() :: pos_integer()
-  def default_limit, do: @default_limit
-
-  @spec default_sort_by() :: atom()
-  def default_sort_by, do: @default_sort_by
-
-  @spec default_direction() :: ProcessList.direction()
-  def default_direction, do: @default_direction
-
-  @spec default_timeout() :: pos_integer()
-  def default_timeout, do: @default_timeout
-
-  @doc "Inclusive bounds for the user-settable request timeout, in milliseconds."
-  @spec timeout_bounds() :: {pos_integer(), pos_integer()}
-  def timeout_bounds, do: {@min_timeout, @max_timeout}
-
-  @doc """
-  Coerces `value` to a selectable limit, falling back to the default.
-
-  Callers take the limit from user-editable input (a query param), so it is
-  normalized here rather than at each call site.
-  """
-  @spec clamp_limit(term()) :: pos_integer()
-  def clamp_limit(value), do: limit(value)
-
-  @doc """
-  Clamps `value` into `timeout_bounds/0`, falling back to the default when it is
-  not an integer.
-  """
-  @spec clamp_timeout(term()) :: pos_integer()
-  def clamp_timeout(value), do: timeout(value)
-
-  @doc """
-  Fetches a ranked page of processes from `node`.
-
-  Returns `{:ok, page}` or `{:error, reason}`. Unknown options fall back to the
-  defaults, and `timeout` is clamped into `timeout_bounds/0` so a caller cannot
-  tie up the connection indefinitely.
-  """
-  @spec page(node(), opts()) :: {:ok, page()} | {:error, term()}
-  def page(node, opts \\ []) do
-    sort_by = sort_by(opts[:sort_by])
-    direction = direction(opts[:direction])
-    limit = limit(opts[:limit])
-    timeout = timeout(opts[:timeout])
-    search = search(opts[:search])
-    # `pid` comes back on every entry regardless, so it is not requested.
-    attrs = opts |> Keyword.get(:attrs) |> clamp_attrs() |> Enum.reject(&(&1 == :pid))
+  @spec page(node(), ProcessListControls.t(), {atom(), ProcessList.direction()}) ::
+          {:ok, page()} | {:error, term()}
+  def page(
+        node,
+        %ProcessListControls{} = controls,
+        sort \\ {@default_sort_by, @default_direction}
+      ) do
+    {sort_by, direction} = sort
+    attrs = controls |> ProcessListControls.attrs() |> Enum.reject(&(&1 == :pid))
 
     simulate_latency()
 
-    case ProcessList.top(node, attrs, sort_by, limit, timeout, direction, search) do
+    case ProcessList.top(
+           node,
+           attrs,
+           sort_by(sort_by),
+           controls.limit,
+           controls.timeout,
+           direction(direction),
+           search(controls.search)
+         ) do
       {:ok, {entries, scanned}} ->
-        {:ok,
-         %{
-           entries: entries,
-           scanned: scanned,
-           fetched_at: DateTime.utc_now()
-         }}
+        {:ok, %{entries: entries, scanned: scanned, fetched_at: DateTime.utc_now()}}
 
       {:error, reason} ->
         {:error, reason}
     end
   end
+
+  defp search(""), do: nil
+  defp search(value), do: value
 
   @doc """
   Fetches full details for a single process, verifying it is still alive.
@@ -232,21 +172,4 @@ defmodule Voyager.Queries.Processes do
 
   defp direction(value) when value in [:asc, :desc], do: value
   defp direction(_value), do: @default_direction
-
-  defp limit(value) when value in @limits, do: value
-  defp limit(_value), do: @default_limit
-
-  defp timeout(value) when is_integer(value),
-    do: value |> max(@min_timeout) |> min(@max_timeout)
-
-  defp timeout(_value), do: @default_timeout
-
-  defp search(value) when is_binary(value) do
-    case String.trim(value) do
-      "" -> nil
-      trimmed -> trimmed
-    end
-  end
-
-  defp search(_value), do: nil
 end
