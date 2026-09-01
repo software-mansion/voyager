@@ -4,16 +4,16 @@ defmodule Voyager.Test.EtsSanitizeFixture do
   VOY-230 Erlang truncator. Expected values are written out, not computed.
   """
 
-  @marker :"$voyager_truncated"
-  @binary_limit 512
-  @collection_limit 50
+  alias Voyager.Services.Ets.Sanitize
 
-  @spec marker() :: :"$voyager_truncated"
-  def marker, do: @marker
+  @marker Sanitize.marker()
+  @binary_limit Sanitize.max_binary_bytes()
+  @collection_limit Sanitize.max_collection()
 
   @doc """
   Sample terms covering binary overflow, collection overflow, depth, nested
-  mix, already-truncated leaves, and keys that must not be redacted.
+  mix, already-truncated leaves, non-binary bitstrings, and keys that must
+  not be redacted.
   """
   @spec samples() :: [{term(), term()}]
   def samples do
@@ -25,7 +25,9 @@ defmodule Voyager.Test.EtsSanitizeFixture do
       depth_cap(),
       nested_mix(),
       already_truncated_leaf(),
-      no_redaction()
+      no_redaction(),
+      bitstring_under_cap(),
+      bitstring_overflow()
     ]
   end
 
@@ -91,5 +93,19 @@ defmodule Voyager.Test.EtsSanitizeFixture do
   defp no_redaction do
     input = %{password: "hunter2", token: "abc", api_key: "k"}
     {input, input}
+  end
+
+  defp bitstring_under_cap do
+    input = <<1::4>>
+    expected = {@marker, :binary, <<1::4, 0::4>>, 1}
+    {input, expected}
+  end
+
+  defp bitstring_overflow do
+    input = <<0::size(600 * 8 + 1)>>
+    padded = <<input::bitstring, 0::size(7)>>
+    prefix = binary_part(padded, 0, @binary_limit)
+    expected = {@marker, :binary, prefix, 601}
+    {input, expected}
   end
 end

@@ -70,9 +70,12 @@ defmodule Voyager.Services.Ets.Sanitize do
     end
   end
 
-  defp sanitize_value(bits, _depth) when is_bitstring(bits) do
-    size = div(bit_size(bits) + 7, 8)
-    {@marker, :binary, <<>>, size}
+  defp sanitize_value(bits, _depth) when is_bitstring(bits) and not is_binary(bits) do
+    pad = 8 - rem(bit_size(bits), 8)
+    padded = <<bits::bitstring, 0::size(pad)>>
+    size = byte_size(padded)
+    prefix = binary_part(padded, 0, min(size, @max_binary_bytes))
+    {@marker, :binary, prefix, size}
   end
 
   defp sanitize_value(list, depth) when is_list(list) do

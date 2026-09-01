@@ -22,6 +22,13 @@ defmodule Voyager.Services.Ets.SanitizeTest do
       assert Sanitize.term(term) == term
     end
 
+    test "exposes the VOY-230 caps" do
+      assert Sanitize.max_binary_bytes() == 512
+      assert Sanitize.max_collection() == 50
+      assert Sanitize.max_depth() == 5
+      assert Sanitize.marker() == :"$voyager_truncated"
+    end
+
     test "keeps atoms, numbers, pids, refs, ports, and functions" do
       fun = &Function.identity/1
       pid = self()

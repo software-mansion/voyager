@@ -237,6 +237,19 @@ defmodule Voyager.Services.Ets.RemoteTest do
 
       assert {:error, {:remote_exception, :badarg}} = Remote.info(@node, :t, @timeout)
     end
+
+    test "does not call :voyager_agent" do
+      test = self()
+
+      expect(Voyager.ErpcMock, :call, fn _node, mod, fun, _args, _timeout ->
+        send(test, {:called, mod, fun})
+        :undefined
+      end)
+
+      assert {:error, :not_found} = Remote.info(@node, :t, @timeout)
+      assert_received {:called, :ets, :info}
+      refute_received {:called, :voyager_agent, _}
+    end
   end
 
   defp stub_list(ids, word_size, infos) do
