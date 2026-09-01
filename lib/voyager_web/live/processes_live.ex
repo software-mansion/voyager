@@ -16,6 +16,7 @@ defmodule VoyagerWeb.ProcessesLive do
 
   alias Phoenix.LiveView.AsyncResult
   alias Voyager.Queries.Processes
+  alias Voyager.Services.RateLimiter
   alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Components.ProcessComponents
   alias VoyagerWeb.FormSchemas.ProcessListControls
@@ -227,7 +228,7 @@ defmodule VoyagerWeb.ProcessesLive do
     if socket.assigns.page_result.loading do
       socket
     else
-      fetch(socket)
+      fetch(socket, :low)
     end
     |> noreply()
   end
@@ -243,6 +244,12 @@ defmodule VoyagerWeb.ProcessesLive do
       :page,
       clamp_page_to(socket.assigns.page, length(page.entries), socket.assigns.page_size)
     )
+    |> noreply()
+  end
+
+  def handle_async(:page_result, {:ok, :skipped}, socket) do
+    socket
+    |> assign(:page_result, %{socket.assigns.page_result | loading: nil})
     |> noreply()
   end
 
@@ -268,7 +275,10 @@ defmodule VoyagerWeb.ProcessesLive do
     |> assign(:page, 1)
   end
 
-  defp fetch(socket) do
+  # Manual actions, sorting and control changes are explicit user intent
+  # (:high); only the background auto-refresh tick yields as :low, per the
+  # rate limiter's contract.
+  defp fetch(socket, priority \\ :high) do
     %{session: session, controls: controls, sort_by: sort_by, direction: direction} =
       socket.assigns
 
@@ -277,18 +287,26 @@ defmodule VoyagerWeb.ProcessesLive do
     socket
     |> assign(:page_result, AsyncResult.loading(socket.assigns.page_result))
     |> start_async(:page_result, fn ->
-      case Processes.page(session.node, controls, {sort_by, direction}) do
-        {:ok, page} ->
-          {:ok, page, controls}
-
-        {:error, reason} ->
-          Logger.warning(
-            "Failed to list processes on #{inspect(session.node)}: #{inspect(reason)}"
-          )
-
-          {:error, reason}
-      end
+      run_fetch(priority, session.node, controls, {sort_by, direction})
     end)
+  end
+
+  defp run_fetch(priority, node, controls, sort) do
+    case RateLimiter.run(priority, fn -> Processes.page(node, controls, sort) end) do
+      {:ok, {:ok, page}, _elapsed_us} ->
+        {:ok, page, controls}
+
+      {:ok, {:error, reason}, _elapsed_us} ->
+        Logger.warning("Failed to list processes on #{inspect(node)}: #{inspect(reason)}")
+        {:error, reason}
+
+      {:error, :rate_limited, _retry_after_ms} when priority == :low ->
+        # A skipped background refresh is not an error; the next tick retries.
+        :skipped
+
+      {:error, :rate_limited, retry_after_ms} ->
+        {:error, {:rate_limited, retry_after_ms}}
+    end
   end
 
   # Collapses a burst of control changes into one fetch: each change restarts
@@ -390,6 +408,9 @@ defmodule VoyagerWeb.ProcessesLive do
       ms -> assign(socket, :refresh_timer, Process.send_after(self(), :auto_refresh, ms))
     end
   end
+
+  defp format_error({:rate_limited, retry_after_ms}),
+    do: "Too many requests to the node. Try again in #{Float.ceil(retry_after_ms / 1_000, 1)}s."
 
   defp format_error(:timeout),
     do: "Timed out while scanning processes. Try a longer timeout or fewer processes."

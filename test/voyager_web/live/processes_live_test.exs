@@ -683,6 +683,42 @@ defmodule VoyagerWeb.ProcessesLiveTest do
     end
   end
 
+  describe "rate limiting" do
+    # Empties both buckets on the app's limiter, restoring them afterwards.
+    defp drain_limiter do
+      limiter = Voyager.Services.RateLimiter
+      previous = :sys.get_state(limiter)
+      :sys.replace_state(limiter, fn state -> %{state | tokens_high: 0, tokens_low: 0} end)
+      on_exit(fn -> :sys.replace_state(limiter, fn _ -> previous end) end)
+    end
+
+    test "a refused manual refresh tells the user to retry", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      drain_limiter()
+      view |> element("#processes-refresh-interval-refresh-now-button") |> render_click()
+      render_async(view)
+
+      assert view |> element("#processes-error") |> render() =~ "Try again in"
+    end
+
+    test "a refused auto-refresh tick is silent and keeps the rows", %{conn: conn} do
+      [pid] = fake_pids(1)
+      stub_scan([entry(pid: pid)])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      drain_limiter()
+      send(view.pid, :auto_refresh)
+      render_async(view)
+
+      refute has_element?(view, "#processes-error")
+      assert has_element?(view, "##{ProcessesLive.row_dom_id(pid)}")
+    end
+  end
+
   describe "manual refresh" do
     test "refetches on demand", %{conn: conn} do
       stub_scan([])

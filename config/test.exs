@@ -32,3 +32,7 @@ config :phoenix, :plug_init_mode, :runtime
 config :phoenix_live_view, enable_expensive_runtime_checks: true
 
 config :phoenix, sort_verified_routes_query_params: true
+
+# The limiter is a global bucket; the suite's many fast fetches must not drain
+# it and fail unrelated tests.
+config :voyager, :rate_limiter_config, %{high_capacity: 1_000_000, low_capacity: 1_000_000}
