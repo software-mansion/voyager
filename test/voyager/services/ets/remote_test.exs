@@ -3,6 +3,7 @@ defmodule Voyager.Services.Ets.RemoteTest do
 
   import Mox
 
+  alias Voyager.Erpc
   alias Voyager.Services.Ets.Remote
 
   setup :verify_on_exit!
@@ -106,8 +107,9 @@ defmodule Voyager.Services.Ets.RemoteTest do
       assert {:ok, []} = Remote.list(@node, @timeout)
     end
 
-    test "defaults the timeout to 5_000 ms" do
-      expect(Voyager.ErpcMock, :call, fn @node, :ets, :all, [], 5_000 -> [] end)
+    test "defaults the timeout to Erpc.default_timeout/0" do
+      timeout = Erpc.default_timeout()
+      expect(Voyager.ErpcMock, :call, fn @node, :ets, :all, [], ^timeout -> [] end)
 
       assert {:ok, []} = Remote.list(@node)
     end

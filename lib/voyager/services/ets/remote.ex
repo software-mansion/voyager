@@ -14,8 +14,6 @@ defmodule Voyager.Services.Ets.Remote do
   alias Voyager.Erpc
   alias Voyager.Services.Ets.TableId
 
-  @default_timeout 5_000
-
   @type protection :: :public | :protected | :private
   @type table_type :: :set | :ordered_set | :bag | :duplicate_bag
 
@@ -41,10 +39,10 @@ defmodule Voyager.Services.Ets.Remote do
 
   Tables that disappear between `:ets.all/0` and `:ets.info/1` (`:undefined`)
   or return malformed info are dropped. `timeout` bounds each `:erpc` call
-  and defaults to 5_000 ms.
+  and defaults to `Erpc.default_timeout/0`.
   """
   @spec list(node(), timeout()) :: {:ok, [table_info()]} | {:error, term()}
-  def list(node, timeout \\ @default_timeout) do
+  def list(node, timeout \\ Erpc.default_timeout()) do
     case Erpc.safe_call(node, :ets, :all, [], timeout) do
       {:ok, ids} when is_list(ids) -> fetch_infos(node, ids, timeout)
       {:ok, _} -> {:error, :invalid_response}
@@ -59,7 +57,7 @@ defmodule Voyager.Services.Ets.Remote do
   Returns `{:error, :not_found}` when `:ets.info/1` is `:undefined`.
   """
   @spec info(node(), TableId.t(), timeout()) :: {:ok, table_info()} | {:error, term()}
-  def info(node, table, timeout \\ @default_timeout)
+  def info(node, table, timeout \\ Erpc.default_timeout())
 
   def info(node, table, timeout) when is_atom(table) or is_reference(table) do
     with {:ok, info} when is_list(info) <- Erpc.safe_call(node, :ets, :info, [table], timeout),

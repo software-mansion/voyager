@@ -162,6 +162,32 @@ defmodule Voyager.Services.Ets.TableIdTest do
       assert {:error, :invalid_name} = TableId.existing_atom(@node, ":", @timeout)
     end
 
+    test "rejects a name longer than 255 characters without touching the remote" do
+      assert {:error, :invalid_name} =
+               TableId.existing_atom(@node, String.duplicate("a", 256), @timeout)
+    end
+
+    test "interns a 255-character name on the target" do
+      name = String.duplicate("a", 255)
+      chars = String.to_charlist(name)
+
+      expect(Voyager.ErpcMock, :call, fn @node,
+                                         :erlang,
+                                         :list_to_existing_atom,
+                                         [^chars],
+                                         @timeout ->
+        :t
+      end)
+
+      assert {:ok, :t} = TableId.existing_atom(@node, name, @timeout)
+    end
+
+    test "rejects an alias whose Elixir. form exceeds 255 characters without touching the remote" do
+      name = "A" <> String.duplicate("x", 248)
+
+      assert {:error, :invalid_name} = TableId.existing_atom(@node, name, @timeout)
+    end
+
     test "maps a remote badarg to :not_found" do
       expect(Voyager.ErpcMock, :call, fn _, _, _, _, _ ->
         :erlang.error({:exception, :badarg, []})

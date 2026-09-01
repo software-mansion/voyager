@@ -7,6 +7,14 @@ defmodule Voyager.ErpcTest do
 
   setup :verify_on_exit!
 
+  describe "safe_call/4" do
+    test "defaults the timeout to default_timeout/0" do
+      timeout = Erpc.default_timeout()
+      expect(Voyager.ErpcMock, :call, fn :n, :m, :f, [], ^timeout -> :ok end)
+      assert {:ok, :ok} = Erpc.safe_call(:n, :m, :f, [])
+    end
+  end
+
   describe "safe_call/5" do
     test "wraps a successful remote result" do
       expect(Voyager.ErpcMock, :call, fn :n, :m, :f, [], 1_000 -> :ok end)

@@ -12,6 +12,8 @@ defmodule Voyager.Services.Ets.TableId do
 
   alias Voyager.Erpc
 
+  @max_atom_chars 255
+
   @type t :: atom() | reference()
 
   @doc """
@@ -79,8 +81,10 @@ defmodule Voyager.Services.Ets.TableId do
   A leading Elixir colon (`":foo"`) is stripped so inspect-forms of simple
   atoms can be typed without a prior `all`. Alias inspect-forms (`"MyApp.Cache"`)
   are interned as `:"Elixir.MyApp.Cache"`; a string that already starts with
-  `"Elixir."` is left as-is. Returns `{:error, :not_found}` when the atom is
-  not interned on the target.
+  `"Elixir."` is left as-is. Names whose interned form exceeds 255 characters
+  (Erlang's atom limit) return `{:error, :invalid_name}` without an `:erpc`
+  call. Returns `{:error, :not_found}` when the atom is not interned on the
+  target.
   """
   @spec existing_atom(node(), String.t(), timeout()) :: {:ok, atom()} | {:error, term()}
   def existing_atom(node, name, timeout) when is_binary(name) do
@@ -105,6 +109,8 @@ defmodule Voyager.Services.Ets.TableId do
   defp reference_inspect?(<<"#Ref", _::binary>>), do: true
   defp reference_inspect?(_), do: false
 
+  defp atom_charlist(name) when byte_size(name) > @max_atom_chars * 4 + 8, do: :invalid
+
   defp atom_charlist(name) do
     case String.trim(name) do
       "" -> :invalid
@@ -118,9 +124,12 @@ defmodule Voyager.Services.Ets.TableId do
   defp alias_name(<<c, _::binary>> = name) when c in ?A..?Z, do: "Elixir." <> name
   defp alias_name(name), do: name
 
+  defp chars_or_invalid(name) when byte_size(name) > @max_atom_chars * 4, do: :invalid
+
   defp chars_or_invalid(name) do
     case String.to_charlist(name) do
       [] -> :invalid
+      chars when length(chars) > @max_atom_chars -> :invalid
       chars -> chars
     end
   end
