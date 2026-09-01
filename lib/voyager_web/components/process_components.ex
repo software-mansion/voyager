@@ -12,6 +12,10 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.ProcessListControls
 
+  # Shown when a process has no value for a column; `value_cell/1` matches on it
+  # to explain the gap rather than offering it to copy.
+  @placeholder "—"
+
   # Ordered as they appear in the table. Fixed widths on the numeric columns
   # keep values that change every refresh from shifting the layout.
   @columns [
@@ -267,13 +271,18 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   attr :class, :any, default: nil
 
   def value_cell(assigns) do
+    assigns = assign(assigns, :empty?, assigns.value == @placeholder)
+
     ~H"""
     <.tooltip id={"#{@id}-tip"} interactive class="min-w-0 max-w-full" tip_class="font-mono">
       <span class={["font-mono block truncate text-sm", @muted && "text-base-content/70", @class]}>
         {@value}
       </span>
       <:content>
-        <div class="flex items-center gap-1">
+        <%!-- Nothing to read or copy when the process has no value here, so the
+              tooltip says that instead of offering an em dash. --%>
+        <span :if={@empty?} class="text-base-content/70">Not set</span>
+        <div :if={not @empty?} class="flex items-center gap-1">
           <span id={"#{@id}-copy-text"}>{@value}</span>
           <.copy_button
             id={"#{@id}-copy"}
@@ -340,22 +349,22 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   @spec format_name(term()) :: String.t()
   def format_name(name) when is_atom(name) and not is_nil(name), do: inspect(name)
   def format_name([name | _rest]), do: inspect(name)
-  def format_name(_name), do: "—"
+  def format_name(_name), do: @placeholder
 
   @doc """
   Formats an MFA tuple as `Module.function/arity`.
   """
   @spec format_mfa(term()) :: String.t()
   def format_mfa({mod, fun, arity}), do: "#{inspect(mod)}.#{fun}/#{arity}"
-  def format_mfa(nil), do: "—"
+  def format_mfa(nil), do: @placeholder
   def format_mfa(other), do: inspect(other)
 
-  defp format_atom(nil), do: "—"
+  defp format_atom(nil), do: @placeholder
   defp format_atom(value) when is_atom(value), do: to_string(value)
   defp format_atom(value), do: inspect(value)
 
   defp format_number(n) when is_integer(n), do: Formatters.format_integer(n)
-  defp format_number(_n), do: "—"
+  defp format_number(_n), do: @placeholder
 
   # A backed-up mailbox is the signal most worth spotting at a glance.
   defp queue_warning?(len) when is_integer(len), do: len > 0

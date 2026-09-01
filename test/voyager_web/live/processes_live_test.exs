@@ -244,6 +244,21 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       assert row |> String.split("<a ") |> length() == 2
     end
 
+    test "an empty value says so instead of offering an em dash to copy", %{conn: conn} do
+      [pid] = fake_pids(1)
+      stub_scan([entry(pid: pid, registered_name: [])])
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      row_id = ProcessesLive.row_dom_id(pid)
+      html = render(view)
+
+      assert html =~ "Not set"
+      # No copy affordance for a value that is not there.
+      refute html =~ ~s|id="#{row_id}-name-copy"|
+    end
+
     test "every cell offers a tooltip with a copy button", %{conn: conn} do
       [pid] = fake_pids(1)
       stub_scan([entry(pid: pid, registered_name: :my_worker)])
