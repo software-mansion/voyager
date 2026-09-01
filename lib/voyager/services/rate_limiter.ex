@@ -36,18 +36,10 @@ defmodule Voyager.Services.RateLimiter do
   Runs the given function if the rate limit for the specified priority allows it.
   Returns `{:ok, result, elapsed_us}` on success, or `{:error, :rate_limited, retry_after_ms}`.
   """
-  @spec run(priority(), (-> result)) ::
-          {:ok, result, non_neg_integer()} | {:error, :rate_limited, non_neg_integer()}
-  def run(priority, fun) when priority in [:high, :low] and is_function(fun, 0) do
-    run(__MODULE__, priority, fun)
-  end
-
-  @doc """
-  Like `run/2`, but targets a specific named server.
-  """
   @spec run(GenServer.server(), priority(), (-> result)) ::
           {:ok, result, non_neg_integer()} | {:error, :rate_limited, non_neg_integer()}
-  def run(server, priority, fun) when priority in [:high, :low] and is_function(fun, 0) do
+  def run(server \\ __MODULE__, priority, fun)
+      when priority in [:high, :low] and is_function(fun, 0) do
     case GenServer.call(server, {:acquire, priority}) do
       :ok ->
         start = System.monotonic_time(:microsecond)
