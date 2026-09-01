@@ -1,14 +1,9 @@
 defmodule Voyager.Services.Ets.Remote do
   @moduledoc """
-  Fetches ETS **table metadata** from a remote node via OTP MFA (`Voyager.Erpc`).
+  Fetches ETS table metadata from a remote node via `Voyager.Erpc`.
 
-  Listing is cheap and bounded: one `:ets.all/0` and one `:lists.map` of
-  `:ets.info/1`. Record payloads (`select` / `lookup`) are out of scope.
-  This module does not inject or call `:voyager_agent`.
-
-  `:ets.info/1` includes **private** tables; they are flagged via
-  `protection: :private` and are not omitted. `memory` is converted to
-  **bytes** using the target's `:erlang.system_info(:wordsize)`.
+  `:ets.info/1` includes private tables (`protection: :private`). `memory` is
+  in bytes, using the target's `:erlang.system_info(:wordsize)`.
   """
 
   alias Voyager.Erpc
@@ -38,8 +33,7 @@ defmodule Voyager.Services.Ets.Remote do
   Returns metadata for every live ETS table on `node`.
 
   Tables that disappear between `:ets.all/0` and `:ets.info/1` (`:undefined`)
-  or return malformed info are dropped. `timeout` bounds each `:erpc` call
-  and defaults to `Erpc.default_timeout/0`.
+  or return malformed info are dropped.
   """
   @spec list(node(), timeout()) :: {:ok, [table_info()]} | {:error, term()}
   def list(node, timeout \\ Erpc.default_timeout()) do
@@ -53,7 +47,6 @@ defmodule Voyager.Services.Ets.Remote do
   @doc """
   Returns metadata for a single table on `node`.
 
-  `table` is a name atom or a live `reference()` from a prior `list/2`.
   Returns `{:error, :not_found}` when `:ets.info/1` is `:undefined`.
   """
   @spec info(node(), TableId.t(), timeout()) :: {:ok, table_info()} | {:error, term()}

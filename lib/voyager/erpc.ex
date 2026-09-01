@@ -50,10 +50,6 @@ defmodule Voyager.Erpc do
 
   @doc """
   Maps an `:erpc.call` catch kind/reason into `{:error, reason}`.
-
-  Prefer `safe_call/4` (or `/5` with an explicit timeout) at call sites. Use
-  `format_error/2` when a `catch` is already in hand (parallel tasks, custom
-  wrappers).
   """
   @spec format_error(:error | :exit | :throw, term()) :: {:error, erpc_error()}
   def format_error(:error, {:erpc, :timeout}), do: {:error, :timeout}

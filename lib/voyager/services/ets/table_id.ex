@@ -1,13 +1,10 @@
 defmodule Voyager.Services.Ets.TableId do
   @moduledoc """
-  Identifies ETS tables across list fetches, `?table=` params, and MCP strings.
+  Identifies ETS tables as a name atom or a live `reference()`.
 
-  A table handle is a **name atom** or a live **`reference()`** (unnamed tables).
-  Display and matching use `inspect/1`. Unnamed tables cannot be rebuilt on the
-  Voyager host — never `:erlang.list_to_ref/1` — so a reference inspect-string
-  is resolved only against the last `:ets.all/0`. Typed names are interned on
-  the *target* with `:erlang.list_to_existing_atom/1`, never `String.to_atom/1`
-  on the host.
+  Unnamed tables cannot be reconstructed from an inspect string
+  (`:erlang.list_to_ref/1` is not used). Names are interned on the target with
+  `:erlang.list_to_existing_atom/1`, never `String.to_atom/1` on the host.
   """
 
   alias Voyager.Erpc
@@ -17,14 +14,13 @@ defmodule Voyager.Services.Ets.TableId do
   @type t :: atom() | reference()
 
   @doc """
-  Stable display form of a table handle, suitable for `?table=` and MCP.
+  `inspect/1` form of a table handle.
   """
   @spec display(t()) :: String.t()
   def display(id) when is_atom(id) or is_reference(id), do: inspect(id)
 
   @doc """
-  True when `string` is this handle's `inspect/1` form, or (for named tables)
-  the atom's `Atom.to_string/1`.
+  True when `string` matches `inspect/1`, or `Atom.to_string/1` for named tables.
   """
   @spec matches?(String.t(), t()) :: boolean()
   def matches?(string, id) when is_binary(string) and is_atom(id) do
@@ -38,8 +34,7 @@ defmodule Voyager.Services.Ets.TableId do
   @doc """
   Finds a handle in `ids` whose display form matches `string`.
 
-  `ids` may be raw handles or `table_info` maps from
-  `Voyager.Services.Ets.Remote` (matched on `:id`).
+  `ids` may be raw handles or `table_info` maps (matched on `:id`).
   """
   @spec find(String.t(), Enumerable.t()) :: {:ok, t()} | :error
   def find(string, ids) when is_binary(string) do
@@ -54,10 +49,9 @@ defmodule Voyager.Services.Ets.TableId do
   @doc """
   Resolves `string` to a handle.
 
-  Prefers a match against `ids` (the last `:ets.all/0`). Reference inspect
-  strings that miss that list are **not** reconstructed. Remaining strings are
-  interned on `node` via `:erlang.list_to_existing_atom/1`. A resolved name is
-  not necessarily a live table — callers should still use `Remote.info/3`.
+  Matches `ids` first. Reference inspect strings missing from that list are not
+  reconstructed. Other strings are interned on `node`; a resolved name may not
+  be a live table.
   """
   @spec resolve(node(), String.t(), Enumerable.t(), timeout()) ::
           {:ok, t()} | {:error, term()}
@@ -76,15 +70,11 @@ defmodule Voyager.Services.Ets.TableId do
   end
 
   @doc """
-  Interns `name` as an existing atom **on `node`**.
+  Interns `name` as an existing atom on `node`.
 
-  A leading Elixir colon (`":foo"`) is stripped so inspect-forms of simple
-  atoms can be typed without a prior `all`. Alias inspect-forms (`"MyApp.Cache"`)
-  are interned as `:"Elixir.MyApp.Cache"`; a string that already starts with
-  `"Elixir."` is left as-is. Names whose interned form exceeds 255 characters
-  (Erlang's atom limit) return `{:error, :invalid_name}` without an `:erpc`
-  call. Returns `{:error, :not_found}` when the atom is not interned on the
-  target.
+  Strips a leading `:` so Elixir inspect-forms work. Alias inspect-forms
+  (`"MyApp.Cache"`) are interned as `:"Elixir.MyApp.Cache"`. Returns
+  `{:error, :not_found}` when the atom is not interned on the target.
   """
   @spec existing_atom(node(), String.t(), timeout()) :: {:ok, atom()} | {:error, term()}
   def existing_atom(node, name, timeout) when is_binary(name) do
