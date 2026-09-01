@@ -68,32 +68,28 @@ defmodule VoyagerWeb.Components.ProcessComponents do
       assign(assigns, :column_options, ProcessListControls.column_options(&column_label/1))
 
     ~H"""
-    <.form
-      for={@form}
-      id="process-controls"
-      phx-change="validate"
-      class="flex flex-wrap items-start justify-between gap-3"
-    >
-      <label class="input mt-5 w-full max-w-md">
-        <.icon name="icon-search" class="text-base-content/60 size-4" />
-        <input
-          id={@form[:search].id}
-          type="search"
-          name={@form[:search].name}
-          value={@form[:search].value}
-          phx-debounce="300"
-          placeholder="Search by PID, name or initial call"
-          aria-label="Search by PID, name or initial call"
-        />
-      </label>
+    <.form for={@form} id="process-controls" phx-change="validate" class="flex flex-col gap-1">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <label class="input mt-5 w-full max-w-md">
+          <.icon name="icon-search" class="text-base-content/60 size-4" />
+          <input
+            id={@form[:search].id}
+            type="search"
+            name={@form[:search].name}
+            value={@form[:search].value}
+            phx-debounce="300"
+            placeholder="Search by PID, name or initial call"
+            aria-label="Search by PID, name or initial call"
+          />
+        </label>
 
-      <div class="flex flex-wrap items-start gap-2">
-        <.labelled_field
-          field={@form[:limit]}
-          label="Limit"
-          help={"Limit of processes which are fetched from #{@node_name}"}
-          show_errors
-        >
+        <%!-- Three rows — label, input, error — so a message appears in its own
+              row instead of resizing the input above it. --%>
+        <div class="grid-cols-[auto_auto_auto] grid-rows-[auto_auto_auto] grid items-center gap-x-2">
+          <.field_label field={@form[:limit]} label="Limit" help={limit_help(@node_name)} />
+          <.field_label field={@form[:timeout]} label="Timeout (ms)" />
+          <.field_label field={@form[:columns]} label="Columns" />
+
           <select id={@form[:limit].id} name={@form[:limit].name} class="select select-sm w-24">
             <option
               :for={value <- ProcessListControls.limit_options()}
@@ -103,22 +99,23 @@ defmodule VoyagerWeb.Components.ProcessComponents do
               {value}
             </option>
           </select>
-        </.labelled_field>
 
-        <.labelled_field field={@form[:timeout]} label="Timeout (ms)" class="w-28">
-          <.input
-            field={@form[:timeout]}
+          <input
+            id={@form[:timeout].id}
             type="number"
+            name={@form[:timeout].name}
+            value={@form[:timeout].value}
             min={elem(ProcessListControls.timeout_bounds(), 0)}
             max={elem(ProcessListControls.timeout_bounds(), 1)}
             step="100"
             inputmode="numeric"
             phx-debounce="500"
-            class="input input-sm input-bordered no-spinner font-mono w-full"
+            class={[
+              "input input-sm input-bordered no-spinner font-mono w-24",
+              @form[:timeout].errors != [] && "input-error"
+            ]}
           />
-        </.labelled_field>
 
-        <.labelled_field field={@form[:columns]} label="Columns">
           <.multiselect
             id="process-controls-columns"
             name={@form[:columns].name}
@@ -126,14 +123,16 @@ defmodule VoyagerWeb.Components.ProcessComponents do
             options={@column_options}
             selected={List.wrap(@form[:columns].value)}
           />
-        </.labelled_field>
+
+          <.field_error field={@form[:limit]} />
+          <.field_error field={@form[:timeout]} />
+          <span></span>
+        </div>
       </div>
 
-      <%!-- Its own full-width row beneath the controls, aligned right under
-            them. `w-full` on a wrapper rather than `basis-full` on the tooltip:
-            the tooltip renders a span, not a flex child of the form. --%>
-      <div :if={@pending?} class="flex w-full justify-end">
-        <.tooltip id="process-controls-pending" position="bottom">
+      <%!-- Always occupies its row, so showing it cannot shift the table. --%>
+      <div class="flex h-5 w-full justify-end">
+        <.tooltip :if={@pending?} id="process-controls-pending" position="bottom">
           <span class="text-warning inline-flex items-center gap-1.5 text-xs">
             <.icon name="icon-circle-alert" class="size-4 shrink-0" /> Applies on next refresh
           </span>
@@ -147,31 +146,35 @@ defmodule VoyagerWeb.Components.ProcessComponents do
     """
   end
 
+  defp limit_help(node_name), do: "Limit of processes which are fetched from #{node_name}"
+
   attr :field, Phoenix.HTML.FormField, required: true
   attr :label, :string, required: true
   attr :help, :string, default: nil
 
-  attr :show_errors, :boolean,
-    default: false,
-    doc: "for controls that are not an `<.input>`, which renders its own"
-
-  attr :class, :any, default: nil, doc: "fixes the field's width so errors cannot widen the row"
-
-  slot :inner_block, required: true
-
-  defp labelled_field(assigns) do
+  defp field_label(assigns) do
     ~H"""
-    <div class={["flex flex-col gap-1", @class]}>
-      <div class="flex items-center gap-1">
-        <label for={@field.id} class="text-base-content/70 text-xs font-medium">{@label}</label>
-        <.help_tooltip :if={@help} id={"#{@field.id}-help"} text={@help} />
-      </div>
-      {render_slot(@inner_block)}
-      <p :for={{msg, _} <- @field.errors} :if={@show_errors} class="font-mono text-error text-xs">
-        {msg}
-      </p>
+    <div class="flex items-center gap-1">
+      <label for={@field.id} class="text-base-content/70 text-xs font-medium">{@label}</label>
+      <.help_tooltip :if={@help} id={"#{@field.id}-help"} text={@help} />
     </div>
     """
+  end
+
+  attr :field, Phoenix.HTML.FormField, required: true
+
+  defp field_error(assigns) do
+    ~H"""
+    <p class="font-mono text-error w-24 text-xs">
+      {@field.errors |> Enum.map_join(", ", &translate_error/1)}
+    </p>
+    """
+  end
+
+  defp translate_error({msg, opts}) do
+    Enum.reduce(opts, msg, fn {key, value}, acc ->
+      String.replace(acc, "%{#{key}}", fn _ -> to_string(value) end)
+    end)
   end
 
   @doc """

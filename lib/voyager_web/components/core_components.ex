@@ -83,7 +83,7 @@ defmodule VoyagerWeb.CoreComponents do
 
   def node_header(assigns) do
     ~H"""
-    <header class="mb-8 flex items-center justify-between gap-4">
+    <header class="mb-4 flex items-center justify-between gap-4">
       <div class="min-w-0 flex-1">
         <h1 class="font-mono text-base-content min-w-0 text-2xl font-bold tracking-tight">
           <.tooltip
@@ -228,7 +228,12 @@ defmodule VoyagerWeb.CoreComponents do
       ]}
       {@rest}
     >
-      <.icon name="icon-copy" data-copy-icon class={copy_icon_class(@icon_only, @size)} />
+      <.icon
+        id={"#{@id}-icon"}
+        name="icon-copy"
+        data-copy-icon
+        class={copy_icon_class(@icon_only, @size)}
+      />
       <span data-copy-button-label class={@icon_only && "sr-only"}>{@label}</span>
       <span class="sr-only" aria-live="polite" data-copy-status></span>
     </button>
