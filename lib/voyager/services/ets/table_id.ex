@@ -13,11 +13,13 @@ defmodule Voyager.Services.Ets.TableId do
 
   @type t :: atom() | reference()
 
+  defguard is_table_id(id) when is_atom(id) or is_reference(id)
+
   @doc """
   `inspect/1` form of a table handle.
   """
   @spec display(t()) :: String.t()
-  def display(id) when is_atom(id) or is_reference(id), do: inspect(id)
+  def display(id) when is_table_id(id), do: inspect(id)
 
   @doc """
   True when `string` matches `inspect/1`, or `Atom.to_string/1` for named tables.
@@ -92,8 +94,8 @@ defmodule Voyager.Services.Ets.TableId do
     end
   end
 
-  defp unwrap(%{id: id}) when is_atom(id) or is_reference(id), do: id
-  defp unwrap(id) when is_atom(id) or is_reference(id), do: id
+  defp unwrap(%{id: id}) when is_table_id(id), do: id
+  defp unwrap(id) when is_table_id(id), do: id
   defp unwrap(_), do: nil
 
   defp reference_inspect?(<<"#Ref", _::binary>>), do: true

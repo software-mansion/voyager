@@ -9,6 +9,8 @@ defmodule Voyager.Services.Ets.Remote do
   alias Voyager.Erpc
   alias Voyager.Services.Ets.TableId
 
+  require TableId
+
   @type protection :: :public | :protected | :private
   @type table_type :: :set | :ordered_set | :bag | :duplicate_bag
 
@@ -52,7 +54,7 @@ defmodule Voyager.Services.Ets.Remote do
   @spec info(node(), TableId.t(), timeout()) :: {:ok, table_info()} | {:error, term()}
   def info(node, table, timeout \\ Erpc.default_timeout())
 
-  def info(node, table, timeout) when is_atom(table) or is_reference(table) do
+  def info(node, table, timeout) when TableId.is_table_id(table) do
     with {:ok, info} when is_list(info) <- Erpc.safe_call(node, :ets, :info, [table], timeout),
          {:ok, word_size} when is_integer(word_size) and word_size > 0 <-
            Erpc.safe_call(node, :erlang, :system_info, [:wordsize], timeout) do
