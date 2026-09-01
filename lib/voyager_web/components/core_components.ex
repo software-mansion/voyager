@@ -713,7 +713,6 @@ defmodule VoyagerWeb.CoreComponents do
       <div
         id={"#{@id}-tip"}
         role="tooltip"
-        phx-update="ignore"
         class={[
           "tooltip-pop bg-base-100 text-base-content rounded-box max-w-xs px-3 py-2",
           "ring-base-content/15 text-xs leading-relaxed shadow-lg ring-1",

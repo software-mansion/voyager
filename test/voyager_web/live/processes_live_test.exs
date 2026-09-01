@@ -498,7 +498,7 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       assert has_element?(view, "#process-controls-columns")
     end
 
-    test "changing the form does not refetch", %{conn: conn} do
+    test "changing the form does not refetch immediately", %{conn: conn} do
       stub_scan([])
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
@@ -538,18 +538,32 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       assert_received {:scanned, _args, 5_000}
     end
 
-    test "flags that the fetch options changed since the rows loaded", %{conn: conn} do
+    test "a control change refetches after the debounce window", %{conn: conn} do
       stub_scan([])
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
-
-      refute has_element?(view, "#process-controls-pending")
+      assert_received {:scanned, _args, _timeout}
 
       change(view, %{"limit" => "250"})
-      assert has_element?(view, "#process-controls-pending")
+      # Not yet: the debounce window is still open.
+      refute_received {:scanned, _args, _timeout}
 
-      refresh(view)
-      refute has_element?(view, "#process-controls-pending")
+      # The window elapsing delivers :refetch.
+      send(view.pid, :refetch)
+      render_async(view)
+
+      assert_received {:scanned, [_attrs, _sort, 250, _dir, _search], _timeout}
+    end
+
+    test "locks the controls while a fetch is in flight", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, html} = live(conn, @path)
+
+      # The initial render is taken before the async result lands, so it shows
+      # the locked state; once the fetch settles the form is usable again.
+      assert html =~ "disabled"
+      render_async(view)
+      refute has_element?(view, "#process-controls fieldset[disabled]")
     end
 
     test "selecting columns changes the table without refetching", %{conn: conn} do

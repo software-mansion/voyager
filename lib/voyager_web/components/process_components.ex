@@ -60,12 +60,11 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   picker.
 
   One `<.form>` over `ProcessListControls`, so every field validates together
-  and the parent gets a single `validate` event carrying the whole set. None of
-  it refetches — the values apply on the next fetch.
+  and the parent gets a single `validate` event carrying the whole set.
   """
   attr :form, Phoenix.HTML.Form, required: true
   attr :node_name, :string, required: true
-  attr :pending?, :boolean, default: false, doc: "fetch options differ from the loaded rows"
+  attr :loading?, :boolean, default: false, doc: "disables every control while a fetch runs"
 
   def controls(assigns) do
     assigns =
@@ -73,78 +72,66 @@ defmodule VoyagerWeb.Components.ProcessComponents do
 
     ~H"""
     <.form for={@form} id="process-controls" phx-change="validate" class="flex flex-col gap-1">
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <label class="input mt-5 w-full max-w-md">
-          <.icon name="icon-search" class="text-base-content/60 size-4" />
-          <input
-            id={@form[:search].id}
-            type="search"
-            name={@form[:search].name}
-            value={@form[:search].value}
-            phx-debounce="300"
-            placeholder="Search by PID, name or initial call"
-            aria-label="Search by PID, name or initial call"
-          />
-        </label>
+      <fieldset disabled={@loading?} class={["contents", @loading? && "opacity-60"]}>
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <label class="input mt-5 w-full max-w-md">
+            <.icon name="icon-search" class="text-base-content/60 size-4" />
+            <input
+              id={@form[:search].id}
+              type="search"
+              name={@form[:search].name}
+              value={@form[:search].value}
+              phx-debounce="300"
+              placeholder="Search by PID, name or initial call"
+              aria-label="Search by PID, name or initial call"
+            />
+          </label>
 
-        <div class="grid-cols-[auto_auto_auto_auto] grid-rows-[auto_auto_auto_auto] grid items-center gap-x-2">
-          <span />
-          <.field_label field={@form[:limit]} label="Limit" help={limit_help(@node_name)} />
-          <.field_label field={@form[:timeout]} label="Timeout (ms)" />
-          <.field_label field={@form[:columns]} label="Columns" />
+          <div class="grid-cols-[auto_auto_auto] grid-rows-[auto_auto_auto] grid items-center gap-x-2">
+            <.field_label field={@form[:limit]} label="Limit" help={limit_help(@node_name)} />
+            <.field_label field={@form[:timeout]} label="Timeout (ms)" />
+            <.field_label field={@form[:columns]} label="Columns" />
 
-          <div class="flex h-full flex-1 items-center justify-end">
-            <.tooltip :if={@pending?} id="process-controls-pending" position="bottom">
-              <span class="alert alert-warning w-max gap-2 px-2 py-1.5 text-xs">
-                <.icon name="icon-circle-alert" class="text-warning size-4" />
-                <span>Applies on next fetch</span>
-              </span>
-              <:content>
-                Fetch options are not automatically applied.
-                Refresh to apply them.
-              </:content>
-            </.tooltip>
+            <select id={@form[:limit].id} name={@form[:limit].name} class="select select-sm w-24">
+              <option
+                :for={value <- ProcessListControls.limit_options()}
+                value={value}
+                selected={to_string(value) == to_string(@form[:limit].value)}
+              >
+                {value}
+              </option>
+            </select>
+
+            <input
+              id={@form[:timeout].id}
+              type="number"
+              name={@form[:timeout].name}
+              value={@form[:timeout].value}
+              min={elem(ProcessListControls.timeout_bounds(), 0)}
+              max={elem(ProcessListControls.timeout_bounds(), 1)}
+              step="100"
+              inputmode="numeric"
+              phx-debounce="500"
+              class={[
+                "input input-sm input-bordered no-spinner font-mono w-24",
+                @form[:timeout].errors != [] && "input-error"
+              ]}
+            />
+
+            <.multiselect
+              id="process-controls-columns"
+              name={@form[:columns].name}
+              label="Columns"
+              options={@column_options}
+              selected={List.wrap(@form[:columns].value)}
+            />
+
+            <.field_error field={@form[:limit]} />
+            <.field_error field={@form[:timeout]} />
+            <span />
           </div>
-          <select id={@form[:limit].id} name={@form[:limit].name} class="select select-sm w-24">
-            <option
-              :for={value <- ProcessListControls.limit_options()}
-              value={value}
-              selected={to_string(value) == to_string(@form[:limit].value)}
-            >
-              {value}
-            </option>
-          </select>
-
-          <input
-            id={@form[:timeout].id}
-            type="number"
-            name={@form[:timeout].name}
-            value={@form[:timeout].value}
-            min={elem(ProcessListControls.timeout_bounds(), 0)}
-            max={elem(ProcessListControls.timeout_bounds(), 1)}
-            step="100"
-            inputmode="numeric"
-            phx-debounce="500"
-            class={[
-              "input input-sm input-bordered no-spinner font-mono w-24",
-              @form[:timeout].errors != [] && "input-error"
-            ]}
-          />
-
-          <.multiselect
-            id="process-controls-columns"
-            name={@form[:columns].name}
-            label="Columns"
-            options={@column_options}
-            selected={List.wrap(@form[:columns].value)}
-          />
-
-          <span />
-          <.field_error field={@form[:limit]} />
-          <.field_error field={@form[:timeout]} />
-          <span />
         </div>
-      </div>
+      </fieldset>
     </.form>
     """
   end

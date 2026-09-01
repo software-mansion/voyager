@@ -24,6 +24,7 @@ defmodule VoyagerWeb.ProcessesLive do
 
   @page_sizes [10, 25, 50, 100]
   @default_page_size 25
+  @refetch_debounce_ms 1_500
 
   @impl true
   def mount(_params, _session, socket) do
@@ -35,7 +36,7 @@ defmodule VoyagerWeb.ProcessesLive do
     |> assign(:page_result, AsyncResult.loading())
     |> assign(:controls, controls)
     |> assign(:form, to_form(ProcessListControls.changeset(controls), as: :controls))
-    |> assign(:fetched_with, nil)
+    |> assign(:refetch_timer, nil)
     |> assign(:sort_by, sort_by)
     |> assign(:direction, direction)
     |> assign(:page, 1)
@@ -72,7 +73,7 @@ defmodule VoyagerWeb.ProcessesLive do
             id="processes-refresh-interval"
             options={Processes.refresh_interval_options()}
             refresh_interval={@refresh_interval}
-            loading={@page_result.loading}
+            loading={loading?(@page_result)}
           />
         </:actions>
       </.node_header>
@@ -80,7 +81,7 @@ defmodule VoyagerWeb.ProcessesLive do
       <ProcessComponents.controls
         form={@form}
         node_name={@session.node_name}
-        pending?={pending?(@controls, @fetched_with)}
+        loading?={loading?(@page_result)}
       />
 
       <%!-- Rendered outside any loading branch: a refetch swaps only the rows,
@@ -99,32 +100,36 @@ defmodule VoyagerWeb.ProcessesLive do
         scanned={@page_result.result.scanned}
       />
 
-      <DataTableComponents.table
-        id="processes-table"
-        columns={ProcessComponents.columns(ProcessListControls.attrs(@controls))}
-        rows={rows(entries(@page_result), @page, @page_size)}
-        sort_by={@sort_by}
-        direction={@direction}
-        empty_message={if @page_result.ok?, do: "No processes matched.", else: "Scanning processes…"}
-      >
-        <:cell :let={%{column: column, row: row, row_id: row_id}}>
-          <ProcessComponents.cell
-            column={column}
-            row={row}
-            row_id={row_id}
-            pid_href={process_path(@session.node_name, row.pid)}
-          />
-        </:cell>
-      </DataTableComponents.table>
+      <div class={loading?(@page_result) && "pointer-events-none select-none opacity-60"}>
+        <DataTableComponents.table
+          id="processes-table"
+          columns={ProcessComponents.columns(ProcessListControls.attrs(@controls))}
+          rows={rows(entries(@page_result), @page, @page_size)}
+          sort_by={@sort_by}
+          direction={@direction}
+          empty_message={
+            if @page_result.ok?, do: "No processes matched.", else: "Scanning processes…"
+          }
+        >
+          <:cell :let={%{column: column, row: row, row_id: row_id}}>
+            <ProcessComponents.cell
+              column={column}
+              row={row}
+              row_id={row_id}
+              pid_href={process_path(@session.node_name, row.pid)}
+            />
+          </:cell>
+        </DataTableComponents.table>
 
-      <DataTableComponents.pager
-        :if={@page_result.ok?}
-        id="processes-pager"
-        page={@page}
-        page_size={@page_size}
-        page_size_options={@page_sizes}
-        total={length(entries(@page_result))}
-      />
+        <DataTableComponents.pager
+          :if={@page_result.ok?}
+          id="processes-pager"
+          page={@page}
+          page_size={@page_size}
+          page_size_options={@page_sizes}
+          total={length(entries(@page_result))}
+        />
+      </div>
     </div>
     """
   end
@@ -134,6 +139,7 @@ defmodule VoyagerWeb.ProcessesLive do
     socket
     |> apply_controls(params)
     |> store_settings(params)
+    |> debounce_refetch()
     |> noreply()
   end
 
@@ -194,6 +200,13 @@ defmodule VoyagerWeb.ProcessesLive do
   end
 
   @impl true
+  def handle_info(:refetch, socket) do
+    socket
+    |> assign(:refetch_timer, nil)
+    |> fetch()
+    |> noreply()
+  end
+
   def handle_info(:auto_refresh, socket) do
     socket = restart_refresh_timer(socket)
 
@@ -243,10 +256,10 @@ defmodule VoyagerWeb.ProcessesLive do
     %{session: session, controls: controls, sort_by: sort_by, direction: direction} =
       socket.assigns
 
-    # The previous result stays assigned while a refetch runs, so the table
-    # keeps its rows instead of being torn down and rebuilt.
+    # The previous result stays assigned (only marked loading) while a refetch
+    # runs, so the table keeps its rows and the UI can lock over them.
     socket
-    |> assign(:fetched_with, controls)
+    |> assign(:page_result, AsyncResult.loading(socket.assigns.page_result))
     |> start_async(:page_result, fn ->
       case Processes.page(session.node, controls, {sort_by, direction}) do
         {:ok, page} ->
@@ -262,12 +275,15 @@ defmodule VoyagerWeb.ProcessesLive do
     end)
   end
 
-  # `fetched_with` is what the options were when the current rows arrived, so a
-  # difference means a refresh would return something else.
-  defp pending?(_controls, nil), do: false
+  # Collapses a burst of control changes into one fetch: each change restarts
+  # the window, and the fetch fires once the user pauses.
+  defp debounce_refetch(socket) do
+    if timer = socket.assigns.refetch_timer, do: Process.cancel_timer(timer)
 
-  defp pending?(controls, fetched_with),
-    do: ProcessListControls.fetch_differs?(controls, fetched_with)
+    assign(socket, :refetch_timer, Process.send_after(self(), :refetch, @refetch_debounce_ms))
+  end
+
+  defp loading?(%AsyncResult{loading: loading}), do: loading != nil
 
   # Only validated values are stored, so nothing invalid can come back on the
   # next visit. `search` is taken as typed, since anything is valid there.
