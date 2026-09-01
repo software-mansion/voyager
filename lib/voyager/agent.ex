@@ -16,16 +16,10 @@ defmodule Voyager.Agent do
   `{:error, {:remote_exception, :undef}}` usually means the agent is not loaded
   on the node yet.
   """
-  @spec call(node(), atom(), [term()], timeout()) :: {:ok, term()} | {:error, term()}
+  @spec call(node(), atom(), [term()], timeout()) :: {:ok, term()} | {:error, Erpc.erpc_error()}
   def call(node, fun, args, timeout) do
     {:ok, Erpc.call(node, @agent, fun, args, timeout)}
   catch
-    :error, {:erpc, :timeout} -> {:error, :timeout}
-    :error, {:erpc, :noconnection} -> {:error, :noconnection}
-    :error, {:exception, reason, _stack} -> {:error, {:remote_exception, reason}}
-    :error, {:erpc, _} = reason -> {:error, reason}
-    :error, reason -> {:error, reason}
-    :exit, reason -> {:error, {:remote_exit, reason}}
-    :throw, value -> {:error, {:remote_throw, value}}
+    kind, reason -> Erpc.format_error(kind, reason)
   end
 end

@@ -44,9 +44,10 @@ defmodule Voyager.ErpcTest do
     end
 
     test "maps remaining error, exit, and throw" do
-      assert Erpc.format_error(:error, :other) == {:error, :other}
+      assert Erpc.format_error(:error, :other) == {:error, {:remote_error, :other}}
       assert Erpc.format_error(:exit, :killed) == {:error, {:remote_exit, :killed}}
       assert Erpc.format_error(:throw, :nope) == {:error, {:remote_throw, :nope}}
+      assert Erpc.format_error(:other, :x) == {:error, {:unknown_error, :x}}
     end
   end
 end

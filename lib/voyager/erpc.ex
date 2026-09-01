@@ -13,6 +13,16 @@ defmodule Voyager.Erpc do
   @type call_options :: %{timeout: timeout_time(), always_spawn: boolean()}
   @type timeout_or_options :: timeout_time() | call_options()
 
+  @type erpc_error ::
+          :timeout
+          | :noconnection
+          | {:erpc, term()}
+          | {:remote_error, term()}
+          | {:remote_exception, term()}
+          | {:remote_exit, term()}
+          | {:remote_throw, term()}
+          | {:unknown_error, term()}
+
   @doc """
   Invokes `fun` in `mod` with `args` on `node`, mirroring `:erpc.call/4`.
   """
@@ -39,30 +49,32 @@ defmodule Voyager.Erpc do
     do: impl().call(node, mod, fun, args, timeout_or_options)
 
   @doc """
-  Translates a `catch` kind/reason from `call/4`/`call/5` into `{:error, reason}`.
+  Maps an `:erpc.call` catch kind/reason into `{:error, reason}`.
 
   Prefer `safe_call/4` (or `/5` with an explicit timeout) at call sites. Use
   `format_error/2` when a `catch` is already in hand (parallel tasks, custom
   wrappers).
   """
-  @spec format_error(:error | :exit | :throw, term()) :: {:error, term()}
+  @spec format_error(:error | :exit | :throw, term()) :: {:error, erpc_error()}
   def format_error(:error, {:erpc, :timeout}), do: {:error, :timeout}
   def format_error(:error, {:erpc, :noconnection}), do: {:error, :noconnection}
 
   def format_error(:error, {:exception, reason, _stack}),
     do: {:error, {:remote_exception, reason}}
 
-  def format_error(:error, reason), do: {:error, reason}
+  def format_error(:error, {:erpc, _} = reason), do: {:error, reason}
+  def format_error(:error, reason), do: {:error, {:remote_error, reason}}
   def format_error(:exit, reason), do: {:error, {:remote_exit, reason}}
   def format_error(:throw, value), do: {:error, {:remote_throw, value}}
+  def format_error(_, error), do: {:error, {:unknown_error, error}}
 
   @doc """
   Like `call/5`, but returns `{:ok, result}` or `{:error, reason}` instead of
   raising. `safe_call/4` uses `default_timeout/0`.
   """
-  @spec safe_call(node(), module(), atom(), [term()]) :: {:ok, term()} | {:error, term()}
+  @spec safe_call(node(), module(), atom(), [term()]) :: {:ok, term()} | {:error, erpc_error()}
   @spec safe_call(node(), module(), atom(), [term()], timeout_time() | call_options()) ::
-          {:ok, term()} | {:error, term()}
+          {:ok, term()} | {:error, erpc_error()}
   def safe_call(node, mod, fun, args, timeout_or_options \\ default_timeout()) do
     {:ok, call(node, mod, fun, args, timeout_or_options)}
   catch
