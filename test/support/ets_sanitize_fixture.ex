@@ -12,8 +12,8 @@ defmodule Voyager.Test.EtsSanitizeFixture do
 
   @doc """
   Sample terms covering binary overflow, collection overflow, depth, nested
-  mix, already-truncated leaves, non-binary bitstrings, improper lists, and
-  keys that must not be redacted.
+  mix, already-truncated leaves, non-binary bitstrings, improper lists, map
+  key collisions, and keys that must not be redacted.
   """
   @spec samples() :: [{term(), term()}]
   def samples do
@@ -30,7 +30,9 @@ defmodule Voyager.Test.EtsSanitizeFixture do
       bitstring_overflow(),
       improper_list_short(),
       improper_list_sanitized_tail(),
-      improper_list_overflow()
+      improper_list_overflow(),
+      map_key_collision_depth(),
+      map_key_collision_binary()
     ]
   end
 
@@ -49,7 +51,7 @@ defmodule Voyager.Test.EtsSanitizeFixture do
 
   defp collection_overflow_map do
     input = Map.new(1..60, &{&1, &1})
-    taken = Map.new(1..@collection_limit, &{&1, &1})
+    taken = Enum.map(1..@collection_limit, &{&1, &1})
     expected = {@marker, :map, taken, 10}
     {input, expected}
   end
@@ -127,6 +129,23 @@ defmodule Voyager.Test.EtsSanitizeFixture do
   defp improper_list_overflow do
     input = Enum.reduce(Enum.reverse(Enum.to_list(1..60)), :tail, fn n, acc -> [n | acc] end)
     expected = {@marker, :list, Enum.to_list(1..@collection_limit), 11}
+    {input, expected}
+  end
+
+  defp map_key_collision_depth do
+    input = [[[[%{{1, 2} => :a, {3, 4} => :b}]]]]
+    depth = {@marker, :depth}
+    expected = [[[[{@marker, :map, [{depth, :a}, {depth, :b}], 0}]]]]
+    {input, expected}
+  end
+
+  defp map_key_collision_binary do
+    prefix = :binary.copy(<<"a">>, @binary_limit)
+    key_a = prefix <> <<"x">>
+    key_b = prefix <> <<"y">>
+    truncated = {@marker, :binary, prefix, 513}
+    input = %{key_a => :a, key_b => :b}
+    expected = {@marker, :map, [{truncated, :a}, {truncated, :b}], 0}
     {input, expected}
   end
 end
