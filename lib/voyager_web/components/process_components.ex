@@ -81,7 +81,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
               type="search"
               name={@form[:search].name}
               value={@form[:search].value}
-              phx-debounce="300"
+              phx-debounce="500"
               placeholder="Search by PID, name or initial call"
               aria-label="Search by PID, name or initial call"
             />
