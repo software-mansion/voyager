@@ -164,7 +164,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   defp fetch_node_info(remote_node, pid) do
     case ProcessInfo.fetch(remote_node, pid) do
       {:ok, info} ->
-        {:ok, %{node_info: info}}
+        {:ok, %{node_info: Map.put(info, :label, fetch_label(remote_node, pid))}}
 
       {:error, reason} ->
         Logger.warning(
@@ -172,6 +172,16 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
         )
 
         {:error, reason}
+    end
+  end
+
+  # The label is an arbitrary term, so it needs the agent's remote truncation and
+  # cannot ride along in the cheap `fetch/2` payload. A node without the agent
+  # loaded simply has no label to show -- it must not fail the whole overview.
+  defp fetch_label(remote_node, pid) do
+    case ProcessInfo.fetch_label(remote_node, pid) do
+      {:ok, %{term: term}} -> term
+      {:error, _reason} -> nil
     end
   end
 

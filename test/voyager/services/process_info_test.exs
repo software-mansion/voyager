@@ -47,14 +47,15 @@ defmodule Voyager.Services.ProcessInfoTest do
       assert is_list(info.current_stacktrace)
       assert info.message_queue_data in [:on_heap, :off_heap]
       assert info.registered_name == nil
-      assert info.label == nil
       assert info.parent == self()
 
       # The dictionary is never fetched, so nothing derived from it appears
-      # here either -- callers use fetch_dictionary/3 instead.
+      # here either -- callers use fetch_dictionary/4 instead. The label is an
+      # arbitrary term, so it needs a budget and lives in fetch_label/4.
       refute Map.has_key?(info, :dictionary)
       refute Map.has_key?(info, :ancestors)
       refute Map.has_key?(info, :links)
+      refute Map.has_key?(info, :label)
     end
 
     test "resolves registered_name for a registered process" do
@@ -82,15 +83,39 @@ defmodule Voyager.Services.ProcessInfoTest do
     end
 
     # `proc_lib:set_label/1` stores the label under `$process_label`, and the
-    # `:label` key of `process_info/2` reads that single entry on the remote. So
-    # the label survives dropping `:dictionary` from @keys: the VM does the
-    # one-key lookup for us instead of us copying the whole dictionary back.
-    test "resolves label from the native process label" do
+    # `:label` key of `process_info/2` reads that single entry on the remote, so
+    # the agent never has to copy the whole dictionary back to read it.
+    test "fetch_label/4 resolves the native process label" do
       pid = spawn_idle(fn -> :proc_lib.set_label(:my_test_label) end)
-      on_exit(fn -> Process.exit(pid, :kill) end)
+      kill_on_exit([pid])
 
-      assert {:ok, info} = ProcessInfo.fetch(Node.self(), pid)
-      assert info.label == :my_test_label
+      assert {:ok, %{term: :my_test_label, truncated?: false}} ==
+               ProcessInfo.fetch_label(Node.self(), pid)
+    end
+
+    test "fetch_label/4 returns a nil term when no label is set" do
+      pid = spawn_idle()
+      kill_on_exit([pid])
+
+      assert {:ok, %{term: nil, truncated?: false}} == ProcessInfo.fetch_label(Node.self(), pid)
+    end
+
+    test "fetch_label/4 truncates a label that exceeds the budget" do
+      pid = spawn_idle(fn -> :proc_lib.set_label({:deep, [1, 2, 3, 4, 5]}) end)
+      kill_on_exit([pid])
+
+      assert {:ok, %{term: term, truncated?: true}} =
+               ProcessInfo.fetch_label(Node.self(), pid, 3)
+
+      assert term == {:deep, [:"$voyager_truncated"]}
+    end
+
+    test "fetch_label/4 returns {:error, :dead} for a dead pid" do
+      pid = spawn(fn -> :ok end)
+      ref = Process.monitor(pid)
+      assert_receive {:DOWN, ^ref, :process, ^pid, _reason}
+
+      assert {:error, :dead} == ProcessInfo.fetch_label(Node.self(), pid)
     end
 
     test "returns {:error, :dead} for a dead pid" do
@@ -222,6 +247,17 @@ defmodule Voyager.Services.ProcessInfoTest do
       assert length(items) == 200
     end
 
+    test "fetch_dictionary/5 truncates an oversized value on the remote" do
+      pid = spawn_idle(fn -> Process.put(:wide, Enum.to_list(1..1_000)) end)
+      kill_on_exit([pid])
+
+      assert {:ok, %{total: 1, truncated?: true, items: [{:wide, value}]}} =
+               ProcessInfo.fetch_dictionary(Node.self(), pid, 200, 20)
+
+      assert List.last(value) == :"$voyager_truncated"
+      assert length(value) < 1_000
+    end
+
     test "unbounded fetches return {:error, :dead} for a dead pid" do
       pid = spawn(fn -> :ok end)
       ref = Process.monitor(pid)
@@ -240,6 +276,7 @@ defmodule Voyager.Services.ProcessInfoTest do
       assert {:error, :not_a_pid} == ProcessInfo.fetch_monitors(:demo@localhost, nil, 1_000)
       assert {:error, :not_a_pid} == ProcessInfo.fetch_monitored_by(:demo@localhost, nil, 1_000)
       assert {:error, :not_a_pid} == ProcessInfo.fetch_dictionary(:demo@localhost, nil, 200)
+      assert {:error, :not_a_pid} == ProcessInfo.fetch_label(:demo@localhost, nil)
     end
   end
 
