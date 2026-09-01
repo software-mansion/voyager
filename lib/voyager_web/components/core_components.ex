@@ -490,13 +490,11 @@ defmodule VoyagerWeb.CoreComponents do
         role="button"
         id={@id}
         aria-haspopup="listbox"
-        class="btn btn-sm btn-outline border-base-content/20 font-normal"
+        class="input input-sm cursor-pointer items-center gap-2"
       >
-        {@label}
-        <span class="bg-base-100 border-base-content/20 text-base-content/80 font-mono rounded border px-1.5 py-0.5 text-xs">
-          {@count}
-        </span>
-        <.icon name="icon-chevron-right" class="size-3.5 rotate-90" />
+        <span class="grow text-left">{@label}</span>
+        <span class="font-mono text-base-content/60">{@count}</span>
+        <.icon name="icon-chevron-right" class="size-3.5 shrink-0 rotate-90 opacity-60" />
       </div>
 
       <div
