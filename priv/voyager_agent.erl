@@ -87,7 +87,6 @@ do_register(VoyagerNode, Attempts) ->
 -spec proc_top([atom()], atom(), integer(), asc | desc, undefined | iodata()) ->
                   {[map()], non_neg_integer()}.
 proc_top(Attrs, SortBy, Limit, Direction, Search) ->
-    timer:sleep(1000),
     with_bounded_heap(fun() -> scan(Attrs, SortBy, Limit, Direction, needle(Search)) end).
 
 scan(Attrs, SortBy, Limit, Direction, Needle) ->

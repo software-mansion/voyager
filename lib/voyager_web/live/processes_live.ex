@@ -26,6 +26,10 @@ defmodule VoyagerWeb.ProcessesLive do
   @page_sizes [10, 25, 50, 100]
   @default_page_size 25
   @refetch_debounce_ms 1_500
+  # A fetch resolving in a few ms flashes the loading state for a frame; pad it
+  # so the transition reads as intentional. Zeroed in the test env, where the
+  # pad would only slow every render_async down.
+  @min_fetch_ms Application.compile_env(:voyager, :min_fetch_ms, 300)
 
   @impl true
   def mount(_params, _session, socket) do
@@ -292,7 +296,11 @@ defmodule VoyagerWeb.ProcessesLive do
   end
 
   defp run_fetch(priority, node, controls, sort) do
-    case RateLimiter.run(priority, fn -> Processes.page(node, controls, sort) end) do
+    started = System.monotonic_time(:millisecond)
+    result = RateLimiter.run(priority, fn -> Processes.page(node, controls, sort) end)
+    pad_to_min(started)
+
+    case result do
       {:ok, {:ok, page}, _elapsed_us} ->
         {:ok, page, controls}
 
@@ -307,6 +315,12 @@ defmodule VoyagerWeb.ProcessesLive do
       {:error, :rate_limited, retry_after_ms} ->
         {:error, {:rate_limited, retry_after_ms}}
     end
+  end
+
+  defp pad_to_min(started) do
+    elapsed = System.monotonic_time(:millisecond) - started
+
+    if elapsed < @min_fetch_ms, do: Process.sleep(@min_fetch_ms - elapsed)
   end
 
   # Collapses a burst of control changes into one fetch: each change restarts
