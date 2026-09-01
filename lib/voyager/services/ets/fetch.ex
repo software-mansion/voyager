@@ -18,7 +18,6 @@ defmodule Voyager.Services.Ets.Fetch do
   alias Voyager.Services.Ets.TableId
 
   @max_heap_size 500_000
-  @default_timeout 5_000
 
   @type chunk :: Remote.chunk()
 
@@ -32,7 +31,7 @@ defmodule Voyager.Services.Ets.Fetch do
   """
   @spec select_chunk(node(), TableId.t(), pos_integer(), term() | nil, timeout()) ::
           {:ok, chunk()} | {:error, term()}
-  def select_chunk(node, table, limit, continuation \\ nil, timeout \\ @default_timeout) do
+  def select_chunk(node, table, limit, continuation \\ nil, timeout \\ Erpc.default_timeout()) do
     isolated_read(timeout, fn ->
       Remote.select_chunk(node, table, limit, continuation, timeout)
     end)
@@ -43,7 +42,7 @@ defmodule Voyager.Services.Ets.Fetch do
   """
   @spec lookup(node(), TableId.t(), atom() | integer() | binary(), timeout()) ::
           {:ok, chunk()} | {:error, term()}
-  def lookup(node, table, key, timeout \\ @default_timeout) do
+  def lookup(node, table, key, timeout \\ Erpc.default_timeout()) do
     isolated_read(timeout, fn ->
       Remote.lookup(node, table, key, timeout)
     end)

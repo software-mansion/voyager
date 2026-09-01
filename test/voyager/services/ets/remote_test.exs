@@ -433,16 +433,18 @@ defmodule Voyager.Services.Ets.RemoteTest do
       assert {:error, :invalid_table} = Remote.select_chunk(@node, self(), 10, nil, @timeout)
     end
 
-    test "defaults the timeout to 5_000 ms" do
+    test "defaults the timeout to Erpc.default_timeout/0" do
+      timeout = Erpc.default_timeout()
+
       expect(Voyager.ErpcMock, :call, fn @node,
                                          :erlang,
                                          :function_exported,
                                          [:voyager_agent, :ets_select_chunk, 3],
-                                         5_000 ->
+                                         ^timeout ->
         false
       end)
 
-      expect(Voyager.ErpcMock, :call, fn @node, :ets, :select, [:t, _spec, 10], 5_000 ->
+      expect(Voyager.ErpcMock, :call, fn @node, :ets, :select, [:t, _spec, 10], ^timeout ->
         :"$end_of_table"
       end)
 
