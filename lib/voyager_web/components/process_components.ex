@@ -87,28 +87,24 @@ defmodule VoyagerWeb.Components.ProcessComponents do
           />
         </label>
 
-        <%!-- Reserves its row whether or not it shows, so the controls beside
-              it and the table below never shift. --%>
-        <div class="min-h-8 mt-5 flex flex-1 items-center justify-end">
-          <.tooltip :if={@pending?} id="process-controls-pending" position="bottom">
-            <span class="alert alert-warning w-auto py-1.5 text-xs">
-              <.icon name="icon-circle-alert" class="text-warning size-4" />
-              <span>Applies on next refresh</span>
-            </span>
-            <:content>
-              The limit and timeout changed since these rows were fetched.
-              Refresh to apply them.
-            </:content>
-          </.tooltip>
-        </div>
-
-        <%!-- Three rows — label, input, error — so a message appears in its own
-              row instead of resizing the input above it. --%>
-        <div class="grid-cols-[auto_auto_auto] grid-rows-[auto_auto_auto] grid items-center gap-x-2">
+        <div class="grid-cols-[auto_auto_auto_auto] grid-rows-[auto_auto_auto_auto] grid items-center gap-x-2">
+          <span />
           <.field_label field={@form[:limit]} label="Limit" help={limit_help(@node_name)} />
           <.field_label field={@form[:timeout]} label="Timeout (ms)" />
           <.field_label field={@form[:columns]} label="Columns" />
 
+          <div class="flex h-full flex-1 items-center justify-end">
+            <.tooltip :if={@pending?} id="process-controls-pending" position="bottom">
+              <span class="alert alert-warning w-max gap-2 px-2 py-1.5 text-xs">
+                <.icon name="icon-circle-alert" class="text-warning size-4" />
+                <span>Applies on next fetch</span>
+              </span>
+              <:content>
+                Fetch options are not automatically applied.
+                Refresh to apply them.
+              </:content>
+            </.tooltip>
+          </div>
           <select id={@form[:limit].id} name={@form[:limit].name} class="select select-sm w-24">
             <option
               :for={value <- ProcessListControls.limit_options()}
@@ -143,9 +139,10 @@ defmodule VoyagerWeb.Components.ProcessComponents do
             selected={List.wrap(@form[:columns].value)}
           />
 
+          <span />
           <.field_error field={@form[:limit]} />
           <.field_error field={@form[:timeout]} />
-          <span></span>
+          <span />
         </div>
       </div>
     </.form>
