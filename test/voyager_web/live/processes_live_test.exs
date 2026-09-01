@@ -575,6 +575,32 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       assert settings["limit"] == "250"
     end
 
+    test "stores the page size alongside the fetch options", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      view
+      |> element("#processes-pager-page-size-form")
+      |> render_change(%{"page_size" => "50"})
+
+      assert_push_event(view, "store-settings", %{settings: settings})
+      assert settings["page_size"] == "50"
+    end
+
+    test "restores the stored page size", %{conn: conn} do
+      pids = fake_pids(30)
+      stub_scan(Enum.map(pids, &entry(pid: &1)))
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      render_hook(view, "restore_settings", %{"page_size" => "10"})
+      render_async(view)
+
+      assert render(view) =~ "1 / 3"
+    end
+
     test "restores stored settings and fetches with them", %{conn: conn} do
       stub_scan([])
       {:ok, view, _html} = live(conn, @path)

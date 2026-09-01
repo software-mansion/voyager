@@ -128,10 +128,9 @@ defmodule VoyagerWeb.ProcessesLive do
 
   @impl true
   def handle_event("validate", %{"controls" => params}, socket) do
-    socket = apply_controls(socket, params)
-
     socket
-    |> push_event("store-settings", %{settings: settings(socket.assigns.controls, params)})
+    |> apply_controls(params)
+    |> store_settings(params)
     |> noreply()
   end
 
@@ -139,6 +138,7 @@ defmodule VoyagerWeb.ProcessesLive do
   # with the remembered options rather than the defaults.
   def handle_event("restore_settings", params, socket) do
     socket
+    |> assign(:page_size, page_size(parse_integer(params["page_size"])))
     |> apply_controls(params)
     |> fetch()
     |> noreply()
@@ -165,6 +165,7 @@ defmodule VoyagerWeb.ProcessesLive do
     socket
     |> assign(:page_size, size)
     |> assign(:page, clamp_page(socket, 1, size))
+    |> store_settings()
     |> noreply()
   end
 
@@ -265,15 +266,20 @@ defmodule VoyagerWeb.ProcessesLive do
   defp pending?(controls, fetched_with),
     do: ProcessListControls.fetch_differs?(controls, fetched_with)
 
-  # Stored as submitted rather than as applied: an invalid value the user is
-  # still typing should not be silently replaced on the next visit.
-  defp settings(%ProcessListControls{} = controls, params) do
-    %{
-      "search" => params["search"] || controls.search,
-      "limit" => to_string(controls.limit),
-      "timeout" => to_string(controls.timeout),
-      "columns" => controls.columns
-    }
+  # Only validated values are stored, so nothing invalid can come back on the
+  # next visit. `search` is taken as typed, since anything is valid there.
+  defp store_settings(socket, params \\ %{}) do
+    %{controls: controls, page_size: page_size} = socket.assigns
+
+    push_event(socket, "store-settings", %{
+      settings: %{
+        "search" => params["search"] || controls.search,
+        "limit" => to_string(controls.limit),
+        "timeout" => to_string(controls.timeout),
+        "columns" => controls.columns,
+        "page_size" => to_string(page_size)
+      }
+    })
   end
 
   defp entries(%AsyncResult{ok?: true, result: %{entries: entries}}), do: entries

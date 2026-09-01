@@ -127,11 +127,19 @@ defmodule VoyagerWeb.Components.ProcessComponents do
             selected={List.wrap(@form[:columns].value)}
           />
         </.labelled_field>
-      </div>
 
-      <p :if={@pending?} id="process-controls-pending" class="text-base-content/70 basis-full text-xs">
-        <.icon name="icon-info" class="size-3.5" /> Limit and timeout apply on the next refresh.
-      </p>
+        <%!-- Beside the controls it is about, so it is seen where the change
+              was made rather than on a row of its own. --%>
+        <.tooltip :if={@pending?} id="process-controls-pending" position="bottom">
+          <span class="text-warning flex h-8 items-center gap-1.5 text-xs">
+            <.icon name="icon-circle-alert" class="size-4 shrink-0" /> Applies on next refresh
+          </span>
+          <:content>
+            The limit and timeout changed since these rows were fetched. Refresh
+            to apply them.
+          </:content>
+        </.tooltip>
+      </div>
     </.form>
     """
   end
