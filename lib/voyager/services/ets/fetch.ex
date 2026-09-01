@@ -5,7 +5,8 @@ defmodule Voyager.Services.Ets.Fetch do
   Runs `Remote.select_chunk/5` and `Remote.lookup/4` in a
   `Task.Supervisor.async_nolink/2` child with `max_heap_size` 500_000 words
   (`kill: true`), then sanitizes **records** (not the continuation) before
-  they reach the caller. A heap kill becomes `{:error, :heap_limit_exceeded}`.
+  they reach the caller. A heap kill during the wait becomes
+  `{:error, :heap_limit_exceeded}`. A wait that expires is `{:error, :timeout}`.
 
   This protects Voyager, not the target. MFA peek still copies full objects
   on the remote node and over the wire.
@@ -24,18 +25,16 @@ defmodule Voyager.Services.Ets.Fetch do
   @doc """
   Match-all page of sanitized records from `table` on `node`.
 
-  `limit` must be 10, 20, or 50. `continuation` is `nil` for the first page
-  and the opaque ETS term from a prior chunk afterwards — callers (LiveView)
-  bind it to `{node, table_id}`, not a URL token.
+  `limit` must be 10, 20, or 50 (10 is the usual first page). `continuation`
+  is `nil` for the first page and the opaque ETS term from a prior chunk
+  afterwards — callers (LiveView) bind it to `{node, table_id}`, not a URL
+  token.
   """
   @spec select_chunk(node(), TableId.t(), pos_integer(), term() | nil, timeout()) ::
           {:ok, chunk()} | {:error, term()}
   def select_chunk(node, table, limit, continuation \\ nil, timeout \\ @default_timeout) do
-    isolate(timeout, fn ->
-      case Remote.select_chunk(node, table, limit, continuation, timeout) do
-        {:ok, chunk} -> {:ok, sanitize_chunk(chunk)}
-        {:error, _} = err -> err
-      end
+    isolated_read(timeout, fn ->
+      Remote.select_chunk(node, table, limit, continuation, timeout)
     end)
   end
 
@@ -45,8 +44,14 @@ defmodule Voyager.Services.Ets.Fetch do
   @spec lookup(node(), TableId.t(), atom() | integer() | binary(), timeout()) ::
           {:ok, chunk()} | {:error, term()}
   def lookup(node, table, key, timeout \\ @default_timeout) do
+    isolated_read(timeout, fn ->
+      Remote.lookup(node, table, key, timeout)
+    end)
+  end
+
+  defp isolated_read(timeout, fun) do
     isolate(timeout, fn ->
-      case Remote.lookup(node, table, key, timeout) do
+      case fun.() do
         {:ok, chunk} -> {:ok, sanitize_chunk(chunk)}
         {:error, _} = err -> err
       end
@@ -63,14 +68,20 @@ defmodule Voyager.Services.Ets.Fetch do
     task =
       Task.Supervisor.async_nolink(Voyager.TaskSupervisor, fn ->
         Erpc.bind_impl(impl)
-        Process.flag(:max_heap_size, %{size: @max_heap_size, kill: true, error_logger: false})
+        Process.flag(:max_heap_size, %{size: @max_heap_size, kill: true})
         fun.()
       end)
 
-    case Task.yield(task, timeout) || Task.shutdown(task, :brutal_kill) do
-      {:ok, result} -> result
-      {:exit, reason} -> format_task_exit(reason)
-      nil -> {:error, :timeout}
+    case Task.yield(task, timeout) do
+      {:ok, result} ->
+        result
+
+      {:exit, reason} ->
+        format_task_exit(reason)
+
+      nil ->
+        _ = Task.shutdown(task, :brutal_kill)
+        {:error, :timeout}
     end
   end
 

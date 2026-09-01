@@ -100,10 +100,11 @@ defmodule Voyager.Services.Ets.Remote do
   @doc """
   Returns a match-all page of records from `table` on `node`.
 
-  `limit` must be 10, 20, or 50. `continuation` is `nil` for the first page
-  and the opaque ETS continuation from a prior chunk afterwards. Missing
-  `:voyager_agent.ets_select_chunk/3` falls back to `:ets.select/3` (first
-  page) or `:ets.select/1` (later pages). Paging is best-effort.
+  `limit` must be 10, 20, or 50 (10 is the usual first page). `continuation`
+  is `nil` for the first page and the opaque ETS continuation from a prior
+  chunk afterwards. Missing `:voyager_agent.ets_select_chunk/3` falls back
+  to `:ets.select/3` (first page) or `:ets.select/1` (later pages). Paging
+  is best-effort.
   """
   @spec select_chunk(node(), TableId.t(), pos_integer(), term() | nil, timeout()) ::
           {:ok, chunk()} | {:error, term()}
@@ -112,7 +113,7 @@ defmodule Voyager.Services.Ets.Remote do
   def select_chunk(node, table, limit, continuation, timeout)
       when is_atom(table) or is_reference(table) do
     if limit in @chunk_sizes do
-      select(node, table, @match_all, limit, continuation, timeout)
+      select(node, table, limit, continuation, timeout)
     else
       {:error, :invalid_limit}
     end
@@ -132,7 +133,7 @@ defmodule Voyager.Services.Ets.Remote do
 
   def lookup(node, table, key, timeout) when is_atom(table) or is_reference(table) do
     if valid_key?(key) do
-      case exported?(node, @lookup_fun, 2, timeout) do
+      case probe_export(node, @lookup_fun, 2, timeout) do
         {:ok, true} -> agent_lookup(node, table, key, timeout)
         {:ok, false} -> mfa_lookup(node, table, key, timeout)
         {:error, _} = err -> err
@@ -144,12 +145,10 @@ defmodule Voyager.Services.Ets.Remote do
 
   def lookup(_node, _table, _key, _timeout), do: {:error, :invalid_table}
 
-  # Shared by `select_chunk/5` (match-all) so VOY-231 can reuse the probe
-  # without forking fallback rules.
-  defp select(node, table, match_spec, limit, continuation, timeout) do
-    case exported?(node, @select_fun, 3, timeout) do
+  defp select(node, table, limit, continuation, timeout) do
+    case probe_export(node, @select_fun, 3, timeout) do
       {:ok, true} -> agent_select(node, table, limit, continuation, timeout)
-      {:ok, false} -> mfa_select(node, table, match_spec, limit, continuation, timeout)
+      {:ok, false} -> mfa_select(node, table, limit, continuation, timeout)
       {:error, _} = err -> err
     end
   end
@@ -163,10 +162,10 @@ defmodule Voyager.Services.Ets.Remote do
     end
   end
 
-  defp mfa_select(node, table, match_spec, limit, continuation, timeout) do
+  defp mfa_select(node, table, limit, continuation, timeout) do
     result =
       if is_nil(continuation) do
-        Erpc.safe_call(node, :ets, :select, [table, match_spec, limit], timeout)
+        Erpc.safe_call(node, :ets, :select, [table, @match_all, limit], timeout)
       else
         Erpc.safe_call(node, :ets, :select, [continuation], timeout)
       end
@@ -210,7 +209,7 @@ defmodule Voyager.Services.Ets.Remote do
   defp map_read_error({:error, {:remote_exception, :badarg}}), do: {:error, :cannot_read}
   defp map_read_error({:error, _} = err), do: err
 
-  defp exported?(node, fun, arity, timeout) do
+  defp probe_export(node, fun, arity, timeout) do
     case Erpc.safe_call(node, :erlang, :function_exported, [@agent, fun, arity], timeout) do
       {:ok, true} -> {:ok, true}
       {:ok, false} -> {:ok, false}

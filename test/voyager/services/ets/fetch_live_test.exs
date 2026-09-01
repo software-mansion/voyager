@@ -56,6 +56,7 @@ defmodule Voyager.Services.Ets.FetchLiveTest do
     assert {:error, :cannot_read} = Fetch.lookup(Node.self(), tid, :k)
   end
 
+  @tag capture_log: true
   test "returns :heap_limit_exceeded when the copied payload exceeds the host heap cap" do
     name = unique_name()
     :ets.new(name, [:named_table, :public, :set])
