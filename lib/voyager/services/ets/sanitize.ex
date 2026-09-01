@@ -16,7 +16,7 @@ defmodule Voyager.Services.Ets.Sanitize do
   @type truncated ::
           {:"$voyager_truncated", :binary, binary(), non_neg_integer()}
           | {:"$voyager_truncated", :list, [term()], non_neg_integer()}
-          | {:"$voyager_truncated", :map, map(), non_neg_integer()}
+          | {:"$voyager_truncated", :map, [{term(), term()}], non_neg_integer()}
           | {:"$voyager_truncated", :tuple, [term()], non_neg_integer()}
           | {:"$voyager_truncated", :depth}
 
@@ -91,19 +91,16 @@ defmodule Voyager.Services.Ets.Sanitize do
 
   defp sanitize_value(%{} = map, depth) do
     pairs = map |> Map.to_list() |> Enum.sort()
-    len = length(pairs)
-    kept = Enum.take(pairs, @max_collection)
+    omitted = max(length(pairs) - @max_collection, 0)
 
-    taken =
-      Map.new(kept, fn {key, value} ->
+    sanitized_pairs =
+      pairs
+      |> Enum.take(@max_collection)
+      |> Enum.map(fn {key, value} ->
         {sanitize(key, depth + 1), sanitize(value, depth + 1)}
       end)
 
-    if len > @max_collection do
-      {@marker, :map, taken, len - @max_collection}
-    else
-      taken
-    end
+    rebuild_map(sanitized_pairs, omitted)
   end
 
   defp sanitize_value(tuple, depth) when is_tuple(tuple) do
@@ -119,6 +116,18 @@ defmodule Voyager.Services.Ets.Sanitize do
   end
 
   defp sanitize_value(term, _depth), do: term
+
+  defp rebuild_map(pairs, 0) do
+    as_map = Map.new(pairs)
+
+    if map_size(as_map) == length(pairs) do
+      as_map
+    else
+      {@marker, :map, pairs, 0}
+    end
+  end
+
+  defp rebuild_map(pairs, omitted), do: {@marker, :map, pairs, omitted}
 
   defp cons(heads, tail) do
     Enum.reduce(Enum.reverse(heads), tail, fn head, acc -> [head | acc] end)
