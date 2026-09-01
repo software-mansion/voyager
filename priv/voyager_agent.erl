@@ -15,32 +15,32 @@
 -type state() :: #state{nodes :: #{node() => true}}.
 
 %% =====================================================================
-%% REGISTER - Adds the parent to the list of nodes and returns the server pid.
+%% REGISTER - Adds the Voyager node to the watched set and returns the server pid.
 %% =====================================================================
 
 %% Bounds the start/register retry so a node whose agent keeps stopping
 %% cannot spin here forever.
 -define(MAX_REGISTER_ATTEMPTS, 3).
 
-%% Adds the parent to the list of nodes and returns the server pid.
-%% If the server is not running, it starts it and registers the parent.
+%% Adds the Voyager node to the watched set and returns the server pid.
+%% If the server is not running, it starts it and registers the Voyager node.
 %% Uses `gen_server:start/4` so the process outlives the transient erpc caller.
 %% A failed `init/1` purges the module
 -spec register(node()) -> {ok, pid()} | {error, term()}.
-register(ParentNode) when is_atom(ParentNode) ->
-    do_start(ParentNode, ?MAX_REGISTER_ATTEMPTS).
+register(VoyagerNode) when is_atom(VoyagerNode) ->
+    do_start(VoyagerNode, ?MAX_REGISTER_ATTEMPTS).
 
 -spec do_start(node(), non_neg_integer()) -> {ok, pid()} | {error, term()}.
-do_start(_ParentNode, 0) ->
+do_start(_VoyagerNode, 0) ->
     {error, unavailable};
-do_start(ParentNode, Attempts) ->
+do_start(VoyagerNode, Attempts) ->
     case whereis(?MODULE) of
         undefined ->
-            case gen_server:start({local, ?MODULE}, ?MODULE, ParentNode, []) of
+            case gen_server:start({local, ?MODULE}, ?MODULE, VoyagerNode, []) of
                 {ok, Pid} ->
                     {ok, Pid};
                 {error, {already_started, _Pid}} ->
-                    do_register(ParentNode, Attempts);
+                    do_register(VoyagerNode, Attempts);
                 _Error ->
                     %% terminate/2 is not called when init/1 fails, so unload here or the
                     %% module stays loaded on the node after a failed register/1.
@@ -48,24 +48,24 @@ do_start(ParentNode, Attempts) ->
                     purge_code()
             end;
         _Pid ->
-            do_register(ParentNode, Attempts)
+            do_register(VoyagerNode, Attempts)
     end.
 
-%% The agent stops itself when its last parent goes down, so it can be gone between `whereis/1` above and this call. 
+%% The agent stops itself when its last Voyager node goes down, so it can be gone between `whereis/1` above and this call. 
 %% Depending on timing the call then exits with `noproc` (already gone), or with the server's being `killed`. 
 %% Retry the whole start/register sequence when that occurs.
 -spec do_register(node(), pos_integer()) -> {ok, pid()} | {error, term()}.
-do_register(ParentNode, Attempts) ->
-    try gen_server:call(?MODULE, {register, ParentNode}) of
+do_register(VoyagerNode, Attempts) ->
+    try gen_server:call(?MODULE, {register, VoyagerNode}) of
         {ok, Pid} ->
             {ok, Pid};
         {error, _} = Error ->
             Error
     catch
         exit:{noproc, _} ->
-            do_start(ParentNode, Attempts - 1);
+            do_start(VoyagerNode, Attempts - 1);
         exit:{killed, _} ->
-            do_start(ParentNode, Attempts - 1)
+            do_start(VoyagerNode, Attempts - 1)
     end.
 
 %% =====================================================================
@@ -244,10 +244,10 @@ with_bounded_heap(Fun) ->
 %% =====================================================================
 
 -spec init(node()) -> {ok, state()} | {stop, term()}.
-init(ParentNode) when is_atom(ParentNode) ->
+init(VoyagerNode) when is_atom(VoyagerNode) ->
     %% Turns an incoming exit signal into an {'EXIT', _, _} message that handle_info/2 stops on.
     process_flag(trap_exit, true),
-    case add_node(#state{nodes = #{}}, ParentNode) of
+    case add_node(#state{nodes = #{}}, VoyagerNode) of
         {ok, State} ->
             {ok, State};
         {error, Reason} ->
@@ -256,8 +256,8 @@ init(ParentNode) when is_atom(ParentNode) ->
 
 -spec handle_call({register, node()} | term(), {pid(), term()}, state()) ->
                      {reply, {ok, pid()} | {error, term()}, state()}.
-handle_call({register, ParentNode}, _From, State) when is_atom(ParentNode) ->
-    case add_node(State, ParentNode) of
+handle_call({register, VoyagerNode}, _From, State) when is_atom(VoyagerNode) ->
+    case add_node(State, VoyagerNode) of
         {ok, NewState} ->
             {reply, {ok, self()}, NewState};
         {error, _} = Error ->
@@ -272,13 +272,11 @@ handle_cast(_Msg, State) ->
 
 -spec handle_info(term(), state()) ->
                      {noreply, state()} | {stop, normal | shutdown, state()}.
-handle_info({nodedown, ParentNode}, #state{nodes = Nodes} = State) ->
-    NewNodes = maps:remove(ParentNode, Nodes),
-    NewState = State#state{nodes = NewNodes},
-    case maps:size(NewNodes) of
-        0 ->
+handle_info({nodedown, VoyagerNode}, State) ->
+    case remove_node(State, VoyagerNode) of
+        {0, NewState} ->
             {stop, normal, NewState};
-        _ ->
+        {_, NewState} ->
             {noreply, NewState}
     end;
 handle_info({'EXIT', _From, _Reason}, State) ->
@@ -294,25 +292,30 @@ terminate(_Reason, _State) ->
 code_change(_Vsn, State, _Extra) ->
     {ok, State}.
 
-%% Subscribe to nodedown for ParentNode.
+%% Subscribe to nodedown for VoyagerNode.
 %% Duplicate registers are a no-op so `erlang:monitor_node/2` does not stack subscriptions.
 %% If Node cannot be reached, `erlang:monitor_node(Node, true)` delivers `{nodedown, Node}` to this process.
 %% `erlang:monitor_node/2` raises `notalive` only when this VM is not distributed and Node is not 'nonode@nohost'.
 -spec add_node(state(), node()) -> {ok, state()} | {error, nodedown}.
-add_node(#state{nodes = Nodes} = State, ParentNode)
-    when is_atom(ParentNode), is_map(Nodes) ->
-    case maps:is_key(ParentNode, Nodes) of
+add_node(#state{nodes = Nodes} = State, VoyagerNode)
+    when is_atom(VoyagerNode), is_map(Nodes) ->
+    case maps:is_key(VoyagerNode, Nodes) of
         true ->
             {ok, State};
         false ->
-            try erlang:monitor_node(ParentNode, true) of
+            try erlang:monitor_node(VoyagerNode, true) of
                 _ ->
-                    {ok, State#state{nodes = Nodes#{ParentNode => true}}}
+                    {ok, State#state{nodes = Nodes#{VoyagerNode => true}}}
             catch
                 error:notalive ->
                     {error, nodedown}
             end
     end.
+
+-spec remove_node(state(), node()) -> {integer(), state()}.
+remove_node(#state{nodes = Nodes} = State, VoyagerNode) ->
+    NewState = State#state{nodes = maps:remove(VoyagerNode, Nodes)},
+    {map_size(NewState#state.nodes), NewState}.
 
 %% `purge` stops all processes running this module and deletes the module old module code.
 %% `delete` moves current module code to old code.

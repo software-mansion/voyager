@@ -98,16 +98,16 @@ defmodule VoyagerAgentTest do
   end
 
   describe "nodedown" do
-    test "keeps other registrations when one parent goes down" do
-      parent = Node.self()
+    test "keeps other registrations when one Voyager node goes down" do
+      voyager_node = Node.self()
       other = :other@localhost
-      {:ok, pid} = @agent_module.register(parent)
+      {:ok, pid} = @agent_module.register(voyager_node)
 
       :sys.replace_state(pid, fn {:state, nodes} ->
         {:state, Map.put(nodes, other, true)}
       end)
 
-      send(pid, {:nodedown, parent})
+      send(pid, {:nodedown, voyager_node})
       _ = :sys.get_state(pid)
 
       assert Process.whereis(@agent_module) == pid
@@ -115,12 +115,12 @@ defmodule VoyagerAgentTest do
       assert Code.loaded?(@agent_module)
     end
 
-    test "stops and unloads the module when the last parent goes down" do
-      parent = Node.self()
-      {:ok, pid} = @agent_module.register(parent)
+    test "stops and unloads the module when the last Voyager node goes down" do
+      voyager_node = Node.self()
+      {:ok, pid} = @agent_module.register(voyager_node)
       ref = Process.monitor(pid)
 
-      send(pid, {:nodedown, parent})
+      send(pid, {:nodedown, voyager_node})
 
       assert_receive {:DOWN, ^ref, :process, ^pid, :killed}
 
