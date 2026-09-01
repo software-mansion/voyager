@@ -127,11 +127,14 @@ defmodule VoyagerWeb.Components.ProcessComponents do
             selected={List.wrap(@form[:columns].value)}
           />
         </.labelled_field>
+      </div>
 
-        <%!-- Beside the controls it is about, so it is seen where the change
-              was made rather than on a row of its own. --%>
-        <.tooltip :if={@pending?} id="process-controls-pending" position="bottom">
-          <span class="text-warning flex h-8 items-center gap-1.5 text-xs">
+      <%!-- Its own full-width row beneath the controls, aligned right under
+            them. `w-full` on a wrapper rather than `basis-full` on the tooltip:
+            the tooltip renders a span, not a flex child of the form. --%>
+      <div :if={@pending?} class="flex w-full justify-end">
+        <.tooltip id="process-controls-pending" position="bottom">
+          <span class="text-warning inline-flex items-center gap-1.5 text-xs">
             <.icon name="icon-circle-alert" class="size-4 shrink-0" /> Applies on next refresh
           </span>
           <:content>

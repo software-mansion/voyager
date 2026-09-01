@@ -57,7 +57,10 @@ defmodule VoyagerWeb.ProcessesLive do
       id="processes-page"
       phx-hook="TableSettings"
       data-settings-key="processes"
-      class="mx-auto flex h-full max-w-screen-2xl flex-col gap-4 p-6 pb-12 sm:p-8 sm:pb-12"
+      class={[
+        "mx-auto flex h-full max-w-screen-2xl flex-col gap-4 p-6 pb-12 sm:p-8 sm:pb-12",
+        DataTableComponents.min_width_class()
+      ]}
     >
       <.node_header
         node_name={@session.node_name}

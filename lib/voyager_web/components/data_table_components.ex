@@ -28,6 +28,17 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   alias VoyagerWeb.Formatters
 
   @doc """
+  The narrowest the table gets before its card scrolls.
+
+  A cell's own `min-width` is ignored under fixed layout, so the floor lives on
+  the table: without it a wide column set keeps dividing the available space
+  until the unsized columns collapse to nothing. Pages holding the table use
+  the same class so their controls do not reflow narrower than it.
+  """
+  @spec min_width_class() :: String.t()
+  def min_width_class, do: "min-w-5xl"
+
+  @doc """
   Sortable table.
 
   `rows` is a list of `{dom_id, row}` tuples so the caller can drive it from a
@@ -47,10 +58,13 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   def table(assigns) do
     ~H"""
     <div class="card bg-base-100 border-base-200 border shadow-sm">
-      <%!-- No horizontal scroll: fixed layout keeps the columns inside the
-            card, and overflowing content truncates. --%>
-      <div class="p-5">
-        <table id={@id} class="table-pin-rows table-md table w-full table-fixed">
+      <%!-- Scrolls only when the columns cannot fit their minimums; otherwise
+            fixed layout keeps them inside the card and content truncates. --%>
+      <div class="overflow-x-auto p-5">
+        <table
+          id={@id}
+          class={["table-pin-rows table-md table w-full table-fixed", min_width_class()]}
+        >
           <thead>
             <tr>
               <.column_header
