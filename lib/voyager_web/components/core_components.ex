@@ -493,7 +493,9 @@ defmodule VoyagerWeb.CoreComponents do
         class="btn btn-sm btn-outline border-base-content/20 font-normal"
       >
         {@label}
-        <span class="badge badge-primary badge-sm font-mono">{@count}</span>
+        <span class="bg-base-100 border-base-content/20 text-base-content/80 font-mono rounded border px-1.5 py-0.5 text-xs">
+          {@count}
+        </span>
         <.icon name="icon-chevron-right" class="size-3.5 rotate-90" />
       </div>
 
