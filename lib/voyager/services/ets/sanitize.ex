@@ -82,9 +82,10 @@ defmodule Voyager.Services.Ets.Sanitize do
     {taken, rest} = take_cons(list, @max_collection)
     sanitized = Enum.map(taken, &sanitize(&1, depth + 1))
 
-    case rest do
-      [] -> sanitized
-      leftover -> {@marker, :list, sanitized, cons_count(leftover)}
+    cond do
+      rest == [] -> sanitized
+      is_list(rest) -> {@marker, :list, sanitized, cons_count(rest)}
+      true -> cons(sanitized, sanitize(rest, depth + 1))
     end
   end
 
@@ -118,6 +119,10 @@ defmodule Voyager.Services.Ets.Sanitize do
   end
 
   defp sanitize_value(term, _depth), do: term
+
+  defp cons(heads, tail) do
+    Enum.reduce(Enum.reverse(heads), tail, fn head, acc -> [head | acc] end)
+  end
 
   defp take_cons(list, n), do: take_cons(list, n, [])
 

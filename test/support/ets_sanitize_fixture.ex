@@ -12,8 +12,8 @@ defmodule Voyager.Test.EtsSanitizeFixture do
 
   @doc """
   Sample terms covering binary overflow, collection overflow, depth, nested
-  mix, already-truncated leaves, non-binary bitstrings, and keys that must
-  not be redacted.
+  mix, already-truncated leaves, non-binary bitstrings, improper lists, and
+  keys that must not be redacted.
   """
   @spec samples() :: [{term(), term()}]
   def samples do
@@ -27,7 +27,10 @@ defmodule Voyager.Test.EtsSanitizeFixture do
       already_truncated_leaf(),
       no_redaction(),
       bitstring_under_cap(),
-      bitstring_overflow()
+      bitstring_overflow(),
+      improper_list_short(),
+      improper_list_sanitized_tail(),
+      improper_list_overflow()
     ]
   end
 
@@ -106,6 +109,24 @@ defmodule Voyager.Test.EtsSanitizeFixture do
     padded = <<input::bitstring, 0::size(7)>>
     prefix = binary_part(padded, 0, @binary_limit)
     expected = {@marker, :binary, prefix, 601}
+    {input, expected}
+  end
+
+  defp improper_list_short do
+    input = [1 | 2]
+    {input, input}
+  end
+
+  defp improper_list_sanitized_tail do
+    blob = :binary.copy(<<"a">>, 600)
+    input = [1 | blob]
+    expected = [1 | {@marker, :binary, :binary.copy(<<"a">>, @binary_limit), 600}]
+    {input, expected}
+  end
+
+  defp improper_list_overflow do
+    input = Enum.reduce(Enum.reverse(Enum.to_list(1..60)), :tail, fn n, acc -> [n | acc] end)
+    expected = {@marker, :list, Enum.to_list(1..@collection_limit), 11}
     {input, expected}
   end
 end
