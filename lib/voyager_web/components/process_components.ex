@@ -72,9 +72,9 @@ defmodule VoyagerWeb.Components.ProcessComponents do
       for={@form}
       id="process-controls"
       phx-change="validate"
-      class="flex flex-wrap items-end justify-between gap-3"
+      class="flex flex-wrap items-start justify-between gap-3"
     >
-      <label class="input w-full max-w-md">
+      <label class="input mt-5 w-full max-w-md">
         <.icon name="icon-search" class="text-base-content/60 size-4" />
         <input
           id={@form[:search].id}
@@ -87,7 +87,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
         />
       </label>
 
-      <div class="flex flex-wrap items-end gap-2">
+      <div class="flex flex-wrap items-start gap-2">
         <.labelled_field
           field={@form[:limit]}
           label="Limit"
@@ -105,7 +105,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
           </select>
         </.labelled_field>
 
-        <.labelled_field field={@form[:timeout]} label="Timeout (ms)">
+        <.labelled_field field={@form[:timeout]} label="Timeout (ms)" class="w-28">
           <.input
             field={@form[:timeout]}
             type="number"
@@ -114,7 +114,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
             step="100"
             inputmode="numeric"
             phx-debounce="500"
-            class="input input-sm input-bordered no-spinner font-mono w-24"
+            class="input input-sm input-bordered no-spinner font-mono w-full"
           />
         </.labelled_field>
 
@@ -155,11 +155,13 @@ defmodule VoyagerWeb.Components.ProcessComponents do
     default: false,
     doc: "for controls that are not an `<.input>`, which renders its own"
 
+  attr :class, :any, default: nil, doc: "fixes the field's width so errors cannot widen the row"
+
   slot :inner_block, required: true
 
   defp labelled_field(assigns) do
     ~H"""
-    <div class="flex flex-col gap-1">
+    <div class={["flex flex-col gap-1", @class]}>
       <div class="flex items-center gap-1">
         <label for={@field.id} class="text-base-content/70 text-xs font-medium">{@label}</label>
         <.help_tooltip :if={@help} id={"#{@field.id}-help"} text={@help} />
