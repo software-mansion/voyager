@@ -22,7 +22,6 @@ defmodule Voyager.Services.Ets.Remote do
 
   require TableId
 
-  @default_timeout 5_000
   @chunk_sizes [10, 20, 50]
   @match_all [{:"$1", [], [:"$1"]}]
   @agent :voyager_agent
@@ -108,7 +107,7 @@ defmodule Voyager.Services.Ets.Remote do
   """
   @spec select_chunk(node(), TableId.t(), pos_integer(), term() | nil, timeout()) ::
           {:ok, chunk()} | {:error, term()}
-  def select_chunk(node, table, limit, continuation \\ nil, timeout \\ @default_timeout)
+  def select_chunk(node, table, limit, continuation \\ nil, timeout \\ Erpc.default_timeout())
 
   def select_chunk(node, table, limit, continuation, timeout)
       when is_atom(table) or is_reference(table) do
@@ -129,7 +128,7 @@ defmodule Voyager.Services.Ets.Remote do
   """
   @spec lookup(node(), TableId.t(), lookup_key(), timeout()) ::
           {:ok, chunk()} | {:error, term()}
-  def lookup(node, table, key, timeout \\ @default_timeout)
+  def lookup(node, table, key, timeout \\ Erpc.default_timeout())
 
   def lookup(node, table, key, timeout) when is_atom(table) or is_reference(table) do
     if valid_key?(key) do
