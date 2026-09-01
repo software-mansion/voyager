@@ -20,6 +20,7 @@ defmodule Voyager.Application do
       Voyager.ProxyEpmd.TunnelRegistry,
       Voyager.NodeSession,
       {ElixirKit.PubSub, connect: elixirkit_pubsub || :ignore, on_exit: fn -> System.stop() end},
+      Voyager.Services.RateLimiter,
       VoyagerWeb.Endpoint,
       Voyager.MCP,
       {Task, fn -> if elixirkit_pubsub, do: ElixirKit.PubSub.broadcast("messages", "ready") end}
