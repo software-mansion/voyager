@@ -18,6 +18,7 @@ defmodule Voyager.Services.Ets.Fetch do
   alias Voyager.Services.Ets.TableId
 
   @max_heap_size 500_000
+  @yield_slack 100
 
   @type chunk :: Remote.chunk()
 
@@ -71,7 +72,7 @@ defmodule Voyager.Services.Ets.Fetch do
         fun.()
       end)
 
-    case Task.yield(task, timeout) do
+    case Task.yield(task, yield_timeout(timeout)) do
       {:ok, result} ->
         result
 
@@ -83,6 +84,10 @@ defmodule Voyager.Services.Ets.Fetch do
         {:error, :timeout}
     end
   end
+
+  # Probe + read each use `timeout`; the yield must outlast both.
+  defp yield_timeout(:infinity), do: :infinity
+  defp yield_timeout(timeout) when is_integer(timeout), do: timeout * 2 + @yield_slack
 
   defp format_task_exit(:killed), do: {:error, :heap_limit_exceeded}
   defp format_task_exit({:killed, _info}), do: {:error, :heap_limit_exceeded}
