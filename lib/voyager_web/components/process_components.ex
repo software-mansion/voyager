@@ -83,6 +83,21 @@ defmodule VoyagerWeb.Components.ProcessComponents do
           />
         </label>
 
+        <%!-- Reserves its row whether or not it shows, so the controls beside
+              it and the table below never shift. --%>
+        <div class="min-h-8 mt-5 flex flex-1 items-center justify-end">
+          <.tooltip :if={@pending?} id="process-controls-pending" position="bottom">
+            <span class="alert alert-warning w-auto py-1.5 text-xs">
+              <.icon name="icon-circle-alert" class="text-warning size-4" />
+              <span>Applies on next refresh</span>
+            </span>
+            <:content>
+              The limit and timeout changed since these rows were fetched.
+              Refresh to apply them.
+            </:content>
+          </.tooltip>
+        </div>
+
         <%!-- Three rows — label, input, error — so a message appears in its own
               row instead of resizing the input above it. --%>
         <div class="grid-cols-[auto_auto_auto] grid-rows-[auto_auto_auto] grid items-center gap-x-2">
@@ -129,19 +144,6 @@ defmodule VoyagerWeb.Components.ProcessComponents do
           <span></span>
         </div>
       </div>
-
-      <%!-- Always occupies its row, so showing it cannot shift the table. --%>
-      <div class="flex h-5 w-full justify-end">
-        <.tooltip :if={@pending?} id="process-controls-pending" position="bottom">
-          <span class="text-warning inline-flex items-center gap-1.5 text-xs">
-            <.icon name="icon-circle-alert" class="size-4 shrink-0" /> Applies on next refresh
-          </span>
-          <:content>
-            The limit and timeout changed since these rows were fetched. Refresh
-            to apply them.
-          </:content>
-        </.tooltip>
-      </div>
     </.form>
     """
   end
@@ -165,8 +167,12 @@ defmodule VoyagerWeb.Components.ProcessComponents do
 
   defp field_error(assigns) do
     ~H"""
-    <p class="font-mono text-error w-24 text-xs">
-      {@field.errors |> Enum.map_join(", ", &translate_error/1)}
+    <%!-- The cell keeps the input's width and the message overflows it, so a
+          long error cannot stretch the grid column and shift the controls. --%>
+    <p class="font-mono text-error relative h-4 w-24 text-xs">
+      <span class="absolute left-0 whitespace-nowrap">
+        {@field.errors |> Enum.map_join(", ", &translate_error/1)}
+      </span>
     </p>
     """
   end

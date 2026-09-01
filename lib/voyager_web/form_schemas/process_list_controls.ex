@@ -75,7 +75,9 @@ defmodule VoyagerWeb.FormSchemas.ProcessListControls do
   """
   @spec apply(t(), map()) :: {t(), Ecto.Changeset.t()}
   def apply(controls, attrs) do
-    changeset = changeset(controls, attrs)
+    # `:validate` on the changeset either way: `to_form/2` only surfaces errors
+    # once an action is set.
+    changeset = %{changeset(controls, attrs) | action: :validate}
 
     case Ecto.Changeset.apply_action(changeset, :validate) do
       {:ok, applied} -> {applied, changeset}
