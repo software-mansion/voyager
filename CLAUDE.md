@@ -141,6 +141,22 @@ This is a web application written using the Phoenix web framework.
 
 ## Voyager architecture guidelines
 
+### Comments
+
+- Write a comment only when the code cannot say it itself: a non-obvious *why*, a workaround, a constraint from OTP/Phoenix/the remote node. **Never** restate *what* the next line does
+- **Delete** these on sight, do not generate them:
+  - section banners (`# Assigns`, `# Helpers`, `# Private functions`, `# --- Events ---`)
+  - narration of the obvious (`# Fetch the connection`, `# Return the socket`, `# Handle the click event`)
+  - restating a `@spec`, a function name, or a pattern match in prose
+  - commented-out code and `# TODO` left behind after the change is done
+  - changelog/diff talk (`# Changed from assign_new`, `# New in this PR`, `# Was broken before`)
+  - traces of the chat that produced the code (`# As requested`, `# Per your instruction`, `# Fixed the bug you mentioned`, `# Now using streams as suggested`) — the code has no reader who was in that conversation
+  - ticket references (`# VOY-123`, `# Part of VOY-123`, `# See Linear issue`) — issue tracking lives in the commit message and PR, never in source. The only comment that may name an external source is one whose *content* explains a non-obvious constraint (e.g. a link to an upstream OTP bug the workaround exists for)
+- Prefer a well-named private function or variable over a comment explaining a block
+- Public API docs go in `@doc`/`@moduledoc`, not in `#` comments above the function
+- HEEx: same rule for `<%!-- --%>`. No per-section banners in templates
+- When editing existing code, do not add comments to lines you merely touched
+
 ### Schemas
 
 - **Persistent Ecto schemas** live in `lib/voyager/schemas/` as `Voyager.Schemas.ResourceName` (e.g. `Voyager.Schemas.Connection`)
