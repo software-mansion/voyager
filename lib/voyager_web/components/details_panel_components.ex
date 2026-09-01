@@ -362,7 +362,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   @spec load_error(any()) :: Phoenix.LiveView.Rendered.t()
   def load_error(assigns) do
     ~H"""
-    <div class="border-error bg-error text-error rounded-lg border px-3 py-2.5 text-xs">
+    <div class="alert alert-error border px-3 py-2.5 text-xs">
+      <.icon name="icon-circle-alert" class="text-error size-4 shrink-0" />
       Failed to load node details.
     </div>
     """
