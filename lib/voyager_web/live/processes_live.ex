@@ -146,11 +146,14 @@ defmodule VoyagerWeb.ProcessesLive do
   def handle_event("validate", %{"controls" => params}, socket) do
     socket
     |> apply_controls(params)
-    |> assign(:dirty?, true)
     |> store_settings(params)
     |> debounce_refetch()
     |> noreply()
   end
+
+  # An input can fire a debounced change after the form was patched, arriving
+  # without the nested params; there is nothing to apply.
+  def handle_event("validate", _params, socket), do: noreply(socket)
 
   # Restored from localStorage on mount: same validation, then a first fetch
   # with the remembered options rather than the defaults.
@@ -212,6 +215,7 @@ defmodule VoyagerWeb.ProcessesLive do
   def handle_info(:refetch, socket) do
     socket
     |> assign(:refetch_timer, nil)
+    |> assign(:dirty?, true)
     |> fetch()
     |> noreply()
   end

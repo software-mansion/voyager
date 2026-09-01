@@ -538,6 +538,17 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       assert_received {:scanned, _args, 5_000}
     end
 
+    test "a stray validate without params is ignored", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      # As sent by a debounced input firing after a form patch.
+      render_hook(view, "validate", %{"_target" => ["controls", "search"]})
+
+      assert has_element?(view, "#process-controls")
+    end
+
     test "a control change refetches after the debounce window", %{conn: conn} do
       stub_scan([])
       {:ok, view, _html} = live(conn, @path)
@@ -581,10 +592,11 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       # Auto/manual refresh stays quiet: no dim, no disable.
       refute has_element?(view, "#process-controls fieldset[disabled]")
 
-      # A control change dims the stale table until its fetch lands.
+      # The debounce window itself stays undimmed — the user is still editing.
       change(view, %{"limit" => "250"})
-      assert render(view) =~ "pointer-events-none select-none opacity-60"
+      refute render(view) =~ "pointer-events-none select-none opacity-60"
 
+      # The dim spans the control-triggered fetch and clears when it lands.
       send(view.pid, :refetch)
       render_async(view)
       refute render(view) =~ "pointer-events-none select-none opacity-60"
