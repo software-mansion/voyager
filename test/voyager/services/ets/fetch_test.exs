@@ -73,6 +73,27 @@ defmodule Voyager.Services.Ets.FetchTest do
     assert {:error, :timeout} = Fetch.select_chunk(@node, :t, 10, nil, 50)
   end
 
+  test "yields long enough for a probe and a read that each use the full timeout" do
+    timeout = 80
+
+    expect(Voyager.ErpcMock, :call, fn @node,
+                                       :erlang,
+                                       :function_exported,
+                                       [:voyager_agent, :ets_select_chunk, 3],
+                                       ^timeout ->
+      Process.sleep(50)
+      false
+    end)
+
+    expect(Voyager.ErpcMock, :call, fn @node, :ets, :select, [:t, _spec, 10], ^timeout ->
+      Process.sleep(50)
+      :"$end_of_table"
+    end)
+
+    assert {:ok, %{records: [], continuation: nil}} =
+             Fetch.select_chunk(@node, :t, 10, nil, timeout)
+  end
+
   test "returns {:task_exit, reason} when the isolated task exits for another reason" do
     stub_exported(:ets_select_chunk, 3, false)
 
