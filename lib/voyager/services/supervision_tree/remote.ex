@@ -3,6 +3,8 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   Thin `:erpc` wrappers for remote node inspection of supervision tree.
   """
 
+  alias Voyager.Erpc
+
   @timeout_fast 1_000
   @timeout_children 3_000
   @timeout_pinfo 2_000
@@ -186,33 +188,9 @@ defmodule Voyager.Services.SupervisionTree.Remote do
     end
   end
 
-  # Translates every `:erpc.call` failure into an `{:error, reason}` tuple so no
-  # raw exception ever escapes to callers. Besides erpc-level failures
-  # (`{:erpc, _}`) and remote `error` exceptions (`{:exception, _, _}`), this
-  # also covers remote `exit`s (re-raised by erpc as an `:exit`) and remote
-  # `throw`s (re-thrown by erpc), plus a catch-all for any other `:error`.
   defp call(node, mod, fun, args, timeout) do
-    {:ok, Voyager.Erpc.call(node, mod, fun, args, timeout)}
+    {:ok, Erpc.call(node, mod, fun, args, timeout)}
   catch
-    :error, {:erpc, :timeout} ->
-      {:error, :timeout}
-
-    :error, {:erpc, :noconnection} ->
-      {:error, :noconnection}
-
-    :error, {:exception, reason, _stack} ->
-      {:error, {:remote_exception, reason}}
-
-    :error, {:erpc, _} = reason ->
-      {:error, reason}
-
-    :error, reason ->
-      {:error, reason}
-
-    :exit, reason ->
-      {:error, {:remote_exit, reason}}
-
-    :throw, value ->
-      {:error, {:remote_throw, value}}
+    kind, reason -> Erpc.format_error(kind, reason)
   end
 end

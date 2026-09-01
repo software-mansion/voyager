@@ -1,6 +1,76 @@
 -module(voyager_agent).
 
+-behaviour(gen_server).
+
+%% API
+-export([register/1]).
 -export([proc_top/5]).
+%% gen_server callbacks
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
+         code_change/3]).
+
+
+-record(state, {nodes = #{} :: #{node() => true}}).
+
+-type state() :: #state{nodes :: #{node() => true}}.
+
+%% =====================================================================
+%% REGISTER - Adds the Voyager node to the watched set and returns the server pid.
+%% =====================================================================
+
+%% Bounds the start/register retry so a node whose agent keeps stopping
+%% cannot spin here forever.
+-define(MAX_REGISTER_ATTEMPTS, 3).
+
+%% Adds the Voyager node to the watched set and returns the server pid.
+%% If the server is not running, it starts it and registers the Voyager node.
+%% Uses `gen_server:start/4` so the process outlives the transient erpc caller.
+%% A failed `init/1` purges the module
+-spec register(node()) -> {ok, pid()} | {error, term()}.
+register(VoyagerNode) when is_atom(VoyagerNode) ->
+    do_start(VoyagerNode, ?MAX_REGISTER_ATTEMPTS).
+
+-spec do_start(node(), non_neg_integer()) -> {ok, pid()} | {error, term()}.
+do_start(_VoyagerNode, 0) ->
+    {error, unavailable};
+do_start(VoyagerNode, Attempts) ->
+    case whereis(?MODULE) of
+        undefined ->
+            case gen_server:start({local, ?MODULE}, ?MODULE, VoyagerNode, []) of
+                {ok, Pid} ->
+                    {ok, Pid};
+                {error, {already_started, _Pid}} ->
+                    do_register(VoyagerNode, Attempts);
+                _Error ->
+                    %% terminate/2 is not called when init/1 fails, so unload here or the
+                    %% module stays loaded on the node after a failed register/1.
+                    %% it purges the code so this return value is ignored.
+                    purge_code()
+            end;
+        _Pid ->
+            do_register(VoyagerNode, Attempts)
+    end.
+
+%% The agent stops itself when its last Voyager node goes down, so it can be gone between `whereis/1` above and this call. 
+%% Depending on timing the call then exits with `noproc` (already gone), or with the server's being `killed`. 
+%% Retry the whole start/register sequence when that occurs.
+-spec do_register(node(), pos_integer()) -> {ok, pid()} | {error, term()}.
+do_register(VoyagerNode, Attempts) ->
+    try gen_server:call(?MODULE, {register, VoyagerNode}) of
+        {ok, Pid} ->
+            {ok, Pid};
+        {error, _} = Error ->
+            Error
+    catch
+        exit:{noproc, _} ->
+            do_start(VoyagerNode, Attempts - 1);
+        exit:{killed, _} ->
+            do_start(VoyagerNode, Attempts - 1)
+    end.
+
+%% =====================================================================
+%% PROCESS LIST - Remote process table scanning.
+%% =====================================================================
 
 %% @doc Returns `{Entries, TotalCount}': the top `Limit' processes by `SortBy'
 %% (`desc' largest first, `asc' smallest), and the number of processes actually
@@ -168,3 +238,92 @@ with_bounded_heap(Fun) ->
     after
         process_flag(max_heap_size, Old)
     end.
+
+%% =====================================================================
+%% NODE WATCHER - gen_server callbacks and watcher for Nodes.
+%% =====================================================================
+
+-spec init(node()) -> {ok, state()} | {stop, term()}.
+init(VoyagerNode) when is_atom(VoyagerNode) ->
+    %% Turns an incoming exit signal into an {'EXIT', _, _} message that handle_info/2 stops on.
+    process_flag(trap_exit, true),
+    case add_node(#state{nodes = #{}}, VoyagerNode) of
+        {ok, State} ->
+            {ok, State};
+        {error, Reason} ->
+            {stop, Reason}
+    end.
+
+-spec handle_call({register, node()} | term(), {pid(), term()}, state()) ->
+                     {reply, {ok, pid()} | {error, term()}, state()}.
+handle_call({register, VoyagerNode}, _From, State) when is_atom(VoyagerNode) ->
+    case add_node(State, VoyagerNode) of
+        {ok, NewState} ->
+            {reply, {ok, self()}, NewState};
+        {error, _} = Error ->
+            {reply, Error, State}
+    end;
+handle_call(_Msg, _From, State) ->
+    {reply, {error, unknown_call}, State}.
+
+-spec handle_cast(term(), state()) -> {noreply, state()}.
+handle_cast(_Msg, State) ->
+    {noreply, State}.
+
+-spec handle_info(term(), state()) ->
+                     {noreply, state()} | {stop, normal | shutdown, state()}.
+handle_info({nodedown, VoyagerNode}, State) ->
+    case remove_node(State, VoyagerNode) of
+        {0, NewState} ->
+            {stop, normal, NewState};
+        {_, NewState} ->
+            {noreply, NewState}
+    end;
+handle_info({'EXIT', _From, _Reason}, State) ->
+    {stop, shutdown, State};
+handle_info(_Info, State) ->
+    {noreply, State}.
+
+-spec terminate(term(), state()) -> ok.
+terminate(_Reason, _State) ->
+    purge_code().
+
+-spec code_change(term(), state(), term()) -> {ok, state()}.
+code_change(_Vsn, State, _Extra) ->
+    {ok, State}.
+
+%% Subscribe to nodedown for VoyagerNode.
+%% Duplicate registers are a no-op so `erlang:monitor_node/2` does not stack subscriptions.
+%% If Node cannot be reached, `erlang:monitor_node(Node, true)` delivers `{nodedown, Node}` to this process.
+%% `erlang:monitor_node/2` raises `notalive` only when this VM is not distributed and Node is not 'nonode@nohost'.
+-spec add_node(state(), node()) -> {ok, state()} | {error, nodedown}.
+add_node(#state{nodes = Nodes} = State, VoyagerNode)
+    when is_atom(VoyagerNode), is_map(Nodes) ->
+    case maps:is_key(VoyagerNode, Nodes) of
+        true ->
+            {ok, State};
+        false ->
+            try erlang:monitor_node(VoyagerNode, true) of
+                _ ->
+                    {ok, State#state{nodes = Nodes#{VoyagerNode => true}}}
+            catch
+                error:notalive ->
+                    {error, nodedown}
+            end
+    end.
+
+-spec remove_node(state(), node()) -> {integer(), state()}.
+remove_node(#state{nodes = Nodes} = State, VoyagerNode) ->
+    NewState = State#state{nodes = maps:remove(VoyagerNode, Nodes)},
+    {map_size(NewState#state.nodes), NewState}.
+
+%% `purge` stops all processes running this module and deletes the module old module code.
+%% `delete` moves current module code to old code.
+%% second `purge` purges the old module code.
+-spec purge_code() -> ok.
+purge_code() ->
+    code:purge(?MODULE),
+    code:delete(?MODULE),
+    code:purge(?MODULE),
+    ok.
+
