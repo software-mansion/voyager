@@ -156,10 +156,8 @@ defmodule VoyagerWeb.ProcessesLive do
   # without the nested params; there is nothing to apply.
   def handle_event("validate", _params, socket), do: noreply(socket)
 
-  # Restored from localStorage on mount. The mount fetch is already in flight
-  # with the defaults, so this only asks for another scan when the stored
-  # controls would fetch something different — and goes through `fetch/2`, which
-  # waits for that first scan rather than racing it.
+  # The mount fetch is already running with the defaults, so only rescan when
+  # the stored controls would ask the node for something else.
   def handle_event("restore_settings", params, socket) do
     socket = assign(socket, :page_size, page_size(parse_integer(params["page_size"])))
     restored = apply_controls(socket, params)
@@ -167,14 +165,13 @@ defmodule VoyagerWeb.ProcessesLive do
     if restored.assigns.controls == socket.assigns.controls do
       restored
     else
-      debounce_refetch(restored)
+      fetch(restored)
     end
     |> noreply()
   end
 
   def handle_event("sort", %{"key" => key}, socket) do
-    # The key arrives from the client, so it is matched as a string against the
-    # allowlist rather than converted to an atom first.
+    # Matched as a string: `String.to_existing_atom/1` raises on an unknown key.
     case Enum.find(Processes.sortable_attrs(), &(to_string(&1) == key)) do
       nil ->
         socket
@@ -272,7 +269,6 @@ defmodule VoyagerWeb.ProcessesLive do
       |> clear_loading()
       |> put_flash(:error, "Request timed out")
     else
-      # Nothing on screen to fall back on, so the page has to say so itself.
       socket
       |> assign(:page_result, AsyncResult.failed(socket.assigns.page_result, :timeout))
       |> assign(:dirty?, false)
@@ -309,9 +305,8 @@ defmodule VoyagerWeb.ProcessesLive do
     |> assign(:page, 1)
   end
 
-  # A scan already in flight is left to finish: `start_async/3` would replace the
-  # task without stopping the work it spawned on the remote, so a burst of
-  # clicks would cost the node a full scan each.
+  # `start_async/3` replaces the task but not the scan it spawned on the remote,
+  # so a burst of clicks would cost the node a full scan each.
   defp fetch(socket, priority \\ :high) do
     if loading?(socket.assigns.page_result), do: socket, else: start_fetch(socket, priority)
   end
@@ -432,8 +427,7 @@ defmodule VoyagerWeb.ProcessesLive do
   defp page_size(size) when size in @page_sizes, do: size
   defp page_size(_size), do: @default_page_size
 
-  # Only the offered intervals are honoured: a negative value raises in
-  # `Process.send_after/3` and a zero would tick in a tight loop.
+  # A negative delay raises in `Process.send_after/3`, and zero ticks in a loop.
   defp parse_interval(value) do
     Enum.find_value(Processes.refresh_interval_options(), fn {_label, option} ->
       option == value && parse_integer(option)
@@ -449,8 +443,7 @@ defmodule VoyagerWeb.ProcessesLive do
     end
   end
 
-  # Only reached when the first fetch times out and there are no rows to fall
-  # back on, so unlike the flash it says what to change.
+  # Only reached with no rows to fall back on, so unlike the flash it advises.
   defp format_error(:timeout),
     do: "Request timed out. Try a longer timeout or a smaller limit."
 

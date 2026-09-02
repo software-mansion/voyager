@@ -713,10 +713,8 @@ defmodule VoyagerWeb.CoreComponents do
   def tooltip_portal(assigns) do
     ~H"""
     <.portal id={"#{@id}-portal"} target="#tooltip-portal-root">
-      <%!-- The hook keeps its open/pinned state and inline position on this
-            element, and a re-render would wipe both, so LiveView leaves the
-            tip alone. Callers whose tip text changes must give the trigger a
-            new id, which remounts the portal with the new content. --%>
+      <%!-- Ignored because the hook stores open/pinned state and position here.
+            A tip whose text changes needs a new id to remount. --%>
       <div
         id={"#{@id}-tip"}
         role="tooltip"

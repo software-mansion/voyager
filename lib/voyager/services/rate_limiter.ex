@@ -110,9 +110,6 @@ defmodule Voyager.Services.RateLimiter do
     {:noreply, new_state}
   end
 
-  # Refilling past the capacity would be dropped by the `min/2` in the refill
-  # itself; clamping here keeps the configured value honest for anything that
-  # reads it back.
   defp cap_refills(config) do
     %{
       config

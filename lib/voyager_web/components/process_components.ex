@@ -254,9 +254,9 @@ defmodule VoyagerWeb.Components.ProcessComponents do
     assigns =
       assigns
       |> assign(:empty?, assigns.value == @placeholder)
-      # The tip is `phx-update="ignore"`, so it only picks up a new value when
-      # its id changes: a refresh that alters the number must remount it.
-      |> assign(:tip_id, "#{assigns.id}-tip-#{value_fingerprint(assigns.value)}")
+      # The tip is `phx-update="ignore"`, so a changed value needs a new id to
+      # remount it.
+      |> assign(:tip_id, "#{assigns.id}-tip-#{:erlang.phash2(assigns.value)}")
 
     ~H"""
     <.tooltip id={@tip_id} interactive class="min-w-0 max-w-full" tip_class="font-mono">
@@ -350,12 +350,6 @@ defmodule VoyagerWeb.Components.ProcessComponents do
 
   defp format_number(n) when is_integer(n), do: Formatters.format_integer(n)
   defp format_number(_n), do: @placeholder
-
-  # Short, DOM-safe digest of the value, used to remount an ignored tooltip when
-  # the value behind it changes.
-  defp value_fingerprint(value) do
-    value |> :erlang.phash2() |> Integer.to_string(36)
-  end
 
   # A backed-up mailbox is the signal most worth spotting at a glance.
   defp queue_warning?(len) when is_integer(len), do: len > 0

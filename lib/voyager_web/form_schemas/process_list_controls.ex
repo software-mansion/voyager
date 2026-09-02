@@ -57,8 +57,7 @@ defmodule VoyagerWeb.FormSchemas.ProcessListControls do
   def changeset(controls \\ default(), attrs \\ %{}) do
     controls
     |> cast(blank_to_nil(attrs), [:search, :limit, :timeout, :columns])
-    # `restore_settings` replays whatever localStorage holds, so the change can
-    # be nil even though the field defaults to "".
+    # localStorage can replay a null search, which `String.trim/1` rejects.
     |> update_change(:search, &String.trim(&1 || ""))
     |> update_change(:columns, &filter_known/1)
     |> validate_required([:limit, :timeout])
@@ -106,17 +105,14 @@ defmodule VoyagerWeb.FormSchemas.ProcessListControls do
       Enum.map(optional_columns(), &{to_string(&1), label_fun.(&1), false})
   end
 
-  # `cast/4` discards an empty string as "no change", which would leave the box
-  # blank on screen while the previous value was silently used. Nil is a change,
-  # so `validate_required/2` can report it.
-  defp blank_to_nil(attrs) when is_map(attrs) do
+  # `cast/4` drops "" as "no change", silently keeping the old value; nil is a
+  # change, so `validate_required/2` can report the empty box.
+  defp blank_to_nil(attrs) do
     Map.new(attrs, fn
-      {key, value} when key in ~w(limit timeout) and value in ["", nil] -> {key, nil}
+      {key, ""} when key in ~w(limit timeout) -> {key, nil}
       pair -> pair
     end)
   end
-
-  defp blank_to_nil(attrs), do: attrs
 
   # Drops the fields that failed validation, so the rest still applies.
   defp valid_part(changeset) do

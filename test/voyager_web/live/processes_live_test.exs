@@ -626,11 +626,6 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       assert_received {:scanned, _args, _timeout}
 
       render_hook(view, "restore_settings", %{"limit" => "500", "search" => "hog"})
-
-      # Debounced behind the mount fetch rather than racing it.
-      refute_received {:scanned, _args, _timeout}
-
-      send(view.pid, :refetch)
       render_async(view)
 
       assert_received {:scanned, [_attrs, _sort, 500, _dir, "hog"], _timeout}

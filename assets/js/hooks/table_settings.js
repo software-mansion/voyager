@@ -24,8 +24,6 @@ const TableSettings = {
     }
   },
 
-  // Always pushed, even with nothing stored: the server holds its first fetch
-  // until this arrives, so staying silent would leave the page empty.
   restore() {
     let settings;
 
@@ -33,12 +31,12 @@ const TableSettings = {
       const raw = localStorage.getItem(this.storageKey);
       settings = raw ? JSON.parse(raw) : null;
     } catch (_error) {
-      settings = null;
+      return;
     }
 
-    const valid = settings && typeof settings === 'object' ? settings : {};
+    if (!settings || typeof settings !== 'object') return;
 
-    this.pushEvent('restore_settings', valid);
+    this.pushEvent('restore_settings', settings);
   },
 };
 

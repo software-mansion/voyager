@@ -35,8 +35,7 @@ defmodule Voyager.NodeSession do
   end
 
   @doc false
-  # The cache is a `:persistent_term` and so outlives any process state, which
-  # makes it leak across tests that connect; this lets them put it back.
+  # The cache is a `:persistent_term`, so it leaks across tests without this.
   @spec restore_cached_connector_name(atom() | nil) :: :ok
   def restore_cached_connector_name(nil) do
     :persistent_term.erase(@connector_name_cache_key)
