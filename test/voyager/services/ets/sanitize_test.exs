@@ -51,5 +51,15 @@ defmodule Voyager.Services.Ets.SanitizeTest do
       list = Enum.to_list(1..Sanitize.max_collection())
       assert Sanitize.term(list) == list
     end
+
+    test "copies an oversized fake binary-marker prefix off the parent refc binary" do
+      huge = :binary.copy(<<"a">>, 4096)
+      marker = Sanitize.marker()
+      cap = Sanitize.max_binary_bytes()
+
+      assert {^marker, :binary, prefix, 4096} = Sanitize.term({marker, :binary, huge, 0})
+      assert byte_size(prefix) == cap
+      assert :binary.referenced_byte_size(prefix) == cap
+    end
   end
 end
