@@ -111,7 +111,7 @@ defmodule Voyager.Services.Ets.Remote do
   def select_chunk(node, table, limit, continuation \\ nil, timeout \\ Erpc.default_timeout())
 
   def select_chunk(node, table, limit, continuation, timeout)
-      when is_atom(table) or is_reference(table) do
+      when TableId.is_table_id(table) do
     if limit in @chunk_sizes do
       select(node, table, limit, continuation, timeout)
     else
@@ -131,7 +131,7 @@ defmodule Voyager.Services.Ets.Remote do
           {:ok, chunk()} | {:error, term()}
   def lookup(node, table, key, timeout \\ Erpc.default_timeout())
 
-  def lookup(node, table, key, timeout) when is_atom(table) or is_reference(table) do
+  def lookup(node, table, key, timeout) when TableId.is_table_id(table) do
     if valid_key?(key) do
       case probe_export(node, @lookup_fun, 2, timeout) do
         {:ok, true} -> agent_lookup(node, table, key, timeout)
@@ -162,8 +162,8 @@ defmodule Voyager.Services.Ets.Remote do
     end
   end
 
-  # Continuations hold a compiled match spec and are invalid after ETF
-  # (`:ets.repair_continuation/2`). MFA cannot repair+select in one call.
+  # MFA cannot repair_continuation+select in one call, so later pages
+  # need the agent.
   defp mfa_select(_node, _table, _limit, continuation, _timeout)
        when not is_nil(continuation) do
     {:error, :cannot_page}
