@@ -180,7 +180,7 @@ defmodule VoyagerWeb.TermTree do
   end
 
   defp build(@truncated) do
-    %Node{kind: :truncated, content: [Segment.muted("…")]}
+    %Node{kind: :truncated, content: [Segment.muted("... (truncated)")]}
   end
 
   defp build(binary) when is_binary(binary) do
@@ -302,18 +302,7 @@ defmodule VoyagerWeb.TermTree do
   end
 
   defp key_segments(key) do
-    case describe(key) do
-      %Node{child_count: 0, content: [segment]} ->
-        [segment, Segment.punctuation(" => ")]
-
-      # A collection used as a key has no single-segment form; collapsing it to
-      # `{...}` would render every such key identically.
-      _node ->
-        [
-          Segment.other(inspect(key, Keyword.put(@inspect_opts, :width, :infinity))),
-          Segment.punctuation(" => ")
-        ]
-    end
+    [key |> describe() |> Map.fetch!(:content) |> hd(), Segment.punctuation(" => ")]
   end
 
   # The marker sorts by its own name, which would drop it in the middle of the
@@ -328,7 +317,12 @@ defmodule VoyagerWeb.TermTree do
     end
   end
 
-  defp struct_name(%module{}), do: inspect(module)
+  defp struct_name(%module{}) do
+    case inspect(module) do
+      ":" <> name -> name
+      name -> name
+    end
+  end
 
   defp list_length(list) do
     {:ok, length(list)}
