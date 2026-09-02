@@ -79,6 +79,7 @@ defmodule Voyager.Services.Distribution do
 
     case :net_kernel.start(node_name, %{name_domain: name_type, hidden: true}) do
       {:ok, _pid} ->
+        Node.set_cookie(random_cookie())
         :ok
 
       {:error, {:already_started, pid}} ->
@@ -87,10 +88,17 @@ defmodule Voyager.Services.Distribution do
             "for #{inspect(node_name)} name_type=#{inspect(name_type)}"
         )
 
+        Node.set_cookie(random_cookie())
         :ok
 
       {:error, reason} ->
         {:error, {:net_kernel, reason}}
     end
+  end
+
+  defp random_cookie do
+    :crypto.strong_rand_bytes(32)
+    |> Base.encode32(padding: false)
+    |> String.to_atom()
   end
 end

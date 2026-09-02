@@ -10,8 +10,10 @@ defmodule Voyager.Services.NodeConnector do
     with :ok <- Distribution.ensure_distributed(name_type) do
       node = String.to_atom(node_name)
       :erlang.set_cookie(node, String.to_atom(cookie))
+      connect_result = Node.connect(node)
+      :erlang.set_cookie(node, :nocookie)
 
-      case Node.connect(node) do
+      case connect_result do
         true ->
           {:ok, node}
 

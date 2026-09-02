@@ -48,5 +48,17 @@ defmodule Voyager.Services.DistributionTest do
     test "rejects an invalid name_type" do
       assert {:error, :invalid_name_type} = Distribution.ensure_distributed(:invalid)
     end
+
+    test "sets a fresh random cookie on every distribution (re)start" do
+      assert :ok = Distribution.ensure_distributed(:longnames)
+      first_cookie = Node.get_cookie()
+
+      assert :ok = Distribution.ensure_distributed(:shortnames)
+      second_cookie = Node.get_cookie()
+
+      assert first_cookie != :nocookie
+      assert second_cookie != :nocookie
+      assert first_cookie != second_cookie
+    end
   end
 end
