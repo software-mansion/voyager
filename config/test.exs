@@ -34,6 +34,14 @@ config :phoenix_live_view, enable_expensive_runtime_checks: true
 config :phoenix, sort_verified_routes_query_params: true
 
 # The limiter is a global bucket; the suite's many fast fetches must not drain
-# it and fail unrelated tests.
-config :voyager, :rate_limiter_config, %{high_capacity: 1_000_000, low_capacity: 1_000_000}
+# it and fail unrelated tests. Refills match the capacities, so a test that
+# empties the bucket on purpose gets it back on the next tick rather than
+# trickling five tokens a second toward a huge ceiling.
+config :voyager, :rate_limiter_config, %{
+  high_capacity: 1_000_000,
+  high_refill: 1_000_000,
+  low_capacity: 1_000_000,
+  low_refill: 1_000_000
+}
+
 config :voyager, :min_fetch_ms, 0
