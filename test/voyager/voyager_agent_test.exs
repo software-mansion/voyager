@@ -48,7 +48,6 @@ defmodule VoyagerAgentTest do
     end
 
     test "restarts instead of exiting when the agent is killed during the call" do
-      # Both tasks are start_supervised! so they are cleaned up between tests.
       # The stub holds the agent name and dies from a genuine :kill mid-call.
       stub =
         start_supervised!(
@@ -180,7 +179,6 @@ defmodule VoyagerAgentTest do
     end
 
     test ":asc keeps the smallest values, not the largest" do
-      # The smallest-N by memory must not exceed the largest-N by memory.
       {asc_rows, _} = @agent_module.proc_top([:memory], :memory, 10, :asc, :undefined)
       {desc_rows, _} = @agent_module.proc_top([:memory], :memory, 10, :desc, :undefined)
       asc = Enum.map(asc_rows, & &1.memory)
@@ -279,7 +277,6 @@ defmodule VoyagerAgentTest do
       on_exit(fn -> send(hog, :stop) end)
       assert_receive {:ready, ^hog}
 
-      # A limit larger than the process count returns every live process.
       {rows, _} = @agent_module.proc_top([:memory], :memory, 1_000_000, :desc, :undefined)
       assert hog in Enum.map(rows, & &1.pid)
     end

@@ -234,7 +234,7 @@ to_map({{_Value, Pid}, Info}) ->
     maps:from_list([{pid, Pid} | Info]).
 
 %% =====================================================================
-%% Process info API
+%% PROCESS INFO - Remote process info fetching.
 %% =====================================================================
 
 %% A truncated view of an unbounded attribute. `total' is the real length on the
@@ -289,13 +289,11 @@ proc_messages(Pid, Limit, Budget) ->
 -spec proc_label(pid(), non_neg_integer()) -> {ok, truncated_term()} | {error, dead}.
 proc_label(Pid, Budget) when is_pid(Pid), is_integer(Budget), Budget >= 0 ->
     with_bounded_heap(fun() ->
-                        case erlang:process_info(Pid, label) of
-                            undefined ->
-                                {error, dead};
-                            {label, Label} ->
-                                {ok, truncated_term(Label, Budget)}
-                        end
-                     end).
+                         case erlang:process_info(Pid, label) of
+                             undefined -> {error, dead};
+                             {label, Label} -> {ok, truncated_term(Label, Budget)}
+                         end
+                      end).
 
 %% `sys:get_state/2' only answers for processes that handle system messages, and
 %% a raw process is indistinguishable from a busy one here: neither replies, so
@@ -361,11 +359,9 @@ bound_items(Items, unbounded) ->
 bound_items(Items, Budget) when is_integer(Budget), Budget >= 0 ->
     bound_entries(Items, Budget, false, []).
 
-%% Budgets each entry independently and drops the tail once the budget runs
-%% out, rather than walking `Items' as a single term -- that would append the
-%% bare `?TRUNCATED' atom as an element once the budget hit zero mid-list,
-%% breaking the homogeneous entry shape (e.g. `dict_entry()') callers expect
-%% from `items'.
+%% Each entry is budgeted on its own, so a budget that runs out mid-list drops
+%% the tail instead of appending a bare `?TRUNCATED' as an element and breaking
+%% the entry shape (e.g. `dict_entry()') callers expect from `items'.
 bound_entries([], _Budget, Truncated, Acc) ->
     {lists:reverse(Acc), Truncated};
 bound_entries([_ | _], 0, _Truncated, Acc) ->
@@ -374,24 +370,17 @@ bound_entries([Item | Rest], Budget, Truncated, Acc) ->
     {Bounded, NewBudget, NewTruncated} = walk(Item, Budget, Truncated),
     bound_entries(Rest, NewBudget, NewTruncated, [Bounded | Acc]).
 
-%% =====================================================================
-%% HELPERS
-%% =====================================================================
-
 truncated_term(Term, Budget) ->
     {Bounded, Truncated} = bound_term(Term, Budget),
     #{term => Bounded, truncated => Truncated}.
 
 %% Rewrites `Term' into a bounded copy of itself, keeping it a raw term so the
-%% GUI can still render it as a tree. `Budget' counts terms visited -- except a
-%% binary, which is charged one unit per byte kept, since a single binary
-%% carries no nesting for the term count to bound. The walk substitutes
-%% `?TRUNCATED' the moment it runs out instead of descending further, so its
-%% cost is bounded by `Budget' and *not* by the size of `Term' - which is what
-%% makes it safe to point at a multi-gigabyte process state.
-%%
-%% Containers are therefore never materialised: maps are walked with an
-%% iterator, lists cons cell at a time, tuples by index.
+%% GUI can still render it as a tree. Substituting `?TRUNCATED' the moment
+%% `Budget' runs out, instead of descending further, bounds the cost by
+%% `Budget' and *not* by the size of `Term' - which is what makes it safe to
+%% point at a multi-gigabyte process state. Containers are therefore never
+%% materialised: maps are walked with an iterator, lists cons cell at a time,
+%% tuples by index.
 -spec bound_term(term(), non_neg_integer()) -> {term(), boolean()}.
 bound_term(Term, Budget) ->
     {Bounded, _Rest, Truncated} = walk(Term, Budget, false),
@@ -444,18 +433,15 @@ walk_tuple(Tuple, Index, Size, Budget, Truncated, Acc) ->
     {New, NewBudget, NewTruncated} = walk(element(Index, Tuple), Budget, Truncated),
     walk_tuple(Tuple, Index + 1, Size, NewBudget, NewTruncated, [New | Acc]).
 
-%% Charged one budget unit per byte kept (capped at `?MAX_BINARY_BYTES',
-%% floored at 1 so an empty binary cannot walk for free), instead of a flat
-%% unit -- a flat charge lets any number of binaries slip past the budget
-%% since each pays the same regardless of size, so many binaries could still
-%% ship megabytes under a small budget. Only the visible part of a sub-binary
-%% is copied over distribution, so cutting here really does bound the
-%% payload. `Truncated' must be carried forward (`orelse'), not replaced --
-%% this binary's own outcome must never erase a cut already made earlier in
-%% the walk.
+%% Charged per byte kept rather than a flat unit: a flat charge lets any number
+%% of binaries each pay the same regardless of size, so they could still ship
+%% megabytes under a small budget. Floored at 1 so an empty binary cannot walk
+%% for free. Only the visible part of a sub-binary is copied over distribution,
+%% so cutting here really does bound the payload.
 walk_bitstring(Bin, Budget, Truncated) when is_binary(Bin) ->
     Cost = max(min(min(?MAX_BINARY_BYTES, byte_size(Bin)), Budget), 1),
-    {binary:part(Bin, 0, min(Cost, byte_size(Bin))), Budget - Cost,
+    {binary:part(Bin, 0, min(Cost, byte_size(Bin))),
+     Budget - Cost,
      Truncated orelse Cost < byte_size(Bin)};
 %% A non-byte-aligned bitstring cannot be cut with `binary:part/3', so an
 %% oversized one is dropped whole.
