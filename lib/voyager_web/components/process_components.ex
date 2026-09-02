@@ -76,7 +76,11 @@ defmodule VoyagerWeb.Components.ProcessComponents do
 
           <div class="grid-cols-[auto_auto_auto] grid-rows-[auto_auto_auto] grid items-center gap-x-2">
             <.field_label field={@form[:limit]} label="Limit" help={limit_help(@node_name)} />
-            <.field_label field={@form[:timeout]} label="Timeout (ms)" />
+            <.field_label
+              field={@form[:timeout]}
+              label="Timeout (ms)"
+              help={timeout_help(@node_name)}
+            />
             <.field_label field={@form[:columns]} label="Columns" />
 
             <select id={@form[:limit].id} name={@form[:limit].name} class="select select-sm w-24">
@@ -125,6 +129,11 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   end
 
   defp limit_help(node_name), do: "Limit of processes which are fetched from #{node_name}"
+
+  # `:erpc.call/5` abandons the remote worker when the wait ends, but does not
+  # stop it, so the scan runs to completion on the node either way.
+  defp timeout_help(node_name),
+    do: "How long to wait for #{node_name}. The scan itself runs to completion there."
 
   attr :field, Phoenix.HTML.FormField, required: true
   attr :label, :string, required: true

@@ -493,7 +493,6 @@ defmodule VoyagerWeb.CoreComponents do
         tabindex={if @disabled, do: "-1", else: "0"}
         role="button"
         id={@id}
-        aria-haspopup="listbox"
         aria-disabled={@disabled}
         class={[
           "input input-sm items-center gap-2",
@@ -505,9 +504,13 @@ defmodule VoyagerWeb.CoreComponents do
         <.icon name="icon-chevron-right" class="size-3.5 shrink-0 rotate-90 opacity-60" />
       </div>
 
+      <%!-- A plain checkbox group: `role="listbox"` would promise `role="option"`
+            children, and a screen reader would announce a listbox with no
+            options and never convey which columns are selected. --%>
       <div
         tabindex="0"
-        role="listbox"
+        role="group"
+        aria-label={@label}
         class="dropdown-content bg-base-100 rounded-box border-base-300 z-50 mt-1 w-56 border p-2 shadow-lg"
       >
         <label

@@ -545,8 +545,23 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       change(view, %{"limit" => "250"})
       refute render(view) =~ "pointer-events-none select-none opacity-60"
 
-      # The dim spans the control-triggered fetch and clears when it lands.
+      # The dim spans the control-triggered fetch and clears when it lands, so
+      # it has to be asserted while the scan is still open.
+      test = self()
+
+      stub(Voyager.ErpcMock, :call, fn _node, _mod, _fun, _args, _timeout ->
+        send(test, {:scanning, self()})
+
+        receive do
+          :release -> {[], 0}
+        end
+      end)
+
       send(view.pid, :refetch)
+      assert_receive {:scanning, scan}
+      assert render(view) =~ "pointer-events-none select-none opacity-60"
+
+      send(scan, :release)
       render_async(view)
       refute render(view) =~ "pointer-events-none select-none opacity-60"
     end
@@ -668,6 +683,19 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       refute has_element?(view, "#processes-error")
       assert has_element?(view, "##{ProcessesLive.row_dom_id(pid)}")
     end
+
+    test "a refused first fetch reports instead of loading forever", %{conn: conn} do
+      stub_scan([])
+      drain_limiter()
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      # Nothing on screen to keep, so a flash alone would leave the table on
+      # its loading text with no way to tell what happened.
+      assert has_element?(view, "#processes-error")
+      refute has_element?(view, "#processes-scan-summary")
+    end
   end
 
   describe "manual refresh" do
@@ -784,22 +812,33 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       render_async(view)
       assert_received {:scanned, _args, _timeout}
 
-      # Holds the scan open so the next click lands mid-flight, which is what
-      # `render_click/1` alone cannot produce: it waits for the async to finish.
+      # Blocks the scan until the test releases it, so the next click lands
+      # mid-flight — which `render_click/1` alone cannot produce, since it waits
+      # for the async to finish.
       stub(Voyager.ErpcMock, :call, fn _node, _mod, _fun, args, timeout ->
-        send(test, {:scanned, args, timeout})
-        Process.sleep(150)
-        {[], 0}
+        send(test, {:scanning, self(), args, timeout})
+
+        receive do
+          :release -> {[], 0}
+        end
       end)
 
       view |> element(~s|button[phx-value-key="reductions"]|) |> render_click()
-      assert_received {:scanned, _args, _timeout}
+      assert_received {:scanning, scan, [_attrs, :reductions, _limit, _dir, _search], _timeout}
 
-      # A replaced async task would not stop the scan already running remotely.
+      # A replaced async task would not stop the scan already running remotely,
+      # so the second click starts nothing while the first is in flight.
       view |> element(~s|button[phx-value-key="memory"]|) |> render_click()
+      refute_received {:scanning, _pid, _args, _timeout}
+
+      send(scan, :release)
       render_async(view, 1_000)
 
-      refute_received {:scanned, _args, _timeout}
+      # The header already says Memory, so the dropped request is replayed
+      # rather than leaving the rows ranked by reductions.
+      assert_received {:scanning, replay, [_attrs, :memory, _limit, _dir, _search], _timeout}
+      send(replay, :release)
+      render_async(view, 1_000)
     end
   end
 

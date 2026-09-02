@@ -39,9 +39,11 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   @doc """
   Sortable table.
 
-  `rows` is a list of `{dom_id, row}` tuples so the caller can drive it from a
-  LiveView stream or a plain list. Each column renders through the `:cell` slot,
-  which receives `%{column: column, row: row, row_id: dom_id}`.
+  `rows` is a list of `{dom_id, row}` tuples, matching the shape a LiveView
+  stream yields. The `<tbody>` has no `phx-update="stream"`, so a stream cannot
+  be passed directly: a caller holding one renders from a re-fetched list.
+  Each column renders through the `:cell` slot, which receives
+  `%{column: column, row: row, row_id: dom_id}`.
   """
   attr :id, :string, required: true
   attr :columns, :list, required: true

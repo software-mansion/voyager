@@ -42,6 +42,7 @@ defmodule VoyagerWeb.ProcessesLive do
     |> assign(:controls, controls)
     |> assign(:form, to_form(ProcessListControls.changeset(controls), as: :controls))
     |> assign(:refetch_timer, nil)
+    |> assign(:refetch_queued?, false)
     |> assign(:fetched_with, controls)
     |> assign(:dirty?, false)
     |> assign(:sort_by, sort_by)
@@ -248,41 +249,41 @@ defmodule VoyagerWeb.ProcessesLive do
       :page,
       clamp_page(socket.assigns.page, length(page.entries), socket.assigns.page_size)
     )
+    |> drain_queued_refetch()
     |> noreply()
   end
 
   def handle_async(:page_result, {:ok, :skipped}, socket) do
     socket
     |> clear_loading()
+    |> drain_queued_refetch()
     |> noreply()
   end
 
-  # Rate limiting and timeouts are transient, and the rows already on screen are
-  # still the last good answer, so both flash rather than replacing the table.
+  # Rate limiting and timeouts are transient, so they flash over rows that are
+  # still the last good answer. With nothing on screen there is nothing to keep,
+  # and a flash alone would leave the table on its loading text forever.
   def handle_async(:page_result, {:ok, {:rate_limited, _retry_after_ms}}, socket) do
     socket
-    |> clear_loading()
-    |> put_flash(:error, "Too many requests.")
+    |> transient_error(:rate_limited, "Too many requests.")
+    |> drain_queued_refetch()
     |> noreply()
   end
 
   def handle_async(:page_result, {:ok, {:error, :timeout}}, socket) do
-    if socket.assigns.page_result.ok? do
-      socket
-      |> clear_loading()
-      |> put_flash(:error, "Request timed out")
-    else
-      socket
-      |> assign(:page_result, AsyncResult.failed(socket.assigns.page_result, :timeout))
-      |> assign(:dirty?, false)
-    end
+    socket
+    |> transient_error(:timeout, "Request timed out")
+    |> drain_queued_refetch()
     |> noreply()
   end
 
+  # A failed fetch drops the queued replay: the request that was dropped would
+  # hit the same failure, and the error on screen is the more useful answer.
   def handle_async(:page_result, {:ok, {:error, reason}}, socket) do
     socket
     |> assign(:page_result, AsyncResult.failed(socket.assigns.page_result, reason))
     |> assign(:dirty?, false)
+    |> assign(:refetch_queued?, false)
     |> noreply()
   end
 
@@ -290,7 +291,24 @@ defmodule VoyagerWeb.ProcessesLive do
     socket
     |> assign(:page_result, AsyncResult.failed(socket.assigns.page_result, reason))
     |> assign(:dirty?, false)
+    |> assign(:refetch_queued?, false)
     |> noreply()
+  end
+
+  defp drain_queued_refetch(socket) do
+    if socket.assigns.refetch_queued?, do: fetch(socket), else: socket
+  end
+
+  defp transient_error(socket, reason, message) do
+    if socket.assigns.page_result.ok? do
+      socket
+      |> clear_loading()
+      |> put_flash(:error, message)
+    else
+      socket
+      |> assign(:page_result, AsyncResult.failed(socket.assigns.page_result, reason))
+      |> assign(:dirty?, false)
+    end
   end
 
   defp clear_loading(socket) do
@@ -309,14 +327,23 @@ defmodule VoyagerWeb.ProcessesLive do
   end
 
   # `start_async/3` replaces the task but not the scan it spawned on the remote,
-  # so a burst of clicks would cost the node a full scan each.
+  # so a burst of clicks would cost the node a full scan each. The dropped
+  # request is remembered instead: the assigns that asked for it are already
+  # committed, so without the replay the table would keep showing rows that do
+  # not match its own sort header or controls.
   defp fetch(socket, priority \\ :high) do
-    if loading?(socket.assigns.page_result), do: socket, else: start_fetch(socket, priority)
+    if loading?(socket.assigns.page_result) do
+      assign(socket, :refetch_queued?, true)
+    else
+      start_fetch(socket, priority)
+    end
   end
 
   defp start_fetch(socket, priority) do
     %{session: session, controls: controls, sort_by: sort_by, direction: direction} =
       socket.assigns
+
+    socket = assign(socket, :refetch_queued?, false)
 
     # The previous result stays assigned (only marked loading) while a refetch
     # runs, so the table keeps its rows and the UI can lock over them.
@@ -445,6 +472,8 @@ defmodule VoyagerWeb.ProcessesLive do
   # Only reached with no rows to fall back on, so unlike the flash it advises.
   defp format_error(:timeout),
     do: "Request timed out. Try a longer timeout or a smaller limit."
+
+  defp format_error(:rate_limited), do: "Too many requests. Wait a moment and refresh."
 
   defp format_error(:noconnection), do: "Node is unreachable."
 
