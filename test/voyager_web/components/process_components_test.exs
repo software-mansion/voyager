@@ -4,7 +4,6 @@ defmodule VoyagerWeb.Components.ProcessComponentsTest do
   import Phoenix.Component, only: [to_form: 2]
   import Phoenix.LiveViewTest
 
-  alias Voyager.Queries.Processes
   alias VoyagerWeb.Components.ProcessComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.ProcessListControls
@@ -96,7 +95,7 @@ defmodule VoyagerWeb.Components.ProcessComponentsTest do
   describe "cell/1" do
     test "pid links to the details page and offers the pid to copy" do
       html = cell(:pid)
-      pid = Processes.format_pid(self())
+      pid = Formatters.format_pid(self())
 
       assert attr(html, "a", "href") == ["/p"]
       assert text(html, "a") =~ pid

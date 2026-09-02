@@ -17,7 +17,7 @@ defmodule VoyagerWeb.FormSchemas.ProcessListControls do
 
   import Ecto.Changeset
 
-  alias Voyager.Queries.Processes
+  alias VoyagerWeb.ProcessesLive.Query
 
   @limits [25, 50, 100, 250, 500, 1_000, 2_500, 5_000]
   @default_limit 100
@@ -42,15 +42,15 @@ defmodule VoyagerWeb.FormSchemas.ProcessListControls do
   def timeout_bounds, do: {@min_timeout, @max_timeout}
 
   @spec required_columns() :: [atom()]
-  def required_columns, do: Processes.required_attrs()
+  def required_columns, do: Query.required_attrs()
 
   @spec optional_columns() :: [atom()]
-  def optional_columns, do: Processes.optional_attrs()
+  def optional_columns, do: Query.optional_attrs()
 
   @doc "The form's defaults, as a struct."
   @spec default() :: t()
   def default do
-    %__MODULE__{columns: Enum.map(Processes.default_attrs(), &to_string/1)}
+    %__MODULE__{columns: Enum.map(Query.default_attrs(), &to_string/1)}
   end
 
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
@@ -94,7 +94,7 @@ defmodule VoyagerWeb.FormSchemas.ProcessListControls do
   def attrs(%__MODULE__{columns: columns}) do
     columns
     |> Enum.map(&safe_atom/1)
-    |> Processes.clamp_attrs()
+    |> Query.clamp_attrs()
   end
 
   @doc "Options for the columns multiselect, as `{value, label, locked?}`."

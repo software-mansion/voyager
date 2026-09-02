@@ -8,7 +8,6 @@ defmodule VoyagerWeb.Components.ProcessComponents do
 
   use VoyagerWeb, :component
 
-  alias Voyager.Queries.Processes
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.ProcessListControls
 
@@ -295,7 +294,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   attr :href, :string, required: true
 
   def pid_cell(assigns) do
-    assigns = assign(assigns, :pid_string, Processes.format_pid(assigns.pid))
+    assigns = assign(assigns, :pid_string, Formatters.format_pid(assigns.pid))
 
     ~H"""
     <.tooltip
