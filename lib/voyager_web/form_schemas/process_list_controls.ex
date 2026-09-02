@@ -63,7 +63,7 @@ defmodule VoyagerWeb.FormSchemas.ProcessListControls do
     |> validate_number(:timeout,
       greater_than_or_equal_to: @min_timeout,
       less_than_or_equal_to: @max_timeout,
-      message: "must be between #{@min_timeout} and #{@max_timeout} ms"
+      message: "must be between #{@min_timeout} and #{@max_timeout}"
     )
   end
 
