@@ -284,4 +284,190 @@ defmodule VoyagerAgentTest do
       assert hog in Enum.map(rows, & &1.pid)
     end
   end
+
+  # The term walk is only reachable through the public reads, so it is exercised
+  # via proc_dictionary/3 -- the cheapest way to hand the agent an arbitrary term.
+  describe "term truncation" do
+    test "returns a term under budget unchanged" do
+      term = %{a: [1, 2, {:x, <<"hi">>}], b: :ok}
+
+      assert {term, false} == bound(term, 1_000)
+    end
+
+    test "elides past the budget instead of descending" do
+      deep = Enum.reduce(1..1_000, :bottom, fn _, acc -> [acc] end)
+
+      assert {bounded, true} = bound(deep, 10)
+      assert bounded == [[[[[[[[[[:"$voyager_truncated"]]]]]]]]]]
+    end
+
+    test "caps a wide list and marks the cut" do
+      assert {bounded, true} = bound(Enum.to_list(1..1_000), 20)
+      assert length(bounded) == 20
+      assert List.last(bounded) == :"$voyager_truncated"
+    end
+
+    test "caps a wide map with a marker entry" do
+      wide = Map.new(1..1_000, &{&1, &1})
+
+      assert {bounded, true} = bound(wide, 20)
+      assert map_size(bounded) < 1_000
+      assert Map.has_key?(bounded, :"$voyager_truncated")
+    end
+
+    test "caps a wide tuple by index" do
+      wide = List.to_tuple(Enum.to_list(1..1_000))
+
+      assert {bounded, true} = bound(wide, 20)
+      assert tuple_size(bounded) == 20
+      assert elem(bounded, 19) == :"$voyager_truncated"
+    end
+
+    test "keeps an improper list improper" do
+      assert {bounded, false} = bound([1, 2 | :tail], 100)
+      assert bounded == [1, 2 | :tail]
+    end
+
+    test "caps a binary larger than the byte limit" do
+      assert {bounded, true} = bound(:binary.copy("x", 100_000), 10_000)
+      assert byte_size(bounded) == 4_096
+    end
+
+    test "caps a binary to the remaining budget when it is smaller than the byte limit" do
+      assert {bounded, true} = bound(:binary.copy("x", 100_000), 100)
+      assert byte_size(bounded) == 100
+    end
+
+    test "drops an oversized non-byte-aligned bitstring whole" do
+      bits = <<:binary.copy("x", 100_000)::binary, 1::size(1)>>
+
+      assert {:"$voyager_truncated", true} == bound(bits, 100)
+    end
+
+    test "drops the entry list to empty at budget zero instead of a bare marker" do
+      assert {:ok, %{truncated: true, items: []}} =
+               @agent_module.proc_dictionary(self(), 1_000, 0)
+    end
+
+    test "restores the caller's max_heap_size instead of leaving it capped" do
+      before = Process.info(self(), :max_heap_size)
+      @agent_module.proc_dictionary(self(), 10, 10)
+      assert Process.info(self(), :max_heap_size) == before
+    end
+  end
+
+  describe "proc_state/3" do
+    test "returns the state of an OTP-behaviour process" do
+      state = %{count: 1, items: [:a, :b]}
+      pid = start_supervised!({Agent, fn -> state end})
+
+      assert {:ok, %{term: ^state, truncated: false}} = @agent_module.proc_state(pid, 1_000, 500)
+    end
+
+    test "truncates a state that exceeds the budget" do
+      pid = start_supervised!({Agent, fn -> Enum.to_list(1..1_000) end})
+
+      assert {:ok, %{term: term, truncated: true}} = @agent_module.proc_state(pid, 20, 500)
+      assert List.last(term) == :"$voyager_truncated"
+    end
+
+    # A raw process never answers the system message, which is also what a busy
+    # OTP process looks like from here -- both are reported as a timeout.
+    test "times out for a process that does not handle system messages" do
+      pid = spawn_idle()
+      kill_on_exit([pid])
+
+      assert {:error, :timeout} == @agent_module.proc_state(pid, 1_000, 50)
+    end
+
+    test "returns {:error, :dead} for a dead pid" do
+      assert {:error, :dead} == @agent_module.proc_state(dead_pid(), 1_000, 500)
+    end
+  end
+
+  describe "proc_messages/3" do
+    test "caps the mailbox at the limit while reporting the real total" do
+      pid = spawn_idle()
+      kill_on_exit([pid])
+      Enum.each(1..10, &send(pid, {:msg, &1}))
+
+      assert {:ok, %{total: 10, truncated: true, items: items}} =
+               @agent_module.proc_messages(pid, 3, 1_000)
+
+      assert items == [{:msg, 1}, {:msg, 2}, {:msg, 3}]
+    end
+
+    test "truncates an oversized single message" do
+      pid = spawn_idle()
+      kill_on_exit([pid])
+      send(pid, {:big, Enum.to_list(1..1_000)})
+
+      assert {:ok, %{total: 1, truncated: true, items: [{:big, value}]}} =
+               @agent_module.proc_messages(pid, 10, 20)
+
+      assert List.last(value) == :"$voyager_truncated"
+    end
+
+    test "returns an empty mailbox untruncated" do
+      pid = spawn_idle()
+      kill_on_exit([pid])
+
+      assert {:ok, %{total: 0, truncated: false, items: []}} ==
+               @agent_module.proc_messages(pid, 10, 1_000)
+    end
+
+    test "returns {:error, :dead} for a dead pid" do
+      assert {:error, :dead} == @agent_module.proc_messages(dead_pid(), 10, 1_000)
+    end
+  end
+
+  # Hands `term` to the agent as the sole dictionary entry of a throwaway
+  # process, so the budget is spent on `term` and nothing else. Each entry is
+  # budgeted on its own (the entry list itself is free), so walking to the
+  # value costs 2 terms first -- the `{key, value}` tuple and the key -- which
+  # `@probe_overhead` pays for.
+  @probe_overhead 2
+  defp bound(term, budget) do
+    parent = self()
+
+    pid =
+      spawn(fn ->
+        Process.put(:probe, term)
+        send(parent, :ready)
+
+        receive do
+          :never -> :ok
+        end
+      end)
+
+    kill_on_exit([pid])
+    assert_receive :ready
+
+    assert {:ok, %{items: items, truncated: truncated}} =
+             @agent_module.proc_dictionary(pid, 1_000, budget + @probe_overhead)
+
+    case items do
+      [{:probe, value}] -> {value, truncated}
+      [marker] -> {marker, truncated}
+    end
+  end
+
+  defp dead_pid do
+    pid = spawn(fn -> :ok end)
+    ref = Process.monitor(pid)
+    assert_receive {:DOWN, ^ref, :process, ^pid, _reason}
+    pid
+  end
+
+  defp spawn_idle do
+    spawn(fn ->
+      receive do
+        :never -> :ok
+      end
+    end)
+  end
+
+  defp kill_on_exit(pids) do
+    on_exit(fn -> Enum.each(pids, &Process.exit(&1, :kill)) end)
+  end
 end
