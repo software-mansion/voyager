@@ -164,14 +164,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   defp fetch_node_info(remote_node, pid) do
     case ProcessInfo.fetch(remote_node, pid) do
       {:ok, info} ->
-        %{term: label, truncated?: label_truncated?} = fetch_label(remote_node, pid)
-
-        node_info =
-          info
-          |> Map.put(:label, label)
-          |> Map.put(:label_truncated?, label_truncated?)
-
-        {:ok, %{node_info: node_info}}
+        {:ok, %{node_info: Map.put(info, :label, fetch_label(remote_node, pid))}}
 
       {:error, reason} ->
         Logger.warning(
@@ -187,15 +180,15 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   # loaded simply has no label to show -- it must not fail the whole overview.
   defp fetch_label(remote_node, pid) do
     case ProcessInfo.fetch_label(remote_node, pid) do
-      {:ok, %{term: term, truncated?: truncated?}} ->
-        %{term: term, truncated?: truncated?}
+      {:ok, %{term: term}} ->
+        term
 
       {:error, reason} ->
         Logger.warning(
           "Failed to load label for #{inspect(remote_node)}/#{inspect(pid)}: #{inspect(reason)}"
         )
 
-        %{term: nil, truncated?: false}
+        nil
     end
   end
 
