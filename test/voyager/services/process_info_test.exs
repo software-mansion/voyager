@@ -49,8 +49,7 @@ defmodule Voyager.Services.ProcessInfoTest do
       assert info.registered_name == nil
       assert info.parent == self()
 
-      # The dictionary is never fetched, so nothing derived from it appears
-      # here either -- callers use fetch_dictionary/4 instead. The label is an
+      # Callers use fetch_dictionary/4 for the dictionary; the label is an
       # arbitrary term, so it needs a budget and lives in fetch_label/4.
       refute Map.has_key?(info, :dictionary)
       refute Map.has_key?(info, :ancestors)
@@ -234,9 +233,8 @@ defmodule Voyager.Services.ProcessInfoTest do
     end
 
     test "unbounded fetches report the real total when the remote truncates" do
-      # 250 entries exceed the requested limit of 200, so the payload is capped
-      # while `total` still reflects what the remote actually holds. All four
-      # fetches share one remote truncation path, so covering it once is enough.
+      # All four unbounded fetches share one remote truncation path, so
+      # covering it once is enough.
       pid = spawn_idle(fn -> Enum.each(1..250, &Process.put({:key, &1}, &1)) end)
       kill_on_exit([pid])
 

@@ -12,8 +12,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   alias VoyagerWeb.Formatters
 
   @max_links 12
-  # Public so callers that must fetch no more links than this panel can ever
-  # render (e.g. DetailsPanel's remote fetch limit) can reuse it.
+  # Public so DetailsPanel can cap its remote fetch at what this panel renders.
   @max_expanded_links 200
   def max_expanded_links, do: @max_expanded_links
 
@@ -346,7 +345,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :label, :string, required: true
 
   def chip(assigns) do
-    # Redirecting will be available after #41 and #99
     ~H"""
     <button
       type="button"
@@ -537,8 +535,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp node_pid_string(%TreeNode{pid: pid}) when is_pid(pid), do: format_identifier(pid)
   defp node_pid_string(_), do: nil
 
-  # Formats only the slice that gets rendered: a process can hold thousands of
-  # links and every chip lands in the LiveView diff.
+  # Formats only the rendered slice: every chip lands in the LiveView diff.
   defp format_links(links, limit) do
     links
     |> Enum.take(limit)

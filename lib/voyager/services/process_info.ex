@@ -30,13 +30,8 @@ defmodule Voyager.Services.ProcessInfo do
   alias Voyager.Agent
   alias Voyager.Erpc
 
-  # Default `:erpc` timeout for every fetch; each takes it as a trailing
-  # argument so a caller on a slow link can override it.
   @timeout Agent.default_timeout()
 
-  # Spent walking a term before the remote elides the rest -- one unit per
-  # term visited, except a binary, which is charged per byte kept. Bounds the
-  # payload of attributes holding arbitrary user terms.
   @budget Agent.default_budget()
 
   @keys [

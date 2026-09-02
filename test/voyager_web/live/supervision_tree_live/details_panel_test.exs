@@ -212,7 +212,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       link_pids: link_pids,
       sup_key: sup_key
     } do
-      # Open the panel with the default ProcessInfo payload (reductions 1,234).
       expect_supervision_erpc(11, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
