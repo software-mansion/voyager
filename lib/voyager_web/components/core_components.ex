@@ -627,7 +627,7 @@ defmodule VoyagerWeb.CoreComponents do
   def error_state(assigns) do
     ~H"""
     <div class="alert alert-error mb-8" id={@id} role="alert" {@rest}>
-      <.icon name="icon-circle-alert" class="size-5" />
+      <.icon name="icon-circle-alert" class="text-error size-5" />
       <span>{@message}</span>
     </div>
     """
