@@ -60,6 +60,12 @@ defmodule Voyager.Services.Ets.Sanitize do
     sanitize_collection_marker(kind, elements, omitted, depth)
   end
 
+  defp sanitize([], depth) when depth >= @max_depth, do: []
+
+  defp sanitize(%{} = map, depth) when map_size(map) == 0 and depth >= @max_depth, do: map
+
+  defp sanitize({}, depth) when depth >= @max_depth, do: {}
+
   defp sanitize(term, depth)
        when (is_list(term) or is_map(term) or is_tuple(term)) and depth >= @max_depth do
     {@marker, :depth}

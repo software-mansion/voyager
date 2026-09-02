@@ -11,10 +11,10 @@ defmodule Voyager.Test.EtsSanitizeFixture do
   @collection_limit Sanitize.max_collection()
 
   @doc """
-  Sample terms covering binary overflow, collection overflow, depth, nested
-  mix, already-truncated leaves, fake marker payloads that must still be
-  capped, non-binary bitstrings, improper lists, map key collisions, and
-  keys that must not be redacted.
+  Sample terms covering binary overflow, collection overflow, depth, empty
+  collections at the depth cap, nested mix, already-truncated leaves, fake
+  marker payloads that must still be capped, non-binary bitstrings, improper
+  lists, map key collisions, and keys that must not be redacted.
   """
   @spec samples() :: [{term(), term()}]
   def samples do
@@ -24,6 +24,9 @@ defmodule Voyager.Test.EtsSanitizeFixture do
       collection_overflow_map(),
       collection_overflow_tuple(),
       depth_cap(),
+      empty_list_at_depth_cap(),
+      empty_map_at_depth_cap(),
+      empty_tuple_at_depth_cap(),
       nested_mix(),
       already_truncated_leaf(),
       fake_binary_marker_overflow(),
@@ -72,6 +75,21 @@ defmodule Voyager.Test.EtsSanitizeFixture do
     input = [[[[[[:x]]]]]]
     expected = [[[[[{@marker, :depth}]]]]]
     {input, expected}
+  end
+
+  defp empty_list_at_depth_cap do
+    input = [[[[[[]]]]]]
+    {input, input}
+  end
+
+  defp empty_map_at_depth_cap do
+    input = [[[[[%{}]]]]]
+    {input, input}
+  end
+
+  defp empty_tuple_at_depth_cap do
+    input = [[[[[{}]]]]]
+    {input, input}
   end
 
   defp nested_mix do
