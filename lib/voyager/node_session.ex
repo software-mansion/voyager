@@ -34,18 +34,6 @@ defmodule Voyager.NodeSession do
     :persistent_term.get(@connector_name_cache_key, nil)
   end
 
-  @doc false
-  # The cache is a `:persistent_term`, so it leaks across tests without this.
-  @spec restore_cached_connector_name(atom() | nil) :: :ok
-  def restore_cached_connector_name(nil) do
-    :persistent_term.erase(@connector_name_cache_key)
-    :ok
-  end
-
-  def restore_cached_connector_name(name) do
-    :persistent_term.put(@connector_name_cache_key, name)
-  end
-
   @doc "Connects via the default distribution connector."
   @spec connect(String.t(), String.t(), keyword()) :: :ok | {:error, term()}
   def connect(node_name, cookie, opts \\ []) do

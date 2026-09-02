@@ -83,7 +83,7 @@ defmodule VoyagerWeb.CoreComponents do
 
   def node_header(assigns) do
     ~H"""
-    <header class="mb-4 flex items-center justify-between gap-4">
+    <header class="mb-8 flex items-center justify-between gap-4">
       <div class="min-w-0 flex-1">
         <h1 class="font-mono text-base-content min-w-0 text-2xl font-bold tracking-tight">
           <.tooltip
@@ -207,6 +207,16 @@ defmodule VoyagerWeb.CoreComponents do
   attr :rest, :global
 
   def copy_button(assigns) do
+    assigns =
+      assign(
+        assigns,
+        :button_class,
+        if(assigns.icon_only,
+          do: ["btn-square", if(assigns.size == :sm, do: "toolbar-btn-sm", else: "toolbar-btn")],
+          else: "btn-sm gap-2"
+        )
+      )
+
     ~H"""
     <button
       type="button"
@@ -218,14 +228,7 @@ defmodule VoyagerWeb.CoreComponents do
       data-copy-copied-label={@copied_label}
       title={@label}
       aria-label={@label}
-      class={[
-        "btn btn-ghost",
-        if(@icon_only,
-          do: ["btn-square", if(@size == :sm, do: "toolbar-btn-sm", else: "toolbar-btn")],
-          else: "btn-sm gap-2"
-        ),
-        @class
-      ]}
+      class={["btn btn-ghost", @button_class, @class]}
       {@rest}
     >
       <.icon
@@ -488,8 +491,6 @@ defmodule VoyagerWeb.CoreComponents do
     assigns = assign(assigns, :count, length(assigns.selected))
 
     ~H"""
-    <%!-- `dropdown-end` aligns the panel's right edge with the trigger's, so a
-          panel wider than its button opens inwards instead of off the edge. --%>
     <div class="dropdown dropdown-end">
       <div
         tabindex={if @disabled, do: "-1", else: "0"}
@@ -506,9 +507,6 @@ defmodule VoyagerWeb.CoreComponents do
         <.icon name="icon-chevron-right" class="size-3.5 shrink-0 rotate-90 opacity-60" />
       </div>
 
-      <%!-- A plain checkbox group: `role="listbox"` would promise `role="option"`
-            children, and a screen reader would announce a listbox with no
-            options and never convey which columns are selected. --%>
       <div
         tabindex="0"
         role="group"
@@ -525,9 +523,6 @@ defmodule VoyagerWeb.CoreComponents do
           ]}
           title={locked? && "Always shown"}
         >
-          <%!-- A locked option shows no control at all: there is nothing to
-                toggle. It is still submitted as a hidden field so the value
-                survives a change event, and re-added server-side regardless. --%>
           <input :if={locked?} type="hidden" name={"#{@name}[]"} value={value} />
           <input
             :if={not locked?}
@@ -718,8 +713,6 @@ defmodule VoyagerWeb.CoreComponents do
   def tooltip_portal(assigns) do
     ~H"""
     <.portal id={"#{@id}-portal"} target="#tooltip-portal-root">
-      <%!-- Ignored because the hook stores open/pinned state and position here.
-            A tip whose text changes needs a new id to remount. --%>
       <div
         id={"#{@id}-tip"}
         role="tooltip"

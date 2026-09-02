@@ -2,15 +2,10 @@ defmodule Voyager.Queries.Processes do
   @moduledoc """
   Read queries for the process list and process details of a remote node.
 
-  Wraps `Voyager.Services.ProcessList` and `Voyager.Services.ProcessInfo` with
-  the shape the UI needs: `page/3` takes the already-validated
-  `VoyagerWeb.FormSchemas.ProcessListControls` and returns the rows with the
-  scan metadata the list page surfaces, plus pid parsing/formatting so LiveViews
-  never touch `:erlang.list_to_pid/1` themselves.
+  Wraps `Voyager.Services.ProcessList` and `Voyager.Services.ProcessInfo` with the shape the UI needs
 
-  Ranking, searching and truncation all run remotely, so `page/3` returns at
-  most `limit` entries out of `scanned` walked processes. Paging is the
-  caller's: every fetched row comes back.
+  Ranking, searching and truncation all run remotely, so `page/3` returns at most `limit` entries out of `scanned` walked processes.
+  Paging is the caller's: every fetched row comes back.
   """
 
   alias Voyager.Services.ProcessInfo

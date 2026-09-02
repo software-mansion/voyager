@@ -1,8 +1,7 @@
 // Remembers a table's controls across visits.
 //
-// The server owns validation: this pushes the stored values up on mount and
-// writes back whatever the server echoes after validating them, so nothing
-// invalid can be persisted or restored.
+// Saves data on `store-settings`
+// Sends `restore_settings` event when settings are restored.
 
 const STORAGE_PREFIX = 'voyager:table-settings:';
 
@@ -19,8 +18,10 @@ const TableSettings = {
   store(settings) {
     try {
       localStorage.setItem(this.storageKey, JSON.stringify(settings));
-    } catch (_error) {
-      // Remembering the controls is a convenience, not correctness.
+    } catch (error) {
+      console.warn(
+        `Error while saving settings for table ${this.storageKey}: ${error}`
+      );
     }
   },
 
@@ -30,8 +31,10 @@ const TableSettings = {
     try {
       const raw = localStorage.getItem(this.storageKey);
       settings = raw ? JSON.parse(raw) : null;
-    } catch (_error) {
-      return;
+    } catch (error) {
+      console.warn(
+        `Error while parsing saved setting for table ${this.storageKey}: ${error}`
+      );
     }
 
     if (!settings || typeof settings !== 'object') return;

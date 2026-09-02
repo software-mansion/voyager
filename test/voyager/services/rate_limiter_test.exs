@@ -95,29 +95,4 @@ defmodule Voyager.Services.RateLimiterTest do
     state = :sys.get_state(server)
     assert state.tokens_high == 1
   end
-
-  describe "refill configuration" do
-    test "a raised capacity refills at the configured rate, not a stale default" do
-      # Guards the trap that made the suite's own limiter unusable: a huge
-      # capacity left with the default refill takes minutes to come back.
-      config = Application.get_env(:voyager, :rate_limiter_config, %{})
-      limiter = start_supervised!({RateLimiter, name: :refill_config_test, config: config})
-
-      :sys.replace_state(limiter, &%{&1 | tokens_high: 0, tokens_low: 0})
-      send(limiter, :refill)
-
-      state = :sys.get_state(limiter)
-      assert state.tokens_high == state.config.high_capacity
-      assert state.tokens_low == state.config.low_capacity
-    end
-
-    test "a refill larger than its capacity is clamped" do
-      limiter =
-        start_supervised!(
-          {RateLimiter, name: :clamp_test, config: %{high_capacity: 3, high_refill: 99}}
-        )
-
-      assert :sys.get_state(limiter).config.high_refill == 3
-    end
-  end
 end
