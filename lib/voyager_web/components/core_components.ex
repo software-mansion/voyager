@@ -451,7 +451,9 @@ defmodule VoyagerWeb.CoreComponents do
   defp copy_icon_class(true, _size), do: "toolbar-icon"
   defp copy_icon_class(false, _size), do: "size-4"
 
-  defp translate_error({msg, opts}) do
+  @doc "Interpolates a changeset error's `%{count}`-style placeholders."
+  @spec translate_error({String.t(), keyword()}) :: String.t()
+  def translate_error({msg, opts}) do
     Enum.reduce(opts, msg, fn {key, value}, acc ->
       String.replace(acc, "%{#{key}}", fn _ -> to_string(value) end)
     end)
