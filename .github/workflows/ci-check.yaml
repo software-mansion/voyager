@@ -100,7 +100,7 @@ jobs:
         run: mix dialyzer --format github
 
       - name: Start Epmd
-        run: epmd -daemon
+        run: epmd -daemon -relaxed_command_check
         
       - name: Run unit tests
         run: mix test

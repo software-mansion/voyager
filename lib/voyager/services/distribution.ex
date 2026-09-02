@@ -9,6 +9,8 @@ defmodule Voyager.Services.Distribution do
   for `:longnames` and `localhost` for `:shortnames`.
   """
 
+  alias Voyager.Epmd.Daemon
+  alias Voyager.Services.Distribution.EpmdRecovery
   alias Voyager.Settings
 
   require Logger
@@ -16,9 +18,6 @@ defmodule Voyager.Services.Distribution do
   @doc """
   Ensures the local node is alive and distributed under `name_type`
   (`:longnames` or `:shortnames`), starting or restarting distribution as needed.
-
-  Distribution is restarted when the running node's name type or base name no
-  longer matches the requested type / current `:distribution_suffix` setting.
   """
   @spec ensure_distributed(atom()) :: :ok | {:error, term()}
   def ensure_distributed(name_type) when name_type in [:longnames, :shortnames] do
@@ -27,13 +26,10 @@ defmodule Voyager.Services.Distribution do
         start_distribution(name_type)
 
       matches_name_type?(name_type) and distribution_name_matches?() ->
-        :ok
+        ensure_epmd_alive(name_type)
 
       true ->
-        case :net_kernel.stop() do
-          :ok -> start_distribution(name_type)
-          {:error, reason} -> {:error, {:net_kernel_stop, reason}}
-        end
+        restart_distribution(name_type)
     end
   end
 
@@ -49,8 +45,11 @@ defmodule Voyager.Services.Distribution do
           | {:error, {:invalid_node_format, String.t()}}
   def split_node_name(full_node_name) when is_binary(full_node_name) do
     case String.split(full_node_name, "@", parts: 2) do
-      [name, host] -> {:ok, name, host}
-      _ -> {:error, {:invalid_node_format, full_node_name}}
+      [name, host] ->
+        {:ok, name, host}
+
+      _ ->
+        {:error, {:invalid_node_format, full_node_name}}
     end
   end
 
@@ -59,11 +58,17 @@ defmodule Voyager.Services.Distribution do
     "voyager#{suffix}"
   end
 
-  defp matches_name_type?(:longnames), do: :net_kernel.longnames() == true
-  defp matches_name_type?(:shortnames), do: :net_kernel.longnames() == false
+  defp matches_name_type?(:longnames),
+    do: :net_kernel.longnames() == true
 
-  defp local_node_name(:longnames), do: String.to_atom("#{distribution_name()}@127.0.0.1")
-  defp local_node_name(:shortnames), do: String.to_atom("#{distribution_name()}@localhost")
+  defp matches_name_type?(:shortnames),
+    do: :net_kernel.longnames() == false
+
+  defp local_node_name(:longnames),
+    do: String.to_atom("#{distribution_name()}@127.0.0.1")
+
+  defp local_node_name(:shortnames),
+    do: String.to_atom("#{distribution_name()}@localhost")
 
   defp distribution_name_matches? do
     {:ok, name, _host} =
@@ -74,23 +79,75 @@ defmodule Voyager.Services.Distribution do
     name == distribution_name()
   end
 
-  defp start_distribution(name_type) do
+  defp ensure_epmd_alive(name_type) do
+    initially_running? = Daemon.running?()
+
+    if initially_running? do
+      :ok
+    else
+      Logger.warning("Node is alive but local EPMD is dead. Attempting to restart EPMD...")
+
+      start_result = Daemon.start()
+      running_after_start? = start_result == :ok and Daemon.running?()
+
+      case EpmdRecovery.action(initially_running?, start_result, running_after_start?) do
+        :keep_distribution ->
+          :ok
+
+        :restart_distribution ->
+          Logger.warning("Could not recover EPMD without restarting distribution.")
+          restart_distribution(name_type)
+      end
+    end
+  end
+
+  defp restart_distribution(name_type) do
+    case :net_kernel.stop() do
+      :ok ->
+        start_distribution(name_type)
+
+      {:error, reason} ->
+        {:error, {:net_kernel_stop, reason}}
+    end
+  end
+
+  defp start_distribution(name_type, retry_with_epmd? \\ true) do
     node_name = local_node_name(name_type)
 
-    case :net_kernel.start(node_name, %{name_domain: name_type, hidden: true}) do
+    case :net_kernel.start(node_name, %{
+           name_domain: name_type,
+           hidden: true
+         }) do
       {:ok, _pid} ->
         :ok
 
-      {:error, {:already_started, pid}} ->
-        Logger.warning(
-          "net_kernel.start/2 returned {:already_started, #{inspect(pid)}} " <>
-            "for #{inspect(node_name)} name_type=#{inspect(name_type)}"
-        )
-
+      {:error, {:already_started, _pid}} ->
         :ok
+
+      {:error, reason} when retry_with_epmd? ->
+        handle_net_kernel_error(name_type, reason)
 
       {:error, reason} ->
         {:error, {:net_kernel, reason}}
+    end
+  end
+
+  defp handle_net_kernel_error(name_type, reason) do
+    if Daemon.running?() do
+      {:error, {:net_kernel, reason}}
+    else
+      Logger.warning(
+        "net_kernel.start/2 failed and EPMD appears down. " <>
+          "Starting EPMD and retrying..."
+      )
+
+      case Daemon.ensure_running() do
+        :ok ->
+          start_distribution(name_type, false)
+
+        {:error, epmd_error} ->
+          {:error, {:epmd_start_failed, reason, epmd_error}}
+      end
     end
   end
 end

@@ -3,8 +3,12 @@ defmodule Voyager.Application do
 
   use Application
 
+  alias Voyager.Epmd.Daemon
+  require Logger
+
   @impl true
   def start(_type, _args) do
+    ensure_epmd_started()
     store_active_epmd_module()
     # Elixirkit installation here: https://hexdocs.pm/elixirkit/tauri.html#phoenix-tauri
     elixirkit_pubsub = System.get_env("ELIXIRKIT_PUBSUB")
@@ -49,5 +53,15 @@ defmodule Voyager.Application do
       end
 
     :persistent_term.put(:voyager_epmd_module, epmd_mod)
+  end
+
+  defp ensure_epmd_started do
+    case Daemon.start() do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("Could not start EPMD: #{inspect(reason)}")
+    end
   end
 end
