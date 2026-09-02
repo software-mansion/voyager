@@ -191,7 +191,7 @@ defmodule VoyagerWeb.ProcessesLive do
 
     socket
     |> assign(:page_size, size)
-    |> assign(:page, clamp_page(socket, 1, size))
+    |> assign(:page, clamp_page(1, length(entries(socket.assigns.page_result)), size))
     |> store_settings()
     |> noreply()
   end
@@ -200,7 +200,10 @@ defmodule VoyagerWeb.ProcessesLive do
     page = parse_integer(page) || socket.assigns.page
 
     socket
-    |> assign(:page, clamp_page(socket, page, socket.assigns.page_size))
+    |> assign(
+      :page,
+      clamp_page(page, length(entries(socket.assigns.page_result)), socket.assigns.page_size)
+    )
     |> noreply()
   end
 
@@ -243,7 +246,7 @@ defmodule VoyagerWeb.ProcessesLive do
     |> assign(:last_updated, page.fetched_at)
     |> assign(
       :page,
-      clamp_page_to(socket.assigns.page, length(page.entries), socket.assigns.page_size)
+      clamp_page(socket.assigns.page, length(page.entries), socket.assigns.page_size)
     )
     |> noreply()
   end
@@ -362,8 +365,8 @@ defmodule VoyagerWeb.ProcessesLive do
 
   defp loading?(%AsyncResult{loading: loading}), do: loading != nil
 
-  # Only validated values are stored, so nothing invalid can come back on the
-  # next visit. `search` is taken as typed, since anything is valid there.
+  # Only validated values are stored, so nothing invalid comes back next visit.
+  # `search` is stored as typed: trimming it would fight the user mid-word.
   defp store_settings(socket, params \\ %{}) do
     %{controls: controls, page_size: page_size} = socket.assigns
 
@@ -407,11 +410,7 @@ defmodule VoyagerWeb.ProcessesLive do
   defp toggle_direction(%{assigns: %{sort_by: key}}, key) when is_atom(key), do: :desc
   defp toggle_direction(_socket, _key), do: :desc
 
-  defp clamp_page(socket, page, page_size) do
-    clamp_page_to(page, length(entries(socket.assigns.page_result)), page_size)
-  end
-
-  defp clamp_page_to(page, total, page_size) do
+  defp clamp_page(page, total, page_size) do
     page |> max(1) |> min(max(div(total + page_size - 1, page_size), 1))
   end
 

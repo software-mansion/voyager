@@ -56,10 +56,9 @@ defmodule VoyagerWeb.FormSchemas.ProcessListControls do
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(controls \\ default(), attrs \\ %{}) do
     controls
-    |> cast(blank_to_nil(attrs), [:search, :limit, :timeout, :columns])
-    # localStorage can replay a null search, which `String.trim/1` rejects.
-    |> update_change(:search, &String.trim(&1 || ""))
-    |> update_change(:columns, &filter_known/1)
+    |> cast(normalize(attrs), [:search, :limit, :timeout, :columns])
+    |> update_change(:search, &String.trim/1)
+    |> update_change(:columns, &known_columns/1)
     |> validate_required([:limit, :timeout])
     |> validate_inclusion(:limit, @limits, message: "must be one of #{Enum.join(@limits, ", ")}")
     |> validate_number(:timeout,
@@ -105,12 +104,14 @@ defmodule VoyagerWeb.FormSchemas.ProcessListControls do
       Enum.map(optional_columns(), &{to_string(&1), label_fun.(&1), false})
   end
 
-  # `cast/4` drops "" as "no change", silently keeping the old value; nil is a
-  # change, so `validate_required/2` can report the empty box.
-  defp blank_to_nil(attrs) do
-    Map.new(attrs, fn
-      {key, ""} when key in ~w(limit timeout) -> {key, nil}
-      pair -> pair
+  # A null `search` from localStorage would reach `String.trim/1`. Blank
+  # `limit`/`timeout` go the other way: `cast/4` skips "", nil is a change
+  # `validate_required/2` can report.
+  defp normalize(attrs) do
+    attrs = if Map.get(attrs, "search") == nil, do: Map.delete(attrs, "search"), else: attrs
+
+    Enum.reduce(~w(limit timeout), attrs, fn key, acc ->
+      if Map.get(acc, key) == "", do: Map.put(acc, key, nil), else: acc
     end)
   end
 
@@ -121,13 +122,8 @@ defmodule VoyagerWeb.FormSchemas.ProcessListControls do
     end)
   end
 
-  defp filter_known(columns) when is_list(columns) do
-    known = MapSet.new(required_columns() ++ optional_columns(), &to_string/1)
-
-    Enum.filter(columns, &MapSet.member?(known, &1))
-  end
-
-  defp filter_known(_columns), do: []
+  defp known_columns(columns) when is_list(columns), do: Enum.filter(columns, &safe_atom/1)
+  defp known_columns(_columns), do: []
 
   defp safe_atom(value) do
     Enum.find(required_columns() ++ optional_columns(), &(to_string(&1) == value))

@@ -107,11 +107,11 @@ defmodule Voyager.Queries.Processes do
     case ProcessList.top(
            node,
            attrs,
-           sort_by(sort_by),
+           sort_by,
            controls.limit,
            controls.timeout,
-           direction(direction),
-           search(controls.search)
+           direction,
+           controls.search
          ) do
       {:ok, {entries, scanned}} ->
         {:ok, %{entries: entries, scanned: scanned, fetched_at: DateTime.utc_now()}}
@@ -120,9 +120,6 @@ defmodule Voyager.Queries.Processes do
         {:error, reason}
     end
   end
-
-  defp search(""), do: nil
-  defp search(value), do: value
 
   @doc """
   Fetches full details for a single process, verifying it is still alive.
@@ -153,10 +150,4 @@ defmodule Voyager.Queries.Processes do
   """
   @spec format_pid(pid()) :: String.t()
   def format_pid(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
-
-  defp sort_by(value) when value in @sortable, do: value
-  defp sort_by(_value), do: @default_sort_by
-
-  defp direction(value) when value in [:asc, :desc], do: value
-  defp direction(_value), do: @default_direction
 end
