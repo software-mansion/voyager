@@ -103,13 +103,6 @@ defmodule VoyagerWeb.FormSchemas.ProcessListControls do
       Enum.map(optional_columns(), &{to_string(&1), label_fun.(&1), false})
   end
 
-  @doc "Whether `a` and `b` would produce a different fetch."
-  @spec fetch_differs?(t(), t()) :: boolean()
-  def fetch_differs?(%__MODULE__{} = a, %__MODULE__{} = b) do
-    Map.take(a, [:search, :limit, :timeout, :columns]) !=
-      Map.take(b, [:search, :limit, :timeout, :columns])
-  end
-
   # Drops the fields that failed validation, so the rest still applies.
   defp valid_part(changeset) do
     Enum.reduce(changeset.errors, changeset, fn {field, _}, acc ->

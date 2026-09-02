@@ -2,10 +2,10 @@ defmodule VoyagerWeb.ProcessesLive do
   @moduledoc """
   Lists the top processes of the connected node, ranked remotely.
 
-  Every fetch is a full scan of the remote process table, so nothing fetches
-  implicitly: the controls form only validates and remembers what the *next*
-  fetch will ask for, and the rows change on a manual refresh, on the
-  auto-refresh tick, or when a column is sorted.
+  Every fetch is a full scan of the remote process table, so fetches are kept
+  deliberate: a manual refresh, the auto-refresh tick, a sort, or a change to
+  the controls once its debounce window closes — which collapses a burst of
+  edits into a single scan.
 
   Paging is local to whatever the last fetch returned, and is a separate
   setting from the fetch limit — one is a display slice, the other a cost paid
@@ -254,20 +254,15 @@ defmodule VoyagerWeb.ProcessesLive do
     |> noreply()
   end
 
-  # Rate limiting is transient and leaves the rows usable, so it flashes rather
-  # than replacing the table with an error state.
-  def handle_async(:page_result, {:ok, {:rate_limited, _}}, socket) do
+  # Rate limiting and timeouts are transient, and the rows already on screen are
+  # still the last good answer, so both flash rather than replacing the table.
+  def handle_async(:page_result, {:ok, {:rate_limited, _retry_after_ms}}, socket) do
     socket
     |> clear_loading()
-    |> put_flash(
-      :error,
-      "Too many requests."
-    )
+    |> put_flash(:error, "Too many requests.")
     |> noreply()
   end
 
-  # A timeout is transient too: the rows on screen are still the last good
-  # answer, so it flashes and leaves them be.
   def handle_async(:page_result, {:ok, {:error, :timeout}}, socket) do
     socket
     |> clear_loading()
@@ -434,9 +429,7 @@ defmodule VoyagerWeb.ProcessesLive do
     end
   end
 
-  defp format_error(:timeout),
-    do: "Request timed out"
-
+  defp format_error(:timeout), do: "Request timed out"
   defp format_error(:noconnection), do: "Node is unreachable."
 
   defp format_error({:remote_exception, :undef}),

@@ -30,19 +30,6 @@ defmodule VoyagerWeb.Components.ProcessComponents do
     %{key: :current_function, label: "Current function", sortable?: false, align: :left}
   ]
 
-  # Which selected attribute makes a column visible.
-  @column_attrs %{
-    pid: [:pid],
-    registered_name: [:registered_name],
-    initial_call: [:initial_call],
-    memory: [:memory],
-    reductions: [:reductions],
-    message_queue_len: [:message_queue_len],
-    status: [:status],
-    priority: [:priority],
-    current_function: [:current_function]
-  }
-
   @labels %{
     pid: "PID",
     memory: "Memory",
@@ -204,9 +191,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   """
   @spec columns([atom()]) :: [map()]
   def columns(selected) do
-    Enum.filter(@columns, fn %{key: key} ->
-      @column_attrs |> Map.fetch!(key) |> Enum.any?(&(&1 in selected))
-    end)
+    Enum.filter(@columns, &(&1.key in selected))
   end
 
   @doc "Human label for a selectable attribute."

@@ -28,16 +28,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   alias VoyagerWeb.Formatters
 
   @doc """
-  The narrowest the table itself gets.
-
-  A cell's own `min-width` is ignored under fixed layout, so the floor lives on
-  the table: without it a wide column set keeps dividing the available space
-  until the unsized columns collapse to nothing.
-  """
-  @spec min_width_class() :: String.t()
-  def min_width_class, do: "min-w-5xl"
-
-  @doc """
   The narrowest a page holding the table should get.
 
   Wider than the table by its card's padding, so the table always fits inside
@@ -58,7 +48,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   attr :rows, :list, required: true, doc: "list of `{dom_id, row}` tuples"
   attr :sort_by, :atom, default: nil
   attr :direction, :atom, default: :desc
-  attr :sort_event, :string, default: "sort"
   attr :empty_message, :string, default: "No results."
 
   slot :cell, required: true
@@ -67,10 +56,10 @@ defmodule VoyagerWeb.Components.DataTableComponents do
     ~H"""
     <div class="card bg-base-100 border-base-200 border shadow-sm">
       <div class="p-5">
-        <table
-          id={@id}
-          class={["table-pin-rows table-md table w-full table-fixed", min_width_class()]}
-        >
+        <%!-- A cell's own min-width is ignored under fixed layout, so the floor
+              lives on the table: without it a wide column set keeps dividing
+              the available space until the unsized columns collapse. --%>
+        <table id={@id} class="table-pin-rows table-md min-w-5xl table w-full table-fixed">
           <thead>
             <tr>
               <.column_header
@@ -78,7 +67,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
                 column={column}
                 sort_by={@sort_by}
                 direction={@direction}
-                sort_event={@sort_event}
               />
             </tr>
           </thead>
@@ -111,7 +99,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   attr :column, :map, required: true
   attr :sort_by, :atom, default: nil
   attr :direction, :atom, required: true
-  attr :sort_event, :string, required: true
 
   defp column_header(%{column: %{sortable?: true}} = assigns) do
     assigns = assign(assigns, :active?, assigns.column.key == assigns.sort_by)
@@ -124,7 +111,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
     >
       <button
         type="button"
-        phx-click={@sort_event}
+        phx-click="sort"
         phx-value-key={@column.key}
         class={[
           "font-mono tracking-label flex w-full max-w-full items-center gap-1 text-xs",
@@ -181,9 +168,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   attr :page, :integer, required: true
   attr :page_size, :integer, required: true
   attr :total, :integer, required: true
-  attr :event, :string, default: "paginate"
   attr :page_size_options, :list, default: [], doc: "adds a rows-per-page selector"
-  attr :page_size_event, :string, default: "set_page_size"
 
   def pager(assigns) do
     total_pages = max(div(assigns.total + assigns.page_size - 1, assigns.page_size), 1)
@@ -212,7 +197,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         <form
           :if={@page_size_options != []}
           id={"#{@id}-page-size-form"}
-          phx-change={@page_size_event}
+          phx-change="set_page_size"
           class="flex items-center gap-2"
         >
           <label for={"#{@id}-page-size"} class="text-base-content/70 text-xs">Per page</label>
@@ -236,7 +221,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         <button
           type="button"
           id={"#{@id}-prev"}
-          phx-click={@event}
+          phx-click="paginate"
           phx-value-page={@page - 1}
           disabled={@page <= 1}
           class="join-item btn btn-sm"
@@ -250,7 +235,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         <button
           type="button"
           id={"#{@id}-next"}
-          phx-click={@event}
+          phx-click="paginate"
           phx-value-page={@page + 1}
           disabled={@page >= @total_pages}
           class="join-item btn btn-sm"

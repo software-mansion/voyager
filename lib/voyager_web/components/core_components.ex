@@ -481,8 +481,6 @@ defmodule VoyagerWeb.CoreComponents do
   attr :options, :list, required: true, doc: "list of `{value, label, locked?}` triples"
   attr :selected, :list, required: true, doc: "list of selected values"
   attr :disabled, :boolean, default: false
-  attr :locked_hint, :string, default: "Always shown"
-  attr :class, :any, default: nil
 
   def multiselect(assigns) do
     assigns = assign(assigns, :count, length(assigns.selected))
@@ -490,7 +488,7 @@ defmodule VoyagerWeb.CoreComponents do
     ~H"""
     <%!-- `dropdown-end` aligns the panel's right edge with the trigger's, so a
           panel wider than its button opens inwards instead of off the edge. --%>
-    <div class={["dropdown dropdown-end", @class]}>
+    <div class="dropdown dropdown-end">
       <div
         tabindex={if @disabled, do: "-1", else: "0"}
         role="button"
@@ -520,7 +518,7 @@ defmodule VoyagerWeb.CoreComponents do
             locked? && "text-base-content/60 cursor-not-allowed",
             not locked? && "cursor-pointer hover:bg-base-200"
           ]}
-          title={locked? && @locked_hint}
+          title={locked? && "Always shown"}
         >
           <%!-- A locked option shows no control at all: there is nothing to
                 toggle. It is still submitted as a hidden field so the value
