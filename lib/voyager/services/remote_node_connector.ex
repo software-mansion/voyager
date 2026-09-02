@@ -105,11 +105,13 @@ defmodule Voyager.Services.RemoteNodeConnector do
          {:ok, local_port} <- Connection.open_tunnel(conn_ref, dist_port),
          :ok <- TunnelRegistry.register(node_key, local_port, conn_ref) do
       remote_node = String.to_atom(full_node_name)
-      :erlang.set_cookie(remote_node, String.to_atom(cookie))
 
-      case Node.connect(remote_node) do
+      :erlang.set_cookie(remote_node, String.to_atom(cookie))
+      connect_result = Node.connect(remote_node)
+      :erlang.set_cookie(remote_node, :nocookie)
+
+      case connect_result do
         true ->
-          :erlang.set_cookie(remote_node, :nocookie)
           {:ok, remote_node, conn_ref, local_port}
 
         false ->
