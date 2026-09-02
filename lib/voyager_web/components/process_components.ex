@@ -187,11 +187,17 @@ defmodule VoyagerWeb.Components.ProcessComponents do
       processes out of
       <span class="font-mono text-base-content">{Formatters.format_integer(@scanned)}</span>
       <span :if={@round_trip_ms} title="Round trip of the last fetch">
-        in <span class="font-mono text-base-content">{@round_trip_ms} ms</span>
+        in <span class={["font-mono", round_trip_class(@round_trip_ms)]}>{@round_trip_ms} ms</span>
       </span>
     </div>
     """
   end
+
+  # A slow scan is the cost the node paid, so it is flagged where it is
+  # reported rather than left for the user to read off the number.
+  defp round_trip_class(ms) when ms > 5_000, do: "text-error"
+  defp round_trip_class(ms) when ms > 1_000, do: "text-warning"
+  defp round_trip_class(_ms), do: "text-base-content"
 
   @doc """
   Column definitions for the given selected attributes, in display order.
