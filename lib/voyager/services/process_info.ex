@@ -6,9 +6,11 @@ defmodule Voyager.Services.ProcessInfo do
   attributes, so it is safe to call eagerly on every refresh. Unbounded
   attributes are excluded from it and exposed as separate `fetch_*` functions,
   which go through `:voyager_agent` on the remote node so the payload is capped
-  and truncated *before* it crosses the distribution channel; each returns a
+  and truncated *before* it crosses the distribution channel. `fetch_links/4`,
+  `fetch_monitors/4`, `fetch_monitored_by/4`, and `fetch_dictionary/5` return a
   `Voyager.Agent.bounded/1` map carrying the real `:total` alongside the
-  truncated `:items`.
+  truncated `:items`; `fetch_label/4` returns a single `Voyager.Agent.truncated_term/0`
+  instead, since a label is one arbitrary term rather than a collection.
   Missing agent surfaces as `{:error, {:remote_exception, :undef}}`.
 
   Attributes holding arbitrary user terms -- the dictionary and the label -- are
@@ -32,8 +34,9 @@ defmodule Voyager.Services.ProcessInfo do
   # argument so a caller on a slow link can override it.
   @timeout Agent.default_timeout()
 
-  # Terms visited before the remote elides the rest. Bounds the payload of
-  # attributes holding arbitrary user terms.
+  # Spent walking a term before the remote elides the rest -- one unit per
+  # term visited, except a binary, which is charged per byte kept. Bounds the
+  # payload of attributes holding arbitrary user terms.
   @budget Agent.default_budget()
 
   @keys [

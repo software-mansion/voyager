@@ -344,6 +344,16 @@ defmodule VoyagerAgentTest do
       assert {:"$voyager_truncated", true} == bound(bits, 100)
     end
 
+    test "keeps an already-truncated flag true across a later untruncated binary" do
+      assert {[cut, "small"], true} = bound([:binary.copy("x", 5_000), "small"], 10_000)
+      assert byte_size(cut) == 4_096
+    end
+
+    test "charges at least one unit for an empty binary instead of walking it for free" do
+      assert {bounded, true} = bound(List.duplicate(<<>>, 1_000), 20)
+      assert length(bounded) < 1_000
+    end
+
     test "drops the entry list to empty at budget zero instead of a bare marker" do
       assert {:ok, %{truncated: true, items: []}} =
                @agent_module.proc_dictionary(self(), 1_000, 0)

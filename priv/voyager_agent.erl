@@ -18,7 +18,8 @@
 %% Substituted wherever a subterm was dropped, so the surrounding shape of a
 %% truncated term stays intact and the reader can tell data from elision.
 -define(TRUNCATED, '$voyager_truncated').
-%% A single binary carries no nesting, so the term budget cannot bound it.
+%% A single binary carries no nesting for the term budget to walk into, so it
+%% is additionally capped here regardless of how much budget remains.
 -define(MAX_BINARY_BYTES, 4096).
 
 -type state() :: #state{nodes :: #{node() => true}}.
@@ -382,10 +383,12 @@ truncated_term(Term, Budget) ->
     #{term => Bounded, truncated => Truncated}.
 
 %% Rewrites `Term' into a bounded copy of itself, keeping it a raw term so the
-%% GUI can still render it as a tree. `Budget' counts terms visited; the walk
-%% substitutes `?TRUNCATED' the moment it runs out instead of descending
-%% further, so its cost is bounded by `Budget' and *not* by the size of `Term' -
-%% which is what makes it safe to point at a multi-gigabyte process state.
+%% GUI can still render it as a tree. `Budget' counts terms visited -- except a
+%% binary, which is charged one unit per byte kept, since a single binary
+%% carries no nesting for the term count to bound. The walk substitutes
+%% `?TRUNCATED' the moment it runs out instead of descending further, so its
+%% cost is bounded by `Budget' and *not* by the size of `Term' - which is what
+%% makes it safe to point at a multi-gigabyte process state.
 %%
 %% Containers are therefore never materialised: maps are walked with an
 %% iterator, lists cons cell at a time, tuples by index.
@@ -441,15 +444,19 @@ walk_tuple(Tuple, Index, Size, Budget, Truncated, Acc) ->
     {New, NewBudget, NewTruncated} = walk(element(Index, Tuple), Budget, Truncated),
     walk_tuple(Tuple, Index + 1, Size, NewBudget, NewTruncated, [New | Acc]).
 
-%% Charged one budget unit per byte kept (capped at `?MAX_BINARY_BYTES'),
-%% instead of a flat unit -- a flat charge lets any number of binaries slip
-%% past the budget since each pays the same regardless of size, so many
-%% binaries could still ship megabytes under a small budget. Only the visible
-%% part of a sub-binary is copied over distribution, so cutting here really
-%% does bound the payload.
-walk_bitstring(Bin, Budget, _Truncated) when is_binary(Bin) ->
-    Cost = min(min(?MAX_BINARY_BYTES, byte_size(Bin)), Budget),
-    {binary:part(Bin, 0, Cost), Budget - Cost, Cost < byte_size(Bin)};
+%% Charged one budget unit per byte kept (capped at `?MAX_BINARY_BYTES',
+%% floored at 1 so an empty binary cannot walk for free), instead of a flat
+%% unit -- a flat charge lets any number of binaries slip past the budget
+%% since each pays the same regardless of size, so many binaries could still
+%% ship megabytes under a small budget. Only the visible part of a sub-binary
+%% is copied over distribution, so cutting here really does bound the
+%% payload. `Truncated' must be carried forward (`orelse'), not replaced --
+%% this binary's own outcome must never erase a cut already made earlier in
+%% the walk.
+walk_bitstring(Bin, Budget, Truncated) when is_binary(Bin) ->
+    Cost = max(min(min(?MAX_BINARY_BYTES, byte_size(Bin)), Budget), 1),
+    {binary:part(Bin, 0, min(Cost, byte_size(Bin))), Budget - Cost,
+     Truncated orelse Cost < byte_size(Bin)};
 %% A non-byte-aligned bitstring cannot be cut with `binary:part/3', so an
 %% oversized one is dropped whole.
 walk_bitstring(Bits, Budget, _Truncated) when bit_size(Bits) > ?MAX_BINARY_BYTES * 8 ->
