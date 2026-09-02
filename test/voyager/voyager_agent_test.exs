@@ -329,8 +329,13 @@ defmodule VoyagerAgentTest do
     end
 
     test "caps a binary larger than the byte limit" do
-      assert {bounded, true} = bound(:binary.copy("x", 100_000), 100)
+      assert {bounded, true} = bound(:binary.copy("x", 100_000), 10_000)
       assert byte_size(bounded) == 4_096
+    end
+
+    test "caps a binary to the remaining budget when it is smaller than the byte limit" do
+      assert {bounded, true} = bound(:binary.copy("x", 100_000), 100)
+      assert byte_size(bounded) == 100
     end
 
     test "drops an oversized non-byte-aligned bitstring whole" do
@@ -339,8 +344,8 @@ defmodule VoyagerAgentTest do
       assert {:"$voyager_truncated", true} == bound(bits, 100)
     end
 
-    test "keeps items a list at budget zero" do
-      assert {:ok, %{truncated: true, items: [:"$voyager_truncated"]}} =
+    test "drops the entry list to empty at budget zero instead of a bare marker" do
+      assert {:ok, %{truncated: true, items: []}} =
                @agent_module.proc_dictionary(self(), 1_000, 0)
     end
 
@@ -417,10 +422,11 @@ defmodule VoyagerAgentTest do
   end
 
   # Hands `term` to the agent as the sole dictionary entry of a throwaway
-  # process, so the budget is spent on `term` and nothing else. Walking the
-  # entry list costs 3 terms before the value is reached -- the list, the
-  # `{key, value}` tuple and the key -- which `@probe_overhead` pays for.
-  @probe_overhead 3
+  # process, so the budget is spent on `term` and nothing else. Each entry is
+  # budgeted on its own (the entry list itself is free), so walking to the
+  # value costs 2 terms first -- the `{key, value}` tuple and the key -- which
+  # `@probe_overhead` pays for.
+  @probe_overhead 2
   defp bound(term, budget) do
     parent = self()
 

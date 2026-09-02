@@ -17,8 +17,8 @@ defmodule Voyager.Services.ProcessTerm do
 
   alias Voyager.Agent
 
-  @timeout 5_000
-  @budget 5_000
+  @timeout Agent.default_timeout()
+  @budget Agent.default_budget()
 
   # The remote's own `:sys.get_state/2` timeout has to fire before the `:erpc`
   # call gives up, or a slow process surfaces as an opaque transport timeout
@@ -36,12 +36,13 @@ defmodule Voyager.Services.ProcessTerm do
   A process that does not handle system messages at all -- a raw `spawn` -- is
   indistinguishable from a busy one: neither replies, so both are `:timeout`.
   """
-  @spec fetch_state(node(), pid(), non_neg_integer(), timeout()) ::
+  @spec fetch_state(node(), pid(), non_neg_integer(), non_neg_integer()) ::
           {:ok, Agent.truncated_term()} | {:error, term()}
   def fetch_state(node, pid, budget \\ @budget, timeout \\ @timeout)
 
   def fetch_state(node, pid, budget, timeout)
-      when is_pid(pid) and is_integer(budget) and budget >= 0 do
+      when is_pid(pid) and is_integer(budget) and budget >= 0 and is_integer(timeout) and
+             timeout >= 0 do
     Agent.fetch(node, :proc_state, [pid, budget, timeout], timeout + @erpc_margin)
   end
 

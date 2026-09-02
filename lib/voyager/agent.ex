@@ -22,6 +22,15 @@ defmodule Voyager.Agent do
            | {:register_failed, term()}
            | CodeInjector.error_reason()}
 
+  @default_timeout 5_000
+  @default_budget 5_000
+
+  @spec default_timeout() :: non_neg_integer()
+  def default_timeout, do: @default_timeout
+
+  @spec default_budget() :: non_neg_integer()
+  def default_budget, do: @default_budget
+
   @typedoc """
   A remote-truncated view of an unbounded attribute. `:total` is the real length
   on the remote node, `:items` holds at most the requested limit, and
