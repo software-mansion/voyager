@@ -357,11 +357,21 @@ do_bounded_attribute(Pid, Key, Limit, Budget) ->
 
 bound_items(Items, unbounded) ->
     {Items, false};
-%% `max(Budget, 1)' spends the first term on the entry list itself, so `items'
-%% stays a list even at budget zero (a truncated one) instead of collapsing to
-%% a bare `?TRUNCATED' and breaking the `bounded/1' shape.
 bound_items(Items, Budget) when is_integer(Budget), Budget >= 0 ->
-    bound_term(Items, max(Budget, 1)).
+    bound_entries(Items, Budget, false, []).
+
+%% Budgets each entry independently and drops the tail once the budget runs
+%% out, rather than walking `Items' as a single term -- that would append the
+%% bare `?TRUNCATED' atom as an element once the budget hit zero mid-list,
+%% breaking the homogeneous entry shape (e.g. `dict_entry()') callers expect
+%% from `items'.
+bound_entries([], _Budget, Truncated, Acc) ->
+    {lists:reverse(Acc), Truncated};
+bound_entries([_ | _], 0, _Truncated, Acc) ->
+    {lists:reverse(Acc), true};
+bound_entries([Item | Rest], Budget, Truncated, Acc) ->
+    {Bounded, NewBudget, NewTruncated} = walk(Item, Budget, Truncated),
+    bound_entries(Rest, NewBudget, NewTruncated, [Bounded | Acc]).
 
 %% =====================================================================
 %% HELPERS
@@ -393,7 +403,7 @@ walk(Term, Budget, Truncated) when is_map(Term) ->
 walk(Term, Budget, Truncated) when is_tuple(Term) ->
     walk_tuple(Term, 1, tuple_size(Term), Budget - 1, Truncated, []);
 walk(Term, Budget, Truncated) when is_bitstring(Term) ->
-    walk_bitstring(Term, Budget - 1, Truncated);
+    walk_bitstring(Term, Budget, Truncated);
 walk(Term, Budget, Truncated) ->
     {Term, Budget - 1, Truncated}.
 
@@ -431,19 +441,21 @@ walk_tuple(Tuple, Index, Size, Budget, Truncated, Acc) ->
     {New, NewBudget, NewTruncated} = walk(element(Index, Tuple), Budget, Truncated),
     walk_tuple(Tuple, Index + 1, Size, NewBudget, NewTruncated, [New | Acc]).
 
-%% Only the visible part of a sub-binary is copied over distribution, so cutting
-%% here really does bound the payload.
-walk_bitstring(Bin, Budget, _Truncated)
-    when is_binary(Bin), byte_size(Bin) > ?MAX_BINARY_BYTES ->
-    {binary:part(Bin, 0, ?MAX_BINARY_BYTES), Budget, true};
-walk_bitstring(Bin, Budget, Truncated) when is_binary(Bin) ->
-    {Bin, Budget, Truncated};
+%% Charged one budget unit per byte kept (capped at `?MAX_BINARY_BYTES'),
+%% instead of a flat unit -- a flat charge lets any number of binaries slip
+%% past the budget since each pays the same regardless of size, so many
+%% binaries could still ship megabytes under a small budget. Only the visible
+%% part of a sub-binary is copied over distribution, so cutting here really
+%% does bound the payload.
+walk_bitstring(Bin, Budget, _Truncated) when is_binary(Bin) ->
+    Cost = min(min(?MAX_BINARY_BYTES, byte_size(Bin)), Budget),
+    {binary:part(Bin, 0, Cost), Budget - Cost, Cost < byte_size(Bin)};
 %% A non-byte-aligned bitstring cannot be cut with `binary:part/3', so an
 %% oversized one is dropped whole.
 walk_bitstring(Bits, Budget, _Truncated) when bit_size(Bits) > ?MAX_BINARY_BYTES * 8 ->
-    {?TRUNCATED, Budget, true};
+    {?TRUNCATED, Budget - 1, true};
 walk_bitstring(Bits, Budget, Truncated) ->
-    {Bits, Budget, Truncated}.
+    {Bits, Budget - 1, Truncated}.
 
 %% Runs `Fun' with this process' heap capped (10_000_000 words ~= 76MB on 64-bit, 8 bytes word size) so
 %% a pathological scan is killed rather than the node, restoring the previous

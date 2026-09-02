@@ -30,11 +30,11 @@ defmodule Voyager.Services.ProcessInfo do
 
   # Default `:erpc` timeout for every fetch; each takes it as a trailing
   # argument so a caller on a slow link can override it.
-  @timeout 5_000
+  @timeout Agent.default_timeout()
 
   # Terms visited before the remote elides the rest. Bounds the payload of
   # attributes holding arbitrary user terms.
-  @budget 5_000
+  @budget Agent.default_budget()
 
   @keys [
     :initial_call,
