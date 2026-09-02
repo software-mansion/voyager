@@ -74,7 +74,8 @@ defmodule Voyager.Services.Ets.TableId do
   @doc """
   Interns `name` as an existing atom on `node`.
 
-  Strips a leading `:` so Elixir inspect-forms work. Alias inspect-forms
+  Strips a leading `:` so Elixir inspect-forms work. Quoted inspect-forms
+  (`":\"my-cache\""`) unwrap quotes and unescape. Alias inspect-forms
   (`"MyApp.Cache"`) are interned as `:"Elixir.MyApp.Cache"`. Returns
   `{:error, :not_found}` when the atom is not interned on the target.
   """
@@ -107,10 +108,19 @@ defmodule Voyager.Services.Ets.TableId do
     case String.trim(name) do
       "" -> :invalid
       ":" -> :invalid
-      ":" <> rest -> chars_or_invalid(rest)
+      ":" <> rest -> rest |> strip_quotes() |> chars_or_invalid()
       other -> chars_or_invalid(alias_name(other))
     end
   end
+
+  defp strip_quotes(<<?", inner::binary>> = quoted) when byte_size(inner) >= 1 do
+    case String.split_at(inner, -1) do
+      {body, "\""} -> Macro.unescape_string(body)
+      _ -> quoted
+    end
+  end
+
+  defp strip_quotes(name), do: name
 
   defp alias_name(<<"Elixir.", _::binary>> = name), do: name
   defp alias_name(<<c, _::binary>> = name) when c in ?A..?Z, do: "Elixir." <> name

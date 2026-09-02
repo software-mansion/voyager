@@ -93,6 +93,19 @@ defmodule Voyager.Services.Ets.TableIdTest do
 
       assert {:ok, MyApp.Cache} = TableId.resolve(@node, "MyApp.Cache", [], @timeout)
     end
+
+    test "round-trips the quoted-atom display form on a stale list" do
+      expect(Voyager.ErpcMock, :call, fn @node,
+                                         :erlang,
+                                         :list_to_existing_atom,
+                                         [~c"my-cache"],
+                                         @timeout ->
+        :"my-cache"
+      end)
+
+      display = TableId.display(:"my-cache")
+      assert {:ok, :"my-cache"} = TableId.resolve(@node, display, [], @timeout)
+    end
   end
 
   describe "existing_atom/3" do
@@ -155,6 +168,45 @@ defmodule Voyager.Services.Ets.TableIdTest do
       end)
 
       assert {:ok, :"MyApp.Cache"} = TableId.existing_atom(@node, ":MyApp.Cache", @timeout)
+    end
+
+    test "unwraps a quoted inspect-form before interning on the target" do
+      expect(Voyager.ErpcMock, :call, fn @node,
+                                         :erlang,
+                                         :list_to_existing_atom,
+                                         [~c"my-cache"],
+                                         @timeout ->
+        :"my-cache"
+      end)
+
+      assert {:ok, :"my-cache"} =
+               TableId.existing_atom(@node, TableId.display(:"my-cache"), @timeout)
+    end
+
+    test "unwraps a quoted inspect-form with spaces" do
+      expect(Voyager.ErpcMock, :call, fn @node,
+                                         :erlang,
+                                         :list_to_existing_atom,
+                                         [~c"user sessions"],
+                                         @timeout ->
+        :"user sessions"
+      end)
+
+      assert {:ok, :"user sessions"} =
+               TableId.existing_atom(@node, TableId.display(:"user sessions"), @timeout)
+    end
+
+    test "unescapes quotes inside a quoted inspect-form" do
+      expect(Voyager.ErpcMock, :call, fn @node,
+                                         :erlang,
+                                         :list_to_existing_atom,
+                                         [~c"foo\"bar"],
+                                         @timeout ->
+        :"foo\"bar"
+      end)
+
+      assert {:ok, :"foo\"bar"} =
+               TableId.existing_atom(@node, TableId.display(:"foo\"bar"), @timeout)
     end
 
     test "rejects a blank name without touching the remote" do
