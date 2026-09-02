@@ -109,6 +109,7 @@ defmodule Voyager.Services.RemoteNodeConnector do
 
       case Node.connect(remote_node) do
         true ->
+          :erlang.set_cookie(remote_node, :nocookie)
           {:ok, remote_node, conn_ref, local_port}
 
         false ->

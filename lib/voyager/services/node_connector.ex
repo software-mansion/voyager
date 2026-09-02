@@ -13,6 +13,7 @@ defmodule Voyager.Services.NodeConnector do
 
       case Node.connect(node) do
         true ->
+          :erlang.set_cookie(node, :nocookie)
           {:ok, node}
 
         false ->
