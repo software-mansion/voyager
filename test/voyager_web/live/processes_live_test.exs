@@ -571,7 +571,7 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      assert view |> element("#processes-round-trip") |> render() =~ "ms"
+      assert view |> element("#processes-scan-summary") |> render() =~ "ms"
     end
 
     test "has no round trip before the first fetch lands", %{conn: conn} do
@@ -579,7 +579,8 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      refute has_element?(view, "#processes-round-trip")
+      # A failed fetch has no scan summary at all, so no round trip either.
+      refute has_element?(view, "#processes-scan-summary")
     end
 
     test "locks the UI only for control-triggered fetches", %{conn: conn} do

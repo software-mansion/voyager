@@ -178,6 +178,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   attr :id, :string, required: true
   attr :shown, :integer, required: true
   attr :scanned, :integer, required: true
+  attr :round_trip_ms, :integer, default: nil, doc: "round trip of the fetch that produced these"
 
   def scan_summary(assigns) do
     ~H"""
@@ -185,6 +186,9 @@ defmodule VoyagerWeb.Components.ProcessComponents do
       Fetched <span class="font-mono text-base-content">{Formatters.format_integer(@shown)}</span>
       processes out of
       <span class="font-mono text-base-content">{Formatters.format_integer(@scanned)}</span>
+      <span :if={@round_trip_ms} title="Round trip of the last fetch">
+        in <span class="font-mono text-base-content">{@round_trip_ms} ms</span>
+      </span>
     </div>
     """
   end

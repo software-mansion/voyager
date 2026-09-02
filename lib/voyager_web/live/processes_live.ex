@@ -77,14 +77,6 @@ defmodule VoyagerWeb.ProcessesLive do
         waiting_message="waiting for first fetch…"
       >
         <:actions>
-          <span
-            :if={@round_trip_ms}
-            id="processes-round-trip"
-            title="Round trip of the last fetch"
-            class="font-mono text-base-content/70 mr-2 text-xs"
-          >
-            {@round_trip_ms} ms
-          </span>
           <.interval_select
             id="processes-refresh-interval"
             options={Processes.refresh_interval_options()}
@@ -114,6 +106,7 @@ defmodule VoyagerWeb.ProcessesLive do
         id="processes-scan-summary"
         shown={length(entries(@page_result))}
         scanned={@page_result.result.scanned}
+        round_trip_ms={@round_trip_ms}
       />
 
       <div class={@dirty? && "pointer-events-none select-none opacity-60"}>
