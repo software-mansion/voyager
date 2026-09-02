@@ -2,7 +2,7 @@ defmodule Voyager.Services.Ets.Sanitize do
   @moduledoc """
   Caps ETS record terms for host display. No redaction.
 
-  Same numbers as the later Erlang truncator (VOY-230): 512-byte binaries,
+  Same numbers as the Erlang truncator in `voyager_agent`: 512-byte binaries,
   50 elements per collection, depth 5, then a `:"$voyager_truncated"` marker.
   Marker wrappers are preserved and payloads are re-capped so a second pass
   (Fetch after an agent truncate) is idempotent and a coincidental marker
@@ -33,7 +33,7 @@ defmodule Voyager.Services.Ets.Sanitize do
   @spec max_depth() :: 5
   def max_depth, do: @max_depth
 
-  @doc "Placeholder atom shared with the VOY-230 Erlang truncator."
+  @doc "Placeholder atom shared with the Erlang truncator in `voyager_agent`."
   @spec marker() :: :"$voyager_truncated"
   def marker, do: @marker
 

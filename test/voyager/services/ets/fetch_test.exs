@@ -104,6 +104,30 @@ defmodule Voyager.Services.Ets.FetchTest do
     assert {:error, {:task_exit, :shutdown}} = Fetch.select_chunk(@node, :t, 10, nil, @timeout)
   end
 
+  test "maps a remote worker kill to :heap_limit_exceeded without MFA fallback" do
+    stub_exported(:ets_lookup, 2, true)
+
+    expect(Voyager.ErpcMock, :call, fn @node,
+                                       :voyager_agent,
+                                       :ets_lookup,
+                                       [:t, :wide],
+                                       @timeout ->
+      :erlang.error({:exception, :killed, []})
+    end)
+
+    assert {:error, :heap_limit_exceeded} = Fetch.lookup(@node, :t, :wide, @timeout)
+  end
+
+  test "maps a remote exit :killed to :heap_limit_exceeded without MFA fallback" do
+    stub_exported(:ets_select_chunk, 3, true)
+
+    expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_chunk, _, @timeout ->
+      exit(:killed)
+    end)
+
+    assert {:error, :heap_limit_exceeded} = Fetch.select_chunk(@node, :t, 10, nil, @timeout)
+  end
+
   defp stub_exported(fun, arity, exported?) do
     expect(Voyager.ErpcMock, :call, fn @node,
                                        :erlang,

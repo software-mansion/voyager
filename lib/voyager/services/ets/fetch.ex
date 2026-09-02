@@ -9,7 +9,8 @@ defmodule Voyager.Services.Ets.Fetch do
   `{:error, :heap_limit_exceeded}`. A wait that expires is `{:error, :timeout}`.
 
   This protects Voyager, not the target. MFA peek still copies full objects
-  on the remote node and over the wire.
+  on the remote node and over the wire. A remote worker heap kill
+  (`:killed`) is returned as `{:error, :heap_limit_exceeded}` as well.
   """
 
   alias Voyager.Erpc
@@ -54,7 +55,7 @@ defmodule Voyager.Services.Ets.Fetch do
     isolate(timeout, fn ->
       case fun.() do
         {:ok, chunk} -> {:ok, sanitize_chunk(chunk)}
-        {:error, _} = err -> err
+        {:error, _} = err -> map_remote_killed(err)
       end
     end)
   end
@@ -92,4 +93,10 @@ defmodule Voyager.Services.Ets.Fetch do
   defp format_task_exit(:killed), do: {:error, :heap_limit_exceeded}
   defp format_task_exit({:killed, _info}), do: {:error, :heap_limit_exceeded}
   defp format_task_exit(reason), do: {:error, {:task_exit, reason}}
+
+  defp map_remote_killed({:error, {:remote_exception, :killed}}),
+    do: {:error, :heap_limit_exceeded}
+
+  defp map_remote_killed({:error, {:remote_exit, :killed}}), do: {:error, :heap_limit_exceeded}
+  defp map_remote_killed(err), do: err
 end
