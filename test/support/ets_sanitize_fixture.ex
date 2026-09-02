@@ -12,8 +12,9 @@ defmodule Voyager.Test.EtsSanitizeFixture do
 
   @doc """
   Sample terms covering binary overflow, collection overflow, depth, nested
-  mix, already-truncated leaves, non-binary bitstrings, improper lists, map
-  key collisions, and keys that must not be redacted.
+  mix, already-truncated leaves, fake marker payloads that must still be
+  capped, non-binary bitstrings, improper lists, map key collisions, and
+  keys that must not be redacted.
   """
   @spec samples() :: [{term(), term()}]
   def samples do
@@ -25,6 +26,11 @@ defmodule Voyager.Test.EtsSanitizeFixture do
       depth_cap(),
       nested_mix(),
       already_truncated_leaf(),
+      fake_binary_marker_overflow(),
+      fake_list_marker_overflow(),
+      fake_map_marker_overflow(),
+      fake_tuple_marker_overflow(),
+      fake_list_marker_nested_binary(),
       no_redaction(),
       bitstring_under_cap(),
       bitstring_overflow(),
@@ -93,6 +99,41 @@ defmodule Voyager.Test.EtsSanitizeFixture do
   defp already_truncated_leaf do
     input = {@marker, :binary, <<"abc">>, 1000}
     {input, input}
+  end
+
+  defp fake_binary_marker_overflow do
+    input = {@marker, :binary, :binary.copy(<<"a">>, 600), 0}
+    expected = {@marker, :binary, :binary.copy(<<"a">>, @binary_limit), 600}
+    {input, expected}
+  end
+
+  defp fake_list_marker_overflow do
+    input = {@marker, :list, Enum.to_list(1..60), 0}
+    expected = {@marker, :list, Enum.to_list(1..@collection_limit), 10}
+    {input, expected}
+  end
+
+  defp fake_map_marker_overflow do
+    input = {@marker, :map, Enum.map(1..60, &{&1, &1}), 0}
+    expected = {@marker, :map, Enum.map(1..@collection_limit, &{&1, &1}), 10}
+    {input, expected}
+  end
+
+  defp fake_tuple_marker_overflow do
+    input = {@marker, :tuple, Enum.to_list(1..60), 0}
+    expected = {@marker, :tuple, Enum.to_list(1..@collection_limit), 10}
+    {input, expected}
+  end
+
+  defp fake_list_marker_nested_binary do
+    blob = :binary.copy(<<"a">>, 600)
+
+    input = {@marker, :list, [blob], 0}
+
+    expected =
+      {@marker, :list, [{@marker, :binary, :binary.copy(<<"a">>, @binary_limit), 600}], 0}
+
+    {input, expected}
   end
 
   defp no_redaction do
