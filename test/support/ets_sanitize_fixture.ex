@@ -12,10 +12,12 @@ defmodule Voyager.Test.EtsSanitizeFixture do
 
   @doc """
   Sample terms covering binary overflow, collection overflow, depth, empty
-  collections at the depth cap, nested mix, already-truncated leaves, fake
+  collections at the depth cap, an oversized binary and a truncated binary
+  marker at the depth cap, nested mix, already-truncated leaves, fake
   marker payloads that must still be capped, nested markers that must be
-  depth-capped, a marker sitting at the depth cap, non-binary bitstrings,
-  improper lists, map key collisions, and keys that must not be redacted.
+  depth-capped, a collection marker sitting at the depth cap, non-binary
+  bitstrings, improper lists, map key collisions, and keys that must not
+  be redacted.
   """
   @spec samples() :: [{term(), term()}]
   def samples do
@@ -28,6 +30,8 @@ defmodule Voyager.Test.EtsSanitizeFixture do
       empty_list_at_depth_cap(),
       empty_map_at_depth_cap(),
       empty_tuple_at_depth_cap(),
+      binary_overflow_at_depth_cap(),
+      truncated_binary_marker_at_depth_cap(),
       nested_mix(),
       already_truncated_leaf(),
       fake_binary_marker_overflow(),
@@ -92,6 +96,18 @@ defmodule Voyager.Test.EtsSanitizeFixture do
 
   defp empty_tuple_at_depth_cap do
     input = [[[[[{}]]]]]
+    {input, input}
+  end
+
+  defp binary_overflow_at_depth_cap do
+    input = [[[[[:binary.copy(<<"a">>, 600)]]]]]
+    expected = [[[[[{@marker, :binary, :binary.copy(<<"a">>, @binary_limit), 600}]]]]]
+    {input, expected}
+  end
+
+  defp truncated_binary_marker_at_depth_cap do
+    prefix = :binary.copy(<<"a">>, @binary_limit)
+    input = [[[[[{@marker, :binary, prefix, 600}]]]]]
     {input, input}
   end
 

@@ -50,7 +50,7 @@ defmodule Voyager.Services.Ets.Sanitize do
   defp sanitize({@marker, :depth}, _depth), do: {@marker, :depth}
 
   defp sanitize({@marker, kind, _payload, _meta}, depth)
-       when kind in [:binary, :list, :map, :tuple] and depth >= @max_depth do
+       when kind in [:list, :map, :tuple] and depth >= @max_depth do
     {@marker, :depth}
   end
 
