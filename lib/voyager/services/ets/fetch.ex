@@ -73,7 +73,7 @@ defmodule Voyager.Services.Ets.Fetch do
         fun.()
       end)
 
-    case Task.yield(task, yield_timeout(timeout)) do
+    case Task.yield(task, yield_timeout(timeout)) || Task.shutdown(task, :brutal_kill) do
       {:ok, result} ->
         result
 
@@ -81,7 +81,6 @@ defmodule Voyager.Services.Ets.Fetch do
         format_task_exit(reason)
 
       nil ->
-        _ = Task.shutdown(task, :brutal_kill)
         {:error, :timeout}
     end
   end
