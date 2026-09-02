@@ -17,7 +17,7 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   @spec list_running_applications(node()) ::
           {:ok, [{atom(), charlist(), charlist()}]} | {:error, term()}
   def list_running_applications(node) do
-    with {:ok, apps} <- call(node, :application, :which_applications, [], @timeout_fast),
+    with {:ok, apps} <- Erpc.safe_call(node, :application, :which_applications, [], @timeout_fast),
          {:ok, masters} <- app_masters(node, Enum.map(apps, fn {a, _, _} -> a end)) do
       running_apps =
         apps
@@ -40,7 +40,13 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   def app_masters(_node, []), do: {:ok, []}
 
   def app_masters(node, apps) do
-    call(node, :lists, :map, [&:application_controller.get_master/1, apps], @timeout_fast)
+    Erpc.safe_call(
+      node,
+      :lists,
+      :map,
+      [&:application_controller.get_master/1, apps],
+      @timeout_fast
+    )
   end
 
   @doc """
@@ -55,7 +61,13 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   def app_children(_node, []), do: {:ok, []}
 
   def app_children(node, master_pids) do
-    call(node, :lists, :map, [&:application_master.get_child/1, master_pids], @timeout_fast)
+    Erpc.safe_call(
+      node,
+      :lists,
+      :map,
+      [&:application_master.get_child/1, master_pids],
+      @timeout_fast
+    )
   end
 
   @spec which_children(node(), pid()) ::
@@ -66,7 +78,7 @@ defmodule Voyager.Services.SupervisionTree.Remote do
            ]}
           | {:error, term()}
   def which_children(node, sup_pid) do
-    call(node, :supervisor, :which_children, [sup_pid], @timeout_children)
+    Erpc.safe_call(node, :supervisor, :which_children, [sup_pid], @timeout_children)
   end
 
   @doc """
@@ -82,7 +94,13 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   def which_children_many(_node, []), do: {:ok, []}
 
   def which_children_many(node, sup_pids) do
-    call(node, :lists, :map, [&:supervisor.which_children/1, sup_pids], @timeout_children)
+    Erpc.safe_call(
+      node,
+      :lists,
+      :map,
+      [&:supervisor.which_children/1, sup_pids],
+      @timeout_children
+    )
   end
 
   @doc """
@@ -95,7 +113,7 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   @spec count_children(node(), pid()) ::
           {:ok, non_neg_integer()} | {:error, term()}
   def count_children(node, sup_pid) do
-    case call(node, :supervisor, :count_children, [sup_pid], @timeout_fast) do
+    case Erpc.safe_call(node, :supervisor, :count_children, [sup_pid], @timeout_fast) do
       {:ok, counts} when is_list(counts) ->
         {:ok, Keyword.get(counts, :active, 0)}
 
@@ -117,7 +135,13 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   def count_children_many(_node, []), do: {:ok, []}
 
   def count_children_many(node, sup_pids) do
-    case call(node, :lists, :map, [&:supervisor.count_children/1, sup_pids], @timeout_fast) do
+    case Erpc.safe_call(
+           node,
+           :lists,
+           :map,
+           [&:supervisor.count_children/1, sup_pids],
+           @timeout_fast
+         ) do
       {:ok, counts_list} when is_list(counts_list) ->
         counts_list
         |> Enum.map(fn
@@ -171,7 +195,13 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   def process_info_many(node, pids, keys) do
     dup_keys = List.duplicate(keys, length(pids))
 
-    case call(node, :lists, :zipwith, [&:erlang.process_info/2, pids, dup_keys], @timeout_pinfo) do
+    case Erpc.safe_call(
+           node,
+           :lists,
+           :zipwith,
+           [&:erlang.process_info/2, pids, dup_keys],
+           @timeout_pinfo
+         ) do
       {:ok, pinfo_list} when is_list(pinfo_list) ->
         map =
           pids
@@ -186,11 +216,5 @@ defmodule Voyager.Services.SupervisionTree.Remote do
       {:error, _} = err ->
         err
     end
-  end
-
-  defp call(node, mod, fun, args, timeout) do
-    {:ok, Erpc.call(node, mod, fun, args, timeout)}
-  catch
-    kind, reason -> Erpc.format_error(kind, reason)
   end
 end

@@ -9,8 +9,6 @@ defmodule Voyager.Services.ProcessInfo do
 
   alias Voyager.Erpc
 
-  @timeout 5_000
-
   @keys [
     :initial_call,
     :current_function,
@@ -72,9 +70,10 @@ defmodule Voyager.Services.ProcessInfo do
   """
   @spec fetch(node(), pid() | nil) :: {:ok, info()} | {:error, term()}
   def fetch(node, pid) when is_pid(pid) do
-    with {:ok, raw} when is_list(raw) <- call(node, :erlang, :process_info, [pid, @keys]),
+    with {:ok, raw} when is_list(raw) <-
+           Erpc.safe_call(node, :erlang, :process_info, [pid, @keys]),
          {:ok, word_size} when is_integer(word_size) and word_size > 0 <-
-           call(node, :erlang, :system_info, [:wordsize]),
+           Erpc.safe_call(node, :erlang, :system_info, [:wordsize]),
          {:ok, info} <- build(raw, word_size) do
       {:ok, info}
     else
@@ -133,11 +132,5 @@ defmodule Voyager.Services.ProcessInfo do
       {:ok, fullsweep_after} -> fullsweep_after
       _ -> nil
     end
-  end
-
-  defp call(node, mod, fun, args) do
-    {:ok, Erpc.call(node, mod, fun, args, @timeout)}
-  catch
-    kind, reason -> Erpc.format_error(kind, reason)
   end
 end
