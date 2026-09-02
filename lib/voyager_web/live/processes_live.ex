@@ -256,12 +256,12 @@ defmodule VoyagerWeb.ProcessesLive do
 
   # Rate limiting is transient and leaves the rows usable, so it flashes rather
   # than replacing the table with an error state.
-  def handle_async(:page_result, {:ok, {:rate_limited, retry_after_ms}}, socket) do
+  def handle_async(:page_result, {:ok, {:rate_limited, _}}, socket) do
     socket
     |> clear_loading()
     |> put_flash(
       :error,
-      "Too many requests to the node. Try again in #{seconds(retry_after_ms)}."
+      "Too many requests."
     )
     |> noreply()
   end
@@ -293,8 +293,6 @@ defmodule VoyagerWeb.ProcessesLive do
     |> assign(:page_result, %{socket.assigns.page_result | loading: nil})
     |> assign(:dirty?, false)
   end
-
-  defp seconds(ms), do: "#{Float.ceil(ms / 1_000, 1)}s"
 
   defp apply_controls(socket, params) do
     {controls, changeset} = ProcessListControls.apply(socket.assigns.controls, params)
@@ -437,7 +435,7 @@ defmodule VoyagerWeb.ProcessesLive do
   end
 
   defp format_error(:timeout),
-    do: "Timed out while scanning processes. Try a longer timeout or fewer processes."
+    do: "Request timed out"
 
   defp format_error(:noconnection), do: "Node is unreachable."
 

@@ -195,7 +195,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
 
   # A slow scan is the cost the node paid, so it is flagged where it is
   # reported rather than left for the user to read off the number.
-  defp round_trip_class(ms) when ms > 5_000, do: "text-error"
+  defp round_trip_class(ms) when ms > 3_000, do: "text-error"
   defp round_trip_class(ms) when ms > 1_000, do: "text-warning"
   defp round_trip_class(_ms), do: "text-base-content"
 
