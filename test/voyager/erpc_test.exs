@@ -31,10 +31,11 @@ defmodule Voyager.ErpcTest do
   end
 
   test "bind_impl/1 is process-local and does not change application env" do
-    assert Erpc.impl() == Voyager.ErpcMock
+    prev = Application.get_env(:voyager, :erpc)
+    assert Erpc.impl() == prev
     Erpc.bind_impl(Voyager.Erpc.Impl)
     assert Erpc.impl() == Voyager.Erpc.Impl
-    assert Application.get_env(:voyager, :erpc) == Voyager.ErpcMock
+    assert Application.get_env(:voyager, :erpc) == prev
   end
 
   describe "format_error/2" do
