@@ -13,8 +13,9 @@ defmodule Voyager.Test.EtsSanitizeFixture do
   @doc """
   Sample terms covering binary overflow, collection overflow, depth, empty
   collections at the depth cap, nested mix, already-truncated leaves, fake
-  marker payloads that must still be capped, non-binary bitstrings, improper
-  lists, map key collisions, and keys that must not be redacted.
+  marker payloads that must still be capped, nested markers that must be
+  depth-capped, a marker sitting at the depth cap, non-binary bitstrings,
+  improper lists, map key collisions, and keys that must not be redacted.
   """
   @spec samples() :: [{term(), term()}]
   def samples do
@@ -34,6 +35,8 @@ defmodule Voyager.Test.EtsSanitizeFixture do
       fake_map_marker_overflow(),
       fake_tuple_marker_overflow(),
       fake_list_marker_nested_binary(),
+      nested_marker_depth_cap(),
+      marker_at_depth_cap(),
       no_redaction(),
       bitstring_under_cap(),
       bitstring_overflow(),
@@ -151,6 +154,30 @@ defmodule Voyager.Test.EtsSanitizeFixture do
     expected =
       {@marker, :list, [{@marker, :binary, :binary.copy(<<"a">>, @binary_limit), 600}], 0}
 
+    {input, expected}
+  end
+
+  defp nested_marker_depth_cap do
+    input = Enum.reduce(1..40, :leaf, fn _, acc -> {@marker, :list, [acc], 0} end)
+
+    expected =
+      {@marker, :list,
+       [
+         {@marker, :list,
+          [
+            {@marker, :list,
+             [
+               {@marker, :list, [{@marker, :list, [{@marker, :depth}], 0}], 0}
+             ], 0}
+          ], 0}
+       ], 0}
+
+    {input, expected}
+  end
+
+  defp marker_at_depth_cap do
+    input = [[[[[{@marker, :list, [:x], 0}]]]]]
+    expected = [[[[[{@marker, :depth}]]]]]
     {input, expected}
   end
 

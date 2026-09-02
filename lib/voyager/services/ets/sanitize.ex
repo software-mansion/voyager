@@ -49,6 +49,11 @@ defmodule Voyager.Services.Ets.Sanitize do
 
   defp sanitize({@marker, :depth}, _depth), do: {@marker, :depth}
 
+  defp sanitize({@marker, kind, _payload, _meta}, depth)
+       when kind in [:binary, :list, :map, :tuple] and depth >= @max_depth do
+    {@marker, :depth}
+  end
+
   defp sanitize({@marker, :binary, prefix, size}, _depth)
        when is_binary(prefix) and is_integer(size) and size >= 0 do
     {@marker, :binary, cap_binary(prefix), max(size, byte_size(prefix))}
