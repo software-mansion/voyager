@@ -131,10 +131,23 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :panel_id, :string, required: true
 
+  attr :navigate, :string,
+    default: nil,
+    doc: "where Show More leads; disabled as Soon when absent"
+
   def show_more_button(assigns) do
     ~H"""
     <div class="border-base-200 flex justify-center border-t px-5 py-3">
+      <.link
+        :if={@navigate}
+        id={"#{@panel_id}-show-more"}
+        navigate={@navigate}
+        class="btn btn-ghost gap-2 hover:text-primary"
+      >
+        Show More <.icon name="icon-arrow-right" class="size-4" />
+      </.link>
       <button
+        :if={!@navigate}
         type="button"
         id={"#{@panel_id}-show-more"}
         class="btn btn-ghost gap-2 hover:text-primary"
@@ -463,12 +476,15 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     """
   end
 
+  @doc """
+  A single line of text with a copy button that appears on hover.
+  """
   attr :id, :string, required: true
   attr :text, :string, required: true
   attr :label, :string, required: true
   attr :class, :any, default: nil
 
-  defp copyable(assigns) do
+  def copyable(assigns) do
     ~H"""
     <div class="group flex min-w-0 items-center gap-1">
       <p id={@id} class={["min-w-0 truncate", @class]}>
