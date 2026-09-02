@@ -566,22 +566,20 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       assert_received {:scanned, [_attrs, _sort, 250, _dir, _search], _timeout}
     end
 
-    test "shows a status badge like the supervision tree", %{conn: conn} do
+    test "shows the round trip of the last fetch", %{conn: conn} do
       stub_scan([])
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      assert view |> element("#processes-status") |> render() =~ "ok"
+      assert view |> element("#processes-round-trip") |> render() =~ "ms"
     end
 
-    test "the status badge reflects a timeout", %{conn: conn} do
+    test "has no round trip before the first fetch lands", %{conn: conn} do
       stub(Voyager.ErpcMock, :call, fn _, _, _, _, _ -> :erlang.error({:erpc, :timeout}) end)
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      badge = view |> element("#processes-status") |> render()
-      assert badge =~ "timeout"
-      assert badge =~ "badge-warning"
+      refute has_element?(view, "#processes-round-trip")
     end
 
     test "locks the UI only for control-triggered fetches", %{conn: conn} do
@@ -701,7 +699,9 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       view |> element("#processes-refresh-interval-refresh-now-button") |> render_click()
       render_async(view)
 
-      assert view |> element("#processes-error") |> render() =~ "Try again in"
+      # Transient, so it flashes and leaves the table alone.
+      assert render(view) =~ "Try again in"
+      refute has_element?(view, "#processes-error")
     end
 
     test "a refused auto-refresh tick is silent and keeps the rows", %{conn: conn} do

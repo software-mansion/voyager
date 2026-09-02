@@ -52,6 +52,7 @@ defmodule VoyagerWeb.ProcessesLive do
     |> assign(:refresh_interval, nil)
     |> assign(:refresh_timer, nil)
     |> assign(:last_updated, nil)
+    |> assign(:round_trip_ms, nil)
     |> then(&if(connected?(&1), do: fetch(&1), else: &1))
     |> ok()
   end
@@ -77,10 +78,12 @@ defmodule VoyagerWeb.ProcessesLive do
       >
         <:actions>
           <span
-            id="processes-status"
-            class={["badge mr-2 dark:text-base-100", status_badge_class(status(@page_result))]}
+            :if={@round_trip_ms}
+            id="processes-round-trip"
+            title="Round trip of the last fetch"
+            class="font-mono text-base-content/70 mr-2 text-xs"
           >
-            {status(@page_result)}
+            {@round_trip_ms} ms
           </span>
           <.interval_select
             id="processes-refresh-interval"
@@ -238,11 +241,12 @@ defmodule VoyagerWeb.ProcessesLive do
   end
 
   @impl true
-  def handle_async(:page_result, {:ok, {:ok, page, fetched_with}}, socket) do
+  def handle_async(:page_result, {:ok, {:ok, page, fetched_with, round_trip_ms}}, socket) do
     socket
     |> assign(:page_result, AsyncResult.ok(socket.assigns.page_result, page))
     |> assign(:fetched_with, fetched_with)
     |> assign(:dirty?, false)
+    |> assign(:round_trip_ms, round_trip_ms)
     |> assign(:last_updated, page.fetched_at)
     |> assign(
       :page,
@@ -253,7 +257,19 @@ defmodule VoyagerWeb.ProcessesLive do
 
   def handle_async(:page_result, {:ok, :skipped}, socket) do
     socket
-    |> assign(:page_result, %{socket.assigns.page_result | loading: nil})
+    |> clear_loading()
+    |> noreply()
+  end
+
+  # Rate limiting is transient and leaves the rows usable, so it flashes rather
+  # than replacing the table with an error state.
+  def handle_async(:page_result, {:ok, {:rate_limited, retry_after_ms}}, socket) do
+    socket
+    |> clear_loading()
+    |> put_flash(
+      :error,
+      "Too many requests to the node. Try again in #{seconds(retry_after_ms)}."
+    )
     |> noreply()
   end
 
@@ -269,6 +285,14 @@ defmodule VoyagerWeb.ProcessesLive do
     |> assign(:page_result, AsyncResult.failed(socket.assigns.page_result, reason))
     |> noreply()
   end
+
+  defp clear_loading(socket) do
+    socket
+    |> assign(:page_result, %{socket.assigns.page_result | loading: nil})
+    |> assign(:dirty?, false)
+  end
+
+  defp seconds(ms), do: "#{Float.ceil(ms / 1_000, 1)}s"
 
   defp apply_controls(socket, params) do
     {controls, changeset} = ProcessListControls.apply(socket.assigns.controls, params)
@@ -301,8 +325,8 @@ defmodule VoyagerWeb.ProcessesLive do
     pad_to_min(started)
 
     case result do
-      {:ok, {:ok, page}, _elapsed_us} ->
-        {:ok, page, controls}
+      {:ok, {:ok, page}, elapsed_us} ->
+        {:ok, page, controls, div(elapsed_us, 1_000)}
 
       {:ok, {:error, reason}, _elapsed_us} ->
         Logger.warning("Failed to list processes on #{inspect(node)}: #{inspect(reason)}")
@@ -313,7 +337,7 @@ defmodule VoyagerWeb.ProcessesLive do
         :skipped
 
       {:error, :rate_limited, retry_after_ms} ->
-        {:error, {:rate_limited, retry_after_ms}}
+        {:rate_limited, retry_after_ms}
     end
   end
 
@@ -332,19 +356,6 @@ defmodule VoyagerWeb.ProcessesLive do
   end
 
   defp loading?(%AsyncResult{loading: loading}), do: loading != nil
-
-  # Same vocabulary as the supervision tree's header badge.
-  defp status(%AsyncResult{loading: loading}) when loading != nil, do: :loading
-  defp status(%AsyncResult{failed: :timeout}), do: :timeout
-  defp status(%AsyncResult{failed: failed}) when failed != nil, do: :error
-  defp status(%AsyncResult{ok?: true}), do: :ok
-  defp status(_page_result), do: :idle
-
-  defp status_badge_class(:idle), do: "text-base-content!"
-  defp status_badge_class(:loading), do: "badge-info"
-  defp status_badge_class(:ok), do: "badge-success"
-  defp status_badge_class(:timeout), do: "badge-warning"
-  defp status_badge_class(:error), do: "badge-error"
 
   # Only validated values are stored, so nothing invalid can come back on the
   # next visit. `search` is taken as typed, since anything is valid there.
@@ -422,9 +433,6 @@ defmodule VoyagerWeb.ProcessesLive do
       ms -> assign(socket, :refresh_timer, Process.send_after(self(), :auto_refresh, ms))
     end
   end
-
-  defp format_error({:rate_limited, retry_after_ms}),
-    do: "Too many requests to the node. Try again in #{Float.ceil(retry_after_ms / 1_000, 1)}s."
 
   defp format_error(:timeout),
     do: "Timed out while scanning processes. Try a longer timeout or fewer processes."

@@ -31,6 +31,7 @@ defmodule Voyager.Queries.Processes do
 
   @refresh_intervals [
     {"Off", "off"},
+    {"1s", "1000"},
     {"5s", "5000"},
     {"10s", "10000"},
     {"30s", "30000"},
