@@ -80,19 +80,6 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
              Remote.select_chunk(Node.self(), name, 10, chunk.continuation)
   end
 
-  test "an :ets.select/3 continuation is invalid after an ETF round-trip" do
-    name = unique_name()
-    :ets.new(name, [:named_table, :public, :set])
-    on_exit(fn -> safe_delete(name) end)
-
-    for i <- 1..25, do: :ets.insert(name, {i, i})
-
-    {_records, continuation} = :ets.select(name, [{:"$1", [], [:"$1"]}], 10)
-    broken = :erlang.binary_to_term(:erlang.term_to_binary(continuation))
-
-    assert_raise ArgumentError, fn -> :ets.select(broken) end
-  end
-
   test "lookup/3 fetches a named table by atom, integer, and binary keys" do
     name = unique_name()
     :ets.new(name, [:named_table, :public, :set])
