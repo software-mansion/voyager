@@ -361,6 +361,19 @@ defmodule VoyagerAgentTest do
       @agent_module.proc_dictionary(self(), 10, 10)
       assert Process.info(self(), :max_heap_size) == before
     end
+
+    test "keeps a small fun unchanged when its encoded size fits the budget" do
+      fun = fn -> :ok end
+
+      assert {^fun, false} = bound(fun, 1_000)
+    end
+
+    test "drops a fun whose captured free variables exceed the budget instead of shipping them" do
+      huge = :binary.copy("x", 100_000)
+      fun = fn -> huge end
+
+      assert {:"$voyager_truncated", true} == bound(fun, 100)
+    end
   end
 
   describe "proc_state/3" do

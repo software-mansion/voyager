@@ -396,6 +396,8 @@ walk(Term, Budget, Truncated) when is_tuple(Term) ->
     walk_tuple(Term, 1, tuple_size(Term), Budget - 1, Truncated, []);
 walk(Term, Budget, Truncated) when is_bitstring(Term) ->
     walk_bitstring(Term, Budget, Truncated);
+walk(Term, Budget, Truncated) when is_function(Term) ->
+    walk_fun(Term, Budget, Truncated);
 walk(Term, Budget, Truncated) ->
     {Term, Budget - 1, Truncated}.
 
@@ -449,6 +451,19 @@ walk_bitstring(Bits, Budget, _Truncated) when bit_size(Bits) > ?MAX_BINARY_BYTES
     {?TRUNCATED, Budget - 1, true};
 walk_bitstring(Bits, Budget, Truncated) ->
     {Bits, Budget - 1, Truncated}.
+
+%% A fun's free variables ship whole over distribution, so cost is charged by
+%% `external_size/1' (the true wire size, unlike `erts_debug:flat_size/1'
+%% which skips a captured refc binary's payload) - in full or not at all,
+%% since a fun can't be partially cut the way a binary can.
+walk_fun(Fun, Budget, Truncated) ->
+    Size = erlang:external_size(Fun),
+    case Size =< Budget of
+        true ->
+            {Fun, Budget - Size, Truncated};
+        false ->
+            {?TRUNCATED, Budget - 1, true}
+    end.
 
 %% Runs `Fun' with this process' heap capped (10_000_000 words ~= 76MB on 64-bit, 8 bytes word size) so
 %% a pathological scan is killed rather than the node, restoring the previous
