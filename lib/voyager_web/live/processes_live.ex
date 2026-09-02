@@ -266,6 +266,15 @@ defmodule VoyagerWeb.ProcessesLive do
     |> noreply()
   end
 
+  # A timeout is transient too: the rows on screen are still the last good
+  # answer, so it flashes and leaves them be.
+  def handle_async(:page_result, {:ok, {:error, :timeout}}, socket) do
+    socket
+    |> clear_loading()
+    |> put_flash(:error, format_error(:timeout))
+    |> noreply()
+  end
+
   def handle_async(:page_result, {:ok, {:error, reason}}, socket) do
     socket
     |> assign(:page_result, AsyncResult.failed(socket.assigns.page_result, reason))

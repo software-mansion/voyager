@@ -832,16 +832,23 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       assert render(view) =~ "unreachable"
     end
 
-    test "reports a timeout with actionable advice", %{conn: conn} do
+    test "flashes a timeout rather than replacing the table", %{conn: conn} do
+      [pid] = fake_pids(1)
+      stub_scan([entry(pid: pid)])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
       stub(Voyager.ErpcMock, :call, fn _, _, _, _, _ ->
         :erlang.error({:erpc, :timeout})
       end)
 
-      {:ok, view, _html} = live(conn, @path)
+      view |> element("#processes-refresh-interval-refresh-now-button") |> render_click()
       render_async(view)
 
-      assert has_element?(view, "#processes-error")
+      # Transient: the last good rows stay and the advice flashes.
       assert render(view) =~ "Timed out"
+      refute has_element?(view, "#processes-error")
+      assert has_element?(view, "##{ProcessesLive.row_dom_id(pid)}")
     end
 
     test "reports a missing remote agent", %{conn: conn} do
