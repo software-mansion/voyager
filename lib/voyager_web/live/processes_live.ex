@@ -53,7 +53,7 @@ defmodule VoyagerWeb.ProcessesLive do
     |> assign(:refresh_timer, nil)
     |> assign(:last_updated, nil)
     |> assign(:round_trip_ms, nil)
-    |> then(&if(connected?(&1), do: fetch(&1), else: &1))
+    |> then(&if(connected?(&1), do: start_fetch(&1, :high), else: &1))
     |> ok()
   end
 
@@ -156,27 +156,35 @@ defmodule VoyagerWeb.ProcessesLive do
   # without the nested params; there is nothing to apply.
   def handle_event("validate", _params, socket), do: noreply(socket)
 
-  # Restored from localStorage on mount: same validation, then a first fetch
-  # with the remembered options rather than the defaults.
+  # Restored from localStorage on mount. The mount fetch is already in flight
+  # with the defaults, so this only asks for another scan when the stored
+  # controls would fetch something different — and goes through `fetch/2`, which
+  # waits for that first scan rather than racing it.
   def handle_event("restore_settings", params, socket) do
-    socket
-    |> assign(:page_size, page_size(parse_integer(params["page_size"])))
-    |> apply_controls(params)
-    |> fetch()
+    socket = assign(socket, :page_size, page_size(parse_integer(params["page_size"])))
+    restored = apply_controls(socket, params)
+
+    if restored.assigns.controls == socket.assigns.controls do
+      restored
+    else
+      debounce_refetch(restored)
+    end
     |> noreply()
   end
 
   def handle_event("sort", %{"key" => key}, socket) do
-    key = String.to_existing_atom(key)
+    # The key arrives from the client, so it is matched as a string against the
+    # allowlist rather than converted to an atom first.
+    case Enum.find(Processes.sortable_attrs(), &(to_string(&1) == key)) do
+      nil ->
+        socket
 
-    if key in Processes.sortable_attrs() do
-      socket
-      |> assign(:direction, toggle_direction(socket, key))
-      |> assign(:sort_by, key)
-      |> assign(:page, 1)
-      |> fetch()
-    else
-      socket
+      key ->
+        socket
+        |> assign(:direction, toggle_direction(socket, key))
+        |> assign(:sort_by, key)
+        |> assign(:page, 1)
+        |> fetch()
     end
     |> noreply()
   end
@@ -222,14 +230,9 @@ defmodule VoyagerWeb.ProcessesLive do
   end
 
   def handle_info(:auto_refresh, socket) do
-    socket = restart_refresh_timer(socket)
-
-    # A tick while a scan is still running is dropped rather than queued.
-    if socket.assigns.page_result.loading do
-      socket
-    else
-      fetch(socket, :low)
-    end
+    socket
+    |> restart_refresh_timer()
+    |> fetch(:low)
     |> noreply()
   end
 
@@ -264,9 +267,16 @@ defmodule VoyagerWeb.ProcessesLive do
   end
 
   def handle_async(:page_result, {:ok, {:error, :timeout}}, socket) do
-    socket
-    |> clear_loading()
-    |> put_flash(:error, format_error(:timeout))
+    if socket.assigns.page_result.ok? do
+      socket
+      |> clear_loading()
+      |> put_flash(:error, "Request timed out")
+    else
+      # Nothing on screen to fall back on, so the page has to say so itself.
+      socket
+      |> assign(:page_result, AsyncResult.failed(socket.assigns.page_result, :timeout))
+      |> assign(:dirty?, false)
+    end
     |> noreply()
   end
 
@@ -280,6 +290,7 @@ defmodule VoyagerWeb.ProcessesLive do
   def handle_async(:page_result, {:exit, reason}, socket) do
     socket
     |> assign(:page_result, AsyncResult.failed(socket.assigns.page_result, reason))
+    |> assign(:dirty?, false)
     |> noreply()
   end
 
@@ -298,10 +309,14 @@ defmodule VoyagerWeb.ProcessesLive do
     |> assign(:page, 1)
   end
 
-  # Manual actions, sorting and control changes are explicit user intent
-  # (:high); only the background auto-refresh tick yields as :low, per the
-  # rate limiter's contract.
+  # A scan already in flight is left to finish: `start_async/3` would replace the
+  # task without stopping the work it spawned on the remote, so a burst of
+  # clicks would cost the node a full scan each.
   defp fetch(socket, priority \\ :high) do
+    if loading?(socket.assigns.page_result), do: socket, else: start_fetch(socket, priority)
+  end
+
+  defp start_fetch(socket, priority) do
     %{session: session, controls: controls, sort_by: sort_by, direction: direction} =
       socket.assigns
 
@@ -417,8 +432,13 @@ defmodule VoyagerWeb.ProcessesLive do
   defp page_size(size) when size in @page_sizes, do: size
   defp page_size(_size), do: @default_page_size
 
-  defp parse_interval("off"), do: nil
-  defp parse_interval(value), do: parse_integer(value)
+  # Only the offered intervals are honoured: a negative value raises in
+  # `Process.send_after/3` and a zero would tick in a tight loop.
+  defp parse_interval(value) do
+    Enum.find_value(Processes.refresh_interval_options(), fn {_label, option} ->
+      option == value && parse_integer(option)
+    end)
+  end
 
   defp restart_refresh_timer(socket) do
     if timer = socket.assigns.refresh_timer, do: Process.cancel_timer(timer)
@@ -429,7 +449,11 @@ defmodule VoyagerWeb.ProcessesLive do
     end
   end
 
-  defp format_error(:timeout), do: "Request timed out"
+  # Only reached when the first fetch times out and there are no rows to fall
+  # back on, so unlike the flash it says what to change.
+  defp format_error(:timeout),
+    do: "Request timed out. Try a longer timeout or a smaller limit."
+
   defp format_error(:noconnection), do: "Node is unreachable."
 
   defp format_error({:remote_exception, :undef}),

@@ -34,12 +34,9 @@ defmodule Voyager.NodeSession do
     :persistent_term.get(@connector_name_cache_key, nil)
   end
 
-  @doc """
-  Restores the cached connector name, or clears it when given `nil`.
-
-  The cache is a `:persistent_term` and so outlives any process state, which
-  makes it leak across tests that connect; this lets them put it back.
-  """
+  @doc false
+  # The cache is a `:persistent_term` and so outlives any process state, which
+  # makes it leak across tests that connect; this lets them put it back.
   @spec restore_cached_connector_name(atom() | nil) :: :ok
   def restore_cached_connector_name(nil) do
     :persistent_term.erase(@connector_name_cache_key)

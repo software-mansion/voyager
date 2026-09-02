@@ -19,7 +19,7 @@ defmodule VoyagerWeb.FormSchemas.ProcessListControls do
 
   alias Voyager.Queries.Processes
 
-  @limits [25, 50, 100, 250, 500, 1_000]
+  @limits [25, 50, 100, 250, 500, 1_000, 2_500, 5_000]
   @default_limit 100
   @min_timeout 1_000
   @max_timeout 30_000
@@ -56,9 +56,12 @@ defmodule VoyagerWeb.FormSchemas.ProcessListControls do
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(controls \\ default(), attrs \\ %{}) do
     controls
-    |> cast(attrs, [:search, :limit, :timeout, :columns])
-    |> update_change(:search, &String.trim/1)
+    |> cast(blank_to_nil(attrs), [:search, :limit, :timeout, :columns])
+    # `restore_settings` replays whatever localStorage holds, so the change can
+    # be nil even though the field defaults to "".
+    |> update_change(:search, &String.trim(&1 || ""))
     |> update_change(:columns, &filter_known/1)
+    |> validate_required([:limit, :timeout])
     |> validate_inclusion(:limit, @limits, message: "must be one of #{Enum.join(@limits, ", ")}")
     |> validate_number(:timeout,
       greater_than_or_equal_to: @min_timeout,
@@ -102,6 +105,18 @@ defmodule VoyagerWeb.FormSchemas.ProcessListControls do
     Enum.map(required_columns(), &{to_string(&1), label_fun.(&1), true}) ++
       Enum.map(optional_columns(), &{to_string(&1), label_fun.(&1), false})
   end
+
+  # `cast/4` discards an empty string as "no change", which would leave the box
+  # blank on screen while the previous value was silently used. Nil is a change,
+  # so `validate_required/2` can report it.
+  defp blank_to_nil(attrs) when is_map(attrs) do
+    Map.new(attrs, fn
+      {key, value} when key in ~w(limit timeout) and value in ["", nil] -> {key, nil}
+      pair -> pair
+    end)
+  end
+
+  defp blank_to_nil(attrs), do: attrs
 
   # Drops the fields that failed validation, so the rest still applies.
   defp valid_part(changeset) do

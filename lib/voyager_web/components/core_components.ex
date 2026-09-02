@@ -713,9 +713,14 @@ defmodule VoyagerWeb.CoreComponents do
   def tooltip_portal(assigns) do
     ~H"""
     <.portal id={"#{@id}-portal"} target="#tooltip-portal-root">
+      <%!-- The hook keeps its open/pinned state and inline position on this
+            element, and a re-render would wipe both, so LiveView leaves the
+            tip alone. Callers whose tip text changes must give the trigger a
+            new id, which remounts the portal with the new content. --%>
       <div
         id={"#{@id}-tip"}
         role="tooltip"
+        phx-update="ignore"
         class={[
           "tooltip-pop bg-base-100 text-base-content rounded-box max-w-xs px-3 py-2",
           "ring-base-content/15 text-xs leading-relaxed shadow-lg ring-1",

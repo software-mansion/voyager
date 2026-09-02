@@ -44,6 +44,17 @@ defmodule VoyagerWeb.FormSchemas.ProcessListControlsTest do
       end
     end
 
+    test "an emptied number box reports itself instead of silently reverting" do
+      for field <- ~w(limit timeout) do
+        {controls, changeset} = apply_attrs(%{field => ""})
+
+        refute changeset.valid?
+        # The last valid value keeps driving fetches while the error shows.
+        assert Map.get(controls, String.to_existing_atom(field)) ==
+                 Map.get(ProcessListControls.default(), String.to_existing_atom(field))
+      end
+    end
+
     test "trims the search term" do
       {controls, _changeset} = apply_attrs(%{"search" => "  gen  "})
 

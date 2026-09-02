@@ -626,6 +626,11 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       assert_received {:scanned, _args, _timeout}
 
       render_hook(view, "restore_settings", %{"limit" => "500", "search" => "hog"})
+
+      # Debounced behind the mount fetch rather than racing it.
+      refute_received {:scanned, _args, _timeout}
+
+      send(view.pid, :refetch)
       render_async(view)
 
       assert_received {:scanned, [_attrs, _sort, 500, _dir, "hog"], _timeout}
@@ -737,6 +742,69 @@ defmodule VoyagerWeb.ProcessesLiveTest do
       render_async(view)
 
       refute has_element?(view, "#processes-pager-next")
+    end
+  end
+
+  describe "hostile input" do
+    test "an unknown sort key is ignored", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      # Not an interned atom: converting it would raise and kill the LiveView.
+      render_hook(view, "sort", %{"key" => "nope_not_an_atom_123"})
+
+      assert has_element?(view, "#processes-table")
+    end
+
+    test "an interval outside the offered options is ignored", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      # A negative delay raises in `Process.send_after/3`; zero would spin.
+      for value <- ~w(-5 0 1 nonsense) do
+        render_hook(view, "set_interval", %{"interval" => value})
+      end
+
+      assert has_element?(view, "#processes-refresh-interval")
+    end
+
+    test "a null search from localStorage is survivable", %{conn: conn} do
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      render_hook(view, "restore_settings", %{"search" => nil})
+
+      assert has_element?(view, "#process-controls")
+    end
+  end
+
+  describe "fetch guard" do
+    test "a click while a scan is in flight does not start a second one", %{conn: conn} do
+      test = self()
+      stub_scan([])
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+      assert_received {:scanned, _args, _timeout}
+
+      # Holds the scan open so the next click lands mid-flight, which is what
+      # `render_click/1` alone cannot produce: it waits for the async to finish.
+      stub(Voyager.ErpcMock, :call, fn _node, _mod, _fun, args, timeout ->
+        send(test, {:scanned, args, timeout})
+        Process.sleep(150)
+        {[], 0}
+      end)
+
+      view |> element(~s|button[phx-value-key="reductions"]|) |> render_click()
+      assert_received {:scanned, _args, _timeout}
+
+      # A replaced async task would not stop the scan already running remotely.
+      view |> element(~s|button[phx-value-key="memory"]|) |> render_click()
+      render_async(view, 1_000)
+
+      refute_received {:scanned, _args, _timeout}
     end
   end
 
