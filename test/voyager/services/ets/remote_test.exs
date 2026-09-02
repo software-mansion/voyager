@@ -302,18 +302,11 @@ defmodule Voyager.Services.Ets.RemoteTest do
       assert_received {:called, :select, @node, [{:"$1", [], [:"$1"]}], @timeout}
     end
 
-    test "uses :ets.select/1 for a continuation page" do
+    test "returns :cannot_page for an MFA continuation without calling :ets.select" do
       cont = make_ref()
       stub_exported(:ets_select_chunk, 3, false)
 
-      expect(Voyager.ErpcMock, :call, fn @node, :ets, :select, [^cont], @timeout ->
-        :"$end_of_table"
-      end)
-
-      assert {:ok, chunk} = Remote.select_chunk(@node, :t, 10, cont, @timeout)
-      assert chunk.records == []
-      assert chunk.continuation == nil
-      assert chunk.via == :mfa
+      assert {:error, :cannot_page} = Remote.select_chunk(@node, :t, 10, cont, @timeout)
     end
 
     test "calls :voyager_agent.ets_select_chunk/3 when the export is present" do

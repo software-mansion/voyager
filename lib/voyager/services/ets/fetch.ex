@@ -28,7 +28,8 @@ defmodule Voyager.Services.Ets.Fetch do
   `limit` must be 10, 20, or 50 (10 is the usual first page). `continuation`
   is `nil` for the first page and the opaque ETS term from a prior chunk
   afterwards — callers (LiveView) bind it to `{node, table_id}`, not a URL
-  token.
+  token. MFA cannot follow a continuation (`{:error, :cannot_page}`);
+  later pages need the agent.
   """
   @spec select_chunk(node(), TableId.t(), pos_integer(), term() | nil, timeout()) ::
           {:ok, chunk()} | {:error, term()}

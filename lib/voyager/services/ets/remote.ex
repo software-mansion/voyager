@@ -14,7 +14,8 @@ defmodule Voyager.Services.Ets.Remote do
 
   Record payloads are unsanitized. Callers that surface terms must go
   through `Voyager.Services.Ets.Fetch`. Paging is best-effort; there is
-  no snapshot isolation.
+  no snapshot isolation. MFA can only return the first page; later pages
+  need the agent or they are `{:error, :cannot_page}`.
   """
 
   alias Voyager.Erpc
@@ -102,8 +103,8 @@ defmodule Voyager.Services.Ets.Remote do
   `limit` must be 10, 20, or 50 (10 is the usual first page). `continuation`
   is `nil` for the first page and the opaque ETS continuation from a prior
   chunk afterwards. Missing `:voyager_agent.ets_select_chunk/3` falls back
-  to `:ets.select/3` (first page) or `:ets.select/1` (later pages). Paging
-  is best-effort.
+  to `:ets.select/3` for the first page only. A non-nil continuation on
+  that MFA path is `{:error, :cannot_page}`. Paging is best-effort.
   """
   @spec select_chunk(node(), TableId.t(), pos_integer(), term() | nil, timeout()) ::
           {:ok, chunk()} | {:error, term()}
@@ -161,15 +162,15 @@ defmodule Voyager.Services.Ets.Remote do
     end
   end
 
-  defp mfa_select(node, table, limit, continuation, timeout) do
-    result =
-      if is_nil(continuation) do
-        Erpc.safe_call(node, :ets, :select, [table, @match_all, limit], timeout)
-      else
-        Erpc.safe_call(node, :ets, :select, [continuation], timeout)
-      end
+  # Continuations hold a compiled match spec and are invalid after ETF
+  # (`:ets.repair_continuation/2`). MFA cannot repair+select in one call.
+  defp mfa_select(_node, _table, _limit, continuation, _timeout)
+       when not is_nil(continuation) do
+    {:error, :cannot_page}
+  end
 
-    case result do
+  defp mfa_select(node, table, limit, nil, timeout) do
+    case Erpc.safe_call(node, :ets, :select, [table, @match_all, limit], timeout) do
       {:ok, decoded} -> decode_select(decoded, :mfa)
       {:error, _} = err -> map_read_error(err)
     end

@@ -64,16 +64,33 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
     assert Enum.any?(tables, &(&1.id == tid))
   end
 
-  test "select_chunk/3 pages a named public table until continuation is nil" do
+  test "select_chunk/3 MFA first page; a continuation is :cannot_page" do
     name = unique_name()
     :ets.new(name, [:named_table, :public, :set])
     on_exit(fn -> safe_delete(name) end)
 
     for i <- 1..25, do: :ets.insert(name, {i, i})
 
-    {records, pages} = drain_chunks(name)
-    assert pages >= 3
-    assert Enum.sort(Enum.map(records, &elem(&1, 0))) == Enum.to_list(1..25)
+    assert {:ok, chunk} = Remote.select_chunk(Node.self(), name, 10)
+    assert chunk.via == :mfa
+    assert length(chunk.records) == 10
+    assert chunk.continuation
+
+    assert {:error, :cannot_page} =
+             Remote.select_chunk(Node.self(), name, 10, chunk.continuation)
+  end
+
+  test "an :ets.select/3 continuation is invalid after an ETF round-trip" do
+    name = unique_name()
+    :ets.new(name, [:named_table, :public, :set])
+    on_exit(fn -> safe_delete(name) end)
+
+    for i <- 1..25, do: :ets.insert(name, {i, i})
+
+    {_records, continuation} = :ets.select(name, [{:"$1", [], [:"$1"]}], 10)
+    broken = :erlang.binary_to_term(:erlang.term_to_binary(continuation))
+
+    assert_raise ArgumentError, fn -> :ets.select(broken) end
   end
 
   test "lookup/3 fetches a named table by atom, integer, and binary keys" do
@@ -110,21 +127,6 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
 
     assert {:error, :cannot_read} = Remote.select_chunk(Node.self(), tid, 10)
     assert {:error, :cannot_read} = Remote.lookup(Node.self(), tid, :k)
-  end
-
-  defp drain_chunks(table) do
-    drain_chunks(table, nil, [], 0)
-  end
-
-  defp drain_chunks(table, continuation, acc, pages) do
-    assert {:ok, chunk} = Remote.select_chunk(Node.self(), table, 10, continuation)
-    records = acc ++ chunk.records
-
-    if chunk.continuation do
-      drain_chunks(table, chunk.continuation, records, pages + 1)
-    else
-      {records, pages + 1}
-    end
   end
 
   defp unique_name do
