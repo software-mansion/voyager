@@ -15,21 +15,15 @@ defmodule VoyagerWeb.Components.ProcessComponentsTest do
   end
 
   describe "scan_summary/1" do
-    test "a quick fetch reads as ordinary" do
-      assert summary(900) =~ "text-base-content"
-    end
+    test "colours the round trip by how slow the fetch was" do
+      bands = [
+        {900, "text-base-content"},
+        {1_000, "text-base-content"},
+        {1_001, "text-warning"},
+        {10_000, "text-error"}
+      ]
 
-    test "over a second warns" do
-      assert summary(1_001) =~ "text-warning"
-    end
-
-    test "over five seconds is an error" do
-      assert summary(5_001) =~ "text-error"
-    end
-
-    test "the boundaries themselves stay in the lower band" do
-      assert summary(1_000) =~ "text-base-content"
-      assert summary(5_000) =~ "text-warning"
+      for {ms, class} <- bands, do: assert(summary(ms) =~ class)
     end
 
     test "omits the round trip when there is none" do

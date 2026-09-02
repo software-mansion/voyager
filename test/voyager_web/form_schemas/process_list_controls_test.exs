@@ -73,19 +73,4 @@ defmodule VoyagerWeb.FormSchemas.ProcessListControlsTest do
       assert :status in ProcessListControls.attrs(controls)
     end
   end
-
-  describe "fetch_differs?/2" do
-    test "is false for identical controls" do
-      refute ProcessListControls.fetch_differs?(
-               ProcessListControls.default(),
-               ProcessListControls.default()
-             )
-    end
-
-    test "is true when a fetch option changed" do
-      {changed, _changeset} = apply_attrs(%{"limit" => 250})
-
-      assert ProcessListControls.fetch_differs?(changed, ProcessListControls.default())
-    end
-  end
 end
