@@ -130,18 +130,18 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :panel_id, :string, required: true
+  attr :href, :string, default: nil, doc: "process info page path; nil renders nothing"
 
   def show_more_button(assigns) do
     ~H"""
-    <div class="border-base-200 flex justify-center border-t px-5 py-3">
-      <button
-        type="button"
+    <div :if={@href} class="border-base-200 flex justify-center border-t px-5 py-3">
+      <.link
         id={"#{@panel_id}-show-more"}
+        navigate={@href}
         class="btn btn-ghost gap-2 hover:text-primary"
-        disabled
       >
-        Show More <span class="badge badge-primary badge-soft badge-xs">Soon</span>
-      </button>
+        Show More <.icon name="icon-arrow-right" class="size-4" />
+      </.link>
     </div>
     """
   end
