@@ -77,7 +77,10 @@ defmodule VoyagerWeb.Components.ProcessComponents do
               field={@form[:timeout]}
               label="Timeout (ms)"
             />
-            <.field_label field={@form[:columns]} label="Columns" />
+            <%!-- Not a `<label for>`: the trigger is a `role="button"` div, which
+                  a label cannot target. `<.multiselect>` carries its own
+                  `aria-label`. --%>
+            <span class="text-base-content/70 text-xs font-medium">Columns</span>
 
             <select id={@form[:limit].id} name={@form[:limit].name} class="select select-sm w-24">
               <option

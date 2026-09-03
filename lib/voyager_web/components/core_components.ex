@@ -496,6 +496,7 @@ defmodule VoyagerWeb.CoreComponents do
         tabindex={if @disabled, do: "-1", else: "0"}
         role="button"
         id={@id}
+        aria-label={@label}
         aria-disabled={@disabled}
         class={[
           "input input-sm items-center gap-2",

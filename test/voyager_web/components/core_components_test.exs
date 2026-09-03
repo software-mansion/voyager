@@ -49,6 +49,10 @@ defmodule VoyagerWeb.CoreComponentsTest do
       assert attr(html, "#ms-pid-option", "title") == ["Always shown"]
     end
 
+    test "names the trigger, so it is not announced as an unnamed button" do
+      assert attr(multiselect(), "#ms", "aria-label") == ["Columns"]
+    end
+
     test "is a labelled checkbox group rather than a listbox" do
       html = multiselect()
 
