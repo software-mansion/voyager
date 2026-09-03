@@ -1,6 +1,5 @@
 defmodule Voyager.Services.Ets.FetchTest do
-  # async: false because isolate/2 runs Erpc in a TaskSupervisor child, so
-  # Mox expectations must be global.
+  # async: false because isolate/2 runs Erpc in a TaskSupervisor child; Mox must be global.
   use ExUnit.Case, async: false
 
   import Mox

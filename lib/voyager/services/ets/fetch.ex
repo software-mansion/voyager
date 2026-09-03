@@ -2,15 +2,12 @@ defmodule Voyager.Services.Ets.Fetch do
   @moduledoc """
   Host-isolated ETS record reads.
 
-  Runs `Remote.select_chunk/5` and `Remote.lookup/4` in a
-  `Task.Supervisor.async_nolink/2` child with `max_heap_size` 500_000 words
-  (`kill: true`), then sanitizes **records** (not the continuation) before
-  they reach the caller. A heap kill during the wait becomes
-  `{:error, :heap_limit_exceeded}`. A wait that expires is `{:error, :timeout}`.
-
-  This protects Voyager, not the target. MFA peek still copies full objects
-  on the remote node and over the wire. A remote worker heap kill
-  (`:killed`) is returned as `{:error, :heap_limit_exceeded}` as well.
+  Runs `Remote.select_chunk/5` and `Remote.lookup/4` in a TaskSupervisor child
+  with `max_heap_size` 500_000 words (`kill: true`), then sanitizes records
+  (not the continuation). Heap kill is `{:error, :heap_limit_exceeded}`; a wait
+  that expires is `{:error, :timeout}`. A remote worker heap kill (`:killed`)
+  is `{:error, :heap_limit_exceeded}` as well. Protects Voyager, not the target:
+  MFA peek still copies full objects on the remote node and over the wire.
   """
 
   alias Voyager.Erpc
@@ -23,15 +20,6 @@ defmodule Voyager.Services.Ets.Fetch do
 
   @type chunk :: Remote.chunk()
 
-  @doc """
-  Match-all page of sanitized records from `table` on `node`.
-
-  `limit` must be 10, 20, or 50 (10 is the usual first page). `continuation`
-  is `nil` for the first page and the opaque ETS term from a prior chunk
-  afterwards — callers (LiveView) bind it to `{node, table_id}`, not a URL
-  token. MFA cannot follow a continuation (`{:error, :cannot_page}`);
-  later pages need the agent.
-  """
   @spec select_chunk(node(), TableId.t(), pos_integer(), term() | nil, timeout()) ::
           {:ok, chunk()} | {:error, term()}
   def select_chunk(node, table, limit, continuation \\ nil, timeout \\ Erpc.default_timeout()) do
@@ -40,9 +28,6 @@ defmodule Voyager.Services.Ets.Fetch do
     end)
   end
 
-  @doc """
-  Looks up `key` on `table` and sanitizes the matching records.
-  """
   @spec lookup(node(), TableId.t(), atom() | integer() | binary(), timeout()) ::
           {:ok, chunk()} | {:error, term()}
   def lookup(node, table, key, timeout \\ Erpc.default_timeout()) do

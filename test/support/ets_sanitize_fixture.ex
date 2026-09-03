@@ -1,7 +1,7 @@
 defmodule Voyager.Test.EtsSanitizeFixture do
   @moduledoc """
   Shared `{input, expected}` terms for `Voyager.Services.Ets.Sanitize` and the
-  VOY-230 Erlang truncator. Expected values are written out, not computed.
+  Erlang truncator. Expected values are written out, not computed.
   """
 
   alias Voyager.Services.Ets.Sanitize
@@ -10,15 +10,6 @@ defmodule Voyager.Test.EtsSanitizeFixture do
   @binary_limit Sanitize.max_binary_bytes()
   @collection_limit Sanitize.max_collection()
 
-  @doc """
-  Sample terms covering binary overflow, collection overflow, depth, empty
-  collections at the depth cap, an oversized binary and a truncated binary
-  marker at the depth cap, nested mix, already-truncated leaves, fake
-  marker payloads that must still be capped, nested markers that must be
-  depth-capped, a collection marker sitting at the depth cap, non-binary
-  bitstrings, improper lists, map key collisions, and keys that must not
-  be redacted.
-  """
   @spec samples() :: [{term(), term()}]
   def samples do
     [

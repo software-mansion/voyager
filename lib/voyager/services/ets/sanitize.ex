@@ -2,11 +2,9 @@ defmodule Voyager.Services.Ets.Sanitize do
   @moduledoc """
   Caps ETS record terms for host display. No redaction.
 
-  Same numbers as the Erlang truncator in `voyager_agent`: 512-byte binaries,
-  50 elements per collection, depth 5, then a `:"$voyager_truncated"` marker.
-  Marker wrappers are preserved and payloads are re-capped so a second pass
-  (Fetch after an agent truncate) is idempotent and a coincidental marker
-  shape cannot smuggle an uncapped term.
+  Same caps as `voyager_agent` (512 / 50 / 5). Marker wrappers are preserved
+  and payloads re-capped so a second pass is idempotent and a coincidental
+  marker shape cannot smuggle an uncapped term.
   """
 
   @max_binary_bytes 512
@@ -21,29 +19,18 @@ defmodule Voyager.Services.Ets.Sanitize do
           | {:"$voyager_truncated", :tuple, [term()], non_neg_integer()}
           | {:"$voyager_truncated", :depth}
 
-  @doc "Maximum kept prefix of an oversized binary, in bytes."
   @spec max_binary_bytes() :: 512
   def max_binary_bytes, do: @max_binary_bytes
 
-  @doc "Maximum kept elements per list, map, or tuple."
   @spec max_collection() :: 50
   def max_collection, do: @max_collection
 
-  @doc "Maximum nesting of lists, maps, and tuples before a depth marker."
   @spec max_depth() :: 5
   def max_depth, do: @max_depth
 
-  @doc "Placeholder atom shared with the Erlang truncator in `voyager_agent`."
   @spec marker() :: :"$voyager_truncated"
   def marker, do: @marker
 
-  @doc """
-  Returns a size-capped copy of `value`.
-
-  Oversized binaries keep a 512-byte prefix. Collections keep 50 elements.
-  Nesting stops at depth 5. Existing truncated markers keep their wrapper;
-  payloads are re-capped.
-  """
   @spec term(term()) :: term()
   def term(value), do: sanitize(value, 0)
 
