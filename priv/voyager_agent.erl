@@ -23,7 +23,7 @@
 %% cannot spin here forever.
 -define(MAX_REGISTER_ATTEMPTS, 3).
 
--define(ETS_MAX_HEAP_SIZE, 500000).
+-define(ETS_MAX_HEAP_SIZE, 500_000).
 -define(ETS_CHUNK_SIZES, [10, 20, 50]).
 -define(MATCH_ALL, [{'$1', [], ['$1']}]).
 -define(MAX_BINARY_BYTES, 512).
