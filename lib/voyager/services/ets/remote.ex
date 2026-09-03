@@ -2,23 +2,14 @@ defmodule Voyager.Services.Ets.Remote do
   @moduledoc """
   Fetches ETS table metadata and record payloads from a remote node.
 
-  Listing is cheap and bounded: one `:ets.all/0` and one `:lists.map` of
-  `:ets.info/1`. Record reads (`select_chunk` / `lookup`) probe
-  `:voyager_agent` **exports** (`ets_select_chunk/3`, `ets_lookup/2`) and
-  fall back to OTP MFA only when those exports are missing. Heap kill,
-  timeout, noconnection, and `undef` after a successful probe do **not**
-  fall back to MFA. This module never injects code or calls `register/1`.
-
   `:ets.info/1` includes private tables (`protection: :private`). `memory` is
   in bytes, using the target's `:erlang.system_info(:wordsize)`.
 
-  Record payloads are unsanitized. Callers that surface terms must go
-  through `Voyager.Services.Ets.Fetch`. Paging is best-effort; there is
-  no snapshot isolation. MFA can only return the first page; later pages
-  need the agent or they are `{:error, :cannot_page}`. A continuation
-  returned to Voyager has crossed external term format, so the agent
-  must `:ets.repair_continuation/2` it on the target against the
-  match-all spec before `:ets.select/1`.
+  Record reads probe `:voyager_agent` exports and fall back to OTP MFA only
+  when those exports are missing. Heap kill, timeout, noconnection, and `undef`
+  after a successful probe do not fall back. This module never injects code
+  or calls `register/1`. Payloads are unsanitized; callers that surface terms
+  must go through `Voyager.Services.Ets.Fetch`.
   """
 
   alias Voyager.Erpc
@@ -101,23 +92,12 @@ defmodule Voyager.Services.Ets.Remote do
   def info(_node, _table, _timeout), do: {:error, :invalid_table}
 
   @doc """
-  Returns a match-all page of records from `table` on `node`.
+  Match-all page of records. Missing agent export falls back to `:ets.select/3`
+  for the first page only; later MFA pages are `{:error, :cannot_page}`.
 
-  `limit` must be 10, 20, or 50 (10 is the usual first page). `continuation`
-  is `nil` for the first page and the opaque ETS continuation from a prior
-  chunk afterwards. Missing `:voyager_agent.ets_select_chunk/3` falls back
-  to `:ets.select/3` for the first page only. A non-nil continuation on
-  that MFA path is `{:error, :cannot_page}`. Paging is best-effort.
-
-  A non-`:undefined` continuation sent to `:voyager_agent.ets_select_chunk/3`
-  has already crossed external term format (target → Voyager on the previous
-  chunk, Voyager → target here). That call **must** run
-  `:ets.repair_continuation(Cont, MatchSpec)` on the target before
-  `:ets.select/1`. `MatchSpec` **must** be the match-all used for the first
-  page, `[{:"$1", [], [:"$1"]}]`. Repair cannot run on Voyager: a spec
-  compiled here would be invalidated on the way back. Skipping repair, or
-  repairing against a different spec, raises `badarg` and surfaces as
-  `{:error, :cannot_read}`.
+  A continuation that crossed ETF must be `:ets.repair_continuation/2`'d on
+  the target against `[{:"$1", [], [:"$1"]}]`; a spec compiled here is
+  invalidated on the way back.
   """
   @spec select_chunk(node(), TableId.t(), pos_integer(), term() | nil, timeout()) ::
           {:ok, chunk()} | {:error, term()}
@@ -134,12 +114,6 @@ defmodule Voyager.Services.Ets.Remote do
 
   def select_chunk(_node, _table, _limit, _continuation, _timeout), do: {:error, :invalid_table}
 
-  @doc """
-  Looks up `key` in `table` on `node`.
-
-  Keys in this cut: atom, integer, or binary. Missing
-  `:voyager_agent.ets_lookup/2` falls back to `:ets.lookup/2`.
-  """
   @spec lookup(node(), TableId.t(), lookup_key(), timeout()) ::
           {:ok, chunk()} | {:error, term()}
   def lookup(node, table, key, timeout \\ Erpc.default_timeout())
@@ -175,8 +149,7 @@ defmodule Voyager.Services.Ets.Remote do
     end
   end
 
-  # MFA cannot repair_continuation+select in one call, so later pages
-  # need the agent.
+  # MFA cannot repair_continuation+select in one call, so later pages need the agent.
   defp mfa_select(_node, _table, _limit, continuation, _timeout)
        when not is_nil(continuation) do
     {:error, :cannot_page}
