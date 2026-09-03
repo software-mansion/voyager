@@ -103,12 +103,20 @@ defmodule VoyagerAgentEtsTest do
       assert {:ok, page3} = Remote.select_chunk(Node.self(), name, 10, page2.continuation)
       assert page3.via == :agent
       assert length(page3.records) == 5
-      assert page3.continuation
+      assert page3.continuation == nil
+    end
 
-      assert {:ok, page4} = Remote.select_chunk(Node.self(), name, 10, page3.continuation)
-      assert page4.via == :agent
-      assert page4.records == []
-      assert page4.continuation == nil
+    test "maps a table smaller than the chunk size to continuation nil" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :set])
+      on_exit(fn -> EtsTable.safe_delete(name) end)
+
+      for i <- 1..3, do: :ets.insert(name, {i, i})
+
+      assert {:ok, page} = Remote.select_chunk(Node.self(), name, 10)
+      assert page.via == :agent
+      assert length(page.records) == 3
+      assert page.continuation == nil
     end
 
     test "returns '$end_of_table' for an empty table" do

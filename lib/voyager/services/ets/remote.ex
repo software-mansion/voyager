@@ -180,6 +180,10 @@ defmodule Voyager.Services.Ets.Remote do
     {:ok, %{records: [], continuation: nil, via: via}}
   end
 
+  defp decode_select({records, :"$end_of_table"}, via) when is_list(records) do
+    {:ok, %{records: records, continuation: nil, via: via}}
+  end
+
   defp decode_select({records, continuation}, via) when is_list(records) do
     {:ok, %{records: records, continuation: continuation, via: via}}
   end

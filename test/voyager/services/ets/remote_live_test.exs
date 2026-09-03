@@ -81,6 +81,19 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
              Remote.select_chunk(Node.self(), name, 10, chunk.continuation)
   end
 
+  test "select_chunk/3 MFA last page maps :\"$end_of_table\" continuation to nil" do
+    name = EtsTable.unique_name()
+    :ets.new(name, [:named_table, :public, :set])
+    on_exit(fn -> EtsTable.safe_delete(name) end)
+
+    for i <- 1..3, do: :ets.insert(name, {i, i})
+
+    assert {:ok, chunk} = Remote.select_chunk(Node.self(), name, 10)
+    assert chunk.via == :mfa
+    assert length(chunk.records) == 3
+    assert chunk.continuation == nil
+  end
+
   test "an ETF-round-tripped continuation needs repair_continuation/2 before select/1" do
     name = EtsTable.unique_name()
     :ets.new(name, [:named_table, :public, :set])

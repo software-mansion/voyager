@@ -302,6 +302,19 @@ defmodule Voyager.Services.Ets.RemoteTest do
       assert_received {:called, :select, @node, [{:"$1", [], [:"$1"]}], @timeout}
     end
 
+    test "maps an MFA last page {records, :\"$end_of_table\"} to continuation nil" do
+      stub_exported(:ets_select_chunk, 3, false)
+
+      expect(Voyager.ErpcMock, :call, fn @node, :ets, :select, [:t, _spec, 10], @timeout ->
+        {[{:a, 1}, {:b, 2}, {:c, 3}], :"$end_of_table"}
+      end)
+
+      assert {:ok, chunk} = Remote.select_chunk(@node, :t, 10, nil, @timeout)
+      assert chunk.records == [{:a, 1}, {:b, 2}, {:c, 3}]
+      assert chunk.continuation == nil
+      assert chunk.via == :mfa
+    end
+
     test "returns :cannot_page for an MFA continuation without calling :ets.select" do
       cont = make_ref()
       stub_exported(:ets_select_chunk, 3, false)
@@ -327,6 +340,23 @@ defmodule Voyager.Services.Ets.RemoteTest do
       assert chunk.continuation == cont
 
       assert_received {:called, @node, [^table, 10, :undefined], @timeout}
+    end
+
+    test "maps an agent last page {records, :\"$end_of_table\"} to continuation nil" do
+      stub_exported(:ets_select_chunk, 3, true)
+
+      expect(Voyager.ErpcMock, :call, fn @node,
+                                         :voyager_agent,
+                                         :ets_select_chunk,
+                                         [:t, 10, :undefined],
+                                         @timeout ->
+        {[{:ok, 1}], :"$end_of_table"}
+      end)
+
+      assert {:ok, chunk} = Remote.select_chunk(@node, :t, 10, nil, @timeout)
+      assert chunk.via == :agent
+      assert chunk.records == [{:ok, 1}]
+      assert chunk.continuation == nil
     end
 
     test "passes a raw continuation through to the agent, not :undefined" do
