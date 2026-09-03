@@ -29,7 +29,8 @@ defmodule Voyager.Services.Ets.Fetch do
   is `nil` for the first page and the opaque ETS term from a prior chunk
   afterwards — callers (LiveView) bind it to `{node, table_id}`, not a URL
   token. MFA cannot follow a continuation (`{:error, :cannot_page}`);
-  later pages need the agent.
+  later pages need the agent, which must repair the continuation against
+  the match-all spec `[{:"$1", [], [:"$1"]}]` on the target.
   """
   @spec select_chunk(node(), TableId.t(), pos_integer(), term() | nil, timeout()) ::
           {:ok, chunk()} | {:error, term()}
