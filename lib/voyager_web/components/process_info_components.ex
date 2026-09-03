@@ -1,12 +1,149 @@
 defmodule VoyagerWeb.Components.ProcessInfoComponents do
   @moduledoc """
   Cards and lists for the process info page.
+
+  The page-specific cards (`overview_card/1`, `relations_card/1`,
+  `term_card/1`) render straight from the async assigns the LiveView owns; the
+  rest are generic building blocks.
   """
 
   use VoyagerWeb, :component
 
+  import VoyagerWeb.Components.DetailsPanelComponents,
+    only: [overview: 1, memory_and_garbage_collection: 1, section: 1]
+
   alias Phoenix.LiveView.AsyncResult
   alias VoyagerWeb.Formatters
+
+  @doc """
+  The overview card: the same bounded fields the supervision-tree details
+  panel shows, plus memory and GC.
+  """
+  attr :info, AsyncResult, required: true
+  attr :disabled, :boolean, required: true
+  attr :loading?, :boolean, required: true
+
+  def overview_card(assigns) do
+    ~H"""
+    <.card id="process-overview-card">
+      <:actions>
+        <.refresh_button
+          id="process-overview-refresh"
+          event="fetch-overview"
+          label="Refresh overview and links"
+          loading?={@loading?}
+          disabled={@disabled}
+        />
+      </:actions>
+      <.overview info={@info} />
+      <.memory_and_garbage_collection info={@info} />
+    </.card>
+    """
+  end
+
+  @doc """
+  The links / monitors / monitored-by card.
+  """
+  attr :relations, AsyncResult, required: true
+  attr :node_name, :string, required: true
+  attr :remote_node, :atom, required: true
+
+  def relations_card(assigns) do
+    ~H"""
+    <.card id="process-links-card" class="h-max">
+      <.async_result :let={relations} assign={@relations}>
+        <:loading>
+          <.section :for={title <- ["Links", "Monitors", "Monitored by"]} title={title}>
+            <div class="flex flex-wrap gap-1.5">
+              <div :for={_ <- 1..3} class="skeleton h-6 w-16 rounded" />
+            </div>
+          </.section>
+        </:loading>
+        <:failed :let={reason}>
+          <.section title="Links">
+            <.fetch_error id="process-links-error" message={error_message(reason)} />
+          </.section>
+        </:failed>
+        <.section
+          :for={
+            {title, id, bounded} <- [
+              {"Links", "process-links", relations.links},
+              {"Monitors", "process-monitors", relations.monitors},
+              {"Monitored by", "process-monitored-by", relations.monitored_by}
+            ]
+          }
+          title={title}
+          muted={bounded_count(bounded)}
+        >
+          <.identifier_chips
+            id={id}
+            items={bounded.items}
+            total={bounded.total}
+            node_name={@node_name}
+            remote_node={@remote_node}
+          />
+        </.section>
+      </.async_result>
+    </.card>
+    """
+  end
+
+  @doc """
+  A card for one gated, unbounded term fetch (state, messages, dictionary).
+
+  `result` is `nil` until the first fetch, which renders the explicit-fetch
+  gate; afterwards the card carries its own refresh button and renders the
+  loaded value through the inner block.
+  """
+  attr :id, :string, required: true, doc: "base for the card, button and error DOM ids"
+  attr :title, :string, required: true
+  attr :muted, :string, default: nil
+  attr :result, :any, required: true, doc: "nil or an AsyncResult"
+  attr :fetch_event, :string, required: true
+  attr :fetch_label, :string, required: true
+  attr :gate_description, :string, required: true
+  attr :disabled, :boolean, required: true
+  slot :inner_block, required: true
+
+  def term_card(assigns) do
+    ~H"""
+    <.card id={"#{@id}-card"}>
+      <:actions>
+        <.refresh_button
+          :if={@result}
+          id={"#{@id}-refresh"}
+          event={@fetch_event}
+          label={"Refresh #{String.downcase(@title)}"}
+          loading?={loading?(@result)}
+          disabled={@disabled}
+        />
+      </:actions>
+      <.section title={@title} muted={@muted}>
+        <.fetch_gate
+          :if={is_nil(@result)}
+          id={"#{@id}-fetch"}
+          event={@fetch_event}
+          label={@fetch_label}
+          description={@gate_description}
+          disabled={@disabled}
+        />
+        <.async_result :let={value} :if={@result} assign={@result}>
+          <:loading>
+            <div id={"#{@id}-skeleton"} class="flex flex-col gap-2">
+              <div class="skeleton h-3 w-2/3 rounded" />
+              <div class="skeleton h-3 w-1/2 rounded" />
+              <div class="skeleton h-3 w-3/5 rounded" />
+            </div>
+          </:loading>
+          <:failed :let={reason}>
+            <.fetch_error id={"#{@id}-error"} message={error_message(reason)} />
+          </:failed>
+          {render_slot(@inner_block, value)}
+        </.async_result>
+      </.section>
+    </.card>
+    """
+  end
 
   @doc """
   A page card. `:actions` floats in the top-right corner so section headings
@@ -93,6 +230,17 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
     """
   end
 
+  attr :id, :string, required: true
+
+  def truncation_note(assigns) do
+    ~H"""
+    <p id={@id} class="text-base-content/70 flex items-center gap-1.5 text-xs">
+      <.icon name="icon-info" class="size-3.5 shrink-0" />
+      Truncated on the remote node — some entries or values are not shown.
+    </p>
+    """
+  end
+
   @doc """
   A flat list of process identifiers. Pids living on the inspected node become
   links to their own process info page; ports, references, remote names and
@@ -135,26 +283,6 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
     """
   end
 
-  def relations_skeleton(assigns) do
-    ~H"""
-    <div class="flex flex-wrap gap-1.5">
-      <div :for={_ <- 1..3} class="skeleton h-6 w-16 rounded" />
-    </div>
-    """
-  end
-
-  attr :id, :string, required: true
-
-  def term_skeleton(assigns) do
-    ~H"""
-    <div id={@id} class="flex flex-col gap-2">
-      <div class="skeleton h-3 w-2/3 rounded" />
-      <div class="skeleton h-3 w-1/2 rounded" />
-      <div class="skeleton h-3 w-3/5 rounded" />
-    </div>
-    """
-  end
-
   @doc """
   Formats the `muted` counter of a section from a bounded result, or from an
   `AsyncResult` holding one.
@@ -165,6 +293,23 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
 
   def bounded_count(%{total: total}), do: "(#{Formatters.format_integer(total)})"
   def bounded_count(_result), do: nil
+
+  @spec loading?(AsyncResult.t() | nil) :: boolean()
+  def loading?(%AsyncResult{loading: loading}), do: loading != nil
+  def loading?(_result), do: false
+
+  @spec error_message(term()) :: String.t()
+  def error_message(:invalid_pid), do: "No process with this pid exists on the node."
+  def error_message(:dead), do: "The process is no longer alive."
+  def error_message(:timeout), do: "The process did not reply in time."
+  def error_message(:no_state), do: "This process does not expose a state."
+  def error_message(:rate_limited), do: "Too many requests. Wait a moment and retry."
+  def error_message(:noconnection), do: "Node is unreachable."
+
+  def error_message({:remote_exception, :undef}),
+    do: "The Voyager agent is not loaded on this node."
+
+  def error_message(_reason), do: "Failed to fetch process information."
 
   # Monitor entries arrive as `{:process, target}` / `{:port, port}`; links and
   # monitored-by entries as bare pids and ports.
