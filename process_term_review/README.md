@@ -25,3 +25,9 @@ PR head (commit `ef80729`), vendored so the harness is self-contained.
 
 Each `bench.exs` run prints one `RESULT` line: peak node memory / RSS, the
 observed process's real heap size, elapsed time, and the outcome.
+
+## Follow-up study (ASSESSMENT.md)
+
+`assess.exs` — O(1) gate metrics, no-capped-mailbox-read proof, sharing-gate gap.
+`ratelimit_bench.exs` — drives fetches through the real `RateLimiter` to measure
+how `capacity`/`refill` budgets bound (or fail to bound) load on the observed node.
