@@ -95,13 +95,23 @@ defmodule VoyagerAgentEtsTest do
 
       for i <- 1..25, do: :ets.insert(name, {i, blob})
 
+      truncated = Sanitize.term(blob)
+
       assert {records, cont} = @agent_module.ets_select_chunk(name, 10, :undefined)
       assert length(records) == 10
-      assert Enum.all?(records, fn {_i, value} -> value == Sanitize.term(blob) end)
+      assert Enum.all?(records, fn {_i, value} -> value == truncated end)
       refute match?({:"$voyager_truncated", _, _, _}, cont)
 
-      assert {more, _cont2} = @agent_module.ets_select_chunk(name, 10, cont)
+      assert {more, cont2} = @agent_module.ets_select_chunk(name, 10, cont)
       assert length(more) == 10
+      assert Enum.all?(more, fn {_i, value} -> value == truncated end)
+
+      assert {last, cont3} = @agent_module.ets_select_chunk(name, 10, cont2)
+      assert length(last) == 5
+      assert Enum.all?(last, fn {_i, value} -> value == truncated end)
+      refute match?({:"$voyager_truncated", _, _, _}, cont3)
+
+      assert :"$end_of_table" = @agent_module.ets_select_chunk(name, 10, cont3)
     end
 
     test "pages through Remote after the first chunk" do
@@ -119,6 +129,28 @@ defmodule VoyagerAgentEtsTest do
       assert {:ok, page2} = Remote.select_chunk(Node.self(), name, 10, page.continuation)
       assert page2.via == :agent
       assert length(page2.records) == 10
+      assert page2.continuation
+
+      assert {:ok, page3} = Remote.select_chunk(Node.self(), name, 10, page2.continuation)
+      assert page3.via == :agent
+      assert length(page3.records) == 5
+      assert page3.continuation
+
+      assert {:ok, page4} = Remote.select_chunk(Node.self(), name, 10, page3.continuation)
+      assert page4.via == :agent
+      assert page4.records == []
+      assert page4.continuation == nil
+    end
+
+    test "returns '$end_of_table' for an empty table" do
+      name = unique_name()
+      :ets.new(name, [:named_table, :public, :set])
+      on_exit(fn -> safe_delete(name) end)
+
+      assert :"$end_of_table" = @agent_module.ets_select_chunk(name, 10, :undefined)
+
+      assert {:ok, %{records: [], continuation: nil, via: :agent}} =
+               Remote.select_chunk(Node.self(), name, 10)
     end
 
     test "lookup truncates a matching record" do
