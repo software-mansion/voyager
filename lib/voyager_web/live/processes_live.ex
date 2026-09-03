@@ -141,8 +141,7 @@ defmodule VoyagerWeb.ProcessesLive do
     |> noreply()
   end
 
-  # Anything else is a hand-edited or stale storage entry. The defaults still
-  # need their scan, or the page would wait on a fetch that never starts.
+  # Anything else is a hand-edited or stale storage entry.
   def handle_event("restore_settings", _params, socket) do
     socket
     |> Fetcher.start()
