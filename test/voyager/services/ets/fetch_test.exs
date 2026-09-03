@@ -65,8 +65,10 @@ defmodule Voyager.Services.Ets.FetchTest do
     stub_exported(:ets_select_chunk, 3, false)
 
     expect(Voyager.ErpcMock, :call, fn @node, :ets, :select, [:t, _spec, 10], 50 ->
-      Process.sleep(5_000)
-      :"$end_of_table"
+      receive do
+      after
+        :infinity -> :"$end_of_table"
+      end
     end)
 
     assert {:error, :timeout} = Fetch.select_chunk(@node, :t, 10, nil, 50)
@@ -80,12 +82,12 @@ defmodule Voyager.Services.Ets.FetchTest do
                                        :function_exported,
                                        [:voyager_agent, :ets_select_chunk, 3],
                                        ^timeout ->
-      Process.sleep(50)
+      Process.sleep(timeout)
       false
     end)
 
     expect(Voyager.ErpcMock, :call, fn @node, :ets, :select, [:t, _spec, 10], ^timeout ->
-      Process.sleep(50)
+      Process.sleep(timeout)
       :"$end_of_table"
     end)
 
