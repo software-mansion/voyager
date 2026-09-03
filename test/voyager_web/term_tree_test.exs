@@ -227,6 +227,17 @@ defmodule VoyagerWeb.TermTreeTest do
       assert TermTree.children(123, 0, 10) == []
     end
 
+    test "improper lists have no children, matching how they are described" do
+      assert TermTree.children([1 | 2], 0, 10) == []
+      assert TermTree.children(["hello" | "world"], 0, 10) == []
+    end
+
+    test "a struct key keeps its whole rendering, not just its first segment" do
+      children = TermTree.children(%{%State{} => 1}, 0, 10)
+
+      assert child_keys(children) == ["%VoyagerWeb.TermTree.State{...} => "]
+    end
+
     test "offset and limit window the children" do
       assert TermTree.children([1, 2, 3, 4, 5], 1, 2) == [{nil, 2}, {nil, 3}]
       assert TermTree.children(Enum.to_list(1..100), 0, 50) |> length() == 50
@@ -280,6 +291,10 @@ defmodule VoyagerWeb.TermTreeTest do
       assert TermTree.initial_state([~c"hi"]).open == MapSet.new([[]])
       assert TermTree.initial_state([[], {}]).open == MapSet.new([[]])
       assert TermTree.initial_state([[1 | 2]]).open == MapSet.new([[]])
+    end
+
+    test "an improper root is walked without raising" do
+      assert TermTree.initial_state(["hello" | "world"]).open == MapSet.new([[]])
     end
 
     test "walking stops at :depth levels" do
@@ -391,6 +406,13 @@ defmodule VoyagerWeb.TermTreeTest do
       assert copied =~ ~r/\["#Reference<[\d.]+>"\]/
       assert {[reference], _binding} = Code.eval_string(copied)
       assert is_binary(reference)
+    end
+
+    test "leaves a #Name<...> form inside a binary alone" do
+      log = "boot #PID<0.1.0> ready #Foo<1>"
+      copied = TermTree.copy_string(%{log: log})
+
+      assert {%{log: ^log}, _binding} = Code.eval_string(copied)
     end
 
     test "expands structs, which have no literal form on the far side" do

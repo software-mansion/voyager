@@ -65,10 +65,18 @@ defmodule VoyagerWeb.TermTree do
   end
 
   def children(list, offset, limit) when is_list(list) do
-    if Keyword.keyword?(list) do
-      list |> Enum.slice(offset, limit) |> Enum.map(&key_value/1)
-    else
-      list |> Enum.slice(offset, limit) |> Enum.map(&{nil, &1})
+    case list_length(list) do
+      :improper ->
+        []
+
+      {:ok, _count} ->
+        slice = Enum.slice(list, offset, limit)
+
+        if Keyword.keyword?(list) do
+          Enum.map(slice, &key_value/1)
+        else
+          Enum.map(slice, &{nil, &1})
+        end
     end
   end
 
@@ -146,14 +154,30 @@ defmodule VoyagerWeb.TermTree do
   """
   @spec copy_string(term()) :: String.t()
   def copy_string(term) do
-    term
-    |> inspect(limit: :infinity, printable_limit: :infinity, pretty: true, structs: false)
-    |> String.replace(~r/#PID<\d+\.\d+\.\d+>/, fn pid ->
-      [digits] = Regex.run(~r/\d+\.\d+\.\d+/, pid)
-      ":erlang.list_to_pid(~c\"<#{digits}>\")"
-    end)
-    |> String.replace(~r/#.+?<.*?>/, &"\"#{&1}\"")
+    inspect(term,
+      limit: :infinity,
+      printable_limit: :infinity,
+      pretty: true,
+      structs: false,
+      inspect_fun: &copy_inspect/2
+    )
   end
+
+  # Rewriting the flattened output instead would reach inside string literals
+  # and break the round-trip for any binary that happens to read like a pid.
+  defp copy_inspect(pid, _opts) when is_pid(pid) do
+    ":erlang.list_to_pid(~c\"" <> List.to_string(:erlang.pid_to_list(pid)) <> "\")"
+  end
+
+  defp copy_inspect(term, _opts)
+       when is_reference(term) or is_port(term) or is_function(term) do
+    case inspect(term) do
+      "#" <> _ = text -> inspect(text)
+      text -> text
+    end
+  end
+
+  defp copy_inspect(term, opts), do: Inspect.inspect(term, opts)
 
   defp prefix(node, nil), do: node
 
@@ -300,7 +324,7 @@ defmodule VoyagerWeb.TermTree do
   end
 
   defp key_segments(key) do
-    [key |> describe() |> Map.fetch!(:content) |> hd(), Segment.punctuation(" => ")]
+    describe(key).content ++ [Segment.punctuation(" => ")]
   end
 
   # The marker sorts by its own name, which would drop it in the middle of the
