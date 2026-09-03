@@ -68,6 +68,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
       defaults = [
         id: "panel-sec",
         section: :sec,
+        active: true,
         timeout: 5_000,
         loading?: false,
         disabled: false,
@@ -93,6 +94,12 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
       html = panel(fetched_at: dt)
 
       assert text(html, "#panel-sec-fetched-at") =~ "fetched 09:08:07 UTC"
+    end
+
+    test "stays in the DOM but hidden while another tab is active" do
+      html = panel(active: false)
+
+      assert count(html, ".hidden #panel-sec") == 1
     end
   end
 

@@ -301,16 +301,22 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :title, :string, required: true
   attr :muted, :string, default: nil
+  attr :help, :string, default: nil, doc: "renders a \"?\" tooltip next to the title"
+  attr :class, :any, default: nil
   slot :inner_block, required: true
 
   def section(assigns) do
+    assigns =
+      assign(assigns, :help_id, "section-help-" <> String.replace(assigns.title, " ", "-"))
+
     ~H"""
-    <div>
-      <h4 class="text-base-content mb-2 text-sm font-semibold leading-none">
+    <div class={@class}>
+      <h4 class="text-base-content mb-2 flex items-center gap-1 text-sm font-semibold leading-none">
         {@title}
         <span :if={@muted} class="font-mono text-base-content/70 ml-1 text-xs font-normal">
           {@muted}
         </span>
+        <.help_tooltip :if={@help} id={@help_id} text={@help} />
       </h4>
       {render_slot(@inner_block)}
     </div>
