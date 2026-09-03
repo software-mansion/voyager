@@ -39,10 +39,12 @@ const TableSettings = {
       );
     }
 
-    this.pushEvent(
-      'restore_settings',
-      settings && typeof settings === 'object' ? settings : {}
-    );
+    // A JSON array is also `typeof "object"`, and reaches the server as a
+    // list, where a string key would raise.
+    const restorable =
+      settings && typeof settings === 'object' && !Array.isArray(settings);
+
+    this.pushEvent('restore_settings', restorable ? settings : {});
   },
 };
 

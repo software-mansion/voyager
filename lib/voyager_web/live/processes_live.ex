@@ -133,10 +133,18 @@ defmodule VoyagerWeb.ProcessesLive do
 
   # The client's stored controls, empty when it has none.
   # Mount doesn't start fetch
-  def handle_event("restore_settings", params, socket) do
+  def handle_event("restore_settings", params, socket) when is_map(params) do
     socket
     |> assign(:page_size, page_size(parse_integer(params["page_size"])))
     |> apply_controls(params)
+    |> Fetcher.start()
+    |> noreply()
+  end
+
+  # Anything else is a hand-edited or stale storage entry. The defaults still
+  # need their scan, or the page would wait on a fetch that never starts.
+  def handle_event("restore_settings", _params, socket) do
+    socket
     |> Fetcher.start()
     |> noreply()
   end
