@@ -74,13 +74,11 @@ defmodule VoyagerAgentEtsTest do
       assert {more, cont2} = @agent_module.ets_select_chunk(name, 10, cont)
       assert length(more) == 10
       assert Enum.all?(more, fn {_i, value} -> value == truncated end)
+      refute match?({:"$voyager_truncated", _, _, _}, cont2)
 
-      assert {last, cont3} = @agent_module.ets_select_chunk(name, 10, cont2)
+      assert {last, :"$end_of_table"} = @agent_module.ets_select_chunk(name, 10, cont2)
       assert length(last) == 5
       assert Enum.all?(last, fn {_i, value} -> value == truncated end)
-      refute match?({:"$voyager_truncated", _, _, _}, cont3)
-
-      assert :"$end_of_table" = @agent_module.ets_select_chunk(name, 10, cont3)
     end
 
     test "pages through Remote after the first chunk" do
