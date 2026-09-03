@@ -11,12 +11,9 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.ProcessListControls
 
-  # Shown when a process has no value for a column; `value_cell/1` matches on it
-  # to explain the gap rather than offering it to copy.
   @placeholder "—"
 
-  # Ordered as they appear in the table. Fixed widths on the numeric columns
-  # keep values that change every refresh from shifting the layout.
+  # Ordered as they appear in the table.
   @columns [
     %{key: :pid, label: "PID", sortable?: false, align: :left, width: :md},
     %{key: :registered_name, label: "Name", sortable?: false, align: :left},
@@ -29,6 +26,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
     %{key: :current_function, label: "Current function", sortable?: false, align: :left}
   ]
 
+  # Order for Columns multiselect
   @labels %{
     pid: "PID",
     memory: "Memory",
@@ -68,8 +66,8 @@ defmodule VoyagerWeb.Components.ProcessComponents do
               name={@form[:search].name}
               value={@form[:search].value}
               phx-debounce="500"
-              placeholder="Search by PID, name or initial call"
-              aria-label="Search by PID, name or initial call"
+              placeholder="Search by non-numeric fields"
+              aria-label="Search by non-numeric fields"
             />
           </label>
 
@@ -78,7 +76,6 @@ defmodule VoyagerWeb.Components.ProcessComponents do
             <.field_label
               field={@form[:timeout]}
               label="Timeout (ms)"
-              help={timeout_help(@node_name)}
             />
             <.field_label field={@form[:columns]} label="Columns" />
 
@@ -128,11 +125,6 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   end
 
   defp limit_help(node_name), do: "Limit of processes which are fetched from #{node_name}"
-
-  # `:erpc.call/5` abandons the remote worker when the wait ends, but does not
-  # stop it, so the scan runs to completion on the node either way.
-  defp timeout_help(node_name),
-    do: "How long to wait for #{node_name}. The scan itself runs to completion there."
 
   attr :field, Phoenix.HTML.FormField, required: true
   attr :label, :string, required: true

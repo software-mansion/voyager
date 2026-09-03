@@ -2,13 +2,9 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   @moduledoc """
   Reusable building blocks for the node inspection list pages.
 
-  Two domain-agnostic pieces every list page (processes, ETS tables, ports, …)
-  can share: a sortable `table/1` and a `pager/1`. Both are stateless — the
-  caller holds the sort and the page, and handles the `sort` and `paginate`
-  events they emit.
-
-  Page-specific controls (search, filters, fetch options) belong with the page,
-  not here.
+  Two domain-agnostic pieces every list page can share: a sortable `table/1` and a `pager/1`.
+  Both are stateless — the caller holds the sort and the page, and handles the `sort` and `paginate` events they emit.
+  Page-specific fetch options belong with the page, not here.
 
   Columns are described as maps rather than slots so a page can keep its column
   list in one place and reuse it for both the header and the body:
@@ -29,9 +25,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
 
   @doc """
   The narrowest a page holding the table should get.
-
-  Wider than the table by its card's padding, so the table always fits inside
-  the card rather than spilling past its border.
   """
   @spec page_min_width_class() :: String.t()
   def page_min_width_class, do: "min-w-6xl"
@@ -39,9 +32,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   @doc """
   Sortable table.
 
-  `rows` is a list of `{dom_id, row}` tuples, matching the shape a LiveView
-  stream yields. The `<tbody>` has no `phx-update="stream"`, so a stream cannot
-  be passed directly: a caller holding one renders from a re-fetched list.
+  `rows` is a list of `{dom_id, row}` tuples/
   Each column renders through the `:cell` slot, which receives
   `%{column: column, row: row, row_id: dom_id}`.
   """
@@ -58,9 +49,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
     ~H"""
     <div class="card bg-base-100 border-base-200 border shadow-sm">
       <div class="p-5">
-        <%!-- A cell's own min-width is ignored under fixed layout, so the floor
-              lives on the table: without it a wide column set keeps dividing
-              the available space until the unsized columns collapse. --%>
         <table id={@id} class="table-pin-rows table-md min-w-5xl table w-full table-fixed">
           <thead>
             <tr>
@@ -79,8 +67,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
               </td>
             </tr>
             <tr :for={{dom_id, row} <- @rows} id={dom_id}>
-              <%!-- `truncate` needs a block box, so it wraps the content
-                    rather than sitting on the td. --%>
               <td
                 :for={column <- @columns}
                 data-column={column.key}
@@ -125,8 +111,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         aria-label={"Sort by #{@column.label}"}
       >
         <span class="truncate">{@column.label}</span>
-        <%!-- Both directions are always shown so a sortable column is
-              recognisable at a glance; the active one is undimmed. --%>
         <span class="inline-flex shrink-0 items-center" aria-hidden="true">
           <.icon name="icon-move-up" class={["size-3", arrow_class(@active?, @direction, :asc)]} />
           <.icon
@@ -152,8 +136,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
     """
   end
 
-  # Only the arrow matching the active sort direction is undimmed; every other
-  # arrow stays grayed so it reads as "sortable" rather than "sorted".
   defp arrow_class(true, direction, direction), do: "text-primary"
   defp arrow_class(_active?, _direction, _arrow), do: "text-base-content/30"
 
@@ -194,8 +176,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
           of <span class="font-mono">{Formatters.format_integer(@total)}</span>
         </p>
 
-        <%!-- Rows per page belongs with the paging controls: it only reslices
-              what was already fetched. --%>
         <form
           :if={@page_size_options != []}
           id={"#{@id}-page-size-form"}
@@ -256,11 +236,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   defp align_class(%{align: :right}), do: "text-right"
   defp align_class(_column), do: "text-left"
 
-  # A column may declare a fixed width so its values cannot widen the table as
-  # they change; anything longer truncates. Named sizes rather than an
-  # interpolated value, since Tailwind only emits classes it can see literally.
-  # `w-*` on a table cell is a minimum unless the table is fixed-layout, so the
-  # matching `max-w-*` is what actually forces truncation.
   defp width_class(%{width: :sm}), do: "w-28 max-w-28"
   defp width_class(%{width: :md}), do: "w-36 max-w-36"
   defp width_class(_column), do: nil
