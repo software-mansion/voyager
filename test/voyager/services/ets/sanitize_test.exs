@@ -22,7 +22,7 @@ defmodule Voyager.Services.Ets.SanitizeTest do
       assert Sanitize.term(term) == term
     end
 
-    test "exposes the VOY-230 caps" do
+    test "exposes the truncation caps" do
       assert Sanitize.max_binary_bytes() == 512
       assert Sanitize.max_collection() == 50
       assert Sanitize.max_depth() == 5
