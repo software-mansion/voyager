@@ -82,6 +82,20 @@ defmodule Voyager.Services.Ets.Fetch do
   defp map_remote_killed({:error, {:remote_exception, :killed}}),
     do: {:error, :heap_limit_exceeded}
 
-  defp map_remote_killed({:error, {:remote_exit, :killed}}), do: {:error, :heap_limit_exceeded}
+  defp map_remote_killed({:error, {:remote_exception, {:killed, _}}}),
+    do: {:error, :heap_limit_exceeded}
+
+  defp map_remote_killed({:error, {:remote_exit, {:exception, :killed}}}),
+    do: {:error, :heap_limit_exceeded}
+
+  defp map_remote_killed({:error, {:remote_exit, {:exception, {:killed, _}}}}),
+    do: {:error, :heap_limit_exceeded}
+
+  defp map_remote_killed({:error, {:remote_exit, {:signal, :killed}}}),
+    do: {:error, :heap_limit_exceeded}
+
+  defp map_remote_killed({:error, {:remote_exit, {:signal, {:killed, _}}}}),
+    do: {:error, :heap_limit_exceeded}
+
   defp map_remote_killed(err), do: err
 end
