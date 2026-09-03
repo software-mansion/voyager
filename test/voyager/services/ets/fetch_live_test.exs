@@ -4,6 +4,7 @@ defmodule Voyager.Services.Ets.FetchLiveTest do
   alias Voyager.Erpc
   alias Voyager.Services.Ets.Fetch
   alias Voyager.Services.Ets.Sanitize
+  alias Voyager.Test.EtsTable
 
   setup do
     Erpc.bind_impl(Voyager.Erpc.Impl)
@@ -11,9 +12,9 @@ defmodule Voyager.Services.Ets.FetchLiveTest do
   end
 
   test "select_chunk/3 returns sanitized records from a live table" do
-    name = unique_name()
+    name = EtsTable.unique_name()
     :ets.new(name, [:named_table, :public, :set])
-    on_exit(fn -> safe_delete(name) end)
+    on_exit(fn -> EtsTable.safe_delete(name) end)
 
     blob = :binary.copy(<<"z">>, 600)
     :ets.insert(name, {:row, blob})
@@ -24,9 +25,9 @@ defmodule Voyager.Services.Ets.FetchLiveTest do
   end
 
   test "lookup/3 returns sanitized records from a live table" do
-    name = unique_name()
+    name = EtsTable.unique_name()
     :ets.new(name, [:named_table, :public, :set])
-    on_exit(fn -> safe_delete(name) end)
+    on_exit(fn -> EtsTable.safe_delete(name) end)
 
     :ets.insert(name, {:k, Enum.to_list(1..60)})
 
@@ -36,9 +37,9 @@ defmodule Voyager.Services.Ets.FetchLiveTest do
   end
 
   test "select_chunk/3 leaves the ETS continuation unsanitized" do
-    name = unique_name()
+    name = EtsTable.unique_name()
     :ets.new(name, [:named_table, :public, :set])
-    on_exit(fn -> safe_delete(name) end)
+    on_exit(fn -> EtsTable.safe_delete(name) end)
 
     for i <- 1..25, do: :ets.insert(name, {i, :binary.copy(<<"a">>, 600)})
 
@@ -49,7 +50,7 @@ defmodule Voyager.Services.Ets.FetchLiveTest do
   end
 
   test "propagates :cannot_read for a private table owned by another process" do
-    pid = start_supervised!({Agent, fn -> :ets.new(unique_name(), [:private]) end})
+    pid = start_supervised!({Agent, fn -> :ets.new(EtsTable.unique_name(), [:private]) end})
     tid = Agent.get(pid, & &1)
 
     assert {:error, :cannot_read} = Fetch.select_chunk(Node.self(), tid, 10)
@@ -58,23 +59,13 @@ defmodule Voyager.Services.Ets.FetchLiveTest do
 
   @tag capture_log: true
   test "returns :heap_limit_exceeded when the copied payload exceeds the host heap cap" do
-    name = unique_name()
+    name = EtsTable.unique_name()
     :ets.new(name, [:named_table, :public, :set])
-    on_exit(fn -> safe_delete(name) end)
+    on_exit(fn -> EtsTable.safe_delete(name) end)
 
     # 500_000 words is process heap (cons cells), not refc binaries.
     :ets.insert(name, {:wide, Enum.to_list(1..400_000)})
 
     assert {:error, :heap_limit_exceeded} = Fetch.lookup(Node.self(), name, :wide, 15_000)
-  end
-
-  defp unique_name do
-    :"voyager_ets_#{System.unique_integer([:positive])}"
-  end
-
-  defp safe_delete(id) do
-    :ets.delete(id)
-  rescue
-    ArgumentError -> :ok
   end
 end

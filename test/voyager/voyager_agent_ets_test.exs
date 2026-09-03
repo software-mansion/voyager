@@ -8,45 +8,14 @@ defmodule VoyagerAgentEtsTest do
   alias Voyager.Services.Ets.Remote
   alias Voyager.Services.Ets.Sanitize
   alias Voyager.Test.EtsSanitizeFixture
+  alias Voyager.Test.EtsTable
+  alias Voyager.Test.VoyagerAgentFixture
 
   @agent_module :voyager_agent
-  @agent_filename "voyager_agent.erl"
 
   setup do
     Erpc.bind_impl(Voyager.Erpc.Impl)
-
-    path =
-      :voyager
-      |> :code.priv_dir()
-      |> Path.join(@agent_filename)
-      |> String.to_charlist()
-
-    :code.purge(@agent_module)
-    :code.delete(@agent_module)
-    :code.purge(@agent_module)
-
-    {:ok, @agent_module, binary} = :compile.file(path, [:binary, :return_errors])
-    {:module, @agent_module} = :code.load_binary(@agent_module, path, binary)
-
-    on_exit(fn ->
-      case Process.whereis(@agent_module) do
-        nil ->
-          :ok
-
-        pid ->
-          ref = Process.monitor(pid)
-          Process.exit(pid, :kill)
-
-          receive do
-            {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
-          end
-      end
-
-      :code.purge(@agent_module)
-      :code.delete(@agent_module)
-      :code.purge(@agent_module)
-    end)
-
+    VoyagerAgentFixture.load!()
     :ok
   end
 
@@ -76,9 +45,9 @@ defmodule VoyagerAgentEtsTest do
 
   describe "ets_select_chunk/3 and ets_lookup/2" do
     test "do not require the gen_server to be registered" do
-      name = unique_name()
+      name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set])
-      on_exit(fn -> safe_delete(name) end)
+      on_exit(fn -> EtsTable.safe_delete(name) end)
       :ets.insert(name, {:k, 1})
 
       assert Process.whereis(@agent_module) == nil
@@ -87,9 +56,9 @@ defmodule VoyagerAgentEtsTest do
     end
 
     test "truncates records and leaves the ETS continuation opaque" do
-      name = unique_name()
+      name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set])
-      on_exit(fn -> safe_delete(name) end)
+      on_exit(fn -> EtsTable.safe_delete(name) end)
 
       blob = :binary.copy(<<"a">>, 600)
 
@@ -115,9 +84,9 @@ defmodule VoyagerAgentEtsTest do
     end
 
     test "pages through Remote after the first chunk" do
-      name = unique_name()
+      name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set])
-      on_exit(fn -> safe_delete(name) end)
+      on_exit(fn -> EtsTable.safe_delete(name) end)
 
       for i <- 1..25, do: :ets.insert(name, {i, i})
 
@@ -143,9 +112,9 @@ defmodule VoyagerAgentEtsTest do
     end
 
     test "returns '$end_of_table' for an empty table" do
-      name = unique_name()
+      name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set])
-      on_exit(fn -> safe_delete(name) end)
+      on_exit(fn -> EtsTable.safe_delete(name) end)
 
       assert :"$end_of_table" = @agent_module.ets_select_chunk(name, 10, :undefined)
 
@@ -154,9 +123,9 @@ defmodule VoyagerAgentEtsTest do
     end
 
     test "lookup truncates a matching record" do
-      name = unique_name()
+      name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set])
-      on_exit(fn -> safe_delete(name) end)
+      on_exit(fn -> EtsTable.safe_delete(name) end)
 
       :ets.insert(name, {:k, Enum.to_list(1..60)})
 
@@ -167,7 +136,7 @@ defmodule VoyagerAgentEtsTest do
 
   describe "Fetch with agent loaded" do
     test "select_chunk/3 and lookup/3 cannot read a private table owned by another process" do
-      pid = start_supervised!({Agent, fn -> :ets.new(unique_name(), [:private]) end})
+      pid = start_supervised!({Agent, fn -> :ets.new(EtsTable.unique_name(), [:private]) end})
       tid = Agent.get(pid, & &1)
 
       assert {:error, :cannot_read} = Fetch.select_chunk(Node.self(), tid, 10)
@@ -176,23 +145,13 @@ defmodule VoyagerAgentEtsTest do
 
     @tag capture_log: true
     test "returns :heap_limit_exceeded when the worker exceeds the target heap cap" do
-      name = unique_name()
+      name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set])
-      on_exit(fn -> safe_delete(name) end)
+      on_exit(fn -> EtsTable.safe_delete(name) end)
 
       :ets.insert(name, {:wide, Enum.to_list(1..400_000)})
 
       assert {:error, :heap_limit_exceeded} = Fetch.lookup(Node.self(), name, :wide, 15_000)
     end
-  end
-
-  defp unique_name do
-    :"voyager_ets_#{System.unique_integer([:positive])}"
-  end
-
-  defp safe_delete(id) do
-    :ets.delete(id)
-  rescue
-    ArgumentError -> :ok
   end
 end
