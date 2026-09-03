@@ -429,6 +429,17 @@ defmodule Voyager.Services.Ets.RemoteTest do
       assert {:error, :cannot_read} = Remote.select_chunk(@node, :t, 10, nil, @timeout)
     end
 
+    test "does not map a wrapped agent worker badarg to :cannot_read" do
+      stub_exported(:ets_select_chunk, 3, true)
+
+      expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_chunk, _, _ ->
+        :erlang.error({:exception, {:agent_worker_down, {:badarg, []}}, []})
+      end)
+
+      assert {:error, {:remote_exception, {:agent_worker_down, {:badarg, []}}}} =
+               Remote.select_chunk(@node, :t, 10, nil, @timeout)
+    end
+
     test "maps MFA badarg to :cannot_read" do
       stub_exported(:ets_select_chunk, 3, false)
 
