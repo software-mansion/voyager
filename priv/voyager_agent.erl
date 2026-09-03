@@ -397,7 +397,9 @@ walk(Term, Budget, Truncated) when is_tuple(Term) ->
 walk(Term, Budget, Truncated) when is_bitstring(Term) ->
     walk_bitstring(Term, Budget, Truncated);
 walk(Term, Budget, Truncated) when is_function(Term) ->
-    walk_fun(Term, Budget, Truncated);
+    walk_uncuttable(Term, Budget, Truncated);
+walk(Term, Budget, Truncated) when is_integer(Term) ->
+    walk_integer(Term, Budget, Truncated);
 walk(Term, Budget, Truncated) ->
     {Term, Budget - 1, Truncated}.
 
@@ -452,15 +454,26 @@ walk_bitstring(Bits, Budget, _Truncated) when bit_size(Bits) > ?MAX_BINARY_BYTES
 walk_bitstring(Bits, Budget, Truncated) ->
     {Bits, Budget - 1, Truncated}.
 
-%% A fun's free variables ship whole over distribution, so cost is charged by
-%% `external_size/1' (the true wire size, unlike `erts_debug:flat_size/1'
-%% which skips a captured refc binary's payload) - in full or not at all,
-%% since a fun can't be partially cut the way a binary can.
-walk_fun(Fun, Budget, Truncated) ->
-    Size = erlang:external_size(Fun),
+%% A fixnum is immediate (`flat_size' 0) and stays a flat unit; a bignum is
+%% heap-allocated with unbounded digits, so it is charged like a fun below.
+walk_integer(Term, Budget, Truncated) ->
+    case erts_debug:flat_size(Term) of
+        0 ->
+            {Term, Budget - 1, Truncated};
+        _ ->
+            walk_uncuttable(Term, Budget, Truncated)
+    end.
+
+%% A fun's free variables and a bignum's digits both ship whole over
+%% distribution, so cost is charged by `external_size/1' (the true wire
+%% size, unlike `erts_debug:flat_size/1' which skips a captured refc
+%% binary's payload) - in full or not at all, since neither can be
+%% partially cut the way a binary can.
+walk_uncuttable(Term, Budget, Truncated) ->
+    Size = erlang:external_size(Term),
     case Size =< Budget of
         true ->
-            {Fun, Budget - Size, Truncated};
+            {Term, Budget - Size, Truncated};
         false ->
             {?TRUNCATED, Budget - 1, true}
     end.

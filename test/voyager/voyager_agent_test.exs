@@ -374,6 +374,16 @@ defmodule VoyagerAgentTest do
 
       assert {:"$voyager_truncated", true} == bound(fun, 100)
     end
+
+    test "charges a small integer a flat unit" do
+      assert {42, false} == bound(42, 1_000)
+    end
+
+    test "drops a bignum whose digits exceed the budget instead of shipping them" do
+      huge = Integer.pow(2, 100_000)
+
+      assert {:"$voyager_truncated", true} == bound(huge, 100)
+    end
   end
 
   describe "proc_state/3" do

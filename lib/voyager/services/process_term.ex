@@ -27,8 +27,8 @@ defmodule Voyager.Services.ProcessTerm do
 
   @doc """
   Fetches the state of `pid` on `node`, truncated on the remote to at most
-  `budget` -- one unit per term visited, except a binary, which is charged per
-  byte kept.
+  `budget` -- one unit per term visited, except a binary (charged per byte
+  kept) or a fun/bignum (charged by wire size, all-or-nothing).
 
   `timeout` bounds `:sys.get_state/2` on the remote. Returns `{:error, :dead}`
   for a process that is gone, `{:error, :timeout}` when it did not answer, and
@@ -52,7 +52,8 @@ defmodule Voyager.Services.ProcessTerm do
   @doc """
   Fetches the mailbox of `pid` on `node`, truncated on the remote to at most
   `limit` messages and `budget` (one unit per term visited, except a binary,
-  which is charged per byte kept).
+  charged per byte kept, or a fun/bignum, charged by wire size,
+  all-or-nothing).
 
   `:total` is the real mailbox length. Note that the remote has to copy the
   *whole* mailbox onto the agent's heap before truncating -- ERTS offers no
