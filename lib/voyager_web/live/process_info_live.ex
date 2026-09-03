@@ -62,7 +62,12 @@ defmodule VoyagerWeb.ProcessInfoLive do
         waiting_message="waiting for first fetch…"
       >
         <:actions>
-          <button type="button" id="go-to-supervision-tree" class="btn btn-ghost btn-sm gap-2" disabled>
+          <button
+            type="button"
+            id="go-to-supervision-tree"
+            class="btn btn-ghost btn-sm gap-2"
+            disabled
+          >
             Supervision tree <span class="badge badge-primary badge-soft badge-xs">Soon</span>
           </button>
           <.tooltip id="process-info-refresh-tip" position="bottom">
@@ -134,6 +139,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
                 items={relations.links.items}
                 total={relations.links.total}
                 node_name={@session.node_name}
+                remote_node={@session.node}
               />
             </.section>
             <.section title="Monitors" muted={bounded_count(relations.monitors)}>
@@ -142,6 +148,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
                 items={relations.monitors.items}
                 total={relations.monitors.total}
                 node_name={@session.node_name}
+                remote_node={@session.node}
               />
             </.section>
             <.section title="Monitored by" muted={bounded_count(relations.monitored_by)}>
@@ -150,6 +157,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
                 items={relations.monitored_by.items}
                 total={relations.monitored_by.total}
                 node_name={@session.node_name}
+                remote_node={@session.node}
               />
             </.section>
           </.async_result>
@@ -187,6 +195,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
                 term={state.term}
                 state={@term_states["process-state"]}
                 truncated?={state.truncated?}
+                class="overflow-x-auto"
               />
             </.async_result>
           </.section>
@@ -224,12 +233,16 @@ defmodule VoyagerWeb.ProcessInfoLive do
                 <p :if={messages.items == []} class="font-mono text-base-content/70 text-xs">
                   Mailbox is empty.
                 </p>
-                <ol :if={messages.items != []} class="divide-base-content/10 m-0 flex list-none flex-col divide-y p-0">
+                <ol
+                  :if={messages.items != []}
+                  class="divide-base-content/10 m-0 flex list-none flex-col divide-y p-0"
+                >
                   <li :for={{message, index} <- Enum.with_index(messages.items)} class="py-2">
                     <.term_inspector
                       id={"message-#{index}"}
                       term={message}
                       state={@term_states["message-#{index}"]}
+                      class="overflow-x-auto"
                     />
                   </li>
                 </ol>
@@ -269,12 +282,16 @@ defmodule VoyagerWeb.ProcessInfoLive do
                 <p :if={dictionary.items == []} class="font-mono text-base-content/70 text-xs">
                   Dictionary is empty.
                 </p>
-                <ol :if={dictionary.items != []} class="divide-base-content/10 m-0 flex list-none flex-col divide-y p-0">
+                <ol
+                  :if={dictionary.items != []}
+                  class="divide-base-content/10 m-0 flex list-none flex-col divide-y p-0"
+                >
                   <li :for={{entry, index} <- Enum.with_index(dictionary.items)} class="py-2">
                     <.term_inspector
                       id={"dict-entry-#{index}"}
                       term={entry}
                       state={@term_states["dict-entry-#{index}"]}
+                      class="overflow-x-auto"
                     />
                   </li>
                 </ol>
@@ -299,14 +316,16 @@ defmodule VoyagerWeb.ProcessInfoLive do
     |> noreply()
   end
 
-  def handle_event("fetch-overview", _params, %{assigns: %{pid: pid}} = socket) when is_pid(pid) do
+  def handle_event("fetch-overview", _params, %{assigns: %{pid: pid}} = socket)
+      when is_pid(pid) do
     socket
     |> fetch_overview()
     |> fetch_relations()
     |> noreply()
   end
 
-  def handle_event("fetch-messages", _params, %{assigns: %{pid: pid}} = socket) when is_pid(pid) do
+  def handle_event("fetch-messages", _params, %{assigns: %{pid: pid}} = socket)
+      when is_pid(pid) do
     socket
     |> fetch_messages()
     |> noreply()
@@ -411,7 +430,10 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
       true ->
         charlist = String.to_charlist(pid_string)
-        start_async(socket, :pid, fn -> Erpc.safe_call(node, :erlang, :list_to_pid, [charlist]) end)
+
+        start_async(socket, :pid, fn ->
+          Erpc.safe_call(node, :erlang, :list_to_pid, [charlist])
+        end)
     end
   end
 
@@ -421,12 +443,14 @@ defmodule VoyagerWeb.ProcessInfoLive do
     socket
     |> cancel_async(:info, {:shutdown, :cancel})
     |> assign(:info, AsyncResult.loading(socket.assigns.info))
-    |> start_async(:info, fn ->
-      rate_limited(fn ->
-        with {:ok, info} <- ProcessInfo.fetch(node, pid) do
-          {:ok, Map.put(info, :label, fetch_label(node, pid))}
-        end
-      end)
+    |> start_async(:info, fn -> run_overview(node, pid) end)
+  end
+
+  defp run_overview(node, pid) do
+    rate_limited(fn ->
+      with {:ok, info} <- ProcessInfo.fetch(node, pid) do
+        {:ok, Map.put(info, :label, fetch_label(node, pid))}
+      end
     end)
   end
 
@@ -436,15 +460,16 @@ defmodule VoyagerWeb.ProcessInfoLive do
     socket
     |> cancel_async(:relations, {:shutdown, :cancel})
     |> assign(:relations, AsyncResult.loading(socket.assigns.relations))
-    |> start_async(:relations, fn ->
-      rate_limited(fn ->
-        with {:ok, links} <- ProcessInfo.fetch_links(node, pid, @relations_limit),
-             {:ok, monitors} <- ProcessInfo.fetch_monitors(node, pid, @relations_limit),
-             {:ok, monitored_by} <-
-               ProcessInfo.fetch_monitored_by(node, pid, @relations_limit) do
-          {:ok, %{links: links, monitors: monitors, monitored_by: monitored_by}}
-        end
-      end)
+    |> start_async(:relations, fn -> run_relations(node, pid) end)
+  end
+
+  defp run_relations(node, pid) do
+    rate_limited(fn ->
+      with {:ok, links} <- ProcessInfo.fetch_links(node, pid, @relations_limit),
+           {:ok, monitors} <- ProcessInfo.fetch_monitors(node, pid, @relations_limit),
+           {:ok, monitored_by} <- ProcessInfo.fetch_monitored_by(node, pid, @relations_limit) do
+        {:ok, %{links: links, monitors: monitors, monitored_by: monitored_by}}
+      end
     end)
   end
 
