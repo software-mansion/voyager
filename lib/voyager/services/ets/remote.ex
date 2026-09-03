@@ -98,6 +98,13 @@ defmodule Voyager.Services.Ets.Remote do
   A continuation that crossed ETF must be `:ets.repair_continuation/2`'d on
   the target against `[{:"$1", [], [:"$1"]}]`; a spec compiled here is
   invalidated on the way back.
+
+  `ets_select_chunk/3` (and `ets_lookup/2`) run in a one-shot worker. A
+  `badarg` there — private table or unrepaired continuation — must be
+  re-raised as `error:badarg` in the erpc process. This mapper only
+  recognizes `{:remote_exception, :badarg}`. Wrapping the worker death
+  (`{:agent_worker_down, {:badarg, _}}`) or letting `spawn_link` kill the
+  apply process does not become `{:error, :cannot_read}`.
   """
   @spec select_chunk(node(), TableId.t(), pos_integer(), term() | nil, timeout()) ::
           {:ok, chunk()} | {:error, term()}
