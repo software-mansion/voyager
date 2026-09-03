@@ -133,15 +133,15 @@ defmodule VoyagerWeb.ProcessesLive do
   # nested params.
   def handle_event("validate", _params, socket), do: noreply(socket)
 
-  # The mount fetch already runs with the defaults, so only rescan when the
-  # stored controls ask the node for something else.
+  # The client's stored controls, empty when it has none. `mount/3` starts no
+  # scan, so this is where the first one runs — with the restored controls, or
+  # the defaults `apply_controls/2` leaves in place.
   def handle_event("restore_settings", params, socket) do
-    socket = assign(socket, :page_size, page_size(parse_integer(params["page_size"])))
-    restored = apply_controls(socket, params)
-
-    if restored.assigns.controls == socket.assigns.controls,
-      do: noreply(restored),
-      else: restored |> Fetcher.fetch() |> noreply()
+    socket
+    |> assign(:page_size, page_size(parse_integer(params["page_size"])))
+    |> apply_controls(params)
+    |> Fetcher.start()
+    |> noreply()
   end
 
   def handle_event("sort", %{"key" => key}, socket) do

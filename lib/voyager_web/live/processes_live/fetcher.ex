@@ -5,6 +5,10 @@ defmodule VoyagerWeb.ProcessesLive.Fetcher do
   assigns the page renders from (`page_result`, `fetched_with`, `dirty?`,
   `last_updated`, `round_trip_ms`, `refresh_interval`).
 
+  The first scan waits for the client's stored controls (`start/1`), so a visit
+  costs one scan rather than one with the defaults and another with the
+  restored controls.
+
   Every fetch is a full scan of the remote process table, so at most one runs
   at a time. A request landing mid-scan is queued and replayed when the scan
   finishes: `start_async/3` would replace the task but not the scan the remote
@@ -44,31 +48,36 @@ defmodule VoyagerWeb.ProcessesLive.Fetcher do
   def interval_options, do: @interval_options
 
   @doc """
-  Assigns the fetch state, attaches the timer and result handlers, and starts
-  the first scan once connected. Call after `controls`, `sort_by` and
-  `direction` are assigned.
+  Assigns the fetch state and attaches the timer and result handlers.
+
+  Deliberately starts nothing: the view calls `start/1` once the client has
+  restored its stored controls.
 
   The result handler continues to the view's `handle_async/3`, so the page can
   react to a new result (e.g. clamp its local page) after the assigns update.
   """
   @spec init(Socket.t()) :: Socket.t()
   def init(socket) do
-    socket =
-      socket
-      |> assign(:page_result, AsyncResult.loading())
-      |> assign(:fetched_with, socket.assigns.controls)
-      |> assign(:dirty?, false)
-      |> assign(:refetch_timer, nil)
-      |> assign(:refetch_queued?, false)
-      |> assign(:refresh_interval, nil)
-      |> assign(:refresh_timer, nil)
-      |> assign(:last_updated, nil)
-      |> assign(:round_trip_ms, nil)
-      |> attach_hook(:process_fetch_timers, :handle_info, &handle_timer/2)
-      |> attach_hook(:process_fetch_result, :handle_async, &handle_result/3)
-
-    if connected?(socket), do: start_fetch(socket, :high), else: socket
+    socket
+    # Not `loading/0`: with a scan seemingly in flight, `fetch/1` would queue
+    # the first one instead of starting it. The table reads this as loading
+    # anyway, since it has no result yet.
+    |> assign(:page_result, %AsyncResult{})
+    |> assign(:fetched_with, socket.assigns.controls)
+    |> assign(:dirty?, false)
+    |> assign(:refetch_timer, nil)
+    |> assign(:refetch_queued?, false)
+    |> assign(:refresh_interval, nil)
+    |> assign(:refresh_timer, nil)
+    |> assign(:last_updated, nil)
+    |> assign(:round_trip_ms, nil)
+    |> attach_hook(:process_fetch_timers, :handle_info, &handle_timer/2)
+    |> attach_hook(:process_fetch_result, :handle_async, &handle_result/3)
   end
+
+  @doc "Runs the first scan, once the controls to run it with are known."
+  @spec start(Socket.t()) :: Socket.t()
+  def start(socket), do: if(connected?(socket), do: start_fetch(socket, :high), else: socket)
 
   @doc """
   Starts a scan, or queues one if a scan is already running.

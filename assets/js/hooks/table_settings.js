@@ -1,7 +1,9 @@
 // Remembers a table's controls across visits.
 //
 // Saves data on `store-settings`
-// Sends `restore_settings` event when settings are restored.
+// Sends `restore_settings` event on mount, empty when nothing is stored: the
+// server holds its first fetch until it arrives, so a visit costs one scan
+// rather than one with the defaults and another with the restored controls.
 
 const STORAGE_PREFIX = 'voyager:table-settings:';
 
@@ -37,9 +39,10 @@ const TableSettings = {
       );
     }
 
-    if (!settings || typeof settings !== 'object') return;
-
-    this.pushEvent('restore_settings', settings);
+    this.pushEvent(
+      'restore_settings',
+      settings && typeof settings === 'object' ? settings : {}
+    );
   },
 };
 
