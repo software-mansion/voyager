@@ -57,6 +57,9 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   attr :id, :string, required: true
   attr :section, :atom, required: true
   attr :active, :boolean, required: true
+  attr :title, :string, default: nil
+  attr :muted, :string, default: nil
+  attr :help, :string, default: nil, doc: "renders a \"?\" tooltip next to the title"
   attr :fetched_at, DateTime, default: nil
   attr :timeout, :integer, required: true
   attr :loading?, :boolean, required: true
@@ -71,40 +74,53 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
       "border-base-300 bg-base-100 rounded-b-box -mt-px min-h-0 flex-1 overflow-y-auto border",
       not @active && "hidden"
     ]}>
-      <div id={@id} class="flex min-h-full flex-col gap-5 p-5">
-        <div class="flex flex-wrap items-center justify-end gap-3">
-          <span
-            :if={@fetched_at}
-            id={"#{@id}-fetched-at"}
-            class="font-mono text-base-content/70 text-xs"
+      <div id={@id} class="flex min-h-full flex-col gap-6 p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h4
+            :if={@title}
+            class="text-base-content flex items-center gap-1 text-sm font-semibold leading-none"
           >
-            fetched {Formatters.format_time(@fetched_at)} UTC
-          </span>
-          <form id={"#{@id}-timeout-form"} phx-change="set-timeout" class="flex items-center gap-2">
-            <input type="hidden" name="section" value={@section} />
-            <label for={"#{@id}-timeout"} class="text-base-content/70 text-xs font-medium">
-              Timeout (ms)
-            </label>
-            <input
-              id={"#{@id}-timeout"}
-              type="number"
-              name="timeout"
-              value={@timeout}
-              min={elem(@bounds, 0)}
-              max={elem(@bounds, 1)}
-              step="100"
-              inputmode="numeric"
-              phx-debounce="500"
-              class="input input-sm input-bordered no-spinner font-mono w-24"
+            {@title}
+            <span :if={@muted} class="font-mono text-base-content/70 ml-1 text-xs font-normal">
+              {@muted}
+            </span>
+            <.help_tooltip :if={@help} id={"#{@id}-help"} text={@help} />
+          </h4>
+          <span :if={is_nil(@title)} />
+          <div class="flex flex-wrap items-center gap-3">
+            <span
+              :if={@fetched_at}
+              id={"#{@id}-fetched-at"}
+              class="font-mono text-base-content/70 text-xs"
+            >
+              fetched {Formatters.format_time(@fetched_at)} UTC
+            </span>
+            <form id={"#{@id}-timeout-form"} phx-change="set-timeout" class="flex items-center gap-2">
+              <input type="hidden" name="section" value={@section} />
+              <label for={"#{@id}-timeout"} class="text-base-content/70 text-xs font-medium">
+                Timeout (ms)
+              </label>
+              <input
+                id={"#{@id}-timeout"}
+                type="number"
+                name="timeout"
+                value={@timeout}
+                min={elem(@bounds, 0)}
+                max={elem(@bounds, 1)}
+                step="100"
+                inputmode="numeric"
+                phx-debounce="500"
+                class="input input-sm input-bordered no-spinner font-mono w-24"
+              />
+            </form>
+            <.refresh_button
+              id={"#{@id}-refresh"}
+              event={"fetch-#{@section}"}
+              label="Fetch"
+              loading?={@loading?}
+              disabled={@disabled}
             />
-          </form>
-          <.refresh_button
-            id={"#{@id}-refresh"}
-            event={"fetch-#{@section}"}
-            label="Fetch"
-            loading?={@loading?}
-            disabled={@disabled}
-          />
+          </div>
         </div>
         {render_slot(@inner_block)}
       </div>
@@ -115,29 +131,21 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   @doc """
   One gated, unbounded term fetch (state, messages, dictionary).
 
-  `result` is `nil` until the first fetch, which renders a centered fetch
-  button; afterwards the loaded value renders through the inner block. A
-  process that exposes no state is a fact, not a failure, so `:no_state`
-  renders as an info notice.
+  `result` is `nil` until the first fetch, which renders a centered notice
+  pointing at the panel's fetch button; afterwards the loaded value renders
+  through the inner block. A process that exposes no state is a fact, not a
+  failure, so `:no_state` renders as an info notice.
   """
   attr :id, :string, required: true
   attr :result, :any, required: true, doc: "nil or an AsyncResult"
-  attr :event, :string, required: true
-  attr :disabled, :boolean, required: true
   slot :inner_block, required: true
 
   def term_section(assigns) do
     ~H"""
     <div :if={is_nil(@result)} id={"#{@id}-gate"} class="flex flex-1 items-center justify-center">
-      <button
-        type="button"
-        id={"#{@id}-fetch"}
-        phx-click={@event}
-        disabled={@disabled}
-        class="btn btn-primary btn-sm"
-      >
-        Fetch
-      </button>
+      <p class="text-base-content/70 text-xs">
+        No data fetched yet. Use the fetch button in the top-right corner.
+      </p>
     </div>
     <.async_result :let={value} :if={@result} assign={@result}>
       <:loading>
