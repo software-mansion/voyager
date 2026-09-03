@@ -79,10 +79,12 @@ defmodule VoyagerWeb.ProcessInfoLive do
         >
           <.icon name="icon-arrow-left" class="size-4" /> All Processes
         </.link>
-        <div class="flex flex-wrap items-baseline gap-3">
-          <h2 class="text-base-content text-lg font-semibold">Process Info</h2>
-          <span class="font-mono text-base-content/70 truncate">{@pid_string}</span>
-        </div>
+        <h2 class="text-base-content text-sm font-semibold leading-none">
+          Process Info
+          <span class="font-mono text-base-content/70 ml-1 text-xs font-normal">
+            {@pid_string}
+          </span>
+        </h2>
       </div>
 
       <div id="process-info-tabs" class="tabs tabs-lift">
@@ -92,12 +94,13 @@ defmodule VoyagerWeb.ProcessInfoLive do
           section={:info}
           fetched_at={@fetched_at[:info]}
           timeout={@timeouts.info}
-          refresh?
           loading?={loading?(@info)}
           disabled={is_nil(@pid)}
         >
-          <.overview info={@info} />
-          <.memory_and_garbage_collection info={@info} />
+          <div class="grid grid-cols-1 items-start gap-x-8 gap-y-5 lg:grid-cols-2">
+            <.overview info={@info} />
+            <.memory_and_garbage_collection info={@info} />
+          </div>
         </.tab_panel>
 
         <.tab_button tab={:state} active={@tab} label="State" />
@@ -106,7 +109,6 @@ defmodule VoyagerWeb.ProcessInfoLive do
           section={:state}
           fetched_at={@fetched_at[:state]}
           timeout={@timeouts.state}
-          refresh?={not is_nil(@state)}
           loading?={loading?(@state)}
           disabled={is_nil(@pid)}
         >
@@ -115,10 +117,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
               :let={state}
               id="process-state"
               result={@state}
-              fetch_event="fetch-state"
-              fetch_label="Fetch state"
-              gate_description="Calls :sys.get_state on the remote node. A busy process or one that does not handle system messages will time out."
-              disabled={is_nil(@pid)}
+              placeholder="Calls :sys.get_state on the remote node. A busy process or one that does not handle system messages will time out."
             >
               <.term_inspector
                 id="process-state"
@@ -137,7 +136,6 @@ defmodule VoyagerWeb.ProcessInfoLive do
           section={:messages}
           fetched_at={@fetched_at[:messages]}
           timeout={@timeouts.messages}
-          refresh?={not is_nil(@messages)}
           loading?={loading?(@messages)}
           disabled={is_nil(@pid)}
         >
@@ -146,10 +144,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
               :let={messages}
               id="process-messages"
               result={@messages}
-              fetch_event="fetch-messages"
-              fetch_label="Fetch messages"
-              gate_description="Copies the mailbox on the remote node before truncating, so a huge mailbox is expensive to read."
-              disabled={is_nil(@pid)}
+              placeholder="Copies the mailbox on the remote node before truncating, so a huge mailbox is expensive to read."
             >
               <p :if={messages.items == []} class="font-mono text-base-content/70 text-xs">
                 Mailbox is empty.
@@ -178,7 +173,6 @@ defmodule VoyagerWeb.ProcessInfoLive do
           section={:dictionary}
           fetched_at={@fetched_at[:dictionary]}
           timeout={@timeouts.dictionary}
-          refresh?={not is_nil(@dictionary)}
           loading?={loading?(@dictionary)}
           disabled={is_nil(@pid)}
         >
@@ -187,10 +181,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
               :let={dictionary}
               id="process-dictionary"
               result={@dictionary}
-              fetch_event="fetch-dictionary"
-              fetch_label="Fetch dictionary"
-              gate_description="The process dictionary holds arbitrary user terms and can be large; it is truncated on the remote node."
-              disabled={is_nil(@pid)}
+              placeholder="The process dictionary holds arbitrary user terms and can be large; it is truncated on the remote node."
             >
               <p :if={dictionary.items == []} class="font-mono text-base-content/70 text-xs">
                 Dictionary is empty.
@@ -224,42 +215,45 @@ defmodule VoyagerWeb.ProcessInfoLive do
           section={:relations}
           fetched_at={@fetched_at[:relations]}
           timeout={@timeouts.relations}
-          refresh?
           loading?={loading?(@relations)}
           disabled={is_nil(@pid)}
         >
           <.async_result :let={relations} assign={@relations}>
             <:loading>
-              <.section :for={title <- ["Links", "Monitors", "Monitored by"]} title={title}>
-                <div class="flex flex-wrap gap-1.5">
-                  <div :for={_ <- 1..3} class="skeleton h-6 w-16 rounded" />
-                </div>
-              </.section>
+              <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
+                <.section :for={title <- ["Links", "Monitors", "Monitored by"]} title={title}>
+                  <div class="flex flex-wrap gap-1.5">
+                    <div :for={_ <- 1..3} class="skeleton h-6 w-16 rounded" />
+                  </div>
+                </.section>
+              </div>
             </:loading>
             <:failed :let={reason}>
               <.section title="Links">
                 <.fetch_alert id="process-relations-error" message={error_message(reason)} />
               </.section>
             </:failed>
-            <.section
-              :for={
-                {title, id, bounded} <- [
-                  {"Links", "process-links", relations.links},
-                  {"Monitors", "process-monitors", relations.monitors},
-                  {"Monitored by", "process-monitored-by", relations.monitored_by}
-                ]
-              }
-              title={title}
-              muted={bounded_count(bounded)}
-            >
-              <.identifier_chips
-                id={id}
-                items={bounded.items}
-                total={bounded.total}
-                node_name={@session.node_name}
-                remote_node={@session.node}
-              />
-            </.section>
+            <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
+              <.section
+                :for={
+                  {title, id, bounded} <- [
+                    {"Links", "process-links", relations.links},
+                    {"Monitors", "process-monitors", relations.monitors},
+                    {"Monitored by", "process-monitored-by", relations.monitored_by}
+                  ]
+                }
+                title={title}
+                muted={bounded_count(bounded)}
+              >
+                <.identifier_chips
+                  id={id}
+                  items={bounded.items}
+                  total={bounded.total}
+                  node_name={@session.node_name}
+                  remote_node={@session.node}
+                />
+              </.section>
+            </div>
           </.async_result>
         </.tab_panel>
       </div>
