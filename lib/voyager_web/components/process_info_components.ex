@@ -21,7 +21,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
     ~H"""
     <div id={@id} class={["card bg-base-100 border-base-200 border shadow-sm" | List.wrap(@class)]}>
       <div class="card-body relative gap-5 p-5">
-        <div :if={@actions != []} class="absolute right-4 top-3.5 z-10 flex items-center gap-1.5">
+        <div :if={@actions != []} class="absolute top-3.5 right-4 z-10 flex items-center gap-1.5">
           {render_slot(@actions)}
         </div>
         {render_slot(@inner_block)}
@@ -68,7 +68,13 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
     ~H"""
     <div class="border-base-content/10 flex flex-col items-center gap-3 rounded-lg border border-dashed px-4 py-6 text-center">
       <p class="text-base-content/70 max-w-sm text-xs">{@description}</p>
-      <button type="button" id={@id} phx-click={@event} disabled={@disabled} class="btn btn-primary btn-sm">
+      <button
+        type="button"
+        id={@id}
+        phx-click={@event}
+        disabled={@disabled}
+        class="btn btn-primary btn-sm"
+      >
         {@label}
       </button>
     </div>
@@ -88,13 +94,15 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   end
 
   @doc """
-  A flat list of process identifiers. Pids become links to their own process
-  info page; ports, references and remote names are listed as plain chips.
+  A flat list of process identifiers. Pids living on the inspected node become
+  links to their own process info page; ports, references, remote names and
+  pids of other nodes are listed as plain chips.
   """
   attr :id, :string, required: true
   attr :items, :list, required: true
   attr :total, :integer, required: true
   attr :node_name, :string, required: true
+  attr :remote_node, :atom, required: true
 
   def identifier_chips(assigns) do
     assigns = assign(assigns, :overflow, max(assigns.total - length(assigns.items), 0))
@@ -103,11 +111,11 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
     <div id={@id} class="flex flex-col gap-2">
       <p :if={@items == []} class="font-mono text-base-content/70 text-xs">None</p>
       <div :if={@items != []} class="flex flex-wrap gap-1.5">
-        <%= for item <- Enum.map(@items, &identifier_entry/1) do %>
+        <%= for item <- Enum.map(@items, &identifier_entry(&1, @remote_node)) do %>
           <.link
             :if={item.pid?}
             navigate={~p"/node/#{@node_name}/processes/#{item.text}"}
-            class="border-base-content/70 bg-base-200 text-base-content font-mono hover:border-primary hover:text-primary inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors"
+            class="border-base-content/70 bg-base-200 text-base-content font-mono inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors hover:border-primary hover:text-primary"
           >
             <span class="bg-primary h-1.5 w-1.5 rounded-full" />
             {item.text}
@@ -160,14 +168,21 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
 
   # Monitor entries arrive as `{:process, target}` / `{:port, port}`; links and
   # monitored-by entries as bare pids and ports.
-  defp identifier_entry({:process, target}), do: identifier_entry(target)
-  defp identifier_entry({:port, port}), do: identifier_entry(port)
+  defp identifier_entry({:process, target}, remote_node),
+    do: identifier_entry(target, remote_node)
 
-  defp identifier_entry(pid) when is_pid(pid),
-    do: %{pid?: true, text: Formatters.format_pid(pid)}
+  defp identifier_entry({:port, port}, remote_node), do: identifier_entry(port, remote_node)
 
-  defp identifier_entry({name, node}) when is_atom(name),
+  defp identifier_entry(pid, remote_node) when is_pid(pid) do
+    if node(pid) == remote_node do
+      %{pid?: true, text: Formatters.format_pid_local(pid)}
+    else
+      %{pid?: false, text: "#{Formatters.format_pid_local(pid)} on #{node(pid)}"}
+    end
+  end
+
+  defp identifier_entry({name, node}, _remote_node) when is_atom(name),
     do: %{pid?: false, text: "#{inspect(name)} on #{node}"}
 
-  defp identifier_entry(other), do: %{pid?: false, text: inspect(other)}
+  defp identifier_entry(other, _remote_node), do: %{pid?: false, text: inspect(other)}
 end

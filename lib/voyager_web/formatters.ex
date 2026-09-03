@@ -128,4 +128,16 @@ defmodule VoyagerWeb.Formatters do
   @doc ~S|Formats a pid in its external form, e.g. `"<0.123.0>"`.|
   @spec format_pid(pid()) :: String.t()
   def format_pid(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
+
+  @doc ~S"""
+  Formats a pid as its own node prints it, e.g. `"<0.123.0>"`.
+
+  A remote pid's first component is this node's index for the remote node
+  (`"<69007.123.0>"`), meaningless anywhere else; the owning node always prints
+  itself as `0`. Use this form whenever the string goes back to the remote node,
+  such as in process info URLs.
+  """
+  @spec format_pid_local(pid()) :: String.t()
+  def format_pid_local(pid) when is_pid(pid),
+    do: Regex.replace(~r/^<\d+/, format_pid(pid), "<0")
 end

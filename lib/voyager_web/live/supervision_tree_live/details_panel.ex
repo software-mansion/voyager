@@ -42,7 +42,10 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   end
 
   @impl true
-  def update(%{id: id, tree_node: tree_node, remote_node: remote_node, node_name: node_name}, socket) do
+  def update(
+        %{id: id, tree_node: tree_node, remote_node: remote_node, node_name: node_name},
+        socket
+      ) do
     socket
     |> assign(:id, id)
     |> assign(:remote_node, remote_node)
@@ -112,7 +115,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   end
 
   defp show_more_href(%TreeNode{pid: pid}, node_name) when is_pid(pid) and is_binary(node_name),
-    do: ~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}"
+    do: ~p"/node/#{node_name}/processes/#{Formatters.format_pid_local(pid)}"
 
   defp show_more_href(_node, _node_name), do: nil
 
