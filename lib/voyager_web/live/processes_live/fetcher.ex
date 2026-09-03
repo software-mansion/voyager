@@ -43,6 +43,11 @@ defmodule VoyagerWeb.ProcessesLive.Fetcher do
     {"60s", "60000"}
   ]
 
+  # `Phoenix.LiveView.AsyncResult` ships a struct but no `@type t`, so neither
+  # `AsyncResult.t()` (unknown to dialyzer) nor `%AsyncResult{}` (a struct in a
+  # spec, which credo rejects) can be written directly.
+  @type page_result :: struct()
+
   @doc "Auto-refresh choices as `{label, value}` pairs."
   @spec interval_options() :: [{String.t(), String.t()}]
   def interval_options, do: @interval_options
@@ -106,10 +111,10 @@ defmodule VoyagerWeb.ProcessesLive.Fetcher do
     |> restart_refresh_timer()
   end
 
-  @spec loading?(AsyncResult.t()) :: boolean()
+  @spec loading?(page_result()) :: boolean()
   def loading?(%AsyncResult{loading: loading}), do: loading != nil
 
-  @spec entries(AsyncResult.t()) :: [Query.entry()]
+  @spec entries(page_result()) :: [Query.entry()]
   def entries(%AsyncResult{ok?: true, result: %{entries: entries}}), do: entries
   def entries(_page_result), do: []
 
