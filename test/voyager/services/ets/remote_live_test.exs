@@ -80,6 +80,36 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
              Remote.select_chunk(Node.self(), name, 10, chunk.continuation)
   end
 
+  test "an ETF-round-tripped continuation needs repair_continuation/2 before select/1" do
+    name = unique_name()
+    :ets.new(name, [:named_table, :public, :set])
+    on_exit(fn -> safe_delete(name) end)
+
+    for i <- 1..25, do: :ets.insert(name, {i, i})
+
+    match_all = [{:"$1", [], [:"$1"]}]
+
+    bin =
+      case :ets.select(name, match_all, 10) do
+        {records, cont} ->
+          assert length(records) == 10
+          :erlang.term_to_binary(cont)
+      end
+
+    # Same-node ETF still resolves while the original continuation is live.
+    :erlang.garbage_collect()
+    broken = :erlang.binary_to_term(bin)
+
+    assert_raise ArgumentError, fn ->
+      :ets.select(broken)
+    end
+
+    repaired = :ets.repair_continuation(broken, match_all)
+    assert {next, _cont} = :ets.select(repaired)
+    assert is_list(next)
+    assert next != []
+  end
+
   test "lookup/3 fetches a named table by atom, integer, and binary keys" do
     name = unique_name()
     :ets.new(name, [:named_table, :public, :set])

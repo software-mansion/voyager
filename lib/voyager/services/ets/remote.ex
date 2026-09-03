@@ -15,7 +15,10 @@ defmodule Voyager.Services.Ets.Remote do
   Record payloads are unsanitized. Callers that surface terms must go
   through `Voyager.Services.Ets.Fetch`. Paging is best-effort; there is
   no snapshot isolation. MFA can only return the first page; later pages
-  need the agent or they are `{:error, :cannot_page}`.
+  need the agent or they are `{:error, :cannot_page}`. A continuation
+  returned to Voyager has crossed external term format, so the agent
+  must `:ets.repair_continuation/2` it on the target against the
+  match-all spec before `:ets.select/1`.
   """
 
   alias Voyager.Erpc
@@ -105,6 +108,16 @@ defmodule Voyager.Services.Ets.Remote do
   chunk afterwards. Missing `:voyager_agent.ets_select_chunk/3` falls back
   to `:ets.select/3` for the first page only. A non-nil continuation on
   that MFA path is `{:error, :cannot_page}`. Paging is best-effort.
+
+  A non-`:undefined` continuation sent to `:voyager_agent.ets_select_chunk/3`
+  has already crossed external term format (target → Voyager on the previous
+  chunk, Voyager → target here). That call **must** run
+  `:ets.repair_continuation(Cont, MatchSpec)` on the target before
+  `:ets.select/1`. `MatchSpec` **must** be the match-all used for the first
+  page, `[{:"$1", [], [:"$1"]}]`. Repair cannot run on Voyager: a spec
+  compiled here would be invalidated on the way back. Skipping repair, or
+  repairing against a different spec, raises `badarg` and surfaces as
+  `{:error, :cannot_read}`.
   """
   @spec select_chunk(node(), TableId.t(), pos_integer(), term() | nil, timeout()) ::
           {:ok, chunk()} | {:error, term()}
