@@ -242,5 +242,12 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   defp connect_error(:not_distributed), do: "Failed to start Erlang distribution"
   defp connect_error({:net_kernel, _}), do: "Failed to start Erlang distribution"
   defp connect_error({:net_kernel_stop, _}), do: "Failed to restart Erlang distribution"
+
+  defp connect_error({:agent_install_failed, {:otp_too_old, release}}),
+    do: "Node runs OTP #{release} - Voyager requires OTP 27 or newer"
+
+  defp connect_error({:agent_install_failed, _}),
+    do: "Connected, but loading the Voyager agent on the node failed"
+
   defp connect_error(_), do: "Could not connect to node"
 end
