@@ -102,7 +102,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         phx-click="sort"
         phx-value-key={@column.key}
         class={[
-          "font-mono tracking-label flex w-full max-w-full items-center gap-1 text-xs",
+          "font-mono tracking-label flex w-full max-w-full cursor-pointer items-center gap-1 text-xs",
           "font-semibold uppercase transition-colors hover:text-base-content",
           justify_class(@column),
           @active? && "text-base-content",
@@ -112,10 +112,10 @@ defmodule VoyagerWeb.Components.DataTableComponents do
       >
         <span class="truncate">{@column.label}</span>
         <span class="inline-flex shrink-0 items-center" aria-hidden="true">
-          <.icon name="icon-move-up" class={["size-3", arrow_class(@active?, @direction, :asc)]} />
+          <.icon name="icon-move-up" class={["size-3.5", arrow_class(@active?, @direction, :asc)]} />
           <.icon
             name="icon-move-down"
-            class={["size-3 -ml-0.5", arrow_class(@active?, @direction, :desc)]}
+            class={["size-3.5 -ml-0.5", arrow_class(@active?, @direction, :desc)]}
           />
         </span>
       </button>

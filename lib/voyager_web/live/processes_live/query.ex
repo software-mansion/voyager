@@ -24,7 +24,11 @@ defmodule VoyagerWeb.ProcessesLive.Query do
 
   @default_sort {:memory, :desc}
 
-  @type entry :: %{required(:pid) => pid(), optional(atom()) => term()}
+  @type entry :: %{
+          required(:pid) => pid(),
+          required(:memory) => integer(),
+          optional(atom()) => term()
+        }
   @type sort :: {atom(), ProcessList.direction()}
   @type page :: %{entries: [entry()], scanned: non_neg_integer(), fetched_at: DateTime.t()}
 

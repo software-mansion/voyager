@@ -81,7 +81,6 @@ defmodule VoyagerWeb.ProcessesLive.Fetcher do
 
   @doc """
   Starts a scan, or queues one if a scan is already running.
-
   `:low` is for background refreshes, which the rate limiter may skip.
   """
   @spec fetch(Socket.t(), :high | :low) :: Socket.t()
@@ -150,7 +149,7 @@ defmodule VoyagerWeb.ProcessesLive.Fetcher do
   # With nothing on screen they fail the result instead, or the table would sit
   # on its loading text behind a toast.
   defp apply_result({:ok, {:rate_limited, _retry_after_ms}}, socket) do
-    socket |> transient_error(:rate_limited, "Too many requests.") |> drain_queued()
+    socket |> transient_error(:rate_limited, "Too many requests") |> drain_queued()
   end
 
   defp apply_result({:ok, {:error, :timeout}}, socket) do

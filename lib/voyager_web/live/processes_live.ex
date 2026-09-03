@@ -40,7 +40,6 @@ defmodule VoyagerWeb.ProcessesLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <%!-- The hook restores saved controls on mount and stores them on change. --%>
     <div
       id="processes-page"
       phx-hook="TableSettings"
@@ -71,7 +70,6 @@ defmodule VoyagerWeb.ProcessesLive do
         loading?={@dirty? and Fetcher.loading?(@page_result)}
       />
 
-      <%!-- Outside any loading branch: a refetch swaps rows, not the table. --%>
       <.error_state
         :if={@page_result.failed}
         id="processes-error"
@@ -133,9 +131,8 @@ defmodule VoyagerWeb.ProcessesLive do
   # nested params.
   def handle_event("validate", _params, socket), do: noreply(socket)
 
-  # The client's stored controls, empty when it has none. `mount/3` starts no
-  # scan, so this is where the first one runs — with the restored controls, or
-  # the defaults `apply_controls/2` leaves in place.
+  # The client's stored controls, empty when it has none.
+  # Mount doesn't start fetch
   def handle_event("restore_settings", params, socket) do
     socket
     |> assign(:page_size, page_size(parse_integer(params["page_size"])))

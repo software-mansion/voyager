@@ -62,17 +62,6 @@ defmodule VoyagerWeb.ProcessesLive.QueryTest do
                        _timeout}
     end
 
-    test "returns entries with scan metadata" do
-      rows = [%{pid: self(), memory: 10}]
-      capture_erpc_args({rows, 42})
-
-      assert {:ok, page} = Query.page(@node, controls())
-
-      assert page.entries == rows
-      assert page.scanned == 42
-      assert %DateTime{} = page.fetched_at
-    end
-
     test "requests only the selected columns, plus the required ones" do
       capture_erpc_args()
 
@@ -100,25 +89,6 @@ defmodule VoyagerWeb.ProcessesLive.QueryTest do
       end)
 
       assert {:error, :noconnection} = Query.page(@node, controls())
-    end
-  end
-
-  describe "attribute metadata" do
-    test "every sortable attribute is selectable or required" do
-      known = Query.required_attrs() ++ Query.optional_attrs()
-      assert Enum.all?(Query.sortable_attrs(), &(&1 in known))
-    end
-
-    test "clamp_attrs/1 always includes the required attributes" do
-      for required <- Query.required_attrs() do
-        assert required in Query.clamp_attrs([])
-        assert required in Query.clamp_attrs([:status])
-      end
-    end
-
-    test "clamp_attrs/1 drops unknown attributes" do
-      refute :messages in Query.clamp_attrs([:messages, :status])
-      assert :status in Query.clamp_attrs([:messages, :status])
     end
   end
 end

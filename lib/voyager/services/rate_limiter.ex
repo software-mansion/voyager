@@ -18,8 +18,8 @@ defmodule Voyager.Services.RateLimiter do
   @type result :: term()
 
   @default_config %{
-    high_capacity: 10,
-    high_refill: 5,
+    high_capacity: 5,
+    high_refill: 2,
     low_capacity: 2,
     low_refill: 1,
     low_starvation_threshold: 2,
