@@ -29,8 +29,6 @@ defmodule VoyagerWeb.TermTree do
   @auto_open_limit 3
   @auto_open_depth 8
 
-  # Leaves are rendered through `inspect/2`, which without these would happily
-  # build a megabyte-long string for a single line of the tree.
   @inspect_opts [limit: 50, printable_limit: 4_096]
 
   @doc """
@@ -101,7 +99,7 @@ defmodule VoyagerWeb.TermTree do
   def initial_state(term, opts \\ []) do
     depth = Keyword.get(opts, :depth, @auto_open_depth)
 
-    %State{open: auto_open(term, [], depth, MapSet.new([[]]))}
+    %State{open: MapSet.new([[] | auto_open(term, [], depth)])}
   end
 
   @spec open?(State.t(), State.path()) :: boolean()
@@ -330,19 +328,19 @@ defmodule VoyagerWeb.TermTree do
     ArgumentError -> :improper
   end
 
-  defp auto_open(_term, _path, 0, open), do: open
+  defp auto_open(_term, _path, 0), do: []
 
-  defp auto_open(term, path, depth, open) do
+  defp auto_open(term, path, depth) do
     term
     |> children(0, @window)
     |> Enum.with_index()
-    |> Enum.reduce(open, fn {{_key, child}, index}, acc ->
+    |> Enum.flat_map(fn {{_key, child}, index} ->
       child_path = path ++ [index]
 
       if auto_open?(child) do
-        auto_open(child, child_path, depth - 1, MapSet.put(acc, child_path))
+        [child_path | auto_open(child, child_path, depth - 1)]
       else
-        acc
+        []
       end
     end)
   end
