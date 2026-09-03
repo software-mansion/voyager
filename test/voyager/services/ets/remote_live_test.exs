@@ -148,7 +148,7 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
     assert is_reference(tid)
     assert {:ok, %{records: [{:k, 1}]}} = Remote.lookup(Node.self(), tid, :k)
 
-    assert {:ok, %{records: [{:k, 1}], via: :mfa}} =
+    assert {:ok, %{records: [{:k, 1}], continuation: nil, via: :mfa}} =
              Remote.select_chunk(Node.self(), tid, 10)
   end
 

@@ -3,11 +3,17 @@ defmodule Voyager.Services.Ets.Fetch do
   Host-isolated ETS record reads.
 
   Runs `Remote.select_chunk/5` and `Remote.lookup/4` in a TaskSupervisor child
-  with `max_heap_size` 500_000 words (`kill: true`), then sanitizes records
-  (not the continuation). Heap kill is `{:error, :heap_limit_exceeded}`; a wait
-  that expires is `{:error, :timeout}`. A remote worker heap kill (`:killed`)
-  is `{:error, :heap_limit_exceeded}` as well. Protects Voyager, not the target:
-  MFA peek still copies full objects on the remote node and over the wire.
+  with `max_heap_size` 500_000 words (`kill: true` and `include_shared_binaries:
+  true`), then sanitizes records (not the continuation). Heap kill is
+  `{:error, :heap_limit_exceeded}`; a wait that expires is `{:error, :timeout}`.
+  A remote worker heap kill (`:killed`) is `{:error, :heap_limit_exceeded}` as
+  well.
+
+  The cap is this task's process heap (cons cells, maps, tuples) plus off-heap
+  binaries it refers to, not host RSS. MFA peek still copies full objects on
+  the remote node and over the wire; distribution allocates them before the
+  task can be killed, then Sanitize keeps a 512-byte binary prefix. A page of
+  large binaries can still OOM Voyager.
   """
 
   alias Voyager.Erpc
@@ -55,7 +61,13 @@ defmodule Voyager.Services.Ets.Fetch do
     task =
       Task.Supervisor.async_nolink(Voyager.TaskSupervisor, fn ->
         Erpc.bind_impl(impl)
-        Process.flag(:max_heap_size, %{size: @max_heap_size, kill: true})
+
+        Process.flag(:max_heap_size, %{
+          size: @max_heap_size,
+          kill: true,
+          include_shared_binaries: true
+        })
+
         fun.()
       end)
 

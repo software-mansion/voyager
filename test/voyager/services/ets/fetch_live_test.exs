@@ -63,7 +63,6 @@ defmodule Voyager.Services.Ets.FetchLiveTest do
     :ets.new(name, [:named_table, :public, :set])
     on_exit(fn -> EtsTable.safe_delete(name) end)
 
-    # 500_000 words is process heap (cons cells), not refc binaries.
     :ets.insert(name, {:wide, Enum.to_list(1..400_000)})
 
     assert {:error, :heap_limit_exceeded} = Fetch.lookup(Node.self(), name, :wide, 15_000)
