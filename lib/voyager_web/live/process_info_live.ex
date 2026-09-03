@@ -1,16 +1,19 @@
 defmodule VoyagerWeb.ProcessInfoLive do
   @moduledoc """
-  Shows a single process on the connected node.
+  Shows a single process on the connected node, one tab per section.
 
-  The cheap, size-bounded reads (overview and the links/monitors relations) are
-  fetched on mount. The unbounded terms -- messages, dictionary and state -- can
-  be arbitrarily large even truncated, so each is gated behind an explicit
-  fetch button and never loaded on mount or on the page-wide refresh unless it
-  was already fetched once. `Query` owns the data loading; this module owns
-  the async lifecycle and events.
+  The cheap, size-bounded reads (overview and relations) are fetched on mount.
+  The unbounded terms -- messages, dictionary and state -- can be arbitrarily
+  large even truncated, so each is gated behind an explicit fetch button.
+  Every section keeps its own timeout and fetch time, and fetched data stays
+  assigned across tab switches. `Query` owns the data loading; this module
+  owns the async lifecycle and events.
   """
 
   use VoyagerWeb, :live_view
+
+  import VoyagerWeb.Components.DetailsPanelComponents,
+    only: [overview: 1, memory_and_garbage_collection: 1, section: 1]
 
   import VoyagerWeb.Components.ProcessInfoComponents
   import VoyagerWeb.Components.TermComponents
@@ -24,17 +27,23 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
   on_mount TermTreeHook
 
+  @tabs ~w(overview state messages dictionary relations)a
+  @sections ~w(info relations state messages dictionary)a
+
   @impl true
   def mount(%{"pid" => pid_string}, _session, socket) do
     socket
     |> assign(:active_nav, :processes)
     |> assign(:pid_string, pid_string)
     |> assign(:pid, nil)
+    |> assign(:tab, :overview)
     |> assign(:info, AsyncResult.loading())
     |> assign(:relations, AsyncResult.loading())
     |> assign(:messages, nil)
     |> assign(:dictionary, nil)
     |> assign(:state, nil)
+    |> assign(:timeouts, Map.new(@sections, &{&1, Query.default_timeout()}))
+    |> assign(:fetched_at, %{})
     |> assign(:last_updated, nil)
     |> resolve_pid(pid_string)
     |> ok()
@@ -43,11 +52,12 @@ defmodule VoyagerWeb.ProcessInfoLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="mx-auto flex max-w-screen-2xl flex-col gap-6 p-6 sm:p-8">
+    <div class="mx-auto flex max-w-screen-2xl flex-col gap-4 p-6 sm:p-8">
       <.node_header
         node_name={@session.node_name}
         last_updated={@last_updated}
         waiting_message="waiting for first fetch…"
+        class="mb-0"
       >
         <:actions>
           <button
@@ -58,182 +68,234 @@ defmodule VoyagerWeb.ProcessInfoLive do
           >
             Supervision tree <span class="badge badge-primary badge-soft badge-xs">Soon</span>
           </button>
-          <.tooltip id="process-info-refresh-tip" position="bottom">
-            <button
-              type="button"
-              id="process-info-refresh"
-              phx-click="refresh-all"
-              phx-throttle="2000"
-              disabled={is_nil(@pid)}
-              aria-label="Refresh all fetched data"
-              class="btn btn-ghost btn-square toolbar-btn"
-            >
-              <.icon
-                name="icon-rotate-cw"
-                class={["toolbar-icon", any_loading?(assigns) && "motion-safe:animate-spin"]}
-              />
-            </button>
-            <:content>Refresh all fetched data</:content>
-          </.tooltip>
         </:actions>
       </.node_header>
 
-      <div class="flex flex-wrap items-center gap-3">
+      <div class="flex flex-col gap-1">
         <.link
           id="back-to-processes"
           navigate={~p"/node/#{@session.node_name}/processes"}
-          class="btn btn-ghost btn-sm gap-2"
+          class="btn btn-ghost btn-sm w-max gap-2"
         >
-          <.icon name="icon-arrow-left" class="size-4" /> Processes
+          <.icon name="icon-arrow-left" class="size-4" /> All Processes
         </.link>
-        <h2 class="font-mono text-base-content truncate text-lg font-semibold">
-          {@pid_string}
-        </h2>
+        <div class="flex flex-wrap items-baseline gap-3">
+          <h2 class="text-base-content text-lg font-semibold">Process Info</h2>
+          <span class="font-mono text-base-content/70 truncate">{@pid_string}</span>
+        </div>
       </div>
 
-      <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <.overview_card
-          info={@info}
-          disabled={is_nil(@pid)}
-          loading?={loading?(@info) or loading?(@relations)}
-        />
-        <.relations_card
-          relations={@relations}
-          node_name={@session.node_name}
-          remote_node={@session.node}
-        />
-      </div>
-
-      <div class="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
-        <.term_card
-          :let={state}
-          id="process-state"
-          title="State"
-          result={@state}
-          fetch_event="fetch-state"
-          fetch_label="Fetch state"
-          gate_description="Calls :sys.get_state on the remote node. A busy process or one that does not handle system messages will time out."
+      <div id="process-info-tabs" class="tabs tabs-lift">
+        <.tab_button tab={:overview} active={@tab} label="Overview" />
+        <.tab_panel
+          id="panel-overview"
+          section={:info}
+          fetched_at={@fetched_at[:info]}
+          timeout={@timeouts.info}
+          refresh?
+          loading?={loading?(@info)}
           disabled={is_nil(@pid)}
         >
-          <.term_inspector
-            id="process-state"
-            term={state.term}
-            state={@term_states["process-state"]}
-            truncated?={state.truncated?}
-            class="overflow-x-auto"
-          />
-        </.term_card>
+          <.overview info={@info} />
+          <.memory_and_garbage_collection info={@info} />
+        </.tab_panel>
 
-        <div class="flex flex-col gap-6">
-          <.term_card
-            :let={messages}
-            id="process-messages"
-            title="Messages"
-            muted={queue_len_label(@info)}
-            result={@messages}
-            fetch_event="fetch-messages"
-            fetch_label="Fetch messages"
-            gate_description="Copies the mailbox on the remote node before truncating, so a huge mailbox is expensive to read."
-            disabled={is_nil(@pid)}
-          >
-            <p :if={messages.items == []} class="font-mono text-base-content/70 text-xs">
-              Mailbox is empty.
-            </p>
-            <ol
-              :if={messages.items != []}
-              class="divide-base-content/10 m-0 flex list-none flex-col divide-y p-0"
+        <.tab_button tab={:state} active={@tab} label="State" />
+        <.tab_panel
+          id="panel-state"
+          section={:state}
+          fetched_at={@fetched_at[:state]}
+          timeout={@timeouts.state}
+          refresh?={not is_nil(@state)}
+          loading?={loading?(@state)}
+          disabled={is_nil(@pid)}
+        >
+          <.section title="State">
+            <.term_section
+              :let={state}
+              id="process-state"
+              result={@state}
+              fetch_event="fetch-state"
+              fetch_label="Fetch state"
+              gate_description="Calls :sys.get_state on the remote node. A busy process or one that does not handle system messages will time out."
+              disabled={is_nil(@pid)}
             >
-              <li :for={{message, index} <- Enum.with_index(messages.items)} class="py-2">
-                <.term_inspector
-                  id={"message-#{index}"}
-                  term={message}
-                  state={@term_states["message-#{index}"]}
-                  class="overflow-x-auto"
-                />
-              </li>
-            </ol>
-            <.truncation_note :if={messages.truncated?} id="process-messages-truncated" />
-          </.term_card>
+              <.term_inspector
+                id="process-state"
+                term={state.term}
+                state={@term_states["process-state"]}
+                truncated?={state.truncated?}
+                class="overflow-x-auto"
+              />
+            </.term_section>
+          </.section>
+        </.tab_panel>
 
-          <.term_card
-            :let={dictionary}
-            id="process-dictionary"
-            title="Dictionary"
-            muted={bounded_count(@dictionary)}
-            result={@dictionary}
-            fetch_event="fetch-dictionary"
-            fetch_label="Fetch dictionary"
-            gate_description="The process dictionary holds arbitrary user terms and can be large; it is truncated on the remote node."
-            disabled={is_nil(@pid)}
-          >
-            <p :if={dictionary.items == []} class="font-mono text-base-content/70 text-xs">
-              Dictionary is empty.
-            </p>
-            <ol
-              :if={dictionary.items != []}
-              class="divide-base-content/10 m-0 flex list-none flex-col divide-y p-0"
+        <.tab_button tab={:messages} active={@tab} label="Messages" />
+        <.tab_panel
+          id="panel-messages"
+          section={:messages}
+          fetched_at={@fetched_at[:messages]}
+          timeout={@timeouts.messages}
+          refresh?={not is_nil(@messages)}
+          loading?={loading?(@messages)}
+          disabled={is_nil(@pid)}
+        >
+          <.section title="Messages" muted={queue_len_label(@info)}>
+            <.term_section
+              :let={messages}
+              id="process-messages"
+              result={@messages}
+              fetch_event="fetch-messages"
+              fetch_label="Fetch messages"
+              gate_description="Copies the mailbox on the remote node before truncating, so a huge mailbox is expensive to read."
+              disabled={is_nil(@pid)}
             >
-              <li :for={{entry, index} <- Enum.with_index(dictionary.items)} class="py-2">
-                <.term_inspector
-                  id={"dict-entry-#{index}"}
-                  term={entry}
-                  state={@term_states["dict-entry-#{index}"]}
-                  class="overflow-x-auto"
-                />
-              </li>
-            </ol>
-            <.truncation_note :if={dictionary.truncated?} id="process-dictionary-truncated" />
-          </.term_card>
-        </div>
+              <p :if={messages.items == []} class="font-mono text-base-content/70 text-xs">
+                Mailbox is empty.
+              </p>
+              <ol
+                :if={messages.items != []}
+                class="divide-base-content/10 m-0 flex list-none flex-col divide-y p-0"
+              >
+                <li :for={{message, index} <- Enum.with_index(messages.items)} class="py-2">
+                  <.term_inspector
+                    id={"message-#{index}"}
+                    term={message}
+                    state={@term_states["message-#{index}"]}
+                    class="overflow-x-auto"
+                  />
+                </li>
+              </ol>
+              <.truncation_note :if={messages.truncated?} id="process-messages-truncated" />
+            </.term_section>
+          </.section>
+        </.tab_panel>
+
+        <.tab_button tab={:dictionary} active={@tab} label="Dictionary" />
+        <.tab_panel
+          id="panel-dictionary"
+          section={:dictionary}
+          fetched_at={@fetched_at[:dictionary]}
+          timeout={@timeouts.dictionary}
+          refresh?={not is_nil(@dictionary)}
+          loading?={loading?(@dictionary)}
+          disabled={is_nil(@pid)}
+        >
+          <.section title="Dictionary" muted={bounded_count(@dictionary)}>
+            <.term_section
+              :let={dictionary}
+              id="process-dictionary"
+              result={@dictionary}
+              fetch_event="fetch-dictionary"
+              fetch_label="Fetch dictionary"
+              gate_description="The process dictionary holds arbitrary user terms and can be large; it is truncated on the remote node."
+              disabled={is_nil(@pid)}
+            >
+              <p :if={dictionary.items == []} class="font-mono text-base-content/70 text-xs">
+                Dictionary is empty.
+              </p>
+              <ol
+                :if={dictionary.items != []}
+                class="divide-base-content/10 m-0 flex list-none flex-col divide-y p-0"
+              >
+                <li :for={{entry, index} <- Enum.with_index(dictionary.items)} class="py-2">
+                  <.term_inspector
+                    id={"dict-entry-#{index}"}
+                    term={entry}
+                    state={@term_states["dict-entry-#{index}"]}
+                    class="overflow-x-auto"
+                  />
+                </li>
+              </ol>
+              <.truncation_note :if={dictionary.truncated?} id="process-dictionary-truncated" />
+            </.term_section>
+          </.section>
+        </.tab_panel>
+
+        <.tab_button
+          tab={:relations}
+          active={@tab}
+          label="Relations"
+          tooltip="Links, Monitors and Monitored by"
+        />
+        <.tab_panel
+          id="panel-relations"
+          section={:relations}
+          fetched_at={@fetched_at[:relations]}
+          timeout={@timeouts.relations}
+          refresh?
+          loading?={loading?(@relations)}
+          disabled={is_nil(@pid)}
+        >
+          <.async_result :let={relations} assign={@relations}>
+            <:loading>
+              <.section :for={title <- ["Links", "Monitors", "Monitored by"]} title={title}>
+                <div class="flex flex-wrap gap-1.5">
+                  <div :for={_ <- 1..3} class="skeleton h-6 w-16 rounded" />
+                </div>
+              </.section>
+            </:loading>
+            <:failed :let={reason}>
+              <.section title="Links">
+                <.fetch_alert id="process-relations-error" message={error_message(reason)} />
+              </.section>
+            </:failed>
+            <.section
+              :for={
+                {title, id, bounded} <- [
+                  {"Links", "process-links", relations.links},
+                  {"Monitors", "process-monitors", relations.monitors},
+                  {"Monitored by", "process-monitored-by", relations.monitored_by}
+                ]
+              }
+              title={title}
+              muted={bounded_count(bounded)}
+            >
+              <.identifier_chips
+                id={id}
+                items={bounded.items}
+                total={bounded.total}
+                node_name={@session.node_name}
+                remote_node={@session.node}
+              />
+            </.section>
+          </.async_result>
+        </.tab_panel>
       </div>
     </div>
     """
   end
 
   @impl true
-  def handle_event("refresh-all", _params, %{assigns: %{pid: pid}} = socket) when is_pid(pid) do
-    socket
-    |> fetch(:info)
-    |> fetch(:relations)
-    |> refetch_if_loaded(:messages)
-    |> refetch_if_loaded(:dictionary)
-    |> refetch_if_loaded(:state)
-    |> noreply()
+  def handle_event("set-tab", %{"tab" => tab}, socket) do
+    case Enum.find(@tabs, &(to_string(&1) == tab)) do
+      nil -> noreply(socket)
+      tab -> socket |> assign(:tab, tab) |> noreply()
+    end
   end
 
-  def handle_event("fetch-overview", _params, %{assigns: %{pid: pid}} = socket)
+  def handle_event("set-timeout", %{"section" => section, "timeout" => timeout}, socket) do
+    with name when not is_nil(name) <- section_atom(section),
+         timeout when not is_nil(timeout) <- parse_timeout(timeout) do
+      socket
+      |> assign(:timeouts, Map.put(socket.assigns.timeouts, name, timeout))
+      |> noreply()
+    else
+      _ -> noreply(socket)
+    end
+  end
+
+  def handle_event("fetch-" <> section, _params, %{assigns: %{pid: pid}} = socket)
       when is_pid(pid) do
-    socket
-    |> fetch(:info)
-    |> fetch(:relations)
-    |> noreply()
-  end
-
-  def handle_event("fetch-messages", _params, %{assigns: %{pid: pid}} = socket)
-      when is_pid(pid) do
-    socket
-    |> fetch(:messages)
-    |> noreply()
-  end
-
-  def handle_event("fetch-dictionary", _params, %{assigns: %{pid: pid}} = socket)
-      when is_pid(pid) do
-    socket
-    |> fetch(:dictionary)
-    |> noreply()
-  end
-
-  def handle_event("fetch-state", _params, %{assigns: %{pid: pid}} = socket) when is_pid(pid) do
-    socket
-    |> fetch(:state)
-    |> noreply()
+    case section_atom(section) do
+      nil -> noreply(socket)
+      name -> socket |> fetch(name) |> noreply()
+    end
   end
 
   # Buttons are disabled until the pid resolves; a click can still race that.
-  def handle_event(event, _params, socket)
-      when event in ~w(refresh-all fetch-overview fetch-messages fetch-dictionary fetch-state) do
-    noreply(socket)
-  end
+  def handle_event("fetch-" <> _section, _params, socket), do: noreply(socket)
 
   @impl true
   def handle_async(:pid, {:ok, {:ok, pid}}, socket) when is_pid(pid) do
@@ -261,17 +323,18 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
   def handle_async(_name, {:exit, {:shutdown, :cancel}}, socket), do: noreply(socket)
 
-  def handle_async(name, {:ok, {:ok, value}}, socket)
-      when name in [:info, :relations, :messages, :dictionary, :state] do
+  def handle_async(name, {:ok, {:ok, value}}, socket) when name in @sections do
+    now = DateTime.utc_now()
+
     socket
     |> assign(name, AsyncResult.ok(socket.assigns[name], value))
     |> seed_terms(name, value)
-    |> assign(:last_updated, DateTime.utc_now())
+    |> assign(:fetched_at, Map.put(socket.assigns.fetched_at, name, now))
+    |> assign(:last_updated, now)
     |> noreply()
   end
 
-  def handle_async(name, result, socket)
-      when name in [:info, :relations, :messages, :dictionary, :state] do
+  def handle_async(name, result, socket) when name in @sections do
     reason =
       case result do
         {:ok, {:error, reason}} -> reason
@@ -306,29 +369,37 @@ defmodule VoyagerWeb.ProcessInfoLive do
   end
 
   @queries %{
-    info: &Query.overview/2,
-    relations: &Query.relations/2,
-    messages: &Query.messages/2,
-    dictionary: &Query.dictionary/2,
-    state: &Query.state/2
+    info: &Query.overview/3,
+    relations: &Query.relations/3,
+    messages: &Query.messages/3,
+    dictionary: &Query.dictionary/3,
+    state: &Query.state/3
   }
 
   defp fetch(socket, name) do
-    %{pid: pid, session: %{node: node}} = socket.assigns
+    %{pid: pid, session: %{node: node}, timeouts: timeouts} = socket.assigns
     query = Map.fetch!(@queries, name)
+    timeout = Map.fetch!(timeouts, name)
 
     socket
     |> cancel_async(name, {:shutdown, :cancel})
     |> assign(name, mark_loading(socket.assigns[name]))
-    |> start_async(name, fn -> query.(node, pid) end)
-  end
-
-  defp refetch_if_loaded(socket, name) do
-    if socket.assigns[name], do: fetch(socket, name), else: socket
+    |> start_async(name, fn -> query.(node, pid, timeout) end)
   end
 
   defp mark_loading(nil), do: AsyncResult.loading()
   defp mark_loading(%AsyncResult{} = result), do: AsyncResult.loading(result)
+
+  defp section_atom(section), do: Enum.find(@sections, &(to_string(&1) == section))
+
+  defp parse_timeout(value) when is_binary(value) do
+    {min_ms, max_ms} = timeout_bounds()
+
+    case Integer.parse(value) do
+      {ms, ""} -> ms |> max(min_ms) |> min(max_ms)
+      _ -> nil
+    end
+  end
 
   defp seed_terms(socket, :state, %{term: term}),
     do: TermTreeHook.put_term(socket, "process-state", term)
@@ -347,13 +418,6 @@ defmodule VoyagerWeb.ProcessInfoLive do
     |> Enum.reduce(socket, fn {term, index}, socket ->
       TermTreeHook.put_term(socket, "#{prefix}-#{index}", term)
     end)
-  end
-
-  defp any_loading?(assigns) do
-    Enum.any?(
-      [assigns.info, assigns.relations, assigns.messages, assigns.dictionary, assigns.state],
-      &loading?/1
-    )
   end
 
   defp queue_len_label(%AsyncResult{ok?: true, result: %{message_queue_len: len}}),

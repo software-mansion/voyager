@@ -79,11 +79,13 @@ defmodule VoyagerWeb.CoreComponents do
     default: "waiting for first snapshot…",
     doc: "shown until the first update arrives"
 
+  attr :class, :any, default: "mb-8", doc: "replaces the default bottom margin"
+
   slot :actions
 
   def node_header(assigns) do
     ~H"""
-    <header class="mb-8 flex items-center justify-between gap-4">
+    <header class={["flex items-center justify-between gap-4" | List.wrap(@class)]}>
       <div class="min-w-0 flex-1">
         <h1 class="font-mono text-base-content min-w-0 text-2xl font-bold tracking-tight">
           <.tooltip

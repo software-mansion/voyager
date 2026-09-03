@@ -32,18 +32,69 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
     render_component(&ProcessInfoComponents.identifier_chips/1, Keyword.merge(defaults, attrs))
   end
 
-  describe "card/1" do
-    test "renders the body and floats the actions" do
+  describe "tab_button/1" do
+    test "marks the active tab and emits set-tab" do
       html =
-        render_component(&ProcessInfoComponents.card/1,
-          id: "my-card",
-          inner_block: [%{__slot__: :inner_block, inner_block: fn _, _ -> "body" end}],
-          actions: [%{__slot__: :actions, inner_block: fn _, _ -> "action" end}]
+        render_component(&ProcessInfoComponents.tab_button/1,
+          tab: :state,
+          active: :state,
+          label: "State"
         )
 
-      assert count(html, "#my-card") == 1
-      assert text(html, "#my-card") =~ "body"
-      assert text(html, "#my-card .absolute") =~ "action"
+      assert attr(html, "#process-tab-state", "phx-click") == ["set-tab"]
+      assert attr(html, "#process-tab-state", "phx-value-tab") == ["state"]
+      assert count(html, "#process-tab-state.tab-active") == 1
+      assert count(html, "#process-tab-state .tooltip") == 0
+    end
+
+    test "renders an inactive tab with a tooltip" do
+      html =
+        render_component(&ProcessInfoComponents.tab_button/1,
+          tab: :relations,
+          active: :overview,
+          label: "Relations",
+          tooltip: "Links, Monitors and Monitored by"
+        )
+
+      assert count(html, "#process-tab-relations.tab-active") == 0
+
+      assert attr(html, "#process-tab-relations .tooltip", "data-tip") ==
+               ["Links, Monitors and Monitored by"]
+    end
+  end
+
+  describe "tab_panel/1" do
+    defp panel(attrs) do
+      defaults = [
+        id: "panel-sec",
+        section: :sec,
+        timeout: 5_000,
+        refresh?: true,
+        loading?: false,
+        disabled: false,
+        inner_block: [%{__slot__: :inner_block, inner_block: fn _, _ -> "body" end}]
+      ]
+
+      render_component(&ProcessInfoComponents.tab_panel/1, Keyword.merge(defaults, attrs))
+    end
+
+    test "renders the body with a section-scoped timeout input and refresh" do
+      html = panel([])
+
+      assert text(html, "#panel-sec") =~ "body"
+      assert attr(html, "#panel-sec-timeout-form", "phx-change") == ["set-timeout"]
+      assert attr(html, "#panel-sec-timeout-form input[type=hidden]", "value") == ["sec"]
+      assert attr(html, "#panel-sec-timeout", "value") == ["5000"]
+      assert attr(html, "#panel-sec-refresh", "phx-click") == ["fetch-sec"]
+      assert count(html, "#panel-sec-fetched-at") == 0
+    end
+
+    test "shows the fetch time and hides refresh while gated" do
+      {:ok, dt, 0} = DateTime.from_iso8601("2026-06-02T09:08:07Z")
+      html = panel(refresh?: false, fetched_at: dt)
+
+      assert text(html, "#panel-sec-fetched-at") =~ "fetched 09:08:07 UTC"
+      assert count(html, "#panel-sec-refresh") == 0
     end
   end
 
@@ -93,12 +144,31 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
     end
   end
 
-  describe "fetch_error/1" do
-    test "renders the message in an error alert" do
+  describe "fetch_alert/1" do
+    test "renders the message in an error alert by default" do
       html =
-        render_component(&ProcessInfoComponents.fetch_error/1, id: "err", message: "Boom.")
+        render_component(&ProcessInfoComponents.fetch_alert/1, id: "err", message: "Boom.")
 
       assert text(html, "#err.alert-error") =~ "Boom."
+    end
+
+    test "renders an info alert for facts like a missing state" do
+      html =
+        render_component(&ProcessInfoComponents.fetch_alert/1,
+          id: "note",
+          kind: :info,
+          message: "No state."
+        )
+
+      assert text(html, "#note.alert-info") =~ "No state."
+      assert count(html, "#note.alert-error") == 0
+    end
+  end
+
+  describe "error_kind/1" do
+    test "treats a missing state as information, everything else as an error" do
+      assert ProcessInfoComponents.error_kind(:no_state) == :info
+      assert ProcessInfoComponents.error_kind(:timeout) == :error
     end
   end
 

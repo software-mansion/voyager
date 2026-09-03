@@ -1,103 +1,120 @@
 defmodule VoyagerWeb.Components.ProcessInfoComponents do
   @moduledoc """
-  Cards and lists for the process info page.
+  Tabs, panels and lists for the process info page.
 
-  The page-specific cards (`overview_card/1`, `relations_card/1`,
-  `term_card/1`) render straight from the async assigns the LiveView owns; the
-  rest are generic building blocks.
+  `tab_button/1` and `tab_panel/1` build the DaisyUI lift tabs; a panel's
+  controls row carries the per-section fetch time, timeout and refresh button.
+  `term_section/1` renders one gated, unbounded term fetch. The rest are
+  generic building blocks.
   """
 
   use VoyagerWeb, :component
 
-  import VoyagerWeb.Components.DetailsPanelComponents,
-    only: [overview: 1, memory_and_garbage_collection: 1, section: 1]
-
   alias Phoenix.LiveView.AsyncResult
   alias VoyagerWeb.Formatters
 
+  @timeout_bounds {1_000, 30_000}
+
+  @doc "Timeout bounds for the per-section timeout inputs, in milliseconds."
+  @spec timeout_bounds() :: {pos_integer(), pos_integer()}
+  def timeout_bounds, do: @timeout_bounds
+
   @doc """
-  The overview card: the same bounded fields the supervision-tree details
-  panel shows, plus memory and GC.
+  One lift tab. Must be a direct child of the `.tabs` container, immediately
+  followed by its `tab_panel/1`.
   """
-  attr :info, AsyncResult, required: true
-  attr :disabled, :boolean, required: true
+  attr :tab, :atom, required: true
+  attr :active, :atom, required: true
+  attr :label, :string, required: true
+  attr :tooltip, :string, default: nil
+
+  def tab_button(assigns) do
+    ~H"""
+    <button
+      type="button"
+      role="tab"
+      id={"process-tab-#{@tab}"}
+      phx-click="set-tab"
+      phx-value-tab={@tab}
+      class={["tab", @active == @tab && "tab-active"]}
+    >
+      <%!-- The tooltip lives on an inner span: `tabs-lift` already claims the
+           tab's own pseudo-elements for its corner decoration. --%>
+      <span :if={@tooltip} class="tooltip tooltip-bottom" data-tip={@tooltip}>{@label}</span>
+      <span :if={is_nil(@tooltip)}>{@label}</span>
+    </button>
+    """
+  end
+
+  @doc """
+  A lift tab's content panel: the controls row (fetch time, timeout input and
+  refresh button, all scoped to `section`) above the section body.
+  """
+  attr :id, :string, required: true
+  attr :section, :atom, required: true
+  attr :fetched_at, DateTime, default: nil
+  attr :timeout, :integer, required: true
+  attr :refresh?, :boolean, required: true, doc: "false while the section is still gated"
   attr :loading?, :boolean, required: true
+  attr :disabled, :boolean, required: true
+  slot :inner_block, required: true
 
-  def overview_card(assigns) do
+  def tab_panel(assigns) do
+    assigns = assign(assigns, :bounds, @timeout_bounds)
+
     ~H"""
-    <.card id="process-overview-card">
-      <:actions>
-        <.refresh_button
-          id="process-overview-refresh"
-          event="fetch-overview"
-          label="Refresh overview and links"
-          loading?={@loading?}
-          disabled={@disabled}
-        />
-      </:actions>
-      <.overview info={@info} />
-      <.memory_and_garbage_collection info={@info} />
-    </.card>
-    """
-  end
-
-  @doc """
-  The links / monitors / monitored-by card.
-  """
-  attr :relations, AsyncResult, required: true
-  attr :node_name, :string, required: true
-  attr :remote_node, :atom, required: true
-
-  def relations_card(assigns) do
-    ~H"""
-    <.card id="process-links-card" class="h-max">
-      <.async_result :let={relations} assign={@relations}>
-        <:loading>
-          <.section :for={title <- ["Links", "Monitors", "Monitored by"]} title={title}>
-            <div class="flex flex-wrap gap-1.5">
-              <div :for={_ <- 1..3} class="skeleton h-6 w-16 rounded" />
-            </div>
-          </.section>
-        </:loading>
-        <:failed :let={reason}>
-          <.section title="Links">
-            <.fetch_error id="process-links-error" message={error_message(reason)} />
-          </.section>
-        </:failed>
-        <.section
-          :for={
-            {title, id, bounded} <- [
-              {"Links", "process-links", relations.links},
-              {"Monitors", "process-monitors", relations.monitors},
-              {"Monitored by", "process-monitored-by", relations.monitored_by}
-            ]
-          }
-          title={title}
-          muted={bounded_count(bounded)}
-        >
-          <.identifier_chips
-            id={id}
-            items={bounded.items}
-            total={bounded.total}
-            node_name={@node_name}
-            remote_node={@remote_node}
+    <div class="tab-content border-base-300 bg-base-100 p-5">
+      <div id={@id} class="flex flex-col gap-5">
+        <div class="flex flex-wrap items-center justify-end gap-3">
+          <span
+            :if={@fetched_at}
+            id={"#{@id}-fetched-at"}
+            class="font-mono text-base-content/70 text-xs"
+          >
+            fetched {Formatters.format_time(@fetched_at)} UTC
+          </span>
+          <form id={"#{@id}-timeout-form"} phx-change="set-timeout" class="flex items-center gap-2">
+            <input type="hidden" name="section" value={@section} />
+            <label for={"#{@id}-timeout"} class="text-base-content/70 text-xs font-medium">
+              Timeout (ms)
+            </label>
+            <input
+              id={"#{@id}-timeout"}
+              type="number"
+              name="timeout"
+              value={@timeout}
+              min={elem(@bounds, 0)}
+              max={elem(@bounds, 1)}
+              step="100"
+              inputmode="numeric"
+              phx-debounce="500"
+              class="input input-sm input-bordered no-spinner font-mono w-24"
+            />
+          </form>
+          <.refresh_button
+            :if={@refresh?}
+            id={"#{@id}-refresh"}
+            event={"fetch-#{@section}"}
+            label="Refresh"
+            loading?={@loading?}
+            disabled={@disabled}
           />
-        </.section>
-      </.async_result>
-    </.card>
+        </div>
+        {render_slot(@inner_block)}
+      </div>
+    </div>
     """
   end
 
   @doc """
-  A card for one gated, unbounded term fetch (state, messages, dictionary).
+  One gated, unbounded term fetch (state, messages, dictionary).
 
   `result` is `nil` until the first fetch, which renders the explicit-fetch
-  gate; afterwards the card carries its own refresh button and renders the
-  loaded value through the inner block.
+  gate; afterwards the loaded value renders through the inner block. A process
+  that exposes no state is a fact, not a failure, so `:no_state` renders as an
+  info notice.
   """
-  attr :id, :string, required: true, doc: "base for the card, button and error DOM ids"
-  attr :title, :string, required: true
-  attr :muted, :string, default: nil
+  attr :id, :string, required: true
   attr :result, :any, required: true, doc: "nil or an AsyncResult"
   attr :fetch_event, :string, required: true
   attr :fetch_label, :string, required: true
@@ -105,65 +122,29 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   attr :disabled, :boolean, required: true
   slot :inner_block, required: true
 
-  def term_card(assigns) do
+  def term_section(assigns) do
     ~H"""
-    <.card id={"#{@id}-card"}>
-      <:actions>
-        <.refresh_button
-          :if={@result}
-          id={"#{@id}-refresh"}
-          event={@fetch_event}
-          label={"Refresh #{String.downcase(@title)}"}
-          loading?={loading?(@result)}
-          disabled={@disabled}
-        />
-      </:actions>
-      <.section title={@title} muted={@muted}>
-        <.fetch_gate
-          :if={is_nil(@result)}
-          id={"#{@id}-fetch"}
-          event={@fetch_event}
-          label={@fetch_label}
-          description={@gate_description}
-          disabled={@disabled}
-        />
-        <.async_result :let={value} :if={@result} assign={@result}>
-          <:loading>
-            <div id={"#{@id}-skeleton"} class="flex flex-col gap-2">
-              <div class="skeleton h-3 w-2/3 rounded" />
-              <div class="skeleton h-3 w-1/2 rounded" />
-              <div class="skeleton h-3 w-3/5 rounded" />
-            </div>
-          </:loading>
-          <:failed :let={reason}>
-            <.fetch_error id={"#{@id}-error"} message={error_message(reason)} />
-          </:failed>
-          {render_slot(@inner_block, value)}
-        </.async_result>
-      </.section>
-    </.card>
-    """
-  end
-
-  @doc """
-  A page card. `:actions` floats in the top-right corner so section headings
-  rendered by the body keep their own layout.
-  """
-  attr :id, :string, required: true
-  attr :class, :any, default: nil
-  slot :actions
-  slot :inner_block, required: true
-
-  def card(assigns) do
-    ~H"""
-    <div id={@id} class={["card bg-base-100 border-base-200 border shadow-sm" | List.wrap(@class)]}>
-      <div class="card-body relative gap-5 p-5">
-        <div :if={@actions != []} class="absolute top-3.5 right-4 z-10 flex items-center gap-1.5">
-          {render_slot(@actions)}
+    <.fetch_gate
+      :if={is_nil(@result)}
+      id={"#{@id}-fetch"}
+      event={@fetch_event}
+      label={@fetch_label}
+      description={@gate_description}
+      disabled={@disabled}
+    />
+    <.async_result :let={value} :if={@result} assign={@result}>
+      <:loading>
+        <div id={"#{@id}-skeleton"} class="flex flex-col gap-2">
+          <div class="skeleton h-3 w-2/3 rounded" />
+          <div class="skeleton h-3 w-1/2 rounded" />
+          <div class="skeleton h-3 w-3/5 rounded" />
         </div>
-        {render_slot(@inner_block)}
-      </div>
-    </div>
+      </:loading>
+      <:failed :let={reason}>
+        <.fetch_alert id={"#{@id}-error"} kind={error_kind(reason)} message={error_message(reason)} />
+      </:failed>
+      {render_slot(@inner_block, value)}
+    </.async_result>
     """
   end
 
@@ -220,11 +201,21 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
 
   attr :id, :string, required: true
   attr :message, :string, required: true
+  attr :kind, :atom, default: :error, values: [:error, :info]
 
-  def fetch_error(assigns) do
+  def fetch_alert(assigns) do
     ~H"""
-    <div id={@id} class="alert alert-error border px-3 py-2.5 text-xs">
-      <.icon name="icon-circle-alert" class="text-error size-4 shrink-0" />
+    <div
+      id={@id}
+      class={[
+        "alert border px-3 py-2.5 text-xs",
+        if(@kind == :info, do: "alert-info", else: "alert-error")
+      ]}
+    >
+      <.icon
+        name={if(@kind == :info, do: "icon-info", else: "icon-circle-alert")}
+        class="size-4 shrink-0"
+      />
       {@message}
     </div>
     """
@@ -310,6 +301,10 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
     do: "The Voyager agent is not loaded on this node."
 
   def error_message(_reason), do: "Failed to fetch process information."
+
+  @spec error_kind(term()) :: :error | :info
+  def error_kind(:no_state), do: :info
+  def error_kind(_reason), do: :error
 
   # Monitor entries arrive as `{:process, target}` / `{:port, port}`; links and
   # monitored-by entries as bare pids and ports.
