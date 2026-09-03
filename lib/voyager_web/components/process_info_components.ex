@@ -20,8 +20,8 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   def timeout_bounds, do: @timeout_bounds
 
   @doc """
-  One lift tab. Must be a direct child of the `.tabs` container, immediately
-  followed by its `tab_panel/1`.
+  One lift tab. Must be a direct child of the `.tabs` tablist; the matching
+  `tab_panel/1` is toggled by the server-tracked `active` tab.
   """
   attr :tab, :atom, required: true
   attr :active, :atom, required: true
@@ -48,10 +48,15 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
 
   @doc """
   A lift tab's content panel: the controls row (fetch time, timeout input and
-  refresh button, all scoped to `section`) above the section body.
+  fetch button, all scoped to `section`) above the section body.
+
+  All panels stay in the DOM so fetched data survives tab switches; only the
+  `active` one is shown. The panel fills the remaining page height and scrolls
+  on its own.
   """
   attr :id, :string, required: true
   attr :section, :atom, required: true
+  attr :active, :boolean, required: true
   attr :fetched_at, DateTime, default: nil
   attr :timeout, :integer, required: true
   attr :loading?, :boolean, required: true
@@ -62,8 +67,11 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
     assigns = assign(assigns, :bounds, @timeout_bounds)
 
     ~H"""
-    <div class="tab-content border-base-300 bg-base-100 p-5">
-      <div id={@id} class="flex flex-col gap-5">
+    <div class={[
+      "border-base-300 bg-base-100 rounded-b-box -mt-px min-h-0 flex-1 overflow-y-auto border",
+      not @active && "hidden"
+    ]}>
+      <div id={@id} class="flex min-h-full flex-col gap-5 p-5">
         <div class="flex flex-wrap items-center justify-end gap-3">
           <span
             :if={@fetched_at}
@@ -107,42 +115,47 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   @doc """
   One gated, unbounded term fetch (state, messages, dictionary).
 
-  `result` is `nil` until the first fetch, which renders `placeholder` and
-  points at the panel's fetch button; afterwards the loaded value renders
-  through the inner block. The body has a fixed height band and scrolls on its
-  own, so the tab does not jump when a section is empty or huge. A process
-  that exposes no state is a fact, not a failure, so `:no_state` renders as an
-  info notice.
+  `result` is `nil` until the first fetch, which renders a centered fetch
+  button; afterwards the loaded value renders through the inner block. A
+  process that exposes no state is a fact, not a failure, so `:no_state`
+  renders as an info notice.
   """
   attr :id, :string, required: true
   attr :result, :any, required: true, doc: "nil or an AsyncResult"
-  attr :placeholder, :string, required: true, doc: "shown until the first fetch"
+  attr :event, :string, required: true
+  attr :disabled, :boolean, required: true
   slot :inner_block, required: true
 
   def term_section(assigns) do
     ~H"""
-    <div class="min-h-64 flex max-h-96 flex-col gap-3 overflow-y-auto">
-      <p :if={is_nil(@result)} id={"#{@id}-gate"} class="text-base-content/70 max-w-md text-xs">
-        {@placeholder} Use the fetch button above to load it.
-      </p>
-      <.async_result :let={value} :if={@result} assign={@result}>
-        <:loading>
-          <div id={"#{@id}-skeleton"} class="flex flex-col gap-2">
-            <div class="skeleton h-3 w-2/3 rounded" />
-            <div class="skeleton h-3 w-1/2 rounded" />
-            <div class="skeleton h-3 w-3/5 rounded" />
-          </div>
-        </:loading>
-        <:failed :let={reason}>
-          <.fetch_alert
-            id={"#{@id}-error"}
-            kind={error_kind(reason)}
-            message={error_message(reason)}
-          />
-        </:failed>
-        {render_slot(@inner_block, value)}
-      </.async_result>
+    <div :if={is_nil(@result)} id={"#{@id}-gate"} class="flex flex-1 items-center justify-center">
+      <button
+        type="button"
+        id={"#{@id}-fetch"}
+        phx-click={@event}
+        disabled={@disabled}
+        class="btn btn-primary btn-sm"
+      >
+        Fetch
+      </button>
     </div>
+    <.async_result :let={value} :if={@result} assign={@result}>
+      <:loading>
+        <div id={"#{@id}-skeleton"} class="flex flex-col gap-2">
+          <div class="skeleton h-3 w-2/3 rounded" />
+          <div class="skeleton h-3 w-1/2 rounded" />
+          <div class="skeleton h-3 w-3/5 rounded" />
+        </div>
+      </:loading>
+      <:failed :let={reason}>
+        <.fetch_alert
+          id={"#{@id}-error"}
+          kind={error_kind(reason)}
+          message={error_message(reason)}
+        />
+      </:failed>
+      {render_slot(@inner_block, value)}
+    </.async_result>
     """
   end
 

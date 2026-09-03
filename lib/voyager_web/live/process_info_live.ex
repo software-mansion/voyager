@@ -52,46 +52,52 @@ defmodule VoyagerWeb.ProcessInfoLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="mx-auto flex max-w-screen-2xl flex-col gap-4 p-6 sm:p-8">
+    <div class="mx-auto flex h-full w-full max-w-screen-2xl flex-col gap-4 p-6 sm:p-8">
       <.node_header
         node_name={@session.node_name}
         last_updated={@last_updated}
         waiting_message="waiting for first fetch…"
         class="mb-0"
-      >
-        <:actions>
-          <button
-            type="button"
-            id="go-to-supervision-tree"
-            class="btn btn-ghost btn-sm gap-2"
-            disabled
-          >
-            Supervision tree <span class="badge badge-primary badge-soft badge-xs">Soon</span>
-          </button>
-        </:actions>
-      </.node_header>
+      />
 
-      <div class="flex flex-col gap-1">
+      <div class="grid-cols-[1fr_auto_1fr] grid items-center gap-3">
         <.link
           id="back-to-processes"
           navigate={~p"/node/#{@session.node_name}/processes"}
-          class="btn btn-ghost btn-sm w-max gap-2"
+          class="btn btn-ghost btn-sm w-max gap-2 justify-self-start"
         >
           <.icon name="icon-arrow-left" class="size-4" /> All Processes
         </.link>
-        <h2 class="text-base-content text-sm font-semibold leading-none">
+        <h2 class="text-base-content flex items-center gap-2 text-sm font-semibold leading-none">
           Process Info
-          <span class="font-mono text-base-content/70 ml-1 text-xs font-normal">
+          <span
+            id="process-info-pid"
+            class="border-base-content/40 bg-base-200 text-base-content font-mono rounded-md border px-2.5 py-1 text-xs font-normal"
+          >
             {@pid_string}
           </span>
         </h2>
+        <span />
       </div>
 
-      <div id="process-info-tabs" class="tabs tabs-lift">
-        <.tab_button tab={:overview} active={@tab} label="Overview" />
+      <div class="flex min-h-0 flex-1 flex-col">
+        <div id="process-info-tabs" role="tablist" class="tabs tabs-lift">
+          <.tab_button tab={:overview} active={@tab} label="Overview" />
+          <.tab_button tab={:state} active={@tab} label="State" />
+          <.tab_button tab={:messages} active={@tab} label="Messages" />
+          <.tab_button tab={:dictionary} active={@tab} label="Dictionary" />
+          <.tab_button
+            tab={:relations}
+            active={@tab}
+            label="Relations"
+            tooltip="Links, Monitors and Monitored by"
+          />
+        </div>
+
         <.tab_panel
           id="panel-overview"
           section={:info}
+          active={@tab == :overview}
           fetched_at={@fetched_at[:info]}
           timeout={@timeouts.info}
           loading?={loading?(@info)}
@@ -103,21 +109,26 @@ defmodule VoyagerWeb.ProcessInfoLive do
           </div>
         </.tab_panel>
 
-        <.tab_button tab={:state} active={@tab} label="State" />
         <.tab_panel
           id="panel-state"
           section={:state}
+          active={@tab == :state}
           fetched_at={@fetched_at[:state]}
           timeout={@timeouts.state}
           loading?={loading?(@state)}
           disabled={is_nil(@pid)}
         >
-          <.section title="State">
+          <.section
+            title="State"
+            class="flex min-h-0 flex-1 flex-col"
+            help="Calls :sys.get_state on the remote node. A busy process or one that does not handle system messages will time out."
+          >
             <.term_section
               :let={state}
               id="process-state"
               result={@state}
-              placeholder="Calls :sys.get_state on the remote node. A busy process or one that does not handle system messages will time out."
+              event="fetch-state"
+              disabled={is_nil(@pid)}
             >
               <.term_inspector
                 id="process-state"
@@ -130,21 +141,27 @@ defmodule VoyagerWeb.ProcessInfoLive do
           </.section>
         </.tab_panel>
 
-        <.tab_button tab={:messages} active={@tab} label="Messages" />
         <.tab_panel
           id="panel-messages"
           section={:messages}
+          active={@tab == :messages}
           fetched_at={@fetched_at[:messages]}
           timeout={@timeouts.messages}
           loading?={loading?(@messages)}
           disabled={is_nil(@pid)}
         >
-          <.section title="Messages" muted={queue_len_label(@info)}>
+          <.section
+            title="Messages"
+            muted={queue_len_label(@info)}
+            class="flex min-h-0 flex-1 flex-col"
+            help="Copies the mailbox on the remote node before truncating, so a huge mailbox is expensive to read."
+          >
             <.term_section
               :let={messages}
               id="process-messages"
               result={@messages}
-              placeholder="Copies the mailbox on the remote node before truncating, so a huge mailbox is expensive to read."
+              event="fetch-messages"
+              disabled={is_nil(@pid)}
             >
               <p :if={messages.items == []} class="font-mono text-base-content/70 text-xs">
                 Mailbox is empty.
@@ -167,21 +184,27 @@ defmodule VoyagerWeb.ProcessInfoLive do
           </.section>
         </.tab_panel>
 
-        <.tab_button tab={:dictionary} active={@tab} label="Dictionary" />
         <.tab_panel
           id="panel-dictionary"
           section={:dictionary}
+          active={@tab == :dictionary}
           fetched_at={@fetched_at[:dictionary]}
           timeout={@timeouts.dictionary}
           loading?={loading?(@dictionary)}
           disabled={is_nil(@pid)}
         >
-          <.section title="Dictionary" muted={bounded_count(@dictionary)}>
+          <.section
+            title="Dictionary"
+            muted={bounded_count(@dictionary)}
+            class="flex min-h-0 flex-1 flex-col"
+            help="The process dictionary holds arbitrary user terms and can be large; it is truncated on the remote node."
+          >
             <.term_section
               :let={dictionary}
               id="process-dictionary"
               result={@dictionary}
-              placeholder="The process dictionary holds arbitrary user terms and can be large; it is truncated on the remote node."
+              event="fetch-dictionary"
+              disabled={is_nil(@pid)}
             >
               <p :if={dictionary.items == []} class="font-mono text-base-content/70 text-xs">
                 Dictionary is empty.
@@ -204,15 +227,10 @@ defmodule VoyagerWeb.ProcessInfoLive do
           </.section>
         </.tab_panel>
 
-        <.tab_button
-          tab={:relations}
-          active={@tab}
-          label="Relations"
-          tooltip="Links, Monitors and Monitored by"
-        />
         <.tab_panel
           id="panel-relations"
           section={:relations}
+          active={@tab == :relations}
           fetched_at={@fetched_at[:relations]}
           timeout={@timeouts.relations}
           loading?={loading?(@relations)}
