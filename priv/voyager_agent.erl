@@ -484,9 +484,9 @@ cons_count([], Acc) ->
 cons_count(_ImproperTail, Acc) ->
     Acc + 1.
 
-%% Do not maps:to_list a huge map. `iterator/2` with `ordered` matches
-%% Elixir's sort-then-take-50; epp runs on Voyager so this is a runtime
-%% export check, not `-if(?OTP_RELEASE)`.
+%% Do not maps:to_list a huge map. OTP 26+ `iterator/2` `ordered` matches
+%% Elixir's sort-then-take-50; older `iterator/1` keeps an arbitrary 50
+%% the host cannot repair. Runtime export check, not `-if(?OTP_RELEASE)`.
 take_map_pairs(Map) ->
     take_map_pairs(maps:next(map_iter(Map)), ?MAX_COLLECTION, []).
 
