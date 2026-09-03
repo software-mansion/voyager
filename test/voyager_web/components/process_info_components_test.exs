@@ -69,7 +69,6 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
         id: "panel-sec",
         section: :sec,
         timeout: 5_000,
-        refresh?: true,
         loading?: false,
         disabled: false,
         inner_block: [%{__slot__: :inner_block, inner_block: fn _, _ -> "body" end}]
@@ -78,7 +77,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
       render_component(&ProcessInfoComponents.tab_panel/1, Keyword.merge(defaults, attrs))
     end
 
-    test "renders the body with a section-scoped timeout input and refresh" do
+    test "renders the body with a section-scoped timeout input and fetch button" do
       html = panel([])
 
       assert text(html, "#panel-sec") =~ "body"
@@ -89,12 +88,11 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
       assert count(html, "#panel-sec-fetched-at") == 0
     end
 
-    test "shows the fetch time and hides refresh while gated" do
+    test "shows the fetch time once set" do
       {:ok, dt, 0} = DateTime.from_iso8601("2026-06-02T09:08:07Z")
-      html = panel(refresh?: false, fetched_at: dt)
+      html = panel(fetched_at: dt)
 
       assert text(html, "#panel-sec-fetched-at") =~ "fetched 09:08:07 UTC"
-      assert count(html, "#panel-sec-refresh") == 0
     end
   end
 
@@ -125,22 +123,6 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
 
       assert count(html, "#sec-refresh[disabled]") == 1
       assert count(html, ~s(#sec-refresh [class*="animate-spin"])) == 0
-    end
-  end
-
-  describe "fetch_gate/1" do
-    test "renders the description and the fetch button" do
-      html =
-        render_component(&ProcessInfoComponents.fetch_gate/1,
-          id: "gate",
-          event: "fetch-sec",
-          label: "Fetch sec",
-          description: "Expensive read."
-        )
-
-      assert html =~ "Expensive read."
-      assert attr(html, "#gate", "phx-click") == ["fetch-sec"]
-      assert text(html, "#gate") =~ "Fetch sec"
     end
   end
 

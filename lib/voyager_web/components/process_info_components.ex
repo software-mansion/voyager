@@ -54,7 +54,6 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   attr :section, :atom, required: true
   attr :fetched_at, DateTime, default: nil
   attr :timeout, :integer, required: true
-  attr :refresh?, :boolean, required: true, doc: "false while the section is still gated"
   attr :loading?, :boolean, required: true
   attr :disabled, :boolean, required: true
   slot :inner_block, required: true
@@ -92,10 +91,9 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
             />
           </form>
           <.refresh_button
-            :if={@refresh?}
             id={"#{@id}-refresh"}
             event={"fetch-#{@section}"}
-            label="Refresh"
+            label="Fetch"
             loading?={@loading?}
             disabled={@disabled}
           />
@@ -109,42 +107,42 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   @doc """
   One gated, unbounded term fetch (state, messages, dictionary).
 
-  `result` is `nil` until the first fetch, which renders the explicit-fetch
-  gate; afterwards the loaded value renders through the inner block. A process
+  `result` is `nil` until the first fetch, which renders `placeholder` and
+  points at the panel's fetch button; afterwards the loaded value renders
+  through the inner block. The body has a fixed height band and scrolls on its
+  own, so the tab does not jump when a section is empty or huge. A process
   that exposes no state is a fact, not a failure, so `:no_state` renders as an
   info notice.
   """
   attr :id, :string, required: true
   attr :result, :any, required: true, doc: "nil or an AsyncResult"
-  attr :fetch_event, :string, required: true
-  attr :fetch_label, :string, required: true
-  attr :gate_description, :string, required: true
-  attr :disabled, :boolean, required: true
+  attr :placeholder, :string, required: true, doc: "shown until the first fetch"
   slot :inner_block, required: true
 
   def term_section(assigns) do
     ~H"""
-    <.fetch_gate
-      :if={is_nil(@result)}
-      id={"#{@id}-fetch"}
-      event={@fetch_event}
-      label={@fetch_label}
-      description={@gate_description}
-      disabled={@disabled}
-    />
-    <.async_result :let={value} :if={@result} assign={@result}>
-      <:loading>
-        <div id={"#{@id}-skeleton"} class="flex flex-col gap-2">
-          <div class="skeleton h-3 w-2/3 rounded" />
-          <div class="skeleton h-3 w-1/2 rounded" />
-          <div class="skeleton h-3 w-3/5 rounded" />
-        </div>
-      </:loading>
-      <:failed :let={reason}>
-        <.fetch_alert id={"#{@id}-error"} kind={error_kind(reason)} message={error_message(reason)} />
-      </:failed>
-      {render_slot(@inner_block, value)}
-    </.async_result>
+    <div class="min-h-64 flex max-h-96 flex-col gap-3 overflow-y-auto">
+      <p :if={is_nil(@result)} id={"#{@id}-gate"} class="text-base-content/70 max-w-md text-xs">
+        {@placeholder} Use the fetch button above to load it.
+      </p>
+      <.async_result :let={value} :if={@result} assign={@result}>
+        <:loading>
+          <div id={"#{@id}-skeleton"} class="flex flex-col gap-2">
+            <div class="skeleton h-3 w-2/3 rounded" />
+            <div class="skeleton h-3 w-1/2 rounded" />
+            <div class="skeleton h-3 w-3/5 rounded" />
+          </div>
+        </:loading>
+        <:failed :let={reason}>
+          <.fetch_alert
+            id={"#{@id}-error"}
+            kind={error_kind(reason)}
+            message={error_message(reason)}
+          />
+        </:failed>
+        {render_slot(@inner_block, value)}
+      </.async_result>
+    </div>
     """
   end
 
@@ -170,32 +168,6 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
       </button>
       <:content>{@label}</:content>
     </.tooltip>
-    """
-  end
-
-  @doc """
-  The explicit-fetch gate shown before a potentially heavy read is requested.
-  """
-  attr :id, :string, required: true
-  attr :event, :string, required: true
-  attr :label, :string, required: true
-  attr :description, :string, required: true
-  attr :disabled, :boolean, default: false
-
-  def fetch_gate(assigns) do
-    ~H"""
-    <div class="border-base-content/10 flex flex-col items-center gap-3 rounded-lg border border-dashed px-4 py-6 text-center">
-      <p class="text-base-content/70 max-w-sm text-xs">{@description}</p>
-      <button
-        type="button"
-        id={@id}
-        phx-click={@event}
-        disabled={@disabled}
-        class="btn btn-primary btn-sm"
-      >
-        {@label}
-      </button>
-    </div>
     """
   end
 
