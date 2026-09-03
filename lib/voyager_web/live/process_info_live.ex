@@ -4,10 +4,11 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
   The cheap, size-bounded reads (overview and relations) are fetched on mount.
   The unbounded terms -- messages, dictionary and state -- can be arbitrarily
-  large even truncated, so each is gated behind an explicit fetch button.
-  Every section keeps its own timeout and fetch time, and fetched data stays
-  assigned across tab switches. `Query` owns the data loading; this module
-  owns the async lifecycle and events.
+  large even truncated, so each is fetched only when its tab is first opened
+  or its fetch button is pressed, never behind the user's back. Every section
+  keeps its own timeout and fetch time, and fetched data stays assigned across
+  tab switches. `Query` owns the data loading; this module owns the async
+  lifecycle and events.
   """
 
   use VoyagerWeb, :live_view
@@ -70,7 +71,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
         </.link>
         <h2
           id="process-info-pid"
-          class="border-base-content/40 bg-base-200 text-base-content font-mono rounded-md border px-3 py-1.5 text-sm font-semibold"
+          class="bg-base-200 text-base-content font-mono rounded-md px-3 py-1.5 text-sm font-semibold underline underline-offset-4 shadow-md"
         >
           {@pid_string}
         </h2>
@@ -100,9 +101,13 @@ defmodule VoyagerWeb.ProcessInfoLive do
           loading?={loading?(@info)}
           disabled={is_nil(@pid)}
         >
-          <div class="grid grid-cols-1 items-start gap-x-8 gap-y-5 lg:grid-cols-2">
-            <.overview info={@info} />
-            <.memory_and_garbage_collection info={@info} />
+          <div class="grid grid-cols-1 items-start gap-y-5 lg:divide-base-300 lg:grid-cols-2 lg:divide-x">
+            <div class="lg:pr-8">
+              <.overview info={@info} />
+            </div>
+            <div class="lg:pl-8">
+              <.memory_and_garbage_collection info={@info} />
+            </div>
           </div>
         </.tab_panel>
 
@@ -205,12 +210,17 @@ defmodule VoyagerWeb.ProcessInfoLive do
         >
           <.async_result :let={relations} assign={@relations}>
             <:loading>
-              <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
-                <.section :for={title <- ["Links", "Monitors", "Monitored by"]} title={title}>
-                  <div class="flex flex-wrap gap-1.5">
-                    <div :for={_ <- 1..3} class="skeleton h-6 w-16 rounded" />
-                  </div>
-                </.section>
+              <div class="grid grid-cols-1 gap-y-6 md:divide-base-300 md:grid-cols-3 md:divide-x">
+                <div
+                  :for={title <- ["Links", "Monitors", "Monitored by"]}
+                  class="md:px-6 md:first:pl-0 md:last:pr-0"
+                >
+                  <.section title={title}>
+                    <div class="flex flex-wrap gap-1.5">
+                      <div :for={_ <- 1..3} class="skeleton h-6 w-16 rounded" />
+                    </div>
+                  </.section>
+                </div>
               </div>
             </:loading>
             <:failed :let={reason}>
@@ -218,8 +228,8 @@ defmodule VoyagerWeb.ProcessInfoLive do
                 <.fetch_alert id="process-relations-error" message={error_message(reason)} />
               </.section>
             </:failed>
-            <div class="grid grid-cols-1 gap-6 md:grid-cols-3">
-              <.section
+            <div class="grid grid-cols-1 gap-y-6 md:divide-base-300 md:grid-cols-3 md:divide-x">
+              <div
                 :for={
                   {title, id, bounded} <- [
                     {"Links", "process-links", relations.links},
@@ -227,17 +237,18 @@ defmodule VoyagerWeb.ProcessInfoLive do
                     {"Monitored by", "process-monitored-by", relations.monitored_by}
                   ]
                 }
-                title={title}
-                muted={bounded_count(bounded)}
+                class="md:px-6 md:first:pl-0 md:last:pr-0"
               >
-                <.identifier_chips
-                  id={id}
-                  items={bounded.items}
-                  total={bounded.total}
-                  node_name={@session.node_name}
-                  remote_node={@session.node}
-                />
-              </.section>
+                <.section title={title} muted={bounded_count(bounded)}>
+                  <.identifier_chips
+                    id={id}
+                    items={bounded.items}
+                    total={bounded.total}
+                    node_name={@session.node_name}
+                    remote_node={@session.node}
+                  />
+                </.section>
+              </div>
             </div>
           </.async_result>
         </.tab_panel>
@@ -250,7 +261,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
   def handle_event("set-tab", %{"tab" => tab}, socket) do
     case Enum.find(@tabs, &(to_string(&1) == tab)) do
       nil -> noreply(socket)
-      tab -> socket |> assign(:tab, tab) |> noreply()
+      tab -> socket |> assign(:tab, tab) |> maybe_autofetch(tab) |> noreply()
     end
   end
 
@@ -365,6 +376,18 @@ defmodule VoyagerWeb.ProcessInfoLive do
     |> assign(name, mark_loading(socket.assigns[name]))
     |> start_async(name, fn -> query.(node, pid, timeout) end)
   end
+
+  # Opening a gated tab for the first time fetches it; data that is already
+  # there (or in flight) is left alone.
+  defp maybe_autofetch(socket, tab) when tab in [:state, :messages, :dictionary] do
+    if is_nil(socket.assigns[tab]) and is_pid(socket.assigns.pid) do
+      fetch(socket, tab)
+    else
+      socket
+    end
+  end
+
+  defp maybe_autofetch(socket, _tab), do: socket
 
   defp mark_loading(nil), do: AsyncResult.loading()
   defp mark_loading(%AsyncResult{} = result), do: AsyncResult.loading(result)
