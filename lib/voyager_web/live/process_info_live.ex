@@ -68,14 +68,11 @@ defmodule VoyagerWeb.ProcessInfoLive do
         >
           <.icon name="icon-arrow-left" class="size-4" /> All Processes
         </.link>
-        <h2 class="text-base-content flex items-center gap-2 text-sm font-semibold leading-none">
-          Process Info
-          <span
-            id="process-info-pid"
-            class="border-base-content/40 bg-base-200 text-base-content font-mono rounded-md border px-2.5 py-1 text-xs font-normal"
-          >
-            {@pid_string}
-          </span>
+        <h2
+          id="process-info-pid"
+          class="border-base-content/40 bg-base-200 text-base-content font-mono rounded-md border px-3 py-1.5 text-sm font-semibold"
+        >
+          {@pid_string}
         </h2>
         <span />
       </div>
@@ -117,28 +114,18 @@ defmodule VoyagerWeb.ProcessInfoLive do
           timeout={@timeouts.state}
           loading?={loading?(@state)}
           disabled={is_nil(@pid)}
+          title="State"
+          help="Calls :sys.get_state on the remote node. A busy process or one that does not handle system messages will time out."
         >
-          <.section
-            title="State"
-            class="flex min-h-0 flex-1 flex-col"
-            help="Calls :sys.get_state on the remote node. A busy process or one that does not handle system messages will time out."
-          >
-            <.term_section
-              :let={state}
+          <.term_section :let={state} id="process-state" result={@state}>
+            <.term_inspector
               id="process-state"
-              result={@state}
-              event="fetch-state"
-              disabled={is_nil(@pid)}
-            >
-              <.term_inspector
-                id="process-state"
-                term={state.term}
-                state={@term_states["process-state"]}
-                truncated?={state.truncated?}
-                class="overflow-x-auto"
-              />
-            </.term_section>
-          </.section>
+              term={state.term}
+              state={@term_states["process-state"]}
+              truncated?={state.truncated?}
+              class="overflow-x-auto"
+            />
+          </.term_section>
         </.tab_panel>
 
         <.tab_panel
@@ -149,39 +136,29 @@ defmodule VoyagerWeb.ProcessInfoLive do
           timeout={@timeouts.messages}
           loading?={loading?(@messages)}
           disabled={is_nil(@pid)}
+          title="Messages"
+          muted={queue_len_label(@messages)}
+          help="Copies the mailbox on the remote node before truncating, so a huge mailbox is expensive to read."
         >
-          <.section
-            title="Messages"
-            muted={queue_len_label(@info)}
-            class="flex min-h-0 flex-1 flex-col"
-            help="Copies the mailbox on the remote node before truncating, so a huge mailbox is expensive to read."
-          >
-            <.term_section
-              :let={messages}
-              id="process-messages"
-              result={@messages}
-              event="fetch-messages"
-              disabled={is_nil(@pid)}
+          <.term_section :let={messages} id="process-messages" result={@messages}>
+            <p :if={messages.items == []} class="font-mono text-base-content/70 text-xs">
+              Mailbox is empty.
+            </p>
+            <ol
+              :if={messages.items != []}
+              class="divide-base-content/10 m-0 flex list-none flex-col divide-y p-0"
             >
-              <p :if={messages.items == []} class="font-mono text-base-content/70 text-xs">
-                Mailbox is empty.
-              </p>
-              <ol
-                :if={messages.items != []}
-                class="divide-base-content/10 m-0 flex list-none flex-col divide-y p-0"
-              >
-                <li :for={{message, index} <- Enum.with_index(messages.items)} class="py-2">
-                  <.term_inspector
-                    id={"message-#{index}"}
-                    term={message}
-                    state={@term_states["message-#{index}"]}
-                    class="overflow-x-auto"
-                  />
-                </li>
-              </ol>
-              <.truncation_note :if={messages.truncated?} id="process-messages-truncated" />
-            </.term_section>
-          </.section>
+              <li :for={{message, index} <- Enum.with_index(messages.items)} class="py-2">
+                <.term_inspector
+                  id={"message-#{index}"}
+                  term={message}
+                  state={@term_states["message-#{index}"]}
+                  class="overflow-x-auto"
+                />
+              </li>
+            </ol>
+            <.truncation_note :if={messages.truncated?} id="process-messages-truncated" />
+          </.term_section>
         </.tab_panel>
 
         <.tab_panel
@@ -192,39 +169,29 @@ defmodule VoyagerWeb.ProcessInfoLive do
           timeout={@timeouts.dictionary}
           loading?={loading?(@dictionary)}
           disabled={is_nil(@pid)}
+          title="Dictionary"
+          muted={bounded_count(@dictionary)}
+          help="The process dictionary holds arbitrary user terms and can be large; it is truncated on the remote node."
         >
-          <.section
-            title="Dictionary"
-            muted={bounded_count(@dictionary)}
-            class="flex min-h-0 flex-1 flex-col"
-            help="The process dictionary holds arbitrary user terms and can be large; it is truncated on the remote node."
-          >
-            <.term_section
-              :let={dictionary}
-              id="process-dictionary"
-              result={@dictionary}
-              event="fetch-dictionary"
-              disabled={is_nil(@pid)}
+          <.term_section :let={dictionary} id="process-dictionary" result={@dictionary}>
+            <p :if={dictionary.items == []} class="font-mono text-base-content/70 text-xs">
+              Dictionary is empty.
+            </p>
+            <ol
+              :if={dictionary.items != []}
+              class="divide-base-content/10 m-0 flex list-none flex-col divide-y p-0"
             >
-              <p :if={dictionary.items == []} class="font-mono text-base-content/70 text-xs">
-                Dictionary is empty.
-              </p>
-              <ol
-                :if={dictionary.items != []}
-                class="divide-base-content/10 m-0 flex list-none flex-col divide-y p-0"
-              >
-                <li :for={{entry, index} <- Enum.with_index(dictionary.items)} class="py-2">
-                  <.term_inspector
-                    id={"dict-entry-#{index}"}
-                    term={entry}
-                    state={@term_states["dict-entry-#{index}"]}
-                    class="overflow-x-auto"
-                  />
-                </li>
-              </ol>
-              <.truncation_note :if={dictionary.truncated?} id="process-dictionary-truncated" />
-            </.term_section>
-          </.section>
+              <li :for={{entry, index} <- Enum.with_index(dictionary.items)} class="py-2">
+                <.term_inspector
+                  id={"dict-entry-#{index}"}
+                  term={entry}
+                  state={@term_states["dict-entry-#{index}"]}
+                  class="overflow-x-auto"
+                />
+              </li>
+            </ol>
+            <.truncation_note :if={dictionary.truncated?} id="process-dictionary-truncated" />
+          </.term_section>
         </.tab_panel>
 
         <.tab_panel
@@ -432,8 +399,8 @@ defmodule VoyagerWeb.ProcessInfoLive do
     end)
   end
 
-  defp queue_len_label(%AsyncResult{ok?: true, result: %{message_queue_len: len}}),
-    do: "(#{Formatters.format_integer(len)} in queue)"
+  defp queue_len_label(%AsyncResult{ok?: true, result: %{total: total}}),
+    do: "(#{Formatters.format_integer(total)} in queue)"
 
-  defp queue_len_label(_info), do: nil
+  defp queue_len_label(_messages), do: nil
 end
