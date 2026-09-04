@@ -197,10 +197,26 @@ defmodule VoyagerWeb.CoreComponents do
   attr :label, :string, default: "Copy"
   attr :copied_label, :string, default: "Copied"
   attr :icon_only, :boolean, default: false, doc: "hides the visible label"
+
+  attr :size, :atom,
+    default: :md,
+    values: [:md, :sm],
+    doc: "`:sm` for dense contexts such as table cells"
+
   attr :class, :any, default: nil
   attr :rest, :global
 
   def copy_button(assigns) do
+    assigns =
+      assign(
+        assigns,
+        :button_class,
+        if(assigns.icon_only,
+          do: ["btn-square", if(assigns.size == :sm, do: "toolbar-btn-sm", else: "toolbar-btn")],
+          else: "btn-sm gap-2"
+        )
+      )
+
     ~H"""
     <button
       type="button"
@@ -212,17 +228,14 @@ defmodule VoyagerWeb.CoreComponents do
       data-copy-copied-label={@copied_label}
       title={@label}
       aria-label={@label}
-      class={[
-        "btn btn-ghost",
-        if(@icon_only, do: "btn-square toolbar-btn", else: "btn-sm gap-2"),
-        @class
-      ]}
+      class={["btn btn-ghost", @button_class, @class]}
       {@rest}
     >
       <.icon
+        id={"#{@id}-icon"}
         name="icon-copy"
         data-copy-icon
-        class={if @icon_only, do: "toolbar-icon", else: "size-4"}
+        class={copy_icon_class(@icon_only, @size)}
       />
       <span data-copy-button-label class={@icon_only && "sr-only"}>{@label}</span>
       <span class="sr-only" aria-live="polite" data-copy-status></span>
@@ -416,7 +429,7 @@ defmodule VoyagerWeb.CoreComponents do
           <.icon name="icon-plus" class="toolbar-icon" />
         </button>
       </div>
-      <p :for={error <- @errors} class="font-mono text-error mt-1.5 text-xs">{error}</p>
+      <p :for={error <- @errors} class="font-mono text-error text-pretty mt-1.5 text-xs">{error}</p>
     </div>
     """
   end
@@ -437,10 +450,95 @@ defmodule VoyagerWeb.CoreComponents do
     """
   end
 
-  defp translate_error({msg, opts}) do
+  defp copy_icon_class(true, :sm), do: "toolbar-icon-sm"
+  defp copy_icon_class(true, _size), do: "toolbar-icon"
+  defp copy_icon_class(false, _size), do: "size-4"
+
+  @doc "Interpolates a changeset error's `%{count}`-style placeholders."
+  @spec translate_error({String.t(), keyword()}) :: String.t()
+  def translate_error({msg, opts}) do
     Enum.reduce(opts, msg, fn {key, value}, acc ->
       String.replace(acc, "%{#{key}}", fn _ -> to_string(value) end)
     end)
+  end
+
+  @doc """
+  Multi-select dropdown: a DaisyUI dropdown holding a checkbox per option.
+
+  Values are submitted as `name[]`, so the enclosing form's change event
+  receives a list. Options are `{value, label, locked?}` triples; a locked
+  option renders checked and disabled and must be re-added server-side, since a
+  disabled checkbox submits nothing.
+
+  ## Examples
+
+      <.multiselect
+        id="columns"
+        name="columns"
+        label="Columns"
+        options={[{"pid", "PID", true}, {"status", "Status", false}]}
+        selected={["pid"]}
+      />
+  """
+  attr :id, :string, required: true
+  attr :name, :string, required: true
+  attr :label, :string, required: true
+  attr :options, :list, required: true, doc: "list of `{value, label, locked?}` triples"
+  attr :selected, :list, required: true, doc: "list of selected values"
+  attr :disabled, :boolean, default: false
+
+  def multiselect(assigns) do
+    assigns = assign(assigns, :count, length(assigns.selected))
+
+    ~H"""
+    <div class="dropdown dropdown-end">
+      <div
+        tabindex={if @disabled, do: "-1", else: "0"}
+        role="button"
+        id={@id}
+        aria-label={@label}
+        aria-disabled={@disabled}
+        class={[
+          "input input-sm items-center gap-2",
+          if(@disabled, do: "pointer-events-none opacity-50", else: "cursor-pointer")
+        ]}
+      >
+        <span class="grow text-left">{@label}</span>
+        <span class="font-mono text-base-content/60">{@count}</span>
+        <.icon name="icon-chevron-right" class="size-3.5 shrink-0 rotate-90 opacity-60" />
+      </div>
+
+      <div
+        tabindex="0"
+        role="group"
+        aria-label={@label}
+        class="dropdown-content bg-base-100 rounded-box border-base-300 z-50 mt-1 w-56 border p-2 shadow-lg"
+      >
+        <label
+          :for={{value, label, locked?} <- @options}
+          id={"#{@id}-#{value}-option"}
+          class={[
+            "flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm",
+            locked? && "text-base-content/60 cursor-not-allowed",
+            not locked? && "cursor-pointer hover:bg-base-200"
+          ]}
+          title={locked? && "Always shown"}
+        >
+          <input :if={locked?} type="hidden" name={"#{@name}[]"} value={value} />
+          <input
+            :if={not locked?}
+            id={"#{@id}-#{value}-input"}
+            type="checkbox"
+            name={"#{@name}[]"}
+            value={value}
+            checked={value in @selected}
+            class="checkbox checkbox-xs checkbox-primary"
+          />
+          <span class={["font-mono", locked? && "pl-6"]}>{label}</span>
+        </label>
+      </div>
+    </div>
+    """
   end
 
   @doc """
@@ -530,7 +628,7 @@ defmodule VoyagerWeb.CoreComponents do
   def error_state(assigns) do
     ~H"""
     <div class="alert alert-error mb-8" id={@id} role="alert" {@rest}>
-      <.icon name="icon-circle-alert" class="size-5" />
+      <.icon name="icon-circle-alert" class="text-error size-5" />
       <span>{@message}</span>
     </div>
     """

@@ -130,4 +130,13 @@ defmodule VoyagerWeb.FormattersTest do
       assert Formatters.format_uptime(31_536_000_000) == "1yr 0d"
     end
   end
+
+  describe "format_pid/1" do
+    test "formats a pid in its external form" do
+      formatted = VoyagerWeb.Formatters.format_pid(self())
+
+      assert "<" <> _rest = formatted
+      assert :erlang.list_to_pid(String.to_charlist(formatted)) == self()
+    end
+  end
 end

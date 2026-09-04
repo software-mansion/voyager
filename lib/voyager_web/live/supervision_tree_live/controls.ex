@@ -183,12 +183,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
 
   defp subsequence?(<<_c::utf8, str::binary>>, search), do: subsequence?(str, search)
 
-  defp translate_error({msg, opts}) do
-    Enum.reduce(opts, msg, fn {key, value}, acc ->
-      String.replace(acc, "%{#{key}}", fn _ -> to_string(value) end)
-    end)
-  end
-
   attr :selected_apps_count, :integer, required: true
 
   defp controls_label(assigns) do
