@@ -128,7 +128,6 @@ defmodule VoyagerWeb.ProcessInfoLive do
               id="process-state"
               term={state.term}
               state={@term_states["process-state"]}
-              truncated?={state.truncated?}
               class="overflow-x-auto"
             />
           </.term_section>
