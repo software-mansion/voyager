@@ -30,6 +30,14 @@ defmodule Voyager.ErpcTest do
     end
   end
 
+  test "bind_impl/1 is process-local and does not change application env" do
+    prev = Application.get_env(:voyager, :erpc)
+    assert Erpc.impl() == prev
+    Erpc.bind_impl(Voyager.Erpc.Impl)
+    assert Erpc.impl() == Voyager.Erpc.Impl
+    assert Application.get_env(:voyager, :erpc) == prev
+  end
+
   describe "format_error/2" do
     test "maps erpc timeout and noconnection to atoms" do
       assert Erpc.format_error(:error, {:erpc, :timeout}) == {:error, :timeout}

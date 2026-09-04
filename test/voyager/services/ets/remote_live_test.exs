@@ -1,14 +1,11 @@
 defmodule Voyager.Services.Ets.RemoteLiveTest do
   use ExUnit.Case, async: false
 
+  alias Voyager.Erpc
   alias Voyager.Services.Ets.Remote
 
   setup do
-    prev = Application.get_env(:voyager, :erpc)
-    Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
-
-    on_exit(fn -> Application.put_env(:voyager, :erpc, prev) end)
-
+    Erpc.bind_impl(Voyager.Erpc.Impl)
     :ok
   end
 
@@ -65,6 +62,88 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
     assert is_reference(tid)
     assert {:ok, tables} = Remote.list(Node.self())
     assert Enum.any?(tables, &(&1.id == tid))
+  end
+
+  test "select_chunk/3 MFA first page; a continuation is :cannot_page" do
+    name = unique_name()
+    :ets.new(name, [:named_table, :public, :set])
+    on_exit(fn -> safe_delete(name) end)
+
+    for i <- 1..25, do: :ets.insert(name, {i, i})
+
+    assert {:ok, chunk} = Remote.select_chunk(Node.self(), name, 10)
+    assert chunk.via == :mfa
+    assert length(chunk.records) == 10
+    assert chunk.continuation
+
+    assert {:error, :cannot_page} =
+             Remote.select_chunk(Node.self(), name, 10, chunk.continuation)
+  end
+
+  test "an ETF-round-tripped continuation needs repair_continuation/2 before select/1" do
+    name = unique_name()
+    :ets.new(name, [:named_table, :public, :set])
+    on_exit(fn -> safe_delete(name) end)
+
+    for i <- 1..25, do: :ets.insert(name, {i, i})
+
+    match_all = [{:"$1", [], [:"$1"]}]
+
+    bin =
+      case :ets.select(name, match_all, 10) do
+        {records, cont} ->
+          assert length(records) == 10
+          :erlang.term_to_binary(cont)
+      end
+
+    # Same-node ETF still resolves while the original continuation is live.
+    :erlang.garbage_collect()
+    broken = :erlang.binary_to_term(bin)
+
+    assert_raise ArgumentError, fn ->
+      :ets.select(broken)
+    end
+
+    repaired = :ets.repair_continuation(broken, match_all)
+    assert {next, _cont} = :ets.select(repaired)
+    assert is_list(next)
+    assert next != []
+  end
+
+  test "lookup/3 fetches a named table by atom, integer, and binary keys" do
+    name = unique_name()
+    :ets.new(name, [:named_table, :public, :set])
+    on_exit(fn -> safe_delete(name) end)
+
+    :ets.insert(name, {:atom_key, 1})
+    :ets.insert(name, {7, 2})
+    :ets.insert(name, {<<"bin">>, 3})
+
+    assert {:ok, %{records: [{:atom_key, 1}], via: :mfa}} =
+             Remote.lookup(Node.self(), name, :atom_key)
+
+    assert {:ok, %{records: [{7, 2}]}} = Remote.lookup(Node.self(), name, 7)
+    assert {:ok, %{records: [{<<"bin">>, 3}]}} = Remote.lookup(Node.self(), name, <<"bin">>)
+  end
+
+  test "select_chunk/3 and lookup/3 use an unnamed table reference as the handle" do
+    tid = :ets.new(unique_name(), [:public])
+    on_exit(fn -> safe_delete(tid) end)
+    :ets.insert(tid, {:k, 1})
+
+    assert is_reference(tid)
+    assert {:ok, %{records: [{:k, 1}]}} = Remote.lookup(Node.self(), tid, :k)
+
+    assert {:ok, %{records: [{:k, 1}], continuation: nil, via: :mfa}} =
+             Remote.select_chunk(Node.self(), tid, 10)
+  end
+
+  test "select_chunk/3 cannot read a private table owned by another process" do
+    pid = start_supervised!({Agent, fn -> :ets.new(unique_name(), [:private]) end})
+    tid = Agent.get(pid, & &1)
+
+    assert {:error, :cannot_read} = Remote.select_chunk(Node.self(), tid, 10)
+    assert {:error, :cannot_read} = Remote.lookup(Node.self(), tid, :k)
   end
 
   defp unique_name do

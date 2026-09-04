@@ -1,9 +1,15 @@
 defmodule Voyager.Services.Ets.Remote do
   @moduledoc """
-  Fetches ETS table metadata from a remote node via `Voyager.Erpc`.
+  Fetches ETS table metadata and record payloads from a remote node.
 
   `:ets.info/1` includes private tables (`protection: :private`). `memory` is
   in bytes, using the target's `:erlang.system_info(:wordsize)`.
+
+  Record reads probe `:voyager_agent` exports and fall back to OTP MFA only
+  when those exports are missing. Heap kill, timeout, noconnection, and `undef`
+  after a successful probe do not fall back. This module never injects code
+  or calls `register/1`. Payloads are unsanitized; callers that surface terms
+  must go through `Voyager.Services.Ets.Fetch`.
   """
 
   alias Voyager.Erpc
@@ -11,8 +17,22 @@ defmodule Voyager.Services.Ets.Remote do
 
   require TableId
 
+  @chunk_sizes [10, 20, 50]
+  @match_all [{:"$1", [], [:"$1"]}]
+  @agent :voyager_agent
+  @select_fun :ets_select_chunk
+  @lookup_fun :ets_lookup
+
   @type protection :: :public | :protected | :private
   @type table_type :: :set | :ordered_set | :bag | :duplicate_bag
+  @type via :: :mfa | :agent
+  @type lookup_key :: atom() | integer() | binary()
+
+  @type chunk :: %{
+          records: [term()],
+          continuation: term() | nil,
+          via: via()
+        }
 
   @type table_info :: %{
           required(:id) => TableId.t(),
@@ -70,6 +90,133 @@ defmodule Voyager.Services.Ets.Remote do
   end
 
   def info(_node, _table, _timeout), do: {:error, :invalid_table}
+
+  @doc """
+  Match-all page of records. Missing agent export falls back to `:ets.select/3`
+  for the first page only; later MFA pages are `{:error, :cannot_page}`.
+
+  A continuation that crossed ETF must be `:ets.repair_continuation/2`'d on
+  the target against `[{:"$1", [], [:"$1"]}]`; a spec compiled here is
+  invalidated on the way back.
+
+  `ets_select_chunk/3` (and `ets_lookup/2`) run in a one-shot worker. A
+  `badarg` there — private table or unrepaired continuation — must be
+  re-raised as `error:badarg` in the erpc process. This mapper only
+  recognizes `{:remote_exception, :badarg}`. Wrapping the worker death
+  (`{:agent_worker_down, {:badarg, _}}`) or letting `spawn_link` kill the
+  apply process does not become `{:error, :cannot_read}`.
+  """
+  @spec select_chunk(node(), TableId.t(), pos_integer(), term() | nil, timeout()) ::
+          {:ok, chunk()} | {:error, term()}
+  def select_chunk(node, table, limit, continuation \\ nil, timeout \\ Erpc.default_timeout())
+
+  def select_chunk(node, table, limit, continuation, timeout)
+      when TableId.is_table_id(table) do
+    if limit in @chunk_sizes do
+      select(node, table, limit, continuation, timeout)
+    else
+      {:error, :invalid_limit}
+    end
+  end
+
+  def select_chunk(_node, _table, _limit, _continuation, _timeout), do: {:error, :invalid_table}
+
+  @spec lookup(node(), TableId.t(), lookup_key(), timeout()) ::
+          {:ok, chunk()} | {:error, term()}
+  def lookup(node, table, key, timeout \\ Erpc.default_timeout())
+
+  def lookup(node, table, key, timeout) when TableId.is_table_id(table) do
+    if valid_key?(key) do
+      case probe_export(node, @lookup_fun, 2, timeout) do
+        {:ok, true} -> agent_lookup(node, table, key, timeout)
+        {:ok, false} -> mfa_lookup(node, table, key, timeout)
+        {:error, _} = err -> err
+      end
+    else
+      {:error, :invalid_key}
+    end
+  end
+
+  def lookup(_node, _table, _key, _timeout), do: {:error, :invalid_table}
+
+  defp select(node, table, limit, continuation, timeout) do
+    case probe_export(node, @select_fun, 3, timeout) do
+      {:ok, true} -> agent_select(node, table, limit, continuation, timeout)
+      {:ok, false} -> mfa_select(node, table, limit, continuation, timeout)
+      {:error, _} = err -> err
+    end
+  end
+
+  defp agent_select(node, table, limit, continuation, timeout) do
+    cont = if is_nil(continuation), do: :undefined, else: continuation
+
+    case Erpc.safe_call(node, @agent, @select_fun, [table, limit, cont], timeout) do
+      {:ok, result} -> decode_select(result, :agent)
+      {:error, _} = err -> map_read_error(err)
+    end
+  end
+
+  # MFA cannot repair_continuation+select in one call, so later pages need the agent.
+  defp mfa_select(_node, _table, _limit, continuation, _timeout)
+       when not is_nil(continuation) do
+    {:error, :cannot_page}
+  end
+
+  defp mfa_select(node, table, limit, nil, timeout) do
+    case Erpc.safe_call(node, :ets, :select, [table, @match_all, limit], timeout) do
+      {:ok, decoded} -> decode_select(decoded, :mfa)
+      {:error, _} = err -> map_read_error(err)
+    end
+  end
+
+  defp agent_lookup(node, table, key, timeout) do
+    case Erpc.safe_call(node, @agent, @lookup_fun, [table, key], timeout) do
+      {:ok, result} -> decode_lookup(result, :agent)
+      {:error, _} = err -> map_read_error(err)
+    end
+  end
+
+  defp mfa_lookup(node, table, key, timeout) do
+    case Erpc.safe_call(node, :ets, :lookup, [table, key], timeout) do
+      {:ok, result} -> decode_lookup(result, :mfa)
+      {:error, _} = err -> map_read_error(err)
+    end
+  end
+
+  defp decode_select(:"$end_of_table", via) do
+    {:ok, %{records: [], continuation: nil, via: via}}
+  end
+
+  defp decode_select({records, :"$end_of_table"}, via) when is_list(records) do
+    {:ok, %{records: records, continuation: nil, via: via}}
+  end
+
+  defp decode_select({records, continuation}, via) when is_list(records) do
+    {:ok, %{records: records, continuation: continuation, via: via}}
+  end
+
+  defp decode_select(_other, _via), do: {:error, :invalid_response}
+
+  defp decode_lookup(records, via) when is_list(records) do
+    {:ok, %{records: records, continuation: nil, via: via}}
+  end
+
+  defp decode_lookup(_other, _via), do: {:error, :invalid_response}
+
+  defp map_read_error({:error, {:remote_exception, :badarg}}), do: {:error, :cannot_read}
+  defp map_read_error({:error, _} = err), do: err
+
+  defp probe_export(node, fun, arity, timeout) do
+    case Erpc.safe_call(node, :erlang, :function_exported, [@agent, fun, arity], timeout) do
+      {:ok, true} -> {:ok, true}
+      {:ok, false} -> {:ok, false}
+      {:ok, _} -> {:error, :invalid_response}
+      {:error, _} = err -> err
+    end
+  end
+
+  defp valid_key?(key) when is_atom(key) or is_integer(key) or is_binary(key), do: true
+  defp valid_key?(_), do: false
 
   defp fetch_infos(_node, [], _timeout), do: {:ok, []}
 

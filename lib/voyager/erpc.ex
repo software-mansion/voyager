@@ -30,10 +30,22 @@ defmodule Voyager.Erpc do
   @callback call(node(), module(), atom(), [term()], timeout_or_options()) :: term()
 
   @doc """
-  Returns the configured `Voyager.Erpc` implementation.
+  `bind_impl/1` (process-local) wins over `config :voyager, :erpc` so live
+  tests can use `Erpc.Impl` without racing async Mox tests.
   """
   @spec impl() :: module()
-  def impl, do: Application.get_env(:voyager, :erpc, __MODULE__.Impl)
+  def impl do
+    Process.get(impl_key()) || Application.get_env(:voyager, :erpc, __MODULE__.Impl)
+  end
+
+  @doc false
+  @spec bind_impl(module()) :: :ok
+  def bind_impl(module) when is_atom(module) do
+    Process.put(impl_key(), module)
+    :ok
+  end
+
+  defp impl_key, do: {__MODULE__, :impl}
 
   @doc """
   Default timeout for `safe_call/4`, matching `:erpc.call/4`.
