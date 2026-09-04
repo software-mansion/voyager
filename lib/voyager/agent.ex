@@ -22,6 +22,10 @@ defmodule Voyager.Agent do
            | {:register_failed, term()}
            | CodeInjector.error_reason()}
 
+  @doc "Minimum OTP release the agent requires on the remote node."
+  @spec min_otp() :: pos_integer()
+  def min_otp, do: @min_otp
+
   @doc """
   Loads the agent on `node` and registers this Voyager node with it.
 

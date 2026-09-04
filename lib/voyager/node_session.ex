@@ -44,7 +44,7 @@ defmodule Voyager.NodeSession do
   @doc "Connects using an explicit `Voyager.NodeSession.Connector` module."
   @spec connect_via(module(), String.t(), String.t(), keyword()) :: :ok | {:error, term()}
   def connect_via(connector, node_name, cookie, opts \\ []) do
-    GenServer.call(__MODULE__, {:connect, connector, node_name, cookie, opts}, 30_000)
+    GenServer.call(__MODULE__, {:connect, connector, node_name, cookie, opts}, :infinity)
   end
 
   @doc """

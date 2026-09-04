@@ -189,7 +189,7 @@ defmodule Voyager.NodeSessionTest do
   end
 
   describe "agent_missing/1" do
-    test "drops the session and broadcasts :nodedown" do
+    test "drops the session and broadcasts :node_disconnected" do
       :ok =
         NodeSession.connect_via(FakeConnector, "demo@localhost", "secret", test_pid: self())
 

@@ -464,10 +464,12 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     do: {:node_name, "Connection attempt failed unexpectedly"}
 
   defp ssh_connect_error({:agent_install_failed, {:otp_too_old, release}}),
-    do: {:node_name, "Node runs OTP #{release} - Voyager requires OTP 27 or newer"}
+    do:
+      {:node_name,
+       "Node runs OTP #{release} - Voyager requires OTP #{Voyager.Agent.min_otp()} or newer"}
 
   defp ssh_connect_error({:agent_install_failed, _}),
-    do: {:node_name, "Connected, but loading the Voyager agent on the node failed"}
+    do: {:node_name, "Could not load the Voyager agent on the node"}
 
   defp ssh_connect_error(_), do: {:node_name, "Could not connect to remote node"}
 end
