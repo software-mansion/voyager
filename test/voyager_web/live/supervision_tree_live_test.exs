@@ -8,6 +8,7 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
   import Mox
 
   alias Voyager.Fakes
+  alias VoyagerWeb.Components.SupervisionTreeComponents
 
   @node_name "demo@localhost"
   @path "/node/demo@localhost/supervision-tree"
@@ -248,6 +249,48 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
 
       assert render(view) =~ "idle"
       refute has_element?(view, "#supervision-tree-body")
+    end
+
+    test "changing the interval writes it to the query params", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      view
+      |> form("#refresh-interval-form")
+      |> render_change(%{"interval" => "off"})
+
+      assert assert_patch(view) =~ "refresh=off"
+      assert has_element?(view, ~s|#refresh-interval option[value="off"][selected]|)
+    end
+
+    test "restores the interval from the query params", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path <> "?refresh=30000")
+      render_async(view)
+
+      assert has_element?(view, ~s|#refresh-interval option[value="30000"][selected]|)
+    end
+
+    test "keeps the other query params when the interval changes", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path <> "?apps=demo_app")
+      render_async(view)
+
+      view
+      |> form("#refresh-interval-form")
+      |> render_change(%{"interval" => "off"})
+
+      path = assert_patch(view)
+
+      assert path =~ "refresh=off"
+      assert path =~ "apps=demo_app"
+    end
+
+    test "falls back to the default interval for an unsupported param", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path <> "?refresh=123")
+      render_async(view)
+
+      default = to_string(SupervisionTreeComponents.default_refresh_interval())
+
+      assert has_element?(view, ~s|#refresh-interval option[value="#{default}"][selected]|)
     end
   end
 

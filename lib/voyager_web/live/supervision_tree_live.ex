@@ -7,6 +7,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   alias VoyagerWeb.Components.SupervisionTreeComponents
   alias VoyagerWeb.FormSchemas.SupervisionTreeControls
   alias VoyagerWeb.SupervisionTreeLive.Diff
+  alias VoyagerWeb.Utils.RefreshInterval
 
   @impl true
   def mount(_params, _session, socket) do
@@ -44,6 +45,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   def handle_params(params, _uri, socket) do
     socket
     |> assign(:params, params)
+    |> apply_refresh_param(params)
     |> apply_params(params)
     |> noreply()
   end
@@ -101,9 +103,15 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   @impl true
   def handle_event("set_interval", %{"interval" => value}, socket) do
     socket
-    |> assign(:refresh_interval, parse_interval(value))
-    |> stop_timer()
-    |> start_timer()
+    |> push_patch(
+      to:
+        RefreshInterval.put_param(
+          socket.assigns.current_url,
+          value,
+          SupervisionTreeComponents.interval_options(),
+          SupervisionTreeComponents.default_refresh_interval()
+        )
+    )
     |> noreply()
   end
 
@@ -276,6 +284,35 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     start_async(socket, :available_apps, fn -> Remote.list_running_applications(node) end)
   end
 
+  # The interval is routed state: `set_interval` only patches the URL, and the
+  # timer is (re)started from here so a reload or a shared link keeps it.
+  defp apply_refresh_param(socket, params) do
+    interval =
+      RefreshInterval.from_params(
+        params,
+        SupervisionTreeComponents.interval_options(),
+        SupervisionTreeComponents.default_refresh_interval()
+      )
+
+    if interval == socket.assigns.refresh_interval do
+      socket
+    else
+      socket
+      |> assign(:refresh_interval, interval)
+      |> restart_timer()
+    end
+  end
+
+  defp restart_timer(socket) do
+    if connected?(socket) do
+      socket
+      |> stop_timer()
+      |> start_timer()
+    else
+      socket
+    end
+  end
+
   defp apply_params(socket, nil), do: socket
 
   defp apply_params(socket, params) do
@@ -378,15 +415,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       interval ->
         timer = Process.send_after(self(), :refresh, interval)
         assign(socket, :refresh_timer, timer)
-    end
-  end
-
-  defp parse_interval("off"), do: nil
-
-  defp parse_interval(value) do
-    case Integer.parse(value) do
-      {ms, ""} when ms > 0 -> ms
-      _ -> nil
     end
   end
 
