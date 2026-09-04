@@ -10,10 +10,12 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
   setup do
     previous_state = :sys.get_state(NodeSession)
+    previous_via = NodeSession.cached_connector_name()
     Fakes.put_session(nil)
 
     on_exit(fn ->
       :sys.replace_state(NodeSession, fn _ -> previous_state end)
+      :persistent_term.put(:connected_via, previous_via)
     end)
 
     :ok
@@ -81,6 +83,26 @@ defmodule VoyagerWeb.ConnectLiveTest do
       {:ok, view, _html} = live(conn, ~p"/")
 
       assert has_element?(view, ~s|a#open-settings[href="/settings?return_to=%2F"]|)
+    end
+  end
+
+  describe "secret visibility toggle" do
+    test "is dimmed like other disabled controls while the form is locked", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      view
+      |> form("#direct-connect-form", conn: %{cookie: "secret"})
+      |> render_change()
+
+      assert has_element?(view, "#toggle-conn_cookie-visibility")
+      refute has_element?(view, "#toggle-conn_cookie-visibility[disabled]")
+      refute has_element?(view, "#toggle-conn_cookie-visibility.opacity-40")
+
+      Fakes.connect_node!(Fakes.node_session())
+      broadcast(NodeSession.topic(), {:node_connected, :demo@localhost})
+
+      assert has_element?(view, "#toggle-conn_cookie-visibility[disabled]")
+      assert has_element?(view, "#toggle-conn_cookie-visibility.opacity-40")
     end
   end
 
