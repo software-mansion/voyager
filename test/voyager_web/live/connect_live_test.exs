@@ -2,15 +2,18 @@ defmodule VoyagerWeb.ConnectLiveTest do
   use VoyagerWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
+  import Voyager.TestUtils, only: [isolate_persistent_term: 1]
 
   alias Voyager.Actions.Connections, as: ConnectionActions
   alias Voyager.Fakes
   alias Voyager.NodeSession
   alias Voyager.Settings
+  alias Voyager.Telemetry.Manager
 
   setup do
     previous_state = :sys.get_state(NodeSession)
     Fakes.put_session(nil)
+    isolate_persistent_term(:connected_via)
 
     on_exit(fn ->
       :sys.replace_state(NodeSession, fn _ -> previous_state end)
@@ -138,6 +141,7 @@ defmodule VoyagerWeb.ConnectLiveTest do
     setup do
       # test.exs locks :terms_accepted so unrelated LiveViews skip the modal.
       # Clear it here so we exercise the real first-launch / DB-backed path.
+      isolate_persistent_term({Manager, :enabled})
       Application.delete_env(:voyager, :terms_accepted)
       on_exit(fn -> Application.put_env(:voyager, :terms_accepted, true) end)
       :ok

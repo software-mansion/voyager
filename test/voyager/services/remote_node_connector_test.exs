@@ -1,17 +1,15 @@
 defmodule Voyager.Services.RemoteNodeConnectorTest do
   use ExUnit.Case, async: false
 
+  import Voyager.TestUtils, only: [isolate_persistent_term: 2]
+
   alias Voyager.ProxyEpmd
   alias Voyager.Services.RemoteNodeConnector
 
   @moduletag capture_log: true
 
   setup do
-    previous_epmd_module = :persistent_term.get(:voyager_epmd_module, :erl_epmd)
-    :persistent_term.put(:voyager_epmd_module, ProxyEpmd)
-
-    on_exit(fn -> :persistent_term.put(:voyager_epmd_module, previous_epmd_module) end)
-
+    isolate_persistent_term(:voyager_epmd_module, ProxyEpmd)
     :ok
   end
 

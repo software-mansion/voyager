@@ -1,12 +1,15 @@
 defmodule Voyager.Telemetry.Handler.ExportTest do
   use Voyager.DataCase, async: false
 
+  import Voyager.TestUtils, only: [isolate_persistent_term: 1, isolate_persistent_term: 2]
+
   alias Voyager.Telemetry.Handler.Export
   alias Voyager.Telemetry.InstallId
 
   setup do
+    isolate_persistent_term({InstallId, :install_id})
+    isolate_persistent_term(:connected_via, nil)
     InstallId.clear_cache()
-    on_exit(&InstallId.clear_cache/0)
     :ok
   end
 

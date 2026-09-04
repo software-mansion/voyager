@@ -2,9 +2,11 @@ defmodule VoyagerWeb.SettingsLiveTest do
   use VoyagerWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
+  import Voyager.TestUtils, only: [isolate_persistent_term: 1]
 
   alias Voyager.Fakes
   alias Voyager.Settings
+  alias Voyager.Telemetry.Manager
 
   setup do
     previous_state = :sys.get_state(Voyager.NodeSession)
@@ -224,6 +226,7 @@ defmodule VoyagerWeb.SettingsLiveTest do
 
   describe "telemetry settings" do
     setup do
+      isolate_persistent_term({Manager, :enabled})
       on_exit(fn -> Voyager.Telemetry.set_enabled(true) end)
       :ok
     end

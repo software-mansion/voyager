@@ -1,12 +1,14 @@
 defmodule Voyager.Telemetry.InstallIdTest do
   use Voyager.DataCase, async: false
 
+  import Voyager.TestUtils, only: [isolate_persistent_term: 1]
+
   alias Voyager.Settings
   alias Voyager.Telemetry.InstallId
 
   setup do
+    isolate_persistent_term({InstallId, :install_id})
     InstallId.clear_cache()
-    on_exit(&InstallId.clear_cache/0)
     :ok
   end
 
