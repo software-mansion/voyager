@@ -180,6 +180,11 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :info, AsyncResult, required: true
 
+  attr :size, :atom,
+    default: :xs,
+    values: [:xs, :sm],
+    doc: "value font size, forwarded to `kv/1`"
+
   def overview(assigns) do
     ~H"""
     <.section title="Overview">
@@ -208,31 +213,41 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         <:failed>
           <.load_error />
         </:failed>
-        <.kv label="Initial call" value={format_mfa(info.initial_call)} />
-        <.kv label="Current function" value={format_mfa(info.current_function)} />
-        <.kv label="Current stacktrace" value={format_stacktrace(info.current_stacktrace)} />
-        <.kv label="Registered name" value={format_registered_name(info.registered_name)} />
-        <.kv label="Label" value={format_optional(info.label)} />
-        <.kv label="Parent" value={format_optional_identifier(info.parent)} />
-        <.kv label="Status" value={to_string(info.status)} />
+        <.kv size={@size} label="Initial call" value={format_mfa(info.initial_call)} />
+        <.kv size={@size} label="Current function" value={format_mfa(info.current_function)} />
         <.kv
+          size={@size}
+          label="Current stacktrace"
+          value={format_stacktrace(info.current_stacktrace)}
+        />
+        <.kv
+          size={@size}
+          label="Registered name"
+          value={format_registered_name(info.registered_name)}
+        />
+        <.kv size={@size} label="Label" value={format_optional(info.label)} />
+        <.kv size={@size} label="Parent" value={format_optional_identifier(info.parent)} />
+        <.kv size={@size} label="Status" value={to_string(info.status)} />
+        <.kv
+          size={@size}
           label="Message queue len"
           value={Formatters.format_integer(info.message_queue_len)}
         />
-        <.kv label="Message queue data" value={to_string(info.message_queue_data)} />
-        <.kv label="Group leader" value={format_identifier(info.group_leader)} />
-        <.kv label="Priority" value={to_string(info.priority)} />
-        <.kv label="Trap exit" value={to_string(info.trap_exit)} />
-        <.kv label="Reductions" value={Formatters.format_integer(info.reductions)} />
-        <.kv label="Last calls" value={format_last_calls(info.last_calls)} />
-        <.kv label="Catch level" value={Formatters.format_integer(info.catch_level)} />
-        <.kv label="Trace" value={Formatters.format_integer(info.trace)} />
-        <.suspending_list suspending={info.suspending} />
+        <.kv size={@size} label="Message queue data" value={to_string(info.message_queue_data)} />
+        <.kv size={@size} label="Group leader" value={format_identifier(info.group_leader)} />
+        <.kv size={@size} label="Priority" value={to_string(info.priority)} />
+        <.kv size={@size} label="Trap exit" value={to_string(info.trap_exit)} />
+        <.kv size={@size} label="Reductions" value={Formatters.format_integer(info.reductions)} />
+        <.kv size={@size} label="Last calls" value={format_last_calls(info.last_calls)} />
+        <.kv size={@size} label="Catch level" value={Formatters.format_integer(info.catch_level)} />
+        <.kv size={@size} label="Trace" value={Formatters.format_integer(info.trace)} />
+        <.suspending_list suspending={info.suspending} size={@size} />
         <.kv
+          size={@size}
           label="Sequential trace token"
           value={format_sequential_trace_token(info.sequential_trace_token)}
         />
-        <.kv label="Error handler" value={inspect(info.error_handler)} />
+        <.kv size={@size} label="Error handler" value={inspect(info.error_handler)} />
       </.async_result>
     </.section>
     """
@@ -273,6 +288,11 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :info, AsyncResult, required: true
 
+  attr :size, :atom,
+    default: :xs,
+    values: [:xs, :sm],
+    doc: "value font size, forwarded to `kv/1`"
+
   def memory_and_garbage_collection(assigns) do
     ~H"""
     <.section title="Memory and Garbage Collection">
@@ -288,12 +308,20 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         <:failed>
           <.load_error />
         </:failed>
-        <.kv label="Memory" value={Formatters.format_bytes(info.memory)} />
-        <.kv label="Stack and heaps" value={Formatters.format_bytes(info.stack_and_heap_size)} />
-        <.kv label="Heap size" value={Formatters.format_bytes(info.heap_size)} />
-        <.kv label="Stack size" value={Formatters.format_bytes(info.stack_size)} />
-        <.kv label="GC min heap size" value={Formatters.format_bytes(info.gc_min_heap_size)} />
-        <.kv label="GC fullsweep after" value={format_count(info.gc_fullsweep_after)} />
+        <.kv size={@size} label="Memory" value={Formatters.format_bytes(info.memory)} />
+        <.kv
+          size={@size}
+          label="Stack and heaps"
+          value={Formatters.format_bytes(info.stack_and_heap_size)}
+        />
+        <.kv size={@size} label="Heap size" value={Formatters.format_bytes(info.heap_size)} />
+        <.kv size={@size} label="Stack size" value={Formatters.format_bytes(info.stack_size)} />
+        <.kv
+          size={@size}
+          label="GC min heap size"
+          value={Formatters.format_bytes(info.gc_min_heap_size)}
+        />
+        <.kv size={@size} label="GC fullsweep after" value={format_count(info.gc_fullsweep_after)} />
       </.async_result>
     </.section>
     """
@@ -328,6 +356,11 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :last, :boolean, default: false
   attr :stacked, :boolean, default: false
 
+  attr :size, :atom,
+    default: :xs,
+    values: [:xs, :sm],
+    doc: "`:xs` for the sidebar panel; `:sm` matches full-page cards like node info"
+
   slot :inner_block, doc: "markup value, for rows a plain `value` cannot express"
 
   def kv(assigns) do
@@ -339,7 +372,11 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     ]}>
       <span class="text-base-content/70 shrink-0">{@label}</span>
       <div
-        class={["text-base-content min-w-0", not @stacked && "truncate text-right"]}
+        class={[
+          "text-base-content min-w-0",
+          @size == :sm && "text-sm",
+          not @stacked && "truncate text-right"
+        ]}
         title={@value}
       >
         {@value}{render_slot(@inner_block)}
@@ -403,11 +440,16 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :suspending, :list, required: true
 
+  attr :size, :atom,
+    default: :xs,
+    values: [:xs, :sm],
+    doc: "value font size, forwarded to `kv/1`"
+
   def suspending_list(assigns) do
     assigns = assign(assigns, :suspending_count, length(assigns.suspending))
 
     ~H"""
-    <.kv label="Suspending" stacked={@suspending_count > 0}>
+    <.kv size={@size} label="Suspending" stacked={@suspending_count > 0}>
       <span :if={@suspending == []}>[]</span>
       <div
         :if={@suspending != []}

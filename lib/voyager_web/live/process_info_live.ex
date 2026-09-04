@@ -104,10 +104,10 @@ defmodule VoyagerWeb.ProcessInfoLive do
         >
           <div class="grid grid-cols-1 items-start gap-y-5 lg:divide-base-300 lg:grid-cols-2 lg:divide-x">
             <div class="lg:pr-8">
-              <.overview info={@info} />
+              <.overview info={@info} size={:sm} />
             </div>
             <div class="lg:pl-8">
-              <.memory_and_garbage_collection info={@info} />
+              <.memory_and_garbage_collection info={@info} size={:sm} />
             </div>
           </div>
         </.tab_panel>
@@ -186,12 +186,21 @@ defmodule VoyagerWeb.ProcessInfoLive do
               :if={dictionary.items != []}
               class="divide-base-content/10 m-0 flex list-none flex-col divide-y p-0"
             >
-              <li :for={{entry, index} <- Enum.with_index(dictionary.items)} class="py-2">
+              <li
+                :for={{{key, value}, index} <- Enum.with_index(dictionary.items)}
+                class="flex items-baseline gap-6 py-2.5"
+              >
+                <span
+                  class="font-mono text-base-content max-w-64 w-64 shrink-0 truncate text-sm font-semibold"
+                  title={inspect(key)}
+                >
+                  {inspect(key)}
+                </span>
                 <.term_inspector
                   id={"dict-entry-#{index}"}
-                  term={entry}
+                  term={value}
                   state={@term_states["dict-entry-#{index}"]}
-                  class="overflow-x-auto"
+                  class="min-w-0 flex-1 overflow-x-auto"
                 />
               </li>
             </ol>
@@ -409,8 +418,17 @@ defmodule VoyagerWeb.ProcessInfoLive do
   defp seed_terms(socket, :messages, %{items: items}),
     do: seed_term_list(socket, "message", items)
 
-  defp seed_terms(socket, :dictionary, %{items: items}),
-    do: seed_term_list(socket, "dict-entry", items)
+  # A dictionary entry is `{key, value}`; only the value gets an inspector. An
+  # entry the remote truncated down to a bare marker is seeded as-is.
+  defp seed_terms(socket, :dictionary, %{items: items}) do
+    values =
+      Enum.map(items, fn
+        {_key, value} -> value
+        other -> other
+      end)
+
+    seed_term_list(socket, "dict-entry", values)
+  end
 
   defp seed_terms(socket, _name, _value), do: socket
 

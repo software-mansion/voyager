@@ -71,11 +71,11 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
 
     ~H"""
     <div class={[
-      "border-base-300 bg-base-100 rounded-b-box -mt-px min-h-0 flex-1 overflow-y-auto border",
+      "border-base-300 bg-base-100 rounded-b-box -mt-px flex min-h-0 flex-1 flex-col border",
       not @active && "hidden"
     ]}>
-      <div id={@id} class="flex min-h-full flex-col gap-6 p-5">
-        <div class="flex flex-wrap items-center justify-between gap-3">
+      <div id={@id} class="flex min-h-0 flex-1 flex-col">
+        <div class="flex flex-wrap items-center justify-between gap-3 p-5 pb-4">
           <h4
             :if={@title}
             class="text-base-content flex items-center gap-1 text-sm font-semibold leading-none"
@@ -122,7 +122,11 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
             />
           </div>
         </div>
-        {render_slot(@inner_block)}
+        <div class="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
+          <div class="flex min-h-full flex-col gap-5">
+            {render_slot(@inner_block)}
+          </div>
+        </div>
       </div>
     </div>
     """
