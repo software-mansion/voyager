@@ -232,6 +232,7 @@ defmodule VoyagerWeb.TermTree do
     %Node{
       kind: :tuple,
       child_count: tuple_size(tuple),
+      truncated?: elem(tuple, tuple_size(tuple) - 1) == @truncated,
       content: [Segment.punctuation("{...}")],
       expanded_before: [Segment.punctuation("{")],
       expanded_after: [Segment.punctuation("}")]
@@ -248,6 +249,7 @@ defmodule VoyagerWeb.TermTree do
       %Node{
         kind: :list,
         child_count: count,
+        truncated?: :lists.last(list) == @truncated,
         content: [Segment.punctuation("[...]")],
         expanded_before: [Segment.punctuation("[")],
         expanded_after: [Segment.punctuation("]")]
@@ -291,6 +293,7 @@ defmodule VoyagerWeb.TermTree do
     %Node{
       kind: :map,
       child_count: map_size(map),
+      truncated?: Map.has_key?(map, @truncated),
       content: [Segment.punctuation("%{...}")],
       expanded_before: [Segment.punctuation("%{")],
       expanded_after: [Segment.punctuation("}")]

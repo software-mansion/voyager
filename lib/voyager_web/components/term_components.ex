@@ -19,14 +19,13 @@ defmodule VoyagerWeb.Components.TermComponents do
   @doc """
   Renders `term` as an expandable tree.
 
-  Set `truncated?` when the term was cut down before it reached here. An elided
-  subterm usually leaves a visible marker, but a shortened binary does not, so
-  without this flag such a term looks complete.
+  A collection the remote node cut short is flagged on itself, so a truncated
+  branch can be spotted without opening it. A shortened binary carries no such
+  trace and is not flagged.
   """
   attr :id, :string, required: true
   attr :term, :any, required: true
   attr :state, State, required: true
-  attr :truncated?, :boolean, default: false
   attr :toggle_event, :string, default: "term-toggle"
   attr :window_event, :string, default: "term-window"
   attr :class, :any, default: nil
@@ -44,14 +43,6 @@ defmodule VoyagerWeb.Components.TermComponents do
         toggle_event={@toggle_event}
         window_event={@window_event}
       />
-      <p
-        :if={@truncated?}
-        id={"#{@id}-truncated"}
-        class="text-code-punct mt-2 flex items-center gap-1.5"
-      >
-        <.icon name="icon-info" class="size-3.5 shrink-0" />
-        Truncated on the remote node — some values are not shown.
-      </p>
     </div>
     """
   end
@@ -92,6 +83,9 @@ defmodule VoyagerWeb.Components.TermComponents do
           <:label :let={open}>
             <.segments items={if(open, do: @node.expanded_before, else: @node.content)} />
           </:label>
+          <:right>
+            <.truncation_mark :if={@node.truncated?} id={@node_id} />
+          </:right>
           <ol :if={@open?} class="term-indent m-0 block list-none p-0">
             <li :for={{child_term, child_node} <- @children} id={dom_id(@id, child_node.path)}>
               <.term_node
@@ -125,6 +119,19 @@ defmodule VoyagerWeb.Components.TermComponents do
         </div>
       <% end %>
     </div>
+    """
+  end
+
+  attr :id, :string, required: true
+
+  defp truncation_mark(assigns) do
+    ~H"""
+    <.tooltip id={"#{@id}-truncated"} class="text-warning ml-1.5 self-center">
+      <.icon name="icon-circle-alert" class="size-3.5" />
+      <:content>
+        Truncated on the remote node - some values are not shown.
+      </:content>
+    </.tooltip>
     """
   end
 
