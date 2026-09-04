@@ -12,7 +12,10 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   alias VoyagerWeb.Formatters
 
   @max_links 12
+  # Public so callers that must fetch no more links than this panel can ever
+  # render (e.g. DetailsPanel's remote fetch limit) can reuse it.
   @max_expanded_links 200
+  def max_expanded_links, do: @max_expanded_links
 
   attr :panel_id, :string, required: true
   attr :open?, :boolean, required: true
@@ -146,6 +149,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :panel_id, :string, required: true
   attr :info, AsyncResult, required: true
+  attr :links_info, AsyncResult, required: true
   attr :node, TreeNode, required: true
   attr :links_expanded?, :boolean, required: true
   attr :myself, :any, required: true
@@ -159,7 +163,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         <.overview info={@info} />
         <.links
           panel_id={@panel_id}
-          info={@info}
+          links_info={@links_info}
           links_expanded?={@links_expanded?}
           myself={@myself}
         />
@@ -184,14 +188,17 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         <:loading>
           <.kv_skeleton label="Initial call" wide />
           <.kv_skeleton label="Current function" wide />
+          <.kv_skeleton label="Current stacktrace" wide />
           <.kv_skeleton label="Registered name" />
+          <.kv_skeleton label="Label" />
+          <.kv_skeleton label="Parent" />
           <.kv_skeleton label="Status" narrow />
           <.kv_skeleton label="Message queue len" narrow />
+          <.kv_skeleton label="Message queue data" narrow />
           <.kv_skeleton label="Group leader" />
           <.kv_skeleton label="Priority" narrow />
           <.kv_skeleton label="Trap exit" narrow />
           <.kv_skeleton label="Reductions" />
-          <.kv_skeleton label="Binary" />
           <.kv_skeleton label="Last calls" wide />
           <.kv_skeleton label="Catch level" narrow />
           <.kv_skeleton label="Trace" narrow />
@@ -204,17 +211,20 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         </:failed>
         <.kv label="Initial call" value={format_mfa(info.initial_call)} />
         <.kv label="Current function" value={format_mfa(info.current_function)} />
+        <.kv label="Current stacktrace" value={format_stacktrace(info.current_stacktrace)} />
         <.kv label="Registered name" value={format_registered_name(info.registered_name)} />
+        <.kv label="Label" value={format_optional(info.label)} />
+        <.kv label="Parent" value={format_optional_identifier(info.parent)} />
         <.kv label="Status" value={to_string(info.status)} />
         <.kv
           label="Message queue len"
           value={Formatters.format_integer(info.message_queue_len)}
         />
+        <.kv label="Message queue data" value={to_string(info.message_queue_data)} />
         <.kv label="Group leader" value={format_identifier(info.group_leader)} />
         <.kv label="Priority" value={to_string(info.priority)} />
         <.kv label="Trap exit" value={to_string(info.trap_exit)} />
         <.kv label="Reductions" value={Formatters.format_integer(info.reductions)} />
-        <.kv label="Binary" value={format_binary(info.binary)} />
         <.kv label="Last calls" value={format_last_calls(info.last_calls)} />
         <.kv label="Catch level" value={Formatters.format_integer(info.catch_level)} />
         <.kv label="Trace" value={Formatters.format_integer(info.trace)} />
@@ -230,16 +240,16 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :panel_id, :string, required: true
-  attr :info, AsyncResult, required: true
+  attr :links_info, AsyncResult, required: true
   attr :links_expanded?, :boolean, required: true
   attr :myself, :any, required: true
 
   def links(assigns) do
-    assigns = assign(assigns, :links_count, links_count(assigns.info))
+    assigns = assign(assigns, :links_count, links_count(assigns.links_info))
 
     ~H"""
     <.section title="Links" muted={@links_count}>
-      <.async_result :let={info} assign={@info}>
+      <.async_result :let={info} assign={@links_info}>
         <:loading>
           <div class="flex flex-wrap gap-1.5">
             <.chip_skeleton />
@@ -252,7 +262,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         </:failed>
         <.links_list
           toggle_id={"#{@panel_id}-toggle-links"}
-          links={info.links}
+          links={info.items}
+          total={info.total}
           links_expanded?={@links_expanded?}
           myself={@myself}
         />
@@ -351,7 +362,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   @spec load_error(any()) :: Phoenix.LiveView.Rendered.t()
   def load_error(assigns) do
     ~H"""
-    <div class="border-error bg-error text-error rounded-lg border px-3 py-2.5 text-xs">
+    <div class="alert alert-error border px-3 py-2.5 text-xs">
+      <.icon name="icon-circle-alert" class="text-error size-4 shrink-0" />
       Failed to load node details.
     </div>
     """
@@ -414,19 +426,19 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :toggle_id, :string, required: true
-  attr :links, :list, required: true
+  attr :links, :list, required: true, doc: "links kept by the remote, already truncated"
+  attr :total, :integer, required: true, doc: "real link count on the remote node"
   attr :links_expanded?, :boolean, required: true
   attr :myself, :any, required: true
 
   def links_list(assigns) do
-    total = length(assigns.links)
     limit = if assigns.links_expanded?, do: @max_expanded_links, else: @max_links
 
     assigns =
       assigns
       |> assign(:visible_links, format_links(assigns.links, limit))
-      |> assign(:toggle?, total > @max_links)
-      |> assign(:overflow_count, max(total - limit, 0))
+      |> assign(:toggle?, assigns.total > @max_links)
+      |> assign(:overflow_count, max(assigns.total - limit, 0))
 
     ~H"""
     <div class="flex flex-col gap-2">
@@ -482,17 +494,19 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp format_registered_name(nil), do: "—"
   defp format_registered_name(name) when is_atom(name), do: inspect(name)
 
-  defp format_binary([]), do: "[]"
+  defp format_stacktrace([]), do: "[]"
 
-  defp format_binary(binaries) when is_list(binaries) do
-    total_bytes =
-      Enum.reduce(binaries, 0, fn
-        {_id, size, _refs}, acc when is_integer(size) -> acc + size
-        _, acc -> acc
-      end)
+  defp format_stacktrace(stacktrace) when is_list(stacktrace),
+    do: Enum.map_join(stacktrace, ", ", &format_stack_entry/1)
 
-    "#{length(binaries)} (#{Formatters.format_bytes(total_bytes)})"
-  end
+  defp format_stack_entry({mod, fun, arity, _location}), do: format_mfa({mod, fun, arity})
+  defp format_stack_entry(entry), do: format_mfa(entry)
+
+  defp format_optional(nil), do: "—"
+  defp format_optional(value), do: inspect(value)
+
+  defp format_optional_identifier(nil), do: "—"
+  defp format_optional_identifier(identifier), do: format_identifier(identifier)
 
   defp format_last_calls(false), do: "false"
   defp format_last_calls([]), do: "[]"
@@ -531,6 +545,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     |> Enum.map(&format_identifier/1)
   end
 
-  defp links_count(%AsyncResult{ok?: true, result: %{links: links}}), do: "(#{length(links)})"
+  defp links_count(%AsyncResult{ok?: true, result: %{total: total}}),
+    do: "(#{Formatters.format_integer(total)})"
+
   defp links_count(_), do: nil
 end
