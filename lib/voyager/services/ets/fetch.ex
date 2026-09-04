@@ -2,12 +2,12 @@ defmodule Voyager.Services.Ets.Fetch do
   @moduledoc """
   Host-isolated ETS record reads.
 
-  Runs `Remote.select_chunk/5` and `Remote.lookup/4` in a TaskSupervisor child
-  with `max_heap_size` 500_000 words (`kill: true` and `include_shared_binaries:
-  true`), then sanitizes records (not the continuation). Heap kill is
-  `{:error, :heap_limit_exceeded}`; a wait that expires is `{:error, :timeout}`.
-  A remote worker heap kill (`:killed`) is `{:error, :heap_limit_exceeded}` as
-  well.
+  Runs `Remote.select_chunk/5`, `Remote.select_spec/6`, and `Remote.lookup/4`
+  in a TaskSupervisor child with `max_heap_size` 500_000 words (`kill: true`
+  and `include_shared_binaries: true`), then sanitizes records (not the
+  continuation). Heap kill is `{:error, :heap_limit_exceeded}`; a wait that
+  expires is `{:error, :timeout}`. A remote worker heap kill (`:killed`) is
+  `{:error, :heap_limit_exceeded}` as well.
 
   The cap is this task's process heap (cons cells, maps, tuples) plus off-heap
   binaries it refers to, not host RSS. MFA peek still copies full objects on
@@ -31,6 +31,21 @@ defmodule Voyager.Services.Ets.Fetch do
   def select_chunk(node, table, limit, continuation \\ nil, timeout \\ Erpc.default_timeout()) do
     isolated_read(timeout, fn ->
       Remote.select_chunk(node, table, limit, continuation, timeout)
+    end)
+  end
+
+  @spec select_spec(node(), TableId.t(), term(), pos_integer(), term() | nil, timeout()) ::
+          {:ok, chunk()} | {:error, term()}
+  def select_spec(
+        node,
+        table,
+        spec,
+        limit,
+        continuation \\ nil,
+        timeout \\ Erpc.default_timeout()
+      ) do
+    isolated_read(timeout, fn ->
+      Remote.select_spec(node, table, spec, limit, continuation, timeout)
     end)
   end
 

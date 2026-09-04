@@ -3,6 +3,7 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
 
   alias Voyager.Erpc
   alias Voyager.Services.Ets.Remote
+  alias Voyager.Services.Ets.Search
   alias Voyager.Test.EtsTable
 
   setup do
@@ -158,5 +159,31 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
 
     assert {:error, :cannot_read} = Remote.select_chunk(Node.self(), tid, 10)
     assert {:error, :cannot_read} = Remote.lookup(Node.self(), tid, :k)
+  end
+
+  test "select_spec/4 MFA first page; a continuation is :cannot_page" do
+    name = EtsTable.unique_name()
+    :ets.new(name, [:named_table, :public, :set])
+    on_exit(fn -> EtsTable.safe_delete(name) end)
+
+    for i <- 1..25, do: :ets.insert(name, {i, :hit})
+    {:ok, spec} = Search.compile({:element_eq, 2, :hit})
+
+    assert {:ok, chunk} = Remote.select_spec(Node.self(), name, spec, 10)
+    assert chunk.via == :mfa
+    assert length(chunk.records) == 10
+    assert Enum.all?(chunk.records, fn {_i, tag} -> tag == :hit end)
+    assert chunk.continuation
+
+    assert {:error, :cannot_page} =
+             Remote.select_spec(Node.self(), name, spec, 10, chunk.continuation)
+  end
+
+  test "select_spec/4 cannot read a private table owned by another process" do
+    pid = start_supervised!({Agent, fn -> :ets.new(EtsTable.unique_name(), [:private]) end})
+    tid = Agent.get(pid, & &1)
+    {:ok, spec} = Search.compile({:element_eq, 1, :k})
+
+    assert {:error, :cannot_read} = Remote.select_spec(Node.self(), tid, spec, 10)
   end
 end

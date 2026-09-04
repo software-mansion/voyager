@@ -486,6 +486,146 @@ defmodule Voyager.Services.Ets.RemoteTest do
     end
   end
 
+  describe "select_spec/6" do
+    @eq_spec [{:"$1", [{:"=:=", {:element, 1, :"$1"}, :k}], [:"$1"]}]
+
+    test "probes ets_select_spec/4 then :ets.select/3 with the compiled spec" do
+      test = self()
+      cont = make_ref()
+
+      stub_exported(:ets_select_spec, 4, false)
+
+      expect(Voyager.ErpcMock, :call, fn node, :ets, :select, [:t, spec, 10], timeout ->
+        send(test, {:called, :select, node, spec, timeout})
+        {[{:k, 1}], cont}
+      end)
+
+      assert {:ok, chunk} = Remote.select_spec(@node, :t, @eq_spec, 10, nil, @timeout)
+      assert chunk.records == [{:k, 1}]
+      assert chunk.continuation == cont
+      assert chunk.via == :mfa
+
+      assert_received {:called, :select, @node, @eq_spec, @timeout}
+    end
+
+    test "maps an MFA last page {records, :\"$end_of_table\"} to continuation nil" do
+      stub_exported(:ets_select_spec, 4, false)
+
+      expect(Voyager.ErpcMock, :call, fn @node, :ets, :select, [:t, @eq_spec, 10], @timeout ->
+        {[{:k, 1}], :"$end_of_table"}
+      end)
+
+      assert {:ok, chunk} = Remote.select_spec(@node, :t, @eq_spec, 10, nil, @timeout)
+      assert chunk.records == [{:k, 1}]
+      assert chunk.continuation == nil
+      assert chunk.via == :mfa
+    end
+
+    test "returns :cannot_page for an MFA continuation without calling :ets.select" do
+      stub_exported(:ets_select_spec, 4, false)
+      cont = make_ref()
+
+      assert {:error, :cannot_page} = Remote.select_spec(@node, :t, @eq_spec, 10, cont, @timeout)
+    end
+
+    test "calls :voyager_agent.ets_select_spec/4 when the export is present" do
+      test = self()
+      cont = make_ref()
+
+      stub_exported(:ets_select_spec, 4, true)
+
+      expect(Voyager.ErpcMock, :call, fn node, :voyager_agent, :ets_select_spec, args, timeout ->
+        send(test, {:called, node, args, timeout})
+        {[{:k, 1}], cont}
+      end)
+
+      assert {:ok, chunk} = Remote.select_spec(@node, :t, @eq_spec, 10, nil, @timeout)
+      assert chunk.via == :agent
+      assert chunk.records == [{:k, 1}]
+      assert chunk.continuation == cont
+
+      assert_received {:called, @node, [:t, @eq_spec, 10, :undefined], @timeout}
+    end
+
+    test "passes a raw continuation through to the agent, not :undefined" do
+      cont = {:ets_cont, 1}
+      stub_exported(:ets_select_spec, 4, true)
+
+      expect(Voyager.ErpcMock, :call, fn @node,
+                                         :voyager_agent,
+                                         :ets_select_spec,
+                                         [:t, @eq_spec, 20, ^cont],
+                                         @timeout ->
+        :"$end_of_table"
+      end)
+
+      assert {:ok, chunk} = Remote.select_spec(@node, :t, @eq_spec, 20, cont, @timeout)
+      assert chunk.via == :agent
+      assert chunk.continuation == nil
+    end
+
+    test "does not fall back to MFA when the agent is undef after a successful probe" do
+      stub_exported(:ets_select_spec, 4, true)
+
+      expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_spec, _, _ ->
+        :erlang.error({:exception, :undef, []})
+      end)
+
+      assert {:error, {:remote_exception, :undef}} =
+               Remote.select_spec(@node, :t, @eq_spec, 10, nil, @timeout)
+    end
+
+    test "does not fall back to MFA when the probe returns :noconnection" do
+      expect(Voyager.ErpcMock, :call, fn _, :erlang, :function_exported, _, _ ->
+        :erlang.error({:erpc, :noconnection})
+      end)
+
+      assert {:error, :noconnection} = Remote.select_spec(@node, :t, @eq_spec, 10, nil, @timeout)
+    end
+
+    test "maps remote badarg to :cannot_read without MFA fallback" do
+      stub_exported(:ets_select_spec, 4, true)
+
+      expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_spec, _, _ ->
+        :erlang.error({:exception, :badarg, []})
+      end)
+
+      assert {:error, :cannot_read} = Remote.select_spec(@node, :t, @eq_spec, 10, nil, @timeout)
+    end
+
+    test "maps MFA badarg to :cannot_read" do
+      stub_exported(:ets_select_spec, 4, false)
+
+      expect(Voyager.ErpcMock, :call, fn @node, :ets, :select, _, _ ->
+        :erlang.error({:exception, :badarg, []})
+      end)
+
+      assert {:error, :cannot_read} = Remote.select_spec(@node, :t, @eq_spec, 10, nil, @timeout)
+    end
+
+    test "rejects a string or compiled MS without touching the remote" do
+      compiled = :ets.match_spec_compile(@eq_spec)
+
+      assert {:error, :invalid_spec} =
+               Remote.select_spec(@node, :t, "[{:'$1', [], [:'$1']}]", 10, nil, @timeout)
+
+      assert {:error, :invalid_spec} = Remote.select_spec(@node, :t, compiled, 10, nil, @timeout)
+      assert {:error, :invalid_spec} = Remote.select_spec(@node, :t, [], 10, nil, @timeout)
+
+      assert {:error, :invalid_spec} =
+               Remote.select_spec(@node, :t, [{:"$1", :not_a_list, [:"$1"]}], 10, nil, @timeout)
+    end
+
+    test "rejects a limit outside 10, 20, 50 without touching the remote" do
+      assert {:error, :invalid_limit} = Remote.select_spec(@node, :t, @eq_spec, 15, nil, @timeout)
+    end
+
+    test "rejects a handle that is not an atom or reference without touching the remote" do
+      assert {:error, :invalid_table} =
+               Remote.select_spec(@node, self(), @eq_spec, 10, nil, @timeout)
+    end
+  end
+
   describe "lookup/4" do
     test "probes ets_lookup/2 then :ets.lookup/2 with the timeout" do
       test = self()
