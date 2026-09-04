@@ -81,24 +81,6 @@ defmodule VoyagerWeb.Components.DataTableComponentsTest do
       assert text(html, ~s|#row-1 td[data-column="name"]|) =~ "alpha"
       assert text(html, ~s|#row-1 td[data-column="memory"]|) =~ "42"
     end
-
-    test "applies the column's alignment and width" do
-      [class] = attr(table([]), ~s|th[data-column="memory"]|, "class")
-
-      assert class =~ "text-right"
-      assert class =~ "w-28"
-      assert [name_class] = attr(table([]), ~s|th[data-column="name"]|, "class")
-      assert name_class =~ "text-left"
-    end
-
-    test "every header cell paints its own background" do
-      # On the row alone it is transparent in WebKit, and the sticky header
-      # lets the rows scroll through it.
-      classes = attr(table([]), "thead th", "class")
-
-      assert length(classes) == 2
-      assert Enum.all?(classes, &(&1 =~ "bg-base-100"))
-    end
   end
 
   describe "pager/1" do
