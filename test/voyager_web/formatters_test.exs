@@ -139,4 +139,21 @@ defmodule VoyagerWeb.FormattersTest do
       assert :erlang.list_to_pid(String.to_charlist(formatted)) == self()
     end
   end
+
+  describe "format_pid_local/1" do
+    test "keeps a local pid unchanged" do
+      assert VoyagerWeb.Formatters.format_pid_local(self()) ==
+               VoyagerWeb.Formatters.format_pid(self())
+    end
+
+    test "zeroes the node index of a remote pid" do
+      # NEW_PID_EXT for <45.6> on a node this one has never connected to; the
+      # decoded pid gets a non-zero local node index.
+      remote_pid =
+        :erlang.binary_to_term(<<131, 88, 119, 17, "othernode@nowhere", 45::32, 6::32, 1::32>>)
+
+      assert VoyagerWeb.Formatters.format_pid(remote_pid) != "<0.45.6>"
+      assert VoyagerWeb.Formatters.format_pid_local(remote_pid) == "<0.45.6>"
+    end
+  end
 end
