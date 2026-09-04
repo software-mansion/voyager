@@ -2,17 +2,10 @@ defmodule Voyager.Services.Ets.Fetch do
   @moduledoc """
   Host-isolated ETS record reads.
 
-  Runs `Remote.select_chunk/5` and `Remote.lookup/4` in a TaskSupervisor child
-  with `max_heap_size` 12_500_000 words (~100 MB on 64-bit; `kill: true` and
-  `include_shared_binaries: true`), then sanitizes records (not the
-  continuation). Heap kill is `{:error, :heap_limit_exceeded}`; a wait that
-  expires is `{:error, :timeout}`.
-
-  The cap is this task's process heap (cons cells, maps, tuples) plus off-heap
-  binaries it refers to, not host RSS. MFA peek still copies full objects on
-  the remote node and over the wire; distribution allocates them before the
-  task can be killed, then Sanitize keeps a 512-byte binary prefix. A page of
-  large binaries can still OOM Voyager.
+  Runs remote reads in a heap-capped TaskSupervisor child, then sanitizes
+  records (not the continuation). Heap kill is `{:error, :heap_limit_exceeded}`;
+  a wait that expires is `{:error, :timeout}`. Isolation does not bound
+  distribution receive, so a page of large binaries can still OOM Voyager.
   """
 
   alias Voyager.Erpc
