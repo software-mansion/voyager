@@ -1,18 +1,13 @@
 import Config
 
-# A non-default PORT means a second dev instance; it needs its own database so
-# it doesn't collide with the first one's distribution name and settings.
-port = String.to_integer(System.get_env("PORT") || "4000")
-db_suffix = if port == 4000, do: "", else: "_#{port}"
-
 config :voyager, Voyager.Repo,
-  database: Path.expand("../priv/db/voyager_dev#{db_suffix}.db", __DIR__),
+  database: Path.expand("../priv/db/voyager_dev.db", __DIR__),
   pool_size: 5,
   stacktrace: true,
   show_sensitive_data_on_connection_error: true
 
 config :voyager, VoyagerWeb.Endpoint,
-  http: [ip: {127, 0, 0, 1}, port: port],
+  http: [ip: {127, 0, 0, 1}],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
