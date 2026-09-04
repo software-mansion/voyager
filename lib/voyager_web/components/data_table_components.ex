@@ -95,9 +95,12 @@ defmodule VoyagerWeb.Components.DataTableComponents do
     assigns = assign(assigns, :active?, assigns.column.key == assigns.sort_by)
 
     ~H"""
+    <%!-- The background sits on the cell, not the row: WebKit (so the Tauri
+          app, not Chrome) leaves a sticky `thead tr` background unpainted and
+          the rows show through it. --%>
     <th
       data-column={@column.key}
-      class={[align_class(@column), width_class(@column)]}
+      class={["bg-base-100 py-5", align_class(@column), width_class(@column)]}
       aria-sort={aria_sort(@active?, @direction)}
     >
       <button
@@ -130,7 +133,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
     ~H"""
     <th
       data-column={@column.key}
-      class={[align_class(@column), width_class(@column)]}
+      class={["bg-base-100 py-5", align_class(@column), width_class(@column)]}
     >
       <div class="font-mono tracking-label text-base-content/70 truncate text-xs font-semibold uppercase">
         {@column.label}
