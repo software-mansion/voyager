@@ -5,8 +5,33 @@ defmodule Voyager.AgentTest do
 
   alias Voyager.Agent
   alias Voyager.Erpc
+  alias Voyager.NodeSession
+  alias Voyager.NodeSession.Session
 
   @agent_module :voyager_agent
+
+  defmodule FakeConnector do
+    @moduledoc false
+    @behaviour Voyager.NodeSession.Connector
+
+    @impl true
+    def name, do: :fake
+
+    @impl true
+    def connect(_node_name, _cookie, _opts), do: {:error, :unsupported}
+
+    @impl true
+    def disconnect(node, meta) do
+      send(meta.test_pid, {:connector_disconnect, node})
+      :ok
+    end
+
+    @impl true
+    def subscriptions, do: []
+
+    @impl true
+    def teardown?(_msg, _meta), do: false
+  end
 
   setup :verify_on_exit!
 
@@ -94,13 +119,36 @@ defmodule Voyager.AgentTest do
       assert {:ok, {[], 0}} = Agent.call(:target@nohost, :proc_top, [1], 1_000)
     end
 
-    test "translates a missing agent into an :undef error" do
+    test "translates a missing agent into an :undef error and drops the session" do
+      node = :target@nohost
+      seed_session(node)
+      Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
+
       expect(Voyager.ErpcMock, :call, fn _node, @agent_module, :proc_top, [1], _timeout ->
         :erlang.error({:exception, :undef, []})
       end)
 
-      assert {:error, {:remote_exception, :undef}} =
-               Agent.call(:target@nohost, :proc_top, [1], 1_000)
+      assert {:error, {:remote_exception, :undef}} = Agent.call(node, :proc_top, [1], 1_000)
+
+      assert_receive {:connector_disconnect, ^node}
+      assert_receive {:node_disconnected, ^node}
+      refute NodeSession.connected?()
     end
+  end
+
+  defp seed_session(node) do
+    previous_state = :sys.get_state(NodeSession)
+    on_exit(fn -> :sys.replace_state(NodeSession, fn _ -> previous_state end) end)
+
+    session = %Session{
+      node: node,
+      node_name: to_string(node),
+      cookie: "secret",
+      connected_at: DateTime.utc_now(),
+      connector: FakeConnector,
+      meta: %{test_pid: self()}
+    }
+
+    :sys.replace_state(NodeSession, &Map.put(&1, :session, session))
   end
 end
