@@ -3,6 +3,10 @@ import Config
 # Disable node info auto-refresh in tests so LiveViews don't schedule timers.
 config :voyager, :node_info_refresh_interval_ms, nil
 
+# Tests drive refreshes back to back; rate limiting is exercised explicitly in
+# details_panel_test.exs.
+config :voyager, :process_info_min_refresh_ms, 0
+
 config :voyager, Voyager.Vault,
   ciphers: [
     default: {Cloak.Ciphers.AES.GCM, tag: "AES.GCM.V1", key: <<0::256>>}
