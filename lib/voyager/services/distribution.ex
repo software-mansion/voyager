@@ -77,7 +77,7 @@ defmodule Voyager.Services.Distribution do
   defp start_distribution(name_type) do
     node_name = local_node_name(name_type)
 
-    case :net_kernel.start(node_name, %{name_domain: name_type, hidden: true}) do
+    case :net_kernel.start(node_name, %{name_domain: name_type, hidden: true, dist_listen: false}) do
       {:ok, _pid} ->
         Node.set_cookie(random_cookie())
         :ok
