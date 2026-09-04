@@ -65,8 +65,10 @@ defmodule Voyager.Services.Ets.FetchTest do
     stub_exported(:ets_select_chunk, 3, false)
 
     expect(Voyager.ErpcMock, :call, fn @node, :ets, :select, [:t, _spec, 10], 50 ->
-      Process.sleep(5_000)
-      :"$end_of_table"
+      receive do
+      after
+        :infinity -> :"$end_of_table"
+      end
     end)
 
     assert {:error, :timeout} = Fetch.select_chunk(@node, :t, 10, nil, 50)
@@ -80,12 +82,12 @@ defmodule Voyager.Services.Ets.FetchTest do
                                        :function_exported,
                                        [:voyager_agent, :ets_select_chunk, 3],
                                        ^timeout ->
-      Process.sleep(50)
+      Process.sleep(timeout)
       false
     end)
 
     expect(Voyager.ErpcMock, :call, fn @node, :ets, :select, [:t, _spec, 10], ^timeout ->
-      Process.sleep(50)
+      Process.sleep(timeout)
       :"$end_of_table"
     end)
 
@@ -101,6 +103,40 @@ defmodule Voyager.Services.Ets.FetchTest do
     end)
 
     assert {:error, {:task_exit, :shutdown}} = Fetch.select_chunk(@node, :t, 10, nil, @timeout)
+  end
+
+  test "maps a remote worker kill to :heap_limit_exceeded without MFA fallback" do
+    stub_exported(:ets_lookup, 2, true)
+
+    expect(Voyager.ErpcMock, :call, fn @node,
+                                       :voyager_agent,
+                                       :ets_lookup,
+                                       [:t, :wide],
+                                       @timeout ->
+      :erlang.error({:exception, :killed, []})
+    end)
+
+    assert {:error, :heap_limit_exceeded} = Fetch.lookup(@node, :t, :wide, @timeout)
+  end
+
+  test "maps an erpc-wrapped remote exit(:killed) to :heap_limit_exceeded without MFA fallback" do
+    stub_exported(:ets_select_chunk, 3, true)
+
+    expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_chunk, _, @timeout ->
+      :erlang.exit({:exception, :killed})
+    end)
+
+    assert {:error, :heap_limit_exceeded} = Fetch.select_chunk(@node, :t, 10, nil, @timeout)
+  end
+
+  test "maps an erpc execute-process kill to :heap_limit_exceeded without MFA fallback" do
+    stub_exported(:ets_select_chunk, 3, true)
+
+    expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_chunk, _, @timeout ->
+      :erlang.exit({:signal, :killed})
+    end)
+
+    assert {:error, :heap_limit_exceeded} = Fetch.select_chunk(@node, :t, 10, nil, @timeout)
   end
 
   defp stub_exported(fun, arity, exported?) do

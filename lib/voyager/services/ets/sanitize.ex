@@ -2,8 +2,9 @@ defmodule Voyager.Services.Ets.Sanitize do
   @moduledoc """
   Caps ETS record terms for host display. No redaction.
 
-  Marker wrappers are preserved and payloads re-capped so a second pass is
-  idempotent and a coincidental marker shape cannot smuggle an uncapped term.
+  Same caps as `voyager_agent` (512 / 50 / 5). Marker wrappers are preserved
+  and payloads re-capped so a second pass is idempotent and a coincidental
+  marker shape cannot smuggle an uncapped term.
   """
 
   @max_binary_bytes 512

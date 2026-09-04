@@ -6,6 +6,8 @@ defmodule Voyager.Services.Ets.Fetch do
   with `max_heap_size` 500_000 words (`kill: true` and `include_shared_binaries:
   true`), then sanitizes records (not the continuation). Heap kill is
   `{:error, :heap_limit_exceeded}`; a wait that expires is `{:error, :timeout}`.
+  A remote worker heap kill (`:killed`) is `{:error, :heap_limit_exceeded}` as
+  well.
 
   The cap is this task's process heap (cons cells, maps, tuples) plus off-heap
   binaries it refers to, not host RSS. MFA peek still copies full objects on
@@ -44,7 +46,7 @@ defmodule Voyager.Services.Ets.Fetch do
     isolate(timeout, fn ->
       case fun.() do
         {:ok, chunk} -> {:ok, sanitize_chunk(chunk)}
-        {:error, _} = err -> err
+        {:error, _} = err -> map_remote_killed(err)
       end
     end)
   end
@@ -88,4 +90,24 @@ defmodule Voyager.Services.Ets.Fetch do
   defp format_task_exit(:killed), do: {:error, :heap_limit_exceeded}
   defp format_task_exit({:killed, _info}), do: {:error, :heap_limit_exceeded}
   defp format_task_exit(reason), do: {:error, {:task_exit, reason}}
+
+  defp map_remote_killed({:error, {:remote_exception, :killed}}),
+    do: {:error, :heap_limit_exceeded}
+
+  defp map_remote_killed({:error, {:remote_exception, {:killed, _}}}),
+    do: {:error, :heap_limit_exceeded}
+
+  defp map_remote_killed({:error, {:remote_exit, {:exception, :killed}}}),
+    do: {:error, :heap_limit_exceeded}
+
+  defp map_remote_killed({:error, {:remote_exit, {:exception, {:killed, _}}}}),
+    do: {:error, :heap_limit_exceeded}
+
+  defp map_remote_killed({:error, {:remote_exit, {:signal, :killed}}}),
+    do: {:error, :heap_limit_exceeded}
+
+  defp map_remote_killed({:error, {:remote_exit, {:signal, {:killed, _}}}}),
+    do: {:error, :heap_limit_exceeded}
+
+  defp map_remote_killed(err), do: err
 end

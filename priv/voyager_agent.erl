@@ -5,6 +5,7 @@
 %% API
 -export([register/1]).
 -export([proc_top/5]).
+-export([ets_select_chunk/3, ets_lookup/2, truncate_term/1]).
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
@@ -21,6 +22,14 @@
 %% Bounds the start/register retry so a node whose agent keeps stopping
 %% cannot spin here forever.
 -define(MAX_REGISTER_ATTEMPTS, 3).
+
+-define(ETS_MAX_HEAP_SIZE, 500_000).
+-define(ETS_CHUNK_SIZES, [10, 20, 50]).
+-define(MATCH_ALL, [{'$1', [], ['$1']}]).
+-define(MAX_BINARY_BYTES, 512).
+-define(MAX_COLLECTION, 50).
+-define(MAX_DEPTH, 5).
+-define(MARKER, '$voyager_truncated').
 
 %% Adds the Voyager node to the watched set and returns the server pid.
 %% If the server is not running, it starts it and registers the Voyager node.
@@ -237,6 +246,263 @@ with_bounded_heap(Fun) ->
         Fun()
     after
         process_flag(max_heap_size, Old)
+    end.
+
+%% =====================================================================
+%% ETS RECORDS - Match-all select / lookup with on-node truncation.
+%% =====================================================================
+%%
+%% Exported functions, not handle_call, so a peek cannot block register
+%% or nodedown. A one-shot worker with a 500_000-word heap cap does the
+%% ETS read and truncates records; the continuation is left opaque.
+%% No fixtable — paging is best-effort.
+
+-spec ets_select_chunk(ets:tab(), pos_integer(), term()) ->
+                          '$end_of_table' | {[term()], term()}.
+ets_select_chunk(Table, Limit, Cont) ->
+    case lists:member(Limit, ?ETS_CHUNK_SIZES) of
+        true ->
+            isolated(fun() -> do_select(Table, Limit, Cont) end);
+        false ->
+            erlang:error(badarg)
+    end.
+
+-spec ets_lookup(ets:tab(), term()) -> [term()].
+ets_lookup(Table, Key) ->
+    isolated(fun() -> truncate_records(ets:lookup(Table, Key)) end).
+
+%% Same caps as Voyager.Services.Ets.Sanitize (512 / 50 / 5). Not a
+%% visit-budget truncator: oversized binaries keep a prefix, collections
+%% keep 50 elements, nesting stops at depth 5.
+-spec truncate_term(term()) -> term().
+truncate_term(Term) ->
+    sanitize(Term, 0).
+
+do_select(Table, Limit, undefined) ->
+    truncate_select(ets:select(Table, ?MATCH_ALL, Limit));
+do_select(_Table, _Limit, Cont) ->
+    %% Continuation has typically crossed to Voyager and back.
+    truncate_select(ets:select(ets:repair_continuation(Cont, ?MATCH_ALL))).
+
+truncate_select('$end_of_table') ->
+    '$end_of_table';
+truncate_select({Records, Cont}) when is_list(Records) ->
+    {truncate_records(Records), Cont}.
+
+truncate_records(Records) ->
+    [truncate_term(R) || R <- Records].
+
+%% Link so an erpc timeout (killing this process) also kills the worker.
+%% trap_exit so a heap kill can be turned into error:killed instead of
+%% taking this process down before the caller sees a mapped error.
+isolated(Fun) ->
+    OldTrap = process_flag(trap_exit, true),
+    try
+        isolated_wait(Fun)
+    after
+        process_flag(trap_exit, OldTrap)
+    end.
+
+isolated_wait(Fun) ->
+    Parent = self(),
+    {Pid, MRef} = spawn_opt(fun() -> isolated_worker(Parent, Fun) end, [link, monitor]),
+    receive
+        {Pid, {ok, Result}} ->
+            demonitor(MRef, [flush]),
+            flush_exit(Pid),
+            Result;
+        {Pid, {caught, Kind, Reason, Stack}} ->
+            demonitor(MRef, [flush]),
+            flush_exit(Pid),
+            erlang:raise(Kind, Reason, Stack);
+        {'DOWN', MRef, process, Pid, Reason} ->
+            flush_exit(Pid),
+            isolated_down(Reason);
+        {'EXIT', Pid, Reason} ->
+            receive
+                {'DOWN', MRef, process, Pid, _} ->
+                    ok
+            after 0 ->
+                ok
+            end,
+            isolated_down(Reason)
+    end.
+
+isolated_worker(Parent, Fun) ->
+    process_flag(max_heap_size,
+                 #{size => ?ETS_MAX_HEAP_SIZE,
+                   kill => true,
+                   error_logger => true}),
+    try Fun() of
+        Result ->
+            Parent ! {self(), {ok, Result}}
+    catch
+        Kind:Reason:Stack ->
+            Parent ! {self(), {caught, Kind, Reason, Stack}}
+    end.
+
+isolated_down(killed) ->
+    erlang:error(killed);
+isolated_down({killed, _Info}) ->
+    erlang:error(killed);
+isolated_down(Reason) ->
+    exit(Reason).
+
+flush_exit(Pid) ->
+    receive
+        {'EXIT', Pid, _} ->
+            ok
+    after 0 ->
+        ok
+    end.
+
+sanitize({?MARKER, depth}, _Depth) ->
+    {?MARKER, depth};
+sanitize({?MARKER, Kind, _Payload, _Meta}, Depth)
+    when (Kind =:= list orelse Kind =:= map orelse Kind =:= tuple), Depth >= ?MAX_DEPTH ->
+    {?MARKER, depth};
+sanitize({?MARKER, binary, Prefix, Size}, _Depth)
+    when is_binary(Prefix), is_integer(Size), Size >= 0 ->
+    {?MARKER, binary, cap_binary(Prefix), max(Size, byte_size(Prefix))};
+sanitize({?MARKER, Kind, Elements, Omitted}, Depth)
+    when (Kind =:= list orelse Kind =:= map orelse Kind =:= tuple), is_list(Elements),
+         is_integer(Omitted), Omitted >= 0 ->
+    sanitize_collection_marker(Kind, Elements, Omitted, Depth);
+sanitize([], Depth) when Depth >= ?MAX_DEPTH ->
+    [];
+sanitize(Map, Depth) when is_map(Map), map_size(Map) =:= 0, Depth >= ?MAX_DEPTH ->
+    Map;
+sanitize({}, Depth) when Depth >= ?MAX_DEPTH ->
+    {};
+sanitize(Term, Depth)
+    when (is_list(Term) orelse is_map(Term) orelse is_tuple(Term)), Depth >= ?MAX_DEPTH ->
+    {?MARKER, depth};
+sanitize(Term, Depth) ->
+    sanitize_value(Term, Depth).
+
+sanitize_value(Bin, _Depth) when is_binary(Bin) ->
+    Size = byte_size(Bin),
+    case Size > ?MAX_BINARY_BYTES of
+        true ->
+            {?MARKER, binary, cap_binary(Bin), Size};
+        false ->
+            Bin
+    end;
+sanitize_value(Bits, _Depth) when is_bitstring(Bits), not is_binary(Bits) ->
+    Pad = 8 - bit_size(Bits) rem 8,
+    Padded = <<Bits/bitstring, 0:Pad>>,
+    {?MARKER, binary, cap_binary(Padded), byte_size(Padded)};
+sanitize_value(List, Depth) when is_list(List) ->
+    {Taken, Rest} = take_cons(List, ?MAX_COLLECTION),
+    Sanitized = [sanitize(E, Depth + 1) || E <- Taken],
+    if Rest =:= [] ->
+           Sanitized;
+       is_list(Rest) ->
+           {?MARKER, list, Sanitized, cons_count(Rest)};
+       true ->
+           cons(Sanitized, sanitize(Rest, Depth + 1))
+    end;
+sanitize_value(Map, Depth) when is_map(Map) ->
+    Pairs = take_map_pairs(Map),
+    Omitted = max(map_size(Map) - length(Pairs), 0),
+    SanitizedPairs = [{sanitize(K, Depth + 1), sanitize(V, Depth + 1)} || {K, V} <- Pairs],
+    rebuild_map(SanitizedPairs, Omitted);
+sanitize_value(Tuple, Depth) when is_tuple(Tuple) ->
+    Size = tuple_size(Tuple),
+    Kept = min(Size, ?MAX_COLLECTION),
+    Sanitized = [sanitize(element(I, Tuple), Depth + 1) || I <- lists:seq(1, Kept)],
+    case Size > ?MAX_COLLECTION of
+        true ->
+            {?MARKER, tuple, Sanitized, Size - ?MAX_COLLECTION};
+        false ->
+            list_to_tuple(Sanitized)
+    end;
+sanitize_value(Term, _Depth) ->
+    Term.
+
+sanitize_collection_marker(Kind, Elements, Omitted, Depth) ->
+    {Taken, Rest} = take_cons(Elements, ?MAX_COLLECTION),
+    Sanitized =
+        case Kind of
+            map ->
+                [sanitize_map_pair(Pair, Depth) || Pair <- Taken];
+            _ ->
+                [sanitize(E, Depth + 1) || E <- Taken]
+        end,
+    {?MARKER, Kind, Sanitized, Omitted + leftover_count(Rest)}.
+
+sanitize_map_pair({Key, Value}, Depth) ->
+    {sanitize(Key, Depth + 1), sanitize(Value, Depth + 1)};
+sanitize_map_pair(Other, Depth) ->
+    sanitize(Other, Depth + 1).
+
+cap_binary(Bin) when is_binary(Bin) ->
+    Kept =
+        case byte_size(Bin) > ?MAX_BINARY_BYTES of
+            true ->
+                binary:part(Bin, 0, ?MAX_BINARY_BYTES);
+            false ->
+                Bin
+        end,
+    binary:copy(Kept).
+
+leftover_count(Rest) when is_list(Rest) ->
+    cons_count(Rest);
+leftover_count(_ImproperTail) ->
+    1.
+
+rebuild_map(Pairs, 0) ->
+    AsMap = maps:from_list(Pairs),
+    case map_size(AsMap) =:= length(Pairs) of
+        true ->
+            AsMap;
+        false ->
+            {?MARKER, map, Pairs, 0}
+    end;
+rebuild_map(Pairs, Omitted) ->
+    {?MARKER, map, Pairs, Omitted}.
+
+cons(Heads, Tail) ->
+    lists:foldr(fun(Head, Acc) -> [Head | Acc] end, Tail, Heads).
+
+take_cons(List, N) ->
+    take_cons(List, N, []).
+
+take_cons(List, N, Acc) when N > 0, is_list(List), List =/= [] ->
+    [Head | Tail] = List,
+    take_cons(Tail, N - 1, [Head | Acc]);
+take_cons(Rest, _N, Acc) ->
+    {lists:reverse(Acc), Rest}.
+
+cons_count(List) ->
+    cons_count(List, 0).
+
+cons_count([_Head | Tail], Acc) ->
+    cons_count(Tail, Acc + 1);
+cons_count([], Acc) ->
+    Acc;
+cons_count(_ImproperTail, Acc) ->
+    Acc + 1.
+
+%% Do not maps:to_list a huge map. OTP 26+ `iterator/2` `ordered` matches
+%% Elixir's sort-then-take-50; older `iterator/1` keeps an arbitrary 50
+%% the host cannot repair. Runtime export check, not `-if(?OTP_RELEASE)`.
+take_map_pairs(Map) ->
+    take_map_pairs(maps:next(map_iter(Map)), ?MAX_COLLECTION, []).
+
+take_map_pairs(none, _Left, Acc) ->
+    lists:reverse(Acc);
+take_map_pairs(_Next, 0, Acc) ->
+    lists:reverse(Acc);
+take_map_pairs({K, V, Iter}, Left, Acc) ->
+    take_map_pairs(maps:next(Iter), Left - 1, [{K, V} | Acc]).
+
+map_iter(Map) ->
+    case erlang:function_exported(maps, iterator, 2) of
+        true ->
+            maps:iterator(Map, ordered);
+        false ->
+            maps:iterator(Map)
     end.
 
 %% =====================================================================

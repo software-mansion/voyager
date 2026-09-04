@@ -3,6 +3,7 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
 
   alias Voyager.Erpc
   alias Voyager.Services.Ets.Remote
+  alias Voyager.Test.EtsTable
 
   setup do
     Erpc.bind_impl(Voyager.Erpc.Impl)
@@ -10,9 +11,9 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
   end
 
   test "list/1 returns live local tables with memory in bytes" do
-    name = unique_name()
+    name = EtsTable.unique_name()
     :ets.new(name, [:named_table, :public, :set])
-    on_exit(fn -> safe_delete(name) end)
+    on_exit(fn -> EtsTable.safe_delete(name) end)
 
     assert {:ok, tables} = Remote.list(Node.self())
     table = Enum.find(tables, &(&1.id == name))
@@ -30,7 +31,7 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
   end
 
   test "list/1 includes a private table owned by another process" do
-    pid = start_supervised!({Agent, fn -> :ets.new(unique_name(), [:private]) end})
+    pid = start_supervised!({Agent, fn -> :ets.new(EtsTable.unique_name(), [:private]) end})
     tid = Agent.get(pid, & &1)
 
     assert {:ok, tables} = Remote.list(Node.self())
@@ -43,9 +44,9 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
   end
 
   test "info/2 fetches a named table and :not_found after delete" do
-    name = unique_name()
+    name = EtsTable.unique_name()
     :ets.new(name, [:named_table, :public])
-    on_exit(fn -> safe_delete(name) end)
+    on_exit(fn -> EtsTable.safe_delete(name) end)
 
     assert {:ok, info} = Remote.info(Node.self(), name)
     assert info.id == name
@@ -56,8 +57,8 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
   end
 
   test "list/1 uses the unnamed table reference as the handle" do
-    tid = :ets.new(unique_name(), [:public])
-    on_exit(fn -> safe_delete(tid) end)
+    tid = :ets.new(EtsTable.unique_name(), [:public])
+    on_exit(fn -> EtsTable.safe_delete(tid) end)
 
     assert is_reference(tid)
     assert {:ok, tables} = Remote.list(Node.self())
@@ -65,9 +66,9 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
   end
 
   test "select_chunk/3 MFA first page; a continuation is :cannot_page" do
-    name = unique_name()
+    name = EtsTable.unique_name()
     :ets.new(name, [:named_table, :public, :set])
-    on_exit(fn -> safe_delete(name) end)
+    on_exit(fn -> EtsTable.safe_delete(name) end)
 
     for i <- 1..25, do: :ets.insert(name, {i, i})
 
@@ -80,10 +81,23 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
              Remote.select_chunk(Node.self(), name, 10, chunk.continuation)
   end
 
-  test "an ETF-round-tripped continuation needs repair_continuation/2 before select/1" do
-    name = unique_name()
+  test "select_chunk/3 MFA last page maps :\"$end_of_table\" continuation to nil" do
+    name = EtsTable.unique_name()
     :ets.new(name, [:named_table, :public, :set])
-    on_exit(fn -> safe_delete(name) end)
+    on_exit(fn -> EtsTable.safe_delete(name) end)
+
+    for i <- 1..3, do: :ets.insert(name, {i, i})
+
+    assert {:ok, chunk} = Remote.select_chunk(Node.self(), name, 10)
+    assert chunk.via == :mfa
+    assert length(chunk.records) == 3
+    assert chunk.continuation == nil
+  end
+
+  test "an ETF-round-tripped continuation needs repair_continuation/2 before select/1" do
+    name = EtsTable.unique_name()
+    :ets.new(name, [:named_table, :public, :set])
+    on_exit(fn -> EtsTable.safe_delete(name) end)
 
     for i <- 1..25, do: :ets.insert(name, {i, i})
 
@@ -111,9 +125,9 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
   end
 
   test "lookup/3 fetches a named table by atom, integer, and binary keys" do
-    name = unique_name()
+    name = EtsTable.unique_name()
     :ets.new(name, [:named_table, :public, :set])
-    on_exit(fn -> safe_delete(name) end)
+    on_exit(fn -> EtsTable.safe_delete(name) end)
 
     :ets.insert(name, {:atom_key, 1})
     :ets.insert(name, {7, 2})
@@ -127,8 +141,8 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
   end
 
   test "select_chunk/3 and lookup/3 use an unnamed table reference as the handle" do
-    tid = :ets.new(unique_name(), [:public])
-    on_exit(fn -> safe_delete(tid) end)
+    tid = :ets.new(EtsTable.unique_name(), [:public])
+    on_exit(fn -> EtsTable.safe_delete(tid) end)
     :ets.insert(tid, {:k, 1})
 
     assert is_reference(tid)
@@ -139,20 +153,10 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
   end
 
   test "select_chunk/3 cannot read a private table owned by another process" do
-    pid = start_supervised!({Agent, fn -> :ets.new(unique_name(), [:private]) end})
+    pid = start_supervised!({Agent, fn -> :ets.new(EtsTable.unique_name(), [:private]) end})
     tid = Agent.get(pid, & &1)
 
     assert {:error, :cannot_read} = Remote.select_chunk(Node.self(), tid, 10)
     assert {:error, :cannot_read} = Remote.lookup(Node.self(), tid, :k)
-  end
-
-  defp unique_name do
-    :"voyager_ets_#{System.unique_integer([:positive])}"
-  end
-
-  defp safe_delete(id) do
-    :ets.delete(id)
-  rescue
-    ArgumentError -> :ok
   end
 end

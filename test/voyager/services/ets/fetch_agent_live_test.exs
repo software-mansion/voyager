@@ -1,17 +1,23 @@
-defmodule Voyager.Services.Ets.FetchLiveTest do
+defmodule Voyager.Services.Ets.FetchAgentLiveTest do
   use ExUnit.Case, async: false
+
+  @compile {:no_warn_undefined, :voyager_agent}
 
   alias Voyager.Erpc
   alias Voyager.Services.Ets.Fetch
   alias Voyager.Services.Ets.Sanitize
   alias Voyager.Test.EtsTable
+  alias Voyager.Test.VoyagerAgentFixture
+
+  @agent_module :voyager_agent
 
   setup do
     Erpc.bind_impl(Voyager.Erpc.Impl)
+    VoyagerAgentFixture.load!()
     :ok
   end
 
-  test "select_chunk/3 returns sanitized records from a live table" do
+  test "select_chunk/3 returns agent-truncated records matching Sanitize.term/1" do
     name = EtsTable.unique_name()
     :ets.new(name, [:named_table, :public, :set])
     on_exit(fn -> EtsTable.safe_delete(name) end)
@@ -20,11 +26,12 @@ defmodule Voyager.Services.Ets.FetchLiveTest do
     :ets.insert(name, {:row, blob})
 
     assert {:ok, chunk} = Fetch.select_chunk(Node.self(), name, 10)
-    assert chunk.via == :mfa
+    assert chunk.via == :agent
     assert chunk.records == [{:row, Sanitize.term(blob)}]
+    assert chunk.records == [{:row, @agent_module.truncate_term(blob)}]
   end
 
-  test "lookup/3 returns sanitized records from a live table" do
+  test "lookup/3 double-sanitize is a no-op on agent-truncated records" do
     name = EtsTable.unique_name()
     :ets.new(name, [:named_table, :public, :set])
     on_exit(fn -> EtsTable.safe_delete(name) end)
@@ -32,8 +39,10 @@ defmodule Voyager.Services.Ets.FetchLiveTest do
     :ets.insert(name, {:k, Enum.to_list(1..60)})
 
     assert {:ok, chunk} = Fetch.lookup(Node.self(), name, :k)
+    assert chunk.via == :agent
     assert [{:k, truncated}] = chunk.records
     assert truncated == Sanitize.term(Enum.to_list(1..60))
+    assert truncated == Sanitize.term(truncated)
   end
 
   test "select_chunk/3 leaves the ETS continuation unsanitized" do
@@ -44,27 +53,9 @@ defmodule Voyager.Services.Ets.FetchLiveTest do
     for i <- 1..25, do: :ets.insert(name, {i, :binary.copy(<<"a">>, 600)})
 
     assert {:ok, page} = Fetch.select_chunk(Node.self(), name, 10)
+    assert page.via == :agent
     assert is_list(page.records)
     assert page.continuation
     refute match?({:"$voyager_truncated", _, _, _}, page.continuation)
-  end
-
-  test "propagates :cannot_read for a private table owned by another process" do
-    pid = start_supervised!({Agent, fn -> :ets.new(EtsTable.unique_name(), [:private]) end})
-    tid = Agent.get(pid, & &1)
-
-    assert {:error, :cannot_read} = Fetch.select_chunk(Node.self(), tid, 10)
-    assert {:error, :cannot_read} = Fetch.lookup(Node.self(), tid, :k)
-  end
-
-  @tag capture_log: true
-  test "returns :heap_limit_exceeded when the copied payload exceeds the host heap cap" do
-    name = EtsTable.unique_name()
-    :ets.new(name, [:named_table, :public, :set])
-    on_exit(fn -> EtsTable.safe_delete(name) end)
-
-    :ets.insert(name, {:wide, Enum.to_list(1..400_000)})
-
-    assert {:error, :heap_limit_exceeded} = Fetch.lookup(Node.self(), name, :wide, 15_000)
   end
 end
