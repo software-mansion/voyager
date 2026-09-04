@@ -281,9 +281,7 @@ ets_select_spec(Table, Spec, Limit, Cont) ->
 ets_lookup(Table, Key) ->
     isolated(fun() -> truncate_records(ets:lookup(Table, Key)) end).
 
-%% Same caps as Voyager.Services.Ets.Sanitize (512 / 50 / 5). Not a
-%% visit-budget truncator: oversized binaries keep a prefix, collections
-%% keep 50 elements, nesting stops at depth 5.
+%% Same caps as Voyager.Services.Ets.Sanitize; not a visit-budget truncator.
 -spec truncate_term(term()) -> term().
 truncate_term(Term) ->
     sanitize(Term, 0).
