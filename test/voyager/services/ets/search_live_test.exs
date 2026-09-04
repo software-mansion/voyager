@@ -2,8 +2,6 @@ defmodule Voyager.Services.Ets.SearchLiveTest do
   use ExUnit.Case, async: false
 
   alias Voyager.Erpc
-  alias Voyager.Services.Ets.Fetch
-  alias Voyager.Services.Ets.Sanitize
   alias Voyager.Services.Ets.Search
   alias Voyager.Test.EtsTable
 
@@ -86,19 +84,5 @@ defmodule Voyager.Services.Ets.SearchLiveTest do
     tid = Agent.get(pid, & &1)
 
     assert {:error, :cannot_read} = Search.chunk(Node.self(), tid, {:element_eq, 1, :k}, 10)
-  end
-
-  test "Fetch.select_spec/4 sanitizes matching records on the MFA path" do
-    name = EtsTable.unique_name()
-    :ets.new(name, [:named_table, :public, :set])
-    on_exit(fn -> EtsTable.safe_delete(name) end)
-
-    blob = :binary.copy(<<"z">>, 600)
-    :ets.insert(name, {:row, blob})
-    {:ok, spec} = Search.compile({:key_eq, :row})
-
-    assert {:ok, chunk} = Fetch.select_spec(Node.self(), name, spec, 10)
-    assert chunk.via == :mfa
-    assert chunk.records == [{:row, Sanitize.term(blob)}]
   end
 end

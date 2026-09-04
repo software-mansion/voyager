@@ -36,6 +36,20 @@ defmodule Voyager.Services.Ets.FetchLiveTest do
     assert truncated == Sanitize.term(Enum.to_list(1..60))
   end
 
+  test "select_spec/4 sanitizes matching records on the MFA path" do
+    name = EtsTable.unique_name()
+    :ets.new(name, [:named_table, :public, :set])
+    on_exit(fn -> EtsTable.safe_delete(name) end)
+
+    blob = :binary.copy(<<"z">>, 600)
+    :ets.insert(name, {:row, blob})
+    spec = [{:"$1", [{:"=:=", {:element, 1, :"$1"}, :row}], [:"$1"]}]
+
+    assert {:ok, chunk} = Fetch.select_spec(Node.self(), name, spec, 10)
+    assert chunk.via == :mfa
+    assert chunk.records == [{:row, Sanitize.term(blob)}]
+  end
+
   test "select_chunk/3 leaves the ETS continuation unsanitized" do
     name = EtsTable.unique_name()
     :ets.new(name, [:named_table, :public, :set])
