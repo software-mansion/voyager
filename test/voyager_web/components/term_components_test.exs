@@ -157,9 +157,17 @@ defmodule VoyagerWeb.Components.TermComponentsTest do
       assert text(doc, "span.text-code-punct.opacity-70") =~ "truncated"
     end
 
-    test "a term truncated on the remote node says so" do
-      assert count(render_term(%{a: 1}, truncated?: true), "#term-truncated") == 1
-      assert count(render_term(%{a: 1}), "#term-truncated") == 0
+    test "a collection cut short on the remote node is flagged while still collapsed" do
+      doc = render_term([1, :"$voyager_truncated"], state: open([]))
+
+      assert attribute(doc, "#term-root-truncated", "class") =~ "text-warning"
+
+      assert attribute(doc, "#term-root-truncated", "data-tooltip-target") ==
+               "#term-root-truncated-tip"
+    end
+
+    test "an intact collection is not flagged" do
+      assert count(render_term([1, 2], state: open([])), "#term-root-truncated") == 0
     end
 
     test "the inspector id namespaces every node id" do
