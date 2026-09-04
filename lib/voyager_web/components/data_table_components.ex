@@ -47,8 +47,11 @@ defmodule VoyagerWeb.Components.DataTableComponents do
 
   def table(assigns) do
     ~H"""
-    <div class="card bg-base-100 border-base-200 border shadow-sm">
-      <div class="p-5">
+    <div class="card bg-base-100 border-base-200 flex min-h-0 flex-1 flex-col border shadow-sm">
+      <%!-- The scrollport, so `table-pin-rows` can stick the header to its top.
+            No top padding: rows would otherwise scroll through the gap above
+            the sticky header. --%>
+      <div class="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
         <table id={@id} class="table-pin-rows table-md min-w-5xl table w-full table-fixed">
           <thead>
             <tr>

@@ -85,7 +85,7 @@ defmodule VoyagerWeb.ProcessesLive do
       />
 
       <div class={[
-        "flex flex-col gap-2",
+        "flex min-h-0 flex-1 flex-col gap-2",
         if(@dirty?, do: "pointer-events-none select-none opacity-60")
       ]}>
         <DataTableComponents.table
