@@ -26,7 +26,7 @@ defmodule VoyagerWeb.TermTree do
 
   @window 50
   @sort_limit 200
-  @auto_open_limit 3
+  @auto_open_limit 5
   @auto_open_depth 8
 
   @inspect_opts [limit: 50, printable_limit: 4_096]
