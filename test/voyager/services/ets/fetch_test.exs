@@ -55,7 +55,7 @@ defmodule Voyager.Services.Ets.FetchTest do
     stub_exported(:ets_lookup, 2, false)
 
     expect(Voyager.ErpcMock, :call, fn @node, :ets, :lookup, [:t, :wide], 15_000 ->
-      [{:wide, Enum.to_list(1..400_000)}]
+      [{:wide, :binary.copy(<<0>>, 110_000_000)}]
     end)
 
     assert {:error, :heap_limit_exceeded} = Fetch.lookup(@node, :t, :wide, 15_000)

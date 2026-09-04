@@ -3,9 +3,10 @@ defmodule Voyager.Services.Ets.Fetch do
   Host-isolated ETS record reads.
 
   Runs `Remote.select_chunk/5` and `Remote.lookup/4` in a TaskSupervisor child
-  with `max_heap_size` 500_000 words (`kill: true` and `include_shared_binaries:
-  true`), then sanitizes records (not the continuation). Heap kill is
-  `{:error, :heap_limit_exceeded}`; a wait that expires is `{:error, :timeout}`.
+  with `max_heap_size` 12_500_000 words (~100 MB on 64-bit; `kill: true` and
+  `include_shared_binaries: true`), then sanitizes records (not the
+  continuation). Heap kill is `{:error, :heap_limit_exceeded}`; a wait that
+  expires is `{:error, :timeout}`.
 
   The cap is this task's process heap (cons cells, maps, tuples) plus off-heap
   binaries it refers to, not host RSS. MFA peek still copies full objects on
@@ -19,7 +20,8 @@ defmodule Voyager.Services.Ets.Fetch do
   alias Voyager.Services.Ets.Sanitize
   alias Voyager.Services.Ets.TableId
 
-  @max_heap_size 500_000
+  # ~100 MB on 64-bit (8-byte words). Host isolate; remote agent stays smaller (~4 MB).
+  @max_heap_size 12_500_000
   @yield_slack 100
 
   @type chunk :: Remote.chunk()
