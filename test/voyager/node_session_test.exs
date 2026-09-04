@@ -4,6 +4,8 @@ defmodule Voyager.NodeSessionTest do
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Session
 
+  @agent_module :voyager_agent
+
   defmodule FakeConnector do
     @moduledoc false
     @behaviour Voyager.NodeSession.Connector
@@ -16,7 +18,7 @@ defmodule Voyager.NodeSessionTest do
       case Keyword.get(opts, :fail) do
         nil ->
           meta = %{test_pid: Keyword.fetch!(opts, :test_pid), ref: Keyword.get(opts, :ref)}
-          {:ok, Node.self(), meta}
+          {:ok, Keyword.get(opts, :node, Node.self()), meta}
 
         reason ->
           {:error, reason}
@@ -39,8 +41,34 @@ defmodule Voyager.NodeSessionTest do
 
   setup do
     previous_state = :sys.get_state(NodeSession)
-    on_exit(fn -> :sys.replace_state(NodeSession, fn _ -> previous_state end) end)
+    previous_erpc = Application.get_env(:voyager, :erpc)
+    # Connect now injects the agent, so the real transport has to run against this node.
+    Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
+
+    on_exit(fn ->
+      :sys.replace_state(NodeSession, fn _ -> previous_state end)
+      Application.put_env(:voyager, :erpc, previous_erpc)
+      stop_agent()
+    end)
+
     Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
+    :ok
+  end
+
+  defp stop_agent do
+    case Process.whereis(@agent_module) do
+      nil ->
+        :ok
+
+      pid ->
+        ref = Process.monitor(pid)
+        Process.exit(pid, :kill)
+        assert_receive {:DOWN, ^ref, :process, ^pid, _reason}
+    end
+
+    :code.purge(@agent_module)
+    :code.delete(@agent_module)
+    :code.purge(@agent_module)
     :ok
   end
 
@@ -58,6 +86,31 @@ defmodule Voyager.NodeSessionTest do
 
       assert NodeSession.connected?()
       assert_receive {:node_connected, ^node}
+    end
+
+    test "loads and registers the agent on the connected node" do
+      assert :ok =
+               NodeSession.connect_via(FakeConnector, "demo@localhost", "secret",
+                 test_pid: self()
+               )
+
+      assert Code.loaded?(@agent_module)
+      assert is_pid(Process.whereis(@agent_module))
+      assert :sys.get_state(@agent_module) == {:state, %{Node.self() => true}}
+    end
+
+    test "fails the connect and tears down the connector when the agent cannot be installed" do
+      unreachable = :"voyager-nonexistent@nohost"
+
+      assert {:error, {:agent_install_failed, :noconnection}} =
+               NodeSession.connect_via(FakeConnector, "demo@localhost", "secret",
+                 test_pid: self(),
+                 node: unreachable
+               )
+
+      assert_receive {:connector_disconnect, ^unreachable}
+      refute NodeSession.connected?()
+      refute_received {:node_connected, _}
     end
 
     test "rejects a second connect attempt while already connected" do
@@ -132,6 +185,30 @@ defmodule Voyager.NodeSessionTest do
       assert_receive {:connector_disconnect, ^node}
       assert_receive {:nodedown, ^node}
       refute NodeSession.connected?()
+    end
+  end
+
+  describe "agent_missing/1" do
+    test "drops the session and broadcasts :node_disconnected" do
+      :ok =
+        NodeSession.connect_via(FakeConnector, "demo@localhost", "secret", test_pid: self())
+
+      node = Node.self()
+      NodeSession.agent_missing(node)
+
+      assert_receive {:connector_disconnect, ^node}
+      assert_receive {:node_disconnected, ^node}
+      refute NodeSession.connected?()
+    end
+
+    test "ignores a node that is not the current session" do
+      :ok =
+        NodeSession.connect_via(FakeConnector, "demo@localhost", "secret", test_pid: self())
+
+      NodeSession.agent_missing(:other@nohost)
+      _ = :sys.get_state(NodeSession)
+
+      assert NodeSession.connected?()
     end
   end
 
