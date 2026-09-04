@@ -28,10 +28,11 @@ defmodule Voyager.Services.SupervisionTree.TreeNode do
     name: nil,
     child_count: 0,
     info: nil,
-    children_keys: :not_loaded
+    children_keys: :not_loaded,
+    placeholder?: false
   ]
 
-  @type node_type :: :app | :supervisor | :worker | :port | :reference
+  @type node_type :: :app | :supervisor | :worker | :port | :reference | :process
 
   @type t :: %__MODULE__{
           app: atom() | nil,
@@ -44,6 +45,12 @@ defmodule Voyager.Services.SupervisionTree.TreeNode do
           type: node_type(),
           child_count: non_neg_integer(),
           info: map() | :dead | nil,
-          children_keys: [String.t()] | :not_loaded
+          children_keys: [String.t()] | :not_loaded,
+          placeholder?: boolean()
         }
+
+  @spec key(pid() | port() | reference()) :: String.t()
+  def key(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
+  def key(port) when is_port(port), do: inspect(port)
+  def key(ref) when is_reference(ref), do: inspect(ref)
 end

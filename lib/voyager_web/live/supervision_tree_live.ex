@@ -4,9 +4,11 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   alias Phoenix.LiveView.AsyncResult
   alias Voyager.Services.SupervisionTree.Fetch
   alias Voyager.Services.SupervisionTree.Remote
+  alias Voyager.Services.SupervisionTree.TreeNode
   alias VoyagerWeb.Components.SupervisionTreeComponents
   alias VoyagerWeb.FormSchemas.SupervisionTreeControls
   alias VoyagerWeb.SupervisionTreeLive.Diff
+  alias VoyagerWeb.SupervisionTreeLive.Selection
 
   @impl true
   def mount(_params, _session, socket) do
@@ -29,6 +31,8 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> assign(:status, :idle)
       |> assign(:refresh_timer, nil)
       |> assign(:selected_node, nil)
+      |> assign(:selection_origin, :external)
+      |> assign(:pending_reveal, nil)
 
     if connected?(socket) do
       socket
@@ -92,6 +96,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         module={VoyagerWeb.SupervisionTreeLive.DetailsPanel}
         id="details-panel"
         tree_node={@selected_node}
+        selection_origin={@selection_origin}
         remote_node={@session.node}
       />
     </div>
@@ -134,17 +139,16 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   end
 
   def handle_event("select-node", %{"key" => key}, socket) do
-    path = walk_to_root(socket.assigns.last_tree_flat, key)
-
     socket
-    |> push_event("path-highlight", %{path: path})
-    |> assign_selected_node(key)
+    |> select_node(key)
     |> noreply()
   end
 
   def handle_event("close-details-panel", _params, socket) do
     socket
     |> assign(:selected_node, nil)
+    |> assign(:selection_origin, :external)
+    |> assign(:pending_reveal, nil)
     |> noreply()
   end
 
@@ -235,8 +239,9 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     |> assign(:last_tree_flat, new_flat)
     |> assign(:last_relations, new_edges)
     |> assign(:last_updated, DateTime.utc_now())
-    |> deselect_removed_nodes()
+    |> deselect_removed_nodes(prev_flat)
     |> push_event("tree-data", payload)
+    |> maybe_reveal_pending()
     |> start_timer()
     |> noreply()
   end
@@ -252,6 +257,21 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     |> assign(:status, :error)
     |> assign(:errors, socket.assigns.errors ++ [{:fetch, reason}])
     |> reset_tree()
+    |> noreply()
+  end
+
+  def handle_info({:select_link, identifier}, socket) do
+    socket
+    |> select_identifier(identifier)
+    |> noreply()
+  end
+
+  def handle_info({:restore_details_node, node}, socket) do
+    node = Selection.lookup(socket.assigns.last_tree_flat, node.key) || node
+
+    socket
+    |> assign(:pending_reveal, nil)
+    |> put_selected_node(node, focus: true, origin: :restore)
     |> noreply()
   end
 
@@ -406,17 +426,114 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     end
   end
 
-  defp assign_selected_node(socket, key) do
-    selected_node = socket.assigns.last_tree_flat && Map.get(socket.assigns.last_tree_flat, key)
-    assign(socket, :selected_node, selected_node)
+  defp select_node(socket, key) when key in [nil, ""] do
+    socket
+    |> push_event("path-highlight", %{path: []})
+    |> assign(:selected_node, nil)
+    |> assign(:selection_origin, :external)
+    |> assign(:pending_reveal, nil)
   end
 
-  defp deselect_removed_nodes(socket) do
-    with %{key: key} <- socket.assigns.selected_node,
-         nil <- Map.get(socket.assigns.last_tree_flat, key) do
-      assign(socket, :selected_node, nil)
-    else
-      _ -> socket
+  defp select_node(socket, key) do
+    case Selection.lookup(socket.assigns.last_tree_flat, key) do
+      nil ->
+        socket
+
+      node ->
+        socket
+        |> assign(:pending_reveal, nil)
+        |> put_selected_node(node)
+    end
+  end
+
+  defp select_identifier(socket, identifier) do
+    resolved =
+      Selection.resolve_jump(
+        socket.assigns.last_tree_flat,
+        identifier,
+        socket.assigns.selected_node,
+        socket.assigns.expanded_pids
+      )
+
+    case resolved do
+      :ignore ->
+        socket
+
+      {:select, node} ->
+        put_selected_node(socket, node, focus: true, origin: :link)
+
+      {:select_placeholder, node} ->
+        put_selected_node(socket, node, origin: :link)
+
+      {:expand_and_reveal, placeholder, stub} ->
+        socket
+        |> put_selected_node(placeholder, origin: :link)
+        |> assign(:expanded_pids, MapSet.put(socket.assigns.expanded_pids, stub.pid))
+        |> assign(:pending_reveal, identifier)
+        |> request_fetch(:toggle_expand)
+    end
+  end
+
+  defp maybe_reveal_pending(socket) do
+    case socket.assigns[:pending_reveal] do
+      nil ->
+        socket
+
+      identifier ->
+        socket = assign(socket, :pending_reveal, nil)
+
+        case Selection.lookup(socket.assigns.last_tree_flat, TreeNode.key(identifier)) do
+          nil -> socket
+          node -> put_selected_node(socket, node, focus: true, origin: :link)
+        end
+    end
+  end
+
+  defp put_selected_node(socket, node, opts \\ [])
+  defp put_selected_node(socket, nil, _opts), do: socket
+
+  defp put_selected_node(socket, node, opts) do
+    flat = socket.assigns.last_tree_flat
+    in_tree? = Selection.lookup(flat, node.key) != nil
+    path = if in_tree?, do: Selection.path_to_root(flat, node.key), else: []
+    focus? = Keyword.get(opts, :focus, false)
+
+    socket = push_event(socket, "path-highlight", %{path: path})
+
+    socket =
+      if focus? and in_tree? do
+        push_event(socket, "focus-node", %{key: node.key})
+      else
+        socket
+      end
+
+    socket
+    |> assign(:selected_node, node)
+    |> assign(:selection_origin, Keyword.get(opts, :origin, :external))
+  end
+
+  # Drop a graph-backed selection when its key disappears from the tree. Keep
+  # selections opened from a PID link that were never in the graph.
+  defp deselect_removed_nodes(socket, prev_flat) do
+    case socket.assigns.selected_node do
+      %{key: key} ->
+        new_flat = socket.assigns.last_tree_flat
+
+        cond do
+          is_map(new_flat) and Map.has_key?(new_flat, key) ->
+            assign(socket, :selected_node, Map.fetch!(new_flat, key))
+
+          is_map(prev_flat) and Map.has_key?(prev_flat, key) ->
+            socket
+            |> assign(:selected_node, nil)
+            |> assign(:pending_reveal, nil)
+
+          true ->
+            socket
+        end
+
+      _ ->
+        socket
     end
   end
 
@@ -429,23 +546,14 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   defp parse_pid(_), do: nil
 
   defp reset_tree(socket),
-    do: assign(socket, last_tree_flat: nil, last_relations: %{}, selected_node: nil)
-
-  defp walk_to_root(_flat, ""), do: []
-  defp walk_to_root(nil, _key), do: []
-
-  defp walk_to_root(flat, key) when is_map(flat) do
-    walk_to_root(flat, key, [])
-  end
-
-  defp walk_to_root(_flat, nil, acc), do: Enum.reverse(acc)
-
-  defp walk_to_root(flat, key, acc) do
-    case Map.fetch(flat, key) do
-      :error -> Enum.reverse(acc)
-      {:ok, node} -> walk_to_root(flat, node.parent_key, [key | acc])
-    end
-  end
+    do:
+      assign(socket,
+        last_tree_flat: nil,
+        last_relations: %{},
+        selected_node: nil,
+        selection_origin: :external,
+        pending_reveal: nil
+      )
 
   defp params_to_attrs(params) do
     case Map.get(params, "apps") do

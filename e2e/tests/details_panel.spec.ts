@@ -62,4 +62,28 @@ test.describe('SupervisionTreeLive › DetailsPanel', () => {
 
     await expect(panel).toHaveClass(/translate-x-full/);
   });
+
+  test('clicking a pid link selects that process in the details panel', async ({
+    page,
+  }) => {
+    await selectNode(page, 'mock_root_sup');
+
+    const panel = page.locator('#details-panel');
+    await expect(panel).toHaveClass(/translate-x-0/);
+
+    const chip = panel.locator('button[id^="details-panel-link-"]').first();
+    await expect(chip).toBeEnabled();
+
+    const label = (await chip.innerText()).trim();
+    await chip.click();
+
+    await expect(panel).toHaveClass(/translate-x-0/);
+    await expect(panel.locator('#details-panel-pid')).toHaveText(label);
+    await expect(page.locator('#details-panel-back')).toBeVisible();
+
+    await page.locator('#details-panel-back').click();
+
+    await expect(panel).toContainText('mock_root_sup');
+    await expect(page.locator('#details-panel-back')).toHaveCount(0);
+  });
 });
