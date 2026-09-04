@@ -84,7 +84,10 @@ defmodule VoyagerWeb.ProcessesLive do
         round_trip_ms={@round_trip_ms}
       />
 
-      <div class={@dirty? && "pointer-events-none select-none opacity-60"}>
+      <div class={[
+        "flex flex-col gap-2",
+        if(@dirty?, do: "pointer-events-none select-none opacity-60")
+      ]}>
         <DataTableComponents.table
           id="processes-table"
           columns={ProcessComponents.columns(ProcessListControls.attrs(@fetched_with))}
