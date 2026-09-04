@@ -21,6 +21,11 @@ defmodule Voyager.Services.Ets.FetchTest do
     assert {:error, :invalid_table} = Fetch.select_chunk(@node, self(), 10, nil, @timeout)
   end
 
+  test "propagates :invalid_spec without a remote call" do
+    assert {:error, :invalid_spec} =
+             Fetch.select_spec(@node, :t, "fn x -> true end", 10, nil, @timeout)
+  end
+
   test "propagates :invalid_key without a remote call" do
     assert {:error, :invalid_key} = Fetch.lookup(@node, :t, {:tuple, 1}, @timeout)
   end
@@ -47,6 +52,21 @@ defmodule Voyager.Services.Ets.FetchTest do
 
     assert {:ok, chunk} = Fetch.select_chunk(@node, :t, 10, nil, @timeout)
     assert chunk.records == [{:k, :v}]
+    assert chunk.continuation == cont
+  end
+
+  test "select_spec/6 sanitizes records and does not sanitize the continuation" do
+    blob = :binary.copy(<<"z">>, 600)
+    cont = :binary.copy(<<"c">>, 600)
+    spec = [{:"$1", [{:"=:=", {:element, 1, :"$1"}, :k}], [:"$1"]}]
+    stub_exported(:ets_select_spec, 4, false)
+
+    expect(Voyager.ErpcMock, :call, fn @node, :ets, :select, [:t, ^spec, 10], @timeout ->
+      {[{:k, blob}], cont}
+    end)
+
+    assert {:ok, chunk} = Fetch.select_spec(@node, :t, spec, 10, nil, @timeout)
+    assert chunk.records == [{:k, Sanitize.term(blob)}]
     assert chunk.continuation == cont
   end
 
@@ -137,6 +157,17 @@ defmodule Voyager.Services.Ets.FetchTest do
     end)
 
     assert {:error, :heap_limit_exceeded} = Fetch.select_chunk(@node, :t, 10, nil, @timeout)
+  end
+
+  test "select_spec/6 maps a remote worker kill to :heap_limit_exceeded without MFA fallback" do
+    spec = [{:"$1", [{:"=:=", {:element, 1, :"$1"}, :k}], [:"$1"]}]
+    stub_exported(:ets_select_spec, 4, true)
+
+    expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_spec, _, @timeout ->
+      :erlang.error({:exception, :killed, []})
+    end)
+
+    assert {:error, :heap_limit_exceeded} = Fetch.select_spec(@node, :t, spec, 10, nil, @timeout)
   end
 
   defp stub_exported(fun, arity, exported?) do

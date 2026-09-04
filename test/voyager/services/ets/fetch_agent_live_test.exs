@@ -6,6 +6,7 @@ defmodule Voyager.Services.Ets.FetchAgentLiveTest do
   alias Voyager.Erpc
   alias Voyager.Services.Ets.Fetch
   alias Voyager.Services.Ets.Sanitize
+  alias Voyager.Services.Ets.Search
   alias Voyager.Test.EtsTable
   alias Voyager.Test.VoyagerAgentFixture
 
@@ -57,5 +58,19 @@ defmodule Voyager.Services.Ets.FetchAgentLiveTest do
     assert is_list(page.records)
     assert page.continuation
     refute match?({:"$voyager_truncated", _, _, _}, page.continuation)
+  end
+
+  test "select_spec/4 returns agent-truncated records matching Sanitize.term/1" do
+    name = EtsTable.unique_name()
+    :ets.new(name, [:named_table, :public, :set])
+    on_exit(fn -> EtsTable.safe_delete(name) end)
+
+    blob = :binary.copy(<<"z">>, 600)
+    :ets.insert(name, {:row, blob})
+    {:ok, spec} = Search.compile({:key_eq, :row})
+
+    assert {:ok, chunk} = Fetch.select_spec(Node.self(), name, spec, 10)
+    assert chunk.via == :agent
+    assert chunk.records == [{:row, Sanitize.term(blob)}]
   end
 end

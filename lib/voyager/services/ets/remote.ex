@@ -21,6 +21,7 @@ defmodule Voyager.Services.Ets.Remote do
   @match_all [{:"$1", [], [:"$1"]}]
   @agent :voyager_agent
   @select_fun :ets_select_chunk
+  @select_spec_fun :ets_select_spec
   @lookup_fun :ets_lookup
 
   @type protection :: :public | :protected | :private
@@ -121,6 +122,48 @@ defmodule Voyager.Services.Ets.Remote do
 
   def select_chunk(_node, _table, _limit, _continuation, _timeout), do: {:error, :invalid_table}
 
+  @doc """
+  Select with a caller-provided source match spec. Missing agent export
+  falls back to `:ets.select/3` for the first page only; later MFA pages
+  are `{:error, :cannot_page}`.
+
+  The spec must be a one-clause source MS (`[{Head, Guards, Body}]`). A
+  compiled MS or a string is `{:error, :invalid_spec}` without a remote
+  call.
+
+  A continuation that crossed ETF must be `:ets.repair_continuation/2`'d
+  on the target against that same spec. `ets_select_spec/4` runs in a
+  one-shot worker; `badarg` must be re-raised as `error:badarg` in the
+  erpc process so this mapper can return `{:error, :cannot_read}`.
+  """
+  @spec select_spec(node(), TableId.t(), term(), pos_integer(), term() | nil, timeout()) ::
+          {:ok, chunk()} | {:error, term()}
+  def select_spec(
+        node,
+        table,
+        spec,
+        limit,
+        continuation \\ nil,
+        timeout \\ Erpc.default_timeout()
+      )
+
+  def select_spec(node, table, spec, limit, continuation, timeout)
+      when TableId.is_table_id(table) do
+    cond do
+      not source_spec?(spec) ->
+        {:error, :invalid_spec}
+
+      limit not in @chunk_sizes ->
+        {:error, :invalid_limit}
+
+      true ->
+        run_select_spec(node, table, spec, limit, continuation, timeout)
+    end
+  end
+
+  def select_spec(_node, _table, _spec, _limit, _continuation, _timeout),
+    do: {:error, :invalid_table}
+
   @spec lookup(node(), TableId.t(), lookup_key(), timeout()) ::
           {:ok, chunk()} | {:error, term()}
   def lookup(node, table, key, timeout \\ Erpc.default_timeout())
@@ -142,7 +185,7 @@ defmodule Voyager.Services.Ets.Remote do
   defp select(node, table, limit, continuation, timeout) do
     case probe_export(node, @select_fun, 3, timeout) do
       {:ok, true} -> agent_select(node, table, limit, continuation, timeout)
-      {:ok, false} -> mfa_select(node, table, limit, continuation, timeout)
+      {:ok, false} -> mfa_select(node, table, @match_all, limit, continuation, timeout)
       {:error, _} = err -> err
     end
   end
@@ -156,18 +199,38 @@ defmodule Voyager.Services.Ets.Remote do
     end
   end
 
+  defp run_select_spec(node, table, spec, limit, continuation, timeout) do
+    case probe_export(node, @select_spec_fun, 4, timeout) do
+      {:ok, true} -> agent_select_spec(node, table, spec, limit, continuation, timeout)
+      {:ok, false} -> mfa_select(node, table, spec, limit, continuation, timeout)
+      {:error, _} = err -> err
+    end
+  end
+
+  defp agent_select_spec(node, table, spec, limit, continuation, timeout) do
+    cont = if is_nil(continuation), do: :undefined, else: continuation
+
+    case Erpc.safe_call(node, @agent, @select_spec_fun, [table, spec, limit, cont], timeout) do
+      {:ok, result} -> decode_select(result, :agent)
+      {:error, _} = err -> map_read_error(err)
+    end
+  end
+
   # MFA cannot repair_continuation+select in one call, so later pages need the agent.
-  defp mfa_select(_node, _table, _limit, continuation, _timeout)
+  defp mfa_select(_node, _table, _spec, _limit, continuation, _timeout)
        when not is_nil(continuation) do
     {:error, :cannot_page}
   end
 
-  defp mfa_select(node, table, limit, nil, timeout) do
-    case Erpc.safe_call(node, :ets, :select, [table, @match_all, limit], timeout) do
+  defp mfa_select(node, table, spec, limit, nil, timeout) do
+    case Erpc.safe_call(node, :ets, :select, [table, spec, limit], timeout) do
       {:ok, decoded} -> decode_select(decoded, :mfa)
       {:error, _} = err -> map_read_error(err)
     end
   end
+
+  defp source_spec?([{_head, guards, body}]) when is_list(guards) and is_list(body), do: true
+  defp source_spec?(_), do: false
 
   defp agent_lookup(node, table, key, timeout) do
     case Erpc.safe_call(node, @agent, @lookup_fun, [table, key], timeout) do

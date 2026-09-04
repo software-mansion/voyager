@@ -5,7 +5,7 @@
 %% API
 -export([register/1]).
 -export([proc_top/5]).
--export([ets_select_chunk/3, ets_lookup/2, truncate_term/1]).
+-export([ets_select_chunk/3, ets_lookup/2, ets_select_spec/4, truncate_term/1]).
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
@@ -249,7 +249,7 @@ with_bounded_heap(Fun) ->
     end.
 
 %% =====================================================================
-%% ETS RECORDS - Match-all select / lookup with on-node truncation.
+%% ETS RECORDS - Match-all / match-spec select / lookup with on-node truncation.
 %% =====================================================================
 %%
 %% Exported functions, not handle_call, so a peek cannot block register
@@ -262,7 +262,17 @@ with_bounded_heap(Fun) ->
 ets_select_chunk(Table, Limit, Cont) ->
     case lists:member(Limit, ?ETS_CHUNK_SIZES) of
         true ->
-            isolated(fun() -> do_select(Table, Limit, Cont) end);
+            isolated(fun() -> do_select(Table, ?MATCH_ALL, Limit, Cont) end);
+        false ->
+            erlang:error(badarg)
+    end.
+
+-spec ets_select_spec(ets:tab(), term(), pos_integer(), term()) ->
+                         '$end_of_table' | {[term()], term()}.
+ets_select_spec(Table, Spec, Limit, Cont) ->
+    case lists:member(Limit, ?ETS_CHUNK_SIZES) andalso valid_spec(Spec) of
+        true ->
+            isolated(fun() -> do_select(Table, Spec, Limit, Cont) end);
         false ->
             erlang:error(badarg)
     end.
@@ -278,11 +288,16 @@ ets_lookup(Table, Key) ->
 truncate_term(Term) ->
     sanitize(Term, 0).
 
-do_select(Table, Limit, undefined) ->
-    truncate_select(ets:select(Table, ?MATCH_ALL, Limit));
-do_select(_Table, _Limit, Cont) ->
+do_select(Table, Spec, Limit, undefined) ->
+    truncate_select(ets:select(Table, Spec, Limit));
+do_select(_Table, Spec, _Limit, Cont) ->
     %% Continuation has typically crossed to Voyager and back.
-    truncate_select(ets:select(ets:repair_continuation(Cont, ?MATCH_ALL))).
+    truncate_select(ets:select(ets:repair_continuation(Cont, Spec))).
+
+valid_spec([{_Head, Guards, Body}]) when is_list(Guards), is_list(Body) ->
+    true;
+valid_spec(_) ->
+    false.
 
 truncate_select('$end_of_table') ->
     '$end_of_table';

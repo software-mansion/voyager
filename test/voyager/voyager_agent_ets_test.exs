@@ -7,6 +7,7 @@ defmodule VoyagerAgentEtsTest do
   alias Voyager.Services.Ets.Fetch
   alias Voyager.Services.Ets.Remote
   alias Voyager.Services.Ets.Sanitize
+  alias Voyager.Services.Ets.Search
   alias Voyager.Test.EtsSanitizeFixture
   alias Voyager.Test.EtsTable
   alias Voyager.Test.VoyagerAgentFixture
@@ -158,6 +159,106 @@ defmodule VoyagerAgentEtsTest do
       :ets.insert(name, {:wide, Enum.to_list(1..400_000)})
 
       assert {:error, :heap_limit_exceeded} = Fetch.lookup(Node.self(), name, :wide, 15_000)
+    end
+  end
+
+  describe "ets_select_spec/4" do
+    test "does not require the gen_server to be registered" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :set])
+      on_exit(fn -> EtsTable.safe_delete(name) end)
+      :ets.insert(name, {:k, 1})
+      {:ok, spec} = Search.compile({:key_eq, :k})
+
+      assert Process.whereis(@agent_module) == nil
+
+      assert {[{:k, 1}], :"$end_of_table"} =
+               @agent_module.ets_select_spec(name, spec, 10, :undefined)
+
+      assert {:ok, %{via: :agent, records: [{:k, 1}]}} =
+               Remote.select_spec(Node.self(), name, spec, 10)
+    end
+
+    test "pages after an ETF-round-tripped continuation repaired against the caller spec" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :set])
+      on_exit(fn -> EtsTable.safe_delete(name) end)
+
+      for i <- 1..25, do: :ets.insert(name, {i, :hit})
+      {:ok, spec} = Search.compile({:element_eq, 2, :hit})
+
+      assert {records, cont} = @agent_module.ets_select_spec(name, spec, 10, :undefined)
+      assert length(records) == 10
+      assert Enum.all?(records, fn {_i, tag} -> tag == :hit end)
+
+      broken = :erlang.binary_to_term(:erlang.term_to_binary(cont))
+      :erlang.garbage_collect()
+
+      assert {more, cont2} = @agent_module.ets_select_spec(name, spec, 10, broken)
+      assert length(more) == 10
+      assert Enum.all?(more, fn {_i, tag} -> tag == :hit end)
+
+      assert {last, :"$end_of_table"} = @agent_module.ets_select_spec(name, spec, 10, cont2)
+      assert length(last) == 5
+    end
+
+    test "pages through Remote.select_spec/4 after the first chunk" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :set])
+      on_exit(fn -> EtsTable.safe_delete(name) end)
+
+      for i <- 1..25, do: :ets.insert(name, {i, :hit})
+      {:ok, spec} = Search.compile({:element_eq, 2, :hit})
+
+      assert {:ok, page} = Remote.select_spec(Node.self(), name, spec, 10)
+      assert page.via == :agent
+      assert length(page.records) == 10
+      assert page.continuation
+
+      assert {:ok, page2} = Remote.select_spec(Node.self(), name, spec, 10, page.continuation)
+      assert page2.via == :agent
+      assert length(page2.records) == 10
+      assert page2.continuation
+
+      assert {:ok, page3} = Remote.select_spec(Node.self(), name, spec, 10, page2.continuation)
+      assert page3.via == :agent
+      assert length(page3.records) == 5
+      assert page3.continuation == nil
+    end
+
+    test "Search.chunk/4 pages on the agent path" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :set])
+      on_exit(fn -> EtsTable.safe_delete(name) end)
+
+      for i <- 1..25, do: :ets.insert(name, {i, :hit})
+
+      assert {:ok, page} = Search.chunk(Node.self(), name, {:element_eq, 2, :hit}, 10)
+      assert page.via == :agent
+      assert length(page.records) == 10
+      assert page.continuation
+
+      assert {:ok, page2} =
+               Search.chunk(Node.self(), name, {:element_eq, 2, :hit}, 10, page.continuation)
+
+      assert page2.via == :agent
+      assert length(page2.records) == 10
+
+      assert {:ok, page3} =
+               Search.chunk(Node.self(), name, {:element_eq, 2, :hit}, 10, page2.continuation)
+
+      assert page3.continuation == nil
+      assert length(page3.records) == 5
+    end
+
+    test "raises badarg for a spec that is not a one-clause source MS" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :set])
+      on_exit(fn -> EtsTable.safe_delete(name) end)
+
+      assert_raise ArgumentError, fn ->
+        @agent_module.ets_select_spec(name, "not a spec", 10, :undefined)
+      end
     end
   end
 end
