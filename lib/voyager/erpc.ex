@@ -30,8 +30,9 @@ defmodule Voyager.Erpc do
   @callback call(node(), module(), atom(), [term()], timeout_or_options()) :: term()
 
   @doc """
-  `bind_impl/1` (process-local) wins over `config :voyager, :erpc` so live
-  tests can use `Erpc.Impl` without racing async Mox tests.
+  Returns the configured `Voyager.Erpc` implementation.
+
+  A process-dictionary override (`bind_impl/1`) wins over `config :voyager, :erpc`.
   """
   @spec impl() :: module()
   def impl do
