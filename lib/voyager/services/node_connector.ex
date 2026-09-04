@@ -45,11 +45,10 @@ defmodule Voyager.Services.NodeConnector do
         :erl_epmd.names(String.to_charlist(host))
       end)
 
-    result = Task.yield(task, 1_000) || Task.shutdown(task)
-
-    case result do
+    case Task.yield(task, 1_000) || Task.shutdown(task) do
       {:ok, {:ok, registered}} -> diagnose_registered_name(name, host, registered)
-      _ -> {:error, :connection_failed}
+      {:ok, {:error, reason}} -> {:error, {:epmd_error, reason}}
+      nil -> {:error, :epmd_timeout}
     end
   end
 
@@ -59,14 +58,13 @@ defmodule Voyager.Services.NodeConnector do
 
     case Enum.find(registered, fn {n, _port} -> n == name_cl end) do
       {_n, port} ->
-        if port_alive?(host_cl, port) do
-          diagnose_registered_failure(host)
-        else
-          {:error, :node_unreachable}
+        case port_alive?(host_cl, port) do
+          :ok -> diagnose_registered_failure(host)
+          {:error, reason} -> {:error, {:node_unreachable, reason}}
         end
 
       nil ->
-        {:error, :connection_failed}
+        {:error, :node_not_registered}
     end
   end
 
@@ -74,10 +72,10 @@ defmodule Voyager.Services.NodeConnector do
     case :gen_tcp.connect(host, port, [], 1_000) do
       {:ok, socket} ->
         :gen_tcp.close(socket)
-        true
+        :ok
 
-      {:error, _reason} ->
-        false
+      {:error, _reason} = err ->
+        err
     end
   end
 
