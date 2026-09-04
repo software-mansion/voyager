@@ -29,7 +29,7 @@ defmodule VoyagerWeb.TermTree do
   @window 50
   @sort_limit 200
   @auto_open_limit 5
-  @auto_open_depth 8
+  @auto_open_depth 5
 
   @printable_limit 4_096
   @inspect_opts [limit: 50, printable_limit: @printable_limit]
@@ -378,8 +378,6 @@ defmodule VoyagerWeb.TermTree do
   # this never walks further than what will actually be rendered.
   defp printable_charlist?(list), do: List.ascii_printable?(list, @printable_limit)
 
-  # Whether a proper list holds at most `max` elements, walking no further than
-  # it takes to find out.
   defp short_list?([], _max), do: true
   defp short_list?([_head | tail], max) when max > 0, do: short_list?(tail, max - 1)
   defp short_list?(_list, _max), do: false
