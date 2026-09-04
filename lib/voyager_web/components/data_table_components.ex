@@ -47,10 +47,8 @@ defmodule VoyagerWeb.Components.DataTableComponents do
 
   def table(assigns) do
     ~H"""
-    <div class="card bg-base-100 border-base-200 flex min-h-0 flex-1 flex-col border shadow-sm">
-      <%!-- The scrollport, so `table-pin-rows` can stick the header to its top.
-            No top padding: rows would otherwise scroll through the gap above
-            the sticky header. --%>
+    <div class="card bg-base-100 border-base-200 relative flex min-h-0 flex-1 flex-col border shadow-sm">
+      <div class="bg-base-100 absolute h-2 w-full rounded-md"></div>
       <div class="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
         <table id={@id} class="table-pin-rows table-md min-w-5xl table w-full table-fixed">
           <thead>
@@ -95,12 +93,9 @@ defmodule VoyagerWeb.Components.DataTableComponents do
     assigns = assign(assigns, :active?, assigns.column.key == assigns.sort_by)
 
     ~H"""
-    <%!-- The background sits on the cell, not the row: WebKit (so the Tauri
-          app, not Chrome) leaves a sticky `thead tr` background unpainted and
-          the rows show through it. --%>
     <th
       data-column={@column.key}
-      class={["bg-base-100 py-5", align_class(@column), width_class(@column)]}
+      class={["py-5", align_class(@column), width_class(@column)]}
       aria-sort={aria_sort(@active?, @direction)}
     >
       <button
