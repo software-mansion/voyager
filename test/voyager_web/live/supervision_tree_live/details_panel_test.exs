@@ -67,11 +67,11 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       link_pids: link_pids,
       sup_key: sup_key
     } do
-      # 10 erpc calls: which_applications + app masters (mount), then masters +
+      # 11 erpc calls: which_applications + app masters (mount), then masters +
       # root children + root ancestors + which_children batch + process_info
-      # hydrate (walk), then process_info + wordsize + proc_links
-      # (ProcessInfo.fetch/fetch_links, both eager on selection)
-      expect_supervision_erpc(10, sup_pid, [port], link_pids)
+      # hydrate (walk), then process_info + wordsize + proc_label + proc_links
+      # (ProcessInfo.fetch/fetch_label/fetch_links, all eager on selection)
+      expect_supervision_erpc(11, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
@@ -103,8 +103,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       link_pids: link_pids,
       port_key: port_key
     } do
-      # Same 10 calls as the supervisor test minus process_info + wordsize +
-      # proc_links: port nodes have no pid to inspect.
+      # Same 11 calls as the supervisor test minus process_info + wordsize +
+      # proc_label + proc_links: port nodes have no pid to inspect.
       expect_supervision_erpc(7, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
@@ -131,9 +131,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       sup_key: sup_key,
       twentieth_link: twentieth_link
     } do
-      # Same 10 calls as "renders process details for a supervisor" — links are
+      # Same 11 calls as "renders process details for a supervisor" — links are
       # fetched eagerly alongside the rest on selection.
-      expect_supervision_erpc(10, sup_pid, [port], link_pids)
+      expect_supervision_erpc(11, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
@@ -161,9 +161,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       sup_key: sup_key,
       port_key: port_key
     } do
-      # 7 base calls, plus 3 for each of the two supervisor selections; the port
+      # 7 base calls, plus 4 for each of the two supervisor selections; the port
       # selection fetches nothing.
-      expect_supervision_erpc(13, sup_pid, [port], link_pids)
+      expect_supervision_erpc(15, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
@@ -190,9 +190,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       link_pids = for n <- 1..205, do: :erlang.list_to_pid(~c"<0.#{200 + n}.0>")
       last_link = link_pids |> List.last() |> pid_key()
 
-      # Same 10 calls as "renders process details for a supervisor" — links are
+      # Same 11 calls as "renders process details for a supervisor" — links are
       # fetched eagerly alongside the rest on selection.
-      expect_supervision_erpc(10, sup_pid, [port], link_pids)
+      expect_supervision_erpc(11, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
@@ -212,8 +212,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       link_pids: link_pids,
       sup_key: sup_key
     } do
-      # Open the panel with the default ProcessInfo payload (reductions 1,234).
-      expect_supervision_erpc(10, sup_pid, [port], link_pids)
+      expect_supervision_erpc(11, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
@@ -226,16 +225,26 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       refute has_element?(view, "#details-panel", "running")
       refute has_element?(view, "#details-panel", "Failed to load node details.")
 
-      # Refresh re-fetches process_info, system_info, and proc_links as
-      # concurrent async tasks, so the erpc calls can land in any order —
+      # Refresh re-fetches process_info, system_info, proc_label and proc_links
+      # as concurrent async tasks, so the erpc calls can land in any order —
       # dispatch on mod/fun rather than a fixed sequence. Return a different
       # snapshot so the panel content visibly changes.
-      expect(Voyager.ErpcMock, :call, 3, fn
+      expect(Voyager.ErpcMock, :call, 4, fn
         _node, :erlang, :process_info, [_pid, keys], _timeout when is_list(keys) ->
           process_info_kw(keys, status: :running, reductions: 9_999)
 
         _node, :erlang, :system_info, [:wordsize], _timeout ->
           8
+
+        _node, :voyager_agent, :proc_label, [pid, budget], _timeout ->
+          supervision_reply(
+            :voyager_agent,
+            :proc_label,
+            [pid, budget],
+            sup_pid,
+            [port],
+            link_pids
+          )
 
         _node, :voyager_agent, :proc_links, [pid, limit], _timeout ->
           supervision_reply(:voyager_agent, :proc_links, [pid, limit], sup_pid, [port], link_pids)
@@ -258,9 +267,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       link_pids: link_pids,
       sup_key: sup_key
     } do
-      # Same 10 calls as "renders process details for a supervisor" — links
+      # Same 11 calls as "renders process details for a supervisor" — links
       # are fetched eagerly alongside the rest on selection.
-      expect_supervision_erpc(10, sup_pid, [port], link_pids)
+      expect_supervision_erpc(11, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
@@ -268,11 +277,11 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
 
       assert has_element?(view, "#details-panel", "(20)")
 
-      # Refresh: process_info, system_info, and proc_links again — a different
-      # link set proves the refresh actually re-fetches instead of leaving the
-      # stale result.
+      # Refresh: process_info, system_info, proc_label and proc_links again — a
+      # different link set proves the refresh actually re-fetches instead of
+      # leaving the stale result.
       new_links = for n <- 1..3, do: :erlang.list_to_pid(~c"<0.#{300 + n}.0>")
-      expect_supervision_erpc(3, sup_pid, [port], new_links)
+      expect_supervision_erpc(4, sup_pid, [port], new_links)
 
       view |> element("#details-panel-refresh") |> render_click()
       render_async(view)
@@ -431,6 +440,10 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
   defp supervision_reply(:erlang, :process_info, [_pid, keys], _sup, _linked, _links)
        when is_list(keys) do
     process_info_kw(keys)
+  end
+
+  defp supervision_reply(:voyager_agent, :proc_label, [_pid, _budget], _sup, _linked, _links) do
+    {:ok, %{term: :undefined, truncated: false}}
   end
 
   # Links are fetched from the remote agent, which truncates to `limit` and

@@ -4,11 +4,19 @@ defmodule Voyager.Services.ProcessInfo do
 
   `fetch/2` reads `:erlang.process_info/2` directly and returns only fixed-size
   attributes, so it is safe to call eagerly on every refresh. Unbounded
-  attributes are excluded from it and exposed as separate `fetch_*/3` functions,
+  attributes are excluded from it and exposed as separate `fetch_*` functions,
   which go through `:voyager_agent` on the remote node so the payload is capped
-  and truncated *before* it crosses the distribution channel; each returns a
-  `bounded/1` map carrying the real `:total` alongside the truncated `:items`.
+  and truncated *before* it crosses the distribution channel. `fetch_links/4`,
+  `fetch_monitors/4`, `fetch_monitored_by/4`, and `fetch_dictionary/5` return a
+  `Voyager.Agent.bounded/1` map carrying the real `:total` alongside the
+  truncated `:items`; `fetch_label/4` returns a single `Voyager.Agent.truncated_term/0`
+  instead, since a label is one arbitrary term rather than a collection.
   Missing agent surfaces as `{:error, {:remote_exception, :undef}}`.
+
+  Attributes holding arbitrary user terms -- the dictionary and the label -- are
+  additionally capped by a term `budget` on the remote, since limiting the entry
+  count says nothing about the size of a single entry. `:label` is therefore not
+  in `fetch/2`'s cheap key list at all and costs its own call.
 
   The process dictionary is not read by `fetch/2` at all, so `:initial_call` is
   the raw one — for an OTP-behaviour process its `proc_lib` entry point, not the
@@ -22,16 +30,15 @@ defmodule Voyager.Services.ProcessInfo do
   alias Voyager.Agent
   alias Voyager.Erpc
 
-  # Default `:erpc` timeout for every fetch; each takes it as a trailing
-  # argument so a caller on a slow link can override it.
-  @timeout 5_000
+  @timeout Agent.default_timeout()
+
+  @budget Agent.default_budget()
 
   @keys [
     :initial_call,
     :current_function,
     :current_stacktrace,
     :registered_name,
-    :label,
     :parent,
     :status,
     :message_queue_len,
@@ -53,17 +60,6 @@ defmodule Voyager.Services.ProcessInfo do
     :garbage_collection
   ]
 
-  @typedoc """
-  A remote-truncated view of an unbounded attribute. `:total` is the real length
-  on the remote node, `:items` holds at most the requested limit, and
-  `:truncated?` says whether anything was dropped.
-  """
-  @type bounded(item) :: %{
-          total: non_neg_integer(),
-          truncated?: boolean(),
-          items: [item]
-        }
-
   @type monitor ::
           {:process, pid() | {atom(), node()}}
           | {:port, port()}
@@ -75,7 +71,6 @@ defmodule Voyager.Services.ProcessInfo do
           current_function: mfa(),
           current_stacktrace: [{module(), atom(), arity(), keyword()}],
           registered_name: atom() | nil,
-          label: term() | nil,
           parent: pid() | nil,
           status: :exiting | :garbage_collecting | :waiting | :running | :runnable | :suspended,
           message_queue_len: non_neg_integer(),
@@ -131,12 +126,12 @@ defmodule Voyager.Services.ProcessInfo do
   fetch eagerly; pass a `limit` no larger than what you can render.
   """
   @spec fetch_links(node(), pid(), non_neg_integer(), timeout()) ::
-          {:ok, bounded(pid() | port())} | {:error, term()}
+          {:ok, Agent.bounded(pid() | port())} | {:error, term()}
   def fetch_links(node, pid, limit, timeout \\ @timeout)
 
   def fetch_links(node, pid, limit, timeout)
       when is_pid(pid) and is_integer(limit) and limit >= 0 do
-    agent_fetch(node, :proc_links, [pid, limit], timeout)
+    Agent.fetch(node, :proc_links, [pid, limit], timeout)
   end
 
   def fetch_links(_node, _pid, _limit, _timeout), do: {:error, :not_a_pid}
@@ -149,12 +144,12 @@ defmodule Voyager.Services.ProcessInfo do
   (`{:process, pid | {name, node}}`, `{:port, port}`).
   """
   @spec fetch_monitors(node(), pid(), non_neg_integer(), timeout()) ::
-          {:ok, bounded(monitor())} | {:error, term()}
+          {:ok, Agent.bounded(monitor())} | {:error, term()}
   def fetch_monitors(node, pid, limit, timeout \\ @timeout)
 
   def fetch_monitors(node, pid, limit, timeout)
       when is_pid(pid) and is_integer(limit) and limit >= 0 do
-    agent_fetch(node, :proc_monitors, [pid, limit], timeout)
+    Agent.fetch(node, :proc_monitors, [pid, limit], timeout)
   end
 
   def fetch_monitors(_node, _pid, _limit, _timeout), do: {:error, :not_a_pid}
@@ -164,50 +159,55 @@ defmodule Voyager.Services.ProcessInfo do
   remote to at most `limit` entries.
   """
   @spec fetch_monitored_by(node(), pid(), non_neg_integer(), timeout()) ::
-          {:ok, bounded(pid() | port())} | {:error, term()}
+          {:ok, Agent.bounded(pid() | port())} | {:error, term()}
   def fetch_monitored_by(node, pid, limit, timeout \\ @timeout)
 
   def fetch_monitored_by(node, pid, limit, timeout)
       when is_pid(pid) and is_integer(limit) and limit >= 0 do
-    agent_fetch(node, :proc_monitored_by, [pid, limit], timeout)
+    Agent.fetch(node, :proc_monitored_by, [pid, limit], timeout)
   end
 
   def fetch_monitored_by(_node, _pid, _limit, _timeout), do: {:error, :not_a_pid}
 
   @doc """
   Fetches the process dictionary of `pid` on `node`, truncated on the remote to
-  at most `limit` entries.
+  at most `limit` entries and `budget` visited terms.
 
-  Entries arrive as raw `{key, value}` terms. Only the entry count is bounded;
-  an individual term can be large, which the agent's `max_heap_size` cap is
-  there to survive.
+  Entries arrive as raw `{key, value}` terms with elided subterms replaced by
+  `:"$voyager_truncated"`, so a single huge value cannot blow up the payload.
   """
-  @spec fetch_dictionary(node(), pid(), non_neg_integer(), timeout()) ::
-          {:ok, bounded(dictionary_entry())} | {:error, term()}
-  def fetch_dictionary(node, pid, limit, timeout \\ @timeout)
+  @spec fetch_dictionary(node(), pid(), non_neg_integer(), non_neg_integer(), timeout()) ::
+          {:ok, Agent.bounded(dictionary_entry())} | {:error, term()}
+  def fetch_dictionary(node, pid, limit, budget \\ @budget, timeout \\ @timeout)
 
-  def fetch_dictionary(node, pid, limit, timeout)
-      when is_pid(pid) and is_integer(limit) and limit >= 0 do
-    agent_fetch(node, :proc_dictionary, [pid, limit], timeout)
+  def fetch_dictionary(node, pid, limit, budget, timeout)
+      when is_pid(pid) and is_integer(limit) and limit >= 0 and is_integer(budget) and
+             budget >= 0 do
+    Agent.fetch(node, :proc_dictionary, [pid, limit, budget], timeout)
   end
 
-  def fetch_dictionary(_node, _pid, _limit, _timeout), do: {:error, :not_a_pid}
+  def fetch_dictionary(_node, _pid, _limit, _budget, _timeout), do: {:error, :not_a_pid}
 
-  # The agent replies {:ok, payload} | {:error, :dead}, and `Agent.call/4` wraps
-  # that in its own {:ok, _} | {:error, _}. Flatten both layers, and rename
-  # `truncated` to the `truncated?` boolean convention used on this side.
-  defp agent_fetch(node, fun, args, timeout) do
-    case Agent.call(node, fun, args, timeout) do
-      {:ok, {:ok, %{total: total, truncated: truncated, items: items}}} ->
-        {:ok, %{total: total, truncated?: truncated, items: items}}
+  @doc """
+  Fetches the label of `pid` on `node`, truncated on the remote to at most
+  `budget` visited terms.
 
-      {:ok, {:error, :dead}} ->
-        {:error, :dead}
+  A label is set with `:proc_lib.set_label/1` and can be any term, hence the
+  budget and the separate call. Returns `{:ok, %{term: nil}}` when no label is
+  set.
+  """
+  @spec fetch_label(node(), pid(), non_neg_integer(), timeout()) ::
+          {:ok, Agent.truncated_term()} | {:error, term()}
+  def fetch_label(node, pid, budget \\ @budget, timeout \\ @timeout)
 
-      {:error, _} = err ->
-        err
+  def fetch_label(node, pid, budget, timeout)
+      when is_pid(pid) and is_integer(budget) and budget >= 0 do
+    with {:ok, %{term: term} = label} <- Agent.fetch(node, :proc_label, [pid, budget], timeout) do
+      {:ok, %{label | term: undefined_to_nil(term)}}
     end
   end
+
+  def fetch_label(_node, _pid, _budget, _timeout), do: {:error, :not_a_pid}
 
   defp build(raw, word_size) when is_list(raw) do
     info = Map.new(raw)
@@ -224,7 +224,6 @@ defmodule Voyager.Services.ProcessInfo do
         |> Map.put(:stack_size, info.stack_size * word_size)
         |> Map.put(:gc_min_heap_size, gc_min_heap_size(gc, word_size))
         |> Map.put(:gc_fullsweep_after, gc_fullsweep_after(gc))
-        |> Map.put(:label, undefined_to_nil(info.label))
         |> Map.put(:parent, undefined_to_nil(info.parent))
 
       {:ok, info}
