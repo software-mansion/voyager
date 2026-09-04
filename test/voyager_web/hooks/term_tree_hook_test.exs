@@ -112,4 +112,14 @@ defmodule VoyagerWeb.Hooks.TermTreeHookTest do
 
     assert view |> element("#ping") |> render_click() =~ "pings: 1"
   end
+
+  test "a malformed payload is swallowed rather than handed to the LiveView", %{conn: conn} do
+    view = mount_inspector(conn, [{"term", %{a: 1}}])
+
+    render_click(view, "term-toggle", %{})
+    render_click(view, "term-window", %{"id" => "term"})
+    render_click(view, "term-toggle", %{"id" => "term", "path" => ["0"]})
+
+    assert has_element?(view, "li#term-0")
+  end
 end

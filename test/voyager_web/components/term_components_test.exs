@@ -99,10 +99,11 @@ defmodule VoyagerWeb.Components.TermComponentsTest do
     end
 
     test "the toggle announces whether its branch is open" do
-      assert count(render_term(%{a: 1}, state: open([[]])), "#term-root-toggle[aria-expanded]") ==
-               1
+      open = render_term(%{a: 1}, state: open([[]]))
+      collapsed = render_term(%{a: 1}, state: open([]))
 
-      assert count(render_term(%{a: 1}, state: open([])), "#term-root-toggle[aria-expanded]") == 0
+      assert attribute(open, "#term-root-toggle", "aria-expanded") == "true"
+      assert attribute(collapsed, "#term-root-toggle", "aria-expanded") == "false"
     end
 
     test "event names can be overridden per inspector" do

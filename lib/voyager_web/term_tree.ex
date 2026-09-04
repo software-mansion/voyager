@@ -3,9 +3,11 @@ defmodule VoyagerWeb.TermTree do
   Turns an Elixir term into display nodes, one level at a time.
 
   Nothing is built up front: `describe/2` returns a single `Node` and
-  `children/3` a windowed slice of its children, so a collapsed branch costs
-  nothing regardless of how large the term behind it is. `State` records which
-  paths are open, each path a list of child indexes from the root.
+  `children/3` a windowed slice of its children, so a branch allocates nothing
+  until it is opened, however large the term behind it is. Sizes are the
+  exception — a list carries none, so counting one walks it, and the child
+  totals and separators need that count. `State` records which paths are open,
+  each path a list of child indexes from the root.
 
   Ordering has to be stable for those paths to mean anything between renders.
   Lists, tuples and keyword lists keep their own order — it is data. Map and
@@ -29,7 +31,8 @@ defmodule VoyagerWeb.TermTree do
   @auto_open_limit 5
   @auto_open_depth 8
 
-  @inspect_opts [limit: 50, printable_limit: 4_096]
+  @printable_limit 4_096
+  @inspect_opts [limit: 50, printable_limit: @printable_limit]
 
   @doc """
   Builds the display node for `term`.
@@ -87,9 +90,11 @@ defmodule VoyagerWeb.TermTree do
   end
 
   def children(map, offset, limit) when is_map(map) do
-    map
-    |> Map.to_list()
-    |> sorted_pairs()
+    {markers, rest} = pop_markers(map)
+
+    rest
+    |> ordered_pairs()
+    |> Stream.concat(markers)
     |> Enum.slice(offset, limit)
     |> Enum.map(&key_value/1)
   end
@@ -137,7 +142,7 @@ defmodule VoyagerWeb.TermTree do
   @spec encode_path(State.path()) :: String.t()
   def encode_path(path), do: Enum.join(path, ".")
 
-  @spec decode_path(String.t()) :: {:ok, State.path()} | :error
+  @spec decode_path(term()) :: {:ok, State.path()} | :error
   def decode_path(""), do: {:ok, []}
 
   def decode_path(string) when is_binary(string) do
@@ -145,6 +150,8 @@ defmodule VoyagerWeb.TermTree do
   rescue
     ArgumentError -> :error
   end
+
+  def decode_path(_other), do: :error
 
   @doc """
   Renders `term` as text that can be pasted back into IEx.
@@ -237,7 +244,7 @@ defmodule VoyagerWeb.TermTree do
 
   defp build(list) when is_list(list) do
     with {:ok, count} <- list_length(list),
-         false <- List.ascii_printable?(list) do
+         false <- printable_charlist?(list) do
       %Node{
         kind: :list,
         child_count: count,
@@ -329,15 +336,27 @@ defmodule VoyagerWeb.TermTree do
 
   # The marker sorts by its own name, which would drop it in the middle of the
   # map; it means "and more", so it belongs at the end.
-  defp sorted_pairs(pairs) do
-    {markers, rest} = Enum.split_with(pairs, &match?({@truncated, _}, &1))
-
-    if length(rest) > @sort_limit do
-      rest ++ markers
+  defp pop_markers(map) do
+    if Map.has_key?(map, @truncated) do
+      {[{@truncated, Map.fetch!(map, @truncated)}], Map.delete(map, @truncated)}
     else
-      Enum.sort(rest) ++ markers
+      {[], map}
     end
   end
+
+  # Past the threshold the map's own iteration order is used, which is stable
+  # for a given map and, unlike sorting, lets the window be filled without
+  # materializing the entries behind it.
+  defp ordered_pairs(map) when map_size(map) > @sort_limit do
+    Stream.unfold(:maps.iterator(map), fn iterator ->
+      case :maps.next(iterator) do
+        {key, value, rest} -> {{key, value}, rest}
+        :none -> nil
+      end
+    end)
+  end
+
+  defp ordered_pairs(map), do: map |> Map.to_list() |> Enum.sort()
 
   defp struct_name(%module{}) do
     case inspect(module) do
@@ -351,6 +370,16 @@ defmodule VoyagerWeb.TermTree do
   rescue
     ArgumentError -> :improper
   end
+
+  # Bounded where `inspect/2` stops looking under `@inspect_opts`, so deciding
+  # this never walks further than what will actually be rendered.
+  defp printable_charlist?(list), do: List.ascii_printable?(list, @printable_limit)
+
+  # Whether a proper list holds at most `max` elements, walking no further than
+  # it takes to find out.
+  defp short_list?([], _max), do: true
+  defp short_list?([_head | tail], max) when max > 0, do: short_list?(tail, max - 1)
+  defp short_list?(_list, _max), do: false
 
   defp auto_open(_term, _path, 0), do: []
 
@@ -370,10 +399,7 @@ defmodule VoyagerWeb.TermTree do
   end
 
   defp auto_open?(list) when is_list(list) do
-    case list_length(list) do
-      {:ok, count} -> count > 0 and count < @auto_open_limit and not List.ascii_printable?(list)
-      :improper -> false
-    end
+    list != [] and short_list?(list, @auto_open_limit - 1) and not printable_charlist?(list)
   end
 
   defp auto_open?(tuple) when is_tuple(tuple) do

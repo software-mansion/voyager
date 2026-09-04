@@ -255,11 +255,19 @@ defmodule VoyagerWeb.TermTreeTest do
       assert child_terms(children) == [1, @truncated]
     end
 
-    test "keys are left unsorted past the size where sorting stops paying off" do
-      pairs = TermTree.children(Map.new(1..201, &{&1, &1}), 0, 201)
+    test "keys are sorted up to the size where sorting stops paying off" do
+      pairs = TermTree.children(Map.new(1..200, &{&1, &1}), 0, 200)
 
-      refute child_terms(pairs) == Enum.to_list(1..201)
+      assert child_terms(pairs) == Enum.to_list(1..200)
+    end
+
+    test "past that size every key is still reachable, at a stable position" do
+      map = Map.new(1..201, &{&1, &1})
+      pairs = TermTree.children(map, 0, 201)
+
       assert pairs |> child_terms() |> Enum.sort() == Enum.to_list(1..201)
+      assert TermTree.children(map, 0, 201) == pairs
+      assert TermTree.children(map, 150, 51) == Enum.slice(pairs, 150, 51)
     end
   end
 
@@ -282,7 +290,7 @@ defmodule VoyagerWeb.TermTreeTest do
     end
 
     test "collections long enough to need scrolling stay closed" do
-      assert TermTree.initial_state([[1, 2, 3]]).open == MapSet.new([[]])
+      assert TermTree.initial_state([[1, 2, 3, 4, 5]]).open == MapSet.new([[]])
       assert TermTree.initial_state([Enum.to_list(1..100)]).open == MapSet.new([[]])
     end
 
@@ -373,6 +381,12 @@ defmodule VoyagerWeb.TermTreeTest do
       assert TermTree.decode_path("1..2") == :error
       assert TermTree.decode_path("1.x") == :error
       assert TermTree.decode_path(".") == :error
+    end
+
+    test "a path that is not a string is rejected" do
+      assert TermTree.decode_path(nil) == :error
+      assert TermTree.decode_path(["0"]) == :error
+      assert TermTree.decode_path(%{"0" => "1"}) == :error
     end
   end
 

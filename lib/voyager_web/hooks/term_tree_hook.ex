@@ -41,6 +41,12 @@ defmodule VoyagerWeb.Hooks.TermTreeHook do
     {:halt, update_state(socket, id, path, &TermTree.expand_window/2)}
   end
 
+  # A payload missing `id` or `path` is still one of ours; forwarding it would
+  # hand the host LiveView an event it has no clause for.
+  defp handle_event(event, _params, socket) when event in ["term-toggle", "term-window"] do
+    {:halt, socket}
+  end
+
   defp handle_event(_event, _params, socket), do: {:cont, socket}
 
   defp update_state(socket, id, encoded_path, fun) do

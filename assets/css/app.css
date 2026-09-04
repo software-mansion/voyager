@@ -24,9 +24,9 @@
   --color-pinned: oklch(0.769 0.188 70.08);
   --color-code-atom: #2d2df7;
   --color-code-number: #2d2df7;
-  --color-code-string: #4b8b38;
+  --color-code-string: #457f31;
   --color-code-special: #c026d3;
-  --color-code-punct: #7a808c;
+  --color-code-punct: #6b7280;
   --color-port: #cccc33;
   --color-process-monitor: #af5ed1;
   --color-process-monitored-by: #4db8ff;
@@ -50,9 +50,9 @@
   --color-pinned: oklch(0.769 0.188 70.08);
   --color-code-atom: #2d2df7;
   --color-code-number: #2d2df7;
-  --color-code-string: #4b8b38;
+  --color-code-string: #457f31;
   --color-code-special: #c026d3;
-  --color-code-punct: #7a808c;
+  --color-code-punct: #6b7280;
   --color-port: #cccc33;
   --color-process-monitor: #af5ed1;
   --color-base-100: oklch(100% 0 0);
