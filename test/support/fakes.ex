@@ -8,6 +8,7 @@ defmodule Voyager.Fakes do
 
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Session
+  alias Voyager.Services.RateLimiter
 
   @doc """
   Builds a `Voyager.NodeSession.Session` with sensible defaults.
@@ -42,6 +43,17 @@ defmodule Voyager.Fakes do
   def put_session(session) do
     :sys.replace_state(NodeSession, fn state -> Map.put(state, :session, session) end)
     :ok
+  end
+
+  @doc """
+  Empties both buckets of the app's rate limiter until the test exits, so the
+  next fetch of either priority is refused.
+  """
+  @spec drain_rate_limiter() :: :ok
+  def drain_rate_limiter do
+    previous = :sys.get_state(RateLimiter)
+    :sys.replace_state(RateLimiter, fn state -> %{state | tokens_high: 0, tokens_low: 0} end)
+    on_exit(fn -> :sys.replace_state(RateLimiter, fn _ -> previous end) end)
   end
 
   @default_node_data %{

@@ -83,6 +83,33 @@ defmodule VoyagerWeb.Components.DataTableComponentsTest do
     end
   end
 
+  describe "value_cell/1" do
+    defp value_cell(attrs) do
+      render_component(&DataTableComponents.value_cell/1, Keyword.merge([id: "v"], attrs))
+    end
+
+    test "mutes secondary values" do
+      assert count(value_cell(value: "x", muted: true), ~s|span[class*="text-base-content/70"]|) >=
+               1
+
+      assert count(value_cell(value: "x"), ~s|span.truncate[class*="text-base-content/70"]|) == 0
+    end
+
+    test "offers the tip text to copy when it differs from the shown value" do
+      html = value_cell(value: "1 MB", tip: "1,048,576 B")
+
+      assert html =~ ~s|id="v-copy-text"|
+      assert html =~ "1,048,576 B"
+    end
+
+    test "a placeholder explains the gap instead of offering it to copy" do
+      html = value_cell(value: DataTableComponents.placeholder())
+
+      assert html =~ "Not set"
+      refute html =~ ~s|id="v-copy"|
+    end
+  end
+
   describe "pager/1" do
     test "reports the visible range of the total" do
       assert text(pager([]), "#p p") =~ "1–10"

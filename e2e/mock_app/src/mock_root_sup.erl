@@ -32,10 +32,19 @@ init([]) ->
 
     {ok,
      {#{strategy => one_for_one},
-      [worker_spec(mock_static_worker), DeepSup1, DynSupA, DynSupB, RelSupA, RelSupB]}}.
+      [worker_spec(mock_static_worker),
+       ets_owner_spec(),
+       DeepSup1,
+       DynSupA,
+       DynSupB,
+       RelSupA,
+       RelSupB]}}.
 
 sup_spec(Module, Name, ChildSpecs) ->
     #{id => Name, type => supervisor, start => {Module, start_link, [Name, ChildSpecs]}}.
+
+ets_owner_spec() ->
+    #{id => mock_ets_owner, start => {mock_ets_owner, start_link, []}}.
 
 worker_spec(Name) ->
     #{id => Name, start => {mock_worker, start_link, [Name]}}.
