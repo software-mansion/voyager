@@ -22,6 +22,14 @@ defmodule Voyager.Services.ProcessList do
 
   @allowed_attrs @sortable_attrs ++ @display_attrs
 
+  def sortable_attrs() do
+    @sortable_attrs
+  end
+
+  def allowed_attrs() do
+    @allowed_attrs
+  end
+
   @doc """
     Returns `{:ok, {entries, total}}`, where `entries` are the ranked processes and
     `total` is the number of processes walked during the scan (before
