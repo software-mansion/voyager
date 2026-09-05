@@ -110,7 +110,9 @@ defmodule VoyagerWeb.Hooks.TermTreeHookTest do
   test "events the hook does not own reach the LiveView", %{conn: conn} do
     view = mount_inspector(conn, [{"term", %{a: 1}}])
 
-    assert view |> element("#ping") |> render_click() =~ "pings: 1"
+    view |> element("#ping") |> render_click()
+
+    assert has_element?(view, "#ping", "pings: 1")
   end
 
   test "a malformed payload is swallowed rather than handed to the LiveView", %{conn: conn} do

@@ -127,7 +127,14 @@ defmodule VoyagerWeb.Components.TermComponents do
   defp truncation_mark(assigns) do
     ~H"""
     <.tooltip id={"#{@id}-truncated"} class="text-warning ml-1.5 self-center">
-      <.icon name="icon-circle-alert" class="size-3.5" />
+      <span
+        tabindex="0"
+        role="img"
+        aria-label="Truncated on the remote node - some values are not shown."
+        class="inline-flex"
+      >
+        <.icon name="icon-circle-alert" class="size-3.5" />
+      </span>
       <:content>
         Truncated on the remote node - some values are not shown.
       </:content>

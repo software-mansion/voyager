@@ -146,7 +146,9 @@ defmodule VoyagerWeb.TermTree do
   def decode_path(""), do: {:ok, []}
 
   def decode_path(string) when is_binary(string) do
-    {:ok, string |> String.split(".") |> Enum.map(&String.to_integer/1)}
+    path = string |> String.split(".") |> Enum.map(&String.to_integer/1)
+
+    if Enum.all?(path, &(&1 >= 0)), do: {:ok, path}, else: :error
   rescue
     ArgumentError -> :error
   end
