@@ -3,9 +3,10 @@ defmodule Voyager.Services.Ets.Fetch do
   Fetches ETS record payloads from a remote node via `:voyager_agent`.
 
   Table metadata stays on `Voyager.Services.Ets.Remote`. These reads call
-  `:ets_select_chunk/3` and `:ets_lookup/2` on the agent. A missing agent is
+  `:ets_select_chunk/4` and `:ets_lookup/3` on the agent. A missing agent is
   `:undef` and drops the session. Truncation and the worker heap cap run on
-  the target.
+  the target. Each record is walked independently with the caller's term
+  `budget` (see `Voyager.Agent.default_budget/0`).
 
   A continuation that crossed ETF must be repaired on the target against
   `[{:"$1", [], [:"$1"]}]` before `ets:select/1`. `badarg` (private table or
@@ -19,6 +20,7 @@ defmodule Voyager.Services.Ets.Fetch do
   require TableId
 
   @chunk_sizes [10, 20, 50]
+  @budget Agent.default_budget()
   @select_fun :ets_select_chunk
   @lookup_fun :ets_lookup
 
@@ -27,68 +29,82 @@ defmodule Voyager.Services.Ets.Fetch do
 
   @type chunk :: %{
           records: [term()],
-          continuation: term() | nil
+          continuation: term() | nil,
+          truncated?: boolean()
         }
 
   @spec chunk_sizes() :: [limit(), ...]
   def chunk_sizes, do: @chunk_sizes
 
-  @spec select_chunk(node(), TableId.t(), limit(), term() | nil, timeout()) ::
+  @spec select_chunk(node(), TableId.t(), limit(), non_neg_integer(), term() | nil, timeout()) ::
           {:ok, chunk()} | {:error, term()}
-  def select_chunk(node, table, limit, continuation \\ nil, timeout \\ Agent.default_timeout())
+  def select_chunk(
+        node,
+        table,
+        limit,
+        budget \\ @budget,
+        continuation \\ nil,
+        timeout \\ Agent.default_timeout()
+      )
 
-  def select_chunk(node, table, limit, continuation, timeout)
-      when TableId.is_table_id(table) do
+  def select_chunk(node, table, limit, budget, continuation, timeout)
+      when TableId.is_table_id(table) and is_integer(budget) and budget >= 0 do
     if limit in @chunk_sizes do
       cont = if is_nil(continuation), do: :undefined, else: continuation
-
-      case Agent.call(node, @select_fun, [table, limit, cont], timeout) do
-        {:ok, result} -> decode_select(result)
-        {:error, _} = err -> map_read_error(err)
-      end
+      fetch_chunk(node, @select_fun, [table, limit, budget, cont], timeout)
     else
       {:error, :invalid_limit}
     end
   end
 
-  def select_chunk(_node, _table, _limit, _continuation, _timeout), do: {:error, :invalid_table}
+  def select_chunk(_node, table, _limit, _budget, _continuation, _timeout)
+      when TableId.is_table_id(table) do
+    {:error, :invalid_budget}
+  end
 
-  @spec lookup(node(), TableId.t(), lookup_key(), timeout()) ::
+  def select_chunk(_node, _table, _limit, _budget, _continuation, _timeout),
+    do: {:error, :invalid_table}
+
+  @spec lookup(node(), TableId.t(), lookup_key(), non_neg_integer(), timeout()) ::
           {:ok, chunk()} | {:error, term()}
-  def lookup(node, table, key, timeout \\ Agent.default_timeout())
+  def lookup(node, table, key, budget \\ @budget, timeout \\ Agent.default_timeout())
 
-  def lookup(node, table, key, timeout) when TableId.is_table_id(table) do
+  def lookup(node, table, key, budget, timeout)
+      when TableId.is_table_id(table) and is_integer(budget) and budget >= 0 do
     if valid_key?(key) do
-      case Agent.call(node, @lookup_fun, [table, key], timeout) do
-        {:ok, result} -> decode_lookup(result)
-        {:error, _} = err -> map_read_error(err)
-      end
+      fetch_chunk(node, @lookup_fun, [table, key, budget], timeout)
     else
       {:error, :invalid_key}
     end
   end
 
-  def lookup(_node, _table, _key, _timeout), do: {:error, :invalid_table}
-
-  defp decode_select(:"$end_of_table") do
-    {:ok, %{records: [], continuation: nil}}
+  def lookup(_node, table, _key, _budget, _timeout) when TableId.is_table_id(table) do
+    {:error, :invalid_budget}
   end
 
-  defp decode_select({records, :"$end_of_table"}) when is_list(records) do
-    {:ok, %{records: records, continuation: nil}}
+  def lookup(_node, _table, _key, _budget, _timeout), do: {:error, :invalid_table}
+
+  defp fetch_chunk(node, fun, args, timeout) do
+    case Agent.fetch(node, fun, args, timeout) do
+      {:ok, payload} -> decode_chunk(payload)
+      {:error, _} = err -> map_read_error(err)
+    end
   end
 
-  defp decode_select({records, continuation}) when is_list(records) do
-    {:ok, %{records: records, continuation: continuation}}
+  defp decode_chunk(%{records: records, continuation: continuation, truncated?: truncated?})
+       when is_list(records) and is_boolean(truncated?) do
+    {:ok,
+     %{
+       records: records,
+       continuation: normalize_cont(continuation),
+       truncated?: truncated?
+     }}
   end
 
-  defp decode_select(_other), do: {:error, :invalid_response}
+  defp decode_chunk(_other), do: {:error, :invalid_response}
 
-  defp decode_lookup(records) when is_list(records) do
-    {:ok, %{records: records, continuation: nil}}
-  end
-
-  defp decode_lookup(_other), do: {:error, :invalid_response}
+  defp normalize_cont(cont) when cont in [nil, :undefined, :"$end_of_table"], do: nil
+  defp normalize_cont(cont), do: cont
 
   defp map_read_error({:error, {:remote_exception, :badarg}}), do: {:error, :cannot_read}
   defp map_read_error({:error, {:remote_exception, :killed}}), do: {:error, :heap_limit_exceeded}

@@ -3,42 +3,19 @@ defmodule VoyagerAgentEtsTest do
 
   @compile {:no_warn_undefined, :voyager_agent}
 
-  alias Voyager.Test.EtsSanitizeFixture
   alias Voyager.Test.EtsTable
   alias Voyager.Test.VoyagerAgentFixture
 
   @agent_module :voyager_agent
   @marker :"$voyager_truncated"
-  @binary_limit 512
+  @budget Voyager.Agent.default_budget()
 
   setup do
     VoyagerAgentFixture.load!()
     :ok
   end
 
-  describe "truncate_term/1" do
-    test "matches the shared fixture of sample terms" do
-      for {input, expected} <- EtsSanitizeFixture.samples() do
-        assert @agent_module.truncate_term(input) == expected
-      end
-    end
-
-    test "is idempotent on fixture outputs" do
-      for {_input, expected} <- EtsSanitizeFixture.samples() do
-        assert @agent_module.truncate_term(expected) == expected
-      end
-    end
-
-    test "copies an oversized binary prefix off the parent refc binary" do
-      huge = :binary.copy(<<"a">>, 4096)
-
-      assert {@marker, :binary, prefix, 4096} = @agent_module.truncate_term(huge)
-      assert byte_size(prefix) == @binary_limit
-      assert :binary.referenced_byte_size(prefix) == @binary_limit
-    end
-  end
-
-  describe "ets_select_chunk/3 and ets_lookup/2" do
+  describe "ets_select_chunk/4 and ets_lookup/3" do
     test "do not require the gen_server to be registered" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set])
@@ -46,32 +23,57 @@ defmodule VoyagerAgentEtsTest do
       :ets.insert(name, {:k, 1})
 
       assert Process.whereis(@agent_module) == nil
-      assert [{:k, 1}] = @agent_module.ets_lookup(name, :k)
+
+      assert {:ok, %{records: [{:k, 1}], truncated: false}} =
+               @agent_module.ets_lookup(name, :k, @budget)
     end
 
-    test "truncates records and leaves the ETS continuation opaque" do
+    test "walks each record with the budget and leaves the ETS continuation opaque" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set])
       on_exit(fn -> EtsTable.safe_delete(name) end)
 
-      blob = :binary.copy(<<"a">>, 600)
-      truncated = @agent_module.truncate_term(blob)
+      blob = :binary.copy(<<"a">>, 10_000)
 
       for i <- 1..25, do: :ets.insert(name, {i, blob})
 
-      assert {records, cont} = @agent_module.ets_select_chunk(name, 10, :undefined)
+      assert {:ok, %{records: records, continuation: cont, truncated: true}} =
+               @agent_module.ets_select_chunk(name, 10, 50, :undefined)
+
       assert length(records) == 10
-      assert Enum.all?(records, fn {_i, value} -> value == truncated end)
-      refute match?({:"$voyager_truncated", _, _, _}, cont)
 
-      assert {more, cont2} = @agent_module.ets_select_chunk(name, 10, cont)
+      assert Enum.all?(records, fn {_i, value} ->
+               is_binary(value) and byte_size(value) < 10_000
+             end)
+
+      refute match?({@marker, _, _, _}, cont)
+      refute cont in [:undefined, :"$end_of_table"]
+
+      assert {:ok, %{records: more, continuation: cont2, truncated: true}} =
+               @agent_module.ets_select_chunk(name, 10, 50, cont)
+
       assert length(more) == 10
-      assert Enum.all?(more, fn {_i, value} -> value == truncated end)
-      refute match?({:"$voyager_truncated", _, _, _}, cont2)
+      assert Enum.all?(more, fn {_i, value} -> is_binary(value) and byte_size(value) < 10_000 end)
+      refute match?({@marker, _, _, _}, cont2)
 
-      assert {last, :"$end_of_table"} = @agent_module.ets_select_chunk(name, 10, cont2)
+      assert {:ok, %{records: last, continuation: :undefined, truncated: true}} =
+               @agent_module.ets_select_chunk(name, 10, 50, cont2)
+
       assert length(last) == 5
-      assert Enum.all?(last, fn {_i, value} -> value == truncated end)
+    end
+
+    test "keeps the page length at Limit when the budget is zero" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :set])
+      on_exit(fn -> EtsTable.safe_delete(name) end)
+
+      for i <- 1..10, do: :ets.insert(name, {i, i})
+
+      assert {:ok, %{records: records, truncated: true}} =
+               @agent_module.ets_select_chunk(name, 10, 0, :undefined)
+
+      assert length(records) == 10
+      assert Enum.all?(records, &(&1 == @marker))
     end
 
     test "pages through a table larger than the chunk size" do
@@ -81,46 +83,63 @@ defmodule VoyagerAgentEtsTest do
 
       for i <- 1..25, do: :ets.insert(name, {i, i})
 
-      assert {page, cont} = @agent_module.ets_select_chunk(name, 10, :undefined)
+      assert {:ok, %{records: page, continuation: cont, truncated: false}} =
+               @agent_module.ets_select_chunk(name, 10, @budget, :undefined)
+
       assert length(page) == 10
-      assert cont != :"$end_of_table"
+      assert cont not in [:undefined, :"$end_of_table"]
 
-      assert {page2, cont2} = @agent_module.ets_select_chunk(name, 10, cont)
+      assert {:ok, %{records: page2, continuation: cont2, truncated: false}} =
+               @agent_module.ets_select_chunk(name, 10, @budget, cont)
+
       assert length(page2) == 10
-      assert cont2 != :"$end_of_table"
+      assert cont2 not in [:undefined, :"$end_of_table"]
 
-      assert {page3, :"$end_of_table"} = @agent_module.ets_select_chunk(name, 10, cont2)
+      assert {:ok, %{records: page3, continuation: :undefined, truncated: false}} =
+               @agent_module.ets_select_chunk(name, 10, @budget, cont2)
+
       assert length(page3) == 5
     end
 
-    test "maps a table smaller than the chunk size to '$end_of_table'" do
+    test "maps a table smaller than the chunk size to an undefined continuation" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set])
       on_exit(fn -> EtsTable.safe_delete(name) end)
 
       for i <- 1..3, do: :ets.insert(name, {i, i})
 
-      assert {records, :"$end_of_table"} = @agent_module.ets_select_chunk(name, 10, :undefined)
+      assert {:ok, %{records: records, continuation: :undefined, truncated: false}} =
+               @agent_module.ets_select_chunk(name, 10, @budget, :undefined)
+
       assert length(records) == 3
     end
 
-    test "returns '$end_of_table' for an empty table" do
+    test "returns an empty chunk for an empty table" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set])
       on_exit(fn -> EtsTable.safe_delete(name) end)
 
-      assert :"$end_of_table" = @agent_module.ets_select_chunk(name, 10, :undefined)
+      assert {:ok, %{records: [], continuation: :undefined, truncated: false}} =
+               @agent_module.ets_select_chunk(name, 10, @budget, :undefined)
     end
 
-    test "lookup truncates a matching record" do
+    test "lookup truncates a matching record and keeps bag rows" do
       name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :set])
+      :ets.new(name, [:named_table, :public, :duplicate_bag])
       on_exit(fn -> EtsTable.safe_delete(name) end)
 
-      :ets.insert(name, {:k, Enum.to_list(1..60)})
+      blob = :binary.copy(<<"a">>, 10_000)
+      :ets.insert(name, {:k, blob})
+      :ets.insert(name, {:k, blob})
 
-      assert [{:k, truncated}] = @agent_module.ets_lookup(name, :k)
-      assert truncated == @agent_module.truncate_term(Enum.to_list(1..60))
+      assert {:ok, %{records: records, continuation: :undefined, truncated: true}} =
+               @agent_module.ets_lookup(name, :k, 50)
+
+      assert length(records) == 2
+
+      assert Enum.all?(records, fn {:k, value} ->
+               is_binary(value) and byte_size(value) < 10_000
+             end)
     end
 
     test "raises badarg for a private table owned by another process" do
@@ -128,10 +147,22 @@ defmodule VoyagerAgentEtsTest do
       tid = Agent.get(pid, & &1)
 
       assert_raise ArgumentError, fn ->
-        @agent_module.ets_select_chunk(tid, 10, :undefined)
+        @agent_module.ets_select_chunk(tid, 10, @budget, :undefined)
       end
 
-      assert_raise ArgumentError, fn -> @agent_module.ets_lookup(tid, :k) end
+      assert_raise ArgumentError, fn -> @agent_module.ets_lookup(tid, :k, @budget) end
+    end
+
+    test "raises badarg for a negative budget" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :set])
+      on_exit(fn -> EtsTable.safe_delete(name) end)
+
+      assert_raise ArgumentError, fn ->
+        @agent_module.ets_select_chunk(name, 10, -1, :undefined)
+      end
+
+      assert_raise ArgumentError, fn -> @agent_module.ets_lookup(name, :k, -1) end
     end
 
     @tag capture_log: true
@@ -143,7 +174,9 @@ defmodule VoyagerAgentEtsTest do
       :ets.insert(name, {:wide, Enum.to_list(1..400_000)})
 
       assert %ErlangError{original: :killed} =
-               assert_raise(ErlangError, fn -> @agent_module.ets_lookup(name, :wide) end)
+               assert_raise(ErlangError, fn ->
+                 @agent_module.ets_lookup(name, :wide, @budget)
+               end)
     end
   end
 end
