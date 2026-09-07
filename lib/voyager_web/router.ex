@@ -45,6 +45,7 @@ defmodule VoyagerWeb.Router do
       live "/node/:node/processes/:pid", ProcessInfoLive, :show
 
       live "/node/:node/ets-tables", EtsTablesLive, :index
+      live "/node/:node/ets-tables/:table", EtsTableLive, :show
       live "/node/:node/tracing", ComingSoon.TracingLive, :index
       live "/node/:node/sockets", ComingSoon.SocketsLive, :index
       live "/node/:node/ports", ComingSoon.PortsLive, :index
