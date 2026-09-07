@@ -73,6 +73,20 @@ defmodule Voyager.Services.Ets.Remote do
 
   def info(_node, _table, _timeout), do: {:error, :invalid_table}
 
+  @spec keypos(node(), TableId.t(), timeout()) :: {:ok, pos_integer()} | {:error, term()}
+  def keypos(node, table, timeout \\ Erpc.default_timeout())
+
+  def keypos(node, table, timeout) when TableId.is_table_id(table) do
+    case Erpc.safe_call(node, :ets, :info, [table, :keypos], timeout) do
+      {:ok, keypos} when is_integer(keypos) and keypos >= 1 -> {:ok, keypos}
+      {:ok, :undefined} -> {:error, :not_found}
+      {:ok, _} -> {:error, :invalid_response}
+      {:error, _} = err -> err
+    end
+  end
+
+  def keypos(_node, _table, _timeout), do: {:error, :invalid_table}
+
   defp fetch_infos(_node, [], _timeout), do: {:ok, []}
 
   defp fetch_infos(node, ids, timeout) do
