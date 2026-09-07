@@ -27,6 +27,7 @@ import topbar from '../vendor/topbar';
 import SupervisionTree from './hooks/supervision_tree';
 import Tooltip from './hooks/tooltip';
 import NumberStepper from './hooks/number_stepper';
+import TableSettings from './hooks/table_settings';
 import DetailsPanelResize from './hooks/details_panel_resize';
 
 const csrfToken = document
@@ -38,6 +39,7 @@ const liveSocket = new LiveSocket('/live', Socket, {
     SupervisionTree,
     Tooltip,
     NumberStepper,
+    TableSettings,
     DetailsPanelResize,
     ...colocatedHooks,
   },

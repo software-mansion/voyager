@@ -56,7 +56,12 @@ defmodule VoyagerWeb.ProcessInfoLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="mx-auto flex h-full w-full max-w-screen-2xl flex-col gap-4 overflow-hidden p-6 sm:p-8">
+    <div
+      id="process-info-page"
+      phx-hook="TableSettings"
+      data-settings-key="process-info"
+      class="mx-auto flex h-full w-full max-w-screen-2xl flex-col gap-4 overflow-hidden p-6 sm:p-8"
+    >
       <.node_header node_name={@session.node_name} waiting_message={nil} class="mb-0">
         <:actions>
           <h2
@@ -289,6 +294,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
          timeout when not is_nil(timeout) <- parse_bounded(timeout, timeout_bounds()) do
       socket
       |> assign(:timeouts, Map.put(socket.assigns.timeouts, name, timeout))
+      |> store_settings()
       |> noreply()
     else
       _ -> noreply(socket)
@@ -300,6 +306,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
          budget when not is_nil(budget) <- parse_bounded(budget, budget_bounds()) do
       socket
       |> assign(:budgets, Map.put(socket.assigns.budgets, name, budget))
+      |> store_settings()
       |> noreply()
     else
       _ -> noreply(socket)
@@ -311,11 +318,24 @@ defmodule VoyagerWeb.ProcessInfoLive do
          limit when not is_nil(limit) <- parse_bounded(limit, limit_bounds()) do
       socket
       |> assign(:limits, Map.put(socket.assigns.limits, name, limit))
+      |> store_settings()
       |> noreply()
     else
       _ -> noreply(socket)
     end
   end
+
+  # The client's stored controls, empty when it has none. Only validated
+  # values ever get stored, but the storage is still hand-editable.
+  def handle_event("restore_settings", params, socket) when is_map(params) do
+    socket
+    |> restore_controls(:timeouts, params["timeouts"], timeout_bounds())
+    |> restore_controls(:budgets, params["budgets"], budget_bounds())
+    |> restore_controls(:limits, params["limits"], limit_bounds())
+    |> noreply()
+  end
+
+  def handle_event("restore_settings", _params, socket), do: noreply(socket)
 
   def handle_event("fetch-" <> section, _params, %{assigns: %{pid: pid}} = socket)
       when is_pid(pid) do
@@ -485,12 +505,41 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
   defp section_atom(section), do: Enum.find(@sections, &(to_string(&1) == section))
 
+  defp store_settings(socket) do
+    push_event(socket, "store-settings", %{
+      settings: %{
+        "timeouts" => socket.assigns.timeouts,
+        "budgets" => socket.assigns.budgets,
+        "limits" => socket.assigns.limits
+      }
+    })
+  end
+
+  defp restore_controls(socket, key, values, bounds) when is_map(values) do
+    restored =
+      Map.new(socket.assigns[key], fn {section, current} ->
+        case parse_bounded(values[to_string(section)], bounds) do
+          nil -> {section, current}
+          value -> {section, value}
+        end
+      end)
+
+    assign(socket, key, restored)
+  end
+
+  defp restore_controls(socket, _key, _values, _bounds), do: socket
+
+  defp parse_bounded(value, bounds) when is_integer(value),
+    do: value |> Integer.to_string() |> parse_bounded(bounds)
+
   defp parse_bounded(value, {lower, upper}) when is_binary(value) do
     case Integer.parse(value) do
       {n, ""} -> n |> max(lower) |> clamp_upper(upper)
       _ -> nil
     end
   end
+
+  defp parse_bounded(_value, _bounds), do: nil
 
   defp clamp_upper(n, nil), do: n
   defp clamp_upper(n, upper), do: min(n, upper)
