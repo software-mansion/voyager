@@ -31,6 +31,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
   @tabs ~w(overview state messages dictionary relations)a
   @sections ~w(info relations state messages dictionary)a
   @budget_sections ~w(state messages dictionary)a
+  @limit_sections ~w(relations messages dictionary)a
 
   @impl true
   def mount(%{"pid" => pid_string}, _session, socket) do
@@ -46,8 +47,8 @@ defmodule VoyagerWeb.ProcessInfoLive do
     |> assign(:state, nil)
     |> assign(:timeouts, Map.new(@sections, &{&1, Query.default_timeout()}))
     |> assign(:budgets, Map.new(@budget_sections, &{&1, Query.default_budget()}))
+    |> assign(:limits, Query.default_limits())
     |> assign(:fetched_at, %{})
-    |> assign(:last_updated, nil)
     |> resolve_pid(pid_string)
     |> ok()
   end
@@ -55,31 +56,26 @@ defmodule VoyagerWeb.ProcessInfoLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="mx-auto flex h-full w-full max-w-screen-2xl flex-col gap-4 p-6 sm:p-8">
-      <.node_header
-        node_name={@session.node_name}
-        last_updated={@last_updated}
-        waiting_message="waiting for first fetch…"
-        class="mb-0"
-      />
+    <div class="mx-auto flex h-full w-full max-w-screen-2xl flex-col gap-4 overflow-hidden p-6 sm:p-8">
+      <.node_header node_name={@session.node_name} waiting_message={nil} class="mb-0">
+        <:actions>
+          <h2
+            id="process-info-pid"
+            class="text-base-content font-mono flex items-center gap-2 text-sm font-semibold"
+          >
+            <span class="bg-primary h-1.5 w-1.5 rounded-full" />
+            {@pid_string}
+          </h2>
+        </:actions>
+      </.node_header>
 
-      <div class="grid-cols-[1fr_auto_1fr] grid items-center gap-3">
-        <.link
-          id="back-to-processes"
-          navigate={~p"/node/#{@session.node_name}/processes"}
-          class="btn btn-ghost btn-sm w-max gap-2 justify-self-start"
-        >
-          <.icon name="icon-arrow-left" class="size-4" /> All Processes
-        </.link>
-        <h2
-          id="process-info-pid"
-          class="text-base-content font-mono flex items-center gap-2 text-sm font-semibold"
-        >
-          <span class="bg-primary h-1.5 w-1.5 rounded-full" />
-          {@pid_string}
-        </h2>
-        <span />
-      </div>
+      <.link
+        id="back-to-processes"
+        navigate={~p"/node/#{@session.node_name}/processes"}
+        class="btn btn-ghost btn-sm w-max gap-2"
+      >
+        <.icon name="icon-arrow-left" class="size-4" /> All Processes
+      </.link>
 
       <div class="flex min-h-0 flex-1 flex-col">
         <div id="process-info-tabs" role="tablist" class="tabs tabs-lift">
@@ -131,7 +127,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
               id="process-state"
               term={state.term}
               state={@term_states["process-state"]}
-              class="overflow-x-auto"
+              class="scrollbar-thin overflow-x-auto"
             />
           </.term_section>
         </.tab_panel>
@@ -143,6 +139,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
           fetched_at={@fetched_at[:messages]}
           timeout={@timeouts.messages}
           budget={@budgets.messages}
+          limit={@limits.messages}
           loading?={loading?(@messages)}
           disabled={is_nil(@pid)}
           title="Messages"
@@ -162,7 +159,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
                   id={"message-#{index}"}
                   term={message}
                   state={@term_states["message-#{index}"]}
-                  class="overflow-x-auto"
+                  class="scrollbar-thin overflow-x-auto"
                 />
               </li>
             </ol>
@@ -177,6 +174,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
           fetched_at={@fetched_at[:dictionary]}
           timeout={@timeouts.dictionary}
           budget={@budgets.dictionary}
+          limit={@limits.dictionary}
           loading?={loading?(@dictionary)}
           disabled={is_nil(@pid)}
           title="Dictionary"
@@ -199,13 +197,13 @@ defmodule VoyagerWeb.ProcessInfoLive do
                   id={"dict-key-#{index}"}
                   term={key}
                   state={@term_states["dict-key-#{index}"]}
-                  class="max-w-64 w-64 shrink-0 overflow-x-auto"
+                  class="scrollbar-thin max-w-64 w-64 shrink-0 overflow-x-auto"
                 />
                 <.term_inspector
                   id={"dict-entry-#{index}"}
                   term={value}
                   state={@term_states["dict-entry-#{index}"]}
-                  class="min-w-0 flex-1 overflow-x-auto"
+                  class="scrollbar-thin min-w-0 flex-1 overflow-x-auto"
                 />
               </li>
             </ol>
@@ -219,6 +217,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
           active={@tab == :relations}
           fetched_at={@fetched_at[:relations]}
           timeout={@timeouts.relations}
+          limit={@limits.relations}
           loading?={loading?(@relations)}
           disabled={is_nil(@pid)}
         >
@@ -301,6 +300,17 @@ defmodule VoyagerWeb.ProcessInfoLive do
     end
   end
 
+  def handle_event("set-limit", %{"section" => section, "limit" => limit}, socket) do
+    with name when name in @limit_sections <- section_atom(section),
+         limit when not is_nil(limit) <- parse_bounded(limit, limit_bounds()) do
+      socket
+      |> assign(:limits, Map.put(socket.assigns.limits, name, limit))
+      |> noreply()
+    else
+      _ -> noreply(socket)
+    end
+  end
+
   def handle_event("fetch-" <> section, _params, %{assigns: %{pid: pid}} = socket)
       when is_pid(pid) do
     case section_atom(section) do
@@ -339,13 +349,10 @@ defmodule VoyagerWeb.ProcessInfoLive do
   def handle_async(_name, {:exit, {:shutdown, :cancel}}, socket), do: noreply(socket)
 
   def handle_async(name, {:ok, {:ok, value}}, socket) when name in @sections do
-    now = DateTime.utc_now()
-
     socket
     |> assign(name, AsyncResult.ok(socket.assigns[name], value))
     |> seed_terms(name, value)
-    |> assign(:fetched_at, Map.put(socket.assigns.fetched_at, name, now))
-    |> assign(:last_updated, now)
+    |> assign(:fetched_at, Map.put(socket.assigns.fetched_at, name, DateTime.utc_now()))
     |> noreply()
   end
 
@@ -385,27 +392,36 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
   @queries %{
     info: &Query.overview/3,
-    relations: &Query.relations/3,
-    messages: &Query.messages/4,
-    dictionary: &Query.dictionary/4,
+    relations: &Query.relations/4,
+    messages: &Query.messages/5,
+    dictionary: &Query.dictionary/5,
     state: &Query.state/4
   }
 
+  # Argument order mirrors the service signatures: limit, then budget, then
+  # timeout; a section without one of them simply skips that slot.
   defp fetch(socket, name) do
-    %{pid: pid, session: %{node: node}, timeouts: timeouts, budgets: budgets} = socket.assigns
+    %{pid: pid, session: %{node: node}} = socket.assigns
+    %{timeouts: timeouts, budgets: budgets, limits: limits} = socket.assigns
     query = Map.fetch!(@queries, name)
-    timeout = Map.fetch!(timeouts, name)
 
     args =
-      case budgets do
-        %{^name => budget} -> [node, pid, budget, timeout]
-        %{} -> [node, pid, timeout]
-      end
+      [node, pid] ++
+        optional_arg(limits, name) ++
+        optional_arg(budgets, name) ++
+        [Map.fetch!(timeouts, name)]
 
     socket
     |> cancel_async(name, {:shutdown, :cancel})
     |> assign(name, mark_loading(socket.assigns[name]))
     |> start_async(name, fn -> apply(query, args) end)
+  end
+
+  defp optional_arg(map, name) do
+    case map do
+      %{^name => value} -> [value]
+      %{} -> []
+    end
   end
 
   # Opening a gated tab for the first time fetches it; data that is already

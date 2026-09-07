@@ -15,9 +15,7 @@ defmodule VoyagerWeb.ProcessInfoLive.Query do
   alias Voyager.Services.ProcessTerm
   alias Voyager.Services.RateLimiter
 
-  @relations_limit 100
-  @messages_limit 50
-  @dictionary_limit 100
+  @default_limits %{relations: 100, messages: 50, dictionary: 100}
 
   @budget Agent.default_budget()
 
@@ -34,6 +32,9 @@ defmodule VoyagerWeb.ProcessInfoLive.Query do
 
   @spec default_budget() :: pos_integer()
   def default_budget, do: Agent.default_budget()
+
+  @spec default_limits() :: %{atom() => pos_integer()}
+  def default_limits, do: @default_limits
 
   @spec valid_pid_string?(String.t()) :: boolean()
   def valid_pid_string?(pid_string), do: Regex.match?(@pid_format, pid_string)
@@ -64,31 +65,31 @@ defmodule VoyagerWeb.ProcessInfoLive.Query do
     end)
   end
 
-  @spec relations(node(), pid(), timeout()) :: {:ok, relations()} | {:error, term()}
-  def relations(node, pid, timeout) do
+  @spec relations(node(), pid(), non_neg_integer(), timeout()) ::
+          {:ok, relations()} | {:error, term()}
+  def relations(node, pid, limit, timeout) do
     rate_limited(fn ->
-      with {:ok, links} <- ProcessInfo.fetch_links(node, pid, @relations_limit, timeout),
-           {:ok, monitors} <- ProcessInfo.fetch_monitors(node, pid, @relations_limit, timeout),
-           {:ok, monitored_by} <-
-             ProcessInfo.fetch_monitored_by(node, pid, @relations_limit, timeout) do
+      with {:ok, links} <- ProcessInfo.fetch_links(node, pid, limit, timeout),
+           {:ok, monitors} <- ProcessInfo.fetch_monitors(node, pid, limit, timeout),
+           {:ok, monitored_by} <- ProcessInfo.fetch_monitored_by(node, pid, limit, timeout) do
         {:ok, %{links: links, monitors: monitors, monitored_by: monitored_by}}
       end
     end)
   end
 
-  @spec messages(node(), pid(), non_neg_integer(), timeout()) ::
+  @spec messages(node(), pid(), non_neg_integer(), non_neg_integer(), timeout()) ::
           {:ok, Agent.bounded(term())} | {:error, term()}
-  def messages(node, pid, budget, timeout) do
+  def messages(node, pid, limit, budget, timeout) do
     rate_limited(fn ->
-      ProcessTerm.fetch_messages(node, pid, @messages_limit, budget, timeout)
+      ProcessTerm.fetch_messages(node, pid, limit, budget, timeout)
     end)
   end
 
-  @spec dictionary(node(), pid(), non_neg_integer(), timeout()) ::
+  @spec dictionary(node(), pid(), non_neg_integer(), non_neg_integer(), timeout()) ::
           {:ok, Agent.bounded(ProcessInfo.dictionary_entry())} | {:error, term()}
-  def dictionary(node, pid, budget, timeout) do
+  def dictionary(node, pid, limit, budget, timeout) do
     rate_limited(fn ->
-      ProcessInfo.fetch_dictionary(node, pid, @dictionary_limit, budget, timeout)
+      ProcessInfo.fetch_dictionary(node, pid, limit, budget, timeout)
     end)
   end
 

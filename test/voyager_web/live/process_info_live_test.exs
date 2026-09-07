@@ -117,6 +117,24 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
       assert Process.info(pid, :message_queue_len) == {:message_queue_len, 3}
     end
 
+    test "honours the messages limit control", %{conn: conn} do
+      pid = spawn_idle()
+      for n <- 1..3, do: send(pid, {:job, n})
+
+      view = open!(conn, Formatters.format_pid(pid))
+
+      view
+      |> element("#panel-messages-limit-form")
+      |> render_change(%{"section" => "messages", "limit" => "2"})
+
+      open_tab!(view, :messages)
+
+      assert has_element?(view, "#panel-messages h4", "(3 in queue)")
+      assert has_element?(view, "#message-1")
+      refute has_element?(view, "#message-2")
+      assert has_element?(view, "#process-messages-truncated")
+    end
+
     test "renders dictionary keys and values as term inspectors", %{conn: conn} do
       pid = spawn_idle(fn -> Process.put({:shard, 7}, %{status: :ok}) end)
 

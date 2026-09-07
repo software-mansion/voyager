@@ -17,6 +17,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
 
   @timeout_bounds {1_000, 30_000}
   @budget_bounds {100, 100_000}
+  @limit_bounds {1, 1_000}
 
   @budget_help "Caps how much of each fetched term the remote node sends back — " <>
                  "roughly one unit per subterm, binaries charged per byte kept. " <>
@@ -29,6 +30,10 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   @doc "Budget bounds for the per-section term budget inputs."
   @spec budget_bounds() :: {pos_integer(), pos_integer()}
   def budget_bounds, do: @budget_bounds
+
+  @doc "Limit bounds for the per-section entry limit inputs."
+  @spec limit_bounds() :: {pos_integer(), pos_integer()}
+  def limit_bounds, do: @limit_bounds
 
   @doc """
   One lift tab. Must be a direct child of the `.tabs` tablist; the matching
@@ -58,8 +63,9 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   end
 
   @doc """
-  A lift tab's content panel: the controls row (fetch time, budget and timeout
-  inputs and fetch button, all scoped to `section`) above the section body.
+  A lift tab's content panel: the controls row (fetch time, limit, budget and
+  timeout inputs and fetch button, all scoped to `section`) above the section
+  body.
 
   All panels stay in the DOM so fetched data survives tab switches; only the
   `active` one is shown. The panel fills the remaining page height and scrolls
@@ -74,6 +80,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   attr :fetched_at, DateTime, default: nil
   attr :timeout, :integer, required: true
   attr :budget, :integer, default: nil, doc: "renders a budget input when set"
+  attr :limit, :integer, default: nil, doc: "renders an entry limit input when set"
   attr :loading?, :boolean, required: true
   attr :disabled, :boolean, required: true
   slot :inner_block, required: true
@@ -84,6 +91,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
       |> assign(:bounds, @timeout_bounds)
       |> assign(:budget_bounds, @budget_bounds)
       |> assign(:budget_help, @budget_help)
+      |> assign(:limit_bounds, @limit_bounds)
 
     ~H"""
     <div class={[
@@ -111,6 +119,35 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
             >
               fetched {Formatters.format_time(@fetched_at)} UTC
             </span>
+            <form
+              :if={@limit}
+              id={"#{@id}-limit-form"}
+              phx-change="set-limit"
+              class="flex items-center gap-2"
+            >
+              <input type="hidden" name="section" value={@section} />
+              <span class="flex items-center gap-1">
+                <label for={"#{@id}-limit"} class="text-base-content/70 text-xs font-medium">
+                  Limit
+                </label>
+                <.help_tooltip
+                  id={"#{@id}-limit-help"}
+                  text="Maximum number of entries fetched from the remote node."
+                />
+              </span>
+              <input
+                id={"#{@id}-limit"}
+                type="number"
+                name="limit"
+                value={@limit}
+                min={elem(@limit_bounds, 0)}
+                max={elem(@limit_bounds, 1)}
+                step="10"
+                inputmode="numeric"
+                phx-debounce="500"
+                class="input input-sm input-bordered no-spinner font-mono w-24"
+              />
+            </form>
             <form
               :if={@budget}
               id={"#{@id}-budget-form"}

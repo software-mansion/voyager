@@ -88,6 +88,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
       assert attr(html, "#panel-sec-refresh", "phx-click") == ["fetch-sec"]
       assert count(html, "#panel-sec-fetched-at") == 0
       assert count(html, "#panel-sec-budget-form") == 0
+      assert count(html, "#panel-sec-limit-form") == 0
     end
 
     test "renders a section-scoped budget input with a help tooltip when budget is set" do
@@ -97,6 +98,15 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
       assert attr(html, "#panel-sec-budget-form input[type=hidden]", "value") == ["sec"]
       assert attr(html, "#panel-sec-budget", "value") == ["5000"]
       assert count(html, "#panel-sec-budget-help") == 1
+    end
+
+    test "renders a section-scoped limit input with a help tooltip when limit is set" do
+      html = panel(limit: 100)
+
+      assert attr(html, "#panel-sec-limit-form", "phx-change") == ["set-limit"]
+      assert attr(html, "#panel-sec-limit-form input[type=hidden]", "value") == ["sec"]
+      assert attr(html, "#panel-sec-limit", "value") == ["100"]
+      assert count(html, "#panel-sec-limit-help") == 1
     end
 
     test "shows the fetch time once set" do
