@@ -33,6 +33,7 @@ defmodule VoyagerWeb.TermTree do
 
   @printable_limit 4_096
   @inspect_opts [limit: 50, printable_limit: @printable_limit]
+  @key_inspect_opts [limit: 5, printable_limit: 64]
 
   @doc """
   Builds the display node for `term`.
@@ -336,11 +337,15 @@ defmodule VoyagerWeb.TermTree do
   end
 
   defp key_segments(key) do
-    describe(key).content ++ [Segment.punctuation(" => ")]
+    key_content(key) ++ [Segment.punctuation(" => ")]
   end
 
-  # The marker sorts by its own name, which would drop it in the middle of the
-  # map; it means "and more", so it belongs at the end.
+  defp key_content(key) when is_tuple(key) or is_list(key) or is_map(key) do
+    [Segment.other(inspect(key, @key_inspect_opts))]
+  end
+
+  defp key_content(key), do: describe(key).content
+
   defp pop_markers(map) do
     if Map.has_key?(map, @truncated) do
       {[{@truncated, Map.fetch!(map, @truncated)}], Map.delete(map, @truncated)}
@@ -349,9 +354,6 @@ defmodule VoyagerWeb.TermTree do
     end
   end
 
-  # Past the threshold the map's own iteration order is used, which is stable
-  # for a given map and, unlike sorting, lets the window be filled without
-  # materializing the entries behind it.
   defp ordered_pairs(map) when map_size(map) > @sort_limit do
     Stream.unfold(:maps.iterator(map), fn iterator ->
       case :maps.next(iterator) do
@@ -376,8 +378,6 @@ defmodule VoyagerWeb.TermTree do
     ArgumentError -> :improper
   end
 
-  # Bounded where `inspect/2` stops looking under `@inspect_opts`, so deciding
-  # this never walks further than what will actually be rendered.
   defp printable_charlist?(list), do: List.ascii_printable?(list, @printable_limit)
 
   defp short_list?([], _max), do: true

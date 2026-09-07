@@ -232,10 +232,16 @@ defmodule VoyagerWeb.TermTreeTest do
       assert TermTree.children(["hello" | "world"], 0, 10) == []
     end
 
-    test "a struct key keeps its whole rendering, not just its first segment" do
+    test "container keys are inspected whole, not left as a collapsed placeholder" do
       children = TermTree.children(%{%State{} => 1}, 0, 10)
 
-      assert child_keys(children) == ["%VoyagerWeb.TermTree.State{...} => "]
+      assert child_keys(children) == [
+               "%VoyagerWeb.TermTree.State{open: MapSet.new([]), windows: %{}} => "
+             ]
+
+      children = TermTree.children(%{{:a, 1} => 1, [1, 2] => 2, %{x: 1} => 3}, 0, 10)
+
+      assert child_keys(children) == ["{:a, 1} => ", "%{x: 1} => ", "[1, 2] => "]
     end
 
     test "offset and limit window the children" do
