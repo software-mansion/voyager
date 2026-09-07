@@ -13,6 +13,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   import VoyagerWeb.Helpers, only: [keep_sidebar: 2]
 
   alias Phoenix.LiveView.AsyncResult
+  alias VoyagerWeb.Components.DetailsPanelComponents
   alias VoyagerWeb.Formatters
 
   @typep async_result :: %AsyncResult{}
@@ -339,14 +340,11 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
       <p :if={@items == []} class="font-mono text-base-content/70 text-xs">None</p>
       <div :if={@items != []} class="flex flex-wrap gap-1.5">
         <%= for item <- Enum.map(@items, &identifier_entry(&1, @remote_node)) do %>
-          <.link
+          <DetailsPanelComponents.pid_chip
             :if={item.pid?}
             navigate={keep_sidebar(~p"/node/#{@node_name}/processes/#{item.text}", @current_url)}
-            class="border-base-content/70 bg-base-200 text-base-content font-mono inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors hover:border-primary hover:text-primary"
-          >
-            <span class="bg-primary h-1.5 w-1.5 rounded-full" />
-            {item.text}
-          </.link>
+            label={item.text}
+          />
           <span
             :if={not item.pid?}
             class="border-base-content/40 bg-base-200 text-base-content/80 font-mono inline-flex items-center rounded-md border px-2.5 py-1 text-xs"

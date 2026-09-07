@@ -394,19 +394,31 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         ]}
         title={@value}
       >
-        <.link
-          :if={@href}
-          navigate={@href}
-          class="underline decoration-dotted underline-offset-2 transition-colors hover:text-primary"
-        >
-          {@value}
-        </.link>
+        <.pid_chip :if={@href} navigate={@href} label={@value} />
         <%= if is_nil(@href) do %>
           {@value}
         <% end %>
         {render_slot(@inner_block)}
       </div>
     </div>
+    """
+  end
+
+  @doc """
+  A bordered chip linking to a process, styled like the relation chips.
+  """
+  attr :navigate, :string, required: true
+  attr :label, :string, required: true
+
+  def pid_chip(assigns) do
+    ~H"""
+    <.link
+      navigate={@navigate}
+      class="border-base-content/70 bg-base-200 text-base-content font-mono inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors hover:border-primary hover:text-primary"
+    >
+      <span class="bg-primary h-1.5 w-1.5 rounded-full" />
+      {@label}
+    </.link>
     """
   end
 
