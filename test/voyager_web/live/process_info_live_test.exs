@@ -172,6 +172,18 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
     end
   end
 
+  describe "sidebar mode" do
+    test "navigation links carry the sidebar query param", %{conn: conn} do
+      pid = spawn_idle()
+      path = ~p"/node/#{@node_name}/processes/#{Formatters.format_pid(pid)}"
+
+      {:ok, view, _html} = live(conn, path <> "?sidebar=compact")
+      render_async(view, 2_000)
+
+      assert has_element?(view, "#back-to-processes[href*='sidebar=compact']")
+    end
+  end
+
   describe "invalid pid" do
     test "fails both mount fetches for a malformed pid string", %{conn: conn} do
       view = open!(conn, "not-a-pid")

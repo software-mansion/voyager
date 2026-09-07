@@ -10,6 +10,8 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
 
   use VoyagerWeb, :component
 
+  import VoyagerWeb.Helpers, only: [keep_sidebar: 2]
+
   alias Phoenix.LiveView.AsyncResult
   alias VoyagerWeb.Formatters
 
@@ -318,6 +320,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   attr :total, :integer, required: true
   attr :node_name, :string, required: true
   attr :remote_node, :atom, required: true
+  attr :current_url, :string, default: nil
 
   def identifier_chips(assigns) do
     assigns = assign(assigns, :overflow, max(assigns.total - length(assigns.items), 0))
@@ -329,7 +332,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
         <%= for item <- Enum.map(@items, &identifier_entry(&1, @remote_node)) do %>
           <.link
             :if={item.pid?}
-            navigate={~p"/node/#{@node_name}/processes/#{item.text}"}
+            navigate={keep_sidebar(~p"/node/#{@node_name}/processes/#{item.text}", @current_url)}
             class="border-base-content/70 bg-base-200 text-base-content font-mono inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors hover:border-primary hover:text-primary"
           >
             <span class="bg-primary h-1.5 w-1.5 rounded-full" />

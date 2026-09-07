@@ -71,7 +71,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
       <.link
         id="back-to-processes"
-        navigate={~p"/node/#{@session.node_name}/processes"}
+        navigate={keep_sidebar(~p"/node/#{@session.node_name}/processes", @current_url)}
         class="btn btn-ghost btn-sm w-max gap-2"
       >
         <.icon name="icon-arrow-left" class="size-4" /> All Processes
@@ -259,6 +259,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
                     total={bounded.total}
                     node_name={@session.node_name}
                     remote_node={@session.node}
+                    current_url={@current_url}
                   />
                 </.section>
               </div>
