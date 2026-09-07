@@ -1,6 +1,8 @@
 defmodule VoyagerWeb.Helpers do
   @moduledoc false
 
+  alias VoyagerWeb.Utils.URL
+
   @spec ok(term()) :: {:ok, term()}
   def ok(state), do: {:ok, state}
 
@@ -27,4 +29,18 @@ defmodule VoyagerWeb.Helpers do
     send(self(), {:push_flash, kind, msg})
     socket
   end
+
+  @doc """
+  Carries the sidebar mode from `current_url` onto `path`, so following an
+  in-page link does not reset the user's sidebar choice.
+  """
+  @spec keep_sidebar(String.t(), String.t() | nil) :: String.t()
+  def keep_sidebar(path, current_url) when is_binary(current_url) do
+    case URL.get_query_param(current_url, "sidebar") do
+      mode when mode in ["compact", "full"] -> URL.put_query_param(path, "sidebar", mode)
+      _other -> path
+    end
+  end
+
+  def keep_sidebar(path, _current_url), do: path
 end
