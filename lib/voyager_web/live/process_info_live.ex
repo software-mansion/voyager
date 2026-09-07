@@ -280,7 +280,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
   def handle_event("set-tab", %{"tab" => tab}, socket) do
     case Enum.find(@tabs, &(to_string(&1) == tab)) do
       nil -> noreply(socket)
-      tab -> socket |> assign(:tab, tab) |> maybe_autofetch(tab) |> noreply()
+      tab -> socket |> push_patch(to: tab_path(socket, tab)) |> noreply()
     end
   end
 
@@ -334,6 +334,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
     |> assign(:pid, pid)
     |> fetch(:info)
     |> fetch(:relations)
+    |> maybe_autofetch(socket.assigns.tab)
     |> noreply()
   end
 
@@ -377,8 +378,27 @@ defmodule VoyagerWeb.ProcessInfoLive do
     )
 
     socket
-    |> assign(name, AsyncResult.failed(socket.assigns[name], reason))
+    |> apply_failure(name, reason)
     |> noreply()
+  end
+
+  # Like the process list, a transient failure flashes over data that is still
+  # the last good answer; with nothing on screen it fails the section instead,
+  # or the panel would sit on its skeleton behind a toast.
+  defp apply_failure(socket, name, reason) when reason in [:timeout, :rate_limited] do
+    case socket.assigns[name] do
+      %AsyncResult{ok?: true} = result ->
+        socket
+        |> assign(name, %{result | loading: nil})
+        |> put_flash(:error, error_message(reason))
+
+      result ->
+        assign(socket, name, AsyncResult.failed(result, reason))
+    end
+  end
+
+  defp apply_failure(socket, name, reason) do
+    assign(socket, name, AsyncResult.failed(socket.assigns[name], reason))
   end
 
   defp resolve_pid(socket, pid_string) do
@@ -430,6 +450,22 @@ defmodule VoyagerWeb.ProcessInfoLive do
       %{^name => value} -> [value]
       %{} -> []
     end
+  end
+
+  @impl true
+  def handle_params(params, _uri, socket) do
+    tab = Enum.find(@tabs, &(to_string(&1) == params["tab"])) || :overview
+
+    socket
+    |> assign(:tab, tab)
+    |> maybe_autofetch(tab)
+    |> noreply()
+  end
+
+  defp tab_path(socket, tab) do
+    %{session: session, pid_string: pid_string, current_url: current_url} = socket.assigns
+    path = ~p"/node/#{session.node_name}/processes/#{pid_string}?tab=#{tab}"
+    keep_sidebar(path, current_url)
   end
 
   # Opening a gated tab for the first time fetches it; data that is already
