@@ -252,6 +252,32 @@ defmodule Voyager.Services.Ets.RemoteTest do
     end
   end
 
+  describe "keypos/3" do
+    test "fetches :ets.info/2 for :keypos" do
+      expect(Voyager.ErpcMock, :call, fn @node, :ets, :info, [:t, :keypos], @timeout -> 2 end)
+
+      assert {:ok, 2} = Remote.keypos(@node, :t, @timeout)
+    end
+
+    test "returns :not_found when the table is gone" do
+      expect(Voyager.ErpcMock, :call, fn @node, :ets, :info, [:t, :keypos], @timeout ->
+        :undefined
+      end)
+
+      assert {:error, :not_found} = Remote.keypos(@node, :t, @timeout)
+    end
+
+    test "returns :invalid_response when keypos is not a positive integer" do
+      expect(Voyager.ErpcMock, :call, fn @node, :ets, :info, [:t, :keypos], @timeout -> :oops end)
+
+      assert {:error, :invalid_response} = Remote.keypos(@node, :t, @timeout)
+    end
+
+    test "rejects a handle that is not an atom or reference without touching the remote" do
+      assert {:error, :invalid_table} = Remote.keypos(@node, self(), @timeout)
+    end
+  end
+
   defp stub_list(ids, word_size, infos) do
     expect(Voyager.ErpcMock, :call, fn @node, :ets, :all, [], @timeout -> ids end)
 
