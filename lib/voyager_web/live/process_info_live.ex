@@ -17,7 +17,6 @@ defmodule VoyagerWeb.ProcessInfoLive do
     only: [overview: 1, memory_and_garbage_collection: 1, section: 1]
 
   import VoyagerWeb.Components.ProcessInfoComponents
-  import VoyagerWeb.Components.TermComponents
 
   alias Phoenix.LiveView.AsyncResult
   alias VoyagerWeb.Formatters
@@ -169,10 +168,11 @@ defmodule VoyagerWeb.ProcessInfoLive do
           help="Calls :sys.get_state on the remote node. A busy process or one that does not handle system messages will time out."
         >
           <.term_section :let={state} id="process-state" result={@state}>
-            <.term_inspector
+            <.copyable_term
               id="process-state"
               term={state.term}
               state={@term_states["process-state"]}
+              label="Copy state"
               class="scrollbar-thin overflow-x-auto"
             />
           </.term_section>
@@ -202,10 +202,11 @@ defmodule VoyagerWeb.ProcessInfoLive do
               class="divide-base-content/10 m-0 flex list-none flex-col divide-y p-0"
             >
               <li :for={{message, index} <- Enum.with_index(messages.items)} class="py-2">
-                <.term_inspector
+                <.copyable_term
                   id={"message-#{index}"}
                   term={message}
                   state={@term_states["message-#{index}"]}
+                  label="Copy message"
                   class="scrollbar-thin overflow-x-auto"
                 />
               </li>
@@ -241,16 +242,18 @@ defmodule VoyagerWeb.ProcessInfoLive do
                 :for={{{key, value}, index} <- Enum.with_index(dictionary.items)}
                 class="flex items-baseline gap-6 py-2.5"
               >
-                <.term_inspector
+                <.copyable_term
                   id={"dict-key-#{index}"}
                   term={key}
                   state={@term_states["dict-key-#{index}"]}
+                  label="Copy key"
                   class="scrollbar-thin max-w-64 w-64 shrink-0 overflow-x-auto"
                 />
-                <.term_inspector
+                <.copyable_term
                   id={"dict-entry-#{index}"}
                   term={value}
                   state={@term_states["dict-entry-#{index}"]}
+                  label="Copy value"
                   class="scrollbar-thin min-w-0 flex-1 overflow-x-auto"
                 />
               </li>

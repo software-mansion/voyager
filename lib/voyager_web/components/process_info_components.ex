@@ -10,6 +10,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
 
   use VoyagerWeb, :component
 
+  import VoyagerWeb.Components.TermComponents, only: [term_inspector: 1]
   import VoyagerWeb.Helpers, only: [keep_sidebar: 2]
 
   alias Phoenix.LiveView.AsyncResult
@@ -253,6 +254,44 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
       </:failed>
       {render_slot(@inner_block, value)}
     </.async_result>
+    """
+  end
+
+  @doc """
+  A term inspector with a copy button.
+
+  The button copies the term inspected in full (`inspect/2` with no limit) from
+  a hidden element, not the collapsed-and-windowed tree the user sees. The term
+  is already truncated on the remote before it reaches here, so inspecting it
+  fully is bounded by that same truncation; elided subterms copy as their
+  `:"$voyager_truncated"` marker.
+  """
+  attr :id, :string, required: true
+  attr :term, :any, required: true
+  attr :state, :any, required: true
+  attr :class, :any, default: nil
+  attr :label, :string, default: "Copy term"
+
+  def copyable_term(assigns) do
+    assigns =
+      assign(
+        assigns,
+        :text,
+        inspect(assigns.term, limit: :infinity, printable_limit: :infinity, pretty: true)
+      )
+
+    ~H"""
+    <div class="group/term flex min-w-0 items-start gap-1">
+      <.term_inspector id={@id} term={@term} state={@state} class={@class} />
+      <pre id={"#{@id}-copy-source"} class="hidden" phx-no-curly-interpolation><%= @text %></pre>
+      <.copy_button
+        id={"#{@id}-copy"}
+        target={"##{@id}-copy-source"}
+        icon_only
+        label={@label}
+        class="text-base-content/40 shrink-0 opacity-0 transition-opacity group-hover/term:opacity-100 hover:text-base-content focus-visible:opacity-100"
+      />
+    </div>
     """
   end
 
