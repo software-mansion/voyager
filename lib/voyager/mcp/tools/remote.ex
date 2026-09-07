@@ -65,6 +65,13 @@ defmodule Voyager.MCP.Tools.Remote do
     if String.valid?(term), do: term, else: inspect(term)
   end
 
+  defp jsonable(%module{} = term) do
+    term
+    |> Map.from_struct()
+    |> jsonable()
+    |> Map.put(:__struct__, inspect(module))
+  end
+
   defp jsonable(term) when is_map(term) do
     Map.new(term, fn {key, value} -> {jsonable_key(key), jsonable(value)} end)
   end
