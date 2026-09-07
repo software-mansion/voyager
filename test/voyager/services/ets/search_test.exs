@@ -97,15 +97,11 @@ defmodule Voyager.Services.Ets.SearchTest do
                Search.chunk(@node, :t, {:key_eq, :k}, 10, -1, nil, @timeout)
     end
 
-    test "key_eq compiles using table keypos and selects through the agent" do
-      stub_info(2)
-
-      spec = [{:"$1", [{:"=:=", {:element, 2, :"$1"}, {:const, :the_key}}], [:"$1"]}]
-
+    test "key_eq looks up through the agent without fetching table info" do
       expect(Voyager.ErpcMock, :call, fn @node,
                                          :voyager_agent,
-                                         :ets_select_spec,
-                                         [:t, ^spec, 10, @budget, :undefined],
+                                         :ets_lookup,
+                                         [:t, :the_key, @budget],
                                          @timeout ->
         ok_chunk([{1, :the_key}])
       end)
@@ -185,13 +181,13 @@ defmodule Voyager.Services.Ets.SearchTest do
       refute chunk.truncated?
     end
 
-    test "propagates :not_found from info for a key query" do
+    test "propagates :not_found from info for a key prefix query" do
       expect(Voyager.ErpcMock, :call, fn @node, :ets, :info, [:t, :keypos], @timeout ->
         :undefined
       end)
 
       assert {:error, :not_found} =
-               Search.chunk(@node, :t, {:key_eq, :k}, 10, @budget, nil, @timeout)
+               Search.chunk(@node, :t, {:key_prefix, <<"ab">>}, 10, @budget, nil, @timeout)
     end
 
     test "does not retry a missing agent export as :ets.select" do

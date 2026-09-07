@@ -2,7 +2,8 @@ defmodule Voyager.Services.Ets.Search do
   @moduledoc """
   Compiles key-prefix / field-equals queries into source ETS match specs.
 
-  Never evals user or LLM strings. Records go through `Fetch.select_spec/7`.
+  Never evals user or LLM strings. `{:key_eq, _}` is `Fetch.lookup/5`.
+  Prefix and element queries go through `Fetch.select_spec/7`.
   The spec sent on the wire is a source MS, not `:ets.match_spec_compile/1`.
   """
 
@@ -67,10 +68,8 @@ defmodule Voyager.Services.Ets.Search do
 
   def chunk(node, table, query, limit, budget, continuation, timeout)
       when TableId.is_table_id(table) and is_integer(budget) and budget >= 0 do
-    with :ok <- validate_query(query),
-         {:ok, keypos} <- keypos_for(node, table, query, timeout),
-         {:ok, spec} <- compile(query, keypos) do
-      Fetch.select_spec(node, table, spec, limit, budget, continuation, timeout)
+    with :ok <- validate_query(query) do
+      run_query(node, table, query, limit, budget, continuation, timeout)
     end
   end
 
@@ -96,7 +95,17 @@ defmodule Voyager.Services.Ets.Search do
 
   defp validate_query(_), do: {:error, :invalid_query}
 
-  defp keypos_for(node, table, {:key_eq, _}, timeout), do: Remote.keypos(node, table, timeout)
+  defp run_query(node, table, {:key_eq, value}, _limit, budget, _continuation, timeout) do
+    Fetch.lookup(node, table, value, budget, timeout)
+  end
+
+  defp run_query(node, table, query, limit, budget, continuation, timeout) do
+    with {:ok, keypos} <- keypos_for(node, table, query, timeout),
+         {:ok, spec} <- compile(query, keypos) do
+      Fetch.select_spec(node, table, spec, limit, budget, continuation, timeout)
+    end
+  end
+
   defp keypos_for(node, table, {:key_prefix, _}, timeout), do: Remote.keypos(node, table, timeout)
   defp keypos_for(_node, _table, {:element_eq, _, _}, _timeout), do: {:ok, 1}
 
