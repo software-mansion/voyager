@@ -65,20 +65,50 @@ defmodule VoyagerWeb.ProcessInfoLive do
       <.node_header node_name={@session.node_name} waiting_message={nil} class="mb-0">
         <:actions>
           <div class="flex flex-col items-end gap-0.5">
-            <h2
-              id="process-info-pid"
-              class="text-base-content font-mono flex items-center gap-2 text-2xl font-bold tracking-tight"
-            >
-              <span class="bg-primary h-2 w-2 rounded-full" />
-              {@pid_string}
-            </h2>
-            <span
+            <.tooltip id="process-info-pid-tip" position="bottom" interactive tip_class="font-mono">
+              <h2
+                id="process-info-pid"
+                class="text-base-content font-mono flex items-center gap-2 text-2xl font-bold tracking-tight"
+              >
+                <span class="bg-primary h-2 w-2 rounded-full" />
+                {@pid_string}
+              </h2>
+              <:content>
+                <div class="flex items-center gap-1">
+                  <span id="process-info-pid-text">{@pid_string}</span>
+                  <.copy_button
+                    id="process-info-pid-copy"
+                    target="#process-info-pid-text"
+                    icon_only
+                    label="Copy PID"
+                    class="btn-xs text-base-content/50 shrink-0 hover:text-base-content"
+                  />
+                </div>
+              </:content>
+            </.tooltip>
+            <.tooltip
               :if={registered_name(@info)}
-              id="process-info-name"
-              class="font-mono text-base-content/70 text-sm"
+              id="process-info-name-tip"
+              position="bottom"
+              interactive
+              tip_class="font-mono"
             >
-              {registered_name(@info)}
-            </span>
+              <span id="process-info-name" class="font-mono text-base-content/70 text-sm">
+                {registered_name(@info)}
+              </span>
+              <:content>
+                <div class="flex items-center gap-1">
+                  <span id="process-info-name-text">{registered_name(@info)}</span>
+                  <.copy_button
+                    id="process-info-name-copy"
+                    target="#process-info-name-text"
+                    icon_only
+                    label="Copy registered name"
+                    class="btn-xs text-base-content/50 shrink-0 hover:text-base-content"
+                  />
+                </div>
+              </:content>
+            </.tooltip>
           </div>
         </:actions>
       </.node_header>
