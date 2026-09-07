@@ -22,13 +22,17 @@ defmodule Voyager.Services.Ets.Fetch do
   @lookup_fun :ets_lookup
 
   @type lookup_key :: atom() | integer() | binary()
+  @type limit :: 10 | 20 | 50
 
   @type chunk :: %{
           records: [term()],
           continuation: term() | nil
         }
 
-  @spec select_chunk(node(), TableId.t(), pos_integer(), term() | nil, timeout()) ::
+  @spec chunk_sizes() :: [limit(), ...]
+  def chunk_sizes, do: @chunk_sizes
+
+  @spec select_chunk(node(), TableId.t(), limit(), term() | nil, timeout()) ::
           {:ok, chunk()} | {:error, term()}
   def select_chunk(node, table, limit, continuation \\ nil, timeout \\ Agent.default_timeout())
 
