@@ -64,13 +64,22 @@ defmodule VoyagerWeb.ProcessInfoLive do
     >
       <.node_header node_name={@session.node_name} waiting_message={nil} class="mb-0">
         <:actions>
-          <h2
-            id="process-info-pid"
-            class="text-base-content font-mono flex items-center gap-2 text-2xl font-bold tracking-tight"
-          >
-            <span class="bg-primary h-2 w-2 rounded-full" />
-            {@pid_string}
-          </h2>
+          <div class="flex flex-col items-end gap-0.5">
+            <h2
+              id="process-info-pid"
+              class="text-base-content font-mono flex items-center gap-2 text-2xl font-bold tracking-tight"
+            >
+              <span class="bg-primary h-2 w-2 rounded-full" />
+              {@pid_string}
+            </h2>
+            <span
+              :if={registered_name(@info)}
+              id="process-info-name"
+              class="font-mono text-base-content/70 text-sm"
+            >
+              {registered_name(@info)}
+            </span>
+          </div>
         </:actions>
       </.node_header>
 
@@ -504,6 +513,12 @@ defmodule VoyagerWeb.ProcessInfoLive do
   defp mark_loading(%AsyncResult{} = result), do: AsyncResult.loading(result)
 
   defp section_atom(section), do: Enum.find(@sections, &(to_string(&1) == section))
+
+  defp registered_name(%AsyncResult{ok?: true, result: %{registered_name: name}})
+       when not is_nil(name),
+       do: inspect(name)
+
+  defp registered_name(_info), do: nil
 
   defp store_settings(socket) do
     push_event(socket, "store-settings", %{
