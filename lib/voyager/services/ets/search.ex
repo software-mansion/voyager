@@ -7,8 +7,8 @@ defmodule Voyager.Services.Ets.Search do
   """
 
   alias Voyager.Agent
+  alias Voyager.Erpc
   alias Voyager.Services.Ets.Fetch
-  alias Voyager.Services.Ets.Remote
   alias Voyager.Services.Ets.TableId
 
   require TableId
@@ -101,8 +101,9 @@ defmodule Voyager.Services.Ets.Search do
   defp keypos_for(_node, _table, {:element_eq, _, _}, _timeout), do: {:ok, 1}
 
   defp fetch_keypos(node, table, timeout) do
-    case Remote.info(node, table, timeout) do
-      {:ok, %{keypos: keypos}} when is_integer(keypos) and keypos >= 1 -> {:ok, keypos}
+    case Erpc.safe_call(node, :ets, :info, [table, :keypos], timeout) do
+      {:ok, keypos} when is_integer(keypos) and keypos >= 1 -> {:ok, keypos}
+      {:ok, :undefined} -> {:error, :not_found}
       {:ok, _} -> {:error, :invalid_response}
       {:error, _} = err -> err
     end
