@@ -35,14 +35,26 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
     %{key: :keypos, label: "Keypos", sortable?: true, align: :right, width: :sm},
     %{key: :heir, label: "Heir", sortable?: false, align: :left, width: :md},
     %{key: :compressed, label: "Compressed", sortable?: false, align: :left, width: :sm},
-    %{key: :read_concurrency, label: "Read conc.", sortable?: false, align: :left, width: :sm},
-    %{key: :write_concurrency, label: "Write conc.", sortable?: false, align: :left, width: :sm},
     %{
-      key: :decentralized_counters,
-      label: "Dec. counters",
+      key: :read_concurrency,
+      label: "Read concurrency",
       sortable?: false,
       align: :left,
-      width: :sm
+      width: :md
+    },
+    %{
+      key: :write_concurrency,
+      label: "Write concurrency",
+      sortable?: false,
+      align: :left,
+      width: :md
+    },
+    %{
+      key: :decentralized_counters,
+      label: "Decentralized counters",
+      sortable?: false,
+      align: :left,
+      width: :lg
     }
   ]
 

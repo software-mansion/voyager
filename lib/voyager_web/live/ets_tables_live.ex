@@ -58,16 +58,15 @@ defmodule VoyagerWeb.EtsTablesLive do
   def render(assigns) do
     ~H"""
     <div id="ets-tables" class="relative flex h-full overflow-hidden">
-      <div class="min-w-0 flex-1 overflow-auto">
+      <%!-- The page itself never scrolls; the table's card is the only scroll
+            container, on both axes. --%>
+      <div class="min-w-0 flex-1">
         <%!-- The hook restores saved controls on mount and stores them on change. --%>
         <div
           id="ets-tables-page"
           phx-hook="TableSettings"
           data-settings-key="ets-tables"
-          class={[
-            "mx-auto flex h-full max-w-screen-2xl flex-col gap-3 p-6 pb-12 sm:p-8 sm:pb-12",
-            DataTableComponents.page_min_width_class()
-          ]}
+          class="mx-auto flex h-full max-w-screen-2xl flex-col gap-3 p-6 pb-12 sm:p-8 sm:pb-12"
         >
           <.node_header
             node_name={@session.node_name}

@@ -15,9 +15,9 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         %{key: :memory, label: "Memory", sortable?: true, align: :right, width: :sm}
       ]
 
-  An optional `:width` (`:xs`, `:sm` or `:md`) fixes a column's width so its
-  values cannot resize the table as they change; longer content truncates.
-  Columns without one size to their content.
+  An optional `:width` (`:xs`, `:sm`, `:md` or `:lg`) fixes a column's width
+  so its values cannot resize the table as they change; longer content
+  truncates. Columns without one size to their content.
   """
 
   use VoyagerWeb, :component
@@ -124,7 +124,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         type="button"
         phx-click="sort"
         phx-value-key={@column.key}
-        title={@column.label}
         class={[
           "font-mono tracking-label flex w-full max-w-full cursor-pointer items-center gap-1 text-xs",
           "font-semibold uppercase transition-colors hover:text-base-content",
@@ -134,7 +133,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         ]}
         aria-label={"Sort by #{@column.label}"}
       >
-        <span class="truncate">{@column.label}</span>
+        <span class="whitespace-nowrap">{@column.label}</span>
         <span class="inline-flex shrink-0 items-center" aria-hidden="true">
           <.icon name="icon-move-up" class={["size-3.5", arrow_class(@active?, @direction, :asc)]} />
           <.icon
@@ -153,10 +152,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
       data-column={@column.key}
       class={["bg-base-100 py-5", align_class(@column), width_class(@column)]}
     >
-      <div
-        title={@column.label}
-        class="font-mono tracking-label text-base-content/70 truncate text-xs font-semibold uppercase"
-      >
+      <div class="font-mono tracking-label text-base-content/70 whitespace-nowrap text-xs font-semibold uppercase">
         {@column.label}
       </div>
     </th>
@@ -335,6 +331,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   defp width_class(%{width: :xs}), do: "w-14 max-w-14"
   defp width_class(%{width: :sm}), do: "w-28 max-w-28"
   defp width_class(%{width: :md}), do: "w-36 max-w-36"
+  defp width_class(%{width: :lg}), do: "w-52 max-w-52"
   defp width_class(_column), do: nil
 
   # The declared widths plus a readable floor for each unsized column; below
@@ -345,6 +342,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
       %{width: :xs} -> 3.5
       %{width: :sm} -> 7
       %{width: :md} -> 9
+      %{width: :lg} -> 13
       _column -> 16
     end)
     |> Enum.sum()
