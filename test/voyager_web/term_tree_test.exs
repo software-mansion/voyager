@@ -232,6 +232,19 @@ defmodule VoyagerWeb.TermTreeTest do
       assert TermTree.children(["hello" | "world"], 0, 10) == []
     end
 
+    test "an improper list is rendered inline in every position it can hold" do
+      improper = [1 | 2]
+
+      assert text(TermTree.describe(improper).content) == "[1 | 2]"
+      assert child_terms(TermTree.children([improper, 1], 0, 10)) == [improper, 1]
+      assert child_terms(TermTree.children({:ok, improper}, 0, 10)) == [:ok, improper]
+      assert child_terms(TermTree.children([a: improper], 0, 10)) == [improper]
+      assert child_terms(TermTree.children(%{a: improper}, 0, 10)) == [improper]
+      assert child_keys(TermTree.children(%{improper => 1}, 0, 10)) == ["[1 | 2] => "]
+      assert TermTree.initial_state(%{a: improper}) == %State{open: MapSet.new([[]])}
+      assert TermTree.copy_string(%{a: improper}) == "%{a: [1 | 2]}"
+    end
+
     test "container keys are inspected whole, not left as a collapsed placeholder" do
       children = TermTree.children(%{%State{} => 1}, 0, 10)
 
