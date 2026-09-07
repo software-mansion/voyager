@@ -1,5 +1,6 @@
 defmodule Voyager.MCP.Tools.Remote do
   @moduledoc false
+
   alias Anubis.Server.Frame
   alias Anubis.Server.Response
   alias Voyager.NodeSession
@@ -37,7 +38,6 @@ defmodule Voyager.MCP.Tools.Remote do
 
   defp jsonable(term) when is_atom(term) or is_number(term), do: term
 
-  # inspect/1 renders "#PID<0.1.0>", which Pid.parse/1 cannot resolve back.
   defp jsonable(term) when is_pid(term), do: Pid.display(term)
 
   defp jsonable(term) when is_binary(term) do
