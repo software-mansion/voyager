@@ -14,15 +14,14 @@ const sel = {
   rows: '#ets-tables-table tbody tr[id]',
   summary: '#ets-tables-summary',
   search: '#controls_search',
+  protection: '#controls_protection',
+  type: '#controls_type',
+  named: '#controls_named',
   columnsPicker: '#ets-table-controls-columns',
+  panel: '#ets-table-details',
   panelName: '#ets-table-details-name',
-  panelShowMore: '#ets-table-details-show-more',
   panelNotFound: '#ets-table-details-not-found',
-  details: '#ets-table-details',
-  detailsError: '#ets-table-details-error',
-  detailsPrivateBadge: '#ets-table-details-private-badge',
-  detailsPeek: '#ets-table-details-peek',
-  backToList: '#back-to-ets-tables',
+  panelPrivateBadge: '#ets-table-details-private-badge',
 };
 
 function row(page: Page, name: string) {
@@ -77,6 +76,24 @@ test.describe('EtsTablesLive', () => {
     await expect(row(page, UNNAMED)).toContainText('#Ref');
   });
 
+  test('the selects filter by protection, type and named', async ({ page }) => {
+    await filterToMockTables(page);
+
+    await page.locator(sel.protection).selectOption('private');
+    await expect(page.locator(sel.rows)).toHaveCount(2);
+    await expect(row(page, SECRETS)).toBeVisible();
+    await expect(row(page, UNNAMED)).toBeVisible();
+
+    await page.locator(sel.type).selectOption('ordered_set');
+    await expect(page.locator(sel.rows)).toHaveCount(1);
+    await expect(row(page, SECRETS)).toBeVisible();
+
+    await page.locator(sel.type).selectOption('');
+    await page.locator(sel.named).selectOption('false');
+    await expect(page.locator(sel.rows)).toHaveCount(1);
+    await expect(row(page, UNNAMED)).toBeVisible();
+  });
+
   test('sorts by a clicked column locally', async ({ page }) => {
     await filterToMockTables(page);
 
@@ -115,7 +132,7 @@ test.describe('EtsTablesLive', () => {
     await expect(page.locator('th[data-column="memory"]')).toBeVisible();
   });
 
-  test('selecting a table opens the side panel and Show More its details page', async ({
+  test('selecting a table opens the side panel with its full metadata', async ({
     page,
   }) => {
     await filterToMockTables(page);
@@ -124,51 +141,26 @@ test.describe('EtsTablesLive', () => {
     await expect(page.locator(sel.panelName)).toContainText(CACHE);
     await expect(page).toHaveURL(/table=/);
 
-    await page.locator(sel.panelShowMore).click();
-    await expect(page).toHaveURL(/\/ets-tables\/[^?]+$/);
-    await waitForLiveView(page);
-
-    await expect(page.locator('h1')).toContainText(CACHE);
-    await expect(page.locator(sel.details)).toContainText('Key position');
-    await expect(page.locator(sel.details)).toContainText('set');
-
-    await page.locator(sel.backToList).click();
-    await expect(page.locator(sel.table)).toBeVisible();
+    await expect(page.locator(sel.panel)).toContainText('Key position');
+    await expect(page.locator(sel.panel)).toContainText('Read concurrency');
+    await expect(page.locator(sel.panel)).toContainText('set');
   });
 
-  test('the row arrow opens the details page directly', async ({ page }) => {
+  test('a private table is marked in the list and the panel', async ({
+    page,
+  }) => {
     await filterToMockTables(page);
+    await expect(row(page, SECRETS)).toContainText('private');
 
-    await row(page, EVENTS).locator('td[data-column="details"] a').click();
-    await waitForLiveView(page);
-
-    await expect(page.locator('h1')).toContainText(EVENTS);
-    await expect(page.locator(sel.details)).toContainText('duplicate_bag');
-    await expect(page.locator(sel.details)).toContainText('protected');
+    await row(page, SECRETS).locator('td[data-column="name"] a').click();
+    await expect(page.locator(sel.panelPrivateBadge)).toBeVisible();
+    await expect(page.locator(sel.panel)).toContainText('ordered_set');
   });
 
-  test('a private table is marked and its records stay unreadable', async ({
-    page,
-  }) => {
-    await page.goto(`${listUrl}/${encodeURIComponent(SECRETS)}`);
-    await waitForLiveView(page);
-
-    await expect(page.locator(sel.detailsPrivateBadge)).toBeVisible();
-    await expect(page.locator(sel.detailsPeek)).toBeDisabled();
-    await expect(page.locator(sel.details)).toContainText('ordered_set');
-  });
-
-  test('an unknown table is reported, in the panel and on the details page', async ({
-    page,
-  }) => {
+  test('an unknown table is reported in the panel', async ({ page }) => {
     await page.goto(`${listUrl}?table=no_such_table_here`);
     await waitForLiveView(page);
-    await expect(page.locator(sel.panelNotFound)).toBeVisible();
 
-    await page.goto(`${listUrl}/no_such_table_here`);
-    await waitForLiveView(page);
-    await expect(page.locator(sel.detailsError)).toContainText(
-      'no_such_table_here'
-    );
+    await expect(page.locator(sel.panelNotFound)).toBeVisible();
   });
 });

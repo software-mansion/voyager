@@ -40,38 +40,6 @@ defmodule VoyagerWeb.EtsTablesLive.QueryTest do
     end
   end
 
-  describe "get/3" do
-    test "resolves a named table by its bare name and its inspect string" do
-      EtsFakes.stub_list([EtsFakes.table(name: :my_table), EtsFakes.table(name: :other)])
-
-      assert {:ok, %{name: :my_table}} = Query.get(@node, "my_table", 1_000)
-      assert {:ok, %{name: :my_table}} = Query.get(@node, ":my_table", 1_000)
-    end
-
-    test "resolves an unnamed table only by its live reference" do
-      ref = make_ref()
-
-      EtsFakes.stub_list([
-        EtsFakes.table(name: :scratch, id: ref, named_table: false, protection: :private)
-      ])
-
-      assert {:ok, %{id: ^ref}} = Query.get(@node, inspect(ref), 1_000)
-      assert {:error, :not_found} = Query.get(@node, inspect(make_ref()), 1_000)
-    end
-
-    test "reports a table the node does not have" do
-      EtsFakes.stub_list([EtsFakes.table(name: :present)])
-
-      assert {:error, :not_found} = Query.get(@node, "missing", 1_000)
-    end
-
-    test "propagates transport errors" do
-      EtsFakes.stub_error(:timeout)
-
-      assert {:error, :timeout} = Query.get(@node, "my_table", 1_000)
-    end
-  end
-
   describe "sort/3" do
     test "defaults to memory, largest first" do
       assert Query.default_sort() == {:memory, :desc}
@@ -97,16 +65,14 @@ defmodule VoyagerWeb.EtsTablesLive.QueryTest do
       assert names(Query.sort(tables, :name, :desc)) == [:zeta, :beta, :Alpha]
     end
 
-    test "sorts by object count and owner" do
-      [older, newer] = Enum.map(1..2, fn _ -> spawn(fn -> :ok end) end)
-
+    test "sorts by object count and key position" do
       tables = [
-        EtsFakes.table(name: :a, size: 20, owner: newer),
-        EtsFakes.table(name: :b, size: 10, owner: older)
+        EtsFakes.table(name: :a, size: 20, keypos: 2),
+        EtsFakes.table(name: :b, size: 10, keypos: 1)
       ]
 
       assert names(Query.sort(tables, :size, :asc)) == [:b, :a]
-      assert names(Query.sort(tables, :owner, :asc)) == [:b, :a]
+      assert names(Query.sort(tables, :keypos, :asc)) == [:b, :a]
     end
 
     test "breaks ties on the name so equal values keep a stable order" do
@@ -130,18 +96,18 @@ defmodule VoyagerWeb.EtsTablesLive.QueryTest do
   end
 
   describe "filter/2" do
-    test "keeps everything for a blank search" do
+    test "keeps everything for blank controls" do
       tables = [EtsFakes.table(name: :a), EtsFakes.table(name: :b)]
 
-      assert Query.filter(tables, "") == tables
-      assert Query.filter(tables, nil) == tables
+      assert Query.filter(tables, %{}) == tables
+      assert Query.filter(tables, %{search: "", protection: nil, type: "", named: nil}) == tables
     end
 
     test "matches the name case-insensitively" do
       tables = [EtsFakes.table(name: MyApp.Cache), EtsFakes.table(name: :ac_tab)]
 
-      assert names(Query.filter(tables, "cache")) == [MyApp.Cache]
-      assert names(Query.filter(tables, "AC_")) == [:ac_tab]
+      assert names(Query.filter(tables, %{search: "cache"})) == [MyApp.Cache]
+      assert names(Query.filter(tables, %{search: "AC_"})) == [:ac_tab]
     end
 
     test "matches an unnamed table by its reference" do
@@ -152,10 +118,10 @@ defmodule VoyagerWeb.EtsTablesLive.QueryTest do
         EtsFakes.table(name: :other)
       ]
 
-      assert names(Query.filter(tables, inspect(ref))) == [:scratch]
+      assert names(Query.filter(tables, %{search: inspect(ref)})) == [:scratch]
     end
 
-    test "matches the owner, the type and the protection" do
+    test "searches the owner, the type and the protection" do
       owner = spawn(fn -> :ok end)
 
       tables = [
@@ -163,9 +129,26 @@ defmodule VoyagerWeb.EtsTablesLive.QueryTest do
         EtsFakes.table(name: :b, type: :set)
       ]
 
-      assert names(Query.filter(tables, VoyagerWeb.Formatters.format_pid(owner))) == [:a]
-      assert names(Query.filter(tables, "duplicate")) == [:a]
-      assert names(Query.filter(tables, "private")) == [:a]
+      assert names(Query.filter(tables, %{search: VoyagerWeb.Formatters.format_pid(owner)})) ==
+               [:a]
+
+      assert names(Query.filter(tables, %{search: "duplicate"})) == [:a]
+      assert names(Query.filter(tables, %{search: "private"})) == [:a]
+    end
+
+    test "picks by protection, type and named, all together" do
+      tables = [
+        EtsFakes.table(name: :a, protection: :private, type: :bag),
+        EtsFakes.table(name: :b, protection: :public, type: :bag, named_table: false),
+        EtsFakes.table(name: :c, protection: :public, type: :set)
+      ]
+
+      assert names(Query.filter(tables, %{protection: "public"})) == [:b, :c]
+      assert names(Query.filter(tables, %{type: "bag"})) == [:a, :b]
+      assert names(Query.filter(tables, %{named: "false"})) == [:b]
+
+      assert names(Query.filter(tables, %{protection: "public", type: "bag", named: "true"})) ==
+               []
     end
   end
 

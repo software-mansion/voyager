@@ -55,6 +55,22 @@ defmodule VoyagerWeb.FormSchemas.EtsTableListControlsTest do
       assert controls.columns == ["type"]
     end
 
+    test "keeps a known filter pick and degrades an unknown one to any" do
+      {controls, changeset} =
+        apply_attrs(%{"protection" => "private", "type" => "sett", "named" => "true"})
+
+      assert changeset.valid?
+      assert controls.protection == "private"
+      assert controls.type == nil
+      assert controls.named == "true"
+    end
+
+    test "a blank filter pick means any" do
+      {controls, _changeset} = apply_attrs(%{"protection" => ""})
+
+      assert controls.protection == nil
+    end
+
     test "the search does not disturb an otherwise valid form" do
       {controls, changeset} = apply_attrs(%{"search" => "x", "timeout" => "999999"})
 

@@ -116,13 +116,6 @@ defmodule VoyagerWeb.EtsTablesLiveTest do
     "#{@path}?table=#{URI.encode_www_form(TableId.display(table.id))}"
   end
 
-  # As `~p` encodes it: the node name and the table id are both path segments.
-  defp details_path(table) do
-    id = URI.encode(TableId.display(table.id), &URI.char_unreserved?/1)
-
-    "/node/#{URI.encode_www_form(@node_name)}/ets-tables/#{id}"
-  end
-
   describe "mount" do
     test "renders the node name header", %{conn: conn} do
       view = open(conn, [])
@@ -192,6 +185,10 @@ defmodule VoyagerWeb.EtsTablesLiveTest do
 
       assert text(cell) =~ ":secrets"
       assert text(cell) =~ inspect(secrets.id)
+
+      html = render(view)
+      assert html =~ ~s|id="#{EtsTablesLive.row_dom_id(secrets.id)}-name-copy-text"|
+      assert html =~ ~s|id="#{EtsTablesLive.row_dom_id(secrets.id)}-id-copy-text"|
     end
 
     test "a private table carries a badge", %{conn: conn} do
@@ -218,17 +215,6 @@ defmodule VoyagerWeb.EtsTablesLiveTest do
       link = view |> element(~s|#{row(cache)} td[data-column="owner"] a|) |> render()
 
       assert link =~ URI.encode_www_form(Formatters.format_pid(cache.owner))
-    end
-
-    test "every row links to its details page", %{conn: conn} do
-      tables = fixtures()
-      view = open(conn, tables)
-      cache = by_name(tables, MyApp.Cache)
-
-      assert has_element?(
-               view,
-               ~s|#{row(cache)} td[data-column="details"] a[href="#{details_path(cache)}"]|
-             )
     end
 
     test "memory keeps the exact byte count reachable", %{conn: conn} do
@@ -354,6 +340,27 @@ defmodule VoyagerWeb.EtsTablesLiveTest do
       refresh(view)
 
       assert rendered_rows(view) == rows_in_order(tables, [MyApp.Cache])
+    end
+
+    test "the selects pick by protection, type and named", %{conn: conn} do
+      tables = fixtures()
+      view = open(conn, tables)
+
+      change(view, %{"protection" => "public"})
+      assert rendered_rows(view) == rows_in_order(tables, [MyApp.Cache, :buffer])
+
+      change(view, %{"protection" => "", "type" => "set"})
+      assert rendered_rows(view) == rows_in_order(tables, [:ac_tab, :secrets])
+
+      change(view, %{"type" => "", "named" => "false"})
+      assert rendered_rows(view) == rows_in_order(tables, [:secrets])
+    end
+
+    test "a stale stored pick falls back to any", %{conn: conn} do
+      tables = fixtures()
+      view = open(conn, tables, @path, %{"protection" => "sett"})
+
+      assert length(rendered_rows(view)) == length(tables)
     end
   end
 
@@ -635,15 +642,17 @@ defmodule VoyagerWeb.EtsTablesLiveTest do
       assert has_element?(view, "#ets-table-details-private-badge")
     end
 
-    test "the panel keeps to the basics and links to the details page", %{conn: conn} do
+    test "the panel shows every attribute of the table", %{conn: conn} do
       tables = fixtures()
       cache = by_name(tables, MyApp.Cache)
       view = open(conn, tables, table_path(cache))
 
       panel = view |> element("#ets-table-details") |> render()
-      refute panel =~ "Key position"
-      refute panel =~ "Peek records"
-      assert has_element?(view, ~s|#ets-table-details-show-more[href="#{details_path(cache)}"]|)
+
+      assert panel =~ "Key position"
+      assert panel =~ "Heir"
+      assert panel =~ "Read concurrency"
+      assert panel =~ "Decentralized counters"
     end
 
     test "closing the panel drops the param", %{conn: conn} do
@@ -849,11 +858,19 @@ defmodule VoyagerWeb.EtsTablesLiveTest do
     test "stores the validated controls for the next visit", %{conn: conn} do
       view = open(conn, [])
 
-      change(view, %{"timeout" => "10000", "search" => "cache"})
+      change(view, %{"timeout" => "10000", "search" => "cache", "protection" => "private"})
 
       assert_push_event(view, "store-settings", %{settings: settings})
       assert settings["timeout"] == "10000"
       assert settings["search"] == "cache"
+      assert settings["protection"] == "private"
+    end
+
+    test "restores the stored filters", %{conn: conn} do
+      tables = fixtures()
+      view = open(conn, tables, @path, %{"type" => "bag"})
+
+      assert rendered_rows(view) == rows_in_order(tables, [:buffer])
     end
 
     test "stores the page size alongside the controls", %{conn: conn} do

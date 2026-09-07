@@ -1,8 +1,8 @@
 defmodule VoyagerWeb.Components.EtsTableComponents do
   @moduledoc """
-  ETS-specific presentation for the table list and details pages: the
-  controls form, the column definitions with their cell formatting, the side
-  panel for the selected table and the full metadata sections.
+  ETS-specific presentation for the table list page: the controls form, the
+  column definitions with their cell formatting and the side panel with the
+  full metadata of the selected table.
   """
 
   use VoyagerWeb, :component
@@ -14,8 +14,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
       kv: 1,
       kv_skeleton: 1,
       resize_handle: 1,
-      section: 1,
-      show_more_button: 1
+      section: 1
     ]
 
   alias Voyager.Services.Ets.TableId
@@ -24,17 +23,16 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.EtsTableListControls
 
-  # Ordered as they appear in the table; the last column only holds the link
-  # to the details page.
+  # Ordered as they appear in the table.
   @columns [
     %{key: :name, label: "Table", sortable?: true, align: :left},
     %{key: :protection, label: "Protection", sortable?: false, align: :left, width: :md},
     %{key: :type, label: "Type", sortable?: false, align: :left, width: :md},
     %{key: :size, label: "Objects", sortable?: true, align: :right, width: :md},
     %{key: :memory, label: "Memory", sortable?: true, align: :right, width: :sm},
-    %{key: :owner, label: "Owner", sortable?: true, align: :left, width: :md},
+    %{key: :owner, label: "Owner", sortable?: false, align: :left, width: :md},
     %{key: :named_table, label: "Named", sortable?: false, align: :left, width: :sm},
-    %{key: :keypos, label: "Keypos", sortable?: false, align: :right, width: :sm},
+    %{key: :keypos, label: "Keypos", sortable?: true, align: :right, width: :sm},
     %{key: :heir, label: "Heir", sortable?: false, align: :left, width: :md},
     %{key: :compressed, label: "Compressed", sortable?: false, align: :left, width: :sm},
     %{key: :read_concurrency, label: "Read conc.", sortable?: false, align: :left, width: :sm},
@@ -45,17 +43,15 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
       sortable?: false,
       align: :left,
       width: :sm
-    },
-    %{key: :details, label: "", sortable?: false, align: :right, width: :xs}
+    }
   ]
 
   @doc """
-  Column definitions for the selected attributes, in display order. The
-  details column is always there: it is a link, not data to pick.
+  Column definitions for the selected attributes, in display order.
   """
   @spec columns([atom()]) :: [map()]
   def columns(selected) do
-    Enum.filter(@columns, &(&1.key == :details or &1.key in selected))
+    Enum.filter(@columns, &(&1.key in selected))
   end
 
   @doc "The table's name as shown everywhere, e.g. `:my_table` or `MyApp.Cache`."
@@ -69,8 +65,8 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
   end
 
   @doc """
-  The controls form: the client-side search, the request timeout and the
-  column picker.
+  The controls form: the client-side search and filters, the request timeout
+  and the column picker.
   """
   attr :form, Phoenix.HTML.Form, required: true
 
@@ -99,9 +95,22 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
           />
         </label>
 
-        <div class="grid-cols-[auto_auto] grid-rows-[auto_auto_auto] grid items-center gap-x-2">
+        <div class="grid-cols-[auto_auto_auto_auto_auto] grid-rows-[auto_auto_auto] grid items-center gap-x-2">
+          <.field_label field={@form[:protection]} label="Protection" />
+          <.field_label field={@form[:type]} label="Type" />
+          <.field_label field={@form[:named]} label="Named" />
           <.field_label field={@form[:timeout]} label="Timeout (ms)" />
           <span class="text-base-content/70 text-xs font-medium">Columns</span>
+
+          <.filter_select
+            field={@form[:protection]}
+            options={EtsTableListControls.filter_options(:protection)}
+          />
+          <.filter_select field={@form[:type]} options={EtsTableListControls.filter_options(:type)} />
+          <.filter_select
+            field={@form[:named]}
+            options={EtsTableListControls.filter_options(:named)}
+          />
 
           <input
             id={@form[:timeout].id}
@@ -127,10 +136,28 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
             selected={List.wrap(@form[:columns].value)}
           />
 
+          <span /> <span /> <span />
           <.field_error field={@form[:timeout]} />
         </div>
       </div>
     </.form>
+    """
+  end
+
+  attr :field, Phoenix.HTML.FormField, required: true
+  attr :options, :list, required: true
+
+  defp filter_select(assigns) do
+    ~H"""
+    <select id={@field.id} name={@field.name} class="select select-sm w-32">
+      <option
+        :for={{value, label} <- @options}
+        value={value}
+        selected={value == to_string(@field.value || "")}
+      >
+        {label}
+      </option>
+    </select>
     """
   end
 
@@ -191,7 +218,6 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
   attr :row, :map, required: true
   attr :row_id, :string, required: true, doc: "stable prefix for this row's element ids"
   attr :table_href, :string, required: true, doc: "opens this row's table in the side panel"
-  attr :details_href, :string, required: true, doc: "details page for this row's table"
   attr :owner_href, :string, required: true, doc: "details page for the owning process"
 
   def cell(assigns) do
@@ -227,16 +253,6 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         />
       <% :heir -> %>
         <DataTableComponents.value_cell id={"#{@row_id}-heir"} value={format_heir(@row.heir)} muted />
-      <% :details -> %>
-        <.link
-          id={"#{@row_id}-details"}
-          navigate={@details_href}
-          title="Open table details"
-          aria-label="Open table details"
-          class="btn btn-ghost btn-square toolbar-btn-sm text-base-content/60 hover:text-primary"
-        >
-          <.icon name="icon-arrow-right" class="toolbar-icon-sm" />
-        </.link>
       <% key -> %>
         <DataTableComponents.value_cell id={"#{@row_id}-#{key}"} value={flag(@row, key)} muted />
     <% end %>
@@ -283,16 +299,29 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         </span>
       </.link>
       <:content>
-        <div class="flex items-center gap-1">
-          <span id={"#{@row_id}-name-copy-text"}>{@id}</span>
-          <.copy_button
-            id={"#{@row_id}-name-copy"}
-            target={"##{@row_id}-name-copy-text"}
-            label="Copy table id"
-            icon_only
-            size={:sm}
-            class="text-base-content/60 shrink-0 hover:text-primary"
-          />
+        <div class="flex flex-col gap-1">
+          <div class="flex items-center gap-1">
+            <span id={"#{@row_id}-name-copy-text"}>{@name}</span>
+            <.copy_button
+              id={"#{@row_id}-name-copy"}
+              target={"##{@row_id}-name-copy-text"}
+              label="Copy table name"
+              icon_only
+              size={:sm}
+              class="text-base-content/60 shrink-0 hover:text-primary"
+            />
+          </div>
+          <div :if={not @table.named_table} class="flex items-center gap-1">
+            <span id={"#{@row_id}-id-copy-text"} class="text-base-content/70">{@id}</span>
+            <.copy_button
+              id={"#{@row_id}-id-copy"}
+              target={"##{@row_id}-id-copy-text"}
+              label="Copy table id"
+              icon_only
+              size={:sm}
+              class="text-base-content/60 shrink-0 hover:text-primary"
+            />
+          </div>
         </div>
       </:content>
     </.tooltip>
@@ -341,8 +370,8 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
   end
 
   @doc """
-  Side panel with the basics of the selected table and a way to its details
-  page.
+  Side panel with every piece of metadata the list API reports for the
+  selected table.
 
   Open whenever a `?table=` param is present. What it shows depends on how far
   resolving that param got: the table once a fetch found it, a skeleton while
@@ -359,7 +388,6 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
     doc: "whether a fetch has landed, so an unresolved param can be explained"
 
   attr :owner_href, :string, default: nil, doc: "details page for the owning process"
-  attr :details_href, :string, default: nil, doc: "details page for the table"
 
   def details_panel(assigns) do
     assigns = assign(assigns, :open?, assigns.table_param != nil)
@@ -384,12 +412,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         />
         <%= cond do %>
           <% @table -> %>
-            <.panel_body
-              id={@id}
-              table={@table}
-              owner_href={@owner_href}
-              details_href={@details_href}
-            />
+            <.panel_body table={@table} owner_href={@owner_href} />
           <% @fetch_status == :pending -> %>
             <.panel_skeleton />
           <% @fetch_status == :failed -> %>
@@ -446,10 +469,8 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
     """
   end
 
-  attr :id, :string, required: true
   attr :table, :map, required: true
   attr :owner_href, :string, required: true
-  attr :details_href, :string, required: true
 
   defp panel_body(assigns) do
     ~H"""
@@ -457,64 +478,19 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
       <.section title="Overview">
         <.kv label="Type" value={Atom.to_string(@table.type)} />
         <.kv label="Protection" value={Atom.to_string(@table.protection)} />
+        <.kv label="Named table" value={flag(@table, :named_table)} />
+        <.kv label="Key position" value={Integer.to_string(@table.keypos)} />
+        <.owner_kv href={@owner_href} pid={@table.owner} />
+        <.kv label="Heir" value={format_heir(@table.heir)} last />
+      </.section>
+      <.section title="Storage">
         <.kv label="Objects" value={Formatters.format_integer(@table.size)} />
         <.kv label="Memory" value={format_memory(@table.memory)} />
-        <.owner_kv href={@owner_href} pid={@table.owner} last />
+        <.kv label="Compressed" value={flag(@table, :compressed)} />
+        <.kv label="Read concurrency" value={flag(@table, :read_concurrency)} />
+        <.kv label="Write concurrency" value={flag(@table, :write_concurrency)} />
+        <.kv label="Decentralized counters" value={flag(@table, :decentralized_counters)} last />
       </.section>
-    </div>
-    <.show_more_button panel_id={@id} navigate={@details_href} />
-    """
-  end
-
-  @doc """
-  Every piece of metadata the list API reports for one table, for the details
-  page.
-  """
-  attr :id, :string, required: true
-  attr :table, :map, required: true
-  attr :owner_href, :string, required: true, doc: "details page for the owning process"
-
-  def details(assigns) do
-    ~H"""
-    <div id={@id} class="grid gap-4 lg:grid-cols-2">
-      <.details_card>
-        <.section title="Overview">
-          <.kv label="Type" value={Atom.to_string(@table.type)} />
-          <.kv label="Protection" value={Atom.to_string(@table.protection)} />
-          <.kv label="Named table" value={flag(@table, :named_table)} />
-          <.kv label="Key position" value={Integer.to_string(@table.keypos)} />
-          <.owner_kv href={@owner_href} pid={@table.owner} />
-          <.kv label="Heir" value={format_heir(@table.heir)} last />
-        </.section>
-      </.details_card>
-
-      <.details_card>
-        <.section title="Storage">
-          <.kv label="Objects" value={Formatters.format_integer(@table.size)} />
-          <.kv label="Memory" value={format_memory(@table.memory)} />
-          <.kv label="Compressed" value={flag(@table, :compressed)} />
-          <.kv label="Read concurrency" value={flag(@table, :read_concurrency)} />
-          <.kv label="Write concurrency" value={flag(@table, :write_concurrency)} />
-          <.kv label="Decentralized counters" value={flag(@table, :decentralized_counters)} last />
-        </.section>
-      </.details_card>
-
-      <.details_card class="lg:col-span-2">
-        <.section title="Records">
-          <.peek_button id={"#{@id}-peek"} private?={@table.protection == :private} />
-        </.section>
-      </.details_card>
-    </div>
-    """
-  end
-
-  attr :class, :any, default: nil
-  slot :inner_block, required: true
-
-  defp details_card(assigns) do
-    ~H"""
-    <div class={["card bg-base-100 border-base-200 border shadow-sm", @class]}>
-      <div class="card-body p-5">{render_slot(@inner_block)}</div>
     </div>
     """
   end
@@ -533,44 +509,16 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
     """
   end
 
-  attr :id, :string, required: true
-  attr :private?, :boolean, required: true
-
-  # Reading records is not built yet. The control is already here so a private
-  # table can say now why it will never be readable from outside its owner.
-  defp peek_button(assigns) do
-    ~H"""
-    <div class="flex flex-col gap-2">
-      <button
-        type="button"
-        id={@id}
-        disabled
-        aria-describedby={"#{@id}-note"}
-        class="btn btn-sm w-max gap-2"
-      >
-        <.icon name="icon-eye" class="size-4" /> Peek records
-        <span :if={not @private?} class="badge badge-primary badge-soft badge-xs">Soon</span>
-      </button>
-      <p id={"#{@id}-note"} class="text-base-content/70 text-xs">
-        <%= if @private? do %>
-          Private tables can only be read by their owner process.
-        <% else %>
-          Reading records is on its way.
-        <% end %>
-      </p>
-    </div>
-    """
-  end
-
   defp panel_skeleton(assigns) do
     ~H"""
     <div class="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
       <.section title="Overview">
         <.kv_skeleton label="Type" narrow />
         <.kv_skeleton label="Protection" narrow />
-        <.kv_skeleton label="Objects" narrow />
-        <.kv_skeleton label="Memory" />
-        <.kv_skeleton label="Owner" last />
+        <.kv_skeleton label="Named table" narrow />
+        <.kv_skeleton label="Key position" narrow />
+        <.kv_skeleton label="Owner" />
+        <.kv_skeleton label="Heir" last />
       </.section>
     </div>
     """

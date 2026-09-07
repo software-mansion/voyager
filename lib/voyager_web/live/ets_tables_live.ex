@@ -5,10 +5,10 @@ defmodule VoyagerWeb.EtsTablesLive do
   `Fetcher` owns the fetch; one fetch returns every table, so searching,
   sorting and paging all work on the last result and never touch the node.
 
-  Selecting a table opens its basics in the side panel, from which its details
-  page is a step away. The selection lives in `?table=` as the table's name or
-  inspect-string and is resolved against every fetch, so a table that
-  disappears is reported rather than shown stale.
+  Selecting a table opens its full metadata in the side panel. The selection
+  lives in `?table=` as the table's name or inspect-string and is resolved
+  against every fetch, so a table that disappears is reported rather than
+  shown stale.
   """
 
   use VoyagerWeb, :live_view
@@ -118,7 +118,6 @@ defmodule VoyagerWeb.EtsTablesLive do
                   row={row}
                   row_id={row_id}
                   table_href={table_path(@current_url, row)}
-                  details_href={details_path(@session.node_name, row)}
                   owner_href={process_path(@session.node_name, row.owner)}
                 />
               </:cell>
@@ -142,7 +141,6 @@ defmodule VoyagerWeb.EtsTablesLive do
         table={@selected_table}
         fetch_status={fetch_status(@page_result)}
         owner_href={@selected_table && process_path(@session.node_name, @selected_table.owner)}
-        details_href={@selected_table && details_path(@session.node_name, @selected_table)}
       />
     </div>
     """
@@ -154,7 +152,7 @@ defmodule VoyagerWeb.EtsTablesLive do
 
     socket
     |> apply_controls(params)
-    |> reset_page_if_search_changed(previous.search)
+    |> reset_page_if_filters_changed(previous)
     |> refetch_if_timeout_changed(previous.timeout)
     |> refresh_view()
     |> store_settings(params)
@@ -269,15 +267,17 @@ defmodule VoyagerWeb.EtsTablesLive do
     end
   end
 
-  # A new search narrows to a different set of rows, so it starts from the
+  # A changed filter narrows to a different set of rows, so it starts from the
   # first page; a timeout edit changes nothing on screen and keeps the page.
-  defp reset_page_if_search_changed(socket, previous_search) do
-    if socket.assigns.controls.search == previous_search,
+  defp reset_page_if_filters_changed(socket, previous) do
+    if filters(socket.assigns.controls) == filters(previous),
       do: socket,
       else: assign(socket, :page, 1)
   end
 
-  # Search and columns are local; only the timeout changes what the node is
+  defp filters(controls), do: Map.take(controls, [:search, :protection, :type, :named])
+
+  # Filters and columns are local; only the timeout changes what the node is
   # asked, so only it earns a debounced refetch.
   defp refetch_if_timeout_changed(socket, previous_timeout) do
     if socket.assigns.controls.timeout == previous_timeout,
@@ -295,7 +295,7 @@ defmodule VoyagerWeb.EtsTablesLive do
 
     tables =
       entries
-      |> Query.filter(controls.search)
+      |> Query.filter(controls)
       |> Query.sort(sort_by, direction)
 
     socket
@@ -327,6 +327,9 @@ defmodule VoyagerWeb.EtsTablesLive do
     push_event(socket, "store-settings", %{
       settings: %{
         "search" => params["search"] || controls.search,
+        "protection" => controls.protection,
+        "type" => controls.type,
+        "named" => controls.named,
         "timeout" => to_string(controls.timeout),
         "columns" => controls.columns,
         "page_size" => to_string(page_size)
@@ -373,10 +376,6 @@ defmodule VoyagerWeb.EtsTablesLive do
 
   defp table_path(url, table) do
     URL.put_query_param(url, "table", TableId.display(table.id))
-  end
-
-  defp details_path(node_name, table) do
-    ~p"/node/#{node_name}/ets-tables/#{TableId.display(table.id)}"
   end
 
   defp process_path(node_name, pid) do

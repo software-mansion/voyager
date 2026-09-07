@@ -49,10 +49,8 @@ defmodule Voyager.EtsFakes do
   end
 
   @doc """
-  Stubs the remote calls behind `Remote.list/2`, `Remote.info/3` and
-  `TableId.resolve/4` to report `tables`, sending `{:fetched, timeout}` to the
-  calling test once per fetch (on `:ets.all/0` for a list, `:ets.info/1` for a
-  single table).
+  Stubs the remote calls behind `Remote.list/2` to report `tables`, sending
+  `{:fetched, timeout}` to the calling test once per fetch.
   """
   @spec stub_list([map()]) :: :ok
   def stub_list(tables) do
@@ -63,32 +61,14 @@ defmodule Voyager.EtsFakes do
         send(test, {:fetched, timeout})
         ids(tables)
 
-      _node, :ets, :info, [id], timeout ->
-        send(test, {:fetched, timeout})
-
-        case Enum.find(tables, &(&1.id == id)) do
-          nil -> :undefined
-          table -> raw_info(table)
-        end
-
       _node, :erlang, :system_info, [:wordsize], _timeout ->
         @word_size
-
-      _node, :erlang, :list_to_existing_atom, [chars], _timeout ->
-        existing_atom(chars)
 
       _node, :lists, :map, [_fun, ids], _timeout ->
         raw_infos(tables, ids)
     end)
 
     :ok
-  end
-
-  # An unknown atom raises on the remote the way `:erpc` reports it.
-  defp existing_atom(chars) do
-    :erlang.list_to_existing_atom(chars)
-  rescue
-    ArgumentError -> :erlang.error({:exception, :badarg, []})
   end
 
   @doc "Stubs every remote call to fail the way `:erpc` reports `reason`."

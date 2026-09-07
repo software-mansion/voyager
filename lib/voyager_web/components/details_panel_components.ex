@@ -131,23 +131,10 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :panel_id, :string, required: true
 
-  attr :navigate, :string,
-    default: nil,
-    doc: "where Show More leads; disabled as Soon when absent"
-
   def show_more_button(assigns) do
     ~H"""
     <div class="border-base-200 flex justify-center border-t px-5 py-3">
-      <.link
-        :if={@navigate}
-        id={"#{@panel_id}-show-more"}
-        navigate={@navigate}
-        class="btn btn-ghost gap-2 hover:text-primary"
-      >
-        Show More <.icon name="icon-arrow-right" class="size-4" />
-      </.link>
       <button
-        :if={!@navigate}
         type="button"
         id={"#{@panel_id}-show-more"}
         class="btn btn-ghost gap-2 hover:text-primary"

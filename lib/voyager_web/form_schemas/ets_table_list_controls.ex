@@ -1,10 +1,10 @@
 defmodule VoyagerWeb.FormSchemas.EtsTableListControls do
   @moduledoc """
-  Controls form for the ETS table list: the search, the request timeout and
-  which columns to show.
+  Controls form for the ETS table list: the search, the protection, type and
+  named filters, the request timeout and which columns to show.
 
-  Only `timeout` reaches the node. `search` and `columns` shape whatever the
-  last fetch returned; `required_columns/0` are always shown, since the name
+  Only `timeout` reaches the node; everything else shapes whatever the last
+  fetch returned. `required_columns/0` are always shown, since the name
   identifies the row and memory is the default ranking.
   """
 
@@ -18,9 +18,16 @@ defmodule VoyagerWeb.FormSchemas.EtsTableListControls do
   @max_timeout 30_000
   @default_timeout 5_000
 
+  @protections ~w(public protected private)
+  @types ~w(set ordered_set bag duplicate_bag)
+  @named ~w(true false)
+
   @primary_key false
   embedded_schema do
     field :search, :string, default: ""
+    field :protection, :string
+    field :type, :string
+    field :named, :string
     field :timeout, :integer, default: @default_timeout
     field :columns, {:array, :string}, default: []
   end
@@ -43,8 +50,11 @@ defmodule VoyagerWeb.FormSchemas.EtsTableListControls do
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(controls \\ default(), attrs \\ %{}) do
     controls
-    |> cast(normalize(attrs), [:search, :timeout, :columns])
+    |> cast(normalize(attrs), [:search, :protection, :type, :named, :timeout, :columns])
     |> update_change(:search, &String.trim/1)
+    |> update_change(:protection, &known(&1, @protections))
+    |> update_change(:type, &known(&1, @types))
+    |> update_change(:named, &known(&1, @named))
     |> update_change(:columns, &known_columns/1)
     |> validate_required([:timeout])
     |> validate_number(:timeout,
@@ -92,6 +102,12 @@ defmodule VoyagerWeb.FormSchemas.EtsTableListControls do
       Enum.map(optional_columns(), &{to_string(&1), label_fun.(&1), false})
   end
 
+  @doc "Options for one of the filter selects, as `{value, label}`; blank means any."
+  @spec filter_options(:protection | :type | :named) :: [{String.t(), String.t()}]
+  def filter_options(:protection), do: [{"", "Any"} | Enum.map(@protections, &{&1, &1})]
+  def filter_options(:type), do: [{"", "Any"} | Enum.map(@types, &{&1, &1})]
+  def filter_options(:named), do: [{"", "Any"}, {"true", "Yes"}, {"false", "No"}]
+
   # A null `search` from localStorage would reach `String.trim/1`. A blank
   # `timeout` goes the other way: `cast/4` skips "", nil is a change
   # `validate_required/2` can report.
@@ -110,6 +126,9 @@ defmodule VoyagerWeb.FormSchemas.EtsTableListControls do
 
   defp known_columns(columns) when is_list(columns), do: Enum.filter(columns, &safe_atom/1)
   defp known_columns(_columns), do: []
+
+  # A stale stored value degrades to "any" rather than erroring.
+  defp known(value, allowed), do: if(value in allowed, do: value)
 
   defp safe_atom(value) do
     Enum.find(required_columns() ++ optional_columns(), &(to_string(&1) == value))

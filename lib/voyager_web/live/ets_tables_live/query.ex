@@ -13,7 +13,7 @@ defmodule VoyagerWeb.EtsTablesLive.Query do
   alias Voyager.Services.Ets.TableId
   alias VoyagerWeb.Formatters
 
-  @sortable ~w(name size memory owner)a
+  @sortable ~w(name size memory keypos)a
   @default_sort {:memory, :desc}
 
   # `name` identifies the row and `memory` is the default ranking, so neither
@@ -30,7 +30,6 @@ defmodule VoyagerWeb.EtsTablesLive.Query do
   @spec default_sort() :: sort()
   def default_sort, do: @default_sort
 
-  @doc "Columns the list can be sorted on. Protection and type are categories, so they are picked instead."
   @spec sortable_attrs() :: [atom()]
   def sortable_attrs, do: @sortable
 
@@ -51,30 +50,6 @@ defmodule VoyagerWeb.EtsTablesLive.Query do
     end
   end
 
-  @doc """
-  Fetches the metadata of the table `string` names.
-
-  A name is interned on the node and fetched alone; a reference is only
-  meaningful in a fresh list of the node's tables, so it is found there.
-  """
-  @spec get(node(), String.t(), timeout()) :: {:ok, table()} | {:error, :not_found | term()}
-  def get(node, "#Ref" <> _ = string, timeout) do
-    with {:ok, %{entries: tables}} <- all(node, timeout) do
-      case find(tables, string) do
-        {:ok, table} -> {:ok, table}
-        :error -> {:error, :not_found}
-      end
-    end
-  end
-
-  def get(node, string, timeout) when is_binary(string) do
-    case TableId.resolve(node, string, [], timeout) do
-      {:ok, id} -> Remote.info(node, id, timeout)
-      {:error, :invalid_name} -> {:error, :not_found}
-      {:error, _reason} = error -> error
-    end
-  end
-
   @doc "Finds the table `string` names among `tables`, by name or inspect-string."
   @spec find([table()], String.t()) :: {:ok, table()} | :error
   def find(tables, string) when is_binary(string) do
@@ -85,16 +60,31 @@ defmodule VoyagerWeb.EtsTablesLive.Query do
   end
 
   @doc """
-  Keeps the tables whose name, id, type, protection or owner contains
-  `search`, case-insensitively. A blank search keeps everything.
+  Keeps the tables matching `controls`: a free-text `search` over name, id,
+  type, protection and owner, and exact `protection`, `type` and `named`
+  picks. A blank value keeps everything.
   """
-  @spec filter([table()], String.t() | nil) :: [table()]
-  def filter(tables, search) when search in [nil, ""], do: tables
+  @spec filter([table()], map()) :: [table()]
+  def filter(tables, controls) do
+    tables
+    |> search(Map.get(controls, :search))
+    |> pick(:protection, Map.get(controls, :protection))
+    |> pick(:type, Map.get(controls, :type))
+    |> pick(:named_table, Map.get(controls, :named))
+  end
 
-  def filter(tables, search) when is_binary(search) do
+  defp search(tables, search) when search in [nil, ""], do: tables
+
+  defp search(tables, search) do
     needle = String.downcase(search)
 
     Enum.filter(tables, &String.contains?(haystack(&1), needle))
+  end
+
+  defp pick(tables, _key, value) when value in [nil, ""], do: tables
+
+  defp pick(tables, key, value) do
+    Enum.filter(tables, &(to_string(Map.get(&1, key)) == value))
   end
 
   @doc """
