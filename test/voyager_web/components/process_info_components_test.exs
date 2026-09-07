@@ -97,6 +97,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
       assert attr(html, "#panel-sec-budget-form", "phx-change") == ["set-budget"]
       assert attr(html, "#panel-sec-budget-form input[type=hidden]", "value") == ["sec"]
       assert attr(html, "#panel-sec-budget", "value") == ["5000"]
+      assert attr(html, "#panel-sec-budget", "max") == []
       assert count(html, "#panel-sec-budget-help") == 1
     end
 

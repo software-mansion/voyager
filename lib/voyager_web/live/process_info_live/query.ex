@@ -56,7 +56,7 @@ defmodule VoyagerWeb.ProcessInfoLive.Query do
     ArgumentError -> {:error, :invalid_pid}
   end
 
-  @spec overview(node(), pid(), timeout()) :: {:ok, map()} | {:error, term()}
+  @spec overview(node(), pid(), timeout()) :: {:ok, map(), non_neg_integer()} | {:error, term()}
   def overview(node, pid, timeout) do
     rate_limited(fn ->
       with {:ok, info} <- ProcessInfo.fetch(node, pid, timeout) do
@@ -66,7 +66,7 @@ defmodule VoyagerWeb.ProcessInfoLive.Query do
   end
 
   @spec relations(node(), pid(), non_neg_integer(), timeout()) ::
-          {:ok, relations()} | {:error, term()}
+          {:ok, relations(), non_neg_integer()} | {:error, term()}
   def relations(node, pid, limit, timeout) do
     rate_limited(fn ->
       with {:ok, links} <- ProcessInfo.fetch_links(node, pid, limit, timeout),
@@ -78,7 +78,7 @@ defmodule VoyagerWeb.ProcessInfoLive.Query do
   end
 
   @spec messages(node(), pid(), non_neg_integer(), non_neg_integer(), timeout()) ::
-          {:ok, Agent.bounded(term())} | {:error, term()}
+          {:ok, Agent.bounded(term()), non_neg_integer()} | {:error, term()}
   def messages(node, pid, limit, budget, timeout) do
     rate_limited(fn ->
       ProcessTerm.fetch_messages(node, pid, limit, budget, timeout)
@@ -86,7 +86,8 @@ defmodule VoyagerWeb.ProcessInfoLive.Query do
   end
 
   @spec dictionary(node(), pid(), non_neg_integer(), non_neg_integer(), timeout()) ::
-          {:ok, Agent.bounded(ProcessInfo.dictionary_entry())} | {:error, term()}
+          {:ok, Agent.bounded(ProcessInfo.dictionary_entry()), non_neg_integer()}
+          | {:error, term()}
   def dictionary(node, pid, limit, budget, timeout) do
     rate_limited(fn ->
       ProcessInfo.fetch_dictionary(node, pid, limit, budget, timeout)
@@ -94,7 +95,7 @@ defmodule VoyagerWeb.ProcessInfoLive.Query do
   end
 
   @spec state(node(), pid(), non_neg_integer(), timeout()) ::
-          {:ok, Agent.truncated_term()} | {:error, term()}
+          {:ok, Agent.truncated_term(), non_neg_integer()} | {:error, term()}
   def state(node, pid, budget, timeout) do
     rate_limited(fn -> ProcessTerm.fetch_state(node, pid, budget, timeout) end)
   end
@@ -109,9 +110,12 @@ defmodule VoyagerWeb.ProcessInfoLive.Query do
     end
   end
 
+  # A successful fetch carries the limiter-measured round trip so the page can
+  # show how long the remote spent answering.
   defp rate_limited(fun) do
     case RateLimiter.run(:high, fun) do
-      {:ok, result, _elapsed_us} -> result
+      {:ok, {:ok, value}, elapsed_us} -> {:ok, value, div(elapsed_us, 1000)}
+      {:ok, {:error, reason}, _elapsed_us} -> {:error, reason}
       {:error, :rate_limited, _retry_after_ms} -> {:error, :rate_limited}
     end
   end

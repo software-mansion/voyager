@@ -18,7 +18,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   @typep async_result :: %AsyncResult{}
 
   @timeout_bounds {1_000, 30_000}
-  @budget_bounds {100, 100_000}
+  @budget_bounds {100, nil}
   @limit_bounds {1, 1_000}
 
   @budget_help "Caps how much of each fetched term the remote node sends back — " <>
@@ -29,8 +29,8 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   @spec timeout_bounds() :: {pos_integer(), pos_integer()}
   def timeout_bounds, do: @timeout_bounds
 
-  @doc "Budget bounds for the per-section term budget inputs."
-  @spec budget_bounds() :: {pos_integer(), pos_integer()}
+  @doc "Budget bounds for the per-section term budget inputs; no upper cap."
+  @spec budget_bounds() :: {pos_integer(), nil}
   def budget_bounds, do: @budget_bounds
 
   @doc "Limit bounds for the per-section entry limit inputs."
@@ -80,6 +80,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   attr :muted, :string, default: nil
   attr :help, :string, default: nil, doc: "renders a \"?\" tooltip next to the title"
   attr :fetched_at, DateTime, default: nil
+  attr :took_ms, :integer, default: nil, doc: "round trip of the fetch behind fetched_at"
   attr :timeout, :integer, required: true
   attr :budget, :integer, default: nil, doc: "renders a budget input when set"
   attr :limit, :integer, default: nil, doc: "renders an entry limit input when set"
@@ -119,7 +120,9 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
               id={"#{@id}-fetched-at"}
               class="font-mono text-base-content/70 text-xs"
             >
-              fetched {Formatters.format_time(@fetched_at)} UTC
+              fetched {Formatters.format_time(@fetched_at)} UTC<span :if={@took_ms}> in {Formatters.format_integer(
+                @took_ms
+              )} ms</span>
             </span>
             <form
               :if={@limit}

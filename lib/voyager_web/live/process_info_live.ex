@@ -95,14 +95,15 @@ defmodule VoyagerWeb.ProcessInfoLive do
           id="panel-overview"
           section={:info}
           active={@tab == :overview}
-          fetched_at={@fetched_at[:info]}
+          fetched_at={@fetched_at[:info][:at]}
+          took_ms={@fetched_at[:info][:took_ms]}
           timeout={@timeouts.info}
           loading?={loading?(@info)}
           disabled={is_nil(@pid)}
         >
           <div class="grid grid-cols-1 items-start gap-y-5 lg:divide-base-300 lg:grid-cols-2 lg:divide-x">
             <div class="lg:pr-8">
-              <.overview info={@info} size={:sm} />
+              <.overview info={@info} size={:sm} pid_href={pid_href(@session, @current_url)} />
             </div>
             <div class="lg:pl-8">
               <.memory_and_garbage_collection info={@info} size={:sm} />
@@ -114,7 +115,8 @@ defmodule VoyagerWeb.ProcessInfoLive do
           id="panel-state"
           section={:state}
           active={@tab == :state}
-          fetched_at={@fetched_at[:state]}
+          fetched_at={@fetched_at[:state][:at]}
+          took_ms={@fetched_at[:state][:took_ms]}
           timeout={@timeouts.state}
           budget={@budgets.state}
           loading?={loading?(@state)}
@@ -136,7 +138,8 @@ defmodule VoyagerWeb.ProcessInfoLive do
           id="panel-messages"
           section={:messages}
           active={@tab == :messages}
-          fetched_at={@fetched_at[:messages]}
+          fetched_at={@fetched_at[:messages][:at]}
+          took_ms={@fetched_at[:messages][:took_ms]}
           timeout={@timeouts.messages}
           budget={@budgets.messages}
           limit={@limits.messages}
@@ -171,7 +174,8 @@ defmodule VoyagerWeb.ProcessInfoLive do
           id="panel-dictionary"
           section={:dictionary}
           active={@tab == :dictionary}
-          fetched_at={@fetched_at[:dictionary]}
+          fetched_at={@fetched_at[:dictionary][:at]}
+          took_ms={@fetched_at[:dictionary][:took_ms]}
           timeout={@timeouts.dictionary}
           budget={@budgets.dictionary}
           limit={@limits.dictionary}
@@ -215,7 +219,8 @@ defmodule VoyagerWeb.ProcessInfoLive do
           id="panel-relations"
           section={:relations}
           active={@tab == :relations}
-          fetched_at={@fetched_at[:relations]}
+          fetched_at={@fetched_at[:relations][:at]}
+          took_ms={@fetched_at[:relations][:took_ms]}
           timeout={@timeouts.relations}
           limit={@limits.relations}
           loading?={loading?(@relations)}
@@ -349,11 +354,13 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
   def handle_async(_name, {:exit, {:shutdown, :cancel}}, socket), do: noreply(socket)
 
-  def handle_async(name, {:ok, {:ok, value}}, socket) when name in @sections do
+  def handle_async(name, {:ok, {:ok, value, took_ms}}, socket) when name in @sections do
+    fetch = %{at: DateTime.utc_now(), took_ms: took_ms}
+
     socket
     |> assign(name, AsyncResult.ok(socket.assigns[name], value))
     |> seed_terms(name, value)
-    |> assign(:fetched_at, Map.put(socket.assigns.fetched_at, name, DateTime.utc_now()))
+    |> assign(:fetched_at, Map.put(socket.assigns.fetched_at, name, fetch))
     |> noreply()
   end
 
@@ -444,8 +451,20 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
   defp parse_bounded(value, {lower, upper}) when is_binary(value) do
     case Integer.parse(value) do
-      {n, ""} -> n |> max(lower) |> min(upper)
+      {n, ""} -> n |> max(lower) |> clamp_upper(upper)
       _ -> nil
+    end
+  end
+
+  defp clamp_upper(n, nil), do: n
+  defp clamp_upper(n, upper), do: min(n, upper)
+
+  defp pid_href(session, current_url) do
+    fn value ->
+      if is_pid(value) and node(value) == session.node do
+        path = ~p"/node/#{session.node_name}/processes/#{Formatters.format_pid(value)}"
+        keep_sidebar(path, current_url)
+      end
     end
   end
 

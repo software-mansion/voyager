@@ -84,6 +84,7 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
       end
 
       assert has_element?(view, "#process-links a")
+      assert has_element?(view, "#panel-overview a[href*='processes']")
     end
 
     test "shows the supervisor state after opening the State tab", %{conn: conn, sup: sup} do
@@ -99,7 +100,7 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
 
       view = conn |> open!(Formatters.format_pid(worker)) |> open_tab!(:state)
 
-      assert has_element?(view, "#panel-state-fetched-at")
+      assert has_element?(view, "#panel-state-fetched-at", "ms")
       assert has_element?(view, "#process-state", "41")
     end
   end

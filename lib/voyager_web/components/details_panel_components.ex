@@ -185,6 +185,10 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     values: [:xs, :sm],
     doc: "value font size, forwarded to `kv/1`"
 
+  attr :pid_href, :any,
+    default: nil,
+    doc: "1-arity fun mapping a pid to a link target (or nil); pid rows render as links with it"
+
   def overview(assigns) do
     ~H"""
     <.section title="Overview">
@@ -226,7 +230,12 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           value={format_registered_name(info.registered_name)}
         />
         <.kv size={@size} label="Label" value={format_optional(info.label)} />
-        <.kv size={@size} label="Parent" value={format_optional_identifier(info.parent)} />
+        <.kv
+          size={@size}
+          label="Parent"
+          value={format_optional_identifier(info.parent)}
+          href={@pid_href && @pid_href.(info.parent)}
+        />
         <.kv size={@size} label="Status" value={to_string(info.status)} />
         <.kv
           size={@size}
@@ -234,7 +243,12 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           value={Formatters.format_integer(info.message_queue_len)}
         />
         <.kv size={@size} label="Message queue data" value={to_string(info.message_queue_data)} />
-        <.kv size={@size} label="Group leader" value={format_identifier(info.group_leader)} />
+        <.kv
+          size={@size}
+          label="Group leader"
+          value={format_identifier(info.group_leader)}
+          href={@pid_href && @pid_href.(info.group_leader)}
+        />
         <.kv size={@size} label="Priority" value={to_string(info.priority)} />
         <.kv size={@size} label="Trap exit" value={to_string(info.trap_exit)} />
         <.kv size={@size} label="Reductions" value={Formatters.format_integer(info.reductions)} />
@@ -353,6 +367,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :label, :string, required: true
   attr :value, :string, default: nil, doc: "text value; truncated on overflow but kept in `title`"
+  attr :href, :string, default: nil, doc: "renders the value as a navigate link"
   attr :last, :boolean, default: false
   attr :stacked, :boolean, default: false
 
@@ -379,7 +394,17 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         ]}
         title={@value}
       >
-        {@value}{render_slot(@inner_block)}
+        <.link
+          :if={@href}
+          navigate={@href}
+          class="underline decoration-dotted underline-offset-2 transition-colors hover:text-primary"
+        >
+          {@value}
+        </.link>
+        <%= if is_nil(@href) do %>
+          {@value}
+        <% end %>
+        {render_slot(@inner_block)}
       </div>
     </div>
     """
