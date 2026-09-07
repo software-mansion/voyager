@@ -3,15 +3,16 @@ defmodule Voyager.Services.Ets.Fetch do
   Fetches ETS record payloads from a remote node via `:voyager_agent`.
 
   Table metadata stays on `Voyager.Services.Ets.Remote`. These reads call
-  `:ets_select_chunk/4` and `:ets_lookup/3` on the agent. A missing agent is
-  `:undef` and drops the session. Truncation and the worker heap cap run on
-  the target. Each record is walked independently with the caller's term
-  `budget` (see `Voyager.Agent.default_budget/0`).
+  `:ets_select_chunk/4`, `:ets_select_spec/5`, and `:ets_lookup/3` on the agent.
+  A missing agent is `:undef` and drops the session. Truncation and the worker
+  heap cap run on the target. Each record is walked independently with the
+  caller's term `budget` (see `Voyager.Agent.default_budget/0`).
 
-  A continuation that crossed ETF must be repaired on the target against
-  `[{:"$1", [], [:"$1"]}]` before `ets:select/1`. `badarg` (private table or
-  unrepaired continuation) is `{:error, :cannot_read}`; a wrapped worker death
-  is not. A remote worker heap kill is `{:error, :heap_limit_exceeded}`.
+  A continuation that crossed ETF must be repaired on the target against the
+  same match spec used for the page (`[{:"$1", [], [:"$1"]}]` for match-all)
+  before `ets:select/1`. `badarg` (private table, bad spec, or unrepaired
+  continuation) is `{:error, :cannot_read}`; a wrapped worker death is not.
+  A remote worker heap kill is `{:error, :heap_limit_exceeded}`.
   """
 
   alias Voyager.Agent
@@ -22,6 +23,7 @@ defmodule Voyager.Services.Ets.Fetch do
   @chunk_sizes [10, 20, 50]
   @budget Agent.default_budget()
   @select_fun :ets_select_chunk
+  @select_spec_fun :ets_select_spec
   @lookup_fun :ets_lookup
 
   @type lookup_key :: atom() | integer() | binary()
@@ -63,6 +65,44 @@ defmodule Voyager.Services.Ets.Fetch do
   end
 
   def select_chunk(_node, _table, _limit, _budget, _continuation, _timeout),
+    do: {:error, :invalid_table}
+
+  @spec select_spec(
+          node(),
+          TableId.t(),
+          term(),
+          limit(),
+          non_neg_integer(),
+          term() | nil,
+          timeout()
+        ) ::
+          {:ok, chunk()} | {:error, term()}
+  def select_spec(
+        node,
+        table,
+        spec,
+        limit,
+        budget \\ @budget,
+        continuation \\ nil,
+        timeout \\ Agent.default_timeout()
+      )
+
+  def select_spec(node, table, spec, limit, budget, continuation, timeout)
+      when TableId.is_table_id(table) and is_integer(budget) and budget >= 0 do
+    if limit in @chunk_sizes do
+      cont = if is_nil(continuation), do: :undefined, else: continuation
+      fetch_chunk(node, @select_spec_fun, [table, spec, limit, budget, cont], timeout)
+    else
+      {:error, :invalid_limit}
+    end
+  end
+
+  def select_spec(_node, table, _spec, _limit, _budget, _continuation, _timeout)
+      when TableId.is_table_id(table) do
+    {:error, :invalid_budget}
+  end
+
+  def select_spec(_node, _table, _spec, _limit, _budget, _continuation, _timeout),
     do: {:error, :invalid_table}
 
   @spec lookup(node(), TableId.t(), lookup_key(), non_neg_integer(), timeout()) ::
