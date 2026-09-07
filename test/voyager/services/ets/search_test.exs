@@ -98,7 +98,7 @@ defmodule Voyager.Services.Ets.SearchTest do
     end
 
     test "key_eq compiles using table keypos and selects through the agent" do
-      stub_info(keypos: 2)
+      stub_info(2)
 
       spec = [{:"$1", [{:"=:=", {:element, 2, :"$1"}, {:const, :the_key}}], [:"$1"]}]
 
@@ -120,7 +120,7 @@ defmodule Voyager.Services.Ets.SearchTest do
     end
 
     test "key_prefix compiles using table keypos" do
-      stub_info(keypos: 1)
+      stub_info(1)
 
       spec =
         [
@@ -186,7 +186,9 @@ defmodule Voyager.Services.Ets.SearchTest do
     end
 
     test "propagates :not_found from info for a key query" do
-      expect(Voyager.ErpcMock, :call, fn @node, :ets, :info, [:t], @timeout -> :undefined end)
+      expect(Voyager.ErpcMock, :call, fn @node, :ets, :info, [:t, :keypos], @timeout ->
+        :undefined
+      end)
 
       assert {:error, :not_found} =
                Search.chunk(@node, :t, {:key_eq, :k}, 10, @budget, nil, @timeout)
@@ -215,33 +217,9 @@ defmodule Voyager.Services.Ets.SearchTest do
     {:ok, %{records: records, continuation: continuation, truncated: truncated}}
   end
 
-  defp stub_info(overrides) do
-    info = info_kw(overrides)
-
-    expect(Voyager.ErpcMock, :call, fn @node, :ets, :info, [:t], @timeout ->
-      info
+  defp stub_info(keypos) do
+    expect(Voyager.ErpcMock, :call, fn @node, :ets, :info, [:t, :keypos], @timeout ->
+      keypos
     end)
-
-    expect(Voyager.ErpcMock, :call, fn @node, :erlang, :system_info, [:wordsize], @timeout ->
-      8
-    end)
-  end
-
-  defp info_kw(overrides) do
-    [
-      name: :t,
-      named_table: true,
-      protection: :public,
-      type: :set,
-      size: 0,
-      memory: 1,
-      owner: self(),
-      heir: :none,
-      keypos: 1,
-      compressed: false,
-      read_concurrency: false,
-      write_concurrency: false
-    ]
-    |> Keyword.merge(overrides)
   end
 end
