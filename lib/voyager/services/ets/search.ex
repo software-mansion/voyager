@@ -87,7 +87,7 @@ defmodule Voyager.Services.Ets.Search do
   end
 
   defp validate_query({:key_prefix, prefix}) when is_binary(prefix) do
-    prefix_query(1, prefix) |> query_ok()
+    if valid_prefix?(prefix), do: :ok, else: {:error, :invalid_query}
   end
 
   defp validate_query({:element_eq, index, value}) when is_integer(index) and index >= 1 do
@@ -95,9 +95,6 @@ defmodule Voyager.Services.Ets.Search do
   end
 
   defp validate_query(_), do: {:error, :invalid_query}
-
-  defp query_ok({:ok, _}), do: :ok
-  defp query_ok({:error, _} = err), do: err
 
   defp keypos_for(node, table, {:key_eq, _}, timeout), do: fetch_keypos(node, table, timeout)
   defp keypos_for(node, table, {:key_prefix, _}, timeout), do: fetch_keypos(node, table, timeout)
@@ -120,30 +117,29 @@ defmodule Voyager.Services.Ets.Search do
   end
 
   defp prefix_query(pos, prefix) do
-    size = byte_size(prefix)
+    if valid_prefix?(prefix) do
+      size = byte_size(prefix)
+      key = {:element, pos, :"$1"}
 
-    cond do
-      size == 0 ->
-        {:error, :invalid_query}
-
-      size > @max_prefix_bytes ->
-        {:error, :invalid_query}
-
-      true ->
-        key = {:element, pos, :"$1"}
-
-        {:ok,
-         [
-           {:"$1",
-            [
-              {:is_binary, key},
-              {:>=, {:byte_size, key}, size},
-              {:"=:=", {:binary_part, key, 0, size}, prefix}
-            ], [:"$1"]}
-         ]}
+      {:ok,
+       [
+         {:"$1",
+          [
+            {:is_binary, key},
+            {:>=, {:byte_size, key}, size},
+            {:"=:=", {:binary_part, key, 0, size}, prefix}
+          ], [:"$1"]}
+       ]}
+    else
+      {:error, :invalid_query}
     end
   end
 
   defp valid_scalar?(value) when is_atom(value) or is_integer(value) or is_binary(value), do: true
   defp valid_scalar?(_), do: false
+
+  defp valid_prefix?(prefix) when is_binary(prefix) do
+    size = byte_size(prefix)
+    size > 0 and size <= @max_prefix_bytes
+  end
 end
