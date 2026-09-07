@@ -1,5 +1,7 @@
 defmodule Voyager.Services.ProcessListTest do
-  use ExUnit.Case, async: true
+  # async: false: the LiveView tests drive the same Voyager.ErpcMock in Mox
+  # global mode, where their stubs would override this test's expectations.
+  use ExUnit.Case, async: false
 
   import Mox
 
