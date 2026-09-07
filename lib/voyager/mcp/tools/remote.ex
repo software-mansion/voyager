@@ -15,9 +15,7 @@ defmodule Voyager.MCP.Tools.Remote do
   alias Voyager.Services.RateLimiter
 
   @doc """
-  Runs `fun` against the connected node and replies with its `{:ok, payload}` as
-  JSON, or with a tool error for a missing session, a spent rate limit, or an
-  `{:error, reason}`.
+  Runs `fun` against the connected node.
   """
   @spec reply((node() -> {:ok, term()} | {:error, term()}), Frame.t()) ::
           {:reply, Response.t(), Frame.t()}
@@ -26,11 +24,8 @@ defmodule Voyager.MCP.Tools.Remote do
   end
 
   @doc """
-  Parses the textual `"<X.Y.Z>"` form back into the pid it names, `nil` when
-  malformed.
-
-  The textual form carries the remote node's distribution channel index, so a
-  pid printed from the connected node round-trips back to that node.
+   Parses the textual `"<X.Y.Z>"` form back into the pid it names, `nil` when
+   malformed.
   """
   @spec parse_pid(String.t()) :: pid() | nil
   def parse_pid(pid_str) when is_binary(pid_str) do
