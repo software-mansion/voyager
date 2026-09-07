@@ -1,86 +1,93 @@
 defmodule Voyager.Services.Ets.Fetch do
   @moduledoc """
-  Host-isolated ETS record reads.
+  Fetches ETS record payloads from a remote node via `:voyager_agent`.
 
-  Runs remote reads in a heap-capped TaskSupervisor child, then sanitizes
-  records (not the continuation). Heap kill is `{:error, :heap_limit_exceeded}`;
-  a wait that expires is `{:error, :timeout}`. Isolation does not bound
-  distribution receive, so a page of large binaries can still OOM Voyager.
+  Table metadata stays on `Voyager.Services.Ets.Remote`. These reads call
+  `:ets_select_chunk/3` and `:ets_lookup/2` on the agent. A missing agent is
+  `:undef` and drops the session. Truncation runs on the target.
+
+  A continuation that crossed ETF must be repaired on the target against
+  `[{:"$1", [], [:"$1"]}]` before `ets:select/1`. `badarg` (private table or
+  unrepaired continuation) is `{:error, :cannot_read}`; a wrapped worker death
+  is not.
   """
 
-  alias Voyager.Erpc
-  alias Voyager.Services.Ets.Remote
-  alias Voyager.Services.Ets.Sanitize
+  alias Voyager.Agent
   alias Voyager.Services.Ets.TableId
 
-  # ~100 MB on 64-bit (8-byte words). Host isolate; remote agent stays smaller (~4 MB).
-  @max_heap_size 12_500_000
-  @yield_slack 100
+  require TableId
 
-  @type chunk :: Remote.chunk()
+  @chunk_sizes [10, 20, 50]
+  @select_fun :ets_select_chunk
+  @lookup_fun :ets_lookup
+
+  @type lookup_key :: atom() | integer() | binary()
+
+  @type chunk :: %{
+          records: [term()],
+          continuation: term() | nil
+        }
 
   @spec select_chunk(node(), TableId.t(), pos_integer(), term() | nil, timeout()) ::
           {:ok, chunk()} | {:error, term()}
-  def select_chunk(node, table, limit, continuation \\ nil, timeout \\ Erpc.default_timeout()) do
-    isolated_read(timeout, fn ->
-      Remote.select_chunk(node, table, limit, continuation, timeout)
-    end)
-  end
+  def select_chunk(node, table, limit, continuation \\ nil, timeout \\ Agent.default_timeout())
 
-  @spec lookup(node(), TableId.t(), atom() | integer() | binary(), timeout()) ::
-          {:ok, chunk()} | {:error, term()}
-  def lookup(node, table, key, timeout \\ Erpc.default_timeout()) do
-    isolated_read(timeout, fn ->
-      Remote.lookup(node, table, key, timeout)
-    end)
-  end
+  def select_chunk(node, table, limit, continuation, timeout)
+      when TableId.is_table_id(table) do
+    if limit in @chunk_sizes do
+      cont = if is_nil(continuation), do: :undefined, else: continuation
 
-  defp isolated_read(timeout, fun) do
-    isolate(timeout, fn ->
-      case fun.() do
-        {:ok, chunk} -> {:ok, sanitize_chunk(chunk)}
-        {:error, _} = err -> err
+      case Agent.call(node, @select_fun, [table, limit, cont], timeout) do
+        {:ok, result} -> decode_select(result)
+        {:error, _} = err -> map_read_error(err)
       end
-    end)
-  end
-
-  defp sanitize_chunk(%{records: records} = chunk) do
-    %{chunk | records: Enum.map(records, &Sanitize.term/1)}
-  end
-
-  defp isolate(timeout, fun) do
-    impl = Erpc.impl()
-
-    task =
-      Task.Supervisor.async_nolink(Voyager.TaskSupervisor, fn ->
-        Erpc.bind_impl(impl)
-
-        Process.flag(:max_heap_size, %{
-          size: @max_heap_size,
-          kill: true,
-          include_shared_binaries: true
-        })
-
-        fun.()
-      end)
-
-    case Task.yield(task, yield_timeout(timeout)) || Task.shutdown(task, :brutal_kill) do
-      {:ok, result} ->
-        result
-
-      {:exit, reason} ->
-        format_task_exit(reason)
-
-      nil ->
-        {:error, :timeout}
+    else
+      {:error, :invalid_limit}
     end
   end
 
-  # Probe + read each use `timeout`; the yield must outlast both.
-  defp yield_timeout(:infinity), do: :infinity
-  defp yield_timeout(timeout) when is_integer(timeout), do: timeout * 2 + @yield_slack
+  def select_chunk(_node, _table, _limit, _continuation, _timeout), do: {:error, :invalid_table}
 
-  defp format_task_exit(:killed), do: {:error, :heap_limit_exceeded}
-  defp format_task_exit({:killed, _info}), do: {:error, :heap_limit_exceeded}
-  defp format_task_exit(reason), do: {:error, {:task_exit, reason}}
+  @spec lookup(node(), TableId.t(), lookup_key(), timeout()) ::
+          {:ok, chunk()} | {:error, term()}
+  def lookup(node, table, key, timeout \\ Agent.default_timeout())
+
+  def lookup(node, table, key, timeout) when TableId.is_table_id(table) do
+    if valid_key?(key) do
+      case Agent.call(node, @lookup_fun, [table, key], timeout) do
+        {:ok, result} -> decode_lookup(result)
+        {:error, _} = err -> map_read_error(err)
+      end
+    else
+      {:error, :invalid_key}
+    end
+  end
+
+  def lookup(_node, _table, _key, _timeout), do: {:error, :invalid_table}
+
+  defp decode_select(:"$end_of_table") do
+    {:ok, %{records: [], continuation: nil}}
+  end
+
+  defp decode_select({records, :"$end_of_table"}) when is_list(records) do
+    {:ok, %{records: records, continuation: nil}}
+  end
+
+  defp decode_select({records, continuation}) when is_list(records) do
+    {:ok, %{records: records, continuation: continuation}}
+  end
+
+  defp decode_select(_other), do: {:error, :invalid_response}
+
+  defp decode_lookup(records) when is_list(records) do
+    {:ok, %{records: records, continuation: nil}}
+  end
+
+  defp decode_lookup(_other), do: {:error, :invalid_response}
+
+  defp map_read_error({:error, {:remote_exception, :badarg}}), do: {:error, :cannot_read}
+  defp map_read_error({:error, _} = err), do: err
+
+  defp valid_key?(key) when is_atom(key) or is_integer(key) or is_binary(key), do: true
+  defp valid_key?(_), do: false
 end

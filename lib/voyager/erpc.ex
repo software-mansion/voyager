@@ -31,22 +31,11 @@ defmodule Voyager.Erpc do
 
   @doc """
   Returns the configured `Voyager.Erpc` implementation.
-
-  A process-dictionary override (`bind_impl/1`) wins over `config :voyager, :erpc`.
   """
   @spec impl() :: module()
   def impl do
-    Process.get(impl_key()) || Application.get_env(:voyager, :erpc, __MODULE__.Impl)
+    Application.get_env(:voyager, :erpc, __MODULE__.Impl)
   end
-
-  @doc false
-  @spec bind_impl(module()) :: :ok
-  def bind_impl(module) when is_atom(module) do
-    Process.put(impl_key(), module)
-    :ok
-  end
-
-  defp impl_key, do: {__MODULE__, :impl}
 
   @doc """
   Default timeout for `safe_call/4`, matching `:erpc.call/4`.
