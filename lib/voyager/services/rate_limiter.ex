@@ -18,8 +18,8 @@ defmodule Voyager.Services.RateLimiter do
   @type result :: term()
 
   @default_config %{
-    high_capacity: 10,
-    high_refill: 5,
+    high_capacity: 5,
+    high_refill: 2,
     low_capacity: 2,
     low_refill: 1,
     low_starvation_threshold: 2,
@@ -54,7 +54,7 @@ defmodule Voyager.Services.RateLimiter do
   @impl GenServer
   def init(opts) do
     user_config = Keyword.get(opts, :config, %{})
-    config = Map.merge(@default_config, user_config)
+    config = @default_config |> Map.merge(user_config) |> cap_refills()
 
     state = %{
       config: config,
@@ -108,6 +108,14 @@ defmodule Voyager.Services.RateLimiter do
       |> schedule_refill()
 
     {:noreply, new_state}
+  end
+
+  defp cap_refills(config) do
+    %{
+      config
+      | high_refill: min(config.high_refill, config.high_capacity),
+        low_refill: min(config.low_refill, config.low_capacity)
+    }
   end
 
   defp schedule_refill(state) do
