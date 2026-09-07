@@ -19,6 +19,7 @@ defmodule Voyager.MCP.Tools.ProcessInfo do
 
   alias Anubis.Server.Response
   alias Voyager.MCP.Tools.Remote
+  alias Voyager.Pid
   alias Voyager.Services.ProcessInfo
   alias Voyager.Services.ProcessTerm
 
@@ -42,12 +43,12 @@ defmodule Voyager.MCP.Tools.ProcessInfo do
 
   @impl true
   def execute(params, frame) do
-    case Remote.parse_pid(params.pid) do
+    case Pid.parse(params.pid) do
       nil ->
         {:reply, Response.error(Response.tool(), "Malformed pid: #{params.pid}"), frame}
 
       pid ->
-        Remote.reply(&fetch(&1, pid, params.include, params.limit), frame)
+        Remote.reply(&fetch(&1, pid, Enum.uniq(params.include), params.limit), frame)
     end
   end
 

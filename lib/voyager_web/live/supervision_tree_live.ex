@@ -2,6 +2,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   use VoyagerWeb, :live_view
 
   alias Phoenix.LiveView.AsyncResult
+  alias Voyager.Pid
   alias Voyager.Services.SupervisionTree.Fetch
   alias Voyager.Services.SupervisionTree.Remote
   alias VoyagerWeb.Components.SupervisionTreeComponents
@@ -392,7 +393,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   defp toggle_expand(socket, pid_str) do
     expanded = socket.assigns.expanded_pids
-    pid = parse_pid(pid_str)
+    pid = Pid.parse(pid_str)
 
     cond do
       is_nil(pid) ->
@@ -419,14 +420,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       _ -> socket
     end
   end
-
-  defp parse_pid(pid_str) when is_binary(pid_str) do
-    pid_str |> String.to_charlist() |> :erlang.list_to_pid()
-  rescue
-    ArgumentError -> nil
-  end
-
-  defp parse_pid(_), do: nil
 
   defp reset_tree(socket),
     do: assign(socket, last_tree_flat: nil, last_relations: %{}, selected_node: nil)

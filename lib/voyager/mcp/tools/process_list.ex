@@ -49,7 +49,7 @@ defmodule Voyager.MCP.Tools.ProcessList do
 
   @impl true
   def execute(params, frame) do
-    attrs = Enum.map(params.attrs, &Map.fetch!(@by_name, &1))
+    attrs = params.attrs |> Enum.uniq() |> Enum.map(&Map.fetch!(@by_name, &1))
     sort_by = Map.fetch!(@by_name, params.sort_by)
     direction = if params.direction == "asc", do: :asc, else: :desc
     search = Map.get(params, :search)

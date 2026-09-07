@@ -1,17 +1,9 @@
 defmodule Voyager.MCP.Tools.Remote do
-  @moduledoc """
-  Shared plumbing for the introspection tools: resolves the node held by
-  `Voyager.NodeSession` and spends a `:high` priority
-  `Voyager.Services.RateLimiter` token -- the tier manual GUI actions use.
-
-  Payloads are sanitised before encoding: `Anubis.Server.Response.json/3` goes
-  through `JSON.encode!/1`, which has no encoding for the pids, tuples, refs and
-  arbitrary user terms process introspection returns.
-  """
-
+  @moduledoc false
   alias Anubis.Server.Frame
   alias Anubis.Server.Response
   alias Voyager.NodeSession
+  alias Voyager.Pid
   alias Voyager.Services.RateLimiter
 
   @doc """
@@ -21,17 +13,6 @@ defmodule Voyager.MCP.Tools.Remote do
           {:reply, Response.t(), Frame.t()}
   def reply(fun, frame) when is_function(fun, 1) do
     {:reply, run(fun), frame}
-  end
-
-  @doc """
-   Parses the textual `"<X.Y.Z>"` form back into the pid it names, `nil` when
-   malformed.
-  """
-  @spec parse_pid(String.t()) :: pid() | nil
-  def parse_pid(pid_str) when is_binary(pid_str) do
-    pid_str |> String.to_charlist() |> :erlang.list_to_pid()
-  rescue
-    ArgumentError -> nil
   end
 
   defp run(fun) do
@@ -55,6 +36,9 @@ defmodule Voyager.MCP.Tools.Remote do
   end
 
   defp jsonable(term) when is_atom(term) or is_number(term), do: term
+
+  # inspect/1 renders "#PID<0.1.0>", which Pid.parse/1 cannot resolve back.
+  defp jsonable(term) when is_pid(term), do: Pid.display(term)
 
   defp jsonable(term) when is_binary(term) do
     if String.valid?(term), do: term, else: inspect(term)
@@ -81,6 +65,7 @@ defmodule Voyager.MCP.Tools.Remote do
 
   defp jsonable(term), do: inspect(term)
 
-  defp jsonable_key(key) when is_atom(key) or is_binary(key), do: key
+  defp jsonable_key(key) when is_atom(key), do: key
+  defp jsonable_key(key) when is_binary(key), do: jsonable(key)
   defp jsonable_key(key), do: inspect(key)
 end
