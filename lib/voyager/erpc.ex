@@ -33,9 +33,7 @@ defmodule Voyager.Erpc do
   Returns the configured `Voyager.Erpc` implementation.
   """
   @spec impl() :: module()
-  def impl do
-    Application.get_env(:voyager, :erpc, __MODULE__.Impl)
-  end
+  def impl, do: Application.get_env(:voyager, :erpc, __MODULE__.Impl)
 
   @doc """
   Default timeout for `safe_call/4`, matching `:erpc.call/4`.
