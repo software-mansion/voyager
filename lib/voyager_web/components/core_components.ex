@@ -878,7 +878,7 @@ defmodule VoyagerWeb.CoreComponents do
       <div class="flex">
         <button
           type="button"
-          aria-expanded={@open}
+          aria-expanded={to_string(@open)}
           class={["flex w-full cursor-pointer items-center" | List.wrap(@label_class)]}
           {@rest}
         >
