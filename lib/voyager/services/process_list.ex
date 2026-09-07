@@ -22,10 +22,12 @@ defmodule Voyager.Services.ProcessList do
 
   @allowed_attrs @sortable_attrs ++ @display_attrs
 
+  @spec sortable_attrs() :: [atom()]
   def sortable_attrs() do
     @sortable_attrs
   end
 
+  @spec allowed_attrs() :: [atom()]
   def allowed_attrs() do
     @allowed_attrs
   end
