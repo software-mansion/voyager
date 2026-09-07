@@ -204,7 +204,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
               tooltip says that instead of offering an em dash. --%>
         <span :if={@empty?} class="text-base-content/70">Not set</span>
         <div :if={not @empty?} class="flex items-center gap-1">
-          <span id={"#{@id}-copy-text"}>{@full}</span>
+          <span id={"#{@id}-copy-text"} class="break-all">{@full}</span>
           <.copy_button
             id={"#{@id}-copy"}
             target={"##{@id}-copy-text"}

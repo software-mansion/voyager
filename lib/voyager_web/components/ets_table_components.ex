@@ -301,7 +301,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
       <:content>
         <div class="flex flex-col gap-1">
           <div class="flex items-center gap-1">
-            <span id={"#{@row_id}-name-copy-text"}>{@name}</span>
+            <span id={"#{@row_id}-name-copy-text"} class="break-all">{@name}</span>
             <.copy_button
               id={"#{@row_id}-name-copy"}
               target={"##{@row_id}-name-copy-text"}
@@ -312,7 +312,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
             />
           </div>
           <div :if={not @table.named_table} class="flex items-center gap-1">
-            <span id={"#{@row_id}-id-copy-text"} class="text-base-content/70">{@id}</span>
+            <span id={"#{@row_id}-id-copy-text"} class="text-base-content/70 break-all">{@id}</span>
             <.copy_button
               id={"#{@row_id}-id-copy"}
               target={"##{@row_id}-id-copy-text"}
