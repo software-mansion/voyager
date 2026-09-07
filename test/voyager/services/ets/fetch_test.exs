@@ -92,6 +92,23 @@ defmodule Voyager.Services.Ets.FetchTest do
                Fetch.select_chunk(@node, :t, 10, nil, @timeout)
     end
 
+    test "maps a remote worker heap kill to :heap_limit_exceeded" do
+      expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_chunk, _, _ ->
+        :erlang.error({:exception, :killed, []})
+      end)
+
+      assert {:error, :heap_limit_exceeded} = Fetch.select_chunk(@node, :t, 10, nil, @timeout)
+    end
+
+    test "does not map a wrapped agent worker death to :heap_limit_exceeded" do
+      expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_chunk, _, _ ->
+        :erlang.error({:exception, {:agent_worker_down, :killed}, []})
+      end)
+
+      assert {:error, {:remote_exception, {:agent_worker_down, :killed}}} =
+               Fetch.select_chunk(@node, :t, 10, nil, @timeout)
+    end
+
     test "returns :invalid_response when select does not return a chunk" do
       expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_chunk, _, _ ->
         :oops

@@ -4,12 +4,13 @@ defmodule Voyager.Services.Ets.Fetch do
 
   Table metadata stays on `Voyager.Services.Ets.Remote`. These reads call
   `:ets_select_chunk/3` and `:ets_lookup/2` on the agent. A missing agent is
-  `:undef` and drops the session. Truncation runs on the target.
+  `:undef` and drops the session. Truncation and the worker heap cap run on
+  the target.
 
   A continuation that crossed ETF must be repaired on the target against
   `[{:"$1", [], [:"$1"]}]` before `ets:select/1`. `badarg` (private table or
   unrepaired continuation) is `{:error, :cannot_read}`; a wrapped worker death
-  is not.
+  is not. A remote worker heap kill is `{:error, :heap_limit_exceeded}`.
   """
 
   alias Voyager.Agent
@@ -86,6 +87,11 @@ defmodule Voyager.Services.Ets.Fetch do
   defp decode_lookup(_other), do: {:error, :invalid_response}
 
   defp map_read_error({:error, {:remote_exception, :badarg}}), do: {:error, :cannot_read}
+  defp map_read_error({:error, {:remote_exception, :killed}}), do: {:error, :heap_limit_exceeded}
+
+  defp map_read_error({:error, {:remote_exception, {:killed, _}}}),
+    do: {:error, :heap_limit_exceeded}
+
   defp map_read_error({:error, _} = err), do: err
 
   defp valid_key?(key) when is_atom(key) or is_integer(key) or is_binary(key), do: true

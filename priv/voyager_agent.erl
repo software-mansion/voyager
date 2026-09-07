@@ -7,6 +7,7 @@
 -export([proc_top/5]).
 -export([proc_links/2, proc_monitors/2, proc_monitored_by/2]).
 -export([proc_dictionary/3, proc_messages/3, proc_label/2, proc_state/3]).
+-export([ets_select_chunk/3, ets_lookup/2, truncate_term/1]).
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
@@ -493,6 +494,259 @@ with_bounded_heap(Fun) ->
     after
         process_flag(max_heap_size, Old)
     end.
+
+%% =====================================================================
+%% ETS RECORDS - Match-all select / lookup with on-node truncation.
+%% =====================================================================
+%%
+%% Exported functions, not handle_call, so a peek cannot block register
+%% or nodedown. A one-shot worker with a 500_000-word heap cap does the
+%% ETS read and truncates records; the continuation is left opaque.
+%% No fixtable — paging is best-effort.
+
+-define(ETS_MAX_HEAP_SIZE, 500_000).
+-define(ETS_CHUNK_SIZES, [10, 20, 50]).
+-define(MATCH_ALL, [{'$1', [], ['$1']}]).
+-define(ETS_MAX_BINARY_BYTES, 512).
+-define(ETS_MAX_COLLECTION, 50).
+-define(ETS_MAX_DEPTH, 5).
+
+-spec ets_select_chunk(ets:tab(), pos_integer(), term()) ->
+                          '$end_of_table' | {[term()], term()}.
+ets_select_chunk(Table, Limit, Cont) ->
+    case lists:member(Limit, ?ETS_CHUNK_SIZES) of
+        true ->
+            isolated(fun() -> do_select(Table, Limit, Cont) end);
+        false ->
+            erlang:error(badarg)
+    end.
+
+-spec ets_lookup(ets:tab(), term()) -> [term()].
+ets_lookup(Table, Key) ->
+    isolated(fun() -> truncate_records(ets:lookup(Table, Key)) end).
+
+%% Not a visit-budget truncator: oversized binaries keep a prefix,
+%% collections keep 50 elements, nesting stops at depth 5.
+-spec truncate_term(term()) -> term().
+truncate_term(Term) ->
+    ets_sanitize(Term, 0).
+
+do_select(Table, Limit, undefined) ->
+    truncate_select(ets:select(Table, ?MATCH_ALL, Limit));
+do_select(_Table, _Limit, Cont) ->
+    truncate_select(ets:select(ets:repair_continuation(Cont, ?MATCH_ALL))).
+
+truncate_select('$end_of_table') ->
+    '$end_of_table';
+truncate_select({Records, Cont}) when is_list(Records) ->
+    {truncate_records(Records), Cont}.
+
+truncate_records(Records) ->
+    [truncate_term(R) || R <- Records].
+
+%% Link so an erpc timeout also kills the worker. trap_exit so a heap kill
+%% becomes error:killed instead of taking this process down first.
+isolated(Fun) ->
+    OldTrap = process_flag(trap_exit, true),
+    try
+        isolated_wait(Fun)
+    after
+        process_flag(trap_exit, OldTrap)
+    end.
+
+isolated_wait(Fun) ->
+    Parent = self(),
+    {Pid, MRef} = spawn_opt(fun() -> isolated_worker(Parent, Fun) end, [link, monitor]),
+    receive
+        {Pid, {ok, Result}} ->
+            demonitor(MRef, [flush]),
+            flush_exit(Pid),
+            Result;
+        {Pid, {caught, Kind, Reason, Stack}} ->
+            demonitor(MRef, [flush]),
+            flush_exit(Pid),
+            erlang:raise(Kind, Reason, Stack);
+        {'DOWN', MRef, process, Pid, Reason} ->
+            flush_exit(Pid),
+            isolated_down(Reason);
+        {'EXIT', Pid, Reason} ->
+            receive
+                {'DOWN', MRef, process, Pid, _} ->
+                    ok
+            after 0 ->
+                ok
+            end,
+            isolated_down(Reason)
+    end.
+
+isolated_worker(Parent, Fun) ->
+    process_flag(max_heap_size,
+                 #{size => ?ETS_MAX_HEAP_SIZE,
+                   kill => true,
+                   error_logger => true}),
+    try Fun() of
+        Result ->
+            Parent ! {self(), {ok, Result}}
+    catch
+        Kind:Reason:Stack ->
+            Parent ! {self(), {caught, Kind, Reason, Stack}}
+    end.
+
+isolated_down(killed) ->
+    erlang:error(killed);
+isolated_down({killed, _Info}) ->
+    erlang:error(killed);
+isolated_down(Reason) ->
+    exit(Reason).
+
+flush_exit(Pid) ->
+    receive
+        {'EXIT', Pid, _} ->
+            ok
+    after 0 ->
+        ok
+    end.
+
+ets_sanitize({?TRUNCATED, depth}, _Depth) ->
+    {?TRUNCATED, depth};
+ets_sanitize({?TRUNCATED, Kind, _Payload, _Meta}, Depth)
+    when (Kind =:= list orelse Kind =:= map orelse Kind =:= tuple), Depth >= ?ETS_MAX_DEPTH ->
+    {?TRUNCATED, depth};
+ets_sanitize({?TRUNCATED, binary, Prefix, Size}, _Depth)
+    when is_binary(Prefix), is_integer(Size), Size >= 0 ->
+    {?TRUNCATED, binary, cap_ets_binary(Prefix), max(Size, byte_size(Prefix))};
+ets_sanitize({?TRUNCATED, Kind, Elements, Omitted}, Depth)
+    when (Kind =:= list orelse Kind =:= map orelse Kind =:= tuple), is_list(Elements),
+         is_integer(Omitted), Omitted >= 0 ->
+    ets_sanitize_collection_marker(Kind, Elements, Omitted, Depth);
+ets_sanitize([], Depth) when Depth >= ?ETS_MAX_DEPTH ->
+    [];
+ets_sanitize(Map, Depth) when is_map(Map), map_size(Map) =:= 0, Depth >= ?ETS_MAX_DEPTH ->
+    Map;
+ets_sanitize({}, Depth) when Depth >= ?ETS_MAX_DEPTH ->
+    {};
+ets_sanitize(Term, Depth)
+    when (is_list(Term) orelse is_map(Term) orelse is_tuple(Term)), Depth >= ?ETS_MAX_DEPTH ->
+    {?TRUNCATED, depth};
+ets_sanitize(Term, Depth) ->
+    ets_sanitize_value(Term, Depth).
+
+ets_sanitize_value(Bin, _Depth) when is_binary(Bin) ->
+    Size = byte_size(Bin),
+    case Size > ?ETS_MAX_BINARY_BYTES of
+        true ->
+            {?TRUNCATED, binary, cap_ets_binary(Bin), Size};
+        false ->
+            Bin
+    end;
+ets_sanitize_value(Bits, _Depth) when is_bitstring(Bits), not is_binary(Bits) ->
+    Pad = 8 - bit_size(Bits) rem 8,
+    Padded = <<Bits/bitstring, 0:Pad>>,
+    {?TRUNCATED, binary, cap_ets_binary(Padded), byte_size(Padded)};
+ets_sanitize_value(List, Depth) when is_list(List) ->
+    {Taken, Rest} = ets_take_cons(List, ?ETS_MAX_COLLECTION),
+    Sanitized = [ets_sanitize(E, Depth + 1) || E <- Taken],
+    if Rest =:= [] ->
+           Sanitized;
+       is_list(Rest) ->
+           {?TRUNCATED, list, Sanitized, ets_cons_count(Rest)};
+       true ->
+           ets_cons(Sanitized, ets_sanitize(Rest, Depth + 1))
+    end;
+ets_sanitize_value(Map, Depth) when is_map(Map) ->
+    Pairs = ets_take_map_pairs(Map),
+    Omitted = max(map_size(Map) - length(Pairs), 0),
+    SanitizedPairs =
+        [{ets_sanitize(K, Depth + 1), ets_sanitize(V, Depth + 1)} || {K, V} <- Pairs],
+    ets_rebuild_map(SanitizedPairs, Omitted);
+ets_sanitize_value(Tuple, Depth) when is_tuple(Tuple) ->
+    Size = tuple_size(Tuple),
+    Kept = min(Size, ?ETS_MAX_COLLECTION),
+    Sanitized = [ets_sanitize(element(I, Tuple), Depth + 1) || I <- lists:seq(1, Kept)],
+    case Size > ?ETS_MAX_COLLECTION of
+        true ->
+            {?TRUNCATED, tuple, Sanitized, Size - ?ETS_MAX_COLLECTION};
+        false ->
+            list_to_tuple(Sanitized)
+    end;
+ets_sanitize_value(Term, _Depth) ->
+    Term.
+
+ets_sanitize_collection_marker(Kind, Elements, Omitted, Depth) ->
+    {Taken, Rest} = ets_take_cons(Elements, ?ETS_MAX_COLLECTION),
+    Sanitized =
+        case Kind of
+            map ->
+                [ets_sanitize_map_pair(Pair, Depth) || Pair <- Taken];
+            _ ->
+                [ets_sanitize(E, Depth + 1) || E <- Taken]
+        end,
+    {?TRUNCATED, Kind, Sanitized, Omitted + ets_leftover_count(Rest)}.
+
+ets_sanitize_map_pair({Key, Value}, Depth) ->
+    {ets_sanitize(Key, Depth + 1), ets_sanitize(Value, Depth + 1)};
+ets_sanitize_map_pair(Other, Depth) ->
+    ets_sanitize(Other, Depth + 1).
+
+cap_ets_binary(Bin) when is_binary(Bin) ->
+    Kept =
+        case byte_size(Bin) > ?ETS_MAX_BINARY_BYTES of
+            true ->
+                binary:part(Bin, 0, ?ETS_MAX_BINARY_BYTES);
+            false ->
+                Bin
+        end,
+    binary:copy(Kept).
+
+ets_leftover_count(Rest) when is_list(Rest) ->
+    ets_cons_count(Rest);
+ets_leftover_count(_ImproperTail) ->
+    1.
+
+ets_rebuild_map(Pairs, 0) ->
+    AsMap = maps:from_list(Pairs),
+    case map_size(AsMap) =:= length(Pairs) of
+        true ->
+            AsMap;
+        false ->
+            {?TRUNCATED, map, Pairs, 0}
+    end;
+ets_rebuild_map(Pairs, Omitted) ->
+    {?TRUNCATED, map, Pairs, Omitted}.
+
+ets_cons(Heads, Tail) ->
+    lists:foldr(fun(Head, Acc) -> [Head | Acc] end, Tail, Heads).
+
+ets_take_cons(List, N) ->
+    ets_take_cons(List, N, []).
+
+ets_take_cons(List, N, Acc) when N > 0, is_list(List), List =/= [] ->
+    [Head | Tail] = List,
+    ets_take_cons(Tail, N - 1, [Head | Acc]);
+ets_take_cons(Rest, _N, Acc) ->
+    {lists:reverse(Acc), Rest}.
+
+ets_cons_count(List) ->
+    ets_cons_count(List, 0).
+
+ets_cons_count([_Head | Tail], Acc) ->
+    ets_cons_count(Tail, Acc + 1);
+ets_cons_count([], Acc) ->
+    Acc;
+ets_cons_count(_ImproperTail, Acc) ->
+    Acc + 1.
+
+%% Do not maps:to_list a huge map. OTP 27 `iterator/2` `ordered` keeps a
+%% deterministic 50; continuations stay opaque.
+ets_take_map_pairs(Map) ->
+    ets_take_map_pairs(maps:next(maps:iterator(Map, ordered)), ?ETS_MAX_COLLECTION, []).
+
+ets_take_map_pairs(none, _Left, Acc) ->
+    lists:reverse(Acc);
+ets_take_map_pairs(_Next, 0, Acc) ->
+    lists:reverse(Acc);
+ets_take_map_pairs({K, V, Iter}, Left, Acc) ->
+    ets_take_map_pairs(maps:next(Iter), Left - 1, [{K, V} | Acc]).
 
 %% =====================================================================
 %% NODE WATCHER - gen_server callbacks and watcher for Nodes.
