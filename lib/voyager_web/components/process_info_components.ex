@@ -352,9 +352,9 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
 
   defp identifier_entry(pid, remote_node) when is_pid(pid) do
     if node(pid) == remote_node do
-      %{pid?: true, text: Formatters.format_pid_local(pid)}
+      %{pid?: true, text: Formatters.format_pid(pid)}
     else
-      %{pid?: false, text: "#{Formatters.format_pid_local(pid)} on #{node(pid)}"}
+      %{pid?: false, text: "#{Formatters.format_pid(pid)} on #{node(pid)}"}
     end
   end
 

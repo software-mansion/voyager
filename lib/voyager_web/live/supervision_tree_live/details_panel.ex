@@ -115,7 +115,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   end
 
   defp show_more_href(%TreeNode{pid: pid}, node_name) when is_pid(pid) and is_binary(node_name),
-    do: ~p"/node/#{node_name}/processes/#{Formatters.format_pid_local(pid)}"
+    do: ~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}"
 
   defp show_more_href(_node, _node_name), do: nil
 

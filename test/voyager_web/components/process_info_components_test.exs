@@ -176,11 +176,15 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
       assert text(chips([]), "#chips") =~ "None"
     end
 
-    test "links pids of the inspected node in their local form" do
-      html = chips(items: [remote_pid()], total: 1)
+    test "links pids of the inspected node in their normal form" do
+      pid = remote_pid()
+      pid_string = VoyagerWeb.Formatters.format_pid(pid)
+      html = chips(items: [pid], total: 1)
 
-      assert attr(html, "#chips a", "href") == ["/node/demo%40127.0.0.1/processes/%3C0.45.6%3E"]
-      assert text(html, "#chips a") =~ "<0.45.6>"
+      assert attr(html, "#chips a", "href") ==
+               ["/node/demo%40127.0.0.1/processes/#{URI.encode_www_form(pid_string)}"]
+
+      assert text(html, "#chips a") =~ pid_string
     end
 
     test "renders pids of other nodes as plain text with their node" do
