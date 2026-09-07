@@ -56,6 +56,18 @@ defmodule VoyagerWeb.Components.DataTableComponentsTest do
       assert count(html, ~s|th[data-column="name"] button|) == 0
     end
 
+    test "a narrow column set keeps the 64rem floor and a wide one derives more" do
+      assert attr(table([]), "table", "style") == ["min-width: 64rem"]
+
+      wide =
+        Enum.map(
+          1..9,
+          &%{key: :"c#{&1}", label: "C#{&1}", sortable?: false, align: :left, width: :md}
+        )
+
+      assert attr(table(columns: wide), "table", "style") == ["min-width: 81rem"]
+    end
+
     test "marks only the active sort column with its direction" do
       assert attr(table([]), ~s|th[data-column="memory"]|, "aria-sort") == ["descending"]
 

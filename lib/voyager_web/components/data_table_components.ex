@@ -15,9 +15,9 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         %{key: :memory, label: "Memory", sortable?: true, align: :right, width: :sm}
       ]
 
-  An optional `:width` (`:xs`, `:sm`, `:md` or `:lg`) fixes a column's width
-  so its values cannot resize the table as they change; longer content
-  truncates. Columns without one size to their content.
+  An optional `:width` (`:sm`, `:md` or `:lg`) fixes a column's width so its
+  values cannot resize the table as they change; longer content truncates.
+  Columns without one size to their content.
   """
 
   use VoyagerWeb, :component
@@ -328,7 +328,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   defp align_class(%{align: :right}), do: "text-right"
   defp align_class(_column), do: "text-left"
 
-  defp width_class(%{width: :xs}), do: "w-14 max-w-14"
   defp width_class(%{width: :sm}), do: "w-28 max-w-28"
   defp width_class(%{width: :md}), do: "w-36 max-w-36"
   defp width_class(%{width: :lg}), do: "w-52 max-w-52"
@@ -339,11 +338,10 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   defp min_width_rem(columns) do
     columns
     |> Enum.map(fn
-      %{width: :xs} -> 3.5
       %{width: :sm} -> 7
       %{width: :md} -> 9
       %{width: :lg} -> 13
-      _column -> 16
+      _column -> 8
     end)
     |> Enum.sum()
     |> max(64)

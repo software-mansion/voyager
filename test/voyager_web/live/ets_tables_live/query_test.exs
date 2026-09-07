@@ -86,6 +86,13 @@ defmodule VoyagerWeb.EtsTablesLive.QueryTest do
       assert names(Query.sort(tables, :memory, :desc)) == [:c, :b, :a]
     end
 
+    test "ties between same-named unnamed tables break on the id" do
+      a = EtsFakes.table(name: :dup, id: make_ref(), named_table: false, memory: 8)
+      b = EtsFakes.table(name: :dup, id: make_ref(), named_table: false, memory: 8)
+
+      assert Query.sort([a, b], :memory, :asc) == Query.sort([b, a], :memory, :asc)
+    end
+
     test "every sortable column is a table field or the name" do
       table = EtsFakes.table()
 

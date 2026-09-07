@@ -88,13 +88,14 @@ defmodule VoyagerWeb.EtsTablesLive.Query do
   end
 
   @doc """
-  Sorts by one of `sortable_attrs/0`, breaking ties on the table name so equal
-  values keep a stable order between refreshes.
+  Sorts by one of `sortable_attrs/0`, breaking ties on the table name and then
+  the id — unnamed tables can share a name — so equal values keep a stable
+  order between refreshes.
   """
   @spec sort([table()], atom(), direction()) :: [table()]
   def sort(tables, sort_by, direction)
       when sort_by in @sortable and direction in [:asc, :desc] do
-    Enum.sort_by(tables, &{sort_key(&1, sort_by), name_key(&1)}, direction)
+    Enum.sort_by(tables, &{sort_key(&1, sort_by), name_key(&1), &1.id}, direction)
   end
 
   @doc "Bytes held by `tables` together."
