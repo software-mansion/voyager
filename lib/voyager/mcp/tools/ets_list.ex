@@ -35,8 +35,7 @@ defmodule Voyager.MCP.Tools.EtsList do
       default: "desc",
       description: "`desc` ranks largest first, `asc` smallest first."
 
-    field :search, :string,
-      description: "Case-insensitive filter on the table name or id."
+    field :search, :string, description: "Case-insensitive filter on the table name or id."
   end
 
   @impl true
