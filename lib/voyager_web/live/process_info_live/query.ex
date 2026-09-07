@@ -1,7 +1,8 @@
 defmodule VoyagerWeb.ProcessInfoLive.Query do
   @moduledoc """
   Loads everything the process info page shows, one function per section, each
-  bounded by the caller's own `timeout`.
+  bounded by the caller's own `timeout` -- and, for the unbounded term fetches,
+  the caller's own `budget`.
 
   Every load is user-triggered, so each spends one `:high` token from the rate
   limiter no matter how many remote calls it bundles. Limits live here because
@@ -30,6 +31,9 @@ defmodule VoyagerWeb.ProcessInfoLive.Query do
 
   @spec default_timeout() :: pos_integer()
   def default_timeout, do: Agent.default_timeout()
+
+  @spec default_budget() :: pos_integer()
+  def default_budget, do: Agent.default_budget()
 
   @spec valid_pid_string?(String.t()) :: boolean()
   def valid_pid_string?(pid_string), do: Regex.match?(@pid_format, pid_string)
@@ -64,25 +68,26 @@ defmodule VoyagerWeb.ProcessInfoLive.Query do
     end)
   end
 
-  @spec messages(node(), pid(), timeout()) ::
+  @spec messages(node(), pid(), non_neg_integer(), timeout()) ::
           {:ok, Agent.bounded(term())} | {:error, term()}
-  def messages(node, pid, timeout) do
+  def messages(node, pid, budget, timeout) do
     rate_limited(fn ->
-      ProcessTerm.fetch_messages(node, pid, @messages_limit, @budget, timeout)
+      ProcessTerm.fetch_messages(node, pid, @messages_limit, budget, timeout)
     end)
   end
 
-  @spec dictionary(node(), pid(), timeout()) ::
+  @spec dictionary(node(), pid(), non_neg_integer(), timeout()) ::
           {:ok, Agent.bounded(ProcessInfo.dictionary_entry())} | {:error, term()}
-  def dictionary(node, pid, timeout) do
+  def dictionary(node, pid, budget, timeout) do
     rate_limited(fn ->
-      ProcessInfo.fetch_dictionary(node, pid, @dictionary_limit, @budget, timeout)
+      ProcessInfo.fetch_dictionary(node, pid, @dictionary_limit, budget, timeout)
     end)
   end
 
-  @spec state(node(), pid(), timeout()) :: {:ok, Agent.truncated_term()} | {:error, term()}
-  def state(node, pid, timeout) do
-    rate_limited(fn -> ProcessTerm.fetch_state(node, pid, @budget, timeout) end)
+  @spec state(node(), pid(), non_neg_integer(), timeout()) ::
+          {:ok, Agent.truncated_term()} | {:error, term()}
+  def state(node, pid, budget, timeout) do
+    rate_limited(fn -> ProcessTerm.fetch_state(node, pid, budget, timeout) end)
   end
 
   # A label is an arbitrary term needing the agent's remote truncation; a node

@@ -34,7 +34,7 @@ defmodule VoyagerWeb.Components.TermComponents do
     assigns = assign(assigns, :node, TermTree.describe(assigns.term))
 
     ~H"""
-    <div id={@id} class={["font-mono text-xs" | List.wrap(@class)]}>
+    <div id={@id} class={["font-mono text-sm" | List.wrap(@class)]}>
       <.term_node
         id={@id}
         term={@term}

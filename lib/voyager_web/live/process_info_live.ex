@@ -30,6 +30,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
   @tabs ~w(overview state messages dictionary relations)a
   @sections ~w(info relations state messages dictionary)a
+  @budget_sections ~w(state messages dictionary)a
 
   @impl true
   def mount(%{"pid" => pid_string}, _session, socket) do
@@ -44,6 +45,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
     |> assign(:dictionary, nil)
     |> assign(:state, nil)
     |> assign(:timeouts, Map.new(@sections, &{&1, Query.default_timeout()}))
+    |> assign(:budgets, Map.new(@budget_sections, &{&1, Query.default_budget()}))
     |> assign(:fetched_at, %{})
     |> assign(:last_updated, nil)
     |> resolve_pid(pid_string)
@@ -118,6 +120,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
           active={@tab == :state}
           fetched_at={@fetched_at[:state]}
           timeout={@timeouts.state}
+          budget={@budgets.state}
           loading?={loading?(@state)}
           disabled={is_nil(@pid)}
           title="State"
@@ -139,6 +142,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
           active={@tab == :messages}
           fetched_at={@fetched_at[:messages]}
           timeout={@timeouts.messages}
+          budget={@budgets.messages}
           loading?={loading?(@messages)}
           disabled={is_nil(@pid)}
           title="Messages"
@@ -172,6 +176,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
           active={@tab == :dictionary}
           fetched_at={@fetched_at[:dictionary]}
           timeout={@timeouts.dictionary}
+          budget={@budgets.dictionary}
           loading?={loading?(@dictionary)}
           disabled={is_nil(@pid)}
           title="Dictionary"
@@ -190,12 +195,12 @@ defmodule VoyagerWeb.ProcessInfoLive do
                 :for={{{key, value}, index} <- Enum.with_index(dictionary.items)}
                 class="flex items-baseline gap-6 py-2.5"
               >
-                <span
-                  class="font-mono text-base-content max-w-64 w-64 shrink-0 truncate text-sm font-semibold"
-                  title={inspect(key)}
-                >
-                  {inspect(key)}
-                </span>
+                <.term_inspector
+                  id={"dict-key-#{index}"}
+                  term={key}
+                  state={@term_states["dict-key-#{index}"]}
+                  class="max-w-64 w-64 shrink-0 overflow-x-auto"
+                />
                 <.term_inspector
                   id={"dict-entry-#{index}"}
                   term={value}
@@ -276,9 +281,20 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
   def handle_event("set-timeout", %{"section" => section, "timeout" => timeout}, socket) do
     with name when not is_nil(name) <- section_atom(section),
-         timeout when not is_nil(timeout) <- parse_timeout(timeout) do
+         timeout when not is_nil(timeout) <- parse_bounded(timeout, timeout_bounds()) do
       socket
       |> assign(:timeouts, Map.put(socket.assigns.timeouts, name, timeout))
+      |> noreply()
+    else
+      _ -> noreply(socket)
+    end
+  end
+
+  def handle_event("set-budget", %{"section" => section, "budget" => budget}, socket) do
+    with name when name in @budget_sections <- section_atom(section),
+         budget when not is_nil(budget) <- parse_bounded(budget, budget_bounds()) do
+      socket
+      |> assign(:budgets, Map.put(socket.assigns.budgets, name, budget))
       |> noreply()
     else
       _ -> noreply(socket)
@@ -370,20 +386,26 @@ defmodule VoyagerWeb.ProcessInfoLive do
   @queries %{
     info: &Query.overview/3,
     relations: &Query.relations/3,
-    messages: &Query.messages/3,
-    dictionary: &Query.dictionary/3,
-    state: &Query.state/3
+    messages: &Query.messages/4,
+    dictionary: &Query.dictionary/4,
+    state: &Query.state/4
   }
 
   defp fetch(socket, name) do
-    %{pid: pid, session: %{node: node}, timeouts: timeouts} = socket.assigns
+    %{pid: pid, session: %{node: node}, timeouts: timeouts, budgets: budgets} = socket.assigns
     query = Map.fetch!(@queries, name)
     timeout = Map.fetch!(timeouts, name)
+
+    args =
+      case budgets do
+        %{^name => budget} -> [node, pid, budget, timeout]
+        %{} -> [node, pid, timeout]
+      end
 
     socket
     |> cancel_async(name, {:shutdown, :cancel})
     |> assign(name, mark_loading(socket.assigns[name]))
-    |> start_async(name, fn -> query.(node, pid, timeout) end)
+    |> start_async(name, fn -> apply(query, args) end)
   end
 
   # Opening a gated tab for the first time fetches it; data that is already
@@ -403,11 +425,9 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
   defp section_atom(section), do: Enum.find(@sections, &(to_string(&1) == section))
 
-  defp parse_timeout(value) when is_binary(value) do
-    {min_ms, max_ms} = timeout_bounds()
-
+  defp parse_bounded(value, {lower, upper}) when is_binary(value) do
     case Integer.parse(value) do
-      {ms, ""} -> ms |> max(min_ms) |> min(max_ms)
+      {n, ""} -> n |> max(lower) |> min(upper)
       _ -> nil
     end
   end
@@ -418,16 +438,20 @@ defmodule VoyagerWeb.ProcessInfoLive do
   defp seed_terms(socket, :messages, %{items: items}),
     do: seed_term_list(socket, "message", items)
 
-  # A dictionary entry is `{key, value}`; only the value gets an inspector. An
-  # entry the remote truncated down to a bare marker is seeded as-is.
+  # An entry the remote truncated down to a bare marker has no key half and is
+  # seeded as a value only.
   defp seed_terms(socket, :dictionary, %{items: items}) do
-    values =
-      Enum.map(items, fn
-        {_key, value} -> value
-        other -> other
-      end)
+    items
+    |> Enum.with_index()
+    |> Enum.reduce(socket, fn
+      {{key, value}, index}, socket ->
+        socket
+        |> TermTreeHook.put_term("dict-key-#{index}", key)
+        |> TermTreeHook.put_term("dict-entry-#{index}", value)
 
-    seed_term_list(socket, "dict-entry", values)
+      {other, index}, socket ->
+        TermTreeHook.put_term(socket, "dict-entry-#{index}", other)
+    end)
   end
 
   defp seed_terms(socket, _name, _value), do: socket

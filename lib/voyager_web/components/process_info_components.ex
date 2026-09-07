@@ -14,10 +14,19 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   alias VoyagerWeb.Formatters
 
   @timeout_bounds {1_000, 30_000}
+  @budget_bounds {100, 100_000}
+
+  @budget_help "Caps how much of each fetched term the remote node sends back — " <>
+                 "roughly one unit per subterm, binaries charged per byte kept. " <>
+                 "Anything beyond the budget is truncated on the remote."
 
   @doc "Timeout bounds for the per-section timeout inputs, in milliseconds."
   @spec timeout_bounds() :: {pos_integer(), pos_integer()}
   def timeout_bounds, do: @timeout_bounds
+
+  @doc "Budget bounds for the per-section term budget inputs."
+  @spec budget_bounds() :: {pos_integer(), pos_integer()}
+  def budget_bounds, do: @budget_bounds
 
   @doc """
   One lift tab. Must be a direct child of the `.tabs` tablist; the matching
@@ -47,8 +56,8 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   end
 
   @doc """
-  A lift tab's content panel: the controls row (fetch time, timeout input and
-  fetch button, all scoped to `section`) above the section body.
+  A lift tab's content panel: the controls row (fetch time, budget and timeout
+  inputs and fetch button, all scoped to `section`) above the section body.
 
   All panels stay in the DOM so fetched data survives tab switches; only the
   `active` one is shown. The panel fills the remaining page height and scrolls
@@ -62,12 +71,17 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   attr :help, :string, default: nil, doc: "renders a \"?\" tooltip next to the title"
   attr :fetched_at, DateTime, default: nil
   attr :timeout, :integer, required: true
+  attr :budget, :integer, default: nil, doc: "renders a budget input when set"
   attr :loading?, :boolean, required: true
   attr :disabled, :boolean, required: true
   slot :inner_block, required: true
 
   def tab_panel(assigns) do
-    assigns = assign(assigns, :bounds, @timeout_bounds)
+    assigns =
+      assigns
+      |> assign(:bounds, @timeout_bounds)
+      |> assign(:budget_bounds, @budget_bounds)
+      |> assign(:budget_help, @budget_help)
 
     ~H"""
     <div class={[
@@ -95,6 +109,32 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
             >
               fetched {Formatters.format_time(@fetched_at)} UTC
             </span>
+            <form
+              :if={@budget}
+              id={"#{@id}-budget-form"}
+              phx-change="set-budget"
+              class="flex items-center gap-2"
+            >
+              <input type="hidden" name="section" value={@section} />
+              <span class="flex items-center gap-1">
+                <label for={"#{@id}-budget"} class="text-base-content/70 text-xs font-medium">
+                  Budget
+                </label>
+                <.help_tooltip id={"#{@id}-budget-help"} text={@budget_help} />
+              </span>
+              <input
+                id={"#{@id}-budget"}
+                type="number"
+                name="budget"
+                value={@budget}
+                min={elem(@budget_bounds, 0)}
+                max={elem(@budget_bounds, 1)}
+                step="100"
+                inputmode="numeric"
+                phx-debounce="500"
+                class="input input-sm input-bordered no-spinner font-mono w-24"
+              />
+            </form>
             <form id={"#{@id}-timeout-form"} phx-change="set-timeout" class="flex items-center gap-2">
               <input type="hidden" name="section" value={@section} />
               <label for={"#{@id}-timeout"} class="text-base-content/70 text-xs font-medium">
