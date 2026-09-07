@@ -61,9 +61,9 @@ defmodule VoyagerWeb.ProcessInfoLive do
         <:actions>
           <h2
             id="process-info-pid"
-            class="text-base-content font-mono flex items-center gap-2 text-sm font-semibold"
+            class="text-base-content font-mono flex items-center gap-2 text-2xl font-bold tracking-tight"
           >
-            <span class="bg-primary h-1.5 w-1.5 rounded-full" />
+            <span class="bg-primary h-2 w-2 rounded-full" />
             {@pid_string}
           </h2>
         </:actions>

@@ -120,9 +120,9 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
               id={"#{@id}-fetched-at"}
               class="font-mono text-base-content/70 text-xs"
             >
-              fetched {Formatters.format_time(@fetched_at)} UTC<span :if={@took_ms}> in {Formatters.format_integer(
-                @took_ms
-              )} ms</span>
+              fetched {Formatters.format_time(@fetched_at)} UTC<span :if={@took_ms}> in <span class={
+                round_trip_class(@took_ms)
+              }>{Formatters.format_integer(@took_ms)} ms</span></span>
             </span>
             <form
               :if={@limit}
@@ -254,6 +254,12 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
     </.async_result>
     """
   end
+
+  # A slow fetch is the cost the node paid, so it is flagged where it is
+  # reported, matching the process list's scale.
+  defp round_trip_class(ms) when ms > 3_000, do: "text-error"
+  defp round_trip_class(ms) when ms > 1_000, do: "text-warning"
+  defp round_trip_class(_ms), do: "text-base-content"
 
   attr :id, :string, required: true
   attr :event, :string, required: true

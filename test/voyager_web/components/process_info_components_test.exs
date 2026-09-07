@@ -117,6 +117,19 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
       assert text(html, "#panel-sec-fetched-at") =~ "fetched 09:08:07 UTC"
     end
 
+    test "colors a slow fetch duration like the process list" do
+      {:ok, dt, 0} = DateTime.from_iso8601("2026-06-02T09:08:07Z")
+
+      assert text(panel(fetched_at: dt, took_ms: 12), "#panel-sec-fetched-at .text-base-content") =~
+               "12 ms"
+
+      assert text(panel(fetched_at: dt, took_ms: 1_500), "#panel-sec-fetched-at .text-warning") =~
+               "1,500 ms"
+
+      assert text(panel(fetched_at: dt, took_ms: 4_000), "#panel-sec-fetched-at .text-error") =~
+               "4,000 ms"
+    end
+
     test "stays in the DOM but hidden while another tab is active" do
       html = panel(active: false)
 
