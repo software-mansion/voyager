@@ -113,7 +113,7 @@ defmodule Voyager.Services.Ets.Search do
 
   defp eq_query(pos, value) do
     if valid_scalar?(value) do
-      {:ok, [{:"$1", [{:"=:=", {:element, pos, :"$1"}, value}], [:"$1"]}]}
+      {:ok, [{:"$1", [{:"=:=", {:element, pos, :"$1"}, {:const, value}}], [:"$1"]}]}
     else
       {:error, :invalid_query}
     end
