@@ -13,6 +13,8 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   alias Phoenix.LiveView.AsyncResult
   alias VoyagerWeb.Formatters
 
+  @typep async_result :: %AsyncResult{}
+
   @timeout_bounds {1_000, 30_000}
   @budget_bounds {100, 100_000}
 
@@ -315,14 +317,14 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   Formats the `muted` counter of a section from a bounded result, or from an
   `AsyncResult` holding one.
   """
-  @spec bounded_count(AsyncResult.t() | map() | nil) :: String.t() | nil
+  @spec bounded_count(async_result() | map() | nil) :: String.t() | nil
   def bounded_count(%AsyncResult{ok?: true, result: %{total: total}}),
     do: "(#{Formatters.format_integer(total)})"
 
   def bounded_count(%{total: total}), do: "(#{Formatters.format_integer(total)})"
   def bounded_count(_result), do: nil
 
-  @spec loading?(AsyncResult.t() | nil) :: boolean()
+  @spec loading?(async_result() | nil) :: boolean()
   def loading?(%AsyncResult{loading: loading}), do: loading != nil
   def loading?(_result), do: false
 
