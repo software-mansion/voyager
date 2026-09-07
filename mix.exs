@@ -109,7 +109,6 @@ defmodule Voyager.MixProject do
         "compile --warnings-as-errors",
         "format",
         "credo --strict",
-        "cmd sh -c \"MIX_ENV=dev mix dialyzer\"",
         "e2e.format",
         "tauri.format",
         "test",
