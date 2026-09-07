@@ -156,7 +156,7 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
 
       open_tab!(view, :state, 5_000)
 
-      assert has_element?(view, "#process-state-error", "did not reply in time")
+      assert has_element?(view, "#process-state-error", "Timed out while fetching")
       refute_receive {:DOWN, ^ref, :process, ^pid, _reason}
     end
   end
@@ -190,7 +190,7 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
       view = open!(conn, "not-a-pid")
 
       assert has_element?(view, "#panel-overview .alert-error")
-      assert has_element?(view, "#process-relations-error", "No process with this pid")
+      assert has_element?(view, "#process-relations-error", "Invalid PID")
     end
   end
 end

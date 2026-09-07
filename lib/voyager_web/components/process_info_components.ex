@@ -376,11 +376,11 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   def loading?(_result), do: false
 
   @spec error_message(term()) :: String.t()
-  def error_message(:invalid_pid), do: "No process with this pid exists on the node."
-  def error_message(:dead), do: "The process is no longer alive."
-  def error_message(:timeout), do: "The process did not reply in time."
-  def error_message(:no_state), do: "This process does not expose a state."
-  def error_message(:rate_limited), do: "Too many requests. Wait a moment and retry."
+  def error_message(:invalid_pid), do: "Invalid PID"
+  def error_message(:dead), do: "The process is not alive."
+  def error_message(:timeout), do: "Timed out while fetching process info."
+  def error_message(:no_state), do: "This process has no state."
+  def error_message(:rate_limited), do: "Too many requests."
   def error_message(:noconnection), do: "Node is unreachable."
 
   def error_message({:remote_exception, :undef}),

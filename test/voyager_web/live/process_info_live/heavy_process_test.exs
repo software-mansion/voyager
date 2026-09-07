@@ -106,7 +106,7 @@ defmodule VoyagerWeb.ProcessInfoLive.HeavyProcessTest do
     view |> element("#process-tab-state") |> render_click()
     render_async(view, 5_000)
 
-    assert has_element?(view, "#process-state-error", "did not reply in time")
+    assert has_element?(view, "#process-state-error", "Timed out while fetching")
     refute_receive {:DOWN, ^ref, :process, ^pid, _reason}
     assert_progress(counter, :counters.get(counter, 1))
   end
