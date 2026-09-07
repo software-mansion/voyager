@@ -271,8 +271,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
     """
   end
 
-  # The on/off table options; `decentralized_counters` is only reported by
-  # nodes that know it.
+  # `decentralized_counters` is only reported by nodes that know it.
   defp flag(row, key) do
     case Map.get(row, key) do
       nil -> DataTableComponents.placeholder()

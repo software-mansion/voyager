@@ -127,7 +127,6 @@ test.describe('EtsTablesLive', () => {
 
     await expect(page.locator('th[data-column="type"]')).toHaveCount(0);
     await expect(page.locator('th[data-column="heir"]')).toBeVisible();
-    // Table and Memory are locked and stay.
     await expect(page.locator('th[data-column="name"]')).toBeVisible();
     await expect(page.locator('th[data-column="memory"]')).toBeVisible();
   });

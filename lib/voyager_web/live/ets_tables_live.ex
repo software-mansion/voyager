@@ -58,10 +58,7 @@ defmodule VoyagerWeb.EtsTablesLive do
   def render(assigns) do
     ~H"""
     <div id="ets-tables" class="relative flex h-full overflow-hidden">
-      <%!-- The page itself never scrolls; the table's card is the only scroll
-            container, on both axes. --%>
       <div class="min-w-0 flex-1">
-        <%!-- The hook restores saved controls on mount and stores them on change. --%>
         <div
           id="ets-tables-page"
           phx-hook="TableSettings"
@@ -85,7 +82,6 @@ defmodule VoyagerWeb.EtsTablesLive do
 
           <EtsTableComponents.controls form={@form} />
 
-          <%!-- Outside any loading branch: a refetch swaps rows, not the table. --%>
           <.error_state
             :if={@page_result.failed}
             id="ets-tables-error"
@@ -266,8 +262,6 @@ defmodule VoyagerWeb.EtsTablesLive do
     end
   end
 
-  # A changed filter narrows to a different set of rows, so it starts from the
-  # first page; a timeout edit changes nothing on screen and keeps the page.
   defp reset_page_if_filters_changed(socket, previous) do
     if filters(socket.assigns.controls) == filters(previous),
       do: socket,
@@ -276,16 +270,13 @@ defmodule VoyagerWeb.EtsTablesLive do
 
   defp filters(controls), do: Map.take(controls, [:search, :protection, :type, :named])
 
-  # Filters and columns are local; only the timeout changes what the node is
-  # asked, so only it earns a debounced refetch.
+  # Only the timeout changes what the node is asked.
   defp refetch_if_timeout_changed(socket, previous_timeout) do
     if socket.assigns.controls.timeout == previous_timeout,
       do: socket,
       else: Fetcher.debounce_refetch(socket)
   end
 
-  # Search and sort apply to the last fetch, so a change to either only
-  # recomputes the rows on screen.
   defp refresh_view(socket) do
     %{controls: controls, sort_by: sort_by, direction: direction, page_size: page_size} =
       socket.assigns
@@ -305,8 +296,6 @@ defmodule VoyagerWeb.EtsTablesLive do
     |> assign(:page, clamp_page(socket.assigns.page, length(tables), page_size))
   end
 
-  # The param is matched against the last fetch rather than looked up on the
-  # node: an unnamed table's reference is only meaningful from that list.
   defp resolve_selection(%{assigns: %{table_param: nil}} = socket) do
     assign(socket, :selected_table, nil)
   end
@@ -354,13 +343,9 @@ defmodule VoyagerWeb.EtsTablesLive do
     |> Enum.map(&{row_dom_id(&1.id), &1})
   end
 
-  @doc false
-  # A name can hold any character and a reference inspects as
-  # `#Reference<0.1.2.3>`, neither of which is a usable DOM id. The readable
-  # part is for the eye; the digest keeps apart two names that only differ in
-  # the characters it dropped, and the prefix keeps rows out of the page's own
-  # `ets-*` ids.
-  def row_dom_id(id) when is_atom(id) or is_reference(id) do
+  # A name can hold any character, so the readable part is for the eye; the
+  # digest keeps apart two names that only differ in the characters it dropped.
+  defp row_dom_id(id) do
     display = TableId.display(id)
 
     "ets-row-#{dom_safe(display)}-#{id |> :erlang.phash2() |> Integer.to_string(36)}"
@@ -385,8 +370,7 @@ defmodule VoyagerWeb.EtsTablesLive do
   defp table_param(_params), do: nil
 
   # Re-selecting the active column flips the direction; a new column starts
-  # from the order that reads naturally for it: largest first for the numbers,
-  # alphabetical for the rest.
+  # largest-first for the numbers, alphabetical for the rest.
   defp toggle_direction(%{assigns: %{sort_by: key, direction: :desc}}, key), do: :asc
   defp toggle_direction(%{assigns: %{sort_by: key}}, key), do: :desc
   defp toggle_direction(_socket, key) when key in [:size, :memory], do: :desc
