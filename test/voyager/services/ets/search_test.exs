@@ -40,6 +40,18 @@ defmodule Voyager.Services.Ets.SearchTest do
       assert {:ok, false} = :ets.test_ms({:k, :other}, spec)
     end
 
+    test "key_eq treats :\"$1\" as a literal, not a match variable" do
+      assert {:ok, spec} = Search.compile({:key_eq, :"$1"}, 1)
+      assert {:ok, {:"$1", 1}} = :ets.test_ms({:"$1", 1}, spec)
+      assert {:ok, false} = :ets.test_ms({:k, 1}, spec)
+    end
+
+    test "key_eq treats :\"$2\" as a literal, not an unbound match variable" do
+      assert {:ok, spec} = Search.compile({:key_eq, :"$2"}, 1)
+      assert {:ok, {:"$2", 1}} = :ets.test_ms({:"$2", 1}, spec)
+      assert {:ok, false} = :ets.test_ms({:"$1", 1}, spec)
+    end
+
     test "rejects a match-spec string" do
       assert {:error, :invalid_query} = Search.compile("fn x -> true end")
       assert {:error, :invalid_query} = Search.compile("[{:'$1', [], [:'$1']}]")
@@ -88,7 +100,7 @@ defmodule Voyager.Services.Ets.SearchTest do
     test "key_eq compiles using table keypos and selects through the agent" do
       stub_info(keypos: 2)
 
-      spec = [{:"$1", [{:"=:=", {:element, 2, :"$1"}, :the_key}], [:"$1"]}]
+      spec = [{:"$1", [{:"=:=", {:element, 2, :"$1"}, {:const, :the_key}}], [:"$1"]}]
 
       expect(Voyager.ErpcMock, :call, fn @node,
                                          :voyager_agent,
@@ -137,7 +149,7 @@ defmodule Voyager.Services.Ets.SearchTest do
     end
 
     test "element_eq does not fetch table info" do
-      spec = [{:"$1", [{:"=:=", {:element, 2, :"$1"}, :v}], [:"$1"]}]
+      spec = [{:"$1", [{:"=:=", {:element, 2, :"$1"}, {:const, :v}}], [:"$1"]}]
 
       expect(Voyager.ErpcMock, :call, fn @node,
                                          :voyager_agent,
@@ -154,7 +166,7 @@ defmodule Voyager.Services.Ets.SearchTest do
     end
 
     test "passes a raw continuation through to the agent" do
-      spec = [{:"$1", [{:"=:=", {:element, 1, :"$1"}, :k}], [:"$1"]}]
+      spec = [{:"$1", [{:"=:=", {:element, 1, :"$1"}, {:const, :k}}], [:"$1"]}]
       cont = make_ref()
 
       expect(Voyager.ErpcMock, :call, fn @node,
@@ -182,7 +194,7 @@ defmodule Voyager.Services.Ets.SearchTest do
 
     test "does not retry a missing agent export as :ets.select" do
       test = self()
-      spec = [{:"$1", [{:"=:=", {:element, 2, :"$1"}, :v}], [:"$1"]}]
+      spec = [{:"$1", [{:"=:=", {:element, 2, :"$1"}, {:const, :v}}], [:"$1"]}]
 
       expect(Voyager.ErpcMock, :call, fn _node, mod, fun, args, _timeout ->
         send(test, {:called, mod, fun, args})
