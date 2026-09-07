@@ -17,9 +17,12 @@ defmodule VoyagerWeb.TermTree do
   Terms fetched from a remote node arrive already truncated, with elided
   subterms replaced in place by `#{inspect(:"$voyager_truncated")}`. Those
   render as a muted placeholder so a partial term is never mistaken for a
-  complete one. See `priv/voyager_agent.erl` for the truncation itself.
+  complete one. ETS records carry the tagged form of the same marker, which
+  keeps the elided collection's kind and how much it dropped, so a shortened
+  branch still opens on what survived. See `priv/voyager_agent.erl`.
   """
 
+  alias VoyagerWeb.Formatters
   alias VoyagerWeb.TermTree.Node
   alias VoyagerWeb.TermTree.Segment
   alias VoyagerWeb.TermTree.State
@@ -60,6 +63,25 @@ defmodule VoyagerWeb.TermTree do
   """
   @spec children(term(), non_neg_integer(), pos_integer()) :: [{[Segment.t()] | nil, term()}]
   def children(term, offset, limit)
+
+  def children({@truncated, :map, pairs, _omitted}, offset, limit) when is_list(pairs) do
+    pairs
+    |> Enum.slice(offset, limit)
+    |> Enum.map(fn
+      {key, value} -> key_value({key, value})
+      element -> {nil, element}
+    end)
+  end
+
+  def children({@truncated, kind, elements, _omitted}, offset, limit)
+      when kind in [:list, :tuple] and is_list(elements) do
+    elements
+    |> Enum.slice(offset, limit)
+    |> Enum.map(&{nil, &1})
+  end
+
+  def children({@truncated, _kind, _payload, _meta}, _offset, _limit), do: []
+  def children({@truncated, :depth}, _offset, _limit), do: []
 
   def children(tuple, offset, limit) when is_tuple(tuple) do
     tuple
@@ -215,6 +237,37 @@ defmodule VoyagerWeb.TermTree do
     %Node{kind: :truncated, content: [Segment.muted("… (truncated)")]}
   end
 
+  defp build({@truncated, :depth}) do
+    %Node{kind: :truncated, content: [Segment.muted("… (nested too deep)")]}
+  end
+
+  defp build({@truncated, :binary, prefix, size})
+       when is_binary(prefix) and is_integer(size) do
+    %Node{
+      kind: :binary,
+      truncated?: true,
+      content: [
+        Segment.string(inspect(prefix, @inspect_opts)),
+        Segment.muted(" … #{Formatters.format_bytes(size)} total")
+      ]
+    }
+  end
+
+  defp build({@truncated, kind, elements, omitted})
+       when kind in [:list, :map, :tuple] and is_list(elements) and is_integer(omitted) do
+    %Node{
+      kind: kind,
+      child_count: length(elements),
+      truncated?: true,
+      content: [Segment.punctuation(marker_collapsed(kind))],
+      expanded_before: [Segment.punctuation(marker_open(kind))],
+      expanded_after: [
+        Segment.muted(omitted_label(omitted)),
+        Segment.punctuation(marker_close(kind))
+      ]
+    }
+  end
+
   defp build(binary) when is_binary(binary) do
     %Node{kind: :binary, content: [Segment.string(inspect(binary, @inspect_opts))]}
   end
@@ -304,6 +357,22 @@ defmodule VoyagerWeb.TermTree do
   end
 
   defp build(other), do: build_other(other)
+
+  defp marker_collapsed(:list), do: "[...]"
+  defp marker_collapsed(:map), do: "%{...}"
+  defp marker_collapsed(:tuple), do: "{...}"
+
+  defp marker_open(:list), do: "["
+  defp marker_open(:map), do: "%{"
+  defp marker_open(:tuple), do: "{"
+
+  defp marker_close(:list), do: "]"
+  defp marker_close(:map), do: "}"
+  defp marker_close(:tuple), do: "}"
+
+  defp omitted_label(0), do: ", …"
+  defp omitted_label(1), do: ", … 1 more"
+  defp omitted_label(omitted), do: ", … #{Formatters.format_integer(omitted)} more"
 
   defp build_other(term) do
     %Node{kind: :other, content: [Segment.other(inspect(term, @inspect_opts))]}
