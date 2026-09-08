@@ -32,4 +32,13 @@ defmodule Voyager.Test.FixtureApp.Worker do
     port = Port.open(name, settings)
     {:reply, port, state}
   end
+
+  def handle_call({:put_state, state}, _from, _state) do
+    {:reply, :ok, state}
+  end
+
+  @impl true
+  def handle_cast(:noop, state) do
+    {:noreply, state}
+  end
 end

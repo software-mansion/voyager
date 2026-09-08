@@ -226,6 +226,9 @@ const Tooltip = {
     // Click toggles the pinned state: pin → freeze open; unpin → fall back to
     // hover rules (stays if still hovered, otherwise closes).
     this.togglePin = (e) => {
+      // A click on a link inside the trigger is a navigation, not a pin
+      // gesture; preventDefault here would swallow plain href links.
+      if (e.target.closest('a')) return;
       e.preventDefault();
       this._pinned = !this._pinned;
       if (this._pinned) {

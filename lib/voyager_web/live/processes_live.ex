@@ -100,7 +100,7 @@ defmodule VoyagerWeb.ProcessesLive do
               column={column}
               row={row}
               row_id={row_id}
-              pid_href={process_path(@session.node_name, row.pid)}
+              pid_href={process_path(@session.node_name, row.pid, @current_url)}
             />
           </:cell>
         </DataTableComponents.table>
@@ -245,8 +245,8 @@ defmodule VoyagerWeb.ProcessesLive do
     "process-#{digits}"
   end
 
-  defp process_path(node_name, pid) do
-    ~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}"
+  defp process_path(node_name, pid, current_url) do
+    keep_sidebar(~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}", current_url)
   end
 
   # Re-selecting the active column flips the direction; a new column starts
