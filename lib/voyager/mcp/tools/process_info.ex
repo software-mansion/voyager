@@ -87,5 +87,4 @@ defmodule Voyager.MCP.Tools.ProcessInfo do
 
   defp fetch_section("messages", node, pid, limit),
     do: {:messages, ProcessTerm.fetch_messages(node, pid, limit)}
-
 end
