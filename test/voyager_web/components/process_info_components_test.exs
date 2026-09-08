@@ -226,6 +226,15 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
     end
   end
 
+  describe "truncation_note/1" do
+    test "reads as a warning, like every other notice" do
+      html = render_component(&ProcessInfoComponents.truncation_note/1, id: "cut")
+
+      assert text(html, "#cut.alert-warning") =~ "Truncated on the remote node"
+      assert count(html, "#cut .text-warning") == 1
+    end
+  end
+
   describe "error_kind/1" do
     test "treats a missing state as information, everything else as an error" do
       assert ProcessInfoComponents.error_kind(:no_state) == :info

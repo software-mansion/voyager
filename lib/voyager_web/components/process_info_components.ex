@@ -159,7 +159,10 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
             />
           </div>
         </div>
-        <div class="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
+        <%!-- `relative` contains the term inspectors' absolutely-positioned
+             sr-only labels; without it they resolve against the positioned
+             shell <main> and inflate its scroll height past this scroller. --%>
+        <div class="relative min-h-0 flex-1 overflow-y-auto px-5 pb-5">
           <div class="flex min-h-full flex-col gap-5">
             {render_slot(@inner_block)}
           </div>
@@ -305,36 +308,42 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
     """
   end
 
+  @doc "The page's one alert: every notice, warning and error looks like this."
   attr :id, :string, required: true
   attr :message, :string, required: true
-  attr :kind, :atom, default: :error, values: [:error, :info]
+  attr :kind, :atom, default: :error, values: [:error, :warning, :info]
+  attr :class, :any, default: nil
 
   def fetch_alert(assigns) do
     ~H"""
-    <div
-      id={@id}
-      class={[
-        "alert border px-3 py-2.5 text-xs",
-        if(@kind == :info, do: "alert-info", else: "alert-error")
-      ]}
-    >
-      <.icon
-        name={if(@kind == :info, do: "icon-info", else: "icon-circle-alert")}
-        class="size-4 shrink-0"
-      />
-      {@message}
+    <div id={@id} class={["alert px-3 py-2.5 text-xs", alert_class(@kind), @class]}>
+      <.icon name={alert_icon(@kind)} class={["size-4 shrink-0", alert_icon_class(@kind)]} />
+      <span>{@message}</span>
     </div>
     """
   end
 
+  defp alert_class(:info), do: "alert-info"
+  defp alert_class(:warning), do: "alert-warning"
+  defp alert_class(:error), do: "alert-error"
+
+  defp alert_icon(:info), do: "icon-info"
+  defp alert_icon(_kind), do: "icon-circle-alert"
+
+  defp alert_icon_class(:info), do: "text-info"
+  defp alert_icon_class(:warning), do: "text-warning"
+  defp alert_icon_class(:error), do: "text-error"
+
+  @doc "The panel's single truncation warning, covering the whole fetch."
   attr :id, :string, required: true
 
   def truncation_note(assigns) do
     ~H"""
-    <p id={@id} class="text-base-content/70 flex items-center gap-1.5 text-xs">
-      <.icon name="icon-info" class="size-3.5 shrink-0" />
-      Truncated on the remote node — some entries or values are not shown.
-    </p>
+    <.fetch_alert
+      id={@id}
+      kind={:warning}
+      message="Truncated on the remote node — some entries or values are not shown."
+    />
     """
   end
 

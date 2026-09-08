@@ -610,8 +610,6 @@ defmodule VoyagerWeb.ProcessInfoLive do
   defp seed_terms(socket, :messages, %{items: items}),
     do: seed_term_list(socket, "message", items)
 
-  # An entry the remote truncated down to a bare marker has no key half and is
-  # seeded as a value only.
   defp seed_terms(socket, :dictionary, %{items: items}) do
     items
     |> Enum.with_index()
@@ -621,8 +619,9 @@ defmodule VoyagerWeb.ProcessInfoLive do
         |> put_term("dict-key-#{index}", key)
         |> put_term("dict-entry-#{index}", value)
 
-      {other, index}, socket ->
-        put_term(socket, "dict-entry-#{index}", other)
+      # An entry the remote truncated to a bare marker has no term to inspect.
+      {_marker, _index}, socket ->
+        socket
     end)
   end
 

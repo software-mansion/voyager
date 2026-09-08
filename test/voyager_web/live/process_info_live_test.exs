@@ -10,6 +10,19 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
 
   @node_name "nonode@nohost"
 
+  setup_all do
+    path = :voyager |> :code.priv_dir() |> Path.join("voyager_agent.erl")
+    {:ok, module, binary} = :compile.file(String.to_charlist(path), [:binary])
+    {:module, ^module} = :code.load_binary(module, String.to_charlist(path), binary)
+
+    on_exit(fn ->
+      :code.purge(module)
+      :code.delete(module)
+    end)
+
+    :ok
+  end
+
   setup do
     prev_erpc = Application.get_env(:voyager, :erpc)
     Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
@@ -41,6 +54,36 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
 
       flash = assert_redirect(view, ~p"/node/#{@node_name}/processes", 2_000)
       assert %{"error" => "The process is not alive."} = flash
+    end
+  end
+
+  describe "dictionary" do
+    # 40 three-unit entries against the smallest allowed budget leave exactly
+    # one unit for the last one, which the remote truncates to a bare marker.
+    test "drops a bare-marker entry and reports it through the truncation note", %{conn: conn} do
+      parent = self()
+
+      pid =
+        spawn(fn ->
+          for n <- 1..40, do: Process.put(:"key_#{n}", :value)
+          send(parent, :ready)
+          Process.sleep(:infinity)
+        end)
+
+      assert_receive :ready
+      on_exit(fn -> Process.exit(pid, :kill) end)
+
+      path = ~p"/node/#{@node_name}/processes/#{Formatters.format_pid(pid)}"
+      {:ok, view, _html} = live(conn, path)
+      render_hook(view, "restore_settings", %{"dictionary" => %{"budget" => 100}})
+      render_async(view, 2_000)
+
+      view |> element("#process-tab-dictionary") |> render_click()
+      render_async(view, 2_000)
+
+      assert has_element?(view, "#dict-key-0")
+      refute has_element?(view, "#dict-entry-33")
+      assert has_element?(view, "#process-dictionary-truncated")
     end
   end
 end
