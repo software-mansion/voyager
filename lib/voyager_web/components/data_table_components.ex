@@ -34,12 +34,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   def placeholder, do: @placeholder
 
   @doc """
-  The narrowest a page holding the table should get.
-  """
-  @spec page_min_width_class() :: String.t()
-  def page_min_width_class, do: "min-w-6xl"
-
-  @doc """
   Sortable table.
 
   `rows` is a list of `{dom_id, row}` tuples/
