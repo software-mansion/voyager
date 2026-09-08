@@ -48,6 +48,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
     |> assign(:budgets, Map.new(@budget_sections, &{&1, Query.default_budget()}))
     |> assign(:limits, Query.default_limits())
     |> assign(:fetched_at, %{})
+    |> assign(:copy_texts, %{})
     |> assign(:settings_restored?, false)
     |> resolve_pid(pid_string)
     |> ok()
@@ -172,6 +173,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
             <.copyable_term
               id="process-state"
               term={state.term}
+              text={@copy_texts["process-state"]}
               state={@term_states["process-state"]}
               label="Copy state"
               class="scrollbar-thin overflow-x-auto"
@@ -206,6 +208,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
                 <.copyable_term
                   id={"message-#{index}"}
                   term={message}
+                  text={@copy_texts["message-#{index}"]}
                   state={@term_states["message-#{index}"]}
                   label="Copy message"
                   class="scrollbar-thin overflow-x-auto"
@@ -246,6 +249,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
                 <.copyable_term
                   id={"dict-key-#{index}"}
                   term={key}
+                  text={@copy_texts["dict-key-#{index}"]}
                   state={@term_states["dict-key-#{index}"]}
                   label="Copy key"
                   class="scrollbar-thin max-w-64 w-64 shrink-0 overflow-x-auto"
@@ -253,6 +257,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
                 <.copyable_term
                   id={"dict-entry-#{index}"}
                   term={value}
+                  text={@copy_texts["dict-entry-#{index}"]}
                   state={@term_states["dict-entry-#{index}"]}
                   label="Copy value"
                   class="scrollbar-thin min-w-0 flex-1 overflow-x-auto"
@@ -632,7 +637,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
   end
 
   defp seed_terms(socket, :state, %{term: term}),
-    do: TermTreeHook.put_term(socket, "process-state", term)
+    do: put_term(socket, "process-state", term)
 
   defp seed_terms(socket, :messages, %{items: items}),
     do: seed_term_list(socket, "message", items)
@@ -645,21 +650,29 @@ defmodule VoyagerWeb.ProcessInfoLive do
     |> Enum.reduce(socket, fn
       {{key, value}, index}, socket ->
         socket
-        |> TermTreeHook.put_term("dict-key-#{index}", key)
-        |> TermTreeHook.put_term("dict-entry-#{index}", value)
+        |> put_term("dict-key-#{index}", key)
+        |> put_term("dict-entry-#{index}", value)
 
       {other, index}, socket ->
-        TermTreeHook.put_term(socket, "dict-entry-#{index}", other)
+        put_term(socket, "dict-entry-#{index}", other)
     end)
   end
 
   defp seed_terms(socket, _name, _value), do: socket
 
+  # The copy text is computed once here; inspecting a large term in full on
+  # every render would redo it for every term on the page per click.
+  defp put_term(socket, id, term) do
+    socket
+    |> TermTreeHook.put_term(id, term)
+    |> update(:copy_texts, &Map.put(&1, id, copy_text(term)))
+  end
+
   defp seed_term_list(socket, prefix, items) do
     items
     |> Enum.with_index()
     |> Enum.reduce(socket, fn {term, index}, socket ->
-      TermTreeHook.put_term(socket, "#{prefix}-#{index}", term)
+      put_term(socket, "#{prefix}-#{index}", term)
     end)
   end
 

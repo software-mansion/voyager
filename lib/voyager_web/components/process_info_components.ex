@@ -269,17 +269,11 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   attr :id, :string, required: true
   attr :term, :any, required: true
   attr :state, :any, required: true
+  attr :text, :string, required: true
   attr :class, :any, default: nil
   attr :label, :string, default: "Copy term"
 
   def copyable_term(assigns) do
-    assigns =
-      assign(
-        assigns,
-        :text,
-        inspect(assigns.term, limit: :infinity, printable_limit: :infinity, pretty: true)
-      )
-
     ~H"""
     <div class="group/term flex min-w-0 items-start gap-1">
       <.term_inspector id={@id} term={@term} state={@state} class={@class} />
@@ -294,6 +288,10 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
     </div>
     """
   end
+
+  @spec copy_text(term()) :: String.t()
+  def copy_text(term),
+    do: inspect(term, limit: :infinity, printable_limit: :infinity, pretty: true)
 
   # A slow fetch is the cost the node paid, so it is flagged where it is
   # reported, matching the process list's scale.
