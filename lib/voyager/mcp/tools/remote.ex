@@ -59,7 +59,11 @@ defmodule Voyager.MCP.Tools.Remote do
   end
 
   defp jsonable(term) when is_list(term) do
-    if List.improper?(term), do: inspect(term), else: Enum.map(term, &jsonable/1)
+    cond do
+      List.improper?(term) -> inspect(term)
+      printable_charlist?(term) -> List.to_string(term)
+      true -> Enum.map(term, &jsonable/1)
+    end
   end
 
   defp jsonable(term) when is_tuple(term) do
@@ -67,6 +71,11 @@ defmodule Voyager.MCP.Tools.Remote do
   end
 
   defp jsonable(term), do: inspect(term)
+
+  # An empty list is ascii-printable, and rendering `[]` as `""` would be worse
+  # than the integer array this clause exists to avoid.
+  defp printable_charlist?([]), do: false
+  defp printable_charlist?(term), do: List.ascii_printable?(term)
 
   defp jsonable_key(key) when is_atom(key), do: key
   defp jsonable_key(key) when is_binary(key), do: jsonable(key)

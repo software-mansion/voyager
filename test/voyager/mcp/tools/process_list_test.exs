@@ -58,7 +58,7 @@ defmodule Voyager.MCP.Tools.ProcessListTest do
                    "pid" => "<0.302.0>",
                    "memory" => 5_000,
                    "reductions" => 200,
-                   "registered_name" => []
+                   "registered_name" => nil
                  },
                  %{
                    "pid" => "<0.303.0>",
@@ -68,6 +68,12 @@ defmodule Voyager.MCP.Tools.ProcessListTest do
                  }
                ]
              }
+    end
+
+    test "renders an unregistered process the way process_info does", %{data: data} do
+      Fakes.stub_erpc(data)
+
+      assert [_big, %{"registered_name" => nil}, _small] = run(%{})["processes"]
     end
 
     test "sends the requested ranking to the remote", %{data: data} do

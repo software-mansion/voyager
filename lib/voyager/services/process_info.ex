@@ -225,6 +225,7 @@ defmodule Voyager.Services.ProcessInfo do
         |> Map.put(:gc_min_heap_size, gc_min_heap_size(gc, word_size))
         |> Map.put(:gc_fullsweep_after, gc_fullsweep_after(gc))
         |> Map.put(:parent, undefined_to_nil(info.parent))
+        |> Map.drop([:catchlevel, :total_heap_size, :garbage_collection])
 
       {:ok, info}
     catch

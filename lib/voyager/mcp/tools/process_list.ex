@@ -68,7 +68,12 @@ defmodule Voyager.MCP.Tools.ProcessList do
              direction,
              search
            ) do
-      {:ok, %{total_scanned: total, processes: entries}}
+      {:ok, %{total_scanned: total, processes: Enum.map(entries, &normalize_name/1)}}
     end
   end
+
+  # `process_info` reports an unregistered process as `nil`; the raw `[]` the
+  # remote sends would give agents a second encoding of the same absence.
+  defp normalize_name(%{registered_name: []} = entry), do: %{entry | registered_name: nil}
+  defp normalize_name(entry), do: entry
 end

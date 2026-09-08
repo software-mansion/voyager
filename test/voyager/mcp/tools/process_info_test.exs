@@ -54,6 +54,14 @@ defmodule Voyager.MCP.Tools.ProcessInfoTest do
       assert info["gc_fullsweep_after"] == 65_535
     end
 
+    test "renders the stacktrace frames readably" do
+      Fakes.stub_erpc(only(@info))
+
+      assert run(%{"pid" => @pid})["current_stacktrace"] == [
+               ["gen_server", "loop", 7, [["file", "gen_server.erl"], ["line", 1194]]]
+             ]
+    end
+
     test "converts the word-counted sizes to bytes using the remote's word size" do
       Fakes.stub_erpc(only(@info, wordsize: 4))
 

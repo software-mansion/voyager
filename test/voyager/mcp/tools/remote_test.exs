@@ -65,6 +65,22 @@ defmodule Voyager.MCP.Tools.RemoteTest do
                %{"mfa" => ["Elixir.Enum", "map", 2]}
     end
 
+    test "renders a printable charlist as a string" do
+      frame = {:gen_server, :loop, 7, [file: ~c"gen_server.erl", line: 1194]}
+
+      assert run(fn _node -> {:ok, %{stacktrace: [frame]}} end) ==
+               %{
+                 "stacktrace" => [
+                   ["gen_server", "loop", 7, [["file", "gen_server.erl"], ["line", 1194]]]
+                 ]
+               }
+    end
+
+    test "keeps an empty list a list" do
+      assert run(fn _node -> {:ok, %{items: [], suspending: []}} end) ==
+               %{"items" => [], "suspending" => []}
+    end
+
     test "inspects a term JSON cannot hold" do
       payload = %{binary: <<255>>, improper: [:a | :b], ref: make_ref()}
 
