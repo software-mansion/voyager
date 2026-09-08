@@ -185,7 +185,13 @@ defmodule VoyagerWeb.Components.DataTableComponents do
       |> assign(:tip_id, "#{assigns.id}-tip-#{:erlang.phash2(full)}")
 
     ~H"""
-    <.tooltip id={@tip_id} interactive class="min-w-0 max-w-full" tip_class="font-mono">
+    <.tooltip
+      id={@tip_id}
+      interactive
+      pinnable={false}
+      class="min-w-0 max-w-full"
+      tip_class="font-mono"
+    >
       <span
         tabindex="0"
         aria-describedby={"#{@tip_id}-tip"}

@@ -294,6 +294,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
     <.tooltip
       id={"#{@row_id}-name-tip"}
       interactive
+      pinnable={false}
       class="min-w-0 max-w-full"
       tip_class="font-mono"
     >

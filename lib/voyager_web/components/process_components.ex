@@ -262,6 +262,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
     <.tooltip
       id={"#{@row_id}-pid-tip"}
       interactive
+      pinnable={false}
       class="min-w-0 max-w-full"
       tip_class="font-mono"
     >
