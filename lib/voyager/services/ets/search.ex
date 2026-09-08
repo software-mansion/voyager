@@ -2,8 +2,12 @@ defmodule Voyager.Services.Ets.Search do
   @moduledoc """
   Compiles key-prefix / field-equals queries into source ETS match specs.
 
-  Never evals user or LLM strings. `{:key_eq, _}` is `Fetch.lookup/5`.
-  Prefix and element queries go through `Fetch.select_spec/7`.
+  Never evals user or LLM strings. Prefix and element queries go through
+  `Fetch.select_spec/7` and honour `Fetch.limit()` plus continuation.
+  `{:key_eq, _}` is a single-shot `Fetch.lookup/5`: the limit is still one of
+  `Fetch.chunk_sizes/0` but is not a page size, and continuation is ignored.
+  A bag/duplicate_bag key returns every object in one reply, or
+  `:heap_limit_exceeded` if the worker heap cap trips.
   The spec sent on the wire is a source MS, not `:ets.match_spec_compile/1`.
   """
 
@@ -50,7 +54,7 @@ defmodule Voyager.Services.Ets.Search do
           node(),
           TableId.t(),
           query(),
-          pos_integer(),
+          Fetch.limit(),
           non_neg_integer(),
           term() | nil,
           timeout()
@@ -68,7 +72,8 @@ defmodule Voyager.Services.Ets.Search do
 
   def chunk(node, table, query, limit, budget, continuation, timeout)
       when TableId.is_table_id(table) and is_integer(budget) and budget >= 0 do
-    with :ok <- validate_query(query) do
+    with :ok <- validate_query(query),
+         :ok <- validate_limit(limit) do
       run_query(node, table, query, limit, budget, continuation, timeout)
     end
   end
@@ -94,6 +99,10 @@ defmodule Voyager.Services.Ets.Search do
   end
 
   defp validate_query(_), do: {:error, :invalid_query}
+
+  defp validate_limit(limit) do
+    if limit in Fetch.chunk_sizes(), do: :ok, else: {:error, :invalid_limit}
+  end
 
   defp run_query(node, table, {:key_eq, value}, _limit, budget, _continuation, timeout) do
     Fetch.lookup(node, table, value, budget, timeout)
