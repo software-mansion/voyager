@@ -28,6 +28,11 @@ pub fn run() {
             {
                 let app_menu = SubmenuBuilder::new(app, "Voyager")
                     .about(None)
+                    .separator()
+                    .hide()
+                    .hide_others()
+                    .show_all()
+                    .separator()
                     .quit()
                     .build()?;
 
@@ -40,8 +45,14 @@ pub fn run() {
                     .select_all()
                     .build()?;
 
+                let window_menu = SubmenuBuilder::new(app, "Window")
+                    .minimize()
+                    .fullscreen()
+                    .close_window()
+                    .build()?;
+
                 let menu = MenuBuilder::new(app)
-                    .items(&[&app_menu, &edit_menu])
+                    .items(&[&app_menu, &edit_menu, &window_menu])
                     .build()?;
                 app.set_menu(menu)?;
             }
@@ -80,8 +91,16 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                focus_existing_window(app);
+            }
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
+        });
 }
 
 fn focus_existing_window(app: &tauri::AppHandle) {
@@ -122,10 +141,19 @@ fn create_window(app_handle: &tauri::AppHandle, port: u16) {
         .title("Voyager")
         .inner_size(1280.0, 960.0)
         .min_inner_size(800.0, 800.0)
+        .zoom_hotkeys_enabled(true)
         .initialization_script(theme_init);
 
-    #[cfg_attr(target_os = "macos", allow(unused_variables))]
     let window = builder.build().unwrap();
+
+    // Closing destroys the window and no port is kept to rebuild it; hide so Reopen can show it again.
+    #[cfg(target_os = "macos")]
+    window.clone().on_window_event(move |event| {
+        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            api.prevent_close();
+            let _ = window.hide();
+        }
+    });
 
     #[cfg(not(target_os = "macos"))]
     {
