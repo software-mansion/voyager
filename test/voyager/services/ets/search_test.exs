@@ -213,7 +213,7 @@ defmodule Voyager.Services.Ets.SearchTest do
       assert_received {:called, :voyager_agent, :ets_select_spec,
                        [:t, ^spec, 10, @budget, :undefined]}
 
-      refute_received {:called, :ets, _}
+      refute_received {:called, :ets, _, _}
     end
   end
 
