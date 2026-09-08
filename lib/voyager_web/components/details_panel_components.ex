@@ -463,12 +463,15 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     """
   end
 
+  @doc """
+  A single line of text with a copy button that appears on hover.
+  """
   attr :id, :string, required: true
   attr :text, :string, required: true
   attr :label, :string, required: true
   attr :class, :any, default: nil
 
-  defp copyable(assigns) do
+  def copyable(assigns) do
     ~H"""
     <div class="group flex min-w-0 items-center gap-1">
       <p id={@id} class={["min-w-0 truncate", @class]}>
