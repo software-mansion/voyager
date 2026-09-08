@@ -189,12 +189,12 @@ defmodule Voyager.Services.Ets.SearchTest do
       refute chunk.truncated?
     end
 
-    test "propagates :not_found from info for a key prefix query" do
+    test "maps a missing table on key prefix to :cannot_read" do
       expect(Voyager.ErpcMock, :call, fn @node, :ets, :info, [:t, :keypos], @timeout ->
         :undefined
       end)
 
-      assert {:error, :not_found} =
+      assert {:error, :cannot_read} =
                Search.chunk(@node, :t, {:key_prefix, <<"ab">>}, 10, @budget, nil, @timeout)
     end
 

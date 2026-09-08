@@ -115,7 +115,13 @@ defmodule Voyager.Services.Ets.Search do
     end
   end
 
-  defp keypos_for(node, table, {:key_prefix, _}, timeout), do: Remote.keypos(node, table, timeout)
+  defp keypos_for(node, table, {:key_prefix, _}, timeout) do
+    case Remote.keypos(node, table, timeout) do
+      {:error, :not_found} -> {:error, :cannot_read}
+      other -> other
+    end
+  end
+
   defp keypos_for(_node, _table, {:element_eq, _, _}, _timeout), do: {:ok, 1}
 
   defp eq_query(pos, value) do
