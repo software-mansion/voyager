@@ -4,7 +4,6 @@ defmodule Voyager.MCP.Tools.Remote do
   alias Anubis.Server.Frame
   alias Anubis.Server.Response
   alias Voyager.NodeSession
-  alias Voyager.Pid
   alias Voyager.Services.RateLimiter
 
   @spec reply((node() -> {:ok, term()} | {:error, term()}), Frame.t()) ::
@@ -35,10 +34,9 @@ defmodule Voyager.MCP.Tools.Remote do
 
   defp rate_limiter, do: Application.get_env(:voyager, :rate_limiter, RateLimiter)
 
-  defp jsonable(term) when is_atom(term) or is_number(term), do: term
-
-  defp jsonable(term) when is_pid(term), do: Pid.display(term)
-
+  # Only the terms `Voyager.JSONEncoders` cannot reach: lists, binaries and map
+  # keys are resolved before protocol dispatch, and a struct defined on the
+  # remote node has no implementation to find.
   defp jsonable(term) when is_binary(term) do
     if String.valid?(term), do: term, else: inspect(term)
   end
@@ -67,10 +65,10 @@ defmodule Voyager.MCP.Tools.Remote do
   end
 
   defp jsonable(term) when is_tuple(term) do
-    term |> Tuple.to_list() |> Enum.map(&jsonable/1)
+    term |> Tuple.to_list() |> Enum.map(&jsonable/1) |> List.to_tuple()
   end
 
-  defp jsonable(term), do: inspect(term)
+  defp jsonable(term), do: term
 
   # An empty list is ascii-printable, and rendering `[]` as `""` would be worse
   # than the integer array this clause exists to avoid.
