@@ -3,9 +3,8 @@ defmodule VoyagerWeb.FormSchemas.EtsPeekControls do
   Controls form for the ETS contents peek: how many records one chunk holds and
   how long to wait for it.
 
-  `chunk_size` is validated against `Voyager.Services.Ets.Fetch`'s own chunk
-  sizes rather than a free integer, because anything else is `:invalid_limit`
-  at the API and `badarg` on the agent.
+  `Voyager.Services.Ets.Fetch` takes any positive limit; the fixed chunk sizes
+  are a UI choice, matching the offered pager options.
   """
 
   use Ecto.Schema
