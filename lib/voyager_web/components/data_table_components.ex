@@ -200,8 +200,6 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         {@value}
       </span>
       <:content>
-        <%!-- Nothing to read or copy when the row has no value here, so the
-              tooltip says that instead of offering an em dash. --%>
         <span :if={@empty?} class="text-base-content/70">Not set</span>
         <div :if={not @empty?} class="flex items-center gap-1">
           <span id={"#{@id}-copy-text"} class="break-all">{@full}</span>
