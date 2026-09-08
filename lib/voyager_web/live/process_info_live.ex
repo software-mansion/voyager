@@ -48,6 +48,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
     |> assign(:budgets, Map.new(@budget_sections, &{&1, Query.default_budget()}))
     |> assign(:limits, Query.default_limits())
     |> assign(:fetched_at, %{})
+    |> assign(:settings_restored?, false)
     |> resolve_pid(pid_string)
     |> ok()
   end
@@ -374,10 +375,13 @@ defmodule VoyagerWeb.ProcessInfoLive do
     |> restore_controls(:timeouts, params["timeouts"], timeout_bounds())
     |> restore_controls(:budgets, params["budgets"], budget_bounds())
     |> restore_controls(:limits, params["limits"], limit_bounds())
+    |> settings_restored()
     |> noreply()
   end
 
-  def handle_event("restore_settings", _params, socket), do: noreply(socket)
+  def handle_event("restore_settings", _params, socket) do
+    socket |> settings_restored() |> noreply()
+  end
 
   def handle_event("fetch-" <> section, _params, %{assigns: %{pid: pid}} = socket)
       when is_pid(pid) do
@@ -394,9 +398,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
   def handle_async(:pid, {:ok, {:ok, pid}}, socket) when is_pid(pid) do
     socket
     |> assign(:pid, pid)
-    |> fetch(:info)
-    |> fetch(:relations)
-    |> maybe_autofetch(socket.assigns.tab)
+    |> maybe_start_fetching()
     |> noreply()
   end
 
@@ -478,6 +480,25 @@ defmodule VoyagerWeb.ProcessInfoLive do
       true ->
         start_async(socket, :pid, fn -> Query.resolve_pid(node, pid_string) end)
     end
+  end
+
+  # The first fetch waits for both the resolved pid and the client's stored
+  # controls, so a stored limit/budget/timeout applies to the first load.
+  defp maybe_start_fetching(socket) do
+    if is_pid(socket.assigns.pid) and socket.assigns.settings_restored? do
+      socket
+      |> fetch(:info)
+      |> fetch(:relations)
+      |> maybe_autofetch(socket.assigns.tab)
+    else
+      socket
+    end
+  end
+
+  defp settings_restored(socket) do
+    socket
+    |> assign(:settings_restored?, true)
+    |> maybe_start_fetching()
   end
 
   @queries %{

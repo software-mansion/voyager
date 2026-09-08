@@ -36,6 +36,7 @@ defmodule VoyagerWeb.ProcessInfoLive.HeavyProcessTest do
   defp open!(conn, pid) do
     path = ~p"/node/#{@node_name}/processes/#{Formatters.format_pid(pid)}"
     {:ok, view, _html} = live(conn, path)
+    render_hook(view, "restore_settings", %{})
     render_async(view, 5_000)
     render_async(view, 5_000)
     view
