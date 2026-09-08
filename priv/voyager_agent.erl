@@ -7,6 +7,7 @@
 -export([proc_top/5]).
 -export([proc_links/2, proc_monitors/2, proc_monitored_by/2]).
 -export([proc_dictionary/3, proc_messages/3, proc_label/2, proc_state/3]).
+-export([ets_select_chunk/4, ets_lookup/3]).
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
@@ -493,6 +494,66 @@ with_bounded_heap(Fun) ->
     after
         process_flag(max_heap_size, Old)
     end.
+
+%% =====================================================================
+%% ETS RECORDS - Match-all select / lookup with on-node truncation.
+%% =====================================================================
+%%
+%% Exported functions, not handle_call, so a peek cannot block register
+%% or nodedown. The continuation is left opaque.
+%% No fixtable — paging is best-effort.
+
+-define(MATCH_ALL, [{'$1', [], ['$1']}]).
+
+-type ets_chunk() ::
+    #{records := [term()],
+      continuation := term(),
+      truncated := boolean()}.
+
+-spec ets_select_chunk(ets:tab(), pos_integer(), non_neg_integer(), term()) ->
+                          {ok, ets_chunk()}.
+ets_select_chunk(Table, Limit, Budget, Cont)
+    when is_integer(Budget), Budget >= 0, is_integer(Limit), Limit >= 0 ->
+    with_bounded_heap(fun() -> do_select(Table, Limit, Budget, Cont) end);
+ets_select_chunk(_Table, _Limit, _Budget, _Cont) ->
+    erlang:error(badarg).
+
+-spec ets_lookup(ets:tab(), term(), non_neg_integer()) -> {ok, ets_chunk()}.
+ets_lookup(Table, Key, Budget) when is_integer(Budget), Budget >= 0 ->
+    with_bounded_heap(fun() -> wrap_records(ets:lookup(Table, Key), undefined, Budget) end);
+ets_lookup(_Table, _Key, _Budget) ->
+    erlang:error(badarg).
+
+do_select(Table, Limit, Budget, undefined) ->
+    wrap_select(ets:select(Table, ?MATCH_ALL, Limit), Budget);
+do_select(_Table, _Limit, Budget, Cont) ->
+    wrap_select(ets:select(
+                    ets:repair_continuation(Cont, ?MATCH_ALL)),
+                Budget).
+
+wrap_select('$end_of_table', _Budget) ->
+    wrap_records([], undefined, 0);
+wrap_select({Records, '$end_of_table'}, Budget) when is_list(Records) ->
+    wrap_records(Records, undefined, Budget);
+wrap_select({Records, Cont}, Budget) when is_list(Records) ->
+    wrap_records(Records, Cont, Budget).
+
+wrap_records(Records, Cont, Budget) ->
+    {Bounded, Truncated} = bound_records(Records, Budget),
+    {ok,
+     #{records => Bounded,
+       continuation => Cont,
+       truncated => Truncated}}.
+
+%% Independent per record: a shared remaining budget would drop rows the continuation already skipped.
+bound_records(Records, Budget) ->
+    bound_records(Records, Budget, false, []).
+
+bound_records([], _Budget, Truncated, Acc) ->
+    {lists:reverse(Acc), Truncated};
+bound_records([Record | Rest], Budget, Truncated, Acc) ->
+    {Bounded, Cut} = bound_term(Record, Budget),
+    bound_records(Rest, Budget, Truncated orelse Cut, [Bounded | Acc]).
 
 %% =====================================================================
 %% NODE WATCHER - gen_server callbacks and watcher for Nodes.
