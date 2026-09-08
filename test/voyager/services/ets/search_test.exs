@@ -97,12 +97,12 @@ defmodule Voyager.Services.Ets.SearchTest do
                Search.chunk(@node, :t, {:key_eq, :k}, 10, -1, nil, @timeout)
     end
 
-    test "rejects a limit outside Fetch.chunk_sizes/0 without a remote call" do
+    test "rejects a non-positive or non-integer limit without a remote call" do
       assert {:error, :invalid_limit} =
-               Search.chunk(@node, :t, {:key_eq, :k}, 15, @budget, nil, @timeout)
+               Search.chunk(@node, :t, {:key_eq, :k}, 0, @budget, nil, @timeout)
 
       assert {:error, :invalid_limit} =
-               Search.chunk(@node, :t, {:element_eq, 2, :v}, 15, @budget, nil, @timeout)
+               Search.chunk(@node, :t, {:element_eq, 2, :v}, :ten, @budget, nil, @timeout)
     end
 
     test "key_eq looks up through the agent without fetching table info" do
