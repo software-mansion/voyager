@@ -136,6 +136,7 @@ defmodule VoyagerWeb.EtsTablesLive do
         table={@selected_table}
         fetch_status={fetch_status(@page_result)}
         owner_href={@selected_table && process_path(@session.node_name, @selected_table.owner)}
+        contents_href={@selected_table && contents_path(@session.node_name, @selected_table)}
       />
     </div>
     """
@@ -360,6 +361,13 @@ defmodule VoyagerWeb.EtsTablesLive do
 
   defp table_path(url, table) do
     URL.put_query_param(url, "table", TableId.display(table.id))
+  end
+
+  # A named table travels as its name so the URL survives the table being
+  # recreated; only an unnamed one falls back to the reference.
+  defp contents_path(node_name, table) do
+    key = if table.named_table, do: inspect(table.name), else: TableId.display(table.id)
+    ~p"/node/#{node_name}/ets-tables/#{key}"
   end
 
   defp process_path(node_name, pid) do

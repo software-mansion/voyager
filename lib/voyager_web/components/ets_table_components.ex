@@ -294,7 +294,6 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
     <.tooltip
       id={"#{@row_id}-name-tip"}
       interactive
-      pinnable={false}
       class="min-w-0 max-w-full"
       tip_class="font-mono"
     >
@@ -400,6 +399,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
     doc: "whether a fetch has landed, so an unresolved param can be explained"
 
   attr :owner_href, :string, default: nil, doc: "details page for the owning process"
+  attr :contents_href, :string, default: nil, doc: "contents page for the table"
 
   def details_panel(assigns) do
     assigns = assign(assigns, :open?, assigns.table_param != nil)
@@ -424,7 +424,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         />
         <%= cond do %>
           <% @table -> %>
-            <.panel_body table={@table} owner_href={@owner_href} />
+            <.panel_body table={@table} owner_href={@owner_href} contents_href={@contents_href} />
           <% @fetch_status == :pending -> %>
             <.panel_skeleton />
           <% @fetch_status == :failed -> %>
@@ -483,10 +483,19 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
 
   attr :table, :map, required: true
   attr :owner_href, :string, required: true
+  attr :contents_href, :string, default: nil
 
   defp panel_body(assigns) do
     ~H"""
     <div class="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
+      <.link
+        :if={@contents_href}
+        id="ets-panel-contents"
+        navigate={@contents_href}
+        class="btn btn-primary btn-sm w-fit gap-2"
+      >
+        <.icon name="icon-database-search" class="size-4" /> View contents
+      </.link>
       <.section title="Overview">
         <.kv label="Type" value={Atom.to_string(@table.type)} />
         <.kv label="Protection" value={Atom.to_string(@table.protection)} />
