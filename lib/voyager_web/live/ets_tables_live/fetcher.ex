@@ -59,7 +59,7 @@ defmodule VoyagerWeb.EtsTablesLive.Fetcher do
     # anyway, since it has no result yet.
     |> assign(:page_result, %AsyncResult{})
     |> assign(:refetch_timer, nil)
-    |> assign(:refetch_queued?, false)
+    |> assign(:queued_priority, nil)
     |> assign(:refresh_interval, @default_interval_ms)
     |> assign(:refresh_timer, nil)
     |> assign(:last_updated, nil)
@@ -91,9 +91,12 @@ defmodule VoyagerWeb.EtsTablesLive.Fetcher do
   @spec fetch(Socket.t(), :high | :low) :: Socket.t()
   def fetch(socket, priority \\ :high) do
     if loading?(socket.assigns.page_result),
-      do: assign(socket, :refetch_queued?, true),
+      do: assign(socket, :queued_priority, promote(socket.assigns.queued_priority, priority)),
       else: start_fetch(socket, priority)
   end
+
+  defp promote(:high, _priority), do: :high
+  defp promote(_queued, priority), do: priority
 
   @doc "Sets auto-refresh from an `interval_options/0` value; anything else turns it off."
   @spec set_interval(Socket.t(), String.t()) :: Socket.t()
@@ -149,11 +152,11 @@ defmodule VoyagerWeb.EtsTablesLive.Fetcher do
   # A queued replay would hit the same failure; the error on screen is the
   # better answer.
   defp apply_result({:ok, {:error, reason}}, socket) do
-    socket |> fail(reason) |> assign(:refetch_queued?, false)
+    socket |> fail(reason) |> assign(:queued_priority, nil)
   end
 
   defp apply_result({:exit, reason}, socket) do
-    socket |> fail(reason) |> assign(:refetch_queued?, false)
+    socket |> fail(reason) |> assign(:queued_priority, nil)
   end
 
   defp transient_error(socket, reason, message) do
@@ -171,7 +174,7 @@ defmodule VoyagerWeb.EtsTablesLive.Fetcher do
   end
 
   defp drain_queued(socket) do
-    if socket.assigns.refetch_queued?, do: fetch(socket), else: socket
+    if priority = socket.assigns.queued_priority, do: fetch(socket, priority), else: socket
   end
 
   defp start_fetch(socket, priority) do
@@ -180,7 +183,7 @@ defmodule VoyagerWeb.EtsTablesLive.Fetcher do
     # The last result stays assigned, only marked loading, so the table keeps
     # its rows while the fetch runs.
     socket
-    |> assign(:refetch_queued?, false)
+    |> assign(:queued_priority, nil)
     |> assign(:page_result, AsyncResult.loading(socket.assigns.page_result))
     |> start_async(:page_result, fn -> run(priority, session.node, controls.timeout) end)
   end

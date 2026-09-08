@@ -8,10 +8,11 @@ defmodule VoyagerWeb.Components.ProcessComponents do
 
   use VoyagerWeb, :component
 
+  alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.ProcessListControls
 
-  @placeholder "—"
+  @placeholder DataTableComponents.placeholder()
 
   # Ordered as they appear in the table.
   @columns [
@@ -167,18 +168,10 @@ defmodule VoyagerWeb.Components.ProcessComponents do
       Fetched <span class="font-mono text-base-content">{Formatters.format_integer(@shown)}</span>
       processes out of
       <span class="font-mono text-base-content">{Formatters.format_integer(@scanned)}</span>
-      <span :if={@round_trip_ms} title="Round trip of the last fetch">
-        in <span class={["font-mono", round_trip_class(@round_trip_ms)]}>{@round_trip_ms} ms</span>
-      </span>
+      <DataTableComponents.round_trip :if={@round_trip_ms} ms={@round_trip_ms} />
     </div>
     """
   end
-
-  # A slow scan is the cost the node paid, so it is flagged where it is
-  # reported rather than left for the user to read off the number.
-  defp round_trip_class(ms) when ms > 3_000, do: "text-error"
-  defp round_trip_class(ms) when ms > 1_000, do: "text-warning"
-  defp round_trip_class(_ms), do: "text-base-content"
 
   @doc """
   Column definitions for the given selected attributes, in display order.
@@ -206,74 +199,51 @@ defmodule VoyagerWeb.Components.ProcessComponents do
       <% :pid -> %>
         <.pid_cell pid={@row.pid} row_id={@row_id} href={@pid_href} />
       <% :registered_name -> %>
-        <.value_cell id={"#{@row_id}-name"} value={format_name(@row[:registered_name])} />
+        <DataTableComponents.value_cell
+          id={"#{@row_id}-name"}
+          value={format_name(@row[:registered_name])}
+        />
       <% :initial_call -> %>
-        <.value_cell id={"#{@row_id}-initial-call"} value={format_mfa(@row[:initial_call])} muted />
+        <DataTableComponents.value_cell
+          id={"#{@row_id}-initial-call"}
+          value={format_mfa(@row[:initial_call])}
+          muted
+        />
       <% :current_function -> %>
-        <.value_cell
+        <DataTableComponents.value_cell
           id={"#{@row_id}-current-function"}
           value={format_mfa(@row[:current_function])}
           muted
         />
       <% :memory -> %>
-        <.value_cell id={"#{@row_id}-memory"} value={Formatters.format_bytes(@row[:memory])} />
+        <DataTableComponents.value_cell
+          id={"#{@row_id}-memory"}
+          value={Formatters.format_bytes(@row[:memory])}
+        />
       <% :reductions -> %>
-        <.value_cell id={"#{@row_id}-reductions"} value={format_number(@row[:reductions])} />
+        <DataTableComponents.value_cell
+          id={"#{@row_id}-reductions"}
+          value={format_number(@row[:reductions])}
+        />
       <% :status -> %>
-        <.value_cell id={"#{@row_id}-status"} value={format_atom(@row[:status])} muted />
+        <DataTableComponents.value_cell
+          id={"#{@row_id}-status"}
+          value={format_atom(@row[:status])}
+          muted
+        />
       <% :priority -> %>
-        <.value_cell id={"#{@row_id}-priority"} value={format_atom(@row[:priority])} muted />
+        <DataTableComponents.value_cell
+          id={"#{@row_id}-priority"}
+          value={format_atom(@row[:priority])}
+          muted
+        />
       <% :message_queue_len -> %>
-        <.value_cell
+        <DataTableComponents.value_cell
           id={"#{@row_id}-msgq"}
           value={format_number(@row[:message_queue_len])}
           class={queue_warning?(@row[:message_queue_len]) && "text-warning font-medium"}
         />
     <% end %>
-    """
-  end
-
-  @doc """
-  A table value with a tooltip carrying the full text and a button to copy it.
-
-  Cells are narrow and truncate, so every value needs a way to be read and
-  copied in full.
-  """
-  attr :id, :string, required: true
-  attr :value, :string, required: true
-  attr :muted, :boolean, default: false
-  attr :class, :any, default: nil
-
-  def value_cell(assigns) do
-    assigns =
-      assigns
-      |> assign(:empty?, assigns.value == @placeholder)
-      # The tip is `phx-update="ignore"`, so a changed value needs a new id to
-      # remount it.
-      |> assign(:tip_id, "#{assigns.id}-tip-#{:erlang.phash2(assigns.value)}")
-
-    ~H"""
-    <.tooltip id={@tip_id} interactive class="min-w-0 max-w-full" tip_class="font-mono">
-      <span class={["font-mono block truncate text-sm", @muted && "text-base-content/70", @class]}>
-        {@value}
-      </span>
-      <:content>
-        <%!-- Nothing to read or copy when the process has no value here, so the
-              tooltip says that instead of offering an em dash. --%>
-        <span :if={@empty?} class="text-base-content/70">Not set</span>
-        <div :if={not @empty?} class="flex items-center gap-1">
-          <span id={"#{@id}-copy-text"}>{@value}</span>
-          <.copy_button
-            id={"#{@id}-copy"}
-            target={"##{@id}-copy-text"}
-            label="Copy value"
-            icon_only
-            size={:sm}
-            class="text-base-content/60 shrink-0 hover:text-primary"
-          />
-        </div>
-      </:content>
-    </.tooltip>
     """
   end
 

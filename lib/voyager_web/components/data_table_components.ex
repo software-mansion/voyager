@@ -133,7 +133,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         ]}
         aria-label={"Sort by #{@column.label}"}
       >
-        <span class="whitespace-nowrap">{@column.label}</span>
+        <span class="whitespace-normal">{@column.label}</span>
         <span class="inline-flex shrink-0 items-center" aria-hidden="true">
           <.icon name="icon-move-up" class={["size-3.5", arrow_class(@active?, @direction, :asc)]} />
           <.icon
@@ -152,7 +152,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
       data-column={@column.key}
       class={["bg-base-100 py-5", align_class(@column), width_class(@column)]}
     >
-      <div class="font-mono tracking-label text-base-content/70 whitespace-nowrap text-xs font-semibold uppercase">
+      <div class="font-mono tracking-label text-base-content/70 whitespace-normal text-xs font-semibold uppercase">
         {@column.label}
       </div>
     </th>
@@ -192,7 +192,11 @@ defmodule VoyagerWeb.Components.DataTableComponents do
 
     ~H"""
     <.tooltip id={@tip_id} interactive class="min-w-0 max-w-full" tip_class="font-mono">
-      <span class={["font-mono block truncate text-sm", @muted && "text-base-content/70", @class]}>
+      <span
+        tabindex="0"
+        aria-describedby={"#{@tip_id}-tip"}
+        class={["font-mono block truncate text-sm", @muted && "text-base-content/70", @class]}
+      >
         {@value}
       </span>
       <:content>
@@ -323,9 +327,11 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   end
 
   defp justify_class(%{align: :right}), do: "justify-end"
+  defp justify_class(%{align: :center}), do: "justify-center"
   defp justify_class(_column), do: "justify-start"
 
   defp align_class(%{align: :right}), do: "text-right"
+  defp align_class(%{align: :center}), do: "text-center"
   defp align_class(_column), do: "text-left"
 
   defp width_class(%{width: :sm}), do: "w-28 max-w-28"
