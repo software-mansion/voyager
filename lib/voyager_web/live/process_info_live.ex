@@ -411,10 +411,9 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
     Logger.warning("Failed to resolve pid #{socket.assigns.pid_string}: #{inspect(reason)}")
 
-    socket
-    |> assign(:info, AsyncResult.failed(socket.assigns.info, :invalid_pid))
-    |> assign(:relations, AsyncResult.failed(socket.assigns.relations, :invalid_pid))
-    |> noreply()
+    reason = if reason in [:timeout, :noconnection], do: reason, else: :invalid_pid
+
+    socket |> redirect_fatal(reason) |> noreply()
   end
 
   def handle_async(_name, {:exit, {:shutdown, :cancel}}, socket), do: noreply(socket)
@@ -461,8 +460,20 @@ defmodule VoyagerWeb.ProcessInfoLive do
     end
   end
 
+  defp apply_failure(socket, _name, :dead), do: redirect_fatal(socket, :dead)
+
   defp apply_failure(socket, name, reason) do
     assign(socket, name, AsyncResult.failed(socket.assigns[name], reason))
+  end
+
+  # A pid that cannot be inspected at all leaves nothing to show; back to the
+  # list with the reason as a flash.
+  defp redirect_fatal(socket, reason) do
+    path = ~p"/node/#{socket.assigns.session.node_name}/processes"
+
+    socket
+    |> put_flash(:error, error_message(reason))
+    |> push_navigate(to: keep_sidebar(path, socket.assigns[:current_url]))
   end
 
   defp resolve_pid(socket, pid_string) do
@@ -473,9 +484,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
         socket
 
       not Query.valid_pid_string?(pid_string) ->
-        socket
-        |> assign(:info, AsyncResult.failed(socket.assigns.info, :invalid_pid))
-        |> assign(:relations, AsyncResult.failed(socket.assigns.relations, :invalid_pid))
+        redirect_fatal(socket, :invalid_pid)
 
       true ->
         start_async(socket, :pid, fn -> Query.resolve_pid(node, pid_string) end)
