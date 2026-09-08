@@ -19,7 +19,6 @@ defmodule VoyagerAgentEtsTest do
     test "do not require the gen_server to be registered" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set])
-      on_exit(fn -> EtsTable.safe_delete(name) end)
       :ets.insert(name, {:k, 1})
 
       assert Process.whereis(@agent_module) == nil
@@ -31,7 +30,6 @@ defmodule VoyagerAgentEtsTest do
     test "walks each record with the budget and leaves the ETS continuation opaque" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set])
-      on_exit(fn -> EtsTable.safe_delete(name) end)
 
       blob = :binary.copy(<<"a">>, 10_000)
 
@@ -65,7 +63,6 @@ defmodule VoyagerAgentEtsTest do
     test "keeps the page length at Limit when the budget is zero" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set])
-      on_exit(fn -> EtsTable.safe_delete(name) end)
 
       for i <- 1..10, do: :ets.insert(name, {i, i})
 
@@ -79,7 +76,6 @@ defmodule VoyagerAgentEtsTest do
     test "pages through a table larger than the chunk size" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set])
-      on_exit(fn -> EtsTable.safe_delete(name) end)
 
       for i <- 1..25, do: :ets.insert(name, {i, i})
 
@@ -104,7 +100,6 @@ defmodule VoyagerAgentEtsTest do
     test "maps a table smaller than the chunk size to an undefined continuation" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set])
-      on_exit(fn -> EtsTable.safe_delete(name) end)
 
       for i <- 1..3, do: :ets.insert(name, {i, i})
 
@@ -117,7 +112,6 @@ defmodule VoyagerAgentEtsTest do
     test "returns an empty chunk for an empty table" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set])
-      on_exit(fn -> EtsTable.safe_delete(name) end)
 
       assert {:ok, %{records: [], continuation: :undefined, truncated: false}} =
                @agent_module.ets_select_chunk(name, 10, @budget, :undefined)
@@ -126,7 +120,6 @@ defmodule VoyagerAgentEtsTest do
     test "lookup truncates a matching record and keeps bag rows" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :duplicate_bag])
-      on_exit(fn -> EtsTable.safe_delete(name) end)
 
       blob = :binary.copy(<<"a">>, 10_000)
       :ets.insert(name, {:k, blob})
@@ -156,7 +149,6 @@ defmodule VoyagerAgentEtsTest do
     test "raises badarg for a negative budget" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set])
-      on_exit(fn -> EtsTable.safe_delete(name) end)
 
       assert_raise ArgumentError, fn ->
         @agent_module.ets_select_chunk(name, 10, -1, :undefined)
@@ -168,7 +160,6 @@ defmodule VoyagerAgentEtsTest do
     test "restores the caller's max_heap_size instead of leaving it capped" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set])
-      on_exit(fn -> EtsTable.safe_delete(name) end)
 
       before = Process.info(self(), :max_heap_size)
       assert {:ok, _chunk} = @agent_module.ets_lookup(name, :k, @budget)
