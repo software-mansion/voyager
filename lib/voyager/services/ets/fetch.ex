@@ -9,8 +9,9 @@ defmodule Voyager.Services.Ets.Fetch do
   `budget` (see `Voyager.Agent.default_budget/0`).
 
   A continuation that crossed ETF must be repaired on the target against
-  `[{:"$1", [], [:"$1"]}]` before `ets:select/1`. `badarg` (private table or
-  unrepaired continuation) is `{:error, :cannot_read}`; a wrapped worker death
+  `[{:"$1", [], [:"$1"]}]` before `ets:select/1`. `badarg` (private table,
+  unrepaired continuation, out-of-range budget) is `{:error, :cannot_read}`;
+  a wrapped worker death
   is not. A remote worker heap kill is `{:error, :heap_limit_exceeded}`.
   """
 
@@ -19,13 +20,9 @@ defmodule Voyager.Services.Ets.Fetch do
 
   require TableId
 
-  @chunk_sizes [1, 2, 5, 10, 20, 50]
   @budget Agent.default_budget()
-  @select_fun :ets_select_chunk
-  @lookup_fun :ets_lookup
 
   @type lookup_key :: atom() | integer() | binary()
-  @type limit :: 1 | 2 | 5 | 10 | 20 | 50
 
   @type chunk :: %{
           records: [term()],
@@ -33,33 +30,31 @@ defmodule Voyager.Services.Ets.Fetch do
           truncated?: boolean()
         }
 
-  @spec chunk_sizes() :: [limit(), ...]
-  def chunk_sizes, do: @chunk_sizes
-
-  @spec select_chunk(node(), TableId.t(), limit(), non_neg_integer(), term() | nil, timeout()) ::
-          {:ok, chunk()} | {:error, term()}
+  @spec select_chunk(
+          node(),
+          TableId.t(),
+          pos_integer(),
+          non_neg_integer(),
+          term(),
+          timeout()
+        ) :: {:ok, chunk()} | {:error, term()}
   def select_chunk(
         node,
         table,
         limit,
         budget \\ @budget,
-        continuation \\ nil,
+        continuation \\ :undefined,
         timeout \\ Agent.default_timeout()
       )
 
   def select_chunk(node, table, limit, budget, continuation, timeout)
-      when TableId.is_table_id(table) and is_integer(budget) and budget >= 0 do
-    if limit in @chunk_sizes do
-      cont = if is_nil(continuation), do: :undefined, else: continuation
-      fetch_chunk(node, @select_fun, [table, limit, budget, cont], timeout)
-    else
-      {:error, :invalid_limit}
-    end
+      when TableId.is_table_id(table) and is_integer(limit) and limit > 0 do
+    fetch_chunk(node, :ets_select_chunk, [table, limit, budget, continuation], timeout)
   end
 
   def select_chunk(_node, table, _limit, _budget, _continuation, _timeout)
       when TableId.is_table_id(table) do
-    {:error, :invalid_budget}
+    {:error, :invalid_limit}
   end
 
   def select_chunk(_node, _table, _limit, _budget, _continuation, _timeout),
@@ -70,16 +65,12 @@ defmodule Voyager.Services.Ets.Fetch do
   def lookup(node, table, key, budget \\ @budget, timeout \\ Agent.default_timeout())
 
   def lookup(node, table, key, budget, timeout)
-      when TableId.is_table_id(table) and is_integer(budget) and budget >= 0 do
-    if valid_key?(key) do
-      fetch_chunk(node, @lookup_fun, [table, key, budget], timeout)
-    else
-      {:error, :invalid_key}
-    end
+      when TableId.is_table_id(table) and (is_atom(key) or is_integer(key) or is_binary(key)) do
+    fetch_chunk(node, :ets_lookup, [table, key, budget], timeout)
   end
 
   def lookup(_node, table, _key, _budget, _timeout) when TableId.is_table_id(table) do
-    {:error, :invalid_budget}
+    {:error, :invalid_key}
   end
 
   def lookup(_node, _table, _key, _budget, _timeout), do: {:error, :invalid_table}
@@ -91,19 +82,14 @@ defmodule Voyager.Services.Ets.Fetch do
     end
   end
 
-  defp decode_chunk(%{records: records, continuation: continuation, truncated?: truncated?})
+  defp decode_chunk(%{records: records, continuation: cont, truncated?: truncated?} = chunk)
        when is_list(records) and is_boolean(truncated?) do
-    {:ok,
-     %{
-       records: records,
-       continuation: normalize_cont(continuation),
-       truncated?: truncated?
-     }}
+    {:ok, %{chunk | continuation: normalize_cont(cont)}}
   end
 
   defp decode_chunk(_other), do: {:error, :invalid_response}
 
-  defp normalize_cont(cont) when cont in [nil, :undefined, :"$end_of_table"], do: nil
+  defp normalize_cont(cont) when cont in [:undefined, :"$end_of_table"], do: nil
   defp normalize_cont(cont), do: cont
 
   defp map_read_error({:error, {:remote_exception, :badarg}}), do: {:error, :cannot_read}
@@ -113,7 +99,4 @@ defmodule Voyager.Services.Ets.Fetch do
     do: {:error, :heap_limit_exceeded}
 
   defp map_read_error({:error, _} = err), do: err
-
-  defp valid_key?(key) when is_atom(key) or is_integer(key) or is_binary(key), do: true
-  defp valid_key?(_), do: false
 end
