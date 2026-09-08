@@ -3,14 +3,19 @@ defmodule Voyager.Services.Ets.Fetch do
   Fetches ETS record payloads from a remote node via `:voyager_agent`.
 
   Table metadata stays on `Voyager.Services.Ets.Remote`. These reads call
-  `:ets_select_chunk/4`, `:ets_select_spec/5`, and `:ets_lookup/3` on the agent.
+  `:ets_select_chunk/4`, `:ets_select_spec/5`, and `:ets_lookup/5` on the agent.
   A missing agent is `:undef` and drops the session. Truncation and the worker
   heap cap run on the target. Each record is walked independently with the
   caller's term `budget` (see `Voyager.Agent.default_budget/0`).
 
+  `lookup/7` pages a single key with the same 10/20/50 limit as select. A bag
+  or duplicate_bag key that holds more objects than the limit returns a
+  continuation for the rest of that key.
+
   A continuation that crossed ETF must be repaired on the target against the
-  same match spec used for the page (`[{:"$1", [], [:"$1"]}]` for match-all)
-  before `ets:select/1`. `badarg` (private table, bad spec, or unrepaired
+  same match spec used for the page (`[{:"$1", [], [:"$1"]}]` for match-all;
+  lookup rebuilds a key-bound spec from `ets:info(Table, keypos)`) before
+  `ets:select/1`. `badarg` (private table, bad spec, or unrepaired
   continuation) is `{:error, :cannot_read}`; a wrapped worker death is not.
   A remote worker heap kill is `{:error, :heap_limit_exceeded}`.
   """
@@ -105,24 +110,49 @@ defmodule Voyager.Services.Ets.Fetch do
   def select_spec(_node, _table, _spec, _limit, _budget, _continuation, _timeout),
     do: {:error, :invalid_table}
 
-  @spec lookup(node(), TableId.t(), lookup_key(), non_neg_integer(), timeout()) ::
+  @spec lookup(
+          node(),
+          TableId.t(),
+          lookup_key(),
+          limit(),
+          non_neg_integer(),
+          term() | nil,
+          timeout()
+        ) ::
           {:ok, chunk()} | {:error, term()}
-  def lookup(node, table, key, budget \\ @budget, timeout \\ Agent.default_timeout())
+  def lookup(
+        node,
+        table,
+        key,
+        limit,
+        budget \\ @budget,
+        continuation \\ nil,
+        timeout \\ Agent.default_timeout()
+      )
 
-  def lookup(node, table, key, budget, timeout)
+  def lookup(node, table, key, limit, budget, continuation, timeout)
       when TableId.is_table_id(table) and is_integer(budget) and budget >= 0 do
-    if valid_key?(key) do
-      fetch_chunk(node, @lookup_fun, [table, key, budget], timeout)
-    else
-      {:error, :invalid_key}
+    cont = if is_nil(continuation), do: :undefined, else: continuation
+
+    case {valid_key?(key), limit in @chunk_sizes} do
+      {false, _} ->
+        {:error, :invalid_key}
+
+      {true, false} ->
+        {:error, :invalid_limit}
+
+      {true, true} ->
+        fetch_chunk(node, @lookup_fun, [table, key, limit, budget, cont], timeout)
     end
   end
 
-  def lookup(_node, table, _key, _budget, _timeout) when TableId.is_table_id(table) do
+  def lookup(_node, table, _key, _limit, _budget, _continuation, _timeout)
+      when TableId.is_table_id(table) do
     {:error, :invalid_budget}
   end
 
-  def lookup(_node, _table, _key, _budget, _timeout), do: {:error, :invalid_table}
+  def lookup(_node, _table, _key, _limit, _budget, _continuation, _timeout),
+    do: {:error, :invalid_table}
 
   defp fetch_chunk(node, fun, args, timeout) do
     case Agent.fetch(node, fun, args, timeout) do

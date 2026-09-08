@@ -16,19 +16,7 @@ defmodule VoyagerAgentEtsTest do
     :ok
   end
 
-  describe "ets_select_chunk/4 and ets_lookup/3" do
-    test "do not require the gen_server to be registered" do
-      name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :set])
-      on_exit(fn -> EtsTable.safe_delete(name) end)
-      :ets.insert(name, {:k, 1})
-
-      assert Process.whereis(@agent_module) == nil
-
-      assert {:ok, %{records: [{:k, 1}], truncated: false}} =
-               @agent_module.ets_lookup(name, :k, @budget)
-    end
-
+  describe "ets_select_chunk/4" do
     test "walks each record with the budget and leaves the ETS continuation opaque" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set])
@@ -124,7 +112,106 @@ defmodule VoyagerAgentEtsTest do
                @agent_module.ets_select_chunk(name, 10, @budget, :undefined)
     end
 
-    test "lookup truncates a matching record and keeps bag rows" do
+    test "raises badarg for a private table owned by another process" do
+      pid = start_supervised!({Agent, fn -> :ets.new(EtsTable.unique_name(), [:private]) end})
+      tid = Agent.get(pid, & &1)
+
+      assert_raise ArgumentError, fn ->
+        @agent_module.ets_select_chunk(tid, 10, @budget, :undefined)
+      end
+    end
+
+    test "raises badarg for a negative budget" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :set])
+      on_exit(fn -> EtsTable.safe_delete(name) end)
+
+      assert_raise ArgumentError, fn ->
+        @agent_module.ets_select_chunk(name, 10, -1, :undefined)
+      end
+    end
+  end
+
+  describe "ets_lookup/5" do
+    test "does not require the gen_server to be registered" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :set])
+      on_exit(fn -> EtsTable.safe_delete(name) end)
+      :ets.insert(name, {:k, 1})
+
+      assert Process.whereis(@agent_module) == nil
+
+      assert {:ok, %{records: [{:k, 1}], continuation: :undefined, truncated: false}} =
+               @agent_module.ets_lookup(name, :k, 10, @budget, :undefined)
+    end
+
+    test "pages a duplicate_bag key after an ETF-round-tripped continuation" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :duplicate_bag])
+      on_exit(fn -> EtsTable.safe_delete(name) end)
+
+      for i <- 1..25, do: :ets.insert(name, {:k, i})
+
+      assert {:ok, %{records: page, continuation: cont, truncated: false}} =
+               @agent_module.ets_lookup(name, :k, 10, @budget, :undefined)
+
+      assert length(page) == 10
+      assert Enum.all?(page, fn {:k, i} -> i in 1..25 end)
+      assert cont not in [:undefined, :"$end_of_table"]
+
+      broken = :erlang.binary_to_term(:erlang.term_to_binary(cont))
+      :erlang.garbage_collect()
+
+      assert {:ok, %{records: page2, continuation: cont2, truncated: false}} =
+               @agent_module.ets_lookup(name, :k, 10, @budget, broken)
+
+      assert length(page2) == 10
+      assert Enum.all?(page2, fn {:k, i} -> i in 1..25 end)
+      assert cont2 not in [:undefined, :"$end_of_table"]
+
+      assert {:ok, %{records: page3, continuation: :undefined, truncated: false}} =
+               @agent_module.ets_lookup(name, :k, 10, @budget, cont2)
+
+      assert length(page3) == 5
+      assert Enum.all?(page3, fn {:k, i} -> i in 1..25 end)
+
+      values = Enum.map(page ++ page2 ++ page3, fn {:k, i} -> i end)
+      assert Enum.sort(values) == Enum.to_list(1..25)
+    end
+
+    test "returns at most one row for a set key" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :set])
+      on_exit(fn -> EtsTable.safe_delete(name) end)
+      :ets.insert(name, {:k, 1})
+      :ets.insert(name, {:other, 2})
+
+      assert {:ok, %{records: [{:k, 1}], continuation: :undefined, truncated: false}} =
+               @agent_module.ets_lookup(name, :k, 10, @budget, :undefined)
+    end
+
+    test "matches the key at keypos 2" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :set, keypos: 2])
+      on_exit(fn -> EtsTable.safe_delete(name) end)
+      :ets.insert(name, {1, :k})
+
+      assert {:ok, %{records: [{1, :k}], continuation: :undefined, truncated: false}} =
+               @agent_module.ets_lookup(name, :k, 10, @budget, :undefined)
+    end
+
+    test "treats :\"$1\" as a literal key" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :set])
+      on_exit(fn -> EtsTable.safe_delete(name) end)
+      :ets.insert(name, {:"$1", 1})
+      :ets.insert(name, {:k, 2})
+
+      assert {:ok, %{records: [{:"$1", 1}], continuation: :undefined, truncated: false}} =
+               @agent_module.ets_lookup(name, :"$1", 10, @budget, :undefined)
+    end
+
+    test "truncates matching bag rows within the page" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :duplicate_bag])
       on_exit(fn -> EtsTable.safe_delete(name) end)
@@ -134,7 +221,7 @@ defmodule VoyagerAgentEtsTest do
       :ets.insert(name, {:k, blob})
 
       assert {:ok, %{records: records, continuation: :undefined, truncated: true}} =
-               @agent_module.ets_lookup(name, :k, 50)
+               @agent_module.ets_lookup(name, :k, 10, 50, :undefined)
 
       assert length(records) == 2
 
@@ -148,10 +235,18 @@ defmodule VoyagerAgentEtsTest do
       tid = Agent.get(pid, & &1)
 
       assert_raise ArgumentError, fn ->
-        @agent_module.ets_select_chunk(tid, 10, @budget, :undefined)
+        @agent_module.ets_lookup(tid, :k, 10, @budget, :undefined)
       end
+    end
 
-      assert_raise ArgumentError, fn -> @agent_module.ets_lookup(tid, :k, @budget) end
+    test "raises badarg for a limit outside 10, 20, 50" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :set])
+      on_exit(fn -> EtsTable.safe_delete(name) end)
+
+      assert_raise ArgumentError, fn ->
+        @agent_module.ets_lookup(name, :k, 15, @budget, :undefined)
+      end
     end
 
     test "raises badarg for a negative budget" do
@@ -160,10 +255,8 @@ defmodule VoyagerAgentEtsTest do
       on_exit(fn -> EtsTable.safe_delete(name) end)
 
       assert_raise ArgumentError, fn ->
-        @agent_module.ets_select_chunk(name, 10, -1, :undefined)
+        @agent_module.ets_lookup(name, :k, 10, -1, :undefined)
       end
-
-      assert_raise ArgumentError, fn -> @agent_module.ets_lookup(name, :k, -1) end
     end
 
     @tag capture_log: true
@@ -176,7 +269,7 @@ defmodule VoyagerAgentEtsTest do
 
       assert %ErlangError{original: :killed} =
                assert_raise(ErlangError, fn ->
-                 @agent_module.ets_lookup(name, :wide, @budget)
+                 @agent_module.ets_lookup(name, :wide, 10, @budget, :undefined)
                end)
     end
   end

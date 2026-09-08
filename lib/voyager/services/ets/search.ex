@@ -3,12 +3,10 @@ defmodule Voyager.Services.Ets.Search do
   Compiles key-prefix / field-equals queries into source ETS match specs.
 
   Never evals user or LLM strings. Prefix and element queries go through
-  `Fetch.select_spec/7` and honour `Fetch.limit()` plus continuation.
-  `{:key_eq, _}` is a single-shot `Fetch.lookup/5`: the limit is still one of
-  `Fetch.chunk_sizes/0` but is not a page size, and continuation is ignored.
-  A bag/duplicate_bag key returns every object in one reply, or
-  `:heap_limit_exceeded` if the worker heap cap trips.
-  The spec sent on the wire is a source MS, not `:ets.match_spec_compile/1`.
+  `Fetch.select_spec/7`. `{:key_eq, _}` goes through `Fetch.lookup/7` so the
+  key stays a hash lookup on the target, still honouring `Fetch.chunk_sizes/0`
+  and continuation. The spec sent on the wire for prefix/element is a source
+  MS, not `:ets.match_spec_compile/1`.
   """
 
   alias Voyager.Agent
@@ -104,8 +102,8 @@ defmodule Voyager.Services.Ets.Search do
     if limit in Fetch.chunk_sizes(), do: :ok, else: {:error, :invalid_limit}
   end
 
-  defp run_query(node, table, {:key_eq, value}, _limit, budget, _continuation, timeout) do
-    Fetch.lookup(node, table, value, budget, timeout)
+  defp run_query(node, table, {:key_eq, value}, limit, budget, continuation, timeout) do
+    Fetch.lookup(node, table, value, limit, budget, continuation, timeout)
   end
 
   defp run_query(node, table, query, limit, budget, continuation, timeout) do

@@ -7,7 +7,7 @@
 -export([proc_top/5]).
 -export([proc_links/2, proc_monitors/2, proc_monitored_by/2]).
 -export([proc_dictionary/3, proc_messages/3, proc_label/2, proc_state/3]).
--export([ets_select_chunk/4, ets_lookup/3, ets_select_spec/5]).
+-export([ets_select_chunk/4, ets_lookup/5, ets_select_spec/5]).
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
@@ -507,6 +507,8 @@ with_bounded_heap(Fun) ->
 -define(ETS_MAX_HEAP_SIZE, 500_000).
 -define(ETS_CHUNK_SIZES, [10, 20, 50]).
 -define(MATCH_ALL, [{'$1', [], ['$1']}]).
+%% Match heads have a fixed arity; keypos..255 keeps the key bound so ets:select/3 hashes instead of scanning.
+-define(ETS_LOOKUP_MAX_ARITY, 255).
 
 -type ets_chunk() ::
           #{records := [term()], continuation := term(), truncated := boolean()}.
@@ -534,11 +536,51 @@ ets_select_spec(Table, Spec, Limit, Budget, Cont) when is_integer(Budget), Budge
 ets_select_spec(_Table, _Spec, _Limit, _Budget, _Cont) ->
     erlang:error(badarg).
 
--spec ets_lookup(ets:tab(), term(), non_neg_integer()) -> {ok, ets_chunk()}.
-ets_lookup(Table, Key, Budget) when is_integer(Budget), Budget >= 0 ->
-    isolated(fun() -> wrap_records(ets:lookup(Table, Key), undefined, Budget) end);
-ets_lookup(_Table, _Key, _Budget) ->
+-spec ets_lookup(ets:tab(), term(), pos_integer(), non_neg_integer(), term()) -> {ok, ets_chunk()}.
+ets_lookup(Table, Key, Limit, Budget, Cont) when is_integer(Budget), Budget >= 0 ->
+    case lists:member(Limit, ?ETS_CHUNK_SIZES) of
+        true ->
+            isolated(fun() ->
+                            do_select(Table, lookup_spec(Table, Key), Limit, Budget, Cont)
+                     end);
+        false ->
+            erlang:error(badarg)
+    end;
+ets_lookup(_Table, _Key, _Limit, _Budget, _Cont) ->
     erlang:error(badarg).
+
+lookup_spec(Table, Key) ->
+    case ets:info(Table, keypos) of
+        Keypos when is_integer(Keypos), Keypos >= 1 ->
+            case ms_special_key(Key) of
+                true ->
+                    [{'$1', [{'=:=', {element, Keypos, '$1'}, {const, Key}}], ['$1']}];
+                false ->
+                    keyed_clauses(Keypos, Key)
+            end;
+        _ ->
+            erlang:error(badarg)
+    end.
+
+keyed_clauses(Keypos, Key) ->
+    [{erlang:setelement(Keypos, erlang:make_tuple(N, '_'), Key), [], ['$_']}
+     || N <- lists:seq(Keypos, ?ETS_LOOKUP_MAX_ARITY)].
+
+ms_special_key('_') ->
+    true;
+ms_special_key(Key) when is_atom(Key) ->
+    case atom_to_list(Key) of
+        [$$, $_] ->
+            true;
+        [$$, $$] ->
+            true;
+        [$$ | Rest] when Rest =/= [] ->
+            lists:all(fun(C) -> C >= $0 andalso C =< $9 end, Rest);
+        _ ->
+            false
+    end;
+ms_special_key(_) ->
+    false.
 
 do_select(Table, Spec, Limit, Budget, undefined) ->
     wrap_select(ets:select(Table, Spec, Limit), Budget);
