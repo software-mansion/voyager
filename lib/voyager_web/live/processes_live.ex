@@ -44,10 +44,7 @@ defmodule VoyagerWeb.ProcessesLive do
       id="processes-page"
       phx-hook="TableSettings"
       data-settings-key="processes"
-      class={[
-        "mx-auto flex h-full max-w-screen-2xl flex-col gap-3 p-6 pb-12 sm:p-8 sm:pb-12",
-        DataTableComponents.page_min_width_class()
-      ]}
+      class="mx-auto flex h-full max-w-screen-2xl flex-col gap-3 p-6 pb-12 sm:p-8 sm:pb-12"
     >
       <.node_header
         node_name={@session.node_name}
@@ -103,7 +100,7 @@ defmodule VoyagerWeb.ProcessesLive do
               column={column}
               row={row}
               row_id={row_id}
-              pid_href={process_path(@session.node_name, row.pid)}
+              pid_href={process_path(@session.node_name, row.pid, @current_url)}
             />
           </:cell>
         </DataTableComponents.table>
@@ -248,8 +245,8 @@ defmodule VoyagerWeb.ProcessesLive do
     "process-#{digits}"
   end
 
-  defp process_path(node_name, pid) do
-    ~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}"
+  defp process_path(node_name, pid, current_url) do
+    keep_sidebar(~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}", current_url)
   end
 
   # Re-selecting the active column flips the direction; a new column starts

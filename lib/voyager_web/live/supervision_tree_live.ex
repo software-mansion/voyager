@@ -94,6 +94,8 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         id="details-panel"
         tree_node={@selected_node}
         remote_node={@session.node}
+        node_name={@session.node_name}
+        current_url={@current_url}
       />
     </div>
     """

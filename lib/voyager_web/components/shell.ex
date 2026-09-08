@@ -297,16 +297,16 @@ defmodule VoyagerWeb.Components.Shell do
       label: "Supervision Tree",
       icon: "icon-network"
     },
-    %{feature: :processes, path: "processes", label: "Processes", icon: "icon-cpu"}
-  ]
-
-  @coming_soon_pages [
+    %{feature: :processes, path: "processes", label: "Processes", icon: "icon-cpu"},
     %{
       feature: :ets_tables,
       path: "ets-tables",
       label: "ETS Tables",
       icon: "icon-database-search"
-    },
+    }
+  ]
+
+  @coming_soon_pages [
     %{feature: :tracing, path: "tracing", label: "Tracing", icon: "icon-binoculars"},
     %{feature: :sockets, path: "sockets", label: "Sockets", icon: "icon-plug"},
     %{feature: :ports, path: "ports", label: "Ports", icon: "icon-ethernet-port"},

@@ -75,15 +75,17 @@ defmodule VoyagerWeb.CoreComponents do
   attr :node_name, :string, required: true
   attr :last_updated, :any, default: nil
 
-  attr :waiting_message, :string,
+  attr :waiting_message, :any,
     default: "waiting for first snapshot…",
-    doc: "shown until the first update arrives"
+    doc: "shown until the first update arrives; nil hides the line entirely"
+
+  attr :class, :any, default: "mb-8", doc: "replaces the default bottom margin"
 
   slot :actions
 
   def node_header(assigns) do
     ~H"""
-    <header class="mb-8 flex items-center justify-between gap-4">
+    <header class={["flex items-center justify-between gap-4" | List.wrap(@class)]}>
       <div class="min-w-0 flex-1">
         <h1 class="font-mono text-base-content min-w-0 text-2xl font-bold tracking-tight">
           <.tooltip
@@ -107,7 +109,10 @@ defmodule VoyagerWeb.CoreComponents do
             </:content>
           </.tooltip>
         </h1>
-        <p class="font-mono text-base-content/70 mt-0.5 text-xs">
+        <p
+          :if={@last_updated || @waiting_message}
+          class="font-mono text-base-content/70 mt-0.5 text-xs"
+        >
           <%= if @last_updated do %>
             updated {Formatters.format_time(@last_updated)} UTC
           <% else %>
@@ -667,6 +672,10 @@ defmodule VoyagerWeb.CoreComponents do
     doc:
       "when true, the tip stays open while hovered and can be pinned open with a click — required if the content holds clickable elements"
 
+  attr :pinnable, :boolean,
+    default: true,
+    doc: "set false where a pinned tip would outlive its anchor, e.g. scrolling table cells"
+
   attr :show_when, :string,
     default: nil,
     values: [nil, "sidebar-compact"],
@@ -685,6 +694,7 @@ defmodule VoyagerWeb.CoreComponents do
       data-tooltip-target={"##{@id}-tip"}
       data-tooltip-position={@position}
       data-tooltip-interactive={to_string(@interactive)}
+      data-tooltip-pinnable={to_string(@pinnable)}
       data-tooltip-show-when={@show_when}
     >
       {render_slot(@inner_block)}

@@ -41,12 +41,16 @@ defmodule Voyager.NodeSessionTest do
 
   setup do
     previous_state = :sys.get_state(NodeSession)
+    previous_connector_name = NodeSession.cached_connector_name()
     previous_erpc = Application.get_env(:voyager, :erpc)
     # Connect now injects the agent, so the real transport has to run against this node.
     Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
 
     on_exit(fn ->
       :sys.replace_state(NodeSession, fn _ -> previous_state end)
+      # The connector name lives in a persistent_term the replaced GenServer
+      # state does not cover; a leaked :fake fails the telemetry export tests.
+      :persistent_term.put(:connected_via, previous_connector_name)
       Application.put_env(:voyager, :erpc, previous_erpc)
       stop_agent()
     end)
