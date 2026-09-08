@@ -102,8 +102,8 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
             name={@form[:search].name}
             value={@form[:search].value}
             phx-debounce="300"
-            placeholder="Filter by name, id, type or owner"
-            aria-label="Filter by name, id, type or owner"
+            placeholder="Filter by name, id or owner"
+            aria-label="Filter by name, id or owner"
           />
         </label>
 

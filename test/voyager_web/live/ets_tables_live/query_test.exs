@@ -128,19 +128,26 @@ defmodule VoyagerWeb.EtsTablesLive.QueryTest do
       assert names(Query.filter(tables, %{search: inspect(ref)})) == [:scratch]
     end
 
-    test "searches the owner, the type and the protection" do
+    test "searches the owner" do
       owner = spawn(fn -> :ok end)
 
       tables = [
-        EtsFakes.table(name: :a, owner: owner, type: :duplicate_bag, protection: :private),
-        EtsFakes.table(name: :b, type: :set)
+        EtsFakes.table(name: :a, owner: owner),
+        EtsFakes.table(name: :b)
       ]
 
       assert names(Query.filter(tables, %{search: VoyagerWeb.Formatters.format_pid(owner)})) ==
                [:a]
+    end
 
-      assert names(Query.filter(tables, %{search: "duplicate"})) == [:a]
-      assert names(Query.filter(tables, %{search: "private"})) == [:a]
+    test "does not search the fields the selects own" do
+      tables = [
+        EtsFakes.table(name: :a, type: :duplicate_bag, protection: :private),
+        EtsFakes.table(name: :b, type: :set, protection: :public)
+      ]
+
+      assert Query.filter(tables, %{search: "duplicate"}) == []
+      assert Query.filter(tables, %{search: "private"}) == []
     end
 
     test "picks by protection, type and named, all together" do

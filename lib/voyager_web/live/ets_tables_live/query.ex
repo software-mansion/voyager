@@ -60,9 +60,9 @@ defmodule VoyagerWeb.EtsTablesLive.Query do
   end
 
   @doc """
-  Keeps the tables matching `controls`: a free-text `search` over name, id,
-  type, protection and owner, and exact `protection`, `type` and `named`
-  picks. A blank value keeps everything.
+  Keeps the tables matching `controls`: a free-text `search` over name, id and
+  owner, and exact `protection`, `type` and `named` picks. A blank value keeps
+  everything.
   """
   @spec filter([table()], map()) :: [table()]
   def filter(tables, controls) do
@@ -103,13 +103,7 @@ defmodule VoyagerWeb.EtsTablesLive.Query do
   def total_memory(tables), do: Enum.sum_by(tables, & &1.memory)
 
   defp haystack(table) do
-    [
-      inspect(table.name),
-      TableId.display(table.id),
-      Formatters.format_pid(table.owner),
-      table.type,
-      table.protection
-    ]
+    [inspect(table.name), TableId.display(table.id), Formatters.format_pid(table.owner)]
     |> Enum.map_join(" ", &to_string/1)
     |> String.downcase()
   end
