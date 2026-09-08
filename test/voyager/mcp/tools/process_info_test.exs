@@ -2,8 +2,6 @@ defmodule Voyager.MCP.Tools.ProcessInfoTest do
   # async: false because the tool reads the global `Voyager.NodeSession`.
   use ExUnit.Case, async: false
 
-  import Mox
-
   alias Anubis.Server.Frame
   alias Anubis.Server.Response
   alias Voyager.Fakes
@@ -12,11 +10,14 @@ defmodule Voyager.MCP.Tools.ProcessInfoTest do
 
   @pid "<0.500.0>"
 
+  # The remote calls `ProcessInfo.fetch/2` issues for the `info` section.
+  @info ~w(process_info wordsize)a
+
   setup do
     node = :fake@localhost
     Fakes.connect_node!(Fakes.node_session(node: node, node_name: Atom.to_string(node)))
 
-    %{data: Fakes.process_data()}
+    :ok
   end
 
   describe "schema validation" do
@@ -25,18 +26,22 @@ defmodule Voyager.MCP.Tools.ProcessInfoTest do
     end
 
     test "rejects an unknown section" do
-      assert {:error, _errors} =
-               ProcessInfo.mcp_schema(%{"pid" => @pid, "include" => ["mailbox"]})
+      assert {:error, _errors} = ProcessInfo.mcp_schema(%{"pid" => @pid, "section" => "mailbox"})
     end
 
-    test "includes nothing by default" do
-      assert {:ok, %{include: [], limit: 25}} = ProcessInfo.mcp_schema(%{"pid" => @pid})
+    test "rejects a list of sections" do
+      assert {:error, _errors} =
+               ProcessInfo.mcp_schema(%{"pid" => @pid, "section" => ["links", "state"]})
+    end
+
+    test "reads the info section by default" do
+      assert {:ok, %{section: "info", limit: 25}} = ProcessInfo.mcp_schema(%{"pid" => @pid})
     end
   end
 
-  describe "execute/2" do
-    test "renders the fixed-size attributes", %{data: data} do
-      Fakes.stub_erpc(data)
+  describe "info section" do
+    test "renders the fixed-size attributes" do
+      Fakes.stub_erpc(only(@info))
 
       info = run(%{"pid" => @pid})
 
@@ -50,7 +55,7 @@ defmodule Voyager.MCP.Tools.ProcessInfoTest do
     end
 
     test "converts the word-counted sizes to bytes using the remote's word size" do
-      Fakes.stub_erpc(Fakes.process_data(wordsize: 4))
+      Fakes.stub_erpc(only(@info, wordsize: 4))
 
       info = run(%{"pid" => @pid})
 
@@ -60,8 +65,8 @@ defmodule Voyager.MCP.Tools.ProcessInfoTest do
       assert info["gc_min_heap_size"] == 233 * 4
     end
 
-    test "renders an unset registered name and trace token as null", %{data: data} do
-      Fakes.stub_erpc(data)
+    test "renders an unset registered name and trace token as null" do
+      Fakes.stub_erpc(only(@info))
 
       info = run(%{"pid" => @pid})
 
@@ -69,39 +74,42 @@ defmodule Voyager.MCP.Tools.ProcessInfoTest do
       assert info["sequential_trace_token"] == nil
     end
 
-    test "fetches only the requested sections" do
-      Fakes.stub_erpc(only(~w(proc_links proc_state)a))
+    test "reports a process that is already gone" do
+      Fakes.stub_erpc(only(@info, process_info: :undefined))
 
-      info = run(%{"pid" => @pid, "include" => ["links", "state"]})
+      assert error(%{"pid" => @pid}) == "fetch failed: :dead"
+    end
+  end
 
-      assert info["links"] == %{"total" => 1, "truncated?" => false, "items" => ["<0.201.0>"]}
-      assert info["state"] == %{"truncated?" => false, "term" => %{"count" => 1}}
-      refute Map.has_key?(info, "messages")
-      refute Map.has_key?(info, "dictionary")
-      refute Map.has_key?(info, "monitors")
-      refute Map.has_key?(info, "label")
+  describe "unbounded sections" do
+    test "reads the named section and nothing else" do
+      Fakes.stub_erpc(only(~w(proc_links)a))
+
+      assert run(%{"pid" => @pid, "section" => "links"}) == %{
+               "pid" => @pid,
+               "links" => %{"total" => 1, "truncated?" => false, "items" => ["<0.201.0>"]}
+             }
     end
 
-    test "fetches a section once when it is named twice" do
-      test = self()
-      data = only(~w(proc_links)a)
+    test "reads each section from its own remote call" do
+      for section <- ~w(monitors monitored_by dictionary label state messages) do
+        Fakes.stub_erpc(only([:"proc_#{section}"]))
 
-      stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args, _timeout ->
-        if fun == :proc_links, do: send(test, :fetched)
-        Fakes.erpc_reply(mod, fun, args, data)
-      end)
-
-      assert %{"links" => %{"total" => 1}} =
-               run(%{"pid" => @pid, "include" => ["links", "links"]})
-
-      assert_received :fetched
-      refute_received :fetched
+        assert %{^section => _} = run(%{"pid" => @pid, "section" => section})
+      end
     end
 
-    test "reports a section that could not be read" do
+    test "renders the remote's truncation flags" do
+      Fakes.stub_erpc(only(~w(proc_messages)a))
+
+      assert %{"messages" => messages} = run(%{"pid" => @pid, "section" => "messages"})
+      assert messages == %{"total" => 2, "truncated?" => true, "items" => ["first"]}
+    end
+
+    test "fails the call when the section could not be read" do
       Fakes.stub_erpc(only(~w(proc_links)a, proc_links: {:error, :dead}))
 
-      assert %{"links" => %{"error" => ":dead"}} = run(%{"pid" => @pid, "include" => ["links"]})
+      assert error(%{"pid" => @pid, "section" => "links"}) == "fetch failed: :dead"
     end
 
     test "encodes a term that JSON cannot represent" do
@@ -110,12 +118,14 @@ defmodule Voyager.MCP.Tools.ProcessInfoTest do
 
       Fakes.stub_erpc(only(~w(proc_state)a, proc_state: {:ok, term}))
 
-      assert %{"state" => %{"term" => rendered}} = run(%{"pid" => @pid, "include" => ["state"]})
+      assert %{"state" => %{"term" => rendered}} = run(%{"pid" => @pid, "section" => "state"})
       assert rendered == %{inspect(<<255>>) => ["tuple", "<0.201.0>"]}
     end
+  end
 
-    test "accepts the inspect form of a pid", %{data: data} do
-      Fakes.stub_erpc(data)
+  describe "pid parsing" do
+    test "accepts the inspect form of a pid" do
+      Fakes.stub_erpc(only(@info))
 
       assert %{"pid" => @pid} = run(%{"pid" => "#PID" <> @pid})
     end
@@ -123,18 +133,14 @@ defmodule Voyager.MCP.Tools.ProcessInfoTest do
     test "rejects a malformed pid before touching the node" do
       assert error(%{"pid" => "not-a-pid"}) == "Malformed pid: not-a-pid"
     end
-
-    test "reports a process that is already gone" do
-      Fakes.stub_erpc(Fakes.process_data(process_info: :undefined))
-
-      assert error(%{"pid" => @pid}) == "fetch failed: :dead"
-    end
   end
 
-  defp only(sections, overrides \\ []) do
+  # A fixture holding only the listed remote calls: `Fakes.erpc_reply/4` raises
+  # on anything else, so a second fetch in one call fails the test.
+  defp only(keys, overrides \\ []) do
     overrides
     |> Fakes.process_data()
-    |> Map.take([:wordsize, :process_info | sections])
+    |> Map.take(keys)
   end
 
   defp execute(params) do

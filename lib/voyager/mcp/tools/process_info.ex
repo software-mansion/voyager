@@ -1,14 +1,14 @@
 defmodule Voyager.MCP.Tools.ProcessInfo do
   @moduledoc """
-  Returns the runtime details of one process on the connected node.
+  Returns one attribute of one process on the connected node.
 
-  `pid` is the textual `"<X.Y.Z>"` form returned by `process_list`. The default
-  payload holds only fixed-size attributes and is safe to poll; the unbounded
-  ones are fetched only when named in `include` and are truncated on the remote
-  node, to `limit` entries and to a term budget. A truncated section reports the
-  real length as `total`, whether anything was dropped as `truncated?`, and
-  elided subterms as `"$voyager_truncated"`. A section that could not be read
-  reports an `error` instead of failing the call. Sizes are in bytes.
+  `pid` is the textual `"<X.Y.Z>"` form returned by `process_list`. `section`
+  picks what to read and every call reads exactly one, so each is rate limited
+  on its own. The default, `info`, holds the fixed-size attributes and is safe
+  to poll. Every other section is unbounded and is truncated on the remote node,
+  to `limit` entries and to a term budget: it reports the real length as `total`,
+  whether anything was dropped as `truncated?`, and elided subterms as
+  `"$voyager_truncated"`. Sizes are in bytes.
 
   `state` and `messages` are the expensive reads -- the remote has to copy the
   term before truncating it -- so ask for them deliberately, never on a refresh.
@@ -23,22 +23,23 @@ defmodule Voyager.MCP.Tools.ProcessInfo do
   alias Voyager.Services.ProcessInfo
   alias Voyager.Services.ProcessTerm
 
-  @sections ~w(links monitors monitored_by dictionary label state messages)
+  @sections ~w(info links monitors monitored_by dictionary label state messages)
 
   schema do
     field :pid, :string,
       required: true,
       description: ~s(Process to inspect, in `"<X.Y.Z>"` form.)
 
-    field :include, {:list, {:enum, @sections}},
-      default: [],
-      description: "Unbounded attributes to fetch alongside the fixed-size ones."
+    field :section, :enum,
+      values: @sections,
+      default: "info",
+      description: "Which attribute to read. One call reads one section."
 
     field :limit, :integer,
       default: 25,
       min: 1,
       max: 200,
-      description: "Maximum entries per included attribute."
+      description: "Maximum entries in the returned section."
   end
 
   @impl true
@@ -48,19 +49,21 @@ defmodule Voyager.MCP.Tools.ProcessInfo do
         {:reply, Response.error(Response.tool(), "Malformed pid: #{params.pid}"), frame}
 
       pid ->
-        Remote.reply(&fetch(&1, pid, Enum.uniq(params.include), params.limit), frame)
+        Remote.reply(&fetch(&1, pid, params.section, params.limit), frame)
     end
   end
 
-  defp fetch(node, pid, include, limit) do
+  defp fetch(node, pid, "info", _limit) do
     with {:ok, info} <- ProcessInfo.fetch(node, pid) do
-      sections =
-        Map.new(include, fn section ->
-          {key, result} = fetch_section(section, node, pid, limit)
-          {key, section_value(result)}
-        end)
+      {:ok, Map.put(info, :pid, pid)}
+    end
+  end
 
-      {:ok, info |> Map.put(:pid, pid) |> Map.merge(sections)}
+  defp fetch(node, pid, section, limit) do
+    {key, result} = fetch_section(section, node, pid, limit)
+
+    with {:ok, value} <- result do
+      {:ok, %{:pid => pid, key => value}}
     end
   end
 
@@ -84,7 +87,4 @@ defmodule Voyager.MCP.Tools.ProcessInfo do
 
   defp fetch_section("messages", node, pid, limit),
     do: {:messages, ProcessTerm.fetch_messages(node, pid, limit)}
-
-  defp section_value({:ok, value}), do: value
-  defp section_value({:error, reason}), do: %{error: inspect(reason)}
 end
