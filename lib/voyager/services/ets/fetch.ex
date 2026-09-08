@@ -4,15 +4,13 @@ defmodule Voyager.Services.Ets.Fetch do
 
   Table metadata stays on `Voyager.Services.Ets.Remote`. These reads call
   `:ets_select_chunk/4` and `:ets_lookup/3` on the agent. A missing agent is
-  `:undef` and drops the session. Truncation and the worker heap cap run on
-  the target. Each record is walked independently with the caller's term
-  `budget` (see `Voyager.Agent.default_budget/0`).
+  `:undef` and drops the session. Truncation and the heap cap run on the
+  target. Each record is walked independently with the caller's term `budget`
+  (see `Voyager.Agent.default_budget/0`).
 
   A continuation that crossed ETF must be repaired on the target against
   `[{:"$1", [], [:"$1"]}]` before `ets:select/1`. `badarg` (private table,
-  unrepaired continuation, out-of-range budget) is `{:error, :cannot_read}`;
-  a wrapped worker death
-  is not. A remote worker heap kill is `{:error, :heap_limit_exceeded}`.
+  unrepaired continuation, out-of-range budget) is `{:error, :cannot_read}`.
   """
 
   alias Voyager.Agent
@@ -35,7 +33,7 @@ defmodule Voyager.Services.Ets.Fetch do
           TableId.t(),
           pos_integer(),
           non_neg_integer(),
-          term(),
+          term() | nil,
           timeout()
         ) :: {:ok, chunk()} | {:error, term()}
   def select_chunk(
@@ -43,13 +41,14 @@ defmodule Voyager.Services.Ets.Fetch do
         table,
         limit,
         budget \\ @budget,
-        continuation \\ :undefined,
+        continuation \\ nil,
         timeout \\ Agent.default_timeout()
       )
 
   def select_chunk(node, table, limit, budget, continuation, timeout)
       when TableId.is_table_id(table) and is_integer(limit) and limit > 0 do
-    fetch_chunk(node, :ets_select_chunk, [table, limit, budget, continuation], timeout)
+    cont = continuation || :undefined
+    fetch_chunk(node, :ets_select_chunk, [table, limit, budget, cont], timeout)
   end
 
   def select_chunk(_node, table, _limit, _budget, _continuation, _timeout)
@@ -93,10 +92,5 @@ defmodule Voyager.Services.Ets.Fetch do
   defp normalize_cont(cont), do: cont
 
   defp map_read_error({:error, {:remote_exception, :badarg}}), do: {:error, :cannot_read}
-  defp map_read_error({:error, {:remote_exception, :killed}}), do: {:error, :heap_limit_exceeded}
-
-  defp map_read_error({:error, {:remote_exception, {:killed, _}}}),
-    do: {:error, :heap_limit_exceeded}
-
   defp map_read_error({:error, _} = err), do: err
 end

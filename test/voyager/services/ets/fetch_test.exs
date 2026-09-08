@@ -49,6 +49,19 @@ defmodule Voyager.Services.Ets.FetchTest do
       refute chunk.truncated?
     end
 
+    test "sends :undefined for a nil continuation, so a stored last page restarts the scan" do
+      expect(Voyager.ErpcMock, :call, fn @node,
+                                         :voyager_agent,
+                                         :ets_select_chunk,
+                                         [:t, 10, @budget, :undefined],
+                                         @timeout ->
+        ok_chunk([{:a, 1}], :undefined)
+      end)
+
+      assert {:ok, %{continuation: nil}} =
+               Fetch.select_chunk(@node, :t, 10, @budget, nil, @timeout)
+    end
+
     test "maps continuation :undefined and :\"$end_of_table\" to nil" do
       expect(Voyager.ErpcMock, :call, fn @node,
                                          :voyager_agent,
@@ -97,30 +110,12 @@ defmodule Voyager.Services.Ets.FetchTest do
                Fetch.select_chunk(@node, :t, 10, @budget, :undefined, @timeout)
     end
 
-    test "does not map a wrapped agent worker badarg to :cannot_read" do
+    test "passes a remote heap kill through untouched" do
       expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_chunk, _, _ ->
-        :erlang.error({:exception, {:agent_worker_down, {:badarg, []}}, []})
+        exit({:signal, :killed})
       end)
 
-      assert {:error, {:remote_exception, {:agent_worker_down, {:badarg, []}}}} =
-               Fetch.select_chunk(@node, :t, 10, @budget, :undefined, @timeout)
-    end
-
-    test "maps a remote worker heap kill to :heap_limit_exceeded" do
-      expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_chunk, _, _ ->
-        :erlang.error({:exception, :killed, []})
-      end)
-
-      assert {:error, :heap_limit_exceeded} =
-               Fetch.select_chunk(@node, :t, 10, @budget, :undefined, @timeout)
-    end
-
-    test "does not map a wrapped agent worker death to :heap_limit_exceeded" do
-      expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_chunk, _, _ ->
-        :erlang.error({:exception, {:agent_worker_down, :killed}, []})
-      end)
-
-      assert {:error, {:remote_exception, {:agent_worker_down, :killed}}} =
+      assert {:error, {:remote_exit, {:signal, :killed}}} =
                Fetch.select_chunk(@node, :t, 10, @budget, :undefined, @timeout)
     end
 
