@@ -85,54 +85,6 @@ defmodule VoyagerWeb.TermTreeTest do
       assert segment.text =~ "truncated"
     end
 
-    test "the ETS depth marker renders as a muted placeholder" do
-      node = TermTree.describe({@truncated, :depth})
-
-      assert %Node{kind: :truncated, content: [%Segment{kind: :muted}]} = node
-      refute Node.expandable?(node)
-      assert TermTree.children({@truncated, :depth}, 0, 10) == []
-    end
-
-    test "an ETS-shortened binary keeps its prefix and reports the full size" do
-      node = TermTree.describe({@truncated, :binary, "abc", 9_000})
-
-      assert %Node{kind: :binary, truncated?: true} = node
-      assert text(node.content) =~ ~s("abc")
-      assert text(node.content) =~ "9 KB"
-      refute Node.expandable?(node)
-    end
-
-    test "an ETS-shortened collection opens on what survived and counts the rest" do
-      for {kind, marker, opening} <- [
-            {:list, {@truncated, :list, [1, 2], 47}, "["},
-            {:tuple, {@truncated, :tuple, [:ok, 1], 3}, "{"},
-            {:map, {@truncated, :map, [a: 1, b: 2], 3}, "%{"}
-          ] do
-        node = TermTree.describe(marker)
-
-        assert %Node{kind: ^kind, truncated?: true, child_count: 2} = node
-        assert Node.expandable?(node)
-        assert text(node.expanded_before) == opening
-        assert text(node.expanded_after) =~ "more"
-      end
-    end
-
-    test "an ETS-shortened map yields its pairs as keyed children" do
-      marker = {@truncated, :map, [a: 1, b: 2], 3}
-
-      children = TermTree.children(marker, 0, 10)
-
-      assert child_terms(children) == [1, 2]
-      assert child_keys(children) == ["a: ", "b: "]
-    end
-
-    test "an ETS-shortened list yields positional children" do
-      children = TermTree.children({@truncated, :list, [1, 2, 3], 47}, 0, 2)
-
-      assert child_terms(children) == [1, 2]
-      assert child_keys(children) == [nil, nil]
-    end
-
     test "empty collections are not expandable" do
       for {term, rendered, kind} <- [{{}, "{}", :tuple}, {[], "[]", :list}, {%{}, "%{}", :map}] do
         node = TermTree.describe(term)

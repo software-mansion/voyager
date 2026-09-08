@@ -410,12 +410,10 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   a truncated key would look up a record that does not exist.
   """
   @spec lookup_key(term(), pos_integer()) :: {:ok, term()} | :error
-  def lookup_key(record, keypos)
-      when is_tuple(record) and tuple_size(record) >= keypos and
-             elem(record, 0) != @truncated do
+  def lookup_key(record, keypos) when is_tuple(record) and tuple_size(record) >= keypos do
     case elem(record, keypos - 1) do
-      key when is_atom(key) or is_integer(key) -> {:ok, key}
-      key when is_binary(key) -> {:ok, key}
+      @truncated -> :error
+      key when is_atom(key) or is_integer(key) or is_binary(key) -> {:ok, key}
       _key -> :error
     end
   end
@@ -427,8 +425,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   defp truncated_record?(@truncated), do: true
 
   defp truncated_record?(tuple) when is_tuple(tuple) do
-    (tuple_size(tuple) > 0 and elem(tuple, 0) == @truncated) or
-      tuple |> Tuple.to_list() |> Enum.any?(&truncated_record?/1)
+    tuple |> Tuple.to_list() |> Enum.any?(&truncated_record?/1)
   end
 
   defp truncated_record?(list) when is_list(list), do: Enum.any?(list, &truncated_record?/1)
@@ -448,20 +445,6 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   end
 
   defp strip_markers(@truncated), do: :...
-  defp strip_markers({@truncated, :depth}), do: :...
-  defp strip_markers({@truncated, :binary, prefix, _size}), do: prefix <> "…"
-
-  defp strip_markers({@truncated, :map, pairs, _omitted}) when is_list(pairs) do
-    Map.new(pairs, fn {k, v} -> {strip_markers(k), strip_markers(v)} end)
-  end
-
-  defp strip_markers({@truncated, :tuple, elements, _omitted}) when is_list(elements) do
-    List.to_tuple(Enum.map(elements, &strip_markers/1) ++ [:...])
-  end
-
-  defp strip_markers({@truncated, :list, elements, _omitted}) when is_list(elements) do
-    Enum.map(elements, &strip_markers/1) ++ [:...]
-  end
 
   defp strip_markers(list) when is_list(list), do: Enum.map(list, &strip_markers/1)
 
