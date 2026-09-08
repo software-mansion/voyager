@@ -5,16 +5,16 @@ defmodule Voyager.MCP.Tools.ProcessInfo do
   `pid` is the textual `"<X.Y.Z>"` form returned by `process_list`. `section`
   picks what to read and every call reads exactly one, so each is rate limited
   on its own. The default, `info`, holds the fixed-size attributes and is safe
-  to poll. Every other section is unbounded and is truncated on the remote node,
-  to `limit` entries and to a term budget: it reports the real length as `total`,
-  whether anything was dropped as `truncated?`, and elided subterms as
-  `"$voyager_truncated"`. Sizes are in bytes.
+  to poll. Collection sections are truncated on the remote node to `limit` entries
+  and a term budget; they report the real length as `total`, dropped data as
+  `truncated?`, and entries as `items`. `label` and `state` return a single
+  term limited by the term budget. Elided subterms use `"$voyager_truncated"`.
+  Sizes are in bytes.
 
   `state` and `messages` are the expensive reads -- the remote has to copy the
   term before truncating it -- so ask for them deliberately, never on a refresh.
   A process that does not handle system messages answers `state` with a timeout.
   """
-
   use Anubis.Server.Component, type: :tool
 
   alias Anubis.Server.Response
@@ -87,4 +87,5 @@ defmodule Voyager.MCP.Tools.ProcessInfo do
 
   defp fetch_section("messages", node, pid, limit),
     do: {:messages, ProcessTerm.fetch_messages(node, pid, limit)}
+
 end
