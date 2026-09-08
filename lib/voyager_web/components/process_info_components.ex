@@ -16,28 +16,17 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   alias Phoenix.LiveView.AsyncResult
   alias VoyagerWeb.Components.DetailsPanelComponents
   alias VoyagerWeb.Formatters
+  alias VoyagerWeb.FormSchemas.ProcessInfoControls
 
   @typep async_result :: %AsyncResult{}
 
-  @timeout_bounds {1_000, 30_000}
-  @budget_bounds {100, nil}
-  @limit_bounds {1, 1_000}
+  @timeout_bounds ProcessInfoControls.timeout_bounds()
+  @budget_bounds ProcessInfoControls.budget_bounds()
+  @limit_bounds ProcessInfoControls.limit_bounds()
 
   @budget_help "Caps how much of each fetched term the remote node sends back — " <>
                  "roughly one unit per subterm, binaries charged per byte kept. " <>
                  "Anything beyond the budget is truncated on the remote."
-
-  @doc "Timeout bounds for the per-section timeout inputs, in milliseconds."
-  @spec timeout_bounds() :: {pos_integer(), pos_integer()}
-  def timeout_bounds, do: @timeout_bounds
-
-  @doc "Budget bounds for the per-section term budget inputs; no upper cap."
-  @spec budget_bounds() :: {pos_integer(), nil}
-  def budget_bounds, do: @budget_bounds
-
-  @doc "Limit bounds for the per-section entry limit inputs."
-  @spec limit_bounds() :: {pos_integer(), pos_integer()}
-  def limit_bounds, do: @limit_bounds
 
   @doc """
   One lift tab. Must be a direct child of the `.tabs` tablist; the matching
@@ -78,14 +67,12 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   attr :id, :string, required: true
   attr :section, :atom, required: true
   attr :active, :boolean, required: true
+  attr :form, Phoenix.HTML.Form, required: true, doc: "a ProcessInfoControls form"
   attr :title, :string, default: nil
   attr :muted, :string, default: nil
   attr :help, :string, default: nil, doc: "renders a \"?\" tooltip next to the title"
   attr :fetched_at, DateTime, default: nil
   attr :took_ms, :integer, default: nil, doc: "round trip of the fetch behind fetched_at"
-  attr :timeout, :integer, required: true
-  attr :budget, :integer, default: nil, doc: "renders a budget input when set"
-  attr :limit, :integer, default: nil, doc: "renders an entry limit input when set"
   attr :loading?, :boolean, required: true
   attr :disabled, :boolean, required: true
   slot :inner_block, required: true
@@ -104,10 +91,10 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
       not @active && "hidden"
     ]}>
       <div id={@id} class="flex min-h-0 flex-1 flex-col">
-        <div class="flex flex-wrap items-center justify-between gap-3 p-5 pb-4">
+        <div class="flex flex-wrap items-start justify-between gap-3 p-5 pb-4">
           <h4
             :if={@title}
-            class="text-base-content flex items-center gap-1 text-sm font-semibold leading-none"
+            class="text-base-content flex h-8 items-center gap-1 text-sm font-semibold leading-none"
           >
             {@title}
             <span :if={@muted} class="font-mono text-base-content/70 ml-1 text-xs font-normal">
@@ -116,89 +103,53 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
             <.help_tooltip :if={@help} id={"#{@id}-help"} text={@help} />
           </h4>
           <span :if={is_nil(@title)} />
-          <div class="flex flex-wrap items-center gap-3">
+          <div class="flex flex-wrap items-start gap-3">
             <span
               :if={@fetched_at}
               id={"#{@id}-fetched-at"}
-              class="font-mono text-base-content/70 text-xs"
+              class="font-mono text-base-content/70 py-2 text-xs leading-4"
             >
               fetched {Formatters.format_time(@fetched_at)} UTC<span :if={@took_ms}> in <span class={
                 round_trip_class(@took_ms)
               }>{Formatters.format_integer(@took_ms)} ms</span></span>
             </span>
-            <form
-              :if={@limit}
-              id={"#{@id}-limit-form"}
-              phx-change="set-limit"
-              class="flex items-center gap-2"
+            <.form
+              for={@form}
+              id={"#{@id}-controls"}
+              phx-change="validate-controls"
+              class="flex flex-wrap items-start gap-3"
             >
               <input type="hidden" name="section" value={@section} />
-              <span class="flex items-center gap-1">
-                <label for={"#{@id}-limit"} class="text-base-content/70 text-xs font-medium">
-                  Limit
-                </label>
-                <.help_tooltip
-                  id={"#{@id}-limit-help"}
-                  text="Maximum number of entries fetched from the remote node."
-                />
-              </span>
-              <input
+              <.control_field
+                :if={ProcessInfoControls.field?(@form.data, :limit)}
                 id={"#{@id}-limit"}
-                type="number"
-                name="limit"
-                value={@limit}
+                field={@form[:limit]}
+                label="Limit"
+                help="Maximum number of entries fetched from the remote node."
                 min={elem(@limit_bounds, 0)}
                 max={elem(@limit_bounds, 1)}
                 step="10"
-                inputmode="numeric"
-                phx-debounce="500"
-                class="input input-sm input-bordered no-spinner font-mono w-24"
               />
-            </form>
-            <form
-              :if={@budget}
-              id={"#{@id}-budget-form"}
-              phx-change="set-budget"
-              class="flex items-center gap-2"
-            >
-              <input type="hidden" name="section" value={@section} />
-              <span class="flex items-center gap-1">
-                <label for={"#{@id}-budget"} class="text-base-content/70 text-xs font-medium">
-                  Budget
-                </label>
-                <.help_tooltip id={"#{@id}-budget-help"} text={@budget_help} />
-              </span>
-              <input
+              <.control_field
+                :if={ProcessInfoControls.field?(@form.data, :budget)}
                 id={"#{@id}-budget"}
-                type="number"
-                name="budget"
-                value={@budget}
+                field={@form[:budget]}
+                label="Budget"
+                help={@budget_help}
                 min={elem(@budget_bounds, 0)}
                 max={elem(@budget_bounds, 1)}
                 step="100"
-                inputmode="numeric"
-                phx-debounce="500"
-                class="input input-sm input-bordered no-spinner font-mono w-24"
               />
-            </form>
-            <form id={"#{@id}-timeout-form"} phx-change="set-timeout" class="flex items-center gap-2">
-              <input type="hidden" name="section" value={@section} />
-              <label for={"#{@id}-timeout"} class="text-base-content/70 text-xs font-medium">
-                Timeout (ms)
-              </label>
-              <input
+              <.control_field
+                :if={ProcessInfoControls.field?(@form.data, :timeout)}
                 id={"#{@id}-timeout"}
-                type="number"
-                name="timeout"
-                value={@timeout}
+                field={@form[:timeout]}
+                label="Timeout (ms)"
                 min={elem(@bounds, 0)}
                 max={elem(@bounds, 1)}
                 step="100"
-                inputmode="numeric"
-                phx-debounce="500"
-                class="input input-sm input-bordered no-spinner font-mono w-24"
               />
-            </form>
+            </.form>
             <.refresh_button
               id={"#{@id}-refresh"}
               event={"fetch-#{@section}"}
@@ -213,6 +164,36 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
             {render_slot(@inner_block)}
           </div>
         </div>
+      </div>
+    </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :field, Phoenix.HTML.FormField, required: true
+  attr :label, :string, required: true
+  attr :help, :string, default: nil
+  attr :rest, :global, include: ~w(max min step)
+
+  defp control_field(assigns) do
+    ~H"""
+    <div class="flex items-start gap-2">
+      <span class="flex h-8 items-center gap-1">
+        <label for={@id} class="text-base-content/70 text-xs font-medium">{@label}</label>
+        <.help_tooltip :if={@help} id={"#{@id}-help"} text={@help} />
+      </span>
+      <%!-- An invalid field widens to fit its message on one line, rather than
+           wrapping it inside the input's own 6rem. --%>
+      <div class={if @field.errors == [], do: "w-24", else: "w-56"}>
+        <.input
+          id={@id}
+          field={@field}
+          type="number"
+          inputmode="numeric"
+          phx-debounce="500"
+          class="input-sm no-spinner font-mono"
+          {@rest}
+        />
       </div>
     </div>
     """

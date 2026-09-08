@@ -20,6 +20,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
   alias Phoenix.LiveView.AsyncResult
   alias VoyagerWeb.Formatters
+  alias VoyagerWeb.FormSchemas.ProcessInfoControls
   alias VoyagerWeb.Hooks.TermTreeHook
   alias VoyagerWeb.ProcessInfoLive.Query
 
@@ -30,7 +31,6 @@ defmodule VoyagerWeb.ProcessInfoLive do
   @tabs ~w(overview state messages dictionary relations)a
   @sections ~w(info relations state messages dictionary)a
   @budget_sections ~w(state messages dictionary)a
-  @limit_sections ~w(relations messages dictionary)a
 
   @impl true
   def mount(%{"pid" => pid_string}, _session, socket) do
@@ -44,9 +44,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
     |> assign(:messages, nil)
     |> assign(:dictionary, nil)
     |> assign(:state, nil)
-    |> assign(:timeouts, Map.new(@sections, &{&1, Query.default_timeout()}))
-    |> assign(:budgets, Map.new(@budget_sections, &{&1, Query.default_budget()}))
-    |> assign(:limits, Query.default_limits())
+    |> assign_controls(Map.new(@sections, &{&1, default_controls(&1)}))
     |> assign(:fetched_at, %{})
     |> assign(:copy_texts, %{})
     |> assign(:settings_restored?, false)
@@ -142,7 +140,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
           active={@tab == :overview}
           fetched_at={@fetched_at[:info][:at]}
           took_ms={@fetched_at[:info][:took_ms]}
-          timeout={@timeouts.info}
+          form={@forms.info}
           loading?={loading?(@info)}
           disabled={is_nil(@pid)}
         >
@@ -162,8 +160,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
           active={@tab == :state}
           fetched_at={@fetched_at[:state][:at]}
           took_ms={@fetched_at[:state][:took_ms]}
-          timeout={@timeouts.state}
-          budget={@budgets.state}
+          form={@forms.state}
           loading?={loading?(@state)}
           disabled={is_nil(@pid)}
           title="State"
@@ -187,9 +184,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
           active={@tab == :messages}
           fetched_at={@fetched_at[:messages][:at]}
           took_ms={@fetched_at[:messages][:took_ms]}
-          timeout={@timeouts.messages}
-          budget={@budgets.messages}
-          limit={@limits.messages}
+          form={@forms.messages}
           loading?={loading?(@messages)}
           disabled={is_nil(@pid)}
           title="Messages"
@@ -225,9 +220,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
           active={@tab == :dictionary}
           fetched_at={@fetched_at[:dictionary][:at]}
           took_ms={@fetched_at[:dictionary][:took_ms]}
-          timeout={@timeouts.dictionary}
-          budget={@budgets.dictionary}
-          limit={@limits.dictionary}
+          form={@forms.dictionary}
           loading?={loading?(@dictionary)}
           disabled={is_nil(@pid)}
           title="Dictionary"
@@ -274,8 +267,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
           active={@tab == :relations}
           fetched_at={@fetched_at[:relations][:at]}
           took_ms={@fetched_at[:relations][:took_ms]}
-          timeout={@timeouts.relations}
-          limit={@limits.relations}
+          form={@forms.relations}
           loading?={loading?(@relations)}
           disabled={is_nil(@pid)}
         >
@@ -337,49 +329,33 @@ defmodule VoyagerWeb.ProcessInfoLive do
     end
   end
 
-  def handle_event("set-timeout", %{"section" => section, "timeout" => timeout}, socket) do
-    with name when not is_nil(name) <- section_atom(section),
-         timeout when not is_nil(timeout) <- parse_bounded(timeout, timeout_bounds()) do
-      socket
-      |> assign(:timeouts, Map.put(socket.assigns.timeouts, name, timeout))
-      |> store_settings()
-      |> noreply()
-    else
-      _ -> noreply(socket)
-    end
-  end
+  def handle_event("validate-controls", %{"section" => section} = params, socket) do
+    case section_atom(section) do
+      nil ->
+        noreply(socket)
 
-  def handle_event("set-budget", %{"section" => section, "budget" => budget}, socket) do
-    with name when name in @budget_sections <- section_atom(section),
-         budget when not is_nil(budget) <- parse_bounded(budget, budget_bounds()) do
-      socket
-      |> assign(:budgets, Map.put(socket.assigns.budgets, name, budget))
-      |> store_settings()
-      |> noreply()
-    else
-      _ -> noreply(socket)
-    end
-  end
+      name ->
+        {controls, changeset} =
+          ProcessInfoControls.apply(socket.assigns.controls[name], params["controls"] || %{})
 
-  def handle_event("set-limit", %{"section" => section, "limit" => limit}, socket) do
-    with name when name in @limit_sections <- section_atom(section),
-         limit when not is_nil(limit) <- parse_bounded(limit, limit_bounds()) do
-      socket
-      |> assign(:limits, Map.put(socket.assigns.limits, name, limit))
-      |> store_settings()
-      |> noreply()
-    else
-      _ -> noreply(socket)
+        socket
+        |> assign(:controls, Map.put(socket.assigns.controls, name, controls))
+        |> assign(:forms, Map.put(socket.assigns.forms, name, to_form(changeset, as: :controls)))
+        |> store_settings()
+        |> noreply()
     end
   end
 
   # The client's stored controls, empty when it has none. Only validated
   # values ever get stored, but the storage is still hand-editable.
   def handle_event("restore_settings", params, socket) when is_map(params) do
+    restored =
+      Map.new(socket.assigns.controls, fn {name, controls} ->
+        {name, ProcessInfoControls.restore(controls, params[to_string(name)])}
+      end)
+
     socket
-    |> restore_controls(:timeouts, params["timeouts"], timeout_bounds())
-    |> restore_controls(:budgets, params["budgets"], budget_bounds())
-    |> restore_controls(:limits, params["limits"], limit_bounds())
+    |> assign_controls(restored)
     |> settings_restored()
     |> noreply()
   end
@@ -527,14 +503,14 @@ defmodule VoyagerWeb.ProcessInfoLive do
   # timeout; a section without one of them simply skips that slot.
   defp fetch(socket, name) do
     %{pid: pid, session: %{node: node}} = socket.assigns
-    %{timeouts: timeouts, budgets: budgets, limits: limits} = socket.assigns
+    controls = Map.fetch!(socket.assigns.controls, name)
     query = Map.fetch!(@queries, name)
 
     args =
       [node, pid] ++
-        optional_arg(limits, name) ++
-        optional_arg(budgets, name) ++
-        [Map.fetch!(timeouts, name)]
+        optional_arg(controls.limit) ++
+        optional_arg(controls.budget) ++
+        [controls.timeout]
 
     socket
     |> cancel_async(name, {:shutdown, :cancel})
@@ -542,12 +518,8 @@ defmodule VoyagerWeb.ProcessInfoLive do
     |> start_async(name, fn -> apply(query, args) end)
   end
 
-  defp optional_arg(map, name) do
-    case map do
-      %{^name => value} -> [value]
-      %{} -> []
-    end
-  end
+  defp optional_arg(nil), do: []
+  defp optional_arg(value), do: [value]
 
   @impl true
   def handle_params(params, _uri, socket) do
@@ -588,44 +560,40 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
   defp registered_name(_info), do: nil
 
+  # One entry per section, holding only the fields that section actually has.
   defp store_settings(socket) do
-    push_event(socket, "store-settings", %{
-      settings: %{
-        "timeouts" => socket.assigns.timeouts,
-        "budgets" => socket.assigns.budgets,
-        "limits" => socket.assigns.limits
-      }
-    })
-  end
+    settings =
+      Map.new(socket.assigns.controls, fn {name, controls} ->
+        stored =
+          %{"timeout" => controls.timeout, "budget" => controls.budget, "limit" => controls.limit}
+          |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+          |> Map.new()
 
-  defp restore_controls(socket, key, values, bounds) when is_map(values) do
-    restored =
-      Map.new(socket.assigns[key], fn {section, current} ->
-        case parse_bounded(values[to_string(section)], bounds) do
-          nil -> {section, current}
-          value -> {section, value}
-        end
+        {to_string(name), stored}
       end)
 
-    assign(socket, key, restored)
+    push_event(socket, "store-settings", %{settings: settings})
   end
 
-  defp restore_controls(socket, _key, _values, _bounds), do: socket
+  defp default_controls(name) do
+    opts =
+      [timeout: Query.default_timeout()] ++
+        if(name in @budget_sections, do: [budget: Query.default_budget()], else: []) ++
+        if(limit = Query.default_limits()[name], do: [limit: limit], else: [])
 
-  defp parse_bounded(value, bounds) when is_integer(value),
-    do: value |> Integer.to_string() |> parse_bounded(bounds)
-
-  defp parse_bounded(value, {lower, upper}) when is_binary(value) do
-    case Integer.parse(value) do
-      {n, ""} -> n |> max(lower) |> clamp_upper(upper)
-      _ -> nil
-    end
+    ProcessInfoControls.new(name, opts)
   end
 
-  defp parse_bounded(_value, _bounds), do: nil
+  defp assign_controls(socket, controls) do
+    forms =
+      Map.new(controls, fn {name, section_controls} ->
+        {name, to_form(ProcessInfoControls.changeset(section_controls), as: :controls)}
+      end)
 
-  defp clamp_upper(n, nil), do: n
-  defp clamp_upper(n, upper), do: min(n, upper)
+    socket
+    |> assign(:controls, controls)
+    |> assign(:forms, forms)
+  end
 
   defp pid_href(session, current_url) do
     fn value ->

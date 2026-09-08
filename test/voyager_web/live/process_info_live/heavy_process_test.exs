@@ -101,8 +101,8 @@ defmodule VoyagerWeb.ProcessInfoLive.HeavyProcessTest do
     view = open!(conn, pid)
 
     view
-    |> element("#panel-state-timeout-form")
-    |> render_change(%{"section" => "state", "timeout" => "1000"})
+    |> element("#panel-state-controls")
+    |> render_change(%{"section" => "state", "controls" => %{"timeout" => "1000"}})
 
     view |> element("#process-tab-state") |> render_click()
     render_async(view, 5_000)

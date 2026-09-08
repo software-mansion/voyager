@@ -3,8 +3,11 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
 
   import Phoenix.LiveViewTest
 
+  import Phoenix.Component, only: [to_form: 2]
+
   alias Phoenix.LiveView.AsyncResult
   alias VoyagerWeb.Components.ProcessInfoComponents
+  alias VoyagerWeb.FormSchemas.ProcessInfoControls
 
   @remote_node :"demo@127.0.0.1"
 
@@ -65,11 +68,19 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
 
   describe "tab_panel/1" do
     defp panel(attrs) do
+      {controls_attrs, attrs} = Keyword.split(attrs, [:budget, :limit])
+
+      form =
+        :messages
+        |> ProcessInfoControls.new(Keyword.merge([timeout: 5_000], controls_attrs))
+        |> ProcessInfoControls.changeset()
+        |> to_form(as: :controls)
+
       defaults = [
         id: "panel-sec",
-        section: :sec,
+        section: :messages,
         active: true,
-        timeout: 5_000,
+        form: form,
         loading?: false,
         disabled: false,
         inner_block: [%{__slot__: :inner_block, inner_block: fn _, _ -> "body" end}]
@@ -82,20 +93,20 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
       html = panel([])
 
       assert text(html, "#panel-sec") =~ "body"
-      assert attr(html, "#panel-sec-timeout-form", "phx-change") == ["set-timeout"]
-      assert attr(html, "#panel-sec-timeout-form input[type=hidden]", "value") == ["sec"]
+      assert attr(html, "#panel-sec-controls", "phx-change") == ["validate-controls"]
+      assert attr(html, "#panel-sec-controls input[type=hidden]", "value") == ["messages"]
       assert attr(html, "#panel-sec-timeout", "value") == ["5000"]
-      assert attr(html, "#panel-sec-refresh", "phx-click") == ["fetch-sec"]
+      assert attr(html, "#panel-sec-timeout", "name") == ["controls[timeout]"]
+      assert attr(html, "#panel-sec-refresh", "phx-click") == ["fetch-messages"]
       assert count(html, "#panel-sec-fetched-at") == 0
-      assert count(html, "#panel-sec-budget-form") == 0
-      assert count(html, "#panel-sec-limit-form") == 0
+      assert count(html, "#panel-sec-budget") == 0
+      assert count(html, "#panel-sec-limit") == 0
     end
 
     test "renders a section-scoped budget input with a help tooltip when budget is set" do
       html = panel(budget: 5_000)
 
-      assert attr(html, "#panel-sec-budget-form", "phx-change") == ["set-budget"]
-      assert attr(html, "#panel-sec-budget-form input[type=hidden]", "value") == ["sec"]
+      assert attr(html, "#panel-sec-budget", "name") == ["controls[budget]"]
       assert attr(html, "#panel-sec-budget", "value") == ["5000"]
       assert attr(html, "#panel-sec-budget", "max") == []
       assert count(html, "#panel-sec-budget-help") == 1
@@ -104,10 +115,37 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
     test "renders a section-scoped limit input with a help tooltip when limit is set" do
       html = panel(limit: 100)
 
-      assert attr(html, "#panel-sec-limit-form", "phx-change") == ["set-limit"]
-      assert attr(html, "#panel-sec-limit-form input[type=hidden]", "value") == ["sec"]
+      assert attr(html, "#panel-sec-limit", "name") == ["controls[limit]"]
       assert attr(html, "#panel-sec-limit", "value") == ["100"]
       assert count(html, "#panel-sec-limit-help") == 1
+    end
+
+    test "keeps a cleared input on screen so it can be typed back in" do
+      form =
+        :messages
+        |> ProcessInfoControls.new(timeout: 5_000, limit: 50)
+        |> ProcessInfoControls.apply(%{"limit" => ""})
+        |> elem(1)
+        |> to_form(as: :controls)
+
+      html = panel(form: form)
+
+      assert count(html, "#panel-sec-limit") == 1
+      assert text(html, "#panel-sec-controls") =~ "can't be blank"
+    end
+
+    test "shows a validation error on an out-of-range value" do
+      form =
+        :messages
+        |> ProcessInfoControls.new(timeout: 5_000)
+        |> ProcessInfoControls.apply(%{"timeout" => "10"})
+        |> elem(1)
+        |> to_form(as: :controls)
+
+      html = panel(form: form)
+
+      assert text(html, "#panel-sec-controls") =~ "must be between 1000 and 30000"
+      assert attr(html, "#panel-sec-timeout", "class") |> List.first() =~ "input-error"
     end
 
     test "shows the fetch time once set" do
