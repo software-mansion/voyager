@@ -19,7 +19,7 @@ defmodule VoyagerWeb.ProcessInfoLive.Query do
 
   @budget Agent.default_budget()
 
-  @pid_format ~r/^<\d+\.\d+\.\d+>$/
+  @pid_format ~r/^\A<\d+\.\d+\.\d+>\z$/
 
   @type relations :: %{
           links: Agent.bounded(pid() | port()),
