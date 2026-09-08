@@ -12,6 +12,4 @@ defmodule Voyager.Pid do
   rescue
     ArgumentError -> nil
   end
-
-  def parse(_pid_str), do: nil
 end
