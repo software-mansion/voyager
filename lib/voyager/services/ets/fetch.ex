@@ -19,7 +19,7 @@ defmodule Voyager.Services.Ets.Fetch do
 
   require TableId
 
-  @chunk_sizes [10, 20, 50]
+  @chunk_sizes [1, 2, 5, 10, 20, 50]
   @budget Agent.default_budget()
   @select_fun :ets_select_chunk
   @lookup_fun :ets_lookup

@@ -505,20 +505,18 @@ with_bounded_heap(Fun) ->
 %% No fixtable — paging is best-effort.
 
 -define(ETS_MAX_HEAP_SIZE, 500_000).
--define(ETS_CHUNK_SIZES, [10, 20, 50]).
 -define(MATCH_ALL, [{'$1', [], ['$1']}]).
 
 -type ets_chunk() ::
-          #{records := [term()], continuation := term(), truncated := boolean()}.
+    #{records := [term()],
+      continuation := term(),
+      truncated := boolean()}.
 
--spec ets_select_chunk(ets:tab(), pos_integer(), non_neg_integer(), term()) -> {ok, ets_chunk()}.
-ets_select_chunk(Table, Limit, Budget, Cont) when is_integer(Budget), Budget >= 0 ->
-    case lists:member(Limit, ?ETS_CHUNK_SIZES) of
-        true ->
-            isolated(fun() -> do_select(Table, Limit, Budget, Cont) end);
-        false ->
-            erlang:error(badarg)
-    end;
+-spec ets_select_chunk(ets:tab(), pos_integer(), non_neg_integer(), term()) ->
+                          {ok, ets_chunk()}.
+ets_select_chunk(Table, Limit, Budget, Cont)
+    when is_integer(Budget), Budget >= 0, is_integer(Limit), Limit >= 0 ->
+    isolated(fun() -> do_select(Table, Limit, Budget, Cont) end);
 ets_select_chunk(_Table, _Limit, _Budget, _Cont) ->
     erlang:error(badarg).
 
@@ -531,7 +529,9 @@ ets_lookup(_Table, _Key, _Budget) ->
 do_select(Table, Limit, Budget, undefined) ->
     wrap_select(ets:select(Table, ?MATCH_ALL, Limit), Budget);
 do_select(_Table, _Limit, Budget, Cont) ->
-    wrap_select(ets:select(ets:repair_continuation(Cont, ?MATCH_ALL)), Budget).
+    wrap_select(ets:select(
+                    ets:repair_continuation(Cont, ?MATCH_ALL)),
+                Budget).
 
 wrap_select('$end_of_table', _Budget) ->
     wrap_records([], undefined, 0);
