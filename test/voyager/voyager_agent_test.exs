@@ -2,37 +2,14 @@ defmodule VoyagerAgentTest do
   use ExUnit.Case, async: false
 
   @compile {:no_warn_undefined, :voyager_agent}
+
+  alias Voyager.Test.VoyagerAgentFixture
+
   @agent_module :voyager_agent
-  @agent_filename "voyager_agent.erl"
 
   setup do
-    path =
-      :voyager
-      |> :code.priv_dir()
-      |> Path.join(@agent_filename)
-      |> String.to_charlist()
-
-    {:ok, @agent_module, binary} = :compile.file(path, [:binary, :return_errors])
-    {:module, @agent_module} = :code.load_binary(@agent_module, path, binary)
-
-    on_exit(fn ->
-      case Process.whereis(@agent_module) do
-        nil ->
-          :ok
-
-        pid ->
-          ref = Process.monitor(pid)
-          Process.exit(pid, :kill)
-
-          receive do
-            {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
-          end
-      end
-
-      :code.purge(@agent_module)
-      :code.delete(@agent_module)
-      :code.purge(@agent_module)
-    end)
+    VoyagerAgentFixture.load!()
+    :ok
   end
 
   describe "register/1" do

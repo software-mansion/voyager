@@ -1,9 +1,11 @@
 defmodule Voyager.Services.Ets.Remote do
   @moduledoc """
-  Fetches ETS table metadata from a remote node via `Voyager.Erpc`.
+  Fetches ETS table metadata from a remote node.
 
   `:ets.info/1` includes private tables (`protection: :private`). `memory` is
   in bytes, using the target's `:erlang.system_info(:wordsize)`.
+
+  Record payloads go through `Voyager.Services.Ets.Fetch`.
   """
 
   alias Voyager.Erpc

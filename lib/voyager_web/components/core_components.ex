@@ -672,6 +672,10 @@ defmodule VoyagerWeb.CoreComponents do
     doc:
       "when true, the tip stays open while hovered and can be pinned open with a click — required if the content holds clickable elements"
 
+  attr :pinnable, :boolean,
+    default: true,
+    doc: "set false where a pinned tip would outlive its anchor, e.g. scrolling table cells"
+
   attr :show_when, :string,
     default: nil,
     values: [nil, "sidebar-compact"],
@@ -690,6 +694,7 @@ defmodule VoyagerWeb.CoreComponents do
       data-tooltip-target={"##{@id}-tip"}
       data-tooltip-position={@position}
       data-tooltip-interactive={to_string(@interactive)}
+      data-tooltip-pinnable={to_string(@pinnable)}
       data-tooltip-show-when={@show_when}
     >
       {render_slot(@inner_block)}
