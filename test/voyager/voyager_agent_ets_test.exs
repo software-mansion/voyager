@@ -165,18 +165,14 @@ defmodule VoyagerAgentEtsTest do
       assert_raise ArgumentError, fn -> @agent_module.ets_lookup(name, :k, -1) end
     end
 
-    @tag capture_log: true
-    test "raises killed when the worker exceeds the target heap cap" do
+    test "restores the caller's max_heap_size instead of leaving it capped" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set])
       on_exit(fn -> EtsTable.safe_delete(name) end)
 
-      :ets.insert(name, {:wide, Enum.to_list(1..400_000)})
-
-      assert %ErlangError{original: :killed} =
-               assert_raise(ErlangError, fn ->
-                 @agent_module.ets_lookup(name, :wide, @budget)
-               end)
+      before = Process.info(self(), :max_heap_size)
+      assert {:ok, _chunk} = @agent_module.ets_lookup(name, :k, @budget)
+      assert Process.info(self(), :max_heap_size) == before
     end
   end
 end

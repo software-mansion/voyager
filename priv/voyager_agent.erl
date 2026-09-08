@@ -500,11 +500,9 @@ with_bounded_heap(Fun) ->
 %% =====================================================================
 %%
 %% Exported functions, not handle_call, so a peek cannot block register
-%% or nodedown. A one-shot worker with a 500_000-word heap cap does the
-%% ETS read and truncates records; the continuation is left opaque.
+%% or nodedown. The continuation is left opaque.
 %% No fixtable — paging is best-effort.
 
--define(ETS_MAX_HEAP_SIZE, 500_000).
 -define(MATCH_ALL, [{'$1', [], ['$1']}]).
 
 -type ets_chunk() ::
@@ -516,13 +514,13 @@ with_bounded_heap(Fun) ->
                           {ok, ets_chunk()}.
 ets_select_chunk(Table, Limit, Budget, Cont)
     when is_integer(Budget), Budget >= 0, is_integer(Limit), Limit >= 0 ->
-    isolated(fun() -> do_select(Table, Limit, Budget, Cont) end);
+    with_bounded_heap(fun() -> do_select(Table, Limit, Budget, Cont) end);
 ets_select_chunk(_Table, _Limit, _Budget, _Cont) ->
     erlang:error(badarg).
 
 -spec ets_lookup(ets:tab(), term(), non_neg_integer()) -> {ok, ets_chunk()}.
 ets_lookup(Table, Key, Budget) when is_integer(Budget), Budget >= 0 ->
-    isolated(fun() -> wrap_records(ets:lookup(Table, Key), undefined, Budget) end);
+    with_bounded_heap(fun() -> wrap_records(ets:lookup(Table, Key), undefined, Budget) end);
 ets_lookup(_Table, _Key, _Budget) ->
     erlang:error(badarg).
 
@@ -556,69 +554,6 @@ bound_records([], _Budget, Truncated, Acc) ->
 bound_records([Record | Rest], Budget, Truncated, Acc) ->
     {Bounded, Cut} = bound_term(Record, Budget),
     bound_records(Rest, Budget, Truncated orelse Cut, [Bounded | Acc]).
-
-%% Link so an erpc timeout also kills the worker. trap_exit so a heap kill
-%% becomes error:killed instead of taking this process down first.
-isolated(Fun) ->
-    OldTrap = process_flag(trap_exit, true),
-    try
-        isolated_wait(Fun)
-    after
-        process_flag(trap_exit, OldTrap)
-    end.
-
-isolated_wait(Fun) ->
-    Parent = self(),
-    {Pid, MRef} = spawn_opt(fun() -> isolated_worker(Parent, Fun) end, [link, monitor]),
-    receive
-        {Pid, {ok, Result}} ->
-            demonitor(MRef, [flush]),
-            flush_exit(Pid),
-            Result;
-        {Pid, {caught, Kind, Reason, Stack}} ->
-            demonitor(MRef, [flush]),
-            flush_exit(Pid),
-            erlang:raise(Kind, Reason, Stack);
-        {'DOWN', MRef, process, Pid, Reason} ->
-            flush_exit(Pid),
-            isolated_down(Reason);
-        {'EXIT', Pid, Reason} ->
-            receive
-                {'DOWN', MRef, process, Pid, _} ->
-                    ok
-            after 0 ->
-                ok
-            end,
-            isolated_down(Reason)
-    end.
-
-isolated_worker(Parent, Fun) ->
-    process_flag(max_heap_size,
-                 #{size => ?ETS_MAX_HEAP_SIZE,
-                   kill => true,
-                   error_logger => true}),
-    try Fun() of
-        Result ->
-            Parent ! {self(), {ok, Result}}
-    catch
-        Kind:Reason:Stack ->
-            Parent ! {self(), {caught, Kind, Reason, Stack}}
-    end.
-
-isolated_down(killed) ->
-    erlang:error(killed);
-isolated_down({killed, _Info}) ->
-    erlang:error(killed);
-isolated_down(Reason) ->
-    exit(Reason).
-
-flush_exit(Pid) ->
-    receive
-        {'EXIT', Pid, _} ->
-            ok
-    after 0 ->
-        ok
-    end.
 
 %% =====================================================================
 %% NODE WATCHER - gen_server callbacks and watcher for Nodes.

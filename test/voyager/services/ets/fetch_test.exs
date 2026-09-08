@@ -132,10 +132,10 @@ defmodule Voyager.Services.Ets.FetchTest do
                Fetch.select_chunk(@node, :t, 10, @budget, nil, @timeout)
     end
 
-    test "rejects a limit outside 10, 20, 50 without touching the remote" do
-      assert Fetch.chunk_sizes() == [10, 20, 50]
+    test "rejects a limit outside 1, 2, 5 10, 20, 50 without touching the remote" do
+      assert Fetch.chunk_sizes() == [1, 2, 5, 10, 20, 50]
       assert {:error, :invalid_limit} = Fetch.select_chunk(@node, :t, 15, @budget, nil, @timeout)
-      assert {:error, :invalid_limit} = Fetch.select_chunk(@node, :t, 1, @budget, nil, @timeout)
+      assert {:error, :invalid_limit} = Fetch.select_chunk(@node, :t, 3, @budget, nil, @timeout)
     end
 
     test "rejects a negative or non-integer budget without touching the remote" do
