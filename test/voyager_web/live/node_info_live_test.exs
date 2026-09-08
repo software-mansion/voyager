@@ -5,6 +5,7 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
   import Phoenix.LiveViewTest
   import Mox
+  import Voyager.Fakes, only: [stub_erpc: 1]
 
   alias Voyager.Fakes
 
@@ -406,16 +407,6 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
       assert {:error, {:live_redirect, %{to: "/"}}} = live(conn, @path)
     end
-  end
-
-  defp stub_erpc(data) do
-    stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args ->
-      Fakes.erpc_reply(mod, fun, args, data)
-    end)
-
-    stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args, _timeout ->
-      Fakes.erpc_reply(mod, fun, args, data)
-    end)
   end
 
   defp broadcast(pubsub_topic, event) do

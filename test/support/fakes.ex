@@ -1,13 +1,16 @@
 defmodule Voyager.Fakes do
   @moduledoc """
   Test fakes: canned `:erpc` replies shaped to satisfy the node-info snapshot
-  builders, plus helpers for injecting an active `Voyager.NodeSession`.
+  builders and the process inspectors, plus helpers for injecting an active
+  `Voyager.NodeSession`.
   """
 
   import ExUnit.Callbacks, only: [on_exit: 1]
+  import Mox, only: [stub: 3]
 
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Session
+  alias Voyager.Pid
 
   @doc """
   Builds a `Voyager.NodeSession.Session` with sensible defaults.
@@ -104,9 +107,53 @@ defmodule Voyager.Fakes do
   def node_data(overrides \\ %{}), do: Map.merge(@default_node_data, Map.new(overrides))
 
   @doc """
+  Returns a process data map (with sensible defaults) holding the raw reply the
+  mocked node would give for each remote call the process inspectors issue.
+
+  `:process_info` is the `:erlang.process_info/2` keyword list; pass
+  `process_info: [status: :running]` to override single attributes of it, or a
+  bare `:undefined` for a dead process. Every other key is the verbatim reply of
+  the `:voyager_agent` function it is named after, so a test can hand back
+  `proc_links: {:error, :dead}` as easily as a bounded map. Drop a key to assert
+  the call is never made -- `erpc_reply/4` raises on a section the fixture does
+  not define.
+  """
+  @spec process_data(map() | keyword()) :: map()
+  def process_data(overrides \\ %{}) do
+    overrides = Map.new(overrides)
+
+    info =
+      case Map.get(overrides, :process_info) do
+        nil -> default_process_info()
+        attrs when is_list(attrs) -> Keyword.merge(default_process_info(), attrs)
+        reply -> reply
+      end
+
+    default_process_data()
+    |> Map.merge(overrides)
+    |> Map.put(:process_info, info)
+  end
+
+  @doc """
+  Points the global `Voyager.ErpcMock` at `erpc_reply/4` for `data`.
+  """
+  @spec stub_erpc(map()) :: :ok
+  def stub_erpc(data) do
+    stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args ->
+      erpc_reply(mod, fun, args, data)
+    end)
+
+    stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args, _timeout ->
+      erpc_reply(mod, fun, args, data)
+    end)
+
+    :ok
+  end
+
+  @doc """
   Canned reply for a mocked `:erpc.call/4`, shaped from `data` (see
-  `node_data/1`) and dispatched on the module/function and arguments the
-  `Voyager.Services.NodeInfo` collector issues.
+  `node_data/1` and `process_data/1`) and dispatched on the module/function and
+  arguments the collectors issue.
   """
   def erpc_reply(:lists, :map, [fun, list], data) do
     if fun == (&:application_controller.get_master/1) do
@@ -134,6 +181,12 @@ defmodule Voyager.Fakes do
       {name, to_charlist(desc), to_charlist(vsn)}
     end)
   end
+
+  def erpc_reply(:erlang, :process_info, [_pid, _keys], data), do: data.process_info
+
+  def erpc_reply(:erlang, :system_info, [:wordsize], data), do: data.wordsize
+
+  def erpc_reply(:voyager_agent, fun, _args, data), do: Map.fetch!(data, fun)
 
   # Mirrors what :erlang.system_info/1 and :erlang.statistics/1 return per key.
   defp system_value(:otp_release, d), do: to_charlist(d.otp_release)
@@ -180,4 +233,57 @@ defmodule Voyager.Fakes do
 
   defp version_reply(nil), do: :undefined
   defp version_reply(vsn), do: {:ok, to_charlist(vsn)}
+
+  defp default_process_data do
+    linked = Pid.parse("<0.201.0>")
+
+    %{
+      wordsize: 8,
+      proc_top: {
+        [
+          %{pid: Pid.parse("<0.301.0>"), memory: 9_000, reductions: 300, registered_name: :big},
+          %{pid: Pid.parse("<0.302.0>"), memory: 5_000, reductions: 200, registered_name: []},
+          %{pid: Pid.parse("<0.303.0>"), memory: 1_000, reductions: 100, registered_name: :small}
+        ],
+        42
+      },
+      proc_links: {:ok, %{total: 1, truncated: false, items: [linked]}},
+      proc_monitors: {:ok, %{total: 1, truncated: false, items: [{:process, linked}]}},
+      proc_monitored_by: {:ok, %{total: 0, truncated: false, items: []}},
+      proc_dictionary: {:ok, %{total: 1, truncated: false, items: [{:"$key", :value}]}},
+      proc_messages: {:ok, %{total: 2, truncated: true, items: [:first]}},
+      proc_state: {:ok, %{term: %{count: 1}, truncated: false}},
+      proc_label: {:ok, %{term: :undefined, truncated: false}}
+    }
+  end
+
+  # Mirrors the keys `Voyager.Services.ProcessInfo` asks `:erlang.process_info/2`
+  # for; sizes are in words, as the real call reports them.
+  defp default_process_info do
+    [
+      initial_call: {:proc_lib, :init_p, 5},
+      current_function: {:gen_server, :loop, 7},
+      current_stacktrace: [{:gen_server, :loop, 7, [file: ~c"gen_server.erl", line: 1194]}],
+      registered_name: [],
+      parent: Pid.parse("<0.123.0>"),
+      status: :waiting,
+      message_queue_len: 0,
+      message_queue_data: :on_heap,
+      group_leader: Pid.parse("<0.64.0>"),
+      priority: :normal,
+      trap_exit: false,
+      reductions: 1_234,
+      last_calls: false,
+      catchlevel: 0,
+      trace: 0,
+      suspending: [],
+      sequential_trace_token: [],
+      error_handler: :error_handler,
+      memory: 2_672,
+      total_heap_size: 233,
+      heap_size: 233,
+      stack_size: 11,
+      garbage_collection: [min_heap_size: 233, fullsweep_after: 65_535, minor_gcs: 3]
+    ]
+  end
 end

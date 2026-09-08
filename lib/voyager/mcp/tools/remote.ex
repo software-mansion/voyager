@@ -7,9 +7,6 @@ defmodule Voyager.MCP.Tools.Remote do
   alias Voyager.Pid
   alias Voyager.Services.RateLimiter
 
-  @doc """
-  Runs `fun` against the connected node.
-  """
   @spec reply((node() -> {:ok, term()} | {:error, term()}), Frame.t()) ::
           {:reply, Response.t(), Frame.t()}
   def reply(fun, frame) when is_function(fun, 1) do
@@ -24,7 +21,7 @@ defmodule Voyager.MCP.Tools.Remote do
   end
 
   defp limited(node, fun) do
-    case RateLimiter.run(:high, fn -> fun.(node) end) do
+    case RateLimiter.run(rate_limiter(), :high, fn -> fun.(node) end) do
       {:ok, {:ok, payload}, _elapsed_us} ->
         Response.json(Response.tool(), jsonable(payload))
 
@@ -36,6 +33,8 @@ defmodule Voyager.MCP.Tools.Remote do
     end
   end
 
+  defp rate_limiter, do: Application.get_env(:voyager, :rate_limiter, RateLimiter)
+
   defp jsonable(term) when is_atom(term) or is_number(term), do: term
 
   defp jsonable(term) when is_pid(term), do: Pid.display(term)
@@ -45,10 +44,14 @@ defmodule Voyager.MCP.Tools.Remote do
   end
 
   defp jsonable(%module{} = term) do
-    term
-    |> Map.from_struct()
-    |> jsonable()
-    |> Map.put(:__struct__, inspect(module))
+    if JSON.Encoder.impl_for(term) do
+      term
+    else
+      term
+      |> Map.from_struct()
+      |> jsonable()
+      |> Map.put(:__struct__, inspect(module))
+    end
   end
 
   defp jsonable(term) when is_map(term) do

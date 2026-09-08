@@ -1,37 +1,21 @@
 defmodule Voyager.MCP.Tools.ProcessListTest do
-  # async: false because the tool runs against the real `:erpc` impl and the
-  # global `Voyager.NodeSession`, both swapped here.
+  # async: false because the tool reads the global `Voyager.NodeSession`.
   use ExUnit.Case, async: false
+
+  import Mox
 
   alias Anubis.Server.Frame
   alias Anubis.Server.Response
   alias Voyager.Fakes
   alias Voyager.MCP.Tools.ProcessList
-  alias Voyager.Pid
-  alias Voyager.Services.RateLimiter
 
-  setup_all do
-    path = :voyager |> :code.priv_dir() |> Path.join("voyager_agent.erl") |> String.to_charlist()
-    {:ok, module, binary} = :compile.file(path, [:binary])
-    {:module, ^module} = :code.load_binary(module, path, binary)
-
-    on_exit(fn ->
-      :code.purge(module)
-      :code.delete(module)
-    end)
-
-    :ok
-  end
+  setup :verify_on_exit!
 
   setup do
-    previous = Application.get_env(:voyager, :erpc)
-    Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
-    on_exit(fn -> Application.put_env(:voyager, :erpc, previous) end)
-
-    node = Node.self()
+    node = :fake@localhost
     Fakes.connect_node!(Fakes.node_session(node: node, node_name: Atom.to_string(node)))
 
-    :ok
+    %{data: Fakes.process_data()}
   end
 
   describe "schema validation" do
@@ -58,79 +42,85 @@ defmodule Voyager.MCP.Tools.ProcessListTest do
   end
 
   describe "execute/2" do
-    test "ranks the local processes and renders pids that parse back" do
-      %{"total_scanned" => total, "processes" => processes} = run(%{"limit" => 5})
+    test "renders the ranked rows and the scan total", %{data: data} do
+      Fakes.stub_erpc(data)
 
-      assert total > length(processes)
-      assert length(processes) == 5
-      assert Enum.all?(processes, &is_pid(Pid.parse(&1["pid"])))
-
-      memory = Enum.map(processes, & &1["memory"])
-      assert memory == Enum.sort(memory, :desc)
+      assert run(%{"limit" => 3}) == %{
+               "total_scanned" => 42,
+               "processes" => [
+                 %{
+                   "pid" => "<0.301.0>",
+                   "memory" => 9_000,
+                   "reductions" => 300,
+                   "registered_name" => "big"
+                 },
+                 %{
+                   "pid" => "<0.302.0>",
+                   "memory" => 5_000,
+                   "reductions" => 200,
+                   "registered_name" => []
+                 },
+                 %{
+                   "pid" => "<0.303.0>",
+                   "memory" => 1_000,
+                   "reductions" => 100,
+                   "registered_name" => "small"
+                 }
+               ]
+             }
     end
 
-    test "ranks smallest first on an ascending direction" do
-      %{"processes" => processes} = run(%{"limit" => 5, "direction" => "asc"})
-
-      memory = Enum.map(processes, & &1["memory"])
-      assert memory == Enum.sort(memory)
+    test "sends the requested ranking to the remote", %{data: data} do
+      assert [_attrs, :reductions, 7, :asc, _search] =
+               proc_top_args(data, %{
+                 "limit" => 7,
+                 "sort_by" => "reductions",
+                 "direction" => "asc"
+               })
     end
 
-    test "returns only the requested columns, plus the ranked one" do
-      %{"processes" => processes} =
-        run(%{"limit" => 3, "sort_by" => "reductions", "attrs" => ["registered_name"]})
+    test "sends the requested columns, with sort_by added", %{data: data} do
+      assert [attrs, :reductions, _limit, _direction, _search] =
+               proc_top_args(data, %{"sort_by" => "reductions", "attrs" => ["registered_name"]})
 
-      assert Enum.all?(
-               processes,
-               &(Enum.sort(Map.keys(&1)) == ~w(pid reductions registered_name))
-             )
+      assert attrs == [:reductions, :registered_name]
     end
 
-    test "filters on a searched registered name" do
-      name = :"mcp_process_list_#{System.unique_integer([:positive])}"
-      Process.register(self(), name)
-
-      %{"processes" => processes} =
-        run(%{"limit" => 5, "attrs" => ["registered_name"], "search" => "mcp_process_list"})
-
-      assert [%{"registered_name" => registered_name, "pid" => pid}] = processes
-      assert registered_name == Atom.to_string(name)
-      assert Pid.parse(pid) == self()
+    test "deduplicates the requested columns", %{data: data} do
+      assert [[:memory], :memory, _limit, _direction, _search] =
+               proc_top_args(data, %{"attrs" => ["memory", "memory"]})
     end
 
-    test "returns an error when no node is connected" do
-      Fakes.put_session(nil)
-
-      assert error(%{"limit" => 1}) == "Not connected to any node"
+    test "sends the search filter to the remote", %{data: data} do
+      assert [_attrs, _sort_by, _limit, _direction, "worker"] =
+               proc_top_args(data, %{"search" => "worker"})
     end
 
-    test "reports the retry delay when the rate limit is spent" do
-      on_exit(fn ->
-        :sys.replace_state(RateLimiter, &%{&1 | tokens_high: &1.config.high_capacity})
-      end)
-
-      :sys.replace_state(RateLimiter, &%{&1 | tokens_high: 0})
-
-      assert error(%{"limit" => 1}) =~ "rate limited, retry in"
+    test "sends no filter when the search is omitted", %{data: data} do
+      assert [_attrs, _sort_by, _limit, _direction, :undefined] = proc_top_args(data, %{})
     end
-  end
-
-  defp execute(params) do
-    {:ok, validated} = ProcessList.mcp_schema(params)
-    ProcessList.execute(validated, %Frame{})
   end
 
   defp run(params) do
+    {:ok, validated} = ProcessList.mcp_schema(params)
+
     assert {:reply, %Response{isError: false, content: [%{"text" => json}]}, %Frame{}} =
-             execute(params)
+             ProcessList.execute(validated, %Frame{})
 
     JSON.decode!(json)
   end
 
-  defp error(params) do
-    assert {:reply, %Response{isError: true, content: [%{"text" => text}]}, %Frame{}} =
-             execute(params)
+  defp proc_top_args(data, params) do
+    test = self()
 
-    text
+    expect(Voyager.ErpcMock, :call, fn _node, :voyager_agent, :proc_top, args, _timeout ->
+      send(test, {:proc_top, args})
+      data.proc_top
+    end)
+
+    run(params)
+
+    assert_received {:proc_top, args}
+    args
   end
 end

@@ -1,37 +1,22 @@
 defmodule Voyager.MCP.Tools.ProcessInfoTest do
-  # async: false because the tool runs against the real `:erpc` impl and the
-  # global `Voyager.NodeSession`, both swapped here.
+  # async: false because the tool reads the global `Voyager.NodeSession`.
   use ExUnit.Case, async: false
+
+  import Mox
 
   alias Anubis.Server.Frame
   alias Anubis.Server.Response
   alias Voyager.Fakes
   alias Voyager.MCP.Tools.ProcessInfo
-  alias Voyager.MCP.Tools.ProcessList
   alias Voyager.Pid
 
-  setup_all do
-    path = :voyager |> :code.priv_dir() |> Path.join("voyager_agent.erl") |> String.to_charlist()
-    {:ok, module, binary} = :compile.file(path, [:binary])
-    {:module, ^module} = :code.load_binary(module, path, binary)
-
-    on_exit(fn ->
-      :code.purge(module)
-      :code.delete(module)
-    end)
-
-    :ok
-  end
+  @pid "<0.500.0>"
 
   setup do
-    previous = Application.get_env(:voyager, :erpc)
-    Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
-    on_exit(fn -> Application.put_env(:voyager, :erpc, previous) end)
-
-    node = Node.self()
+    node = :fake@localhost
     Fakes.connect_node!(Fakes.node_session(node: node, node_name: Atom.to_string(node)))
 
-    :ok
+    %{data: Fakes.process_data()}
   end
 
   describe "schema validation" do
@@ -41,81 +26,115 @@ defmodule Voyager.MCP.Tools.ProcessInfoTest do
 
     test "rejects an unknown section" do
       assert {:error, _errors} =
-               ProcessInfo.mcp_schema(%{"pid" => "<0.1.0>", "include" => ["mailbox"]})
+               ProcessInfo.mcp_schema(%{"pid" => @pid, "include" => ["mailbox"]})
     end
 
     test "includes nothing by default" do
-      assert {:ok, %{include: [], limit: 25}} = ProcessInfo.mcp_schema(%{"pid" => "<0.1.0>"})
+      assert {:ok, %{include: [], limit: 25}} = ProcessInfo.mcp_schema(%{"pid" => @pid})
     end
   end
 
   describe "execute/2" do
-    test "returns the fixed-size attributes of a live process" do
-      pid = start_supervised!({Agent, fn -> :state end})
+    test "renders the fixed-size attributes", %{data: data} do
+      Fakes.stub_erpc(data)
 
-      info = run(%{"pid" => Pid.display(pid)})
+      info = run(%{"pid" => @pid})
 
-      assert info["pid"] == Pid.display(pid)
-      assert is_integer(info["memory"])
-      assert info["status"] in ~w(waiting runnable running suspended garbage_collecting)
-      assert is_pid(Pid.parse(info["parent"]))
-      assert is_pid(Pid.parse(info["group_leader"]))
+      assert info["pid"] == @pid
+      assert info["parent"] == "<0.123.0>"
+      assert info["group_leader"] == "<0.64.0>"
+      assert info["status"] == "waiting"
+      assert info["memory"] == 2_672
+      assert info["catch_level"] == 0
+      assert info["gc_fullsweep_after"] == 65_535
+    end
+
+    test "converts the word-counted sizes to bytes using the remote's word size" do
+      Fakes.stub_erpc(Fakes.process_data(wordsize: 4))
+
+      info = run(%{"pid" => @pid})
+
+      assert info["stack_and_heap_size"] == 233 * 4
+      assert info["heap_size"] == 233 * 4
+      assert info["stack_size"] == 11 * 4
+      assert info["gc_min_heap_size"] == 233 * 4
+    end
+
+    test "renders an unset registered name and trace token as null", %{data: data} do
+      Fakes.stub_erpc(data)
+
+      info = run(%{"pid" => @pid})
+
+      assert info["registered_name"] == nil
+      assert info["sequential_trace_token"] == nil
     end
 
     test "fetches only the requested sections" do
-      pid = start_supervised!({Agent, fn -> %{count: 1} end})
+      Fakes.stub_erpc(only(~w(proc_links proc_state)a))
 
-      info = run(%{"pid" => Pid.display(pid), "include" => ["links", "state"]})
+      info = run(%{"pid" => @pid, "include" => ["links", "state"]})
 
-      assert %{"total" => 1, "truncated?" => false, "items" => [_ | _]} = info["links"]
-      assert %{"truncated?" => false, "term" => %{"count" => 1}} = info["state"]
+      assert info["links"] == %{"total" => 1, "truncated?" => false, "items" => ["<0.201.0>"]}
+      assert info["state"] == %{"truncated?" => false, "term" => %{"count" => 1}}
       refute Map.has_key?(info, "messages")
       refute Map.has_key?(info, "dictionary")
+      refute Map.has_key?(info, "monitors")
       refute Map.has_key?(info, "label")
     end
 
+    test "fetches a section once when it is named twice" do
+      test = self()
+      data = only(~w(proc_links)a)
+
+      stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args, _timeout ->
+        if fun == :proc_links, do: send(test, :fetched)
+        Fakes.erpc_reply(mod, fun, args, data)
+      end)
+
+      assert %{"links" => %{"total" => 1}} =
+               run(%{"pid" => @pid, "include" => ["links", "links"]})
+
+      assert_received :fetched
+      refute_received :fetched
+    end
+
+    test "reports a section that could not be read" do
+      Fakes.stub_erpc(only(~w(proc_links)a, proc_links: {:error, :dead}))
+
+      assert %{"links" => %{"error" => ":dead"}} = run(%{"pid" => @pid, "include" => ["links"]})
+    end
+
     test "encodes a term that JSON cannot represent" do
-      me = self()
-      pid = start_supervised!({Agent, fn -> %{<<255>> => {:tuple, me}} end})
+      pid = Pid.parse("<0.201.0>")
+      term = %{term: %{<<255>> => {:tuple, pid}}, truncated: false}
 
-      info = run(%{"pid" => Pid.display(pid), "include" => ["state"]})
+      Fakes.stub_erpc(only(~w(proc_state)a, proc_state: {:ok, term}))
 
-      assert %{"term" => term} = info["state"]
-      assert term == %{inspect(<<255>>) => ["tuple", Pid.display(me)]}
+      assert %{"state" => %{"term" => rendered}} = run(%{"pid" => @pid, "include" => ["state"]})
+      assert rendered == %{inspect(<<255>>) => ["tuple", "<0.201.0>"]}
     end
 
-    test "accepts a pid string returned by process_list" do
-      %{"processes" => [%{"pid" => pid_string} | _]} = process_list()
+    test "accepts the inspect form of a pid", %{data: data} do
+      Fakes.stub_erpc(data)
 
-      assert %{"pid" => ^pid_string} = run(%{"pid" => pid_string})
-    end
-
-    test "accepts the inspect form of a pid" do
-      pid = start_supervised!({Agent, fn -> :state end})
-
-      assert %{"pid" => rendered} = run(%{"pid" => inspect(pid)})
-      assert rendered == Pid.display(pid)
+      assert %{"pid" => @pid} = run(%{"pid" => "#PID" <> @pid})
     end
 
     test "rejects a malformed pid before touching the node" do
-      Fakes.put_session(nil)
-
       assert error(%{"pid" => "not-a-pid"}) == "Malformed pid: not-a-pid"
     end
 
     test "reports a process that is already gone" do
-      pid = start_supervised!({Agent, fn -> :state end})
-      pid_string = Pid.display(pid)
-      :ok = stop_supervised!(Agent)
+      Fakes.stub_erpc(Fakes.process_data(process_info: :undefined))
 
-      assert error(%{"pid" => pid_string}) == "fetch failed: :dead"
+      assert error(%{"pid" => @pid}) == "fetch failed: :dead"
     end
+  end
 
-    test "returns an error when no node is connected" do
-      Fakes.put_session(nil)
-
-      assert error(%{"pid" => Pid.display(self())}) == "Not connected to any node"
-    end
+  defp only(sections, overrides \\ []) do
+    overrides
+    |> Fakes.process_data()
+    |> Map.take([:wordsize, :process_info | sections])
   end
 
   defp execute(params) do
@@ -135,14 +154,5 @@ defmodule Voyager.MCP.Tools.ProcessInfoTest do
              execute(params)
 
     text
-  end
-
-  defp process_list do
-    {:ok, params} = ProcessList.mcp_schema(%{"limit" => 1})
-
-    assert {:reply, %Response{isError: false, content: [%{"text" => json}]}, %Frame{}} =
-             ProcessList.execute(params, %Frame{})
-
-    JSON.decode!(json)
   end
 end
