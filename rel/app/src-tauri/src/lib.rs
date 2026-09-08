@@ -7,9 +7,6 @@ use tauri::{
 
 const MAIN_WINDOW_LABEL: &str = "main";
 
-/// Port of the Elixir server, set once it reports ready so Reopen can rebuild the window.
-struct ServerPort(std::sync::Mutex<Option<u16>>);
-
 /// Current OS appearance for Auto theme after full page reloads.
 #[tauri::command]
 fn os_theme() -> &'static str {
@@ -51,7 +48,6 @@ pub fn run() {
                 let window_menu = SubmenuBuilder::new(app, "Window")
                     .minimize()
                     .fullscreen()
-                    .close_window()
                     .build()?;
 
                 let menu = MenuBuilder::new(app)
@@ -66,11 +62,8 @@ pub fn run() {
             let port =
                 utils::available_port(4005).expect("failed to find available localhost port");
 
-            app.manage(ServerPort(std::sync::Mutex::new(None)));
-
             pubsub.subscribe("messages", move |msg| {
                 if msg == b"ready" {
-                    *app_handle.state::<ServerPort>().0.lock().unwrap() = Some(port);
                     create_window(&app_handle, port);
                 } else {
                     println!("[rust] {}", String::from_utf8_lossy(msg));
@@ -97,23 +90,9 @@ pub fn run() {
 
             Ok(())
         })
-        .build(tauri::generate_context!())
-        .expect("error while building tauri application")
-        .run(handle_run_event);
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
 }
-
-#[cfg(target_os = "macos")]
-fn handle_run_event(app: &tauri::AppHandle, event: tauri::RunEvent) {
-    if let tauri::RunEvent::Reopen { .. } = event {
-        let port = *app.state::<ServerPort>().0.lock().unwrap();
-        if let Some(port) = port {
-            create_window(app, port);
-        }
-    }
-}
-
-#[cfg(not(target_os = "macos"))]
-fn handle_run_event(_app: &tauri::AppHandle, _event: tauri::RunEvent) {}
 
 fn focus_existing_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
