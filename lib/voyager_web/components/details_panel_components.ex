@@ -137,7 +137,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     <div :if={@href} class="border-base-200 flex justify-center border-t px-5 py-3">
       <.link
         id={"#{@panel_id}-show-more"}
-        navigate={@href}
+        href={@href}
         class="btn btn-ghost gap-2 hover:text-primary"
       >
         Show More <.icon name="icon-arrow-right" class="size-4" />
@@ -394,7 +394,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         ]}
         title={@value}
       >
-        <.pid_chip :if={@href} navigate={@href} label={@value} />
+        <.pid_chip :if={@href} href={@href} label={@value} />
         <%= if is_nil(@href) do %>
           {@value}
         <% end %>
@@ -407,13 +407,13 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   @doc """
   A bordered chip linking to a process, styled like the relation chips.
   """
-  attr :navigate, :string, required: true
+  attr :href, :string, required: true
   attr :label, :string, required: true
 
   def pid_chip(assigns) do
     ~H"""
     <.link
-      navigate={@navigate}
+      href={@href}
       class="border-base-content/70 bg-base-200 text-base-content font-mono inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors hover:border-primary hover:text-primary"
     >
       <span class="bg-primary h-1.5 w-1.5 rounded-full" />

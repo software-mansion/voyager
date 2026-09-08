@@ -369,7 +369,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
         <%= for item <- Enum.map(@items, &identifier_entry(&1, @remote_node)) do %>
           <DetailsPanelComponents.pid_chip
             :if={item.pid?}
-            navigate={keep_sidebar(~p"/node/#{@node_name}/processes/#{item.text}", @current_url)}
+            href={keep_sidebar(~p"/node/#{@node_name}/processes/#{item.text}", @current_url)}
             label={item.text}
           />
           <span

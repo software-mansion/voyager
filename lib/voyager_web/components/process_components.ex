@@ -295,9 +295,11 @@ defmodule VoyagerWeb.Components.ProcessComponents do
       class="min-w-0 max-w-full"
       tip_class="font-mono"
     >
-      <%!-- Only the pid navigates, so it carries the affordances of a link. --%>
+      <%!-- Only the pid navigates, so it carries the affordances of a link. A
+           full load (href, not navigate) because the process info page's
+           teleported tooltips do not render after a live navigation. --%>
       <.link
-        navigate={@href}
+        href={@href}
         class="font-mono text-primary block truncate text-sm hover:underline focus-visible:underline"
       >
         {@pid_string}
