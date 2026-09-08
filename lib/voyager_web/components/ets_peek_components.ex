@@ -23,10 +23,10 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
     <div class="flex flex-wrap items-center gap-3">
       <.link
         id="back-to-ets-tables"
-        navigate={~p"/node/#{@node_name}"}
+        navigate={~p"/node/#{@node_name}/ets-tables"}
         class="btn btn-ghost btn-sm gap-2"
       >
-        <.icon name="icon-arrow-left" class="size-4" /> Node
+        <.icon name="icon-arrow-left" class="size-4" /> ETS Tables
       </.link>
 
       <h1 id="ets-table-name" class="font-mono text-base-content truncate text-lg font-semibold">
