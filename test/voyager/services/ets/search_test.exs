@@ -124,15 +124,15 @@ defmodule Voyager.Services.Ets.SearchTest do
     end
 
     test "key_prefix compiles using table keypos" do
-      stub_info(1)
+      stub_info(2)
 
       spec =
         [
           {:"$1",
            [
-             {:is_binary, {:element, 1, :"$1"}},
-             {:>=, {:byte_size, {:element, 1, :"$1"}}, 3},
-             {:"=:=", {:binary_part, {:element, 1, :"$1"}, 0, 3}, <<"alp">>}
+             {:is_binary, {:element, 2, :"$1"}},
+             {:>=, {:byte_size, {:element, 2, :"$1"}}, 3},
+             {:"=:=", {:binary_part, {:element, 2, :"$1"}, 0, 3}, <<"alp">>}
            ], [:"$1"]}
         ]
 
@@ -141,13 +141,13 @@ defmodule Voyager.Services.Ets.SearchTest do
                                          :ets_select_spec,
                                          [:t, ^spec, 10, @budget, :undefined],
                                          @timeout ->
-        ok_chunk([{<<"alpha">>, 1}])
+        ok_chunk([{1, <<"alpha">>}])
       end)
 
       assert {:ok, chunk} =
                Search.chunk(@node, :t, {:key_prefix, <<"alp">>}, 10, @budget, nil, @timeout)
 
-      assert chunk.records == [{<<"alpha">>, 1}]
+      assert chunk.records == [{1, <<"alpha">>}]
       refute Map.has_key?(chunk, :via)
       refute chunk.truncated?
     end
