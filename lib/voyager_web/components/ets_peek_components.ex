@@ -10,6 +10,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.EtsLookupControls
   alias VoyagerWeb.FormSchemas.EtsPeekControls
+  alias VoyagerWeb.TermTree
   alias VoyagerWeb.TermTree.State
 
   @truncated :"$voyager_truncated"
@@ -96,25 +97,6 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       >
         <div class="flex flex-wrap items-end gap-3">
           <div class="flex flex-col gap-1">
-            <label for={@form[:chunk_size].id} class="text-base-content/70 text-xs font-medium">
-              Page size
-            </label>
-            <select
-              id={@form[:chunk_size].id}
-              name={@form[:chunk_size].name}
-              class="select select-sm w-24"
-            >
-              <option
-                :for={value <- EtsPeekControls.chunk_size_options()}
-                value={value}
-                selected={to_string(value) == to_string(@form[:chunk_size].value)}
-              >
-                {value}
-              </option>
-            </select>
-          </div>
-
-          <div class="flex flex-col gap-1">
             <label for={@form[:budget].id} class="text-base-content/70 text-xs font-medium">
               Budget per record
             </label>
@@ -182,8 +164,8 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   def truncation_notice(assigns) do
     ~H"""
-    <div id="ets-truncation-notice" role="note" class="alert alert-info text-xs">
-      <.icon name="icon-info" class="size-4 shrink-0" />
+    <div id="ets-truncation-notice" role="note" class="alert alert-warning text-xs">
+      <.icon name="icon-circle-alert" class="text-warning size-4 shrink-0" />
       <span>
         Some records were shortened on the node to fit the term budget. Paging is
         best-effort: the table can change between pages.
@@ -202,7 +184,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   def records(assigns) do
     ~H"""
-    <ol id={@id} class="flex flex-col gap-1">
+    <ol id={@id} class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
       <li
         :for={{record, index} <- Enum.with_index(@records)}
         id={"#{@id}-#{index}"}
@@ -215,7 +197,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
             phx-click="toggle_row"
             phx-value-index={index}
             aria-expanded={to_string(row_open?(@open_rows, index))}
-            class="flex min-w-0 flex-1 items-center gap-3 rounded text-left transition-colors hover:bg-base-200"
+            class="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded text-left opacity-80"
           >
             <.icon
               name="icon-chevron-right"
@@ -230,15 +212,28 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
             <span class="font-mono text-base-content min-w-0 flex-1 truncate text-xs">
               {preview(record)}
             </span>
+            <span
+              :if={truncated_record?(record)}
+              id={"#{@id}-#{index}-truncated"}
+              title="This record was shortened to fit the term budget"
+              class="shrink-0"
+            >
+              <.icon name="icon-circle-alert" class="text-warning size-3.5" />
+            </span>
           </button>
 
           <button
-            :if={@lookupable? and lookup_key(record, @keypos) != :error}
+            :if={@lookupable?}
             id={"#{@id}-#{index}-lookup"}
             type="button"
             phx-click="open_sidebar"
             phx-value-index={index}
-            title="Look up this record"
+            disabled={lookup_key(record, @keypos) == :error}
+            title={
+              if lookup_key(record, @keypos) == :error,
+                do: "This key type cannot be looked up",
+                else: "Look up this record"
+            }
             class="btn btn-ghost btn-xs text-base-content/60 shrink-0 gap-1 hover:text-primary"
           >
             <.icon name="icon-panel-left" class="size-3.5 -scale-x-100" /> Lookup
@@ -255,38 +250,6 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
         </div>
       </li>
     </ol>
-    """
-  end
-
-  attr :page, :integer, required: true
-  attr :has_next?, :boolean, required: true
-  attr :loading?, :boolean, default: false
-
-  def pagination(assigns) do
-    ~H"""
-    <nav id="ets-pagination" class="flex items-center gap-2" aria-label="Record pages">
-      <button
-        id="ets-page-prev"
-        type="button"
-        phx-click="prev_page"
-        disabled={@page == 0 or @loading?}
-        class="btn btn-outline btn-sm"
-      >
-        <.icon name="icon-arrow-left" class="size-4" /> Previous
-      </button>
-      <span id="ets-page-label" class="text-base-content/70 text-xs tabular-nums">
-        Page {@page + 1}
-      </span>
-      <button
-        id="ets-page-next"
-        type="button"
-        phx-click="next_page"
-        disabled={not @has_next? or @loading?}
-        class="btn btn-outline btn-sm"
-      >
-        Next <.icon name="icon-arrow-right" class="size-4" />
-      </button>
-    </nav>
     """
   end
 
@@ -406,14 +369,25 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
         <div
           :for={{record, index} <- Enum.with_index(chunk.records)}
           id={"ets-lookup-record-#{index}"}
-          class="border-base-300 rounded-lg border p-3"
+          class="border-base-300 flex items-start gap-2 rounded-lg border p-3"
         >
           <TermComponents.term_inspector
             id={lookup_inspector_id(index)}
             term={record}
             state={@term_states[lookup_inspector_id(index)] || %State{}}
-            class="overflow-x-auto"
+            class="min-w-0 flex-1 overflow-x-auto"
           />
+          <.copy_button
+            id={"ets-lookup-record-#{index}-copy"}
+            target={"#ets-lookup-record-#{index}-copy-source"}
+            label="Copy record"
+            icon_only
+            size={:sm}
+            class="text-base-content/60 shrink-0 hover:text-primary"
+          />
+          <%!-- The inspector only renders opened branches, so the copy source
+                carries the full term separately. --%>
+          <span id={"ets-lookup-record-#{index}-copy-source"} hidden>{TermTree.copy_string(record)}</span>
         </div>
 
         <p :if={chunk.truncated?} id="ets-lookup-truncated" class="text-base-content/50 text-xs">
@@ -449,6 +423,21 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   def lookup_key(_record, _keypos), do: :error
 
   defp row_open?(open_rows, index), do: MapSet.member?(open_rows, index)
+
+  defp truncated_record?(@truncated), do: true
+
+  defp truncated_record?(tuple) when is_tuple(tuple) do
+    (tuple_size(tuple) > 0 and elem(tuple, 0) == @truncated) or
+      tuple |> Tuple.to_list() |> Enum.any?(&truncated_record?/1)
+  end
+
+  defp truncated_record?(list) when is_list(list), do: Enum.any?(list, &truncated_record?/1)
+
+  defp truncated_record?(map) when is_map(map) and not is_struct(map) do
+    Enum.any?(map, fn {key, value} -> truncated_record?(key) or truncated_record?(value) end)
+  end
+
+  defp truncated_record?(_other), do: false
 
   defp preview(record) do
     record

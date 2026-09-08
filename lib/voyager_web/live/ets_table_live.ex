@@ -16,6 +16,7 @@ defmodule VoyagerWeb.EtsTableLive do
   alias Voyager.Services.Ets.Fetch
   alias Voyager.Services.Ets.Remote
   alias Voyager.Services.Ets.TableId
+  alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Components.EtsPeekComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.EtsLookupControls
@@ -66,7 +67,7 @@ defmodule VoyagerWeb.EtsTableLive do
   def render(assigns) do
     ~H"""
     <div class="flex h-full overflow-hidden">
-      <div class="mx-auto flex h-full max-w-screen-2xl flex-1 flex-col gap-4 overflow-y-auto p-6 sm:p-8">
+      <div class="mx-auto flex h-full max-w-screen-2xl flex-1 flex-col gap-4 overflow-hidden p-6 sm:p-8">
         <EtsPeekComponents.header table_name={@table_param} node_name={@session.node_name} />
 
         <.async_result :let={info} assign={@info}>
@@ -104,7 +105,7 @@ defmodule VoyagerWeb.EtsTableLive do
             message={format_error(chunk_error(@chunk))}
           />
 
-          <div :if={@fetched?} class="flex flex-col gap-3">
+          <div :if={@fetched?} class="flex min-h-0 flex-1 flex-col gap-3">
             <div class="text-base-content/70 flex flex-wrap items-center gap-2 text-xs">
               <span id="ets-records-count">
                 {Formatters.format_integer(length(@records))} records on this page
@@ -131,11 +132,13 @@ defmodule VoyagerWeb.EtsTableLive do
               keypos={info.keypos}
             />
 
-            <EtsPeekComponents.pagination
+            <DataTableComponents.pager
               :if={@records != [] or @page > 0}
-              page={@page}
-              has_next?={length(@conts) > @page + 1}
-              loading?={loading?(@chunk)}
+              id="ets-pager"
+              page={@page + 1}
+              page_size={@page_size}
+              total={pager_total(assigns)}
+              page_size_options={EtsPeekControls.chunk_size_options()}
             />
           </div>
         </.async_result>
@@ -173,21 +176,32 @@ defmodule VoyagerWeb.EtsTableLive do
     |> noreply()
   end
 
-  def handle_event("next_page", _params, socket) do
-    %{page: page, conts: conts} = socket.assigns
-
-    if length(conts) > page + 1 do
-      socket |> fetch_page(page + 1) |> noreply()
+  # The pager is 1-based; a page is reachable only while its continuation is
+  # stored, so a jump past the walked prefix is ignored.
+  def handle_event("paginate", %{"page" => page}, socket) do
+    with {page, ""} <- Integer.parse(page),
+         index = page - 1,
+         true <- index >= 0 and index < length(socket.assigns.conts) do
+      fetch_page(socket, index)
     else
-      noreply(socket)
+      _other -> socket
     end
+    |> noreply()
   end
 
-  def handle_event("prev_page", _params, socket) do
-    case socket.assigns.page do
-      0 -> noreply(socket)
-      page -> socket |> fetch_page(page - 1) |> noreply()
-    end
+  # Continuations carry the limit they were created with, so a new page size
+  # restarts the walk from the beginning.
+  def handle_event("set_page_size", %{"page_size" => size}, socket) do
+    {controls, changeset} =
+      EtsPeekControls.apply(socket.assigns.controls, %{"chunk_size" => size})
+
+    socket
+    |> assign(:controls, controls)
+    |> assign(:form, to_form(changeset, as: :peek))
+    |> assign(:conts, [nil])
+    |> assign(:page_size, controls.chunk_size)
+    |> fetch_page(0)
+    |> noreply()
   end
 
   def handle_event("toggle_row", %{"index" => index}, socket) do
@@ -397,6 +411,20 @@ defmodule VoyagerWeb.EtsTableLive do
 
   defp lookupable?(%{type: type}), do: type in [:set, :ordered_set]
 
+  # The metadata size is only an estimate once paging starts: with no
+  # continuation left the walked count is exact, otherwise the total must at
+  # least keep the next page reachable.
+  defp pager_total(%{conts: conts, page: page, page_size: page_size} = assigns) do
+    if length(conts) > page + 1 do
+      max(info_size(assigns.info), (page + 1) * page_size + 1)
+    else
+      page * page_size + length(assigns.records)
+    end
+  end
+
+  defp info_size(%AsyncResult{ok?: true, result: %{size: size}}), do: size
+  defp info_size(_info), do: 0
+
   defp readable?(%AsyncResult{ok?: true, result: %{protection: :private}}), do: false
   defp readable?(%AsyncResult{ok?: true}), do: true
   defp readable?(_info), do: false
@@ -415,8 +443,10 @@ defmodule VoyagerWeb.EtsTableLive do
   defp format_error(:invalid_limit), do: "That page size is not allowed."
   defp format_error(:invalid_key), do: "This key cannot be looked up."
 
-  defp format_error(:heap_limit_exceeded),
-    do: "A record was too large to read. Try a smaller page size."
+  # The agent worker dies :killed when a record blows its heap cap.
+  defp format_error(:heap_limit_exceeded), do: heap_limit_message()
+  defp format_error({:remote_exception, :killed}), do: heap_limit_message()
+  defp format_error({:remote_exception, {:killed, _}}), do: heap_limit_message()
 
   defp format_error(:timeout), do: "Request timed out. Try a longer timeout or a smaller page."
   defp format_error(:rate_limited), do: "Too many requests. Wait a moment and try again."
@@ -426,4 +456,6 @@ defmodule VoyagerWeb.EtsTableLive do
     do: "The Voyager agent is not loaded on this node."
 
   defp format_error(_reason), do: "Failed to read the table."
+
+  defp heap_limit_message, do: "A record was too large to read. Try a smaller page size."
 end

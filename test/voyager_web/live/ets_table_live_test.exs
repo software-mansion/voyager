@@ -219,19 +219,19 @@ defmodule VoyagerWeb.EtsTableLiveTest do
       view |> element("#ets-peek-fetch") |> render_click()
       render_async(view)
 
-      assert has_element?(view, "#ets-page-label", "Page 1")
+      assert has_element?(view, "#ets-pager", "1 / 2")
       assert has_element?(view, "#ets-records-0-toggle", "{:a, 1}")
-      refute has_element?(view, "#ets-page-next[disabled]")
+      refute has_element?(view, "#ets-pager-next[disabled]")
 
-      view |> element("#ets-page-next") |> render_click()
+      view |> element("#ets-pager-next") |> render_click()
       render_async(view)
 
       assert_received {:called, :undefined}
       assert_received {:called, ^cont}
-      assert has_element?(view, "#ets-page-label", "Page 2")
+      assert has_element?(view, "#ets-pager", "2 / 2")
       assert has_element?(view, "#ets-records-0-toggle", "{:b, 2}")
       refute has_element?(view, "#ets-records-0-toggle", "{:a, 1}")
-      assert has_element?(view, "#ets-page-next[disabled]")
+      assert has_element?(view, "#ets-pager-next[disabled]")
     end
 
     test "previous re-runs the select from the stored continuation", %{conn: conn} do
@@ -253,19 +253,19 @@ defmodule VoyagerWeb.EtsTableLiveTest do
 
       view |> element("#ets-peek-fetch") |> render_click()
       render_async(view)
-      view |> element("#ets-page-next") |> render_click()
+      view |> element("#ets-pager-next") |> render_click()
       render_async(view)
 
-      assert has_element?(view, "#ets-page-prev")
-      view |> element("#ets-page-prev") |> render_click()
+      assert has_element?(view, "#ets-pager-prev")
+      view |> element("#ets-pager-prev") |> render_click()
       render_async(view)
 
       assert_received {:called, :undefined}
       assert_received {:called, ^cont}
       assert_received {:called, :undefined}
-      assert has_element?(view, "#ets-page-label", "Page 1")
+      assert has_element?(view, "#ets-pager", "1 / 2")
       assert has_element?(view, "#ets-records-0-toggle", "{:a, 1}")
-      assert has_element?(view, "#ets-page-prev[disabled]")
+      assert has_element?(view, "#ets-pager-prev[disabled]")
     end
 
     test "reload snapshot starts a new select rather than resuming", %{conn: conn} do
@@ -288,7 +288,31 @@ defmodule VoyagerWeb.EtsTableLiveTest do
       render_async(view)
 
       assert_received {:called, :undefined}
-      assert has_element?(view, "#ets-page-label", "Page 1")
+      assert has_element?(view, "#ets-pager", "1 / 2")
+    end
+
+    test "a new page size restarts the walk with the new limit", %{conn: conn} do
+      test = self()
+      stub_info()
+
+      stub_agent(fn _node, :ets_select_chunk, [_table, limit, _budget, continuation], _timeout ->
+        send(test, {:called, limit, continuation})
+        ok_chunk([{:a, 1}], {:ets_cont, 1})
+      end)
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      view |> element("#ets-peek-fetch") |> render_click()
+      render_async(view)
+      assert_received {:called, 10, :undefined}
+
+      view
+      |> element("#ets-pager-page-size-form")
+      |> render_change(%{"page_size" => "50"})
+
+      render_async(view)
+      assert_received {:called, 50, :undefined}
     end
   end
 
@@ -323,6 +347,8 @@ defmodule VoyagerWeb.EtsTableLiveTest do
       render_async(view)
 
       assert has_element?(view, "#ets-records-0-toggle", "abc…")
+      assert has_element?(view, "#ets-records-0-truncated")
+      refute has_element?(view, "#ets-records-1-truncated")
 
       view |> element("#ets-records-0-toggle") |> render_click()
       assert render(view) =~ "9 KB total"
@@ -357,6 +383,8 @@ defmodule VoyagerWeb.EtsTableLiveTest do
       assert has_element?(view, "#ets-lookup-sidebar")
       assert has_element?(view, "#ets-sidebar-key", ":a")
       assert has_element?(view, "#ets-lookup-0-term")
+      assert has_element?(view, "#ets-lookup-record-0-copy")
+      assert has_element?(view, "#ets-lookup-record-0-copy-source", "{:a, 1}")
 
       view |> element("#ets-sidebar-close") |> render_click()
       refute has_element?(view, "#ets-lookup-sidebar")
@@ -426,9 +454,9 @@ defmodule VoyagerWeb.EtsTableLiveTest do
       refute has_element?(view, "#ets-records-0-lookup")
     end
 
-    test "offers no lookup when the key is not a lookupable type", %{conn: conn} do
+    test "disables the lookup when the key is not a lookupable type", %{conn: conn} do
       stub_info()
-      stub_select(ok_chunk([{{:composite, 1}, :value}]))
+      stub_select(ok_chunk([{{:composite, 1}, :value}, {:plain, 2}]))
 
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
@@ -436,8 +464,9 @@ defmodule VoyagerWeb.EtsTableLiveTest do
       view |> element("#ets-peek-fetch") |> render_click()
       render_async(view)
 
-      assert has_element?(view, "#ets-records-0-toggle")
-      refute has_element?(view, "#ets-records-0-lookup")
+      assert has_element?(view, "#ets-records-0-lookup[disabled]")
+      refute has_element?(view, "#ets-records-1-lookup[disabled]")
+      assert has_element?(view, "#ets-records-1-lookup")
     end
   end
 
