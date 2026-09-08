@@ -50,6 +50,7 @@ defmodule Voyager.MCP.Tools.ProcessInfo do
     field :limit, :integer,
       default: 25,
       min: 1,
+      max: 500
       description: "Maximum entries in the returned section."
 
     field :budget, :integer,

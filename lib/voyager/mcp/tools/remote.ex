@@ -41,6 +41,8 @@ defmodule Voyager.MCP.Tools.Remote do
     if String.valid?(term), do: term, else: inspect(term)
   end
 
+  defp jsonable(term) when is_bitstring(term), do: inspect(term)
+
   defp jsonable(%module{} = term) do
     if JSON.Encoder.impl_for(term) do
       term
