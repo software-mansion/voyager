@@ -256,7 +256,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       id="ets-lookup-sidebar"
       phx-hook="DetailsPanelResize"
       data-resize-persist="false"
-      class="details-panel border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex w-full flex-col gap-4 overflow-y-auto border-l p-4 shadow-2xl"
+      class="details-panel border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex w-full flex-col gap-4 overflow-hidden border-l p-4 shadow-2xl"
     >
       <DetailsPanelComponents.resize_handle panel_id="ets-lookup-sidebar" open?={true} />
       <div class="flex items-center justify-between gap-2">
@@ -329,13 +329,13 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
         <div
           :for={{record, index} <- Enum.with_index(chunk.records)}
           id={"ets-lookup-record-#{index}"}
-          class="border-base-300 flex items-start gap-2 rounded-lg border p-3"
+          class="border-base-300 flex min-h-0 items-start gap-2 overflow-y-auto rounded-lg border p-3"
         >
           <TermComponents.term_inspector
             id={lookup_inspector_id(index)}
             term={record}
             state={@term_states[lookup_inspector_id(index)] || %State{}}
-            class="min-w-0 flex-1 overflow-x-auto"
+            class="text-sm! min-w-0 flex-1 overflow-x-auto"
           />
           <.copy_button
             id={"ets-lookup-record-#{index}-copy"}

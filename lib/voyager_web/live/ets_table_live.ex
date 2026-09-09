@@ -26,6 +26,7 @@ defmodule VoyagerWeb.EtsTableLive do
   on_mount TermTreeHook
 
   @records_id "ets-records"
+  @lookup_open_depth 3
 
   @impl true
   def mount(%{"table" => table_param}, _session, socket) do
@@ -320,7 +321,10 @@ defmodule VoyagerWeb.EtsTableLive do
       chunk.records
       |> Enum.with_index()
       |> Enum.reduce(socket, fn {record, index}, acc ->
-        TermTreeHook.put_term(acc, EtsPeekComponents.lookup_inspector_id(index), record)
+        TermTreeHook.put_term(acc, EtsPeekComponents.lookup_inspector_id(index), record,
+          depth: @lookup_open_depth,
+          open_all: true
+        )
       end)
 
     socket
