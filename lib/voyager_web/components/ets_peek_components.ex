@@ -24,10 +24,16 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   attr :table_name, :string, required: true
   attr :node_name, :string, required: true
   attr :back_href, :string, required: true
+  attr :last_updated, :any, default: nil
 
   def header(assigns) do
     ~H"""
-    <.node_header node_name={@node_name} waiting_message={nil} class="mb-0">
+    <.node_header
+      node_name={@node_name}
+      last_updated={@last_updated}
+      waiting_message={nil}
+      class="mb-0"
+    >
       <:actions>
         <.tooltip id="ets-table-name-tip" position="bottom" interactive tip_class="font-mono">
           <h2

@@ -51,6 +51,7 @@ defmodule VoyagerWeb.EtsTableLive do
       |> assign(:open_rows, MapSet.new())
       |> assign(:fetched?, false)
       |> assign(:last_updated, nil)
+      |> assign(:round_trip_ms, nil)
       |> assign(:sidebar, nil)
       |> assign(:lookup, %AsyncResult{})
       |> assign(:lookup_controls, lookup_controls)
@@ -77,6 +78,7 @@ defmodule VoyagerWeb.EtsTableLive do
         <EtsPeekComponents.header
           table_name={@table_param}
           node_name={@session.node_name}
+          last_updated={@last_updated}
           back_href={keep_sidebar(~p"/node/#{@session.node_name}/ets-tables", @current_url)}
         />
 
@@ -119,11 +121,10 @@ defmodule VoyagerWeb.EtsTableLive do
           />
 
           <div :if={@fetched?} class="flex min-h-0 flex-1 flex-col gap-3">
-            <div class="text-base-content/70 flex flex-wrap items-center gap-2 text-xs">
-              <span id="ets-records-count">
-                {Formatters.format_integer(length(@records))} records on this page
-              </span>
-              <span :if={@last_updated}>· fetched at {Formatters.format_time(@last_updated)}</span>
+            <div id="ets-records-count" class="text-base-content/70 text-xs">
+              <span class="font-mono text-base-content">{Formatters.format_integer(length(@records))}</span>
+              records fetched
+              <DataTableComponents.round_trip :if={@round_trip_ms} ms={@round_trip_ms} />
             </div>
 
             <p
@@ -323,7 +324,7 @@ defmodule VoyagerWeb.EtsTableLive do
     |> noreply()
   end
 
-  def handle_async(:chunk, {:ok, {:ok, chunk}}, socket) do
+  def handle_async(:chunk, {:ok, {:ok, chunk, round_trip_ms}}, socket) do
     page = socket.assigns.pending_page
     conts = Enum.take(socket.assigns.conts, page + 1)
     conts = if chunk.continuation, do: conts ++ [chunk.continuation], else: conts
@@ -337,6 +338,7 @@ defmodule VoyagerWeb.EtsTableLive do
     |> assign(:open_rows, MapSet.new())
     |> assign(:fetched?, true)
     |> assign(:last_updated, DateTime.utc_now())
+    |> assign(:round_trip_ms, round_trip_ms)
     |> put_record_terms(chunk.records)
     |> noreply()
   end
@@ -418,7 +420,15 @@ defmodule VoyagerWeb.EtsTableLive do
     |> assign(:pending_page, page)
     |> assign(:chunk, AsyncResult.loading(socket.assigns.chunk))
     |> start_async(:chunk, fn ->
-      Fetch.select_chunk(node, table, limit, budget, continuation, timeout)
+      started = System.monotonic_time(:microsecond)
+
+      case Fetch.select_chunk(node, table, limit, budget, continuation, timeout) do
+        {:ok, chunk} ->
+          {:ok, chunk, div(System.monotonic_time(:microsecond) - started, 1_000)}
+
+        error ->
+          error
+      end
     end)
   end
 
