@@ -19,9 +19,6 @@
 %% Substituted wherever a subterm was dropped, so the surrounding shape of a
 %% truncated term stays intact and the reader can tell data from elision.
 -define(TRUNCATED, '$voyager_truncated').
-%% A single binary carries no nesting for the term budget to walk into, so it
-%% is additionally capped here regardless of how much budget remains.
--define(MAX_BINARY_BYTES, 4096).
 
 -type state() :: #state{nodes :: #{node() => true}}.
 
@@ -444,13 +441,13 @@ walk_tuple(Tuple, Index, Size, Budget, Truncated, Acc) ->
 %% for free. Only the visible part of a sub-binary is copied over distribution,
 %% so cutting here really does bound the payload.
 walk_bitstring(Bin, Budget, Truncated) when is_binary(Bin) ->
-    Cost = max(min(min(?MAX_BINARY_BYTES, byte_size(Bin)), Budget), 1),
+    Cost = max(min(byte_size(Bin), Budget), 1),
     {binary:part(Bin, 0, min(Cost, byte_size(Bin))),
      Budget - Cost,
      Truncated orelse Cost < byte_size(Bin)};
-%% A non-byte-aligned bitstring cannot be cut with `binary:part/3', so an
-%% oversized one is dropped whole.
-walk_bitstring(Bits, Budget, _Truncated) when bit_size(Bits) > ?MAX_BINARY_BYTES * 8 ->
+%% A non-byte-aligned bitstring cannot be cut with `binary:part/3', so one
+%% over budget is dropped whole.
+walk_bitstring(Bits, Budget, _Truncated) when bit_size(Bits) > Budget * 8 ->
     {?TRUNCATED, Budget - 1, true};
 walk_bitstring(Bits, Budget, Truncated) ->
     {Bits, Budget - 1, Truncated}.
@@ -500,36 +497,33 @@ with_bounded_heap(Fun) ->
 %% =====================================================================
 %%
 %% Exported functions, not handle_call, so a peek cannot block register
-%% or nodedown. A one-shot worker with a 500_000-word heap cap does the
-%% ETS read and truncates records; the continuation is left opaque.
+%% or nodedown. The continuation is left opaque.
 %% No fixtable — paging is best-effort.
 
--define(ETS_MAX_HEAP_SIZE, 500_000).
--define(ETS_CHUNK_SIZES, [10, 20, 50]).
 -define(MATCH_ALL, [{'$1', [], ['$1']}]).
 %% Match heads have a fixed arity; keypos..255 keeps the key bound so ets:select/3 hashes instead of scanning.
 -define(ETS_LOOKUP_MAX_ARITY, 255).
 
 -type ets_chunk() ::
-          #{records := [term()], continuation := term(), truncated := boolean()}.
+    #{records := [term()],
+      continuation := term(),
+      truncated := boolean()}.
 
--spec ets_select_chunk(ets:tab(), pos_integer(), non_neg_integer(), term()) -> {ok, ets_chunk()}.
-ets_select_chunk(Table, Limit, Budget, Cont) when is_integer(Budget), Budget >= 0 ->
-    case lists:member(Limit, ?ETS_CHUNK_SIZES) of
-        true ->
-            isolated(fun() -> do_select(Table, ?MATCH_ALL, Limit, Budget, Cont) end);
-        false ->
-            erlang:error(badarg)
-    end;
+-spec ets_select_chunk(ets:tab(), pos_integer(), non_neg_integer(), term()) ->
+                          {ok, ets_chunk()}.
+ets_select_chunk(Table, Limit, Budget, Cont)
+    when is_integer(Budget), Budget >= 0, is_integer(Limit), Limit >= 0 ->
+    with_bounded_heap(fun() -> do_select(Table, ?MATCH_ALL, Limit, Budget, Cont) end);
 ets_select_chunk(_Table, _Limit, _Budget, _Cont) ->
     erlang:error(badarg).
 
 -spec ets_select_spec(ets:tab(), term(), pos_integer(), non_neg_integer(), term()) ->
                          {ok, ets_chunk()}.
-ets_select_spec(Table, Spec, Limit, Budget, Cont) when is_integer(Budget), Budget >= 0 ->
-    case lists:member(Limit, ?ETS_CHUNK_SIZES) andalso valid_spec(Spec) of
+ets_select_spec(Table, Spec, Limit, Budget, Cont)
+    when is_integer(Budget), Budget >= 0, is_integer(Limit), Limit >= 0 ->
+    case valid_spec(Spec) of
         true ->
-            isolated(fun() -> do_select(Table, Spec, Limit, Budget, Cont) end);
+            with_bounded_heap(fun() -> do_select(Table, Spec, Limit, Budget, Cont) end);
         false ->
             erlang:error(badarg)
     end;
@@ -537,15 +531,11 @@ ets_select_spec(_Table, _Spec, _Limit, _Budget, _Cont) ->
     erlang:error(badarg).
 
 -spec ets_lookup(ets:tab(), term(), pos_integer(), non_neg_integer(), term()) -> {ok, ets_chunk()}.
-ets_lookup(Table, Key, Limit, Budget, Cont) when is_integer(Budget), Budget >= 0 ->
-    case lists:member(Limit, ?ETS_CHUNK_SIZES) of
-        true ->
-            isolated(fun() ->
-                            do_select(Table, lookup_spec(Table, Key), Limit, Budget, Cont)
-                     end);
-        false ->
-            erlang:error(badarg)
-    end;
+ets_lookup(Table, Key, Limit, Budget, Cont)
+    when is_integer(Budget), Budget >= 0, is_integer(Limit), Limit >= 0 ->
+    with_bounded_heap(fun() ->
+                             do_select(Table, lookup_spec(Table, Key), Limit, Budget, Cont)
+                      end);
 ets_lookup(_Table, _Key, _Limit, _Budget, _Cont) ->
     erlang:error(badarg).
 
@@ -585,7 +575,9 @@ ms_special_key(_) ->
 do_select(Table, Spec, Limit, Budget, undefined) ->
     wrap_select(ets:select(Table, Spec, Limit), Budget);
 do_select(_Table, Spec, _Limit, Budget, Cont) ->
-    wrap_select(ets:select(ets:repair_continuation(Cont, Spec)), Budget).
+    wrap_select(ets:select(
+                    ets:repair_continuation(Cont, Spec)),
+                Budget).
 
 valid_spec([{_Head, Guards, Body}]) when is_list(Guards), is_list(Body) ->
     true;
@@ -615,69 +607,6 @@ bound_records([], _Budget, Truncated, Acc) ->
 bound_records([Record | Rest], Budget, Truncated, Acc) ->
     {Bounded, Cut} = bound_term(Record, Budget),
     bound_records(Rest, Budget, Truncated orelse Cut, [Bounded | Acc]).
-
-%% Link so an erpc timeout also kills the worker. trap_exit so a heap kill
-%% becomes error:killed instead of taking this process down first.
-isolated(Fun) ->
-    OldTrap = process_flag(trap_exit, true),
-    try
-        isolated_wait(Fun)
-    after
-        process_flag(trap_exit, OldTrap)
-    end.
-
-isolated_wait(Fun) ->
-    Parent = self(),
-    {Pid, MRef} = spawn_opt(fun() -> isolated_worker(Parent, Fun) end, [link, monitor]),
-    receive
-        {Pid, {ok, Result}} ->
-            demonitor(MRef, [flush]),
-            flush_exit(Pid),
-            Result;
-        {Pid, {caught, Kind, Reason, Stack}} ->
-            demonitor(MRef, [flush]),
-            flush_exit(Pid),
-            erlang:raise(Kind, Reason, Stack);
-        {'DOWN', MRef, process, Pid, Reason} ->
-            flush_exit(Pid),
-            isolated_down(Reason);
-        {'EXIT', Pid, Reason} ->
-            receive
-                {'DOWN', MRef, process, Pid, _} ->
-                    ok
-            after 0 ->
-                ok
-            end,
-            isolated_down(Reason)
-    end.
-
-isolated_worker(Parent, Fun) ->
-    process_flag(max_heap_size,
-                 #{size => ?ETS_MAX_HEAP_SIZE,
-                   kill => true,
-                   error_logger => true}),
-    try Fun() of
-        Result ->
-            Parent ! {self(), {ok, Result}}
-    catch
-        Kind:Reason:Stack ->
-            Parent ! {self(), {caught, Kind, Reason, Stack}}
-    end.
-
-isolated_down(killed) ->
-    erlang:error(killed);
-isolated_down({killed, _Info}) ->
-    erlang:error(killed);
-isolated_down(Reason) ->
-    exit(Reason).
-
-flush_exit(Pid) ->
-    receive
-        {'EXIT', Pid, _} ->
-            ok
-    after 0 ->
-        ok
-    end.
 
 %% =====================================================================
 %% NODE WATCHER - gen_server callbacks and watcher for Nodes.

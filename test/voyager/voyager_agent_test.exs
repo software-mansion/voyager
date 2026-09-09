@@ -2,37 +2,14 @@ defmodule VoyagerAgentTest do
   use ExUnit.Case, async: false
 
   @compile {:no_warn_undefined, :voyager_agent}
+
+  alias Voyager.Test.VoyagerAgentFixture
+
   @agent_module :voyager_agent
-  @agent_filename "voyager_agent.erl"
 
   setup do
-    path =
-      :voyager
-      |> :code.priv_dir()
-      |> Path.join(@agent_filename)
-      |> String.to_charlist()
-
-    {:ok, @agent_module, binary} = :compile.file(path, [:binary, :return_errors])
-    {:module, @agent_module} = :code.load_binary(@agent_module, path, binary)
-
-    on_exit(fn ->
-      case Process.whereis(@agent_module) do
-        nil ->
-          :ok
-
-        pid ->
-          ref = Process.monitor(pid)
-          Process.exit(pid, :kill)
-
-          receive do
-            {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
-          end
-      end
-
-      :code.purge(@agent_module)
-      :code.delete(@agent_module)
-      :code.purge(@agent_module)
-    end)
+    VoyagerAgentFixture.load!()
+    :ok
   end
 
   describe "register/1" do
@@ -325,14 +302,9 @@ defmodule VoyagerAgentTest do
       assert bounded == [1, 2 | :tail]
     end
 
-    test "caps a binary larger than the byte limit" do
+    test "caps a binary to the remaining budget" do
       assert {bounded, true} = bound(:binary.copy("x", 100_000), 10_000)
-      assert byte_size(bounded) == 4_096
-    end
-
-    test "caps a binary to the remaining budget when it is smaller than the byte limit" do
-      assert {bounded, true} = bound(:binary.copy("x", 100_000), 100)
-      assert byte_size(bounded) == 100
+      assert byte_size(bounded) == 10_000
     end
 
     test "drops an oversized non-byte-aligned bitstring whole" do
@@ -342,8 +314,8 @@ defmodule VoyagerAgentTest do
     end
 
     test "keeps an already-truncated flag true across a later untruncated binary" do
-      assert {[cut, "small"], true} = bound([:binary.copy("x", 5_000), "small"], 10_000)
-      assert byte_size(cut) == 4_096
+      assert {["small", cut], true} = bound(["small", :binary.copy("x", 5_000)], 100)
+      assert byte_size(cut) == 94
     end
 
     test "charges at least one unit for an empty binary instead of walking it for free" do

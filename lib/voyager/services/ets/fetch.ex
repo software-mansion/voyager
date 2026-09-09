@@ -4,20 +4,19 @@ defmodule Voyager.Services.Ets.Fetch do
 
   Table metadata stays on `Voyager.Services.Ets.Remote`. These reads call
   `:ets_select_chunk/4`, `:ets_select_spec/5`, and `:ets_lookup/5` on the agent.
-  A missing agent is `:undef` and drops the session. Truncation and the worker
-  heap cap run on the target. Each record is walked independently with the
-  caller's term `budget` (see `Voyager.Agent.default_budget/0`).
+  A missing agent is `:undef` and drops the session. Truncation and the heap cap
+  run on the target. Each record is walked independently with the caller's term
+  `budget` (see `Voyager.Agent.default_budget/0`).
 
-  `lookup/7` pages a single key with the same 10/20/50 limit as select. A bag
+  `lookup/7` pages a single key with the same positive limit as select. A bag
   or duplicate_bag key that holds more objects than the limit returns a
   continuation for the rest of that key.
 
   A continuation that crossed ETF must be repaired on the target against the
   same match spec used for the page (`[{:"$1", [], [:"$1"]}]` for match-all;
   lookup rebuilds a key-bound spec from `ets:info(Table, keypos)`) before
-  `ets:select/1`. `badarg` (private table, bad spec, or unrepaired
-  continuation) is `{:error, :cannot_read}`; a wrapped worker death is not.
-  A remote worker heap kill is `{:error, :heap_limit_exceeded}`.
+  `ets:select/1`. `badarg` (private table, bad spec, unrepaired
+  continuation, out-of-range budget) is `{:error, :cannot_read}`.
   """
 
   alias Voyager.Agent
@@ -25,14 +24,7 @@ defmodule Voyager.Services.Ets.Fetch do
 
   require TableId
 
-  @chunk_sizes [10, 20, 50]
   @budget Agent.default_budget()
-  @select_fun :ets_select_chunk
-  @select_spec_fun :ets_select_spec
-  @lookup_fun :ets_lookup
-
-  @type lookup_key :: atom() | integer() | binary()
-  @type limit :: 10 | 20 | 50
 
   @type chunk :: %{
           records: [term()],
@@ -40,11 +32,14 @@ defmodule Voyager.Services.Ets.Fetch do
           truncated?: boolean()
         }
 
-  @spec chunk_sizes() :: [limit(), ...]
-  def chunk_sizes, do: @chunk_sizes
-
-  @spec select_chunk(node(), TableId.t(), limit(), non_neg_integer(), term() | nil, timeout()) ::
-          {:ok, chunk()} | {:error, term()}
+  @spec select_chunk(
+          node(),
+          TableId.t(),
+          pos_integer(),
+          non_neg_integer(),
+          term() | nil,
+          timeout()
+        ) :: {:ok, chunk()} | {:error, term()}
   def select_chunk(
         node,
         table,
@@ -55,18 +50,14 @@ defmodule Voyager.Services.Ets.Fetch do
       )
 
   def select_chunk(node, table, limit, budget, continuation, timeout)
-      when TableId.is_table_id(table) and is_integer(budget) and budget >= 0 do
-    if limit in @chunk_sizes do
-      cont = if is_nil(continuation), do: :undefined, else: continuation
-      fetch_chunk(node, @select_fun, [table, limit, budget, cont], timeout)
-    else
-      {:error, :invalid_limit}
-    end
+      when TableId.is_table_id(table) and is_integer(limit) and limit > 0 do
+    cont = continuation || :undefined
+    fetch_chunk(node, :ets_select_chunk, [table, limit, budget, cont], timeout)
   end
 
   def select_chunk(_node, table, _limit, _budget, _continuation, _timeout)
       when TableId.is_table_id(table) do
-    {:error, :invalid_budget}
+    {:error, :invalid_limit}
   end
 
   def select_chunk(_node, _table, _limit, _budget, _continuation, _timeout),
@@ -76,7 +67,7 @@ defmodule Voyager.Services.Ets.Fetch do
           node(),
           TableId.t(),
           term(),
-          limit(),
+          pos_integer(),
           non_neg_integer(),
           term() | nil,
           timeout()
@@ -93,18 +84,14 @@ defmodule Voyager.Services.Ets.Fetch do
       )
 
   def select_spec(node, table, spec, limit, budget, continuation, timeout)
-      when TableId.is_table_id(table) and is_integer(budget) and budget >= 0 do
-    if limit in @chunk_sizes do
-      cont = if is_nil(continuation), do: :undefined, else: continuation
-      fetch_chunk(node, @select_spec_fun, [table, spec, limit, budget, cont], timeout)
-    else
-      {:error, :invalid_limit}
-    end
+      when TableId.is_table_id(table) and is_integer(limit) and limit > 0 do
+    cont = continuation || :undefined
+    fetch_chunk(node, :ets_select_spec, [table, spec, limit, budget, cont], timeout)
   end
 
   def select_spec(_node, table, _spec, _limit, _budget, _continuation, _timeout)
       when TableId.is_table_id(table) do
-    {:error, :invalid_budget}
+    {:error, :invalid_limit}
   end
 
   def select_spec(_node, _table, _spec, _limit, _budget, _continuation, _timeout),
@@ -113,8 +100,8 @@ defmodule Voyager.Services.Ets.Fetch do
   @spec lookup(
           node(),
           TableId.t(),
-          lookup_key(),
-          limit(),
+          term(),
+          pos_integer(),
           non_neg_integer(),
           term() | nil,
           timeout()
@@ -131,24 +118,14 @@ defmodule Voyager.Services.Ets.Fetch do
       )
 
   def lookup(node, table, key, limit, budget, continuation, timeout)
-      when TableId.is_table_id(table) and is_integer(budget) and budget >= 0 do
-    cont = if is_nil(continuation), do: :undefined, else: continuation
-
-    case {valid_key?(key), limit in @chunk_sizes} do
-      {false, _} ->
-        {:error, :invalid_key}
-
-      {true, false} ->
-        {:error, :invalid_limit}
-
-      {true, true} ->
-        fetch_chunk(node, @lookup_fun, [table, key, limit, budget, cont], timeout)
-    end
+      when TableId.is_table_id(table) and is_integer(limit) and limit > 0 do
+    cont = continuation || :undefined
+    fetch_chunk(node, :ets_lookup, [table, key, limit, budget, cont], timeout)
   end
 
   def lookup(_node, table, _key, _limit, _budget, _continuation, _timeout)
       when TableId.is_table_id(table) do
-    {:error, :invalid_budget}
+    {:error, :invalid_limit}
   end
 
   def lookup(_node, _table, _key, _limit, _budget, _continuation, _timeout),
@@ -161,29 +138,16 @@ defmodule Voyager.Services.Ets.Fetch do
     end
   end
 
-  defp decode_chunk(%{records: records, continuation: continuation, truncated?: truncated?})
+  defp decode_chunk(%{records: records, continuation: cont, truncated?: truncated?} = chunk)
        when is_list(records) and is_boolean(truncated?) do
-    {:ok,
-     %{
-       records: records,
-       continuation: normalize_cont(continuation),
-       truncated?: truncated?
-     }}
+    {:ok, %{chunk | continuation: normalize_cont(cont)}}
   end
 
   defp decode_chunk(_other), do: {:error, :invalid_response}
 
-  defp normalize_cont(cont) when cont in [nil, :undefined, :"$end_of_table"], do: nil
+  defp normalize_cont(cont) when cont in [:undefined, :"$end_of_table"], do: nil
   defp normalize_cont(cont), do: cont
 
   defp map_read_error({:error, {:remote_exception, :badarg}}), do: {:error, :cannot_read}
-  defp map_read_error({:error, {:remote_exception, :killed}}), do: {:error, :heap_limit_exceeded}
-
-  defp map_read_error({:error, {:remote_exception, {:killed, _}}}),
-    do: {:error, :heap_limit_exceeded}
-
   defp map_read_error({:error, _} = err), do: err
-
-  defp valid_key?(key) when is_atom(key) or is_integer(key) or is_binary(key), do: true
-  defp valid_key?(_), do: false
 end

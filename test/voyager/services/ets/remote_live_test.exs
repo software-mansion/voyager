@@ -2,6 +2,7 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
   use ExUnit.Case, async: false
 
   alias Voyager.Services.Ets.Remote
+  alias Voyager.Test.EtsTable
 
   setup do
     prev = Application.get_env(:voyager, :erpc)
@@ -13,9 +14,8 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
   end
 
   test "list/1 returns live local tables with memory in bytes" do
-    name = unique_name()
+    name = EtsTable.unique_name()
     :ets.new(name, [:named_table, :public, :set])
-    on_exit(fn -> safe_delete(name) end)
 
     assert {:ok, tables} = Remote.list(Node.self())
     table = Enum.find(tables, &(&1.id == name))
@@ -33,7 +33,7 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
   end
 
   test "list/1 includes a private table owned by another process" do
-    pid = start_supervised!({Agent, fn -> :ets.new(unique_name(), [:private]) end})
+    pid = start_supervised!({Agent, fn -> :ets.new(EtsTable.unique_name(), [:private]) end})
     tid = Agent.get(pid, & &1)
 
     assert {:ok, tables} = Remote.list(Node.self())
@@ -46,9 +46,8 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
   end
 
   test "info/2 fetches a named table and :not_found after delete" do
-    name = unique_name()
+    name = EtsTable.unique_name()
     :ets.new(name, [:named_table, :public])
-    on_exit(fn -> safe_delete(name) end)
 
     assert {:ok, info} = Remote.info(Node.self(), name)
     assert info.id == name
@@ -59,21 +58,10 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
   end
 
   test "list/1 uses the unnamed table reference as the handle" do
-    tid = :ets.new(unique_name(), [:public])
-    on_exit(fn -> safe_delete(tid) end)
+    tid = :ets.new(EtsTable.unique_name(), [:public])
 
     assert is_reference(tid)
     assert {:ok, tables} = Remote.list(Node.self())
     assert Enum.any?(tables, &(&1.id == tid))
-  end
-
-  defp unique_name do
-    :"voyager_ets_#{System.unique_integer([:positive])}"
-  end
-
-  defp safe_delete(id) do
-    :ets.delete(id)
-  rescue
-    ArgumentError -> :ok
   end
 end

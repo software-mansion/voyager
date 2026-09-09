@@ -56,6 +56,18 @@ defmodule VoyagerWeb.Components.DataTableComponentsTest do
       assert count(html, ~s|th[data-column="name"] button|) == 0
     end
 
+    test "a narrow column set keeps the 64rem floor and a wide one derives more" do
+      assert attr(table([]), "table", "style") == ["min-width: 64rem"]
+
+      wide =
+        Enum.map(
+          1..9,
+          &%{key: :"c#{&1}", label: "C#{&1}", sortable?: false, align: :left, width: :md}
+        )
+
+      assert attr(table(columns: wide), "table", "style") == ["min-width: 81rem"]
+    end
+
     test "marks only the active sort column with its direction" do
       assert attr(table([]), ~s|th[data-column="memory"]|, "aria-sort") == ["descending"]
 
@@ -80,6 +92,33 @@ defmodule VoyagerWeb.Components.DataTableComponentsTest do
       assert count(html, "tbody td") == 2
       assert text(html, ~s|#row-1 td[data-column="name"]|) =~ "alpha"
       assert text(html, ~s|#row-1 td[data-column="memory"]|) =~ "42"
+    end
+  end
+
+  describe "value_cell/1" do
+    defp value_cell(attrs) do
+      render_component(&DataTableComponents.value_cell/1, Keyword.merge([id: "v"], attrs))
+    end
+
+    test "mutes secondary values" do
+      assert count(value_cell(value: "x", muted: true), ~s|span[class*="text-base-content/70"]|) >=
+               1
+
+      assert count(value_cell(value: "x"), ~s|span.truncate[class*="text-base-content/70"]|) == 0
+    end
+
+    test "offers the tip text to copy when it differs from the shown value" do
+      html = value_cell(value: "1 MB", tip: "1,048,576 B")
+
+      assert html =~ ~s|id="v-copy-text"|
+      assert html =~ "1,048,576 B"
+    end
+
+    test "a placeholder explains the gap instead of offering it to copy" do
+      html = value_cell(value: DataTableComponents.placeholder())
+
+      assert html =~ "Not set"
+      refute html =~ ~s|id="v-copy"|
     end
   end
 

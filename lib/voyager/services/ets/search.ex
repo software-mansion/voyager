@@ -4,14 +4,13 @@ defmodule Voyager.Services.Ets.Search do
 
   Never evals user or LLM strings. Prefix and element queries go through
   `Fetch.select_spec/7`. `{:key_eq, _}` goes through `Fetch.lookup/7` so the
-  key stays a hash lookup on the target, still honouring `Fetch.chunk_sizes/0`
-  and continuation. The spec sent on the wire for prefix/element is a source
-  MS, not `:ets.match_spec_compile/1`.
+  key stays a hash lookup on the target, still honouring limit and continuation.
+  The spec sent on the wire for prefix/element is a source MS, not
+  `:ets.match_spec_compile/1`.
   """
 
   alias Voyager.Agent
   alias Voyager.Services.Ets.Fetch
-  alias Voyager.Services.Ets.Remote
   alias Voyager.Services.Ets.TableId
 
   require TableId
@@ -52,7 +51,8 @@ defmodule Voyager.Services.Ets.Search do
           node(),
           TableId.t(),
           query(),
-          Fetch.limit(),
+          pos_integer(),
+          pos_integer(),
           non_neg_integer(),
           term() | nil,
           timeout()
@@ -62,26 +62,28 @@ defmodule Voyager.Services.Ets.Search do
         node,
         table,
         query,
+        keypos,
         limit,
         budget \\ @budget,
         continuation \\ nil,
         timeout \\ Agent.default_timeout()
       )
 
-  def chunk(node, table, query, limit, budget, continuation, timeout)
+  def chunk(node, table, query, keypos, limit, budget, continuation, timeout)
       when TableId.is_table_id(table) and is_integer(budget) and budget >= 0 do
     with :ok <- validate_query(query),
+         :ok <- validate_keypos(keypos),
          :ok <- validate_limit(limit) do
-      run_query(node, table, query, limit, budget, continuation, timeout)
+      run_query(node, table, query, keypos, limit, budget, continuation, timeout)
     end
   end
 
-  def chunk(_node, table, _query, _limit, _budget, _continuation, _timeout)
+  def chunk(_node, table, _query, _keypos, _limit, _budget, _continuation, _timeout)
       when TableId.is_table_id(table) do
     {:error, :invalid_budget}
   end
 
-  def chunk(_node, _table, _query, _limit, _budget, _continuation, _timeout),
+  def chunk(_node, _table, _query, _keypos, _limit, _budget, _continuation, _timeout),
     do: {:error, :invalid_table}
 
   defp validate_query({:key_eq, value}) do
@@ -98,29 +100,21 @@ defmodule Voyager.Services.Ets.Search do
 
   defp validate_query(_), do: {:error, :invalid_query}
 
-  defp validate_limit(limit) do
-    if limit in Fetch.chunk_sizes(), do: :ok, else: {:error, :invalid_limit}
-  end
+  defp validate_limit(limit) when is_integer(limit) and limit > 0, do: :ok
+  defp validate_limit(_limit), do: {:error, :invalid_limit}
 
-  defp run_query(node, table, {:key_eq, value}, limit, budget, continuation, timeout) do
+  defp validate_keypos(keypos) when is_integer(keypos) and keypos >= 1, do: :ok
+  defp validate_keypos(_keypos), do: {:error, :invalid_keypos}
+
+  defp run_query(node, table, {:key_eq, value}, _keypos, limit, budget, continuation, timeout) do
     Fetch.lookup(node, table, value, limit, budget, continuation, timeout)
   end
 
-  defp run_query(node, table, query, limit, budget, continuation, timeout) do
-    with {:ok, keypos} <- keypos_for(node, table, query, timeout),
-         {:ok, spec} <- compile(query, keypos) do
+  defp run_query(node, table, query, keypos, limit, budget, continuation, timeout) do
+    with {:ok, spec} <- compile(query, keypos) do
       Fetch.select_spec(node, table, spec, limit, budget, continuation, timeout)
     end
   end
-
-  defp keypos_for(node, table, {:key_prefix, _}, timeout) do
-    case Remote.keypos(node, table, timeout) do
-      {:error, :not_found} -> {:error, :cannot_read}
-      other -> other
-    end
-  end
-
-  defp keypos_for(_node, _table, {:element_eq, _, _}, _timeout), do: {:ok, 1}
 
   defp eq_query(pos, value) do
     if valid_scalar?(value) do

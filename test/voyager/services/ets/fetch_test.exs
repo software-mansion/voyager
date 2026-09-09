@@ -13,7 +13,7 @@ defmodule Voyager.Services.Ets.FetchTest do
   @budget Agent.default_budget()
 
   describe "select_chunk/6" do
-    test "calls :voyager_agent.ets_select_chunk/4 with the budget and :undefined for a nil continuation" do
+    test "calls :voyager_agent.ets_select_chunk/4 with the budget and the continuation" do
       test = self()
       table = :cached
       cont = make_ref()
@@ -23,7 +23,7 @@ defmodule Voyager.Services.Ets.FetchTest do
         ok_chunk([{:ok, 1}], cont)
       end)
 
-      assert {:ok, chunk} = Fetch.select_chunk(@node, table, 10, @budget, nil, @timeout)
+      assert {:ok, chunk} = Fetch.select_chunk(@node, table, 10, @budget, :undefined, @timeout)
       assert chunk.records == [{:ok, 1}]
       assert chunk.continuation == cont
       refute chunk.truncated?
@@ -49,6 +49,19 @@ defmodule Voyager.Services.Ets.FetchTest do
       refute chunk.truncated?
     end
 
+    test "sends :undefined for a nil continuation, so a stored last page restarts the scan" do
+      expect(Voyager.ErpcMock, :call, fn @node,
+                                         :voyager_agent,
+                                         :ets_select_chunk,
+                                         [:t, 10, @budget, :undefined],
+                                         @timeout ->
+        ok_chunk([{:a, 1}], :undefined)
+      end)
+
+      assert {:ok, %{continuation: nil}} =
+               Fetch.select_chunk(@node, :t, 10, @budget, nil, @timeout)
+    end
+
     test "maps continuation :undefined and :\"$end_of_table\" to nil" do
       expect(Voyager.ErpcMock, :call, fn @node,
                                          :voyager_agent,
@@ -58,7 +71,7 @@ defmodule Voyager.Services.Ets.FetchTest do
         ok_chunk([{:a, 1}], :"$end_of_table")
       end)
 
-      assert {:ok, chunk} = Fetch.select_chunk(@node, :t, 10, @budget, nil, @timeout)
+      assert {:ok, chunk} = Fetch.select_chunk(@node, :t, 10, @budget, :undefined, @timeout)
       assert chunk.records == [{:a, 1}]
       assert chunk.continuation == nil
     end
@@ -68,7 +81,7 @@ defmodule Voyager.Services.Ets.FetchTest do
         ok_chunk([{:k, :"$voyager_truncated"}], :undefined, true)
       end)
 
-      assert {:ok, chunk} = Fetch.select_chunk(@node, :t, 10, 50, nil, @timeout)
+      assert {:ok, chunk} = Fetch.select_chunk(@node, :t, 10, 50, :undefined, @timeout)
       assert chunk.truncated?
       assert chunk.records == [{:k, :"$voyager_truncated"}]
     end
@@ -82,7 +95,7 @@ defmodule Voyager.Services.Ets.FetchTest do
       end)
 
       assert {:error, {:remote_exception, :undef}} =
-               Fetch.select_chunk(@node, :t, 10, @budget, nil, @timeout)
+               Fetch.select_chunk(@node, :t, 10, @budget, :undefined, @timeout)
 
       assert_received {:called, :voyager_agent, :ets_select_chunk}
       refute_received {:called, :ets, _}
@@ -93,34 +106,17 @@ defmodule Voyager.Services.Ets.FetchTest do
         :erlang.error({:exception, :badarg, []})
       end)
 
-      assert {:error, :cannot_read} = Fetch.select_chunk(@node, :t, 10, @budget, nil, @timeout)
+      assert {:error, :cannot_read} =
+               Fetch.select_chunk(@node, :t, 10, @budget, :undefined, @timeout)
     end
 
-    test "does not map a wrapped agent worker badarg to :cannot_read" do
+    test "passes a remote heap kill through untouched" do
       expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_chunk, _, _ ->
-        :erlang.error({:exception, {:agent_worker_down, {:badarg, []}}, []})
+        exit({:signal, :killed})
       end)
 
-      assert {:error, {:remote_exception, {:agent_worker_down, {:badarg, []}}}} =
-               Fetch.select_chunk(@node, :t, 10, @budget, nil, @timeout)
-    end
-
-    test "maps a remote worker heap kill to :heap_limit_exceeded" do
-      expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_chunk, _, _ ->
-        :erlang.error({:exception, :killed, []})
-      end)
-
-      assert {:error, :heap_limit_exceeded} =
-               Fetch.select_chunk(@node, :t, 10, @budget, nil, @timeout)
-    end
-
-    test "does not map a wrapped agent worker death to :heap_limit_exceeded" do
-      expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_chunk, _, _ ->
-        :erlang.error({:exception, {:agent_worker_down, :killed}, []})
-      end)
-
-      assert {:error, {:remote_exception, {:agent_worker_down, :killed}}} =
-               Fetch.select_chunk(@node, :t, 10, @budget, nil, @timeout)
+      assert {:error, {:remote_exit, {:signal, :killed}}} =
+               Fetch.select_chunk(@node, :t, 10, @budget, :undefined, @timeout)
     end
 
     test "returns :invalid_response when select does not return a chunk" do
@@ -129,23 +125,20 @@ defmodule Voyager.Services.Ets.FetchTest do
       end)
 
       assert {:error, :invalid_response} =
-               Fetch.select_chunk(@node, :t, 10, @budget, nil, @timeout)
+               Fetch.select_chunk(@node, :t, 10, @budget, :undefined, @timeout)
     end
 
-    test "rejects a limit outside 10, 20, 50 without touching the remote" do
-      assert Fetch.chunk_sizes() == [10, 20, 50]
-      assert {:error, :invalid_limit} = Fetch.select_chunk(@node, :t, 15, @budget, nil, @timeout)
-      assert {:error, :invalid_limit} = Fetch.select_chunk(@node, :t, 1, @budget, nil, @timeout)
-    end
+    test "rejects a non-positive or non-integer limit without touching the remote" do
+      assert {:error, :invalid_limit} =
+               Fetch.select_chunk(@node, :t, 0, @budget, :undefined, @timeout)
 
-    test "rejects a negative or non-integer budget without touching the remote" do
-      assert {:error, :invalid_budget} = Fetch.select_chunk(@node, :t, 10, -1, nil, @timeout)
-      assert {:error, :invalid_budget} = Fetch.select_chunk(@node, :t, 10, :nope, nil, @timeout)
+      assert {:error, :invalid_limit} =
+               Fetch.select_chunk(@node, :t, :ten, @budget, :undefined, @timeout)
     end
 
     test "rejects a handle that is not an atom or reference without touching the remote" do
       assert {:error, :invalid_table} =
-               Fetch.select_chunk(@node, self(), 10, @budget, nil, @timeout)
+               Fetch.select_chunk(@node, self(), 10, @budget, :undefined, @timeout)
     end
 
     test "defaults the budget and timeout" do
@@ -222,19 +215,23 @@ defmodule Voyager.Services.Ets.FetchTest do
                Fetch.lookup(@node, :t, <<"k">>, 10, @budget, nil, @timeout)
     end
 
-    test "rejects a key that is not an atom, integer, or binary without touching the remote" do
-      assert {:error, :invalid_key} =
-               Fetch.lookup(@node, :t, {:tuple, 1}, 10, @budget, nil, @timeout)
+    test "passes a composite key through to the agent" do
+      key = {:tuple, 1}
 
-      assert {:error, :invalid_key} = Fetch.lookup(@node, :t, self(), 10, @budget, nil, @timeout)
+      expect(Voyager.ErpcMock, :call, fn @node,
+                                         :voyager_agent,
+                                         :ets_lookup,
+                                         [:t, ^key, 10, @budget, :undefined],
+                                         @timeout ->
+        ok_chunk([])
+      end)
+
+      assert {:ok, %{records: []}} = Fetch.lookup(@node, :t, key, 10, @budget, nil, @timeout)
     end
 
-    test "rejects a limit outside 10, 20, 50 without touching the remote" do
-      assert {:error, :invalid_limit} = Fetch.lookup(@node, :t, :k, 15, @budget, nil, @timeout)
-    end
-
-    test "rejects a negative budget without touching the remote" do
-      assert {:error, :invalid_budget} = Fetch.lookup(@node, :t, :k, 10, -1, nil, @timeout)
+    test "rejects a non-positive or non-integer limit without touching the remote" do
+      assert {:error, :invalid_limit} = Fetch.lookup(@node, :t, :k, 0, @budget, nil, @timeout)
+      assert {:error, :invalid_limit} = Fetch.lookup(@node, :t, :k, :ten, @budget, nil, @timeout)
     end
 
     test "rejects a handle that is not an atom or reference without touching the remote" do
@@ -311,23 +308,21 @@ defmodule Voyager.Services.Ets.FetchTest do
                Fetch.select_spec(@node, :t, @spec_ms, 10, @budget, nil, @timeout)
     end
 
-    test "maps a remote worker heap kill to :heap_limit_exceeded" do
+    test "passes a remote heap kill through untouched" do
       expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_spec, _, _ ->
-        :erlang.error({:exception, :killed, []})
+        exit({:signal, :killed})
       end)
 
-      assert {:error, :heap_limit_exceeded} =
+      assert {:error, {:remote_exit, {:signal, :killed}}} =
                Fetch.select_spec(@node, :t, @spec_ms, 10, @budget, nil, @timeout)
     end
 
-    test "rejects a limit outside 10, 20, 50 without touching the remote" do
+    test "rejects a non-positive or non-integer limit without touching the remote" do
       assert {:error, :invalid_limit} =
-               Fetch.select_spec(@node, :t, @spec_ms, 15, @budget, nil, @timeout)
-    end
+               Fetch.select_spec(@node, :t, @spec_ms, 0, @budget, nil, @timeout)
 
-    test "rejects a negative budget without touching the remote" do
-      assert {:error, :invalid_budget} =
-               Fetch.select_spec(@node, :t, @spec_ms, 10, -1, nil, @timeout)
+      assert {:error, :invalid_limit} =
+               Fetch.select_spec(@node, :t, @spec_ms, :ten, @budget, nil, @timeout)
     end
 
     test "rejects a handle that is not an atom or reference without touching the remote" do
