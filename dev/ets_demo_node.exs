@@ -15,17 +15,15 @@
 :ets.insert(:truncated_key_bug, {:binary.copy("K", 8000), :value_a})
 :ets.insert(:truncated_key_bug, {"short-key", :value_b})
 
-# With the default budget (5000) the same key is cut at the agent's hard
-# 4096-byte binary cap instead - that case the UI does flag (warning icon,
-# no Lookup).
-
 # --- General zoo -----------------------------------------------------------
 :ets.new(:kv_set, [:set, :named_table, :public])
+
 for i <- 1..137 do
   :ets.insert(:kv_set, {i, %{name: "item_#{i}", tags: [:a, :b], score: i * 1.5}})
 end
 
 :ets.new(:users_ordered, [:ordered_set, :named_table, :public])
+
 for i <- 1..23 do
   :ets.insert(:users_ordered, {"user-#{String.pad_leading(to_string(i), 3, "0")}", i, :active})
 end
@@ -51,7 +49,10 @@ for i <- 1..12, do: :ets.insert(unnamed, {i, {:anon, i}})
 
 :ets.new(:huge_records, [:set, :named_table, :public])
 :ets.insert(:huge_records, {:big_binary, :crypto.strong_rand_bytes(5_000_000)})
-deep = Enum.reduce(1..30, :leaf, fn i, acc -> %{level: i, child: acc, pad: List.duplicate(i, 50)} end)
+
+deep =
+  Enum.reduce(1..30, :leaf, fn i, acc -> %{level: i, child: acc, pad: List.duplicate(i, 50)} end)
+
 :ets.insert(:huge_records, {:deep_term, deep})
 :ets.insert(:huge_records, {:long_list, Enum.to_list(1..100_000)})
 :ets.insert(:huge_records, {:small, :ok})
