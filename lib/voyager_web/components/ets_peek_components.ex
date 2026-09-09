@@ -17,6 +17,10 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   @truncated :"$voyager_truncated"
 
+  @budget_help "Caps how much of each fetched term the remote node sends back — " <>
+                 "roughly one unit per subterm, binaries charged per byte kept. " <>
+                 "Anything beyond the budget is truncated on the remote."
+
   attr :table_name, :string, required: true
   attr :node_name, :string, required: true
   attr :back_href, :string, required: true
@@ -30,7 +34,6 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
             id="ets-table-name"
             class="text-base-content font-mono flex min-w-0 items-center gap-2 text-2xl font-bold tracking-tight"
           >
-            <span class="bg-primary h-2 w-2 shrink-0 rounded-full" />
             <span class="truncate">{@table_name}</span>
           </h2>
           <:content>
@@ -62,7 +65,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
     ~H"""
     <dl
       id="ets-table-info"
-      class="border-base-300 bg-base-100 grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border p-4 sm:grid-cols-3 lg:grid-cols-5"
+      class="border-base-200 bg-base-100 grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border p-4 sm:grid-cols-3 lg:grid-cols-5"
     >
       <.info_item label="Type">
         <span class="badge badge-sm badge-ghost font-mono">{@info.type}</span>
@@ -119,6 +122,8 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   attr :fetched?, :boolean, default: false
 
   def controls(assigns) do
+    assigns = assign(assigns, :budget_help, @budget_help)
+
     ~H"""
     <.form for={@form} id="ets-peek-controls" phx-change="validate" class="flex flex-col gap-1">
       <fieldset
@@ -129,6 +134,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
           <.control_field
             field={@form[:budget]}
             label="Budget per record"
+            help={@budget_help}
             min={elem(EtsPeekControls.budget_bounds(), 0)}
             max={elem(EtsPeekControls.budget_bounds(), 1)}
             step="100"
@@ -184,7 +190,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       <li
         :for={{record, index} <- Enum.with_index(@records)}
         id={"#{@id}-#{index}"}
-        class="border-base-300 bg-base-100 rounded-lg border"
+        class="border-base-200 bg-base-100 rounded-lg border"
       >
         <div class="flex items-center gap-2 px-3 py-2">
           <button
@@ -231,7 +237,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
           </button>
         </div>
 
-        <div :if={row_open?(@open_rows, index)} class="border-base-300 border-t px-3 py-2">
+        <div :if={row_open?(@open_rows, index)} class="border-base-200 border-t px-3 py-2">
           <TermComponents.term_inspector
             id={record_inspector_id(@id, index)}
             term={record}
@@ -251,6 +257,8 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   attr :error_message, :string, default: nil
 
   def sidebar(assigns) do
+    assigns = assign(assigns, :budget_help, @budget_help)
+
     ~H"""
     <aside
       id="ets-lookup-sidebar"
@@ -289,6 +297,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
           <.control_field
             field={@form[:budget]}
             label="Term budget"
+            help={@budget_help}
             min={elem(EtsLookupControls.budget_bounds(), 0)}
             max={elem(EtsLookupControls.budget_bounds(), 1)}
             step="100"
@@ -329,7 +338,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
         <div
           :for={{record, index} <- Enum.with_index(chunk.records)}
           id={"ets-lookup-record-#{index}"}
-          class="border-base-300 flex min-h-0 items-start gap-2 overflow-y-auto rounded-lg border p-3"
+          class="border-base-200 flex min-h-0 items-start gap-2 overflow-y-auto rounded-lg border p-3"
         >
           <TermComponents.term_inspector
             id={lookup_inspector_id(index)}
@@ -379,12 +388,16 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   attr :field, Phoenix.HTML.FormField, required: true
   attr :label, :string, required: true
+  attr :help, :string, default: nil
   attr :rest, :global, include: ~w(min max step)
 
   defp control_field(assigns) do
     ~H"""
     <div class="flex flex-col gap-1">
-      <label for={@field.id} class="text-base-content/70 text-xs font-medium">{@label}</label>
+      <span class="flex h-4 items-center gap-1">
+        <label for={@field.id} class="text-base-content/70 text-xs font-medium">{@label}</label>
+        <.help_tooltip :if={@help} id={"#{@field.id}-help"} text={@help} />
+      </span>
       <%!-- An invalid field widens to fit its message on one line, rather than
            wrapping it inside the input's own 6rem. --%>
       <div class={if @field.errors == [], do: "w-24", else: "w-56"}>
