@@ -125,7 +125,7 @@ fn create_window(app_handle: &tauri::AppHandle, port: u16) {
         .initialization_script(theme_init);
 
     #[cfg_attr(target_os = "macos", allow(unused_variables))]
-    let window = builder.build().unwrap();
+    let window = builder.build().unwrap().set_zoom(1.1);
 
     #[cfg(not(target_os = "macos"))]
     {
