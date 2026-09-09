@@ -1,23 +1,22 @@
 defmodule Voyager.MCP.Tools.EtsReadTableChunk do
   @moduledoc """
-  Pages through an ETS table on the connected node.
+  Reads or paginates through an ETS table on the connected node.
 
-  Without a `mode`, returns rows in `:ets.select/3` order (match-all).
-  With a `mode`, filters via `Voyager.Services.Ets.Search.chunk/8`:
+  Pass the `id` value from `ets_list` into `table`. For unnamed tables (`named_table: false`),
+  pass the full `#Ref<...>` reference string; passing the table name fails.
 
+  Filter modes via `Voyager.Services.Ets.Search.chunk/8`:
+  - Omit `mode` entirely for an unfiltered scan.
   - `key_eq` — rows whose key equals `value` (single-shot, no paging).
   - `key_prefix` — rows whose binary key starts with `value`.
-  - `element_eq` — rows whose tuple element at `index` equals `value`.
+  - `element_eq` — rows whose tuple element at 1-based `index` equals `value`.
+  Substring search is not supported here; use `ets_search_table` for raw match specs.
 
   `value` is parsed as an integer when fully numeric, as an atom when prefixed
-  with `:` (interned on the target via `:erlang.list_to_existing_atom/1`), or
-  kept as a binary otherwise.
+  with `:` (interned on target via `:erlang.list_to_existing_atom/1`), or kept as binary.
 
   `cursor` is the opaque string returned in a previous response. To resume,
-  re-send the same `table`, `mode`, `value`, `index`, `keypos`, `limit` and
-  `budget` alongside it — a mismatch produces `:cannot_read`.
-
-  Run `ets_list` first to discover table handles and `keypos`.
+  re-send the same parameters alongside it — a mismatch produces `:cannot_read`.
   """
 
   use Anubis.Server.Component, type: :tool
@@ -35,12 +34,13 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunk do
   schema do
     field :table, :string,
       required: true,
-      description: "Table name or id from `ets_list`."
+      description:
+        "Table handle from `ets_list` `id`. Pass `#Ref<...>` for unnamed tables, never the name."
 
     field :mode, :enum,
       values: @modes,
       description:
-        "Filter mode. `key_eq`: exact key match. `key_prefix`: binary key prefix. `element_eq`: element at `index` equals `value`. Omit for an unfiltered scan."
+        "Filter mode: `key_eq`, `key_prefix`, or `element_eq`. Omit for unfiltered scan. For match specs, use `ets_search_table`."
 
     field :value, :string,
       description:

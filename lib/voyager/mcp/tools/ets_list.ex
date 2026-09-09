@@ -1,14 +1,14 @@
 defmodule Voyager.MCP.Tools.EtsList do
   @moduledoc """
-  Lists the ETS tables of the connected node, ranked by one attribute.
+  Lists ETS tables on the connected node, ranked by one attribute.
 
-  Only metadata is read -- never table contents -- so the payload is bounded by
-  `limit` regardless of how much the tables hold. Private tables are included.
-  `total` is the number of live tables found, before `search` and `limit`.
-  `memory` is in bytes, `size` is the row count.
+  Only metadata is read -- never table contents -- so payload size is bounded by
+  `limit`. Private tables are included. `total` is the count of live tables before
+  `search` and `limit`. `memory` is in bytes, `size` is row count.
 
-  `id` is the handle to pass to other ETS tools: a name for a named table, an
-  unresolvable `#Ref<...>` for an unnamed one.
+  Pass the `id` string (never the `name`) to other ETS tools (`ets_read_table_chunk`,
+  `ets_search_table`). Unnamed tables (`named_table: false`) can only be accessed
+  via their `#Ref<...>` handle; referencing them by name fails.
   """
 
   use Anubis.Server.Component, type: :tool

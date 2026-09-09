@@ -1,24 +1,27 @@
 defmodule Voyager.MCP.Tools.EtsSearchTable do
   @moduledoc """
-  Searches an ETS table on the connected node using a raw match spec.
+  Searches an ETS table on the connected node using an Erlang match specification.
 
-  `match_spec` is an Erlang term in source syntax, parsed by
-  `Voyager.Services.Ets.MatchSpec.parse/1`. A single `{Head, Guards, Body}`
-  clause is required — the same shape `:ets.fun2ms/1` produces. A missing
-  trailing `.` is added automatically.
+  Use this when queries require multi-element patterns, guards, or conditions
+  beyond `ets_read_table_chunk`'s basic modes.
 
-  Examples the LLM can send:
+  Pass the `id` string from `ets_list` into `table` (pass `#Ref<...>` for unnamed tables).
 
-      [{{'$1', '$2'}, [{'>', '$2', 10}], ['$1']}]
-      [{'$1', [], ['$_']}]
+  `match_spec` rules:
+  - Must be a valid Erlang term string with one `[{Head, Guards, Body}]` clause.
+  - Match variables must be single-quoted atoms: `'$1'`, `'$2'`, `'_'`, `'$_'`.
+  - Guards only support Erlang guard BIFs (e.g. `=:=`, `>`, `<`, `is_list`, `is_binary`,
+    `element`, `binary_part`, `byte_size`). Calling other functions fails with `:cannot_read`.
+  - OTP strings (such as paths in `code_server` tables) are Erlang charlists (list of integers).
+    To match a charlist prefix, use a list pattern like `[47, 104, 111 | '$rest']`.
 
-  Guard validity is checked by `:ets.select/3` on the target; an invalid guard
-  comes back as `:cannot_read`.
+  Examples:
+  - Match all: `[{'$1', [], ['$_']}]`
+  - Guard comparison: `[{{'$1', '$2'}, [{'>', '$2', 10}], ['$1']}]`
+  - Element match: `[{{'$1', active, '$3'}, [], ['$_']}]`
 
   `cursor` is the opaque string returned in a previous response. To resume,
   re-send the same `table`, `match_spec`, `limit` and `budget` alongside it.
-
-  Run `ets_list` first to discover table handles.
   """
 
   use Anubis.Server.Component, type: :tool
@@ -35,12 +38,13 @@ defmodule Voyager.MCP.Tools.EtsSearchTable do
   schema do
     field :table, :string,
       required: true,
-      description: "Table name or id from `ets_list`."
+      description:
+        "Table handle from `ets_list` `id`. Pass `#Ref<...>` for unnamed tables, never the name."
 
     field :match_spec, :string,
       required: true,
       description:
-        "Erlang match spec as a source term. One `{Head, Guards, Body}` clause. Example: `[{'$1', [], ['$_']}]`."
+        "Erlang match spec term with one [{Head, Guards, Body}] clause. Match variables must be quoted like '$1' or '$_'."
 
     field :limit, :integer,
       default: 25,
