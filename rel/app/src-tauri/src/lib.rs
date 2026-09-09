@@ -1,11 +1,19 @@
 mod utils;
 
+use std::sync::Mutex;
+
 use tauri::{
     Manager,
-    menu::{MenuBuilder, SubmenuBuilder},
+    menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder},
 };
 
 const MAIN_WINDOW_LABEL: &str = "main";
+const ZOOM_STEP: f64 = 0.1;
+const MIN_ZOOM: f64 = 0.5;
+const MAX_ZOOM: f64 = 3.0;
+
+/// Current zoom factor, since the webview does not expose a getter.
+struct ZoomLevel(Mutex<f64>);
 
 /// Current OS appearance for Auto theme after full page reloads.
 #[tauri::command]
@@ -23,6 +31,12 @@ pub fn run() {
         .enable_macos_default_menu(false)
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![os_theme])
+        .manage(ZoomLevel(Mutex::new(1.0)))
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            "zoom_in" => zoom_by(app, ZOOM_STEP),
+            "zoom_out" => zoom_by(app, -ZOOM_STEP),
+            _ => {}
+        })
         .setup(move |app| {
             #[cfg(target_os = "macos")]
             {
@@ -40,8 +54,21 @@ pub fn run() {
                     .select_all()
                     .build()?;
 
+                let view_menu = SubmenuBuilder::new(app, "View")
+                    .item(
+                        &MenuItemBuilder::with_id("zoom_in", "Zoom In")
+                            .accelerator("CmdOrCtrl+=")
+                            .build(app)?,
+                    )
+                    .item(
+                        &MenuItemBuilder::with_id("zoom_out", "Zoom Out")
+                            .accelerator("CmdOrCtrl+-")
+                            .build(app)?,
+                    )
+                    .build()?;
+
                 let menu = MenuBuilder::new(app)
-                    .items(&[&app_menu, &edit_menu])
+                    .items(&[&app_menu, &edit_menu, &view_menu])
                     .build()?;
                 app.set_menu(menu)?;
             }
@@ -91,6 +118,20 @@ fn focus_existing_window(app: &tauri::AppHandle) {
         let _ = window.set_focus();
         // Wayland often ignores set_focus but still reports Ok. No-op if already focused.
         let _ = window.request_user_attention(Some(tauri::UserAttentionType::Informational));
+    }
+}
+
+fn zoom_by(app_handle: &tauri::AppHandle, delta: f64) {
+    let zoom_level = app_handle.state::<ZoomLevel>();
+
+    let level = {
+        let mut level = zoom_level.0.lock().expect("zoom level poisoned");
+        *level = (*level + delta).clamp(MIN_ZOOM, MAX_ZOOM);
+        *level
+    };
+
+    for window in app_handle.webview_windows().into_values() {
+        let _ = window.set_zoom(level);
     }
 }
 
