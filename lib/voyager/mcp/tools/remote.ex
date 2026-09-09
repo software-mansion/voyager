@@ -34,9 +34,6 @@ defmodule Voyager.MCP.Tools.Remote do
 
   defp rate_limiter, do: Application.get_env(:voyager, :rate_limiter, RateLimiter)
 
-  # Only the terms `Voyager.JSONEncoders` cannot reach: lists, binaries and map
-  # keys are resolved before protocol dispatch, and a struct defined on the
-  # remote node has no implementation to find.
   defp jsonable(term) when is_binary(term) do
     if String.valid?(term), do: term, else: inspect(term)
   end
