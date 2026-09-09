@@ -11,7 +11,7 @@ defmodule VoyagerWeb.FormSchemas.EtsPeekControls do
 
   import Ecto.Changeset
 
-  @chunk_sizes [10, 20, 50]
+  @chunk_sizes [1, 2, 5, 10, 20, 50]
   @default_chunk_size 50
   @min_budget 100
   @max_budget 50_000

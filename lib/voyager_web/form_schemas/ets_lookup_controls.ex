@@ -1,7 +1,8 @@
 defmodule VoyagerWeb.FormSchemas.EtsLookupControls do
   @moduledoc """
   Controls form for the ETS record sidebar: the term budget a lookup may spend
-  and how long to wait for it.
+  and how long to wait for it. The budget has no upper bound — the worker's
+  heap cap on the target is the real limit.
   """
 
   use Ecto.Schema
@@ -9,7 +10,6 @@ defmodule VoyagerWeb.FormSchemas.EtsLookupControls do
   import Ecto.Changeset
 
   @min_budget 100
-  @max_budget 50_000
   @default_budget Voyager.Agent.default_budget()
   @min_timeout 1_000
   @max_timeout 30_000
@@ -23,8 +23,8 @@ defmodule VoyagerWeb.FormSchemas.EtsLookupControls do
 
   @type t :: %__MODULE__{}
 
-  @spec budget_bounds() :: {pos_integer(), pos_integer()}
-  def budget_bounds, do: {@min_budget, @max_budget}
+  @spec min_budget() :: pos_integer()
+  def min_budget, do: @min_budget
 
   @spec timeout_bounds() :: {pos_integer(), pos_integer()}
   def timeout_bounds, do: {@min_timeout, @max_timeout}
@@ -39,8 +39,7 @@ defmodule VoyagerWeb.FormSchemas.EtsLookupControls do
     |> validate_required([:budget, :timeout])
     |> validate_number(:budget,
       greater_than_or_equal_to: @min_budget,
-      less_than_or_equal_to: @max_budget,
-      message: "must be between #{@min_budget} and #{@max_budget}"
+      message: "must be at least #{@min_budget}"
     )
     |> validate_number(:timeout,
       greater_than_or_equal_to: @min_timeout,

@@ -249,6 +249,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         <DataTableComponents.value_cell
           id={"#{@row_id}-size"}
           value={Formatters.format_integer(@row.size)}
+          class={@row.size == 0 && "text-base-content/40"}
         />
       <% :memory -> %>
         <DataTableComponents.value_cell
@@ -303,11 +304,6 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         class="font-mono text-primary flex min-w-0 max-w-full items-baseline gap-2 text-sm hover:underline focus-visible:underline"
       >
         <span class="truncate">{@name}</span>
-        <%!-- An unnamed table is only reachable by its reference, so it is
-              shown beside the name it was created with. --%>
-        <span :if={not @table.named_table} class="text-base-content/60 truncate text-xs">
-          {@id}
-        </span>
       </.link>
       <:content>
         <div class="flex flex-col gap-1">

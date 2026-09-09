@@ -279,7 +279,7 @@ defmodule VoyagerWeb.EtsTableLive do
     |> noreply()
   end
 
-  def handle_event("close_sidebar", _params, socket) do
+  def handle_event("close-details-panel", _params, socket) do
     socket
     |> assign(:sidebar, nil)
     |> assign(:lookup, %AsyncResult{})

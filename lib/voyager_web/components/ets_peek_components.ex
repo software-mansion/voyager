@@ -267,24 +267,20 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       class="details-panel border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex w-full flex-col gap-4 overflow-hidden border-l p-4 shadow-2xl"
     >
       <DetailsPanelComponents.resize_handle panel_id="ets-lookup-sidebar" open?={true} />
-      <div class="flex items-center justify-between gap-2">
-        <h2 class="text-base-content text-sm font-semibold">Record lookup</h2>
-        <button
-          id="ets-sidebar-close"
-          type="button"
-          phx-click="close_sidebar"
-          aria-label="Close sidebar"
-          class="btn btn-ghost btn-xs"
-        >
-          <.icon name="icon-x" class="size-4" />
-        </button>
-      </div>
-
-      <div class="flex min-w-0 flex-col gap-0.5">
-        <span class="text-base-content/60 text-xs">Key</span>
-        <span id="ets-sidebar-key" class="font-mono text-base-content break-all text-xs">
-          {inspect(@key)}
-        </span>
+      <div class="border-base-200 flex items-start gap-3 border-b pb-3">
+        <div class="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div class="flex items-center gap-2">
+            <.icon name="icon-database-search" class="text-primary size-3.5" />
+            <div class="font-mono text-base-content text-xs uppercase">Record lookup</div>
+          </div>
+          <DetailsPanelComponents.copyable
+            id="ets-sidebar-key"
+            class="font-mono text-base-content break-all text-sm font-medium"
+            text={inspect(@key)}
+            label="Copy key"
+          />
+        </div>
+        <DetailsPanelComponents.close_button panel_id="ets-lookup-sidebar" />
       </div>
 
       <.form
@@ -298,8 +294,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
             field={@form[:budget]}
             label="Term budget"
             help={@budget_help}
-            min={elem(EtsLookupControls.budget_bounds(), 0)}
-            max={elem(EtsLookupControls.budget_bounds(), 1)}
+            min={EtsLookupControls.min_budget()}
             step="100"
           />
 
