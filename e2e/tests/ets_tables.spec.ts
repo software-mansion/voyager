@@ -73,7 +73,9 @@ test.describe('EtsTablesLive', () => {
     await expect(row(page, CACHE)).toContainText('100');
     await expect(row(page, EVENTS)).toContainText('duplicate_bag');
     await expect(row(page, SECRETS)).toContainText('private');
-    await expect(row(page, UNNAMED)).toContainText('#Ref');
+    await expect(
+      row(page, UNNAMED).locator('td[data-column="name"] a')
+    ).toHaveAttribute('href', /%23Reference/);
   });
 
   test('the selects filter by protection, type and named', async ({ page }) => {
