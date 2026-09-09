@@ -126,47 +126,21 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
         class={["contents", (@loading? or not @readable?) && "opacity-60"]}
       >
         <div class="flex flex-wrap items-end gap-3">
-          <div class="flex flex-col gap-1">
-            <label for={@form[:budget].id} class="text-base-content/70 text-xs font-medium">
-              Budget per record
-            </label>
-            <input
-              id={@form[:budget].id}
-              type="number"
-              name={@form[:budget].name}
-              value={@form[:budget].value}
-              min={elem(EtsPeekControls.budget_bounds(), 0)}
-              max={elem(EtsPeekControls.budget_bounds(), 1)}
-              step="100"
-              inputmode="numeric"
-              phx-debounce="500"
-              class={[
-                "input input-sm input-bordered no-spinner font-mono w-24",
-                @form[:budget].errors != [] && "input-error"
-              ]}
-            />
-          </div>
+          <.control_field
+            field={@form[:budget]}
+            label="Budget per record"
+            min={elem(EtsPeekControls.budget_bounds(), 0)}
+            max={elem(EtsPeekControls.budget_bounds(), 1)}
+            step="100"
+          />
 
-          <div class="flex flex-col gap-1">
-            <label for={@form[:timeout].id} class="text-base-content/70 text-xs font-medium">
-              Timeout (ms)
-            </label>
-            <input
-              id={@form[:timeout].id}
-              type="number"
-              name={@form[:timeout].name}
-              value={@form[:timeout].value}
-              min={elem(EtsPeekControls.timeout_bounds(), 0)}
-              max={elem(EtsPeekControls.timeout_bounds(), 1)}
-              step="100"
-              inputmode="numeric"
-              phx-debounce="500"
-              class={[
-                "input input-sm input-bordered no-spinner font-mono w-24",
-                @form[:timeout].errors != [] && "input-error"
-              ]}
-            />
-          </div>
+          <.control_field
+            field={@form[:timeout]}
+            label="Timeout (ms)"
+            min={elem(EtsPeekControls.timeout_bounds(), 0)}
+            max={elem(EtsPeekControls.timeout_bounds(), 1)}
+            step="100"
+          />
 
           <button
             id="ets-peek-fetch"
@@ -179,14 +153,6 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
             {if @fetched?, do: "Reload snapshot", else: "Fetch records"}
           </button>
         </div>
-
-        <p
-          :for={field <- [:budget, :timeout]}
-          :if={@form[field].errors != []}
-          class="font-mono text-error text-xs"
-        >
-          {@form[field].errors |> Enum.map_join(", ", &translate_error/1)}
-        </p>
       </fieldset>
     </.form>
     """
@@ -320,47 +286,21 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
         class="flex flex-col gap-1"
       >
         <div class="flex flex-wrap items-end gap-3">
-          <div class="flex flex-col gap-1">
-            <label for={@form[:budget].id} class="text-base-content/70 text-xs font-medium">
-              Term budget
-            </label>
-            <input
-              id={@form[:budget].id}
-              type="number"
-              name={@form[:budget].name}
-              value={@form[:budget].value}
-              min={elem(EtsLookupControls.budget_bounds(), 0)}
-              max={elem(EtsLookupControls.budget_bounds(), 1)}
-              step="100"
-              inputmode="numeric"
-              phx-debounce="500"
-              class={[
-                "input input-sm input-bordered no-spinner font-mono w-24",
-                @form[:budget].errors != [] && "input-error"
-              ]}
-            />
-          </div>
+          <.control_field
+            field={@form[:budget]}
+            label="Term budget"
+            min={elem(EtsLookupControls.budget_bounds(), 0)}
+            max={elem(EtsLookupControls.budget_bounds(), 1)}
+            step="100"
+          />
 
-          <div class="flex flex-col gap-1">
-            <label for={@form[:timeout].id} class="text-base-content/70 text-xs font-medium">
-              Timeout (ms)
-            </label>
-            <input
-              id={@form[:timeout].id}
-              type="number"
-              name={@form[:timeout].name}
-              value={@form[:timeout].value}
-              min={elem(EtsLookupControls.timeout_bounds(), 0)}
-              max={elem(EtsLookupControls.timeout_bounds(), 1)}
-              step="100"
-              inputmode="numeric"
-              phx-debounce="500"
-              class={[
-                "input input-sm input-bordered no-spinner font-mono w-24",
-                @form[:timeout].errors != [] && "input-error"
-              ]}
-            />
-          </div>
+          <.control_field
+            field={@form[:timeout]}
+            label="Timeout (ms)"
+            min={elem(EtsLookupControls.timeout_bounds(), 0)}
+            max={elem(EtsLookupControls.timeout_bounds(), 1)}
+            step="100"
+          />
 
           <button
             id="ets-lookup-refetch"
@@ -372,14 +312,6 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
             <span :if={@lookup.loading != nil} class="loading loading-spinner loading-xs" /> Refetch
           </button>
         </div>
-
-        <p
-          :for={field <- [:budget, :timeout]}
-          :if={@form[field].errors != []}
-          class="font-mono text-error text-xs"
-        >
-          {@form[field].errors |> Enum.map_join(", ", &translate_error/1)}
-        </p>
       </.form>
 
       <.async_result :let={chunk} assign={@lookup}>
@@ -444,6 +376,30 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   end
 
   def lookup_key(_record, _keypos), do: :error
+
+  attr :field, Phoenix.HTML.FormField, required: true
+  attr :label, :string, required: true
+  attr :rest, :global, include: ~w(min max step)
+
+  defp control_field(assigns) do
+    ~H"""
+    <div class="flex flex-col gap-1">
+      <label for={@field.id} class="text-base-content/70 text-xs font-medium">{@label}</label>
+      <%!-- An invalid field widens to fit its message on one line, rather than
+           wrapping it inside the input's own 6rem. --%>
+      <div class={if @field.errors == [], do: "w-24", else: "w-56"}>
+        <.input
+          field={@field}
+          type="number"
+          inputmode="numeric"
+          phx-debounce="500"
+          class="input-sm no-spinner font-mono"
+          {@rest}
+        />
+      </div>
+    </div>
+    """
+  end
 
   defp row_open?(open_rows, index), do: MapSet.member?(open_rows, index)
 
