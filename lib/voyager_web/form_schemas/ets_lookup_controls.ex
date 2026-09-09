@@ -13,7 +13,7 @@ defmodule VoyagerWeb.FormSchemas.EtsLookupControls do
   @default_budget Voyager.Agent.default_budget()
   @min_timeout 1_000
   @max_timeout 30_000
-  @default_timeout 5_000
+  @default_timeout Voyager.Agent.default_timeout()
 
   @primary_key false
   embedded_schema do
