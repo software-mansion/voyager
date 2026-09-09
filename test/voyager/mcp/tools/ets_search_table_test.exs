@@ -126,8 +126,7 @@ defmodule Voyager.MCP.Tools.EtsSearchTableTest do
     }
 
     expect(Voyager.ErpcMock, :call, fn
-      _node, :voyager_agent, :ets_select_spec, [_table, _spec, _limit, _budget, cont],
-      _timeout ->
+      _node, :voyager_agent, :ets_select_spec, [_table, _spec, _limit, _budget, cont], _timeout ->
         assert cont == expected_cont
         {:ok, chunk}
     end)

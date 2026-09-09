@@ -24,6 +24,7 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunk do
 
   alias Anubis.Server.Response
   alias Voyager.Agent
+  alias Voyager.MCP.Tools.EtsHelpers
   alias Voyager.MCP.Tools.Remote
   alias Voyager.Services.Ets.Fetch
   alias Voyager.Services.Ets.Search
@@ -52,7 +53,7 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunk do
     field :keypos, :integer,
       default: 1,
       min: 1,
-      description: "Key position of the table (from `ets_list` output)."
+      description: "Key position of the table from `ets_list`."
 
     field :limit, :integer,
       default: 25,
@@ -70,7 +71,7 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunk do
 
   @impl true
   def execute(params, frame) do
-    case decode_cursor(Map.get(params, :cursor)) do
+    case EtsHelpers.decode_cursor(Map.get(params, :cursor)) do
       {:ok, continuation} ->
         case build_query(params) do
           {:ok, query} ->
@@ -81,14 +82,15 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunk do
         end
 
       {:error, :invalid_cursor} ->
-        {:reply, Response.error(Response.tool(), "Invalid cursor"), frame}
+        {:reply, Response.error(Response.tool(), "Invalid cursor format provided"), frame}
     end
   end
 
   defp fetch(node, params, nil, continuation) do
-    case parse_table(params.table) do
+    case EtsHelpers.parse_table(params.table) do
       {:ok, table} ->
         Fetch.select_chunk(node, table, params.limit, params.budget, continuation)
+        |> EtsHelpers.format_chunk()
 
       {:error, reason} ->
         {:error, reason}
@@ -96,28 +98,15 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunk do
   end
 
   defp fetch(node, params, query, continuation) do
-    case parse_table(params.table) do
+    case EtsHelpers.parse_table(params.table) do
       {:ok, table} ->
         Search.chunk(node, table, query, params.keypos, params.limit, params.budget, continuation)
+        |> EtsHelpers.format_chunk()
 
       {:error, reason} ->
         {:error, reason}
     end
   end
-
-  defp parse_table("#Ref<" <> _ = ref_str) do
-    {:ok, :erlang.list_to_ref(String.to_charlist(ref_str))}
-  rescue
-    ArgumentError -> {:error, :invalid_table_ref}
-  end
-
-  defp parse_table(name) do
-    {:ok, String.to_existing_atom(name)}
-  rescue
-    ArgumentError -> {:error, :invalid_table_name}
-  end
-
-  defp build_query(%{mode: nil}), do: {:ok, nil}
 
   defp build_query(%{mode: "key_eq"} = params) do
     with {:ok, scalar} <- parse_scalar(params) do
@@ -125,31 +114,26 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunk do
     end
   end
 
-  defp build_query(%{mode: "key_prefix"} = params) do
-    case Map.get(params, :value) do
-      nil -> {:error, "`value` is required for key_prefix"}
-      val -> {:ok, {:key_prefix, val}}
+  defp build_query(%{mode: "key_prefix", value: ""}), do: {:ok, nil}
+
+  defp build_query(%{mode: "key_prefix", value: val}) when is_binary(val) do
+    {:ok, {:key_prefix, val}}
+  end
+
+  defp build_query(%{mode: "key_prefix"}), do: {:error, "`value` is required for key_prefix"}
+
+  defp build_query(%{mode: "element_eq", index: index} = params) when is_integer(index) do
+    with {:ok, scalar} <- parse_scalar(params) do
+      {:ok, {:element_eq, index, scalar}}
     end
   end
 
-  defp build_query(%{mode: "element_eq"} = params) do
-    case Map.get(params, :index) do
-      nil ->
-        {:error, "`index` is required for element_eq"}
+  defp build_query(%{mode: "element_eq"}), do: {:error, "`index` is required for element_eq"}
 
-      index ->
-        with {:ok, scalar} <- parse_scalar(params) do
-          {:ok, {:element_eq, index, scalar}}
-        end
-    end
-  end
+  defp build_query(_params), do: {:ok, nil}
 
-  defp parse_scalar(params) do
-    case Map.get(params, :value) do
-      nil -> {:error, "`value` is required when `mode` is set"}
-      val -> {:ok, cast_scalar(val)}
-    end
-  end
+  defp parse_scalar(%{value: val}) when is_binary(val) and val != "", do: {:ok, cast_scalar(val)}
+  defp parse_scalar(_params), do: {:error, "`value` is required when `mode` is set"}
 
   defp cast_scalar(":" <> rest), do: String.to_existing_atom(rest)
 
@@ -158,15 +142,5 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunk do
       {int, ""} -> int
       _other -> val
     end
-  end
-
-  defp decode_cursor(nil), do: {:ok, nil}
-
-  defp decode_cursor(string) do
-    with {:ok, bin} <- Base.url_decode64(string) do
-      {:ok, :erlang.binary_to_term(bin, [:safe])}
-    end
-  rescue
-    ArgumentError -> {:error, :invalid_cursor}
   end
 end
