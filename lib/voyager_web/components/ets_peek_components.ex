@@ -6,6 +6,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   use VoyagerWeb, :component
 
+  alias VoyagerWeb.Components.DetailsPanelComponents
   alias VoyagerWeb.Components.EtsTableComponents
   alias VoyagerWeb.Components.TermComponents
   alias VoyagerWeb.Formatters
@@ -264,8 +265,10 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
     ~H"""
     <aside
       id="ets-lookup-sidebar"
-      class="border-base-300 bg-base-100 flex w-full shrink-0 flex-col gap-4 overflow-y-auto border-l p-4 lg:w-96"
+      phx-hook="DetailsPanelResize"
+      class="details-panel border-base-300 bg-base-100 relative flex w-full shrink-0 flex-col gap-4 overflow-y-auto border-l p-4"
     >
+      <DetailsPanelComponents.resize_handle panel_id="ets-lookup-sidebar" open?={true} />
       <div class="flex items-center justify-between gap-2">
         <h2 class="text-base-content text-sm font-semibold">Record lookup</h2>
         <button
