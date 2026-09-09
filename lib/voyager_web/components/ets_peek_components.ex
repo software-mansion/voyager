@@ -413,6 +413,10 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   defp truncated_record?(@truncated), do: true
 
+  # The agent caps every binary at 4096 bytes without leaving a marker, so a
+  # binary that long may be a cut prefix — a lookup on one would miss.
+  defp truncated_record?(binary) when is_binary(binary), do: byte_size(binary) >= 4096
+
   defp truncated_record?(tuple) when is_tuple(tuple) do
     tuple |> Tuple.to_list() |> Enum.any?(&truncated_record?/1)
   end
