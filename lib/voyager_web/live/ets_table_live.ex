@@ -93,7 +93,7 @@ defmodule VoyagerWeb.EtsTableLive do
             role="note"
             class="alert alert-warning text-xs"
           >
-            <.icon name="icon-circle-alert" class="size-4 shrink-0" />
+            <.icon name="icon-circle-alert" class="text-warning size-4 shrink-0" />
             <span>This table is private, so its records cannot be read.</span>
           </div>
 

@@ -6,6 +6,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   use VoyagerWeb, :component
 
+  alias VoyagerWeb.Components.EtsTableComponents
   alias VoyagerWeb.Components.TermComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.EtsLookupControls
@@ -48,7 +49,12 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
         <span class="badge badge-sm badge-ghost font-mono">{@info.type}</span>
       </.info_item>
       <.info_item label="Protection">
-        <span class={["badge badge-sm font-mono", protection_class(@info.protection)]}>
+        <EtsTableComponents.private_badge
+          :if={@info.protection == :private}
+          id="ets-info-protection"
+          size={:sm}
+        />
+        <span :if={@info.protection != :private} class="font-mono text-base-content/70">
           {@info.protection}
         </span>
       </.info_item>
@@ -449,7 +455,4 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   end
 
   defp strip_markers(other), do: other
-
-  defp protection_class(:private), do: "badge-warning"
-  defp protection_class(_other), do: "badge-ghost"
 end
