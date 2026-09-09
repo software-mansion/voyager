@@ -66,7 +66,14 @@ defmodule Voyager.MCP.Tools.EtsList do
     needle = String.downcase(search)
 
     Enum.filter(tables, fn table ->
-      String.contains?(String.downcase(Ets.TableId.display(table.id)), needle) or
+      id_str =
+        if is_reference(table.id) do
+          table.id |> :erlang.ref_to_list() |> to_string()
+        else
+          Atom.to_string(table.id)
+        end
+
+      String.contains?(String.downcase(id_str), needle) or
         String.contains?(String.downcase(Atom.to_string(table.name)), needle)
     end)
   end
