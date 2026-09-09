@@ -195,7 +195,12 @@ defmodule VoyagerWeb.Components.DataTableComponents do
       <span
         tabindex="0"
         aria-describedby={"#{@tip_id}-tip"}
-        class={["font-mono block truncate text-sm", @muted && "text-base-content/70", @class]}
+        class={[
+          "font-mono block truncate text-sm",
+          @empty? && "text-base-content/40",
+          @muted && !@empty? && "text-base-content/70",
+          @class
+        ]}
       >
         {@value}
       </span>

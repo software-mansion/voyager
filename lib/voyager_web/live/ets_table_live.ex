@@ -67,7 +67,12 @@ defmodule VoyagerWeb.EtsTableLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="relative flex h-full">
+    <div
+      id="ets-table-page"
+      phx-hook="TableSettings"
+      data-settings-key="ets-table"
+      class="relative flex h-full"
+    >
       <div class="min-w-2xl mx-auto flex h-full max-w-screen-2xl flex-1 flex-col gap-4 overflow-hidden p-6 sm:p-8">
         <EtsPeekComponents.header
           table_name={@table_param}
@@ -171,8 +176,38 @@ defmodule VoyagerWeb.EtsTableLive do
     socket
     |> assign(:controls, controls)
     |> assign(:form, to_form(changeset, as: :peek))
+    |> store_settings()
     |> noreply()
   end
+
+  # The client's stored controls, empty when it has none. Only validated
+  # values ever get stored, but the storage is still hand-editable.
+  def handle_event("restore_settings", params, socket) when is_map(params) do
+    {controls, changeset} =
+      EtsPeekControls.apply(
+        socket.assigns.controls,
+        stored(params, ~w(chunk_size budget timeout))
+      )
+
+    {lookup_controls, lookup_changeset} =
+      EtsLookupControls.apply(
+        socket.assigns.lookup_controls,
+        stored(
+          %{"budget" => params["lookup_budget"], "timeout" => params["lookup_timeout"]},
+          ~w(budget timeout)
+        )
+      )
+
+    socket
+    |> assign(:controls, controls)
+    |> assign(:form, to_form(changeset, as: :peek))
+    |> assign(:page_size, controls.chunk_size)
+    |> assign(:lookup_controls, lookup_controls)
+    |> assign(:lookup_form, to_form(lookup_changeset, as: :lookup))
+    |> noreply()
+  end
+
+  def handle_event("restore_settings", _params, socket), do: noreply(socket)
 
   # A new snapshot starts a fresh select: the old continuations belong to a
   # walk that is no longer on screen.
@@ -208,6 +243,7 @@ defmodule VoyagerWeb.EtsTableLive do
     |> assign(:form, to_form(changeset, as: :peek))
     |> assign(:conts, [nil])
     |> assign(:page_size, controls.chunk_size)
+    |> store_settings()
     |> fetch_page(0)
     |> noreply()
   end
@@ -256,6 +292,7 @@ defmodule VoyagerWeb.EtsTableLive do
     socket
     |> assign(:lookup_controls, controls)
     |> assign(:lookup_form, to_form(changeset, as: :lookup))
+    |> store_settings()
     |> noreply()
   end
 
@@ -411,6 +448,24 @@ defmodule VoyagerWeb.EtsTableLive do
         record
       )
     end)
+  end
+
+  defp stored(params, keys) do
+    params |> Map.take(keys) |> Map.reject(fn {_key, value} -> is_nil(value) end)
+  end
+
+  defp store_settings(socket) do
+    %{controls: controls, lookup_controls: lookup_controls} = socket.assigns
+
+    push_event(socket, "store-settings", %{
+      settings: %{
+        "chunk_size" => to_string(controls.chunk_size),
+        "budget" => to_string(controls.budget),
+        "timeout" => to_string(controls.timeout),
+        "lookup_budget" => to_string(lookup_controls.budget),
+        "lookup_timeout" => to_string(lookup_controls.timeout)
+      }
+    })
   end
 
   defp records_id, do: @records_id
