@@ -426,12 +426,14 @@ defmodule VoyagerWeb.EtsTableLive do
 
   # The metadata size is only an estimate once paging starts: with no
   # continuation left the walked count is exact, otherwise the total must at
-  # least keep the next page reachable.
+  # least keep the next page reachable. A table that shrank mid-walk can end
+  # on an empty page, so the current page stays addressable or Previous
+  # disappears with it.
   defp pager_total(%{conts: conts, page: page, page_size: page_size} = assigns) do
-    if length(conts) > page + 1 do
-      max(info_size(assigns.info), (page + 1) * page_size + 1)
-    else
-      page * page_size + length(assigns.records)
+    cond do
+      length(conts) > page + 1 -> max(info_size(assigns.info), (page + 1) * page_size + 1)
+      page > 0 -> max(page * page_size + length(assigns.records), page * page_size + 1)
+      true -> length(assigns.records)
     end
   end
 
