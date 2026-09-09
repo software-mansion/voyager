@@ -150,7 +150,7 @@ defmodule VoyagerWeb.EtsTableLive do
               id="ets-pager"
               page={@page + 1}
               page_size={@page_size}
-              total={pager_total(assigns)}
+              total={pager_total(@info, @conts, @page, @page_size, @records)}
               page_size_options={EtsPeekControls.chunk_size_options()}
             />
           </div>
@@ -488,11 +488,11 @@ defmodule VoyagerWeb.EtsTableLive do
   # least keep the next page reachable. A table that shrank mid-walk can end
   # on an empty page, so the current page stays addressable or Previous
   # disappears with it.
-  defp pager_total(%{conts: conts, page: page, page_size: page_size} = assigns) do
+  defp pager_total(info, conts, page, page_size, records) do
     cond do
-      length(conts) > page + 1 -> max(info_size(assigns.info), (page + 1) * page_size + 1)
-      page > 0 -> max(page * page_size + length(assigns.records), page * page_size + 1)
-      true -> length(assigns.records)
+      length(conts) > page + 1 -> max(info_size(info), (page + 1) * page_size + 1)
+      page > 0 -> max(page * page_size + length(records), page * page_size + 1)
+      true -> length(records)
     end
   end
 
