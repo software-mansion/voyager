@@ -173,7 +173,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
               text={@copy_texts["process-state"]}
               state={@term_states["process-state"]}
               label="Copy state"
-              class="scrollbar-thin overflow-x-auto"
+              class="scrollbar-thin text-sm! overflow-x-auto"
             />
           </.term_section>
         </.tab_panel>
@@ -206,7 +206,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
                   text={@copy_texts["message-#{index}"]}
                   state={@term_states["message-#{index}"]}
                   label="Copy message"
-                  class="scrollbar-thin overflow-x-auto"
+                  class="scrollbar-thin text-sm! overflow-x-auto"
                 />
               </li>
             </ol>
@@ -245,7 +245,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
                   text={@copy_texts["dict-key-#{index}"]}
                   state={@term_states["dict-key-#{index}"]}
                   label="Copy key"
-                  class="scrollbar-thin max-w-64 w-64 shrink-0 overflow-x-auto"
+                  class="scrollbar-thin max-w-64 text-sm! w-64 shrink-0 overflow-x-auto"
                 />
                 <.copyable_term
                   id={"dict-entry-#{index}"}
@@ -253,7 +253,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
                   text={@copy_texts["dict-entry-#{index}"]}
                   state={@term_states["dict-entry-#{index}"]}
                   label="Copy value"
-                  class="scrollbar-thin min-w-0 flex-1 overflow-x-auto"
+                  class="scrollbar-thin text-sm! min-w-0 flex-1 overflow-x-auto"
                 />
               </li>
             </ol>

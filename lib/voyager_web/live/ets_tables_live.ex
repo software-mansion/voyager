@@ -113,7 +113,7 @@ defmodule VoyagerWeb.EtsTablesLive do
                   row={row}
                   row_id={row_id}
                   table_href={table_path(@current_url, row)}
-                  owner_href={process_path(@session.node_name, row.owner)}
+                  owner_href={process_path(@session.node_name, row.owner, @current_url)}
                 />
               </:cell>
             </DataTableComponents.table>
@@ -135,7 +135,12 @@ defmodule VoyagerWeb.EtsTablesLive do
         table_param={@table_param}
         table={@selected_table}
         fetch_status={fetch_status(@page_result)}
-        owner_href={@selected_table && process_path(@session.node_name, @selected_table.owner)}
+        owner_href={
+          @selected_table && process_path(@session.node_name, @selected_table.owner, @current_url)
+        }
+        contents_href={
+          @selected_table && contents_path(@session.node_name, @selected_table, @current_url)
+        }
       />
     </div>
     """
@@ -362,8 +367,15 @@ defmodule VoyagerWeb.EtsTablesLive do
     URL.put_query_param(url, "table", TableId.display(table.id))
   end
 
-  defp process_path(node_name, pid) do
-    ~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}"
+  # A named table travels as its name so the URL survives the table being
+  # recreated; only an unnamed one falls back to the reference.
+  defp contents_path(node_name, table, current_url) do
+    key = if table.named_table, do: inspect(table.name), else: TableId.display(table.id)
+    keep_sidebar(~p"/node/#{node_name}/ets-tables/#{key}", current_url)
+  end
+
+  defp process_path(node_name, pid, current_url) do
+    keep_sidebar(~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}", current_url)
   end
 
   defp table_param(%{"table" => param}) when is_binary(param) and param != "", do: param

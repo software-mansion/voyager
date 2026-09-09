@@ -112,8 +112,9 @@ defmodule VoyagerWeb.TermTree do
   @spec initial_state(term(), keyword()) :: State.t()
   def initial_state(term, opts \\ []) do
     depth = Keyword.get(opts, :depth, @auto_open_depth)
+    open_all? = Keyword.get(opts, :open_all, false)
 
-    %State{open: MapSet.new([[] | auto_open(term, [], depth)])}
+    %State{open: MapSet.new([[] | auto_open(term, [], depth, open_all?)])}
   end
 
   @spec open?(State.t(), State.path()) :: boolean()
@@ -384,17 +385,17 @@ defmodule VoyagerWeb.TermTree do
   defp short_list?([_head | tail], max) when max > 0, do: short_list?(tail, max - 1)
   defp short_list?(_list, _max), do: false
 
-  defp auto_open(_term, _path, 0), do: []
+  defp auto_open(_term, _path, 0, _open_all?), do: []
 
-  defp auto_open(term, path, depth) do
+  defp auto_open(term, path, depth, open_all?) do
     term
     |> children(0, @window)
     |> Enum.with_index()
     |> Enum.flat_map(fn {{_key, child}, index} ->
       child_path = path ++ [index]
 
-      if auto_open?(child) do
-        [child_path | auto_open(child, child_path, depth - 1)]
+      if (open_all? and children(child, 0, 1) != []) or auto_open?(child) do
+        [child_path | auto_open(child, child_path, depth - 1, open_all?)]
       else
         []
       end
