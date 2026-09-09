@@ -15,7 +15,7 @@ defmodule VoyagerWeb.FormSchemas.EtsPeekControls do
   @default_chunk_size 50
   @min_budget 100
   @max_budget 50_000
-  @default_budget Voyager.Agent.default_budget()
+  @default_budget 1_000
   @min_timeout 1_000
   @max_timeout 30_000
   @default_timeout 5_000

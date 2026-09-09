@@ -19,9 +19,6 @@
 %% Substituted wherever a subterm was dropped, so the surrounding shape of a
 %% truncated term stays intact and the reader can tell data from elision.
 -define(TRUNCATED, '$voyager_truncated').
-%% A single binary carries no nesting for the term budget to walk into, so it
-%% is additionally capped here regardless of how much budget remains.
--define(MAX_BINARY_BYTES, 4096).
 
 -type state() :: #state{nodes :: #{node() => true}}.
 
@@ -444,13 +441,13 @@ walk_tuple(Tuple, Index, Size, Budget, Truncated, Acc) ->
 %% for free. Only the visible part of a sub-binary is copied over distribution,
 %% so cutting here really does bound the payload.
 walk_bitstring(Bin, Budget, Truncated) when is_binary(Bin) ->
-    Cost = max(min(min(?MAX_BINARY_BYTES, byte_size(Bin)), Budget), 1),
+    Cost = max(min(byte_size(Bin), Budget), 1),
     {binary:part(Bin, 0, min(Cost, byte_size(Bin))),
      Budget - Cost,
      Truncated orelse Cost < byte_size(Bin)};
-%% A non-byte-aligned bitstring cannot be cut with `binary:part/3', so an
-%% oversized one is dropped whole.
-walk_bitstring(Bits, Budget, _Truncated) when bit_size(Bits) > ?MAX_BINARY_BYTES * 8 ->
+%% A non-byte-aligned bitstring cannot be cut with `binary:part/3', so one
+%% over budget is dropped whole.
+walk_bitstring(Bits, Budget, _Truncated) when bit_size(Bits) > Budget * 8 ->
     {?TRUNCATED, Budget - 1, true};
 walk_bitstring(Bits, Budget, Truncated) ->
     {Bits, Budget - 1, Truncated}.
