@@ -268,7 +268,8 @@ defmodule VoyagerWeb.EtsTableLive do
   end
 
   def handle_event("open_sidebar", %{"index" => index}, socket) do
-    with {index, ""} when index >= 0 <- Integer.parse(index),
+    with true <- lookupable?(socket.assigns.info),
+         {index, ""} when index >= 0 <- Integer.parse(index),
          record when record != nil <- Enum.at(socket.assigns.records, index),
          {:ok, key} <- EtsPeekComponents.lookup_key(record, keypos(socket)) do
       socket
@@ -298,9 +299,10 @@ defmodule VoyagerWeb.EtsTableLive do
   end
 
   def handle_event("refetch_lookup", _params, socket) do
-    case socket.assigns.sidebar do
-      nil -> noreply(socket)
-      _sidebar -> socket |> start_lookup() |> noreply()
+    if socket.assigns.sidebar && lookupable?(socket.assigns.info) do
+      socket |> start_lookup() |> noreply()
+    else
+      noreply(socket)
     end
   end
 
@@ -492,7 +494,9 @@ defmodule VoyagerWeb.EtsTableLive do
     end
   end
 
+  defp lookupable?(%AsyncResult{ok?: true, result: info}), do: lookupable?(info)
   defp lookupable?(%{type: type}), do: type in [:set, :ordered_set]
+  defp lookupable?(_info), do: false
 
   # The metadata size is only an estimate once paging starts: with no
   # continuation left the walked count is exact, otherwise the total must at

@@ -141,34 +141,13 @@ defmodule VoyagerAgentEtsTest do
     test "pages a duplicate_bag key after an ETF-round-tripped continuation" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :duplicate_bag])
+      assert_paged_key_lookup(name)
+    end
 
-      for i <- 1..25, do: :ets.insert(name, {:k, i})
-
-      assert {:ok, %{records: page, continuation: cont, truncated: false}} =
-               @agent_module.ets_lookup(name, :k, 10, @budget, :undefined)
-
-      assert length(page) == 10
-      assert Enum.all?(page, fn {:k, i} -> i in 1..25 end)
-      assert cont not in [:undefined, :"$end_of_table"]
-
-      broken = :erlang.binary_to_term(:erlang.term_to_binary(cont))
-      :erlang.garbage_collect()
-
-      assert {:ok, %{records: page2, continuation: cont2, truncated: false}} =
-               @agent_module.ets_lookup(name, :k, 10, @budget, broken)
-
-      assert length(page2) == 10
-      assert Enum.all?(page2, fn {:k, i} -> i in 1..25 end)
-      assert cont2 not in [:undefined, :"$end_of_table"]
-
-      assert {:ok, %{records: page3, continuation: :undefined, truncated: false}} =
-               @agent_module.ets_lookup(name, :k, 10, @budget, cont2)
-
-      assert length(page3) == 5
-      assert Enum.all?(page3, fn {:k, i} -> i in 1..25 end)
-
-      values = Enum.map(page ++ page2 ++ page3, fn {:k, i} -> i end)
-      assert Enum.sort(values) == Enum.to_list(1..25)
+    test "pages a bag key after an ETF-round-tripped continuation" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :bag])
+      assert_paged_key_lookup(name)
     end
 
     test "returns at most one row for a set key" do
@@ -305,5 +284,35 @@ defmodule VoyagerAgentEtsTest do
         @agent_module.ets_select_spec(name, spec, 10, -1, :undefined)
       end
     end
+  end
+
+  defp assert_paged_key_lookup(name) do
+    for i <- 1..25, do: :ets.insert(name, {:k, i})
+
+    assert {:ok, %{records: page, continuation: cont, truncated: false}} =
+             @agent_module.ets_lookup(name, :k, 10, @budget, :undefined)
+
+    assert length(page) == 10
+    assert Enum.all?(page, fn {:k, i} -> i in 1..25 end)
+    assert cont not in [:undefined, :"$end_of_table"]
+
+    broken = :erlang.binary_to_term(:erlang.term_to_binary(cont))
+    :erlang.garbage_collect()
+
+    assert {:ok, %{records: page2, continuation: cont2, truncated: false}} =
+             @agent_module.ets_lookup(name, :k, 10, @budget, broken)
+
+    assert length(page2) == 10
+    assert Enum.all?(page2, fn {:k, i} -> i in 1..25 end)
+    assert cont2 not in [:undefined, :"$end_of_table"]
+
+    assert {:ok, %{records: page3, continuation: :undefined, truncated: false}} =
+             @agent_module.ets_lookup(name, :k, 10, @budget, cont2)
+
+    assert length(page3) == 5
+    assert Enum.all?(page3, fn {:k, i} -> i in 1..25 end)
+
+    values = Enum.map(page ++ page2 ++ page3, fn {:k, i} -> i end)
+    assert Enum.sort(values) == Enum.to_list(1..25)
   end
 end
