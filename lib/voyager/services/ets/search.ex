@@ -10,7 +10,6 @@ defmodule Voyager.Services.Ets.Search do
 
   alias Voyager.Agent
   alias Voyager.Services.Ets.Fetch
-  alias Voyager.Services.Ets.Remote
   alias Voyager.Services.Ets.TableId
 
   require TableId
@@ -52,6 +51,7 @@ defmodule Voyager.Services.Ets.Search do
           TableId.t(),
           query(),
           pos_integer(),
+          pos_integer(),
           non_neg_integer(),
           term() | nil,
           timeout()
@@ -61,26 +61,28 @@ defmodule Voyager.Services.Ets.Search do
         node,
         table,
         query,
+        keypos,
         limit,
         budget \\ @budget,
         continuation \\ nil,
         timeout \\ Agent.default_timeout()
       )
 
-  def chunk(node, table, query, limit, budget, continuation, timeout)
+  def chunk(node, table, query, keypos, limit, budget, continuation, timeout)
       when TableId.is_table_id(table) and is_integer(budget) and budget >= 0 do
     with :ok <- validate_query(query),
+         :ok <- validate_keypos(keypos),
          :ok <- validate_limit(limit) do
-      run_query(node, table, query, limit, budget, continuation, timeout)
+      run_query(node, table, query, keypos, limit, budget, continuation, timeout)
     end
   end
 
-  def chunk(_node, table, _query, _limit, _budget, _continuation, _timeout)
+  def chunk(_node, table, _query, _keypos, _limit, _budget, _continuation, _timeout)
       when TableId.is_table_id(table) do
     {:error, :invalid_budget}
   end
 
-  def chunk(_node, _table, _query, _limit, _budget, _continuation, _timeout),
+  def chunk(_node, _table, _query, _keypos, _limit, _budget, _continuation, _timeout),
     do: {:error, :invalid_table}
 
   defp validate_query({:key_eq, value}) do
@@ -100,25 +102,18 @@ defmodule Voyager.Services.Ets.Search do
   defp validate_limit(limit) when is_integer(limit) and limit > 0, do: :ok
   defp validate_limit(_limit), do: {:error, :invalid_limit}
 
-  defp run_query(node, table, {:key_eq, value}, _limit, budget, _continuation, timeout) do
+  defp validate_keypos(keypos) when is_integer(keypos) and keypos >= 1, do: :ok
+  defp validate_keypos(_keypos), do: {:error, :invalid_keypos}
+
+  defp run_query(node, table, {:key_eq, value}, _keypos, _limit, budget, _continuation, timeout) do
     Fetch.lookup(node, table, value, budget, timeout)
   end
 
-  defp run_query(node, table, query, limit, budget, continuation, timeout) do
-    with {:ok, keypos} <- keypos_for(node, table, query, timeout),
-         {:ok, spec} <- compile(query, keypos) do
+  defp run_query(node, table, query, keypos, limit, budget, continuation, timeout) do
+    with {:ok, spec} <- compile(query, keypos) do
       Fetch.select_spec(node, table, spec, limit, budget, continuation, timeout)
     end
   end
-
-  defp keypos_for(node, table, {:key_prefix, _}, timeout) do
-    case Remote.keypos(node, table, timeout) do
-      {:error, :not_found} -> {:error, :cannot_read}
-      other -> other
-    end
-  end
-
-  defp keypos_for(_node, _table, {:element_eq, _, _}, _timeout), do: {:ok, 1}
 
   defp eq_query(pos, value) do
     if valid_scalar?(value) do

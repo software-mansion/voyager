@@ -75,34 +75,42 @@ defmodule Voyager.Services.Ets.SearchTest do
     end
   end
 
-  describe "chunk/7" do
+  describe "chunk/8" do
     test "rejects an invalid query without a remote call" do
       assert {:error, :invalid_query} =
-               Search.chunk(@node, :t, "[{:'$1', [], [:'$1']}]", 10, @budget, nil, @timeout)
+               Search.chunk(@node, :t, "[{:'$1', [], [:'$1']}]", 1, 10, @budget, nil, @timeout)
 
       assert {:error, :invalid_query} =
-               Search.chunk(@node, :t, {:key_eq, {1, 2}}, 10, @budget, nil, @timeout)
+               Search.chunk(@node, :t, {:key_eq, {1, 2}}, 1, 10, @budget, nil, @timeout)
 
       assert {:error, :invalid_query} =
-               Search.chunk(@node, :t, {:key_prefix, <<>>}, 10, @budget, nil, @timeout)
+               Search.chunk(@node, :t, {:key_prefix, <<>>}, 1, 10, @budget, nil, @timeout)
     end
 
     test "rejects a handle that is not an atom or reference without a remote call" do
       assert {:error, :invalid_table} =
-               Search.chunk(@node, self(), {:key_eq, :k}, 10, @budget, nil, @timeout)
+               Search.chunk(@node, self(), {:key_eq, :k}, 1, 10, @budget, nil, @timeout)
     end
 
     test "rejects a negative budget without a remote call" do
       assert {:error, :invalid_budget} =
-               Search.chunk(@node, :t, {:key_eq, :k}, 10, -1, nil, @timeout)
+               Search.chunk(@node, :t, {:key_eq, :k}, 1, 10, -1, nil, @timeout)
     end
 
     test "rejects a non-positive or non-integer limit without a remote call" do
       assert {:error, :invalid_limit} =
-               Search.chunk(@node, :t, {:key_eq, :k}, 0, @budget, nil, @timeout)
+               Search.chunk(@node, :t, {:key_eq, :k}, 1, 0, @budget, nil, @timeout)
 
       assert {:error, :invalid_limit} =
-               Search.chunk(@node, :t, {:element_eq, 2, :v}, :ten, @budget, nil, @timeout)
+               Search.chunk(@node, :t, {:element_eq, 2, :v}, 1, :ten, @budget, nil, @timeout)
+    end
+
+    test "rejects a non-positive or non-integer keypos without a remote call" do
+      assert {:error, :invalid_keypos} =
+               Search.chunk(@node, :t, {:key_prefix, <<"ab">>}, 0, 10, @budget, nil, @timeout)
+
+      assert {:error, :invalid_keypos} =
+               Search.chunk(@node, :t, {:key_eq, :k}, :one, 10, @budget, nil, @timeout)
     end
 
     test "key_eq looks up through the agent without fetching table info" do
@@ -115,7 +123,7 @@ defmodule Voyager.Services.Ets.SearchTest do
       end)
 
       assert {:ok, chunk} =
-               Search.chunk(@node, :t, {:key_eq, :the_key}, 10, @budget, nil, @timeout)
+               Search.chunk(@node, :t, {:key_eq, :the_key}, 1, 10, @budget, nil, @timeout)
 
       assert chunk.records == [{1, :the_key}]
       refute Map.has_key?(chunk, :via)
@@ -123,9 +131,7 @@ defmodule Voyager.Services.Ets.SearchTest do
       refute chunk.truncated?
     end
 
-    test "key_prefix compiles using table keypos" do
-      stub_info(2)
-
+    test "key_prefix compiles using the given keypos" do
       spec =
         [
           {:"$1",
@@ -145,7 +151,7 @@ defmodule Voyager.Services.Ets.SearchTest do
       end)
 
       assert {:ok, chunk} =
-               Search.chunk(@node, :t, {:key_prefix, <<"alp">>}, 10, @budget, nil, @timeout)
+               Search.chunk(@node, :t, {:key_prefix, <<"alp">>}, 2, 10, @budget, nil, @timeout)
 
       assert chunk.records == [{1, <<"alpha">>}]
       refute Map.has_key?(chunk, :via)
@@ -164,7 +170,7 @@ defmodule Voyager.Services.Ets.SearchTest do
       end)
 
       assert {:ok, chunk} =
-               Search.chunk(@node, :t, {:element_eq, 2, :v}, 10, @budget, nil, @timeout)
+               Search.chunk(@node, :t, {:element_eq, 2, :v}, 1, 10, @budget, nil, @timeout)
 
       assert chunk.records == [{:a, :v}]
     end
@@ -182,20 +188,11 @@ defmodule Voyager.Services.Ets.SearchTest do
       end)
 
       assert {:ok, chunk} =
-               Search.chunk(@node, :t, {:element_eq, 1, :k}, 10, @budget, cont, @timeout)
+               Search.chunk(@node, :t, {:element_eq, 1, :k}, 1, 10, @budget, cont, @timeout)
 
       assert chunk.records == []
       assert chunk.continuation == nil
       refute chunk.truncated?
-    end
-
-    test "maps a missing table on key prefix to :cannot_read" do
-      expect(Voyager.ErpcMock, :call, fn @node, :ets, :info, [:t, :keypos], @timeout ->
-        :undefined
-      end)
-
-      assert {:error, :cannot_read} =
-               Search.chunk(@node, :t, {:key_prefix, <<"ab">>}, 10, @budget, nil, @timeout)
     end
 
     test "does not retry a missing agent export as :ets.select" do
@@ -208,7 +205,7 @@ defmodule Voyager.Services.Ets.SearchTest do
       end)
 
       assert {:error, {:remote_exception, :undef}} =
-               Search.chunk(@node, :t, {:element_eq, 2, :v}, 10, @budget, nil, @timeout)
+               Search.chunk(@node, :t, {:element_eq, 2, :v}, 1, 10, @budget, nil, @timeout)
 
       assert_received {:called, :voyager_agent, :ets_select_spec,
                        [:t, ^spec, 10, @budget, :undefined]}
@@ -219,11 +216,5 @@ defmodule Voyager.Services.Ets.SearchTest do
 
   defp ok_chunk(records, continuation \\ :undefined, truncated \\ false) do
     {:ok, %{records: records, continuation: continuation, truncated: truncated}}
-  end
-
-  defp stub_info(keypos) do
-    expect(Voyager.ErpcMock, :call, fn @node, :ets, :info, [:t, :keypos], @timeout ->
-      keypos
-    end)
   end
 end
