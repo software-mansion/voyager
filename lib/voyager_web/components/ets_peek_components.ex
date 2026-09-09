@@ -19,26 +19,44 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   attr :table_name, :string, required: true
   attr :node_name, :string, required: true
+  attr :back_href, :string, required: true
 
   def header(assigns) do
     ~H"""
-    <div class="flex flex-wrap items-center gap-3">
-      <.link
-        id="back-to-ets-tables"
-        navigate={~p"/node/#{@node_name}/ets-tables"}
-        class="btn btn-ghost btn-sm gap-2"
-      >
-        <.icon name="icon-arrow-left" class="size-4" /> ETS Tables
-      </.link>
+    <.node_header node_name={@node_name} waiting_message={nil} class="mb-0">
+      <:actions>
+        <.tooltip id="ets-table-name-tip" position="bottom" interactive tip_class="font-mono">
+          <h2
+            id="ets-table-name"
+            class="text-base-content font-mono flex min-w-0 items-center gap-2 text-2xl font-bold tracking-tight"
+          >
+            <span class="bg-primary h-2 w-2 shrink-0 rounded-full" />
+            <span class="truncate">{@table_name}</span>
+          </h2>
+          <:content>
+            <div class="flex items-center gap-1">
+              <span id="ets-table-name-text" class="break-all">{@table_name}</span>
+              <.copy_button
+                id="ets-table-name-copy"
+                target="#ets-table-name-text"
+                icon_only
+                label="Copy table name"
+                class="btn-xs text-base-content/50 shrink-0 hover:text-base-content"
+              />
+            </div>
+          </:content>
+        </.tooltip>
+      </:actions>
+    </.node_header>
 
-      <h1 id="ets-table-name" class="font-mono text-base-content truncate text-lg font-semibold">
-        {@table_name}
-      </h1>
-    </div>
+    <.link id="back-to-ets-tables" navigate={@back_href} class="btn btn-ghost btn-sm w-max gap-2">
+      <.icon name="icon-arrow-left" class="size-4" /> ETS Tables
+    </.link>
     """
   end
 
   attr :info, :map, required: true
+  attr :owner_href, :string, required: true
 
   def info_panel(assigns) do
     ~H"""
@@ -62,7 +80,12 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       <.info_item id="ets-info-keypos" label="Key position">{@info.keypos}</.info_item>
       <.info_item label="Records">{Formatters.format_integer(@info.size)}</.info_item>
       <.info_item label="Memory">{Formatters.format_bytes(@info.memory)}</.info_item>
-      <.info_item label="Owner">{inspect(@info.owner)}</.info_item>
+      <.info_item id="ets-info-owner" label="Owner">
+        <DetailsPanelComponents.pid_chip
+          href={@owner_href}
+          label={Formatters.format_pid(@info.owner)}
+        />
+      </.info_item>
       <.info_item label="Heir">
         {if @info.heir == :none, do: "none", else: inspect(@info.heir)}
       </.info_item>
@@ -266,7 +289,8 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
     <aside
       id="ets-lookup-sidebar"
       phx-hook="DetailsPanelResize"
-      class="details-panel border-base-300 bg-base-100 relative flex w-full shrink-0 flex-col gap-4 overflow-y-auto border-l p-4"
+      data-resize-persist="false"
+      class="details-panel border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex w-full flex-col gap-4 overflow-y-auto border-l p-4 shadow-2xl"
     >
       <DetailsPanelComponents.resize_handle panel_id="ets-lookup-sidebar" open?={true} />
       <div class="flex items-center justify-between gap-2">

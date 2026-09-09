@@ -66,9 +66,13 @@ defmodule VoyagerWeb.EtsTableLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="flex h-full overflow-hidden">
-      <div class="mx-auto flex h-full max-w-screen-2xl flex-1 flex-col gap-4 overflow-hidden p-6 sm:p-8">
-        <EtsPeekComponents.header table_name={@table_param} node_name={@session.node_name} />
+    <div class="relative flex h-full">
+      <div class="min-w-2xl mx-auto flex h-full max-w-screen-2xl flex-1 flex-col gap-4 overflow-hidden p-6 sm:p-8">
+        <EtsPeekComponents.header
+          table_name={@table_param}
+          node_name={@session.node_name}
+          back_href={keep_sidebar(~p"/node/#{@session.node_name}/ets-tables", @current_url)}
+        />
 
         <.async_result :let={info} assign={@info}>
           <:loading>
@@ -78,7 +82,10 @@ defmodule VoyagerWeb.EtsTableLive do
             <.error_state id="ets-table-error" message={format_error(reason)} />
           </:failed>
 
-          <EtsPeekComponents.info_panel info={info} />
+          <EtsPeekComponents.info_panel
+            info={info}
+            owner_href={process_path(@session.node_name, info.owner, @current_url)}
+          />
 
           <EtsPeekComponents.controls
             form={@form}
@@ -401,6 +408,10 @@ defmodule VoyagerWeb.EtsTableLive do
   end
 
   defp records_id, do: @records_id
+
+  defp process_path(node_name, pid, current_url) do
+    keep_sidebar(~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}", current_url)
+  end
 
   defp keypos(socket) do
     case socket.assigns.info do
