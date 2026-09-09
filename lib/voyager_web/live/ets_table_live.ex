@@ -267,7 +267,7 @@ defmodule VoyagerWeb.EtsTableLive do
   end
 
   def handle_event("open_sidebar", %{"index" => index}, socket) do
-    with {index, ""} <- Integer.parse(index),
+    with {index, ""} when index >= 0 <- Integer.parse(index),
          record when record != nil <- Enum.at(socket.assigns.records, index),
          {:ok, key} <- EtsPeekComponents.lookup_key(record, keypos(socket)) do
       socket
