@@ -65,7 +65,5 @@ defmodule Voyager.Services.Ets.MatchSpec do
     description |> module.format_error() |> to_string()
   end
 
-  defp format(reason), do: inspect(reason)
-
   defp invalid(detail), do: {:error, {:invalid_match_spec, detail}}
 end
