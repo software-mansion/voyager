@@ -388,6 +388,7 @@ defmodule VoyagerWeb.EtsTableLive do
     %{budget: budget, timeout: timeout} = socket.assigns.lookup_controls
 
     socket
+    |> cancel_async(:lookup, {:shutdown, :cancel})
     |> assign(:lookup, AsyncResult.loading(socket.assigns.lookup))
     |> start_async(:lookup, fn ->
       Fetch.lookup(node, table, key, budget, timeout)
