@@ -7,7 +7,7 @@
 -export([proc_top/5]).
 -export([proc_links/2, proc_monitors/2, proc_monitored_by/2]).
 -export([proc_dictionary/3, proc_messages/3, proc_label/2, proc_state/3]).
--export([ets_select_chunk/4, ets_lookup/3]).
+-export([ets_select_chunk/4, ets_lookup/3, ets_select_spec/5]).
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
@@ -493,7 +493,7 @@ with_bounded_heap(Fun) ->
     end.
 
 %% =====================================================================
-%% ETS RECORDS - Match-all select / lookup with on-node truncation.
+%% ETS RECORDS - Match-all / match-spec select / lookup with on-node truncation.
 %% =====================================================================
 %%
 %% Exported functions, not handle_call, so a peek cannot block register
@@ -511,8 +511,21 @@ with_bounded_heap(Fun) ->
                           {ok, ets_chunk()}.
 ets_select_chunk(Table, Limit, Budget, Cont)
     when is_integer(Budget), Budget >= 0, is_integer(Limit), Limit >= 0 ->
-    with_bounded_heap(fun() -> do_select(Table, Limit, Budget, Cont) end);
+    with_bounded_heap(fun() -> do_select(Table, ?MATCH_ALL, Limit, Budget, Cont) end);
 ets_select_chunk(_Table, _Limit, _Budget, _Cont) ->
+    erlang:error(badarg).
+
+-spec ets_select_spec(ets:tab(), term(), pos_integer(), non_neg_integer(), term()) ->
+                         {ok, ets_chunk()}.
+ets_select_spec(Table, Spec, Limit, Budget, Cont)
+    when is_integer(Budget), Budget >= 0, is_integer(Limit), Limit >= 0 ->
+    case valid_spec(Spec) of
+        true ->
+            with_bounded_heap(fun() -> do_select(Table, Spec, Limit, Budget, Cont) end);
+        false ->
+            erlang:error(badarg)
+    end;
+ets_select_spec(_Table, _Spec, _Limit, _Budget, _Cont) ->
     erlang:error(badarg).
 
 -spec ets_lookup(ets:tab(), term(), non_neg_integer()) -> {ok, ets_chunk()}.
@@ -521,12 +534,17 @@ ets_lookup(Table, Key, Budget) when is_integer(Budget), Budget >= 0 ->
 ets_lookup(_Table, _Key, _Budget) ->
     erlang:error(badarg).
 
-do_select(Table, Limit, Budget, undefined) ->
-    wrap_select(ets:select(Table, ?MATCH_ALL, Limit), Budget);
-do_select(_Table, _Limit, Budget, Cont) ->
+do_select(Table, Spec, Limit, Budget, undefined) ->
+    wrap_select(ets:select(Table, Spec, Limit), Budget);
+do_select(_Table, Spec, _Limit, Budget, Cont) ->
     wrap_select(ets:select(
-                    ets:repair_continuation(Cont, ?MATCH_ALL)),
+                    ets:repair_continuation(Cont, Spec)),
                 Budget).
+
+valid_spec([{_Head, Guards, Body}]) when is_list(Guards), is_list(Body) ->
+    true;
+valid_spec(_) ->
+    false.
 
 wrap_select('$end_of_table', _Budget) ->
     wrap_records([], undefined, 0);

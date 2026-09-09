@@ -127,5 +127,5 @@ defmodule VoyagerWeb.Formatters do
 
   @doc ~S|Formats a pid in its external form, e.g. `"<0.123.0>"`.|
   @spec format_pid(pid()) :: String.t()
-  def format_pid(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
+  defdelegate format_pid(pid), to: Voyager.Pid, as: :display
 end
