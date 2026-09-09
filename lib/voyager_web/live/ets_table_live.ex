@@ -457,10 +457,9 @@ defmodule VoyagerWeb.EtsTableLive do
   defp format_error(:cannot_read), do: "This table cannot be read."
   defp format_error(:invalid_limit), do: "That page size is not allowed."
 
-  # The agent worker dies :killed when a record blows its heap cap.
-  defp format_error(:heap_limit_exceeded), do: heap_limit_message()
-  defp format_error({:remote_exception, :killed}), do: heap_limit_message()
-  defp format_error({:remote_exception, {:killed, _}}), do: heap_limit_message()
+  # The agent worker is killed by its heap cap; erpc reports that as an exit.
+  defp format_error({:remote_exit, {:signal, :killed}}),
+    do: "A record was too large to read. Try a smaller page size."
 
   defp format_error(:timeout), do: "Request timed out. Try a longer timeout or a smaller page."
   defp format_error(:rate_limited), do: "Too many requests. Wait a moment and try again."
@@ -470,6 +469,4 @@ defmodule VoyagerWeb.EtsTableLive do
     do: "The Voyager agent is not loaded on this node."
 
   defp format_error(_reason), do: "Failed to read the table."
-
-  defp heap_limit_message, do: "A record was too large to read. Try a smaller page size."
 end
