@@ -441,7 +441,6 @@ defmodule VoyagerWeb.EtsTableLive do
   defp format_error(:invalid_name), do: "That is not a usable table name."
   defp format_error(:cannot_read), do: "This table cannot be read."
   defp format_error(:invalid_limit), do: "That page size is not allowed."
-  defp format_error(:invalid_key), do: "This key cannot be looked up."
 
   # The agent worker dies :killed when a record blows its heap cap.
   defp format_error(:heap_limit_exceeded), do: heap_limit_message()

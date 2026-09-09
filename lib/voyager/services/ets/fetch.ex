@@ -20,8 +20,6 @@ defmodule Voyager.Services.Ets.Fetch do
 
   @budget Agent.default_budget()
 
-  @type lookup_key :: atom() | integer() | binary()
-
   @type chunk :: %{
           records: [term()],
           continuation: term() | nil,
@@ -59,17 +57,12 @@ defmodule Voyager.Services.Ets.Fetch do
   def select_chunk(_node, _table, _limit, _budget, _continuation, _timeout),
     do: {:error, :invalid_table}
 
-  @spec lookup(node(), TableId.t(), lookup_key(), non_neg_integer(), timeout()) ::
+  @spec lookup(node(), TableId.t(), term(), non_neg_integer(), timeout()) ::
           {:ok, chunk()} | {:error, term()}
   def lookup(node, table, key, budget \\ @budget, timeout \\ Agent.default_timeout())
 
-  def lookup(node, table, key, budget, timeout)
-      when TableId.is_table_id(table) and (is_atom(key) or is_integer(key) or is_binary(key)) do
+  def lookup(node, table, key, budget, timeout) when TableId.is_table_id(table) do
     fetch_chunk(node, :ets_lookup, [table, key, budget], timeout)
-  end
-
-  def lookup(_node, table, _key, _budget, _timeout) when TableId.is_table_id(table) do
-    {:error, :invalid_key}
   end
 
   def lookup(_node, _table, _key, _budget, _timeout), do: {:error, :invalid_table}

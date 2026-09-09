@@ -197,9 +197,18 @@ defmodule Voyager.Services.Ets.FetchTest do
       assert {:error, :cannot_read} = Fetch.lookup(@node, :t, <<"k">>, @budget, @timeout)
     end
 
-    test "rejects a key that is not an atom, integer, or binary without touching the remote" do
-      assert {:error, :invalid_key} = Fetch.lookup(@node, :t, {:tuple, 1}, @budget, @timeout)
-      assert {:error, :invalid_key} = Fetch.lookup(@node, :t, self(), @budget, @timeout)
+    test "passes a composite key through to the agent" do
+      key = {:tuple, 1}
+
+      expect(Voyager.ErpcMock, :call, fn @node,
+                                         :voyager_agent,
+                                         :ets_lookup,
+                                         [:t, ^key, @budget],
+                                         @timeout ->
+        ok_chunk([])
+      end)
+
+      assert {:ok, %{records: []}} = Fetch.lookup(@node, :t, key, @budget, @timeout)
     end
 
     test "rejects a handle that is not an atom or reference without touching the remote" do

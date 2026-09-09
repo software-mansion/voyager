@@ -223,17 +223,12 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
           </button>
 
           <button
-            :if={@lookupable?}
+            :if={@lookupable? and lookup_key(record, @keypos) != :error}
             id={"#{@id}-#{index}-lookup"}
             type="button"
             phx-click="open_sidebar"
             phx-value-index={index}
-            disabled={lookup_key(record, @keypos) == :error}
-            title={
-              if lookup_key(record, @keypos) == :error,
-                do: "This key type cannot be looked up",
-                else: "Look up this record"
-            }
+            title="Look up this record"
             class="btn btn-ghost btn-xs text-base-content/60 shrink-0 gap-1 hover:text-primary"
           >
             <.icon name="icon-panel-left" class="size-3.5 -scale-x-100" /> Lookup
@@ -406,16 +401,13 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   @doc """
   The lookup key at `keypos`, or `:error` when the record is not a plain tuple
-  or the key is not a type `Voyager.Services.Ets.Fetch.lookup/5` accepts —
-  a truncated key would look up a record that does not exist.
+  or the key was cut by the term budget — a truncated key would look up a
+  record that does not exist.
   """
   @spec lookup_key(term(), pos_integer()) :: {:ok, term()} | :error
   def lookup_key(record, keypos) when is_tuple(record) and tuple_size(record) >= keypos do
-    case elem(record, keypos - 1) do
-      @truncated -> :error
-      key when is_atom(key) or is_integer(key) or is_binary(key) -> {:ok, key}
-      _key -> :error
-    end
+    key = elem(record, keypos - 1)
+    if truncated_record?(key), do: :error, else: {:ok, key}
   end
 
   def lookup_key(_record, _keypos), do: :error
