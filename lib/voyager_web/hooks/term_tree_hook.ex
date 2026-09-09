@@ -27,10 +27,12 @@ defmodule VoyagerWeb.Hooks.TermTreeHook do
 
   @doc """
   Seeds the expansion state for the inspector rendered under `id`.
+
+  `opts` are passed to `VoyagerWeb.TermTree.initial_state/2` (e.g. `:depth`).
   """
-  @spec put_term(Socket.t(), String.t(), term()) :: Socket.t()
-  def put_term(socket, id, term) do
-    update(socket, :term_states, &Map.put(&1, id, TermTree.initial_state(term)))
+  @spec put_term(Socket.t(), String.t(), term(), keyword()) :: Socket.t()
+  def put_term(socket, id, term, opts \\ []) do
+    update(socket, :term_states, &Map.put(&1, id, TermTree.initial_state(term, opts)))
   end
 
   defp handle_event("term-toggle", %{"id" => id, "path" => path}, socket) do

@@ -241,7 +241,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
         <DataTableComponents.value_cell
           id={"#{@row_id}-msgq"}
           value={format_number(@row[:message_queue_len])}
-          class={queue_warning?(@row[:message_queue_len]) && "text-warning font-medium"}
+          class={not queue_backed_up?(@row[:message_queue_len]) && "text-base-content/40"}
         />
     <% end %>
     """
@@ -319,6 +319,6 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   defp format_number(_n), do: @placeholder
 
   # A backed-up mailbox is the signal most worth spotting at a glance.
-  defp queue_warning?(len) when is_integer(len), do: len > 0
-  defp queue_warning?(_len), do: false
+  defp queue_backed_up?(len) when is_integer(len), do: len > 0
+  defp queue_backed_up?(_len), do: false
 end
