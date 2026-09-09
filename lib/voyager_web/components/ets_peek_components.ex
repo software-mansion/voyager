@@ -130,23 +130,13 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
         disabled={@loading? or not @readable?}
         class={["contents", (@loading? or not @readable?) && "opacity-60"]}
       >
-        <div class="flex flex-wrap items-end gap-3">
-          <.control_field
-            field={@form[:budget]}
-            label="Budget per record"
-            help={@budget_help}
-            min={elem(EtsPeekControls.budget_bounds(), 0)}
-            max={elem(EtsPeekControls.budget_bounds(), 1)}
-            step="100"
-          />
+        <div class="grid-cols-[auto_auto_auto] grid-rows-[auto_auto_auto] grid w-max items-center gap-x-3">
+          <.field_label field={@form[:budget]} label="Budget per record" help={@budget_help} />
+          <.field_label field={@form[:timeout]} label="Timeout (ms)" />
+          <span />
 
-          <.control_field
-            field={@form[:timeout]}
-            label="Timeout (ms)"
-            min={elem(EtsPeekControls.timeout_bounds(), 0)}
-            max={elem(EtsPeekControls.timeout_bounds(), 1)}
-            step="100"
-          />
+          <.number_input field={@form[:budget]} bounds={EtsPeekControls.budget_bounds()} />
+          <.number_input field={@form[:timeout]} bounds={EtsPeekControls.timeout_bounds()} />
 
           <button
             id="ets-peek-fetch"
@@ -158,6 +148,10 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
             <span :if={@loading?} class="loading loading-spinner loading-xs" />
             {if @fetched?, do: "Reload snapshot", else: "Fetch records"}
           </button>
+
+          <.field_error field={@form[:budget]} />
+          <.field_error field={@form[:timeout]} />
+          <span />
         </div>
       </fieldset>
     </.form>
@@ -264,7 +258,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       id="ets-lookup-sidebar"
       phx-hook="DetailsPanelResize"
       data-resize-persist="false"
-      class="details-panel border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex w-full flex-col gap-4 overflow-hidden border-l p-4 shadow-2xl"
+      class="details-panel border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex w-full flex-col gap-4 border-l p-4 shadow-2xl"
     >
       <DetailsPanelComponents.resize_handle panel_id="ets-lookup-sidebar" open?={true} />
       <div class="border-base-200 flex items-start gap-3 border-b pb-3">
@@ -289,22 +283,13 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
         phx-change="validate_lookup"
         class="flex flex-col gap-1"
       >
-        <div class="flex flex-wrap items-end gap-3">
-          <.control_field
-            field={@form[:budget]}
-            label="Term budget"
-            help={@budget_help}
-            min={EtsLookupControls.min_budget()}
-            step="100"
-          />
+        <div class="grid-cols-[auto_auto_auto] grid-rows-[auto_auto_auto] grid w-max items-center gap-x-3">
+          <.field_label field={@form[:budget]} label="Term budget" help={@budget_help} />
+          <.field_label field={@form[:timeout]} label="Timeout (ms)" />
+          <span />
 
-          <.control_field
-            field={@form[:timeout]}
-            label="Timeout (ms)"
-            min={elem(EtsLookupControls.timeout_bounds(), 0)}
-            max={elem(EtsLookupControls.timeout_bounds(), 1)}
-            step="100"
-          />
+          <.number_input field={@form[:budget]} bounds={{EtsLookupControls.min_budget(), nil}} />
+          <.number_input field={@form[:timeout]} bounds={EtsLookupControls.timeout_bounds()} />
 
           <button
             id="ets-lookup-refetch"
@@ -315,6 +300,10 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
           >
             <span :if={@lookup.loading != nil} class="loading loading-spinner loading-xs" /> Refetch
           </button>
+
+          <.field_error field={@form[:budget]} />
+          <.field_error field={@form[:timeout]} />
+          <span />
         </div>
       </.form>
 
@@ -349,8 +338,6 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
             size={:sm}
             class="text-base-content/60 shrink-0 hover:text-primary"
           />
-          <%!-- The inspector only renders opened branches, so the copy source
-                carries the full term separately. --%>
           <span id={"ets-lookup-record-#{index}-copy-source"} hidden>{TermTree.copy_string(record)}</span>
         </div>
 
@@ -384,28 +371,48 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   attr :field, Phoenix.HTML.FormField, required: true
   attr :label, :string, required: true
   attr :help, :string, default: nil
-  attr :rest, :global, include: ~w(min max step)
 
-  defp control_field(assigns) do
+  defp field_label(assigns) do
     ~H"""
-    <div class="flex flex-col gap-1">
-      <span class="flex h-4 items-center gap-1">
-        <label for={@field.id} class="text-base-content/70 text-xs font-medium">{@label}</label>
-        <.help_tooltip :if={@help} id={"#{@field.id}-help"} text={@help} />
-      </span>
-      <%!-- An invalid field widens to fit its message on one line, rather than
-           wrapping it inside the input's own 6rem. --%>
-      <div class={if @field.errors == [], do: "w-24", else: "w-56"}>
-        <.input
-          field={@field}
-          type="number"
-          inputmode="numeric"
-          phx-debounce="500"
-          class="input-sm no-spinner font-mono"
-          {@rest}
-        />
-      </div>
+    <div class="flex items-center gap-1">
+      <label for={@field.id} class="text-base-content/70 text-xs font-medium">{@label}</label>
+      <.help_tooltip :if={@help} id={"#{@field.id}-help"} text={@help} />
     </div>
+    """
+  end
+
+  attr :field, Phoenix.HTML.FormField, required: true
+  attr :bounds, :any, required: true, doc: "`{min, max}`; a nil max leaves the field unbounded"
+
+  defp number_input(assigns) do
+    ~H"""
+    <input
+      id={@field.id}
+      type="number"
+      name={@field.name}
+      value={@field.value}
+      min={elem(@bounds, 0)}
+      max={elem(@bounds, 1)}
+      step="100"
+      inputmode="numeric"
+      phx-debounce="500"
+      class={[
+        "input input-sm input-bordered no-spinner font-mono w-24",
+        @field.errors != [] && "input-error"
+      ]}
+    />
+    """
+  end
+
+  attr :field, Phoenix.HTML.FormField, required: true
+
+  defp field_error(assigns) do
+    ~H"""
+    <p class="font-mono text-error relative w-24 text-xs">
+      <span class="left-0">
+        {@field.errors |> Enum.map_join(", ", &translate_error/1)}
+      </span>
+    </p>
     """
   end
 
