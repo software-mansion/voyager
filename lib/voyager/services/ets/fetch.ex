@@ -92,7 +92,7 @@ defmodule Voyager.Services.Ets.Fetch do
   def select_spec(_node, _table, _spec, _limit, _budget, _continuation, _timeout),
     do: {:error, :invalid_table}
 
-  @spec lookup(node(), TableId.t(), lookup_key(), non_neg_integer(), timeout()) ::
+  @spec lookup(node(), TableId.t(), term(), non_neg_integer(), timeout()) ::
           {:ok, chunk()} | {:error, term()}
   def lookup(node, table, key, budget \\ @budget, timeout \\ Agent.default_timeout())
 
