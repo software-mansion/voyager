@@ -12,7 +12,7 @@ const ZOOM_IN_ID: &str = "zoom_in";
 const ZOOM_OUT_ID: &str = "zoom_out";
 const ZOOM_STEP: f64 = 0.1;
 const MIN_ZOOM: f64 = 0.5;
-const MAX_ZOOM: f64 = 3.0;
+const MAX_ZOOM: f64 = 2.0;
 
 /// Current zoom factor, since the webview does not expose a getter.
 struct ZoomLevel(Mutex<f64>);
