@@ -13,6 +13,7 @@ defmodule Voyager.Services.Ets.MatchSpec do
   """
 
   @max_bytes 4_096
+  @atom_headroom 10_000
 
   @type spec :: [{term(), [term()], [term()]}]
   @type error :: {:invalid_match_spec, String.t()}
@@ -28,15 +29,15 @@ defmodule Voyager.Services.Ets.MatchSpec do
   end
 
   def parse(string) when is_binary(string) do
-    with {:ok, term} <- parse_term(string) do
-      validate(term)
+    if atom_headroom?() do
+      with {:ok, term} <- parse_term(string) do
+        validate(term)
+      end
+    else
+      invalid("atom table exhausted")
     end
   end
 
-  def parse(_string), do: invalid("not a string")
-
-  # `:erl_scan` interns every atom in the string on this node, which is what the
-  # byte cap above bounds.
   defp parse_term(string) do
     charlist = string |> terminate() |> String.to_charlist()
 
@@ -47,6 +48,13 @@ defmodule Voyager.Services.Ets.MatchSpec do
       {:error, reason, _end} -> invalid(format(reason))
       {:error, reason} -> invalid(format(reason))
     end
+  end
+
+  # `:erl_scan` interns every atom in the string on this node. The byte cap
+  # bounds one call; refusing below @atom_headroom free slots bounds the total,
+  # since a full atom table aborts the VM rather than raising.
+  defp atom_headroom? do
+    :erlang.system_info(:atom_limit) - :erlang.system_info(:atom_count) > @atom_headroom
   end
 
   defp validate([{_head, guards, body}] = spec) when is_list(guards) and is_list(body) do

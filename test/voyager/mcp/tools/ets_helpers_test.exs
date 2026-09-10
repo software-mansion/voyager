@@ -1,26 +1,44 @@
 defmodule Voyager.MCP.Tools.EtsHelpersTest do
   use ExUnit.Case, async: true
 
+  import Mox
+
   alias Voyager.MCP.Tools.EtsHelpers
 
-  describe "parse_table/1" do
-    test "parses an existing atom" do
-      assert EtsHelpers.parse_table("code") == {:ok, :code}
+  setup :verify_on_exit!
+
+  @node :fake@localhost
+
+  describe "parse_table/2" do
+    test "resolves a name on the target" do
+      expect(Voyager.ErpcMock, :call, fn @node, :erlang, :list_to_existing_atom, [~c"code"], _t ->
+        :code
+      end)
+
+      assert EtsHelpers.parse_table(@node, "code") == {:ok, :code}
     end
 
-    test "returns :invalid_table_name for non-existent atom" do
-      assert EtsHelpers.parse_table("non_existent_atom_definitely_not_defined_xyz123") ==
-               {:error, :invalid_table_name}
+    test "returns :invalid_table_name when the atom is not interned on the target" do
+      expect(Voyager.ErpcMock, :call, fn @node, :erlang, :list_to_existing_atom, _args, _t ->
+        :erlang.error({:exception, :badarg, []})
+      end)
+
+      assert EtsHelpers.parse_table(@node, "no_such_table") == {:error, :invalid_table_name}
     end
 
-    test "parses a reference string" do
+    test "parses an Elixir reference string" do
       ref = make_ref()
-      ref_str = inspect(ref)
-      assert EtsHelpers.parse_table(ref_str) == {:ok, ref}
+      assert EtsHelpers.parse_table(@node, inspect(ref)) == {:ok, ref}
+    end
+
+    test "parses an Erlang reference string" do
+      ref = make_ref()
+      ref_str = ref |> :erlang.ref_to_list() |> to_string()
+      assert EtsHelpers.parse_table(@node, ref_str) == {:ok, ref}
     end
 
     test "returns :invalid_table_ref for malformed reference" do
-      assert EtsHelpers.parse_table("#Ref<invalid>") == {:error, :invalid_table_ref}
+      assert EtsHelpers.parse_table(@node, "#Ref<invalid>") == {:error, :invalid_table_ref}
     end
   end
 
@@ -42,7 +60,6 @@ defmodule Voyager.MCP.Tools.EtsHelpersTest do
     end
 
     test "returns error for base64 that does not decode to a valid safe term" do
-      # base64 of invalid term bytes
       assert EtsHelpers.decode_cursor(Base.url_encode64("random bytes")) ==
                {:error, :invalid_cursor}
     end

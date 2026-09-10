@@ -34,6 +34,7 @@ defmodule Voyager.MCP.Tools.EtsSearchTableTest do
 
   describe "match spec search" do
     test "returns records matching the spec" do
+      stub_intern()
       stub_select([{:alice, 30}])
 
       result = run(%{"table" => "code", "match_spec" => "[{'$1', [], ['$_']}]"})
@@ -44,7 +45,8 @@ defmodule Voyager.MCP.Tools.EtsSearchTableTest do
     end
 
     test "returns a cursor for paged results" do
-      stub_select([{:alice, 30}], :next_page)
+      stub_intern()
+      stub_select([{:alice, 30}], continuation: :next_page)
 
       result = run(%{"table" => "code", "match_spec" => "[{'$1', [], ['$_']}]", "limit" => 1})
 
@@ -56,7 +58,8 @@ defmodule Voyager.MCP.Tools.EtsSearchTableTest do
       cont = :page_two
       cursor = Base.url_encode64(:erlang.term_to_binary(cont))
 
-      stub_select_with_cont(cont, [{:bob, 25}], nil)
+      stub_intern()
+      stub_select([{:bob, 25}], cont: cont)
 
       result =
         run(%{
@@ -92,6 +95,10 @@ defmodule Voyager.MCP.Tools.EtsSearchTableTest do
     end
 
     test "reports an invalid table name" do
+      expect(Voyager.ErpcMock, :call, fn _node, :erlang, :list_to_existing_atom, _args, _t ->
+        :erlang.error({:exception, :badarg, []})
+      end)
+
       assert error(%{
                "table" => "non_existent_table_name_xyz_123",
                "match_spec" => "[{'$1', [], ['$_']}]"
@@ -106,29 +113,22 @@ defmodule Voyager.MCP.Tools.EtsSearchTableTest do
     end
   end
 
-  defp stub_select(records, continuation \\ nil) do
-    chunk = %{
-      records: records,
-      continuation: continuation || :"$end_of_table",
-      truncated: false
-    }
-
-    expect(Voyager.ErpcMock, :call, fn
-      _node, :voyager_agent, :ets_select_spec, _args, _timeout -> {:ok, chunk}
+  defp stub_intern do
+    expect(Voyager.ErpcMock, :call, fn _node, :erlang, :list_to_existing_atom, [chars], _t ->
+      :erlang.list_to_existing_atom(chars)
     end)
   end
 
-  defp stub_select_with_cont(expected_cont, records, continuation) do
+  defp stub_select(records, opts \\ []) do
     chunk = %{
       records: records,
-      continuation: continuation || :"$end_of_table",
+      continuation: Keyword.get(opts, :continuation, :"$end_of_table"),
       truncated: false
     }
 
-    expect(Voyager.ErpcMock, :call, fn
-      _node, :voyager_agent, :ets_select_spec, [_table, _spec, _limit, _budget, cont], _timeout ->
-        assert cont == expected_cont
-        {:ok, chunk}
+    expect(Voyager.ErpcMock, :call, fn _node, :voyager_agent, :ets_select_spec, args, _timeout ->
+      if cont = opts[:cont], do: assert(List.last(args) == cont)
+      {:ok, chunk}
     end)
   end
 

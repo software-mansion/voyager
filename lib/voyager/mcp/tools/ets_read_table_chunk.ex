@@ -3,7 +3,7 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunk do
   Reads or paginates through an ETS table on the connected node.
 
   Pass the `id` value from `ets_list` into `table`. For unnamed tables (`named_table: false`),
-  pass the full `#Ref<...>` reference string; passing the table name fails.
+  pass the full `#Reference<...>` reference string; passing the table name fails.
 
   Filter modes via `Voyager.Services.Ets.Search.chunk/8`:
   - Omit `mode` entirely for an unfiltered scan.
@@ -23,10 +23,12 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunk do
 
   alias Anubis.Server.Response
   alias Voyager.Agent
+  alias Voyager.Erpc
   alias Voyager.MCP.Tools.EtsHelpers
   alias Voyager.MCP.Tools.Remote
   alias Voyager.Services.Ets.Fetch
   alias Voyager.Services.Ets.Search
+  alias Voyager.Services.Ets.TableId
 
   @default_budget Agent.default_budget()
   @modes ~w(key_eq key_prefix element_eq)
@@ -35,7 +37,7 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunk do
     field :table, :string,
       required: true,
       description:
-        "Table handle from `ets_list` `id`. Pass `#Ref<...>` for unnamed tables, never the name."
+        "Table handle from `ets_list` `id`. Pass `#Reference<...>` for unnamed tables, never the name."
 
     field :mode, :enum,
       values: @modes,
@@ -73,74 +75,78 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunk do
   def execute(params, frame) do
     case EtsHelpers.decode_cursor(Map.get(params, :cursor)) do
       {:ok, continuation} ->
-        case build_query(params) do
-          {:ok, query} ->
-            Remote.reply(&fetch(&1, params, query, continuation), frame)
-
-          {:error, reason} ->
-            {:reply, Response.error(Response.tool(), reason), frame}
-        end
+        Remote.reply(&fetch(&1, params, continuation), frame)
 
       {:error, :invalid_cursor} ->
         {:reply, Response.error(Response.tool(), "Invalid cursor format provided"), frame}
     end
   end
 
-  defp fetch(node, params, nil, continuation) do
-    case EtsHelpers.parse_table(params.table) do
-      {:ok, table} ->
-        Fetch.select_chunk(node, table, params.limit, params.budget, continuation)
-        |> EtsHelpers.format_chunk()
+  defp fetch(node, params, continuation) do
+    with {:ok, query} <- build_query(node, params),
+         {:ok, table} <- EtsHelpers.parse_table(node, params.table) do
+      case query do
+        nil ->
+          Fetch.select_chunk(node, table, params.limit, params.budget, continuation)
 
-      {:error, reason} ->
-        {:error, reason}
+        query ->
+          Search.chunk(
+            node,
+            table,
+            query,
+            params.keypos,
+            params.limit,
+            params.budget,
+            continuation
+          )
+      end
+      |> EtsHelpers.format_chunk()
     end
   end
 
-  defp fetch(node, params, query, continuation) do
-    case EtsHelpers.parse_table(params.table) do
-      {:ok, table} ->
-        Search.chunk(node, table, query, params.keypos, params.limit, params.budget, continuation)
-        |> EtsHelpers.format_chunk()
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  defp build_query(%{mode: "key_eq"} = params) do
-    with {:ok, scalar} <- parse_scalar(params) do
+  defp build_query(node, %{mode: "key_eq"} = params) do
+    with {:ok, scalar} <- parse_scalar(node, params) do
       {:ok, {:key_eq, scalar}}
     end
   end
 
-  defp build_query(%{mode: "key_prefix", value: ""}), do: {:ok, nil}
+  defp build_query(_node, %{mode: "key_prefix", value: ""}), do: {:ok, nil}
 
-  defp build_query(%{mode: "key_prefix", value: val}) when is_binary(val) do
+  defp build_query(_node, %{mode: "key_prefix", value: val}) when is_binary(val) do
     {:ok, {:key_prefix, val}}
   end
 
-  defp build_query(%{mode: "key_prefix"}), do: {:error, "`value` is required for key_prefix"}
+  defp build_query(_node, %{mode: "key_prefix"}), do: {:error, :value_required}
 
-  defp build_query(%{mode: "element_eq", index: index} = params) when is_integer(index) do
-    with {:ok, scalar} <- parse_scalar(params) do
+  defp build_query(node, %{mode: "element_eq", index: index} = params) when is_integer(index) do
+    with {:ok, scalar} <- parse_scalar(node, params) do
       {:ok, {:element_eq, index, scalar}}
     end
   end
 
-  defp build_query(%{mode: "element_eq"}), do: {:error, "`index` is required for element_eq"}
+  defp build_query(_node, %{mode: "element_eq"}), do: {:error, :index_required}
 
-  defp build_query(_params), do: {:ok, nil}
+  defp build_query(_node, _params), do: {:ok, nil}
 
-  defp parse_scalar(%{value: val}) when is_binary(val) and val != "", do: {:ok, cast_scalar(val)}
-  defp parse_scalar(_params), do: {:error, "`value` is required when `mode` is set"}
+  defp parse_scalar(node, %{value: val}) when is_binary(val) and val != "" do
+    cast_scalar(node, val)
+  end
 
-  defp cast_scalar(":" <> rest), do: String.to_existing_atom(rest)
+  defp parse_scalar(_node, _params), do: {:error, :value_required}
 
-  defp cast_scalar(val) do
+  defp cast_scalar(node, ":" <> _ = val) do
+    case TableId.existing_atom(node, val, Erpc.default_timeout()) do
+      {:ok, atom} -> {:ok, atom}
+      {:error, :not_found} -> {:error, :unknown_atom_value}
+      {:error, :invalid_name} -> {:error, :unknown_atom_value}
+      {:error, _} = err -> err
+    end
+  end
+
+  defp cast_scalar(_node, val) do
     case Integer.parse(val) do
-      {int, ""} -> int
-      _other -> val
+      {int, ""} -> {:ok, int}
+      _other -> {:ok, val}
     end
   end
 end

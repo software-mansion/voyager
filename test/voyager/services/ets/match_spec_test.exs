@@ -56,9 +56,5 @@ defmodule Voyager.Services.Ets.MatchSpecTest do
 
       assert detail =~ "longer than"
     end
-
-    test "rejects a non-string" do
-      assert {:error, {:invalid_match_spec, _}} = MatchSpec.parse(:"[{'$1', [], ['$1']}]")
-    end
   end
 end

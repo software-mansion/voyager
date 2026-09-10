@@ -1,25 +1,32 @@
 defmodule Voyager.MCP.Tools.EtsHelpers do
   @moduledoc false
 
-  @spec parse_table(String.t()) :: {:ok, atom() | reference()} | {:error, atom()}
-  def parse_table("#Ref<" <> _ = ref_str) do
-    {:ok, :erlang.list_to_ref(String.to_charlist(ref_str))}
+  alias Voyager.Erpc
+  alias Voyager.Services.Ets.TableId
+
+  # Refs are rebuilt with :erlang.list_to_ref/1 instead of TableId.resolve/4 to
+  # avoid an ets:all round-trip per read; a stale ref fails on the target as
+  # :cannot_read.
+  @spec parse_table(node(), String.t()) :: {:ok, TableId.t()} | {:error, term()}
+  def parse_table(_node, "#Ref" <> _ = ref_str) do
+    ref =
+      ref_str
+      |> String.replace_prefix("#Reference<", "#Ref<")
+      |> String.to_charlist()
+      |> :erlang.list_to_ref()
+
+    {:ok, ref}
   rescue
     ArgumentError -> {:error, :invalid_table_ref}
   end
 
-  def parse_table("#Reference<" <> _ = ref_str) do
-    # Elixir inspect prints "#Reference<...>", while Erlang ref_to_list produces "#Ref<...>"
-    erl_ref_str = "#Ref<" <> String.trim_leading(ref_str, "#Reference<")
-    {:ok, :erlang.list_to_ref(String.to_charlist(erl_ref_str))}
-  rescue
-    ArgumentError -> {:error, :invalid_table_ref}
-  end
-
-  def parse_table(name) when is_binary(name) do
-    {:ok, String.to_existing_atom(name)}
-  rescue
-    ArgumentError -> {:error, :invalid_table_name}
+  def parse_table(node, name) when is_binary(name) do
+    case TableId.existing_atom(node, name, Erpc.default_timeout()) do
+      {:ok, atom} -> {:ok, atom}
+      {:error, :not_found} -> {:error, :invalid_table_name}
+      {:error, :invalid_name} -> {:error, :invalid_table_name}
+      {:error, _} = err -> err
+    end
   end
 
   @spec format_chunk({:ok, map()} | {:error, term()}) :: {:ok, map()} | {:error, term()}

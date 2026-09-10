@@ -8,13 +8,14 @@ defmodule Voyager.MCP.Tools.EtsList do
 
   Pass the `id` string (never the `name`) to other ETS tools (`ets_read_table_chunk`,
   `ets_search_table`). Unnamed tables (`named_table: false`) can only be accessed
-  via their `#Ref<...>` handle; referencing them by name fails.
+  via their `#Reference<...>` handle; referencing them by name fails.
   """
 
   use Anubis.Server.Component, type: :tool
 
   alias Voyager.MCP.Tools.Remote
   alias Voyager.Services.Ets
+  alias Voyager.Services.Ets.TableId
 
   @sortable ~w(memory size name)
 
@@ -40,7 +41,7 @@ defmodule Voyager.MCP.Tools.EtsList do
 
   @impl true
   def execute(params, frame) do
-    direction = if params.direction == "asc", do: :asc, else: :desc
+    direction = String.to_existing_atom(params.direction)
 
     Remote.reply(
       &list(&1, params.sort_by, direction, params.limit, Map.get(params, :search)),
@@ -50,10 +51,12 @@ defmodule Voyager.MCP.Tools.EtsList do
 
   defp list(node, sort_by, direction, limit, search) do
     with {:ok, tables} <- Ets.Remote.list(node) do
+      sort_key = String.to_existing_atom(sort_by)
+
       ranked =
         tables
         |> filter(search)
-        |> Enum.sort_by(&sort_key(&1, sort_by), direction)
+        |> Enum.sort_by(&Map.fetch!(&1, sort_key), direction)
         |> Enum.take(limit)
 
       {:ok, %{total: length(tables), tables: ranked}}
@@ -66,19 +69,8 @@ defmodule Voyager.MCP.Tools.EtsList do
     needle = String.downcase(search)
 
     Enum.filter(tables, fn table ->
-      id_str =
-        if is_reference(table.id) do
-          table.id |> :erlang.ref_to_list() |> to_string()
-        else
-          Atom.to_string(table.id)
-        end
-
-      String.contains?(String.downcase(id_str), needle) or
+      String.contains?(String.downcase(TableId.display(table.id)), needle) or
         String.contains?(String.downcase(Atom.to_string(table.name)), needle)
     end)
   end
-
-  defp sort_key(table, "name"), do: Atom.to_string(table.name)
-  defp sort_key(table, "memory"), do: table.memory
-  defp sort_key(table, "size"), do: table.size
 end

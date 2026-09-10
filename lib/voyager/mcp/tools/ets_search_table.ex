@@ -5,7 +5,7 @@ defmodule Voyager.MCP.Tools.EtsSearchTable do
   Use this when queries require multi-element patterns, guards, or conditions
   beyond `ets_read_table_chunk`'s basic modes.
 
-  Pass the `id` string from `ets_list` into `table` (pass `#Ref<...>` for unnamed tables).
+  Pass the `id` string from `ets_list` into `table` (pass `#Reference<...>` for unnamed tables).
 
   `match_spec` rules:
   - Must be a valid Erlang term string with one `[{Head, Guards, Body}]` clause.
@@ -39,7 +39,7 @@ defmodule Voyager.MCP.Tools.EtsSearchTable do
     field :table, :string,
       required: true,
       description:
-        "Table handle from `ets_list` `id`. Pass `#Ref<...>` for unnamed tables, never the name."
+        "Table handle from `ets_list` `id`. Pass `#Reference<...>` for unnamed tables, never the name."
 
     field :match_spec, :string,
       required: true,
@@ -62,7 +62,7 @@ defmodule Voyager.MCP.Tools.EtsSearchTable do
 
   @impl true
   def execute(params, frame) do
-    with {:ok, spec} <- parse_spec(params.match_spec),
+    with {:ok, spec} <- MatchSpec.parse(params.match_spec),
          {:ok, continuation} <- EtsHelpers.decode_cursor(Map.get(params, :cursor)) do
       Remote.reply(&fetch(&1, params, spec, continuation), frame)
     else
@@ -74,16 +74,10 @@ defmodule Voyager.MCP.Tools.EtsSearchTable do
     end
   end
 
-  defp parse_spec(string), do: MatchSpec.parse(string)
-
   defp fetch(node, params, spec, continuation) do
-    case EtsHelpers.parse_table(params.table) do
-      {:ok, table} ->
-        Fetch.select_spec(node, table, spec, params.limit, params.budget, continuation)
-        |> EtsHelpers.format_chunk()
-
-      {:error, reason} ->
-        {:error, reason}
+    with {:ok, table} <- EtsHelpers.parse_table(node, params.table) do
+      Fetch.select_spec(node, table, spec, params.limit, params.budget, continuation)
+      |> EtsHelpers.format_chunk()
     end
   end
 end

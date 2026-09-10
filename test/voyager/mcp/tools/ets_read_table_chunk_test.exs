@@ -43,7 +43,8 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
 
   describe "unfiltered scan" do
     test "returns records from select_chunk" do
-      stub_chunk([{:alice, 30}, {:bob, 25}])
+      stub_intern()
+      stub_call(:ets_select_chunk, [{:alice, 30}, {:bob, 25}])
 
       result = run(%{"table" => "code"})
 
@@ -53,8 +54,8 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
     end
 
     test "returns a cursor for paged results" do
-      cont = :some_continuation
-      stub_chunk([{:alice, 30}], cont)
+      stub_intern()
+      stub_call(:ets_select_chunk, [{:alice, 30}], continuation: :some_continuation)
 
       result = run(%{"table" => "code", "limit" => 1})
 
@@ -66,7 +67,8 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
       cont = :page_two_cont
       cursor = Base.url_encode64(:erlang.term_to_binary(cont))
 
-      stub_chunk_with_cont(cont, [{:bob, 25}], nil)
+      stub_intern()
+      stub_call(:ets_select_chunk, [{:bob, 25}], cont: cont)
 
       result = run(%{"table" => "code", "cursor" => cursor})
 
@@ -76,8 +78,10 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
   end
 
   describe "filtered scan" do
-    test "key_eq returns lookup results" do
-      stub_lookup(:alice, [{:alice, 30}])
+    test "key_eq resolves the atom value on the target" do
+      stub_intern()
+      stub_intern()
+      stub_call(:ets_lookup, [{:alice, 30}], key: :alice)
 
       result = run(%{"table" => "code", "mode" => "key_eq", "value" => ":alice"})
 
@@ -86,7 +90,8 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
     end
 
     test "key_eq with integer value" do
-      stub_lookup(42, [{42, "answer"}])
+      stub_intern()
+      stub_call(:ets_lookup, [{42, "answer"}], key: 42)
 
       result = run(%{"table" => "code", "mode" => "key_eq", "value" => "42"})
 
@@ -94,16 +99,17 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
     end
 
     test "key_prefix returns matching rows" do
-      prefix = "prefix_"
-      stub_select_spec([{"prefix_1", 100}])
+      stub_intern()
+      stub_call(:ets_select_spec, [{"prefix_1", 100}])
 
-      result = run(%{"table" => "code", "mode" => "key_prefix", "value" => prefix})
+      result = run(%{"table" => "code", "mode" => "key_prefix", "value" => "prefix_"})
 
       assert result["records"] == [["prefix_1", 100]]
     end
 
     test "key_prefix with empty string performs unfiltered scan" do
-      stub_chunk([{:alice, 30}])
+      stub_intern()
+      stub_call(:ets_select_chunk, [{:alice, 30}])
 
       result = run(%{"table" => "code", "mode" => "key_prefix", "value" => ""})
 
@@ -111,7 +117,8 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
     end
 
     test "element_eq matches by index and scalar value" do
-      stub_select_spec([{:alice, "active", 1}])
+      stub_intern()
+      stub_call(:ets_select_spec, [{:alice, "active", 1}])
 
       result =
         run(%{
@@ -139,7 +146,16 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
       assert error(%{"table" => "code", "mode" => "element_eq", "value" => "x"}) =~ "index"
     end
 
+    test "reports an atom value not interned on the target" do
+      stub_intern_missing()
+
+      assert error(%{"table" => "code", "mode" => "key_eq", "value" => ":no_such_atom"}) =~
+               ":unknown_atom_value"
+    end
+
     test "reports an invalid table name" do
+      stub_intern_missing()
+
       assert error(%{"table" => "non_existent_table_name_xyz_123"}) =~ ":invalid_table_name"
     end
 
@@ -148,51 +164,29 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
     end
   end
 
-  defp stub_chunk(records, continuation \\ nil) do
-    chunk = %{
-      records: records,
-      continuation: continuation || :"$end_of_table",
-      truncated: false
-    }
-
-    expect(Voyager.ErpcMock, :call, fn
-      _node, :voyager_agent, :ets_select_chunk, _args, _timeout -> {:ok, chunk}
+  defp stub_intern do
+    expect(Voyager.ErpcMock, :call, fn _node, :erlang, :list_to_existing_atom, [chars], _t ->
+      :erlang.list_to_existing_atom(chars)
     end)
   end
 
-  defp stub_chunk_with_cont(expected_cont, records, continuation) do
-    chunk = %{
-      records: records,
-      continuation: continuation || :"$end_of_table",
-      truncated: false
-    }
-
-    expect(Voyager.ErpcMock, :call, fn
-      _node, :voyager_agent, :ets_select_chunk, [_table, _limit, _budget, cont], _timeout ->
-        assert cont == expected_cont
-        {:ok, chunk}
+  defp stub_intern_missing do
+    expect(Voyager.ErpcMock, :call, fn _node, :erlang, :list_to_existing_atom, _args, _t ->
+      :erlang.error({:exception, :badarg, []})
     end)
   end
 
-  defp stub_lookup(expected_key, records) do
-    chunk = %{records: records, continuation: :"$end_of_table", truncated: false}
-
-    expect(Voyager.ErpcMock, :call, fn
-      _node, :voyager_agent, :ets_lookup, [_table, key, _budget], _timeout ->
-        assert key == expected_key
-        {:ok, chunk}
-    end)
-  end
-
-  defp stub_select_spec(records, continuation \\ nil) do
+  defp stub_call(fun, records, opts \\ []) do
     chunk = %{
       records: records,
-      continuation: continuation || :"$end_of_table",
+      continuation: Keyword.get(opts, :continuation, :"$end_of_table"),
       truncated: false
     }
 
-    expect(Voyager.ErpcMock, :call, fn
-      _node, :voyager_agent, :ets_select_spec, _args, _timeout -> {:ok, chunk}
+    expect(Voyager.ErpcMock, :call, fn _node, :voyager_agent, ^fun, args, _timeout ->
+      if cont = opts[:cont], do: assert(List.last(args) == cont)
+      if key = opts[:key], do: assert(Enum.at(args, 1) == key)
+      {:ok, chunk}
     end)
   end
 
