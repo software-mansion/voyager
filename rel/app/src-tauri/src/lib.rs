@@ -8,6 +8,8 @@ use tauri::{
 };
 
 const MAIN_WINDOW_LABEL: &str = "main";
+const ZOOM_IN_ID: &str = "zoom_in";
+const ZOOM_OUT_ID: &str = "zoom_out";
 const ZOOM_STEP: f64 = 0.1;
 const MIN_ZOOM: f64 = 0.5;
 const MAX_ZOOM: f64 = 3.0;
@@ -33,8 +35,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![os_theme])
         .manage(ZoomLevel(Mutex::new(1.0)))
         .on_menu_event(|app, event| match event.id().as_ref() {
-            "zoom_in" => zoom_by(app, ZOOM_STEP),
-            "zoom_out" => zoom_by(app, -ZOOM_STEP),
+            ZOOM_IN_ID => zoom_by(app, ZOOM_STEP),
+            ZOOM_OUT_ID => zoom_by(app, -ZOOM_STEP),
             _ => {}
         })
         .setup(move |app| {
@@ -56,12 +58,12 @@ pub fn run() {
 
                 let view_menu = SubmenuBuilder::new(app, "View")
                     .item(
-                        &MenuItemBuilder::with_id("zoom_in", "Zoom In")
+                        &MenuItemBuilder::with_id(ZOOM_IN_ID, "Zoom In")
                             .accelerator("CmdOrCtrl+=")
                             .build(app)?,
                     )
                     .item(
-                        &MenuItemBuilder::with_id("zoom_out", "Zoom Out")
+                        &MenuItemBuilder::with_id(ZOOM_OUT_ID, "Zoom Out")
                             .accelerator("CmdOrCtrl+-")
                             .build(app)?,
                     )
