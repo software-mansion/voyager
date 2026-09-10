@@ -6,6 +6,13 @@ config :voyager,
 
 config :voyager, :terms_of_service_url, "https://swmansion.com/legal/voyager/terms-of-service/"
 
+# Marks locally built apps with a "Dev Build" banner. Read at build time rather
+# than in `runtime.exs`, because the bundled desktop app is launched without the
+# shell environment it was built in. `rel/app/tauri.sh` exports this from
+# `rel/app/.env`, a file that only exists on developer machines, so builds made
+# on CI are never marked.
+config :voyager, :dev_build?, System.get_env("VOYAGER_DEV_BUILD") in ~w(1 true)
+
 config :voyager, VoyagerWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,

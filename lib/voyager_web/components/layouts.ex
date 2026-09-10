@@ -69,13 +69,36 @@ defmodule VoyagerWeb.Layouts do
   def settings(assigns) do
     ~H"""
     <.flash_group flash={@flash} />
-    <div class="bg-base-200 flex h-screen flex-col overflow-hidden">
+    <div class="bg-base-200 flex h-full flex-col overflow-hidden">
       <VoyagerWeb.Components.Shell.settings_topbar return_to={assigns[:return_to]} />
       <main class="flex-1 overflow-y-auto">
         {@inner_content}
       </main>
     </div>
     <.onboarding_modal show={assigns[:show_onboarding?]} />
+    """
+  end
+
+  @doc """
+  Renders the "Dev Build" banner that tops every page of a locally built app.
+
+  Renders nothing unless `Voyager.dev_build?/0` is true, so released builds
+  never show it.
+  """
+  def dev_banner(assigns) do
+    assigns = assign(assigns, :dev_build?, Voyager.dev_build?())
+
+    ~H"""
+    <%!-- `text-neutral` rather than `text-warning-content`: the latter is tuned
+          for the muted `warning-bg` alert surface and washes out on solid amber. --%>
+    <div
+      :if={@dev_build?}
+      id="dev-build-banner"
+      role="status"
+      class="bg-warning text-neutral tracking-label flex flex-none items-center justify-center gap-1.5 px-4 py-1 text-xs font-semibold uppercase"
+    >
+      <.icon name="icon-circle-alert" class="size-3.5" /> Dev Build
+    </div>
     """
   end
 

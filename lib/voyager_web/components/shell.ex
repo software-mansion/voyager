@@ -16,7 +16,7 @@ defmodule VoyagerWeb.Components.Shell do
 
   def shell(assigns) do
     ~H"""
-    <div class="bg-base-200 flex h-screen flex-col overflow-x-auto overflow-y-hidden">
+    <div class="bg-base-200 flex h-full flex-col overflow-x-auto overflow-y-hidden">
       <div class="min-w-sm flex min-h-0 flex-1 flex-col">
         <.topbar
           active_nav={@active_nav}

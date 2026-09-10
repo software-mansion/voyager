@@ -10,4 +10,13 @@ defmodule Voyager do
 
   @spec version() :: String.t()
   def version, do: @version
+
+  @doc """
+  Returns whether the running app came from a local (developer) build.
+
+  Set from the `VOYAGER_DEV_BUILD` environment variable when the app is built —
+  see `config/config.exs`.
+  """
+  @spec dev_build?() :: boolean()
+  def dev_build?, do: Application.get_env(:voyager, :dev_build?, false)
 end
