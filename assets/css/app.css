@@ -5,6 +5,7 @@
 @import './styles/number-input.css';
 @import './styles/select.css';
 @import './styles/supervision-tree.css';
+@import './styles/term-tree.css';
 @import './styles/tooltip.css';
 @import './styles/sidebar.css';
 @import './styles/utilities.css';
@@ -21,6 +22,11 @@
 
 @theme {
   --color-pinned: oklch(0.769 0.188 70.08);
+  --color-code-atom: #2d2df7;
+  --color-code-number: #2d2df7;
+  --color-code-string: #457f31;
+  --color-code-special: #c026d3;
+  --color-code-punct: #6b7280;
   --color-port: #cccc33;
   --color-process-monitor: #af5ed1;
   --color-process-monitored-by: #4db8ff;
@@ -42,6 +48,11 @@
   prefersdark: false;
   color-scheme: 'light';
   --color-pinned: oklch(0.769 0.188 70.08);
+  --color-code-atom: #2d2df7;
+  --color-code-number: #2d2df7;
+  --color-code-string: #457f31;
+  --color-code-special: #c026d3;
+  --color-code-punct: #6b7280;
   --color-port: #cccc33;
   --color-process-monitor: #af5ed1;
   --color-base-100: oklch(100% 0 0);
@@ -82,6 +93,11 @@
   prefersdark: true;
   color-scheme: 'dark';
   --color-pinned: oklch(0.769 0.188 70.08);
+  --color-code-atom: #b0c6f7;
+  --color-code-number: #b0c6f7;
+  --color-code-string: #9ece6a;
+  --color-code-special: #ee9462;
+  --color-code-punct: #8a94a6;
   --color-port: #eeee55;
   --color-process-monitor: #d1a1e5;
   --color-base-100: oklch(25.33% 0.016 252.42);
