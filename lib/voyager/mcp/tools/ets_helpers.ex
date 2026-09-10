@@ -32,30 +32,37 @@ defmodule Voyager.MCP.Tools.EtsHelpers do
     end
   end
 
-  @spec format_chunk({:ok, map()} | {:error, term()}) :: {:ok, map()} | {:error, term()}
-  def format_chunk({:ok, chunk}) do
+  @spec format_chunk({:ok, map()} | {:error, term()}, term()) :: {:ok, map()} | {:error, term()}
+  def format_chunk({:ok, chunk}, scope) do
     {continuation, rest} = Map.pop(chunk, :continuation)
-    {:ok, Map.put(rest, :cursor, encode_cursor(continuation))}
+    {:ok, Map.put(rest, :cursor, encode_cursor(continuation, scope))}
   end
 
-  def format_chunk(error), do: error
+  def format_chunk(error, _scope), do: error
 
-  @spec encode_cursor(term()) :: String.t() | nil
-  def encode_cursor(nil), do: nil
+  # The scope is signed into the cursor because the target ignores the request's
+  # table and spec once a continuation is present (ets:repair_continuation/2
+  # swaps the spec in unchecked) — changed parameters would silently misread.
+  @spec encode_cursor(term(), term()) :: String.t() | nil
+  def encode_cursor(nil, _scope), do: nil
 
-  def encode_cursor(term), do: Plug.Crypto.sign(secret(), @cursor_salt, term)
+  def encode_cursor(continuation, scope),
+    do: Plug.Crypto.sign(secret(), @cursor_salt, {scope, continuation})
 
-  @spec decode_cursor(String.t() | nil) :: {:ok, term()} | {:error, :invalid_cursor}
-  def decode_cursor(nil), do: {:ok, nil}
+  @spec decode_cursor(String.t() | nil, term()) ::
+          {:ok, term()} | {:error, :invalid_cursor | :cursor_mismatch}
+  def decode_cursor(nil, _scope), do: {:ok, nil}
 
-  def decode_cursor(string) when is_binary(string) and byte_size(string) <= @max_cursor_bytes do
+  def decode_cursor(string, scope)
+      when is_binary(string) and byte_size(string) <= @max_cursor_bytes do
     case Plug.Crypto.verify(secret(), @cursor_salt, string) do
-      {:ok, term} -> {:ok, term}
+      {:ok, {^scope, continuation}} -> {:ok, continuation}
+      {:ok, _other} -> {:error, :cursor_mismatch}
       {:error, _} -> {:error, :invalid_cursor}
     end
   end
 
-  def decode_cursor(_string), do: {:error, :invalid_cursor}
+  def decode_cursor(_string, _scope), do: {:error, :invalid_cursor}
 
   # The MAC ensures only host-signed cursors are ever term-decoded. A per-boot
   # key suffices: a continuation never outlives the session that issued it.

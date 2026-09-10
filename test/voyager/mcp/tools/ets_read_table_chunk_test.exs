@@ -6,7 +6,6 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
   alias Anubis.Server.Frame
   alias Anubis.Server.Response
   alias Voyager.Fakes
-  alias Voyager.MCP.Tools.EtsHelpers
   alias Voyager.MCP.Tools.EtsReadTableChunk
 
   setup :verify_on_exit!
@@ -64,17 +63,17 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
       assert result["records"] == [["alice", 30]]
     end
 
-    test "decodes a cursor for the next page" do
-      cont = :page_two_cont
-      cursor = EtsHelpers.encode_cursor(cont)
+    test "resumes from the cursor of a previous page" do
+      stub_intern()
+      stub_call(:ets_select_chunk, [{:alice, 30}], continuation: :page_two_cont)
+      page1 = run(%{"table" => "code"})
 
       stub_intern()
-      stub_call(:ets_select_chunk, [{:bob, 25}], cont: cont)
+      stub_call(:ets_select_chunk, [{:bob, 25}], cont: :page_two_cont)
+      page2 = run(%{"table" => "code", "cursor" => page1["cursor"]})
 
-      result = run(%{"table" => "code", "cursor" => cursor})
-
-      assert result["records"] == [["bob", 25]]
-      assert result["cursor"] == nil
+      assert page2["records"] == [["bob", 25]]
+      assert page2["cursor"] == nil
     end
   end
 
@@ -137,6 +136,19 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
     test "rejects an invalid cursor" do
       assert error(%{"table" => "code", "cursor" => "not-base64!!!"}) ==
                "Invalid cursor format provided"
+    end
+
+    test "rejects a cursor issued for a different query" do
+      stub_intern()
+      stub_call(:ets_select_chunk, [{:alice, 30}], continuation: :cont)
+      page1 = run(%{"table" => "code"})
+
+      assert error(%{
+               "table" => "code",
+               "mode" => "key_eq",
+               "value" => "42",
+               "cursor" => page1["cursor"]
+             }) == "Cursor does not match the query parameters"
     end
 
     test "reports a missing value for key_eq" do

@@ -6,7 +6,6 @@ defmodule Voyager.MCP.Tools.EtsSearchTableTest do
   alias Anubis.Server.Frame
   alias Anubis.Server.Response
   alias Voyager.Fakes
-  alias Voyager.MCP.Tools.EtsHelpers
   alias Voyager.MCP.Tools.EtsSearchTable
 
   setup :verify_on_exit!
@@ -55,22 +54,23 @@ defmodule Voyager.MCP.Tools.EtsSearchTableTest do
       assert result["records"] == [["alice", 30]]
     end
 
-    test "decodes a cursor for the next page" do
-      cont = :page_two
-      cursor = EtsHelpers.encode_cursor(cont)
+    test "resumes from the cursor of a previous page" do
+      stub_intern()
+      stub_select([{:alice, 30}], continuation: :page_two)
+      page1 = run(%{"table" => "code", "match_spec" => "[{'$1', [], ['$_']}]"})
 
       stub_intern()
-      stub_select([{:bob, 25}], cont: cont)
+      stub_select([{:bob, 25}], cont: :page_two)
 
-      result =
+      page2 =
         run(%{
           "table" => "code",
           "match_spec" => "[{'$1', [], ['$_']}]",
-          "cursor" => cursor
+          "cursor" => page1["cursor"]
         })
 
-      assert result["records"] == [["bob", 25]]
-      assert result["cursor"] == nil
+      assert page2["records"] == [["bob", 25]]
+      assert page2["cursor"] == nil
     end
   end
 
@@ -93,6 +93,18 @@ defmodule Voyager.MCP.Tools.EtsSearchTableTest do
                "match_spec" => "[{'$1', [], ['$_']}]",
                "cursor" => "bad!!!"
              }) == "Invalid cursor format provided"
+    end
+
+    test "rejects a cursor issued for a different match spec" do
+      stub_intern()
+      stub_select([{:alice, 30}], continuation: :cont)
+      page1 = run(%{"table" => "code", "match_spec" => "[{'$1', [], ['$_']}]"})
+
+      assert error(%{
+               "table" => "code",
+               "match_spec" => "[{'$1', [], ['$1']}]",
+               "cursor" => page1["cursor"]
+             }) == "Cursor does not match the query parameters"
     end
 
     test "reports an invalid table name" do

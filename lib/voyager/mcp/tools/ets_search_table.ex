@@ -14,6 +14,7 @@ defmodule Voyager.MCP.Tools.EtsSearchTable do
     `element`, `binary_part`, `byte_size`). Calling other functions fails with `:cannot_read`.
   - OTP strings (such as paths in `code_server` tables) are Erlang charlists (list of integers).
     To match a charlist prefix, use a list pattern like `[47, 104, 111 | '$rest']`.
+  - Full syntax: https://www.erlang.org/doc/apps/erts/match_spec.html
 
   Examples:
   - Match all: `[{'$1', [], ['$_']}]`
@@ -21,7 +22,8 @@ defmodule Voyager.MCP.Tools.EtsSearchTable do
   - Element match: `[{{'$1', active, '$3'}, [], ['$_']}]`
 
   `cursor` is the opaque string returned in a previous response. To resume,
-  re-send the same `table`, `match_spec`, `limit` and `budget` alongside it.
+  re-send it with the same `table` and `match_spec` — a cursor issued for a
+  different query is rejected.
   """
 
   use Anubis.Server.Component, type: :tool
@@ -63,21 +65,27 @@ defmodule Voyager.MCP.Tools.EtsSearchTable do
   @impl true
   def execute(params, frame) do
     with {:ok, spec} <- MatchSpec.parse(params.match_spec),
-         {:ok, continuation} <- EtsHelpers.decode_cursor(Map.get(params, :cursor)) do
+         {:ok, continuation} <- EtsHelpers.decode_cursor(Map.get(params, :cursor), scope(params)) do
       Remote.reply(&fetch(&1, params, spec, continuation), frame)
     else
       {:error, {:invalid_match_spec, detail}} ->
         {:reply, Response.error(Response.tool(), "Invalid match spec: #{detail}"), frame}
+
+      {:error, :cursor_mismatch} ->
+        {:reply, Response.error(Response.tool(), "Cursor does not match the query parameters"),
+         frame}
 
       {:error, :invalid_cursor} ->
         {:reply, Response.error(Response.tool(), "Invalid cursor format provided"), frame}
     end
   end
 
+  defp scope(params), do: {params.table, params.match_spec}
+
   defp fetch(node, params, spec, continuation) do
     with {:ok, table} <- EtsHelpers.parse_table(node, params.table) do
       Fetch.select_spec(node, table, spec, params.limit, params.budget, continuation)
-      |> EtsHelpers.format_chunk()
+      |> EtsHelpers.format_chunk(scope(params))
     end
   end
 end

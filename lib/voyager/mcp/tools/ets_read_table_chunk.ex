@@ -16,7 +16,8 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunk do
   with `:` (interned on target via `:erlang.list_to_existing_atom/1`), or kept as binary.
 
   `cursor` is the opaque string returned in a previous response. To resume,
-  re-send the same parameters alongside it — a mismatch produces `:cannot_read`.
+  re-send it with the same `table` and filter parameters — a cursor issued for
+  a different query is rejected.
   """
 
   use Anubis.Server.Component, type: :tool
@@ -73,13 +74,22 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunk do
 
   @impl true
   def execute(params, frame) do
-    case EtsHelpers.decode_cursor(Map.get(params, :cursor)) do
+    case EtsHelpers.decode_cursor(Map.get(params, :cursor), scope(params)) do
       {:ok, continuation} ->
         Remote.reply(&fetch(&1, params, continuation), frame)
+
+      {:error, :cursor_mismatch} ->
+        {:reply, Response.error(Response.tool(), "Cursor does not match the query parameters"),
+         frame}
 
       {:error, :invalid_cursor} ->
         {:reply, Response.error(Response.tool(), "Invalid cursor format provided"), frame}
     end
+  end
+
+  defp scope(params) do
+    {params.table, Map.get(params, :mode), Map.get(params, :value), Map.get(params, :index),
+     params.keypos}
   end
 
   defp fetch(node, params, continuation) do
@@ -100,7 +110,7 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunk do
             continuation
           )
       end
-      |> EtsHelpers.format_chunk()
+      |> EtsHelpers.format_chunk(scope(params))
     end
   end
 

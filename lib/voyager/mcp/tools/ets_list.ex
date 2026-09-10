@@ -46,18 +46,21 @@ defmodule Voyager.MCP.Tools.EtsList do
 
   defp list(node, params) do
     with {:ok, tables} <- Ets.Remote.list(node) do
-      sort_key = String.to_existing_atom(params.sort_by)
-      direction = String.to_existing_atom(params.direction)
+      direction = if params.direction == "asc", do: :asc, else: :desc
 
       ranked =
         tables
         |> filter(Map.get(params, :search))
-        |> Enum.sort_by(&Map.fetch!(&1, sort_key), direction)
+        |> Enum.sort_by(&sort_key(&1, params.sort_by), direction)
         |> Enum.take(params.limit)
 
       {:ok, %{total: length(tables), tables: ranked}}
     end
   end
+
+  defp sort_key(table, "name"), do: table.name
+  defp sort_key(table, "memory"), do: table.memory
+  defp sort_key(table, "size"), do: table.size
 
   defp filter(tables, search) when search in [nil, ""], do: tables
 
