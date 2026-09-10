@@ -4,6 +4,10 @@ defmodule Voyager.MCP.Tools.EtsHelpers do
   alias Voyager.Erpc
   alias Voyager.Services.Ets.TableId
 
+  @cursor_salt "ets cursor"
+  @max_cursor_bytes 16_384
+  @secret_key {__MODULE__, :cursor_secret}
+
   # Refs are rebuilt with :erlang.list_to_ref/1 instead of TableId.resolve/4 to
   # avoid an ets:all round-trip per read; a stale ref fails on the target as
   # :cannot_read.
@@ -39,26 +43,31 @@ defmodule Voyager.MCP.Tools.EtsHelpers do
   @spec encode_cursor(term()) :: String.t() | nil
   def encode_cursor(nil), do: nil
 
-  def encode_cursor(term) do
-    term
-    |> :erlang.term_to_binary()
-    |> Base.url_encode64()
-  end
+  def encode_cursor(term), do: Plug.Crypto.sign(secret(), @cursor_salt, term)
 
   @spec decode_cursor(String.t() | nil) :: {:ok, term()} | {:error, :invalid_cursor}
   def decode_cursor(nil), do: {:ok, nil}
 
-  def decode_cursor(string) when is_binary(string) do
-    case Base.url_decode64(string) do
-      {:ok, bin} ->
-        try do
-          {:ok, :erlang.binary_to_term(bin, [:safe])}
-        rescue
-          ArgumentError -> {:error, :invalid_cursor}
-        end
+  def decode_cursor(string) when is_binary(string) and byte_size(string) <= @max_cursor_bytes do
+    case Plug.Crypto.verify(secret(), @cursor_salt, string) do
+      {:ok, term} -> {:ok, term}
+      {:error, _} -> {:error, :invalid_cursor}
+    end
+  end
 
-      :error ->
-        {:error, :invalid_cursor}
+  def decode_cursor(_string), do: {:error, :invalid_cursor}
+
+  # The MAC ensures only host-signed cursors are ever term-decoded. A per-boot
+  # key suffices: a continuation never outlives the session that issued it.
+  defp secret do
+    case :persistent_term.get(@secret_key, nil) do
+      nil ->
+        secret = :crypto.strong_rand_bytes(32)
+        :persistent_term.put(@secret_key, secret)
+        secret
+
+      secret ->
+        secret
     end
   end
 end

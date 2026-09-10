@@ -6,6 +6,7 @@ defmodule Voyager.MCP.Tools.EtsSearchTableTest do
   alias Anubis.Server.Frame
   alias Anubis.Server.Response
   alias Voyager.Fakes
+  alias Voyager.MCP.Tools.EtsHelpers
   alias Voyager.MCP.Tools.EtsSearchTable
 
   setup :verify_on_exit!
@@ -56,7 +57,7 @@ defmodule Voyager.MCP.Tools.EtsSearchTableTest do
 
     test "decodes a cursor for the next page" do
       cont = :page_two
-      cursor = Base.url_encode64(:erlang.term_to_binary(cont))
+      cursor = EtsHelpers.encode_cursor(cont)
 
       stub_intern()
       stub_select([{:bob, 25}], cont: cont)

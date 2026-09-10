@@ -6,6 +6,7 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
   alias Anubis.Server.Frame
   alias Anubis.Server.Response
   alias Voyager.Fakes
+  alias Voyager.MCP.Tools.EtsHelpers
   alias Voyager.MCP.Tools.EtsReadTableChunk
 
   setup :verify_on_exit!
@@ -65,7 +66,7 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
 
     test "decodes a cursor for the next page" do
       cont = :page_two_cont
-      cursor = Base.url_encode64(:erlang.term_to_binary(cont))
+      cursor = EtsHelpers.encode_cursor(cont)
 
       stub_intern()
       stub_call(:ets_select_chunk, [{:bob, 25}], cont: cont)

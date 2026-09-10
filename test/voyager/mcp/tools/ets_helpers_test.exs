@@ -55,12 +55,17 @@ defmodule Voyager.MCP.Tools.EtsHelpersTest do
       assert EtsHelpers.decode_cursor(encoded) == {:ok, term}
     end
 
-    test "returns error for invalid base64 cursor" do
+    test "returns error for a malformed cursor" do
       assert EtsHelpers.decode_cursor("not-base64!") == {:error, :invalid_cursor}
     end
 
-    test "returns error for base64 that does not decode to a valid safe term" do
-      assert EtsHelpers.decode_cursor(Base.url_encode64("random bytes")) ==
+    test "rejects an unsigned term cursor without decoding it" do
+      forged = Base.url_encode64(:erlang.term_to_binary({:cont, 123}))
+      assert EtsHelpers.decode_cursor(forged) == {:error, :invalid_cursor}
+    end
+
+    test "rejects an oversized cursor" do
+      assert EtsHelpers.decode_cursor(String.duplicate("a", 17_000)) ==
                {:error, :invalid_cursor}
     end
   end
