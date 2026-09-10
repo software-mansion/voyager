@@ -157,21 +157,38 @@ defmodule Voyager.Services.Ets.FetchTest do
     end
   end
 
-  describe "lookup/5" do
-    test "calls :voyager_agent.ets_lookup/3 with the budget and timeout" do
+  describe "lookup/7" do
+    test "calls :voyager_agent.ets_lookup/5 with the budget and :undefined for a nil continuation" do
       expect(Voyager.ErpcMock, :call, fn @node,
                                          :voyager_agent,
                                          :ets_lookup,
-                                         [:t, 7, @budget],
+                                         [:t, 7, 10, @budget, :undefined],
                                          @timeout ->
         ok_chunk([{7, :ok}])
       end)
 
-      assert {:ok, chunk} = Fetch.lookup(@node, :t, 7, @budget, @timeout)
+      assert {:ok, chunk} = Fetch.lookup(@node, :t, 7, 10, @budget, nil, @timeout)
       assert chunk.records == [{7, :ok}]
       assert chunk.continuation == nil
       refute chunk.truncated?
       refute Map.has_key?(chunk, :via)
+    end
+
+    test "passes a raw continuation through to the agent, not :undefined" do
+      cont = {:ets_cont, 1}
+
+      expect(Voyager.ErpcMock, :call, fn @node,
+                                         :voyager_agent,
+                                         :ets_lookup,
+                                         [:t, :k, 20, @budget, ^cont],
+                                         @timeout ->
+        ok_chunk([], :undefined)
+      end)
+
+      assert {:ok, chunk} = Fetch.lookup(@node, :t, :k, 20, @budget, cont, @timeout)
+      assert chunk.records == []
+      assert chunk.continuation == nil
+      refute chunk.truncated?
     end
 
     test "does not retry a missing agent export as :ets.lookup" do
@@ -183,7 +200,7 @@ defmodule Voyager.Services.Ets.FetchTest do
       end)
 
       assert {:error, {:remote_exception, :undef}} =
-               Fetch.lookup(@node, :t, :k, @budget, @timeout)
+               Fetch.lookup(@node, :t, :k, 10, @budget, nil, @timeout)
 
       assert_received {:called, :voyager_agent, :ets_lookup}
       refute_received {:called, :ets, _}
@@ -194,7 +211,8 @@ defmodule Voyager.Services.Ets.FetchTest do
         :erlang.error({:exception, :badarg, []})
       end)
 
-      assert {:error, :cannot_read} = Fetch.lookup(@node, :t, <<"k">>, @budget, @timeout)
+      assert {:error, :cannot_read} =
+               Fetch.lookup(@node, :t, <<"k">>, 10, @budget, nil, @timeout)
     end
 
     test "passes a composite key through to the agent" do
@@ -203,16 +221,22 @@ defmodule Voyager.Services.Ets.FetchTest do
       expect(Voyager.ErpcMock, :call, fn @node,
                                          :voyager_agent,
                                          :ets_lookup,
-                                         [:t, ^key, @budget],
+                                         [:t, ^key, 10, @budget, :undefined],
                                          @timeout ->
         ok_chunk([])
       end)
 
-      assert {:ok, %{records: []}} = Fetch.lookup(@node, :t, key, @budget, @timeout)
+      assert {:ok, %{records: []}} = Fetch.lookup(@node, :t, key, 10, @budget, nil, @timeout)
+    end
+
+    test "rejects a non-positive or non-integer limit without touching the remote" do
+      assert {:error, :invalid_limit} = Fetch.lookup(@node, :t, :k, 0, @budget, nil, @timeout)
+      assert {:error, :invalid_limit} = Fetch.lookup(@node, :t, :k, :ten, @budget, nil, @timeout)
     end
 
     test "rejects a handle that is not an atom or reference without touching the remote" do
-      assert {:error, :invalid_table} = Fetch.lookup(@node, self(), :k, @budget, @timeout)
+      assert {:error, :invalid_table} =
+               Fetch.lookup(@node, self(), :k, 10, @budget, nil, @timeout)
     end
 
     test "returns :invalid_response when lookup does not return a chunk" do
@@ -220,7 +244,22 @@ defmodule Voyager.Services.Ets.FetchTest do
         {:ok, %{truncated: false}}
       end)
 
-      assert {:error, :invalid_response} = Fetch.lookup(@node, :t, :k, @budget, @timeout)
+      assert {:error, :invalid_response} = Fetch.lookup(@node, :t, :k, 10, @budget, nil, @timeout)
+    end
+
+    test "defaults the budget, continuation, and timeout" do
+      timeout = Agent.default_timeout()
+
+      expect(Voyager.ErpcMock, :call, fn @node,
+                                         :voyager_agent,
+                                         :ets_lookup,
+                                         [:t, :k, 10, @budget, :undefined],
+                                         ^timeout ->
+        ok_chunk([])
+      end)
+
+      assert {:ok, %{records: [], continuation: nil, truncated?: false}} =
+               Fetch.lookup(@node, :t, :k, 10)
     end
   end
 

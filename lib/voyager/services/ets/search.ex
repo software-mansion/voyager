@@ -3,9 +3,10 @@ defmodule Voyager.Services.Ets.Search do
   Compiles key-prefix / field-equals queries into source ETS match specs.
 
   Never evals user or LLM strings. Prefix and element queries go through
-  `Fetch.select_spec/7`. `{:key_eq, _}` is a single-shot `Fetch.lookup/5`:
-  the limit is not a page size, and continuation is ignored.
-  The spec sent on the wire is a source MS, not `:ets.match_spec_compile/1`.
+  `Fetch.select_spec/7`. `{:key_eq, _}` goes through `Fetch.lookup/7` so the
+  key stays a hash lookup on the target, still honouring limit and continuation.
+  The spec sent on the wire for prefix/element is a source MS, not
+  `:ets.match_spec_compile/1`.
   """
 
   alias Voyager.Agent
@@ -105,8 +106,8 @@ defmodule Voyager.Services.Ets.Search do
   defp validate_keypos(keypos) when is_integer(keypos) and keypos >= 1, do: :ok
   defp validate_keypos(_keypos), do: {:error, :invalid_keypos}
 
-  defp run_query(node, table, {:key_eq, value}, _keypos, _limit, budget, _continuation, timeout) do
-    Fetch.lookup(node, table, value, budget, timeout)
+  defp run_query(node, table, {:key_eq, value}, _keypos, limit, budget, continuation, timeout) do
+    Fetch.lookup(node, table, value, limit, budget, continuation, timeout)
   end
 
   defp run_query(node, table, query, keypos, limit, budget, continuation, timeout) do
