@@ -54,9 +54,9 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunk do
       description: "Tuple element position (1-based). Required for `element_eq`."
 
     field :keypos, :integer,
-      default: 1,
+      required: true,
       min: 1,
-      description: "Key position of the table from `ets_list`."
+      description: "Key position of the table, as reported by `ets_list`."
 
     field :limit, :integer,
       default: 25,
@@ -74,18 +74,43 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunk do
 
   @impl true
   def execute(params, frame) do
-    case EtsHelpers.decode_cursor(Map.get(params, :cursor), scope(params)) do
-      {:ok, continuation} ->
-        Remote.reply(&fetch(&1, params, continuation), frame)
-
+    with :ok <- validate(params),
+         {:ok, continuation} <- EtsHelpers.decode_cursor(Map.get(params, :cursor), scope(params)) do
+      Remote.reply(&fetch(&1, params, continuation), frame)
+    else
       {:error, :cursor_mismatch} ->
         {:reply, Response.error(Response.tool(), "Cursor does not match the query parameters"),
          frame}
 
       {:error, :invalid_cursor} ->
         {:reply, Response.error(Response.tool(), "Invalid cursor format provided"), frame}
+
+      {:error, message} ->
+        {:reply, Response.error(Response.tool(), message), frame}
     end
   end
+
+  defp validate(%{mode: "element_eq"} = params) do
+    cond do
+      not is_integer(Map.get(params, :index)) -> {:error, "`index` is required for element_eq"}
+      blank_value?(params) -> {:error, "`value` is required when `mode` is set"}
+      true -> :ok
+    end
+  end
+
+  defp validate(%{mode: "key_prefix"} = params) do
+    if is_binary(Map.get(params, :value)),
+      do: :ok,
+      else: {:error, "`value` is required for key_prefix"}
+  end
+
+  defp validate(%{mode: "key_eq"} = params) do
+    if blank_value?(params), do: {:error, "`value` is required when `mode` is set"}, else: :ok
+  end
+
+  defp validate(_params), do: :ok
+
+  defp blank_value?(params), do: Map.get(params, :value) in [nil, ""]
 
   defp scope(params) do
     {params.table, Map.get(params, :mode), Map.get(params, :value), Map.get(params, :index),
@@ -115,34 +140,22 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunk do
   end
 
   defp build_query(node, %{mode: "key_eq"} = params) do
-    with {:ok, scalar} <- parse_scalar(node, params) do
+    with {:ok, scalar} <- cast_scalar(node, params.value) do
       {:ok, {:key_eq, scalar}}
     end
   end
 
   defp build_query(_node, %{mode: "key_prefix", value: ""}), do: {:ok, nil}
 
-  defp build_query(_node, %{mode: "key_prefix", value: val}) when is_binary(val) do
-    {:ok, {:key_prefix, val}}
-  end
+  defp build_query(_node, %{mode: "key_prefix", value: val}), do: {:ok, {:key_prefix, val}}
 
-  defp build_query(_node, %{mode: "key_prefix"}), do: {:error, :value_required}
-
-  defp build_query(node, %{mode: "element_eq", index: index} = params) when is_integer(index) do
-    with {:ok, scalar} <- parse_scalar(node, params) do
+  defp build_query(node, %{mode: "element_eq", index: index} = params) do
+    with {:ok, scalar} <- cast_scalar(node, params.value) do
       {:ok, {:element_eq, index, scalar}}
     end
   end
 
-  defp build_query(_node, %{mode: "element_eq"}), do: {:error, :index_required}
-
   defp build_query(_node, _params), do: {:ok, nil}
-
-  defp parse_scalar(node, %{value: val}) when is_binary(val) and val != "" do
-    cast_scalar(node, val)
-  end
-
-  defp parse_scalar(_node, _params), do: {:error, :value_required}
 
   defp cast_scalar(node, ":" <> _ = val) do
     case TableId.existing_atom(node, val, Erpc.default_timeout()) do

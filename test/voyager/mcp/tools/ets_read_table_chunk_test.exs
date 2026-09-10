@@ -17,24 +17,27 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
   end
 
   describe "schema validation" do
-    test "requires a table" do
+    test "requires a table and keypos" do
       assert {:error, _} = EtsReadTableChunk.mcp_schema(%{})
+      assert {:error, _} = EtsReadTableChunk.mcp_schema(%{"table" => "my_table"})
+      assert {:error, _} = EtsReadTableChunk.mcp_schema(%{"keypos" => 1})
     end
 
-    test "accepts table only for an unfiltered scan" do
+    test "accepts table and keypos for an unfiltered scan" do
       assert {:ok, %{table: "my_table", limit: 25, keypos: 1}} =
-               EtsReadTableChunk.mcp_schema(%{"table" => "my_table"})
+               EtsReadTableChunk.mcp_schema(%{"table" => "my_table", "keypos" => 1})
     end
 
     test "rejects an unknown mode" do
       assert {:error, _} =
-               EtsReadTableChunk.mcp_schema(%{"table" => "t", "mode" => "regex"})
+               EtsReadTableChunk.mcp_schema(%{"table" => "t", "keypos" => 1, "mode" => "regex"})
     end
 
     test "accepts key_eq mode with value" do
       assert {:ok, %{mode: "key_eq", value: "42"}} =
                EtsReadTableChunk.mcp_schema(%{
                  "table" => "t",
+                 "keypos" => 1,
                  "mode" => "key_eq",
                  "value" => "42"
                })
@@ -46,7 +49,7 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
       stub_intern()
       stub_call(:ets_select_chunk, [{:alice, 30}, {:bob, 25}])
 
-      result = run(%{"table" => "code"})
+      result = run(%{"table" => "code", "keypos" => 1})
 
       assert result["records"] == [["alice", 30], ["bob", 25]]
       assert result["truncated?"] == false
@@ -57,7 +60,7 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
       stub_intern()
       stub_call(:ets_select_chunk, [{:alice, 30}], continuation: :some_continuation)
 
-      result = run(%{"table" => "code", "limit" => 1})
+      result = run(%{"table" => "code", "keypos" => 1, "limit" => 1})
 
       assert result["cursor"] != nil
       assert result["records"] == [["alice", 30]]
@@ -66,11 +69,11 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
     test "resumes from the cursor of a previous page" do
       stub_intern()
       stub_call(:ets_select_chunk, [{:alice, 30}], continuation: :page_two_cont)
-      page1 = run(%{"table" => "code"})
+      page1 = run(%{"table" => "code", "keypos" => 1})
 
       stub_intern()
       stub_call(:ets_select_chunk, [{:bob, 25}], cont: :page_two_cont)
-      page2 = run(%{"table" => "code", "cursor" => page1["cursor"]})
+      page2 = run(%{"table" => "code", "keypos" => 1, "cursor" => page1["cursor"]})
 
       assert page2["records"] == [["bob", 25]]
       assert page2["cursor"] == nil
@@ -83,7 +86,7 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
       stub_intern()
       stub_call(:ets_lookup, [{:alice, 30}], key: :alice)
 
-      result = run(%{"table" => "code", "mode" => "key_eq", "value" => ":alice"})
+      result = run(%{"table" => "code", "keypos" => 1, "mode" => "key_eq", "value" => ":alice"})
 
       assert result["records"] == [["alice", 30]]
       assert result["cursor"] == nil
@@ -93,7 +96,7 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
       stub_intern()
       stub_call(:ets_lookup, [{42, "answer"}], key: 42)
 
-      result = run(%{"table" => "code", "mode" => "key_eq", "value" => "42"})
+      result = run(%{"table" => "code", "keypos" => 1, "mode" => "key_eq", "value" => "42"})
 
       assert result["records"] == [[42, "answer"]]
     end
@@ -102,7 +105,8 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
       stub_intern()
       stub_call(:ets_select_spec, [{"prefix_1", 100}])
 
-      result = run(%{"table" => "code", "mode" => "key_prefix", "value" => "prefix_"})
+      result =
+        run(%{"table" => "code", "keypos" => 1, "mode" => "key_prefix", "value" => "prefix_"})
 
       assert result["records"] == [["prefix_1", 100]]
     end
@@ -111,7 +115,7 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
       stub_intern()
       stub_call(:ets_select_chunk, [{:alice, 30}])
 
-      result = run(%{"table" => "code", "mode" => "key_prefix", "value" => ""})
+      result = run(%{"table" => "code", "keypos" => 1, "mode" => "key_prefix", "value" => ""})
 
       assert result["records"] == [["alice", 30]]
     end
@@ -123,6 +127,7 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
       result =
         run(%{
           "table" => "code",
+          "keypos" => 1,
           "mode" => "element_eq",
           "index" => 2,
           "value" => "active"
@@ -134,17 +139,18 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
 
   describe "errors" do
     test "rejects an invalid cursor" do
-      assert error(%{"table" => "code", "cursor" => "not-base64!!!"}) ==
+      assert error(%{"table" => "code", "keypos" => 1, "cursor" => "not-base64!!!"}) ==
                "Invalid cursor format provided"
     end
 
     test "rejects a cursor issued for a different query" do
       stub_intern()
       stub_call(:ets_select_chunk, [{:alice, 30}], continuation: :cont)
-      page1 = run(%{"table" => "code"})
+      page1 = run(%{"table" => "code", "keypos" => 1})
 
       assert error(%{
                "table" => "code",
+               "keypos" => 1,
                "mode" => "key_eq",
                "value" => "42",
                "cursor" => page1["cursor"]
@@ -152,28 +158,34 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
     end
 
     test "reports a missing value for key_eq" do
-      assert error(%{"table" => "code", "mode" => "key_eq"}) =~ "value"
+      assert error(%{"table" => "code", "keypos" => 1, "mode" => "key_eq"}) =~ "value"
     end
 
     test "reports a missing index for element_eq" do
-      assert error(%{"table" => "code", "mode" => "element_eq", "value" => "x"}) =~ "index"
+      assert error(%{"table" => "code", "keypos" => 1, "mode" => "element_eq", "value" => "x"}) =~
+               "index"
     end
 
     test "reports an atom value not interned on the target" do
       stub_intern_missing()
 
-      assert error(%{"table" => "code", "mode" => "key_eq", "value" => ":no_such_atom"}) =~
-               ":unknown_atom_value"
+      assert error(%{
+               "table" => "code",
+               "keypos" => 1,
+               "mode" => "key_eq",
+               "value" => ":no_such_atom"
+             }) =~ ":unknown_atom_value"
     end
 
     test "reports an invalid table name" do
       stub_intern_missing()
 
-      assert error(%{"table" => "non_existent_table_name_xyz_123"}) =~ ":invalid_table_name"
+      assert error(%{"table" => "non_existent_table_name_xyz_123", "keypos" => 1}) =~
+               ":invalid_table_name"
     end
 
     test "reports an invalid table ref" do
-      assert error(%{"table" => "#Ref<bad>"}) =~ ":invalid_table_ref"
+      assert error(%{"table" => "#Ref<bad>", "keypos" => 1}) =~ ":invalid_table_ref"
     end
   end
 

@@ -65,7 +65,8 @@ defmodule Voyager.MCP.Tools.EtsSearchTable do
   @impl true
   def execute(params, frame) do
     with {:ok, spec} <- MatchSpec.parse(params.match_spec),
-         {:ok, continuation} <- EtsHelpers.decode_cursor(Map.get(params, :cursor), scope(params)) do
+         {:ok, continuation} <-
+           EtsHelpers.decode_cursor(Map.get(params, :cursor), {params.table, spec}) do
       Remote.reply(&fetch(&1, params, spec, continuation), frame)
     else
       {:error, {:invalid_match_spec, detail}} ->
@@ -80,12 +81,10 @@ defmodule Voyager.MCP.Tools.EtsSearchTable do
     end
   end
 
-  defp scope(params), do: {params.table, params.match_spec}
-
   defp fetch(node, params, spec, continuation) do
     with {:ok, table} <- EtsHelpers.parse_table(node, params.table) do
       Fetch.select_spec(node, table, spec, params.limit, params.budget, continuation)
-      |> EtsHelpers.format_chunk(scope(params))
+      |> EtsHelpers.format_chunk({params.table, spec})
     end
   end
 end

@@ -72,6 +72,24 @@ defmodule Voyager.MCP.Tools.EtsSearchTableTest do
       assert page2["records"] == [["bob", 25]]
       assert page2["cursor"] == nil
     end
+
+    test "resumes when the match spec differs only in formatting" do
+      stub_intern()
+      stub_select([{:alice, 30}], continuation: :page_two)
+      page1 = run(%{"table" => "code", "match_spec" => "[{'$1', [], ['$_']}]"})
+
+      stub_intern()
+      stub_select([{:bob, 25}], cont: :page_two)
+
+      page2 =
+        run(%{
+          "table" => "code",
+          "match_spec" => "[{'$1', [], ['$_']}].",
+          "cursor" => page1["cursor"]
+        })
+
+      assert page2["records"] == [["bob", 25]]
+    end
   end
 
   describe "errors" do
