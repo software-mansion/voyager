@@ -7,6 +7,7 @@ defmodule VoyagerWeb.NodeInfoLive do
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.NodeInfoComponents
   alias VoyagerWeb.NodeInfoHelp
+  alias VoyagerWeb.Utils.RefreshInterval
 
   @default_interval Application.compile_env(:voyager, :node_info_refresh_interval_ms, 5_000)
   @applications_page_size 10
@@ -42,6 +43,22 @@ defmodule VoyagerWeb.NodeInfoLive do
       end
 
     {:ok, socket}
+  end
+
+  # The interval is routed state: `set_interval` only patches the URL, and the
+  # timer is (re)scheduled from here so a reload or a shared link keeps it.
+  @impl true
+  def handle_params(params, _uri, socket) do
+    interval = RefreshInterval.from_params(params, interval_options(), @default_interval)
+
+    if interval == socket.assigns.refresh_interval do
+      socket
+    else
+      socket
+      |> assign(:refresh_interval, interval)
+      |> schedule_refresh()
+    end
+    |> noreply()
   end
 
   @impl true
@@ -202,8 +219,15 @@ defmodule VoyagerWeb.NodeInfoLive do
 
   def handle_event("set_interval", %{"interval" => value}, socket) do
     socket
-    |> assign(:refresh_interval, parse_interval(value))
-    |> schedule_refresh()
+    |> push_patch(
+      to:
+        RefreshInterval.put_param(
+          socket.assigns.current_url,
+          value,
+          interval_options(),
+          @default_interval
+        )
+    )
     |> noreply()
   end
 
@@ -311,15 +335,6 @@ defmodule VoyagerWeb.NodeInfoLive do
   end
 
   defp interval_options, do: @interval_options
-
-  defp parse_interval("off"), do: nil
-
-  defp parse_interval(value) do
-    case Integer.parse(value) do
-      {ms, ""} when ms > 0 -> ms
-      _ -> nil
-    end
-  end
 
   defp format_error(:noconnection), do: "Node is unreachable."
   defp format_error(:timeout), do: "Timed out while fetching node info."
