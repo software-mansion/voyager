@@ -160,6 +160,40 @@ defmodule VoyagerAgentEtsTest do
                @agent_module.ets_lookup(name, :k, 10, @budget, :undefined)
     end
 
+    test "looks up a set row wider than the keyed-select arity cap" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :set])
+      wide = wide_record(:k, 256)
+      :ets.insert(name, wide)
+
+      assert {:ok, %{records: [^wide], continuation: :undefined, truncated: false}} =
+               @agent_module.ets_select_chunk(name, 10, @budget, :undefined)
+
+      assert {:ok, %{records: [^wide], continuation: :undefined, truncated: false}} =
+               @agent_module.ets_lookup(name, :k, 10, @budget, :undefined)
+    end
+
+    test "looks up a bag row wider than the keyed-select arity cap" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :bag])
+      wide = wide_record(:k, 256)
+      :ets.insert(name, wide)
+      :ets.insert(name, {:other, 1})
+
+      assert {:ok, %{records: [^wide], continuation: :undefined, truncated: false}} =
+               @agent_module.ets_lookup(name, :k, 10, @budget, :undefined)
+    end
+
+    test "looks up a wide row when the key is not at position 1" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :set, keypos: 2])
+      wide = wide_record_at(2, :k, 256)
+      :ets.insert(name, wide)
+
+      assert {:ok, %{records: [^wide], continuation: :undefined, truncated: false}} =
+               @agent_module.ets_lookup(name, :k, 10, @budget, :undefined)
+    end
+
     test "matches the key at keypos 2" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set, keypos: 2])
@@ -314,5 +348,13 @@ defmodule VoyagerAgentEtsTest do
 
     values = Enum.map(page ++ page2 ++ page3, fn {:k, i} -> i end)
     assert Enum.sort(values) == Enum.to_list(1..25)
+  end
+
+  defp wide_record(key, arity) when arity > 1 do
+    :erlang.setelement(1, :erlang.make_tuple(arity, 0), key)
+  end
+
+  defp wide_record_at(keypos, key, arity) when arity >= keypos do
+    :erlang.setelement(keypos, :erlang.make_tuple(arity, 0), key)
   end
 end

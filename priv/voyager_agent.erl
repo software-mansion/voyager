@@ -533,11 +533,33 @@ ets_select_spec(_Table, _Spec, _Limit, _Budget, _Cont) ->
 -spec ets_lookup(ets:tab(), term(), pos_integer(), non_neg_integer(), term()) -> {ok, ets_chunk()}.
 ets_lookup(Table, Key, Limit, Budget, Cont)
     when is_integer(Budget), Budget >= 0, is_integer(Limit), Limit >= 0 ->
-    with_bounded_heap(fun() ->
-                             do_select(Table, lookup_spec(Table, Key), Limit, Budget, Cont)
-                      end);
+    with_bounded_heap(fun() -> do_lookup(Table, Key, Limit, Budget, Cont) end);
 ets_lookup(_Table, _Key, _Limit, _Budget, _Cont) ->
     erlang:error(badarg).
+
+do_lookup(Table, Key, Limit, Budget, undefined) ->
+    case ets:info(Table, type) of
+        Type when Type =:= set; Type =:= ordered_set ->
+            wrap_records(ets:lookup(Table, Key), undefined, Budget);
+        Type when Type =:= bag; Type =:= duplicate_bag ->
+            bag_lookup(Table, Key, Limit, Budget);
+        _ ->
+            erlang:error(badarg)
+    end;
+do_lookup(Table, Key, _Limit, Budget, Cont) ->
+    wrap_select(ets:select(
+                    ets:repair_continuation(Cont, lookup_spec(Table, Key))),
+                Budget).
+
+bag_lookup(Table, Key, Limit, Budget) ->
+    Spec = lookup_spec(Table, Key),
+    case ets:select(Table, Spec, Limit) of
+        '$end_of_table' ->
+            %% Keyed heads stop at arity 255; lookup still hashes a wider row.
+            wrap_records(ets:lookup(Table, Key), undefined, Budget);
+        Result ->
+            wrap_select(Result, Budget)
+    end.
 
 lookup_spec(Table, Key) ->
     case ets:info(Table, keypos) of
