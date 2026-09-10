@@ -7,23 +7,13 @@ defmodule VoyagerWeb.EtsTableLiveTest do
 
   alias Voyager.Fakes
   alias Voyager.Test.EtsTable
+  alias Voyager.Test.VoyagerAgentFixture
 
   @node_name "nonode@nohost"
 
-  setup_all do
-    path = :voyager |> :code.priv_dir() |> Path.join("voyager_agent.erl")
-    {:ok, module, binary} = :compile.file(String.to_charlist(path), [:binary])
-    {:module, ^module} = :code.load_binary(module, String.to_charlist(path), binary)
-
-    on_exit(fn ->
-      :code.purge(module)
-      :code.delete(module)
-    end)
-
-    :ok
-  end
-
   setup do
+    VoyagerAgentFixture.load!()
+
     prev_erpc = Application.get_env(:voyager, :erpc)
     Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
     on_exit(fn -> Application.put_env(:voyager, :erpc, prev_erpc) end)
