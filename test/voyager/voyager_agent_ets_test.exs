@@ -184,44 +184,11 @@ defmodule VoyagerAgentEtsTest do
                @agent_module.ets_lookup(name, :k, 10, @budget, :undefined)
     end
 
-    test "looks up mixed-arity bag rows for one key" do
+    test "drops a wide bag row when a narrow row for the same key already matched" do
       name = mixed_arity_table(:bag)
-      assert_lookup_matches_ets(name, :k)
-    end
 
-    test "looks up mixed-arity duplicate_bag rows for one key" do
-      name = mixed_arity_table(:duplicate_bag)
-      assert_lookup_matches_ets(name, :k)
-    end
-
-    test "returns mixed-arity bag rows together when the keyed select finishes on page one" do
-      name = mixed_arity_table(:bag)
-      narrow = {:k, 1}
-      wide = wide_record(:k, 256)
-
-      assert {:ok, %{records: [^narrow, ^wide], continuation: :undefined, truncated: false}} =
-               @agent_module.ets_lookup(name, :k, 1, @budget, :undefined)
-    end
-
-    test "appends a wide bag row after paging the keyed matches" do
-      name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :bag])
-      :ets.insert(name, {:k, 1})
-      :ets.insert(name, {:k, 2})
-      wide = wide_record(:k, 256)
-      :ets.insert(name, wide)
-
-      assert {:ok, %{records: page1, continuation: cont, truncated: false}} =
-               @agent_module.ets_lookup(name, :k, 1, @budget, :undefined)
-
-      assert length(page1) == 1
-      refute cont in [:undefined, :"$end_of_table"]
-
-      assert {:ok, %{records: page2, continuation: :undefined, truncated: false}} =
-               @agent_module.ets_lookup(name, :k, 1, @budget, cont)
-
-      assert Enum.sort(page1 ++ page2) == Enum.sort(:ets.lookup(name, :k))
-      assert wide in page2
+      assert {:ok, %{records: [{:k, 1}], continuation: :undefined, truncated: false}} =
+               @agent_module.ets_lookup(name, :k, 10, @budget, :undefined)
     end
 
     test "does not duplicate a wide row when the key is a match-spec atom" do

@@ -547,41 +547,19 @@ do_lookup(Table, Key, Limit, Budget, undefined) ->
             erlang:error(badarg)
     end;
 do_lookup(Table, Key, _Limit, Budget, Cont) ->
-    Spec = lookup_spec(Table, Key),
-    finish_keyed(Table,
-                 Key,
-                 ets:select(
-                     ets:repair_continuation(Cont, Spec)),
-                 Budget,
-                 rest).
+    wrap_select(ets:select(
+                    ets:repair_continuation(Cont, lookup_spec(Table, Key))),
+                Budget).
 
 bag_lookup(Table, Key, Limit, Budget) ->
-    finish_keyed(Table,
-                 Key,
-                 ets:select(Table, lookup_spec(Table, Key), Limit),
-                 Budget,
-                 first).
-
-finish_keyed(Table, Key, Result, Budget, Page) ->
-    case ms_special_key(Key) of
-        true ->
-            wrap_select(Result, Budget);
-        false ->
-            keyed_overflow(Table, Key, Result, Budget, Page)
+    Spec = lookup_spec(Table, Key),
+    case ets:select(Table, Spec, Limit) of
+        '$end_of_table' ->
+            %% Keyed heads stop at arity 255; lookup still hashes a wider row.
+            wrap_records(ets:lookup(Table, Key), undefined, Budget);
+        Result ->
+            wrap_select(Result, Budget)
     end.
-
-keyed_overflow(Table, Key, '$end_of_table', Budget, first) ->
-    wrap_records(ets:lookup(Table, Key), undefined, Budget);
-keyed_overflow(Table, Key, '$end_of_table', Budget, rest) ->
-    wrap_records(wide_overflow(Table, Key), undefined, Budget);
-keyed_overflow(Table, Key, {Records, '$end_of_table'}, Budget, _Page) when is_list(Records) ->
-    wrap_records(Records ++ wide_overflow(Table, Key), undefined, Budget);
-keyed_overflow(_Table, _Key, Result, Budget, _Page) ->
-    wrap_select(Result, Budget).
-
-%% Keyed heads stop at arity 255; lookup still hashes a wider row.
-wide_overflow(Table, Key) ->
-    [Row || Row <- ets:lookup(Table, Key), tuple_size(Row) > ?ETS_LOOKUP_MAX_ARITY].
 
 lookup_spec(Table, Key) ->
     case ets:info(Table, keypos) of
