@@ -11,6 +11,9 @@ defmodule Voyager.MCP.Server do
   component(Voyager.MCP.Tools.NodeInfo)
   component(Voyager.MCP.Tools.ProcessList)
   component(Voyager.MCP.Tools.ProcessInfo)
+  component(Voyager.MCP.Tools.EtsList)
+  component(Voyager.MCP.Tools.EtsReadTableChunk)
+  component(Voyager.MCP.Tools.EtsSearchTable)
 
   @impl true
   def init(_client_info, frame), do: {:ok, frame}
