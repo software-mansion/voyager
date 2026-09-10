@@ -213,6 +213,31 @@ defmodule VoyagerAgentEtsTest do
                @agent_module.ets_lookup(name, :"$1", 10, @budget, :undefined)
     end
 
+    test "treats a nested :\"$1\" tuple key as a literal" do
+      name = bag_with_rows({{:"$1", 2}, :a}, {{:foo, 2}, :b})
+      assert_lookup_matches_ets(name, {:"$1", 2})
+    end
+
+    test "treats a nested :_ tuple key as a literal" do
+      name = bag_with_rows({{:_, 2}, :a}, {{:foo, 2}, :b})
+      assert_lookup_matches_ets(name, {:_, 2})
+    end
+
+    test "treats a nested :\"$1\" list key as a literal" do
+      name = bag_with_rows({[:"$1", 2], :a}, {[:foo, 2], :b})
+      assert_lookup_matches_ets(name, [:"$1", 2])
+    end
+
+    test "treats an empty map key as exact, not a partial pattern" do
+      name = bag_with_rows({%{}, :empty}, {%{a: 1}, :full})
+      assert_lookup_matches_ets(name, %{})
+    end
+
+    test "treats a map nested in a tuple key as exact" do
+      name = bag_with_rows({{%{a: 1}, :x}, :exact}, {{%{a: 1, b: 2}, :x}, :superset})
+      assert_lookup_matches_ets(name, {%{a: 1}, :x})
+    end
+
     test "truncates matching bag rows within the page" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :duplicate_bag])
@@ -348,6 +373,21 @@ defmodule VoyagerAgentEtsTest do
 
     values = Enum.map(page ++ page2 ++ page3, fn {:k, i} -> i end)
     assert Enum.sort(values) == Enum.to_list(1..25)
+  end
+
+  defp bag_with_rows(row, other) do
+    name = EtsTable.unique_name()
+    :ets.new(name, [:named_table, :public, :bag])
+    :ets.insert(name, row)
+    :ets.insert(name, other)
+    name
+  end
+
+  defp assert_lookup_matches_ets(name, key) do
+    expected = :ets.lookup(name, key)
+
+    assert {:ok, %{records: ^expected, continuation: :undefined, truncated: false}} =
+             @agent_module.ets_lookup(name, key, 10, @budget, :undefined)
   end
 
   defp wide_record(key, arity) when arity > 1 do

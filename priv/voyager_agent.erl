@@ -578,6 +578,8 @@ keyed_clauses(Keypos, Key) ->
     [{erlang:setelement(Keypos, erlang:make_tuple(N, '_'), Key), [], ['$_']}
      || N <- lists:seq(Keypos, ?ETS_LOOKUP_MAX_ARITY)].
 
+ms_special_key(Key) when is_map(Key) ->
+    true;
 ms_special_key('_') ->
     true;
 ms_special_key(Key) when is_atom(Key) ->
@@ -591,8 +593,24 @@ ms_special_key(Key) when is_atom(Key) ->
         _ ->
             false
     end;
+ms_special_key(Key) when is_tuple(Key) ->
+    ms_special_tuple(Key, 1, tuple_size(Key));
+ms_special_key(Key) when is_list(Key) ->
+    ms_special_list(Key);
 ms_special_key(_) ->
     false.
+
+ms_special_tuple(_Key, Index, Size) when Index > Size ->
+    false;
+ms_special_tuple(Key, Index, Size) ->
+    ms_special_key(element(Index, Key)) orelse ms_special_tuple(Key, Index + 1, Size).
+
+ms_special_list([]) ->
+    false;
+ms_special_list([Head | Tail]) ->
+    ms_special_key(Head) orelse ms_special_list(Tail);
+ms_special_list(Tail) ->
+    ms_special_key(Tail).
 
 do_select(Table, Spec, Limit, Budget, undefined) ->
     wrap_select(ets:select(Table, Spec, Limit), Budget);
