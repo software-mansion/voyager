@@ -137,8 +137,7 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunk do
   defp cast_scalar(node, ":" <> _ = val) do
     case TableId.existing_atom(node, val, Erpc.default_timeout()) do
       {:ok, atom} -> {:ok, atom}
-      {:error, :not_found} -> {:error, :unknown_atom_value}
-      {:error, :invalid_name} -> {:error, :unknown_atom_value}
+      {:error, e} when e in [:not_found, :invalid_name] -> {:error, :unknown_atom_value}
       {:error, _} = err -> err
     end
   end

@@ -23,22 +23,15 @@ defmodule Voyager.MCP.Tools.EtsHelpers do
   def parse_table(node, name) when is_binary(name) do
     case TableId.existing_atom(node, name, Erpc.default_timeout()) do
       {:ok, atom} -> {:ok, atom}
-      {:error, :not_found} -> {:error, :invalid_table_name}
-      {:error, :invalid_name} -> {:error, :invalid_table_name}
+      {:error, e} when e in [:not_found, :invalid_name] -> {:error, :invalid_table_name}
       {:error, _} = err -> err
     end
   end
 
   @spec format_chunk({:ok, map()} | {:error, term()}) :: {:ok, map()} | {:error, term()}
   def format_chunk({:ok, chunk}) do
-    cursor = encode_cursor(Map.get(chunk, :continuation))
-
-    formatted =
-      chunk
-      |> Map.delete(:continuation)
-      |> Map.put(:cursor, cursor)
-
-    {:ok, formatted}
+    {continuation, rest} = Map.pop(chunk, :continuation)
+    {:ok, Map.put(rest, :cursor, encode_cursor(continuation))}
   end
 
   def format_chunk(error), do: error
