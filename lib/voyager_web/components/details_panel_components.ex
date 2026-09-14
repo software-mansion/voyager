@@ -10,6 +10,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   alias Voyager.Services.SupervisionTree.TreeNode
   alias VoyagerWeb.Components.SupervisionTreeComponents
   alias VoyagerWeb.Formatters
+  alias VoyagerWeb.ProcessInfoHelp
 
   @max_links 12
   # Public so DetailsPanel can cap its remote fetch at what this panel renders.
@@ -217,51 +218,117 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         <:failed>
           <.load_error />
         </:failed>
-        <.kv size={@size} label="Initial call" value={format_mfa(info.initial_call)} />
-        <.kv size={@size} label="Current function" value={format_mfa(info.current_function)} />
+        <.kv
+          size={@size}
+          label="Initial call"
+          help={ProcessInfoHelp.get(:initial_call)}
+          value={format_mfa(info.initial_call)}
+        />
+        <.kv
+          size={@size}
+          label="Current function"
+          help={ProcessInfoHelp.get(:current_function)}
+          value={format_mfa(info.current_function)}
+        />
         <.kv
           size={@size}
           label="Current stacktrace"
+          help={ProcessInfoHelp.get(:current_stacktrace)}
           value={format_stacktrace(info.current_stacktrace)}
         />
         <.kv
           size={@size}
           label="Registered name"
+          help={ProcessInfoHelp.get(:registered_name)}
           value={format_registered_name(info.registered_name)}
         />
-        <.kv size={@size} label="Label" value={format_optional(info.label)} />
+        <.kv
+          size={@size}
+          label="Label"
+          help={ProcessInfoHelp.get(:label)}
+          value={format_optional(info.label)}
+        />
         <.kv
           size={@size}
           label="Parent"
+          help={ProcessInfoHelp.get(:parent)}
           value={format_optional_identifier(info.parent)}
           href={@pid_href && @pid_href.(info.parent)}
         />
-        <.kv size={@size} label="Status" value={to_string(info.status)} />
+        <.kv
+          size={@size}
+          label="Status"
+          help={ProcessInfoHelp.get(:status)}
+          value={to_string(info.status)}
+        />
         <.kv
           size={@size}
           label="Message queue len"
+          help={ProcessInfoHelp.get(:message_queue_len)}
           value={Formatters.format_integer(info.message_queue_len)}
         />
-        <.kv size={@size} label="Message queue data" value={to_string(info.message_queue_data)} />
+        <.kv
+          size={@size}
+          label="Message queue data"
+          help={ProcessInfoHelp.get(:message_queue_data)}
+          value={to_string(info.message_queue_data)}
+        />
         <.kv
           size={@size}
           label="Group leader"
+          help={ProcessInfoHelp.get(:group_leader)}
           value={format_identifier(info.group_leader)}
           href={@pid_href && @pid_href.(info.group_leader)}
         />
-        <.kv size={@size} label="Priority" value={to_string(info.priority)} />
-        <.kv size={@size} label="Trap exit" value={to_string(info.trap_exit)} />
-        <.kv size={@size} label="Reductions" value={Formatters.format_integer(info.reductions)} />
-        <.kv size={@size} label="Last calls" value={format_last_calls(info.last_calls)} />
-        <.kv size={@size} label="Catch level" value={Formatters.format_integer(info.catch_level)} />
-        <.kv size={@size} label="Trace" value={Formatters.format_integer(info.trace)} />
+        <.kv
+          size={@size}
+          label="Priority"
+          help={ProcessInfoHelp.get(:priority)}
+          value={to_string(info.priority)}
+        />
+        <.kv
+          size={@size}
+          label="Trap exit"
+          help={ProcessInfoHelp.get(:trap_exit)}
+          value={to_string(info.trap_exit)}
+        />
+        <.kv
+          size={@size}
+          label="Reductions"
+          help={ProcessInfoHelp.get(:reductions)}
+          value={Formatters.format_integer(info.reductions)}
+        />
+        <.kv
+          size={@size}
+          label="Last calls"
+          help={ProcessInfoHelp.get(:last_calls)}
+          value={format_last_calls(info.last_calls)}
+        />
+        <.kv
+          size={@size}
+          label="Catch level"
+          help={ProcessInfoHelp.get(:catch_level)}
+          value={Formatters.format_integer(info.catch_level)}
+        />
+        <.kv
+          size={@size}
+          label="Trace"
+          help={ProcessInfoHelp.get(:trace)}
+          value={Formatters.format_integer(info.trace)}
+        />
         <.suspending_list suspending={info.suspending} size={@size} />
         <.kv
           size={@size}
           label="Sequential trace token"
+          help={ProcessInfoHelp.get(:sequential_trace_token)}
           value={format_sequential_trace_token(info.sequential_trace_token)}
         />
-        <.kv size={@size} label="Error handler" value={inspect(info.error_handler)} />
+        <.kv
+          size={@size}
+          label="Error handler"
+          help={ProcessInfoHelp.get(:error_handler)}
+          value={inspect(info.error_handler)}
+        />
       </.async_result>
     </.section>
     """
@@ -322,20 +389,42 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         <:failed>
           <.load_error />
         </:failed>
-        <.kv size={@size} label="Memory" value={Formatters.format_bytes(info.memory)} />
+        <.kv
+          size={@size}
+          label="Memory"
+          help={ProcessInfoHelp.get(:memory)}
+          value={Formatters.format_bytes(info.memory)}
+        />
         <.kv
           size={@size}
           label="Stack and heaps"
+          help={ProcessInfoHelp.get(:stack_and_heap_size)}
           value={Formatters.format_bytes(info.stack_and_heap_size)}
         />
-        <.kv size={@size} label="Heap size" value={Formatters.format_bytes(info.heap_size)} />
-        <.kv size={@size} label="Stack size" value={Formatters.format_bytes(info.stack_size)} />
+        <.kv
+          size={@size}
+          label="Heap size"
+          help={ProcessInfoHelp.get(:heap_size)}
+          value={Formatters.format_bytes(info.heap_size)}
+        />
+        <.kv
+          size={@size}
+          label="Stack size"
+          help={ProcessInfoHelp.get(:stack_size)}
+          value={Formatters.format_bytes(info.stack_size)}
+        />
         <.kv
           size={@size}
           label="GC min heap size"
+          help={ProcessInfoHelp.get(:gc_min_heap_size)}
           value={Formatters.format_bytes(info.gc_min_heap_size)}
         />
-        <.kv size={@size} label="GC fullsweep after" value={format_count(info.gc_fullsweep_after)} />
+        <.kv
+          size={@size}
+          label="GC fullsweep after"
+          help={ProcessInfoHelp.get(:gc_fullsweep_after)}
+          value={format_count(info.gc_fullsweep_after)}
+        />
       </.async_result>
     </.section>
     """
@@ -370,6 +459,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :href, :string, default: nil, doc: "renders the value as a navigate link"
   attr :last, :boolean, default: false
   attr :stacked, :boolean, default: false
+  attr :help, :map, default: nil, doc: "help entry rendered as a \"?\" tooltip next to the label"
 
   attr :size, :atom,
     default: :xs,
@@ -379,13 +469,24 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   slot :inner_block, doc: "markup value, for rows a plain `value` cannot express"
 
   def kv(assigns) do
+    assigns = assign(assigns, :help_id, "kv-help-" <> String.replace(assigns.label, " ", "-"))
+
     ~H"""
     <div class={[
       "font-mono flex gap-4 py-2.5 text-xs",
       if(@stacked, do: "flex-col items-stretch", else: "items-baseline justify-between"),
       not @last && "border-base-content/10 border-b"
     ]}>
-      <span class="text-base-content/70 shrink-0">{@label}</span>
+      <span class="text-base-content/70 flex shrink-0 items-center gap-1">
+        {@label}
+        <.help_tooltip
+          :if={@help}
+          id={@help_id}
+          text={@help.text}
+          doc_href={@help[:doc_href]}
+          doc_label={@help[:doc_label] || "Learn more"}
+        />
+      </span>
       <div
         class={[
           "text-base-content min-w-0",
@@ -486,7 +587,12 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     assigns = assign(assigns, :suspending_count, length(assigns.suspending))
 
     ~H"""
-    <.kv size={@size} label="Suspending" stacked={@suspending_count > 0}>
+    <.kv
+      size={@size}
+      label="Suspending"
+      help={ProcessInfoHelp.get(:suspending)}
+      stacked={@suspending_count > 0}
+    >
       <span :if={@suspending == []}>[]</span>
       <div
         :if={@suspending != []}
