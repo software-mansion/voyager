@@ -10,6 +10,7 @@ use tauri::{
 const MAIN_WINDOW_LABEL: &str = "main";
 const ZOOM_IN_ID: &str = "zoom_in";
 const ZOOM_OUT_ID: &str = "zoom_out";
+const ZOOM_RESET_ID: &str = "zoom_reset";
 const ZOOM_STEP: f64 = 0.1;
 const MIN_ZOOM: f64 = 0.5;
 const MAX_ZOOM: f64 = 2.0;
@@ -37,6 +38,7 @@ pub fn run() {
         .on_menu_event(|app, event| match event.id().as_ref() {
             ZOOM_IN_ID => zoom_by(app, ZOOM_STEP),
             ZOOM_OUT_ID => zoom_by(app, -ZOOM_STEP),
+            ZOOM_RESET_ID => zoom_to(app, 1.0),
             _ => {}
         })
         .setup(move |app| {
@@ -44,6 +46,9 @@ pub fn run() {
             {
                 let app_menu = SubmenuBuilder::new(app, "Voyager")
                     .about(None)
+                    .separator()
+                    .hide()
+                    .separator()
                     .quit()
                     .build()?;
 
@@ -65,6 +70,11 @@ pub fn run() {
                     .item(
                         &MenuItemBuilder::with_id(ZOOM_OUT_ID, "Zoom Out")
                             .accelerator("CmdOrCtrl+-")
+                            .build(app)?,
+                    )
+                    .item(
+                        &MenuItemBuilder::with_id(ZOOM_RESET_ID, "Actual Size")
+                            .accelerator("CmdOrCtrl+0")
                             .build(app)?,
                     )
                     .build()?;
@@ -124,13 +134,21 @@ fn focus_existing_window(app: &tauri::AppHandle) {
 }
 
 fn zoom_by(app_handle: &tauri::AppHandle, delta: f64) {
-    let zoom_level = app_handle.state::<ZoomLevel>();
+    let current = *app_handle
+        .state::<ZoomLevel>()
+        .0
+        .lock()
+        .expect("zoom level poisoned");
+    zoom_to(app_handle, current + delta);
+}
 
-    let level = {
-        let mut level = zoom_level.0.lock().expect("zoom level poisoned");
-        *level = (*level + delta).clamp(MIN_ZOOM, MAX_ZOOM);
-        *level
-    };
+fn zoom_to(app_handle: &tauri::AppHandle, level: f64) {
+    let level = level.clamp(MIN_ZOOM, MAX_ZOOM);
+    *app_handle
+        .state::<ZoomLevel>()
+        .0
+        .lock()
+        .expect("zoom level poisoned") = level;
 
     for window in app_handle.webview_windows().into_values() {
         let _ = window.set_zoom(level);
