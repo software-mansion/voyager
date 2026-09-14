@@ -82,6 +82,12 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
       assert has_element?(view, ~s|a#open-settings[href="/settings?return_to=%2F"]|)
     end
+
+    test "links to the connection tutorial", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, ~s|a#connect-tutorial-link[href$="docs/connecting_to_a_node.md"]|)
+    end
   end
 
   describe "mode toggle" do

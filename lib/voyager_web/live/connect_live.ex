@@ -38,9 +38,18 @@ defmodule VoyagerWeb.ConnectLive do
             <ConnectComponents.connected_indicator session={@connected_session} />
 
             <div class="mb-6">
-              <h1 class="text-base-content mb-4 text-2xl font-semibold tracking-tight">
+              <h1 class="text-base-content mb-1 text-2xl font-semibold tracking-tight">
                 Connect to a node
               </h1>
+              <.link
+                id="connect-tutorial-link"
+                href="https://github.com/software-mansion/voyager/blob/main/docs/connecting_to_a_node.md"
+                target="_blank"
+                rel="noopener"
+                class="text-primary mb-4 inline-flex items-center gap-1 text-xs hover:underline"
+              >
+                <.icon name="icon-circle-help" class="size-3.5" /> How to prepare your node
+              </.link>
               <h4 class="font-mono tracking-label text-base-content/70 mb-2 text-xs uppercase">
                 Connection type:
               </h4>

@@ -20,6 +20,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
   alias Voyager.Services.Ets.TableId
   alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Components.ProcessComponents
+  alias VoyagerWeb.EtsTableHelp
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.EtsTableListControls
 
@@ -493,20 +494,53 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         <.icon name="icon-database-search" class="size-4" /> View contents
       </.link>
       <.section title="Overview">
-        <.kv label="Type" value={Atom.to_string(@table.type)} />
-        <.kv label="Protection" value={Atom.to_string(@table.protection)} />
-        <.kv label="Named table" value={flag(@table, :named_table)} />
-        <.kv label="Key position" value={Integer.to_string(@table.keypos)} />
+        <.kv label="Type" help={EtsTableHelp.get(:type)} value={Atom.to_string(@table.type)} />
+        <.kv
+          label="Protection"
+          help={EtsTableHelp.get(:protection)}
+          value={Atom.to_string(@table.protection)}
+        />
+        <.kv
+          label="Named table"
+          help={EtsTableHelp.get(:named_table)}
+          value={flag(@table, :named_table)}
+        />
+        <.kv
+          label="Key position"
+          help={EtsTableHelp.get(:keypos)}
+          value={Integer.to_string(@table.keypos)}
+        />
         <.owner_kv href={@owner_href} pid={@table.owner} />
-        <.kv label="Heir" value={format_heir(@table.heir)} last />
+        <.kv label="Heir" help={EtsTableHelp.get(:heir)} value={format_heir(@table.heir)} last />
       </.section>
       <.section title="Storage">
-        <.kv label="Objects" value={Formatters.format_integer(@table.size)} />
-        <.kv label="Memory" value={format_memory(@table.memory)} />
-        <.kv label="Compressed" value={flag(@table, :compressed)} />
-        <.kv label="Read concurrency" value={flag(@table, :read_concurrency)} />
-        <.kv label="Write concurrency" value={flag(@table, :write_concurrency)} />
-        <.kv label="Decentralized counters" value={flag(@table, :decentralized_counters)} last />
+        <.kv
+          label="Objects"
+          help={EtsTableHelp.get(:size)}
+          value={Formatters.format_integer(@table.size)}
+        />
+        <.kv label="Memory" help={EtsTableHelp.get(:memory)} value={format_memory(@table.memory)} />
+        <.kv
+          label="Compressed"
+          help={EtsTableHelp.get(:compressed)}
+          value={flag(@table, :compressed)}
+        />
+        <.kv
+          label="Read concurrency"
+          help={EtsTableHelp.get(:read_concurrency)}
+          value={flag(@table, :read_concurrency)}
+        />
+        <.kv
+          label="Write concurrency"
+          help={EtsTableHelp.get(:write_concurrency)}
+          value={flag(@table, :write_concurrency)}
+        />
+        <.kv
+          label="Decentralized counters"
+          help={EtsTableHelp.get(:decentralized_counters)}
+          value={flag(@table, :decentralized_counters)}
+          last
+        />
       </.section>
     </div>
     """
@@ -518,7 +552,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
 
   defp owner_kv(assigns) do
     ~H"""
-    <.kv label="Owner" last={@last}>
+    <.kv label="Owner" help={EtsTableHelp.get(:owner)} last={@last}>
       <.link navigate={@href} class="text-primary hover:underline">
         {Formatters.format_pid(@pid)}
       </.link>
