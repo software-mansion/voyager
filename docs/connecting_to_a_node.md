@@ -66,7 +66,7 @@ The SSH option is greyed out when Voyager was not started with its `proxy_epmd` 
 - **Connection refused / timeout**: the host or the port is not reachable. For a direct connection check that `epmd` and the distribution port (random by default, see `inet_dist_listen_min` / `inet_dist_listen_max`) are open in the firewall. For SSH check that the SSH host itself can reach the node.
 - **"SSH authentication failed"**: with SSH Agent, check that `ssh-add -l` lists a key the host accepts and that the agent is running. If it lists several keys of the same type, only the first is tried; see the Authentication note above. With Password, check the password. Try `ssh user@host` from a terminal first, keeping in mind that plain `ssh` tries every key and Voyager does not.
 - **Cookie mismatch**: the node logs `** Connection attempt from disallowed node ... **`. Compare the cookie with `:erlang.get_cookie()` on the node.
-- **Works from the shell, not from Voyager**: make sure Voyager's own name type (Settings → Distribution) matches the node's. Mixed short and long names never connect.
+- **`iex --remsh` works, Voyager does not**: the short/long toggle next to the node name also decides Voyager's own name type. Set it to match how the node was started; mixed short and long names never connect.
 - **Name resolves differently**: a long name must resolve to the same address from Voyager and from the node. When in doubt use an IP address instead of a hostname.
 
 Recent connections are saved in a local SQLite database; secrets are encrypted before being written with a key that lives only at `~/.voyager/vault.key`.
