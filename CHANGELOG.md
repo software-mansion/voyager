@@ -32,8 +32,6 @@
 * Fix SSH agent authentication option in [#222](https://github.com/software-mansion/voyager/pull/222)
 * Persist the MCP enabled setting in the database in [#176](https://github.com/software-mansion/voyager/pull/176)
 * Fix app icon on older macOS versions in [#165](https://github.com/software-mansion/voyager/pull/165)
-* Fix refresh-mode disabled tooltip after disconnecting from a node in [#148](https://github.com/software-mansion/voyager/pull/148)
-* Change Voyager hostnames in [#149](https://github.com/software-mansion/voyager/pull/149)
 * Fix MCP telemetry in [#152](https://github.com/software-mansion/voyager/pull/152)
 
 ## 0.1.0 (2026-08-04)
