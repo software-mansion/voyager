@@ -9,9 +9,12 @@ Generate the changelog section for a release from git history, in the same forma
 
 ## Workflow
 
-1. **Determine the range.** Previous release tag → target ref:
-   - `git tag --sort=-creatordate | head` to find the latest tag(s)
-   - Range is `<prev-tag>..<new-tag-or-HEAD>`. If the user names a version, use it as the section heading; date from `git log -1 --format=%ad --date=short <ref>`.
+1. **Determine the range and date.**
+   - Target is an existing tag: prev = `git describe --tags --abbrev=0 <target>^`;
+     date = `git for-each-ref --format='%(creatordate:short)' refs/tags/<target>`
+   - Target is untagged HEAD (upcoming release): prev = `git describe --tags --abbrev=0`;
+     date = the intended release date (default: today)
+   - Range is `<prev>..<target>`; the user-named version is the section heading
 2. **Collect entries.** `git log <range> --oneline` — one entry per merged PR (`(#N)` suffix).
 3. **Filter.** Drop entirely:
    - dependabot / dependency bumps (`Chore: Bump ...`)
