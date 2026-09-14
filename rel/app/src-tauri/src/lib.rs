@@ -11,6 +11,7 @@ const MAIN_WINDOW_LABEL: &str = "main";
 const ZOOM_IN_ID: &str = "zoom_in";
 const ZOOM_OUT_ID: &str = "zoom_out";
 const ZOOM_RESET_ID: &str = "zoom_reset";
+const DEFAULT_ZOOM: f64 = 1.0;
 const ZOOM_STEP: f64 = 0.1;
 const MIN_ZOOM: f64 = 0.5;
 const MAX_ZOOM: f64 = 2.0;
@@ -34,11 +35,11 @@ pub fn run() {
         .enable_macos_default_menu(false)
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![os_theme])
-        .manage(ZoomLevel(Mutex::new(1.0)))
+        .manage(ZoomLevel(Mutex::new(DEFAULT_ZOOM)))
         .on_menu_event(|app, event| match event.id().as_ref() {
             ZOOM_IN_ID => zoom_by(app, ZOOM_STEP),
             ZOOM_OUT_ID => zoom_by(app, -ZOOM_STEP),
-            ZOOM_RESET_ID => zoom_to(app, 1.0),
+            ZOOM_RESET_ID => zoom_to(app, DEFAULT_ZOOM),
             _ => {}
         })
         .setup(move |app| {
