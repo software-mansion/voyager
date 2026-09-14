@@ -147,8 +147,8 @@ defmodule VoyagerWeb.ConnectLive do
     end
   end
 
-  defp resolve_mode(%NodeSession.Session{connector: connector}, _params, _proxy_epmd_active?) do
-    ui_mode(connector.name())
+  defp resolve_mode(%NodeSession.Session{} = session, _params, _proxy_epmd_active?) do
+    connect_mode(session)
   end
 
   defp resolve_mode(nil, params, proxy_epmd_active?) do
@@ -158,7 +158,13 @@ defmodule VoyagerWeb.ConnectLive do
   defp maybe_patch_connected_session(socket, nil), do: socket
 
   defp maybe_patch_connected_session(socket, session) do
-    push_patch(socket, to: connect_path(session), replace: true)
+    mode = connect_mode(session)
+
+    if socket.assigns.mode != mode do
+      push_patch(socket, to: connect_path(mode), replace: true)
+    else
+      socket
+    end
   end
 
   defp maybe_sync_mode_url(socket, mode, params) do
@@ -175,7 +181,4 @@ defmodule VoyagerWeb.ConnectLive do
 
   defp mode_param(:ssh), do: "ssh"
   defp mode_param(:direct), do: nil
-
-  defp ui_mode(:ssh), do: :ssh
-  defp ui_mode(_), do: :direct
 end
