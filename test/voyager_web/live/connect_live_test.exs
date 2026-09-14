@@ -15,7 +15,7 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
     on_exit(fn ->
       :sys.replace_state(NodeSession, fn _ -> previous_state end)
-      :persistent_term.put(:connected_via, previous_via)
+      NodeSession.cache_connector_name(previous_via)
     end)
 
     :ok

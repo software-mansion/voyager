@@ -43,12 +43,16 @@ defmodule Voyager.NodeSessionTest do
 
     on_exit(fn ->
       :sys.replace_state(NodeSession, fn _ -> previous_state end)
-      # connect_via/4 writes this persistent_term; restoring GenServer state does not.
-      :persistent_term.put(:connected_via, previous_via)
+      NodeSession.cache_connector_name(previous_via)
     end)
 
     Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
     :ok
+  end
+
+  test "cache_connector_name/1 is the value read by cached_connector_name/0" do
+    NodeSession.cache_connector_name(:ssh)
+    assert NodeSession.cached_connector_name() == :ssh
   end
 
   describe "connect_via/4" do
