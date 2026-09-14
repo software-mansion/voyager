@@ -10,7 +10,8 @@ defmodule Voyager.Services.Ets.Fetch do
 
   `lookup/7` pages a single key with the same positive limit as select. A bag
   or duplicate_bag key that holds more objects than the limit returns a
-  continuation for the rest of that key.
+  continuation for the rest of that key. Keyed select heads stop at arity 255;
+  a wider row is dropped when a narrower row for the same key already matched.
 
   A continuation that crossed ETF must be repaired on the target against the
   same match spec used for the page (`[{:"$1", [], [:"$1"]}]` for match-all;

@@ -84,7 +84,7 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
     test "key_eq resolves the atom value on the target" do
       stub_intern()
       stub_intern()
-      stub_call(:ets_lookup, [{:alice, 30}], key: :alice)
+      stub_call(:ets_lookup, [{:alice, 30}], key: :alice, limit: 25)
 
       result = run(%{"table" => "code", "keypos" => 1, "mode" => "key_eq", "value" => ":alice"})
 
@@ -94,11 +94,58 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
 
     test "key_eq with integer value" do
       stub_intern()
-      stub_call(:ets_lookup, [{42, "answer"}], key: 42)
+      stub_call(:ets_lookup, [{42, "answer"}], key: 42, limit: 25)
 
       result = run(%{"table" => "code", "keypos" => 1, "mode" => "key_eq", "value" => "42"})
 
       assert result["records"] == [[42, "answer"]]
+    end
+
+    test "key_eq pages through ets_lookup/5 with the requested limit" do
+      stub_intern()
+      stub_call(:ets_lookup, [{42, "a"}], key: 42, limit: 1, continuation: :page_two_cont)
+
+      result =
+        run(%{
+          "table" => "code",
+          "keypos" => 1,
+          "mode" => "key_eq",
+          "value" => "42",
+          "limit" => 1
+        })
+
+      assert result["records"] == [[42, "a"]]
+      assert result["cursor"] != nil
+    end
+
+    test "key_eq resumes from the cursor of a previous page" do
+      stub_intern()
+      stub_call(:ets_lookup, [{42, "a"}], key: 42, limit: 1, continuation: :page_two_cont)
+
+      page1 =
+        run(%{
+          "table" => "code",
+          "keypos" => 1,
+          "mode" => "key_eq",
+          "value" => "42",
+          "limit" => 1
+        })
+
+      stub_intern()
+      stub_call(:ets_lookup, [{42, "b"}], key: 42, limit: 1, cont: :page_two_cont)
+
+      page2 =
+        run(%{
+          "table" => "code",
+          "keypos" => 1,
+          "mode" => "key_eq",
+          "value" => "42",
+          "limit" => 1,
+          "cursor" => page1["cursor"]
+        })
+
+      assert page2["records"] == [[42, "b"]]
+      assert page2["cursor"] == nil
     end
 
     test "key_prefix returns matching rows" do
@@ -209,8 +256,10 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
     }
 
     expect(Voyager.ErpcMock, :call, fn _node, :voyager_agent, ^fun, args, _timeout ->
+      if fun == :ets_lookup, do: assert(length(args) == 5)
       if cont = opts[:cont], do: assert(List.last(args) == cont)
       if key = opts[:key], do: assert(Enum.at(args, 1) == key)
+      if limit = opts[:limit], do: assert(Enum.at(args, 2) == limit)
       {:ok, chunk}
     end)
   end

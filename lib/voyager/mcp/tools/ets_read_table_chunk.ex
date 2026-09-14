@@ -7,7 +7,7 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunk do
 
   Filter modes via `Voyager.Services.Ets.Search.chunk/8`:
   - Omit `mode` entirely for an unfiltered scan.
-  - `key_eq` — rows whose key equals `value` (single-shot, no paging).
+  - `key_eq` — rows whose key equals `value` (hash lookup; pages with `limit`/`cursor`).
   - `key_prefix` — rows whose binary key starts with `value`.
   - `element_eq` — rows whose tuple element at 1-based `index` equals `value`.
   Substring search is not supported here; use `ets_search_table` for raw match specs.
