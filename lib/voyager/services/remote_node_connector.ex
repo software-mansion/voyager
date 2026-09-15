@@ -119,7 +119,8 @@ defmodule Voyager.Services.RemoteNodeConnector do
     remote_host = tunnel_target(node_host)
 
     with :ok <- Distribution.ensure_distributed(name_type),
-         {:ok, dist_port} <- Connection.discover_dist_port(conn_ref, remote_host, node_name, epmd_port),
+         {:ok, dist_port} <-
+           Connection.discover_dist_port(conn_ref, remote_host, node_name, epmd_port),
          {:ok, local_port} <- Connection.open_tunnel(conn_ref, remote_host, dist_port),
          :ok <- TunnelRegistry.register(node_key, local_port, conn_ref) do
       remote_node = String.to_atom(full_node_name)
