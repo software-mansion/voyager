@@ -6,24 +6,27 @@ defmodule Voyager.MCP.RouterTest do
 
   alias Voyager.MCP.Router
 
-  defp guard(origin) do
-    conn = conn(:post, "/mcp", "{}")
+  @opts Router.init([])
+
+  # A 404 from the catch-all proves the guard passed without booting Anubis behind `/mcp`.
+  defp call(path, origin) do
+    conn = conn(:post, path, "{}") |> put_req_header("content-type", "application/json")
     conn = if origin, do: put_req_header(conn, "origin", origin), else: conn
-    Router.reject_cross_origin(conn, [])
+    Router.call(conn, @opts)
   end
 
-  test "request without an Origin header passes" do
-    refute guard(nil).halted
+  test "request without an Origin header passes the guard" do
+    assert call("/unknown", nil).status == 404
   end
 
-  test "loopback Origins pass" do
+  test "loopback Origins pass the guard" do
     for origin <- ["http://localhost:4040", "http://127.0.0.1:4040", "http://[::1]:4040"] do
-      refute guard(origin).halted, "expected #{origin} to pass"
+      assert call("/unknown", origin).status == 404, "expected #{origin} to pass"
     end
   end
 
-  test "a cross-site Origin is forbidden" do
-    conn = guard("https://evil.example.com")
+  test "a cross-site Origin is forbidden before reaching /mcp" do
+    conn = call("/mcp", "https://evil.example.com")
     assert conn.status == 403
     assert conn.halted
   end

@@ -10,12 +10,13 @@ defmodule Voyager.MCP.Router do
 
   @loopback_hosts ~w(localhost 127.0.0.1 ::1)
 
+  plug :reject_cross_origin
+
   plug Plug.Parsers,
     parsers: [:json],
     pass: ["*/*"],
     json_decoder: Jason
 
-  plug :reject_cross_origin
   plug :match
   plug :dispatch
 
@@ -31,8 +32,7 @@ defmodule Voyager.MCP.Router do
     send_resp(conn, 404, "Not found")
   end
 
-  @doc false
-  def reject_cross_origin(conn, _opts) do
+  defp reject_cross_origin(conn, _opts) do
     case Plug.Conn.get_req_header(conn, "origin") do
       [] -> conn
       [origin | _] -> if loopback_origin?(origin), do: conn, else: forbid(conn)
