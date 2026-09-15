@@ -8,7 +8,6 @@ defmodule Voyager.MCP.RouterTest do
 
   @opts Router.init([])
 
-  # A 404 from the catch-all proves the guard passed without booting Anubis behind `/mcp`.
   defp call(path, origin) do
     conn = conn(:post, path, "{}") |> put_req_header("content-type", "application/json")
     conn = if origin, do: put_req_header(conn, "origin", origin), else: conn
