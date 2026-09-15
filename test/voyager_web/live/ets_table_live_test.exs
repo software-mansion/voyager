@@ -33,7 +33,8 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     view |> element("#ets-records-0-lookup") |> render_click()
     render_async(view, 2_000)
 
-    assert has_element?(view, "#ets-lookup-sidebar")
+    assert has_element?(view, "#ets-lookup-record-0")
+    refute has_element?(view, "#ets-lookup-error")
   end
 
   test "a bag row has no lookup control and ignores open_sidebar", %{conn: conn} do
