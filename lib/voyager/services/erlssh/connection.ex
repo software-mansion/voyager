@@ -30,10 +30,10 @@ defmodule Voyager.Services.Erlssh.Connection do
     :ssh.connect(ssh_host_arg(host), ssh_port, base_opts)
   end
 
-  @spec open_tunnel(:ssh.connection_ref(), integer(), integer()) ::
+  @spec open_tunnel(:ssh.connection_ref(), charlist(), :inet.port_number()) ::
           {:ok, pos_integer()} | {:error, term()}
-  def open_tunnel(conn_ref, remote_port, local_port \\ 0) do
-    :ssh.tcpip_tunnel_to_server(conn_ref, ~c"127.0.0.1", local_port, ~c"127.0.0.1", remote_port)
+  def open_tunnel(conn_ref, remote_host, remote_port) do
+    :ssh.tcpip_tunnel_to_server(conn_ref, ~c"127.0.0.1", 0, remote_host, remote_port)
   end
 
   @doc """
@@ -43,10 +43,10 @@ defmodule Voyager.Services.Erlssh.Connection do
   Performs blocking SSH and TCP operations and can block the caller for up to
   #{@ssh_timeout}ms; run it inside a `Task` or supervised process.
   """
-  @spec discover_dist_port(:ssh.connection_ref(), String.t(), integer()) ::
+  @spec discover_dist_port(:ssh.connection_ref(), charlist(), String.t(), integer()) ::
           {:ok, pos_integer()} | {:error, term()}
-  def discover_dist_port(conn_ref, node_name, epmd_port \\ @epmd_port) do
-    with {:ok, epmd_local_port} <- open_tunnel(conn_ref, epmd_port),
+  def discover_dist_port(conn_ref, remote_host, node_name, epmd_port \\ @epmd_port) do
+    with {:ok, epmd_local_port} <- open_tunnel(conn_ref, remote_host, epmd_port),
          {:ok, output} <- query_epmd_names(epmd_local_port) do
       parse_epmd_names(output, node_name)
     end

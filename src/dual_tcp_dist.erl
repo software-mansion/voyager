@@ -1,54 +1,28 @@
 -module(dual_tcp_dist).
 -moduledoc false.
 
-%% Dual-stack -proto_dist carrier for Voyager.
-%%
-%% Voyager's own node is hidden and named on loopback (voyager@127.0.0.1), so
-%% it never accepts an inbound distribution connection -- it only ever dials
-%% out. Therefore this carrier LISTENS IPv4-only (delegating to inet_tcp_dist)
-%% and puts all the dual-stack logic in setup/5, which picks the IPv4 or IPv6
-%% low-level driver per target from how that target's address resolves.
-%%
-%% Everything delegates to inet_tcp_dist's family-generic gen_*/fam_* helpers;
-%% nothing here reimplements OTP internals, and no dist headers are needed.
+%% Dual-stack -proto_dist carrier: setup/5 picks the IPv4 or IPv6 driver per
+%% target from how the epmd module resolves it. Voyager starts distribution
+%% with dist_listen: false, so there is no listen/accept side here.
 
--export([
-    listen/2,
-    accept/1,
-    accept_connection/5,
-    setup/5,
-    close/1,
-    select/1,
-    address/0,
-    is_node_name/1
-]).
+-export([select/1, setup/5, close/1, address/0, is_node_name/1]).
 -export([setopts/2, getopts/2]).
+-export([choose_driver/1]).
 
--export([choose_driver/1, family_of/1]).
-
-listen(Name, Host) ->
-    inet_tcp_dist:gen_listen(inet_tcp, Name, Host).
-
-accept(Listen) ->
-    inet_tcp_dist:gen_accept(inet_tcp, Listen).
-
-accept_connection(AcceptPid, Socket, MyNode, Allowed, SetupTime) ->
-    inet_tcp_dist:gen_accept_connection(
-        inet_tcp, AcceptPid, Socket, MyNode, Allowed, SetupTime
-    ).
+%% The only -proto_dist module, so select/1 must claim nodes of either family.
+select(Node) ->
+    case dist_util:split_node(Node) of
+        {node, Name, Host} ->
+            resolves(Name, Host, inet) orelse resolves(Name, Host, inet6);
+        _ ->
+            false
+    end.
 
 address() ->
     inet_tcp_dist:gen_address(inet_tcp).
 
 close(Socket) ->
     inet_tcp:close(Socket).
-
-%% We are the only -proto_dist module, so select/1 must claim every node we
-%% can reach under *either* family -- otherwise net_kernel rejects a literal
-%% IPv6 target before setup/5 ever runs.
-select(Node) ->
-    inet_tcp_dist:gen_select(inet_tcp, Node) orelse
-        inet_tcp_dist:gen_select(inet6_tcp, Node).
 
 %% gen_setup/6 spawns and returns a pid immediately, so the family cannot be
 %% retried after a failed connect -- it must be decided up front, here.
@@ -58,46 +32,33 @@ setup(Node, Type, MyNode, LongOrShortNames, SetupTime) ->
         Driver, Node, Type, MyNode, LongOrShortNames, SetupTime
     ).
 
-%% The epmd module's resolved address is ground truth: SSH-tunnelled nodes
-%% always resolve to a v4 loopback address, direct IPv6 nodes to a v6 address.
-%% Prefer IPv4 when a host answers both ways.
-%%
-%% The v4 branch uses dual_tcp (a thin inet_tcp wrapper), not bare inet_tcp:
-%% an SSH-tunnelled node's literal name can carry a real IPv6 host (e.g.
-%% `app@::1`) even though the tunnel is always IPv4 -- :ssh cannot bind a v6
-%% forward listener, so the local socket is v4 loopback -- and OTP's own
-%% literal-host validation inside gen_setup (splitnode/3) would otherwise reject
-%% that dotless IPv6 host under plain inet_tcp before a socket is opened.
-%% See dual_tcp:parse_address/1.
+%% Prefer IPv4 when a host resolves both ways; SSH-tunnelled nodes always
+%% resolve to the v4 tunnel listener. dual_tcp instead of inet_tcp so a
+%% tunnelled node named app@<IPv6-literal> passes gen_setup's literal-host
+%% check; see dual_tcp:parse_address/1.
 choose_driver(Node) ->
     case dist_util:split_node(Node) of
         {node, Name, Host} ->
-            case resolved_family(Name, Host, inet) of
-                inet ->
+            case resolves(Name, Host, inet) of
+                true ->
                     dual_tcp;
-                _ ->
-                    case resolved_family(Name, Host, inet6) of
-                        inet6 -> inet6_tcp;
-                        %% Unreachable both ways: hand to dual_tcp so gen_setup
-                        %% fails with the normal distribution error.
-                        _ -> dual_tcp
+                false ->
+                    case resolves(Name, Host, inet6) of
+                        true -> inet6_tcp;
+                        false -> dual_tcp
                     end
             end;
         _ ->
             dual_tcp
     end.
 
-resolved_family(Name, Host, Family) ->
+resolves(Name, Host, Family) ->
     EpmdMod = net_kernel:epmd_module(),
     case EpmdMod:address_please(Name, Host, Family) of
-        {ok, Addr} -> family_of(Addr);
-        {ok, Addr, _Port, _Cr} -> family_of(Addr);
-        _ -> undefined
+        {ok, _Addr} -> true;
+        {ok, _Addr, _Port, _Creation} -> true;
+        _ -> false
     end.
-
-family_of(Addr) when tuple_size(Addr) =:= 4 -> inet;
-family_of(Addr) when tuple_size(Addr) =:= 8 -> inet6;
-family_of(_) -> undefined.
 
 is_node_name(Node) when is_atom(Node) ->
     inet_tcp_dist:is_node_name(Node).
