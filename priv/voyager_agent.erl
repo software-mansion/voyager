@@ -503,6 +503,8 @@ with_bounded_heap(Fun) ->
 -define(MATCH_ALL, [{'$1', [], ['$1']}]).
 %% Match heads have a fixed arity; keypos..255 keeps the key bound so ets:select/3 hashes instead of scanning.
 -define(ETS_LOOKUP_MAX_ARITY, 255).
+%% Bound-key select leftover is the rest of the key; this token resumes without shipping it.
+-define(SKIP_CONT, '$voyager_skip').
 
 -type ets_chunk() ::
     #{records := [term()],
@@ -542,24 +544,89 @@ do_lookup(Table, Key, Limit, Budget, undefined) ->
         Type when Type =:= set; Type =:= ordered_set ->
             wrap_records(ets:lookup(Table, Key), undefined, Budget);
         Type when Type =:= bag; Type =:= duplicate_bag ->
-            bag_lookup(Table, Key, Limit, Budget);
+            bag_page(Table, Key, Limit, Budget, 0);
         _ ->
             erlang:error(badarg)
     end;
+do_lookup(Table, Key, Limit, Budget, {?SKIP_CONT, Skip})
+    when is_integer(Skip), Skip >= 0 ->
+    bag_page(Table, Key, Limit, Budget, Skip);
 do_lookup(Table, Key, _Limit, Budget, Cont) ->
     wrap_select(ets:select(
                     ets:repair_continuation(Cont, lookup_spec(Table, Key))),
                 Budget).
 
-bag_lookup(Table, Key, Limit, Budget) ->
+bag_page(Table, Key, Limit, Budget, Skip) ->
     Spec = lookup_spec(Table, Key),
     case ets:select(Table, Spec, Limit) of
         '$end_of_table' ->
             %% Keyed heads stop at arity 255; lookup still hashes a wider row.
-            wrap_records(ets:lookup(Table, Key), undefined, Budget);
+            lookup_page(ets:lookup(Table, Key), Skip, Limit, Budget);
         Result ->
-            wrap_select(Result, Budget)
+            take_page(Result, Skip, Limit, Budget, 0)
     end.
+
+lookup_page(Records, Skip, Limit, Budget) ->
+    Page = lists:sublist(Records, Skip + 1, Limit),
+    Next =
+        case Skip + length(Page) < length(Records) of
+            true ->
+                {?SKIP_CONT, Skip + length(Page)};
+            false ->
+                undefined
+        end,
+    wrap_records(Page, Next, Budget).
+
+take_page({Records, Cont}, Skip, Limit, Budget, Seen) when is_list(Records) ->
+    N = length(Records),
+    if
+        Skip =:= 0 ->
+            wrap_records(Records, skip_more(Seen + N, Cont), Budget);
+        Skip >= N, Cont =/= '$end_of_table' ->
+            take_page(ets:select(Cont), Skip - N, Limit, Budget, Seen + N);
+        Skip >= N ->
+            wrap_records([], undefined, 0);
+        true ->
+            fill_page(drop(Skip, Records), Cont, Limit, Budget, Seen + Skip)
+    end;
+take_page('$end_of_table', _Skip, _Limit, _Budget, _Seen) ->
+    wrap_records([], undefined, 0).
+
+fill_page(Page, Cont, Limit, Budget, Seen) ->
+    Have = length(Page),
+    if
+        Have >= Limit ->
+            wrap_records(lists:sublist(Page, Limit),
+                         skip_more_if(Have > Limit orelse Cont =/= '$end_of_table',
+                                      Seen + Limit),
+                         Budget);
+        Cont =:= '$end_of_table' ->
+            wrap_records(Page, undefined, Budget);
+        true ->
+            case ets:select(Cont) of
+                {More, NextCont} when is_list(More) ->
+                    fill_page(Page ++ More, NextCont, Limit, Budget, Seen);
+                '$end_of_table' ->
+                    wrap_records(Page, undefined, Budget)
+            end
+    end.
+
+skip_more(_Seen, '$end_of_table') ->
+    undefined;
+skip_more(Seen, _Cont) ->
+    {?SKIP_CONT, Seen}.
+
+skip_more_if(true, Seen) ->
+    {?SKIP_CONT, Seen};
+skip_more_if(false, _Seen) ->
+    undefined.
+
+drop(N, List) when N =< 0 ->
+    List;
+drop(_N, []) ->
+    [];
+drop(N, [_ | Rest]) ->
+    drop(N - 1, Rest).
 
 lookup_spec(Table, Key) ->
     case ets:info(Table, keypos) of

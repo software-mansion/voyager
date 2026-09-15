@@ -3,13 +3,16 @@ defmodule VoyagerAgentEtsTest do
 
   @compile {:no_warn_undefined, :voyager_agent}
 
+  alias Voyager.MCP.Tools.EtsHelpers
   alias Voyager.Services.Ets.Search
   alias Voyager.Test.EtsTable
   alias Voyager.Test.VoyagerAgentFixture
 
   @agent_module :voyager_agent
   @marker :"$voyager_truncated"
+  @skip :"$voyager_skip"
   @budget Voyager.Agent.default_budget()
+  @max_cursor_bytes 16_384
 
   setup do
     VoyagerAgentFixture.load!()
@@ -148,6 +151,43 @@ defmodule VoyagerAgentEtsTest do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :bag])
       assert_paged_key_lookup(name)
+    end
+
+    test "does not ship leftover bag binaries in the continuation" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :duplicate_bag])
+      blob = :binary.copy(<<"a">>, 10_000)
+      for _i <- 1..30, do: :ets.insert(name, {:k, blob})
+
+      assert {:ok, %{records: page, continuation: {@skip, 10} = cont, truncated: true}} =
+               @agent_module.ets_lookup(name, :k, 10, 50, :undefined)
+
+      assert length(page) == 10
+      assert :erlang.external_size(cont) < 10_000
+
+      broken = :erlang.binary_to_term(:erlang.term_to_binary(cont))
+      :erlang.garbage_collect()
+
+      assert {:ok, %{records: page2, continuation: {@skip, 20} = cont2, truncated: true}} =
+               @agent_module.ets_lookup(name, :k, 10, 50, broken)
+
+      assert length(page2) == 10
+      assert :erlang.external_size(cont2) < 10_000
+    end
+
+    test "keeps a high-cardinality bag continuation under the MCP cursor cap" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :duplicate_bag])
+      for i <- 1..3_000, do: :ets.insert(name, {:k, i})
+
+      assert {:ok, %{records: page, continuation: {@skip, 10} = cont, truncated: false}} =
+               @agent_module.ets_lookup(name, :k, 10, @budget, :undefined)
+
+      assert length(page) == 10
+      encoded = EtsHelpers.encode_cursor(cont, {"t", "key_eq", "k", nil, 1})
+      assert is_binary(encoded)
+      assert byte_size(encoded) <= @max_cursor_bytes
+      assert EtsHelpers.decode_cursor(encoded, {"t", "key_eq", "k", nil, 1}) == {:ok, cont}
     end
 
     test "returns at most one row for a set key" do
@@ -368,7 +408,7 @@ defmodule VoyagerAgentEtsTest do
 
     assert length(page) == 10
     assert Enum.all?(page, fn {:k, i} -> i in 1..25 end)
-    assert cont not in [:undefined, :"$end_of_table"]
+    assert cont == {@skip, 10}
 
     broken = :erlang.binary_to_term(:erlang.term_to_binary(cont))
     :erlang.garbage_collect()
@@ -378,7 +418,7 @@ defmodule VoyagerAgentEtsTest do
 
     assert length(page2) == 10
     assert Enum.all?(page2, fn {:k, i} -> i in 1..25 end)
-    assert cont2 not in [:undefined, :"$end_of_table"]
+    assert cont2 == {@skip, 20}
 
     assert {:ok, %{records: page3, continuation: :undefined, truncated: false}} =
              @agent_module.ets_lookup(name, :k, 10, @budget, cont2)

@@ -9,15 +9,17 @@ defmodule Voyager.Services.Ets.Fetch do
   `budget` (see `Voyager.Agent.default_budget/0`).
 
   `lookup/7` pages a single key with the same positive limit as select. A bag
-  or duplicate_bag key that holds more objects than the limit returns a
-  continuation for the rest of that key. Keyed select heads stop at arity 255;
-  a wider row is dropped when a narrower row for the same key already matched.
+  or duplicate_bag key that holds more objects than the limit returns
+  `{:"$voyager_skip", Skip}` for the rest of that key, not the ETS continuation
+  (its leftover list is the unread objects). Keyed select heads stop at arity
+  255; a wider row is dropped when a narrower row for the same key already
+  matched.
 
-  A continuation that crossed ETF must be repaired on the target against the
-  same match spec used for the page (`[{:"$1", [], [:"$1"]}]` for match-all;
-  lookup rebuilds a key-bound spec from `ets:info(Table, keypos)`) before
-  `ets:select/1`. `badarg` (private table, bad spec, unrepaired
-  continuation, out-of-range budget) is `{:error, :cannot_read}`.
+  A select continuation that crossed ETF must be repaired on the target against
+  the same match spec used for the page (`[{:"$1", [], [:"$1"]}]` for match-all;
+  `ets_select_spec` uses the caller spec). Bag lookup resumes from the skip
+  count without `ets:repair_continuation/2`. `badarg` (private table, bad spec,
+  unrepaired continuation, out-of-range budget) is `{:error, :cannot_read}`.
   """
 
   alias Voyager.Agent
