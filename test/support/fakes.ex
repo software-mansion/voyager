@@ -29,14 +29,8 @@ defmodule Voyager.Fakes do
   @spec connect_node!(Session.t()) :: Session.t()
   def connect_node!(session) do
     previous_state = :sys.get_state(NodeSession)
-    previous_via = NodeSession.cached_connector_name()
     put_session(session)
-
-    on_exit(fn ->
-      :sys.replace_state(NodeSession, fn _ -> previous_state end)
-      NodeSession.cache_connector_name(previous_via)
-    end)
-
+    on_exit(fn -> :sys.replace_state(NodeSession, fn _ -> previous_state end) end)
     session
   end
 

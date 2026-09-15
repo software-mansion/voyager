@@ -34,11 +34,6 @@ defmodule Voyager.NodeSession do
     :persistent_term.get(@connector_name_cache_key, nil)
   end
 
-  @spec cache_connector_name(atom() | nil) :: :ok
-  def cache_connector_name(via) do
-    :persistent_term.put(@connector_name_cache_key, via)
-  end
-
   @doc "Connects via the default distribution connector."
   @spec connect(String.t(), String.t(), keyword()) :: :ok | {:error, term()}
   def connect(node_name, cookie, opts \\ []) do
@@ -193,5 +188,9 @@ defmodule Voyager.NodeSession do
 
   defp broadcast(event) do
     Phoenix.PubSub.broadcast(Voyager.PubSub, @pubsub_topic, event)
+  end
+
+  defp cache_connector_name(via) do
+    :persistent_term.put(@connector_name_cache_key, via)
   end
 end

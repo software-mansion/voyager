@@ -39,20 +39,9 @@ defmodule Voyager.NodeSessionTest do
 
   setup do
     previous_state = :sys.get_state(NodeSession)
-    previous_via = NodeSession.cached_connector_name()
-
-    on_exit(fn ->
-      :sys.replace_state(NodeSession, fn _ -> previous_state end)
-      NodeSession.cache_connector_name(previous_via)
-    end)
-
+    on_exit(fn -> :sys.replace_state(NodeSession, fn _ -> previous_state end) end)
     Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
     :ok
-  end
-
-  test "cache_connector_name/1 is the value read by cached_connector_name/0" do
-    NodeSession.cache_connector_name(:ssh)
-    assert NodeSession.cached_connector_name() == :ssh
   end
 
   describe "connect_via/4" do
