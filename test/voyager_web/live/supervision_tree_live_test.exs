@@ -229,15 +229,13 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      # The collapsible toggle carries the `aria-expanded` attribute only while
-      # open (HEEx drops a `false` boolean attribute entirely).
-      assert has_element?(view, "#apps[aria-expanded]")
+      assert has_element?(view, "#apps[aria-expanded='true']")
 
       view |> element("#apps") |> render_click()
-      refute has_element?(view, "#apps[aria-expanded]")
+      assert has_element?(view, "#apps[aria-expanded='false']")
 
       view |> element("#apps") |> render_click()
-      assert has_element?(view, "#apps[aria-expanded]")
+      assert has_element?(view, "#apps[aria-expanded='true']")
     end
 
     test "refresh_now with no applications selected stays idle", %{conn: conn} do

@@ -5,8 +5,10 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
   import Phoenix.LiveViewTest
   import Mox
+  import Voyager.Fakes, only: [stub_erpc: 1]
 
   alias Voyager.Fakes
+  alias Voyager.NodeSession.Connectors.Ssh, as: SshConnector
 
   @node_name "demo@localhost"
   @path "/node/demo@localhost"
@@ -374,6 +376,21 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       {"/", flash} = assert_redirect(view)
       assert flash["error"] == "Node down: demo@localhost"
     end
+
+    test "redirects to SSH connect mode after an SSH session drops", %{conn: conn} do
+      session = Fakes.node_session(node_name: @node_name, connector: SshConnector)
+
+      Fakes.put_session(session)
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      broadcast(Voyager.NodeSession.topic(), {:nodedown, session.node})
+
+      {"/?mode=ssh", flash} = assert_redirect(view)
+      assert flash["error"] == "Node down: demo@localhost"
+    end
   end
 
   describe "mount with an unreachable node" do
@@ -406,16 +423,12 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
       assert {:error, {:live_redirect, %{to: "/"}}} = live(conn, @path)
     end
-  end
 
-  defp stub_erpc(data) do
-    stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args ->
-      Fakes.erpc_reply(mod, fun, args, data)
-    end)
+    test "redirects to SSH connect mode when a different SSH session is active", %{conn: conn} do
+      Fakes.put_session(Fakes.node_session(node_name: "other@localhost", connector: SshConnector))
 
-    stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args, _timeout ->
-      Fakes.erpc_reply(mod, fun, args, data)
-    end)
+      assert {:error, {:live_redirect, %{to: "/?mode=ssh"}}} = live(conn, @path)
+    end
   end
 
   defp broadcast(pubsub_topic, event) do

@@ -124,4 +124,8 @@ defmodule VoyagerWeb.Formatters do
       true -> "#{seconds}s"
     end
   end
+
+  @doc ~S|Formats a pid in its external form, e.g. `"<0.123.0>"`.|
+  @spec format_pid(pid()) :: String.t()
+  defdelegate format_pid(pid), to: Voyager.Pid, as: :display
 end

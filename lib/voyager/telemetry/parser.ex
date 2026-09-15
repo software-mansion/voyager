@@ -31,6 +31,7 @@ defmodule Voyager.Telemetry.Parser do
     net_kernel_stop
     already_started
     connector_crashed
+    agent_install_failed
   )a
 
   # Option keys are a bounded, non-sensitive set — safe to keep alongside the tag.

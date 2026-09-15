@@ -12,7 +12,9 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   alias VoyagerWeb.Formatters
 
   @max_links 12
+  # Public so DetailsPanel can cap its remote fetch at what this panel renders.
   @max_expanded_links 200
+  def max_expanded_links, do: @max_expanded_links
 
   attr :panel_id, :string, required: true
   attr :open?, :boolean, required: true
@@ -128,24 +130,25 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :panel_id, :string, required: true
+  attr :href, :string, default: nil, doc: "process info page path; nil renders nothing"
 
   def show_more_button(assigns) do
     ~H"""
-    <div class="border-base-200 flex justify-center border-t px-5 py-3">
-      <button
-        type="button"
+    <div :if={@href} class="border-base-200 flex justify-center border-t px-5 py-3">
+      <.link
         id={"#{@panel_id}-show-more"}
+        href={@href}
         class="btn btn-ghost gap-2 hover:text-primary"
-        disabled
       >
-        Show More <span class="badge badge-primary badge-soft badge-xs">Soon</span>
-      </button>
+        Show More <.icon name="icon-arrow-right" class="size-4" />
+      </.link>
     </div>
     """
   end
 
   attr :panel_id, :string, required: true
   attr :info, AsyncResult, required: true
+  attr :links_info, AsyncResult, required: true
   attr :node, TreeNode, required: true
   attr :links_expanded?, :boolean, required: true
   attr :myself, :any, required: true
@@ -159,7 +162,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         <.overview info={@info} />
         <.links
           panel_id={@panel_id}
-          info={@info}
+          links_info={@links_info}
           links_expanded?={@links_expanded?}
           myself={@myself}
         />
@@ -177,6 +180,15 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :info, AsyncResult, required: true
 
+  attr :size, :atom,
+    default: :xs,
+    values: [:xs, :sm],
+    doc: "value font size, forwarded to `kv/1`"
+
+  attr :pid_href, :any,
+    default: nil,
+    doc: "1-arity fun mapping a pid to a link target (or nil); pid rows render as links with it"
+
   def overview(assigns) do
     ~H"""
     <.section title="Overview">
@@ -184,14 +196,17 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         <:loading>
           <.kv_skeleton label="Initial call" wide />
           <.kv_skeleton label="Current function" wide />
+          <.kv_skeleton label="Current stacktrace" wide />
           <.kv_skeleton label="Registered name" />
+          <.kv_skeleton label="Label" />
+          <.kv_skeleton label="Parent" />
           <.kv_skeleton label="Status" narrow />
           <.kv_skeleton label="Message queue len" narrow />
+          <.kv_skeleton label="Message queue data" narrow />
           <.kv_skeleton label="Group leader" />
           <.kv_skeleton label="Priority" narrow />
           <.kv_skeleton label="Trap exit" narrow />
           <.kv_skeleton label="Reductions" />
-          <.kv_skeleton label="Binary" />
           <.kv_skeleton label="Last calls" wide />
           <.kv_skeleton label="Catch level" narrow />
           <.kv_skeleton label="Trace" narrow />
@@ -202,44 +217,67 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         <:failed>
           <.load_error />
         </:failed>
-        <.kv label="Initial call" value={format_mfa(info.initial_call)} />
-        <.kv label="Current function" value={format_mfa(info.current_function)} />
-        <.kv label="Registered name" value={format_registered_name(info.registered_name)} />
-        <.kv label="Status" value={to_string(info.status)} />
+        <.kv size={@size} label="Initial call" value={format_mfa(info.initial_call)} />
+        <.kv size={@size} label="Current function" value={format_mfa(info.current_function)} />
         <.kv
+          size={@size}
+          label="Current stacktrace"
+          value={format_stacktrace(info.current_stacktrace)}
+        />
+        <.kv
+          size={@size}
+          label="Registered name"
+          value={format_registered_name(info.registered_name)}
+        />
+        <.kv size={@size} label="Label" value={format_optional(info.label)} />
+        <.kv
+          size={@size}
+          label="Parent"
+          value={format_optional_identifier(info.parent)}
+          href={@pid_href && @pid_href.(info.parent)}
+        />
+        <.kv size={@size} label="Status" value={to_string(info.status)} />
+        <.kv
+          size={@size}
           label="Message queue len"
           value={Formatters.format_integer(info.message_queue_len)}
         />
-        <.kv label="Group leader" value={format_identifier(info.group_leader)} />
-        <.kv label="Priority" value={to_string(info.priority)} />
-        <.kv label="Trap exit" value={to_string(info.trap_exit)} />
-        <.kv label="Reductions" value={Formatters.format_integer(info.reductions)} />
-        <.kv label="Binary" value={format_binary(info.binary)} />
-        <.kv label="Last calls" value={format_last_calls(info.last_calls)} />
-        <.kv label="Catch level" value={Formatters.format_integer(info.catch_level)} />
-        <.kv label="Trace" value={Formatters.format_integer(info.trace)} />
-        <.suspending_list suspending={info.suspending} />
+        <.kv size={@size} label="Message queue data" value={to_string(info.message_queue_data)} />
         <.kv
+          size={@size}
+          label="Group leader"
+          value={format_identifier(info.group_leader)}
+          href={@pid_href && @pid_href.(info.group_leader)}
+        />
+        <.kv size={@size} label="Priority" value={to_string(info.priority)} />
+        <.kv size={@size} label="Trap exit" value={to_string(info.trap_exit)} />
+        <.kv size={@size} label="Reductions" value={Formatters.format_integer(info.reductions)} />
+        <.kv size={@size} label="Last calls" value={format_last_calls(info.last_calls)} />
+        <.kv size={@size} label="Catch level" value={Formatters.format_integer(info.catch_level)} />
+        <.kv size={@size} label="Trace" value={Formatters.format_integer(info.trace)} />
+        <.suspending_list suspending={info.suspending} size={@size} />
+        <.kv
+          size={@size}
           label="Sequential trace token"
           value={format_sequential_trace_token(info.sequential_trace_token)}
         />
-        <.kv label="Error handler" value={inspect(info.error_handler)} />
+        <.kv size={@size} label="Error handler" value={inspect(info.error_handler)} />
       </.async_result>
     </.section>
     """
   end
 
   attr :panel_id, :string, required: true
-  attr :info, AsyncResult, required: true
+  attr :links_info, AsyncResult, required: true
   attr :links_expanded?, :boolean, required: true
   attr :myself, :any, required: true
 
   def links(assigns) do
-    assigns = assign(assigns, :links_count, links_count(assigns.info))
+    assigns = assign(assigns, :links_count, links_count(assigns.links_info))
 
     ~H"""
     <.section title="Links" muted={@links_count}>
-      <.async_result :let={info} assign={@info}>
+      <.async_result :let={info} assign={@links_info}>
         <:loading>
           <div class="flex flex-wrap gap-1.5">
             <.chip_skeleton />
@@ -252,7 +290,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         </:failed>
         <.links_list
           toggle_id={"#{@panel_id}-toggle-links"}
-          links={info.links}
+          links={info.items}
+          total={info.total}
           links_expanded?={@links_expanded?}
           myself={@myself}
         />
@@ -262,6 +301,11 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :info, AsyncResult, required: true
+
+  attr :size, :atom,
+    default: :xs,
+    values: [:xs, :sm],
+    doc: "value font size, forwarded to `kv/1`"
 
   def memory_and_garbage_collection(assigns) do
     ~H"""
@@ -278,12 +322,20 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         <:failed>
           <.load_error />
         </:failed>
-        <.kv label="Memory" value={Formatters.format_bytes(info.memory)} />
-        <.kv label="Stack and heaps" value={Formatters.format_bytes(info.stack_and_heap_size)} />
-        <.kv label="Heap size" value={Formatters.format_bytes(info.heap_size)} />
-        <.kv label="Stack size" value={Formatters.format_bytes(info.stack_size)} />
-        <.kv label="GC min heap size" value={Formatters.format_bytes(info.gc_min_heap_size)} />
-        <.kv label="GC fullsweep after" value={format_count(info.gc_fullsweep_after)} />
+        <.kv size={@size} label="Memory" value={Formatters.format_bytes(info.memory)} />
+        <.kv
+          size={@size}
+          label="Stack and heaps"
+          value={Formatters.format_bytes(info.stack_and_heap_size)}
+        />
+        <.kv size={@size} label="Heap size" value={Formatters.format_bytes(info.heap_size)} />
+        <.kv size={@size} label="Stack size" value={Formatters.format_bytes(info.stack_size)} />
+        <.kv
+          size={@size}
+          label="GC min heap size"
+          value={Formatters.format_bytes(info.gc_min_heap_size)}
+        />
+        <.kv size={@size} label="GC fullsweep after" value={format_count(info.gc_fullsweep_after)} />
       </.async_result>
     </.section>
     """
@@ -291,16 +343,22 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :title, :string, required: true
   attr :muted, :string, default: nil
+  attr :help, :string, default: nil, doc: "renders a \"?\" tooltip next to the title"
+  attr :class, :any, default: nil
   slot :inner_block, required: true
 
   def section(assigns) do
+    assigns =
+      assign(assigns, :help_id, "section-help-" <> String.replace(assigns.title, " ", "-"))
+
     ~H"""
-    <div>
-      <h4 class="text-base-content mb-2 text-sm font-semibold leading-none">
+    <div class={@class}>
+      <h4 class="text-base-content mb-2 flex items-center gap-1 text-sm font-semibold leading-none">
         {@title}
         <span :if={@muted} class="font-mono text-base-content/70 ml-1 text-xs font-normal">
           {@muted}
         </span>
+        <.help_tooltip :if={@help} id={@help_id} text={@help} />
       </h4>
       {render_slot(@inner_block)}
     </div>
@@ -309,8 +367,14 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :label, :string, required: true
   attr :value, :string, default: nil, doc: "text value; truncated on overflow but kept in `title`"
+  attr :href, :string, default: nil, doc: "renders the value as a navigate link"
   attr :last, :boolean, default: false
   attr :stacked, :boolean, default: false
+
+  attr :size, :atom,
+    default: :xs,
+    values: [:xs, :sm],
+    doc: "`:xs` for the sidebar panel; `:sm` matches full-page cards like node info"
 
   slot :inner_block, doc: "markup value, for rows a plain `value` cannot express"
 
@@ -323,19 +387,44 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     ]}>
       <span class="text-base-content/70 shrink-0">{@label}</span>
       <div
-        class={["text-base-content min-w-0", not @stacked && "truncate text-right"]}
+        class={[
+          "text-base-content min-w-0",
+          @size == :sm && "text-sm",
+          not @stacked && "truncate text-right"
+        ]}
         title={@value}
       >
-        {@value}{render_slot(@inner_block)}
+        <.pid_chip :if={@href} href={@href} label={@value} />
+        <%= if is_nil(@href) do %>
+          {@value}
+        <% end %>
+        {render_slot(@inner_block)}
       </div>
     </div>
+    """
+  end
+
+  @doc """
+  A bordered chip linking to a process, styled like the relation chips.
+  """
+  attr :href, :string, required: true
+  attr :label, :string, required: true
+
+  def pid_chip(assigns) do
+    ~H"""
+    <.link
+      href={@href}
+      class="border-base-content/70 bg-base-200 text-base-content font-mono inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors hover:border-primary hover:text-primary"
+    >
+      <span class="bg-primary h-1.5 w-1.5 rounded-full" />
+      {@label}
+    </.link>
     """
   end
 
   attr :label, :string, required: true
 
   def chip(assigns) do
-    # Redirecting will be available after #41 and #99
     ~H"""
     <button
       type="button"
@@ -351,7 +440,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   @spec load_error(any()) :: Phoenix.LiveView.Rendered.t()
   def load_error(assigns) do
     ~H"""
-    <div class="border-error bg-error text-error rounded-lg border px-3 py-2.5 text-xs">
+    <div class="alert alert-error border px-3 py-2.5 text-xs">
+      <.icon name="icon-circle-alert" class="text-error size-4 shrink-0" />
       Failed to load node details.
     </div>
     """
@@ -387,11 +477,16 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :suspending, :list, required: true
 
+  attr :size, :atom,
+    default: :xs,
+    values: [:xs, :sm],
+    doc: "value font size, forwarded to `kv/1`"
+
   def suspending_list(assigns) do
     assigns = assign(assigns, :suspending_count, length(assigns.suspending))
 
     ~H"""
-    <.kv label="Suspending" stacked={@suspending_count > 0}>
+    <.kv size={@size} label="Suspending" stacked={@suspending_count > 0}>
       <span :if={@suspending == []}>[]</span>
       <div
         :if={@suspending != []}
@@ -414,19 +509,19 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :toggle_id, :string, required: true
-  attr :links, :list, required: true
+  attr :links, :list, required: true, doc: "links kept by the remote, already truncated"
+  attr :total, :integer, required: true, doc: "real link count on the remote node"
   attr :links_expanded?, :boolean, required: true
   attr :myself, :any, required: true
 
   def links_list(assigns) do
-    total = length(assigns.links)
     limit = if assigns.links_expanded?, do: @max_expanded_links, else: @max_links
 
     assigns =
       assigns
       |> assign(:visible_links, format_links(assigns.links, limit))
-      |> assign(:toggle?, total > @max_links)
-      |> assign(:overflow_count, max(total - limit, 0))
+      |> assign(:toggle?, assigns.total > @max_links)
+      |> assign(:overflow_count, max(assigns.total - limit, 0))
 
     ~H"""
     <div class="flex flex-col gap-2">
@@ -453,12 +548,15 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     """
   end
 
+  @doc """
+  A single line of text with a copy button that appears on hover.
+  """
   attr :id, :string, required: true
   attr :text, :string, required: true
   attr :label, :string, required: true
   attr :class, :any, default: nil
 
-  defp copyable(assigns) do
+  def copyable(assigns) do
     ~H"""
     <div class="group flex min-w-0 items-center gap-1">
       <p id={@id} class={["min-w-0 truncate", @class]}>
@@ -482,17 +580,19 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp format_registered_name(nil), do: "—"
   defp format_registered_name(name) when is_atom(name), do: inspect(name)
 
-  defp format_binary([]), do: "[]"
+  defp format_stacktrace([]), do: "[]"
 
-  defp format_binary(binaries) when is_list(binaries) do
-    total_bytes =
-      Enum.reduce(binaries, 0, fn
-        {_id, size, _refs}, acc when is_integer(size) -> acc + size
-        _, acc -> acc
-      end)
+  defp format_stacktrace(stacktrace) when is_list(stacktrace),
+    do: Enum.map_join(stacktrace, ", ", &format_stack_entry/1)
 
-    "#{length(binaries)} (#{Formatters.format_bytes(total_bytes)})"
-  end
+  defp format_stack_entry({mod, fun, arity, _location}), do: format_mfa({mod, fun, arity})
+  defp format_stack_entry(entry), do: format_mfa(entry)
+
+  defp format_optional(nil), do: "—"
+  defp format_optional(value), do: inspect(value)
+
+  defp format_optional_identifier(nil), do: "—"
+  defp format_optional_identifier(identifier), do: format_identifier(identifier)
 
   defp format_last_calls(false), do: "false"
   defp format_last_calls([]), do: "[]"
@@ -523,14 +623,15 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp node_pid_string(%TreeNode{pid: pid}) when is_pid(pid), do: format_identifier(pid)
   defp node_pid_string(_), do: nil
 
-  # Formats only the slice that gets rendered: a process can hold thousands of
-  # links and every chip lands in the LiveView diff.
+  # Formats only the rendered slice: every chip lands in the LiveView diff.
   defp format_links(links, limit) do
     links
     |> Enum.take(limit)
     |> Enum.map(&format_identifier/1)
   end
 
-  defp links_count(%AsyncResult{ok?: true, result: %{links: links}}), do: "(#{length(links)})"
+  defp links_count(%AsyncResult{ok?: true, result: %{total: total}}),
+    do: "(#{Formatters.format_integer(total)})"
+
   defp links_count(_), do: nil
 end
