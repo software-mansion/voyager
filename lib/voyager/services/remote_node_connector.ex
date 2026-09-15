@@ -84,7 +84,7 @@ defmodule Voyager.Services.RemoteNodeConnector do
            :ok <- Validate.host(node_host),
            :ok <- Validate.host(ssh_host),
            {:ok, conn_ref} <- Connection.connect_ssh(ssh_host, ssh_port, ssh_user, auth) do
-        establish(conn_ref, full_node_name, node_name, name_type, cookie, epmd_port)
+        establish(conn_ref, full_node_name, node_name, node_host, name_type, cookie, epmd_port)
       end
     end
   end
@@ -97,12 +97,31 @@ defmodule Voyager.Services.RemoteNodeConnector do
     end
   end
 
-  defp establish(conn_ref, full_node_name, node_name, name_type, cookie, epmd_port) do
+  @doc """
+  Remote host the SSH tunnels connect to for a node named `name@node_host`.
+
+  An IPv6-literal node host is used as the target itself — a v6-only dist
+  listener is unreachable over the remote v4 loopback. Anything else keeps
+  `127.0.0.1`.
+  """
+  @spec tunnel_target(String.t()) :: charlist()
+  def tunnel_target(node_host) do
+    charlist = String.to_charlist(node_host)
+
+    case :inet.parse_ipv6strict_address(charlist) do
+      {:ok, _} -> charlist
+      {:error, _} -> ~c"127.0.0.1"
+    end
+  end
+
+  defp establish(conn_ref, full_node_name, node_name, node_host, name_type, cookie, epmd_port) do
     node_key = String.to_charlist(node_name)
+    remote_host = tunnel_target(node_host)
 
     with :ok <- Distribution.ensure_distributed(name_type),
-         {:ok, dist_port} <- Connection.discover_dist_port(conn_ref, node_name, epmd_port),
-         {:ok, local_port} <- Connection.open_tunnel(conn_ref, dist_port),
+         {:ok, dist_port} <-
+           Connection.discover_dist_port(conn_ref, remote_host, node_name, epmd_port),
+         {:ok, local_port} <- Connection.open_tunnel(conn_ref, remote_host, dist_port),
          :ok <- TunnelRegistry.register(node_key, local_port, conn_ref) do
       remote_node = String.to_atom(full_node_name)
 
