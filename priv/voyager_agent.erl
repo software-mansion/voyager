@@ -561,27 +561,21 @@ bag_page(Table, Key, Limit, Budget, Skip) ->
     case ets:select(Table, Spec, Limit) of
         '$end_of_table' ->
             %% Keyed heads stop at arity 255; lookup still hashes a wider row.
-            lookup_page(ets:lookup(Table, Key), Skip, Limit, Budget);
+            page_wide_rows(ets:lookup(Table, Key), Skip, Limit, Budget);
         Result ->
             take_page(Result, Skip, Limit, Budget, 0)
     end.
 
-lookup_page(Records, Skip, Limit, Budget) ->
+page_wide_rows(Records, Skip, Limit, Budget) ->
     Page = lists:sublist(Records, Skip + 1, Limit),
-    Next =
-        case Skip + length(Page) < length(Records) of
-            true ->
-                {?SKIP_CONT, Skip + length(Page)};
-            false ->
-                undefined
-        end,
-    wrap_records(Page, Next, Budget).
+    Taken = Skip + length(Page),
+    wrap_records(Page, skip_token(Taken, Taken < length(Records)), Budget).
 
 take_page({Records, Cont}, Skip, Limit, Budget, Seen) when is_list(Records) ->
     N = length(Records),
     if
         Skip =:= 0 ->
-            wrap_records(Records, skip_more(Seen + N, Cont), Budget);
+            wrap_records(Records, skip_token(Seen + N, Cont =/= '$end_of_table'), Budget);
         Skip >= N, Cont =/= '$end_of_table' ->
             take_page(ets:select(Cont), Skip - N, Limit, Budget, Seen + N);
         Skip >= N ->
@@ -597,8 +591,8 @@ fill_page(Page, Cont, Limit, Budget, Seen) ->
     if
         Have >= Limit ->
             wrap_records(lists:sublist(Page, Limit),
-                         skip_more_if(Have > Limit orelse Cont =/= '$end_of_table',
-                                      Seen + Limit),
+                         skip_token(Seen + Limit,
+                                    Have > Limit orelse Cont =/= '$end_of_table'),
                          Budget);
         Cont =:= '$end_of_table' ->
             wrap_records(Page, undefined, Budget);
@@ -611,15 +605,10 @@ fill_page(Page, Cont, Limit, Budget, Seen) ->
             end
     end.
 
-skip_more(_Seen, '$end_of_table') ->
+skip_token(_Seen, false) ->
     undefined;
-skip_more(Seen, _Cont) ->
+skip_token(Seen, true) ->
     {?SKIP_CONT, Seen}.
-
-skip_more_if(true, Seen) ->
-    {?SKIP_CONT, Seen};
-skip_more_if(false, _Seen) ->
-    undefined.
 
 drop(N, List) when N =< 0 ->
     List;
@@ -631,7 +620,7 @@ drop(N, [_ | Rest]) ->
 lookup_spec(Table, Key) ->
     case ets:info(Table, keypos) of
         Keypos when is_integer(Keypos), Keypos >= 1 ->
-            case ms_special_key(Key) of
+            case ms_pattern_key(Key) of
                 true ->
                     [{'$1', [{'=:=', {element, Keypos, '$1'}, {const, Key}}], ['$1']}];
                 false ->
@@ -645,11 +634,11 @@ keyed_clauses(Keypos, Key) ->
     [{erlang:setelement(Keypos, erlang:make_tuple(N, '_'), Key), [], ['$_']}
      || N <- lists:seq(Keypos, ?ETS_LOOKUP_MAX_ARITY)].
 
-ms_special_key(Key) when is_map(Key) ->
+ms_pattern_key(Key) when is_map(Key) ->
     true;
-ms_special_key('_') ->
+ms_pattern_key('_') ->
     true;
-ms_special_key(Key) when is_atom(Key) ->
+ms_pattern_key(Key) when is_atom(Key) ->
     case atom_to_list(Key) of
         [$$, $_] ->
             true;
@@ -660,24 +649,24 @@ ms_special_key(Key) when is_atom(Key) ->
         _ ->
             false
     end;
-ms_special_key(Key) when is_tuple(Key) ->
-    ms_special_tuple(Key, 1, tuple_size(Key));
-ms_special_key(Key) when is_list(Key) ->
-    ms_special_list(Key);
-ms_special_key(_) ->
+ms_pattern_key(Key) when is_tuple(Key) ->
+    ms_pattern_tuple(Key, 1, tuple_size(Key));
+ms_pattern_key(Key) when is_list(Key) ->
+    ms_pattern_list(Key);
+ms_pattern_key(_) ->
     false.
 
-ms_special_tuple(_Key, Index, Size) when Index > Size ->
+ms_pattern_tuple(_Key, Index, Size) when Index > Size ->
     false;
-ms_special_tuple(Key, Index, Size) ->
-    ms_special_key(element(Index, Key)) orelse ms_special_tuple(Key, Index + 1, Size).
+ms_pattern_tuple(Key, Index, Size) ->
+    ms_pattern_key(element(Index, Key)) orelse ms_pattern_tuple(Key, Index + 1, Size).
 
-ms_special_list([]) ->
+ms_pattern_list([]) ->
     false;
-ms_special_list([Head | Tail]) ->
-    ms_special_key(Head) orelse ms_special_list(Tail);
-ms_special_list(Tail) ->
-    ms_special_key(Tail).
+ms_pattern_list([Head | Tail]) ->
+    ms_pattern_key(Head) orelse ms_pattern_list(Tail);
+ms_pattern_list(Tail) ->
+    ms_pattern_key(Tail).
 
 do_select(Table, Spec, Limit, Budget, undefined) ->
     wrap_select(ets:select(Table, Spec, Limit), Budget);
