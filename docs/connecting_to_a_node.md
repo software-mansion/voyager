@@ -64,7 +64,7 @@ The SSH option is greyed out when Voyager was not started with its `proxy_epmd` 
 
 - **"Node down" right away**: the node is not distributed, or the name type toggle does not match. Run `node()` in the node's shell; `:nonode@nohost` means no name was given at boot.
 - **Connection refused / timeout**: the host or the port is not reachable. For a direct connection check that `epmd` (4369) and the distribution port (random by default, you can pin it with [`inet_dist_listen_min` / `inet_dist_listen_max`](https://www.erlang.org/doc/apps/kernel/kernel_app.html#inet_dist_listen)) are open in the firewall. For SSH check that the SSH host itself can reach the node.
-- **"SSH authentication failed"**: with SSH Agent, check that `ssh-add -l` lists a key the host accepts and that the agent is running. If it lists several keys of the same type, only the first is tried; see the Authentication note above. With Password, check the password. Try `ssh user@host` from a terminal first, keeping in mind that plain `ssh` tries every key and Voyager does not.
+- **"SSH authentication failed"**: with SSH Agent, check that `ssh-add -l` lists a key the host accepts and that the agent is running. If it lists several keys of the same type, only the first is tried; see the Authentication note above. With Password, check the password. Try `ssh user@host` from a terminal first.
 - **Cookie mismatch**: the node logs `** Connection attempt from disallowed node ... **`. Compare the cookie with [`:erlang.get_cookie()`](https://www.erlang.org/doc/apps/erts/erlang.html#get_cookie/0) on the node.
 - **Name resolves differently**: a long name must resolve to the same address from Voyager and from the node. When in doubt use an IP address instead of a hostname.
 
