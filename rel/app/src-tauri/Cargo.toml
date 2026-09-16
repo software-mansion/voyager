@@ -28,6 +28,7 @@ serde_json = "1"
 fix-path-env = { git = "https://github.com/tauri-apps/fix-path-env-rs", rev = "c4c45d5" }
 rand = "0.10"
 dark-light = "3"
+tauri-plugin-updater = "2"
 
 #  Optimizations applied to the production bundle built by `cargo tauri build`
 [profile.release]

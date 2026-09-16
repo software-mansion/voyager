@@ -52,6 +52,7 @@ defmodule VoyagerWeb.Layouts do
       session={@session}
       mcp_status={assigns[:mcp_status]}
       current_url={assigns[:current_url]}
+      app_update={assigns[:app_update]}
     >
       {@inner_content}
     </VoyagerWeb.Components.Shell.shell>
@@ -70,7 +71,10 @@ defmodule VoyagerWeb.Layouts do
     ~H"""
     <.flash_group flash={@flash} />
     <div class="bg-base-200 flex h-screen flex-col overflow-hidden">
-      <VoyagerWeb.Components.Shell.settings_topbar return_to={assigns[:return_to]} />
+      <VoyagerWeb.Components.Shell.settings_topbar
+        return_to={assigns[:return_to]}
+        app_update={assigns[:app_update]}
+      />
       <main class="flex-1 overflow-y-auto">
         {@inner_content}
       </main>
