@@ -88,14 +88,17 @@ defmodule VoyagerWeb.EtsTablesLive do
             message={format_error(@page_result.failed)}
           />
 
-          <EtsTableComponents.summary
-            :if={@page_result.ok?}
-            id="ets-tables-summary"
-            shown={@shown_count}
-            total={@total_count}
-            total_memory={@total_memory}
-            round_trip_ms={@round_trip_ms}
-          />
+          <%!-- Reserves the summary's line so the table does not shift when the first fetch lands. --%>
+          <div class="h-4">
+            <EtsTableComponents.summary
+              :if={@page_result.ok?}
+              id="ets-tables-summary"
+              shown={@shown_count}
+              total={@total_count}
+              total_memory={@total_memory}
+              round_trip_ms={@round_trip_ms}
+            />
+          </div>
 
           <div class="flex min-h-0 flex-1 flex-col gap-2">
             <DataTableComponents.table

@@ -6,9 +6,11 @@ defmodule VoyagerWeb.Components.DetailsPanelComponentsTest do
   alias Voyager.EtsFakes
   alias VoyagerWeb.Components.DetailsPanelComponents
   alias VoyagerWeb.Components.EtsTableComponents
+  alias VoyagerWeb.Components.ProcessComponents
   alias VoyagerWeb.Components.SupervisionTreeComponents
   alias VoyagerWeb.EtsTableHelp
   alias VoyagerWeb.FormSchemas.EtsTableListControls
+  alias VoyagerWeb.FormSchemas.ProcessListControls
   alias VoyagerWeb.ProcessInfoHelp
 
   defp query(html, selector), do: html |> LazyHTML.from_fragment() |> LazyHTML.query(selector)
@@ -63,6 +65,17 @@ defmodule VoyagerWeb.Components.DetailsPanelComponentsTest do
       columns =
         EtsTableComponents.columns(
           EtsTableListControls.required_columns() ++ EtsTableListControls.optional_columns()
+        )
+
+      assert Enum.all?(columns, &match?(%{help: %{text: _}}, &1))
+    end
+  end
+
+  describe "process columns/1" do
+    test "gives every column a help entry" do
+      columns =
+        ProcessComponents.columns(
+          ProcessListControls.required_columns() ++ ProcessListControls.optional_columns()
         )
 
       assert Enum.all?(columns, &match?(%{help: %{text: _}}, &1))
