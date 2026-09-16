@@ -11,6 +11,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.ProcessListControls
+  alias VoyagerWeb.ProcessInfoHelp
 
   @placeholder DataTableComponents.placeholder()
 
@@ -133,7 +134,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
 
   defp field_label(assigns) do
     ~H"""
-    <div class="flex items-center gap-1">
+    <div class="flex h-6 items-center gap-1">
       <label for={@field.id} class="text-base-content/70 text-xs font-medium">{@label}</label>
       <.help_tooltip :if={@help} id={"#{@field.id}-help"} text={@help} />
     </div>
@@ -178,7 +179,9 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   """
   @spec columns([atom()]) :: [map()]
   def columns(selected) do
-    Enum.filter(@columns, &(&1.key in selected))
+    for column <- @columns, column.key in selected do
+      Map.put(column, :help, ProcessInfoHelp.get(column.key))
+    end
   end
 
   @doc "Human label for a selectable attribute."

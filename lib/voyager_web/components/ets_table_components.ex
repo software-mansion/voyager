@@ -181,7 +181,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
 
   defp field_label(assigns) do
     ~H"""
-    <div class="flex items-center gap-1">
+    <div class="flex h-6 items-center gap-1">
       <label for={@field.id} class="text-base-content/70 text-xs font-medium">{@label}</label>
     </div>
     """
@@ -349,12 +349,11 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
 
   defp protection_cell(assigns) do
     ~H"""
-    <span
+    <DataTableComponents.value_cell
       id={"#{@row_id}-protection"}
-      class="font-mono text-base-content/70 block truncate text-sm"
-    >
-      {@protection}
-    </span>
+      value={Atom.to_string(@protection)}
+      muted
+    />
     """
   end
 

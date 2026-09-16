@@ -12,6 +12,12 @@ defmodule VoyagerWeb.ProcessInfoHelp do
   @process_info @erts <> "#process_info/2"
 
   @entries %{
+    pid: %{
+      text:
+        "Unique identifier of the process. The first number refers to the node the process runs on, the other two to the process itself.",
+      doc_href: "https://www.erlang.org/doc/system/data_types.html#pid",
+      doc_label: "Learn about pids"
+    },
     initial_call: %{
       text:
         "The module, function and arity the process was spawned with. For OTP behaviours this is the generic entry point (e.g. proc_lib:init_p/5), not your callback module.",
