@@ -1,19 +1,13 @@
 defmodule Voyager.Services.RemoteNodeConnectorTest do
   use ExUnit.Case, async: false
 
-  alias Voyager.ProxyEpmd
+  import Voyager.TestUtils
+
   alias Voyager.Services.RemoteNodeConnector
 
   @moduletag capture_log: true
 
-  setup do
-    previous_epmd_module = :persistent_term.get(:voyager_epmd_module, :erl_epmd)
-    :persistent_term.put(:voyager_epmd_module, ProxyEpmd)
-
-    on_exit(fn -> :persistent_term.put(:voyager_epmd_module, previous_epmd_module) end)
-
-    :ok
-  end
+  setup :enable_proxy_epmd
 
   describe "connect/6" do
     test "returns an error when the SSH host is unreachable" do
