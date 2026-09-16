@@ -117,7 +117,7 @@ defmodule Voyager.Services.Ets.SearchTest do
       expect(Voyager.ErpcMock, :call, fn @node,
                                          :voyager_agent,
                                          :ets_lookup,
-                                         [:t, :the_key, @budget],
+                                         [:t, :the_key, 10, @budget, :undefined],
                                          @timeout ->
         ok_chunk([{1, :the_key}])
       end)
@@ -127,6 +127,25 @@ defmodule Voyager.Services.Ets.SearchTest do
 
       assert chunk.records == [{1, :the_key}]
       refute Map.has_key?(chunk, :via)
+      assert chunk.continuation == nil
+      refute chunk.truncated?
+    end
+
+    test "key_eq passes a raw continuation through to the agent" do
+      cont = make_ref()
+
+      expect(Voyager.ErpcMock, :call, fn @node,
+                                         :voyager_agent,
+                                         :ets_lookup,
+                                         [:t, :k, 10, @budget, ^cont],
+                                         @timeout ->
+        ok_chunk([], :undefined)
+      end)
+
+      assert {:ok, chunk} =
+               Search.chunk(@node, :t, {:key_eq, :k}, 1, 10, @budget, cont, @timeout)
+
+      assert chunk.records == []
       assert chunk.continuation == nil
       refute chunk.truncated?
     end
