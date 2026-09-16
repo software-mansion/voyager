@@ -1,6 +1,9 @@
 defmodule VoyagerWeb.Helpers do
   @moduledoc false
 
+  use VoyagerWeb, :verified_routes
+
+  alias Voyager.NodeSession.Session
   alias VoyagerWeb.Utils.URL
 
   @spec ok(term()) :: {:ok, term()}
@@ -14,6 +17,30 @@ defmodule VoyagerWeb.Helpers do
 
   @spec halt(term()) :: {:halt, term()}
   def halt(state), do: {:halt, state}
+
+  @doc """
+  UI connect mode for a session, connector name, or UI atom.
+
+  `:ssh` stays `:ssh`. Everything else (`:direct`, `:distribution`, `nil`,
+  or an unrecognised name) is `:direct`.
+  """
+  @spec connect_mode(Session.t() | atom() | nil) :: :direct | :ssh
+  def connect_mode(%Session{connector: connector}), do: connect_mode(connector.name())
+  def connect_mode(:ssh), do: :ssh
+  def connect_mode(_other), do: :direct
+
+  @doc """
+  Connect page path for a session, UI mode (`:direct` | `:ssh`), or connector name.
+
+  SSH (`:ssh`) is `/?mode=ssh`. Everything else is `/`.
+  """
+  @spec connect_path(Session.t() | atom() | nil) :: String.t()
+  def connect_path(mode_source) do
+    case connect_mode(mode_source) do
+      :ssh -> ~p"/?#{[mode: "ssh"]}"
+      :direct -> ~p"/"
+    end
+  end
 
   @doc """
   Shows a flash message from a `Phoenix.LiveComponent`.
