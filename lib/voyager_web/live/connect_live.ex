@@ -51,7 +51,7 @@ defmodule VoyagerWeb.ConnectLive do
                   if(@connected_session, do: "text-base-content/50", else: "text-primary")
                 ]}
               >
-                <.icon name="icon-circle-help" class="size-3.5" /> How to prepare your node
+                How to prepare your node <.icon name="icon-circle-help" class="size-3.5" />
               </.link>
               <h4 class="font-mono tracking-label text-base-content/70 mb-2 text-xs uppercase">
                 Connection type:
