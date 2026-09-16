@@ -13,6 +13,12 @@ defmodule VoyagerWeb.EtsTableHelp do
   @info @ets <> "#info/2"
 
   @entries %{
+    name: %{
+      text:
+        "Name given to ets:new/2. Only a named_table can be reached by it; an unnamed table is known by its reference, and many unnamed tables may share one name.",
+      doc_href: @new,
+      doc_label: "See ets:new/2"
+    },
     type: %{
       text:
         "How objects are stored: set (unique keys, hash), ordered_set (unique keys, sorted), bag (many objects per key, no duplicates) or duplicate_bag (duplicates allowed).",

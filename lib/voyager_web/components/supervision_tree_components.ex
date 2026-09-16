@@ -342,6 +342,10 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
   defp node_legends, do: @node_legends
   defp edge_legends, do: @edge_legends
 
+  @doc "The legend entry for an edge, e.g. `\"Monitored by\"`, usable as a help tooltip entry."
+  @spec edge_legend(String.t()) :: map()
+  def edge_legend(name), do: Enum.find(@edge_legends, &(&1.name == name))
+
   defp legend_entry_id(%{name: name}) do
     "#{name |> String.downcase() |> String.replace(" ", "-")}-legend-entry"
   end

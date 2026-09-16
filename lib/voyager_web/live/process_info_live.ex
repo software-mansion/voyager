@@ -19,6 +19,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
   import VoyagerWeb.Components.ProcessInfoComponents
 
   alias Phoenix.LiveView.AsyncResult
+  alias VoyagerWeb.Components.SupervisionTreeComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.ProcessInfoControls
   alias VoyagerWeb.Hooks.TermTreeHook
@@ -275,10 +276,16 @@ defmodule VoyagerWeb.ProcessInfoLive do
             <:loading>
               <div class="grid grid-cols-1 gap-y-6 md:divide-base-300 md:grid-cols-3 md:divide-x">
                 <div
-                  :for={title <- ["Links", "Monitors", "Monitored by"]}
+                  :for={
+                    {title, legend} <- [
+                      {"Links", "Link"},
+                      {"Monitors", "Monitor"},
+                      {"Monitored by", "Monitored by"}
+                    ]
+                  }
                   class="md:px-6 md:first:pl-0 md:last:pr-0"
                 >
-                  <.section title={title}>
+                  <.section title={title} help={SupervisionTreeComponents.edge_legend(legend)}>
                     <div class="flex flex-wrap gap-1.5">
                       <div :for={_ <- 1..3} class="skeleton h-6 w-16 rounded" />
                     </div>
@@ -287,22 +294,26 @@ defmodule VoyagerWeb.ProcessInfoLive do
               </div>
             </:loading>
             <:failed :let={reason}>
-              <.section title="Links">
+              <.section title="Links" help={SupervisionTreeComponents.edge_legend("Link")}>
                 <.fetch_alert id="process-relations-error" message={error_message(reason)} />
               </.section>
             </:failed>
             <div class="grid grid-cols-1 gap-y-6 md:divide-base-300 md:grid-cols-3 md:divide-x">
               <div
                 :for={
-                  {title, id, bounded} <- [
-                    {"Links", "process-links", relations.links},
-                    {"Monitors", "process-monitors", relations.monitors},
-                    {"Monitored by", "process-monitored-by", relations.monitored_by}
+                  {title, legend, id, bounded} <- [
+                    {"Links", "Link", "process-links", relations.links},
+                    {"Monitors", "Monitor", "process-monitors", relations.monitors},
+                    {"Monitored by", "Monitored by", "process-monitored-by", relations.monitored_by}
                   ]
                 }
                 class="md:px-6 md:first:pl-0 md:last:pr-0"
               >
-                <.section title={title} muted={bounded_count(bounded)}>
+                <.section
+                  title={title}
+                  muted={bounded_count(bounded)}
+                  help={SupervisionTreeComponents.edge_legend(legend)}
+                >
                   <.identifier_chips
                     id={id}
                     items={bounded.items}

@@ -56,6 +56,14 @@ defmodule VoyagerWeb.Components.DataTableComponentsTest do
       assert count(html, ~s|th[data-column="name"] button|) == 0
     end
 
+    test "renders a help tooltip for a column with a help entry" do
+      columns = [Map.put(hd(@columns), :help, %{text: "Registered name."}) | tl(@columns)]
+      html = table(columns: columns)
+
+      assert count(html, ~s|th[data-column="name"] #t-name-help|) == 1
+      assert count(html, ~s|th[data-column="memory"] [id$="-help"]|) == 0
+    end
+
     test "a narrow column set keeps the 64rem floor and a wide one derives more" do
       assert attr(table([]), "table", "style") == ["min-width: 64rem"]
 

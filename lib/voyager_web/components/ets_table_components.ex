@@ -64,7 +64,9 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
   """
   @spec columns([atom()]) :: [map()]
   def columns(selected) do
-    Enum.filter(@columns, &(&1.key in selected))
+    for column <- @columns, column.key in selected do
+      Map.put(column, :help, EtsTableHelp.get(column.key))
+    end
   end
 
   @doc "The table's name as shown everywhere, e.g. `:my_table` or `MyApp.Cache`."
@@ -564,12 +566,12 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
     ~H"""
     <div class="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
       <.section title="Overview">
-        <.kv_skeleton label="Type" narrow />
-        <.kv_skeleton label="Protection" narrow />
-        <.kv_skeleton label="Named table" narrow />
-        <.kv_skeleton label="Key position" narrow />
-        <.kv_skeleton label="Owner" />
-        <.kv_skeleton label="Heir" last />
+        <.kv_skeleton label="Type" help={EtsTableHelp.get(:type)} narrow />
+        <.kv_skeleton label="Protection" help={EtsTableHelp.get(:protection)} narrow />
+        <.kv_skeleton label="Named table" help={EtsTableHelp.get(:named_table)} narrow />
+        <.kv_skeleton label="Key position" help={EtsTableHelp.get(:keypos)} narrow />
+        <.kv_skeleton label="Owner" help={EtsTableHelp.get(:owner)} />
+        <.kv_skeleton label="Heir" help={EtsTableHelp.get(:heir)} last />
       </.section>
     </div>
     """

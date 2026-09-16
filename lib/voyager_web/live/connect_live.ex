@@ -46,7 +46,10 @@ defmodule VoyagerWeb.ConnectLive do
                 href="https://github.com/software-mansion/voyager/blob/main/docs/connecting_to_a_node.md"
                 target="_blank"
                 rel="noopener"
-                class="text-primary mb-4 inline-flex items-center gap-1 text-xs hover:underline"
+                class={[
+                  "mb-4 inline-flex items-center gap-1 text-xs hover:underline",
+                  if(@connected_session, do: "text-base-content/50", else: "text-primary")
+                ]}
               >
                 <.icon name="icon-circle-help" class="size-3.5" /> How to prepare your node
               </.link>
