@@ -68,4 +68,3 @@ The SSH option is greyed out when Voyager was not started with its `proxy_epmd` 
 - **Cookie mismatch**: the node logs `** Connection attempt from disallowed node ... **`. Compare the cookie with [`:erlang.get_cookie()`](https://www.erlang.org/doc/apps/erts/erlang.html#get_cookie/0) on the node.
 - **Name resolves differently**: a long name must resolve to the same address from Voyager and from the node. When in doubt use an IP address instead of a hostname.
 
-Recent connections are saved in a local SQLite database; secrets are encrypted before being written with a key that lives only at `~/.voyager/vault.key`.
