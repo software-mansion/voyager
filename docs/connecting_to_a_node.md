@@ -1,6 +1,6 @@
 # Connecting to a node
 
-Voyager talks to your node over [Erlang distribution](https://www.erlang.org/doc/system/distributed.html), the same mechanism `iex --remsh` uses. That means two things must be true before the connect form can do anything:
+Voyager talks to your node over [Erlang distribution](https://www.erlang.org/doc/system/distributed.html). That means two things must be true before the connect form can do anything:
 
 1. the node is **distributed**: it was started with a [name](https://www.erlang.org/doc/apps/erts/erl_cmd.html#name);
 2. Voyager knows its [**cookie**](https://www.erlang.org/doc/system/distributed.html#security).
