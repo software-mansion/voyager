@@ -88,6 +88,17 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
       assert has_element?(view, ~s|a#connect-tutorial-link[href$="docs/connecting_to_a_node.md"]|)
     end
+
+    test "grays out the tutorial link while an SSH connection is in progress", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, "a#connect-tutorial-link.text-primary")
+
+      send(view.pid, {:ssh_connecting, true})
+
+      assert has_element?(view, ~s|a#connect-tutorial-link[class~="text-base-content/50"]|)
+      refute has_element?(view, "a#connect-tutorial-link.text-primary")
+    end
   end
 
   describe "mode toggle" do
