@@ -9,6 +9,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   alias VoyagerWeb.Components.DetailsPanelComponents
   alias VoyagerWeb.Components.EtsTableComponents
   alias VoyagerWeb.Components.TermComponents
+  alias VoyagerWeb.EtsTableHelp
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.EtsLookupControls
   alias VoyagerWeb.FormSchemas.EtsPeekControls
@@ -73,10 +74,10 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       id="ets-table-info"
       class="border-base-200 bg-base-100 grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border p-4 sm:grid-cols-3 lg:grid-cols-5"
     >
-      <.info_item label="Type">
+      <.info_item label="Type" help={:type}>
         <span class="badge badge-sm badge-ghost font-mono">{@info.type}</span>
       </.info_item>
-      <.info_item label="Protection">
+      <.info_item label="Protection" help={:protection}>
         <EtsTableComponents.private_badge
           :if={@info.protection == :private}
           id="ets-info-protection"
@@ -86,23 +87,31 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
           {@info.protection}
         </span>
       </.info_item>
-      <.info_item id="ets-info-keypos" label="Key position">{@info.keypos}</.info_item>
-      <.info_item label="Records">{Formatters.format_integer(@info.size)}</.info_item>
-      <.info_item label="Memory">{Formatters.format_bytes(@info.memory)}</.info_item>
-      <.info_item id="ets-info-owner" label="Owner">
+      <.info_item id="ets-info-keypos" label="Key position" help={:keypos}>{@info.keypos}</.info_item>
+      <.info_item label="Records" help={:size}>{Formatters.format_integer(@info.size)}</.info_item>
+      <.info_item label="Memory" help={:memory}>{Formatters.format_bytes(@info.memory)}</.info_item>
+      <.info_item id="ets-info-owner" label="Owner" help={:owner}>
         <DetailsPanelComponents.pid_chip
           href={@owner_href}
           label={Formatters.format_pid(@info.owner)}
         />
       </.info_item>
-      <.info_item label="Heir">
+      <.info_item label="Heir" help={:heir}>
         {if @info.heir == :none, do: "none", else: inspect(@info.heir)}
       </.info_item>
-      <.info_item label="Named table">{@info.named_table}</.info_item>
-      <.info_item label="Compressed">{@info.compressed}</.info_item>
-      <.info_item label="Read concurrency">{@info.read_concurrency}</.info_item>
-      <.info_item label="Write concurrency">{@info.write_concurrency}</.info_item>
-      <.info_item :if={Map.has_key?(@info, :decentralized_counters)} label="Decentralized counters">
+      <.info_item label="Named table" help={:named_table}>{@info.named_table}</.info_item>
+      <.info_item label="Compressed" help={:compressed}>{@info.compressed}</.info_item>
+      <.info_item label="Read concurrency" help={:read_concurrency}>
+        {@info.read_concurrency}
+      </.info_item>
+      <.info_item label="Write concurrency" help={:write_concurrency}>
+        {@info.write_concurrency}
+      </.info_item>
+      <.info_item
+        :if={Map.has_key?(@info, :decentralized_counters)}
+        label="Decentralized counters"
+        help={:decentralized_counters}
+      >
         {@info.decentralized_counters}
       </.info_item>
     </dl>
@@ -110,13 +119,24 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   end
 
   attr :label, :string, required: true
+  attr :help, :atom, required: true, doc: "`EtsTableHelp` key"
   attr :id, :string, default: nil
   slot :inner_block, required: true
 
   defp info_item(assigns) do
+    assigns = assign(assigns, :entry, EtsTableHelp.get(assigns.help))
+
     ~H"""
     <div id={@id} class="flex min-w-0 flex-col gap-0.5">
-      <dt class="text-base-content/60 text-xs">{@label}</dt>
+      <dt class="text-base-content/60 flex h-6 items-center gap-1 text-xs">
+        {@label}
+        <.help_tooltip
+          id={"ets-info-help-#{@help}"}
+          text={@entry.text}
+          doc_href={@entry.doc_href}
+          doc_label={@entry.doc_label}
+        />
+      </dt>
       <dd class="font-mono text-base-content truncate text-xs">{render_slot(@inner_block)}</dd>
     </div>
     """

@@ -32,7 +32,7 @@ defmodule VoyagerWeb.ConnectLive do
     <div class="bg-base-200 h-full overflow-y-auto">
       <div class="min-w-96 flex min-h-full items-center justify-center p-4">
         <div class="card bg-base-100 w-full max-w-lg shadow-xl">
-          <div class="card-body gap-0 p-10">
+          <div class="card-body group gap-0 p-10">
             <div class="mb-7 flex items-center gap-3">
               <.logo />
               <div class="text-base-content text-lg font-semibold tracking-tight">Voyager</div>
@@ -48,9 +48,25 @@ defmodule VoyagerWeb.ConnectLive do
             <ConnectComponents.connected_indicator session={@connected_session} />
 
             <div class="mb-6">
-              <h1 class="text-base-content mb-4 text-2xl font-semibold tracking-tight">
+              <h1 class="text-base-content mb-1 text-2xl font-semibold tracking-tight">
                 Connect to a node
               </h1>
+              <.link
+                id="connect-tutorial-link"
+                href="https://github.com/software-mansion/voyager/blob/main/docs/connecting_to_a_node.md"
+                target="_blank"
+                rel="noopener"
+                class={[
+                  "mb-4 inline-flex items-center gap-1 text-xs hover:underline",
+                  "group-has-[.phx-submit-loading]:text-base-content/50",
+                  if(@connected_session || @connecting?,
+                    do: "text-base-content/50",
+                    else: "text-primary"
+                  )
+                ]}
+              >
+                How to prepare your node <.icon name="icon-circle-help" class="size-3.5" />
+              </.link>
               <h4 class="font-mono tracking-label text-base-content/70 mb-2 text-xs uppercase">
                 Connection type:
               </h4>
