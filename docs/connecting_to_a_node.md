@@ -5,7 +5,7 @@ Voyager talks to your node over [Erlang distribution](https://www.erlang.org/doc
 1. the node is **distributed**: it was started with a [name](https://www.erlang.org/doc/apps/erts/erl_cmd.html#name);
 2. Voyager knows its [**cookie**](https://www.erlang.org/doc/system/distributed.html#security).
 
-If either is missing the connection fails, usually with a vague "node down" or "connection refused". This guide covers both connection types, what each field means and what to check when it does not work.
+If either is missing the connection fails. This guide covers both connection types, what each field means and what to check when it does not work.
 
 ## Direct connection
 
