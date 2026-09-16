@@ -9,6 +9,18 @@ defmodule Voyager.Services.RemoteNodeConnectorTest do
 
   setup :enable_proxy_epmd
 
+  describe "tunnel_target/1" do
+    test "an IPv6 literal node host is the tunnel target itself" do
+      assert RemoteNodeConnector.tunnel_target("::1") == ~c"::1"
+      assert RemoteNodeConnector.tunnel_target("fdaa:0:1::2") == ~c"fdaa:0:1::2"
+    end
+
+    test "IPv4 literals and hostnames tunnel to the remote v4 loopback" do
+      assert RemoteNodeConnector.tunnel_target("10.0.0.5") == ~c"127.0.0.1"
+      assert RemoteNodeConnector.tunnel_target("example.com") == ~c"127.0.0.1"
+    end
+  end
+
   describe "connect/6" do
     test "returns an error when the SSH host is unreachable" do
       result =
