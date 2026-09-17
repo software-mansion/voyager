@@ -1,6 +1,7 @@
 mod utils;
 
 use std::sync::Mutex;
+use std::time::Duration;
 
 use tauri::{
     Manager,
@@ -15,6 +16,7 @@ const ZOOM_STEP: f64 = 0.1;
 const MIN_ZOOM: f64 = 0.5;
 const MAX_ZOOM: f64 = 2.0;
 const UPDATES_TOPIC: &str = "updates";
+const UPDATE_DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// Current zoom factor, since the webview does not expose a getter.
 struct ZoomLevel(Mutex<f64>);
@@ -172,10 +174,12 @@ fn install_update(app_handle: tauri::AppHandle, pubsub: elixirkit::PubSub) {
             .unwrap()
             .clone();
 
-        let Some(update) = update else {
+        let Some(mut update) = update else {
             let _ = pubsub.broadcast(UPDATES_TOPIC, b"failed");
             return;
         };
+        // `check()` leaves the timeout unset, so a stalled download would never report `failed`.
+        update.timeout = Some(UPDATE_DOWNLOAD_TIMEOUT);
 
         match update.download_and_install(|_, _| {}, || {}).await {
             Ok(()) => app_handle.restart(),

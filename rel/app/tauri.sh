@@ -45,12 +45,7 @@ main() {
 
   config="--config"
   # tauri.conf.json keeps resources as an empty list so this per-OS map replaces it.
-  updater_json=""
-  # `createUpdaterArtifacts` fails the build when there is no key to sign the artifacts with.
-  if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
-    updater_json=",\"createUpdaterArtifacts\":true"
-  fi
-  config_json="{\"bundle\":{\"resources\":{\"${release_dir}\":\"rel\"}${updater_json}}}"
+  config_json="{\"bundle\":{\"resources\":{\"${release_dir}\":\"rel\"}}}"
 
   if [ -z "${MIX_ENV:-}" ] && [ "$profile" = "release" ] && [ "$command" != "dev" ]; then
     export MIX_ENV="prod"
@@ -135,6 +130,10 @@ mix_release() {
 
 tauri_build() {
   log "Building Tauri app with args: $*"
+  # `createUpdaterArtifacts` fails the build when there is no key to sign the artifacts with.
+  if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+    set -- "$config" '{"bundle":{"createUpdaterArtifacts":true}}' "$@"
+  fi
   cargo_tauri build "$config" "$config_json" --verbose "$@"
   log "Tauri build finished"
 }
