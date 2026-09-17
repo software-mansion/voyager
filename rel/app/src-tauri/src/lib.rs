@@ -16,7 +16,7 @@ const ZOOM_STEP: f64 = 0.1;
 const MIN_ZOOM: f64 = 0.5;
 const MAX_ZOOM: f64 = 2.0;
 const UPDATES_TOPIC: &str = "updates";
-const UPDATE_DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(600);
+const UPDATE_STALL_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Current zoom factor, since the webview does not expose a getter.
 struct ZoomLevel(Mutex<f64>);
@@ -148,7 +148,18 @@ fn focus_existing_window(app: &tauri::AppHandle) {
 
 fn check_for_update(app_handle: tauri::AppHandle, pubsub: elixirkit::PubSub) {
     tauri::async_runtime::spawn(async move {
-        let update = match app_handle.updater() {
+        // The plugin sets no timeout, so a stalled download would never report `failed`.
+        // A read timeout, unlike a total one, leaves slow but progressing downloads alone.
+        let updater = app_handle
+            .updater_builder()
+            .configure_client(|client| {
+                client
+                    .connect_timeout(UPDATE_STALL_TIMEOUT)
+                    .read_timeout(UPDATE_STALL_TIMEOUT)
+            })
+            .build();
+
+        let update = match updater {
             Ok(updater) => updater.check().await,
             Err(error) => Err(error),
         };
@@ -174,12 +185,10 @@ fn install_update(app_handle: tauri::AppHandle, pubsub: elixirkit::PubSub) {
             .unwrap()
             .clone();
 
-        let Some(mut update) = update else {
+        let Some(update) = update else {
             let _ = pubsub.broadcast(UPDATES_TOPIC, b"failed");
             return;
         };
-        // `check()` leaves the timeout unset, so a stalled download would never report `failed`.
-        update.timeout = Some(UPDATE_DOWNLOAD_TIMEOUT);
 
         match update.download_and_install(|_, _| {}, || {}).await {
             Ok(()) => app_handle.restart(),
