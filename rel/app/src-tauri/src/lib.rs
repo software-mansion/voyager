@@ -2,10 +2,9 @@ mod utils;
 
 use std::sync::Mutex;
 
-use tauri::{
-    Manager,
-    menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder},
-};
+use tauri::Manager;
+#[cfg(target_os = "macos")]
+use tauri::menu::{MenuItemBuilder, PredefinedMenuItem};
 
 const MAIN_WINDOW_LABEL: &str = "main";
 const ZOOM_IN_ID: &str = "zoom_in";
@@ -32,7 +31,6 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             focus_existing_window(app);
         }))
-        .enable_macos_default_menu(false)
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![os_theme])
         .manage(ZoomLevel(Mutex::new(DEFAULT_ZOOM)))
@@ -44,47 +42,7 @@ pub fn run() {
         })
         .setup(move |app| {
             #[cfg(target_os = "macos")]
-            {
-                let app_menu = SubmenuBuilder::new(app, "Voyager")
-                    .about(None)
-                    .separator()
-                    .hide()
-                    .separator()
-                    .quit()
-                    .build()?;
-
-                let edit_menu = SubmenuBuilder::new(app, "Edit")
-                    .cut()
-                    .copy()
-                    .paste()
-                    .undo()
-                    .redo()
-                    .select_all()
-                    .build()?;
-
-                let view_menu = SubmenuBuilder::new(app, "View")
-                    .item(
-                        &MenuItemBuilder::with_id(ZOOM_IN_ID, "Zoom In")
-                            .accelerator("CmdOrCtrl+=")
-                            .build(app)?,
-                    )
-                    .item(
-                        &MenuItemBuilder::with_id(ZOOM_OUT_ID, "Zoom Out")
-                            .accelerator("CmdOrCtrl+-")
-                            .build(app)?,
-                    )
-                    .item(
-                        &MenuItemBuilder::with_id(ZOOM_RESET_ID, "Actual Size")
-                            .accelerator("CmdOrCtrl+0")
-                            .build(app)?,
-                    )
-                    .build()?;
-
-                let menu = MenuBuilder::new(app)
-                    .items(&[&app_menu, &edit_menu, &view_menu])
-                    .build()?;
-                app.set_menu(menu)?;
-            }
+            add_zoom_items_to_view_menu(app)?;
 
             let pubsub = elixirkit::PubSub::listen("tcp://127.0.0.1:0").expect("failed to listen");
 
@@ -132,6 +90,35 @@ fn focus_existing_window(app: &tauri::AppHandle) {
         // Wayland often ignores set_focus but still reports Ok. No-op if already focused.
         let _ = window.request_user_attention(Some(tauri::UserAttentionType::Informational));
     }
+}
+
+#[cfg(target_os = "macos")]
+fn add_zoom_items_to_view_menu(app: &tauri::App) -> tauri::Result<()> {
+    let Some(menu) = app.menu() else {
+        return Ok(());
+    };
+
+    let zoom_in = MenuItemBuilder::with_id(ZOOM_IN_ID, "Zoom In")
+        .accelerator("CmdOrCtrl+=")
+        .build(app)?;
+    let zoom_out = MenuItemBuilder::with_id(ZOOM_OUT_ID, "Zoom Out")
+        .accelerator("CmdOrCtrl+-")
+        .build(app)?;
+    let zoom_reset = MenuItemBuilder::with_id(ZOOM_RESET_ID, "Actual Size")
+        .accelerator("CmdOrCtrl+0")
+        .build(app)?;
+    let separator = PredefinedMenuItem::separator(app)?;
+
+    for item in menu.items()? {
+        if let Some(view) = item.as_submenu() {
+            if view.text().ok().as_deref() == Some("View") {
+                view.prepend_items(&[&zoom_in, &zoom_out, &zoom_reset, &separator])?;
+                break;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn zoom_by(app_handle: &tauri::AppHandle, delta: f64) {
