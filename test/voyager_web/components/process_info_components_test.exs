@@ -47,22 +47,17 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
       assert attr(html, "#process-tab-state", "phx-click") == ["set-tab"]
       assert attr(html, "#process-tab-state", "phx-value-tab") == ["state"]
       assert count(html, "#process-tab-state.tab-active") == 1
-      assert count(html, "#process-tab-state .tooltip") == 0
     end
 
-    test "renders an inactive tab with a tooltip" do
+    test "renders an inactive tab" do
       html =
         render_component(&ProcessInfoComponents.tab_button/1,
           tab: :relations,
           active: :overview,
-          label: "Relations",
-          tooltip: "Links, Monitors and Monitored by"
+          label: "Relations"
         )
 
       assert count(html, "#process-tab-relations.tab-active") == 0
-
-      assert attr(html, "#process-tab-relations .tooltip", "data-tip") ==
-               ["Links, Monitors and Monitored by"]
     end
   end
 

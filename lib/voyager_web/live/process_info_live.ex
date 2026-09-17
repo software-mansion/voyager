@@ -127,12 +127,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
           <.tab_button tab={:state} active={@tab} label="State" />
           <.tab_button tab={:messages} active={@tab} label="Messages" />
           <.tab_button tab={:dictionary} active={@tab} label="Dictionary" />
-          <.tab_button
-            tab={:relations}
-            active={@tab}
-            label="Relations"
-            tooltip="Links, Monitors and Monitored by"
-          />
+          <.tab_button tab={:relations} active={@tab} label="Relations" />
         </div>
 
         <.tab_panel
