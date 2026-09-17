@@ -35,7 +35,6 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   attr :tab, :atom, required: true
   attr :active, :atom, required: true
   attr :label, :string, required: true
-  attr :tooltip, :string, default: nil
 
   def tab_button(assigns) do
     ~H"""
@@ -47,10 +46,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
       phx-value-tab={@tab}
       class={["tab", @active == @tab && "tab-active"]}
     >
-      <%!-- The tooltip lives on an inner span: `tabs-lift` already claims the
-           tab's own pseudo-elements for its corner decoration. --%>
-      <span :if={@tooltip} class="tooltip tooltip-bottom" data-tip={@tooltip}>{@label}</span>
-      <span :if={is_nil(@tooltip)}>{@label}</span>
+      {@label}
     </button>
     """
   end
