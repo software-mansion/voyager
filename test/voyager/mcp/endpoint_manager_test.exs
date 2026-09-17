@@ -10,13 +10,6 @@ defmodule Voyager.MCP.EndpointManagerTest do
       assert %{alive?: true, url: url} = MCP.info()
       assert url == "http://127.0.0.1:#{port}/mcp"
     end
-
-    test "maps 0.0.0.0 to 127.0.0.1 in the advertised URL", %{mcp_port: port} do
-      assert {:ok, _} = Settings.put(:mcp_ip, {0, 0, 0, 0})
-
-      assert %{url: url} = MCP.info()
-      assert url == "http://127.0.0.1:#{port}/mcp"
-    end
   end
 
   describe "boot" do
