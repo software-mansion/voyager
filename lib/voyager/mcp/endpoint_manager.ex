@@ -2,15 +2,15 @@ defmodule Voyager.MCP.EndpointManager do
   @moduledoc """
   Owns and manages the dedicated Bandit HTTP endpoint serving the MCP transport.
 
-  Port and IP are owned entirely by `Voyager.Settings` — this GenServer holds
-  only the Bandit process reference. Every read of port/IP goes through the
+  The port is owned entirely by `Voyager.Settings` — this GenServer holds
+  only the Bandit process reference. Every read of the port goes through the
   Settings service so config.exs overrides and DB persistence are always
-  respected.
+  respected. The listener binds to loopback only: the endpoint has no auth and
+  runs tools against the connected node.
 
   ## Configuration (optional — overrides DB)
 
       config :voyager, :mcp_port, 4040
-      config :voyager, :mcp_ip, {127, 0, 0, 1}
       config :voyager, :mcp_enabled, true
   """
 
@@ -30,7 +30,7 @@ defmodule Voyager.MCP.EndpointManager do
 
   @dynamic_supervisor Voyager.MCP.DynamicSupervisor
 
-  @default_ip {127, 0, 0, 1}
+  @ip {127, 0, 0, 1}
   @default_port 4040
   @set_port_timeout 10_000
   @pubsub_topic "mcp_status"
@@ -91,9 +91,8 @@ defmodule Voyager.MCP.EndpointManager do
     state =
       if enabled do
         port = Settings.get(:mcp_port, @default_port)
-        ip = Settings.get(:mcp_ip, @default_ip)
 
-        case start_endpoint(port, ip) do
+        case start_endpoint(port) do
           {:ok, pid} ->
             Voyager.Telemetry.dispatch!("voyager.mcp.start", metadata: %{reason: "boot"})
             monitor_endpoint(state, pid)
@@ -145,9 +144,8 @@ defmodule Voyager.MCP.EndpointManager do
 
   defp do_toggle(state) do
     port = Settings.get(:mcp_port, @default_port)
-    ip = Settings.get(:mcp_ip, @default_ip)
 
-    case start_endpoint(port, ip) do
+    case start_endpoint(port) do
       {:ok, pid} ->
         new_state = %{monitor_endpoint(state, pid) | enabled: true}
         persist_enabled(true)
@@ -172,8 +170,7 @@ defmodule Voyager.MCP.EndpointManager do
         {:reply, :ok, state}
 
       true ->
-        ip = Settings.get(:mcp_ip, @default_ip)
-        swap_endpoint(new_port, ip, state)
+        swap_endpoint(new_port, state)
     end
   end
 
@@ -198,8 +195,8 @@ defmodule Voyager.MCP.EndpointManager do
     end
   end
 
-  defp swap_endpoint(new_port, ip, state) do
-    case start_endpoint(new_port, ip) do
+  defp swap_endpoint(new_port, state) do
+    case start_endpoint(new_port) do
       {:ok, pid} -> commit_endpoint(new_port, pid, state)
       {:error, reason} -> {:reply, {:error, reason}, state}
     end
@@ -233,11 +230,10 @@ defmodule Voyager.MCP.EndpointManager do
 
   def handle_info(_msg, state), do: {:noreply, state}
 
-  @spec start_endpoint(port_number(), :inet.ip_address()) ::
-          {:ok, pid()} | {:error, :port_in_use | term()}
-  defp start_endpoint(port, ip) do
+  @spec start_endpoint(port_number()) :: {:ok, pid()} | {:error, :port_in_use | term()}
+  defp start_endpoint(port) do
     spec =
-      Supervisor.child_spec({Bandit, plug: Router, port: port, ip: ip}, restart: :temporary)
+      Supervisor.child_spec({Bandit, plug: Router, port: port, ip: @ip}, restart: :temporary)
 
     case DynamicSupervisor.start_child(@dynamic_supervisor, spec) do
       {:ok, pid} -> {:ok, pid}
@@ -268,14 +264,9 @@ defmodule Voyager.MCP.EndpointManager do
   end
 
   defp endpoint_url do
-    ip = Settings.get(:mcp_ip, @default_ip)
     port = Settings.get(:mcp_port, @default_port)
-    "http://#{format_host(ip)}:#{port}/mcp"
+    "http://127.0.0.1:#{port}/mcp"
   end
-
-  defp format_host({0, 0, 0, 0}), do: "127.0.0.1"
-  defp format_host({127, 0, 0, 1}), do: "127.0.0.1"
-  defp format_host(ip) when is_tuple(ip), do: ip |> :inet.ntoa() |> to_string()
 
   # Bandit/ThousandIsland bury the listen error deep in a nested
   # `:failed_to_start_child` shutdown tuple, so scan the term for `:eaddrinuse`.
