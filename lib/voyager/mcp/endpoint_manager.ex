@@ -265,7 +265,7 @@ defmodule Voyager.MCP.EndpointManager do
 
   defp endpoint_url do
     port = Settings.get(:mcp_port, @default_port)
-    "http://127.0.0.1:#{port}/mcp"
+    "http://#{:inet.ntoa(@ip)}:#{port}/mcp"
   end
 
   # Bandit/ThousandIsland bury the listen error deep in a nested
