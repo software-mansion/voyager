@@ -41,11 +41,17 @@ build() {
   pubkey="$(cat "$key_file.pub")"
 
   log "Building next version $next_version"
+  # The UI shows the mix.exs version, so bump it for this build only.
+  current_version="$(awk -F '"' '/^[[:space:]]*version:[[:space:]]*"/ { print $2; exit }' "$root/mix.exs")"
+  sed -i.bak "s/version: \"$current_version\"/version: \"$next_version\"/" "$root/mix.exs"
+  trap 'mv "$root/mix.exs.bak" "$root/mix.exs"' EXIT
   (
     cd "$root/rel/app"
     TAURI_SIGNING_PRIVATE_KEY="$(cat "$key_file")" TAURI_SIGNING_PRIVATE_KEY_PASSWORD="" \
       ./tauri.sh build --bundles "$bundle" --config "{\"version\":\"$next_version\"}"
   )
+  mv "$root/mix.exs.bak" "$root/mix.exs"
+  trap - EXIT
   collect_next_artifacts
 
   log "Building current app against $endpoint"
