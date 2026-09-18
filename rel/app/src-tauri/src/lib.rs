@@ -4,8 +4,8 @@ use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 
 const MAIN_WINDOW_LABEL: &str = "main";
-const FEEDBACK_ID: &str = "feedback";
-const FEEDBACK_URL: &str = "https://github.com/software-mansion/voyager/issues/new/choose";
+const REPORT_ISSUE_ID: &str = "report_issue";
+const REPORT_ISSUE_URL: &str = "https://github.com/software-mansion/voyager/issues/new/choose";
 
 /// Current OS appearance for Auto theme after full page reloads.
 #[tauri::command]
@@ -23,8 +23,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![os_theme])
         .on_menu_event(|app, event| {
-            if event.id() == FEEDBACK_ID {
-                let _ = app.opener().open_url(FEEDBACK_URL, None::<&str>);
+            if event.id() == REPORT_ISSUE_ID {
+                let _ = app.opener().open_url(REPORT_ISSUE_URL, None::<&str>);
             }
         })
         .setup(move |app| {
@@ -34,9 +34,10 @@ pub fn run() {
                 .and_then(|menu| menu.get(tauri::menu::HELP_SUBMENU_ID))
                 .and_then(|item| item.as_submenu().cloned())
             {
-                let feedback = tauri::menu::MenuItemBuilder::with_id(FEEDBACK_ID, "Send Feedback…")
-                    .build(app)?;
-                help_menu.append(&feedback)?;
+                let report_issue =
+                    tauri::menu::MenuItemBuilder::with_id(REPORT_ISSUE_ID, "Report an Issue…")
+                        .build(app)?;
+                help_menu.append(&report_issue)?;
             }
 
             let pubsub = elixirkit::PubSub::listen("tcp://127.0.0.1:0").expect("failed to listen");
