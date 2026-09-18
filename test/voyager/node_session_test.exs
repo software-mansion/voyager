@@ -187,7 +187,30 @@ defmodule Voyager.NodeSessionTest do
       send(NodeSession, {:nodedown, node})
 
       assert_receive {:connector_disconnect, ^node}
-      assert_receive {:nodedown, ^node}
+      assert_receive {:nodedown, ^node, nil}
+      refute NodeSession.connected?()
+    end
+
+    test "includes the OTP nodedown reason in the broadcast" do
+      :ok =
+        NodeSession.connect_via(FakeConnector, "demo@localhost", "secret", test_pid: self())
+
+      node = Node.self()
+      send(NodeSession, {:nodedown, node, %{nodedown_reason: :net_tick_timeout}})
+
+      assert_receive {:connector_disconnect, ^node}
+      assert_receive {:nodedown, ^node, :net_tick_timeout}
+      refute NodeSession.connected?()
+    end
+
+    test "reads nodedown_reason from a keyword-list info payload" do
+      :ok =
+        NodeSession.connect_via(FakeConnector, "demo@localhost", "secret", test_pid: self())
+
+      node = Node.self()
+      send(NodeSession, {:nodedown, node, [nodedown_reason: :no_network]})
+
+      assert_receive {:nodedown, ^node, :no_network}
       refute NodeSession.connected?()
     end
   end
@@ -229,7 +252,7 @@ defmodule Voyager.NodeSessionTest do
       node = Node.self()
       send(NodeSession, {:fake_transport_down, ref})
 
-      assert_receive {:nodedown, ^node}
+      assert_receive {:nodedown, ^node, :transport_down}
       refute_received {:connector_disconnect, _}
       refute NodeSession.connected?()
     end

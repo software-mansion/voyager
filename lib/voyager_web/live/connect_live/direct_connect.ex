@@ -233,6 +233,17 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   defp connect_error(:connection_failed),
     do: "Node unreachable - check the name is correct and the node is running"
 
+  defp connect_error(:epmd_timeout),
+    do: "Node unreachable - the host didn't respond in time, check your network connection"
+
+  defp connect_error({:epmd_error, reason}), do: network_error(reason) || "Could not reach host"
+
+  defp connect_error(:node_not_registered),
+    do: "Node not found - check the node name is correct and the node is running"
+
+  defp connect_error({:node_unreachable, reason}),
+    do: network_error(reason) || "Node port unreachable - check the node is running"
+
   defp connect_error(:bad_cookie),
     do: "Authentication failed - the Erlang cookie does not match"
 
@@ -240,7 +251,10 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
     do: "Name type mismatch - try switching between --sname and --name"
 
   defp connect_error(:not_distributed), do: "Failed to start Erlang distribution"
-  defp connect_error({:net_kernel, _}), do: "Failed to start Erlang distribution"
+
+  defp connect_error({:net_kernel, reason}),
+    do: network_error(reason) || "Failed to start Erlang distribution"
+
   defp connect_error({:net_kernel_stop, _}), do: "Failed to restart Erlang distribution"
 
   defp connect_error({:agent_install_failed, {:otp_too_old, release}}),
@@ -250,4 +264,17 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
     do: "Could not load the Voyager agent on the node"
 
   defp connect_error(_), do: "Could not connect to node"
+
+  defp network_error(:nxdomain), do: "Host not found - check the node's hostname"
+
+  defp network_error(:econnrefused),
+    do: "Connection refused - check the node's hostname and that epmd is running"
+
+  defp network_error(:ehostunreach),
+    do: "Host unreachable - check the node's hostname and your network"
+
+  defp network_error(reason) when reason in [:etimedout, :timeout],
+    do: "Connection timed out - check the node's hostname and your network"
+
+  defp network_error(_reason), do: nil
 end

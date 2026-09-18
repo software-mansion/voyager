@@ -62,6 +62,22 @@ defmodule VoyagerWeb.ConnectLiveTest do
       assert has_element?(view, ~s|#direct-connect-btn:not([disabled])|)
       assert has_element?(view, ~s|[data-testid="fill-recent-btn"]:not([disabled])|)
     end
+
+    test "explains a nodedown caused by a network timeout", %{conn: conn} do
+      session = Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      broadcast(NodeSession.topic(), {:nodedown, session.node, :net_tick_timeout})
+
+      assert has_element?(
+               view,
+               "#flash-error",
+               "Node down: demo@localhost — connection timed out, check your network"
+             )
+
+      refute has_element?(view, "#connected-indicator")
+    end
   end
 
   describe "fill_recent while connected" do
@@ -315,6 +331,33 @@ defmodule VoyagerWeb.ConnectLiveTest do
       {:ok, view, _html} = live(conn, ~p"/")
 
       refute has_element?(view, "#onboarding-modal")
+    end
+  end
+
+  describe "direct connect errors" do
+    setup do
+      System.cmd("epmd", ["-daemon"])
+      :ok
+    end
+
+    test "shows a specific error when the node is not registered on epmd", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      view
+      |> form("#direct-connect-form", %{
+        "conn" => %{
+          "node_name" => "definitely_not_a_registered_node@127.0.0.1",
+          "cookie" => "cookie",
+          "name_type" => "longnames"
+        }
+      })
+      |> render_submit()
+
+      assert has_element?(
+               view,
+               "#direct-connect-form",
+               "Node not found - check the node name is correct and the node is running"
+             )
     end
   end
 
