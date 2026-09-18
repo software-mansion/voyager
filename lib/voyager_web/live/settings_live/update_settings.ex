@@ -17,23 +17,23 @@ defmodule VoyagerWeb.SettingsLive.UpdateSettings do
           </p>
         </div>
 
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <p id="update-status" class={["text-sm", update_status_class(@update)]}>
-            {update_status(@update)}
-          </p>
+        <p id="update-status" class={["text-sm", update_status_class(@update)]}>
+          {update_status(@update)}
+        </p>
+
+        <div class="card-actions justify-end">
           <%= if @update && @update.version && @update.status != :checking do %>
             <button
               type="button"
               id="install-app-update-setting"
               phx-click="install-app-update"
               disabled={@update.status == :installing}
-              class="btn btn-primary btn-sm"
+              class="btn btn-primary"
             >
               <span
                 :if={@update.status == :installing}
                 class="loading loading-spinner loading-xs"
               ></span>
-              <.icon :if={@update.status != :installing} name="icon-download" class="size-4" />
               Install v{@update.version}
             </button>
           <% else %>
@@ -42,17 +42,13 @@ defmodule VoyagerWeb.SettingsLive.UpdateSettings do
               id="check-app-update"
               phx-click="check-app-update"
               disabled={@update && @update.status == :checking}
-              class="btn btn-soft btn-sm"
+              class="btn btn-primary"
             >
               <span
                 :if={@update && @update.status == :checking}
                 class="loading loading-spinner loading-xs"
               ></span>
-              <.icon
-                :if={!(@update && @update.status == :checking)}
-                name="icon-rotate-cw"
-                class="size-4"
-              /> Check for updates
+              Check for updates
             </button>
           <% end %>
         </div>
