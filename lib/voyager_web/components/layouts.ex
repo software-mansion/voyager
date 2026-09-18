@@ -20,6 +20,7 @@ defmodule VoyagerWeb.Layouts do
     {@inner_content}
     <.flash_group flash={@flash} />
     <.onboarding_modal show={assigns[:show_onboarding?]} />
+    <.app_update_modal :if={!assigns[:show_onboarding?]} update={assigns[:app_update]} />
     """
   end
 
@@ -56,6 +57,7 @@ defmodule VoyagerWeb.Layouts do
       {@inner_content}
     </VoyagerWeb.Components.Shell.shell>
     <.onboarding_modal show={assigns[:show_onboarding?]} />
+    <.app_update_modal :if={!assigns[:show_onboarding?]} update={assigns[:app_update]} />
     """
   end
 
@@ -76,8 +78,94 @@ defmodule VoyagerWeb.Layouts do
       </main>
     </div>
     <.onboarding_modal show={assigns[:show_onboarding?]} />
+    <.app_update_modal update={assigns[:app_update]} />
     """
   end
+
+  @doc """
+  Renders the popup offering the desktop app update announced by the Tauri shell.
+  Its buttons send `"install-app-update"` and `"dismiss-app-update"`, handled by
+  `VoyagerWeb.Hooks.AppUpdateHook`.
+  """
+  attr :update, :map, default: nil
+
+  def app_update_modal(assigns) do
+    ~H"""
+    <div
+      :if={@update && @update.popup? && @update.status in [:available, :installing, :failed]}
+      id="app-update-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="app-update-modal-title"
+      class="modal modal-open"
+    >
+      <div class="modal-box border-base-300 max-w-md border shadow-2xl">
+        <div class="mb-4 flex items-center gap-3">
+          <div class={[
+            "rounded-box size-11 flex shrink-0 items-center justify-center",
+            if(@update.status == :failed,
+              do: "bg-error text-error-content",
+              else: "bg-primary text-primary-content"
+            )
+          ]}>
+            <.icon
+              name={if(@update.status == :failed, do: "icon-circle-alert", else: "icon-download")}
+              class="size-5"
+            />
+          </div>
+          <h2
+            id="app-update-modal-title"
+            class="text-base-content text-lg font-semibold tracking-tight"
+          >
+            {app_update_title(@update)}
+          </h2>
+        </div>
+
+        <p class="text-base-content/70 text-sm">
+          <%= if @update.status == :failed do %>
+            The update could not be downloaded or installed. Check your connection and try again.
+          <% else %>
+            Voyager v{@update.version} is ready to install. The app restarts once the update is in place.
+          <% end %>
+        </p>
+
+        <div class="modal-action">
+          <button
+            :if={@update.status != :installing}
+            type="button"
+            id="dismiss-app-update"
+            phx-click="dismiss-app-update"
+            class="btn btn-ghost"
+          >
+            Not now
+          </button>
+          <button
+            type="button"
+            id="install-app-update"
+            phx-click="install-app-update"
+            disabled={@update.status == :installing}
+            class="btn btn-primary"
+          >
+            <.icon :if={@update.status != :installing} name="icon-download" class="size-4" />
+            <span
+              :if={@update.status == :installing}
+              class="loading loading-spinner loading-xs"
+            ></span>
+            {app_update_action(@update)}
+          </button>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  defp app_update_title(%{status: :available}), do: "Update available"
+  defp app_update_title(%{status: :installing}), do: "Installing update"
+  defp app_update_title(%{status: :failed}), do: "Update failed"
+
+  defp app_update_action(%{status: :installing}), do: "Updating…"
+  defp app_update_action(%{status: :failed}), do: "Retry"
+  defp app_update_action(_update), do: "Update now"
 
   @doc """
   Renders the first-launch popup informing users about anonymous telemetry
