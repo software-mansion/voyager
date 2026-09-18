@@ -68,7 +68,10 @@ defmodule VoyagerWeb.SettingsLive.UpdateSettings do
   defp update_status(%{status: :check_failed}), do: "Could not check for updates."
   defp update_status(%{status: :installing}), do: "Installing the update…"
   defp update_status(%{status: :failed}), do: "The update could not be installed."
-  defp update_status(%{version: version}), do: "Voyager v#{version} is available."
+
+  defp update_status(%{version: version}),
+    do: "Voyager v#{version} is available. Installing it restarts the app."
+
   defp update_status(nil), do: "Updates are checked when Voyager starts."
 
   defp update_status_class(%{status: :up_to_date}), do: "text-success"
