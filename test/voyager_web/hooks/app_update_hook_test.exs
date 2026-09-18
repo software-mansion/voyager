@@ -45,7 +45,8 @@ defmodule VoyagerWeb.Hooks.AppUpdateHookTest do
 
     settings |> element("#install-app-update-setting") |> render_click()
 
-    assert has_element?(settings, "#app-update-modal", "Installing update")
+    refute has_element?(settings, "#app-update-modal")
+    assert has_element?(settings, "#update-status", "Installing")
   end
 
   test "offers a retry after a failed install", %{conn: conn} do
@@ -71,6 +72,22 @@ defmodule VoyagerWeb.Hooks.AppUpdateHookTest do
 
     assert has_element?(view, "#update-status", "up to date")
     assert has_element?(view, "#check-app-update:not([disabled])")
+  end
+
+  test "manual check shows a found update in place instead of the modal", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/settings")
+
+    view |> element("#check-app-update") |> render_click()
+    announce("available:9.9.9")
+
+    refute has_element?(view, "#app-update-modal")
+    assert has_element?(view, "#install-app-update-setting", "Install v9.9.9")
+
+    view |> element("#install-app-update-setting") |> render_click()
+
+    refute has_element?(view, "#app-update-modal")
+    assert has_element?(view, "#install-app-update-setting[disabled]")
+    assert has_element?(view, "#update-status", "Installing")
   end
 
   test "manual check reports a failed check", %{conn: conn} do

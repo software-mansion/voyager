@@ -92,7 +92,7 @@ defmodule VoyagerWeb.Layouts do
   def app_update_modal(assigns) do
     ~H"""
     <div
-      :if={@update && @update.status in [:available, :installing, :failed]}
+      :if={@update && @update.popup? && @update.status in [:available, :installing, :failed]}
       id="app-update-modal"
       role="dialog"
       aria-modal="true"

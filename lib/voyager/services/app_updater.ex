@@ -3,19 +3,15 @@ defmodule Voyager.Services.AppUpdater do
   Tracks the desktop app update announced by the Tauri shell over `ElixirKit.PubSub`
   and asks the shell to check for or install one. Every change is broadcast on
   `topic/0` as `{:app_update, update}`.
+
+  `popup?` is set only by the startup check, so an update found from Settings stays
+  there instead of opening the modal.
   """
 
   use GenServer
 
-  @type status ::
-          :available
-          | :dismissed
-          | :installing
-          | :failed
-          | :checking
-          | :up_to_date
-          | :check_failed
-  @type update :: %{version: String.t() | nil, status: status()} | nil
+  @type status :: :available | :installing | :failed | :checking | :up_to_date | :check_failed
+  @type update :: %{version: String.t() | nil, status: status(), popup?: boolean()} | nil
 
   @native_topic "updates"
   @pubsub_topic "app_update"
@@ -61,7 +57,7 @@ defmodule Voyager.Services.AppUpdater do
   def handle_call(:current, _from, state), do: {:reply, state.update, state}
 
   def handle_call(:install, _from, %{update: %{status: status}} = state)
-      when status in [:available, :dismissed, :failed] do
+      when status in [:available, :failed] do
     ElixirKit.PubSub.broadcast(@native_topic, "install")
 
     {:reply, :ok, put_status(state, :installing)}
@@ -69,9 +65,8 @@ defmodule Voyager.Services.AppUpdater do
 
   def handle_call(:install, _from, state), do: {:reply, {:error, :no_update}, state}
 
-  def handle_call(:dismiss, _from, %{update: %{status: status}} = state)
-      when status in [:available, :failed] do
-    {:reply, :ok, put_status(state, :dismissed)}
+  def handle_call(:dismiss, _from, %{update: %{} = update} = state) do
+    {:reply, :ok, put_update(state, %{update | popup?: false})}
   end
 
   def handle_call(:dismiss, _from, state), do: {:reply, :ok, state}
@@ -79,12 +74,14 @@ defmodule Voyager.Services.AppUpdater do
   def handle_call(:check, _from, state) do
     ElixirKit.PubSub.broadcast(@native_topic, "check")
 
-    {:reply, :ok, put_update(state, %{version: nil, status: :checking})}
+    {:reply, :ok, put_update(state, %{version: nil, status: :checking, popup?: false})}
   end
 
   @impl GenServer
   def handle_info("available:" <> version, state) do
-    {:noreply, put_update(state, %{version: version, status: :available})}
+    popup? = not match?(%{status: :checking}, state.update)
+
+    {:noreply, put_update(state, %{version: version, status: :available, popup?: popup?})}
   end
 
   # The startup check stays silent when nothing is new, only a manual one reports it.
