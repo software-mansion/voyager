@@ -214,6 +214,7 @@ defmodule VoyagerWeb.Components.Shell do
           </span>
           <.sidebar_toggle current_url={@current_url} sidebar_mode={@sidebar_mode} />
         </li>
+        <.sidebar_toggle_tips />
         <.nav_item
           :for={page <- inspect_pages()}
           id={"sidebar-nav-#{page.feature}"}
@@ -283,9 +284,32 @@ defmodule VoyagerWeb.Components.Shell do
         "btn btn-ghost btn-square toolbar-btn text-base-content/70 hover:text-base-content",
         visibility
       ]}
+      phx-hook="Tooltip"
+      data-tooltip-target={"##{id}-tip"}
+      data-tooltip-position="right"
+      data-tooltip-interactive="false"
     >
       <.icon name="icon-panel-left" class="toolbar-icon" />
     </.link>
+    """
+  end
+
+  defp keycap_class,
+    do:
+      "bg-base-content/10 text-base-content/70 h-5 min-w-5 items-center justify-center rounded-sm px-1 font-sans text-xs"
+
+  defp sidebar_toggle_tips(assigns) do
+    ~H"""
+    <.tooltip_portal :for={id <- ~w(sidebar-compact-toggle sidebar-compact-toggle-wide)} id={id}>
+      <span class="flex items-center gap-3 whitespace-nowrap">
+        Toggle sidebar
+        <span class="flex items-center gap-1">
+          <kbd class={["hidden mac:inline-flex", keycap_class()]}>⌘</kbd>
+          <kbd class={["inline-flex mac:hidden", keycap_class()]}>Ctrl</kbd>
+          <kbd class={["inline-flex", keycap_class()]}>B</kbd>
+        </span>
+      </span>
+    </.tooltip_portal>
     """
   end
 
