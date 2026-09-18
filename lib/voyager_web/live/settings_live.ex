@@ -60,6 +60,12 @@ defmodule VoyagerWeb.SettingsLive do
     |> noreply()
   end
 
+  def handle_info({:nodedown, _node, _reason}, socket) do
+    socket
+    |> assign(:connected?, false)
+    |> noreply()
+  end
+
   def handle_info(_, socket), do: {:noreply, socket}
 
   defp safe_return_to(path) when is_binary(path) do

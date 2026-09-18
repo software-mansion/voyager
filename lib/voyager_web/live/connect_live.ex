@@ -132,6 +132,10 @@ defmodule VoyagerWeb.ConnectLive do
     {:noreply, assign(socket, :connected_session, nil)}
   end
 
+  def handle_info({:nodedown, _node, _reason}, socket) do
+    {:noreply, assign(socket, :connected_session, nil)}
+  end
+
   def handle_info({:ssh_connecting, connecting?}, socket) do
     {:noreply, assign(socket, :connecting?, connecting?)}
   end
