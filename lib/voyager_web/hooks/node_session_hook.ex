@@ -116,8 +116,9 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
     put_flash(socket, :error, "Node down: #{node}#{nodedown_reason_suffix(reason)}")
   end
 
-  defp nodedown_reason_suffix(:net_tick_timeout),
-    do: " — connection timed out, check your network"
+  defp nodedown_reason_suffix(reason)
+       when reason in [:net_tick_timeout, :send_net_tick_failed, :get_status_failed],
+       do: " — connection timed out, check your network"
 
   defp nodedown_reason_suffix(:no_network), do: " — no network available"
   defp nodedown_reason_suffix(:connection_closed), do: " — connection closed"

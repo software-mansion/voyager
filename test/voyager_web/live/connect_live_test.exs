@@ -9,6 +9,7 @@ defmodule VoyagerWeb.ConnectLiveTest do
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Connectors.Ssh, as: SshConnector
   alias Voyager.Settings
+  alias VoyagerWeb.ConnectLive.DirectConnect
 
   setup do
     previous_state = :sys.get_state(NodeSession)
@@ -69,6 +70,22 @@ defmodule VoyagerWeb.ConnectLiveTest do
       {:ok, view, _html} = live(conn, ~p"/")
 
       broadcast(NodeSession.topic(), {:nodedown, session.node, :net_tick_timeout})
+
+      assert has_element?(
+               view,
+               "#flash-error",
+               "Node down: demo@localhost — connection timed out, check your network"
+             )
+
+      refute has_element?(view, "#connected-indicator")
+    end
+
+    test "explains a nodedown caused by a failed net tick", %{conn: conn} do
+      session = Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      broadcast(NodeSession.topic(), {:nodedown, session.node, :send_net_tick_failed})
 
       assert has_element?(
                view,
@@ -335,29 +352,22 @@ defmodule VoyagerWeb.ConnectLiveTest do
   end
 
   describe "direct connect errors" do
-    setup do
-      System.cmd("epmd", ["-daemon"])
-      :ok
+    test "maps an unknown epmd host to a host-not-found message" do
+      assert DirectConnect.connect_error({:epmd_error, :address}) ==
+               "Host not found - check the node's hostname"
+
+      assert DirectConnect.connect_error({:epmd_error, :nxdomain}) ==
+               "Host not found - check the node's hostname"
     end
 
-    test "shows a specific error when the node is not registered on epmd", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/")
+    test "maps a dead dist port without blaming epmd" do
+      assert DirectConnect.connect_error({:node_unreachable, :econnrefused}) ==
+               "Connection refused - check the node is running"
+    end
 
-      view
-      |> form("#direct-connect-form", %{
-        "conn" => %{
-          "node_name" => "definitely_not_a_registered_node@127.0.0.1",
-          "cookie" => "cookie",
-          "name_type" => "longnames"
-        }
-      })
-      |> render_submit()
-
-      assert has_element?(
-               view,
-               "#direct-connect-form",
+    test "maps a missing epmd registration" do
+      assert DirectConnect.connect_error(:node_not_registered) ==
                "Node not found - check the node name is correct and the node is running"
-             )
     end
   end
 

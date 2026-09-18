@@ -5,8 +5,14 @@ defmodule Voyager.Services.NodeConnectorTest do
 
   @moduletag capture_log: true
 
-  setup_all do
+  setup do
     System.cmd("epmd", ["-daemon"])
+    started_here? = not Node.alive?()
+
+    on_exit(fn ->
+      if started_here? and Node.alive?(), do: :net_kernel.stop()
+    end)
+
     :ok
   end
 

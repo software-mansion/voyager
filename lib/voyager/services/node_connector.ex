@@ -48,7 +48,8 @@ defmodule Voyager.Services.NodeConnector do
     case Task.yield(task, 1_000) || Task.shutdown(task) do
       {:ok, {:ok, registered}} -> diagnose_registered_name(name, host, registered)
       {:ok, {:error, reason}} -> {:error, {:epmd_error, reason}}
-      nil -> {:error, :epmd_timeout}
+      {:exit, reason} -> {:error, {:epmd_error, reason}}
+      _ -> {:error, :epmd_timeout}
     end
   end
 

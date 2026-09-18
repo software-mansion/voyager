@@ -448,8 +448,8 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   defp ssh_connect_error(:not_distributed),
     do: {:node_name, "Failed to start local Erlang distribution"}
 
-  defp ssh_connect_error({:net_kernel, reason}),
-    do: {:node_name, ssh_network_error(reason) || "Failed to start local Erlang distribution"}
+  defp ssh_connect_error({:net_kernel, _}),
+    do: {:node_name, "Failed to start local Erlang distribution"}
 
   defp ssh_connect_error({:net_kernel_stop, _}),
     do: {:node_name, "Failed to restart local Erlang distribution"}
@@ -472,17 +472,4 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     do: {:node_name, "Could not load the Voyager agent on the node"}
 
   defp ssh_connect_error(_), do: {:node_name, "Could not connect to remote node"}
-
-  defp ssh_network_error(:nxdomain), do: "Host not found - check the node's hostname"
-
-  defp ssh_network_error(:econnrefused),
-    do: "Connection refused - check the node's hostname and that epmd is running"
-
-  defp ssh_network_error(:ehostunreach),
-    do: "Host unreachable - check the node's hostname and your network"
-
-  defp ssh_network_error(reason) when reason in [:etimedout, :timeout],
-    do: "Connection timed out - check the node's hostname and your network"
-
-  defp ssh_network_error(_reason), do: nil
 end
