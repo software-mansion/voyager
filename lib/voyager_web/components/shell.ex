@@ -12,7 +12,6 @@ defmodule VoyagerWeb.Components.Shell do
   attr :session, Session, required: true
   attr :mcp_status, :map, default: %{alive?: false, url: nil}
   attr :current_url, :string, default: nil
-  attr :app_update, :map, default: nil
   slot :inner_block, required: true
 
   def shell(assigns) do
@@ -24,7 +23,6 @@ defmodule VoyagerWeb.Components.Shell do
           session={@session}
           mcp_status={@mcp_status}
           current_url={@current_url}
-          app_update={@app_update}
         />
 
         <div class="relative flex flex-1 overflow-y-hidden">
@@ -48,7 +46,6 @@ defmodule VoyagerWeb.Components.Shell do
   attr :session, Session, required: true
   attr :mcp_status, :map, default: %{alive?: false, url: nil}
   attr :current_url, :string, default: nil
-  attr :app_update, :map, default: nil
 
   defp topbar(assigns) do
     ~H"""
@@ -57,17 +54,14 @@ defmodule VoyagerWeb.Components.Shell do
       <div class="@container/nav-status flex min-w-0">
         <.node_indicator session={@session} />
       </div>
-      <div class="flex items-center gap-2">
-        <.app_update_button update={@app_update} />
-        <.link
-          href={~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_url)]}"}
-          id="open-settings"
-          title="Settings"
-          class="btn btn-ghost btn-square toolbar-btn text-base-content/70 hover:text-base-content"
-        >
-          <.icon name="icon-settings" class="toolbar-icon" />
-        </.link>
-      </div>
+      <.link
+        href={~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_url)]}"}
+        id="open-settings"
+        title="Settings"
+        class="btn btn-ghost btn-square toolbar-btn text-base-content/70 hover:text-base-content"
+      >
+        <.icon name="icon-settings" class="toolbar-icon" />
+      </.link>
     </div>
     """
   end
@@ -77,7 +71,6 @@ defmodule VoyagerWeb.Components.Shell do
   (defaults to the connect page) followed by the brand mark.
   """
   attr :return_to, :string, default: nil
-  attr :app_update, :map, default: nil
 
   def settings_topbar(assigns) do
     ~H"""
@@ -92,44 +85,9 @@ defmodule VoyagerWeb.Components.Shell do
         </.link>
         <.brand />
       </div>
-      <div class="navbar-end">
-        <.app_update_button update={@app_update} />
-      </div>
     </div>
     """
   end
-
-  @doc """
-  Renders the button installing the desktop app update, or nothing when there is none.
-  Clicking it sends `"install-app-update"`, handled by `VoyagerWeb.Hooks.AppUpdateHook`.
-  """
-  attr :update, :map, default: nil
-
-  def app_update_button(assigns) do
-    ~H"""
-    <button
-      :if={@update}
-      id="install-app-update"
-      type="button"
-      phx-click="install-app-update"
-      disabled={@update.status == :installing}
-      title={@update.status == :failed && "The update could not be installed"}
-      class={[
-        "btn btn-sm btn-soft transition-colors",
-        if(@update.status == :failed, do: "btn-error", else: "btn-primary")
-      ]}
-    >
-      <span :if={@update.status == :installing} class="loading loading-spinner loading-xs"></span>
-      <.icon :if={@update.status == :available} name="icon-download" class="size-4" />
-      <.icon :if={@update.status == :failed} name="icon-rotate-cw" class="size-4" />
-      {app_update_label(@update)}
-    </button>
-    """
-  end
-
-  defp app_update_label(%{status: :available, version: version}), do: "Update to v#{version}"
-  defp app_update_label(%{status: :installing}), do: "Updating…"
-  defp app_update_label(%{status: :failed}), do: "Retry update"
 
   defp brand(assigns) do
     assigns = assign(assigns, :version, Voyager.version())

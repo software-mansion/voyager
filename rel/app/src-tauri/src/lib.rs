@@ -106,10 +106,10 @@ pub fn run() {
             let app_handle = app.handle().clone();
             let updates_pubsub = pubsub.clone();
 
-            pubsub.subscribe(UPDATES_TOPIC, move |msg| {
-                if msg == b"install" {
-                    install_update(app_handle.clone(), updates_pubsub.clone());
-                }
+            pubsub.subscribe(UPDATES_TOPIC, move |msg| match msg {
+                b"install" => install_update(app_handle.clone(), updates_pubsub.clone()),
+                b"check" => check_for_update(app_handle.clone(), updates_pubsub.clone()),
+                _ => {}
             });
 
             let app_handle = app.handle().clone();
@@ -170,8 +170,13 @@ fn check_for_update(app_handle: tauri::AppHandle, pubsub: elixirkit::PubSub) {
                 *app_handle.state::<PendingUpdate>().0.lock().unwrap() = Some(update);
                 let _ = pubsub.broadcast(UPDATES_TOPIC, message.as_bytes());
             }
-            Ok(None) => {}
-            Err(error) => eprintln!("[rust] update check failed: {error}"),
+            Ok(None) => {
+                let _ = pubsub.broadcast(UPDATES_TOPIC, b"none");
+            }
+            Err(error) => {
+                eprintln!("[rust] update check failed: {error}");
+                let _ = pubsub.broadcast(UPDATES_TOPIC, b"check_failed");
+            }
         }
     });
 }

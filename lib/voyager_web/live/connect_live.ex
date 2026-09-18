@@ -36,17 +36,14 @@ defmodule VoyagerWeb.ConnectLive do
             <div class="mb-7 flex items-center gap-3">
               <.logo />
               <div class="text-base-content text-lg font-semibold tracking-tight">Voyager</div>
-              <div class="ml-auto flex items-center gap-2">
-                <VoyagerWeb.Components.Shell.app_update_button update={@app_update} />
-                <.link
-                  id="open-settings"
-                  href={~p"/settings?#{[return_to: @current_url]}"}
-                  title="Settings"
-                  class="btn btn-ghost btn-square toolbar-btn text-base-content/60 hover:text-base-content"
-                >
-                  <.icon name="icon-settings" class="toolbar-icon" />
-                </.link>
-              </div>
+              <.link
+                id="open-settings"
+                href={~p"/settings?#{[return_to: @current_url]}"}
+                title="Settings"
+                class="btn btn-ghost btn-square toolbar-btn text-base-content/60 ml-auto hover:text-base-content"
+              >
+                <.icon name="icon-settings" class="toolbar-icon" />
+              </.link>
             </div>
             <ConnectComponents.connected_indicator session={@connected_session} />
 
