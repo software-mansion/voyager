@@ -146,6 +146,7 @@ defmodule VoyagerWeb.Layouts do
             disabled={@update.status == :installing}
             class="btn btn-primary"
           >
+            <.icon :if={@update.status != :installing} name="icon-download" class="size-4" />
             <span
               :if={@update.status == :installing}
               class="loading loading-spinner loading-xs"

@@ -30,6 +30,7 @@ defmodule VoyagerWeb.SettingsLive.UpdateSettings do
               disabled={@update.status == :installing}
               class="btn btn-primary"
             >
+              <.icon :if={@update.status != :installing} name="icon-download" class="size-4" />
               <span
                 :if={@update.status == :installing}
                 class="loading loading-spinner loading-xs"
@@ -44,6 +45,11 @@ defmodule VoyagerWeb.SettingsLive.UpdateSettings do
               disabled={@update && @update.status == :checking}
               class="btn btn-primary"
             >
+              <.icon
+                :if={!(@update && @update.status == :checking)}
+                name="icon-rotate-cw"
+                class="size-4"
+              />
               <span
                 :if={@update && @update.status == :checking}
                 class="loading loading-spinner loading-xs"
