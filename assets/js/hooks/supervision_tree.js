@@ -85,7 +85,6 @@ const SupervisionTree = {
     this.el.addEventListener('maximize', () =>
       this.scheduleLayout({ fit: true })
     );
-    this.el.addEventListener('wheel', (e) => e.stopPropagation());
 
     this.themeObserver = new MutationObserver(() => this.refreshTokens());
     this.themeObserver.observe(document.documentElement, {
