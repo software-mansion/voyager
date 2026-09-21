@@ -90,6 +90,6 @@ defmodule Voyager.Services.Erlssh.Connection do
     end
   end
 
-  defp auth_opts(:agent), do: []
+  defp auth_opts(:agent), do: [key_cb: {:ssh_agent, []}]
   defp auth_opts({:password, pass}), do: [password: String.to_charlist(pass)]
 end

@@ -1,5 +1,7 @@
 defmodule Voyager.Services.ProcessListTest do
-  use ExUnit.Case, async: true
+  # async: false: the LiveView tests drive the same Voyager.ErpcMock in Mox
+  # global mode, where their stubs would override this test's expectations.
+  use ExUnit.Case, async: false
 
   import Mox
 
@@ -86,7 +88,9 @@ defmodule Voyager.Services.ProcessListTest do
 
     test "rejects an unknown direction" do
       assert_raise FunctionClauseError, fn ->
-        ProcessList.top(@node, [:memory], :memory, 5, 1_000, :sideways)
+        # apply/3 keeps the invalid direction opaque to the type checker
+        # credo:disable-for-next-line Credo.Check.Refactor.Apply
+        apply(ProcessList, :top, [@node, [:memory], :memory, 5, 1_000, :sideways])
       end
     end
 
