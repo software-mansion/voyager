@@ -157,33 +157,29 @@ defmodule VoyagerWeb.CoreComponents do
       |> assign(:current_label, option_label(options, assigns.value))
 
     ~H"""
-    <div
+    <details
       id={"#{@id}-dropdown"}
       phx-hook="Select"
       class={["dropdown", @align == :end && "dropdown-end", @side == :top && "dropdown-top", @class]}
     >
-      <div
-        tabindex="0"
-        role="button"
+      <summary
         id={@id}
         aria-haspopup="listbox"
         aria-expanded="false"
-        class="select select-bordered select-sm select-caret font-mono w-full cursor-pointer pr-8 text-left text-xs font-normal"
+        class="select select-bordered select-sm select-caret font-mono w-full cursor-pointer list-none pr-8 text-left text-xs font-normal"
       >
         {@current_label}
-      </div>
-      <div
-        tabindex="0"
-        class={[
-          "dropdown-content bg-base-100 rounded-box border-base-300 z-50 w-max min-w-full border p-2 shadow-lg",
-          @side == :top && "mb-1",
-          @side == :bottom && "mt-1"
-        ]}
-      >
+      </summary>
+      <div class={[
+        "dropdown-content bg-base-100 rounded-box border-base-300 z-50 w-max min-w-full border p-2 shadow-lg",
+        @side == :top && "mb-1",
+        @side == :bottom && "mt-1"
+      ]}>
         <div class="flex flex-col">
           <label
             :for={{label, value} <- @options}
             id={"#{@id}-#{option_id(value)}-option"}
+            phx-click={JS.remove_attribute("open", to: "##{@id}-dropdown")}
             class={[
               "font-mono flex cursor-pointer items-center rounded-lg px-2 py-1.5 text-xs has-[:focus-visible]:bg-base-200 hover:bg-base-200",
               option_selected?(@value, value) && "bg-base-200"
@@ -200,7 +196,7 @@ defmodule VoyagerWeb.CoreComponents do
           </label>
         </div>
       </div>
-    </div>
+    </details>
     """
   end
 

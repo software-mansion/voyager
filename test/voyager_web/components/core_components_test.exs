@@ -111,11 +111,10 @@ defmodule VoyagerWeb.CoreComponentsTest do
       assert count(select(), "#sel-dropdown.dropdown-top") == 0
     end
 
-    test "the trigger is a focusable button with popup semantics" do
+    test "the trigger is a summary that names a listbox" do
       html = select()
 
-      assert attr(html, "#sel", "role") == ["button"]
-      assert attr(html, "#sel", "tabindex") == ["0"]
+      assert count(html, "details#sel-dropdown > summary#sel") == 1
       assert attr(html, "#sel", "aria-haspopup") == ["listbox"]
       assert attr(html, "#sel", "aria-expanded") == ["false"]
     end
