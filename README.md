@@ -124,8 +124,9 @@ mix assets.deploy
 mix tauri.app
 ```
 
-Set `VOYAGER_DEV_BUILD=true` in `rel/app/.env` (see [`.env.sample`](rel/app/.env.sample)) to mark
-the local app with a `Dev Build` banner.
+Development runs always show a `Dev Build` banner. Production builds (`mix tauri.app`,
+`mix tauri.build`) are built with `MIX_ENV=prod`, so set `VOYAGER_DEV_BUILD=true` in `rel/app/.env`
+(see [`.env.sample`](rel/app/.env.sample)) to mark them too.
 
 Before opening a pull request, run:
 

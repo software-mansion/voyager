@@ -1,5 +1,7 @@
 import Config
 
+config :voyager, :dev_build?, true
+
 config :voyager, Voyager.Repo,
   database: Path.expand("../priv/db/voyager_dev.db", __DIR__),
   pool_size: 5,
