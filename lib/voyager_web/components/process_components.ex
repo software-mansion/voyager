@@ -80,7 +80,12 @@ defmodule VoyagerWeb.Components.ProcessComponents do
             />
             <span class="text-base-content/70 text-xs font-medium">Columns</span>
 
-            <.select field={@form[:limit]} options={ProcessListControls.limit_options()} class="w-24" />
+            <.select
+              field={@form[:limit]}
+              options={ProcessListControls.limit_options()}
+              class="w-24"
+              disabled={@loading?}
+            />
 
             <input
               id={@form[:timeout].id}
@@ -126,7 +131,13 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   defp field_label(assigns) do
     ~H"""
     <div class="flex items-center gap-1">
-      <label for={@field.id} class="text-base-content/70 text-xs font-medium">{@label}</label>
+      <label
+        id={"#{@field.id}-label"}
+        for={@field.id}
+        class="text-base-content/70 text-xs font-medium"
+      >
+        {@label}
+      </label>
       <.help_tooltip :if={@help} id={"#{@field.id}-help"} text={@help} />
     </div>
     """

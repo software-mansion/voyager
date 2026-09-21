@@ -168,7 +168,13 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
   defp field_label(assigns) do
     ~H"""
     <div class="flex items-center gap-1">
-      <label for={@field.id} class="text-base-content/70 text-xs font-medium">{@label}</label>
+      <label
+        id={"#{@field.id}-label"}
+        for={@field.id}
+        class="text-base-content/70 text-xs font-medium"
+      >
+        {@label}
+      </label>
     </div>
     """
   end

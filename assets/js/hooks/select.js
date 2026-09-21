@@ -21,25 +21,43 @@ const Select = {
 
     this.dismiss = () => {
       el.open = false;
-      this.syncExpanded();
     };
-
-    this._onChange = () => this.dismiss();
 
     this._onClick = (e) => {
       if (this.inContent(e.target)) this.dismiss();
     };
 
-    el.addEventListener('change', this._onChange);
+    this._onKeyDown = (e) => {
+      if (e.key === 'Escape' && el.open) {
+        e.preventDefault();
+        this.dismiss();
+      }
+    };
+
+    this._onToggle = () => {
+      this.syncExpanded();
+      if (!el.open && this.trigger instanceof HTMLElement) {
+        const active = document.activeElement;
+        if (
+          active instanceof Node &&
+          el.contains(active) &&
+          active !== this.trigger
+        ) {
+          this.trigger.focus({ preventScroll: true });
+        }
+      }
+    };
+
     el.addEventListener('click', this._onClick);
-    el.addEventListener('toggle', this.syncExpanded);
+    el.addEventListener('keydown', this._onKeyDown);
+    el.addEventListener('toggle', this._onToggle);
     this.syncExpanded();
   },
 
   destroyed() {
-    this.el.removeEventListener('change', this._onChange);
     this.el.removeEventListener('click', this._onClick);
-    this.el.removeEventListener('toggle', this.syncExpanded);
+    this.el.removeEventListener('keydown', this._onKeyDown);
+    this.el.removeEventListener('toggle', this._onToggle);
   },
 };
 

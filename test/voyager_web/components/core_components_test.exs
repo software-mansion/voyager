@@ -117,10 +117,26 @@ defmodule VoyagerWeb.CoreComponentsTest do
       assert count(html, "details#sel-dropdown > summary#sel") == 1
       assert attr(html, "#sel", "aria-haspopup") == ["listbox"]
       assert attr(html, "#sel", "aria-expanded") == ["false"]
+      assert attr(html, "#sel", "aria-labelledby") == ["sel-label sel-value"]
+      assert text(html, "#sel-value") == "Off"
+      assert attr(html, "#sel-dropdown .dropdown-content", "role") == ["radiogroup"]
+      assert attr(html, "#sel-dropdown .dropdown-content", "aria-labelledby") == ["sel-label"]
     end
 
     test "option radios stay in the tab order" do
       assert count(select(), ~s|#sel-off-option input[tabindex="-1"]|) == 0
+    end
+
+    test "disabling it blocks the trigger and the radios" do
+      html = select()
+      assert count(html, "#sel-dropdown[inert]") == 0
+      assert count(html, "#sel[aria-disabled]") == 0
+      assert count(html, ~s|#sel-off-option input[disabled]|) == 0
+
+      disabled = select(disabled: true)
+      assert count(disabled, "#sel-dropdown[inert]") == 1
+      assert count(disabled, "#sel[aria-disabled]") == 1
+      assert count(disabled, ~s|#sel-off-option input[disabled]|) == 1
     end
 
     test "takes id, name and value from a form field" do

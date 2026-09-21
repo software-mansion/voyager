@@ -281,7 +281,13 @@ defmodule VoyagerWeb.Components.DataTableComponents do
           phx-change="set_page_size"
           class="flex items-center gap-2"
         >
-          <label for={"#{@id}-page-size"} class="text-base-content/70 text-xs">Per page</label>
+          <label
+            id={"#{@id}-page-size-label"}
+            for={"#{@id}-page-size"}
+            class="text-base-content/70 text-xs"
+          >
+            Per page
+          </label>
           <.select
             id={"#{@id}-page-size"}
             name="page_size"

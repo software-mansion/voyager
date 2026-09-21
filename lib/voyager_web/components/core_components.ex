@@ -138,6 +138,7 @@ defmodule VoyagerWeb.CoreComponents do
   attr :class, :any, default: nil, doc: "width and other classes on the dropdown wrapper"
   attr :align, :atom, default: :start, values: [:start, :end]
   attr :side, :atom, default: :bottom, values: [:top, :bottom]
+  attr :disabled, :boolean, default: false
 
   def select(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
     assigns
@@ -160,21 +161,34 @@ defmodule VoyagerWeb.CoreComponents do
     <details
       id={"#{@id}-dropdown"}
       phx-hook="Select"
-      class={["dropdown", @align == :end && "dropdown-end", @side == :top && "dropdown-top", @class]}
+      inert={@disabled}
+      class={[
+        "dropdown",
+        @align == :end && "dropdown-end",
+        @side == :top && "dropdown-top",
+        @disabled && "pointer-events-none opacity-50",
+        @class
+      ]}
     >
       <summary
         id={@id}
         aria-haspopup="listbox"
         aria-expanded="false"
+        aria-disabled={@disabled}
+        aria-labelledby={"#{@id}-label #{@id}-value"}
         class="select select-bordered select-sm select-caret font-mono w-full cursor-pointer list-none pr-8 text-left text-xs font-normal"
       >
-        {@current_label}
+        <span id={"#{@id}-value"}>{@current_label}</span>
       </summary>
-      <div class={[
-        "dropdown-content bg-base-100 rounded-box border-base-300 z-50 w-max min-w-full border p-2 shadow-lg",
-        @side == :top && "mb-1",
-        @side == :bottom && "mt-1"
-      ]}>
+      <div
+        role="radiogroup"
+        aria-labelledby={"#{@id}-label"}
+        class={[
+          "dropdown-content bg-base-100 rounded-box border-base-300 z-50 w-max min-w-full border p-2 shadow-lg",
+          @side == :top && "mb-1",
+          @side == :bottom && "mt-1"
+        ]}
+      >
         <div class="flex flex-col">
           <label
             :for={{label, value} <- @options}
@@ -190,6 +204,7 @@ defmodule VoyagerWeb.CoreComponents do
               name={@name}
               value={to_string(value)}
               checked={option_selected?(@value, value)}
+              disabled={@disabled}
               class="sr-only"
             />
             {label}
@@ -244,7 +259,11 @@ defmodule VoyagerWeb.CoreComponents do
   def interval_select(assigns) do
     ~H"""
     <div class="flex items-center gap-2">
-      <label for={@id} class="font-mono text-base-content/70 tracking-label text-xs uppercase">
+      <label
+        id={"#{@id}-label"}
+        for={@id}
+        class="font-mono text-base-content/70 tracking-label text-xs uppercase"
+      >
         Auto-refresh
       </label>
       <form phx-change="set_interval" id={"#{@id}-form"}>
