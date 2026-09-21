@@ -265,14 +265,11 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
 
   def connect_error(_), do: "Could not connect to node"
 
-  defp epmd_error(reason) when reason in [:nxdomain, :address],
+  defp epmd_error(:nxdomain),
     do: "Host not found - check the node's hostname"
 
-  defp epmd_error(:econnrefused),
-    do: "Connection refused - check the node's hostname and that epmd is running"
-
-  defp epmd_error(reason) when no_route?(reason),
-    do: "Host unreachable - check the node's hostname and your network"
+  defp epmd_error(:address),
+    do: "Could not reach epmd on the host - check the hostname and that epmd is running"
 
   defp epmd_error(reason) when reason in [:etimedout, :timeout],
     do: "Connection timed out - check the node's hostname and your network"

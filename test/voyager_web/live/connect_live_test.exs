@@ -369,11 +369,13 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
   describe "direct connect errors" do
     test "maps an unknown epmd host to a host-not-found message" do
-      assert DirectConnect.connect_error({:epmd_error, :address}) ==
-               "Host not found - check the node's hostname"
-
       assert DirectConnect.connect_error({:epmd_error, :nxdomain}) ==
                "Host not found - check the node's hostname"
+    end
+
+    test "maps an unreachable epmd as epmd-down, not a missing hostname" do
+      assert DirectConnect.connect_error({:epmd_error, :address}) ==
+               "Could not reach epmd on the host - check the hostname and that epmd is running"
     end
 
     test "maps a dead dist port without blaming epmd" do
@@ -392,9 +394,6 @@ defmodule VoyagerWeb.ConnectLiveTest do
     end
 
     test "maps a no-route posix error without blaming the node" do
-      assert DirectConnect.connect_error({:epmd_error, :enetunreach}) ==
-               "Host unreachable - check the node's hostname and your network"
-
       assert DirectConnect.connect_error({:node_unreachable, :enetunreach}) ==
                "Host unreachable - check the node's hostname and your network"
     end
