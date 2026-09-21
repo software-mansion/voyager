@@ -308,8 +308,15 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
 
   describe "oversized trees" do
     setup do
+      previous = Application.fetch_env(:voyager, :max_tree_elements)
       Application.put_env(:voyager, :max_tree_elements, 1)
-      on_exit(fn -> Application.delete_env(:voyager, :max_tree_elements) end)
+
+      on_exit(fn ->
+        case previous do
+          {:ok, value} -> Application.put_env(:voyager, :max_tree_elements, value)
+          :error -> Application.delete_env(:voyager, :max_tree_elements)
+        end
+      end)
     end
 
     test "skips the graph and explains how to shrink the fetch", %{conn: conn} do
