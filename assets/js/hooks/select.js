@@ -3,43 +3,24 @@
 const Select = {
   mounted() {
     const el = this.el;
-    this.trigger = el.querySelector('summary');
-
-    this.inContent = (target) => {
-      const content = el.querySelector('.dropdown-content');
-      return (
-        content instanceof HTMLElement &&
-        target instanceof Node &&
-        content.contains(target)
-      );
-    };
-
-    this.syncExpanded = () => {
-      if (!(this.trigger instanceof HTMLElement)) return;
-      this.trigger.setAttribute('aria-expanded', el.open ? 'true' : 'false');
-    };
 
     this.dismiss = () => {
       el.open = false;
     };
 
     this._onClick = (e) => {
-      if (this.inContent(e.target)) this.dismiss();
+      if (el.querySelector('.dropdown-content')?.contains(e.target))
+        this.dismiss();
     };
 
-    this._onDocPointerDown = (e) => {
-      if (!el.open || e.button !== 0) return;
-      if (e.target instanceof Node && el.contains(e.target)) return;
-      this.dismiss();
-    };
-
-    this._onDocFocusIn = (e) => {
+    this._onOutside = (e) => {
       if (!el.open) return;
-      if (e.target instanceof Node && el.contains(e.target)) return;
+      if (e.type === 'pointerdown' && e.button !== 0) return;
+      if (el.contains(e.target)) return;
       this.dismiss();
     };
 
-    this._onDocKeyDown = (e) => {
+    this._onKeyDown = (e) => {
       if (e.key === 'Escape' && el.open) {
         e.preventDefault();
         this.dismiss();
@@ -47,32 +28,31 @@ const Select = {
     };
 
     this._onToggle = () => {
-      this.syncExpanded();
-      if (el.open || !(this.trigger instanceof HTMLElement)) return;
+      if (el.open) return;
+      const trigger = el.querySelector('summary');
       const active = document.activeElement;
       if (
-        active instanceof Node &&
+        trigger instanceof HTMLElement &&
         el.contains(active) &&
-        active !== this.trigger
+        active !== trigger
       ) {
-        this.trigger.focus({ preventScroll: true });
+        trigger.focus({ preventScroll: true });
       }
     };
 
     el.addEventListener('click', this._onClick);
+    el.addEventListener('keydown', this._onKeyDown);
     el.addEventListener('toggle', this._onToggle);
-    document.addEventListener('pointerdown', this._onDocPointerDown);
-    document.addEventListener('focusin', this._onDocFocusIn);
-    document.addEventListener('keydown', this._onDocKeyDown);
-    this.syncExpanded();
+    document.addEventListener('pointerdown', this._onOutside);
+    document.addEventListener('focusin', this._onOutside);
   },
 
   destroyed() {
     this.el.removeEventListener('click', this._onClick);
+    this.el.removeEventListener('keydown', this._onKeyDown);
     this.el.removeEventListener('toggle', this._onToggle);
-    document.removeEventListener('pointerdown', this._onDocPointerDown);
-    document.removeEventListener('focusin', this._onDocFocusIn);
-    document.removeEventListener('keydown', this._onDocKeyDown);
+    document.removeEventListener('pointerdown', this._onOutside);
+    document.removeEventListener('focusin', this._onOutside);
   },
 };
 

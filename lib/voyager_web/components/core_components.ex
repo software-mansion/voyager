@@ -167,51 +167,39 @@ defmodule VoyagerWeb.CoreComponents do
         "dropdown",
         @align == :end && "dropdown-end",
         @side == :top && "dropdown-top",
-        @disabled && "pointer-events-none opacity-50",
+        @disabled && "opacity-50",
         @class
       ]}
     >
       <summary
         id={@id}
-        phx-mounted={JS.ignore_attributes("aria-expanded")}
-        aria-haspopup="listbox"
-        aria-expanded="false"
-        aria-disabled={@disabled}
         aria-labelledby={"#{@id}-label #{@id}-value"}
         class="select select-bordered select-sm select-caret font-mono w-full cursor-pointer list-none pr-8 text-left text-xs font-normal"
       >
         <span id={"#{@id}-value"}>{@current_label}</span>
       </summary>
-      <div
-        role="radiogroup"
-        aria-labelledby={"#{@id}-label"}
-        class={[
-          "dropdown-content bg-base-100 rounded-box border-base-300 z-50 w-max min-w-full border p-2 shadow-lg",
-          @side == :top && "mb-1",
-          @side == :bottom && "mt-1"
-        ]}
-      >
-        <div class="flex flex-col">
-          <label
-            :for={{label, value} <- @options}
-            id={"#{@id}-#{option_id(value)}-option"}
-            phx-click={JS.remove_attribute("open", to: "##{@id}-dropdown")}
-            class={[
-              "font-mono flex cursor-pointer items-center rounded-lg px-2 py-1.5 text-xs has-[:focus-visible]:bg-base-200 hover:bg-base-200",
-              option_selected?(@value, value) && "bg-base-200"
-            ]}
-          >
-            <input
-              type="radio"
-              name={@name}
-              value={to_string(value)}
-              checked={option_selected?(@value, value)}
-              disabled={@disabled}
-              class="sr-only"
-            />
-            {label}
-          </label>
-        </div>
+      <div class={[
+        "dropdown-content bg-base-100 rounded-box border-base-300 z-50 flex w-max min-w-full flex-col border p-2 shadow-lg",
+        @side == :top && "mb-1",
+        @side == :bottom && "mt-1"
+      ]}>
+        <label
+          :for={{label, value} <- @options}
+          id={"#{@id}-#{option_id(value)}-option"}
+          class={[
+            "font-mono flex cursor-pointer items-center rounded-lg px-2 py-1.5 text-xs has-[:focus-visible]:bg-base-200 hover:bg-base-200",
+            option_selected?(@value, value) && "bg-base-200"
+          ]}
+        >
+          <input
+            type="radio"
+            name={@name}
+            value={to_string(value)}
+            checked={option_selected?(@value, value)}
+            class="sr-only"
+          />
+          {label}
+        </label>
       </div>
     </details>
     """
