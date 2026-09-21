@@ -9,9 +9,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   alias VoyagerWeb.FormSchemas.SupervisionTreeControls
   alias VoyagerWeb.SupervisionTreeLive.Diff
 
-  # ponytail: a fixed element budget, not a per-client one — cytoscape+dagre
-  # stall well before this on any machine. Upgrade path: have the hook time
-  # runLayout and push back a measured budget.
   @default_element_limit 2_000
 
   @impl true
