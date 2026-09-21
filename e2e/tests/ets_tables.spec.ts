@@ -100,6 +100,18 @@ test.describe('EtsTablesLive', () => {
     await expect(row(page, UNNAMED)).toBeVisible();
   });
 
+  test('a second click on an open select closes it', async ({ page }) => {
+    await page.locator(sel.protection).click();
+    await expect(
+      page.locator('#controls_protection-private-option')
+    ).toBeVisible();
+
+    await page.locator(sel.protection).click();
+    await expect(
+      page.locator('#controls_protection-private-option')
+    ).toBeHidden();
+  });
+
   test('sorts by a clicked column locally', async ({ page }) => {
     await filterToMockTables(page);
 
