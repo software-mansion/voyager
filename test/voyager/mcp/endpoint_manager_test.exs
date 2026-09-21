@@ -77,10 +77,12 @@ defmodule Voyager.MCP.EndpointManagerTest do
     end
 
     test "persists a new port while the listener stays down after toggle" do
+      # Picked while the setup listener still holds its port, so the two differ.
+      new_port = unique_port()
+
       assert {:ok, :stopped} = MCP.toggle()
       assert %{alive?: false} = MCP.info()
 
-      new_port = unique_port()
       assert :ok = MCP.set_port(new_port)
       assert Settings.get(:mcp_port) == new_port
 
