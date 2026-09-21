@@ -80,15 +80,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
             />
             <span class="text-base-content/70 text-xs font-medium">Columns</span>
 
-            <select id={@form[:limit].id} name={@form[:limit].name} class="select select-sm w-24">
-              <option
-                :for={value <- ProcessListControls.limit_options()}
-                value={value}
-                selected={to_string(value) == to_string(@form[:limit].value)}
-              >
-                {value}
-              </option>
-            </select>
+            <.select field={@form[:limit]} options={ProcessListControls.limit_options()} class="w-24" />
 
             <input
               id={@form[:timeout].id}

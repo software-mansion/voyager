@@ -114,14 +114,20 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
           <.field_label field={@form[:timeout]} label="Timeout (ms)" />
           <span class="text-base-content/70 text-xs font-medium">Columns</span>
 
-          <.filter_select
+          <.select
             field={@form[:protection]}
             options={EtsTableListControls.filter_options(:protection)}
+            class="w-32"
           />
-          <.filter_select field={@form[:type]} options={EtsTableListControls.filter_options(:type)} />
-          <.filter_select
+          <.select
+            field={@form[:type]}
+            options={EtsTableListControls.filter_options(:type)}
+            class="w-32"
+          />
+          <.select
             field={@form[:named]}
             options={EtsTableListControls.filter_options(:named)}
+            class="w-32"
           />
 
           <input
@@ -153,23 +159,6 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         </div>
       </div>
     </.form>
-    """
-  end
-
-  attr :field, Phoenix.HTML.FormField, required: true
-  attr :options, :list, required: true
-
-  defp filter_select(assigns) do
-    ~H"""
-    <select id={@field.id} name={@field.name} class="select select-sm w-32">
-      <option
-        :for={{value, label} <- @options}
-        value={value}
-        selected={value == to_string(@field.value || "")}
-      >
-        {label}
-      </option>
-    </select>
     """
   end
 

@@ -126,6 +126,98 @@ defmodule VoyagerWeb.CoreComponents do
   end
 
   @doc """
+  Single-choice dropdown whose radios submit `name`/`value` like a `<select>`.
+
+  Options are `{label, value}` pairs, or a list of values used as both.
+  """
+  attr :id, :string, default: nil
+  attr :name, :any, default: nil
+  attr :value, :any, default: nil
+  attr :field, Phoenix.HTML.FormField
+  attr :options, :list, required: true, doc: "`{label, value}` pairs, or a list of values"
+  attr :class, :any, default: nil, doc: "width and other classes on the dropdown wrapper"
+  attr :align, :atom, default: :start, values: [:start, :end]
+
+  def select(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
+    assigns
+    |> assign(field: nil)
+    |> assign(:id, assigns[:id] || field.id)
+    |> assign(:name, field.name)
+    |> assign(:value, field.value)
+    |> select()
+  end
+
+  def select(assigns) do
+    options = Enum.map(assigns.options, &normalize_option/1)
+
+    assigns =
+      assigns
+      |> assign(:options, options)
+      |> assign(:current_label, option_label(options, assigns.value))
+
+    ~H"""
+    <div
+      id={"#{@id}-dropdown"}
+      phx-hook="Select"
+      class={["dropdown", @align == :end && "dropdown-end", @class]}
+    >
+      <div class="select-caret w-full">
+        <button
+          type="button"
+          id={@id}
+          class="select select-bordered select-sm font-mono w-full pr-8 text-left text-xs font-normal"
+        >
+          {@current_label}
+        </button>
+      </div>
+      <div
+        tabindex="0"
+        class="dropdown-content bg-base-100 rounded-box border-base-300 z-50 mt-1 w-max min-w-full border p-2 shadow-lg"
+      >
+        <label
+          :for={{label, value} <- @options}
+          id={"#{@id}-#{option_id(value)}-option"}
+          class={[
+            "font-mono flex cursor-pointer items-center rounded-lg px-2 py-1.5 text-xs hover:bg-base-200",
+            option_selected?(@value, value) && "bg-base-200"
+          ]}
+        >
+          <input
+            type="radio"
+            name={@name}
+            value={to_string(value)}
+            checked={option_selected?(@value, value)}
+            tabindex="-1"
+            class="sr-only"
+          />
+          {label}
+        </label>
+      </div>
+    </div>
+    """
+  end
+
+  defp normalize_option({label, value}), do: {label, value}
+  defp normalize_option(value), do: {to_string(value), value}
+
+  defp option_label(options, value) do
+    match = to_string(value || "")
+
+    Enum.find_value(options, match, fn {label, option} ->
+      to_string(option) == match && label
+    end)
+  end
+
+  defp option_selected?(value, option), do: to_string(value || "") == to_string(option)
+
+  defp option_id(value) do
+    case to_string(value) do
+      "" -> "blank"
+      id -> id
+    end
+  end
+
+  @doc """
   Renders a form with select input with specified refresh interval options and
   button to refresh manually.
 
@@ -153,21 +245,13 @@ defmodule VoyagerWeb.CoreComponents do
         Auto-refresh
       </label>
       <form phx-change="set_interval" id={"#{@id}-form"}>
-        <div class="select-caret">
-          <select
-            name="interval"
-            id={@id}
-            class="select select-bordered select-sm font-mono pr-8 text-xs"
-          >
-            <option
-              :for={{label, value} <- @options}
-              value={value}
-              selected={value == interval_value(@refresh_interval)}
-            >
-              {label}
-            </option>
-          </select>
-        </div>
+        <.select
+          id={@id}
+          name="interval"
+          value={interval_value(@refresh_interval)}
+          options={@options}
+          align={:end}
+        />
       </form>
       <button
         type="button"
