@@ -7,6 +7,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
   import Mox
 
   alias Voyager.Fakes
+  alias Voyager.Services.RateLimiter
 
   @node_name "demo@localhost"
   @path "/node/demo@localhost/supervision-tree"
@@ -288,6 +289,27 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
 
       assert has_element?(view, "#details-panel", "(3)")
       refute has_element?(view, "#details-panel", "(20)")
+    end
+
+    test "skips the process fetches when the rate limiter is exhausted", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      link_pids: link_pids,
+      sup_key: sup_key
+    } do
+      start_supervised!({RateLimiter, name: EmptyBucket, config: %{high_capacity: 0}})
+      Application.put_env(:voyager, :rate_limiter, EmptyBucket)
+      on_exit(fn -> Application.delete_env(:voyager, :rate_limiter) end)
+
+      expect_supervision_erpc(7, sup_pid, [port], link_pids)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      assert has_element?(view, "#details-panel", "Too many requests.")
+      refute has_element?(view, "#details-panel", "1,234")
     end
 
     test "refresh button is hidden for non-process nodes", %{

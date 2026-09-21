@@ -214,8 +214,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           <.kv_skeleton label="Sequential trace token" />
           <.kv_skeleton label="Error handler" last />
         </:loading>
-        <:failed>
-          <.load_error />
+        <:failed :let={failure}>
+          <.load_error failure={failure} />
         </:failed>
         <.kv size={@size} label="Initial call" value={format_mfa(info.initial_call)} />
         <.kv size={@size} label="Current function" value={format_mfa(info.current_function)} />
@@ -285,8 +285,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
             <.chip_skeleton />
           </div>
         </:loading>
-        <:failed>
-          <.load_error />
+        <:failed :let={failure}>
+          <.load_error failure={failure} />
         </:failed>
         <.links_list
           toggle_id={"#{@panel_id}-toggle-links"}
@@ -319,8 +319,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           <.kv_skeleton label="GC min heap size" narrow />
           <.kv_skeleton label="GC fullsweep after" narrow last />
         </:loading>
-        <:failed>
-          <.load_error />
+        <:failed :let={failure}>
+          <.load_error failure={failure} />
         </:failed>
         <.kv size={@size} label="Memory" value={Formatters.format_bytes(info.memory)} />
         <.kv
@@ -437,15 +437,22 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     """
   end
 
+  attr :failure, :any, default: nil
+
   @spec load_error(any()) :: Phoenix.LiveView.Rendered.t()
   def load_error(assigns) do
     ~H"""
     <div class="alert alert-error border px-3 py-2.5 text-xs">
       <.icon name="icon-circle-alert" class="text-error size-4 shrink-0" />
-      Failed to load node details.
+      {load_error_message(@failure)}
     </div>
     """
   end
+
+  defp load_error_message({:error, :rate_limited}),
+    do: "Too many requests. Wait a moment and refresh."
+
+  defp load_error_message(_failure), do: "Failed to load node details."
 
   attr :label, :string, required: true
   attr :narrow, :boolean, default: false
