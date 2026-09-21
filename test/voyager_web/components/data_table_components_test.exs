@@ -152,6 +152,7 @@ defmodule VoyagerWeb.Components.DataTableComponentsTest do
       html = pager(page_size_options: [10, 25])
       assert attr(html, "#p-page-size-form", "phx-change") == ["set_page_size"]
       assert attr(html, ~s|#p-page-size-10-option input[checked]|, "value") == ["10"]
+      assert count(html, "#p-page-size-dropdown.dropdown-top") == 1
     end
   end
 end

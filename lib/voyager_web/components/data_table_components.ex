@@ -288,6 +288,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
             value={@page_size}
             options={@page_size_options}
             class="w-20"
+            side={:top}
           />
         </form>
       </div>

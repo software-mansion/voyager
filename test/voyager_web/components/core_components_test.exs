@@ -106,6 +106,24 @@ defmodule VoyagerWeb.CoreComponentsTest do
       assert count(select(), "#sel-dropdown.dropdown-end") == 0
     end
 
+    test "side top adds dropdown-top" do
+      assert count(select(side: :top), "#sel-dropdown.dropdown-top") == 1
+      assert count(select(), "#sel-dropdown.dropdown-top") == 0
+    end
+
+    test "the trigger is a focusable button with popup semantics" do
+      html = select()
+
+      assert attr(html, "#sel", "role") == ["button"]
+      assert attr(html, "#sel", "tabindex") == ["0"]
+      assert attr(html, "#sel", "aria-haspopup") == ["listbox"]
+      assert attr(html, "#sel", "aria-expanded") == ["false"]
+    end
+
+    test "option radios stay in the tab order" do
+      assert count(select(), ~s|#sel-off-option input[tabindex="-1"]|) == 0
+    end
+
     test "takes id, name and value from a form field" do
       form = to_form(%{"limit" => "100"}, as: :controls)
 

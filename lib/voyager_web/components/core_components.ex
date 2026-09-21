@@ -131,12 +131,13 @@ defmodule VoyagerWeb.CoreComponents do
   Options are `{label, value}` pairs, or a list of values used as both.
   """
   attr :id, :string, default: nil
-  attr :name, :any, default: nil
+  attr :name, :string, default: nil
   attr :value, :any, default: nil
   attr :field, Phoenix.HTML.FormField
   attr :options, :list, required: true, doc: "`{label, value}` pairs, or a list of values"
   attr :class, :any, default: nil, doc: "width and other classes on the dropdown wrapper"
   attr :align, :atom, default: :start, values: [:start, :end]
+  attr :side, :atom, default: :bottom, values: [:top, :bottom]
 
   def select(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
     assigns
@@ -159,27 +160,32 @@ defmodule VoyagerWeb.CoreComponents do
     <div
       id={"#{@id}-dropdown"}
       phx-hook="Select"
-      class={["dropdown", @align == :end && "dropdown-end", @class]}
+      class={["dropdown", @align == :end && "dropdown-end", @side == :top && "dropdown-top", @class]}
     >
-      <div class="select-caret w-full">
-        <button
-          type="button"
-          id={@id}
-          class="select select-bordered select-sm font-mono w-full pr-8 text-left text-xs font-normal"
-        >
-          {@current_label}
-        </button>
+      <div
+        tabindex="0"
+        role="button"
+        id={@id}
+        aria-haspopup="listbox"
+        aria-expanded="false"
+        class="select select-bordered select-sm select-caret font-mono w-full cursor-pointer pr-8 text-left text-xs font-normal"
+      >
+        {@current_label}
       </div>
       <div
         tabindex="0"
-        class="dropdown-content bg-base-100 rounded-box border-base-300 z-50 mt-1 w-max min-w-full border p-2 shadow-lg"
+        class={[
+          "dropdown-content bg-base-100 rounded-box border-base-300 z-50 w-max min-w-full border p-2 shadow-lg",
+          @side == :top && "mb-1",
+          @side == :bottom && "mt-1"
+        ]}
       >
         <div class="flex flex-col">
           <label
             :for={{label, value} <- @options}
             id={"#{@id}-#{option_id(value)}-option"}
             class={[
-              "font-mono flex cursor-pointer items-center rounded-lg px-2 py-1.5 text-xs hover:bg-base-200",
+              "font-mono flex cursor-pointer items-center rounded-lg px-2 py-1.5 text-xs has-[:focus-visible]:bg-base-200 hover:bg-base-200",
               option_selected?(@value, value) && "bg-base-200"
             ]}
           >
@@ -188,7 +194,6 @@ defmodule VoyagerWeb.CoreComponents do
               name={@name}
               value={to_string(value)}
               checked={option_selected?(@value, value)}
-              tabindex="-1"
               class="sr-only"
             />
             {label}
@@ -243,7 +248,7 @@ defmodule VoyagerWeb.CoreComponents do
   def interval_select(assigns) do
     ~H"""
     <div class="flex items-center gap-2">
-      <label class="font-mono text-base-content/70 tracking-label text-xs uppercase">
+      <label for={@id} class="font-mono text-base-content/70 tracking-label text-xs uppercase">
         Auto-refresh
       </label>
       <form phx-change="set_interval" id={"#{@id}-form"}>

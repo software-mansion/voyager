@@ -112,6 +112,20 @@ test.describe('EtsTablesLive', () => {
     ).toBeHidden();
   });
 
+  test('clicking the already-selected option closes the select', async ({
+    page,
+  }) => {
+    await page.locator(sel.protection).click();
+    await expect(
+      page.locator('#controls_protection-blank-option')
+    ).toBeVisible();
+
+    await page.locator('#controls_protection-blank-option').click();
+    await expect(
+      page.locator('#controls_protection-blank-option')
+    ).toBeHidden();
+  });
+
   test('sorts by a clicked column locally', async ({ page }) => {
     await filterToMockTables(page);
 
