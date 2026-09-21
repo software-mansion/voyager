@@ -161,6 +161,7 @@ defmodule VoyagerWeb.CoreComponents do
     <details
       id={"#{@id}-dropdown"}
       phx-hook="Select"
+      phx-mounted={JS.ignore_attributes("open")}
       inert={@disabled}
       class={[
         "dropdown",
@@ -172,6 +173,7 @@ defmodule VoyagerWeb.CoreComponents do
     >
       <summary
         id={@id}
+        phx-mounted={JS.ignore_attributes("aria-expanded")}
         aria-haspopup="listbox"
         aria-expanded="false"
         aria-disabled={@disabled}

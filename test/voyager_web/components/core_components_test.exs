@@ -123,6 +123,15 @@ defmodule VoyagerWeb.CoreComponentsTest do
       assert attr(html, "#sel-dropdown .dropdown-content", "aria-labelledby") == ["sel-label"]
     end
 
+    test "marks open and aria-expanded ignored on mount" do
+      html = select()
+
+      assert hd(attr(html, "#sel-dropdown", "phx-mounted")) =~ "ignore_attrs"
+      assert hd(attr(html, "#sel-dropdown", "phx-mounted")) =~ "open"
+      assert hd(attr(html, "#sel", "phx-mounted")) =~ "ignore_attrs"
+      assert hd(attr(html, "#sel", "phx-mounted")) =~ "aria-expanded"
+    end
+
     test "option radios stay in the tab order" do
       assert count(select(), ~s|#sel-off-option input[tabindex="-1"]|) == 0
     end
