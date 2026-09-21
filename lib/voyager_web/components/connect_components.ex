@@ -5,6 +5,9 @@ defmodule VoyagerWeb.ConnectComponents do
 
   use VoyagerWeb, :component
 
+  @no_route [:ehostunreach, :enetunreach, :enetdown, :ehostdown]
+  defguard no_route?(reason) when reason in @no_route
+
   @doc "Small bordered badge marking a stored element on a row."
   attr :label, :string, required: true
   attr :title, :string, required: true

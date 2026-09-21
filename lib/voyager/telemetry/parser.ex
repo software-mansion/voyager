@@ -12,7 +12,6 @@ defmodule Voyager.Telemetry.Parser do
   @safe_reasons ~w(
     not_distributed
     connection_failed
-    node_unreachable
     name_type_mismatch
     bad_cookie
     node_connect_failed

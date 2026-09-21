@@ -1,6 +1,8 @@
 defmodule VoyagerWeb.ConnectLive.DirectConnect do
   use VoyagerWeb, :live_component
 
+  import VoyagerWeb.ConnectComponents, only: [no_route?: 1]
+
   alias Voyager.Actions.Connections, as: ConnectionActions
   alias Voyager.NodeSession
   alias Voyager.Queries.Connections, as: ConnectionQueries
@@ -10,7 +12,6 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   alias VoyagerWeb.FormSchemas.ConnectionParams
 
   @id_prefix "direct-"
-  @no_route [:ehostunreach, :enetunreach, :enetdown, :ehostdown]
 
   @impl true
   def mount(socket) do
@@ -270,7 +271,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   defp epmd_error(:econnrefused),
     do: "Connection refused - check the node's hostname and that epmd is running"
 
-  defp epmd_error(reason) when reason in @no_route,
+  defp epmd_error(reason) when no_route?(reason),
     do: "Host unreachable - check the node's hostname and your network"
 
   defp epmd_error(reason) when reason in [:etimedout, :timeout],
@@ -281,7 +282,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   defp dist_port_error(:econnrefused),
     do: "Connection refused - check the node is running"
 
-  defp dist_port_error(reason) when reason in @no_route,
+  defp dist_port_error(reason) when no_route?(reason),
     do: "Host unreachable - check the node's hostname and your network"
 
   defp dist_port_error(reason) when reason in [:etimedout, :timeout],
