@@ -126,6 +126,31 @@ test.describe('EtsTablesLive', () => {
     ).toBeHidden();
   });
 
+  test('clicking outside an open select closes it', async ({ page }) => {
+    await page.locator(sel.protection).click();
+    await expect(
+      page.locator('#controls_protection-private-option')
+    ).toBeVisible();
+
+    await page.locator(sel.search).click();
+    await expect(
+      page.locator('#controls_protection-private-option')
+    ).toBeHidden();
+  });
+
+  test('opening a second select closes the first', async ({ page }) => {
+    await page.locator(sel.protection).click();
+    await expect(
+      page.locator('#controls_protection-private-option')
+    ).toBeVisible();
+
+    await page.locator(sel.type).click();
+    await expect(
+      page.locator('#controls_protection-private-option')
+    ).toBeHidden();
+    await expect(page.locator('#controls_type-set-option')).toBeVisible();
+  });
+
   test('sorts by a clicked column locally', async ({ page }) => {
     await filterToMockTables(page);
 

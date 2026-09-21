@@ -27,7 +27,19 @@ const Select = {
       if (this.inContent(e.target)) this.dismiss();
     };
 
-    this._onKeyDown = (e) => {
+    this._onDocPointerDown = (e) => {
+      if (!el.open || e.button !== 0) return;
+      if (e.target instanceof Node && el.contains(e.target)) return;
+      this.dismiss();
+    };
+
+    this._onDocFocusIn = (e) => {
+      if (!el.open) return;
+      if (e.target instanceof Node && el.contains(e.target)) return;
+      this.dismiss();
+    };
+
+    this._onDocKeyDown = (e) => {
       if (e.key === 'Escape' && el.open) {
         e.preventDefault();
         this.dismiss();
@@ -36,28 +48,31 @@ const Select = {
 
     this._onToggle = () => {
       this.syncExpanded();
-      if (!el.open && this.trigger instanceof HTMLElement) {
-        const active = document.activeElement;
-        if (
-          active instanceof Node &&
-          el.contains(active) &&
-          active !== this.trigger
-        ) {
-          this.trigger.focus({ preventScroll: true });
-        }
+      if (el.open || !(this.trigger instanceof HTMLElement)) return;
+      const active = document.activeElement;
+      if (
+        active instanceof Node &&
+        el.contains(active) &&
+        active !== this.trigger
+      ) {
+        this.trigger.focus({ preventScroll: true });
       }
     };
 
     el.addEventListener('click', this._onClick);
-    el.addEventListener('keydown', this._onKeyDown);
     el.addEventListener('toggle', this._onToggle);
+    document.addEventListener('pointerdown', this._onDocPointerDown);
+    document.addEventListener('focusin', this._onDocFocusIn);
+    document.addEventListener('keydown', this._onDocKeyDown);
     this.syncExpanded();
   },
 
   destroyed() {
     this.el.removeEventListener('click', this._onClick);
-    this.el.removeEventListener('keydown', this._onKeyDown);
     this.el.removeEventListener('toggle', this._onToggle);
+    document.removeEventListener('pointerdown', this._onDocPointerDown);
+    document.removeEventListener('focusin', this._onDocFocusIn);
+    document.removeEventListener('keydown', this._onDocKeyDown);
   },
 };
 
