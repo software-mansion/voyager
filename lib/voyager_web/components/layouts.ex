@@ -79,18 +79,10 @@ defmodule VoyagerWeb.Layouts do
     """
   end
 
-  @doc """
-  Renders the "Dev Build" banner that tops every page of a locally built app.
-
-  Renders nothing unless `Voyager.dev_build?/0` is true, so released builds
-  never show it.
-  """
   def dev_banner(assigns) do
-    assigns = assign(assigns, :dev_build?, Voyager.dev_build?())
+    assigns = assign(assigns, :dev_build?, Application.get_env(:voyager, :dev_build?, false))
 
     ~H"""
-    <%!-- `text-neutral` rather than `text-warning-content`: the latter is tuned
-          for the muted `warning-bg` alert surface and washes out on solid amber. --%>
     <div
       :if={@dev_build?}
       id="dev-build-banner"

@@ -124,19 +124,8 @@ mix assets.deploy
 mix tauri.app
 ```
 
-### Marking local builds
-
-`rel/app/tauri.sh` sources `rel/app/.env` (git-ignored, copied from
-[`rel/app/.env.sample`](rel/app/.env.sample)) before building or running the
-desktop app. Setting `VOYAGER_DEV_BUILD` there puts a `Dev Build` banner above
-the topbar, so a locally built app is never mistaken for a release:
-
-```sh
-# rel/app/.env
-VOYAGER_DEV_BUILD=true
-```
-
-CI has no `rel/app/.env`, so published builds never carry the banner.
+Set `VOYAGER_DEV_BUILD=true` in `rel/app/.env` (see [`.env.sample`](rel/app/.env.sample)) to mark
+the local app with a `Dev Build` banner.
 
 Before opening a pull request, run:
 

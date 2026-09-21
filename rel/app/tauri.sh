@@ -43,10 +43,6 @@ main() {
 
   command="${1:-}"
 
-  # Sourced for every command so a local build is configured the same way it is
-  # run. CI checks out no `.env`, which is what keeps released builds clean.
-  load_dotenv "$root_dir/.env"
-
   config="--config"
   # tauri.conf.json keeps resources as an empty list so this per-OS map replaces it.
   config_json="{\"bundle\":{\"resources\":{\"${release_dir}\":\"rel\"}}}"
@@ -57,6 +53,8 @@ main() {
 
   case "$command" in
     dev)
+      load_dotenv "$root_dir/.env"
+      
       (
         cd "$mix_project_dir"
         mix compile
@@ -71,6 +69,7 @@ main() {
       ;;
     app)
       shift
+      load_dotenv "$root_dir/.env"
       mix_release
       bundles_flag=""
       if [ "$os" = "darwin" ]; then
@@ -90,8 +89,7 @@ main() {
   esac
 }
 
-# Export telemetry, VOYAGER_DEV_BUILD, and other vars for `tauri.dev` runtime and
-# for `option_env!` during `tauri.app` compile.
+# Export telemetry (and other) vars for `tauri.dev` runtime and for `option_env!` during `tauri.app` compile.
 load_dotenv() {
   local env_file="$1"
   if [ -f "$env_file" ]; then
