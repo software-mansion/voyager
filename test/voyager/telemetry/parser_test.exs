@@ -60,6 +60,18 @@ defmodule Voyager.Telemetry.ParserTest do
       assert result == %{connected_via: :direct, reason: "bad_cookie"}
     end
 
+    test "keeps diagnose atoms for `node.connect_failed`" do
+      for reason <- [:epmd_timeout, :node_not_registered] do
+        result =
+          Parser.parse_metadata([:voyager, :node, :connect_failed], %{
+            connected_via: :direct,
+            reason: reason
+          })
+
+        assert result == %{connected_via: :direct, reason: Atom.to_string(reason)}
+      end
+    end
+
     test "keeps the option key for a `missing_option` connect failure" do
       result =
         Parser.parse_metadata([:voyager, :node, :connect_failed], %{
@@ -78,7 +90,9 @@ defmodule Voyager.Telemetry.ParserTest do
         {{:invalid_node_format, "app@10.0.0.5"}, "invalid_node_format"},
         {{:node_not_found, "app", "raw epmd dump with secrets"}, "node_not_found"},
         {{:net_kernel, {:some, "internal", "detail"}}, "net_kernel"},
-        {{:connector_crashed, %RuntimeError{message: "s3cret-cookie"}}, "connector_crashed"}
+        {{:connector_crashed, %RuntimeError{message: "s3cret-cookie"}}, "connector_crashed"},
+        {{:node_unreachable, :econnrefused}, "node_unreachable"},
+        {{:epmd_error, :nxdomain}, "epmd_error"}
       ]
 
       for {reason, expected} <- sensitive do

@@ -60,13 +60,6 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
   end
 
   defp handle_no_node(
-         {:nodedown, event_node} = event,
-         %{assigns: %{session: %{node: event_node}}} = socket
-       ) do
-    redirect_disconnected(socket, event)
-  end
-
-  defp handle_no_node(
          {:nodedown, event_node, _reason} = event,
          %{assigns: %{session: %{node: event_node}}} = socket
        ) do
@@ -83,10 +76,6 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
   end
 
   defp handle_session_lost_flash({:node_disconnected, _node} = event, socket) do
-    {:cont, put_disconnect_flash(socket, event)}
-  end
-
-  defp handle_session_lost_flash({:nodedown, _node} = event, socket) do
     {:cont, put_disconnect_flash(socket, event)}
   end
 
@@ -108,10 +97,6 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
     put_flash(socket, :info, "Node disconnected: #{node}")
   end
 
-  defp put_disconnect_flash(socket, {:nodedown, node}) do
-    put_flash(socket, :error, "Node down: #{node}")
-  end
-
   defp put_disconnect_flash(socket, {:nodedown, node, reason}) do
     put_flash(socket, :error, "Node down: #{node}#{nodedown_reason_suffix(reason)}")
   end
@@ -123,7 +108,10 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
   defp nodedown_reason_suffix(:no_network), do: " — no network available"
   defp nodedown_reason_suffix(:connection_closed), do: " — connection closed"
   defp nodedown_reason_suffix(:connection_setup_failed), do: " — connection setup failed"
-  defp nodedown_reason_suffix(:disconnect), do: " — disconnected"
-  defp nodedown_reason_suffix(:transport_down), do: " — connection lost"
+  defp nodedown_reason_suffix(:net_kernel_terminated), do: " — local distribution stopped"
+
+  defp nodedown_reason_suffix(reason) when reason in [:disconnect, :shutdown, :transport_down],
+    do: " — connection lost"
+
   defp nodedown_reason_suffix(_reason), do: ""
 end

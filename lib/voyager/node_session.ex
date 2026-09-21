@@ -165,11 +165,6 @@ defmodule Voyager.NodeSession do
     handle_nodedown(state, session, nodedown_reason(info))
   end
 
-  def handle_info({:nodedown, node}, %{session: %Session{node: session_node} = session} = state)
-      when node == session_node do
-    handle_nodedown(state, session, nil)
-  end
-
   def handle_info(msg, %{session: %Session{connector: connector, meta: meta} = session} = state) do
     if connector.teardown?(msg, meta) do
       if Node.alive?(), do: monitor_nodes(false)
@@ -196,8 +191,6 @@ defmodule Voyager.NodeSession do
   end
 
   defp nodedown_reason(%{nodedown_reason: reason}), do: reason
-  defp nodedown_reason(info) when is_list(info), do: Keyword.get(info, :nodedown_reason)
-  defp nodedown_reason(reason) when is_atom(reason), do: reason
   defp nodedown_reason(_info), do: nil
 
   defp drop_session(state, session, event, telemetry_reason, extra \\ nil) do

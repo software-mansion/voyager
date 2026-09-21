@@ -56,7 +56,7 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
       assert has_element?(view, "#connected-indicator", "demo@localhost")
 
-      broadcast(NodeSession.topic(), {:nodedown, session.node})
+      broadcast(NodeSession.topic(), {:nodedown, session.node, nil})
 
       assert has_element?(view, "#flash-error", "Node down: demo@localhost")
       refute has_element?(view, "#connected-indicator")
@@ -91,6 +91,22 @@ defmodule VoyagerWeb.ConnectLiveTest do
                view,
                "#flash-error",
                "Node down: demo@localhost — connection timed out, check your network"
+             )
+
+      refute has_element?(view, "#connected-indicator")
+    end
+
+    test "explains a nodedown caused by an unspecified shutdown", %{conn: conn} do
+      session = Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      broadcast(NodeSession.topic(), {:nodedown, session.node, :shutdown})
+
+      assert has_element?(
+               view,
+               "#flash-error",
+               "Node down: demo@localhost — connection lost"
              )
 
       refute has_element?(view, "#connected-indicator")
@@ -285,7 +301,7 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
       {:ok, view, _html} = live(conn, ~p"/")
 
-      broadcast(NodeSession.topic(), {:nodedown, session.node})
+      broadcast(NodeSession.topic(), {:nodedown, session.node, nil})
 
       refute has_element?(view, "#connected-indicator")
       assert has_element?(view, "input#mode-ssh[checked]")
@@ -368,6 +384,19 @@ defmodule VoyagerWeb.ConnectLiveTest do
     test "maps a missing epmd registration" do
       assert DirectConnect.connect_error(:node_not_registered) ==
                "Node not found - check the node name is correct and the node is running"
+    end
+
+    test "maps an epmd probe timeout" do
+      assert DirectConnect.connect_error(:epmd_timeout) ==
+               "Node unreachable - the host didn't respond in time, check your network connection"
+    end
+
+    test "maps a no-route posix error without blaming the node" do
+      assert DirectConnect.connect_error({:epmd_error, :enetunreach}) ==
+               "Host unreachable - check the node's hostname and your network"
+
+      assert DirectConnect.connect_error({:node_unreachable, :enetunreach}) ==
+               "Host unreachable - check the node's hostname and your network"
     end
   end
 

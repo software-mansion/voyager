@@ -184,7 +184,7 @@ defmodule Voyager.NodeSessionTest do
         NodeSession.connect_via(FakeConnector, "demo@localhost", "secret", test_pid: self())
 
       node = Node.self()
-      send(NodeSession, {:nodedown, node})
+      send(NodeSession, {:nodedown, node, %{}})
 
       assert_receive {:connector_disconnect, ^node}
       assert_receive {:nodedown, ^node, nil}
@@ -200,17 +200,6 @@ defmodule Voyager.NodeSessionTest do
 
       assert_receive {:connector_disconnect, ^node}
       assert_receive {:nodedown, ^node, :net_tick_timeout}
-      refute NodeSession.connected?()
-    end
-
-    test "reads nodedown_reason from a keyword-list info payload" do
-      :ok =
-        NodeSession.connect_via(FakeConnector, "demo@localhost", "secret", test_pid: self())
-
-      node = Node.self()
-      send(NodeSession, {:nodedown, node, [nodedown_reason: :no_network]})
-
-      assert_receive {:nodedown, ^node, :no_network}
       refute NodeSession.connected?()
     end
   end
