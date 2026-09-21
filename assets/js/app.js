@@ -96,7 +96,7 @@ const isMac = navigator.platform.startsWith('Mac');
 document.documentElement.classList.toggle('is-mac', isMac);
 
 window.addEventListener('keydown', (e) => {
-  if (e.key !== 'b' || !(isMac ? e.metaKey : e.ctrlKey)) return;
+  if (e.repeat || e.code !== 'KeyB' || !(isMac ? e.metaKey : e.ctrlKey)) return;
 
   for (const toggle of document.querySelectorAll(
     '#sidebar-compact-toggle, #sidebar-compact-toggle-wide'
