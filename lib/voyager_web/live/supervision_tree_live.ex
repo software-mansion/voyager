@@ -211,7 +211,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
     Process.demonitor(ref, [:flush])
 
-    if oversized(result) do
+    if oversized?(result) do
       socket
       |> assign(:errors, errors)
       |> assign(:status, status)
@@ -282,7 +282,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     |> noreply()
   end
 
-  defp oversized(result), do: element_count(result) > element_limit()
+  defp oversized?(result), do: element_count(result) > element_limit()
 
   defp element_count(result), do: map_size(result.nodes) + map_size(result.edges)
 
