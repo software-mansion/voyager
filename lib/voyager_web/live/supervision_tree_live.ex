@@ -9,6 +9,11 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   alias VoyagerWeb.FormSchemas.SupervisionTreeControls
   alias VoyagerWeb.SupervisionTreeLive.Diff
 
+  # ponytail: a fixed element budget, not a per-client one — cytoscape+dagre
+  # stall well before this on any machine. Upgrade path: have the hook time
+  # runLayout and push back a measured budget.
+  @default_element_limit 2_000
+
   @impl true
   def mount(_params, _session, socket) do
     socket =
@@ -30,6 +35,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> assign(:status, :idle)
       |> assign(:refresh_timer, nil)
       |> assign(:selected_node, nil)
+      |> assign(:oversized, nil)
 
     if connected?(socket) do
       socket
@@ -86,6 +92,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
             last_updated={@last_updated}
             selected_apps={@selected_apps}
             status={@status}
+            oversized={@oversized}
           />
         </.async_result>
       </div>
@@ -207,6 +214,40 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
     Process.demonitor(ref, [:flush])
 
+    if oversized(result) do
+      socket
+      |> assign(:errors, errors)
+      |> assign(:status, status)
+      |> assign(:in_flight, nil)
+      |> assign(:last_updated, DateTime.utc_now())
+      |> reset_tree()
+      |> assign(:oversized, %{count: element_count(result), limit: element_limit()})
+      |> start_timer()
+      |> noreply()
+    else
+      render_tree(socket, status, result, errors)
+    end
+  end
+
+  def handle_info(
+        {:DOWN, ref, :process, _pid, reason},
+        %{assigns: %{in_flight: %{ref: ref}}} = socket
+      ) do
+    socket
+    |> stop_timer()
+    |> start_timer()
+    |> assign(:in_flight, nil)
+    |> assign(:status, :error)
+    |> assign(:errors, socket.assigns.errors ++ [{:fetch, reason}])
+    |> reset_tree()
+    |> noreply()
+  end
+
+  def handle_info(_msg, socket) do
+    {:noreply, socket}
+  end
+
+  defp render_tree(socket, status, result, errors) do
     new_flat = result.nodes
     new_edges = result.edges
     prev_flat = socket.assigns.last_tree_flat
@@ -244,23 +285,12 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     |> noreply()
   end
 
-  def handle_info(
-        {:DOWN, ref, :process, _pid, reason},
-        %{assigns: %{in_flight: %{ref: ref}}} = socket
-      ) do
-    socket
-    |> stop_timer()
-    |> start_timer()
-    |> assign(:in_flight, nil)
-    |> assign(:status, :error)
-    |> assign(:errors, socket.assigns.errors ++ [{:fetch, reason}])
-    |> reset_tree()
-    |> noreply()
-  end
+  defp oversized(result), do: element_count(result) > element_limit()
 
-  def handle_info(_msg, socket) do
-    {:noreply, socket}
-  end
+  defp element_count(result), do: map_size(result.nodes) + map_size(result.edges)
+
+  defp element_limit,
+    do: Application.get_env(:voyager, :max_tree_elements, @default_element_limit)
 
   @impl true
   def terminate(_reason, socket) do
@@ -424,7 +454,8 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   end
 
   defp reset_tree(socket),
-    do: assign(socket, last_tree_flat: nil, last_relations: %{}, selected_node: nil)
+    do:
+      assign(socket, last_tree_flat: nil, last_relations: %{}, selected_node: nil, oversized: nil)
 
   defp walk_to_root(_flat, ""), do: []
   defp walk_to_root(nil, _key), do: []
