@@ -14,7 +14,7 @@ for sig in $(gh release view "$tag" --repo "$repo" --json assets --jq '.assets[]
     *-darwin-aarch64*) platform="darwin-aarch64" ;;
     *-darwin-x64*) platform="darwin-x86_64" ;;
     *-linux-amd64*) platform="linux-x86_64" ;;
-    *-linux-arm64*) platform="linux-aarch64" ;;
+    *-linux-aarch64*) platform="linux-aarch64" ;;
     *) echo "unknown platform in asset name: $archive" >&2; exit 1 ;;
   esac
 
