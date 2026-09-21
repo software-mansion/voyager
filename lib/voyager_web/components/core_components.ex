@@ -174,24 +174,26 @@ defmodule VoyagerWeb.CoreComponents do
         tabindex="0"
         class="dropdown-content bg-base-100 rounded-box border-base-300 z-50 mt-1 w-max min-w-full border p-2 shadow-lg"
       >
-        <label
-          :for={{label, value} <- @options}
-          id={"#{@id}-#{option_id(value)}-option"}
-          class={[
-            "font-mono flex cursor-pointer items-center rounded-lg px-2 py-1.5 text-xs hover:bg-base-200",
-            option_selected?(@value, value) && "bg-base-200"
-          ]}
-        >
-          <input
-            type="radio"
-            name={@name}
-            value={to_string(value)}
-            checked={option_selected?(@value, value)}
-            tabindex="-1"
-            class="sr-only"
-          />
-          {label}
-        </label>
+        <div class="flex flex-col">
+          <label
+            :for={{label, value} <- @options}
+            id={"#{@id}-#{option_id(value)}-option"}
+            class={[
+              "font-mono flex cursor-pointer items-center rounded-lg px-2 py-1.5 text-xs hover:bg-base-200",
+              option_selected?(@value, value) && "bg-base-200"
+            ]}
+          >
+            <input
+              type="radio"
+              name={@name}
+              value={to_string(value)}
+              checked={option_selected?(@value, value)}
+              tabindex="-1"
+              class="sr-only"
+            />
+            {label}
+          </label>
+        </div>
       </div>
     </div>
     """
