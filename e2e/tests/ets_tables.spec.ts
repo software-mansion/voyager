@@ -112,6 +112,20 @@ test.describe('EtsTablesLive', () => {
     await expect(
       page.locator('#controls_protection-blank-option')
     ).toBeHidden();
+    await expect(page.locator(sel.protection)).toBeFocused();
+  });
+
+  test('escape closes the select and returns focus to the trigger', async ({
+    page,
+  }) => {
+    await page.locator(sel.protection).click();
+    await page.locator('#controls_protection-private-option input').focus();
+    await page.keyboard.press('Escape');
+
+    await expect(
+      page.locator('#controls_protection-private-option')
+    ).toBeHidden();
+    await expect(page.locator(sel.protection)).toBeFocused();
   });
 
   test('clicking outside an open select closes it', async ({ page }) => {
@@ -124,6 +138,7 @@ test.describe('EtsTablesLive', () => {
     await expect(
       page.locator('#controls_protection-private-option')
     ).toBeHidden();
+    await expect(page.locator(sel.search)).toBeFocused();
   });
 
   test('sorts by a clicked column locally', async ({ page }) => {
