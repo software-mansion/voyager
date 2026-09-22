@@ -157,7 +157,7 @@ defmodule VoyagerWeb.CoreComponents do
           <select
             name="interval"
             id={@id}
-            class="select select-bordered select-sm font-mono pr-8 text-xs"
+            class="select select-bordered select-sm font-mono w-18 pr-8 text-xs"
           >
             <option
               :for={{label, value} <- @options}
