@@ -60,7 +60,7 @@ defmodule VoyagerWeb.EtsTableHelp do
       doc_label: "See ets:info(size)"
     },
     memory: %{
-      text: "Memory used by the table, converted from machine words to bytes.",
+      text: "Memory used by the table.",
       doc_href: @info,
       doc_label: "See ets:info(memory)"
     },
