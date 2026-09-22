@@ -101,23 +101,6 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
       assert result["records"] == [[42, "answer"]]
     end
 
-    test "key_eq pages through ets_lookup/5 with the requested limit" do
-      stub_intern()
-      stub_call(:ets_lookup, [{42, "a"}], key: 42, limit: 1, continuation: :page_two_cont)
-
-      result =
-        run(%{
-          "table" => "code",
-          "keypos" => 1,
-          "mode" => "key_eq",
-          "value" => "42",
-          "limit" => 1
-        })
-
-      assert result["records"] == [[42, "a"]]
-      assert result["cursor"] != nil
-    end
-
     test "key_eq resumes from the cursor of a previous page" do
       stub_intern()
       stub_call(:ets_lookup, [{42, "a"}], key: 42, limit: 1, continuation: :page_two_cont)

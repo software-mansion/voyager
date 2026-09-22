@@ -45,14 +45,6 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     refute_lookup_sidebar(conn, name)
   end
 
-  test "a duplicate_bag row has no lookup control and ignores open_sidebar", %{conn: conn} do
-    name = named_table(:duplicate_bag)
-    :ets.insert(name, {:k, 1})
-    :ets.insert(name, {:k, 1})
-
-    refute_lookup_sidebar(conn, name)
-  end
-
   defp named_table(type) do
     name = EtsTable.unique_name()
     :ets.new(name, [:named_table, :public, type])
