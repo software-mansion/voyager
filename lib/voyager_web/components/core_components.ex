@@ -160,8 +160,8 @@ defmodule VoyagerWeb.CoreComponents do
     ~H"""
     <details
       id={"#{@id}-dropdown"}
-      phx-hook="Select"
       phx-mounted={JS.ignore_attributes("open")}
+      phx-click-away={JS.remove_attribute("open")}
       inert={@disabled}
       class={[
         "dropdown",
@@ -173,16 +173,21 @@ defmodule VoyagerWeb.CoreComponents do
     >
       <summary
         id={@id}
+        phx-keydown={close_select(@id)}
+        phx-key="Escape"
         aria-labelledby={"#{@id}-label #{@id}-value"}
         class="select select-bordered select-sm select-caret font-mono w-full cursor-pointer list-none pr-8 text-left text-xs font-normal"
       >
         <span id={"#{@id}-value"}>{@current_label}</span>
       </summary>
-      <div class={[
-        "dropdown-content bg-base-100 rounded-box border-base-300 z-50 flex w-max min-w-full flex-col border p-2 shadow-lg",
-        @side == :top && "mb-1",
-        @side == :bottom && "mt-1"
-      ]}>
+      <div
+        phx-click={close_select(@id)}
+        class={[
+          "dropdown-content bg-base-100 rounded-box border-base-300 z-50 flex w-max min-w-full flex-col border p-2 shadow-lg",
+          @side == :top && "mb-1",
+          @side == :bottom && "mt-1"
+        ]}
+      >
         <label
           :for={{label, value} <- @options}
           id={"#{@id}-#{option_id(value)}-option"}
@@ -196,6 +201,8 @@ defmodule VoyagerWeb.CoreComponents do
             name={@name}
             value={to_string(value)}
             checked={option_selected?(@value, value)}
+            phx-keydown={close_select(@id)}
+            phx-key="Escape"
             class="sr-only"
           />
           {label}
@@ -203,6 +210,11 @@ defmodule VoyagerWeb.CoreComponents do
       </div>
     </details>
     """
+  end
+
+  defp close_select(id) do
+    JS.focus(to: "##{id}")
+    |> JS.remove_attribute("open", to: "##{id}-dropdown")
   end
 
   defp normalize_option({label, value}), do: {label, value}

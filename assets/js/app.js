@@ -27,7 +27,6 @@ import topbar from '../vendor/topbar';
 import SupervisionTree from './hooks/supervision_tree';
 import Tooltip from './hooks/tooltip';
 import NumberStepper from './hooks/number_stepper';
-import Select from './hooks/select';
 import DetailsPanelResize from './hooks/details_panel_resize';
 import TableSettings from './hooks/table_settings';
 
@@ -40,7 +39,6 @@ const liveSocket = new LiveSocket('/live', Socket, {
     SupervisionTree,
     Tooltip,
     NumberStepper,
-    Select,
     DetailsPanelResize,
     TableSettings,
     ...colocatedHooks,
