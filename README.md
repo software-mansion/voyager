@@ -124,9 +124,9 @@ mix assets.deploy
 mix tauri.app
 ```
 
-A locally built desktop app is indistinguishable from a release. Set `VOYAGER_DEV_BUILD=true` in
-`rel/app/.env` (see [`.env.sample`](rel/app/.env.sample)) and every `mix tauri.*` run shows a
-`Dev Build` banner. CI has no `.env`, so published builds stay unmarked.
+To tell a locally built desktop app apart from a release, set `VOYAGER_DEV_BUILD=true` in
+`rel/app/.env` (see [`.env.sample`](rel/app/.env.sample)). Apps built or run through `mix tauri.*`
+then show a `Dev Build` banner.
 
 Before opening a pull request, run:
 
