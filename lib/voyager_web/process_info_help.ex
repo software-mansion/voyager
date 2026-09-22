@@ -126,23 +126,23 @@ defmodule VoyagerWeb.ProcessInfoHelp do
     },
     memory: %{
       text:
-        "Total memory of the process in bytes: stack, heaps, message queue and process control block. Binaries larger than 64 bytes live outside the process and are not counted.",
+        "Total memory of the process: stack, heaps, message queue and process control block. Binaries larger than 64 bytes live outside the process and are not counted.",
       doc_href: @erts <> "#process_info_memory",
       doc_label: "See process_info(memory)"
     },
     stack_and_heap_size: %{
-      text: "Combined size of the stack and all heap generations, in bytes.",
+      text: "Combined size of the stack and all heap generations.",
       doc_href: @erts <> "#process_info_total_heap_size",
       doc_label: "See process_info(total_heap_size)"
     },
     heap_size: %{
       text:
-        "Size of the youngest heap generation, in bytes. Grows as the process allocates and shrinks after garbage collection.",
+        "Size of the youngest heap generation. Grows as the process allocates and shrinks after garbage collection.",
       doc_href: @process_info,
       doc_label: "See process_info(heap_size)"
     },
     stack_size: %{
-      text: "Size of the process stack, in bytes. A deep stack usually means deep recursion.",
+      text: "Size of the process stack. A deep stack usually means deep recursion.",
       doc_href: @process_info,
       doc_label: "See process_info(stack_size)"
     },
