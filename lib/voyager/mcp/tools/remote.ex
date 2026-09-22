@@ -20,7 +20,7 @@ defmodule Voyager.MCP.Tools.Remote do
   end
 
   defp limited(node, fun) do
-    case RateLimiter.run(rate_limiter(), :high, fn -> fun.(node) end) do
+    case RateLimiter.run(:high, fn -> fun.(node) end) do
       {:ok, {:ok, payload}, _elapsed_us} ->
         Response.json(Response.tool(), jsonable(payload))
 
@@ -31,8 +31,6 @@ defmodule Voyager.MCP.Tools.Remote do
         Response.error(Response.tool(), "rate limited, retry in #{retry_after_ms}ms")
     end
   end
-
-  defp rate_limiter, do: Application.get_env(:voyager, :rate_limiter, RateLimiter)
 
   defp jsonable(term) when is_binary(term) do
     if String.valid?(term), do: term, else: inspect(term)

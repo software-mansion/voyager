@@ -234,11 +234,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   end
 
   defp rate_limited(fun) do
-    case RateLimiter.run(rate_limiter(), :high, fun) do
+    case RateLimiter.run(:high, fun) do
       {:ok, result, _elapsed_us} -> result
       {:error, :rate_limited, _retry_after_ms} -> {:error, :rate_limited}
     end
   end
-
-  defp rate_limiter, do: Application.get_env(:voyager, :rate_limiter, RateLimiter)
 end

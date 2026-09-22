@@ -449,8 +449,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     """
   end
 
-  defp load_error_message({:error, :rate_limited}),
-    do: "Too many requests. Wait a moment and refresh."
+  defp load_error_message({:error, reason}), do: load_error_message(reason)
+  defp load_error_message(:rate_limited), do: "Too many requests. Wait a moment and refresh."
 
   defp load_error_message(_failure), do: "Failed to load node details."
 
