@@ -281,6 +281,7 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       render_async(view)
 
       assert has_element?(view, "#refresh-interval-form")
+      assert has_element?(view, "#refresh-interval-dropdown.min-w-20")
       assert has_element?(view, ~s|#refresh-interval-off-option input[checked]|)
     end
 

@@ -245,6 +245,7 @@ defmodule VoyagerWeb.CoreComponents do
   attr :options, :list, required: true
   attr :refresh_interval, :integer, default: nil
   attr :loading, :boolean, required: true
+  attr :class, :any, default: nil
 
   def interval_select(assigns) do
     ~H"""
@@ -263,6 +264,7 @@ defmodule VoyagerWeb.CoreComponents do
           value={interval_value(@refresh_interval)}
           options={@options}
           align={:end}
+          class={@class}
         />
       </form>
       <button
