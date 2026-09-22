@@ -69,13 +69,28 @@ defmodule VoyagerWeb.Layouts do
   def settings(assigns) do
     ~H"""
     <.flash_group flash={@flash} />
-    <div class="bg-base-200 flex h-screen flex-col overflow-hidden">
+    <div class="bg-base-200 flex h-full flex-col overflow-hidden">
       <VoyagerWeb.Components.Shell.settings_topbar return_to={assigns[:return_to]} />
       <main class="flex-1 overflow-y-auto">
         {@inner_content}
       </main>
     </div>
     <.onboarding_modal show={assigns[:show_onboarding?]} />
+    """
+  end
+
+  def dev_banner(assigns) do
+    assigns = assign(assigns, :dev_build?, Application.get_env(:voyager, :dev_build?, false))
+
+    ~H"""
+    <div
+      :if={@dev_build?}
+      id="dev-build-banner"
+      role="status"
+      class="bg-warning-bg text-warning-content border-warning/30 tracking-label font-mono flex flex-none items-center justify-center gap-2 border-b px-4 py-2 text-xs uppercase"
+    >
+      <.icon name="icon-circle-alert" class="text-warning size-3.5" /> Dev Build
+    </div>
     """
   end
 

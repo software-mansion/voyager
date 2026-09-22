@@ -163,7 +163,10 @@
     </script>
   </head>
   <body>
-    {@inner_content}
+    <div class="flex h-full flex-col">
+      <.dev_banner />
+      <div class="min-h-0 flex-1">{@inner_content}</div>
+    </div>
     <%!-- Global target for teleported tooltip popovers (see <.help_tooltip>) --%>
     <div id="tooltip-portal-root"></div>
   </body>
