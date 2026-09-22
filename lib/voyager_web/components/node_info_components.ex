@@ -249,7 +249,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
           <h3 class="text-base-content min-h-6 flex items-center text-sm font-semibold">
             System limits
           </h3>
-          <span class="font-mono text-base-content/70 text-xs">current / max</span>
+          <span class="font-mono text-base-content/70 text-xs">current / max / used</span>
         </div>
 
         <div class="divide-base-content/10 flex flex-1 flex-col divide-y">
@@ -276,6 +276,9 @@ defmodule VoyagerWeb.NodeInfoComponents do
               </div>
               <span class="text-base-content/70 w-16 tabular-nums">
                 {Formatters.format_integer(usage.limit)}
+              </span>
+              <span class="text-base-content/70 w-14 text-right tabular-nums">
+                {usage_pct(usage)}%
               </span>
             </div>
           <% end %>
@@ -519,13 +522,15 @@ defmodule VoyagerWeb.NodeInfoComponents do
     ]
   end
 
-  defp meter_pct(%{used: used, limit: limit}) when limit > 0,
-    do: Float.round(max(used / limit * 100, 0.5), 1)
+  defp usage_pct(%{used: used, limit: limit}) when limit > 0,
+    do: Float.round(used / limit * 100, 1)
 
-  defp meter_pct(_), do: 0.5
+  defp usage_pct(_), do: 0.0
 
-  defp meter_color(%{used: used, limit: limit}) when limit > 0 do
-    pct = used / limit * 100
+  defp meter_pct(usage), do: max(usage_pct(usage), 0.5)
+
+  defp meter_color(usage) do
+    pct = usage_pct(usage)
 
     cond do
       pct >= 90 -> "bg-error"
@@ -533,8 +538,6 @@ defmodule VoyagerWeb.NodeInfoComponents do
       true -> "bg-primary"
     end
   end
-
-  defp meter_color(_), do: "bg-primary"
 
   defp info_row({label, value}), do: {label, value, false, nil}
 
