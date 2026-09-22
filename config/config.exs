@@ -6,7 +6,6 @@ config :voyager,
 
 config :voyager, :terms_of_service_url, "https://swmansion.com/legal/voyager/terms-of-service/"
 
-# Not in `runtime.exs`: the bundled desktop app starts without the shell environment it was built in.
 config :voyager, :dev_build?, System.get_env("VOYAGER_DEV_BUILD") in ~w(1 true)
 
 config :voyager, VoyagerWeb.Endpoint,
