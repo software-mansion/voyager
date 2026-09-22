@@ -188,7 +188,6 @@ defmodule VoyagerWeb.CoreComponents do
     </div>
 
     <script :type={Phoenix.LiveView.ColocatedHook} name=".RefreshInterval">
-      // Remembers the chosen interval across visits; the default is never stored.
       export default {
         mounted() {
           const key = `voyager:refresh-interval:${this.el.dataset.settingsKey}`
