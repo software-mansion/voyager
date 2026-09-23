@@ -280,7 +280,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
               <span class="text-base-content text-right tabular-nums">
                 {Formatters.format_integer(usage.used)}
               </span>
-              <span class="text-base-content/70 whitespace-nowrap tabular-nums">
+              <span class="text-base-content/70 whitespace-nowrap text-right tabular-nums">
                 / {Formatters.format_integer(usage.limit)}
               </span>
             </div>
