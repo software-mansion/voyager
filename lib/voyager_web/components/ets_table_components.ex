@@ -258,7 +258,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         <DataTableComponents.value_cell
           id={"#{@row_id}-memory"}
           value={Formatters.format_bytes(@row.memory)}
-          tip={format_exact_bytes(@row.memory)}
+          tip={Formatters.format_exact_bytes(@row.memory)}
         />
       <% :owner -> %>
         <ProcessComponents.pid_cell pid={@row.owner} row_id={@row_id} href={@owner_href} />
@@ -600,7 +600,5 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
   defp format_heir(pid) when is_pid(pid), do: Formatters.format_pid(pid)
 
   defp format_memory(bytes),
-    do: "#{Formatters.format_bytes(bytes)} (#{format_exact_bytes(bytes)})"
-
-  defp format_exact_bytes(bytes), do: "#{Formatters.format_integer(bytes)} B"
+    do: "#{Formatters.format_bytes(bytes)} (#{Formatters.format_exact_bytes(bytes)})"
 end

@@ -222,6 +222,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
         <DataTableComponents.value_cell
           id={"#{@row_id}-memory"}
           value={Formatters.format_bytes(@row[:memory])}
+          tip={Formatters.format_exact_bytes(@row[:memory])}
         />
       <% :reductions -> %>
         <DataTableComponents.value_cell
