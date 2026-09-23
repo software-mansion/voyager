@@ -146,6 +146,7 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       assert has_element?(view, "#node-info-content", "262,144")
       assert has_element?(view, "#node-info-content", "12,345")
       assert has_element?(view, "#node-info-content", "1,048,576")
+      assert has_element?(view, "#node-info-content", "1.2%")
     end
 
     test "renders the runtime info card from the mocked data", %{conn: conn} do
