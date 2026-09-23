@@ -1,11 +1,26 @@
 mod utils;
 
-use tauri::Manager;
+use std::sync::Mutex;
+
+use tauri::{
+    Manager,
+    menu::{HELP_SUBMENU_ID, MenuItemBuilder, PredefinedMenuItem},
+};
 use tauri_plugin_opener::OpenerExt;
 
 const MAIN_WINDOW_LABEL: &str = "main";
 const REPORT_ISSUE_ID: &str = "report_issue";
 const REPORT_ISSUE_URL: &str = "https://github.com/software-mansion/voyager/issues/new/choose";
+const ZOOM_IN_ID: &str = "zoom_in";
+const ZOOM_OUT_ID: &str = "zoom_out";
+const ZOOM_RESET_ID: &str = "zoom_reset";
+const DEFAULT_ZOOM: f64 = 1.0;
+const ZOOM_STEP: f64 = 0.1;
+const MIN_ZOOM: f64 = 0.5;
+const MAX_ZOOM: f64 = 2.0;
+
+/// Current zoom factor, since the webview does not expose a getter.
+struct ZoomLevel(Mutex<f64>);
 
 /// Current OS appearance for Auto theme after full page reloads.
 #[tauri::command]
@@ -22,22 +37,50 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![os_theme])
-        .on_menu_event(|app, event| {
-            if event.id() == REPORT_ISSUE_ID {
+        .manage(ZoomLevel(Mutex::new(DEFAULT_ZOOM)))
+        .on_menu_event(|app, event| match event.id().as_ref() {
+            ZOOM_IN_ID => zoom_by(app, ZOOM_STEP),
+            ZOOM_OUT_ID => zoom_by(app, -ZOOM_STEP),
+            ZOOM_RESET_ID => zoom_to(app, DEFAULT_ZOOM),
+            REPORT_ISSUE_ID => {
                 let _ = app.opener().open_url(REPORT_ISSUE_URL, None::<&str>);
             }
+            _ => {}
         })
         .setup(move |app| {
             #[cfg(target_os = "macos")]
-            if let Some(help_menu) = app
-                .menu()
-                .and_then(|menu| menu.get(tauri::menu::HELP_SUBMENU_ID))
-                .and_then(|item| item.as_submenu().cloned())
-            {
-                let report_issue =
-                    tauri::menu::MenuItemBuilder::with_id(REPORT_ISSUE_ID, "Report an Issue…")
-                        .build(app)?;
-                help_menu.append(&report_issue)?;
+            if let Some(menu) = app.menu() {
+                // The default View submenu has no public id, unlike Help.
+                let view_menu = menu
+                    .items()?
+                    .into_iter()
+                    .filter_map(|item| item.as_submenu().cloned())
+                    .find(|submenu| submenu.text().ok().as_deref() == Some("View"));
+
+                if let Some(view_menu) = view_menu {
+                    view_menu.prepend_items(&[
+                        &MenuItemBuilder::with_id(ZOOM_IN_ID, "Zoom In")
+                            .accelerator("CmdOrCtrl+=")
+                            .build(app)?,
+                        &MenuItemBuilder::with_id(ZOOM_OUT_ID, "Zoom Out")
+                            .accelerator("CmdOrCtrl+-")
+                            .build(app)?,
+                        &MenuItemBuilder::with_id(ZOOM_RESET_ID, "Actual Size")
+                            .accelerator("CmdOrCtrl+0")
+                            .build(app)?,
+                        &PredefinedMenuItem::separator(app)?,
+                    ])?;
+                }
+
+                if let Some(help_menu) = menu
+                    .get(HELP_SUBMENU_ID)
+                    .and_then(|item| item.as_submenu().cloned())
+                {
+                    help_menu.append(
+                        &MenuItemBuilder::with_id(REPORT_ISSUE_ID, "Report an Issue…")
+                            .build(app)?,
+                    )?;
+                }
             }
 
             let pubsub = elixirkit::PubSub::listen("tcp://127.0.0.1:0").expect("failed to listen");
@@ -88,6 +131,29 @@ fn focus_existing_window(app: &tauri::AppHandle) {
     }
 }
 
+fn zoom_by(app_handle: &tauri::AppHandle, delta: f64) {
+    let zoom_level = app_handle.state::<ZoomLevel>();
+
+    let level = {
+        let mut level = zoom_level.0.lock().expect("zoom level poisoned");
+        *level = (*level + delta).clamp(MIN_ZOOM, MAX_ZOOM);
+        *level
+    };
+
+    for window in app_handle.webview_windows().into_values() {
+        let _ = window.set_zoom(level);
+    }
+}
+
+fn zoom_to(app_handle: &tauri::AppHandle, level: f64) {
+    let zoom_level = app_handle.state::<ZoomLevel>();
+    *zoom_level.0.lock().expect("zoom level poisoned") = level;
+
+    for window in app_handle.webview_windows().into_values() {
+        let _ = window.set_zoom(level);
+    }
+}
+
 fn create_window(app_handle: &tauri::AppHandle, port: u16) {
     if app_handle.get_webview_window(MAIN_WINDOW_LABEL).is_some() {
         focus_existing_window(app_handle);
@@ -116,7 +182,8 @@ fn create_window(app_handle: &tauri::AppHandle, port: u16) {
         .title("Voyager")
         .inner_size(1280.0, 960.0)
         .min_inner_size(800.0, 800.0)
-        .zoom_hotkeys_enabled(true)
+        // macOS zooms from the View menu; the built-in hotkeys would keep a second counter.
+        .zoom_hotkeys_enabled(cfg!(not(target_os = "macos")))
         .initialization_script(theme_init);
 
     #[cfg_attr(target_os = "macos", allow(unused_variables))]
