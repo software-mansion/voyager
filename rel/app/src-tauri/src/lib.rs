@@ -59,14 +59,14 @@ pub fn run() {
 
                 if let Some(view_menu) = view_menu {
                     view_menu.prepend_items(&[
+                        &MenuItemBuilder::with_id(ZOOM_RESET_ID, "Actual Size")
+                            .accelerator("CmdOrCtrl+0")
+                            .build(app)?,
                         &MenuItemBuilder::with_id(ZOOM_IN_ID, "Zoom In")
                             .accelerator("CmdOrCtrl+=")
                             .build(app)?,
                         &MenuItemBuilder::with_id(ZOOM_OUT_ID, "Zoom Out")
                             .accelerator("CmdOrCtrl+-")
-                            .build(app)?,
-                        &MenuItemBuilder::with_id(ZOOM_RESET_ID, "Actual Size")
-                            .accelerator("CmdOrCtrl+0")
                             .build(app)?,
                         &PredefinedMenuItem::separator(app)?,
                     ])?;
