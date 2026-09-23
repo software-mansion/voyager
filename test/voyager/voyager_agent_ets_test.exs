@@ -166,7 +166,7 @@ defmodule VoyagerAgentEtsTest do
                @agent_module.ets_lookup(name, :k, 10, @budget, :undefined)
     end
 
-    test "looks up a set row wider than the keyed-select arity cap" do
+    test "looks up a set row wider than 255 elements" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set])
       wide = wide_record(:k, 256)
@@ -176,7 +176,7 @@ defmodule VoyagerAgentEtsTest do
                @agent_module.ets_lookup(name, :k, 10, @budget, :undefined)
     end
 
-    test "looks up a bag row wider than the keyed-select arity cap" do
+    test "looks up a bag row wider than 255 elements" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :bag])
       wide = wide_record(:k, 256)
@@ -187,11 +187,18 @@ defmodule VoyagerAgentEtsTest do
                @agent_module.ets_lookup(name, :k, 10, @budget, :undefined)
     end
 
-    test "drops a wide bag row when a narrow row for the same key already matched" do
+    test "returns both narrow and wide bag rows for the same key" do
       name = mixed_arity_table(:bag)
+      assert_lookup_matches_ets(name, :k)
+    end
 
-      assert {:ok, %{records: [{:k, 1}], continuation: :undefined, truncated: false}} =
-               @agent_module.ets_lookup(name, :k, 10, @budget, :undefined)
+    test "raises badarg for a zero limit" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :bag])
+
+      assert_raise ArgumentError, fn ->
+        @agent_module.ets_lookup(name, :k, 0, @budget, :undefined)
+      end
     end
 
     test "does not duplicate a wide row when the key is a match-spec atom" do

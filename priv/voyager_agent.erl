@@ -501,9 +501,7 @@ with_bounded_heap(Fun) ->
 %% No fixtable — paging is best-effort.
 
 -define(MATCH_ALL, [{'$1', [], ['$1']}]).
-%% Match heads have a fixed arity; keypos..255 keeps the key bound so ets:select/3 hashes instead of scanning.
--define(ETS_LOOKUP_MAX_ARITY, 255).
-%% Bound-key select leftover is the rest of the key; this token resumes without shipping it.
+%% Resumes a key's rows by offset, so the rest of the key is never shipped as a continuation.
 -define(SKIP_CONT, '$voyager_skip').
 
 -type ets_chunk() ::
@@ -534,139 +532,24 @@ ets_select_spec(_Table, _Spec, _Limit, _Budget, _Cont) ->
 
 -spec ets_lookup(ets:tab(), term(), pos_integer(), non_neg_integer(), term()) -> {ok, ets_chunk()}.
 ets_lookup(Table, Key, Limit, Budget, Cont)
-    when is_integer(Budget), Budget >= 0, is_integer(Limit), Limit >= 0 ->
+    when is_integer(Budget), Budget >= 0, is_integer(Limit), Limit > 0 ->
     with_bounded_heap(fun() -> do_lookup(Table, Key, Limit, Budget, Cont) end);
 ets_lookup(_Table, _Key, _Limit, _Budget, _Cont) ->
     erlang:error(badarg).
 
+%% A bound-key ets:select/3 copies every row of the key into its continuation, so lookup costs no more.
 do_lookup(Table, Key, Limit, Budget, undefined) ->
-    case ets:info(Table, type) of
-        Type when Type =:= set; Type =:= ordered_set ->
-            wrap_records(ets:lookup(Table, Key), undefined, Budget);
-        Type when Type =:= bag; Type =:= duplicate_bag ->
-            bag_page(Table, Key, Limit, Budget, 0);
-        _ ->
-            erlang:error(badarg)
-    end;
-do_lookup(Table, Key, Limit, Budget, {?SKIP_CONT, Skip})
-    when is_integer(Skip), Skip >= 0 ->
-    bag_page(Table, Key, Limit, Budget, Skip);
-do_lookup(Table, Key, _Limit, Budget, Cont) ->
-    wrap_select(ets:select(
-                    ets:repair_continuation(Cont, lookup_spec(Table, Key))),
-                Budget).
-
-bag_page(Table, Key, Limit, Budget, Skip) ->
-    Spec = lookup_spec(Table, Key),
-    case ets:select(Table, Spec, Limit) of
-        '$end_of_table' ->
-            %% Keyed heads stop at arity 255; lookup still hashes a wider row.
-            page_wide_rows(ets:lookup(Table, Key), Skip, Limit, Budget);
-        Result ->
-            take_page(Result, Skip, Limit, Budget, 0)
-    end.
-
-page_wide_rows(Records, Skip, Limit, Budget) ->
-    Page = lists:sublist(Records, Skip + 1, Limit),
+    do_lookup(Table, Key, Limit, Budget, {?SKIP_CONT, 0});
+do_lookup(Table, Key, Limit, Budget, {?SKIP_CONT, Skip}) when is_integer(Skip), Skip >= 0 ->
+    Rows = ets:lookup(Table, Key),
+    Page = lists:sublist(lists:nthtail(min(Skip, length(Rows)), Rows), Limit),
     Taken = Skip + length(Page),
-    wrap_records(Page, skip_token(Taken, Taken < length(Records)), Budget).
+    wrap_records(Page, skip_token(Taken, length(Rows) > Taken), Budget).
 
-take_page({Records, Cont}, Skip, Limit, Budget, Seen) when is_list(Records) ->
-    N = length(Records),
-    if
-        Skip =:= 0 ->
-            wrap_records(Records, skip_token(Seen + N, Cont =/= '$end_of_table'), Budget);
-        Skip >= N, Cont =/= '$end_of_table' ->
-            take_page(ets:select(Cont), Skip - N, Limit, Budget, Seen + N);
-        Skip >= N ->
-            wrap_records([], undefined, 0);
-        true ->
-            fill_page(drop(Skip, Records), Cont, Limit, Budget, Seen + Skip)
-    end;
-take_page('$end_of_table', _Skip, _Limit, _Budget, _Seen) ->
-    wrap_records([], undefined, 0).
-
-fill_page(Page, Cont, Limit, Budget, Seen) ->
-    Have = length(Page),
-    if
-        Have >= Limit ->
-            wrap_records(lists:sublist(Page, Limit),
-                         skip_token(Seen + Limit,
-                                    Have > Limit orelse Cont =/= '$end_of_table'),
-                         Budget);
-        Cont =:= '$end_of_table' ->
-            wrap_records(Page, undefined, Budget);
-        true ->
-            case ets:select(Cont) of
-                {More, NextCont} when is_list(More) ->
-                    fill_page(Page ++ More, NextCont, Limit, Budget, Seen);
-                '$end_of_table' ->
-                    wrap_records(Page, undefined, Budget)
-            end
-    end.
-
-skip_token(_Seen, false) ->
+skip_token(_Taken, false) ->
     undefined;
-skip_token(Seen, true) ->
-    {?SKIP_CONT, Seen}.
-
-drop(N, List) when N =< 0 ->
-    List;
-drop(_N, []) ->
-    [];
-drop(N, [_ | Rest]) ->
-    drop(N - 1, Rest).
-
-lookup_spec(Table, Key) ->
-    case ets:info(Table, keypos) of
-        Keypos when is_integer(Keypos), Keypos >= 1 ->
-            case ms_pattern_key(Key) of
-                true ->
-                    [{'$1', [{'=:=', {element, Keypos, '$1'}, {const, Key}}], ['$1']}];
-                false ->
-                    keyed_clauses(Keypos, Key)
-            end;
-        _ ->
-            erlang:error(badarg)
-    end.
-
-keyed_clauses(Keypos, Key) ->
-    [{erlang:setelement(Keypos, erlang:make_tuple(N, '_'), Key), [], ['$_']}
-     || N <- lists:seq(Keypos, ?ETS_LOOKUP_MAX_ARITY)].
-
-ms_pattern_key(Key) when is_map(Key) ->
-    true;
-ms_pattern_key('_') ->
-    true;
-ms_pattern_key(Key) when is_atom(Key) ->
-    case atom_to_list(Key) of
-        [$$, $_] ->
-            true;
-        [$$, $$] ->
-            true;
-        [$$ | Rest] when Rest =/= [] ->
-            lists:all(fun(C) -> C >= $0 andalso C =< $9 end, Rest);
-        _ ->
-            false
-    end;
-ms_pattern_key(Key) when is_tuple(Key) ->
-    ms_pattern_tuple(Key, 1, tuple_size(Key));
-ms_pattern_key(Key) when is_list(Key) ->
-    ms_pattern_list(Key);
-ms_pattern_key(_) ->
-    false.
-
-ms_pattern_tuple(_Key, Index, Size) when Index > Size ->
-    false;
-ms_pattern_tuple(Key, Index, Size) ->
-    ms_pattern_key(element(Index, Key)) orelse ms_pattern_tuple(Key, Index + 1, Size).
-
-ms_pattern_list([]) ->
-    false;
-ms_pattern_list([Head | Tail]) ->
-    ms_pattern_key(Head) orelse ms_pattern_list(Tail);
-ms_pattern_list(Tail) ->
-    ms_pattern_key(Tail).
+skip_token(Taken, true) ->
+    {?SKIP_CONT, Taken}.
 
 do_select(Table, Spec, Limit, Budget, undefined) ->
     wrap_select(ets:select(Table, Spec, Limit), Budget);
