@@ -132,6 +132,8 @@ defmodule VoyagerWeb.CoreComponents do
   ## Examples
 
       <.interval_select
+        id="refresh-interval"
+        settings_key="node-info" # localStorage key the chosen interval is kept under
         options={[
           {"Off", "off"},
           {"1s", "1000"},
