@@ -78,6 +78,11 @@ defmodule Voyager.Services.AppUpdater do
   end
 
   @impl GenServer
+  def handle_info("available:" <> _version, %{update: %{status: status}} = state)
+      when status in [:available, :installing, :failed] do
+    {:noreply, state}
+  end
+
   def handle_info("available:" <> version, state) do
     popup? = not match?(%{status: :checking}, state.update)
 

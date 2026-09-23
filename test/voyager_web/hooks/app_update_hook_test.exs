@@ -90,6 +90,25 @@ defmodule VoyagerWeb.Hooks.AppUpdateHookTest do
     assert has_element?(view, "#update-status", "Installing")
   end
 
+  test "a late startup announcement keeps a manually found update in place", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/settings")
+
+    view |> element("#check-app-update") |> render_click()
+    announce("available:9.9.9")
+    announce("available:9.9.9")
+
+    refute has_element?(view, "#app-update-modal")
+    assert has_element?(view, "#install-app-update-setting")
+  end
+
+  test "a late announcement does not interrupt an install" do
+    announce("available:9.9.9")
+    :ok = AppUpdater.install()
+    announce("available:9.9.9")
+
+    assert %{status: :installing} = AppUpdater.current()
+  end
+
   test "manual check reports a failed check", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/settings")
 
