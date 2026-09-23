@@ -248,6 +248,8 @@ defmodule VoyagerWeb.CoreComponents do
   ## Examples
 
       <.interval_select
+        id="refresh-interval"
+        settings_key="node-info" # localStorage key the chosen interval is kept under
         options={[
           {"Off", "off"},
           {"1s", "1000"},
@@ -257,7 +259,8 @@ defmodule VoyagerWeb.CoreComponents do
         loading={@loading}
       />
   """
-  attr :id, :string, default: nil
+  attr :id, :string, required: true
+  attr :settings_key, :string, required: true
   attr :options, :list, required: true
   attr :refresh_interval, :integer, default: nil
   attr :loading, :boolean, required: true
@@ -273,7 +276,12 @@ defmodule VoyagerWeb.CoreComponents do
       >
         Auto-refresh
       </label>
-      <form phx-change="set_interval" id={"#{@id}-form"}>
+      <form
+        phx-change="set_interval"
+        phx-hook=".RefreshInterval"
+        data-settings-key={@settings_key}
+        id={"#{@id}-form"}
+      >
         <.select
           id={@id}
           name="interval"
@@ -297,6 +305,31 @@ defmodule VoyagerWeb.CoreComponents do
         />
       </button>
     </div>
+
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".RefreshInterval">
+      export default {
+        mounted() {
+          const key = `voyager:refresh-interval:${this.el.dataset.settingsKey}`
+          const checked = this.el.querySelector('input[type="radio"]:checked')
+          const defaultValue = checked ? checked.value : ""
+          try {
+            const stored = localStorage.getItem(key)
+            const storedInput =
+              stored && this.el.querySelector(`input[type="radio"][value="${stored}"]`)
+            if (storedInput && stored !== defaultValue) {
+              storedInput.checked = true
+              storedInput.dispatchEvent(new Event("change", {bubbles: true}))
+            }
+            this.el.addEventListener("change", (event) => {
+              if (event.target.value === defaultValue) localStorage.removeItem(key)
+              else localStorage.setItem(key, event.target.value)
+            })
+          } catch (error) {
+            console.warn(`Error while restoring ${key}: ${error}`)
+          }
+        }
+      }
+    </script>
     """
   end
 

@@ -306,6 +306,28 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
     end
   end
 
+  describe "oversized trees" do
+    setup do
+      previous = Application.fetch_env(:voyager, :max_tree_elements)
+      Application.put_env(:voyager, :max_tree_elements, 1)
+
+      on_exit(fn ->
+        case previous do
+          {:ok, value} -> Application.put_env(:voyager, :max_tree_elements, value)
+          :error -> Application.delete_env(:voyager, :max_tree_elements)
+        end
+      end)
+    end
+
+    test "skips the graph and explains how to shrink the fetch", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path <> "?apps=demo_app")
+      render_async(view)
+
+      assert has_element?(view, "#supervision-tree-too-large")
+      refute has_element?(view, "#supervision-tree-body")
+    end
+  end
+
   describe "mount without a matching session" do
     test "redirects to the connect page", %{conn: conn} do
       Fakes.put_session(nil)
