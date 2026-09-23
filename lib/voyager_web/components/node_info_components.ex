@@ -257,7 +257,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
 
         <div class="divide-base-content/10 grid-cols-limits grid flex-1 content-start gap-x-3 divide-y">
           <%= for {label, usage, tooltip} <- limit_rows(@limits) do %>
-            <div class="font-mono grid-cols-subgrid col-span-5 grid items-center py-3 text-xs">
+            <div class="font-mono grid-cols-subgrid col-span-4 grid items-center py-3 text-xs">
               <span class="text-base-content/80 flex items-center gap-0.5">
                 {label}
                 <.help_tooltip
@@ -277,11 +277,9 @@ defmodule VoyagerWeb.NodeInfoComponents do
                 >
                 </div>
               </div>
-              <span class="text-base-content text-right tabular-nums">
-                {Formatters.format_integer(usage.used)}
-              </span>
-              <span class="text-base-content/70 whitespace-nowrap text-right tabular-nums">
-                / {Formatters.format_integer(usage.limit)}
+              <span class="whitespace-nowrap text-right tabular-nums">
+                <span class="text-base-content">{Formatters.format_integer(usage.used)}</span>
+                <span class="text-base-content/70">/ {Formatters.format_integer(usage.limit)}</span>
               </span>
             </div>
           <% end %>
