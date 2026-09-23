@@ -1,8 +1,6 @@
 defmodule VoyagerWeb.ConnectLive.DirectConnect do
   use VoyagerWeb, :live_component
 
-  import VoyagerWeb.ConnectComponents, only: [no_route?: 1]
-
   alias Voyager.Actions.Connections, as: ConnectionActions
   alias Voyager.NodeSession
   alias Voyager.Queries.Connections, as: ConnectionQueries
@@ -239,13 +237,32 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   def connect_error(:epmd_timeout),
     do: "Node unreachable - the host didn't respond in time, check your network connection"
 
-  def connect_error({:epmd_error, reason}), do: epmd_error(reason) || "Could not reach host"
+  def connect_error({:epmd_error, :nxdomain}),
+    do: "Host not found - check the node's hostname"
+
+  def connect_error({:epmd_error, :address}),
+    do: "Could not reach epmd on the host - check the hostname and that epmd is running"
+
+  def connect_error({:epmd_error, reason}) when reason in [:etimedout, :timeout],
+    do: "Connection timed out - check the node's hostname and your network"
+
+  def connect_error({:epmd_error, _reason}), do: "Could not reach host"
 
   def connect_error(:node_not_registered),
     do: "Node not found - check the node name is correct and the node is running"
 
-  def connect_error({:node_unreachable, reason}),
-    do: dist_port_error(reason) || "Node port unreachable - check the node is running"
+  def connect_error({:node_unreachable, :econnrefused}),
+    do: "Connection refused - check the node is running"
+
+  def connect_error({:node_unreachable, reason})
+      when reason in [:ehostunreach, :enetunreach, :enetdown, :ehostdown],
+      do: "Host unreachable - check the node's hostname and your network"
+
+  def connect_error({:node_unreachable, reason}) when reason in [:etimedout, :timeout],
+    do: "Connection timed out - check the node's hostname and your network"
+
+  def connect_error({:node_unreachable, _reason}),
+    do: "Node port unreachable - check the node is running"
 
   def connect_error(:bad_cookie),
     do: "Authentication failed - the Erlang cookie does not match"
@@ -264,26 +281,4 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
     do: "Could not load the Voyager agent on the node"
 
   def connect_error(_), do: "Could not connect to node"
-
-  defp epmd_error(:nxdomain),
-    do: "Host not found - check the node's hostname"
-
-  defp epmd_error(:address),
-    do: "Could not reach epmd on the host - check the hostname and that epmd is running"
-
-  defp epmd_error(reason) when reason in [:etimedout, :timeout],
-    do: "Connection timed out - check the node's hostname and your network"
-
-  defp epmd_error(_reason), do: nil
-
-  defp dist_port_error(:econnrefused),
-    do: "Connection refused - check the node is running"
-
-  defp dist_port_error(reason) when no_route?(reason),
-    do: "Host unreachable - check the node's hostname and your network"
-
-  defp dist_port_error(reason) when reason in [:etimedout, :timeout],
-    do: "Connection timed out - check the node's hostname and your network"
-
-  defp dist_port_error(_reason), do: nil
 end

@@ -64,50 +64,20 @@ defmodule VoyagerWeb.ConnectLiveTest do
       assert has_element?(view, ~s|[data-testid="fill-recent-btn"]:not([disabled])|)
     end
 
-    test "explains a nodedown caused by a network timeout", %{conn: conn} do
+    test "explains nodedown reasons", %{conn: conn} do
       session = Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
 
       {:ok, view, _html} = live(conn, ~p"/")
 
-      broadcast(NodeSession.topic(), {:nodedown, session.node, :net_tick_timeout})
+      for {reason, message} <- [
+            {:net_tick_timeout, "connection timed out, check your network"},
+            {:send_net_tick_failed, "connection timed out, check your network"},
+            {:shutdown, "connection lost"}
+          ] do
+        broadcast(NodeSession.topic(), {:nodedown, session.node, reason})
 
-      assert has_element?(
-               view,
-               "#flash-error",
-               "Node down: demo@localhost — connection timed out, check your network"
-             )
-
-      refute has_element?(view, "#connected-indicator")
-    end
-
-    test "explains a nodedown caused by a failed net tick", %{conn: conn} do
-      session = Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
-
-      {:ok, view, _html} = live(conn, ~p"/")
-
-      broadcast(NodeSession.topic(), {:nodedown, session.node, :send_net_tick_failed})
-
-      assert has_element?(
-               view,
-               "#flash-error",
-               "Node down: demo@localhost — connection timed out, check your network"
-             )
-
-      refute has_element?(view, "#connected-indicator")
-    end
-
-    test "explains a nodedown caused by an unspecified shutdown", %{conn: conn} do
-      session = Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
-
-      {:ok, view, _html} = live(conn, ~p"/")
-
-      broadcast(NodeSession.topic(), {:nodedown, session.node, :shutdown})
-
-      assert has_element?(
-               view,
-               "#flash-error",
-               "Node down: demo@localhost — connection lost"
-             )
+        assert has_element?(view, "#flash-error", "Node down: demo@localhost — #{message}")
+      end
 
       refute has_element?(view, "#connected-indicator")
     end
@@ -368,34 +338,22 @@ defmodule VoyagerWeb.ConnectLiveTest do
   end
 
   describe "direct connect errors" do
-    test "maps an unknown epmd host to a host-not-found message" do
-      assert DirectConnect.connect_error({:epmd_error, :nxdomain}) ==
-               "Host not found - check the node's hostname"
-    end
-
-    test "maps an unreachable epmd as epmd-down, not a missing hostname" do
-      assert DirectConnect.connect_error({:epmd_error, :address}) ==
-               "Could not reach epmd on the host - check the hostname and that epmd is running"
-    end
-
-    test "maps a dead dist port without blaming epmd" do
-      assert DirectConnect.connect_error({:node_unreachable, :econnrefused}) ==
-               "Connection refused - check the node is running"
-    end
-
-    test "maps a missing epmd registration" do
-      assert DirectConnect.connect_error(:node_not_registered) ==
-               "Node not found - check the node name is correct and the node is running"
-    end
-
-    test "maps an epmd probe timeout" do
-      assert DirectConnect.connect_error(:epmd_timeout) ==
-               "Node unreachable - the host didn't respond in time, check your network connection"
-    end
-
-    test "maps a no-route posix error without blaming the node" do
-      assert DirectConnect.connect_error({:node_unreachable, :enetunreach}) ==
-               "Host unreachable - check the node's hostname and your network"
+    test "maps diagnose reasons to messages" do
+      for {reason, message} <- [
+            {{:epmd_error, :nxdomain}, "Host not found - check the node's hostname"},
+            {{:epmd_error, :address},
+             "Could not reach epmd on the host - check the hostname and that epmd is running"},
+            {{:node_unreachable, :econnrefused},
+             "Connection refused - check the node is running"},
+            {:node_not_registered,
+             "Node not found - check the node name is correct and the node is running"},
+            {:epmd_timeout,
+             "Node unreachable - the host didn't respond in time, check your network connection"},
+            {{:node_unreachable, :enetunreach},
+             "Host unreachable - check the node's hostname and your network"}
+          ] do
+        assert DirectConnect.connect_error(reason) == message
+      end
     end
   end
 
