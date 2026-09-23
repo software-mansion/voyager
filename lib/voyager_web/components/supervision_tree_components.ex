@@ -139,6 +139,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
           </span>
           <.interval_select
             id="refresh-interval"
+            settings_key="supervision-tree"
             options={interval_options()}
             refresh_interval={@refresh_interval}
             loading={@status == :loading}

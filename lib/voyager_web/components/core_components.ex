@@ -132,6 +132,8 @@ defmodule VoyagerWeb.CoreComponents do
   ## Examples
 
       <.interval_select
+        id="refresh-interval"
+        settings_key="node-info" # localStorage key the chosen interval is kept under
         options={[
           {"Off", "off"},
           {"1s", "1000"},
@@ -141,7 +143,8 @@ defmodule VoyagerWeb.CoreComponents do
         loading={@loading}
       />
   """
-  attr :id, :string, default: nil
+  attr :id, :string, required: true
+  attr :settings_key, :string, required: true
   attr :options, :list, required: true
   attr :refresh_interval, :integer, default: nil
   attr :loading, :boolean, required: true
@@ -157,6 +160,8 @@ defmodule VoyagerWeb.CoreComponents do
           <select
             name="interval"
             id={@id}
+            phx-hook=".RefreshInterval"
+            data-settings-key={@settings_key}
             class="select select-bordered select-sm font-mono pr-8 text-xs"
           >
             <option
@@ -183,6 +188,28 @@ defmodule VoyagerWeb.CoreComponents do
         />
       </button>
     </div>
+
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".RefreshInterval">
+      export default {
+        mounted() {
+          const key = `voyager:refresh-interval:${this.el.dataset.settingsKey}`
+          const defaultValue = this.el.value
+          try {
+            const stored = localStorage.getItem(key)
+            if (stored && stored !== defaultValue && this.el.querySelector(`option[value="${stored}"]`)) {
+              this.el.value = stored
+              this.el.dispatchEvent(new Event("change", {bubbles: true}))
+            }
+            this.el.addEventListener("change", () => {
+              if (this.el.value === defaultValue) localStorage.removeItem(key)
+              else localStorage.setItem(key, this.el.value)
+            })
+          } catch (error) {
+            console.warn(`Error while restoring ${key}: ${error}`)
+          }
+        }
+      }
+    </script>
     """
   end
 
