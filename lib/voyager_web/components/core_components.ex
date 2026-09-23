@@ -191,10 +191,7 @@ defmodule VoyagerWeb.CoreComponents do
         <label
           :for={{label, value} <- @options}
           id={"#{@id}-#{option_id(value)}-option"}
-          class={[
-            "font-mono flex cursor-pointer items-center rounded-lg px-2 py-1.5 text-xs has-[:focus-visible]:bg-base-200 hover:bg-base-200",
-            option_selected?(@value, value) && "bg-base-200"
-          ]}
+          class="font-mono flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs has-[:focus-visible]:bg-base-content/10 hover:bg-base-content/10"
         >
           <input
             type="radio"
@@ -205,6 +202,13 @@ defmodule VoyagerWeb.CoreComponents do
             phx-key="Escape"
             class="sr-only"
           />
+          <span class="size-3.5 flex shrink-0 items-center justify-center">
+            <.icon
+              :if={option_selected?(@value, value)}
+              name="icon-check"
+              class="size-3.5"
+            />
+          </span>
           {label}
         </label>
       </div>

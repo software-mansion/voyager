@@ -57,7 +57,7 @@ defmodule VoyagerWeb.ProcessesLive do
             options={Fetcher.interval_options()}
             refresh_interval={@refresh_interval}
             loading={Fetcher.loading?(@page_result)}
-            class="min-w-17"
+            class="min-w-19"
           />
         </:actions>
       </.node_header>

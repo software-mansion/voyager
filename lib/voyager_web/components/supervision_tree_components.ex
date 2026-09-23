@@ -142,7 +142,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
             options={interval_options()}
             refresh_interval={@refresh_interval}
             loading={@status == :loading}
-            class="min-w-17"
+            class="min-w-19"
           />
         </:actions>
       </.node_header>

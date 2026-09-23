@@ -82,7 +82,9 @@ defmodule VoyagerWeb.CoreComponentsTest do
       assert count(html, ~s|#sel-off-option input[type="radio"][checked]|) == 1
       assert attr(html, "#sel-off-option input", "name") == ["interval"]
       assert attr(html, "#sel-off-option input", "value") == ["off"]
+      assert count(html, "#sel-off-option .icon-check") == 1
       assert count(html, "#sel-5000-option input[checked]") == 0
+      assert count(html, "#sel-5000-option .icon-check") == 0
     end
 
     test "uses blank in the option id when the value is empty" do
