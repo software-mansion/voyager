@@ -129,6 +129,10 @@ mix_release() {
 
 tauri_build() {
   log "Building Tauri app with args: $*"
+  # `createUpdaterArtifacts` fails the build when there is no key to sign the artifacts with.
+  if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+    set -- "$config" '{"bundle":{"createUpdaterArtifacts":true}}' "$@"
+  fi
   cargo_tauri build "$config" "$config_json" --verbose "$@"
   log "Tauri build finished"
 }

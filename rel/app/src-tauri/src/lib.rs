@@ -1,11 +1,13 @@
 mod utils;
 
 use std::sync::Mutex;
+use std::time::Duration;
 
 use tauri::{
     Manager,
     menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder},
 };
+use tauri_plugin_updater::{Update, UpdaterExt};
 
 const MAIN_WINDOW_LABEL: &str = "main";
 const ZOOM_IN_ID: &str = "zoom_in";
@@ -13,9 +15,14 @@ const ZOOM_OUT_ID: &str = "zoom_out";
 const ZOOM_STEP: f64 = 0.1;
 const MIN_ZOOM: f64 = 0.5;
 const MAX_ZOOM: f64 = 2.0;
+const UPDATES_TOPIC: &str = "updates";
+const UPDATE_STALL_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Current zoom factor, since the webview does not expose a getter.
 struct ZoomLevel(Mutex<f64>);
+
+/// Update found at startup, installed when the user asks for it from the UI.
+struct PendingUpdate(Mutex<Option<Update>>);
 
 /// Current OS appearance for Auto theme after full page reloads.
 #[tauri::command]
@@ -32,8 +39,10 @@ pub fn run() {
         }))
         .enable_macos_default_menu(false)
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![os_theme])
         .manage(ZoomLevel(Mutex::new(1.0)))
+        .manage(PendingUpdate(Mutex::new(None)))
         .on_menu_event(|app, event| match event.id().as_ref() {
             ZOOM_IN_ID => zoom_by(app, ZOOM_STEP),
             ZOOM_OUT_ID => zoom_by(app, -ZOOM_STEP),
@@ -80,13 +89,27 @@ pub fn run() {
             let app_handle = app.handle().clone();
             let port =
                 utils::available_port(4005).expect("failed to find available localhost port");
+            let updates_pubsub = pubsub.clone();
 
             pubsub.subscribe("messages", move |msg| {
                 if msg == b"ready" {
                     create_window(&app_handle, port);
+                    // Debug builds run `mix phx.server` from the repo, there is no bundle to replace.
+                    if !cfg!(debug_assertions) {
+                        check_for_update(app_handle.clone(), updates_pubsub.clone());
+                    }
                 } else {
                     println!("[rust] {}", String::from_utf8_lossy(msg));
                 }
+            });
+
+            let app_handle = app.handle().clone();
+            let updates_pubsub = pubsub.clone();
+
+            pubsub.subscribe(UPDATES_TOPIC, move |msg| match msg {
+                b"install" => install_update(app_handle.clone(), updates_pubsub.clone()),
+                b"check" => check_for_update(app_handle.clone(), updates_pubsub.clone()),
+                _ => {}
             });
 
             let app_handle = app.handle().clone();
@@ -121,6 +144,65 @@ fn focus_existing_window(app: &tauri::AppHandle) {
         // Wayland often ignores set_focus but still reports Ok. No-op if already focused.
         let _ = window.request_user_attention(Some(tauri::UserAttentionType::Informational));
     }
+}
+
+fn check_for_update(app_handle: tauri::AppHandle, pubsub: elixirkit::PubSub) {
+    tauri::async_runtime::spawn(async move {
+        // The plugin sets no timeout, so a stalled download would never report `failed`.
+        // A read timeout, unlike a total one, leaves slow but progressing downloads alone.
+        let updater = app_handle
+            .updater_builder()
+            .configure_client(|client| {
+                client
+                    .connect_timeout(UPDATE_STALL_TIMEOUT)
+                    .read_timeout(UPDATE_STALL_TIMEOUT)
+            })
+            .build();
+
+        let update = match updater {
+            Ok(updater) => updater.check().await,
+            Err(error) => Err(error),
+        };
+
+        match update {
+            Ok(Some(update)) => {
+                let message = format!("available:{}", update.version);
+                *app_handle.state::<PendingUpdate>().0.lock().unwrap() = Some(update);
+                let _ = pubsub.broadcast(UPDATES_TOPIC, message.as_bytes());
+            }
+            Ok(None) => {
+                let _ = pubsub.broadcast(UPDATES_TOPIC, b"none");
+            }
+            Err(error) => {
+                eprintln!("[rust] update check failed: {error}");
+                let _ = pubsub.broadcast(UPDATES_TOPIC, b"check_failed");
+            }
+        }
+    });
+}
+
+fn install_update(app_handle: tauri::AppHandle, pubsub: elixirkit::PubSub) {
+    tauri::async_runtime::spawn(async move {
+        let update = app_handle
+            .state::<PendingUpdate>()
+            .0
+            .lock()
+            .unwrap()
+            .clone();
+
+        let Some(update) = update else {
+            let _ = pubsub.broadcast(UPDATES_TOPIC, b"failed");
+            return;
+        };
+
+        match update.download_and_install(|_, _| {}, || {}).await {
+            Ok(()) => app_handle.restart(),
+            Err(error) => {
+                eprintln!("[rust] update install failed: {error}");
+                let _ = pubsub.broadcast(UPDATES_TOPIC, b"failed");
+            }
+        }
+    });
 }
 
 fn zoom_by(app_handle: &tauri::AppHandle, delta: f64) {

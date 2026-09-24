@@ -6,6 +6,7 @@ defmodule VoyagerWeb.SettingsLive do
   alias VoyagerWeb.SettingsLive.DistributionSettings
   alias VoyagerWeb.SettingsLive.McpSettings
   alias VoyagerWeb.SettingsLive.TelemetrySettings
+  alias VoyagerWeb.SettingsLive.UpdateSettings
 
   @impl true
   def mount(params, _session, socket) do
@@ -43,6 +44,7 @@ defmodule VoyagerWeb.SettingsLive do
         id="telemetry-settings"
         terms_of_service_url={@terms_of_service_url}
       />
+      <UpdateSettings.update_settings :if={@app_update_supported?} update={@app_update} />
     </div>
     """
   end
