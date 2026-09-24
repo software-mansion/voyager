@@ -54,6 +54,9 @@ defmodule VoyagerWeb.EtsTableLive do
       |> assign(:round_trip_ms, nil)
       |> assign(:sidebar, nil)
       |> assign(:lookup, %AsyncResult{})
+      |> assign(:lookup_page, 0)
+      |> assign(:lookup_pending_page, 0)
+      |> assign(:lookup_conts, [nil])
       |> assign(:lookup_controls, lookup_controls)
       |> assign(:lookup_form, to_form(EtsLookupControls.changeset(lookup_controls), as: :lookup))
 
@@ -142,7 +145,6 @@ defmodule VoyagerWeb.EtsTableLive do
               term_states={@term_states}
               open_rows={@open_rows}
               offset={@page * @page_size}
-              lookupable?={lookupable?(info)}
               keypos={info.keypos}
             />
 
@@ -151,7 +153,7 @@ defmodule VoyagerWeb.EtsTableLive do
               id="ets-pager"
               page={@page + 1}
               page_size={@page_size}
-              total={pager_total(@info, @conts, @page, @page_size, @records)}
+              total={pager_total(info.size, @conts, @page, @page_size, @records)}
               page_size_options={EtsPeekControls.chunk_size_options()}
             />
           </div>
@@ -165,6 +167,18 @@ defmodule VoyagerWeb.EtsTableLive do
         form={@lookup_form}
         term_states={@term_states}
         error_message={lookup_error_message(@lookup)}
+        page={@lookup_page}
+        page_size={@lookup_controls.page_size}
+        total={
+          pager_total(
+            0,
+            @lookup_conts,
+            @lookup_page,
+            @lookup_controls.page_size,
+            lookup_records(@lookup)
+          )
+        }
+        page_size_options={EtsPeekControls.chunk_size_options()}
       />
     </div>
     """
@@ -194,8 +208,12 @@ defmodule VoyagerWeb.EtsTableLive do
       EtsLookupControls.apply(
         socket.assigns.lookup_controls,
         stored(
-          %{"budget" => params["lookup_budget"], "timeout" => params["lookup_timeout"]},
-          ~w(budget timeout)
+          %{
+            "page_size" => params["lookup_page_size"],
+            "budget" => params["lookup_budget"],
+            "timeout" => params["lookup_timeout"]
+          },
+          ~w(page_size budget timeout)
         )
       )
 
@@ -267,14 +285,17 @@ defmodule VoyagerWeb.EtsTableLive do
     |> noreply()
   end
 
+  # A fresh result, not `loading(previous)`: an earlier key's `ok?` would keep
+  # its records on screen and hide this key's failure.
   def handle_event("open_sidebar", %{"index" => index}, socket) do
-    with true <- lookupable?(socket.assigns.info),
-         {index, ""} when index >= 0 <- Integer.parse(index),
+    with {index, ""} when index >= 0 <- Integer.parse(index),
          record when record != nil <- Enum.at(socket.assigns.records, index),
          {:ok, key} <- EtsPeekComponents.lookup_key(record, keypos(socket)) do
       socket
       |> assign(:sidebar, %{key: key})
-      |> start_lookup()
+      |> assign(:lookup, AsyncResult.loading())
+      |> assign(:lookup_conts, [nil])
+      |> start_lookup(0)
     else
       _other -> socket
     end
@@ -283,8 +304,40 @@ defmodule VoyagerWeb.EtsTableLive do
 
   def handle_event("close-details-panel", _params, socket) do
     socket
+    |> cancel_async(:lookup, {:shutdown, :cancel})
     |> assign(:sidebar, nil)
     |> assign(:lookup, %AsyncResult{})
+    |> noreply()
+  end
+
+  def handle_event("paginate_lookup", %{"page" => page}, socket) do
+    with true <- socket.assigns.sidebar != nil,
+         {page, ""} <- Integer.parse(page),
+         index = page - 1,
+         true <- index >= 0 and index < length(socket.assigns.lookup_conts) do
+      start_lookup(socket, index)
+    else
+      _other -> socket
+    end
+    |> noreply()
+  end
+
+  def handle_event("set_lookup_page_size", %{"page_size" => size}, socket) do
+    {controls, changeset} =
+      EtsLookupControls.apply(socket.assigns.lookup_controls, %{"page_size" => size})
+
+    socket =
+      socket
+      |> assign(:lookup_controls, controls)
+      |> assign(:lookup_form, to_form(changeset, as: :lookup))
+      |> assign(:lookup_conts, [nil])
+      |> store_settings()
+
+    if socket.assigns.sidebar do
+      start_lookup(socket, 0)
+    else
+      socket
+    end
     |> noreply()
   end
 
@@ -299,8 +352,8 @@ defmodule VoyagerWeb.EtsTableLive do
   end
 
   def handle_event("refetch_lookup", _params, socket) do
-    if socket.assigns.sidebar && lookupable?(socket.assigns.info) do
-      socket |> start_lookup() |> noreply()
+    if socket.assigns.sidebar do
+      socket |> start_lookup(socket.assigns.lookup_page) |> noreply()
     else
       noreply(socket)
     end
@@ -328,14 +381,12 @@ defmodule VoyagerWeb.EtsTableLive do
 
   def handle_async(:chunk, {:ok, {:ok, chunk, round_trip_ms}}, socket) do
     page = socket.assigns.pending_page
-    conts = Enum.take(socket.assigns.conts, page + 1)
-    conts = if chunk.continuation, do: conts ++ [chunk.continuation], else: conts
 
     socket
     |> assign(:chunk, AsyncResult.ok(socket.assigns.chunk, :loaded))
     |> assign(:records, chunk.records)
     |> assign(:page, page)
-    |> assign(:conts, conts)
+    |> assign(:conts, advance_conts(socket.assigns.conts, page, chunk.continuation))
     |> assign(:truncated?, chunk.truncated?)
     |> assign(:open_rows, MapSet.new())
     |> assign(:fetched?, true)
@@ -368,8 +419,12 @@ defmodule VoyagerWeb.EtsTableLive do
         )
       end)
 
+    page = socket.assigns.lookup_pending_page
+
     socket
     |> assign(:lookup, AsyncResult.ok(socket.assigns.lookup, chunk))
+    |> assign(:lookup_page, page)
+    |> assign(:lookup_conts, advance_conts(socket.assigns.lookup_conts, page, chunk.continuation))
     |> noreply()
   end
 
@@ -434,20 +489,24 @@ defmodule VoyagerWeb.EtsTableLive do
     end)
   end
 
-  defp start_lookup(socket) do
+  defp start_lookup(socket, page) do
     node = socket.assigns.session.node
     table = socket.assigns.table_id
     key = socket.assigns.sidebar.key
-    limit = socket.assigns.page_size
-    %{budget: budget, timeout: timeout} = socket.assigns.lookup_controls
+    %{page_size: limit, budget: budget, timeout: timeout} = socket.assigns.lookup_controls
+    continuation = Enum.at(socket.assigns.lookup_conts, page)
 
     socket
     |> cancel_async(:lookup, {:shutdown, :cancel})
+    |> assign(:lookup_pending_page, page)
     |> assign(:lookup, AsyncResult.loading(socket.assigns.lookup))
     |> start_async(:lookup, fn ->
-      Fetch.lookup(node, table, key, limit, budget, nil, timeout)
+      Fetch.lookup(node, table, key, limit, budget, continuation, timeout)
     end)
   end
+
+  defp advance_conts(conts, page, nil), do: Enum.take(conts, page + 1)
+  defp advance_conts(conts, page, continuation), do: Enum.take(conts, page + 1) ++ [continuation]
 
   # One inspector per row index, so a reloaded page reuses the ids the previous
   # one had and `:term_states` does not grow with every fetch.
@@ -475,6 +534,7 @@ defmodule VoyagerWeb.EtsTableLive do
         "chunk_size" => to_string(controls.chunk_size),
         "budget" => to_string(controls.budget),
         "timeout" => to_string(controls.timeout),
+        "lookup_page_size" => to_string(lookup_controls.page_size),
         "lookup_budget" => to_string(lookup_controls.budget),
         "lookup_timeout" => to_string(lookup_controls.timeout)
       }
@@ -494,25 +554,20 @@ defmodule VoyagerWeb.EtsTableLive do
     end
   end
 
-  defp lookupable?(%AsyncResult{ok?: true, result: info}), do: lookupable?(info)
-  defp lookupable?(%{type: type}), do: type in [:set, :ordered_set]
-  defp lookupable?(_info), do: false
-
-  # The metadata size is only an estimate once paging starts: with no
-  # continuation left the walked count is exact, otherwise the total must at
-  # least keep the next page reachable. A table that shrank mid-walk can end
-  # on an empty page, so the current page stays addressable or Previous
-  # disappears with it.
-  defp pager_total(info, conts, page, page_size, records) do
+  # `known_size` is only an estimate once paging starts: with no continuation
+  # left the walked count is exact, otherwise the total must at least keep the
+  # next page reachable. A result that shrank mid-walk can end on an empty
+  # page, so the current page stays addressable or Previous disappears with it.
+  defp pager_total(known_size, conts, page, page_size, records) do
     cond do
-      length(conts) > page + 1 -> max(info_size(info), (page + 1) * page_size + 1)
+      length(conts) > page + 1 -> max(known_size, (page + 1) * page_size + 1)
       page > 0 -> max(page * page_size + length(records), page * page_size + 1)
       true -> length(records)
     end
   end
 
-  defp info_size(%AsyncResult{ok?: true, result: %{size: size}}), do: size
-  defp info_size(_info), do: 0
+  defp lookup_records(%AsyncResult{ok?: true, result: %{records: records}}), do: records
+  defp lookup_records(_lookup), do: []
 
   defp readable?(%AsyncResult{ok?: true, result: %{protection: :private}}), do: false
   defp readable?(%AsyncResult{ok?: true}), do: true
@@ -523,7 +578,7 @@ defmodule VoyagerWeb.EtsTableLive do
   defp chunk_error(%AsyncResult{failed: false}), do: nil
   defp chunk_error(%AsyncResult{failed: reason}), do: reason
 
-  defp lookup_error_message(%AsyncResult{failed: false}), do: nil
+  defp lookup_error_message(%AsyncResult{failed: nil}), do: nil
   defp lookup_error_message(%AsyncResult{failed: reason}), do: format_error(reason)
 
   defp format_error(:not_found), do: "No such table on this node."

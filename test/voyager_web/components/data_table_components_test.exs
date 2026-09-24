@@ -159,5 +159,14 @@ defmodule VoyagerWeb.Components.DataTableComponentsTest do
       assert attr(html, ~s|#p-page-size-10-option input[checked]|, "value") == ["10"]
       assert count(html, "#p-page-size-dropdown.dropdown-top") == 1
     end
+
+    test "emits the given event names instead of the defaults" do
+      html =
+        pager(page_size_options: [10], paginate_event: "turn", page_size_event: "resize")
+
+      assert attr(html, "#p-next", "phx-click") == ["turn"]
+      assert attr(html, "#p-prev", "phx-click") == ["turn"]
+      assert attr(html, "#p-page-size-form", "phx-change") == ["resize"]
+    end
   end
 end

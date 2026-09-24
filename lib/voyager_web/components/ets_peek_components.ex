@@ -6,6 +6,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   use VoyagerWeb, :component
 
+  alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Components.DetailsPanelComponents
   alias VoyagerWeb.Components.EtsTableComponents
   alias VoyagerWeb.Components.TermComponents
@@ -181,7 +182,6 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   attr :term_states, :map, required: true
   attr :open_rows, :any, required: true
   attr :offset, :integer, default: 0
-  attr :lookupable?, :boolean, default: false
   attr :keypos, :integer, default: 1
 
   def records(assigns) do
@@ -225,12 +225,12 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
           </button>
 
           <button
-            :if={@lookupable? and lookup_key(record, @keypos) != :error}
+            :if={lookup_key(record, @keypos) != :error}
             id={"#{@id}-#{index}-lookup"}
             type="button"
             phx-click="open_sidebar"
             phx-value-index={index}
-            title="Look up this record"
+            title="Look up every record with this key"
             class="btn btn-ghost btn-xs text-base-content/60 shrink-0 gap-1 hover:text-primary"
           >
             <.icon name="icon-panel-left" class="size-3.5 -scale-x-100" /> Lookup
@@ -255,6 +255,10 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   attr :form, Phoenix.HTML.Form, required: true
   attr :term_states, :map, required: true
   attr :error_message, :string, default: nil
+  attr :page, :integer, required: true, doc: "0-based"
+  attr :page_size, :integer, required: true
+  attr :total, :integer, required: true
+  attr :page_size_options, :list, required: true
 
   def sidebar(assigns) do
     assigns = assign(assigns, :budget_help, @budget_help)
@@ -271,7 +275,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
         <div class="flex min-w-0 flex-1 flex-col gap-1.5">
           <div class="flex items-center gap-2">
             <.icon name="icon-database-search" class="text-primary size-3.5" />
-            <div class="font-mono text-base-content text-xs uppercase">Record lookup</div>
+            <div class="font-mono text-base-content text-xs uppercase">Key lookup</div>
           </div>
           <DetailsPanelComponents.copyable
             id="ets-sidebar-key"
@@ -313,43 +317,61 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
         </div>
       </.form>
 
+      <.error_state :if={@error_message} id="ets-lookup-error" message={@error_message} />
+
       <.async_result :let={chunk} assign={@lookup}>
         <:loading>
-          <.loading_state id="ets-lookup-loading" message="Looking up record…" />
+          <.loading_state id="ets-lookup-loading" message="Looking up key…" />
         </:loading>
-        <:failed>
-          <.error_state id="ets-lookup-error" message={@error_message} />
-        </:failed>
 
         <p :if={chunk.records == []} id="ets-lookup-empty" class="text-base-content/70 text-sm">
-          No record with this key. It may have been deleted.
+          {if @page == 0,
+            do: "No records with this key. They may have been deleted.",
+            else: "No more records for this key. They may have been deleted since the last page."}
         </p>
 
         <div
-          :for={{record, index} <- Enum.with_index(chunk.records)}
-          id={"ets-lookup-record-#{index}"}
-          class="border-base-200 flex min-h-0 items-start gap-2 overflow-y-auto rounded-lg border p-3"
+          :if={chunk.records != []}
+          id="ets-lookup-records"
+          class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto"
         >
-          <TermComponents.term_inspector
-            id={lookup_inspector_id(index)}
-            term={record}
-            state={@term_states[lookup_inspector_id(index)] || %State{}}
-            class="text-sm! min-w-0 flex-1 overflow-x-auto"
-          />
-          <.copy_button
-            id={"ets-lookup-record-#{index}-copy"}
-            target={"#ets-lookup-record-#{index}-copy-source"}
-            label="Copy record"
-            icon_only
-            size={:sm}
-            class="text-base-content/60 shrink-0 hover:text-primary"
-          />
-          <span id={"ets-lookup-record-#{index}-copy-source"} hidden>{TermTree.copy_string(record)}</span>
+          <div
+            :for={{record, index} <- Enum.with_index(chunk.records)}
+            id={"ets-lookup-record-#{index}"}
+            class="border-base-200 flex shrink-0 items-start gap-2 rounded-lg border p-3"
+          >
+            <TermComponents.term_inspector
+              id={lookup_inspector_id(index)}
+              term={record}
+              state={@term_states[lookup_inspector_id(index)] || %State{}}
+              class="text-sm! min-w-0 flex-1 overflow-x-auto"
+            />
+            <.copy_button
+              id={"ets-lookup-record-#{index}-copy"}
+              target={"#ets-lookup-record-#{index}-copy-source"}
+              label="Copy record"
+              icon_only
+              size={:sm}
+              class="text-base-content/60 shrink-0 hover:text-primary"
+            />
+            <span id={"ets-lookup-record-#{index}-copy-source"} hidden>{TermTree.copy_string(record)}</span>
+          </div>
         </div>
 
         <p :if={chunk.truncated?} id="ets-lookup-truncated" class="text-base-content/50 text-xs">
           Shortened to fit the term budget — raise it and refetch to see more.
         </p>
+
+        <DataTableComponents.pager
+          :if={chunk.records != [] or @page > 0}
+          id="ets-lookup-pager"
+          page={@page + 1}
+          page_size={@page_size}
+          total={@total}
+          page_size_options={@page_size_options}
+          paginate_event="paginate_lookup"
+          page_size_event="set_lookup_page_size"
+        />
       </.async_result>
     </aside>
     """
