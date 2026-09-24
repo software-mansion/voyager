@@ -43,6 +43,14 @@ defmodule VoyagerWeb.Formatters do
   end
 
   @doc """
+  Formats a byte count exactly, with thousands separators, e.g. `"4,601,632 B"`.
+  Returns `"—"` for `nil`.
+  """
+  @spec format_exact_bytes(non_neg_integer() | nil) :: String.t()
+  def format_exact_bytes(nil), do: "—"
+  def format_exact_bytes(bytes), do: "#{format_integer(bytes)} B"
+
+  @doc """
   Formats a byte count as a compact string with no space, e.g. `"4.2GB"`.
   """
   @spec format_bytes_compact(non_neg_integer()) :: String.t()

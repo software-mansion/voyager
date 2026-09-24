@@ -74,13 +74,16 @@ defmodule VoyagerWeb.ProcessesLive do
         message={format_error(@page_result.failed)}
       />
 
-      <ProcessComponents.scan_summary
-        :if={@page_result.ok?}
-        id="processes-scan-summary"
-        shown={length(Fetcher.entries(@page_result))}
-        scanned={@page_result.result.scanned}
-        round_trip_ms={@round_trip_ms}
-      />
+      <%!-- Reserves the summary's line so the table does not shift when the first fetch lands. --%>
+      <div class="h-4">
+        <ProcessComponents.scan_summary
+          :if={@page_result.ok?}
+          id="processes-scan-summary"
+          shown={length(Fetcher.entries(@page_result))}
+          scanned={@page_result.result.scanned}
+          round_trip_ms={@round_trip_ms}
+        />
+      </div>
 
       <div class={[
         "flex min-h-0 flex-1 flex-col gap-2",

@@ -791,12 +791,14 @@ defmodule VoyagerWeb.CoreComponents do
     default: true,
     doc: "when true, the tip can be hovered into and pinned open with a click"
 
+  attr :pinnable, :boolean, default: true, doc: "forwarded to `tooltip/1`"
+
   slot :inner_block, required: true, doc: "the hover/focus target"
   slot :content, required: true, doc: "tooltip content"
 
   def link_tooltip(assigns) do
     ~H"""
-    <.tooltip id={@id} position={@position} interactive={@interactive}>
+    <.tooltip id={@id} position={@position} interactive={@interactive} pinnable={@pinnable}>
       {render_slot(@inner_block)}
       <:content>
         {render_slot(@content)}
