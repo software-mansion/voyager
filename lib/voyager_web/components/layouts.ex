@@ -139,20 +139,13 @@ defmodule VoyagerWeb.Layouts do
           >
             Not now
           </button>
-          <button
-            type="button"
+          <.update_button
             id="install-app-update"
-            phx-click="install-app-update"
-            disabled={@update.status == :installing}
-            class="btn btn-primary"
-          >
-            <.icon :if={@update.status != :installing} name="icon-download" class="size-4" />
-            <span
-              :if={@update.status == :installing}
-              class="loading loading-spinner loading-xs"
-            ></span>
-            {app_update_action(@update)}
-          </button>
+            event="install-app-update"
+            icon="icon-download"
+            label={app_update_action(@update)}
+            busy?={@update.status == :installing}
+          />
         </div>
       </div>
     </div>
@@ -166,6 +159,26 @@ defmodule VoyagerWeb.Layouts do
   defp app_update_action(%{status: :installing}), do: "Updating…"
   defp app_update_action(%{status: :failed}), do: "Retry"
   defp app_update_action(_update), do: "Update now"
+
+  @doc """
+  Renders an update action button whose icon turns into a spinner while `busy?`,
+  so the button keeps its width.
+  """
+  attr :id, :string, required: true
+  attr :event, :string, required: true
+  attr :icon, :string, required: true
+  attr :label, :string, required: true
+  attr :busy?, :boolean, default: false
+
+  def update_button(assigns) do
+    ~H"""
+    <button type="button" id={@id} phx-click={@event} disabled={@busy?} class="btn btn-primary">
+      <.icon :if={!@busy?} name={@icon} class="size-4" />
+      <span :if={@busy?} class="loading loading-spinner loading-xs"></span>
+      {@label}
+    </button>
+    """
+  end
 
   @doc """
   Renders the first-launch popup informing users about anonymous telemetry

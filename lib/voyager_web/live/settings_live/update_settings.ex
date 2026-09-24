@@ -5,7 +5,10 @@ defmodule VoyagerWeb.SettingsLive.UpdateSettings do
   attr :update, :map, default: nil
 
   def update_settings(assigns) do
-    assigns = assign(assigns, :version, Voyager.version())
+    assigns =
+      assigns
+      |> assign(:version, Voyager.version())
+      |> assign(:installable?, installable?(assigns.update))
 
     ~H"""
     <div id="update-settings" class="card bg-base-100 border-base-200 border shadow-sm">
@@ -22,46 +25,32 @@ defmodule VoyagerWeb.SettingsLive.UpdateSettings do
         </p>
 
         <div class="card-actions justify-end">
-          <%= if @update && @update.version && @update.status != :checking do %>
-            <button
-              type="button"
-              id="install-app-update-setting"
-              phx-click="install-app-update"
-              disabled={@update.status == :installing}
-              class="btn btn-primary"
-            >
-              <.icon :if={@update.status != :installing} name="icon-download" class="size-4" />
-              <span
-                :if={@update.status == :installing}
-                class="loading loading-spinner loading-xs"
-              ></span>
-              Install v{@update.version}
-            </button>
-          <% else %>
-            <button
-              type="button"
-              id="check-app-update"
-              phx-click="check-app-update"
-              disabled={@update && @update.status == :checking}
-              class="btn btn-primary"
-            >
-              <.icon
-                :if={!(@update && @update.status == :checking)}
-                name="icon-rotate-cw"
-                class="size-4"
-              />
-              <span
-                :if={@update && @update.status == :checking}
-                class="loading loading-spinner loading-xs"
-              ></span>
-              Check for updates
-            </button>
-          <% end %>
+          <Layouts.update_button
+            :if={@installable?}
+            id="install-app-update-setting"
+            event="install-app-update"
+            icon="icon-download"
+            label={"Install v#{@update.version}"}
+            busy?={@update.status == :installing}
+          />
+          <Layouts.update_button
+            :if={!@installable?}
+            id="check-app-update"
+            event="check-app-update"
+            icon="icon-rotate-cw"
+            label="Check for updates"
+            busy?={@update != nil and @update.status == :checking}
+          />
         </div>
       </div>
     </div>
     """
   end
+
+  defp installable?(%{version: version, status: status}),
+    do: version != nil and status != :checking
+
+  defp installable?(nil), do: false
 
   defp update_status(%{status: :checking}), do: "Checking for updates…"
   defp update_status(%{status: :up_to_date}), do: "Voyager is up to date."
