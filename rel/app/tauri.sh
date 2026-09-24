@@ -43,6 +43,8 @@ main() {
 
   command="${1:-}"
 
+  load_dotenv "$root_dir/.env"
+
   config="--config"
   # tauri.conf.json keeps resources as an empty list so this per-OS map replaces it.
   config_json="{\"bundle\":{\"resources\":{\"${release_dir}\":\"rel\"}}}"
@@ -53,8 +55,6 @@ main() {
 
   case "$command" in
     dev)
-      load_dotenv "$root_dir/.env"
-      
       (
         cd "$mix_project_dir"
         mix compile
@@ -69,7 +69,6 @@ main() {
       ;;
     app)
       shift
-      load_dotenv "$root_dir/.env"
       mix_release
       bundles_flag=""
       if [ "$os" = "darwin" ]; then
@@ -130,6 +129,10 @@ mix_release() {
 
 tauri_build() {
   log "Building Tauri app with args: $*"
+  # `createUpdaterArtifacts` fails the build when there is no key to sign the artifacts with.
+  if [ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
+    set -- "$config" '{"bundle":{"createUpdaterArtifacts":true}}' "$@"
+  fi
   cargo_tauri build "$config" "$config_json" --verbose "$@"
   log "Tauri build finished"
 }

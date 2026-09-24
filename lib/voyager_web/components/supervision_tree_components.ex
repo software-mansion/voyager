@@ -139,6 +139,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
           </span>
           <.interval_select
             id="refresh-interval"
+            settings_key="supervision-tree"
             options={interval_options()}
             refresh_interval={@refresh_interval}
             loading={@status == :loading}
@@ -183,11 +184,26 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
   attr :last_updated, :any, required: true
   attr :selected_apps, MapSet, required: true
   attr :status, :atom, required: true
+  attr :oversized, :map, default: nil
 
   def body(assigns) do
     ~H"""
     <div class="flex-1 overflow-auto">
       <%= cond do %>
+        <% @oversized -> %>
+          <div
+            id="supervision-tree-too-large"
+            class="flex h-full flex-col items-center justify-center gap-3 rounded-lg px-6 text-center"
+          >
+            <.icon name="icon-circle-alert" class="text-warning size-10" />
+            <div>
+              <p class="text-base-content/80 font-medium">Tree too large to render</p>
+              <p class="text-base-content/70 max-w-prose text-sm">
+                {@oversized.count} elements exceed the {@oversized.limit} element render limit.
+                Reduce the depth, select fewer applications, or turn off relations.
+              </p>
+            </div>
+          </div>
         <% MapSet.size(@selected_apps) == 0 -> %>
           <div class="flex h-full flex-col items-center justify-center gap-3 rounded-lg text-center">
             <.icon name="icon-network" class="size-10 text-base-content/60" />

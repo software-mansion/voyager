@@ -22,6 +22,7 @@ defmodule Voyager.Application do
       {ElixirKit.PubSub, connect: elixirkit_pubsub || :ignore, on_exit: fn -> System.stop() end},
       {Voyager.Services.RateLimiter,
        config: Application.get_env(:voyager, :rate_limiter_config, %{})},
+      {Voyager.Services.AppUpdater, native?: elixirkit_pubsub != nil},
       VoyagerWeb.Endpoint,
       Voyager.MCP,
       {Task, fn -> if elixirkit_pubsub, do: ElixirKit.PubSub.broadcast("messages", "ready") end}
