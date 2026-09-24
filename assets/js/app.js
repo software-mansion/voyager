@@ -86,7 +86,28 @@ if (window.__TAURI_INTERNALS__) {
     },
     true
   );
+
+  document.addEventListener('wheel', (e) => {
+    if (e.ctrlKey) e.stopPropagation();
+  });
 }
+
+const isMac = navigator.platform.startsWith('Mac');
+document.documentElement.classList.toggle('is-mac', isMac);
+
+window.addEventListener('keydown', (e) => {
+  if (e.repeat || e.code !== 'KeyB' || !(isMac ? e.metaKey : e.ctrlKey)) return;
+
+  for (const toggle of document.querySelectorAll(
+    '#sidebar-compact-toggle, #sidebar-compact-toggle-wide'
+  )) {
+    if (toggle instanceof HTMLElement && toggle.offsetParent) {
+      e.preventDefault();
+      toggle.click();
+      return;
+    }
+  }
+});
 
 // Show progress bar on live navigation and form submits
 topbar.config({ barColors: { 0: '#29d' }, shadowColor: 'rgba(0, 0, 0, .3)' });
