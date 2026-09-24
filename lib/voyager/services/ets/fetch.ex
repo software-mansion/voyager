@@ -11,7 +11,8 @@ defmodule Voyager.Services.Ets.Fetch do
   `lookup/7` pages a single key with the same positive limit as select. A bag
   or duplicate_bag key that holds more objects than the limit returns
   `{:"$voyager_skip", Skip}` for the rest of that key, never the key's unread
-  objects.
+  objects. A bag key estimated above ~1M words is refused with
+  `{:error, :key_too_large}` before any row is copied.
 
   A select continuation that crossed ETF must be repaired on the target against
   the same match spec used for the page (`[{:"$1", [], [:"$1"]}]` for match-all;

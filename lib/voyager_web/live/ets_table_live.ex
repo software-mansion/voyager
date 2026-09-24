@@ -535,6 +535,8 @@ defmodule VoyagerWeb.EtsTableLive do
   defp format_error({:remote_exit, {:signal, :killed}}),
     do: "A record was too large to read. Try a smaller page size."
 
+  defp format_error(:key_too_large), do: "This key holds too many rows to read safely."
+
   defp format_error(:timeout), do: "Request timed out. Try a longer timeout or a smaller page."
   defp format_error(:rate_limited), do: "Too many requests. Wait a moment and try again."
   defp format_error(:noconnection), do: "Node is unreachable."

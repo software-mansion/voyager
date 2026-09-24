@@ -192,6 +192,26 @@ defmodule VoyagerAgentEtsTest do
       assert_lookup_matches_ets(name, :k)
     end
 
+    test "refuses a bag key too large to copy without reading it" do
+      name = large_key_table()
+
+      assert {:error, :key_too_large} =
+               @agent_module.ets_lookup(name, :k, 10, @budget, :undefined)
+    end
+
+    test "reads a small key in a table that holds an oversized key" do
+      name = large_key_table()
+      :ets.insert(name, {:small, 1})
+      assert_lookup_matches_ets(name, :small)
+    end
+
+    test "counts match-spec keys literally when sizing them" do
+      name = large_key_table()
+      keys = [:_, %{}, {:"$1", :x}]
+      for key <- keys, do: :ets.insert(name, {key, 1})
+      for key <- keys, do: assert_lookup_matches_ets(name, key)
+    end
+
     test "raises badarg for a zero limit" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :bag])
@@ -359,6 +379,13 @@ defmodule VoyagerAgentEtsTest do
     :ets.new(name, [:named_table, :public, type])
     :ets.insert(name, {:k, 1})
     :ets.insert(name, wide_record(:k, 256))
+    name
+  end
+
+  defp large_key_table do
+    name = EtsTable.unique_name()
+    :ets.new(name, [:named_table, :public, :duplicate_bag])
+    :ets.insert(name, for(i <- 1..200_000, do: {:k, i}))
     name
   end
 
