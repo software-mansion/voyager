@@ -281,20 +281,21 @@ defmodule VoyagerWeb.Components.DataTableComponents do
           phx-change="set_page_size"
           class="flex items-center gap-2"
         >
-          <label for={"#{@id}-page-size"} class="text-base-content/70 text-xs">Per page</label>
-          <select
+          <label
+            id={"#{@id}-page-size-label"}
+            for={"#{@id}-page-size"}
+            class="text-base-content/70 text-xs"
+          >
+            Per page
+          </label>
+          <.select
             id={"#{@id}-page-size"}
             name="page_size"
-            class="select select-sm w-20"
-          >
-            <option
-              :for={size <- @page_size_options}
-              value={to_string(size)}
-              selected={size == @page_size}
-            >
-              {size}
-            </option>
-          </select>
+            value={@page_size}
+            options={@page_size_options}
+            class="w-20"
+            side={:top}
+          />
         </form>
       </div>
 

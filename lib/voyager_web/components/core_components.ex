@@ -126,6 +126,178 @@ defmodule VoyagerWeb.CoreComponents do
   end
 
   @doc """
+  Single-choice dropdown whose radios submit `name`/`value` like a `<select>`.
+
+  Options are `{label, value}` pairs, or a list of values used as both.
+  """
+  attr :id, :string, default: nil
+  attr :name, :string, default: nil
+  attr :value, :any, default: nil
+  attr :field, Phoenix.HTML.FormField
+  attr :options, :list, required: true, doc: "`{label, value}` pairs, or a list of values"
+  attr :class, :any, default: nil, doc: "width and other classes on the dropdown wrapper"
+  attr :align, :atom, default: :start, values: [:start, :end]
+  attr :side, :atom, default: :bottom, values: [:top, :bottom]
+  attr :disabled, :boolean, default: false
+
+  def select(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
+    assigns
+    |> assign(field: nil)
+    |> assign(:id, assigns[:id] || field.id)
+    |> assign(:name, field.name)
+    |> assign(:value, field.value)
+    |> select()
+  end
+
+  def select(assigns) do
+    options = Enum.map(assigns.options, &normalize_option/1)
+
+    assigns =
+      assigns
+      |> assign(:options, options)
+      |> assign(:current_label, option_label(options, assigns.value))
+
+    ~H"""
+    <details
+      id={"#{@id}-dropdown"}
+      phx-hook=".Select"
+      phx-mounted={JS.ignore_attributes("open")}
+      phx-click-away={JS.remove_attribute("open")}
+      inert={@disabled}
+      class={[
+        "dropdown",
+        @align == :end && "dropdown-end",
+        @side == :top && "dropdown-top",
+        @disabled && "opacity-50",
+        @class
+      ]}
+    >
+      <summary
+        id={@id}
+        phx-keydown={close_select(@id)}
+        phx-key="Escape"
+        aria-labelledby={"#{@id}-label #{@id}-value"}
+        class="select select-bordered select-sm select-caret font-mono w-full cursor-pointer list-none pr-8 text-left text-xs font-normal"
+      >
+        <span id={"#{@id}-value"}>{@current_label}</span>
+      </summary>
+      <div
+        phx-click={close_select(@id)}
+        class={[
+          "dropdown-content bg-base-100 rounded-box border-base-300 z-50 flex w-max min-w-full flex-col border p-2 shadow-lg",
+          @side == :top && "mb-1",
+          @side == :bottom && "mt-1"
+        ]}
+      >
+        <label
+          :for={{label, value} <- @options}
+          id={"#{@id}-#{option_id(value)}-option"}
+          class="font-mono flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs has-[:focus-visible]:bg-base-content/10 hover:bg-base-content/10"
+        >
+          <input
+            type="radio"
+            name={@name}
+            value={to_string(value)}
+            checked={option_selected?(@value, value)}
+            phx-keydown={close_select(@id)}
+            phx-key="Escape"
+            class="sr-only"
+          />
+          <span class="size-3.5 flex shrink-0 items-center justify-center">
+            <.icon
+              :if={option_selected?(@value, value)}
+              name="icon-check"
+              class="size-3.5"
+            />
+          </span>
+          {label}
+        </label>
+      </div>
+    </details>
+
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".Select">
+      export default {
+        mounted() {
+          this.onKeyDown = (event) => {
+            const radios = [...this.el.querySelectorAll('input[type="radio"]')]
+            if (radios.length === 0) return
+
+            if (event.key === "Enter") {
+              this.confirm(event, radios)
+              return
+            }
+
+            if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
+
+            // A radio arrow fires a click, and phx-click on the menu would close it.
+            event.preventDefault()
+            this.el.open = true
+
+            const active = radios.indexOf(document.activeElement)
+            const current =
+              active === -1
+                ? Math.max(0, radios.findIndex((radio) => radio.checked))
+                : active
+            const next =
+              event.key === "ArrowDown"
+                ? Math.min(current + 1, radios.length - 1)
+                : Math.max(current - 1, 0)
+
+            radios[next].focus({preventScroll: true, focusVisible: true})
+          }
+
+          this.el.addEventListener("keydown", this.onKeyDown)
+        },
+
+        confirm(event, radios) {
+          const radio = document.activeElement
+          if (!(radio instanceof HTMLInputElement) || !radios.includes(radio)) return
+
+          event.preventDefault()
+          if (!radio.checked) {
+            radio.checked = true
+            radio.dispatchEvent(new Event("input", {bubbles: true}))
+            radio.dispatchEvent(new Event("change", {bubbles: true}))
+          }
+
+          this.el.querySelector("summary")?.focus({preventScroll: true})
+          this.el.open = false
+        },
+
+        destroyed() {
+          this.el.removeEventListener("keydown", this.onKeyDown)
+        }
+      }
+    </script>
+    """
+  end
+
+  defp close_select(id) do
+    JS.focus(to: "##{id}")
+    |> JS.remove_attribute("open", to: "##{id}-dropdown")
+  end
+
+  defp normalize_option({label, value}), do: {label, value}
+  defp normalize_option(value), do: {to_string(value), value}
+
+  defp option_label(options, value) do
+    match = to_string(value || "")
+
+    Enum.find_value(options, match, fn {label, option} ->
+      to_string(option) == match && label
+    end)
+  end
+
+  defp option_selected?(value, option), do: to_string(value || "") == to_string(option)
+
+  defp option_id(value) do
+    case to_string(value) do
+      "" -> "blank"
+      id -> id
+    end
+  end
+
+  @doc """
   Renders a form with select input with specified refresh interval options and
   button to refresh manually.
 
@@ -152,27 +324,27 @@ defmodule VoyagerWeb.CoreComponents do
   def interval_select(assigns) do
     ~H"""
     <div class="flex items-center gap-2">
-      <label class="font-mono text-base-content/70 tracking-label text-xs uppercase">
+      <label
+        id={"#{@id}-label"}
+        for={@id}
+        class="font-mono text-base-content/70 tracking-label text-xs uppercase"
+      >
         Auto-refresh
       </label>
-      <form phx-change="set_interval" id={"#{@id}-form"}>
-        <div class="select-caret">
-          <select
-            name="interval"
-            id={@id}
-            phx-hook=".RefreshInterval"
-            data-settings-key={@settings_key}
-            class="select select-bordered select-sm font-mono pr-8 text-xs"
-          >
-            <option
-              :for={{label, value} <- @options}
-              value={value}
-              selected={value == interval_value(@refresh_interval)}
-            >
-              {label}
-            </option>
-          </select>
-        </div>
+      <form
+        phx-change="set_interval"
+        phx-hook=".RefreshInterval"
+        data-settings-key={@settings_key}
+        id={"#{@id}-form"}
+      >
+        <.select
+          id={@id}
+          name="interval"
+          value={interval_value(@refresh_interval)}
+          options={@options}
+          align={:end}
+          class="min-w-19"
+        />
       </form>
       <button
         type="button"
@@ -193,16 +365,19 @@ defmodule VoyagerWeb.CoreComponents do
       export default {
         mounted() {
           const key = `voyager:refresh-interval:${this.el.dataset.settingsKey}`
-          const defaultValue = this.el.value
+          const checked = this.el.querySelector('input[type="radio"]:checked')
+          const defaultValue = checked ? checked.value : ""
           try {
             const stored = localStorage.getItem(key)
-            if (stored && stored !== defaultValue && this.el.querySelector(`option[value="${stored}"]`)) {
-              this.el.value = stored
-              this.el.dispatchEvent(new Event("change", {bubbles: true}))
+            const storedInput =
+              stored && this.el.querySelector(`input[type="radio"][value="${stored}"]`)
+            if (storedInput && stored !== defaultValue) {
+              storedInput.checked = true
+              storedInput.dispatchEvent(new Event("change", {bubbles: true}))
             }
-            this.el.addEventListener("change", () => {
-              if (this.el.value === defaultValue) localStorage.removeItem(key)
-              else localStorage.setItem(key, this.el.value)
+            this.el.addEventListener("change", (event) => {
+              if (event.target.value === defaultValue) localStorage.removeItem(key)
+              else localStorage.setItem(key, event.target.value)
             })
           } catch (error) {
             console.warn(`Error while restoring ${key}: ${error}`)
