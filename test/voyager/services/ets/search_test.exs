@@ -117,7 +117,7 @@ defmodule Voyager.Services.Ets.SearchTest do
       expect(Voyager.ErpcMock, :call, fn @node,
                                          :voyager_agent,
                                          :ets_lookup,
-                                         [:t, :the_key, @budget],
+                                         [:t, :the_key, 10, @budget, :undefined],
                                          @timeout ->
         ok_chunk([{1, :the_key}])
       end)
@@ -129,6 +129,23 @@ defmodule Voyager.Services.Ets.SearchTest do
       refute Map.has_key?(chunk, :via)
       assert chunk.continuation == nil
       refute chunk.truncated?
+
+      cont = make_ref()
+
+      expect(Voyager.ErpcMock, :call, fn @node,
+                                         :voyager_agent,
+                                         :ets_lookup,
+                                         [:t, :k, 10, @budget, ^cont],
+                                         @timeout ->
+        ok_chunk([], :undefined)
+      end)
+
+      assert {:ok, resumed} =
+               Search.chunk(@node, :t, {:key_eq, :k}, 1, 10, @budget, cont, @timeout)
+
+      assert resumed.records == []
+      assert resumed.continuation == nil
+      refute resumed.truncated?
     end
 
     test "key_prefix compiles using the given keypos" do

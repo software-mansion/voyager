@@ -7,7 +7,7 @@
 -export([proc_top/5]).
 -export([proc_links/2, proc_monitors/2, proc_monitored_by/2]).
 -export([proc_dictionary/3, proc_messages/3, proc_label/2, proc_state/3]).
--export([ets_select_chunk/4, ets_lookup/3, ets_select_spec/5]).
+-export([ets_select_chunk/4, ets_lookup/5, ets_select_spec/5]).
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
@@ -501,6 +501,11 @@ with_bounded_heap(Fun) ->
 %% No fixtable — paging is best-effort.
 
 -define(MATCH_ALL, [{'$1', [], ['$1']}]).
+%% Resumes a key's rows by offset, so the rest of the key is never shipped as a continuation.
+-define(SKIP_CONT, '$voyager_skip').
+%% A bag key estimated above this many words is refused instead of copied onto the heap.
+-define(LOOKUP_MAX_WORDS, 1_000_000).
+-define(KEYED_MAX_ARITY, 255).
 
 -type ets_chunk() ::
     #{records := [term()],
@@ -528,11 +533,66 @@ ets_select_spec(Table, Spec, Limit, Budget, Cont)
 ets_select_spec(_Table, _Spec, _Limit, _Budget, _Cont) ->
     erlang:error(badarg).
 
--spec ets_lookup(ets:tab(), term(), non_neg_integer()) -> {ok, ets_chunk()}.
-ets_lookup(Table, Key, Budget) when is_integer(Budget), Budget >= 0 ->
-    with_bounded_heap(fun() -> wrap_records(ets:lookup(Table, Key), undefined, Budget) end);
-ets_lookup(_Table, _Key, _Budget) ->
+-spec ets_lookup(ets:tab(), term(), pos_integer(), non_neg_integer(), term()) ->
+                    {ok, ets_chunk()} | {error, key_too_large}.
+ets_lookup(Table, Key, Limit, Budget, Cont)
+    when is_integer(Budget), Budget >= 0, is_integer(Limit), Limit > 0 ->
+    with_bounded_heap(fun() -> do_lookup(Table, Key, Limit, Budget, Cont) end);
+ets_lookup(_Table, _Key, _Limit, _Budget, _Cont) ->
     erlang:error(badarg).
+
+%% A bound-key ets:select/3 copies every row of the key into its continuation, so lookup costs no more.
+do_lookup(Table, Key, Limit, Budget, undefined) ->
+    do_lookup(Table, Key, Limit, Budget, {?SKIP_CONT, 0});
+do_lookup(Table, Key, Limit, Budget, {?SKIP_CONT, Skip}) when is_integer(Skip), Skip >= 0 ->
+    case oversized_key(Table, Key) of
+        true ->
+            {error, key_too_large};
+        false ->
+            Rows = ets:lookup(Table, Key),
+            Page = lists:sublist(lists:nthtail(min(Skip, length(Rows)), Rows), Limit),
+            Taken = Skip + length(Page),
+            wrap_records(Page, skip_token(Taken, length(Rows) > Taken), Budget)
+    end.
+
+%% ets:lookup/2 copies a whole key without yielding; ets:select_count/2 yields and copies nothing.
+oversized_key(Table, Key) ->
+    Words = ets:info(Table, memory),
+    lists:member(ets:info(Table, type), [bag, duplicate_bag]) andalso Words > ?LOOKUP_MAX_WORDS
+        andalso key_rows(Table, Key) * Words div max(ets:info(Table, size), 1) > ?LOOKUP_MAX_WORDS.
+
+%% A key-bound head hashes the count to one bucket; a pattern-like key needs one guard clause to stay literal.
+key_rows(Table, Key) ->
+    Keypos = ets:info(Table, keypos),
+    Spec =
+        case ms_pattern_key(Key) of
+            true ->
+                [{'$1', [{'=:=', {element, Keypos, '$1'}, {const, Key}}], [true]}];
+            false ->
+                [{setelement(Keypos, erlang:make_tuple(N, '_'), Key), [], [true]}
+                 || N <- lists:seq(Keypos, ?KEYED_MAX_ARITY)]
+        end,
+    ets:select_count(Table, Spec).
+
+%% Only '_' and '$<digits>' are variables in a match head, and a map matches any superset.
+ms_pattern_key(Key) when is_map(Key); Key =:= '_' ->
+    true;
+ms_pattern_key(Key) when is_tuple(Key) ->
+    ms_pattern_key(tuple_to_list(Key));
+ms_pattern_key([Head | Tail]) ->
+    ms_pattern_key(Head) orelse ms_pattern_key(Tail);
+ms_pattern_key(Key) when is_atom(Key) ->
+    case atom_to_list(Key) of
+        [$$ | [_ | _] = Digits] -> lists:all(fun(C) -> C >= $0 andalso C =< $9 end, Digits);
+        _ -> false
+    end;
+ms_pattern_key(_) ->
+    false.
+
+skip_token(_Taken, false) ->
+    undefined;
+skip_token(Taken, true) ->
+    {?SKIP_CONT, Taken}.
 
 do_select(Table, Spec, Limit, Budget, undefined) ->
     wrap_select(ets:select(Table, Spec, Limit), Budget);
