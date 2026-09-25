@@ -29,6 +29,10 @@ body {
   opacity: 0.3;
 }
 
+input::-webkit-caps-lock-indicator {
+  content: none;
+}
+
 [data-phx-session],
 [data-phx-teleported-src] {
   display: contents;
