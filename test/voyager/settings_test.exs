@@ -53,19 +53,19 @@ defmodule Voyager.SettingsTest do
     end
 
     test "is true when the key is set in application config" do
-      Application.put_env(:voyager, :mcp_ip, {127, 0, 0, 1})
-      on_exit(fn -> Application.delete_env(:voyager, :mcp_ip) end)
+      Application.put_env(:voyager, :mcp_enabled, true)
+      on_exit(fn -> Application.delete_env(:voyager, :mcp_enabled) end)
 
-      assert Settings.locked?(:mcp_ip)
+      assert Settings.locked?(:mcp_enabled)
     end
   end
 
   describe "all/0" do
     test "returns all persisted settings decoded" do
       assert {:ok, _} = Settings.put(:mcp_port, 5050)
-      assert {:ok, _} = Settings.put(:mcp_ip, {127, 0, 0, 1})
+      assert {:ok, _} = Settings.put(:mcp_enabled, false)
 
-      assert %{"mcp_port" => 5050, "mcp_ip" => {127, 0, 0, 1}} = Settings.all()
+      assert %{"mcp_port" => 5050, "mcp_enabled" => false} = Settings.all()
     end
   end
 end

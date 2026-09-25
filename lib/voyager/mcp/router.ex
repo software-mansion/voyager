@@ -8,9 +8,9 @@ defmodule Voyager.MCP.Router do
 
   use Plug.Router
 
-  @loopback_hosts ~w(localhost 127.0.0.1 ::1)
+  @loopback_hosts ~w(localhost 127.0.0.1 ::1 [::1])
 
-  plug :reject_cross_origin
+  plug :require_loopback_host
 
   plug Plug.Parsers,
     parsers: [:json],
@@ -20,27 +20,26 @@ defmodule Voyager.MCP.Router do
   plug :match
   plug :dispatch
 
-  # Anubis passes `:subscriber_metadata` to the `forward` without using MFA format which results in errors.
   forward "/mcp",
     to: Anubis.Server.Transport.StreamableHTTP.Plug,
-    init_opts: [
-      server: Voyager.MCP.Server,
-      subscriber_metadata: &__MODULE__.subscriber_metadata/1
-    ]
+    init_opts: [server: Voyager.MCP.Server]
 
   match _ do
     send_resp(conn, 404, "Not found")
   end
 
-  defp reject_cross_origin(conn, _opts) do
-    case Plug.Conn.get_req_header(conn, "origin") do
-      [] -> conn
-      [origin | _] -> if loopback_origin?(origin), do: conn, else: forbid(conn)
-    end
+  defp require_loopback_host(conn, _opts) do
+    if loopback_host?(conn.host) and origin_allowed?(conn), do: conn, else: forbid(conn)
   end
 
-  defp loopback_origin?(origin) do
-    URI.parse(origin).host in @loopback_hosts
+  defp loopback_host?(host) when is_binary(host), do: String.downcase(host) in @loopback_hosts
+  defp loopback_host?(_), do: false
+
+  defp origin_allowed?(conn) do
+    case Plug.Conn.get_req_header(conn, "origin") do
+      [] -> true
+      [origin | _] -> loopback_host?(URI.parse(origin).host)
+    end
   end
 
   defp forbid(conn) do
@@ -48,7 +47,4 @@ defmodule Voyager.MCP.Router do
     |> send_resp(403, "Forbidden")
     |> halt()
   end
-
-  @doc false
-  def subscriber_metadata(_conn), do: %{}
 end
