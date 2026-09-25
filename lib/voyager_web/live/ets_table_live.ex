@@ -294,6 +294,7 @@ defmodule VoyagerWeb.EtsTableLive do
       socket
       |> assign(:sidebar, %{key: key})
       |> assign(:lookup, AsyncResult.loading())
+      |> assign(:lookup_page, 0)
       |> assign(:lookup_conts, [nil])
       |> start_lookup(0)
     else
@@ -330,6 +331,7 @@ defmodule VoyagerWeb.EtsTableLive do
       socket
       |> assign(:lookup_controls, controls)
       |> assign(:lookup_form, to_form(changeset, as: :lookup))
+      |> assign(:lookup_page, 0)
       |> assign(:lookup_conts, [nil])
       |> store_settings()
 
