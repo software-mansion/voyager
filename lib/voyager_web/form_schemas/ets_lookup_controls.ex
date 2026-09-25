@@ -2,8 +2,7 @@ defmodule VoyagerWeb.FormSchemas.EtsLookupControls do
   @moduledoc """
   Controls form for the ETS key lookup sidebar: how many records one page holds,
   the term budget a lookup may spend and how long to wait for it. The budget has
-  no upper bound — the worker's
-  heap cap on the target is the real limit.
+  no upper bound — the worker's heap cap on the target is the real limit.
   """
 
   use Ecto.Schema
