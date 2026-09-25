@@ -230,24 +230,55 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
     ConnectionParams.changeset() |> to_form(as: :conn)
   end
 
-  defp connect_error(:connection_failed),
+  @doc false
+  def connect_error(:connection_failed),
     do: "Node unreachable - check the name is correct and the node is running"
 
-  defp connect_error(:bad_cookie),
+  def connect_error(:epmd_timeout),
+    do: "Node unreachable - the host didn't respond in time, check your network connection"
+
+  def connect_error({:epmd_error, :nxdomain}),
+    do: "Host not found - check the node's hostname"
+
+  def connect_error({:epmd_error, :address}),
+    do: "Could not reach epmd on the host - check the hostname and that epmd is running"
+
+  def connect_error({:epmd_error, reason}) when reason in [:etimedout, :timeout],
+    do: "Connection timed out - check the node's hostname and your network"
+
+  def connect_error({:epmd_error, _reason}), do: "Could not reach host"
+
+  def connect_error(:node_not_registered),
+    do: "Node not found - check the node name is correct and the node is running"
+
+  def connect_error({:node_unreachable, :econnrefused}),
+    do: "Connection refused - check the node is running"
+
+  def connect_error({:node_unreachable, reason})
+      when reason in [:ehostunreach, :enetunreach, :enetdown, :ehostdown],
+      do: "Host unreachable - check the node's hostname and your network"
+
+  def connect_error({:node_unreachable, reason}) when reason in [:etimedout, :timeout],
+    do: "Connection timed out - check the node's hostname and your network"
+
+  def connect_error({:node_unreachable, _reason}),
+    do: "Node port unreachable - check the node is running"
+
+  def connect_error(:bad_cookie),
     do: "Authentication failed - the Erlang cookie does not match"
 
-  defp connect_error(:name_type_mismatch),
+  def connect_error(:name_type_mismatch),
     do: "Name type mismatch - try switching between --sname and --name"
 
-  defp connect_error(:not_distributed), do: "Failed to start Erlang distribution"
-  defp connect_error({:net_kernel, _}), do: "Failed to start Erlang distribution"
-  defp connect_error({:net_kernel_stop, _}), do: "Failed to restart Erlang distribution"
+  def connect_error(:not_distributed), do: "Failed to start Erlang distribution"
+  def connect_error({:net_kernel, _}), do: "Failed to start Erlang distribution"
+  def connect_error({:net_kernel_stop, _}), do: "Failed to restart Erlang distribution"
 
-  defp connect_error({:agent_install_failed, {:otp_too_old, release}}),
+  def connect_error({:agent_install_failed, {:otp_too_old, release}}),
     do: "Node runs OTP #{release} - Voyager requires OTP #{Voyager.Agent.min_otp()} or newer"
 
-  defp connect_error({:agent_install_failed, _}),
+  def connect_error({:agent_install_failed, _}),
     do: "Could not load the Voyager agent on the node"
 
-  defp connect_error(_), do: "Could not connect to node"
+  def connect_error(_), do: "Could not connect to node"
 end

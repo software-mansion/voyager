@@ -128,7 +128,11 @@ defmodule VoyagerWeb.ConnectLive do
     |> noreply()
   end
 
-  def handle_info({event, _node}, socket) when event in [:node_disconnected, :nodedown] do
+  def handle_info({:node_disconnected, _node}, socket) do
+    {:noreply, assign(socket, :connected_session, nil)}
+  end
+
+  def handle_info({:nodedown, _node, _reason}, socket) do
     {:noreply, assign(socket, :connected_session, nil)}
   end
 

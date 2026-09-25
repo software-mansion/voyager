@@ -12,12 +12,13 @@ defmodule Voyager.Telemetry.Parser do
   @safe_reasons ~w(
     not_distributed
     connection_failed
-    node_unreachable
     name_type_mismatch
     bad_cookie
     node_connect_failed
     invalid_name_type
     invalid_epmd_response
+    epmd_timeout
+    node_not_registered
   )a
 
   # Tagged reasons whose category is useful but whose payload may embed a host,
@@ -32,6 +33,8 @@ defmodule Voyager.Telemetry.Parser do
     already_started
     connector_crashed
     agent_install_failed
+    node_unreachable
+    epmd_error
   )a
 
   # Option keys are a bounded, non-sensitive set — safe to keep alongside the tag.

@@ -377,10 +377,27 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       render_async(view)
       assert has_element?(view, "#node-info-content")
 
-      broadcast(Voyager.NodeSession.topic(), {:nodedown, session.node})
+      broadcast(Voyager.NodeSession.topic(), {:nodedown, session.node, nil})
 
       {"/", flash} = assert_redirect(view)
       assert flash["error"] == "Node down: demo@localhost"
+    end
+
+    test "getting node down with a timeout reason explains the network failure", %{
+      conn: conn,
+      node_session: session
+    } do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      broadcast(Voyager.NodeSession.topic(), {:nodedown, session.node, :net_tick_timeout})
+
+      {"/", flash} = assert_redirect(view)
+
+      assert flash["error"] ==
+               "Node down: demo@localhost — connection timed out, check your network"
     end
 
     test "redirects to SSH connect mode after an SSH session drops", %{conn: conn} do
@@ -392,7 +409,7 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      broadcast(Voyager.NodeSession.topic(), {:nodedown, session.node})
+      broadcast(Voyager.NodeSession.topic(), {:nodedown, session.node, nil})
 
       {"/?mode=ssh", flash} = assert_redirect(view)
       assert flash["error"] == "Node down: demo@localhost"
