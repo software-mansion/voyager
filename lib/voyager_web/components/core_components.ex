@@ -219,31 +219,49 @@ defmodule VoyagerWeb.CoreComponents do
       export default {
         mounted() {
           this.onKeyDown = (event) => {
-            if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
-
             const radios = [...this.el.querySelectorAll('input[type="radio"]')]
             if (radios.length === 0) return
+
+            if (event.key === "Enter") {
+              this.confirm(event, radios)
+              return
+            }
+
+            if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
 
             // A radio arrow fires a click, and phx-click on the menu would close it.
             event.preventDefault()
             this.el.open = true
 
-            const current = Math.max(0, radios.findIndex((radio) => radio.checked))
+            const active = radios.indexOf(document.activeElement)
+            const current =
+              active === -1
+                ? Math.max(0, radios.findIndex((radio) => radio.checked))
+                : active
             const next =
               event.key === "ArrowDown"
                 ? Math.min(current + 1, radios.length - 1)
                 : Math.max(current - 1, 0)
-            const radio = radios[next]
 
-            radio.focus({preventScroll: true})
-            if (radio.checked) return
+            radios[next].focus({preventScroll: true, focusVisible: true})
+          }
 
+          this.el.addEventListener("keydown", this.onKeyDown)
+        },
+
+        confirm(event, radios) {
+          const radio = document.activeElement
+          if (!(radio instanceof HTMLInputElement) || !radios.includes(radio)) return
+
+          event.preventDefault()
+          if (!radio.checked) {
             radio.checked = true
             radio.dispatchEvent(new Event("input", {bubbles: true}))
             radio.dispatchEvent(new Event("change", {bubbles: true}))
           }
 
-          this.el.addEventListener("keydown", this.onKeyDown)
+          this.el.querySelector("summary")?.focus({preventScroll: true})
+          this.el.open = false
         },
 
         destroyed() {
