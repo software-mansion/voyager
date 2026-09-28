@@ -100,7 +100,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       assert has_element?(view, "#details-panel-pid", pid_key(sup_pid))
     end
 
-    test "formats a pid-shaped name in the details panel label as local" do
+    test "displays a pid-shaped name as local but copies it in distribution form" do
       previous = VoyagerWeb.Formatters.pid_format()
       VoyagerWeb.Formatters.put_pid_format(:local)
       on_exit(fn -> VoyagerWeb.Formatters.put_pid_format(previous) end)
@@ -120,9 +120,10 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
 
       document = LazyHTML.from_fragment(html)
       name = document |> LazyHTML.query("#details-panel-name") |> LazyHTML.text()
+      copy = document |> LazyHTML.query("#details-panel-name-copy-text") |> LazyHTML.text()
 
       assert name =~ "<0.45.0>"
-      refute LazyHTML.text(document) =~ "<123.45.0>"
+      assert copy =~ "<123.45.0>"
     end
 
     test "shows the non-process message for a port", %{

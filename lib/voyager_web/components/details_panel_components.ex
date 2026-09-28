@@ -62,7 +62,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   def node_label(assigns) do
     assigns =
       assigns
-      |> assign(:display_name, node_display_name(assigns.node))
+      |> assign(:name, node_name(assigns.node))
       |> assign(:pid_string, node_pid_string(assigns.node))
 
     ~H"""
@@ -70,14 +70,14 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       <.copyable
         id={"#{@panel_id}-name"}
         class="font-mono text-base-content break-all text-sm font-medium"
-        text={@display_name}
+        text={Formatters.pid(@name)}
         label="Copy Node name"
       />
       <.copyable
         :if={@pid_string}
         id={"#{@panel_id}-pid"}
         class="font-mono text-base-content/70 text-xs"
-        text={@pid_string}
+        text={Formatters.pid(@pid_string)}
         label="Copy Node PID"
       />
     </div>
@@ -394,31 +394,13 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         ]}
         title={@value}
       >
-        <.pid_chip :if={@href} href={@href} label={@value} />
+        <.pid_link :if={@href} href={@href} pid={@value} />
         <%= if is_nil(@href) do %>
           {@value}
         <% end %>
         {render_slot(@inner_block)}
       </div>
     </div>
-    """
-  end
-
-  @doc """
-  A bordered chip linking to a process, styled like the relation chips.
-  """
-  attr :href, :string, required: true
-  attr :label, :string, required: true
-
-  def pid_chip(assigns) do
-    ~H"""
-    <.link
-      href={@href}
-      class="border-base-content/70 bg-base-200 text-base-content font-mono inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors hover:border-primary hover:text-primary"
-    >
-      <span class="bg-primary h-1.5 w-1.5 rounded-full" />
-      {@label}
-    </.link>
     """
   end
 
@@ -429,10 +411,9 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     <button
       type="button"
       disabled
-      class="border-base-content/70 bg-base-200 text-base-content font-mono inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs"
+      class="border-base-content/70 bg-base-200 text-base-content inline-flex rounded-md border px-2.5 py-1 text-xs"
     >
-      <span class="bg-primary h-1.5 w-1.5 rounded-full" />
-      {@label}
+      <.display_pid pid={@label} />
     </button>
     """
   end
@@ -560,6 +541,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   """
   attr :id, :string, required: true
   attr :text, :string, required: true
+  attr :copy_text, :string, default: nil, doc: "copied instead of `text` when set"
   attr :label, :string, required: true
   attr :class, :any, default: nil
 
@@ -569,7 +551,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       <p id={@id} class={["min-w-0 truncate", @class]}>
         {@text}
       </p>
-      <div id={"#{@id}-copy-text"} class="hidden">{@text}</div>
+      <div id={"#{@id}-copy-text"} class="hidden">{@copy_text || @text}</div>
       <.copy_button
         id={"#{@id}-copy"}
         target={"##{@id}-copy-text"}
@@ -616,25 +598,28 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp format_count(n) when is_integer(n), do: Formatters.format_integer(n)
 
   defp format_identifier(pid) when is_pid(pid), do: Formatters.pid(pid)
+  defp format_identifier(other), do: identifier_string(other)
 
-  defp format_identifier(port) when is_port(port),
+  defp identifier_string(pid) when is_pid(pid), do: Formatters.format_pid(pid)
+
+  defp identifier_string(port) when is_port(port),
     do: port |> :erlang.port_to_list() |> List.to_string()
 
-  defp format_identifier(other), do: inspect(other)
+  defp identifier_string(other), do: inspect(other)
 
-  defp node_display_name(%TreeNode{name: name}) when is_atom(name), do: Atom.to_string(name)
-  defp node_display_name(%TreeNode{name: name}) when is_pid(name), do: Formatters.pid(name)
-  defp node_display_name(%TreeNode{name: name}) when is_binary(name), do: Formatters.pid(name)
-  defp node_display_name(%TreeNode{key: key}), do: Formatters.pid(key)
+  defp node_name(%TreeNode{name: name}) when is_atom(name), do: Atom.to_string(name)
+  defp node_name(%TreeNode{name: name}) when is_pid(name), do: Formatters.format_pid(name)
+  defp node_name(%TreeNode{name: name}) when is_binary(name), do: name
+  defp node_name(%TreeNode{key: key}), do: key
 
-  defp node_pid_string(%TreeNode{pid: pid}) when is_pid(pid), do: Formatters.pid(pid)
+  defp node_pid_string(%TreeNode{pid: pid}) when is_pid(pid), do: Formatters.format_pid(pid)
   defp node_pid_string(_), do: nil
 
   # Formats only the rendered slice: every chip lands in the LiveView diff.
   defp format_links(links, limit) do
     links
     |> Enum.take(limit)
-    |> Enum.map(&format_identifier/1)
+    |> Enum.map(&identifier_string/1)
   end
 
   defp links_count(%AsyncResult{ok?: true, result: %{total: total}}),

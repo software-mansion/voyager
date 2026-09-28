@@ -14,7 +14,6 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   import VoyagerWeb.Helpers, only: [keep_sidebar: 2]
 
   alias Phoenix.LiveView.AsyncResult
-  alias VoyagerWeb.Components.DetailsPanelComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.ProcessInfoControls
 
@@ -367,10 +366,10 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
       <p :if={@items == []} class="font-mono text-base-content/70 text-xs">None</p>
       <div :if={@items != []} class="flex flex-wrap gap-1.5">
         <%= for item <- Enum.map(@items, &identifier_entry(&1, @remote_node)) do %>
-          <DetailsPanelComponents.pid_chip
+          <.pid_link
             :if={item.pid?}
             href={keep_sidebar(~p"/node/#{@node_name}/processes/#{item.pid_string}", @current_url)}
-            label={item.text}
+            pid={item.pid_string}
           />
           <span
             :if={not item.pid?}
@@ -428,7 +427,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
 
   defp identifier_entry(pid, remote_node) when is_pid(pid) do
     if node(pid) == remote_node do
-      %{pid?: true, pid_string: Formatters.format_pid(pid), text: Formatters.pid(pid)}
+      %{pid?: true, pid_string: Formatters.format_pid(pid)}
     else
       %{pid?: false, text: "#{Formatters.pid(pid)} on #{node(pid)}"}
     end

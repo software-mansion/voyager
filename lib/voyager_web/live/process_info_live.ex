@@ -67,10 +67,9 @@ defmodule VoyagerWeb.ProcessInfoLive do
             <.tooltip id="process-info-pid-tip" position="bottom" interactive tip_class="font-mono">
               <h2
                 id="process-info-pid"
-                class="text-base-content font-mono flex items-center gap-2 text-2xl font-bold tracking-tight"
+                class="text-base-content text-2xl font-bold tracking-tight"
               >
-                <span class="bg-primary h-2 w-2 rounded-full" />
-                {Formatters.pid(@pid_string)}
+                <.display_pid pid={@pid_string} class="gap-2" />
               </h2>
               <:content>
                 <div class="flex items-center gap-1">

@@ -259,7 +259,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   attr :href, :string, required: true
 
   def pid_cell(assigns) do
-    assigns = assign(assigns, :pid_string, Formatters.pid(assigns.pid))
+    assigns = assign(assigns, :pid_string, Formatters.format_pid(assigns.pid))
 
     ~H"""
     <.tooltip
@@ -276,11 +276,11 @@ defmodule VoyagerWeb.Components.ProcessComponents do
         href={@href}
         class="font-mono text-primary block truncate text-sm hover:underline focus-visible:underline"
       >
-        {@pid_string}
+        {Formatters.pid(@pid_string)}
       </.link>
       <:content>
         <div class="flex items-center gap-1">
-          <span id={"#{@row_id}-pid-copy-text"}>{@pid_string}</span>
+          <span id={"#{@row_id}-pid-copy-text"}>{Formatters.pid(@pid_string)}</span>
           <.copy_button
             id={"#{@row_id}-pid-copy"}
             target={"##{@row_id}-pid-copy-text"}

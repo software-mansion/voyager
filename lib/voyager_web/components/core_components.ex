@@ -391,6 +391,34 @@ defmodule VoyagerWeb.CoreComponents do
   defp interval_value(nil), do: "off"
   defp interval_value(ms), do: Integer.to_string(ms)
 
+  @doc "A PID in the configured display format, marked with a primary dot."
+  attr :pid, :any, required: true, doc: "a pid or its string form"
+  attr :class, :any, default: nil
+
+  def display_pid(assigns) do
+    ~H"""
+    <span class={["font-mono inline-flex items-center gap-1.5", @class]}>
+      <span class="bg-primary h-1.5 w-1.5 shrink-0 rounded-full" />
+      {Formatters.pid(@pid)}
+    </span>
+    """
+  end
+
+  @doc "A bordered chip linking to a process."
+  attr :pid, :any, required: true, doc: "a pid or its string form"
+  attr :href, :string, required: true
+
+  def pid_link(assigns) do
+    ~H"""
+    <.link
+      href={@href}
+      class="border-base-content/70 bg-base-200 text-base-content inline-flex rounded-md border px-2.5 py-1 text-xs transition-colors hover:border-primary hover:text-primary"
+    >
+      <.display_pid pid={@pid} />
+    </.link>
+    """
+  end
+
   @doc """
   Renders a button that copies text from another element.
 

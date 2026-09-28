@@ -111,7 +111,7 @@ export const overlayMethods = {
     const collapsed = this.isCollapsed(node);
     const name = formatName(node.data('name'));
     dom.innerHTML = toggleIcon(collapsed);
-    dom.dataset.name = name;
+    dom.dataset.name = node.data('name');
     dom.dataset.collapsed = String(collapsed);
     dom.setAttribute(
       'aria-label',

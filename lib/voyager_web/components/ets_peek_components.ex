@@ -90,10 +90,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       <.info_item label="Records">{Formatters.format_integer(@info.size)}</.info_item>
       <.info_item label="Memory">{Formatters.format_bytes(@info.memory)}</.info_item>
       <.info_item id="ets-info-owner" label="Owner">
-        <DetailsPanelComponents.pid_chip
-          href={@owner_href}
-          label={Formatters.pid(@info.owner)}
-        />
+        <.pid_link href={@owner_href} pid={@info.owner} />
       </.info_item>
       <.info_item label="Heir">
         {if @info.heir == :none, do: "none", else: inspect(@info.heir)}
