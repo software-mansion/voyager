@@ -135,20 +135,22 @@ defmodule VoyagerWeb.Formatters do
   defdelegate format_pid(pid), to: Voyager.Pid, as: :display
 
   @doc """
-  The PID display format from settings, cached in `:persistent_term` after the
-  first read. Unknown values fall back to `:distribution`.
+  The PID display format cached by `load_pid_format/0` or `put_pid_format/1`;
+  `:distribution` until either runs.
   """
   @spec pid_format() :: :distribution | :local
-  def pid_format do
-    case :persistent_term.get(@pid_format_key, nil) do
-      nil ->
-        format = normalize_pid_format(Settings.get(:pid_format, :distribution))
-        put_pid_format(format)
-        format
+  def pid_format, do: :persistent_term.get(@pid_format_key, :distribution)
 
-      format ->
-        format
-    end
+  @doc """
+  Reads the PID format setting into the cache. Unknown values fall back to
+  `:distribution`.
+  """
+  @spec load_pid_format() :: :ok
+  def load_pid_format do
+    :pid_format
+    |> Settings.get(:distribution)
+    |> normalize_pid_format()
+    |> put_pid_format()
   end
 
   @doc """

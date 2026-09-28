@@ -29,7 +29,11 @@ defmodule Voyager.Application do
     ]
 
     opts = [strategy: :one_for_one, name: Voyager.Supervisor]
-    Supervisor.start_link(children, opts)
+
+    with {:ok, pid} <- Supervisor.start_link(children, opts) do
+      VoyagerWeb.Formatters.load_pid_format()
+      {:ok, pid}
+    end
   end
 
   @impl true
