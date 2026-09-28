@@ -26,6 +26,10 @@
 
 export const PID_FORMAT_STORAGE_KEY = 'voyager:pid-format';
 
+/**
+ * Fetches pid format from local storage
+ * @returns {'local' | 'distribution'}
+ */
 export function storedPidFormat() {
   return localStorage.getItem(PID_FORMAT_STORAGE_KEY) === 'local'
     ? 'local'
@@ -123,8 +127,7 @@ export function composeLabel(d) {
 
 export function formatName(name) {
   if (name === null || name === undefined) return '';
-  if (Array.isArray(name))
-    return name.map((part) => formatName(part)).join(':');
+  if (Array.isArray(name)) return name.map(formatName).join(':');
   if (typeof name === 'string') {
     return isRealPid(name) ? formatPid(name) : name;
   }
@@ -146,7 +149,8 @@ export function edgeId(parentKey, childKey) {
 }
 
 export function isRealPid(key) {
-  return /^<\d+\.\d+\.\d+>$/.test(key);
+  const re = /^<\d+\.\d+\.\d+>$/;
+  return re.test(key);
 }
 
 /**

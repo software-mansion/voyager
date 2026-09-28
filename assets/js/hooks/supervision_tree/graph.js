@@ -6,8 +6,6 @@ import {
   isRealPid,
   initialIsCollapsedState,
   edgeElement,
-  storedPidFormat,
-  PID_FORMAT_STORAGE_KEY,
 } from './elements';
 import { buildStyle, getColor } from './styles';
 
@@ -34,8 +32,6 @@ export const graphMethods = {
     const metaEnv = document.querySelector('meta[name="env"]');
 
     this.animate = metaEnv?.content !== 'e2e';
-    /** @type {'distribution' | 'local'} */
-    this.pidFormat = storedPidFormat();
   },
 
   cleanupGraph() {
@@ -220,16 +216,6 @@ export const graphMethods = {
     } else if (topologyChangeCounter > 0) {
       this.scheduleLayout();
     }
-  },
-
-  /**
-   * @param {'distribution' | 'local' } format
-   * @returns {boolean} whether the stored format changed
-   */
-  setPidFormat(format) {
-    if (format === this.pidFormat) return false;
-    this.pidFormat = format;
-    return true;
   },
 
   // ---------------------------------------------------------------------------
