@@ -101,15 +101,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
     end
 
     test "formats a pid-shaped name in the details panel label as local" do
-      previous = :persistent_term.get(:pid_format, :"$unset")
+      previous = VoyagerWeb.Formatters.pid_format()
       VoyagerWeb.Formatters.put_pid_format(:local)
-
-      on_exit(fn ->
-        case previous do
-          :"$unset" -> :persistent_term.erase(:pid_format)
-          value -> :persistent_term.put(:pid_format, value)
-        end
-      end)
+      on_exit(fn -> VoyagerWeb.Formatters.put_pid_format(previous) end)
 
       node = %TreeNode{
         key: "<123.45.0>",

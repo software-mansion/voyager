@@ -9,8 +9,8 @@ defmodule VoyagerWeb.Formatters do
 
   alias Voyager.Settings
 
-  @pid_format_key :pid_format
-  @default_pid_format :distribution
+  @pid_format_key {__MODULE__, :pid_format}
+  @pid_formats [:distribution, :local]
 
   @kib 1_024
   @mib 1_048_576
@@ -135,43 +135,14 @@ defmodule VoyagerWeb.Formatters do
   defdelegate format_pid(pid), to: Voyager.Pid, as: :display
 
   @doc """
-  Stores the PID display format in `:persistent_term` for `pid/2`.
+  The PID display format from settings, cached in `:persistent_term` after the
+  first read. Unknown values fall back to `:distribution`.
   """
-  @spec put_pid_format(:distribution | :local) :: :ok
-  def put_pid_format(format) when format in [:distribution, :local] do
-    :persistent_term.put(@pid_format_key, format)
-  end
-
-  @doc """
-  Formats a PID for display.
-
-  The second argument is an explicit format atom. Omitting it reads the format
-  from `:persistent_term`.
-
-      iex> pid = self()
-      iex> VoyagerWeb.Formatters.pid(pid) ==
-      ...>   pid |> :erlang.pid_to_list() |> List.to_string()
-      true
-      iex> VoyagerWeb.Formatters.pid("<123.23.423>", :local)
-      "<0.23.423>"
-  """
-  @spec pid(
-          pid() | String.t(),
-          :distribution | :local
-        ) :: String.t()
-  def pid(pid, format \\ get_pid_format())
-
-  def pid(pid, format) when format in [:distribution, :local] do
-    pid
-    |> pid_to_string()
-    |> maybe_localize_pid(format)
-  end
-
-  defp get_pid_format do
+  @spec pid_format() :: :distribution | :local
+  def pid_format do
     case :persistent_term.get(@pid_format_key, nil) do
       nil ->
-        format = Settings.get(:pid_format, @default_pid_format)
-        # Cached so list renders don't hit the settings DB once per pid.
+        format = normalize_pid_format(Settings.get(:pid_format, :distribution))
         put_pid_format(format)
         format
 
@@ -179,6 +150,37 @@ defmodule VoyagerWeb.Formatters do
         format
     end
   end
+
+  @doc """
+  Stores the PID display format read by `pid_format/0` and `pid/1`.
+  """
+  @spec put_pid_format(:distribution | :local) :: :ok
+  def put_pid_format(format) when format in @pid_formats do
+    :persistent_term.put(@pid_format_key, format)
+  end
+
+  @doc """
+  Formats a PID for display. Omitting the format uses `pid_format/0`; an
+  unknown format falls back to `:distribution`.
+
+      iex> VoyagerWeb.Formatters.pid("<123.23.423>", :distribution)
+      "<123.23.423>"
+      iex> VoyagerWeb.Formatters.pid("<123.23.423>", :local)
+      "<0.23.423>"
+  """
+  @spec pid(pid() | String.t(), atom()) :: String.t()
+  def pid(pid, format \\ pid_format())
+
+  def pid(pid, format) when format in @pid_formats do
+    pid
+    |> pid_to_string()
+    |> maybe_localize_pid(format)
+  end
+
+  def pid(pid, _format), do: pid(pid, :distribution)
+
+  defp normalize_pid_format(format) when format in @pid_formats, do: format
+  defp normalize_pid_format(_format), do: :distribution
 
   defp pid_to_string(pid) when is_pid(pid), do: format_pid(pid)
   defp pid_to_string(pid) when is_binary(pid), do: pid

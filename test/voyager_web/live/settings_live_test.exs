@@ -259,7 +259,8 @@ defmodule VoyagerWeb.SettingsLiveTest do
 
   describe "pid format settings" do
     setup do
-      on_exit(fn -> Settings.put(:pid_format, :distribution) end)
+      previous = VoyagerWeb.Formatters.pid_format()
+      on_exit(fn -> VoyagerWeb.Formatters.put_pid_format(previous) end)
       :ok
     end
 

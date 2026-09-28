@@ -3,6 +3,8 @@ defmodule VoyagerWeb.FormattersTest do
 
   alias VoyagerWeb.Formatters
 
+  doctest VoyagerWeb.Formatters
+
   describe "byte_parts/1" do
     test "returns bytes unchanged below 1 KiB" do
       assert Formatters.byte_parts(0) == {0, "B"}
