@@ -23,6 +23,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
   alias VoyagerWeb.FormSchemas.ProcessInfoControls
   alias VoyagerWeb.Hooks.TermTreeHook
   alias VoyagerWeb.ProcessInfoLive.Query
+  alias VoyagerWeb.TermTree
 
   require Logger
 
@@ -631,7 +632,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
   defp put_term(socket, id, term) do
     socket
     |> TermTreeHook.put_term(id, term)
-    |> update(:copy_texts, &Map.put(&1, id, copy_text(term)))
+    |> update(:copy_texts, &Map.put(&1, id, TermTree.copy_string(term)))
   end
 
   defp seed_term_list(socket, prefix, items) do

@@ -541,7 +541,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   """
   attr :id, :string, required: true
   attr :text, :string, required: true
-  attr :copy_text, :string, default: nil, doc: "copied instead of `text` when set"
   attr :label, :string, required: true
   attr :class, :any, default: nil
 
@@ -551,7 +550,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       <p id={@id} class={["min-w-0 truncate", @class]}>
         {@text}
       </p>
-      <div id={"#{@id}-copy-text"} class="hidden">{@copy_text || @text}</div>
+      <div id={"#{@id}-copy-text"} class="hidden">{@text}</div>
       <.copy_button
         id={"#{@id}-copy"}
         target={"##{@id}-copy-text"}

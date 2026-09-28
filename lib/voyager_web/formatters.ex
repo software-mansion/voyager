@@ -181,6 +181,13 @@ defmodule VoyagerWeb.Formatters do
 
   def pid(pid, _format), do: pid(pid, :distribution)
 
+  @doc """
+  An `:inspect_fun` that renders every pid, however deeply nested, via `pid/1`.
+  """
+  @spec inspect_fun(term(), Inspect.Opts.t()) :: Inspect.Algebra.t()
+  def inspect_fun(pid, _opts) when is_pid(pid), do: "#PID" <> pid(pid)
+  def inspect_fun(term, opts), do: Inspect.inspect(term, opts)
+
   defp normalize_pid_format(format) when format in @pid_formats, do: format
   defp normalize_pid_format(_format), do: :distribution
 

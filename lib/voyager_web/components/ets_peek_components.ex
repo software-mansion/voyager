@@ -435,12 +435,19 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   defp truncated_record?(_other), do: false
 
+  @preview_opts [
+    limit: 20,
+    printable_limit: 128,
+    width: :infinity,
+    inspect_fun: &Formatters.inspect_fun/2
+  ]
+
   defp preview(record) do
     record
     |> strip_markers()
-    |> inspect(limit: 20, printable_limit: 128, width: :infinity)
+    |> inspect(@preview_opts)
   rescue
-    _e -> inspect(record, limit: 20, printable_limit: 128, width: :infinity)
+    _e -> inspect(record, @preview_opts)
   end
 
   defp strip_markers(@truncated), do: :...

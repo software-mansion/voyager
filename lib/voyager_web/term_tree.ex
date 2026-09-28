@@ -20,6 +20,7 @@ defmodule VoyagerWeb.TermTree do
   complete one. See `priv/voyager_agent.erl` for the truncation itself.
   """
 
+  alias VoyagerWeb.Formatters
   alias VoyagerWeb.TermTree.Node
   alias VoyagerWeb.TermTree.Segment
   alias VoyagerWeb.TermTree.State
@@ -163,21 +164,22 @@ defmodule VoyagerWeb.TermTree do
   Pids and other `#Name<...>` forms have no literal syntax, so they are
   rewritten into something that does round-trip.
   """
-  @spec copy_string(term()) :: String.t()
-  def copy_string(term) do
-    inspect(term,
-      limit: :infinity,
-      printable_limit: :infinity,
-      pretty: true,
-      structs: false,
-      inspect_fun: &copy_inspect/2
+  @spec copy_string(term(), Keyword.t()) :: String.t()
+  def copy_string(term, opts \\ []) do
+    limits = Keyword.take(opts, [:limit, :printable_limit])
+
+    inspect(
+      term,
+      [limit: :infinity, printable_limit: :infinity]
+      |> Keyword.merge(limits)
+      |> Keyword.merge(pretty: true, structs: false, inspect_fun: &copy_inspect/2)
     )
   end
 
   # Rewriting the flattened output instead would reach inside string literals
   # and break the round-trip for any binary that happens to read like a pid.
   defp copy_inspect(pid, _opts) when is_pid(pid) do
-    ":erlang.list_to_pid(~c\"" <> List.to_string(:erlang.pid_to_list(pid)) <> "\")"
+    ":erlang.list_to_pid(~c\"" <> Formatters.pid(pid) <> "\")"
   end
 
   defp copy_inspect(term, _opts)
@@ -264,6 +266,10 @@ defmodule VoyagerWeb.TermTree do
       true -> %Node{kind: :list, content: [Segment.string(inspect(list, @inspect_opts))]}
       :improper -> build_other(list)
     end
+  end
+
+  defp build(pid) when is_pid(pid) do
+    %Node{kind: :other, content: [Segment.other("#PID" <> Formatters.pid(pid))]}
   end
 
   defp build(%Regex{} = regex) do

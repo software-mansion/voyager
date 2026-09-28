@@ -272,10 +272,6 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
     """
   end
 
-  @spec copy_text(term()) :: String.t()
-  def copy_text(term),
-    do: inspect(term, limit: :infinity, printable_limit: :infinity, pretty: true)
-
   # A slow fetch is the cost the node paid, so it is flagged where it is
   # reported, matching the process list's scale.
   defp round_trip_class(ms) when ms > 3_000, do: "text-error"
