@@ -13,10 +13,10 @@
     "cytoscape": "3.34.3",
     "cytoscape-dagre": "^4.0.1",
     "dagre": "^0.8.5",
-    "daisyui": "^5.7.40"
+    "daisyui": "^5.7.46"
   },
   "devDependencies": {
-    "prettier": "^3.9.8",
+    "prettier": "^3.9.9",
     "typescript": "^7.0.2"
   }
 }
