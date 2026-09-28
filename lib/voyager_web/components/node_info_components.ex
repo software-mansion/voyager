@@ -249,12 +249,15 @@ defmodule VoyagerWeb.NodeInfoComponents do
           <h3 class="text-base-content min-h-6 flex items-center text-sm font-semibold">
             System limits
           </h3>
-          <span class="font-mono text-base-content/70 text-xs">current / max</span>
+          <span class="font-mono text-xs">
+            <span class="text-base-content">current</span>
+            <span class="text-base-content/70">/ max</span>
+          </span>
         </div>
 
-        <div class="divide-base-content/10 flex flex-1 flex-col divide-y">
+        <div class="divide-base-content/10 grid-cols-limits grid flex-1 content-start gap-x-3 divide-y">
           <%= for {label, usage, tooltip} <- limit_rows(@limits) do %>
-            <div class="font-mono grid-cols-limits grid items-center gap-3 py-3 text-xs">
+            <div class="font-mono grid-cols-subgrid col-span-4 grid items-center py-3 text-xs">
               <span class="text-base-content/80 flex items-center gap-0.5">
                 {label}
                 <.help_tooltip
@@ -264,8 +267,8 @@ defmodule VoyagerWeb.NodeInfoComponents do
                   doc_label={tooltip[:doc_label] || "Learn more"}
                 />
               </span>
-              <span class="text-base-content w-16 text-right tabular-nums">
-                {Formatters.format_integer(usage.used)}
+              <span class="text-base-content/70 text-right tabular-nums">
+                {format_usage_pct(usage)}
               </span>
               <div class="bg-base-200 h-2 overflow-hidden rounded-full">
                 <div
@@ -274,8 +277,9 @@ defmodule VoyagerWeb.NodeInfoComponents do
                 >
                 </div>
               </div>
-              <span class="text-base-content/70 w-16 tabular-nums">
-                {Formatters.format_integer(usage.limit)}
+              <span class="whitespace-nowrap text-right tabular-nums">
+                <span class="text-base-content">{Formatters.format_integer(usage.used)}</span>
+                <span class="text-base-content/70">/ {Formatters.format_integer(usage.limit)}</span>
               </span>
             </div>
           <% end %>
@@ -519,13 +523,22 @@ defmodule VoyagerWeb.NodeInfoComponents do
     ]
   end
 
-  defp meter_pct(%{used: used, limit: limit}) when limit > 0,
-    do: Float.round(max(used / limit * 100, 0.5), 1)
+  defp usage_pct(%{used: used, limit: limit}) when limit > 0,
+    do: Float.round(used / limit * 100, 1)
 
-  defp meter_pct(_), do: 0.5
+  defp usage_pct(_), do: 0.0
 
-  defp meter_color(%{used: used, limit: limit}) when limit > 0 do
-    pct = used / limit * 100
+  defp format_usage_pct(%{used: used} = usage) do
+    case usage_pct(usage) do
+      pct when pct < 0.1 and used > 0 -> "<0.1%"
+      pct -> "#{pct}%"
+    end
+  end
+
+  defp meter_pct(usage), do: max(usage_pct(usage), 0.5)
+
+  defp meter_color(usage) do
+    pct = usage_pct(usage)
 
     cond do
       pct >= 90 -> "bg-error"
@@ -533,8 +546,6 @@ defmodule VoyagerWeb.NodeInfoComponents do
       true -> "bg-primary"
     end
   end
-
-  defp meter_color(_), do: "bg-primary"
 
   defp info_row({label, value}), do: {label, value, false, nil}
 

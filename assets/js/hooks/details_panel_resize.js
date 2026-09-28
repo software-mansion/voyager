@@ -26,7 +26,10 @@ function setStoredWidth(width) {
 
 const DetailsPanelResize = {
   mounted() {
-    this.width = getStoredWidth();
+    // data-resize-persist="false" keeps the panel's width local to the page:
+    // it mounts at the default and drags never touch the shared stored width.
+    this.persist = this.el.dataset.resizePersist !== 'false';
+    this.width = this.persist ? getStoredWidth() : DEFAULT_WIDTH;
     this.apply();
 
     this.onPointerDown = (e) => this.begin(e);
@@ -73,7 +76,7 @@ const DetailsPanelResize = {
     this.onUp = () => {
       const width = Number.parseFloat(getComputedStyle(this.el).width);
       if (Number.isFinite(width) && width > 0) this.width = width;
-      setStoredWidth(this.width);
+      if (this.persist) setStoredWidth(this.width);
       this.teardown();
     };
 

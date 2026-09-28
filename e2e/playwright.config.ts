@@ -58,6 +58,19 @@ export default defineConfig({
     },
 
     {
+      name: 'ets chromium',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: '**/ets_tables.spec.ts',
+      dependencies: ['recent-connections firefox'],
+    },
+    {
+      name: 'ets firefox',
+      use: { ...devices['Desktop Firefox'] },
+      testMatch: '**/ets_tables.spec.ts',
+      dependencies: ['recent-connections firefox'],
+    },
+
+    {
       name: 'node chromium',
       use: { ...devices['Desktop Chrome'] },
       testMatch: '**/node_info.spec.ts',
@@ -67,6 +80,19 @@ export default defineConfig({
       name: 'node firefox',
       use: { ...devices['Desktop Firefox'] },
       testMatch: '**/node_info.spec.ts',
+      dependencies: ['recent-connections firefox'],
+    },
+
+    {
+      name: 'sidebar chromium',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: '**/sidebar.spec.ts',
+      dependencies: ['recent-connections firefox'],
+    },
+    {
+      name: 'sidebar firefox',
+      use: { ...devices['Desktop Firefox'] },
+      testMatch: '**/sidebar.spec.ts',
       dependencies: ['recent-connections firefox'],
     },
 

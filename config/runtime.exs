@@ -57,6 +57,6 @@ if config_env() == :prod do
 
   config :voyager, VoyagerWeb.Endpoint,
     url: [host: host, port: port, scheme: "http"],
-    http: [ip: {0, 0, 0, 0, 0, 0, 0, 0}],
+    http: [ip: {127, 0, 0, 1}],
     secret_key_base: secret_key_base
 end

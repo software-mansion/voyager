@@ -1,4 +1,4 @@
-use rand::Rng;
+use rand::RngExt;
 use rand::distr::Alphanumeric;
 use std::io::{Error, ErrorKind, Result};
 use std::net::TcpListener;

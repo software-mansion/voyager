@@ -229,15 +229,13 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      # The collapsible toggle carries the `aria-expanded` attribute only while
-      # open (HEEx drops a `false` boolean attribute entirely).
-      assert has_element?(view, "#apps[aria-expanded]")
+      assert has_element?(view, "#apps[aria-expanded='true']")
 
       view |> element("#apps") |> render_click()
-      refute has_element?(view, "#apps[aria-expanded]")
+      assert has_element?(view, "#apps[aria-expanded='false']")
 
       view |> element("#apps") |> render_click()
-      assert has_element?(view, "#apps[aria-expanded]")
+      assert has_element?(view, "#apps[aria-expanded='true']")
     end
 
     test "refresh_now with no applications selected stays idle", %{conn: conn} do
@@ -305,6 +303,28 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
       |> render_click()
 
       refute has_element?(view, "#supervision-tree-errors")
+    end
+  end
+
+  describe "oversized trees" do
+    setup do
+      previous = Application.fetch_env(:voyager, :max_tree_elements)
+      Application.put_env(:voyager, :max_tree_elements, 1)
+
+      on_exit(fn ->
+        case previous do
+          {:ok, value} -> Application.put_env(:voyager, :max_tree_elements, value)
+          :error -> Application.delete_env(:voyager, :max_tree_elements)
+        end
+      end)
+    end
+
+    test "skips the graph and explains how to shrink the fetch", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path <> "?apps=demo_app")
+      render_async(view)
+
+      assert has_element?(view, "#supervision-tree-too-large")
+      refute has_element?(view, "#supervision-tree-body")
     end
   end
 

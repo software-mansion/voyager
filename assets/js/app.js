@@ -28,6 +28,7 @@ import SupervisionTree from './hooks/supervision_tree';
 import Tooltip from './hooks/tooltip';
 import NumberStepper from './hooks/number_stepper';
 import DetailsPanelResize from './hooks/details_panel_resize';
+import TableSettings from './hooks/table_settings';
 
 const csrfToken = document
   .querySelector("meta[name='csrf-token']")
@@ -39,6 +40,7 @@ const liveSocket = new LiveSocket('/live', Socket, {
     Tooltip,
     NumberStepper,
     DetailsPanelResize,
+    TableSettings,
     ...colocatedHooks,
   },
 });
@@ -84,7 +86,28 @@ if (window.__TAURI_INTERNALS__) {
     },
     true
   );
+
+  document.addEventListener('wheel', (e) => {
+    if (e.ctrlKey) e.stopPropagation();
+  });
 }
+
+const isMac = navigator.platform.startsWith('Mac');
+document.documentElement.classList.toggle('is-mac', isMac);
+
+window.addEventListener('keydown', (e) => {
+  if (e.repeat || e.code !== 'KeyB' || !(isMac ? e.metaKey : e.ctrlKey)) return;
+
+  for (const toggle of document.querySelectorAll(
+    '#sidebar-compact-toggle, #sidebar-compact-toggle-wide'
+  )) {
+    if (toggle instanceof HTMLElement && toggle.offsetParent) {
+      e.preventDefault();
+      toggle.click();
+      return;
+    }
+  }
+});
 
 // Show progress bar on live navigation and form submits
 topbar.config({ barColors: { 0: '#29d' }, shadowColor: 'rgba(0, 0, 0, .3)' });

@@ -45,8 +45,46 @@ defmodule Voyager.Services.DistributionTest do
                Node.self() |> Atom.to_string() |> Distribution.split_node_name()
     end
 
+    test "starts distribution without a listener or an epmd registration" do
+      refute Node.alive?()
+      listeners_before = tcp_listeners()
+
+      assert :ok = Distribution.ensure_distributed(:longnames)
+      assert Node.alive?()
+
+      assert tcp_listeners() -- listeners_before == []
+
+      {:ok, name, host} = Node.self() |> Atom.to_string() |> Distribution.split_node_name()
+
+      refute match?(
+               {:port, _port, _version},
+               :erl_epmd.port_please(String.to_charlist(name), String.to_charlist(host))
+             )
+    end
+
     test "rejects an invalid name_type" do
       assert {:error, :invalid_name_type} = Distribution.ensure_distributed(:invalid)
     end
+
+    test "sets a fresh random cookie on every distribution (re)start" do
+      assert :ok = Distribution.ensure_distributed(:longnames)
+      first_cookie = Node.get_cookie()
+
+      assert :ok = Distribution.ensure_distributed(:shortnames)
+      second_cookie = Node.get_cookie()
+
+      assert first_cookie != :nocookie
+      assert second_cookie != :nocookie
+      assert first_cookie != second_cookie
+    end
+  end
+
+  defp tcp_listeners do
+    for port <- :erlang.ports(),
+        :erlang.port_info(port, :name) == {:name, ~c"tcp_inet"},
+        info = :inet.info(port),
+        is_map(info),
+        :listen in Map.get(info, :states, []),
+        do: port
   end
 end

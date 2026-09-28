@@ -130,6 +130,10 @@ defmodule VoyagerWeb.Formatters do
     end
   end
 
+  @doc ~S|Formats a pid in its external form, e.g. `"<0.123.0>"`.|
+  @spec format_pid(pid()) :: String.t()
+  defdelegate format_pid(pid), to: Voyager.Pid, as: :display
+
   @doc """
   Stores the PID display format in `:persistent_term` for `pid/2`.
   """
@@ -166,14 +170,17 @@ defmodule VoyagerWeb.Formatters do
   defp get_pid_format do
     case :persistent_term.get(@pid_format_key, nil) do
       nil ->
-        Settings.get(:pid_format, @default_pid_format)
+        format = Settings.get(:pid_format, @default_pid_format)
+        # Cached so list renders don't hit the settings DB once per pid.
+        put_pid_format(format)
+        format
 
       format ->
         format
     end
   end
 
-  defp pid_to_string(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
+  defp pid_to_string(pid) when is_pid(pid), do: format_pid(pid)
   defp pid_to_string(pid) when is_binary(pid), do: pid
 
   defp maybe_localize_pid(pid_string, :distribution), do: pid_string

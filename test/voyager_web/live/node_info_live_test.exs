@@ -5,8 +5,10 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
   import Phoenix.LiveViewTest
   import Mox
+  import Voyager.Fakes, only: [stub_erpc: 1]
 
   alias Voyager.Fakes
+  alias Voyager.NodeSession.Connectors.Ssh, as: SshConnector
 
   @node_name "demo@localhost"
   @path "/node/demo@localhost"
@@ -144,6 +146,7 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       assert has_element?(view, "#node-info-content", "262,144")
       assert has_element?(view, "#node-info-content", "12,345")
       assert has_element?(view, "#node-info-content", "1,048,576")
+      assert has_element?(view, "#node-info-content", "1.2%")
     end
 
     test "renders the runtime info card from the mocked data", %{conn: conn} do
@@ -278,8 +281,13 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      assert has_element?(view, "#refresh-interval-form")
-      assert has_element?(view, ~s|#refresh-interval option[value="off"][selected]|)
+      assert has_element?(
+               view,
+               ~s|#refresh-interval-form[phx-hook="VoyagerWeb.CoreComponents.RefreshInterval"][data-settings-key="node-info"]|
+             )
+
+      assert has_element?(view, "#refresh-interval-dropdown.min-w-19")
+      assert has_element?(view, ~s|#refresh-interval-off-option input[checked]|)
     end
 
     test "refresh button re-fetches and keeps content rendered", %{conn: conn} do
@@ -306,7 +314,7 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       |> form("#refresh-interval-form")
       |> render_change(%{"interval" => "5000"})
 
-      assert has_element?(view, ~s|#refresh-interval option[value="5000"][selected]|)
+      assert has_element?(view, ~s|#refresh-interval-5000-option input[checked]|)
     end
 
     test "enables the JSON snapshot action after the async fetch resolves", %{conn: conn} do
@@ -374,6 +382,21 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       {"/", flash} = assert_redirect(view)
       assert flash["error"] == "Node down: demo@localhost"
     end
+
+    test "redirects to SSH connect mode after an SSH session drops", %{conn: conn} do
+      session = Fakes.node_session(node_name: @node_name, connector: SshConnector)
+
+      Fakes.put_session(session)
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+      render_async(view)
+
+      broadcast(Voyager.NodeSession.topic(), {:nodedown, session.node})
+
+      {"/?mode=ssh", flash} = assert_redirect(view)
+      assert flash["error"] == "Node down: demo@localhost"
+    end
   end
 
   describe "mount with an unreachable node" do
@@ -406,16 +429,12 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
       assert {:error, {:live_redirect, %{to: "/"}}} = live(conn, @path)
     end
-  end
 
-  defp stub_erpc(data) do
-    stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args ->
-      Fakes.erpc_reply(mod, fun, args, data)
-    end)
+    test "redirects to SSH connect mode when a different SSH session is active", %{conn: conn} do
+      Fakes.put_session(Fakes.node_session(node_name: "other@localhost", connector: SshConnector))
 
-    stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args, _timeout ->
-      Fakes.erpc_reply(mod, fun, args, data)
-    end)
+      assert {:error, {:live_redirect, %{to: "/?mode=ssh"}}} = live(conn, @path)
+    end
   end
 
   defp broadcast(pubsub_topic, event) do

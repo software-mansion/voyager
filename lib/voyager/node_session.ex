@@ -5,6 +5,7 @@ defmodule Voyager.NodeSession do
 
   use GenServer
 
+  alias Voyager.Agent
   alias Voyager.NodeSession.Connectors.Distribution
 
   @default_connector Distribution
@@ -43,7 +44,17 @@ defmodule Voyager.NodeSession do
   @doc "Connects using an explicit `Voyager.NodeSession.Connector` module."
   @spec connect_via(module(), String.t(), String.t(), keyword()) :: :ok | {:error, term()}
   def connect_via(connector, node_name, cookie, opts \\ []) do
-    GenServer.call(__MODULE__, {:connect, connector, node_name, cookie, opts}, 30_000)
+    GenServer.call(__MODULE__, {:connect, connector, node_name, cookie, opts}, :infinity)
+  end
+
+  @doc """
+  Reports that `node` no longer has the Voyager agent loaded, dropping the
+  session. Asynchronous so agent calls made from inside this GenServer cannot
+  deadlock on it.
+  """
+  @spec agent_missing(node()) :: :ok
+  def agent_missing(node) do
+    GenServer.cast(__MODULE__, {:agent_missing, node})
   end
 
   @spec disconnect() :: :ok | {:error, :not_connected}
@@ -80,7 +91,7 @@ defmodule Voyager.NodeSession do
   end
 
   def handle_call({:connect, connector, node_name, cookie, opts}, _from, %{session: nil} = state) do
-    case safe_connect(connector, node_name, cookie, opts) do
+    case connect_and_install(connector, node_name, cookie, opts) do
       {:ok, node, meta} ->
         if Node.alive?(), do: Node.monitor(node, true)
         subscribe(connector)
@@ -120,16 +131,9 @@ defmodule Voyager.NodeSession do
   def handle_call(:disconnect, _from, %{session: session} = state) do
     if Node.alive?(), do: Node.monitor(session.node, false)
     session.connector.disconnect(session.node, session.meta)
-    unsubscribe(session.connector)
-    cache_connector_name(nil)
+    new_state = drop_session(state, session, :node_disconnected, "manual disconnect")
 
-    broadcast({:node_disconnected, session.node})
-
-    Voyager.Telemetry.dispatch!("voyager.node.disconnect",
-      metadata: %{reason: "manual disconnect"}
-    )
-
-    {:reply, :ok, %{state | session: nil}}
+    {:reply, :ok, new_state}
   end
 
   def handle_call(:current, _from, state) do
@@ -141,17 +145,31 @@ defmodule Voyager.NodeSession do
   end
 
   @impl GenServer
+  def handle_cast({:agent_missing, node}, %{session: %Session{node: node} = session} = state) do
+    if Node.alive?(), do: Node.monitor(session.node, false)
+    session.connector.disconnect(session.node, session.meta)
+    new_state = drop_session(state, session, :node_disconnected, "agent missing")
+    {:noreply, new_state}
+  end
+
+  def handle_cast(_msg, state) do
+    {:noreply, state}
+  end
+
+  @impl GenServer
   def handle_info({:nodedown, node}, %{session: %Session{node: session_node} = session} = state)
       when node == session_node do
     if Node.alive?(), do: Node.monitor(session.node, false)
     session.connector.disconnect(session.node, session.meta)
-    drop_session(state, session, "node down")
+    new_state = drop_session(state, session, :nodedown, "node down")
+    {:noreply, new_state}
   end
 
   def handle_info(msg, %{session: %Session{connector: connector, meta: meta} = session} = state) do
     if connector.teardown?(msg, meta) do
       if Node.alive?(), do: Node.monitor(session.node, false)
-      drop_session(state, session, "transport down")
+      new_state = drop_session(state, session, :nodedown, "transport down")
+      {:noreply, new_state}
     else
       {:noreply, state}
     end
@@ -161,13 +179,29 @@ defmodule Voyager.NodeSession do
     {:noreply, state}
   end
 
-  defp drop_session(state, session, reason) do
+  defp drop_session(state, session, reason, telemetry_reason) do
     unsubscribe(session.connector)
     cache_connector_name(nil)
 
-    broadcast({:nodedown, session.node})
-    Voyager.Telemetry.dispatch!("voyager.node.disconnect", metadata: %{reason: reason})
-    {:noreply, %{state | session: nil}}
+    broadcast({reason, session.node})
+    Voyager.Telemetry.dispatch!("voyager.node.disconnect", metadata: %{reason: telemetry_reason})
+
+    %{state | session: nil}
+  end
+
+  # Connect owns loading the agent: a node without `:voyager_agent` is not a
+  # usable session, so a failed install fails the whole connect.
+  defp connect_and_install(connector, node_name, cookie, opts) do
+    with {:ok, node, meta} <- safe_connect(connector, node_name, cookie, opts) do
+      case Agent.install(node) do
+        :ok ->
+          {:ok, node, meta}
+
+        {:error, _} = error ->
+          connector.disconnect(node, meta)
+          error
+      end
+    end
   end
 
   defp safe_connect(connector, node_name, cookie, opts) do

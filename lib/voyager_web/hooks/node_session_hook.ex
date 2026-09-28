@@ -8,7 +8,6 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
     same flash on disconnect/nodedown without redirecting (LiveView updates UI).
   """
 
-  use VoyagerWeb, :verified_routes
   import Phoenix.LiveView
   import Phoenix.Component
   import VoyagerWeb.Helpers
@@ -18,20 +17,25 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
   def on_mount(:require_connected_node, %{"node" => node_name}, _session, socket) do
     session = NodeSession.current()
 
-    if is_nil(session) or session.node_name != node_name do
-      {:halt, push_navigate(socket, to: ~p"/")}
-    else
-      if connected?(socket) do
-        Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
-      end
+    cond do
+      is_nil(session) ->
+        {:halt, push_navigate(socket, to: connect_path(nil))}
 
-      socket =
-        socket
-        |> assign(:session, session)
-        |> attach_hook(:no_node_redirect, :handle_info, &handle_no_node/2)
-        |> attach_hook(:disconnect, :handle_event, &handle_disconnect/3)
+      session.node_name != node_name ->
+        {:halt, push_navigate(socket, to: connect_path(session))}
 
-      {:cont, socket}
+      true ->
+        if connected?(socket) do
+          Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
+        end
+
+        socket =
+          socket
+          |> assign(:session, session)
+          |> attach_hook(:no_node_redirect, :handle_info, &handle_no_node/2)
+          |> attach_hook(:disconnect, :handle_event, &handle_disconnect/3)
+
+        {:cont, socket}
     end
   end
 
@@ -55,7 +59,7 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
        when event in [:node_disconnected, :nodedown] do
     socket
     |> put_disconnect_flash({event, event_node})
-    |> redirect(to: ~p"/")
+    |> redirect(to: connect_path(socket.assigns.session))
     |> halt()
   end
 

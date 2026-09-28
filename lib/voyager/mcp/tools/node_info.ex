@@ -9,8 +9,7 @@ defmodule Voyager.MCP.Tools.NodeInfo do
 
   use Anubis.Server.Component, type: :tool
 
-  alias Anubis.Server.Response
-  alias Voyager.NodeSession
+  alias Voyager.MCP.Tools.Remote
   alias Voyager.Services.NodeInfo
 
   schema do
@@ -18,18 +17,6 @@ defmodule Voyager.MCP.Tools.NodeInfo do
 
   @impl true
   def execute(_params, frame) do
-    case NodeSession.current() do
-      nil ->
-        {:reply, Response.error(Response.tool(), "Not connected to any node"), frame}
-
-      session ->
-        case NodeInfo.fetch(session.node) do
-          {:ok, snapshot} ->
-            {:reply, Response.json(Response.tool(), snapshot), frame}
-
-          {:error, reason} ->
-            {:reply, Response.error(Response.tool(), "fetch failed: #{inspect(reason)}"), frame}
-        end
-    end
+    Remote.reply(&NodeInfo.fetch(&1), frame)
   end
 end

@@ -66,6 +66,7 @@ defmodule VoyagerWeb.NodeInfoLive do
           </.tooltip>
           <.interval_select
             id="refresh-interval"
+            settings_key="node-info"
             options={interval_options()}
             refresh_interval={@refresh_interval}
             loading={@snapshot.loading}

@@ -1,47 +1,66 @@
 defmodule Voyager.MCP.Tools.NodeInfoTest do
+  # async: false because the tool reads the global `Voyager.NodeSession`.
   use ExUnit.Case, async: false
+
+  import Mox
 
   alias Anubis.Server.Frame
   alias Anubis.Server.Response
   alias Voyager.Fakes
   alias Voyager.MCP.Tools.NodeInfo
 
+  @node :fake@localhost
+
   setup do
-    Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
-    on_exit(fn -> Application.put_env(:voyager, :erpc, Voyager.ErpcMock) end)
-    :ok
+    Fakes.connect_node!(Fakes.node_session(node: @node, node_name: Atom.to_string(@node)))
+
+    %{data: Fakes.node_data()}
   end
 
-  test "returns an error when no node is connected" do
-    Fakes.put_session(nil)
+  test "renders the snapshot of the connected node", %{data: data} do
+    Fakes.stub_erpc(data)
 
-    assert {:reply, %Response{isError: true, content: content}, %Frame{}} =
-             NodeInfo.execute(%{}, %Frame{})
+    payload = run()
 
-    assert [%{"type" => "text", "text" => "Not connected to any node"}] = content
+    assert payload["node"] == Atom.to_string(@node)
+    assert payload["system"]["otp_release"] == data.otp_release
+    assert payload["memory"]["total"] == data.mem_total
+
+    assert payload["limits"]["processes"] == %{
+             "used" => data.process_count,
+             "limit" => data.process_limit
+           }
   end
 
-  test "returns a JSON snapshot when a node session is active" do
-    node = Node.self()
+  test "keeps the encoding the snapshot's own JSON.Encoder produces", %{data: data} do
+    Fakes.stub_erpc(data)
 
-    Fakes.connect_node!(Fakes.node_session(node: node, node_name: Atom.to_string(node)))
+    payload = run()
 
-    assert {:reply, %Response{isError: false, content: content}, %Frame{}} =
-             NodeInfo.execute(%{}, %Frame{})
-
-    [%{"type" => "text", "text" => json}] = content
-    assert %{"node" => node_string, "system" => %{"otp_release" => _}} = JSON.decode!(json)
-    assert node_string == Atom.to_string(node)
+    assert {:ok, _collected_at, _offset} = DateTime.from_iso8601(payload["collected_at"])
+    refute Map.has_key?(payload, "__struct__")
+    refute Enum.any?(payload["applications"], &Map.has_key?(&1, "__struct__"))
   end
 
   test "returns an error when the snapshot fetch fails" do
-    Fakes.connect_node!(
-      Fakes.node_session(node: :"nonexistent@127.0.0.1", node_name: "nonexistent@127.0.0.1")
-    )
+    stub(Voyager.ErpcMock, :call, fn _node, _mod, _fun, _args ->
+      :erlang.error({:erpc, :noconnection})
+    end)
 
-    assert {:reply, %Response{isError: true, content: content}, %Frame{}} =
+    stub(Voyager.ErpcMock, :call, fn _node, _mod, _fun, _args, _timeout ->
+      :erlang.error({:erpc, :noconnection})
+    end)
+
+    assert {:reply, %Response{isError: true, content: [%{"text" => text}]}, %Frame{}} =
              NodeInfo.execute(%{}, %Frame{})
 
-    assert [%{"type" => "text", "text" => "fetch failed: :noconnection"}] = content
+    assert text == "fetch failed: :noconnection"
+  end
+
+  defp run do
+    assert {:reply, %Response{isError: false, content: [%{"text" => json}]}, %Frame{}} =
+             NodeInfo.execute(%{}, %Frame{})
+
+    JSON.decode!(json)
   end
 end

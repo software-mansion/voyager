@@ -131,7 +131,7 @@ defmodule VoyagerWeb.FormattersTest do
     end
   end
 
-  describe "format_pid/2" do
+  describe "pid/2" do
     setup do
       data = [
         {"<123.1.0>", "<123.1.0>", "<0.1.0>"},
@@ -161,6 +161,15 @@ defmodule VoyagerWeb.FormattersTest do
       Enum.each(data, fn {pid_string, pid_distribution_string, _} ->
         assert Formatters.pid(pid_string) == pid_distribution_string
       end)
+    end
+  end
+
+  describe "format_pid/1" do
+    test "formats a pid in its external form" do
+      formatted = VoyagerWeb.Formatters.format_pid(self())
+
+      assert "<" <> _rest = formatted
+      assert :erlang.list_to_pid(String.to_charlist(formatted)) == self()
     end
   end
 end

@@ -1,0 +1,11 @@
+/* Term trees are indented in character widths so a nested value lines up under
+   its parent's opening brace regardless of font size. `ch` has no equivalent on
+   Tailwind's spacing scale. */
+@utility term-indent {
+  margin-left: 2ch;
+}
+
+@utility term-chevron {
+  width: 2ch;
+  height: 2ch;
+}
