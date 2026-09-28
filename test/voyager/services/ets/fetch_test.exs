@@ -6,6 +6,8 @@ defmodule Voyager.Services.Ets.FetchTest do
   alias Voyager.Agent
   alias Voyager.Services.Ets.Fetch
 
+  @agent_module Voyager.Agent.module()
+
   setup :verify_on_exit!
 
   @node :"peer@127.0.0.1"
@@ -18,7 +20,7 @@ defmodule Voyager.Services.Ets.FetchTest do
       table = :cached
       cont = make_ref()
 
-      expect(Voyager.ErpcMock, :call, fn node, :voyager_agent, :ets_select_chunk, args, timeout ->
+      expect(Voyager.ErpcMock, :call, fn node, @agent_module, :ets_select_chunk, args, timeout ->
         send(test, {:called, node, args, timeout})
         ok_chunk([{:ok, 1}], cont)
       end)
@@ -36,7 +38,7 @@ defmodule Voyager.Services.Ets.FetchTest do
       cont = {:ets_cont, 1}
 
       expect(Voyager.ErpcMock, :call, fn @node,
-                                         :voyager_agent,
+                                         @agent_module,
                                          :ets_select_chunk,
                                          [:t, 20, @budget, ^cont],
                                          @timeout ->
@@ -51,7 +53,7 @@ defmodule Voyager.Services.Ets.FetchTest do
 
     test "sends :undefined for a nil continuation, so a stored last page restarts the scan" do
       expect(Voyager.ErpcMock, :call, fn @node,
-                                         :voyager_agent,
+                                         @agent_module,
                                          :ets_select_chunk,
                                          [:t, 10, @budget, :undefined],
                                          @timeout ->
@@ -64,7 +66,7 @@ defmodule Voyager.Services.Ets.FetchTest do
 
     test "maps continuation :undefined and :\"$end_of_table\" to nil" do
       expect(Voyager.ErpcMock, :call, fn @node,
-                                         :voyager_agent,
+                                         @agent_module,
                                          :ets_select_chunk,
                                          [:t, 10, @budget, :undefined],
                                          @timeout ->
@@ -77,7 +79,7 @@ defmodule Voyager.Services.Ets.FetchTest do
     end
 
     test "renames the agent's truncated flag to truncated?" do
-      expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_chunk, _, _ ->
+      expect(Voyager.ErpcMock, :call, fn @node, @agent_module, :ets_select_chunk, _, _ ->
         ok_chunk([{:k, :"$voyager_truncated"}], :undefined, true)
       end)
 
@@ -97,12 +99,12 @@ defmodule Voyager.Services.Ets.FetchTest do
       assert {:error, {:remote_exception, :undef}} =
                Fetch.select_chunk(@node, :t, 10, @budget, :undefined, @timeout)
 
-      assert_received {:called, :voyager_agent, :ets_select_chunk}
+      assert_received {:called, @agent_module, :ets_select_chunk}
       refute_received {:called, :ets, _}
     end
 
     test "maps remote badarg to :cannot_read" do
-      expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_chunk, _, _ ->
+      expect(Voyager.ErpcMock, :call, fn @node, @agent_module, :ets_select_chunk, _, _ ->
         :erlang.error({:exception, :badarg, []})
       end)
 
@@ -111,7 +113,7 @@ defmodule Voyager.Services.Ets.FetchTest do
     end
 
     test "passes a remote heap kill through untouched" do
-      expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_chunk, _, _ ->
+      expect(Voyager.ErpcMock, :call, fn @node, @agent_module, :ets_select_chunk, _, _ ->
         exit({:signal, :killed})
       end)
 
@@ -120,7 +122,7 @@ defmodule Voyager.Services.Ets.FetchTest do
     end
 
     test "returns :invalid_response when select does not return a chunk" do
-      expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_chunk, _, _ ->
+      expect(Voyager.ErpcMock, :call, fn @node, @agent_module, :ets_select_chunk, _, _ ->
         {:ok, %{truncated: false}}
       end)
 
@@ -145,7 +147,7 @@ defmodule Voyager.Services.Ets.FetchTest do
       timeout = Agent.default_timeout()
 
       expect(Voyager.ErpcMock, :call, fn @node,
-                                         :voyager_agent,
+                                         @agent_module,
                                          :ets_select_chunk,
                                          [:t, 10, @budget, :undefined],
                                          ^timeout ->
@@ -160,7 +162,7 @@ defmodule Voyager.Services.Ets.FetchTest do
   describe "lookup/7" do
     test "calls :voyager_agent.ets_lookup/5 with the budget and :undefined for a nil continuation" do
       expect(Voyager.ErpcMock, :call, fn @node,
-                                         :voyager_agent,
+                                         @agent_module,
                                          :ets_lookup,
                                          [:t, 7, 10, @budget, :undefined],
                                          @timeout ->
@@ -178,7 +180,7 @@ defmodule Voyager.Services.Ets.FetchTest do
       cont = {:ets_cont, 1}
 
       expect(Voyager.ErpcMock, :call, fn @node,
-                                         :voyager_agent,
+                                         @agent_module,
                                          :ets_lookup,
                                          [:t, :k, 20, @budget, ^cont],
                                          @timeout ->
@@ -202,12 +204,12 @@ defmodule Voyager.Services.Ets.FetchTest do
       assert {:error, {:remote_exception, :undef}} =
                Fetch.lookup(@node, :t, :k, 10, @budget, nil, @timeout)
 
-      assert_received {:called, :voyager_agent, :ets_lookup}
+      assert_received {:called, @agent_module, :ets_lookup}
       refute_received {:called, :ets, _}
     end
 
     test "maps remote badarg to :cannot_read" do
-      expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_lookup, _, _ ->
+      expect(Voyager.ErpcMock, :call, fn @node, @agent_module, :ets_lookup, _, _ ->
         :erlang.error({:exception, :badarg, []})
       end)
 
@@ -219,7 +221,7 @@ defmodule Voyager.Services.Ets.FetchTest do
       key = {:tuple, 1}
 
       expect(Voyager.ErpcMock, :call, fn @node,
-                                         :voyager_agent,
+                                         @agent_module,
                                          :ets_lookup,
                                          [:t, ^key, 10, @budget, :undefined],
                                          @timeout ->
@@ -240,7 +242,7 @@ defmodule Voyager.Services.Ets.FetchTest do
     end
 
     test "returns :invalid_response when lookup does not return a chunk" do
-      expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_lookup, _, _ ->
+      expect(Voyager.ErpcMock, :call, fn @node, @agent_module, :ets_lookup, _, _ ->
         {:ok, %{truncated: false}}
       end)
 
@@ -251,7 +253,7 @@ defmodule Voyager.Services.Ets.FetchTest do
       timeout = Agent.default_timeout()
 
       expect(Voyager.ErpcMock, :call, fn @node,
-                                         :voyager_agent,
+                                         @agent_module,
                                          :ets_lookup,
                                          [:t, :k, 10, @budget, :undefined],
                                          ^timeout ->
@@ -270,7 +272,7 @@ defmodule Voyager.Services.Ets.FetchTest do
       test = self()
       cont = make_ref()
 
-      expect(Voyager.ErpcMock, :call, fn node, :voyager_agent, :ets_select_spec, args, timeout ->
+      expect(Voyager.ErpcMock, :call, fn node, @agent_module, :ets_select_spec, args, timeout ->
         send(test, {:called, node, args, timeout})
         ok_chunk([{:k, 1}], cont)
       end)
@@ -295,12 +297,12 @@ defmodule Voyager.Services.Ets.FetchTest do
       assert {:error, {:remote_exception, :undef}} =
                Fetch.select_spec(@node, :t, @spec_ms, 10, @budget, nil, @timeout)
 
-      assert_received {:called, :voyager_agent, :ets_select_spec}
+      assert_received {:called, @agent_module, :ets_select_spec}
       refute_received {:called, :ets, _}
     end
 
     test "maps remote badarg to :cannot_read" do
-      expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_spec, _, _ ->
+      expect(Voyager.ErpcMock, :call, fn @node, @agent_module, :ets_select_spec, _, _ ->
         :erlang.error({:exception, :badarg, []})
       end)
 
@@ -309,7 +311,7 @@ defmodule Voyager.Services.Ets.FetchTest do
     end
 
     test "passes a remote heap kill through untouched" do
-      expect(Voyager.ErpcMock, :call, fn @node, :voyager_agent, :ets_select_spec, _, _ ->
+      expect(Voyager.ErpcMock, :call, fn @node, @agent_module, :ets_select_spec, _, _ ->
         exit({:signal, :killed})
       end)
 
@@ -334,7 +336,7 @@ defmodule Voyager.Services.Ets.FetchTest do
       timeout = Agent.default_timeout()
 
       expect(Voyager.ErpcMock, :call, fn @node,
-                                         :voyager_agent,
+                                         @agent_module,
                                          :ets_select_spec,
                                          [:t, @spec_ms, 10, @budget, :undefined],
                                          ^timeout ->

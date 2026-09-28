@@ -1,16 +1,21 @@
 defmodule Voyager.Agent do
   @moduledoc """
-  Seam over `Voyager.Erpc` for calling the `:voyager_agent` module shipped to a
-  remote node. Translates `:erpc` failures into `{:error, reason}` so no raw
-  exception escapes to callers.
+  Seam over `Voyager.Erpc` for calling the agent module shipped to a remote
+  node. Translates `:erpc` failures into `{:error, reason}` so no raw exception
+  escapes to callers.
+
+  The module is named after a digest of its own source (see `module/0`), so
+  Voyagers running different agent code coexist on one node instead of
+  reloading and purging each other's copy.
   """
 
   alias Voyager.Erpc
   alias Voyager.NodeSession
   alias Voyager.Services.CodeInjector
 
-  @agent :voyager_agent
   @agent_source "voyager_agent.erl"
+  @agent_prefix "voyager_agent_"
+  @agent_digest_length 12
   @min_otp 27
   @otp_timeout 5_000
   @register_timeout 5_000
@@ -50,6 +55,39 @@ defmodule Voyager.Agent do
   """
   @type truncated_term :: %{term: term(), truncated?: boolean()}
 
+  @doc """
+  The remote module name for the agent source shipped with this build.
+
+  `priv/voyager_agent.erl` declares `-module(?AGENT)`; the digest is passed as
+  that macro at preprocess time, so the name and the code it stands for cannot
+  drift apart. Memoized because every remote call needs it.
+  """
+  @spec module() :: module()
+  def module do
+    case :persistent_term.get(__MODULE__, nil) do
+      nil ->
+        name = derive_module()
+        :persistent_term.put(__MODULE__, name)
+        name
+
+      name ->
+        name
+    end
+  end
+
+  defp derive_module do
+    digest =
+      source_path()
+      |> File.read!()
+      |> then(&:crypto.hash(:sha256, &1))
+      |> Base.encode16(case: :lower)
+      |> binary_part(0, @agent_digest_length)
+
+    String.to_atom(@agent_prefix <> digest)
+  end
+
+  defp source_path, do: Path.join(:code.priv_dir(:voyager), @agent_source)
+
   @doc "Minimum OTP release the agent requires on the remote node."
   @spec min_otp() :: pos_integer()
   def min_otp, do: @min_otp
@@ -61,10 +99,10 @@ defmodule Voyager.Agent do
   """
   @spec install(node()) :: :ok | {:error, install_error()}
   def install(node) do
-    path = Path.join(:code.priv_dir(:voyager), @agent_source)
+    agent = module()
 
     with :ok <- check_otp(node),
-         {:ok, @agent} <- CodeInjector.load(node, path),
+         {:ok, ^agent} <- CodeInjector.load(node, source_path(), AGENT: agent),
          {:ok, _pid} <- register(node) do
       :ok
     else
@@ -73,7 +111,7 @@ defmodule Voyager.Agent do
   end
 
   @doc """
-  Calls `:voyager_agent.fun(args...)` on `node`, bounded by `timeout`.
+  Calls `fun(args...)` on the remote agent, bounded by `timeout`.
 
   Returns `{:ok, result}`, or `{:error, reason}` on failure. An `:undef` from
   the remote means the agent is gone from an already-established connection, so
@@ -81,7 +119,7 @@ defmodule Voyager.Agent do
   """
   @spec call(node(), atom(), [term()], timeout()) :: {:ok, term()} | {:error, Erpc.erpc_error()}
   def call(node, fun, args, timeout) do
-    case Erpc.safe_call(node, @agent, fun, args, timeout) do
+    case Erpc.safe_call(node, module(), fun, args, timeout) do
       {:error, {:remote_exception, :undef}} = error ->
         NodeSession.agent_missing(node)
         error
@@ -116,7 +154,7 @@ defmodule Voyager.Agent do
   end
 
   defp register(node) do
-    case Erpc.safe_call(node, @agent, :register, [Node.self()], @register_timeout) do
+    case Erpc.safe_call(node, module(), :register, [Node.self()], @register_timeout) do
       {:ok, {:ok, pid}} -> {:ok, pid}
       {:ok, {:error, reason}} -> {:error, {:register_failed, reason}}
       {:ok, other} -> {:error, {:register_failed, other}}

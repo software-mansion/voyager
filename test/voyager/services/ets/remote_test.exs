@@ -6,6 +6,8 @@ defmodule Voyager.Services.Ets.RemoteTest do
   alias Voyager.Erpc
   alias Voyager.Services.Ets.Remote
 
+  @agent_module Voyager.Agent.module()
+
   setup :verify_on_exit!
 
   @node :"peer@127.0.0.1"
@@ -124,7 +126,7 @@ defmodule Voyager.Services.Ets.RemoteTest do
 
       assert {:ok, []} = Remote.list(@node, @timeout)
       assert_received {:called_mod, mod}
-      refute mod == :voyager_agent
+      refute mod == @agent_module
     end
 
     test "propagates :noconnection from the first erpc call" do
@@ -248,7 +250,7 @@ defmodule Voyager.Services.Ets.RemoteTest do
 
       assert {:error, :not_found} = Remote.info(@node, :t, @timeout)
       assert_received {:called, :ets, :info}
-      refute_received {:called, :voyager_agent, _}
+      refute_received {:called, @agent_module, _}
     end
   end
 

@@ -219,6 +219,8 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
     end
   end
 
+  @agent_module Voyager.Agent.module()
+
   defp stub_intern do
     expect(Voyager.ErpcMock, :call, fn _node, :erlang, :list_to_existing_atom, [chars], _t ->
       :erlang.list_to_existing_atom(chars)
@@ -238,7 +240,7 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
       truncated: false
     }
 
-    expect(Voyager.ErpcMock, :call, fn _node, :voyager_agent, ^fun, args, _timeout ->
+    expect(Voyager.ErpcMock, :call, fn _node, @agent_module, ^fun, args, _timeout ->
       if fun == :ets_lookup, do: assert(length(args) == 5)
       if cont = opts[:cont], do: assert(List.last(args) == cont)
       if key = opts[:key], do: assert(Enum.at(args, 1) == key)

@@ -2,7 +2,7 @@ defmodule Voyager.Services.ProcessList do
   @moduledoc """
   Fetches a bounded "top N processes" list from a remote node.
 
-  Ranking runs remotely in `:voyager_agent.proc_top` so only the top-`limit` rows
+  Ranking runs remotely in the agent’s `proc_top` so only the top-`limit` rows
   cross the wire. To keep each row's payload independent of process state, only
   the cheap, fixed-size attributes in `@allowed_attrs` may be requested;
   unbounded ones (`:messages`, `:dictionary`, `:backtrace`, `:binary`) are

@@ -13,7 +13,8 @@ defmodule VoyagerWeb.ProcessInfoLive.HeavyProcessTest do
 
   setup_all do
     path = :voyager |> :code.priv_dir() |> Path.join("voyager_agent.erl")
-    {:ok, module, binary} = :compile.file(String.to_charlist(path), [:binary])
+    opts = [:binary, {:d, :AGENT, Voyager.Agent.module()}]
+    {:ok, module, binary} = :compile.file(String.to_charlist(path), opts)
     {:module, ^module} = :code.load_binary(module, String.to_charlist(path), binary)
 
     on_exit(fn ->

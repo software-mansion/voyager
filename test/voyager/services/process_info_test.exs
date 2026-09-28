@@ -9,14 +9,17 @@ defmodule Voyager.Services.ProcessInfoTest do
 
   alias Voyager.Services.ProcessInfo
 
+  @agent_module Voyager.Agent.module()
+
   setup :verify_on_exit!
 
-  # The unbounded fetches call `:voyager_agent` on the remote. `.erl` sources
+  # The unbounded fetches call the agent on the remote. `.erl` sources
   # under priv/ are not built by mix, so compile and load the agent here to
   # exercise the real remote-side truncation against the local node.
   setup_all do
     path = :voyager |> :code.priv_dir() |> Path.join("voyager_agent.erl")
-    {:ok, module, binary} = :compile.file(String.to_charlist(path), [:binary])
+    opts = [:binary, {:d, :AGENT, Voyager.Agent.module()}]
+    {:ok, module, binary} = :compile.file(String.to_charlist(path), opts)
     {:module, ^module} = :code.load_binary(module, String.to_charlist(path), binary)
 
     on_exit(fn ->
@@ -281,7 +284,7 @@ defmodule Voyager.Services.ProcessInfoTest do
   describe "unbounded fetch error translation" do
     test "surfaces a missing agent as a remote :undef exception" do
       expect(Voyager.ErpcMock, :call, fn _node,
-                                         :voyager_agent,
+                                         @agent_module,
                                          :proc_links,
                                          [_pid, _limit],
                                          _timeout ->
