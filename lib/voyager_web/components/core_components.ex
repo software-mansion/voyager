@@ -766,10 +766,17 @@ defmodule VoyagerWeb.CoreComponents do
 
   attr :pinnable, :boolean, default: true, doc: "forwarded to `tooltip/1`"
 
+  attr :entry, :map,
+    default: nil,
+    doc:
+      "help entry (`%{text:, doc_href:, doc_label:}`) whose doc fields fill the documentation link"
+
   slot :inner_block, required: true, doc: "the hover/focus target"
   slot :content, required: true, doc: "tooltip content"
 
   def link_tooltip(assigns) do
+    assigns = assign_entry_link(assigns)
+
     ~H"""
     <.tooltip id={@id} position={@position} interactive={@interactive} pinnable={@pinnable}>
       {render_slot(@inner_block)}
@@ -794,11 +801,13 @@ defmodule VoyagerWeb.CoreComponents do
   Renders a round "?" help affordance that reveals a tooltip on hover/focus.
 
   Thin wrapper over `tooltip/1` that supplies the "?" trigger button. Pass plain
-  text via `text`, or richer markup as the inner block.
+  text via `text`, a help entry via `entry`, or richer markup as the inner block.
 
   ## Examples
 
       <.help_tooltip id="cpu-help" text="Average scheduler utilization." />
+
+      <.help_tooltip id="uptime-help" entry={NodeInfoHelp.get(:uptime)} />
 
       <.help_tooltip id="mem-help" position="right">
         Total memory allocated by the BEAM, including
@@ -825,6 +834,11 @@ defmodule VoyagerWeb.CoreComponents do
     default: true,
     doc: "when true, the tip can be hovered into and pinned open with a click"
 
+  attr :entry, :map,
+    default: nil,
+    doc:
+      "help entry (`%{text:, doc_href:, doc_label:}`); supplies the text and the documentation link"
+
   slot :inner_block, doc: "rich tooltip content; overrides text"
 
   def help_tooltip(assigns) do
@@ -834,6 +848,7 @@ defmodule VoyagerWeb.CoreComponents do
       position={@position}
       doc_href={@doc_href}
       doc_label={@doc_label}
+      entry={@entry}
       interactive={@interactive}
     >
       <button
@@ -852,11 +867,20 @@ defmodule VoyagerWeb.CoreComponents do
         <%= if @inner_block != [] do %>
           {render_slot(@inner_block)}
         <% else %>
-          {@text}
+          {@text || @entry[:text]}
         <% end %>
       </:content>
     </.link_tooltip>
     """
+  end
+
+  defp assign_entry_link(%{entry: nil} = assigns), do: assigns
+
+  defp assign_entry_link(%{entry: entry} = assigns) do
+    assign(assigns,
+      doc_href: entry[:doc_href],
+      doc_label: entry[:doc_label] || assigns.doc_label
+    )
   end
 
   @doc """

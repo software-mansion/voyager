@@ -102,7 +102,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
       text:
         "The reverse of a monitor: another process is watching this one and will be notified with a DOWN message when it terminates.",
       color_class: "bg-process-monitored-by",
-      doc_href: @erts <> "#process_info/2",
+      doc_href: @erts <> "#monitored_by-monitoredby",
       doc_label: "See erlang:process_info(monitored_by)",
       dashed: true
     }

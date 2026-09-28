@@ -130,12 +130,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
     <div id={@id} class="flex min-w-0 flex-col gap-0.5">
       <dt class="text-base-content/60 flex h-6 items-center gap-1 text-xs">
         {@label}
-        <.help_tooltip
-          id={"ets-info-help-#{@help}"}
-          text={@entry.text}
-          doc_href={@entry.doc_href}
-          doc_label={@entry.doc_label}
-        />
+        <.help_tooltip id={"ets-info-help-#{@help}"} entry={@entry} />
       </dt>
       <dd class="font-mono text-base-content truncate text-xs">{render_slot(@inner_block)}</dd>
     </div>

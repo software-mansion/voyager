@@ -163,8 +163,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
     ~H"""
     <.link_tooltip
       id={"#{@table_id}-#{@column.key}-help"}
-      doc_href={@column.help[:doc_href]}
-      doc_label={@column.help[:doc_label] || "Learn more"}
+      entry={@column.help}
       interactive
       pinnable={false}
     >

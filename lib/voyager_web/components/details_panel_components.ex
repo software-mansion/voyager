@@ -12,6 +12,37 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.ProcessInfoHelp
 
+  @overview_rows [
+    {:initial_call, "Initial call", :wide},
+    {:current_function, "Current function", :wide},
+    {:current_stacktrace, "Current stacktrace", :wide},
+    {:registered_name, "Registered name", nil},
+    {:label, "Label", nil},
+    {:parent, "Parent", nil},
+    {:status, "Status", :narrow},
+    {:message_queue_len, "Message queue len", :narrow},
+    {:message_queue_data, "Message queue data", :narrow},
+    {:group_leader, "Group leader", nil},
+    {:priority, "Priority", :narrow},
+    {:trap_exit, "Trap exit", :narrow},
+    {:reductions, "Reductions", nil},
+    {:last_calls, "Last calls", :wide},
+    {:catch_level, "Catch level", :narrow},
+    {:trace, "Trace", :narrow},
+    {:suspending, "Suspending", nil},
+    {:sequential_trace_token, "Sequential trace token", nil},
+    {:error_handler, "Error handler", nil}
+  ]
+
+  @memory_rows [
+    {:memory, "Memory"},
+    {:stack_and_heap_size, "Stack and heaps"},
+    {:heap_size, "Heap size"},
+    {:stack_size, "Stack size"},
+    {:gc_min_heap_size, "GC min heap size"},
+    {:gc_fullsweep_after, "GC fullsweep after"}
+  ]
+
   @max_links 12
   # Public so DetailsPanel can cap its remote fetch at what this panel renders.
   @max_expanded_links 200
@@ -191,159 +222,35 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     doc: "1-arity fun mapping a pid to a link target (or nil); pid rows render as links with it"
 
   def overview(assigns) do
+    assigns = assign(assigns, :rows, @overview_rows)
+
     ~H"""
     <.section title="Overview">
       <.async_result :let={info} assign={@info}>
         <:loading>
-          <.kv_skeleton label="Initial call" help={ProcessInfoHelp.get(:initial_call)} wide />
-          <.kv_skeleton label="Current function" help={ProcessInfoHelp.get(:current_function)} wide />
           <.kv_skeleton
-            label="Current stacktrace"
-            help={ProcessInfoHelp.get(:current_stacktrace)}
-            wide
+            :for={{key, label, width} <- @rows}
+            label={label}
+            help={ProcessInfoHelp.get(key)}
+            narrow={width == :narrow}
+            wide={width == :wide}
+            last={key == :error_handler}
           />
-          <.kv_skeleton label="Registered name" help={ProcessInfoHelp.get(:registered_name)} />
-          <.kv_skeleton label="Label" help={ProcessInfoHelp.get(:label)} />
-          <.kv_skeleton label="Parent" help={ProcessInfoHelp.get(:parent)} />
-          <.kv_skeleton label="Status" help={ProcessInfoHelp.get(:status)} narrow />
-          <.kv_skeleton
-            label="Message queue len"
-            help={ProcessInfoHelp.get(:message_queue_len)}
-            narrow
-          />
-          <.kv_skeleton
-            label="Message queue data"
-            help={ProcessInfoHelp.get(:message_queue_data)}
-            narrow
-          />
-          <.kv_skeleton label="Group leader" help={ProcessInfoHelp.get(:group_leader)} />
-          <.kv_skeleton label="Priority" help={ProcessInfoHelp.get(:priority)} narrow />
-          <.kv_skeleton label="Trap exit" help={ProcessInfoHelp.get(:trap_exit)} narrow />
-          <.kv_skeleton label="Reductions" help={ProcessInfoHelp.get(:reductions)} />
-          <.kv_skeleton label="Last calls" help={ProcessInfoHelp.get(:last_calls)} wide />
-          <.kv_skeleton label="Catch level" help={ProcessInfoHelp.get(:catch_level)} narrow />
-          <.kv_skeleton label="Trace" help={ProcessInfoHelp.get(:trace)} narrow />
-          <.kv_skeleton label="Suspending" help={ProcessInfoHelp.get(:suspending)} />
-          <.kv_skeleton
-            label="Sequential trace token"
-            help={ProcessInfoHelp.get(:sequential_trace_token)}
-          />
-          <.kv_skeleton label="Error handler" help={ProcessInfoHelp.get(:error_handler)} last />
         </:loading>
         <:failed>
           <.load_error />
         </:failed>
-        <.kv
-          size={@size}
-          label="Initial call"
-          help={ProcessInfoHelp.get(:initial_call)}
-          value={format_mfa(info.initial_call)}
-        />
-        <.kv
-          size={@size}
-          label="Current function"
-          help={ProcessInfoHelp.get(:current_function)}
-          value={format_mfa(info.current_function)}
-        />
-        <.kv
-          size={@size}
-          label="Current stacktrace"
-          help={ProcessInfoHelp.get(:current_stacktrace)}
-          value={format_stacktrace(info.current_stacktrace)}
-        />
-        <.kv
-          size={@size}
-          label="Registered name"
-          help={ProcessInfoHelp.get(:registered_name)}
-          value={format_registered_name(info.registered_name)}
-        />
-        <.kv
-          size={@size}
-          label="Label"
-          help={ProcessInfoHelp.get(:label)}
-          value={format_optional(info.label)}
-        />
-        <.kv
-          size={@size}
-          label="Parent"
-          help={ProcessInfoHelp.get(:parent)}
-          value={format_optional_identifier(info.parent)}
-          href={@pid_href && @pid_href.(info.parent)}
-        />
-        <.kv
-          size={@size}
-          label="Status"
-          help={ProcessInfoHelp.get(:status)}
-          value={to_string(info.status)}
-        />
-        <.kv
-          size={@size}
-          label="Message queue len"
-          help={ProcessInfoHelp.get(:message_queue_len)}
-          value={Formatters.format_integer(info.message_queue_len)}
-        />
-        <.kv
-          size={@size}
-          label="Message queue data"
-          help={ProcessInfoHelp.get(:message_queue_data)}
-          value={to_string(info.message_queue_data)}
-        />
-        <.kv
-          size={@size}
-          label="Group leader"
-          help={ProcessInfoHelp.get(:group_leader)}
-          value={format_identifier(info.group_leader)}
-          href={@pid_href && @pid_href.(info.group_leader)}
-        />
-        <.kv
-          size={@size}
-          label="Priority"
-          help={ProcessInfoHelp.get(:priority)}
-          value={to_string(info.priority)}
-        />
-        <.kv
-          size={@size}
-          label="Trap exit"
-          help={ProcessInfoHelp.get(:trap_exit)}
-          value={to_string(info.trap_exit)}
-        />
-        <.kv
-          size={@size}
-          label="Reductions"
-          help={ProcessInfoHelp.get(:reductions)}
-          value={Formatters.format_integer(info.reductions)}
-        />
-        <.kv
-          size={@size}
-          label="Last calls"
-          help={ProcessInfoHelp.get(:last_calls)}
-          value={format_last_calls(info.last_calls)}
-        />
-        <.kv
-          size={@size}
-          label="Catch level"
-          help={ProcessInfoHelp.get(:catch_level)}
-          value={Formatters.format_integer(info.catch_level)}
-        />
-        <.kv
-          size={@size}
-          label="Trace"
-          help={ProcessInfoHelp.get(:trace)}
-          value={Formatters.format_integer(info.trace)}
-        />
-        <.suspending_list suspending={info.suspending} size={@size} />
-        <.kv
-          size={@size}
-          label="Sequential trace token"
-          help={ProcessInfoHelp.get(:sequential_trace_token)}
-          value={format_sequential_trace_token(info.sequential_trace_token)}
-        />
-        <.kv
-          size={@size}
-          label="Error handler"
-          help={ProcessInfoHelp.get(:error_handler)}
-          value={inspect(info.error_handler)}
-        />
+        <%= for {key, label, _width} <- @rows do %>
+          <.suspending_list :if={key == :suspending} suspending={info.suspending} size={@size} />
+          <.kv
+            :if={key != :suspending}
+            size={@size}
+            label={label}
+            help={ProcessInfoHelp.get(key)}
+            value={overview_value(key, info)}
+            href={pid_row_href(key, info, @pid_href)}
+          />
+        <% end %>
       </.async_result>
     </.section>
     """
@@ -390,64 +297,29 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     doc: "value font size, forwarded to `kv/1`"
 
   def memory_and_garbage_collection(assigns) do
+    assigns = assign(assigns, :rows, @memory_rows)
+
     ~H"""
     <.section title="Memory and Garbage Collection">
       <.async_result :let={info} assign={@info}>
         <:loading>
-          <.kv_skeleton label="Memory" help={ProcessInfoHelp.get(:memory)} narrow />
           <.kv_skeleton
-            label="Stack and heaps"
-            help={ProcessInfoHelp.get(:stack_and_heap_size)}
+            :for={{key, label} <- @rows}
+            label={label}
+            help={ProcessInfoHelp.get(key)}
             narrow
-          />
-          <.kv_skeleton label="Heap size" help={ProcessInfoHelp.get(:heap_size)} narrow />
-          <.kv_skeleton label="Stack size" help={ProcessInfoHelp.get(:stack_size)} narrow />
-          <.kv_skeleton label="GC min heap size" help={ProcessInfoHelp.get(:gc_min_heap_size)} narrow />
-          <.kv_skeleton
-            label="GC fullsweep after"
-            help={ProcessInfoHelp.get(:gc_fullsweep_after)}
-            narrow
-            last
+            last={key == :gc_fullsweep_after}
           />
         </:loading>
         <:failed>
           <.load_error />
         </:failed>
         <.kv
+          :for={{key, label} <- @rows}
           size={@size}
-          label="Memory"
-          help={ProcessInfoHelp.get(:memory)}
-          value={Formatters.format_bytes(info.memory)}
-        />
-        <.kv
-          size={@size}
-          label="Stack and heaps"
-          help={ProcessInfoHelp.get(:stack_and_heap_size)}
-          value={Formatters.format_bytes(info.stack_and_heap_size)}
-        />
-        <.kv
-          size={@size}
-          label="Heap size"
-          help={ProcessInfoHelp.get(:heap_size)}
-          value={Formatters.format_bytes(info.heap_size)}
-        />
-        <.kv
-          size={@size}
-          label="Stack size"
-          help={ProcessInfoHelp.get(:stack_size)}
-          value={Formatters.format_bytes(info.stack_size)}
-        />
-        <.kv
-          size={@size}
-          label="GC min heap size"
-          help={ProcessInfoHelp.get(:gc_min_heap_size)}
-          value={Formatters.format_bytes(info.gc_min_heap_size)}
-        />
-        <.kv
-          size={@size}
-          label="GC fullsweep after"
-          help={ProcessInfoHelp.get(:gc_fullsweep_after)}
-          value={format_count(info.gc_fullsweep_after)}
+          label={label}
+          help={ProcessInfoHelp.get(key)}
+          value={memory_value(key, info)}
         />
       </.async_result>
     </.section>
@@ -474,9 +346,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         <.help_tooltip
           :if={@help}
           id={@help_id}
-          text={@help.text}
-          doc_href={@help[:doc_href]}
-          doc_label={@help[:doc_label] || "Learn more"}
+          entry={@help}
         />
       </h4>
       {render_slot(@inner_block)}
@@ -577,9 +447,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       <.help_tooltip
         :if={@help}
         id={"kv-help-" <> String.replace(@label, " ", "-")}
-        text={@help.text}
-        doc_href={@help[:doc_href]}
-        doc_label={@help[:doc_label] || "Learn more"}
+        entry={@help}
       />
     </span>
     """
@@ -717,6 +585,34 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     </div>
     """
   end
+
+  defp overview_value(:initial_call, info), do: format_mfa(info.initial_call)
+  defp overview_value(:current_function, info), do: format_mfa(info.current_function)
+  defp overview_value(:current_stacktrace, info), do: format_stacktrace(info.current_stacktrace)
+  defp overview_value(:registered_name, info), do: format_registered_name(info.registered_name)
+  defp overview_value(:label, info), do: format_optional(info.label)
+  defp overview_value(:parent, info), do: format_optional_identifier(info.parent)
+  defp overview_value(:group_leader, info), do: format_identifier(info.group_leader)
+  defp overview_value(:error_handler, info), do: inspect(info.error_handler)
+
+  defp overview_value(:sequential_trace_token, info),
+    do: format_sequential_trace_token(info.sequential_trace_token)
+
+  defp overview_value(:last_calls, info), do: format_last_calls(info.last_calls)
+
+  defp overview_value(key, info)
+       when key in [:message_queue_len, :reductions, :catch_level, :trace],
+       do: info |> Map.fetch!(key) |> Formatters.format_integer()
+
+  defp overview_value(key, info), do: info |> Map.fetch!(key) |> to_string()
+
+  defp pid_row_href(key, info, pid_href) when key in [:parent, :group_leader] and pid_href != nil,
+    do: pid_href.(Map.fetch!(info, key))
+
+  defp pid_row_href(_key, _info, _pid_href), do: nil
+
+  defp memory_value(:gc_fullsweep_after, info), do: format_count(info.gc_fullsweep_after)
+  defp memory_value(key, info), do: info |> Map.fetch!(key) |> Formatters.format_bytes()
 
   defp format_mfa({mod, fun, arity}), do: "#{inspect(mod)}.#{fun}/#{arity}"
   defp format_mfa(mfa), do: inspect(mfa)
