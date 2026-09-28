@@ -88,7 +88,6 @@ defmodule VoyagerWeb.EtsTablesLive do
             message={format_error(@page_result.failed)}
           />
 
-          <%!-- Reserves the summary's line so the table does not shift when the first fetch lands. --%>
           <div class="h-4">
             <EtsTableComponents.summary
               :if={@page_result.ok?}
