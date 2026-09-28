@@ -268,111 +268,113 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       id="ets-lookup-sidebar"
       phx-hook="DetailsPanelResize"
       data-resize-persist="false"
-      class="details-panel border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex w-full flex-col gap-4 border-l p-4 shadow-2xl"
+      class="details-panel border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex h-full min-h-0 w-full flex-col border-l p-4 shadow-2xl"
     >
       <DetailsPanelComponents.resize_handle panel_id="ets-lookup-sidebar" open?={true} />
-      <div class="border-base-200 flex items-start gap-3 border-b pb-3">
-        <div class="flex min-w-0 flex-1 flex-col gap-1.5">
-          <div class="flex items-center gap-2">
-            <.icon name="icon-database-search" class="text-primary size-3.5" />
-            <div class="font-mono text-base-content text-xs uppercase">Key lookup</div>
+      <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+        <div class="border-base-200 flex shrink-0 items-start gap-3 border-b pb-3">
+          <div class="flex min-w-0 flex-1 flex-col gap-1.5">
+            <div class="flex items-center gap-2">
+              <.icon name="icon-database-search" class="text-primary size-3.5" />
+              <div class="font-mono text-base-content text-xs uppercase">Key lookup</div>
+            </div>
+            <DetailsPanelComponents.copyable
+              id="ets-sidebar-key"
+              class="font-mono text-base-content break-all text-sm font-medium"
+              text={inspect(@key)}
+              label="Copy key"
+            />
           </div>
-          <DetailsPanelComponents.copyable
-            id="ets-sidebar-key"
-            class="font-mono text-base-content break-all text-sm font-medium"
-            text={inspect(@key)}
-            label="Copy key"
-          />
+          <DetailsPanelComponents.close_button panel_id="ets-lookup-sidebar" />
         </div>
-        <DetailsPanelComponents.close_button panel_id="ets-lookup-sidebar" />
-      </div>
 
-      <.form
-        for={@form}
-        id="ets-lookup-controls"
-        phx-change="validate_lookup"
-        class="flex flex-col gap-1"
-      >
-        <div class="grid-cols-[auto_auto_auto] grid-rows-[auto_auto_auto] grid w-max items-center gap-x-3">
-          <.field_label field={@form[:budget]} label="Term budget" help={@budget_help} />
-          <.field_label field={@form[:timeout]} label="Timeout (ms)" />
-          <span />
-
-          <.number_input field={@form[:budget]} bounds={{EtsLookupControls.min_budget(), nil}} />
-          <.number_input field={@form[:timeout]} bounds={EtsLookupControls.timeout_bounds()} />
-
-          <button
-            id="ets-lookup-refetch"
-            type="button"
-            phx-click="refetch_lookup"
-            disabled={@lookup.loading != nil}
-            class="btn btn-primary btn-sm gap-2"
-          >
-            <span :if={@lookup.loading != nil} class="loading loading-spinner loading-xs" /> Refetch
-          </button>
-
-          <.field_error field={@form[:budget]} />
-          <.field_error field={@form[:timeout]} />
-          <span />
-        </div>
-      </.form>
-
-      <.error_state :if={@error_message} id="ets-lookup-error" message={@error_message} />
-
-      <.async_result :let={chunk} assign={@lookup}>
-        <:loading>
-          <.loading_state id="ets-lookup-loading" message="Looking up key…" />
-        </:loading>
-
-        <p :if={chunk.records == []} id="ets-lookup-empty" class="text-base-content/70 text-sm">
-          {if @page == 0,
-            do: "No records with this key. They may have been deleted.",
-            else: "No more records for this key. They may have been deleted since the last page."}
-        </p>
-
-        <div
-          :if={chunk.records != []}
-          id="ets-lookup-records"
-          class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto"
+        <.form
+          for={@form}
+          id="ets-lookup-controls"
+          phx-change="validate_lookup"
+          class="flex shrink-0 flex-col gap-1"
         >
-          <div
-            :for={{record, index} <- Enum.with_index(chunk.records)}
-            id={"ets-lookup-record-#{index}"}
-            class="border-base-200 flex shrink-0 items-start gap-2 rounded-lg border p-3"
-          >
-            <TermComponents.term_inspector
-              id={lookup_inspector_id(index)}
-              term={record}
-              state={@term_states[lookup_inspector_id(index)] || %State{}}
-              class="text-sm! min-w-0 flex-1 overflow-x-auto"
-            />
-            <.copy_button
-              id={"ets-lookup-record-#{index}-copy"}
-              target={"#ets-lookup-record-#{index}-copy-source"}
-              label="Copy record"
-              icon_only
-              size={:sm}
-              class="text-base-content/60 shrink-0 hover:text-primary"
-            />
-            <span id={"ets-lookup-record-#{index}-copy-source"} hidden>{TermTree.copy_string(record)}</span>
+          <div class="grid-cols-[auto_auto_auto] grid-rows-[auto_auto_auto] grid w-max items-center gap-x-3">
+            <.field_label field={@form[:budget]} label="Term budget" help={@budget_help} />
+            <.field_label field={@form[:timeout]} label="Timeout (ms)" />
+            <span />
+
+            <.number_input field={@form[:budget]} bounds={{EtsLookupControls.min_budget(), nil}} />
+            <.number_input field={@form[:timeout]} bounds={EtsLookupControls.timeout_bounds()} />
+
+            <button
+              id="ets-lookup-refetch"
+              type="button"
+              phx-click="refetch_lookup"
+              disabled={@lookup.loading != nil}
+              class="btn btn-primary btn-sm gap-2"
+            >
+              <span :if={@lookup.loading != nil} class="loading loading-spinner loading-xs" /> Refetch
+            </button>
+
+            <.field_error field={@form[:budget]} />
+            <.field_error field={@form[:timeout]} />
+            <span />
           </div>
-        </div>
+        </.form>
 
-        <p :if={chunk.truncated?} id="ets-lookup-truncated" class="text-base-content/50 text-xs">
-          Shortened to fit the term budget — raise it and refetch to see more.
-        </p>
+        <.error_state :if={@error_message} id="ets-lookup-error" message={@error_message} />
 
-        <DataTableComponents.pager
-          :if={chunk.records != [] or @page > 0}
-          id="ets-lookup-pager"
-          page={@page + 1}
-          page_size={@page_size}
-          total={@total}
-          page_size_options={@page_size_options}
-          paginate_event="paginate_lookup"
-          page_size_event="set_lookup_page_size"
-        />
-      </.async_result>
+        <.async_result :let={chunk} assign={@lookup}>
+          <:loading>
+            <.loading_state id="ets-lookup-loading" message="Looking up key…" />
+          </:loading>
+
+          <p :if={chunk.records == []} id="ets-lookup-empty" class="text-base-content/70 text-sm">
+            {if @page == 0,
+              do: "No records with this key. They may have been deleted.",
+              else: "No more records for this key. They may have been deleted since the last page."}
+          </p>
+
+          <div
+            :if={chunk.records != []}
+            id="ets-lookup-records"
+            class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto"
+          >
+            <div
+              :for={{record, index} <- Enum.with_index(chunk.records)}
+              id={"ets-lookup-record-#{index}"}
+              class="border-base-200 flex shrink-0 items-start gap-2 rounded-lg border p-3"
+            >
+              <TermComponents.term_inspector
+                id={lookup_inspector_id(index)}
+                term={record}
+                state={@term_states[lookup_inspector_id(index)] || %State{}}
+                class="text-sm! min-w-0 flex-1 overflow-x-auto"
+              />
+              <.copy_button
+                id={"ets-lookup-record-#{index}-copy"}
+                target={"#ets-lookup-record-#{index}-copy-source"}
+                label="Copy record"
+                icon_only
+                size={:sm}
+                class="text-base-content/60 shrink-0 hover:text-primary"
+              />
+              <span id={"ets-lookup-record-#{index}-copy-source"} hidden>{TermTree.copy_string(record)}</span>
+            </div>
+          </div>
+
+          <p :if={chunk.truncated?} id="ets-lookup-truncated" class="text-base-content/50 text-xs">
+            Shortened to fit the term budget — raise it and refetch to see more.
+          </p>
+
+          <DataTableComponents.pager
+            :if={chunk.records != [] or @page > 0}
+            id="ets-lookup-pager"
+            page={@page + 1}
+            page_size={@page_size}
+            total={@total}
+            page_size_options={@page_size_options}
+            paginate_event="paginate_lookup"
+            page_size_event="set_lookup_page_size"
+          />
+        </.async_result>
+      </div>
     </aside>
     """
   end

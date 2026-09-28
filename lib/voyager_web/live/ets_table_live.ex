@@ -75,7 +75,7 @@ defmodule VoyagerWeb.EtsTableLive do
       id="ets-table-page"
       phx-hook="TableSettings"
       data-settings-key="ets-table"
-      class="relative flex h-full"
+      class="relative flex h-full overflow-hidden"
     >
       <div class="min-w-2xl mx-auto flex h-full max-w-screen-2xl flex-1 flex-col gap-4 overflow-hidden p-6 sm:p-8">
         <EtsPeekComponents.header
