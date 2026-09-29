@@ -364,8 +364,8 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
         <%= for item <- Enum.map(@items, &identifier_entry(&1, @remote_node)) do %>
           <.pid_link
             :if={item.pid?}
-            href={keep_sidebar(~p"/node/#{@node_name}/processes/#{item.pid_string}", @current_url)}
-            pid={item.pid_string}
+            href={keep_sidebar(~p"/node/#{@node_name}/processes/#{item.text}", @current_url)}
+            pid={item.text}
           />
           <span
             :if={not item.pid?}
@@ -423,7 +423,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
 
   defp identifier_entry(pid, remote_node) when is_pid(pid) do
     if node(pid) == remote_node do
-      %{pid?: true, pid_string: Formatters.format_pid(pid)}
+      %{pid?: true, text: Formatters.format_pid(pid)}
     else
       %{pid?: false, text: "#{Formatters.pid(pid)} on #{node(pid)}"}
     end

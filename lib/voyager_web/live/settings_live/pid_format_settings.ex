@@ -57,7 +57,13 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
             :for={{format, icon, text, _pid_string, _description} <- @pid_formats}
             type="button"
             id={"pid-format-#{format}"}
-            class={format_button_class(@pid_format == format)}
+            class={[
+              "join-item btn w-full justify-center gap-1.5",
+              if(@pid_format == format,
+                do: "btn-primary text-primary-content",
+                else: "btn-soft text-base-content/70"
+              )
+            ]}
             aria-pressed={to_string(@pid_format == format)}
             disabled={@locked?}
             phx-click="select"
@@ -75,10 +81,8 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
   @impl true
   def handle_event("select", %{"format" => format}, socket)
       when format in ~w(distribution local) do
-    put_format(socket, String.to_existing_atom(format))
-  end
+    format = String.to_existing_atom(format)
 
-  defp put_format(socket, format) do
     if socket.assigns.locked? or socket.assigns.pid_format == format do
       {:noreply, socket}
     else
@@ -96,15 +100,5 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
           |> noreply()
       end
     end
-  end
-
-  defp format_button_class(active?) do
-    [
-      "join-item btn w-full justify-center gap-1.5",
-      if(active?,
-        do: "btn-primary text-primary-content",
-        else: "btn-soft text-base-content/70"
-      )
-    ]
   end
 end

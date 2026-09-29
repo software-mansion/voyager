@@ -119,9 +119,7 @@ export function formatName(name, nodeId) {
   if (Array.isArray(name)) {
     return name.map((part) => formatName(part, nodeId)).join(':');
   }
-  if (typeof name === 'string') {
-    return isRealPid(name) ? formatPid(name, nodeId) : name;
-  }
+  if (typeof name === 'string') return formatPid(name, nodeId);
   return String(name);
 }
 

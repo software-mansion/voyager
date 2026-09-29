@@ -21,27 +21,10 @@ defmodule Voyager.Pid do
     ArgumentError -> nil
   end
 
-  @doc """
-  The `N` of `node`'s pids as this node prints them, `<N.X.Y>`. It depends on
-  the node name alone, so it is read off a pid built from the name.
-  """
-  @spec node_id(node()) :: String.t()
-  def node_id(node) do
-    name = Atom.to_string(node)
-
-    <<131, 88, 118, byte_size(name)::16, name::binary, 0::32, 0::32, 0::32>>
-    |> :erlang.binary_to_term()
-    |> display()
-    |> String.trim_leading("<")
-    |> String.split(".")
-    |> hd()
-  end
-
-  @doc "The connected node's `node_id/1`, cached by `put_node/1`."
+  @doc "The `N` of the connected node's `<N.X.Y>` pids, cached by `put_node/1`."
   @spec cached_node_id() :: String.t() | nil
   def cached_node_id, do: :persistent_term.get(@node_id_key, nil)
 
-  @doc "Caches the `node_id/1` of the connected `node`; `nil` clears it."
   @spec put_node(node() | nil) :: :ok
   def put_node(nil), do: :persistent_term.put(@node_id_key, nil)
   def put_node(node), do: :persistent_term.put(@node_id_key, node_id(node))
@@ -71,30 +54,38 @@ defmodule Voyager.Pid do
   end
 
   @doc """
-  Formats a PID for display. Omitting the format uses `cached_format/0`; an
-  unknown format falls back to `:distribution`. `:local` shortens only the
-  connected node's pids, or any pid while no node is connected.
+  Formats a PID for display. Omitting the format uses `cached_format/0`.
+  `:local` shortens only the connected node's pids, or any pid while no node
+  is connected.
 
       iex> Voyager.Pid.format("<123.23.423>", :distribution)
       "<123.23.423>"
       iex> Voyager.Pid.format("<123.23.423>", :local)
       "<0.23.423>"
   """
-  @spec format(pid() | String.t(), atom()) :: String.t()
-  def format(pid, format \\ cached_format())
-
-  def format(pid, format) when format in @formats do
+  @spec format(pid() | String.t(), :distribution | :local) :: String.t()
+  def format(pid, format \\ cached_format()) when format in @formats do
     pid
     |> pid_to_string()
     |> maybe_localize(format)
   end
 
-  def format(pid, _format), do: format(pid, :distribution)
-
   @doc "An `:inspect_fun` that renders every pid, however deeply nested, via `format/1`."
   @spec inspect_fun(term(), Inspect.Opts.t()) :: Inspect.Algebra.t()
   def inspect_fun(pid, _opts) when is_pid(pid), do: "#PID" <> format(pid)
   def inspect_fun(term, opts), do: Inspect.inspect(term, opts)
+
+  # The index depends on the node name alone, so a pid built from the name carries it.
+  defp node_id(node) do
+    name = Atom.to_string(node)
+
+    <<131, 88, 118, byte_size(name)::16, name::binary, 0::32, 0::32, 0::32>>
+    |> :erlang.binary_to_term()
+    |> display()
+    |> String.trim_leading("<")
+    |> String.split(".")
+    |> hd()
+  end
 
   defp normalize_format(format) when format in @formats, do: format
   defp normalize_format(_format), do: :distribution

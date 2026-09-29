@@ -1,7 +1,7 @@
 defmodule VoyagerWeb.Formatters do
   @moduledoc """
   Generic value formatters for display in templates — byte sizes, large
-  counts, integers, durations, booleans, timestamps, and PIDs.
+  counts, integers, durations, booleans, and timestamps.
 
   These are presentation helpers with no domain knowledge, intended to be
   reused across LiveViews and components (imported via `VoyagerWeb`).

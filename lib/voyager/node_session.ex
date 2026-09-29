@@ -7,7 +7,6 @@ defmodule Voyager.NodeSession do
 
   alias Voyager.Agent
   alias Voyager.NodeSession.Connectors.Distribution
-  alias Voyager.Pid
 
   @default_connector Distribution
 
@@ -77,7 +76,7 @@ defmodule Voyager.NodeSession do
 
   @impl GenServer
   def init(_opts) do
-    cache_connection(nil, nil)
+    cache_connector_name(nil)
     {:ok, %{session: nil}}
   end
 
@@ -106,7 +105,8 @@ defmodule Voyager.NodeSession do
           meta: meta
         }
 
-        cache_connection(connector.name(), node)
+        cache_connector_name(connector.name())
+        Voyager.Pid.put_node(node)
 
         broadcast({:node_connected, node})
 
@@ -182,7 +182,8 @@ defmodule Voyager.NodeSession do
 
   defp drop_session(state, session, reason, telemetry_reason) do
     unsubscribe(session.connector)
-    cache_connection(nil, nil)
+    cache_connector_name(nil)
+    Voyager.Pid.put_node(nil)
 
     broadcast({reason, session.node})
     Voyager.Telemetry.dispatch!("voyager.node.disconnect", metadata: %{reason: telemetry_reason})
@@ -225,8 +226,7 @@ defmodule Voyager.NodeSession do
     Phoenix.PubSub.broadcast(Voyager.PubSub, @pubsub_topic, event)
   end
 
-  defp cache_connection(via, node) do
+  defp cache_connector_name(via) do
     :persistent_term.put(@connector_name_cache_key, via)
-    Pid.put_node(node)
   end
 end

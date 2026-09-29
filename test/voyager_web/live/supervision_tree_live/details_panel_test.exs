@@ -8,8 +8,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
 
   alias Voyager.Fakes
   alias Voyager.Services.RateLimiter
-  alias Voyager.Services.SupervisionTree.TreeNode
-  alias VoyagerWeb.Components.DetailsPanelComponents
 
   @node_name "demo@localhost"
   @path "/node/demo@localhost/supervision-tree"
@@ -97,33 +95,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       assert has_element?(view, "#details-panel", "Links")
       assert has_element?(view, "#details-panel", "Memory and Garbage Collection")
       refute has_element?(view, "#details-panel", "This is not a process node")
-      assert has_element?(view, "#details-panel-pid", pid_key(sup_pid))
-    end
-
-    test "displays and copies a pid-shaped name in local form" do
-      previous = VoyagerWeb.Formatters.pid_format()
-      VoyagerWeb.Formatters.put_pid_format(:local)
-      on_exit(fn -> VoyagerWeb.Formatters.put_pid_format(previous) end)
-
-      node = %TreeNode{
-        key: "<123.45.0>",
-        type: :worker,
-        name: "<123.45.0>",
-        pid: self()
-      }
-
-      html =
-        render_component(&DetailsPanelComponents.node_label/1, %{
-          panel_id: "details-panel",
-          node: node
-        })
-
-      document = LazyHTML.from_fragment(html)
-      name = document |> LazyHTML.query("#details-panel-name") |> LazyHTML.text()
-      copy = document |> LazyHTML.query("#details-panel-name-copy-text") |> LazyHTML.text()
-
-      assert name =~ "<0.45.0>"
-      assert copy =~ "<0.45.0>"
     end
 
     test "shows the non-process message for a port", %{

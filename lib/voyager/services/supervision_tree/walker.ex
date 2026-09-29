@@ -655,7 +655,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   # keys & helpers
   # ---------------------------------------------------------------------------
 
-  defp id_key(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
+  defp id_key(pid) when is_pid(pid), do: Voyager.Pid.display(pid)
 
   defp id_key(port_or_ref) when is_port(port_or_ref) or is_reference(port_or_ref),
     do: inspect(port_or_ref)
