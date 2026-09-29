@@ -7,6 +7,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   use VoyagerWeb, :component
 
   alias Phoenix.LiveView.AsyncResult
+  alias Voyager.Pid
   alias Voyager.Services.SupervisionTree.TreeNode
   alias VoyagerWeb.Components.SupervisionTreeComponents
   alias VoyagerWeb.Formatters
@@ -394,31 +395,13 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         ]}
         title={@value}
       >
-        <.pid_chip :if={@href} href={@href} label={@value} />
+        <.pid_link :if={@href} href={@href} pid={@value} />
         <%= if is_nil(@href) do %>
           {@value}
         <% end %>
         {render_slot(@inner_block)}
       </div>
     </div>
-    """
-  end
-
-  @doc """
-  A bordered chip linking to a process, styled like the relation chips.
-  """
-  attr :href, :string, required: true
-  attr :label, :string, required: true
-
-  def pid_chip(assigns) do
-    ~H"""
-    <.link
-      href={@href}
-      class="border-base-content/70 bg-base-200 text-base-content font-mono inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors hover:border-primary hover:text-primary"
-    >
-      <span class="bg-primary h-1.5 w-1.5 rounded-full" />
-      {@label}
-    </.link>
     """
   end
 
@@ -429,10 +412,9 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     <button
       type="button"
       disabled
-      class="border-base-content/70 bg-base-200 text-base-content font-mono inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs"
+      class="border-base-content/70 bg-base-200 text-base-content inline-flex rounded-md border px-2.5 py-1 text-xs"
     >
-      <span class="bg-primary h-1.5 w-1.5 rounded-full" />
-      {@label}
+      <.display_pid pid={@label} />
     </button>
     """
   end
@@ -596,7 +578,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp format_stack_entry(entry), do: format_mfa(entry)
 
   defp format_optional(nil), do: "—"
-  defp format_optional(value), do: inspect(value)
+  defp format_optional(value), do: inspect(value, inspect_fun: &Pid.inspect_fun/2)
 
   defp format_optional_identifier(nil), do: "—"
   defp format_optional_identifier(identifier), do: format_identifier(identifier)
@@ -615,8 +597,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp format_count(nil), do: "—"
   defp format_count(n) when is_integer(n), do: Formatters.format_integer(n)
 
-  defp format_identifier(pid) when is_pid(pid),
-    do: pid |> :erlang.pid_to_list() |> List.to_string()
+  defp format_identifier(pid) when is_pid(pid), do: Formatters.pid(pid)
 
   defp format_identifier(port) when is_port(port),
     do: port |> :erlang.port_to_list() |> List.to_string()
@@ -624,8 +605,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp format_identifier(other), do: inspect(other)
 
   defp node_display_name(%TreeNode{name: name}) when is_atom(name), do: Atom.to_string(name)
-  defp node_display_name(%TreeNode{name: name}) when is_binary(name), do: name
-  defp node_display_name(%TreeNode{key: key}), do: key
+  defp node_display_name(%TreeNode{name: name}) when is_binary(name), do: Formatters.pid(name)
+  defp node_display_name(%TreeNode{key: key}), do: Formatters.pid(key)
 
   defp node_pid_string(%TreeNode{pid: pid}) when is_pid(pid), do: format_identifier(pid)
   defp node_pid_string(_), do: nil

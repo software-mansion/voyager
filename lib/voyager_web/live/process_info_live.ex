@@ -23,6 +23,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
   alias VoyagerWeb.FormSchemas.ProcessInfoControls
   alias VoyagerWeb.Hooks.TermTreeHook
   alias VoyagerWeb.ProcessInfoLive.Query
+  alias VoyagerWeb.TermTree
 
   require Logger
 
@@ -70,11 +71,11 @@ defmodule VoyagerWeb.ProcessInfoLive do
                 class="text-base-content font-mono flex items-center gap-2 text-2xl font-bold tracking-tight"
               >
                 <span class="bg-primary h-2 w-2 rounded-full" />
-                {@pid_string}
+                {Formatters.pid(@pid_string)}
               </h2>
               <:content>
                 <div class="flex items-center gap-1">
-                  <span id="process-info-pid-text">{@pid_string}</span>
+                  <span id="process-info-pid-text">{Formatters.pid(@pid_string)}</span>
                   <.copy_button
                     id="process-info-pid-copy"
                     target="#process-info-pid-text"
@@ -632,7 +633,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
   defp put_term(socket, id, term) do
     socket
     |> TermTreeHook.put_term(id, term)
-    |> update(:copy_texts, &Map.put(&1, id, copy_text(term)))
+    |> update(:copy_texts, &Map.put(&1, id, TermTree.copy_string(term)))
   end
 
   defp seed_term_list(socket, prefix, items) do

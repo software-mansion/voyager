@@ -16,6 +16,12 @@
   }
 }
 
+@media (min-width: 1024px) {
+  #ets-lookup-sidebar {
+    min-width: 23rem;
+  }
+}
+
 [data-cy-container] {
   --grid: rgba(148, 163, 184, 0.12);
   background:
