@@ -32,8 +32,8 @@ function row(page: Page, name: string) {
 
 function style(locator: Locator) {
   return locator.evaluate((el) => {
-    const { color, fontWeight, textShadow } = getComputedStyle(el);
-    return { color, fontWeight: Number(fontWeight), textShadow };
+    const { color, fontWeight } = getComputedStyle(el);
+    return { color, fontWeight: Number(fontWeight) };
   });
 }
 
@@ -233,9 +233,7 @@ test.describe('EtsTableLive', () => {
 
     const keyStyle = await style(key);
     const rowStyle = await style(key.locator('..'));
-    expect(keyStyle.color).toBe(rowStyle.color);
+    expect(keyStyle.color).not.toBe(rowStyle.color);
     expect(keyStyle.fontWeight).toBeGreaterThan(rowStyle.fontWeight);
-    expect(rowStyle.textShadow).toBe('none');
-    expect(keyStyle.textShadow).not.toBe('none');
   });
 });
