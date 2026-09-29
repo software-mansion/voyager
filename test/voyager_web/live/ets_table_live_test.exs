@@ -53,6 +53,19 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     end
   end
 
+  test "a collection key keeps the inspect limit it has inside the record", %{conn: conn} do
+    record = {:a, :b, :c, Enum.to_list(1..30), :d}
+    name = EtsTable.unique_name()
+    :ets.new(name, [:named_table, :public, :set, keypos: 4])
+    :ets.insert(name, record)
+
+    view = fetch_records(conn, name)
+
+    row = inspect(record, limit: 20, printable_limit: 128, width: :infinity)
+    assert has_element?(view, "#ets-records-0-toggle", row)
+    assert row =~ text(view, "#ets-records-0-key")
+  end
+
   test "a bag row has no lookup control and ignores open_sidebar", %{conn: conn} do
     name = named_table(:bag)
     :ets.insert(name, {:k, 1})

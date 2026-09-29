@@ -450,16 +450,18 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   defp truncated_record?(_other), do: false
 
-  # Inspecting around a marker keeps the row exactly as inspect/2 prints it, limits included.
+  # The marker only locates the key: inspected alone it would get a larger limit than in place.
   defp preview_parts(record, keypos) when is_tuple(record) and tuple_size(record) >= keypos do
-    marked = put_elem(record, keypos - 1, @key_marker)
+    text = preview(record)
+    marked = record |> put_elem(keypos - 1, @key_marker) |> preview()
 
-    case String.split(preview(marked), inspect(@key_marker), parts: 2) do
-      [before, rest] ->
-        [{before, false}, {preview(elem(record, keypos - 1)), true}, {rest, false}]
-
-      [text] ->
-        [{text, false}]
+    with [before, rest] <- String.split(marked, inspect(@key_marker), parts: 2),
+         key_size = byte_size(text) - byte_size(before) - byte_size(rest),
+         true <- key_size > 0 and String.starts_with?(text, before),
+         true <- String.ends_with?(text, rest) do
+      [{before, false}, {binary_part(text, byte_size(before), key_size), true}, {rest, false}]
+    else
+      _other -> [{text, false}]
     end
   end
 
