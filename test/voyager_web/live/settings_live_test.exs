@@ -141,10 +141,10 @@ defmodule VoyagerWeb.SettingsLiveTest do
       assert has_element?(view, ~s|#mcp-toggle[data-toggle-revision="1"]|)
     end
 
-    test "updates the port", %{conn: conn, mcp_port: port} do
+    test "updates the port", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/settings")
 
-      new_port = port + 1
+      new_port = Voyager.MCPCase.unique_port()
 
       view
       |> form("#mcp-port-form", %{"mcp_port" => %{"port" => to_string(new_port)}})
@@ -155,14 +155,15 @@ defmodule VoyagerWeb.SettingsLiveTest do
       assert render(view) =~ "Running at http://127.0.0.1:#{new_port}/mcp"
     end
 
-    test "shows an error when the port is already in use", %{conn: conn, mcp_port: port} do
-      {:ok, socket} = :gen_tcp.listen(port + 1, [:binary, active: false, ip: {127, 0, 0, 1}])
+    test "shows an error when the port is already in use", %{conn: conn} do
+      busy_port = Voyager.MCPCase.unique_port()
+      {:ok, socket} = :gen_tcp.listen(busy_port, [:binary, active: false, ip: {127, 0, 0, 1}])
       on_exit(fn -> :gen_tcp.close(socket) end)
 
       {:ok, view, _html} = live(conn, ~p"/settings")
 
       view
-      |> form("#mcp-port-form", %{"mcp_port" => %{"port" => to_string(port + 1)}})
+      |> form("#mcp-port-form", %{"mcp_port" => %{"port" => to_string(busy_port)}})
       |> render_submit()
 
       assert render(view) =~ "That port is already in use"

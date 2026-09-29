@@ -207,6 +207,8 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_CI_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: rel/app
           args: --target ${{ matrix.gui_target }}
@@ -215,6 +217,8 @@ jobs:
           releaseName: ${{ github.ref_name }}
           releaseDraft: true
           assetNamePattern: "Voyager-[platform]-[arch][ext]"
+          # Every matrix job would rewrite latest.json and drop the others' platforms.
+          includeUpdaterJson: false
 
       - name: Verify app notarization (macOS)
         if: runner.os == 'macOS'
@@ -223,3 +227,19 @@ jobs:
           app_path="rel/app/src-tauri/target/${{ matrix.gui_target }}/release/bundle/macos/Voyager.app"
           echo "Verifying $app_path"
           spctl -a -t exec -vvv "$app_path"
+
+  updater_json:
+    name: Upload updater manifest
+    needs: app
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Build and upload latest.json
+        shell: bash
+        run: .github/scripts/upload_updater_json.sh "${{ github.ref_name }}"

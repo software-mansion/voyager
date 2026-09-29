@@ -44,8 +44,7 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
     end
 
     test "a dead process redirects to the process list with a flash", %{conn: conn} do
-      pid = spawn(fn -> :ok end)
-      ref = Process.monitor(pid)
+      {pid, ref} = spawn_monitor(fn -> :ok end)
       assert_receive {:DOWN, ^ref, :process, ^pid, :normal}
 
       path = ~p"/node/#{@node_name}/processes/#{Formatters.format_pid(pid)}"

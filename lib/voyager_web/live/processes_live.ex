@@ -54,6 +54,7 @@ defmodule VoyagerWeb.ProcessesLive do
         <:actions>
           <.interval_select
             id="processes-refresh-interval"
+            settings_key="processes"
             options={Fetcher.interval_options()}
             refresh_interval={@refresh_interval}
             loading={Fetcher.loading?(@page_result)}

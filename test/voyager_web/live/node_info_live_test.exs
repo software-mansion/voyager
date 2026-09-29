@@ -146,6 +146,7 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       assert has_element?(view, "#node-info-content", "262,144")
       assert has_element?(view, "#node-info-content", "12,345")
       assert has_element?(view, "#node-info-content", "1,048,576")
+      assert has_element?(view, "#node-info-content", "1.2%")
     end
 
     test "renders the runtime info card from the mocked data", %{conn: conn} do
@@ -280,8 +281,13 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      assert has_element?(view, "#refresh-interval-form")
-      assert has_element?(view, ~s|#refresh-interval option[value="off"][selected]|)
+      assert has_element?(
+               view,
+               ~s|#refresh-interval-form[phx-hook="VoyagerWeb.CoreComponents.RefreshInterval"][data-settings-key="node-info"]|
+             )
+
+      assert has_element?(view, "#refresh-interval-dropdown.min-w-19")
+      assert has_element?(view, ~s|#refresh-interval-off-option input[checked]|)
     end
 
     test "refresh button re-fetches and keeps content rendered", %{conn: conn} do
@@ -308,7 +314,7 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       |> form("#refresh-interval-form")
       |> render_change(%{"interval" => "5000"})
 
-      assert has_element?(view, ~s|#refresh-interval option[value="5000"][selected]|)
+      assert has_element?(view, ~s|#refresh-interval-5000-option input[checked]|)
     end
 
     test "enables the JSON snapshot action after the async fetch resolves", %{conn: conn} do

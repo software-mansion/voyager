@@ -237,8 +237,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
             last={key == :error_handler}
           />
         </:loading>
-        <:failed>
-          <.load_error />
+        <:failed :let={failure}>
+          <.load_error failure={failure} />
         </:failed>
         <%= for {key, label, _width} <- @rows do %>
           <.suspending_list :if={key == :suspending} suspending={info.suspending} size={@size} />
@@ -274,8 +274,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
             <.chip_skeleton />
           </div>
         </:loading>
-        <:failed>
-          <.load_error />
+        <:failed :let={failure}>
+          <.load_error failure={failure} />
         </:failed>
         <.links_list
           toggle_id={"#{@panel_id}-toggle-links"}
@@ -311,8 +311,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
             last={key == :gc_fullsweep_after}
           />
         </:loading>
-        <:failed>
-          <.load_error />
+        <:failed :let={failure}>
+          <.load_error failure={failure} />
         </:failed>
         <.kv
           :for={{key, label} <- @rows}
@@ -427,15 +427,22 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     """
   end
 
+  attr :failure, :any, default: nil
+
   @spec load_error(any()) :: Phoenix.LiveView.Rendered.t()
   def load_error(assigns) do
     ~H"""
     <div class="alert alert-error border px-3 py-2.5 text-xs">
       <.icon name="icon-circle-alert" class="text-error size-4 shrink-0" />
-      Failed to load node details.
+      {load_error_message(@failure)}
     </div>
     """
   end
+
+  defp load_error_message({:error, reason}), do: load_error_message(reason)
+  defp load_error_message(:rate_limited), do: "Too many requests. Wait a moment and refresh."
+
+  defp load_error_message(_failure), do: "Failed to load node details."
 
   attr :label, :string, required: true
   attr :help, :map, default: nil

@@ -83,6 +83,19 @@ export default defineConfig({
       dependencies: ['recent-connections firefox'],
     },
 
+    {
+      name: 'sidebar chromium',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: '**/sidebar.spec.ts',
+      dependencies: ['recent-connections firefox'],
+    },
+    {
+      name: 'sidebar firefox',
+      use: { ...devices['Desktop Firefox'] },
+      testMatch: '**/sidebar.spec.ts',
+      dependencies: ['recent-connections firefox'],
+    },
+
     // Supervision Tree tests mutate shared state on the target node, so run them in order.
     {
       name: 'supervision-tree chromium',

@@ -73,6 +73,7 @@ defmodule VoyagerWeb.EtsTablesLive do
             <:actions>
               <.interval_select
                 id="ets-tables-refresh-interval"
+                settings_key="ets-tables"
                 options={Fetcher.interval_options()}
                 refresh_interval={@refresh_interval}
                 loading={Fetcher.loading?(@page_result)}

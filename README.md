@@ -124,6 +124,10 @@ mix assets.deploy
 mix tauri.app
 ```
 
+To tell a locally built desktop app apart from a release, set `VOYAGER_DEV_BUILD=true` in
+`rel/app/.env` (see [`.env.sample`](rel/app/.env.sample)). Apps built or run through `mix tauri.*`
+then show a `Dev Build` banner.
+
 Before opening a pull request, run:
 
 ```sh

@@ -46,10 +46,13 @@ defmodule Voyager.MCPCase do
     end
   end
 
-  @doc "Picks a high ephemeral port unlikely to collide across parallel test files."
+  @doc "Returns a free TCP port picked by the kernel; the probe socket is closed before returning."
   @spec unique_port() :: pos_integer()
   def unique_port do
-    54_000 + rem(System.unique_integer([:positive]), 4_000)
+    {:ok, socket} = :gen_tcp.listen(0, ip: {127, 0, 0, 1})
+    {:ok, port} = :inet.port(socket)
+    :ok = :gen_tcp.close(socket)
+    port
   end
 
   @doc false
