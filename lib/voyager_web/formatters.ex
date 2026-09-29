@@ -131,6 +131,5 @@ defmodule VoyagerWeb.Formatters do
 
   defdelegate pid(pid), to: Voyager.Pid, as: :format
   defdelegate pid(pid, format), to: Voyager.Pid, as: :format
-  defdelegate pid_format(), to: Voyager.Pid, as: :cached_format
   defdelegate put_pid_format(format), to: Voyager.Pid, as: :put_format
 end
