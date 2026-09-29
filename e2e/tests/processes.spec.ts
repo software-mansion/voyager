@@ -26,7 +26,6 @@ async function expectPids(page: Page, format: RegExp) {
   }).toPass();
 }
 
-// The pid format is a global setting, so this spec runs after the others.
 test.describe('ProcessesLive › pid format', () => {
   test.beforeEach(async ({ page }) => {
     await ensureConnected(page);

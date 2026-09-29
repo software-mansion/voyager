@@ -7,6 +7,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   use VoyagerWeb, :component
 
   alias Phoenix.LiveView.AsyncResult
+  alias Voyager.Pid
   alias Voyager.Services.SupervisionTree.TreeNode
   alias VoyagerWeb.Components.SupervisionTreeComponents
   alias VoyagerWeb.Formatters
@@ -577,7 +578,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp format_stack_entry(entry), do: format_mfa(entry)
 
   defp format_optional(nil), do: "—"
-  defp format_optional(value), do: inspect(value)
+  defp format_optional(value), do: inspect(value, inspect_fun: &Pid.inspect_fun/2)
 
   defp format_optional_identifier(nil), do: "—"
   defp format_optional_identifier(identifier), do: format_identifier(identifier)

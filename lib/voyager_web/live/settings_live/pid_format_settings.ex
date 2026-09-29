@@ -2,13 +2,13 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
   @moduledoc false
   use VoyagerWeb, :live_component
 
-  alias Voyager.Settings
   alias Voyager.Pid
+  alias Voyager.Settings
   alias VoyagerWeb.SettingsComponents
 
   @pid_formats [
     {:distribution, "icon-network", "Distribution", "<123.23.423>",
-     "Keeps the remote node index, which identifies a process across a cluster."},
+     "Keeps the remote node index, which is used when making RPC calls."},
     {:local, "icon-laptop", "Local", "<0.23.423>",
      "Replaces the node index with 0, so you can use it on remote shells."}
   ]
