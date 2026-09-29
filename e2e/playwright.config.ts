@@ -111,5 +111,27 @@ export default defineConfig({
       testMatch: ['**/supervision_tree.spec.ts', '**/details_panel.spec.ts'],
       dependencies: ['supervision-tree chromium'],
     },
+
+    // Processes tests flip the global pid format, so run them after every other project.
+    {
+      name: 'processes chromium',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: '**/processes.spec.ts',
+      dependencies: [
+        'ets chromium',
+        'ets firefox',
+        'node chromium',
+        'node firefox',
+        'sidebar chromium',
+        'sidebar firefox',
+        'supervision-tree firefox',
+      ],
+    },
+    {
+      name: 'processes firefox',
+      use: { ...devices['Desktop Firefox'] },
+      testMatch: '**/processes.spec.ts',
+      dependencies: ['processes chromium'],
+    },
   ],
 });

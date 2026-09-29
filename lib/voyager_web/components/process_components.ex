@@ -263,7 +263,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   attr :href, :string, required: true
 
   def pid_cell(assigns) do
-    assigns = assign(assigns, :pid_string, Formatters.format_pid(assigns.pid))
+    assigns = assign(assigns, :pid_string, Formatters.pid(assigns.pid))
 
     ~H"""
     <.tooltip

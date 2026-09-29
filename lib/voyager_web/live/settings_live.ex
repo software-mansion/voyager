@@ -5,6 +5,7 @@ defmodule VoyagerWeb.SettingsLive do
   alias VoyagerWeb.SettingsLive.AppearanceSettings
   alias VoyagerWeb.SettingsLive.DistributionSettings
   alias VoyagerWeb.SettingsLive.McpSettings
+  alias VoyagerWeb.SettingsLive.PidFormatSettings
   alias VoyagerWeb.SettingsLive.TelemetrySettings
   alias VoyagerWeb.SettingsLive.UpdateSettings
 
@@ -33,6 +34,7 @@ defmodule VoyagerWeb.SettingsLive do
       </div>
 
       <AppearanceSettings.appearance_settings />
+      <.live_component module={PidFormatSettings} id="pid-format-settings" />
       <.live_component
         module={DistributionSettings}
         id="distribution-settings"

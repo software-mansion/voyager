@@ -16,7 +16,7 @@ defmodule Voyager.JasonEncoders do
     @spec encode(pid(), Jason.Encode.opts()) :: iodata()
     def encode(pid, opts) do
       pid
-      |> Voyager.Pid.display()
+      |> Voyager.Pid.format(:distribution)
       |> Encoder.BitString.encode(opts)
     end
   end

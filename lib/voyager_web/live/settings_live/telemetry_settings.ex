@@ -4,6 +4,7 @@ defmodule VoyagerWeb.SettingsLive.TelemetrySettings do
 
   alias Voyager.Settings
   alias Voyager.Telemetry
+  alias VoyagerWeb.SettingsComponents
 
   @impl true
   def mount(socket) do
@@ -47,12 +48,7 @@ defmodule VoyagerWeb.SettingsLive.TelemetrySettings do
           />
         </div>
 
-        <div :if={@locked?} id="telemetry-locked" class="alert alert-info text-sm">
-          <.icon name="icon-circle-alert" class="size-4" />
-          <span>
-            This value is set in application config, so changes are disabled.
-          </span>
-        </div>
+        <SettingsComponents.locked_alert id="telemetry-locked" locked?={@locked?} />
 
         <.link
           href={@terms_of_service_url}

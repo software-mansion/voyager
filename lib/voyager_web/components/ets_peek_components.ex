@@ -6,6 +6,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   use VoyagerWeb, :component
 
+  alias Voyager.Pid
   alias VoyagerWeb.Components.DetailsPanelComponents
   alias VoyagerWeb.Components.EtsTableComponents
   alias VoyagerWeb.Components.TermComponents
@@ -21,6 +22,13 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   @budget_help "Caps how much of each fetched term the remote node sends back — " <>
                  "roughly one unit per subterm, binaries charged per byte kept. " <>
                  "Anything beyond the budget is truncated on the remote."
+
+  @preview_opts [
+    limit: 20,
+    printable_limit: 128,
+    width: :infinity,
+    inspect_fun: &Pid.inspect_fun/2
+  ]
 
   attr :table_name, :string, required: true
   attr :node_name, :string, required: true
@@ -67,6 +75,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   attr :info, :map, required: true
   attr :owner_href, :string, required: true
+  attr :heir_href, :string, default: nil
 
   def info_panel(assigns) do
     ~H"""
@@ -91,13 +100,11 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       <.info_item label="Records" help={:size}>{Formatters.format_integer(@info.size)}</.info_item>
       <.info_item label="Memory" help={:memory}>{Formatters.format_bytes(@info.memory)}</.info_item>
       <.info_item id="ets-info-owner" label="Owner" help={:owner}>
-        <DetailsPanelComponents.pid_chip
-          href={@owner_href}
-          label={Formatters.format_pid(@info.owner)}
-        />
+        <.pid_link href={@owner_href} pid={@info.owner} />
       </.info_item>
-      <.info_item label="Heir" help={:heir}>
-        {if @info.heir == :none, do: "none", else: inspect(@info.heir)}
+      <.info_item :if={@info.heir == :none} label="Heir" help={:heir}>none</.info_item>
+      <.info_item :if={@info.heir != :none} label="Heir" help={:heir}>
+        <.pid_link href={@heir_href} pid={@info.heir} />
       </.info_item>
       <.info_item label="Named table" help={:named_table}>{@info.named_table}</.info_item>
       <.info_item label="Compressed" help={:compressed}>{@info.compressed}</.info_item>
@@ -291,7 +298,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
           <DetailsPanelComponents.copyable
             id="ets-sidebar-key"
             class="font-mono text-base-content break-all text-sm font-medium"
-            text={inspect(@key)}
+            text={inspect(@key, inspect_fun: &Pid.inspect_fun/2)}
             label="Copy key"
           />
         </div>
@@ -456,9 +463,9 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   defp preview(record) do
     record
     |> strip_markers()
-    |> inspect(limit: 20, printable_limit: 128, width: :infinity)
+    |> inspect(@preview_opts)
   rescue
-    _e -> inspect(record, limit: 20, printable_limit: 128, width: :infinity)
+    _e -> inspect(record, @preview_opts)
   end
 
   defp strip_markers(@truncated), do: :...

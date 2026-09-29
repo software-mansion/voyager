@@ -106,6 +106,7 @@ defmodule Voyager.NodeSession do
         }
 
         cache_connector_name(connector.name())
+        Voyager.Pid.put_node(node)
 
         broadcast({:node_connected, node})
 
@@ -182,6 +183,7 @@ defmodule Voyager.NodeSession do
   defp drop_session(state, session, reason, telemetry_reason) do
     unsubscribe(session.connector)
     cache_connector_name(nil)
+    Voyager.Pid.put_node(nil)
 
     broadcast({reason, session.node})
     Voyager.Telemetry.dispatch!("voyager.node.disconnect", metadata: %{reason: telemetry_reason})

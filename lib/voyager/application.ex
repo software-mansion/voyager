@@ -25,6 +25,7 @@ defmodule Voyager.Application do
       {Voyager.Services.AppUpdater, native?: elixirkit_pubsub != nil},
       VoyagerWeb.Endpoint,
       Voyager.MCP,
+      Supervisor.child_spec({Task, &Voyager.Pid.load_format/0}, id: :load_pid_format),
       {Task, fn -> if elixirkit_pubsub, do: ElixirKit.PubSub.broadcast("messages", "ready") end}
     ]
 
