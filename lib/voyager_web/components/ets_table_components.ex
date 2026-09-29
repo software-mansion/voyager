@@ -111,11 +111,25 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         </label>
 
         <div class="grid-cols-[auto_auto_auto_auto_auto] grid-rows-[auto_auto_auto] grid items-center gap-x-2">
-          <.field_label field={@form[:protection]} label="Protection" />
-          <.field_label field={@form[:type]} label="Type" />
-          <.field_label field={@form[:named]} label="Named" />
-          <.field_label field={@form[:timeout]} label="Timeout (ms)" />
-          <span class="text-base-content/70 text-xs font-medium">Columns</span>
+          <.field_label
+            field={@form[:protection]}
+            label="Protection"
+            help={EtsTableHelp.get(:protection)}
+          />
+          <.field_label field={@form[:type]} label="Type" help={EtsTableHelp.get(:type)} />
+          <.field_label field={@form[:named]} label="Named" help={EtsTableHelp.get(:named_table)} />
+          <.field_label
+            field={@form[:timeout]}
+            label="Timeout (ms)"
+            help={EtsTableHelp.get(:timeout)}
+          />
+          <div class="flex h-6 items-center gap-1">
+            <span class="text-base-content/70 text-xs font-medium">Columns</span>
+            <.help_tooltip
+              id="ets-table-controls-columns-help"
+              text="Which table properties to show as columns. Table and Memory are always shown."
+            />
+          </div>
 
           <.select
             field={@form[:protection]}
@@ -167,6 +181,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
 
   attr :field, Phoenix.HTML.FormField, required: true
   attr :label, :string, required: true
+  attr :help, :map, default: nil
 
   defp field_label(assigns) do
     ~H"""
@@ -178,6 +193,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
       >
         {@label}
       </label>
+      <.help_tooltip :if={@help} id={"#{@field.id}-help"} entry={@help} />
     </div>
     """
   end

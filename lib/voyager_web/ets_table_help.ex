@@ -13,6 +13,10 @@ defmodule VoyagerWeb.EtsTableHelp do
   @info @ets <> "#info/2"
 
   @entries %{
+    timeout: %{
+      text:
+        "How long to wait for the node to list its tables before the fetch fails. Raise it for a node with many tables or a slow connection."
+    },
     name: %{
       text:
         "Name given to ets:new/2. Only a named_table can be reached by it; an unnamed table is known by its reference, and many unnamed tables may share one name.",

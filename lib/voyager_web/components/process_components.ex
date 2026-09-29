@@ -78,8 +78,15 @@ defmodule VoyagerWeb.Components.ProcessComponents do
             <.field_label
               field={@form[:timeout]}
               label="Timeout (ms)"
+              help="How long to wait for the node to return its processes before the fetch fails. Raise it for a busy node or a slow connection."
             />
-            <span class="text-base-content/70 text-xs font-medium">Columns</span>
+            <div class="flex h-6 items-center gap-1">
+              <span class="text-base-content/70 text-xs font-medium">Columns</span>
+              <.help_tooltip
+                id="process-controls-columns-help"
+                text="Which process properties to show as columns. PID and Memory are always shown."
+              />
+            </div>
 
             <.select
               field={@form[:limit]}
