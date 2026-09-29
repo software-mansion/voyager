@@ -60,33 +60,17 @@ defmodule Voyager.Agent do
 
   `priv/voyager_agent.erl` declares `-module(?AGENT)`; the digest is passed as
   that macro at preprocess time, so the name and the code it stands for cannot
-  drift apart. Memoized because every remote call needs it.
+  drift apart. Cached because every remote call needs it, and re-derived by
+  `install/1` so editing the source in dev does not ship the new code under the
+  name the old code was loaded as.
   """
   @spec module() :: module()
   def module do
     case :persistent_term.get(__MODULE__, nil) do
-      nil ->
-        name = derive_module()
-        :persistent_term.put(__MODULE__, name)
-        name
-
-      name ->
-        name
+      nil -> refresh_module()
+      name -> name
     end
   end
-
-  defp derive_module do
-    digest =
-      source_path()
-      |> File.read!()
-      |> then(&:crypto.hash(:sha256, &1))
-      |> Base.encode16(case: :lower)
-      |> binary_part(0, @agent_digest_length)
-
-    String.to_atom(@agent_prefix <> digest)
-  end
-
-  defp source_path, do: Path.join(:code.priv_dir(:voyager), @agent_source)
 
   @doc "Minimum OTP release the agent requires on the remote node."
   @spec min_otp() :: pos_integer()
@@ -99,7 +83,7 @@ defmodule Voyager.Agent do
   """
   @spec install(node()) :: :ok | {:error, install_error()}
   def install(node) do
-    agent = module()
+    agent = refresh_module()
 
     with :ok <- check_otp(node),
          {:ok, ^agent} <- CodeInjector.load(node, source_path(), AGENT: agent),
@@ -152,6 +136,25 @@ defmodule Voyager.Agent do
         err
     end
   end
+
+  defp refresh_module do
+    name = derive_module()
+    :persistent_term.put(__MODULE__, name)
+    name
+  end
+
+  defp derive_module do
+    digest =
+      source_path()
+      |> File.read!()
+      |> then(&:crypto.hash(:sha256, &1))
+      |> Base.encode16(case: :lower)
+      |> binary_part(0, @agent_digest_length)
+
+    String.to_atom(@agent_prefix <> digest)
+  end
+
+  defp source_path, do: Path.join(:code.priv_dir(:voyager), @agent_source)
 
   defp register(node) do
     case Erpc.safe_call(node, module(), :register, [Node.self()], @register_timeout) do
