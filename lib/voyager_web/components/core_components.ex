@@ -846,8 +846,6 @@ defmodule VoyagerWeb.CoreComponents do
     <.link_tooltip
       id={@id}
       position={@position}
-      doc_href={@doc_href}
-      doc_label={@doc_label}
       entry={@entry}
       interactive={@interactive}
     >
