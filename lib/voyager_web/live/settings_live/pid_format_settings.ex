@@ -3,7 +3,7 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
   use VoyagerWeb, :live_component
 
   alias Voyager.Settings
-  alias VoyagerWeb.Formatters
+  alias Voyager.Pid
   alias VoyagerWeb.SettingsComponents
 
   @pid_formats [
@@ -88,7 +88,7 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
     else
       case Settings.put(:pid_format, format) do
         {:ok, _setting} ->
-          Formatters.put_pid_format(format)
+          Pid.put_format(format)
 
           socket
           |> assign(:pid_format, format)
