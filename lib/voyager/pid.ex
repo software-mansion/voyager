@@ -5,14 +5,12 @@ defmodule Voyager.Pid do
   are cached in `:persistent_term`, so formatting never makes a call.
   """
 
+  alias Voyager.Erpc
   alias Voyager.Settings
 
   @format_key {__MODULE__, :format}
   @node_id_key {__MODULE__, :node_id}
   @formats [:distribution, :local]
-
-  @spec display(pid()) :: String.t()
-  def display(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
 
   @spec parse(String.t()) :: pid() | nil
   def parse(pid_str) when is_binary(pid_str) do
@@ -75,22 +73,22 @@ defmodule Voyager.Pid do
   def inspect_fun(pid, _opts) when is_pid(pid), do: "#PID" <> format(pid)
   def inspect_fun(term, opts), do: Inspect.inspect(term, opts)
 
-  # The index depends on the node name alone, so a pid built from the name carries it.
+  # Any pid of the node, printed here, carries the `N` this node gives it.
   defp node_id(node) do
-    name = Atom.to_string(node)
+    case Erpc.safe_call(node, :erlang, :self, []) do
+      {:ok, pid} when is_pid(pid) ->
+        [_prefix, id] = Regex.run(~r/^<(\d+)\./, format(pid, :distribution))
+        id
 
-    <<131, 88, 118, byte_size(name)::16, name::binary, 0::32, 0::32, 0::32>>
-    |> :erlang.binary_to_term()
-    |> display()
-    |> String.trim_leading("<")
-    |> String.split(".")
-    |> hd()
+      _error ->
+        nil
+    end
   end
 
   defp normalize_format(format) when format in @formats, do: format
   defp normalize_format(_format), do: :distribution
 
-  defp pid_to_string(pid) when is_pid(pid), do: display(pid)
+  defp pid_to_string(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
   defp pid_to_string(pid) when is_binary(pid), do: pid
 
   defp maybe_localize(pid_string, :distribution), do: pid_string
