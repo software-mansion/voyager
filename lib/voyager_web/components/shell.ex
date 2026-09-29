@@ -216,7 +216,9 @@ defmodule VoyagerWeb.Components.Shell do
           navigate={nav_path(node_path(@session, page.path), @sidebar_mode)}
           label={page.label}
         >
-          <:icon><.icon name={page.icon} class="toolbar-icon" /></:icon>
+          <:icon>
+            <.icon name={page.icon} class={["toolbar-icon", page[:icon_class]]} />
+          </:icon>
         </.nav_item>
 
         <div class="border-base-content/10 my-4 border-t"></div>
@@ -313,7 +315,8 @@ defmodule VoyagerWeb.Components.Shell do
       feature: :supervision_tree,
       path: "supervision-tree",
       label: "Supervision Tree",
-      icon: "icon-network"
+      icon: "icon-network",
+      icon_class: "-rotate-90"
     },
     %{feature: :processes, path: "processes", label: "Processes", icon: "icon-cpu"},
     %{
