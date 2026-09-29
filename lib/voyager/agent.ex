@@ -19,6 +19,7 @@ defmodule Voyager.Agent do
   @min_otp 27
   @otp_timeout 5_000
   @register_timeout 5_000
+  @load_check_timeout 5_000
 
   @type install_error ::
           {:agent_install_failed,
@@ -86,7 +87,7 @@ defmodule Voyager.Agent do
     agent = refresh_module()
 
     with :ok <- check_otp(node),
-         {:ok, ^agent} <- CodeInjector.load(node, source_path(), AGENT: agent),
+         {:ok, ^agent} <- ensure_loaded(node, agent),
          {:ok, _pid} <- register(node) do
       :ok
     else
@@ -155,6 +156,16 @@ defmodule Voyager.Agent do
   end
 
   defp source_path, do: Path.join(:code.priv_dir(:voyager), @agent_source)
+
+  # The name is a digest of the source, so a loaded copy is already this code:
+  # reloading would rotate it to old and purge an earlier Voyager's in-flight worker.
+  defp ensure_loaded(node, agent) do
+    case Erpc.safe_call(node, :code, :is_loaded, [agent], @load_check_timeout) do
+      {:ok, false} -> CodeInjector.load(node, source_path(), AGENT: agent)
+      {:ok, _loaded} -> {:ok, agent}
+      {:error, _} = error -> error
+    end
+  end
 
   defp register(node) do
     case Erpc.safe_call(node, module(), :register, [Node.self()], @register_timeout) do
