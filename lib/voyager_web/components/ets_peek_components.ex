@@ -17,6 +17,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   alias VoyagerWeb.TermTree.State
 
   @truncated :"$voyager_truncated"
+  @key_marker :"$voyager_key"
 
   @budget_help "Caps how much of each fetched term the remote node sends back — " <>
                  "roughly one unit per subterm, binaries charged per byte kept. " <>
@@ -219,7 +220,11 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
               {@offset + index + 1}
             </span>
             <span class="font-mono text-base-content min-w-0 flex-1 truncate text-xs">
-              {preview(record)}
+              <span
+                :for={{text, key?} <- preview_parts(record, @keypos)}
+                id={key? && "#{@id}-#{index}-key"}
+                class={key? && "text-code-key"}
+              >{text}</span>
             </span>
             <span
               :if={truncated_record?(record)}
@@ -249,6 +254,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
             id={record_inspector_id(@id, index)}
             term={record}
             state={@term_states[record_inspector_id(@id, index)] || %State{}}
+            key_path={[@keypos - 1]}
             class="overflow-x-auto"
           />
         </div>
@@ -258,6 +264,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   end
 
   attr :key, :any, required: true
+  attr :keypos, :integer, required: true
   attr :lookup, Phoenix.LiveView.AsyncResult, required: true
   attr :form, Phoenix.HTML.Form, required: true
   attr :term_states, :map, required: true
@@ -282,7 +289,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
           </div>
           <DetailsPanelComponents.copyable
             id="ets-sidebar-key"
-            class="font-mono text-base-content break-all text-sm font-medium"
+            class="font-mono text-code-key break-all text-sm font-medium"
             text={inspect(@key, inspect_fun: &Pid.inspect_fun/2)}
             label="Copy key"
           />
@@ -341,6 +348,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
             id={lookup_inspector_id(index)}
             term={record}
             state={@term_states[lookup_inspector_id(index)] || %State{}}
+            key_path={[@keypos - 1]}
             class="text-sm! min-w-0 flex-1 overflow-x-auto"
           />
           <.copy_button
@@ -444,6 +452,21 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   end
 
   defp truncated_record?(_other), do: false
+
+  # Inspecting around a marker keeps the row exactly as inspect/2 prints it, limits included.
+  defp preview_parts(record, keypos) when is_tuple(record) and tuple_size(record) >= keypos do
+    marked = put_elem(record, keypos - 1, @key_marker)
+
+    case String.split(preview(marked), inspect(@key_marker), parts: 2) do
+      [before, rest] ->
+        [{before, false}, {preview(elem(record, keypos - 1)), true}, {rest, false}]
+
+      [text] ->
+        [{text, false}]
+    end
+  end
+
+  defp preview_parts(record, _keypos), do: [{preview(record), false}]
 
   defp preview(record) do
     record

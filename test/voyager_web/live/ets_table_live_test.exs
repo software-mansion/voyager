@@ -37,6 +37,27 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     refute has_element?(view, "#ets-lookup-error")
   end
 
+  test "the key is coloured in the row, the open record and the lookup", %{conn: conn} do
+    name = EtsTable.unique_name()
+    :ets.new(name, [:named_table, :public, :set, keypos: 2])
+    :ets.insert(name, {:value, :the_key, 1})
+
+    view = fetch_records(conn, name)
+
+    assert has_element?(view, "#ets-records-0-key.text-code-key", ":the_key")
+
+    view |> element("#ets-records-0-toggle") |> render_click()
+
+    assert has_element?(view, "#ets-records-0-term-1 .text-code-key", ":the_key")
+    refute has_element?(view, "#ets-records-0-term-0 .text-code-key")
+
+    view |> element("#ets-records-0-lookup") |> render_click()
+    render_async(view, 2_000)
+
+    assert has_element?(view, "#ets-sidebar-key.text-code-key", ":the_key")
+    assert has_element?(view, "#ets-lookup-0-term-1 .text-code-key", ":the_key")
+  end
+
   test "a bag row has no lookup control and ignores open_sidebar", %{conn: conn} do
     name = named_table(:bag)
     :ets.insert(name, {:k, 1})

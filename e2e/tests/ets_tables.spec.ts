@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 import { NODE_NAME, ensureConnected, waitForLiveView } from './fixtures';
 
 // Tables owned by mock_ets_owner on the target node (see e2e/mock_app).
@@ -28,6 +28,10 @@ function row(page: Page, name: string) {
   return page
     .locator(sel.rows)
     .filter({ has: page.locator('td[data-column="name"]', { hasText: name }) });
+}
+
+function color(locator: Locator) {
+  return locator.evaluate((el) => getComputedStyle(el).color);
 }
 
 /** Narrows the list to the four mock_ets_* tables the mock app owns. */
@@ -208,5 +212,29 @@ test.describe('EtsTablesLive', () => {
     await waitForLiveView(page);
 
     await expect(page.locator(sel.panelNotFound)).toBeVisible();
+  });
+});
+
+test.describe('EtsTableLive', () => {
+  test.beforeEach(async ({ page }) => {
+    await ensureConnected(page);
+    await page.goto(`${listUrl}/${encodeURIComponent(CACHE)}`);
+    await waitForLiveView(page);
+    await page.locator('#ets-peek-fetch').click();
+    await expect(page.locator('#ets-records-0')).toBeVisible();
+  });
+
+  test('a record key is coloured apart from its value', async ({ page }) => {
+    await page.locator('#ets-records-0-toggle').click();
+
+    const key = page.locator('#ets-records-0-term-0 .text-code-key');
+    const value = page.locator('#ets-records-0-term-1 .text-code-number');
+    await expect(key).toBeVisible();
+    await expect(value).toBeVisible();
+
+    expect(await color(key)).not.toBe(await color(value));
+    expect(await color(page.locator('#ets-records-0-key'))).toBe(
+      await color(key)
+    );
   });
 });
