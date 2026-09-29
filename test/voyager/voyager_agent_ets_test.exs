@@ -350,7 +350,7 @@ defmodule VoyagerAgentEtsTest do
   defp assert_paged_key_lookup(name) do
     for i <- 1..25, do: :ets.insert(name, {:k, i})
 
-    assert {:ok, %{records: page, continuation: cont, truncated: false}} =
+    assert {:ok, %{records: page, continuation: cont, truncated: false, total: 25}} =
              @agent_module.ets_lookup(name, :k, 10, @budget, :undefined)
 
     assert length(page) == 10

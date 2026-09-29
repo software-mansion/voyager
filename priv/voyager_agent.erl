@@ -550,9 +550,11 @@ do_lookup(Table, Key, Limit, Budget, {?SKIP_CONT, Skip}) when is_integer(Skip), 
             {error, key_too_large};
         false ->
             Rows = ets:lookup(Table, Key),
-            Page = lists:sublist(lists:nthtail(min(Skip, length(Rows)), Rows), Limit),
+            Count = length(Rows),
+            Page = lists:sublist(lists:nthtail(min(Skip, Count), Rows), Limit),
             Taken = Skip + length(Page),
-            wrap_records(Page, skip_token(Taken, length(Rows) > Taken), Budget)
+            {ok, Chunk} = wrap_records(Page, skip_token(Taken, Count > Taken), Budget),
+            {ok, Chunk#{total => Count}}
     end.
 
 %% ets:lookup/2 copies a whole key without yielding; ets:select_count/2 yields and copies nothing.

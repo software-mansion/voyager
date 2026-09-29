@@ -45,12 +45,14 @@ defmodule VoyagerWeb.EtsTableLiveTest do
       view = open_lookup(conn, name)
 
       assert lookup_record_count(view) == 10
+      assert lookup_page_label(view) == "1 / 2"
       refute has_element?(view, "#ets-lookup-pager-prev:not([disabled])")
 
       view |> element("#ets-lookup-pager-next") |> render_click()
       render_async(view, 2_000)
 
       assert lookup_record_count(view) == 5
+      assert lookup_page_label(view) == "2 / 2"
       assert has_element?(view, "#ets-lookup-pager-next[disabled]")
 
       view |> element("#ets-lookup-pager-prev") |> render_click()
@@ -117,6 +119,15 @@ defmodule VoyagerWeb.EtsTableLiveTest do
 
     assert has_element?(view, "#ets-lookup-sidebar")
     view
+  end
+
+  defp lookup_page_label(view) do
+    view
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query("#ets-lookup-pager .font-mono.pointer-events-none")
+    |> LazyHTML.text()
+    |> String.trim()
   end
 
   defp lookup_record_count(view) do

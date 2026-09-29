@@ -169,15 +169,7 @@ defmodule VoyagerWeb.EtsTableLive do
         error_message={lookup_error_message(@lookup)}
         page={@lookup_page}
         page_size={@lookup_controls.page_size}
-        total={
-          pager_total(
-            0,
-            @lookup_conts,
-            @lookup_page,
-            @lookup_controls.page_size,
-            lookup_records(@lookup)
-          )
-        }
+        total={lookup_total(@lookup)}
         page_size_options={EtsPeekControls.chunk_size_options()}
       />
     </div>
@@ -568,8 +560,10 @@ defmodule VoyagerWeb.EtsTableLive do
     end
   end
 
-  defp lookup_records(%AsyncResult{ok?: true, result: %{records: records}}), do: records
-  defp lookup_records(_lookup), do: []
+  defp lookup_total(%AsyncResult{ok?: true, result: %{total: total}}) when is_integer(total),
+    do: total
+
+  defp lookup_total(_lookup), do: 0
 
   defp readable?(%AsyncResult{ok?: true, result: %{protection: :private}}), do: false
   defp readable?(%AsyncResult{ok?: true}), do: true
