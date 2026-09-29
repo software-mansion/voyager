@@ -824,12 +824,6 @@ defmodule VoyagerWeb.CoreComponents do
 
   attr :class, :any, default: nil, doc: "extra classes for the trigger button"
 
-  attr :doc_href, :string,
-    default: nil,
-    doc: "when set, renders a documentation link at the bottom of the tooltip"
-
-  attr :doc_label, :string, default: "Learn more", doc: "label for the documentation link"
-
   attr :interactive, :boolean,
     default: true,
     doc: "when true, the tip can be hovered into and pinned open with a click"
