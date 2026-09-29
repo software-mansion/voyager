@@ -381,7 +381,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
                       aria-label={"View #{app.name} supervision tree"}
                       class="btn btn-ghost btn-square toolbar-btn-sm text-base-content/70 hover:text-primary"
                     >
-                      <.icon name="icon-network" class="toolbar-icon-sm" />
+                      <.icon name="icon-network" class="toolbar-icon-sm -rotate-90" />
                     </.link>
                     <:content>View supervision tree</:content>
                   </.tooltip>

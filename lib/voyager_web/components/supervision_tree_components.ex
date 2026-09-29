@@ -206,7 +206,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
           </div>
         <% MapSet.size(@selected_apps) == 0 -> %>
           <div class="flex h-full flex-col items-center justify-center gap-3 rounded-lg text-center">
-            <.icon name="icon-network" class="size-10 text-base-content/60" />
+            <.icon name="icon-network" class="size-10 -rotate-90 text-base-content/60" />
             <div>
               <p class="text-base-content/80 font-medium">No applications selected</p>
               <p class="text-base-content/70 text-sm">
