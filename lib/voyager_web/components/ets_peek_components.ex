@@ -450,16 +450,21 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   defp truncated_record?(_other), do: false
 
-  # The marker only locates the key: inspected alone it would get a larger limit than in place.
+  # The marker costs less limit than the key, so only the text before it matches the record;
+  # the key's end comes from the record cut right after the key, minus its closing brace.
   defp preview_parts(record, keypos) when is_tuple(record) and tuple_size(record) >= keypos do
     text = preview(record)
     marked = record |> put_elem(keypos - 1, @key_marker) |> preview()
+    through_key = record |> Tuple.to_list() |> Enum.take(keypos) |> List.to_tuple() |> preview()
+    key_end = byte_size(through_key) - 1
 
-    with [before, rest] <- String.split(marked, inspect(@key_marker), parts: 2),
-         key_size = byte_size(text) - byte_size(before) - byte_size(rest),
-         true <- key_size > 0 and String.starts_with?(text, before),
-         true <- String.ends_with?(text, rest) do
-      [{before, false}, {binary_part(text, byte_size(before), key_size), true}, {rest, false}]
+    with [before, _rest] <- String.split(marked, inspect(@key_marker), parts: 2),
+         true <- String.starts_with?(text, binary_part(through_key, 0, key_end)) do
+      [
+        {before, false},
+        {binary_part(text, byte_size(before), key_end - byte_size(before)), true},
+        {binary_part(text, key_end, byte_size(text) - key_end), false}
+      ]
     else
       _other -> [{text, false}]
     end

@@ -63,7 +63,7 @@ defmodule VoyagerWeb.EtsTableLiveTest do
 
     row = inspect(record, limit: 20, printable_limit: 128, width: :infinity)
     assert has_element?(view, "#ets-records-0-toggle", row)
-    assert row =~ text(view, "#ets-records-0-key")
+    assert text(view, "#ets-records-0-key") == "[#{Enum.join(1..16, ", ")}, ...]"
   end
 
   test "a bag row has no lookup control and ignores open_sidebar", %{conn: conn} do
