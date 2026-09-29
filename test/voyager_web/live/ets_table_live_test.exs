@@ -37,23 +37,20 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     refute has_element?(view, "#ets-lookup-error")
   end
 
-  test "only the row preview sets the key apart", %{conn: conn} do
-    name = EtsTable.unique_name()
-    :ets.new(name, [:named_table, :public, :set, keypos: 2])
-    :ets.insert(name, {:value, :the_key, 1})
+  for keypos <- [2, 6] do
+    test "the key at keypos #{keypos} is bold in the row preview", %{conn: conn} do
+      keypos = unquote(keypos)
+      record = Tuple.insert_at({:a, :b, :c, :d, :e, :f}, keypos - 1, :the_key)
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :set, keypos: keypos])
+      :ets.insert(name, record)
 
-    view = fetch_records(conn, name)
+      view = fetch_records(conn, name)
 
-    assert has_element?(view, "#ets-records-0-key.text-code-key.font-bold", ":the_key")
-
-    view |> element("#ets-records-0-toggle") |> render_click()
-    view |> element("#ets-records-0-lookup") |> render_click()
-    render_async(view, 2_000)
-
-    assert has_element?(view, "#ets-records-0-term-1", ":the_key")
-    assert has_element?(view, "#ets-lookup-0-term-1", ":the_key")
-    refute has_element?(view, "#ets-records-0-term .text-code-key")
-    refute has_element?(view, "#ets-lookup-sidebar .text-code-key")
+      assert has_element?(view, "#ets-records-0-toggle", inspect(record))
+      assert has_element?(view, "#ets-records-0-key.font-bold")
+      assert text(view, "#ets-records-0-key") == ":the_key"
+    end
   end
 
   test "a bag row has no lookup control and ignores open_sidebar", %{conn: conn} do
@@ -83,6 +80,10 @@ defmodule VoyagerWeb.EtsTableLiveTest do
 
     assert has_element?(view, "#ets-records-0")
     view
+  end
+
+  defp text(view, selector) do
+    view |> render() |> LazyHTML.from_fragment() |> LazyHTML.query(selector) |> LazyHTML.text()
   end
 
   defp refute_lookup_sidebar(conn, name) do

@@ -223,7 +223,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
               <span
                 :for={{text, key?} <- preview_parts(record, @keypos)}
                 id={key? && "#{@id}-#{index}-key"}
-                class={key? && "text-code-key font-bold"}
+                class={key? && "font-bold"}
               >{text}</span>
             </span>
             <span

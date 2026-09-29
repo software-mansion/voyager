@@ -233,7 +233,7 @@ test.describe('EtsTableLive', () => {
 
     const keyStyle = await style(key);
     const rowStyle = await style(key.locator('..'));
-    expect(keyStyle.color).not.toBe(rowStyle.color);
+    expect(keyStyle.color).toBe(rowStyle.color);
     expect(keyStyle.fontWeight).toBeGreaterThan(rowStyle.fontWeight);
   });
 });
