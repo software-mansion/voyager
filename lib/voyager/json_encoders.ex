@@ -17,7 +17,7 @@ defmodule Voyager.JSONEncoders do
 
   defimpl Encoder, for: PID do
     @spec encode(pid(), JSON.encoder()) :: iodata()
-    def encode(pid, encoder), do: encoder.(Voyager.Pid.display(pid), encoder)
+    def encode(pid, encoder), do: encoder.(Voyager.Pid.format(pid, :distribution), encoder)
   end
 
   defimpl Encoder, for: Tuple do

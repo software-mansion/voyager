@@ -515,7 +515,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
     ~H"""
     <.kv label="Owner" last={@last}>
       <.link navigate={@href} class="text-primary hover:underline">
-        {Formatters.format_pid(@pid)}
+        {Formatters.pid(@pid)}
       </.link>
     </.kv>
     """
@@ -557,7 +557,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
   defp yes_no(false), do: "no"
 
   defp format_heir(:none), do: "none"
-  defp format_heir(pid) when is_pid(pid), do: Formatters.format_pid(pid)
+  defp format_heir(pid) when is_pid(pid), do: Formatters.pid(pid)
 
   defp format_memory(bytes),
     do: "#{Formatters.format_bytes(bytes)} (#{format_exact_bytes(bytes)})"
