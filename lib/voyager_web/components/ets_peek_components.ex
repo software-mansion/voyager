@@ -22,6 +22,13 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
                  "roughly one unit per subterm, binaries charged per byte kept. " <>
                  "Anything beyond the budget is truncated on the remote."
 
+  @preview_opts [
+    limit: 20,
+    printable_limit: 128,
+    width: :infinity,
+    inspect_fun: &Pid.inspect_fun/2
+  ]
+
   attr :table_name, :string, required: true
   attr :node_name, :string, required: true
   attr :back_href, :string, required: true
@@ -437,13 +444,6 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   end
 
   defp truncated_record?(_other), do: false
-
-  @preview_opts [
-    limit: 20,
-    printable_limit: 128,
-    width: :infinity,
-    inspect_fun: &Pid.inspect_fun/2
-  ]
 
   defp preview(record) do
     record
