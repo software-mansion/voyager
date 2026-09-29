@@ -7,11 +7,6 @@ defmodule VoyagerWeb.Formatters do
   reused across LiveViews and components (imported via `VoyagerWeb`).
   """
 
-  alias Voyager.Settings
-
-  @pid_format_key {__MODULE__, :pid_format}
-  @pid_formats [:distribution, :local]
-
   @kib 1_024
   @mib 1_048_576
   @gib 1_073_741_824
@@ -134,69 +129,8 @@ defmodule VoyagerWeb.Formatters do
   @spec format_pid(pid()) :: String.t()
   defdelegate format_pid(pid), to: Voyager.Pid, as: :display
 
-  @doc """
-  The PID display format cached by `load_pid_format/0` or `put_pid_format/1`;
-  `:distribution` until either runs.
-  """
-  @spec pid_format() :: :distribution | :local
-  def pid_format, do: :persistent_term.get(@pid_format_key, :distribution)
-
-  @doc """
-  Reads the PID format setting into the cache. Unknown values fall back to
-  `:distribution`.
-  """
-  @spec load_pid_format() :: :ok
-  def load_pid_format do
-    :pid_format
-    |> Settings.get(:distribution)
-    |> normalize_pid_format()
-    |> put_pid_format()
-  end
-
-  @doc """
-  Stores the PID display format read by `pid_format/0` and `pid/1`.
-  """
-  @spec put_pid_format(:distribution | :local) :: :ok
-  def put_pid_format(format) when format in @pid_formats do
-    :persistent_term.put(@pid_format_key, format)
-  end
-
-  @doc """
-  Formats a PID for display. Omitting the format uses `pid_format/0`; an
-  unknown format falls back to `:distribution`.
-
-      iex> VoyagerWeb.Formatters.pid("<123.23.423>", :distribution)
-      "<123.23.423>"
-      iex> VoyagerWeb.Formatters.pid("<123.23.423>", :local)
-      "<0.23.423>"
-  """
-  @spec pid(pid() | String.t(), atom()) :: String.t()
-  def pid(pid, format \\ pid_format())
-
-  def pid(pid, format) when format in @pid_formats do
-    pid
-    |> pid_to_string()
-    |> maybe_localize_pid(format)
-  end
-
-  def pid(pid, _format), do: pid(pid, :distribution)
-
-  @doc """
-  An `:inspect_fun` that renders every pid, however deeply nested, via `pid/1`.
-  """
-  @spec inspect_fun(term(), Inspect.Opts.t()) :: Inspect.Algebra.t()
-  def inspect_fun(pid, _opts) when is_pid(pid), do: "#PID" <> pid(pid)
-  def inspect_fun(term, opts), do: Inspect.inspect(term, opts)
-
-  defp normalize_pid_format(format) when format in @pid_formats, do: format
-  defp normalize_pid_format(_format), do: :distribution
-
-  defp pid_to_string(pid) when is_pid(pid), do: format_pid(pid)
-  defp pid_to_string(pid) when is_binary(pid), do: pid
-
-  defp maybe_localize_pid(pid_string, :distribution), do: pid_string
-
-  defp maybe_localize_pid(pid_string, :local) do
-    String.replace(pid_string, ~r/^<\d+\.(\d+\.\d+)>$/, "<0.\\1>")
-  end
+  defdelegate pid(pid), to: Voyager.Pid, as: :format
+  defdelegate pid(pid, format), to: Voyager.Pid, as: :format
+  defdelegate pid_format(), to: Voyager.Pid, as: :cached_format
+  defdelegate put_pid_format(format), to: Voyager.Pid, as: :put_format
 end

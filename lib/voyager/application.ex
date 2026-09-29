@@ -25,15 +25,12 @@ defmodule Voyager.Application do
       {Voyager.Services.AppUpdater, native?: elixirkit_pubsub != nil},
       VoyagerWeb.Endpoint,
       Voyager.MCP,
+      Supervisor.child_spec({Task, &Voyager.Pid.load_format/0}, id: :load_pid_format),
       {Task, fn -> if elixirkit_pubsub, do: ElixirKit.PubSub.broadcast("messages", "ready") end}
     ]
 
     opts = [strategy: :one_for_one, name: Voyager.Supervisor]
-
-    with {:ok, pid} <- Supervisor.start_link(children, opts) do
-      VoyagerWeb.Formatters.load_pid_format()
-      {:ok, pid}
-    end
+    Supervisor.start_link(children, opts)
   end
 
   @impl true

@@ -5,6 +5,8 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
 
   use VoyagerWeb, :component
 
+  alias Voyager.Pid
+
   @interval_options [
     {"Off", "off"},
     {"5s", "5000"},
@@ -223,6 +225,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
             id="supervision-tree-body"
             phx-hook="SupervisionTree"
             phx-update="ignore"
+            data-node-id={Pid.cached_format() == :local && Pid.cached_node_id()}
             class="bg-base-100 relative h-full overflow-hidden rounded-lg"
           >
             <.portal id="supervision-tree-node-snippet-portal" target="#tooltip-portal-root">

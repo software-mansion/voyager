@@ -6,9 +6,11 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.SettingsComponents
 
-  @pid_formats_info [
-    {"icon-network", "Distribution", "<123.23.423>", :distribution},
-    {"icon-laptop", "Local", "<0.23.423>", :local}
+  @pid_formats [
+    {:distribution, "icon-network", "Distribution", "<123.23.423>",
+     "Keeps the remote node index, which identifies a process across a cluster."},
+    {:local, "icon-laptop", "Local", "<0.23.423>",
+     "Replaces the node index with 0, so you can use it on remote shells."}
   ]
 
   @impl true
@@ -20,15 +22,8 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
   end
 
   @impl true
-  def update(%{id: id}, socket) do
-    socket
-    |> assign(:id, id)
-    |> ok()
-  end
-
-  @impl true
   def render(assigns) do
-    assigns = assign(assigns, :pid_formats_info, @pid_formats_info)
+    assigns = assign(assigns, :pid_formats, @pid_formats)
 
     ~H"""
     <div id={@id} class="card bg-base-100 border-base-200 border shadow-sm">
@@ -40,7 +35,7 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
           </p>
           <ul class="list mt-3">
             <li
-              :for={{icon, text, pid_string, format} <- @pid_formats_info}
+              :for={{_format, icon, text, pid_string, description} <- @pid_formats}
               class="list-row flex items-center gap-4"
             >
               <.icon name={icon} class="text-base-content/70 size-4" />
@@ -49,7 +44,7 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
                   <span class="text-base-content font-medium">{text}</span>
                   <kbd class="font-mono">{pid_string}</kbd>
                 </div>
-                <.format_description format={format} />
+                <p class="text-base-content/60 text-xs">{description}</p>
               </div>
             </li>
           </ul>
@@ -57,100 +52,49 @@ defmodule VoyagerWeb.SettingsLive.PidFormatSettings do
 
         <SettingsComponents.locked_alert id="pid-format-locked" locked?={@locked?} />
 
-        <div
-          id="pid-format-setting"
-          phx-hook=".PidFormatSetting"
-          data-pid-format={@pid_format}
-          class="join inline-grid grid-cols-2 self-start"
-        >
+        <div id="pid-format-setting" class="join inline-grid grid-cols-2 self-start">
           <button
+            :for={{format, icon, text, _pid_string, _description} <- @pid_formats}
             type="button"
-            id="pid-format-distribution"
-            class={format_button_class(@pid_format == :distribution)}
-            aria-pressed={to_string(@pid_format == :distribution)}
+            id={"pid-format-#{format}"}
+            class={format_button_class(@pid_format == format)}
+            aria-pressed={to_string(@pid_format == format)}
             disabled={@locked?}
             phx-click="select"
-            phx-value-format="distribution"
+            phx-value-format={format}
             phx-target={@myself}
           >
-            <.icon name="icon-network" class="size-4" /> Distribution
+            <.icon name={icon} class="size-4" /> {text}
           </button>
-          <button
-            type="button"
-            id="pid-format-local"
-            class={format_button_class(@pid_format == :local)}
-            aria-pressed={to_string(@pid_format == :local)}
-            disabled={@locked?}
-            phx-click="select"
-            phx-value-format="local"
-            phx-target={@myself}
-          >
-            <.icon name="icon-laptop" class="size-4" /> Local
-          </button>
-          <script :type={Phoenix.LiveView.ColocatedHook} name=".PidFormatSetting">
-            export default {
-              mounted() {
-                this.syncToStorage()
-              },
-              updated() {
-                this.syncToStorage()
-              },
-              syncToStorage() {
-                const format = this.el.dataset.pidFormat
-                if (format) localStorage.setItem("voyager:pid-format", format)
-              }
-            }
-          </script>
         </div>
       </div>
     </div>
     """
   end
 
-  attr :format, :atom, required: true
-
-  defp format_description(assigns) do
-    ~H"""
-    <p :if={@format == :distribution} class="text-base-content/60 text-xs">
-      Keeps the remote node index, which identifies a process across a cluster.
-    </p>
-    <p :if={@format == :local} class="text-base-content/60 text-xs">
-      Replaces the node index with <span class="font-mono">0</span>, so you can use it on remote shells.
-    </p>
-    """
-  end
-
   @impl true
-  def handle_event("select", %{"format" => "distribution"}, socket) do
-    put_format(socket, :distribution)
-  end
-
-  def handle_event("select", %{"format" => "local"}, socket) do
-    put_format(socket, :local)
+  def handle_event("select", %{"format" => format}, socket)
+      when format in ~w(distribution local) do
+    put_format(socket, String.to_existing_atom(format))
   end
 
   defp put_format(socket, format) do
-    cond do
-      socket.assigns.locked? ->
-        {:noreply, socket}
+    if socket.assigns.locked? or socket.assigns.pid_format == format do
+      {:noreply, socket}
+    else
+      case Settings.put(:pid_format, format) do
+        {:ok, _setting} ->
+          Formatters.put_pid_format(format)
 
-      socket.assigns.pid_format == format ->
-        {:noreply, socket}
+          socket
+          |> assign(:pid_format, format)
+          |> noreply()
 
-      true ->
-        case Settings.put(:pid_format, format) do
-          {:ok, _setting} ->
-            Formatters.put_pid_format(format)
-
-            socket
-            |> assign(:pid_format, format)
-            |> noreply()
-
-          {:error, _} ->
-            socket
-            |> push_flash(:error, "Failed to update PID format")
-            |> noreply()
-        end
+        {:error, _} ->
+          socket
+          |> push_flash(:error, "Failed to update PID format")
+          |> noreply()
+      end
     end
   end
 
