@@ -48,7 +48,7 @@ defmodule VoyagerWeb.EtsTableLiveTest do
       view = fetch_records(conn, name)
 
       assert has_element?(view, "#ets-records-0-toggle", inspect(record))
-      assert has_element?(view, "#ets-records-0-key.font-bold")
+      assert has_element?(view, "#ets-records-0-key.font-bold.text-shadow-glow")
       assert text(view, "#ets-records-0-key") == ":the_key"
     end
   end
