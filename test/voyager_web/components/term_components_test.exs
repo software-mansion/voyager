@@ -151,21 +151,6 @@ defmodule VoyagerWeb.Components.TermComponentsTest do
       assert texts(doc, "#term-0 span.text-code-atom") == ["a:", ":b"]
     end
 
-    test "the subterm at key_path takes the key colour, punctuation aside" do
-      doc = render_term({{:user, 42}, "alice"}, state: open([[], [0]]), key_path: [0])
-
-      assert texts(doc, "#term-0 span.text-code-key") == [":user", "42"]
-      assert count(doc, "#term-0 span.text-code-atom") == 0
-      assert count(doc, "#term-1 span.text-code-key") == 0
-      assert text(doc, "#term-1 span.text-code-string") == "\"alice\""
-    end
-
-    test "without a key_path nothing takes the key colour" do
-      doc = render_term({:k, 1}, state: open([[]]))
-
-      assert count(doc, "span.text-code-key") == 0
-    end
-
     test "a truncation marker is rendered muted" do
       doc = render_term([:"$voyager_truncated"], state: open([[]]))
 

@@ -30,8 +30,11 @@ function row(page: Page, name: string) {
     .filter({ has: page.locator('td[data-column="name"]', { hasText: name }) });
 }
 
-function color(locator: Locator) {
-  return locator.evaluate((el) => getComputedStyle(el).color);
+function style(locator: Locator) {
+  return locator.evaluate((el) => {
+    const { color, fontWeight } = getComputedStyle(el);
+    return { color, fontWeight: Number(fontWeight) };
+  });
 }
 
 /** Narrows the list to the four mock_ets_* tables the mock app owns. */
@@ -224,17 +227,13 @@ test.describe('EtsTableLive', () => {
     await expect(page.locator('#ets-records-0')).toBeVisible();
   });
 
-  test('a record key is coloured apart from its value', async ({ page }) => {
-    await page.locator('#ets-records-0-toggle').click();
-
-    const key = page.locator('#ets-records-0-term-0 .text-code-key');
-    const value = page.locator('#ets-records-0-term-1 .text-code-number');
+  test('the record key stands out in the row preview', async ({ page }) => {
+    const key = page.locator('#ets-records-0-key');
     await expect(key).toBeVisible();
-    await expect(value).toBeVisible();
 
-    expect(await color(key)).not.toBe(await color(value));
-    expect(await color(page.locator('#ets-records-0-key'))).toBe(
-      await color(key)
-    );
+    const keyStyle = await style(key);
+    const rowStyle = await style(key.locator('..'));
+    expect(keyStyle.color).not.toBe(rowStyle.color);
+    expect(keyStyle.fontWeight).toBeGreaterThan(rowStyle.fontWeight);
   });
 });

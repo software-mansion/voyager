@@ -28,7 +28,6 @@ defmodule VoyagerWeb.Components.TermComponents do
   attr :state, State, required: true
   attr :toggle_event, :string, default: "term-toggle"
   attr :window_event, :string, default: "term-window"
-  attr :key_path, :list, default: nil, doc: "path of a subterm drawn in the key colour"
   attr :class, :any, default: nil
 
   def term_inspector(assigns) do
@@ -43,7 +42,6 @@ defmodule VoyagerWeb.Components.TermComponents do
         state={@state}
         toggle_event={@toggle_event}
         window_event={@window_event}
-        key_path={@key_path}
       />
     </div>
     """
@@ -55,7 +53,6 @@ defmodule VoyagerWeb.Components.TermComponents do
   attr :state, State, required: true
   attr :toggle_event, :string, required: true
   attr :window_event, :string, required: true
-  attr :key_path, :list, required: true
 
   defp term_node(assigns) do
     node = assigns.node
@@ -70,7 +67,6 @@ defmodule VoyagerWeb.Components.TermComponents do
       |> assign(:remaining, node.child_count - length(children))
       |> assign(:node_id, dom_id(assigns.id, node.path))
       |> assign(:encoded_path, TermTree.encode_path(node.path))
-      |> assign(:key?, is_list(assigns.key_path) and :lists.prefix(assigns.key_path, node.path))
 
     ~H"""
     <div class="flex flex-col">
@@ -85,10 +81,7 @@ defmodule VoyagerWeb.Components.TermComponents do
           phx-value-path={@encoded_path}
         >
           <:label :let={open}>
-            <.segments
-              items={if(open, do: @node.expanded_before, else: @node.content)}
-              key?={@key?}
-            />
+            <.segments items={if(open, do: @node.expanded_before, else: @node.content)} />
           </:label>
           <:right>
             <.truncation_mark :if={@node.truncated?} id={@node_id} />
@@ -102,7 +95,6 @@ defmodule VoyagerWeb.Components.TermComponents do
                 state={@state}
                 toggle_event={@toggle_event}
                 window_event={@window_event}
-                key_path={@key_path}
               />
             </li>
           </ol>
@@ -118,12 +110,12 @@ defmodule VoyagerWeb.Components.TermComponents do
             +{@remaining} more
           </button>
           <div :if={@open?} class="term-indent">
-            <.segments items={@node.expanded_after} key?={@key?} />
+            <.segments items={@node.expanded_after} />
           </div>
         </.collapsible>
       <% else %>
         <div class="term-indent">
-          <.segments items={@node.content} key?={@key?} />
+          <.segments items={@node.content} />
         </div>
       <% end %>
     </div>
@@ -151,12 +143,11 @@ defmodule VoyagerWeb.Components.TermComponents do
   end
 
   attr :items, :list, required: true
-  attr :key?, :boolean, default: false
 
   defp segments(assigns) do
     ~H"""
     <span class="flex whitespace-pre">
-      <span :for={item <- @items} class={segment_class(item, @key?)}>{item.text}</span>
+      <span :for={item <- @items} class={segment_class(item)}>{item.text}</span>
     </span>
     """
   end
@@ -178,11 +169,6 @@ defmodule VoyagerWeb.Components.TermComponents do
       {child, child_node}
     end)
   end
-
-  defp segment_class(%Segment{kind: kind}, true) when kind not in [:punctuation, :muted],
-    do: "text-code-key"
-
-  defp segment_class(segment, _key?), do: segment_class(segment)
 
   defp segment_class(%Segment{kind: :atom}), do: "text-code-atom"
   defp segment_class(%Segment{kind: :module}), do: "text-code-atom"

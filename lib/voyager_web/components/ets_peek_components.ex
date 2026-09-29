@@ -223,7 +223,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
               <span
                 :for={{text, key?} <- preview_parts(record, @keypos)}
                 id={key? && "#{@id}-#{index}-key"}
-                class={key? && "text-code-key"}
+                class={key? && "text-code-key font-bold"}
               >{text}</span>
             </span>
             <span
@@ -254,7 +254,6 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
             id={record_inspector_id(@id, index)}
             term={record}
             state={@term_states[record_inspector_id(@id, index)] || %State{}}
-            key_path={[@keypos - 1]}
             class="overflow-x-auto"
           />
         </div>
@@ -264,7 +263,6 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   end
 
   attr :key, :any, required: true
-  attr :keypos, :integer, required: true
   attr :lookup, Phoenix.LiveView.AsyncResult, required: true
   attr :form, Phoenix.HTML.Form, required: true
   attr :term_states, :map, required: true
@@ -289,7 +287,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
           </div>
           <DetailsPanelComponents.copyable
             id="ets-sidebar-key"
-            class="font-mono text-code-key break-all text-sm font-medium"
+            class="font-mono text-base-content break-all text-sm font-medium"
             text={inspect(@key, inspect_fun: &Pid.inspect_fun/2)}
             label="Copy key"
           />
@@ -348,7 +346,6 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
             id={lookup_inspector_id(index)}
             term={record}
             state={@term_states[lookup_inspector_id(index)] || %State{}}
-            key_path={[@keypos - 1]}
             class="text-sm! min-w-0 flex-1 overflow-x-auto"
           />
           <.copy_button

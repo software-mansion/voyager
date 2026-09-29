@@ -162,7 +162,6 @@ defmodule VoyagerWeb.EtsTableLive do
       <EtsPeekComponents.sidebar
         :if={@sidebar}
         key={@sidebar.key}
-        keypos={@sidebar.keypos}
         lookup={@lookup}
         form={@lookup_form}
         term_states={@term_states}
@@ -273,10 +272,9 @@ defmodule VoyagerWeb.EtsTableLive do
     with true <- lookupable?(socket.assigns.info),
          {index, ""} when index >= 0 <- Integer.parse(index),
          record when record != nil <- Enum.at(socket.assigns.records, index),
-         keypos = keypos(socket),
-         {:ok, key} <- EtsPeekComponents.lookup_key(record, keypos) do
+         {:ok, key} <- EtsPeekComponents.lookup_key(record, keypos(socket)) do
       socket
-      |> assign(:sidebar, %{key: key, keypos: keypos})
+      |> assign(:sidebar, %{key: key})
       |> start_lookup()
     else
       _other -> socket
