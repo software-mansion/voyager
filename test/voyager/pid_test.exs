@@ -68,15 +68,22 @@ defmodule Voyager.PidTest do
       assert Pid.format(other, :local) == distribution(other)
     end
 
-    test "shortens any pid in the local form while no node is connected" do
-      assert Pid.format(pid_on(@node, 45), :local) == "<0.45.0>"
+    test "keeps every pid in the local form while no node is connected" do
+      pid = pid_on(@node, 45)
+
+      assert Pid.format(pid, :local) == distribution(pid)
     end
 
     test "leaves text that is not a pid unchanged" do
+      connect(@node)
+      not_pid = "<#{Pid.cached_node_id()}.not a pid>"
+
       assert Pid.format("Elixir.MyApp.Worker", :local) == "Elixir.MyApp.Worker"
+      assert Pid.format(not_pid, :local) == not_pid
     end
 
     test "defaults to the cached format" do
+      connect(@node)
       pid = pid_on(@node, 45)
 
       Pid.put_format(:local)
@@ -89,6 +96,7 @@ defmodule Voyager.PidTest do
 
   describe "inspect_fun/2" do
     test "renders nested pids in the cached format" do
+      connect(@node)
       Pid.put_format(:local)
       pid = pid_on(@node, 45)
 

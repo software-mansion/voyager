@@ -285,6 +285,7 @@ defmodule VoyagerWeb.SettingsLiveTest do
     test "disables the buttons when locked by application config", %{conn: conn} do
       Application.put_env(:voyager, :pid_format, :local)
       on_exit(fn -> Application.delete_env(:voyager, :pid_format) end)
+      Voyager.Pid.load_format()
 
       {:ok, view, _html} = live(conn, ~p"/settings")
 

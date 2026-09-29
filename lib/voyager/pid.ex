@@ -53,13 +53,10 @@ defmodule Voyager.Pid do
 
   @doc """
   Formats a PID for display. Omitting the format uses `cached_format/0`.
-  `:local` shortens only the connected node's pids, or any pid while no node
-  is connected.
+  `:local` shortens only the connected node's pids.
 
       iex> Voyager.Pid.format("<123.23.423>", :distribution)
       "<123.23.423>"
-      iex> Voyager.Pid.format("<123.23.423>", :local)
-      "<0.23.423>"
   """
   @spec format(pid() | String.t(), :distribution | :local) :: String.t()
   def format(pid, format \\ cached_format()) when format in @formats do
@@ -94,7 +91,12 @@ defmodule Voyager.Pid do
   defp maybe_localize(pid_string, :distribution), do: pid_string
 
   defp maybe_localize(pid_string, :local) do
-    node_id = cached_node_id() || "\\d+"
-    String.replace(pid_string, ~r/^<#{node_id}\.(\d+\.\d+)>$/, "<0.\\1>")
+    node_id = cached_node_id()
+
+    if node_id && Regex.match?(~r/^<\d+\.\d+\.\d+>$/, pid_string) do
+      String.replace_prefix(pid_string, "<#{node_id}.", "<0.")
+    else
+      pid_string
+    end
   end
 end
