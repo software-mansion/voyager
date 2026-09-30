@@ -290,8 +290,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   # further remote call, plus a deadline error.
   defp stub_remaining(nodes, worklist) do
     Enum.reduce(worklist, {nodes, []}, fn item, {nds, errs} ->
-      {Map.put(nds, item.key, unresolved_sup_node(item)),
-       [{:deadline, item.pid, :exceeded} | errs]}
+      {Map.put(nds, item.key, stub_node(item, 0)), [{:deadline, item.pid, :exceeded} | errs]}
     end)
   end
 
@@ -325,7 +324,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
         {nds, wl, errs}
 
       {item, {:error, reason}}, {nds, wl, errs} ->
-        {Map.put(nds, item.key, unresolved_sup_node(item)), wl,
+        {Map.put(nds, item.key, stub_node(item, 0)), wl,
          [{:which_children, item.pid, reason} | errs]}
     end)
     |> then(fn {nds, wl, errs} -> {nds, wl, Enum.reverse(errs)} end)
@@ -434,19 +433,6 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       name: item.name,
       type: :supervisor,
       child_count: count
-    })
-  end
-
-  # A supervisor whose children could not be listed (remote error) or were not
-  # reached before the deadline. The reason lives in the error tuple.
-  defp unresolved_sup_node(item) do
-    build_node(%{
-      app: item.app,
-      key: item.key,
-      parent_key: item.parent_key,
-      pid: item.pid,
-      name: item.name,
-      type: :supervisor
     })
   end
 
