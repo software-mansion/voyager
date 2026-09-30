@@ -10,7 +10,6 @@
     "colorjs.io": "^0.7.1",
     "cytoscape": "3.34.3",
     "cytoscape-dagre": "^4.0.1",
-    "dagre": "^0.8.5",
     "daisyui": "^5.7.46"
   },
   "devDependencies": {
