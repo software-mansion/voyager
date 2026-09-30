@@ -412,7 +412,6 @@ defmodule VoyagerWeb.NodeInfoComponents do
   attr :description, :string, default: nil
   attr :json, :string, default: nil
   attr :on_close, :any, required: true
-  attr :copy_label, :string, default: "Copy JSON"
 
   def json_snapshot_modal(assigns) do
     content_id = "#{assigns.id}-content"
@@ -471,7 +470,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
         </div>
 
         <div class="border-base-300 flex justify-end border-t p-4">
-          <.copy_button id={@copy_id} target={@copy_target} label={@copy_label} />
+          <.copy_button id={@copy_id} target={@copy_target} label="Copy JSON" />
         </div>
       </div>
 

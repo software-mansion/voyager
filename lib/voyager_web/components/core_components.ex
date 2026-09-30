@@ -419,7 +419,6 @@ defmodule VoyagerWeb.CoreComponents do
   attr :id, :string, required: true
   attr :target, :string, required: true, doc: "CSS selector for the element whose text is copied"
   attr :label, :string, default: "Copy"
-  attr :copied_label, :string, default: "Copied"
   attr :icon_only, :boolean, default: false, doc: "hides the visible label"
 
   attr :size, :atom,
@@ -449,7 +448,6 @@ defmodule VoyagerWeb.CoreComponents do
       phx-update="ignore"
       data-copy-target={@target}
       data-copy-label={@label}
-      data-copy-copied-label={@copied_label}
       title={@label}
       aria-label={@label}
       class={["btn btn-ghost", @button_class, @class]}
@@ -527,7 +525,7 @@ defmodule VoyagerWeb.CoreComponents do
           const label = this.el.querySelector("[data-copy-button-label]")
           const status = this.el.querySelector("[data-copy-status]")
           const originalLabel = this.el.dataset.copyLabel
-          const resultLabel = copied ? this.el.dataset.copyCopiedLabel : "Copy failed"
+          const resultLabel = copied ? "Copied" : "Copy failed"
 
           this.setIcon(copied ? "icon-check" : "icon-x")
           label.textContent = resultLabel
