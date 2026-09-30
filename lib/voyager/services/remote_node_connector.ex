@@ -97,50 +97,19 @@ defmodule Voyager.Services.RemoteNodeConnector do
     end
   end
 
-  @doc """
-  Remote host the SSH tunnels connect to for a node named `name@node_host`.
-
-  An IPv6-literal node host is used as the target itself — a v6-only dist
-  listener is unreachable over the remote v4 loopback. Anything else keeps
-  `127.0.0.1`.
-  """
-  @spec tunnel_target(String.t()) :: charlist()
-  def tunnel_target(node_host) do
-    charlist = String.to_charlist(node_host)
-
-    case :inet.parse_ipv6strict_address(charlist) do
-      {:ok, _} -> charlist
-      {:error, _} -> ~c"127.0.0.1"
-    end
-  end
-
   defp establish(conn_ref, full_node_name, node_name, node_host, name_type, cookie, epmd_port) do
     node_key = String.to_charlist(node_name)
-    remote_host = tunnel_target(node_host)
+    remote_node = String.to_atom(full_node_name)
+
+    # Loopback reaches any node listening on all interfaces; node_host covers dist bound to one address (e.g. v6-only).
+    remote_hosts = Enum.uniq([~c"127.0.0.1", String.to_charlist(node_host)])
 
     with :ok <- Distribution.ensure_distributed(name_type),
          {:ok, dist_port} <-
-           Connection.discover_dist_port(conn_ref, remote_host, node_name, epmd_port),
-         {:ok, local_port} <- Connection.open_tunnel(conn_ref, remote_host, dist_port),
-         :ok <- TunnelRegistry.register(node_key, local_port, conn_ref) do
-      remote_node = String.to_atom(full_node_name)
-
-      :erlang.set_cookie(remote_node, String.to_atom(cookie))
-      connect_result = Node.connect(remote_node)
-      :erlang.set_cookie(remote_node, :nocookie)
-
-      case connect_result do
-        true ->
-          {:ok, remote_node, conn_ref, local_port}
-
-        false ->
-          cleanup(conn_ref, node_key)
-          {:error, :node_connect_failed}
-
-        :ignored ->
-          cleanup(conn_ref, node_key)
-          {:error, :not_distributed}
-      end
+           Connection.discover_dist_port(conn_ref, remote_hosts, node_name, epmd_port),
+         {:ok, local_port} <-
+           connect_through(remote_hosts, conn_ref, node_key, remote_node, cookie, dist_port) do
+      {:ok, remote_node, conn_ref, local_port}
     else
       {:error, _} = err ->
         :ssh.close(conn_ref)
@@ -149,8 +118,30 @@ defmodule Voyager.Services.RemoteNodeConnector do
     end
   end
 
-  defp cleanup(conn_ref, node_key) do
-    :ssh.close(conn_ref)
-    TunnelRegistry.unregister(node_key)
+  defp connect_through(remote_hosts, conn_ref, node_key, remote_node, cookie, dist_port) do
+    Enum.reduce_while(remote_hosts, {:error, :node_connect_failed}, fn remote_host, _acc ->
+      case connect_via(remote_host, conn_ref, node_key, remote_node, cookie, dist_port) do
+        {:ok, _local_port} = ok -> {:halt, ok}
+        error -> {:cont, error}
+      end
+    end)
+  end
+
+  defp connect_via(remote_host, conn_ref, node_key, remote_node, cookie, dist_port) do
+    with {:ok, local_port} <- Connection.open_tunnel(conn_ref, remote_host, dist_port),
+         :ok <- TunnelRegistry.register(node_key, local_port, conn_ref) do
+      case connect_node(remote_node, cookie) do
+        true -> {:ok, local_port}
+        false -> {:error, :node_connect_failed}
+        :ignored -> {:error, :not_distributed}
+      end
+    end
+  end
+
+  defp connect_node(remote_node, cookie) do
+    :erlang.set_cookie(remote_node, String.to_atom(cookie))
+    result = Node.connect(remote_node)
+    :erlang.set_cookie(remote_node, :nocookie)
+    result
   end
 end

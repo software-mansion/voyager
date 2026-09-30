@@ -29,7 +29,8 @@ start() {
       -setcookie e2e_cookie \
       -noshell \
       -noinput \
-      -kernel inet_dist_listen_min 9002 inet_dist_listen_max 9002 > /dev/null 2>&1 &
+      -kernel inet_dist_listen_min 9002 inet_dist_listen_max 9002 \
+              inet_dist_use_interface '{0,0,0,0,0,0,0,1}' > /dev/null 2>&1 &
 
   echo $! > "$PID_FILE_V6"
   echo "IPv6 test node started (PID $(cat "$PID_FILE_V6"))"

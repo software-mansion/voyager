@@ -54,6 +54,22 @@ defmodule Voyager.Services.Distribution do
     end
   end
 
+  @doc """
+  Returns the parsed IP tuple for an IP literal and the charlist otherwise.
+
+  `:gen_tcp`, `:erl_epmd` and `:ssh` resolve a charlist over IPv4 only, so an
+  IPv6 literal must be passed as a tuple.
+  """
+  @spec host_address(String.t()) :: :inet.ip_address() | charlist()
+  def host_address(host) when is_binary(host) do
+    charlist = String.to_charlist(host)
+
+    case :inet.parse_strict_address(charlist) do
+      {:ok, address} -> address
+      {:error, _} -> charlist
+    end
+  end
+
   defp distribution_name do
     suffix = Settings.get(:distribution_suffix, "")
     "voyager#{suffix}"
