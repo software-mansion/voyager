@@ -31,20 +31,6 @@ updates:
         patterns:
           - "*"
 
-  # e2e: only shared runtime types dep (cytoscape). Other e2e deps stay manual.
-  - package-ecosystem: "npm"
-    directory: "/e2e"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "06:00"
-      timezone: "Etc/UTC"
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "Chore"
-    allow:
-      - dependency-name: "cytoscape"
-
   # Elixir deps (mix.exs / mix.lock)
   - package-ecosystem: "mix"
     directory: "/"
