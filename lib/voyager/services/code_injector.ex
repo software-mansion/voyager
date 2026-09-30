@@ -54,7 +54,7 @@ defmodule Voyager.Services.CodeInjector do
   end
 
   defp remote_compile(node, forms) do
-    case call(node, :compile, :forms, [forms, @compile_opts], @compile_timeout) do
+    case Erpc.safe_call(node, :compile, :forms, [forms, @compile_opts], @compile_timeout) do
       {:ok, {:ok, module, binary}} when is_atom(module) and is_binary(binary) ->
         {:ok, module, binary}
 
@@ -72,7 +72,7 @@ defmodule Voyager.Services.CodeInjector do
   defp remote_load(node, module, filename, binary) do
     file = String.to_charlist(filename)
 
-    case call(node, :code, :load_binary, [module, file, binary], @load_timeout) do
+    case Erpc.safe_call(node, :code, :load_binary, [module, file, binary], @load_timeout) do
       {:ok, {:module, ^module}} ->
         {:ok, module}
 
@@ -88,11 +88,5 @@ defmodule Voyager.Services.CodeInjector do
       {:error, _} = error ->
         error
     end
-  end
-
-  defp call(node, mod, fun, args, timeout) do
-    {:ok, Erpc.call(node, mod, fun, args, timeout)}
-  catch
-    kind, reason -> Erpc.format_error(kind, reason)
   end
 end
