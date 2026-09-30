@@ -82,12 +82,9 @@ test.describe('SupervisionTreeLive › expand/collapse', () => {
 
     await clickToggle(page, 'mock_deep_sup_1');
 
-    await expect(async () => {
-      expect(await cyNode(page, 'mock_deep_sup_2')).toMatchObject({
-        exists: true,
-        hidden: true,
-      });
-    }).toPass();
+    await expect
+      .poll(() => cyNode(page, 'mock_deep_sup_2'))
+      .toMatchObject({ exists: true, hidden: true });
     await expect(toggle(page, 'mock_deep_sup_2')).toBeHidden();
   });
 
@@ -181,12 +178,9 @@ test.describe('SupervisionTreeLive › expand/collapse', () => {
     expect(sup.exists && sup.label).toContain('(1)');
 
     await clickToggle(page, 'mock_dyn_sup_a');
-    await expect(async () => {
-      expect(await cyNode(page, 'tmp_a1')).toMatchObject({
-        exists: true,
-        hidden: false,
-      });
-    }).toPass();
+    await expect
+      .poll(() => cyNode(page, 'tmp_a1'))
+      .toMatchObject({ exists: true, hidden: false });
   });
 
   // An already-expanded node gaining another child must
@@ -195,12 +189,9 @@ test.describe('SupervisionTreeLive › expand/collapse', () => {
     page,
   }) => {
     await clickToggle(page, 'mock_dyn_sup_b');
-    await expect(async () => {
-      expect(await cyNode(page, 'mock_dyn_worker_b1')).toMatchObject({
-        exists: true,
-        hidden: false,
-      });
-    }).toPass();
+    await expect
+      .poll(() => cyNode(page, 'mock_dyn_worker_b1'))
+      .toMatchObject({ exists: true, hidden: false });
 
     rpcOk('mock_app_ctl add_child [mock_dyn_sup_b, tmp_b2]');
 
@@ -228,9 +219,9 @@ test.describe('SupervisionTreeLive › expand/collapse', () => {
       });
     });
     await clickToggle(page, 'mock_dyn_sup_a');
-    await expect(async () => {
-      expect(await cyNode(page, 'tmp_a1')).toMatchObject({ exists: true });
-    }).toPass();
+    await expect
+      .poll(() => cyNode(page, 'tmp_a1'))
+      .toMatchObject({ exists: true });
 
     rpcOk('mock_app_ctl remove_child [mock_dyn_sup_a, tmp_a1]');
 
@@ -250,9 +241,9 @@ test.describe('SupervisionTreeLive › expand/collapse', () => {
 
     // At depth 4 mock_deep_sup_2 is reached by the walk itself, but the manual
     // expansion of mock_deep_sup_2 is forgotten, so mock_deep_sup_3 is gone.
-    await expect(async () => {
-      expect(await cyNode(page, 'mock_deep_sup_3')).toEqual({ exists: false });
-    }).toPass({ timeout: 1_000 });
+    await expect
+      .poll(() => cyNode(page, 'mock_deep_sup_3'), { timeout: 1_000 })
+      .toEqual({ exists: false });
     await expect(async () => {
       await focusNode(page, 'mock_deep_sup_2');
       await expect(toggle(page, 'mock_deep_sup_2')).toHaveAttribute(

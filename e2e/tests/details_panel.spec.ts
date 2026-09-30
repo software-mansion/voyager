@@ -39,10 +39,9 @@ test.describe('SupervisionTreeLive › DetailsPanel', () => {
     const before = await detailsPanelCssWidth(page);
     await resizeDetailsPanel(page, 100);
 
-    await expect(async () => {
-      const after = await detailsPanelCssWidth(page);
-      expect(after).toBeGreaterThan(before + 40);
-    }).toPass();
+    await expect
+      .poll(() => detailsPanelCssWidth(page))
+      .toBeGreaterThan(before + 40);
 
     const stored = await page.evaluate(() =>
       localStorage.getItem('voyager:details-panel-width')
