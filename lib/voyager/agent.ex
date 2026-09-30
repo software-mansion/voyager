@@ -3,10 +3,6 @@ defmodule Voyager.Agent do
   Seam over `Voyager.Erpc` for calling the agent module shipped to a remote
   node. Translates `:erpc` failures into `{:error, reason}` so no raw exception
   escapes to callers.
-
-  The module is named after a digest of its own source (see `module/0`), so
-  Voyagers running different agent code coexist on one node instead of
-  reloading and purging each other's copy.
   """
 
   alias Voyager.Erpc
@@ -14,12 +10,12 @@ defmodule Voyager.Agent do
   alias Voyager.Services.CodeInjector
 
   @agent_source "voyager_agent.erl"
-  @agent_prefix "voyager_agent_"
-  @agent_digest_length 12
+  @agent_path Path.expand("../../priv/#{@agent_source}", __DIR__)
+  @external_resource @agent_path
+  @agent_digest :sha256 |> :crypto.hash(File.read!(@agent_path)) |> Base.encode16(case: :lower)
+  @agent :"voyager_agent_#{binary_part(@agent_digest, 0, 12)}"
   @min_otp 27
-  @otp_timeout 5_000
-  @register_timeout 5_000
-  @load_check_timeout 5_000
+  @remote_timeout 5_000
 
   @type install_error ::
           {:agent_install_failed,
@@ -57,21 +53,11 @@ defmodule Voyager.Agent do
   @type truncated_term :: %{term: term(), truncated?: boolean()}
 
   @doc """
-  The remote module name for the agent source shipped with this build.
-
-  `priv/voyager_agent.erl` declares `-module(?AGENT)`; the digest is passed as
-  that macro at preprocess time, so the name and the code it stands for cannot
-  drift apart. Cached because every remote call needs it, and re-derived by
-  `install/1` so editing the source in dev does not ship the new code under the
-  name the old code was loaded as.
+  The remote module name: a digest of the agent source, so Voyagers running
+  different agent code coexist on one node instead of purging each other's copy.
   """
   @spec module() :: module()
-  def module do
-    case :persistent_term.get(__MODULE__, nil) do
-      nil -> refresh_module()
-      name -> name
-    end
-  end
+  def module, do: @agent
 
   @doc "Minimum OTP release the agent requires on the remote node."
   @spec min_otp() :: pos_integer()
@@ -84,10 +70,8 @@ defmodule Voyager.Agent do
   """
   @spec install(node()) :: :ok | {:error, install_error()}
   def install(node) do
-    agent = refresh_module()
-
     with :ok <- check_otp(node),
-         {:ok, ^agent} <- ensure_loaded(node, agent),
+         {:ok, @agent} <- ensure_loaded(node),
          {:ok, _pid} <- register(node) do
       :ok
     else
@@ -104,7 +88,7 @@ defmodule Voyager.Agent do
   """
   @spec call(node(), atom(), [term()], timeout()) :: {:ok, term()} | {:error, Erpc.erpc_error()}
   def call(node, fun, args, timeout) do
-    case Erpc.safe_call(node, module(), fun, args, timeout) do
+    case Erpc.safe_call(node, @agent, fun, args, timeout) do
       {:error, {:remote_exception, :undef}} = error ->
         NodeSession.agent_missing(node)
         error
@@ -138,37 +122,22 @@ defmodule Voyager.Agent do
     end
   end
 
-  defp refresh_module do
-    name = derive_module()
-    :persistent_term.put(__MODULE__, name)
-    name
-  end
+  # A loaded copy is already this code: reloading would purge an earlier Voyager's in-flight worker.
+  defp ensure_loaded(node) do
+    case Erpc.safe_call(node, :code, :is_loaded, [@agent], @remote_timeout) do
+      {:ok, false} ->
+        CodeInjector.load(node, Path.join(:code.priv_dir(:voyager), @agent_source), AGENT: @agent)
 
-  defp derive_module do
-    digest =
-      source_path()
-      |> File.read!()
-      |> then(&:crypto.hash(:sha256, &1))
-      |> Base.encode16(case: :lower)
-      |> binary_part(0, @agent_digest_length)
+      {:ok, _loaded} ->
+        {:ok, @agent}
 
-    String.to_atom(@agent_prefix <> digest)
-  end
-
-  defp source_path, do: Path.join(:code.priv_dir(:voyager), @agent_source)
-
-  # The name is a digest of the source, so a loaded copy is already this code:
-  # reloading would rotate it to old and purge an earlier Voyager's in-flight worker.
-  defp ensure_loaded(node, agent) do
-    case Erpc.safe_call(node, :code, :is_loaded, [agent], @load_check_timeout) do
-      {:ok, false} -> CodeInjector.load(node, source_path(), AGENT: agent)
-      {:ok, _loaded} -> {:ok, agent}
-      {:error, _} = error -> error
+      {:error, _} = error ->
+        error
     end
   end
 
   defp register(node) do
-    case Erpc.safe_call(node, module(), :register, [Node.self()], @register_timeout) do
+    case Erpc.safe_call(node, @agent, :register, [Node.self()], @remote_timeout) do
       {:ok, {:ok, pid}} -> {:ok, pid}
       {:ok, {:error, reason}} -> {:error, {:register_failed, reason}}
       {:ok, other} -> {:error, {:register_failed, other}}
@@ -178,7 +147,7 @@ defmodule Voyager.Agent do
 
   defp check_otp(node) do
     with {:ok, release} <-
-           Erpc.safe_call(node, :erlang, :system_info, [:otp_release], @otp_timeout),
+           Erpc.safe_call(node, :erlang, :system_info, [:otp_release], @remote_timeout),
          {:ok, version} <- parse_release(release) do
       if version >= @min_otp, do: :ok, else: {:error, {:otp_too_old, to_string(release)}}
     end

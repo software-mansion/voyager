@@ -8,27 +8,13 @@ defmodule Voyager.Services.ProcessInfoTest do
   import Mox
 
   alias Voyager.Services.ProcessInfo
+  alias Voyager.Test.VoyagerAgentFixture
 
   @agent_module Voyager.Agent.module()
 
   setup :verify_on_exit!
 
-  # The unbounded fetches call the agent on the remote. `.erl` sources
-  # under priv/ are not built by mix, so compile and load the agent here to
-  # exercise the real remote-side truncation against the local node.
-  setup_all do
-    path = :voyager |> :code.priv_dir() |> Path.join("voyager_agent.erl")
-    opts = [:binary, {:d, :AGENT, Voyager.Agent.module()}]
-    {:ok, module, binary} = :compile.file(String.to_charlist(path), opts)
-    {:module, ^module} = :code.load_binary(module, String.to_charlist(path), binary)
-
-    on_exit(fn ->
-      :code.purge(module)
-      :code.delete(module)
-    end)
-
-    :ok
-  end
+  setup_all do: VoyagerAgentFixture.load!()
 
   describe "fetch/2 against a live local process" do
     setup do

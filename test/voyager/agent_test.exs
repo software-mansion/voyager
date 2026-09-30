@@ -101,22 +101,6 @@ defmodule Voyager.AgentTest do
       assert :sys.get_state(@agent_module) == {:state, %{Node.self() => true}}
     end
 
-    test "re-derives the module name over a stale cached one" do
-      previous_erpc = Application.get_env(:voyager, :erpc)
-      Application.put_env(:voyager, :erpc, Erpc.Impl)
-      :persistent_term.put(Agent, :voyager_agent_stale)
-
-      on_exit(fn ->
-        Application.put_env(:voyager, :erpc, previous_erpc)
-        :persistent_term.erase(Agent)
-      end)
-
-      assert :ok = Agent.install(Node.self())
-
-      assert Agent.module() == @agent_module
-      refute Code.loaded?(:voyager_agent_stale)
-    end
-
     test "keeps an in-flight agent call alive when another Voyager connects" do
       previous_erpc = Application.get_env(:voyager, :erpc)
       Application.put_env(:voyager, :erpc, Erpc.Impl)

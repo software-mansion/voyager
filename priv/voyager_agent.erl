@@ -9,8 +9,8 @@
 -export([proc_dictionary/3, proc_messages/3, proc_label/2, proc_state/3]).
 -export([ets_select_chunk/4, ets_lookup/5, ets_select_spec/5]).
 %% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3,
-         test_func/0]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
+         code_change/3]).
 
 -export_type([bounded/1, monitor/0, dict_entry/0, truncated_term/0]).
 
@@ -29,9 +29,6 @@
 %% Bounds the start/register retry so a node whose agent keeps stopping
 %% cannot spin here forever.
 -define(MAX_REGISTER_ATTEMPTS, 3).
-
-test_func() ->
-    ok.
 
 %% Adds the Voyager node to the watched set and returns the server pid.
 %% If the server is not running, it starts it and registers the Voyager node.
@@ -547,16 +544,13 @@ ets_lookup(_Table, _Key, _Limit, _Budget, _Cont) ->
 %% A bound-key ets:select/3 copies every row of the key into its continuation, so lookup costs no more.
 do_lookup(Table, Key, Limit, Budget, undefined) ->
     do_lookup(Table, Key, Limit, Budget, {?SKIP_CONT, 0});
-do_lookup(Table, Key, Limit, Budget, {?SKIP_CONT, Skip})
-    when is_integer(Skip), Skip >= 0 ->
+do_lookup(Table, Key, Limit, Budget, {?SKIP_CONT, Skip}) when is_integer(Skip), Skip >= 0 ->
     case oversized_key(Table, Key) of
         true ->
             {error, key_too_large};
         false ->
             Rows = ets:lookup(Table, Key),
-            Page =
-                lists:sublist(
-                    lists:nthtail(min(Skip, length(Rows)), Rows), Limit),
+            Page = lists:sublist(lists:nthtail(min(Skip, length(Rows)), Rows), Limit),
             Taken = Skip + length(Page),
             wrap_records(Page, skip_token(Taken, length(Rows) > Taken), Budget)
     end.
@@ -564,11 +558,8 @@ do_lookup(Table, Key, Limit, Budget, {?SKIP_CONT, Skip})
 %% ets:lookup/2 copies a whole key without yielding; ets:select_count/2 yields and copies nothing.
 oversized_key(Table, Key) ->
     Words = ets:info(Table, memory),
-    lists:member(
-        ets:info(Table, type), [bag, duplicate_bag])
-    andalso Words > ?LOOKUP_MAX_WORDS
-    andalso key_rows(Table, Key) * Words div max(ets:info(Table, size), 1)
-            > ?LOOKUP_MAX_WORDS.
+    lists:member(ets:info(Table, type), [bag, duplicate_bag]) andalso Words > ?LOOKUP_MAX_WORDS
+        andalso key_rows(Table, Key) * Words div max(ets:info(Table, size), 1) > ?LOOKUP_MAX_WORDS.
 
 %% A key-bound head hashes the count to one bucket; a pattern-like key needs one guard clause to stay literal.
 key_rows(Table, Key) ->
@@ -592,10 +583,8 @@ ms_pattern_key([Head | Tail]) ->
     ms_pattern_key(Head) orelse ms_pattern_key(Tail);
 ms_pattern_key(Key) when is_atom(Key) ->
     case atom_to_list(Key) of
-        [$$ | [_ | _] = Digits] ->
-            lists:all(fun(C) -> C >= $0 andalso C =< $9 end, Digits);
-        _ ->
-            false
+        [$$ | [_ | _] = Digits] -> lists:all(fun(C) -> C >= $0 andalso C =< $9 end, Digits);
+        _ -> false
     end;
 ms_pattern_key(_) ->
     false.
