@@ -7,7 +7,7 @@ import { NODE_NAME, COOKIE, sel, ensureConnected } from './fixtures';
  * Runs `mock_app_ctl` (or any MFA) on the target node and returns the printed
  * result term, e.g. rpc('mock_app_ctl add_child [mock_dyn_sup_a, tmp_a1]').
  */
-export function rpc(mfa: string): string {
+function rpc(mfa: string): string {
   return execSync(`erl_call -name ${NODE_NAME} -c ${COOKIE} -a '${mfa}'`, {
     encoding: 'utf8',
   }).trim();

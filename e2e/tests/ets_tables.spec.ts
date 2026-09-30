@@ -10,7 +10,6 @@ const UNNAMED = ':mock_ets_unnamed';
 const listUrl = `/node/${NODE_NAME}/ets-tables`;
 
 const sel = {
-  table: '#ets-tables-table',
   rows: '#ets-tables-table tbody tr[id]',
   summary: '#ets-tables-summary',
   search: '#controls_search',

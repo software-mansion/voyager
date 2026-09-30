@@ -3,7 +3,6 @@ import { expect, type Page } from '@playwright/test';
 export const NODE_NAME = 'test@127.0.0.1';
 export const COOKIE = 'e2e_cookie';
 
-export const SSH_USER = 'e2e_ssh_user';
 export const SSH_HOST = 'bastion.e2e.test';
 export const SSH_NODE_NAME = 'ssh-test@127.0.0.1';
 export const SSH_COOKIE = 'e2e_ssh_cookie';
@@ -23,8 +22,6 @@ export const sel = {
   stStatus: '#supervision-tree-status',
   stRefresh: '#refresh-interval-refresh-now-button',
   stBody: '#supervision-tree-body',
-  stControls: '#supervision-tree-controls',
-  stErrors: '#supervision-tree-errors',
   modeDirect: '#mode-direct',
   modeSsh: '#mode-ssh',
   sshUserInput: '#ssh_ssh_user',
@@ -34,7 +31,6 @@ export const sel = {
   sshAuthAgent: '#ssh-auth-agent',
   sshAuthPassword: '#ssh-auth-password',
   sshPasswordInput: '#ssh_password',
-  sshRecentConnections: '#ssh-recent-connections',
 };
 
 export function fillRecentBtn(page: Page) {
