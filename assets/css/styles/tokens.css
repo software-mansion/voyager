@@ -27,7 +27,4 @@
     var(--toolbar-btn-size) + var(--sidebar-compact-pad) * 2
   );
   --sidebar-full-w: 16rem;
-
-  /* Typography */
-  --font-display: 'DM Sans Variable', system-ui, sans-serif;
 }
