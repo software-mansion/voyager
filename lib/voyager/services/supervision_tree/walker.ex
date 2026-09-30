@@ -512,7 +512,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
         {node_rels ++ rels_acc, errs_acc}
       end)
 
-    deduped = dedup_relations(raw_rels)
+    deduped = Enum.uniq_by(raw_rels, &rel_sig/1)
 
     target_ids = deduped |> Enum.map(fn {_from, to, _kind} -> to end) |> Enum.uniq()
     external = Enum.reject(target_ids, &MapSet.member?(seen, &1))
@@ -580,23 +580,8 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   defp monitor_target({:port, port}) when is_port(port), do: [port]
   defp monitor_target(_), do: []
 
-  # Drop duplicate edges. Links are undirected (A↔B reported from both ends),
-  # so they are normalised by term order; monitor/monitored_by stay directed.
-  defp dedup_relations(rels) do
-    {kept, _seen} =
-      Enum.reduce(rels, {[], MapSet.new()}, fn rel, {acc, seen} ->
-        sig = rel_sig(rel)
-
-        if MapSet.member?(seen, sig) do
-          {acc, seen}
-        else
-          {[rel | acc], MapSet.put(seen, sig)}
-        end
-      end)
-
-    Enum.reverse(kept)
-  end
-
+  # Links are undirected (A↔B reported from both ends), so they are normalised
+  # by term order; monitor/monitored_by stay directed.
   defp rel_sig({from, to, :link}) when from <= to, do: {:link, from, to}
   defp rel_sig({from, to, :link}), do: {:link, to, from}
   defp rel_sig({from, to, kind}), do: {kind, from, to}
