@@ -23,6 +23,9 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
                  "roughly one unit per subterm, binaries charged per byte kept. " <>
                  "Anything beyond the budget is truncated on the remote."
 
+  @records_timeout_help "How long to wait for the node to read a page of records before the fetch fails."
+  @lookup_timeout_help "How long to wait for the node to look up this key before the lookup fails."
+
   @preview_opts [
     limit: 20,
     printable_limit: 128,
@@ -150,7 +153,10 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   attr :fetched?, :boolean, default: false
 
   def controls(assigns) do
-    assigns = assign(assigns, :budget_help, @budget_help)
+    assigns =
+      assigns
+      |> assign(:budget_help, @budget_help)
+      |> assign(:records_timeout_help, @records_timeout_help)
 
     ~H"""
     <.form for={@form} id="ets-peek-controls" phx-change="validate" class="flex flex-col gap-1">
@@ -159,8 +165,8 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
         class={["contents", (@loading? or not @readable?) && "opacity-60"]}
       >
         <div class="grid-cols-[auto_auto_auto] grid-rows-[auto_auto_auto] grid w-max items-center gap-x-3">
-          <.field_label field={@form[:budget]} label="Budget per record" help={@budget_help} />
-          <.field_label field={@form[:timeout]} label="Timeout (ms)" />
+          <.field_label field={@form[:budget]} label="Record budget" help={@budget_help} />
+          <.field_label field={@form[:timeout]} label="Timeout (ms)" help={@records_timeout_help} />
           <span />
 
           <.number_input field={@form[:budget]} bounds={EtsPeekControls.budget_bounds()} />
@@ -279,7 +285,10 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   attr :error_message, :string, default: nil
 
   def sidebar(assigns) do
-    assigns = assign(assigns, :budget_help, @budget_help)
+    assigns =
+      assigns
+      |> assign(:budget_help, @budget_help)
+      |> assign(:lookup_timeout_help, @lookup_timeout_help)
 
     ~H"""
     <aside
@@ -313,7 +322,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       >
         <div class="grid-cols-[auto_auto_auto] grid-rows-[auto_auto_auto] grid w-max items-center gap-x-3">
           <.field_label field={@form[:budget]} label="Term budget" help={@budget_help} />
-          <.field_label field={@form[:timeout]} label="Timeout (ms)" />
+          <.field_label field={@form[:timeout]} label="Timeout (ms)" help={@lookup_timeout_help} />
           <span />
 
           <.number_input field={@form[:budget]} bounds={{EtsLookupControls.min_budget(), nil}} />
@@ -425,7 +434,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       inputmode="numeric"
       phx-debounce="500"
       class={[
-        "input input-sm input-bordered no-spinner font-mono w-24",
+        "input input-sm input-bordered no-spinner font-mono w-28",
         @field.errors != [] && "input-error"
       ]}
     />

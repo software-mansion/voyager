@@ -158,7 +158,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
             inputmode="numeric"
             phx-debounce="500"
             class={[
-              "input input-sm input-bordered no-spinner font-mono w-24",
+              "input input-sm input-bordered no-spinner font-mono w-28",
               @form[:timeout].errors != [] && "input-error"
             ]}
           />
