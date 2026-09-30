@@ -450,8 +450,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   defp truncated_record?(_other), do: false
 
-  # The marker costs less limit than the key, so only the text before it matches the record;
-  # the key's end comes from the record cut right after the key, minus its closing brace.
+  # The marker spends less inspect limit than the key, so only the text before it is trusted.
   defp preview_parts(record, keypos) when is_tuple(record) and tuple_size(record) >= keypos do
     text = preview(record)
     marked = record |> put_elem(keypos - 1, @key_marker) |> preview()
@@ -459,12 +458,10 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
     key_end = byte_size(through_key) - 1
 
     with [before, _rest] <- String.split(marked, inspect(@key_marker), parts: 2),
-         true <- String.starts_with?(text, binary_part(through_key, 0, key_end)) do
-      [
-        {before, false},
-        {binary_part(text, byte_size(before), key_end - byte_size(before)), true},
-        {binary_part(text, key_end, byte_size(text) - key_end), false}
-      ]
+         key_start = byte_size(before),
+         <<head::binary-size(key_start), key::binary-size(key_end - key_start), tail::binary>> <-
+           text do
+      [{head, false}, {key, true}, {tail, false}]
     else
       _other -> [{text, false}]
     end
