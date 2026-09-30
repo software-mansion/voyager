@@ -81,6 +81,22 @@ defmodule Voyager.EtsFakes do
     :ok
   end
 
+  @doc "The `{:ok, chunk}` reply of the agent's ETS readers."
+  @spec ok_chunk([term()], term(), boolean()) :: {:ok, map()}
+  def ok_chunk(records, continuation \\ :undefined, truncated \\ false) do
+    {:ok, %{records: records, continuation: continuation, truncated: truncated}}
+  end
+
+  @doc "Expects one remote `:erlang.list_to_existing_atom/1`, answered by this node."
+  @spec stub_intern() :: :ok
+  def stub_intern do
+    expect(Voyager.ErpcMock, :call, fn _node, :erlang, :list_to_existing_atom, [chars], _t ->
+      :erlang.list_to_existing_atom(chars)
+    end)
+
+    :ok
+  end
+
   @doc """
   The raw `:ets.info/1` keyword lists for `ids`, as the remote `:lists.map`
   returns them; an id with no table is `:undefined`, as a table deleted

@@ -2,6 +2,7 @@ defmodule Voyager.Services.Ets.FetchTest do
   use ExUnit.Case, async: true
 
   import Mox
+  import Voyager.EtsFakes, only: [ok_chunk: 1, ok_chunk: 2, ok_chunk: 3]
 
   alias Voyager.Agent
   alias Voyager.Services.Ets.Fetch
@@ -346,9 +347,5 @@ defmodule Voyager.Services.Ets.FetchTest do
       assert {:ok, %{records: [], continuation: nil, truncated?: false}} =
                Fetch.select_spec(@node, :t, @spec_ms, 10)
     end
-  end
-
-  defp ok_chunk(records, continuation \\ :undefined, truncated \\ false) do
-    {:ok, %{records: records, continuation: continuation, truncated: truncated}}
   end
 end

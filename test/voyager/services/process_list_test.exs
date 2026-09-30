@@ -4,6 +4,7 @@ defmodule Voyager.Services.ProcessListTest do
   use ExUnit.Case, async: false
 
   import Mox
+  import Voyager.Fakes, only: [capture_erpc_args: 0]
 
   alias Voyager.Services.ProcessList
 
@@ -12,17 +13,6 @@ defmodule Voyager.Services.ProcessListTest do
   @agent_module Voyager.Agent.module()
 
   @node :"peer@127.0.0.1"
-
-  # Captures the args reaching the (mocked) :erpc transport and returns an empty
-  # top-N with a total count, so `top/7` yields `{:ok, {[], 0}}`.
-  defp capture_erpc_args do
-    test = self()
-
-    expect(Voyager.ErpcMock, :call, fn node, mod, fun, args, timeout ->
-      send(test, {:called, node, mod, fun, args, timeout})
-      {[], 0}
-    end)
-  end
 
   describe "top/7" do
     test "invokes :voyager_agent.proc_top on the given node with node, args and timeout" do

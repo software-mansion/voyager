@@ -4,6 +4,7 @@ defmodule VoyagerWeb.ProcessesLive.QueryTest do
   use ExUnit.Case, async: false
 
   import Mox
+  import Voyager.Fakes, only: [capture_erpc_args: 0]
 
   alias VoyagerWeb.FormSchemas.ProcessListControls
   alias VoyagerWeb.ProcessesLive.Query
@@ -13,17 +14,6 @@ defmodule VoyagerWeb.ProcessesLive.QueryTest do
   @agent_module Voyager.Agent.module()
 
   @node :"peer@127.0.0.1"
-
-  # Captures the args reaching the (mocked) :erpc transport and returns an empty
-  # top-N, so `page/2` yields an empty page.
-  defp capture_erpc_args(result \\ {[], 0}) do
-    test = self()
-
-    expect(Voyager.ErpcMock, :call, fn node, mod, fun, args, timeout ->
-      send(test, {:called, node, mod, fun, args, timeout})
-      result
-    end)
-  end
 
   defp controls(attrs \\ %{}) do
     {controls, _changeset} = ProcessListControls.apply(ProcessListControls.default(), attrs)

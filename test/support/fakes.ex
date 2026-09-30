@@ -6,7 +6,7 @@ defmodule Voyager.Fakes do
   """
 
   import ExUnit.Callbacks, only: [on_exit: 1]
-  import Mox, only: [stub: 3]
+  import Mox, only: [expect: 3, stub: 3]
 
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Session
@@ -148,6 +148,22 @@ defmodule Voyager.Fakes do
 
     stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args, _timeout ->
       erpc_reply(mod, fun, args, data)
+    end)
+
+    :ok
+  end
+
+  @doc """
+  Expects one remote call, sends it to the caller as
+  `{:called, node, mod, fun, args, timeout}` and replies with an empty top-N.
+  """
+  @spec capture_erpc_args() :: :ok
+  def capture_erpc_args do
+    test = self()
+
+    expect(Voyager.ErpcMock, :call, fn node, mod, fun, args, timeout ->
+      send(test, {:called, node, mod, fun, args, timeout})
+      {[], 0}
     end)
 
     :ok

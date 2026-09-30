@@ -2,6 +2,7 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
   use ExUnit.Case, async: false
 
   import Mox
+  import Voyager.EtsFakes, only: [stub_intern: 0]
 
   alias Anubis.Server.Frame
   alias Anubis.Server.Response
@@ -220,12 +221,6 @@ defmodule Voyager.MCP.Tools.EtsReadTableChunkTest do
   end
 
   @agent_module Voyager.Agent.module()
-
-  defp stub_intern do
-    expect(Voyager.ErpcMock, :call, fn _node, :erlang, :list_to_existing_atom, [chars], _t ->
-      :erlang.list_to_existing_atom(chars)
-    end)
-  end
 
   defp stub_intern_missing do
     expect(Voyager.ErpcMock, :call, fn _node, :erlang, :list_to_existing_atom, _args, _t ->

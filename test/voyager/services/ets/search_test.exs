@@ -2,6 +2,7 @@ defmodule Voyager.Services.Ets.SearchTest do
   use ExUnit.Case, async: true
 
   import Mox
+  import Voyager.EtsFakes, only: [ok_chunk: 1, ok_chunk: 2]
 
   alias Voyager.Agent
   alias Voyager.Services.Ets.Search
@@ -231,9 +232,5 @@ defmodule Voyager.Services.Ets.SearchTest do
 
       refute_received {:called, :ets, _, _}
     end
-  end
-
-  defp ok_chunk(records, continuation \\ :undefined, truncated \\ false) do
-    {:ok, %{records: records, continuation: continuation, truncated: truncated}}
   end
 end
