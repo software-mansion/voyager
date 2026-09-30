@@ -832,12 +832,6 @@ defmodule VoyagerWeb.CoreComponents do
     default: true,
     doc: "set false where a pinned tip would outlive its anchor, e.g. scrolling table cells"
 
-  attr :show_when, :string,
-    default: nil,
-    values: [nil, "sidebar-compact"],
-    doc:
-      "when set to sidebar-compact, the tip only opens while the app sidebar is in compact (icon-only) mode"
-
   slot :inner_block, required: true, doc: "the hover/focus target"
   slot :content, required: true, doc: "tooltip content"
 
@@ -851,7 +845,6 @@ defmodule VoyagerWeb.CoreComponents do
       data-tooltip-position={@position}
       data-tooltip-interactive={to_string(@interactive)}
       data-tooltip-pinnable={to_string(@pinnable)}
-      data-tooltip-show-when={@show_when}
     >
       {render_slot(@inner_block)}
     </span>
