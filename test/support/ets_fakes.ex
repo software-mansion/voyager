@@ -59,7 +59,7 @@ defmodule Voyager.EtsFakes do
     stub(Voyager.ErpcMock, :call, fn
       _node, :ets, :all, [], timeout ->
         send(test, {:fetched, timeout})
-        ids(tables)
+        Enum.map(tables, & &1.id)
 
       _node, :erlang, :system_info, [:wordsize], _timeout ->
         @word_size
@@ -81,10 +81,6 @@ defmodule Voyager.EtsFakes do
     :ok
   end
 
-  @doc "The handles `:ets.all/0` would report for `tables`."
-  @spec ids([map()]) :: [atom() | reference()]
-  def ids(tables), do: Enum.map(tables, & &1.id)
-
   @doc """
   The raw `:ets.info/1` keyword lists for `ids`, as the remote `:lists.map`
   returns them; an id with no table is `:undefined`, as a table deleted
@@ -98,7 +94,7 @@ defmodule Voyager.EtsFakes do
   defp raw_info(nil), do: :undefined
 
   defp raw_info(table) do
-    info = [
+    [
       name: table.name,
       named_table: table.named_table,
       protection: table.protection,
@@ -112,10 +108,5 @@ defmodule Voyager.EtsFakes do
       read_concurrency: table.read_concurrency,
       write_concurrency: table.write_concurrency
     ]
-
-    case table do
-      %{decentralized_counters: value} -> info ++ [decentralized_counters: value]
-      _table -> info
-    end
   end
 end
