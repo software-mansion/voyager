@@ -1,4 +1,3 @@
-import { TOPOLOGY_FIELDS, LAYOUT_DEBOUNCE_MS } from './constants';
 import {
   elementsFor,
   relEdgeElement,
@@ -8,6 +7,14 @@ import {
   edgeElement,
 } from './elements';
 import { buildStyle, getColor } from './styles';
+
+const LAYOUT_DEBOUNCE_MS = 50;
+const TOPOLOGY_FIELDS = new Set([
+  'name',
+  'type',
+  'child_count',
+  'children_keys',
+]);
 
 /**
  * @import {ServerNode, ServerEdge, Info} from './elements.js'

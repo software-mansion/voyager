@@ -1,5 +1,7 @@
-import { OVERLAY_DEBOUNCE_MS, OVERLAY_MIN_ZOOM } from './constants';
 import { formatName, overlayButtonIntersectsExtent } from './elements';
+
+const OVERLAY_DEBOUNCE_MS = 80;
+export const OVERLAY_MIN_ZOOM = 0.45;
 
 /**
  * Expand/collapse toggle buttons rendered as DOM overlays on top of the canvas.

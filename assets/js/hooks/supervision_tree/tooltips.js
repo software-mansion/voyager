@@ -1,6 +1,9 @@
-import { TOOLTIP_DELAY_MS, OVERLAY_MIN_ZOOM, TOOLTIP_GAP } from './constants';
 import { formatName, formatPid } from './elements';
+import { OVERLAY_MIN_ZOOM } from './overlays';
 import { placeTooltip } from '../tooltip';
+
+const TOOLTIP_DELAY_MS = 50;
+const TOOLTIP_GAP = 8;
 
 const TYPE_COLOR_CLASS = {
   app: 'text-primary',
