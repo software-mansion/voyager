@@ -510,7 +510,8 @@ with_bounded_heap(Fun) ->
 -type ets_chunk() ::
     #{records := [term()],
       continuation := term(),
-      truncated := boolean()}.
+      truncated := boolean(),
+      total => non_neg_integer()}.
 
 -spec ets_select_chunk(ets:tab(), pos_integer(), non_neg_integer(), term()) ->
                           {ok, ets_chunk()}.

@@ -30,6 +30,7 @@ defmodule Voyager.Services.Ets.Fetch do
   @budget Agent.default_budget()
 
   @type chunk :: %{
+          optional(:total) => non_neg_integer(),
           records: [term()],
           continuation: term() | nil,
           truncated?: boolean()
