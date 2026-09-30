@@ -124,9 +124,7 @@ defmodule VoyagerWeb.FormSchemas.EtsTableListControls do
     end)
   end
 
-  defp known_columns(columns) when is_list(columns) do
-    Enum.filter(columns, &(safe_atom(&1) in optional_columns()))
-  end
+  defp known_columns(columns) when is_list(columns), do: Enum.filter(columns, &safe_atom/1)
 
   defp known_columns(_columns), do: []
 

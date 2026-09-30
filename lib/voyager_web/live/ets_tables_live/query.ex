@@ -34,13 +34,13 @@ defmodule VoyagerWeb.EtsTablesLive.Query do
   def sortable_attrs, do: @sortable
 
   @spec required_attrs() :: [atom()]
-  def required_attrs, do: @required_attrs ++ @default_attrs
+  def required_attrs, do: @required_attrs
 
   @spec optional_attrs() :: [atom()]
   def optional_attrs, do: @optional_attrs
 
   @spec default_attrs() :: [atom()]
-  def default_attrs, do: @default_attrs
+  def default_attrs, do: @default_attrs ++ @required_attrs
 
   @doc "Fetches the metadata of every ETS table on `node`, bounding each remote call by `timeout`."
   @spec all(node(), timeout()) :: {:ok, page()} | {:error, term()}
