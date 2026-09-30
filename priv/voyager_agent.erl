@@ -7,10 +7,7 @@
 -export([proc_links/2, proc_monitors/2, proc_monitored_by/2]).
 -export([proc_dictionary/3, proc_messages/3, proc_label/2, proc_state/3]).
 -export([ets_select_chunk/4, ets_lookup/5, ets_select_spec/5]).
--export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
-         code_change/3]).
-
--export_type([bounded/1, monitor/0, dict_entry/0, truncated_term/0]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2]).
 
 -record(state, {nodes = #{} :: #{node() => true}}).
 
@@ -656,10 +653,6 @@ handle_info(_Info, State) ->
 -spec terminate(term(), state()) -> ok.
 terminate(_Reason, _State) ->
     purge_code().
-
--spec code_change(term(), state(), term()) -> {ok, state()}.
-code_change(_Vsn, State, _Extra) ->
-    {ok, State}.
 
 %% Subscribe to nodedown for VoyagerNode.
 %% Duplicate registers are a no-op so `erlang:monitor_node/2` does not stack subscriptions.
