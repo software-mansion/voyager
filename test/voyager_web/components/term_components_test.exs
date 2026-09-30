@@ -106,16 +106,11 @@ defmodule VoyagerWeb.Components.TermComponentsTest do
       assert attribute(collapsed, "#term-root-toggle", "aria-expanded") == "false"
     end
 
-    test "event names can be overridden per inspector" do
-      doc =
-        render_term(Enum.to_list(1..60),
-          state: open([[]]),
-          toggle_event: "custom-toggle",
-          window_event: "custom-window"
-        )
+    test "the toggle and the more button send the events TermTreeHook answers" do
+      doc = render_term(Enum.to_list(1..60), state: open([[]]))
 
-      assert attribute(doc, "#term-root-toggle", "phx-click") == "custom-toggle"
-      assert attribute(doc, "#term-root-more", "phx-click") == "custom-window"
+      assert attribute(doc, "#term-root-toggle", "phx-click") == "term-toggle"
+      assert attribute(doc, "#term-root-more", "phx-click") == "term-window"
     end
 
     test "a collection larger than the window offers to page in the rest" do

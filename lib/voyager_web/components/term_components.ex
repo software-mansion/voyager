@@ -26,8 +26,6 @@ defmodule VoyagerWeb.Components.TermComponents do
   attr :id, :string, required: true
   attr :term, :any, required: true
   attr :state, State, required: true
-  attr :toggle_event, :string, default: "term-toggle"
-  attr :window_event, :string, default: "term-window"
   attr :class, :any, default: nil
 
   def term_inspector(assigns) do
@@ -35,14 +33,7 @@ defmodule VoyagerWeb.Components.TermComponents do
 
     ~H"""
     <div id={@id} class={["font-mono text-xs" | List.wrap(@class)]}>
-      <.term_node
-        id={@id}
-        term={@term}
-        node={@node}
-        state={@state}
-        toggle_event={@toggle_event}
-        window_event={@window_event}
-      />
+      <.term_node id={@id} term={@term} node={@node} state={@state} />
     </div>
     """
   end
@@ -51,8 +42,6 @@ defmodule VoyagerWeb.Components.TermComponents do
   attr :term, :any, required: true
   attr :node, TermTree.Node, required: true
   attr :state, State, required: true
-  attr :toggle_event, :string, required: true
-  attr :window_event, :string, required: true
 
   defp term_node(assigns) do
     node = assigns.node
@@ -76,7 +65,7 @@ defmodule VoyagerWeb.Components.TermComponents do
           label_class="max-w-max"
           chevron_class="term-chevron text-code-punct"
           id={@node_id <> "-toggle"}
-          phx-click={@toggle_event}
+          phx-click="term-toggle"
           phx-value-id={@id}
           phx-value-path={@encoded_path}
         >
@@ -88,21 +77,14 @@ defmodule VoyagerWeb.Components.TermComponents do
           </:right>
           <ol :if={@open?} class="term-indent m-0 block list-none p-0">
             <li :for={{child_term, child_node} <- @children} id={dom_id(@id, child_node.path)}>
-              <.term_node
-                id={@id}
-                term={child_term}
-                node={child_node}
-                state={@state}
-                toggle_event={@toggle_event}
-                window_event={@window_event}
-              />
+              <.term_node id={@id} term={child_term} node={child_node} state={@state} />
             </li>
           </ol>
           <button
             :if={@open? and @remaining > 0}
             type="button"
             id={@node_id <> "-more"}
-            phx-click={@window_event}
+            phx-click="term-window"
             phx-value-id={@id}
             phx-value-path={@encoded_path}
             class="term-indent link link-hover text-code-punct max-w-max"
