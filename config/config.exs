@@ -12,7 +12,7 @@ config :voyager, VoyagerWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
-    formats: [html: VoyagerWeb.ErrorHTML, json: VoyagerWeb.ErrorJSON],
+    formats: [html: VoyagerWeb.ErrorHTML],
     layout: false
   ],
   pubsub_server: Voyager.PubSub,
