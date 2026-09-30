@@ -1,8 +1,5 @@
 defmodule VoyagerWeb.Layouts do
-  @moduledoc """
-  This module holds layouts and related functionality
-  used by your application.
-  """
+  @moduledoc false
   use VoyagerWeb, :html
 
   embed_templates "layouts/*"
@@ -24,20 +21,6 @@ defmodule VoyagerWeb.Layouts do
     """
   end
 
-  @doc """
-  Renders your app layout.
-
-  This function is typically invoked from every template,
-  and it often contains your application menu, sidebar,
-  or similar.
-
-  ## Examples
-
-      <Layouts.app flash={@flash}>
-        <h1>Content</h1>
-      </Layouts.app>
-
-  """
   attr :flash, :map, required: true, doc: "the map of flash messages"
   attr :session, Session, required: true
 

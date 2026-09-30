@@ -1,15 +1,5 @@
 defmodule VoyagerWeb.CoreComponents do
-  @moduledoc """
-  Provides core UI components.
-
-  The foundation for styling is Tailwind CSS augmented with a custom design
-  system defined in `assets/css/styles/tokens.css`. Icons are loaded from
-  `assets/css/icons/` via the Tailwind plugin at `assets/vendor/icons.js`.
-
-    * [Tailwind CSS](https://tailwindcss.com)
-    * [Phoenix.Component](https://hexdocs.pm/phoenix_live_view/Phoenix.Component.html)
-
-  """
+  @moduledoc false
   use Phoenix.Component
 
   alias Phoenix.LiveView.JS
