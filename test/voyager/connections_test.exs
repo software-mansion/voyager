@@ -39,14 +39,14 @@ defmodule Voyager.ConnectionsTest do
       {:ok, _} = ConnectionActions.upsert_connected("c@127.0.0.1", cookie: "old")
       {:ok, _} = ConnectionActions.upsert_connected("c@127.0.0.1", cookie: "new")
 
-      assert ConnectionQueries.get_by_node_name("c@127.0.0.1").cookie == "new"
+      assert Repo.get_by(Connection, node_name: "c@127.0.0.1").cookie == "new"
     end
 
     test "preserves existing cookie when no cookie is supplied" do
       {:ok, _} = ConnectionActions.upsert_connected("k@127.0.0.1", cookie: "keep-me")
       {:ok, _} = ConnectionActions.upsert_connected("k@127.0.0.1")
 
-      assert ConnectionQueries.get_by_node_name("k@127.0.0.1").cookie == "keep-me"
+      assert Repo.get_by(Connection, node_name: "k@127.0.0.1").cookie == "keep-me"
     end
 
     test "defaults name_type to :longnames" do
@@ -59,7 +59,7 @@ defmodule Voyager.ConnectionsTest do
         ConnectionActions.upsert_connected("nt@127.0.0.1", cookie: "x", name_type: :shortnames)
 
       assert conn.name_type == :shortnames
-      assert ConnectionQueries.get_by_node_name("nt@127.0.0.1").name_type == :shortnames
+      assert Repo.get_by(Connection, node_name: "nt@127.0.0.1").name_type == :shortnames
     end
 
     test "updates name_type on conflict" do
@@ -69,7 +69,7 @@ defmodule Voyager.ConnectionsTest do
       {:ok, _} =
         ConnectionActions.upsert_connected("ntc@127.0.0.1", cookie: "x", name_type: :shortnames)
 
-      assert ConnectionQueries.get_by_node_name("ntc@127.0.0.1").name_type == :shortnames
+      assert Repo.get_by(Connection, node_name: "ntc@127.0.0.1").name_type == :shortnames
     end
 
     test "cookie is encrypted at rest" do
@@ -81,7 +81,7 @@ defmodule Voyager.ConnectionsTest do
       assert is_binary(raw)
       assert byte_size(raw) > byte_size("plaintext-cookie")
 
-      assert ConnectionQueries.get_by_node_name("enc@127.0.0.1").cookie == "plaintext-cookie"
+      assert Repo.get_by(Connection, node_name: "enc@127.0.0.1").cookie == "plaintext-cookie"
     end
   end
 

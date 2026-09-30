@@ -16,7 +16,4 @@ defmodule Voyager.Queries.Connections do
 
   @spec get(integer()) :: optional()
   def get(id), do: Repo.get(Connection, id)
-
-  @spec get_by_node_name(String.t()) :: optional()
-  def get_by_node_name(node_name), do: Repo.get_by(Connection, node_name: node_name)
 end

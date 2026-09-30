@@ -28,6 +28,15 @@ defmodule Voyager.SshConnectionsTest do
     |> Repo.insert!()
   end
 
+  defp stored_profile(ssh_user, ssh_host, ssh_port, node_name) do
+    Repo.get_by(SshConnection,
+      ssh_user: ssh_user,
+      ssh_host: ssh_host,
+      ssh_port: ssh_port,
+      node_name: node_name
+    )
+  end
+
   describe "upsert_connected/5" do
     test "inserts a new ssh connection" do
       {user, host, port, node} = @base_profile
@@ -70,7 +79,7 @@ defmodule Voyager.SshConnectionsTest do
         )
 
       assert conn.auth_method == :password
-      assert SshConnectionQueries.get_by_profile(user, host, port, node).auth_method == :password
+      assert stored_profile(user, host, port, node).auth_method == :password
     end
 
     test "stores given name_type" do
@@ -80,7 +89,7 @@ defmodule Voyager.SshConnectionsTest do
         SshConnectionActions.upsert_connected(user, host, port, node, name_type: :shortnames)
 
       assert conn.name_type == :shortnames
-      assert SshConnectionQueries.get_by_profile(user, host, port, node).name_type == :shortnames
+      assert stored_profile(user, host, port, node).name_type == :shortnames
     end
 
     test "stores given epmd_port" do
@@ -89,7 +98,7 @@ defmodule Voyager.SshConnectionsTest do
       {:ok, conn} = SshConnectionActions.upsert_connected(user, host, port, node, epmd_port: 5678)
 
       assert conn.epmd_port == 5678
-      assert SshConnectionQueries.get_by_profile(user, host, port, node).epmd_port == 5678
+      assert stored_profile(user, host, port, node).epmd_port == 5678
     end
 
     test "updates last_connected_at on conflict" do
@@ -107,7 +116,7 @@ defmodule Voyager.SshConnectionsTest do
       SshConnectionActions.upsert_connected(user, host, port, node, cookie: "old")
       SshConnectionActions.upsert_connected(user, host, port, node, cookie: "new")
 
-      assert SshConnectionQueries.get_by_profile(user, host, port, node).cookie == "new"
+      assert stored_profile(user, host, port, node).cookie == "new"
     end
 
     test "preserves existing cookie when no cookie is supplied" do
@@ -115,7 +124,7 @@ defmodule Voyager.SshConnectionsTest do
       SshConnectionActions.upsert_connected(user, host, port, node, cookie: "keep-me")
       SshConnectionActions.upsert_connected(user, host, port, node)
 
-      assert SshConnectionQueries.get_by_profile(user, host, port, node).cookie == "keep-me"
+      assert stored_profile(user, host, port, node).cookie == "keep-me"
     end
 
     test "overwrites password when a new password is supplied" do
@@ -123,7 +132,7 @@ defmodule Voyager.SshConnectionsTest do
       SshConnectionActions.upsert_connected(user, host, port, node, password: "old-pass")
       SshConnectionActions.upsert_connected(user, host, port, node, password: "new-pass")
 
-      assert SshConnectionQueries.get_by_profile(user, host, port, node).password == "new-pass"
+      assert stored_profile(user, host, port, node).password == "new-pass"
     end
 
     test "preserves existing password when no password is supplied" do
@@ -131,7 +140,7 @@ defmodule Voyager.SshConnectionsTest do
       SshConnectionActions.upsert_connected(user, host, port, node, password: "keep-pass")
       SshConnectionActions.upsert_connected(user, host, port, node)
 
-      assert SshConnectionQueries.get_by_profile(user, host, port, node).password == "keep-pass"
+      assert stored_profile(user, host, port, node).password == "keep-pass"
     end
 
     test "updates name_type on conflict" do
@@ -139,7 +148,7 @@ defmodule Voyager.SshConnectionsTest do
       SshConnectionActions.upsert_connected(user, host, port, node, name_type: :longnames)
       SshConnectionActions.upsert_connected(user, host, port, node, name_type: :shortnames)
 
-      assert SshConnectionQueries.get_by_profile(user, host, port, node).name_type == :shortnames
+      assert stored_profile(user, host, port, node).name_type == :shortnames
     end
 
     test "updates auth_method on conflict" do
@@ -151,7 +160,7 @@ defmodule Voyager.SshConnectionsTest do
         password: "new"
       )
 
-      assert SshConnectionQueries.get_by_profile(user, host, port, node).auth_method == :password
+      assert stored_profile(user, host, port, node).auth_method == :password
     end
 
     test "cookie is encrypted at rest" do
@@ -164,8 +173,7 @@ defmodule Voyager.SshConnectionsTest do
       assert is_binary(raw)
       assert byte_size(raw) > byte_size("plaintext-cookie")
 
-      assert SshConnectionQueries.get_by_profile(user, host, port, node).cookie ==
-               "plaintext-cookie"
+      assert stored_profile(user, host, port, node).cookie == "plaintext-cookie"
     end
 
     test "password is encrypted at rest" do
@@ -178,16 +186,15 @@ defmodule Voyager.SshConnectionsTest do
       assert is_binary(raw)
       assert byte_size(raw) > byte_size("plaintext-pass")
 
-      assert SshConnectionQueries.get_by_profile(user, host, port, node).password ==
-               "plaintext-pass"
+      assert stored_profile(user, host, port, node).password == "plaintext-pass"
     end
 
     test "different node_names on same host create separate records" do
       {:ok, _} = SshConnectionActions.upsert_connected("deploy", "h", 22, "app1@h")
       {:ok, _} = SshConnectionActions.upsert_connected("deploy", "h", 22, "app2@h")
 
-      assert SshConnectionQueries.get_by_profile("deploy", "h", 22, "app1@h") != nil
-      assert SshConnectionQueries.get_by_profile("deploy", "h", 22, "app2@h") != nil
+      assert stored_profile("deploy", "h", 22, "app1@h") != nil
+      assert stored_profile("deploy", "h", 22, "app2@h") != nil
     end
   end
 
@@ -238,20 +245,6 @@ defmodule Voyager.SshConnectionsTest do
   describe "get/1" do
     test "returns nil for missing id rather than raising" do
       assert SshConnectionQueries.get(-1) == nil
-    end
-  end
-
-  describe "get_by_profile/4" do
-    test "returns nil when no matching profile exists" do
-      assert SshConnectionQueries.get_by_profile("nobody", "nowhere", 22, "app@x") == nil
-    end
-
-    test "returns the record for a matching profile" do
-      {user, host, port, node} = @base_profile
-      {:ok, conn} = SshConnectionActions.upsert_connected(user, host, port, node)
-
-      found = SshConnectionQueries.get_by_profile(user, host, port, node)
-      assert found.id == conn.id
     end
   end
 end

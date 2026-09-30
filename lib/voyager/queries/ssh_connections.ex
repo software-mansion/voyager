@@ -14,15 +14,4 @@ defmodule Voyager.Queries.SshConnections do
 
   @spec get(integer()) :: SshConnection.t() | nil
   def get(id), do: Repo.get(SshConnection, id)
-
-  @spec get_by_profile(String.t(), String.t(), integer(), String.t()) ::
-          SshConnection.t() | nil
-  def get_by_profile(ssh_user, ssh_host, ssh_port, node_name) do
-    Repo.get_by(SshConnection,
-      ssh_user: ssh_user,
-      ssh_host: ssh_host,
-      ssh_port: ssh_port,
-      node_name: node_name
-    )
-  end
 end
