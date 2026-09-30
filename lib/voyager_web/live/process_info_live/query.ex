@@ -27,12 +27,6 @@ defmodule VoyagerWeb.ProcessInfoLive.Query do
           monitored_by: Agent.bounded(pid() | port())
         }
 
-  @spec default_timeout() :: pos_integer()
-  def default_timeout, do: Agent.default_timeout()
-
-  @spec default_budget() :: pos_integer()
-  def default_budget, do: Agent.default_budget()
-
   @spec default_limits() :: %{atom() => pos_integer()}
   def default_limits, do: @default_limits
 

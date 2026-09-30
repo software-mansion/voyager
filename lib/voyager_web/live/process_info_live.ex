@@ -584,8 +584,8 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
   defp default_controls(name) do
     opts =
-      [timeout: Query.default_timeout()] ++
-        if(name in @budget_sections, do: [budget: Query.default_budget()], else: []) ++
+      [timeout: Voyager.Agent.default_timeout()] ++
+        if(name in @budget_sections, do: [budget: Voyager.Agent.default_budget()], else: []) ++
         if(limit = Query.default_limits()[name], do: [limit: limit], else: [])
 
     ProcessInfoControls.new(name, opts)
