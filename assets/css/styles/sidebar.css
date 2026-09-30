@@ -18,14 +18,6 @@
   }
 }
 
-#app-sidebar.mode-compact {
-  width: var(--sidebar-compact-w);
-}
-
-#app-sidebar.mode-compact .menu {
-  padding: var(--sidebar-compact-pad);
-}
-
 #app-sidebar.mode-full {
   width: var(--sidebar-full-w);
 }
@@ -64,10 +56,6 @@
   #app-sidebar:not(.mode-full) .sidebar-badge,
   #app-sidebar:not(.mode-full) .menu-title {
     display: none;
-  }
-
-  #app-sidebar:not(.mode-full) .menu {
-    padding: var(--sidebar-compact-pad);
   }
 
   #app-sidebar:not(.mode-full) .sidebar-toggle-row {
