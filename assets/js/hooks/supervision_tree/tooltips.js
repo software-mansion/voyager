@@ -1,10 +1,6 @@
-import {
-  TOOLTIP_DELAY_MS,
-  OVERLAY_MIN_ZOOM,
-  TOOLTIP_GAP,
-  VIEWPORT_MARGIN,
-} from './constants';
+import { TOOLTIP_DELAY_MS, OVERLAY_MIN_ZOOM, TOOLTIP_GAP } from './constants';
 import { formatName, formatPid } from './elements';
+import { placeTooltip } from '../tooltip';
 
 const TYPE_COLOR_CLASS = {
   app: 'text-primary',
@@ -142,28 +138,13 @@ export const tooltipMethods = {
       includeLabels: false,
     });
 
-    // Reset before measuring so a stale `left` near the right edge doesn't
-    // shrink shrink-to-fit width and inflate height (see Tooltip hook).
-    this.tooltip.style.top = '0px';
-    this.tooltip.style.left = '0px';
-
-    const tipRect = this.tooltip.getBoundingClientRect();
-    const containerRect = this.cy.container().getBoundingClientRect();
-
-    let top = containerRect.y + nodeY - tipRect.height - TOOLTIP_GAP;
-    let left = containerRect.x + nodeCenterX - tipRect.width / 2;
-
-    left = Math.max(
-      VIEWPORT_MARGIN,
-      Math.min(left, window.innerWidth - tipRect.width - VIEWPORT_MARGIN)
-    );
-    top = Math.max(
-      VIEWPORT_MARGIN,
-      Math.min(top, window.innerHeight - tipRect.height - VIEWPORT_MARGIN)
-    );
-
-    this.tooltip.style.top = `${top}px`;
-    this.tooltip.style.left = `${left}px`;
+    placeTooltip(this.tooltip, (tipRect) => {
+      const containerRect = this.cy.container().getBoundingClientRect();
+      return {
+        top: containerRect.y + nodeY - tipRect.height - TOOLTIP_GAP,
+        left: containerRect.x + nodeCenterX - tipRect.width / 2,
+      };
+    });
 
     this.toggleTooltipOpen(true);
   },

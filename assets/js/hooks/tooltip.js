@@ -29,41 +29,15 @@ function isSidebarCompact() {
   return window.matchMedia('(max-width: 1023.98px)').matches;
 }
 
-function positionTooltip(tipEl, trigger) {
-  const position = trigger.dataset.tooltipPosition || 'top';
-
-  // Reset before measuring. A stale `left` near the right edge shrinks the
-  // shrink-to-fit available width, so the tip wraps into a tall column; the
-  // inflated height then gets clamped to the top of the viewport.
+// Resets before measuring: a stale `left` near the right edge narrows the shrink-to-fit
+// tip into a tall column, which the viewport clamp then pins to the top.
+export function placeTooltip(tipEl, anchor) {
   tipEl.style.top = '0px';
   tipEl.style.left = '0px';
 
   const tip = tipEl.getBoundingClientRect();
-  const rect = trigger.getBoundingClientRect();
+  let { top, left } = anchor(tip);
 
-  let top;
-  let left;
-
-  switch (position) {
-    case 'bottom':
-      top = rect.bottom + GAP;
-      left = rect.left + rect.width / 2 - tip.width / 2;
-      break;
-    case 'left':
-      top = rect.top + rect.height / 2 - tip.height / 2;
-      left = rect.left - tip.width - GAP;
-      break;
-    case 'right':
-      top = rect.top + rect.height / 2 - tip.height / 2;
-      left = rect.right + GAP;
-      break;
-    default:
-      // top
-      top = rect.top - tip.height - GAP;
-      left = rect.left + rect.width / 2 - tip.width / 2;
-  }
-
-  // Clamp into the viewport so the tooltip is never cut off.
   left = Math.max(
     VIEWPORT_MARGIN,
     Math.min(left, window.innerWidth - tip.width - VIEWPORT_MARGIN)
@@ -75,6 +49,27 @@ function positionTooltip(tipEl, trigger) {
 
   tipEl.style.top = `${top}px`;
   tipEl.style.left = `${left}px`;
+}
+
+function positionTooltip(tipEl, trigger) {
+  const position = trigger.dataset.tooltipPosition || 'top';
+
+  placeTooltip(tipEl, (tip) => {
+    const rect = trigger.getBoundingClientRect();
+    const centerLeft = rect.left + rect.width / 2 - tip.width / 2;
+    const middleTop = rect.top + rect.height / 2 - tip.height / 2;
+
+    switch (position) {
+      case 'bottom':
+        return { top: rect.bottom + GAP, left: centerLeft };
+      case 'left':
+        return { top: middleTop, left: rect.left - tip.width - GAP };
+      case 'right':
+        return { top: middleTop, left: rect.right + GAP };
+      default:
+        return { top: rect.top - tip.height - GAP, left: centerLeft };
+    }
+  });
 }
 
 const Tooltip = {
