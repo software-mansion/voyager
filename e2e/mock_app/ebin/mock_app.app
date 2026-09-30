@@ -4,8 +4,7 @@
     {modules, [
         mock_app,
         mock_root_sup,
-        mock_deep_sup,
-        mock_dyn_sup,
+        mock_sup,
         mock_worker,
         mock_app_ctl
     ]},

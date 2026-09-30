@@ -1,5 +1,6 @@
-%% Statically nested supervisor; instances form the mock_deep_sup_1..3 chain.
--module(mock_deep_sup).
+%% Plain one_for_one (not simple_one_for_one) so which_children reports real
+%% child-spec ids that become node labels in the supervision tree.
+-module(mock_sup).
 -behaviour(supervisor).
 
 -export([start_link/2, init/1]).
