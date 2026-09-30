@@ -120,10 +120,6 @@ defmodule Voyager.Services.SupervisionTree.Walker do
     end
   end
 
-  # ---------------------------------------------------------------------------
-  # application roots
-  # ---------------------------------------------------------------------------
-
   defp build_roots(node, apps, depth) do
     case Remote.app_masters(node, apps) do
       {:error, reason} ->
@@ -264,10 +260,6 @@ defmodule Voyager.Services.SupervisionTree.Walker do
 
   defp ancestor_pid(_info, default), do: default
 
-  # ---------------------------------------------------------------------------
-  # breadth-first level walk
-  # ---------------------------------------------------------------------------
-
   defp walk_levels(_node, nodes, [], _expanded, _deadline, errors), do: {nodes, errors}
 
   defp walk_levels(node, nodes, worklist, expanded, deadline, errors) do
@@ -389,10 +381,6 @@ defmodule Voyager.Services.SupervisionTree.Walker do
     {key, Map.put(nodes, key, leaf_node(item.app, key, item.key, child_pid, child_id)), worklist}
   end
 
-  # ---------------------------------------------------------------------------
-  # batched remote calls with per-pid fallback
-  # ---------------------------------------------------------------------------
-
   defp which_children_aligned(node, pids) do
     batch_with_fallback(
       pids,
@@ -419,10 +407,6 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       {:error, reason} -> Enum.map(pids, fn _ -> {:error, reason} end)
     end
   end
-
-  # ---------------------------------------------------------------------------
-  # node constructors
-  # ---------------------------------------------------------------------------
 
   @spec build_node(map()) :: TreeNode.t()
   defp build_node(attrs), do: struct!(TreeNode, attrs)
@@ -478,10 +462,6 @@ defmodule Voyager.Services.SupervisionTree.Walker do
     build_node(%{app: app, key: key, parent_key: parent_key, name: child_id, type: type})
   end
 
-  # ---------------------------------------------------------------------------
-  # info hydration
-  # ---------------------------------------------------------------------------
-
   defp hydrate(node, nodes, include_relations?) do
     pids =
       nodes
@@ -512,10 +492,6 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   # unregistered process, which is not an atom and so falls through to the pid.
   defp pid_label(_pid, %{registered_name: name}) when is_atom(name), do: name
   defp pid_label(pid, _info), do: pid
-
-  # ---------------------------------------------------------------------------
-  # relationship discovery
-  # ---------------------------------------------------------------------------
 
   defp build_relations(node, nodes) do
     # One pass collects both the set of in-tree pids (`seen`) and the relation
@@ -650,10 +626,6 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   defp rel_node(id, pid, name, type, info) do
     build_node(%{key: id_key(id), pid: pid, name: name, type: type, info: info})
   end
-
-  # ---------------------------------------------------------------------------
-  # keys & helpers
-  # ---------------------------------------------------------------------------
 
   defp id_key(pid) when is_pid(pid), do: Voyager.Pid.format(pid, :distribution)
 
