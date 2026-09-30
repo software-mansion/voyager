@@ -139,7 +139,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
           <.select
             field={@form[:type]}
             options={EtsTableListControls.filter_options(:type)}
-            class="w-32"
+            class="w-35"
           />
           <.select
             field={@form[:named]}
