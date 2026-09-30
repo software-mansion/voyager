@@ -56,7 +56,6 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       {:which_children, pid, :timeout}
       {:deadline, pid, :exceeded}
       {:process_info, :batch, reason}
-      {:relationships, pid, :truncated}
   """
 
   alias Voyager.Services.SupervisionTree.Edge
@@ -492,11 +491,10 @@ defmodule Voyager.Services.SupervisionTree.Walker do
           acc
       end)
 
-    {raw_rels, cap_errors} =
-      Enum.reduce(candidates, {[], []}, fn n, {rels_acc, errs_acc} ->
-        node_rels = node_relations(n, parent_pid_of(nodes, n))
-        {node_rels ++ rels_acc, errs_acc}
-      end)
+    raw_rels =
+      candidates
+      |> Enum.reverse()
+      |> Enum.flat_map(&node_relations(&1, parent_pid_of(nodes, &1)))
 
     deduped = Enum.uniq_by(raw_rels, &rel_sig/1)
 
@@ -510,7 +508,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
 
     edges = Map.new(deduped, fn {from, to, kind} -> build_edge(from, to, kind) end)
 
-    {nodes, edges, Enum.reverse(cap_errors) ++ pinfo_errors}
+    {nodes, edges, pinfo_errors}
   end
 
   defp parent_pid_of(_nodes, %TreeNode{parent_key: nil}), do: nil
