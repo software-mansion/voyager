@@ -1,20 +1,20 @@
-defmodule VoyagerWeb.ProcessesLive.Fetcher do
+defmodule VoyagerWeb.ListPage.Fetcher do
   @moduledoc """
-  Owns the process list's fetch lifecycle: the async scan and its rate
-  limiting, the debounced refetch after control changes, auto-refresh, and the
-  assigns the page renders from (`page_result`, `fetched_with`, `dirty?`,
-  `last_updated`, `round_trip_ms`, `refresh_interval`).
+  Owns a list page's fetch lifecycle: the async fetch and its rate limiting,
+  the debounced refetch after control changes, auto-refresh, and the assigns
+  the page renders from (`page_result`, `fetched_with`, `dirty?`,
+  `last_updated`, `round_trip_ms`, `refresh_interval`, `interval_options`).
 
-  The first scan waits for the client's stored controls (`start/1`), so a visit
-  costs one scan rather than one with the defaults and another with the
+  The first fetch waits for the client's stored controls (`start/1`), so a
+  visit costs one fetch rather than one with the defaults and another with the
   restored controls.
 
-  Every fetch is a full scan of the remote process table, so at most one runs
-  at a time. A request landing mid-scan is queued and replayed when the scan
-  finishes: `start_async/3` would replace the task but not the scan the remote
-  is already running.
+  Every fetch reads the whole remote list, so at most one runs at a time. A
+  request landing mid-fetch is queued and replayed when the fetch finishes:
+  `start_async/3` would replace the task but not the work the remote is
+  already doing.
 
-  Reads `session`, `controls`, `sort_by` and `direction` from the socket.
+  Reads `session` and `controls` from the socket, and whatever `:query` picks.
   """
 
   import Phoenix.Component
@@ -24,82 +24,103 @@ defmodule VoyagerWeb.ProcessesLive.Fetcher do
   alias Phoenix.LiveView.Socket
   alias Voyager.Services.RateLimiter
   alias VoyagerWeb.Helpers
-  alias VoyagerWeb.ProcessesLive.Query
 
   require Logger
 
   @refetch_debounce_ms 1_500
 
-  # A scan resolving in a few ms flashes the loading state for a frame; hold it
-  # so the transition reads as intentional. Zeroed in test.
+  # A fetch resolving in a few ms flashes the loading state for a frame; hold
+  # it so the transition reads as intentional. Zeroed in test.
   @min_fetch_ms Application.compile_env(:voyager, :min_fetch_ms, 300)
-
-  @doc "Auto-refresh choices as `{label, value}` pairs."
-  @spec interval_options() :: [{String.t(), String.t()}]
-  def interval_options, do: Helpers.interval_options()
 
   @doc """
   Assigns the fetch state and attaches the timer and result handlers.
 
   Deliberately starts nothing: the view calls `start/1` once the client has
-  restored its stored controls.
+  restored its stored controls. The result handler continues to the view's
+  `handle_async/3`, so the page can recompute what it derives from the entries
+  after the assigns update.
 
-  The result handler continues to the view's `handle_async/3`, so the page can
-  react to a new result (e.g. clamp its local page) after the assigns update.
+  Options:
+
+    * `:query` (required) - takes the assigns and returns the call a fetch
+      runs, which answers `{:ok, page}` with `entries` and `fetched_at`, or
+      `{:error, reason}`
+    * `:subject` (required) - what the page lists, for the failure log
+    * `:interval_options` - the auto-refresh choices, `Helpers.interval_options/1`
+      by default
+    * `:refresh_interval` - the auto-refresh `start/1` arms, in ms; off by default
+    * `:replay_priority` - the priority a queued fetch replays at; by default
+      the highest one requested while it waited
   """
-  @spec init(Socket.t()) :: Socket.t()
-  def init(socket) do
+  @spec init(Socket.t(), keyword()) :: Socket.t()
+  def init(socket, opts) do
+    config = %{
+      query: Keyword.fetch!(opts, :query),
+      subject: Keyword.fetch!(opts, :subject),
+      replay_priority: Keyword.get(opts, :replay_priority)
+    }
+
+    interval_options = Keyword.get_lazy(opts, :interval_options, &Helpers.interval_options/0)
+
     socket
-    # Not `loading/0`: with a scan seemingly in flight, `fetch/1` would queue
+    |> assign(:fetcher, config)
+    |> assign(:interval_options, interval_options)
+    # Not `loading/0`: with a fetch seemingly in flight, `fetch/1` would queue
     # the first one instead of starting it. The table reads this as loading
     # anyway, since it has no result yet.
     |> assign(:page_result, %AsyncResult{})
     |> assign(:fetched_with, socket.assigns.controls)
     |> assign(:dirty?, false)
     |> assign(:refetch_timer, nil)
-    |> assign(:refetch_queued?, false)
-    |> assign(:refresh_interval, nil)
+    |> assign(:queued_priority, nil)
+    |> assign(:refresh_interval, Keyword.get(opts, :refresh_interval))
     |> assign(:refresh_timer, nil)
     |> assign(:last_updated, nil)
     |> assign(:round_trip_ms, nil)
-    |> attach_hook(:process_fetch_timers, :handle_info, &handle_timer/2)
-    |> attach_hook(:process_fetch_result, :handle_async, &handle_result/3)
+    |> attach_hook(:list_fetch_timers, :handle_info, &handle_timer/2)
+    |> attach_hook(:list_fetch_result, :handle_async, &handle_result/3)
   end
 
-  @doc "Runs the first scan, once the controls to run it with are known."
+  @doc "Runs the first fetch and arms the auto-refresh, once the controls are known."
   @spec start(Socket.t()) :: Socket.t()
-  def start(socket), do: if(connected?(socket), do: start_fetch(socket, :high), else: socket)
+  def start(socket) do
+    if connected?(socket),
+      do: socket |> start_fetch(:high) |> restart_refresh_timer(),
+      else: socket
+  end
 
   @doc """
-  Starts a scan, or queues one if a scan is already running.
+  Starts a fetch, or queues one if a fetch is already running.
+
   `:low` is for background refreshes, which the rate limiter may skip.
   """
   @spec fetch(Socket.t(), :high | :low) :: Socket.t()
   def fetch(socket, priority \\ :high) do
     if loading?(socket.assigns.page_result),
-      do: assign(socket, :refetch_queued?, true),
+      do: assign(socket, :queued_priority, promote(socket.assigns.queued_priority, priority)),
       else: start_fetch(socket, priority)
   end
 
-  @doc "Collapses a burst of control changes into one scan, fired once the user pauses."
+  @doc "Collapses a burst of control changes into one fetch, fired once the user pauses."
   @spec debounce_refetch(Socket.t()) :: Socket.t()
   def debounce_refetch(socket) do
     cancel_timer(socket.assigns.refetch_timer)
     assign(socket, :refetch_timer, Process.send_after(self(), :refetch, @refetch_debounce_ms))
   end
 
-  @doc "Sets auto-refresh from an `interval_options/0` value; anything else turns it off."
+  @doc "Sets auto-refresh from an `interval_options` value; anything else turns it off."
   @spec set_interval(Socket.t(), String.t()) :: Socket.t()
   def set_interval(socket, value) do
     socket
-    |> assign(:refresh_interval, Helpers.parse_interval(value, interval_options()))
+    |> assign(:refresh_interval, Helpers.parse_interval(value, socket.assigns.interval_options))
     |> restart_refresh_timer()
   end
 
   @spec loading?(struct()) :: boolean()
   def loading?(%AsyncResult{loading: loading}), do: loading != nil
 
-  @spec entries(struct()) :: [Query.entry()]
+  @spec entries(struct()) :: [map()]
   def entries(%AsyncResult{ok?: true, result: %{entries: entries}}), do: entries
   def entries(_page_result), do: []
 
@@ -150,11 +171,11 @@ defmodule VoyagerWeb.ProcessesLive.Fetcher do
   # A queued replay would hit the same failure; the error on screen is the
   # better answer.
   defp apply_result({:ok, {:error, reason}}, socket) do
-    socket |> fail(reason) |> assign(:refetch_queued?, false)
+    socket |> fail(reason) |> assign(:queued_priority, nil)
   end
 
   defp apply_result({:exit, reason}, socket) do
-    socket |> fail(reason) |> assign(:refetch_queued?, false)
+    socket |> fail(reason) |> assign(:queued_priority, nil)
   end
 
   defp transient_error(socket, reason, message) do
@@ -175,27 +196,32 @@ defmodule VoyagerWeb.ProcessesLive.Fetcher do
     |> assign(:dirty?, false)
   end
 
-  defp drain_queued(socket) do
-    if socket.assigns.refetch_queued?, do: fetch(socket), else: socket
+  defp promote(:high, _priority), do: :high
+  defp promote(_queued, priority), do: priority
+
+  defp drain_queued(%{assigns: %{queued_priority: nil}} = socket), do: socket
+
+  defp drain_queued(%{assigns: %{fetcher: fetcher, queued_priority: queued}} = socket) do
+    fetch(socket, fetcher.replay_priority || queued)
   end
 
   defp start_fetch(socket, priority) do
-    %{session: session, controls: controls, sort_by: sort_by, direction: direction} =
-      socket.assigns
+    %{fetcher: fetcher, session: session, controls: controls} = socket.assigns
+    request = fetcher.query.(socket.assigns)
+    %{subject: subject} = fetcher
+    node = session.node
 
     # The last result stays assigned, only marked loading, so the table keeps
-    # its rows while the scan runs.
+    # its rows while the fetch runs.
     socket
-    |> assign(:refetch_queued?, false)
+    |> assign(:queued_priority, nil)
     |> assign(:page_result, AsyncResult.loading(socket.assigns.page_result))
-    |> start_async(:page_result, fn ->
-      run(priority, session.node, controls, {sort_by, direction})
-    end)
+    |> start_async(:page_result, fn -> run(priority, request, controls, node, subject) end)
   end
 
-  defp run(priority, node, controls, sort) do
+  defp run(priority, request, controls, node, subject) do
     started = System.monotonic_time(:millisecond)
-    result = RateLimiter.run(priority, fn -> Query.page(node, controls, sort) end)
+    result = RateLimiter.run(priority, request)
     hold_min_duration(started)
 
     case result do
@@ -203,7 +229,7 @@ defmodule VoyagerWeb.ProcessesLive.Fetcher do
         {:ok, page, controls, div(elapsed_us, 1_000)}
 
       {:ok, {:error, reason}, _elapsed_us} ->
-        Logger.warning("Failed to list processes on #{inspect(node)}: #{inspect(reason)}")
+        Logger.warning("Failed to list #{subject} on #{inspect(node)}: #{inspect(reason)}")
         {:error, reason}
 
       # A skipped background refresh is not an error; the next tick retries.

@@ -13,7 +13,7 @@ defmodule VoyagerWeb.ProcessesLive do
   alias VoyagerWeb.Components.ProcessComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.ProcessListControls
-  alias VoyagerWeb.ProcessesLive.Fetcher
+  alias VoyagerWeb.ListPage.Fetcher
   alias VoyagerWeb.ProcessesLive.Query
 
   @page_sizes [10, 25, 50, 100]
@@ -33,7 +33,7 @@ defmodule VoyagerWeb.ProcessesLive do
     |> assign(:page, 1)
     |> assign(:page_size, @default_page_size)
     |> assign(:page_sizes, @page_sizes)
-    |> Fetcher.init()
+    |> Fetcher.init(query: &page_query/1, subject: "processes", replay_priority: :high)
     |> ok()
   end
 
@@ -55,7 +55,7 @@ defmodule VoyagerWeb.ProcessesLive do
           <.interval_select
             id="processes-refresh-interval"
             settings_key="processes"
-            options={Fetcher.interval_options()}
+            options={@interval_options}
             refresh_interval={@refresh_interval}
             loading={Fetcher.loading?(@page_result)}
           />
@@ -204,6 +204,10 @@ defmodule VoyagerWeb.ProcessesLive do
     socket
     |> assign(:page, clamp_page(socket.assigns.page, total(socket), socket.assigns.page_size))
     |> noreply()
+  end
+
+  defp page_query(%{session: session, controls: controls, sort_by: sort_by, direction: direction}) do
+    fn -> Query.page(session.node, controls, {sort_by, direction}) end
   end
 
   defp apply_controls(socket, params) do

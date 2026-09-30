@@ -17,10 +17,10 @@ defmodule VoyagerWeb.EtsTablesLive do
   alias Voyager.Services.Ets.TableId
   alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Components.EtsTableComponents
-  alias VoyagerWeb.EtsTablesLive.Fetcher
   alias VoyagerWeb.EtsTablesLive.Query
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.EtsTableListControls
+  alias VoyagerWeb.ListPage.Fetcher
   alias VoyagerWeb.Utils.URL
 
   @page_sizes [10, 25, 50, 100]
@@ -42,7 +42,14 @@ defmodule VoyagerWeb.EtsTablesLive do
     |> assign(:page, 1)
     |> assign(:page_size, @default_page_size)
     |> assign(:page_sizes, @page_sizes)
-    |> Fetcher.init()
+    |> Fetcher.init(
+      query: &tables_query/1,
+      subject: "ETS tables",
+      # Slower floor than the process list's: every refresh carries the whole
+      # table list over the wire.
+      interval_options: interval_options(5_000),
+      refresh_interval: 5_000
+    )
     |> ok()
   end
 
@@ -74,7 +81,7 @@ defmodule VoyagerWeb.EtsTablesLive do
               <.interval_select
                 id="ets-tables-refresh-interval"
                 settings_key="ets-tables"
-                options={Fetcher.interval_options()}
+                options={@interval_options}
                 refresh_interval={@refresh_interval}
                 loading={Fetcher.loading?(@page_result)}
               />
@@ -244,6 +251,10 @@ defmodule VoyagerWeb.EtsTablesLive do
     |> refresh_view()
     |> resolve_selection()
     |> noreply()
+  end
+
+  defp tables_query(%{session: session, controls: controls}) do
+    fn -> Query.all(session.node, controls.timeout) end
   end
 
   defp apply_controls(socket, params) do
