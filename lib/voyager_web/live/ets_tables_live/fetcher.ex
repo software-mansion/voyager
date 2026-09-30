@@ -19,6 +19,7 @@ defmodule VoyagerWeb.EtsTablesLive.Fetcher do
   alias Phoenix.LiveView.Socket
   alias Voyager.Services.RateLimiter
   alias VoyagerWeb.EtsTablesLive.Query
+  alias VoyagerWeb.Helpers
 
   require Logger
 
@@ -30,18 +31,12 @@ defmodule VoyagerWeb.EtsTablesLive.Fetcher do
 
   # Slower floor than the process list's: every refresh carries the whole
   # table list over the wire.
-  @interval_options [
-    {"Off", "off"},
-    {"5s", "5000"},
-    {"10s", "10000"},
-    {"30s", "30000"},
-    {"60s", "60000"}
-  ]
+  @min_interval_ms 5_000
   @default_interval_ms 5_000
 
   @doc "Auto-refresh choices as `{label, value}` pairs."
   @spec interval_options() :: [{String.t(), String.t()}]
-  def interval_options, do: @interval_options
+  def interval_options, do: Helpers.interval_options(@min_interval_ms)
 
   @doc """
   Assigns the fetch state and attaches the timer and result handlers.
@@ -102,7 +97,7 @@ defmodule VoyagerWeb.EtsTablesLive.Fetcher do
   @spec set_interval(Socket.t(), String.t()) :: Socket.t()
   def set_interval(socket, value) do
     socket
-    |> assign(:refresh_interval, parse_interval(value))
+    |> assign(:refresh_interval, Helpers.parse_interval(value, interval_options()))
     |> restart_refresh_timer()
   end
 
@@ -221,21 +216,6 @@ defmodule VoyagerWeb.EtsTablesLive.Fetcher do
     case socket.assigns.refresh_interval do
       nil -> assign(socket, :refresh_timer, nil)
       ms -> assign(socket, :refresh_timer, Process.send_after(self(), :auto_refresh, ms))
-    end
-  end
-
-  # Only a listed value is accepted: a negative delay raises in `send_after/3`
-  # and zero would spin.
-  defp parse_interval(value) do
-    Enum.find_value(@interval_options, fn {_label, option} ->
-      option == value && parse_ms(option)
-    end)
-  end
-
-  defp parse_ms(option) do
-    case Integer.parse(option) do
-      {ms, ""} -> ms
-      _ -> nil
     end
   end
 end

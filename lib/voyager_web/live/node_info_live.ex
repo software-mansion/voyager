@@ -11,16 +11,6 @@ defmodule VoyagerWeb.NodeInfoLive do
   @default_interval Application.compile_env(:voyager, :node_info_refresh_interval_ms, 5_000)
   @applications_page_size 10
 
-  @interval_options [
-    {"Off", "off"},
-    {"1s", "1000"},
-    {"2s", "2000"},
-    {"5s", "5000"},
-    {"10s", "10000"},
-    {"30s", "30000"},
-    {"60s", "60000"}
-  ]
-
   @impl true
   def mount(_params, _session, socket) do
     socket =
@@ -203,7 +193,7 @@ defmodule VoyagerWeb.NodeInfoLive do
 
   def handle_event("set_interval", %{"interval" => value}, socket) do
     socket
-    |> assign(:refresh_interval, parse_interval(value))
+    |> assign(:refresh_interval, parse_interval(value, interval_options()))
     |> schedule_refresh()
     |> noreply()
   end
@@ -309,17 +299,6 @@ defmodule VoyagerWeb.NodeInfoLive do
   defp uptime_since(%DateTime{} = collected_at, uptime_ms) when is_integer(uptime_ms) do
     started_at = DateTime.add(collected_at, -uptime_ms, :millisecond)
     Calendar.strftime(started_at, "%d %b %Y %H:%M UTC")
-  end
-
-  defp interval_options, do: @interval_options
-
-  defp parse_interval("off"), do: nil
-
-  defp parse_interval(value) do
-    case Integer.parse(value) do
-      {ms, ""} when ms > 0 -> ms
-      _ -> nil
-    end
   end
 
   defp format_error(:noconnection), do: "Node is unreachable."

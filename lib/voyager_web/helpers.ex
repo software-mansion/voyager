@@ -6,6 +6,16 @@ defmodule VoyagerWeb.Helpers do
   alias Voyager.NodeSession.Session
   alias VoyagerWeb.Utils.URL
 
+  @interval_options [
+    {"Off", "off"},
+    {"1s", "1000"},
+    {"2s", "2000"},
+    {"5s", "5000"},
+    {"10s", "10000"},
+    {"30s", "30000"},
+    {"60s", "60000"}
+  ]
+
   @spec ok(term()) :: {:ok, term()}
   def ok(state), do: {:ok, state}
 
@@ -67,4 +77,22 @@ defmodule VoyagerWeb.Helpers do
   end
 
   def keep_sidebar(path, _current_url), do: path
+
+  @doc "Auto-refresh choices as `{label, value}` pairs, leaving out those under `min_ms`."
+  @spec interval_options(pos_integer()) :: [{String.t(), String.t()}]
+  def interval_options(min_ms \\ 1_000) do
+    Enum.filter(@interval_options, fn {_label, value} ->
+      value == "off" or String.to_integer(value) >= min_ms
+    end)
+  end
+
+  @doc """
+  The milliseconds an `interval_options/1` value stands for; `nil` for "off" and
+  for anything not in `options`.
+  """
+  @spec parse_interval(term(), [{String.t(), String.t()}]) :: pos_integer() | nil
+  def parse_interval(value, options) do
+    # A negative delay raises in `Process.send_after/3`, and zero ticks in a loop.
+    if value != "off" and List.keymember?(options, value, 1), do: String.to_integer(value)
+  end
 end

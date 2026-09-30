@@ -23,6 +23,7 @@ defmodule VoyagerWeb.ProcessesLive.Fetcher do
   alias Phoenix.LiveView.AsyncResult
   alias Phoenix.LiveView.Socket
   alias Voyager.Services.RateLimiter
+  alias VoyagerWeb.Helpers
   alias VoyagerWeb.ProcessesLive.Query
 
   require Logger
@@ -33,19 +34,9 @@ defmodule VoyagerWeb.ProcessesLive.Fetcher do
   # so the transition reads as intentional. Zeroed in test.
   @min_fetch_ms Application.compile_env(:voyager, :min_fetch_ms, 300)
 
-  @interval_options [
-    {"Off", "off"},
-    {"1s", "1000"},
-    {"2s", "2000"},
-    {"5s", "5000"},
-    {"10s", "10000"},
-    {"30s", "30000"},
-    {"60s", "60000"}
-  ]
-
   @doc "Auto-refresh choices as `{label, value}` pairs."
   @spec interval_options() :: [{String.t(), String.t()}]
-  def interval_options, do: @interval_options
+  def interval_options, do: Helpers.interval_options()
 
   @doc """
   Assigns the fetch state and attaches the timer and result handlers.
@@ -101,7 +92,7 @@ defmodule VoyagerWeb.ProcessesLive.Fetcher do
   @spec set_interval(Socket.t(), String.t()) :: Socket.t()
   def set_interval(socket, value) do
     socket
-    |> assign(:refresh_interval, parse_interval(value))
+    |> assign(:refresh_interval, Helpers.parse_interval(value, interval_options()))
     |> restart_refresh_timer()
   end
 
@@ -240,19 +231,4 @@ defmodule VoyagerWeb.ProcessesLive.Fetcher do
 
   defp cancel_timer(nil), do: :ok
   defp cancel_timer(timer), do: Process.cancel_timer(timer)
-
-  # Only a listed value is accepted: a negative delay raises in `send_after/3`
-  # and zero would spin.
-  defp parse_interval(value) do
-    Enum.find_value(@interval_options, fn {_label, option} ->
-      option == value && parse_ms(option)
-    end)
-  end
-
-  defp parse_ms(option) do
-    case Integer.parse(option) do
-      {ms, ""} -> ms
-      _ -> nil
-    end
-  end
 end
