@@ -295,10 +295,6 @@ const Tooltip = {
     if (this._interactive && this._pinnable) {
       this.el.removeEventListener('click', this.togglePin);
     }
-    // hide() above already tore down the global scroll/resize and pin
-    // listeners; these are belt-and-suspenders in case they were still bound.
-    this.unbindScrollResize();
-    this.unbindPinListeners();
   },
 };
 
