@@ -41,26 +41,21 @@ defmodule Voyager.Actions.Connections do
   end
 
   @spec pin(integer()) :: mutation_result()
-  def pin(id) do
-    case ConnectionQueries.get(id) do
-      nil -> {:error, :not_found}
-      conn -> conn |> Connection.changeset(%{pinned: true}) |> Repo.update()
-    end
-  end
+  def pin(id), do: set_pinned(id, true)
 
   @spec unpin(integer()) :: mutation_result()
-  def unpin(id) do
-    case ConnectionQueries.get(id) do
-      nil -> {:error, :not_found}
-      conn -> conn |> Connection.changeset(%{pinned: false}) |> Repo.update()
-    end
-  end
+  def unpin(id), do: set_pinned(id, false)
 
   @spec delete(integer()) :: mutation_result()
-  def delete(id) do
+  def delete(id), do: with_record(id, &Repo.delete/1)
+
+  defp set_pinned(id, pinned),
+    do: with_record(id, &(&1 |> Connection.changeset(%{pinned: pinned}) |> Repo.update()))
+
+  defp with_record(id, fun) do
     case ConnectionQueries.get(id) do
       nil -> {:error, :not_found}
-      conn -> Repo.delete(conn)
+      conn -> fun.(conn)
     end
   end
 end
