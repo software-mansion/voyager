@@ -17,6 +17,7 @@ defmodule VoyagerWeb.FormSchemas.ProcessListControls do
 
   import Ecto.Changeset
 
+  alias VoyagerWeb.FormSchemas
   alias VoyagerWeb.ProcessesLive.Query
 
   @limits [25, 50, 100, 250, 500, 1_000, 2_500, 5_000]
@@ -75,16 +76,7 @@ defmodule VoyagerWeb.FormSchemas.ProcessListControls do
   form shows the error.
   """
   @spec apply(t(), map()) :: {t(), Ecto.Changeset.t()}
-  def apply(controls, attrs) do
-    # `:validate` on the changeset either way: `to_form/2` only surfaces errors
-    # once an action is set.
-    changeset = %{changeset(controls, attrs) | action: :validate}
-
-    case Ecto.Changeset.apply_action(changeset, :validate) do
-      {:ok, applied} -> {applied, changeset}
-      {:error, changeset} -> {Ecto.Changeset.apply_changes(valid_part(changeset)), changeset}
-    end
-  end
+  def apply(controls, attrs), do: FormSchemas.apply_valid(changeset(controls, attrs))
 
   @doc """
   The attributes to request per process: the selected columns plus the required
@@ -112,13 +104,6 @@ defmodule VoyagerWeb.FormSchemas.ProcessListControls do
 
     Enum.reduce(~w(limit timeout), attrs, fn key, acc ->
       if Map.get(acc, key) == "", do: Map.put(acc, key, nil), else: acc
-    end)
-  end
-
-  # Drops the fields that failed validation, so the rest still applies.
-  defp valid_part(changeset) do
-    Enum.reduce(changeset.errors, changeset, fn {field, _}, acc ->
-      Map.update!(acc, :changes, &Map.delete(&1, field))
     end)
   end
 

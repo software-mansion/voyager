@@ -15,6 +15,8 @@ defmodule VoyagerWeb.FormSchemas.ProcessInfoControls do
 
   import Ecto.Changeset
 
+  alias VoyagerWeb.FormSchemas
+
   @min_timeout 1_000
   @max_timeout 30_000
   @min_budget 100
@@ -86,16 +88,7 @@ defmodule VoyagerWeb.FormSchemas.ProcessInfoControls do
   fetchable while the form shows the error.
   """
   @spec apply(t(), map()) :: {t(), Ecto.Changeset.t()}
-  def apply(controls, attrs) do
-    # `:validate` on the changeset either way: `to_form/2` only surfaces errors
-    # once an action is set.
-    changeset = %{changeset(controls, attrs) | action: :validate}
-
-    case apply_action(changeset, :validate) do
-      {:ok, applied} -> {applied, changeset}
-      {:error, changeset} -> {apply_changes(valid_part(changeset)), changeset}
-    end
-  end
+  def apply(controls, attrs), do: FormSchemas.apply_valid(changeset(controls, attrs))
 
   @doc """
   Applies stored values from the client, ignoring anything invalid.
@@ -105,7 +98,7 @@ defmodule VoyagerWeb.FormSchemas.ProcessInfoControls do
   """
   @spec restore(t(), map()) :: t()
   def restore(controls, attrs) when is_map(attrs) do
-    controls |> changeset(attrs) |> valid_part() |> apply_changes()
+    controls |> changeset(attrs) |> FormSchemas.apply_valid() |> elem(0)
   end
 
   def restore(controls, _attrs), do: controls
@@ -120,11 +113,4 @@ defmodule VoyagerWeb.FormSchemas.ProcessInfoControls do
   end
 
   defp editable_fields(%__MODULE__{fields: fields}), do: fields
-
-  # Drops the fields that failed validation, so the rest still applies.
-  defp valid_part(changeset) do
-    Enum.reduce(changeset.errors, changeset, fn {field, _error}, acc ->
-      Map.update!(acc, :changes, &Map.delete(&1, field))
-    end)
-  end
 end

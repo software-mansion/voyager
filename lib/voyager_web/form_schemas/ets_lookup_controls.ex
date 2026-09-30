@@ -55,18 +55,5 @@ defmodule VoyagerWeb.FormSchemas.EtsLookupControls do
   values the agent accepts.
   """
   @spec apply(t(), map()) :: {t(), Ecto.Changeset.t()}
-  def apply(controls, attrs) do
-    changeset = %{changeset(controls, attrs) | action: :validate}
-
-    case Ecto.Changeset.apply_action(changeset, :validate) do
-      {:ok, applied} -> {applied, changeset}
-      {:error, changeset} -> {Ecto.Changeset.apply_changes(valid_part(changeset)), changeset}
-    end
-  end
-
-  defp valid_part(changeset) do
-    Enum.reduce(changeset.errors, changeset, fn {field, _}, acc ->
-      Map.update!(acc, :changes, &Map.delete(&1, field))
-    end)
-  end
+  def apply(controls, attrs), do: VoyagerWeb.FormSchemas.apply_valid(changeset(controls, attrs))
 end
