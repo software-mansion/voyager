@@ -61,9 +61,7 @@ do_register(VoyagerNode, Attempts) ->
         {error, _} = Error ->
             Error
     catch
-        exit:{noproc, _} ->
-            do_start(VoyagerNode, Attempts - 1);
-        exit:{killed, _} ->
+        exit:{Reason, _} when Reason =:= noproc; Reason =:= killed ->
             do_start(VoyagerNode, Attempts - 1)
     end.
 
