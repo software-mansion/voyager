@@ -560,11 +560,10 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
 
   attr :href, :string, required: true
   attr :pid, :any, required: true
-  attr :last, :boolean, default: false
 
   defp owner_kv(assigns) do
     ~H"""
-    <.kv label="Owner" help={EtsTableHelp.get(:owner)} last={@last}>
+    <.kv label="Owner" help={EtsTableHelp.get(:owner)}>
       <.link navigate={@href} class="text-primary hover:underline">
         {Formatters.pid(@pid)}
       </.link>
