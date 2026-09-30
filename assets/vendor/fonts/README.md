@@ -61,3 +61,7 @@ PY
 ```
 
 Copy the resulting `jetbrains-mono-latin-wght-normal.woff2` into this directory. `mix assets.build` copies it to `priv/static/fonts/`.
+
+# DM Sans (vendored)
+
+`dm-sans-latin-wght-normal.woff2` is the unmodified variable latin subset from [`@fontsource-variable/dm-sans`](https://fontsource.org/fonts/dm-sans) 5.3.0, licensed under the SIL Open Font License 1.1 (`dm-sans-OFL.txt`). To update it, copy `files/dm-sans-latin-wght-normal.woff2` from a newer release of that package.

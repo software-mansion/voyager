@@ -7,7 +7,6 @@
     "format:check": "prettier . --check"
   },
   "dependencies": {
-    "@fontsource-variable/dm-sans": "^5.3.0",
     "colorjs.io": "^0.7.1",
     "cytoscape": "3.34.3",
     "cytoscape-dagre": "^4.0.1",
