@@ -48,17 +48,7 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
     # 40 three-unit entries against the smallest allowed budget leave exactly
     # one unit for the last one, which the remote truncates to a bare marker.
     test "drops a bare-marker entry and reports it through the truncation note", %{conn: conn} do
-      parent = self()
-
-      pid =
-        spawn(fn ->
-          for n <- 1..40, do: Process.put(:"key_#{n}", :value)
-          send(parent, :ready)
-          Process.sleep(:infinity)
-        end)
-
-      assert_receive :ready
-      on_exit(fn -> Process.exit(pid, :kill) end)
+      pid = spawn_idle(fn -> for n <- 1..40, do: Process.put(:"key_#{n}", :value) end)
 
       path = ~p"/node/#{@node_name}/processes/#{Formatters.format_pid(pid)}"
       {:ok, view, _html} = live(conn, path)

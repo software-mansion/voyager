@@ -57,16 +57,7 @@ defmodule VoyagerWeb.ProcessInfoLive.HeavyProcessTest do
   end
 
   test "a huge mailbox is read without consuming it", %{conn: conn} do
-    parent = self()
-
-    pid =
-      spawn(fn ->
-        send(parent, :ready)
-        Process.sleep(:infinity)
-      end)
-
-    assert_receive :ready
-    on_exit(fn -> Process.exit(pid, :kill) end)
+    pid = spawn_idle()
 
     for n <- 1..10_000, do: send(pid, {:job, n})
 

@@ -3,6 +3,7 @@ defmodule Voyager.TestUtils do
   Shared test helpers.
   """
 
+  import ExUnit.Assertions, only: [assert_receive: 1]
   import ExUnit.Callbacks, only: [on_exit: 1]
 
   @doc """
@@ -32,5 +33,27 @@ defmodule Voyager.TestUtils do
     Application.put_env(:voyager, :erpc, :erpc)
     on_exit(fn -> Application.put_env(:voyager, :erpc, previous_erpc) end)
     :ok
+  end
+
+  @doc """
+  Spawns an unlinked process from the caller that runs `setup_fun` and then
+  idles. Returns once `setup_fun` has run; the process is killed on test exit.
+  """
+  def spawn_idle(setup_fun \\ fn -> :ok end) do
+    parent = self()
+
+    pid =
+      spawn(fn ->
+        setup_fun.()
+        send(parent, {:idle, self()})
+
+        receive do
+          :never -> :ok
+        end
+      end)
+
+    on_exit(fn -> Process.exit(pid, :kill) end)
+    assert_receive {:idle, ^pid}
+    pid
   end
 end

@@ -3,6 +3,8 @@ defmodule VoyagerAgentTest do
 
   @compile {:no_warn_undefined, Voyager.Agent.module()}
 
+  import Voyager.TestUtils
+
   alias Voyager.Test.VoyagerAgentFixture
 
   @agent_module Voyager.Agent.module()
@@ -377,7 +379,6 @@ defmodule VoyagerAgentTest do
     # OTP process looks like from here -- both are reported as a timeout.
     test "times out for a process that does not handle system messages" do
       pid = spawn_idle()
-      kill_on_exit([pid])
 
       assert {:error, :timeout} == @agent_module.proc_state(pid, 1_000, 50)
     end
@@ -390,7 +391,6 @@ defmodule VoyagerAgentTest do
   describe "proc_messages/3" do
     test "caps the mailbox at the limit while reporting the real total" do
       pid = spawn_idle()
-      kill_on_exit([pid])
       Enum.each(1..10, &send(pid, {:msg, &1}))
 
       assert {:ok, %{total: 10, truncated: true, items: items}} =
@@ -401,7 +401,6 @@ defmodule VoyagerAgentTest do
 
     test "truncates an oversized single message" do
       pid = spawn_idle()
-      kill_on_exit([pid])
       send(pid, {:big, Enum.to_list(1..1_000)})
 
       assert {:ok, %{total: 1, truncated: true, items: [{:big, value}]}} =
@@ -412,7 +411,6 @@ defmodule VoyagerAgentTest do
 
     test "returns an empty mailbox untruncated" do
       pid = spawn_idle()
-      kill_on_exit([pid])
 
       assert {:ok, %{total: 0, truncated: false, items: []}} ==
                @agent_module.proc_messages(pid, 10, 1_000)
@@ -430,20 +428,7 @@ defmodule VoyagerAgentTest do
   # `@probe_overhead` pays for.
   @probe_overhead 2
   defp bound(term, budget) do
-    parent = self()
-
-    pid =
-      spawn(fn ->
-        Process.put(:probe, term)
-        send(parent, :ready)
-
-        receive do
-          :never -> :ok
-        end
-      end)
-
-    kill_on_exit([pid])
-    assert_receive :ready
+    pid = spawn_idle(fn -> Process.put(:probe, term) end)
 
     assert {:ok, %{items: items, truncated: truncated}} =
              @agent_module.proc_dictionary(pid, 1_000, budget + @probe_overhead)
@@ -459,17 +444,5 @@ defmodule VoyagerAgentTest do
     ref = Process.monitor(pid)
     assert_receive {:DOWN, ^ref, :process, ^pid, _reason}
     pid
-  end
-
-  defp spawn_idle do
-    spawn(fn ->
-      receive do
-        :never -> :ok
-      end
-    end)
-  end
-
-  defp kill_on_exit(pids) do
-    on_exit(fn -> Enum.each(pids, &Process.exit(&1, :kill)) end)
   end
 end

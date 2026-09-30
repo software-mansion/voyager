@@ -19,7 +19,6 @@ defmodule Voyager.Services.ProcessInfoTest do
 
     test "returns fixed-size attributes and never leaks the raw dictionary or links" do
       pid = spawn_idle()
-      on_exit(fn -> Process.exit(pid, :kill) end)
 
       assert {:ok, info} = ProcessInfo.fetch(Node.self(), pid)
 
@@ -43,7 +42,6 @@ defmodule Voyager.Services.ProcessInfoTest do
       name = :"process_info_test_#{System.unique_integer([:positive])}"
       pid = spawn_idle()
       Process.register(pid, name)
-      on_exit(fn -> Process.exit(pid, :kill) end)
 
       assert {:ok, info} = ProcessInfo.fetch(Node.self(), pid)
       assert info.registered_name == name
@@ -51,7 +49,6 @@ defmodule Voyager.Services.ProcessInfoTest do
 
     test "returns the raw initial_call, ignoring the $initial_call dictionary entry" do
       pid = spawn_idle(fn -> Process.put(:"$initial_call", {Voyager.Fixture, :init, 1}) end)
-      on_exit(fn -> Process.exit(pid, :kill) end)
 
       {:initial_call, expected} = :erlang.process_info(pid, :initial_call)
 
@@ -68,7 +65,6 @@ defmodule Voyager.Services.ProcessInfoTest do
     # the agent never has to copy the whole dictionary back to read it.
     test "fetch_label/4 resolves the native process label" do
       pid = spawn_idle(fn -> :proc_lib.set_label(:my_test_label) end)
-      kill_on_exit([pid])
 
       assert {:ok, %{term: :my_test_label, truncated?: false}} ==
                ProcessInfo.fetch_label(Node.self(), pid)
@@ -76,14 +72,12 @@ defmodule Voyager.Services.ProcessInfoTest do
 
     test "fetch_label/4 returns a nil term when no label is set" do
       pid = spawn_idle()
-      kill_on_exit([pid])
 
       assert {:ok, %{term: nil, truncated?: false}} == ProcessInfo.fetch_label(Node.self(), pid)
     end
 
     test "fetch_label/4 truncates a label that exceeds the budget" do
       pid = spawn_idle(fn -> :proc_lib.set_label({:deep, [1, 2, 3, 4, 5]}) end)
-      kill_on_exit([pid])
 
       assert {:ok, %{term: term, truncated?: true}} =
                ProcessInfo.fetch_label(Node.self(), pid, 3)
@@ -159,7 +153,6 @@ defmodule Voyager.Services.ProcessInfoTest do
       # links, and the test process must not be on the receiving end of that.
       companion = spawn_idle()
       pid = spawn_idle(fn -> Process.link(companion) end)
-      kill_on_exit([pid, companion])
 
       assert {:ok, %{total: total, truncated?: false, items: items}} =
                ProcessInfo.fetch_links(Node.self(), pid, 1_000)
@@ -174,7 +167,6 @@ defmodule Voyager.Services.ProcessInfoTest do
       Process.register(target, name)
 
       pid = spawn_idle(fn -> Process.monitor({name, node()}) end)
-      kill_on_exit([pid, target])
 
       assert {:ok, %{total: 1, truncated?: false, items: [monitor]}} =
                ProcessInfo.fetch_monitors(Node.self(), pid, 1_000)
@@ -185,7 +177,6 @@ defmodule Voyager.Services.ProcessInfoTest do
     test "fetch_monitored_by/3 returns the monitoring processes" do
       target = spawn_idle()
       watcher = spawn_idle(fn -> Process.monitor(target) end)
-      kill_on_exit([watcher, target])
 
       assert {:ok, %{items: items}} = ProcessInfo.fetch_monitored_by(Node.self(), target, 1_000)
       assert watcher in items
@@ -197,8 +188,6 @@ defmodule Voyager.Services.ProcessInfoTest do
           Process.put(:small, :ok)
           Process.put(:tuple, {1, [:a, "b"]})
         end)
-
-      kill_on_exit([pid])
 
       assert {:ok, %{total: 2, truncated?: false, items: items}} =
                ProcessInfo.fetch_dictionary(Node.self(), pid, 200)
@@ -213,7 +202,6 @@ defmodule Voyager.Services.ProcessInfoTest do
       # All four unbounded fetches share one remote truncation path, so
       # covering it once is enough.
       pid = spawn_idle(fn -> Enum.each(1..250, &Process.put({:key, &1}, &1)) end)
-      kill_on_exit([pid])
 
       assert {:ok, %{total: total, truncated?: true, items: items}} =
                ProcessInfo.fetch_dictionary(Node.self(), pid, 200)
@@ -224,7 +212,6 @@ defmodule Voyager.Services.ProcessInfoTest do
 
     test "fetch_dictionary/5 truncates an oversized value on the remote" do
       pid = spawn_idle(fn -> Process.put(:wide, Enum.to_list(1..1_000)) end)
-      kill_on_exit([pid])
 
       assert {:ok, %{total: 1, truncated?: true, items: [{:wide, value}]}} =
                ProcessInfo.fetch_dictionary(Node.self(), pid, 200, 20)
@@ -268,25 +255,5 @@ defmodule Voyager.Services.ProcessInfoTest do
       assert {:error, {:remote_exception, :undef}} ==
                ProcessInfo.fetch_links(:demo@localhost, self(), 1_000)
     end
-  end
-
-  # Spawns a process that runs `setup_fun` (e.g. to seed its dictionary),
-  # signals readiness, then parks forever so `fetch/2` can inspect it.
-  defp spawn_idle(setup_fun \\ fn -> :ok end) do
-    parent = self()
-
-    pid =
-      spawn(fn ->
-        setup_fun.()
-        send(parent, :ready)
-        Process.sleep(:infinity)
-      end)
-
-    assert_receive :ready
-    pid
-  end
-
-  defp kill_on_exit(pids) do
-    on_exit(fn -> Enum.each(pids, &Process.exit(&1, :kill)) end)
   end
 end
