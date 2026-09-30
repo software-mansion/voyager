@@ -13,6 +13,7 @@ defmodule VoyagerWeb.FormSchemas.EtsTableListControls do
   import Ecto.Changeset
 
   alias VoyagerWeb.EtsTablesLive.Query
+  alias VoyagerWeb.FormSchemas
 
   @min_timeout 1_000
   @max_timeout 30_000
@@ -71,16 +72,7 @@ defmodule VoyagerWeb.FormSchemas.EtsTableListControls do
   form shows the error.
   """
   @spec apply(t(), map()) :: {t(), Ecto.Changeset.t()}
-  def apply(controls, attrs) do
-    # `:validate` on the changeset either way: `to_form/2` only surfaces errors
-    # once an action is set.
-    changeset = %{changeset(controls, attrs) | action: :validate}
-
-    case Ecto.Changeset.apply_action(changeset, :validate) do
-      {:ok, applied} -> {applied, changeset}
-      {:error, changeset} -> {Ecto.Changeset.apply_changes(valid_part(changeset)), changeset}
-    end
-  end
+  def apply(controls, attrs), do: FormSchemas.apply_valid(changeset(controls, attrs))
 
   @doc """
   The columns to show: the required ones plus the selected, as atoms in a
@@ -115,13 +107,6 @@ defmodule VoyagerWeb.FormSchemas.EtsTableListControls do
     attrs = if Map.get(attrs, "search") == nil, do: Map.delete(attrs, "search"), else: attrs
 
     if Map.get(attrs, "timeout") == "", do: Map.put(attrs, "timeout", nil), else: attrs
-  end
-
-  # Drops the fields that failed validation, so the rest still applies.
-  defp valid_part(changeset) do
-    Enum.reduce(changeset.errors, changeset, fn {field, _}, acc ->
-      Map.update!(acc, :changes, &Map.delete(&1, field))
-    end)
   end
 
   defp known_columns(columns) when is_list(columns) do
