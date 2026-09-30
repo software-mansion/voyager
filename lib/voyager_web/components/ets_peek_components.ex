@@ -459,7 +459,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
     with [before, _rest] <- String.split(marked, inspect(@key_marker), parts: 2),
          key_start = byte_size(before),
-         <<head::binary-size(key_start), key::binary-size(key_end - key_start), tail::binary>> <-
+         <<head::binary-size(^key_start), key::binary-size(^key_end - ^key_start), tail::binary>> <-
            text do
       [{head, false}, {key, true}, {tail, false}]
     else
