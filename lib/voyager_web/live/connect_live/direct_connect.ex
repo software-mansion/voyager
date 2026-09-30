@@ -14,24 +14,16 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   def mount(socket) do
     socket
     |> assign(:id_prefix, @id_prefix)
-    |> ok()
-  end
-
-  @impl true
-  def update(assigns, socket) when not is_map_key(socket.assigns, :initialized) do
-    socket
-    |> assign(:id, assigns.id)
-    |> assign(:connected?, assigns.connected?)
     |> assign(:form, empty_form())
     |> assign(:shown_secrets, MapSet.new())
     |> RecentConnections.init(
       queries: ConnectionQueries,
       actions: ConnectionActions
     )
-    |> assign(:initialized, true)
     |> ok()
   end
 
+  @impl true
   def update(assigns, socket) do
     socket
     |> assign(:id, assigns.id)

@@ -17,14 +17,6 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   def mount(socket) do
     socket
     |> assign(:id_prefix, @id_prefix)
-    |> ok()
-  end
-
-  @impl true
-  def update(assigns, socket) when not is_map_key(socket.assigns, :initialized) do
-    socket
-    |> assign(:id, assigns.id)
-    |> assign(:connected?, assigns.connected?)
     |> assign(:ssh_form, empty_ssh_form())
     |> assign(:shown_secrets, MapSet.new())
     |> assign(:show_ssh_advanced, false)
@@ -34,10 +26,10 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       queries: SshConnectionQueries,
       actions: SshConnectionActions
     )
-    |> assign(:initialized, true)
     |> ok()
   end
 
+  @impl true
   def update(assigns, socket) do
     socket
     |> assign(:id, assigns.id)
