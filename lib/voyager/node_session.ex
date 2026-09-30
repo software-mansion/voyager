@@ -91,9 +91,10 @@ defmodule Voyager.NodeSession do
   end
 
   def handle_call({:connect, connector, node_name, cookie, opts}, _from, %{session: nil} = state) do
+    monitor_nodes(true)
+
     case connect_and_install(connector, node_name, cookie, opts) do
       {:ok, node, meta} ->
-        if Node.alive?(), do: monitor_nodes(true)
         subscribe(connector)
 
         session = %Session{
@@ -116,6 +117,8 @@ defmodule Voyager.NodeSession do
         {:reply, :ok, %{state | session: session}}
 
       {:error, reason} = err ->
+        monitor_nodes(false)
+
         Voyager.Telemetry.dispatch!("voyager.node.connect_failed",
           metadata: %{connected_via: connector.name(), reason: reason}
         )
@@ -129,7 +132,6 @@ defmodule Voyager.NodeSession do
   end
 
   def handle_call(:disconnect, _from, %{session: session} = state) do
-    if Node.alive?(), do: monitor_nodes(false)
     session.connector.disconnect(session.node, session.meta)
     new_state = drop_session(state, session, :node_disconnected, "manual disconnect")
 
@@ -146,7 +148,6 @@ defmodule Voyager.NodeSession do
 
   @impl GenServer
   def handle_cast({:agent_missing, node}, %{session: %Session{node: node} = session} = state) do
-    if Node.alive?(), do: monitor_nodes(false)
     session.connector.disconnect(session.node, session.meta)
     new_state = drop_session(state, session, :node_disconnected, "agent missing")
     {:noreply, new_state}
@@ -157,20 +158,15 @@ defmodule Voyager.NodeSession do
   end
 
   @impl GenServer
-  def handle_info(
-        {:nodedown, node, info},
-        %{session: %Session{node: session_node} = session} = state
-      )
-      when node == session_node do
-    if Node.alive?(), do: monitor_nodes(false)
+  def handle_info({:nodedown, node, info}, %{session: %Session{node: node} = session} = state) do
     session.connector.disconnect(session.node, session.meta)
-    new_state = drop_session(state, session, :nodedown, "node down", nodedown_reason(info))
+    reason = Map.get(info, :nodedown_reason)
+    new_state = drop_session(state, session, :nodedown, "node down", reason)
     {:noreply, new_state}
   end
 
   def handle_info(msg, %{session: %Session{connector: connector, meta: meta} = session} = state) do
     if connector.teardown?(msg, meta) do
-      if Node.alive?(), do: monitor_nodes(false)
       new_state = drop_session(state, session, :nodedown, "transport down", :transport_down)
       {:noreply, new_state}
     else
@@ -186,19 +182,16 @@ defmodule Voyager.NodeSession do
     :net_kernel.monitor_nodes(flag, %{node_type: :all, nodedown_reason: true})
   end
 
-  defp nodedown_reason(%{nodedown_reason: reason}), do: reason
-  defp nodedown_reason(_info), do: nil
-
-  defp drop_session(state, session, event, telemetry_reason, extra \\ nil) do
+  defp drop_session(state, session, event, telemetry_reason, reason \\ nil) do
+    monitor_nodes(false)
     unsubscribe(session.connector)
     cache_connector_name(nil)
 
-    case event do
-      :nodedown -> broadcast({:nodedown, session.node, extra})
-      _ -> broadcast({event, session.node})
-    end
+    broadcast({event, session.node, reason})
 
-    Voyager.Telemetry.dispatch!("voyager.node.disconnect", metadata: %{reason: telemetry_reason})
+    Voyager.Telemetry.dispatch!("voyager.node.disconnect",
+      metadata: %{reason: telemetry_reason, nodedown_reason: reason}
+    )
 
     %{state | session: nil}
   end

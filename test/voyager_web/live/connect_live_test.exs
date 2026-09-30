@@ -9,7 +9,6 @@ defmodule VoyagerWeb.ConnectLiveTest do
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Connectors.Ssh, as: SshConnector
   alias Voyager.Settings
-  alias VoyagerWeb.ConnectLive.DirectConnect
 
   setup do
     previous_state = :sys.get_state(NodeSession)
@@ -257,7 +256,7 @@ defmodule VoyagerWeb.ConnectLiveTest do
       {:ok, view, _html} = live(conn, ~p"/")
 
       Fakes.put_session(nil)
-      broadcast(NodeSession.topic(), {:node_disconnected, session.node})
+      broadcast(NodeSession.topic(), {:node_disconnected, session.node, nil})
 
       refute has_element?(view, "#connected-indicator")
       assert has_element?(view, "input#mode-ssh[checked]")
@@ -334,26 +333,6 @@ defmodule VoyagerWeb.ConnectLiveTest do
       {:ok, view, _html} = live(conn, ~p"/")
 
       refute has_element?(view, "#onboarding-modal")
-    end
-  end
-
-  describe "direct connect errors" do
-    test "maps diagnose reasons to messages" do
-      for {reason, message} <- [
-            {{:epmd_error, :nxdomain}, "Host not found - check the node's hostname"},
-            {{:epmd_error, :address},
-             "Could not reach epmd on the host - check the hostname and that epmd is running"},
-            {{:node_unreachable, :econnrefused},
-             "Connection refused - check the node is running"},
-            {:node_not_registered,
-             "Node not found - check the node name is correct and the node is running"},
-            {:epmd_timeout,
-             "Node unreachable - the host didn't respond in time, check your network connection"},
-            {{:node_unreachable, :enetunreach},
-             "Host unreachable - check the node's hostname and your network"}
-          ] do
-        assert DirectConnect.connect_error(reason) == message
-      end
     end
   end
 

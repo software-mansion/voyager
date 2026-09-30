@@ -70,14 +70,7 @@ defmodule Voyager.Services.NodeConnector do
   end
 
   defp check_port(host, port) do
-    case :gen_tcp.connect(host, port, [], 1_000) do
-      {:ok, socket} ->
-        :gen_tcp.close(socket)
-        :ok
-
-      {:error, _reason} = err ->
-        err
-    end
+    with {:ok, socket} <- :gen_tcp.connect(host, port, [], 1_000), do: :gen_tcp.close(socket)
   end
 
   defp diagnose_registered_failure(host) do

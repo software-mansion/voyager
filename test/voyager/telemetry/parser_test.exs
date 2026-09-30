@@ -116,11 +116,15 @@ defmodule Voyager.Telemetry.ParserTest do
       assert result == %{connected_via: :ssh, reason: "unknown"}
     end
 
-    test "returns reason for `node.disconnect`" do
+    test "returns reason and nodedown_reason for `node.disconnect`" do
       result =
-        Parser.parse_metadata([:voyager, :node, :disconnect], %{reason: :nodedown, foo: :bar})
+        Parser.parse_metadata([:voyager, :node, :disconnect], %{
+          reason: "node down",
+          nodedown_reason: :net_tick_timeout,
+          foo: :bar
+        })
 
-      assert result == %{reason: :nodedown}
+      assert result == %{reason: "node down", nodedown_reason: :net_tick_timeout}
     end
 
     test "returns empty map for `vm.memory`" do

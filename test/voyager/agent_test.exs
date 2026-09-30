@@ -131,7 +131,7 @@ defmodule Voyager.AgentTest do
       assert {:error, {:remote_exception, :undef}} = Agent.call(node, :proc_top, [1], 1_000)
 
       assert_receive {:connector_disconnect, ^node}
-      assert_receive {:node_disconnected, ^node}
+      assert_receive {:node_disconnected, ^node, nil}
       refute NodeSession.connected?()
     end
   end

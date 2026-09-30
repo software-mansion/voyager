@@ -53,34 +53,21 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
   end
 
   defp handle_no_node(
-         {:node_disconnected, event_node} = event,
+         {event, event_node, _reason} = message,
          %{assigns: %{session: %{node: event_node}}} = socket
-       ) do
-    redirect_disconnected(socket, event)
-  end
-
-  defp handle_no_node(
-         {:nodedown, event_node, _reason} = event,
-         %{assigns: %{session: %{node: event_node}}} = socket
-       ) do
-    redirect_disconnected(socket, event)
-  end
-
-  defp handle_no_node(_event, socket), do: {:cont, socket}
-
-  defp redirect_disconnected(socket, event) do
+       )
+       when event in [:node_disconnected, :nodedown] do
     socket
-    |> put_disconnect_flash(event)
+    |> put_disconnect_flash(message)
     |> redirect(to: connect_path(socket.assigns.session))
     |> halt()
   end
 
-  defp handle_session_lost_flash({:node_disconnected, _node} = event, socket) do
-    {:cont, put_disconnect_flash(socket, event)}
-  end
+  defp handle_no_node(_event, socket), do: {:cont, socket}
 
-  defp handle_session_lost_flash({:nodedown, _node, _reason} = event, socket) do
-    {:cont, put_disconnect_flash(socket, event)}
+  defp handle_session_lost_flash({event, _node, _reason} = message, socket)
+       when event in [:node_disconnected, :nodedown] do
+    {:cont, put_disconnect_flash(socket, message)}
   end
 
   defp handle_session_lost_flash(_event, socket), do: {:cont, socket}
@@ -93,7 +80,7 @@ defmodule VoyagerWeb.Hooks.NodeSessionHook do
   defp handle_disconnect(_event, _params, socket), do: {:cont, socket}
 
   # Puts the shared disconnect / nodedown flash used across node and connect views.
-  defp put_disconnect_flash(socket, {:node_disconnected, node}) do
+  defp put_disconnect_flash(socket, {:node_disconnected, node, _reason}) do
     put_flash(socket, :info, "Node disconnected: #{node}")
   end
 

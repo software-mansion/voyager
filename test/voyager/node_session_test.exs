@@ -172,7 +172,7 @@ defmodule Voyager.NodeSessionTest do
       assert :ok = NodeSession.disconnect()
 
       assert_receive {:connector_disconnect, ^node}
-      assert_receive {:node_disconnected, ^node}
+      assert_receive {:node_disconnected, ^node, nil}
       refute NodeSession.connected?()
       assert {:error, :not_connected} = NodeSession.disconnect()
     end
@@ -213,7 +213,7 @@ defmodule Voyager.NodeSessionTest do
       NodeSession.agent_missing(node)
 
       assert_receive {:connector_disconnect, ^node}
-      assert_receive {:node_disconnected, ^node}
+      assert_receive {:node_disconnected, ^node, nil}
       refute NodeSession.connected?()
     end
 
