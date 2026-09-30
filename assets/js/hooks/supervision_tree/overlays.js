@@ -46,12 +46,10 @@ export const overlayMethods = {
       });
     }
 
-    // Tear down ones no longer needed.
     for (const key of [...this.overlays.keys()]) {
       if (!wanted.has(key)) this.tearDownOverlay(key);
     }
 
-    // Create new ones.
     for (const key of wanted) {
       if (!this.overlays.has(key)) {
         this.createOverlay(this.cy.getElementById(key));

@@ -102,11 +102,6 @@ const SupervisionTree = {
     this.el._cy = null;
   },
 
-  // Behavior is split across focused mixins (see ./supervision_tree/*), all
-  // sharing the same `this` hook instance:
-  //   - graphMethods:   payload application, layout, selection, expand/collapse
-  //   - overlayMethods: expand/collapse toggle buttons overlaid on the canvas
-  //   - tooltipMethods: the node hover tooltip
   ...graphMethods,
   ...overlayMethods,
   ...tooltipMethods,

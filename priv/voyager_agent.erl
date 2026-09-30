@@ -2,13 +2,11 @@
 
 -behaviour(gen_server).
 
-%% API
 -export([register/1]).
 -export([proc_top/5]).
 -export([proc_links/2, proc_monitors/2, proc_monitored_by/2]).
 -export([proc_dictionary/3, proc_messages/3, proc_label/2, proc_state/3]).
 -export([ets_select_chunk/4, ets_lookup/5, ets_select_spec/5]).
-%% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
 
@@ -21,10 +19,6 @@
 -define(TRUNCATED, '$voyager_truncated').
 
 -type state() :: #state{nodes :: #{node() => true}}.
-
-%% =====================================================================
-%% REGISTER - Adds the Voyager node to the watched set and returns the server pid.
-%% =====================================================================
 
 %% Bounds the start/register retry so a node whose agent keeps stopping
 %% cannot spin here forever.
@@ -75,10 +69,6 @@ do_register(VoyagerNode, Attempts) ->
         exit:{killed, _} ->
             do_start(VoyagerNode, Attempts - 1)
     end.
-
-%% =====================================================================
-%% PROCESS LIST - Remote process table scanning.
-%% =====================================================================
 
 %% Returns `{Entries, TotalCount}': the top `Limit' processes by `SortBy'
 %% (`desc' largest first, `asc' smallest), and the number of processes actually
@@ -230,10 +220,6 @@ to_search_string(Value) ->
 
 to_map({{_Value, Pid}, Info}) ->
     maps:from_list([{pid, Pid} | Info]).
-
-%% =====================================================================
-%% PROCESS INFO - Remote process info fetching.
-%% =====================================================================
 
 %% A truncated view of an unbounded attribute. `total' is the real length on the
 %% remote, `items' holds at most `Limit' entries, and `truncated' says whether
@@ -492,10 +478,6 @@ with_bounded_heap(Fun) ->
         process_flag(max_heap_size, Old)
     end.
 
-%% =====================================================================
-%% ETS RECORDS - Match-all / match-spec select / lookup with on-node truncation.
-%% =====================================================================
-%%
 %% Exported functions, not handle_call, so a peek cannot block register
 %% or nodedown. The continuation is left opaque.
 %% No fixtable — paging is best-effort.
@@ -629,10 +611,6 @@ bound_records([], _Budget, Truncated, Acc) ->
 bound_records([Record | Rest], Budget, Truncated, Acc) ->
     {Bounded, Cut} = bound_term(Record, Budget),
     bound_records(Rest, Budget, Truncated orelse Cut, [Bounded | Acc]).
-
-%% =====================================================================
-%% NODE WATCHER - gen_server callbacks and watcher for Nodes.
-%% =====================================================================
 
 -spec init(node()) -> {ok, state()} | {stop, term()}.
 init(VoyagerNode) when is_atom(VoyagerNode) ->
