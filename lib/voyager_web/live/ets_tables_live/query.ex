@@ -34,7 +34,7 @@ defmodule VoyagerWeb.EtsTablesLive.Query do
   def sortable_attrs, do: @sortable
 
   @spec required_attrs() :: [atom()]
-  def required_attrs, do: @required_attrs
+  def required_attrs, do: @required_attrs ++ @default_attrs
 
   @spec optional_attrs() :: [atom()]
   def optional_attrs, do: @optional_attrs

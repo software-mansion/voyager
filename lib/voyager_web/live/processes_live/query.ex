@@ -45,7 +45,7 @@ defmodule VoyagerWeb.ProcessesLive.Query do
   def optional_attrs, do: @optional_attrs
 
   @spec default_attrs() :: [atom()]
-  def default_attrs, do: @default_attrs
+  def default_attrs, do: @default_attrs ++ @required_attrs
 
   @doc "Keeps only known attributes, always including `required_attrs/0`, in display order."
   @spec clamp_attrs(term()) :: [atom()]
