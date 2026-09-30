@@ -14,9 +14,10 @@ defmodule Voyager.Application do
       Voyager.Repo,
       {Ecto.Migrator,
        repos: Application.fetch_env!(:voyager, :ecto_repos), skip: skip_migrations?()},
+      # Before Voyager.Telemetry: an export before this starts would exit and detach the handler.
+      {Task.Supervisor, name: Voyager.TaskSupervisor},
       Voyager.Telemetry,
       {Phoenix.PubSub, name: Voyager.PubSub},
-      {Task.Supervisor, name: Voyager.TaskSupervisor},
       Voyager.ProxyEpmd.TunnelRegistry,
       Voyager.NodeSession,
       {ElixirKit.PubSub, connect: elixirkit_pubsub || :ignore, on_exit: fn -> System.stop() end},

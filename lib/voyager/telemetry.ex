@@ -29,13 +29,6 @@ defmodule Voyager.Telemetry do
        measurements: periodic_measurements(), period: @telemetry_poller_period_ms}
     ]
 
-    children =
-      if telemetry_handler == :export do
-        children ++ [{Task.Supervisor, name: Voyager.Telemetry.ExportTaskSupervisor}]
-      else
-        children
-      end
-
     Supervisor.init(children, strategy: :one_for_one)
   end
 

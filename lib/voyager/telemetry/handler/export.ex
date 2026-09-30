@@ -51,7 +51,7 @@ defmodule Voyager.Telemetry.Handler.Export do
   @spec send_event(String.t(), String.t(), map()) :: :ok
   def send_event(url, api_key, payload)
       when is_binary(url) and is_binary(api_key) and is_map(payload) do
-    case Task.Supervisor.start_child(Voyager.Telemetry.ExportTaskSupervisor, fn ->
+    case Task.Supervisor.start_child(Voyager.TaskSupervisor, fn ->
            push_with_retry(url, api_key, payload, 0)
          end) do
       {:ok, _pid} ->
