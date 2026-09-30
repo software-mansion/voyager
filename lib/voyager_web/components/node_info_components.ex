@@ -42,7 +42,6 @@ defmodule VoyagerWeb.NodeInfoComponents do
   attr :title, :string, required: true
   attr :subtitle, :string, default: nil
   attr :rows, :list, required: true
-  attr :help, :map, default: nil, doc: "optional help entry for the card title (see NodeInfoHelp)"
 
   def info_card(assigns) do
     ~H"""
@@ -51,11 +50,6 @@ defmodule VoyagerWeb.NodeInfoComponents do
         <div class="flex items-baseline justify-between">
           <div class="min-h-6 flex items-center gap-1">
             <h3 class="text-base-content text-sm font-semibold">{@title}</h3>
-            <.help_tooltip
-              :if={@help}
-              id={help_id("info-card", @title)}
-              entry={@help}
-            />
           </div>
           <span :if={@subtitle} class="font-mono text-base-content/70 text-xs">{@subtitle}</span>
         </div>
