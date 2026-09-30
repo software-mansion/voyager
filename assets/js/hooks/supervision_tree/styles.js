@@ -262,15 +262,6 @@ export function buildStyle(t) {
   ];
 }
 
-export function toggleIcon(collapsed) {
-  if (collapsed) {
-    // plus
-    return `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="6" y1="2.5" x2="6" y2="9.5"/><line x1="2.5" y1="6" x2="9.5" y2="6"/></svg>`;
-  }
-  // minus
-  return `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="2.5" y1="6" x2="9.5" y2="6"/></svg>`;
-}
-
 export function getColor(cs, value, defaultColor = '') {
   const color = cs.getPropertyValue(value).trim();
   if (color) {

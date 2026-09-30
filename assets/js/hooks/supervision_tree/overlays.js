@@ -1,6 +1,5 @@
 import { OVERLAY_DEBOUNCE_MS, OVERLAY_MIN_ZOOM } from './constants';
 import { formatName, overlayButtonIntersectsExtent } from './elements';
-import { toggleIcon } from './styles';
 
 /**
  * Expand/collapse toggle buttons rendered as DOM overlays on top of the canvas.
@@ -108,7 +107,7 @@ export const overlayMethods = {
   decorateOverlay(dom, node) {
     const collapsed = this.isCollapsed(node);
     const name = formatName(node.data('name'), this.el.dataset.nodeId);
-    dom.innerHTML = toggleIcon(collapsed);
+    dom.innerHTML = `<span class="${collapsed ? 'icon-plus' : 'icon-minus'} size-4"></span>`;
     dom.dataset.name = node.data('name');
     dom.dataset.collapsed = String(collapsed);
     dom.setAttribute(

@@ -53,8 +53,3 @@
   background: var(--color-primary);
   color: var(--color-base-100);
 }
-
-.cy-toggle svg {
-  width: 14px;
-  height: 14px;
-}
