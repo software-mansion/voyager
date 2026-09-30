@@ -270,21 +270,11 @@ export function getColor(cs, value, defaultColor = '') {
   return defaultColor;
 }
 
-/*
- * tension = how strongly the curve is pulled horizontally.
- * 0.5 = aggressive boxy S-curve
- * 0.25 to 0.35 = smooth, gentle sweep
- * 0.1 = almost a straight diagonal line
- */
-function getTensionForEdge(edge) {
-  const classNames = edge.classNames();
+const EDGE_TENSION = { monitor: 0.2, monitored_by: 0.4 };
+const DEFAULT_EDGE_TENSION = 0.3;
 
-  if (classNames.includes('monitor')) {
-    return 0.2;
-  } else if (classNames.includes('monitored_by')) {
-    return 0.4;
-  }
-  return 0.3;
+function getTensionForEdge(edge) {
+  return EDGE_TENSION[edge.data('kind')] ?? DEFAULT_EDGE_TENSION;
 }
 
 function getSourceTargetDelta(edge) {
