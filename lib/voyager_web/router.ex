@@ -21,14 +21,15 @@ defmodule VoyagerWeb.Router do
       layout: {VoyagerWeb.Layouts, :connect},
       on_mount: [
         {VoyagerWeb.Hooks.NodeSessionHook, :observe_node_session},
-        VoyagerWeb.Hooks.OnboardingHook
+        VoyagerWeb.Hooks.OnboardingHook,
+        VoyagerWeb.Hooks.AppUpdateHook
       ] do
       live "/", ConnectLive, :index
     end
 
     live_session :settings,
       layout: {VoyagerWeb.Layouts, :settings},
-      on_mount: VoyagerWeb.Hooks.McpStatusHook do
+      on_mount: [VoyagerWeb.Hooks.McpStatusHook, VoyagerWeb.Hooks.AppUpdateHook] do
       live "/settings", SettingsLive, :index
     end
 
@@ -37,7 +38,8 @@ defmodule VoyagerWeb.Router do
       on_mount: [
         {VoyagerWeb.Hooks.NodeSessionHook, :require_connected_node},
         VoyagerWeb.Hooks.OnboardingHook,
-        VoyagerWeb.Hooks.McpStatusHook
+        VoyagerWeb.Hooks.McpStatusHook,
+        VoyagerWeb.Hooks.AppUpdateHook
       ] do
       live "/node/:node", NodeInfoLive, :index
       live "/node/:node/supervision-tree", SupervisionTreeLive, :index

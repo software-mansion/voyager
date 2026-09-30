@@ -5,6 +5,8 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
 
   use VoyagerWeb, :component
 
+  alias Voyager.Pid
+
   @interval_options [
     {"Off", "off"},
     {"5s", "5000"},
@@ -102,7 +104,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
       text:
         "The reverse of a monitor: another process is watching this one and will be notified with a DOWN message when it terminates.",
       color_class: "bg-process-monitored-by",
-      doc_href: @erts <> "#process_info/2",
+      doc_href: @erts <> "#monitored_by-monitoredby",
       doc_label: "See erlang:process_info(monitored_by)",
       dashed: true
     }
@@ -139,6 +141,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
           </span>
           <.interval_select
             id="refresh-interval"
+            settings_key="supervision-tree"
             options={interval_options()}
             refresh_interval={@refresh_interval}
             loading={@status == :loading}
@@ -183,14 +186,29 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
   attr :last_updated, :any, required: true
   attr :selected_apps, MapSet, required: true
   attr :status, :atom, required: true
+  attr :oversized, :map, default: nil
 
   def body(assigns) do
     ~H"""
     <div class="flex-1 overflow-auto">
       <%= cond do %>
+        <% @oversized -> %>
+          <div
+            id="supervision-tree-too-large"
+            class="flex h-full flex-col items-center justify-center gap-3 rounded-lg px-6 text-center"
+          >
+            <.icon name="icon-circle-alert" class="text-warning size-10" />
+            <div>
+              <p class="text-base-content/80 font-medium">Tree too large to render</p>
+              <p class="text-base-content/70 max-w-prose text-sm">
+                {@oversized.count} elements exceed the {@oversized.limit} element render limit.
+                Reduce the depth, select fewer applications, or turn off relations.
+              </p>
+            </div>
+          </div>
         <% MapSet.size(@selected_apps) == 0 -> %>
           <div class="flex h-full flex-col items-center justify-center gap-3 rounded-lg text-center">
-            <.icon name="icon-network" class="size-10 text-base-content/60" />
+            <.icon name="icon-network" class="size-10 text-base-content/60 -rotate-90" />
             <div>
               <p class="text-base-content/80 font-medium">No applications selected</p>
               <p class="text-base-content/70 text-sm">
@@ -207,6 +225,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
             id="supervision-tree-body"
             phx-hook="SupervisionTree"
             phx-update="ignore"
+            data-node-id={Pid.cached_format() == :local && Pid.cached_node_id()}
             class="bg-base-100 relative h-full overflow-hidden rounded-lg"
           >
             <.portal id="supervision-tree-node-snippet-portal" target="#tooltip-portal-root">
@@ -341,6 +360,9 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
 
   defp node_legends, do: @node_legends
   defp edge_legends, do: @edge_legends
+
+  @spec edge_legend(String.t()) :: map()
+  def edge_legend(name), do: Enum.find(@edge_legends, &(&1.name == name))
 
   defp legend_entry_id(%{name: name}) do
     "#{name |> String.downcase() |> String.replace(" ", "-")}-legend-entry"

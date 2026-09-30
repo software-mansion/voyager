@@ -17,7 +17,8 @@ defmodule VoyagerWeb.Components.DataTableComponents do
 
   An optional `:width` (`:sm`, `:md` or `:lg`) fixes a column's width so its
   values cannot resize the table as they change; longer content truncates.
-  Columns without one size to their content.
+  Columns without one size to their content. An optional `:help` entry
+  (`%{text:, doc_href:, doc_label:}`) shows a tooltip on hovering the header label.
   """
 
   use VoyagerWeb, :component
@@ -71,6 +72,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
             <tr>
               <.column_header
                 :for={column <- @columns}
+                table_id={@id}
                 column={column}
                 sort_by={@sort_by}
                 direction={@direction}
@@ -101,6 +103,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
     """
   end
 
+  attr :table_id, :string, required: true
   attr :column, :map, required: true
   attr :sort_by, :atom, default: nil
   attr :direction, :atom, required: true
@@ -127,7 +130,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         ]}
         aria-label={"Sort by #{@column.label}"}
       >
-        <span class="whitespace-normal">{@column.label}</span>
+        <.column_label table_id={@table_id} column={@column} />
         <span class="inline-flex shrink-0 items-center" aria-hidden="true">
           <.icon name="icon-move-up" class={["size-3.5", arrow_class(@active?, @direction, :asc)]} />
           <.icon
@@ -147,9 +150,37 @@ defmodule VoyagerWeb.Components.DataTableComponents do
       class={["bg-base-100 py-5", align_class(@column), width_class(@column)]}
     >
       <div class="font-mono tracking-label text-base-content/70 whitespace-normal text-xs font-semibold uppercase">
-        {@column.label}
+        <.column_label table_id={@table_id} column={@column} />
       </div>
     </th>
+    """
+  end
+
+  attr :table_id, :string, required: true
+  attr :column, :map, required: true
+
+  defp column_label(%{column: %{help: %{text: _}}} = assigns) do
+    ~H"""
+    <.link_tooltip
+      id={"#{@table_id}-#{@column.key}-help"}
+      entry={@column.help}
+      interactive
+      pinnable={false}
+    >
+      <span
+        aria-describedby={"#{@table_id}-#{@column.key}-help-tip"}
+        class="whitespace-normal"
+      >
+        {@column.label}
+      </span>
+      <:content>{@column.help.text}</:content>
+    </.link_tooltip>
+    """
+  end
+
+  defp column_label(assigns) do
+    ~H"""
+    <span class="whitespace-normal">{@column.label}</span>
     """
   end
 
@@ -281,20 +312,21 @@ defmodule VoyagerWeb.Components.DataTableComponents do
           phx-change="set_page_size"
           class="flex items-center gap-2"
         >
-          <label for={"#{@id}-page-size"} class="text-base-content/70 text-xs">Per page</label>
-          <select
+          <label
+            id={"#{@id}-page-size-label"}
+            for={"#{@id}-page-size"}
+            class="text-base-content/70 text-xs"
+          >
+            Per page
+          </label>
+          <.select
             id={"#{@id}-page-size"}
             name="page_size"
-            class="select select-sm w-20"
-          >
-            <option
-              :for={size <- @page_size_options}
-              value={to_string(size)}
-              selected={size == @page_size}
-            >
-              {size}
-            </option>
-          </select>
+            value={@page_size}
+            options={@page_size_options}
+            class="w-20"
+            side={:top}
+          />
         </form>
       </div>
 

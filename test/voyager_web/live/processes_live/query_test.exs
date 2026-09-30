@@ -10,6 +10,8 @@ defmodule VoyagerWeb.ProcessesLive.QueryTest do
 
   setup :verify_on_exit!
 
+  @agent_module Voyager.Agent.module()
+
   @node :"peer@127.0.0.1"
 
   # Captures the args reaching the (mocked) :erpc transport and returns an empty
@@ -34,7 +36,7 @@ defmodule VoyagerWeb.ProcessesLive.QueryTest do
 
       assert {:ok, _page} = Query.page(@node, controls())
 
-      assert_received {:called, @node, :voyager_agent, :proc_top,
+      assert_received {:called, @node, @agent_module, :proc_top,
                        [attrs, :memory, 100, :desc, :undefined], 5_000}
 
       expected = ProcessListControls.default() |> ProcessListControls.attrs() |> List.delete(:pid)

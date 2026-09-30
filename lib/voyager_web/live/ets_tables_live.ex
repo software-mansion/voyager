@@ -73,6 +73,7 @@ defmodule VoyagerWeb.EtsTablesLive do
             <:actions>
               <.interval_select
                 id="ets-tables-refresh-interval"
+                settings_key="ets-tables"
                 options={Fetcher.interval_options()}
                 refresh_interval={@refresh_interval}
                 loading={Fetcher.loading?(@page_result)}
@@ -88,14 +89,16 @@ defmodule VoyagerWeb.EtsTablesLive do
             message={format_error(@page_result.failed)}
           />
 
-          <EtsTableComponents.summary
-            :if={@page_result.ok?}
-            id="ets-tables-summary"
-            shown={@shown_count}
-            total={@total_count}
-            total_memory={@total_memory}
-            round_trip_ms={@round_trip_ms}
-          />
+          <div class="h-4">
+            <EtsTableComponents.summary
+              :if={@page_result.ok?}
+              id="ets-tables-summary"
+              shown={@shown_count}
+              total={@total_count}
+              total_memory={@total_memory}
+              round_trip_ms={@round_trip_ms}
+            />
+          </div>
 
           <div class="flex min-h-0 flex-1 flex-col gap-2">
             <DataTableComponents.table

@@ -3,7 +3,8 @@ defmodule Voyager.Services.CodeInjector do
   Reads Erlang source, runs the preprocessor locally, then compiles and loads
   the forms on a remote node via `:erpc`.
 
-  Macros such as `?MODULE` is expanded with :epp locally.
+  Macros such as `?MODULE` is expanded with :epp locally; `macros` supplies
+  the caller's own definitions, which `-module(?AGENT)` relies on.
   Do not use `-if(?OTP_RELEASE ...)` since it shows Voyager's OTP version.
   """
 
@@ -25,21 +26,21 @@ defmodule Voyager.Services.CodeInjector do
   Preprocesses Erlang source from `path` on this node, compiles the forms on
   `node`, and loads the resulting module.
   """
-  @spec load(node(), Path.t()) :: {:ok, module()} | {:error, error_reason()}
-  def load(node, path) do
-    with {:ok, forms} <- preprocess(path),
+  @spec load(node(), Path.t(), keyword()) :: {:ok, module()} | {:error, error_reason()}
+  def load(node, path, macros \\ []) do
+    with {:ok, forms} <- preprocess(path, macros),
          {:ok, module, binary} <- remote_compile(node, forms) do
       remote_load(node, module, Path.basename(path), binary)
     end
   end
 
-  defp preprocess(path) do
+  defp preprocess(path, macros) do
     # `source_name` keeps the local source path out of the `file` attributes and `?FILE`
     source_name = path |> Path.basename() |> String.to_charlist()
 
     path
     |> String.to_charlist()
-    |> :epp.parse_file(source_name: source_name)
+    |> :epp.parse_file(source_name: source_name, macros: macros)
     |> case do
       {:ok, forms} ->
         case Enum.filter(forms, &match?({:error, _}, &1)) do

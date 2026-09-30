@@ -54,6 +54,7 @@ defmodule VoyagerWeb.ProcessesLive do
         <:actions>
           <.interval_select
             id="processes-refresh-interval"
+            settings_key="processes"
             options={Fetcher.interval_options()}
             refresh_interval={@refresh_interval}
             loading={Fetcher.loading?(@page_result)}
@@ -73,13 +74,15 @@ defmodule VoyagerWeb.ProcessesLive do
         message={format_error(@page_result.failed)}
       />
 
-      <ProcessComponents.scan_summary
-        :if={@page_result.ok?}
-        id="processes-scan-summary"
-        shown={length(Fetcher.entries(@page_result))}
-        scanned={@page_result.result.scanned}
-        round_trip_ms={@round_trip_ms}
-      />
+      <div class="h-4">
+        <ProcessComponents.scan_summary
+          :if={@page_result.ok?}
+          id="processes-scan-summary"
+          shown={length(Fetcher.entries(@page_result))}
+          scanned={@page_result.result.scanned}
+          round_trip_ms={@round_trip_ms}
+        />
+      </div>
 
       <div class={[
         "flex min-h-0 flex-1 flex-col gap-2",

@@ -93,6 +93,7 @@ defmodule VoyagerWeb.EtsTableLive do
           <EtsPeekComponents.info_panel
             info={info}
             owner_href={process_path(@session.node_name, info.owner, @current_url)}
+            heir_href={process_path(@session.node_name, info.heir, @current_url)}
           />
 
           <EtsPeekComponents.controls
@@ -268,7 +269,8 @@ defmodule VoyagerWeb.EtsTableLive do
   end
 
   def handle_event("open_sidebar", %{"index" => index}, socket) do
-    with {index, ""} when index >= 0 <- Integer.parse(index),
+    with true <- lookupable?(socket.assigns.info),
+         {index, ""} when index >= 0 <- Integer.parse(index),
          record when record != nil <- Enum.at(socket.assigns.records, index),
          {:ok, key} <- EtsPeekComponents.lookup_key(record, keypos(socket)) do
       socket
@@ -298,9 +300,10 @@ defmodule VoyagerWeb.EtsTableLive do
   end
 
   def handle_event("refetch_lookup", _params, socket) do
-    case socket.assigns.sidebar do
-      nil -> noreply(socket)
-      _sidebar -> socket |> start_lookup() |> noreply()
+    if socket.assigns.sidebar && lookupable?(socket.assigns.info) do
+      socket |> start_lookup() |> noreply()
+    else
+      noreply(socket)
     end
   end
 
@@ -436,13 +439,14 @@ defmodule VoyagerWeb.EtsTableLive do
     node = socket.assigns.session.node
     table = socket.assigns.table_id
     key = socket.assigns.sidebar.key
+    limit = socket.assigns.page_size
     %{budget: budget, timeout: timeout} = socket.assigns.lookup_controls
 
     socket
     |> cancel_async(:lookup, {:shutdown, :cancel})
     |> assign(:lookup, AsyncResult.loading(socket.assigns.lookup))
     |> start_async(:lookup, fn ->
-      Fetch.lookup(node, table, key, budget, timeout)
+      Fetch.lookup(node, table, key, limit, budget, nil, timeout)
     end)
   end
 
@@ -480,6 +484,8 @@ defmodule VoyagerWeb.EtsTableLive do
 
   defp records_id, do: @records_id
 
+  defp process_path(_node_name, :none, _current_url), do: nil
+
   defp process_path(node_name, pid, current_url) do
     keep_sidebar(~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}", current_url)
   end
@@ -491,7 +497,9 @@ defmodule VoyagerWeb.EtsTableLive do
     end
   end
 
+  defp lookupable?(%AsyncResult{ok?: true, result: info}), do: lookupable?(info)
   defp lookupable?(%{type: type}), do: type in [:set, :ordered_set]
+  defp lookupable?(_info), do: false
 
   # The metadata size is only an estimate once paging starts: with no
   # continuation left the walked count is exact, otherwise the total must at
@@ -529,6 +537,8 @@ defmodule VoyagerWeb.EtsTableLive do
   # The agent worker is killed by its heap cap; erpc reports that as an exit.
   defp format_error({:remote_exit, {:signal, :killed}}),
     do: "A record was too large to read. Try a smaller page size."
+
+  defp format_error(:key_too_large), do: "This key holds too many rows to read safely."
 
   defp format_error(:timeout), do: "Request timed out. Try a longer timeout or a smaller page."
   defp format_error(:rate_limited), do: "Too many requests. Wait a moment and try again."

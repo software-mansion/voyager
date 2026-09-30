@@ -6,22 +6,12 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
   import Phoenix.LiveViewTest
 
   alias Voyager.Fakes
+  alias Voyager.Test.VoyagerAgentFixture
   alias VoyagerWeb.Formatters
 
   @node_name "nonode@nohost"
 
-  setup_all do
-    path = :voyager |> :code.priv_dir() |> Path.join("voyager_agent.erl")
-    {:ok, module, binary} = :compile.file(String.to_charlist(path), [:binary])
-    {:module, ^module} = :code.load_binary(module, String.to_charlist(path), binary)
-
-    on_exit(fn ->
-      :code.purge(module)
-      :code.delete(module)
-    end)
-
-    :ok
-  end
+  setup_all do: VoyagerAgentFixture.load!()
 
   setup do
     prev_erpc = Application.get_env(:voyager, :erpc)
@@ -44,8 +34,7 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
     end
 
     test "a dead process redirects to the process list with a flash", %{conn: conn} do
-      pid = spawn(fn -> :ok end)
-      ref = Process.monitor(pid)
+      {pid, ref} = spawn_monitor(fn -> :ok end)
       assert_receive {:DOWN, ^ref, :process, ^pid, :normal}
 
       path = ~p"/node/#{@node_name}/processes/#{Formatters.format_pid(pid)}"

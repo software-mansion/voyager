@@ -106,6 +106,7 @@ defmodule Voyager.NodeSession do
         }
 
         cache_connector_name(connector.name())
+        Voyager.Pid.put_node(node)
 
         broadcast({:node_connected, node})
 
@@ -182,6 +183,7 @@ defmodule Voyager.NodeSession do
   defp drop_session(state, session, reason, telemetry_reason) do
     unsubscribe(session.connector)
     cache_connector_name(nil)
+    Voyager.Pid.put_node(nil)
 
     broadcast({reason, session.node})
     Voyager.Telemetry.dispatch!("voyager.node.disconnect", metadata: %{reason: telemetry_reason})
@@ -189,7 +191,7 @@ defmodule Voyager.NodeSession do
     %{state | session: nil}
   end
 
-  # Connect owns loading the agent: a node without `:voyager_agent` is not a
+  # Connect owns loading the agent: a node without the agent is not a
   # usable session, so a failed install fails the whole connect.
   defp connect_and_install(connector, node_name, cookie, opts) do
     with {:ok, node, meta} <- safe_connect(connector, node_name, cookie, opts) do

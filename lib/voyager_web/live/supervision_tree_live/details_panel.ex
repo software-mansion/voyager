@@ -21,6 +21,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   alias Phoenix.LiveView.AsyncResult
   alias Voyager.Services.ProcessInfo
+  alias Voyager.Services.RateLimiter
   alias Voyager.Services.SupervisionTree.TreeNode
   alias VoyagerWeb.Formatters
 
@@ -181,9 +182,16 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   end
 
   defp fetch_node_info(remote_node, pid) do
-    case ProcessInfo.fetch(remote_node, pid) do
+    result =
+      rate_limited(fn ->
+        with {:ok, info} <- ProcessInfo.fetch(remote_node, pid) do
+          {:ok, Map.put(info, :label, fetch_label(remote_node, pid))}
+        end
+      end)
+
+    case result do
       {:ok, info} ->
-        {:ok, %{node_info: Map.put(info, :label, fetch_label(remote_node, pid))}}
+        {:ok, %{node_info: info}}
 
       {:error, reason} ->
         Logger.warning(
@@ -212,7 +220,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   end
 
   defp fetch_links_result(remote_node, pid) do
-    case ProcessInfo.fetch_links(remote_node, pid, @links_limit) do
+    case rate_limited(fn -> ProcessInfo.fetch_links(remote_node, pid, @links_limit) end) do
       {:ok, bounded} ->
         {:ok, %{links: bounded}}
 
@@ -222,6 +230,13 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
         )
 
         {:error, reason}
+    end
+  end
+
+  defp rate_limited(fun) do
+    case RateLimiter.run(:high, fun) do
+      {:ok, result, _elapsed_us} -> result
+      {:error, :rate_limited, _retry_after_ms} -> {:error, :rate_limited}
     end
   end
 end

@@ -20,6 +20,7 @@ defmodule VoyagerWeb.TermTree do
   complete one. See `priv/voyager_agent.erl` for the truncation itself.
   """
 
+  alias Voyager.Pid
   alias VoyagerWeb.TermTree.Node
   alias VoyagerWeb.TermTree.Segment
   alias VoyagerWeb.TermTree.State
@@ -32,8 +33,8 @@ defmodule VoyagerWeb.TermTree do
   @auto_open_depth 5
 
   @printable_limit 4_096
-  @inspect_opts [limit: 50, printable_limit: @printable_limit]
-  @key_inspect_opts [limit: 5, printable_limit: 64]
+  @inspect_opts [limit: 50, printable_limit: @printable_limit, inspect_fun: &Pid.inspect_fun/2]
+  @key_inspect_opts [limit: 5, printable_limit: 64, inspect_fun: &Pid.inspect_fun/2]
 
   @doc """
   Builds the display node for `term`.
@@ -177,7 +178,7 @@ defmodule VoyagerWeb.TermTree do
   # Rewriting the flattened output instead would reach inside string literals
   # and break the round-trip for any binary that happens to read like a pid.
   defp copy_inspect(pid, _opts) when is_pid(pid) do
-    ":erlang.list_to_pid(~c\"" <> List.to_string(:erlang.pid_to_list(pid)) <> "\")"
+    ":erlang.list_to_pid(~c\"" <> Pid.format(pid) <> "\")"
   end
 
   defp copy_inspect(term, _opts)

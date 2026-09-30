@@ -14,7 +14,6 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   import VoyagerWeb.Helpers, only: [keep_sidebar: 2]
 
   alias Phoenix.LiveView.AsyncResult
-  alias VoyagerWeb.Components.DetailsPanelComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.ProcessInfoControls
 
@@ -35,7 +34,6 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   attr :tab, :atom, required: true
   attr :active, :atom, required: true
   attr :label, :string, required: true
-  attr :tooltip, :string, default: nil
 
   def tab_button(assigns) do
     ~H"""
@@ -47,10 +45,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
       phx-value-tab={@tab}
       class={["tab", @active == @tab && "tab-active"]}
     >
-      <%!-- The tooltip lives on an inner span: `tabs-lift` already claims the
-           tab's own pseudo-elements for its corner decoration. --%>
-      <span :if={@tooltip} class="tooltip tooltip-bottom" data-tip={@tooltip}>{@label}</span>
-      <span :if={is_nil(@tooltip)}>{@label}</span>
+      {@label}
     </button>
     """
   end
@@ -273,10 +268,6 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
     """
   end
 
-  @spec copy_text(term()) :: String.t()
-  def copy_text(term),
-    do: inspect(term, limit: :infinity, printable_limit: :infinity, pretty: true)
-
   # A slow fetch is the cost the node paid, so it is flagged where it is
   # reported, matching the process list's scale.
   defp round_trip_class(ms) when ms > 3_000, do: "text-error"
@@ -367,10 +358,10 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
       <p :if={@items == []} class="font-mono text-base-content/70 text-xs">None</p>
       <div :if={@items != []} class="flex flex-wrap gap-1.5">
         <%= for item <- Enum.map(@items, &identifier_entry(&1, @remote_node)) do %>
-          <DetailsPanelComponents.pid_chip
+          <.pid_link
             :if={item.pid?}
             href={keep_sidebar(~p"/node/#{@node_name}/processes/#{item.text}", @current_url)}
-            label={item.text}
+            pid={item.text}
           />
           <span
             :if={not item.pid?}
@@ -430,7 +421,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
     if node(pid) == remote_node do
       %{pid?: true, text: Formatters.format_pid(pid)}
     else
-      %{pid?: false, text: "#{Formatters.format_pid(pid)} on #{node(pid)}"}
+      %{pid?: false, text: "#{Formatters.pid(pid)} on #{node(pid)}"}
     end
   end
 
