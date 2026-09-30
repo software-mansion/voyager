@@ -74,12 +74,7 @@ for i in $(seq 1 "$RUNS"); do
 
   bash "$SCRIPT_DIR/node.sh" stop >/dev/null 2>&1
 
-  if [ -f "$run_json" ]; then
-    echo "report: $run_json"
-    node "$SCRIPT_DIR/aggregate-flakiness.mjs" "$RESULTS_DIR"
-  else
-    echo "  WARNING: no JSON report produced (see $run_log)"
-  fi
+  [ -f "$run_json" ] || echo "  WARNING: no JSON report produced (see $run_log)"
 done
 
 # Merge all per-run blobs into a single browsable HTML report (with traces).

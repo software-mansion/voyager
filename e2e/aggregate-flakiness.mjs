@@ -31,8 +31,6 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 
-// ---- args -----------------------------------------------------------------
-
 let dir;
 let write = false;
 let threshold = null;
@@ -58,8 +56,6 @@ if (files.length === 0) {
   console.error(`❗No run-*.json reports found in ${dir}`);
   process.exit(1);
 }
-
-// ---- aggregation ----------------------------------------------------------
 
 const stats = new Map(); // key -> stats
 
@@ -148,63 +144,39 @@ const totalAttempts = rows.reduce((n, r) => n + r.attempts, 0);
 const failedAttempts = rows.reduce((n, r) => n + r.failedAttempts, 0);
 const attemptFailRate = totalAttempts ? failedAttempts / totalAttempts : 0;
 
-// ---- human-readable report (stdout + summary.txt) -------------------------
-
-function pad(s, n) {
-  return String(s).padEnd(n);
-}
+const failureRate = `${failedAttempts}/${totalAttempts} (${(attemptFailRate * 100).toFixed(2)}%)`;
 
 function buildReport() {
-  const L = [];
-  L.push(`Aggregated ${totalRuns} run(s) across ${rows.length} test(s).`);
+  const md = [
+    '## E2E flakiness benchmark',
+    '',
+    `**${totalRuns}** runs · **${rows.length}** tests tracked · ` +
+      `**${flakyRows.length}** flaky/failing · attempt failure **${failureRate}**` +
+      (threshold !== null
+        ? ` · threshold **${threshold}** · over **${breached.length}**`
+        : ''),
+    '',
+  ];
   if (brokenReports.length) {
-    L.push(`Unreadable reports skipped: ${brokenReports.join(', ')}`);
+    md.push(`Unreadable reports skipped: ${brokenReports.join(', ')}`, '');
   }
-  L.push('');
-
   if (flakyRows.length === 0) {
-    L.push('No flaky or failing tests detected across the batch. 🎉');
+    md.push('✅ No flaky or failing tests detected.');
   } else {
-    const header =
-      pad('SCORE', 7) +
-      pad('PASS', 6) +
-      pad('FLAKY', 7) +
-      pad('FAIL', 6) +
-      pad('RUNS', 6) +
-      'TEST';
-    L.push(header);
-    L.push('-'.repeat(header.length));
+    md.push('| Score | Pass | Flaky | Fail | Runs | Test |');
+    md.push('| ----: | ---: | ----: | ---: | ---: | :--- |');
     for (const r of flakyRows) {
-      L.push(
-        pad(r.score.toFixed(2), 7) +
-          pad(String(r.pass), 6) +
-          pad(String(r.flaky), 7) +
-          pad(String(r.fail), 6) +
-          pad(String(r.runs), 6) +
-          r.label
+      const mark = threshold !== null && r.failures > threshold ? ' 🔴' : '';
+      md.push(
+        `| ${r.score.toFixed(2)} | ${r.pass} | ${r.flaky} | ${r.fail} | ${r.runs} | \`${r.label}\`${mark} |`
       );
     }
   }
-
-  L.push('');
-  L.push('Summary');
-  L.push(`  runs:              ${totalRuns}`);
-  L.push(`  tests tracked:     ${rows.length}`);
-  L.push(`  flaky/failing:     ${flakyRows.length}`);
-  L.push(
-    `  attempt failure:   ${failedAttempts}/${totalAttempts} (${(attemptFailRate * 100).toFixed(2)}%)`
-  );
-  if (threshold !== null) {
-    L.push(`  threshold:         ${threshold} failure(s) per test`);
-    L.push(`  over threshold:    ${breached.length} test(s)`);
-  }
-  return L.join('\n');
+  return md.join('\n');
 }
 
 const report = buildReport();
 console.log(report);
-
-// ---- machine-readable + CI outputs ----------------------------------------
 
 if (write) {
   const summaryJson = {
@@ -237,35 +209,9 @@ if (write) {
     JSON.stringify(summaryJson, null, 2) + '\n'
   );
 
-  // GitHub Actions job summary (rendered as markdown on the run page).
   if (process.env.GITHUB_STEP_SUMMARY) {
-    const md = [];
-    md.push('## E2E flakiness benchmark');
-    md.push('');
-    md.push(
-      `**${totalRuns}** runs · **${rows.length}** tests tracked · ` +
-        `**${flakyRows.length}** flaky/failing · ` +
-        `attempt failure **${(attemptFailRate * 100).toFixed(2)}%**` +
-        (threshold !== null
-          ? ` · threshold **${threshold}** · over **${breached.length}**`
-          : '')
-    );
-    md.push('');
-    if (flakyRows.length === 0) {
-      md.push('✅ No flaky or failing tests detected.');
-    } else {
-      md.push('| Score | Pass | Flaky | Fail | Runs | Test |');
-      md.push('| ----: | ---: | ----: | ---: | ---: | :--- |');
-      for (const r of flakyRows) {
-        const mark = threshold !== null && r.failures > threshold ? ' 🔴' : '';
-        md.push(
-          `| ${r.score.toFixed(2)} | ${r.pass} | ${r.flaky} | ${r.fail} | ${r.runs} | \`${r.label}\`${mark} |`
-        );
-      }
-    }
-    md.push('');
     try {
-      appendFileSync(process.env.GITHUB_STEP_SUMMARY, md.join('\n') + '\n');
+      appendFileSync(process.env.GITHUB_STEP_SUMMARY, report + '\n\n');
     } catch (e) {
       console.error(`❗Could not write GITHUB_STEP_SUMMARY: ${e.message}`);
     }
@@ -280,8 +226,6 @@ if (write) {
     }
   }
 }
-
-// ---- exit code ------------------------------------------------------------
 
 if (threshold !== null && breached.length > 0) {
   console.log(
