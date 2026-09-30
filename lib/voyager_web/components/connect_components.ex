@@ -184,7 +184,7 @@ defmodule VoyagerWeb.ConnectComponents do
 
   attr :secret_key, :string,
     required: true,
-    doc: "Identifies this field for the shared visibility-toggle hook"
+    doc: "The `key` param of the `toggle_secret_visibility` event the target receives"
 
   attr :shown, :boolean, default: false
   attr :remember_name, :string, required: true

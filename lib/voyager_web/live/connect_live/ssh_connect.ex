@@ -10,7 +10,6 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   alias Voyager.Queries.SshConnections, as: SshConnectionQueries
   alias VoyagerWeb.ConnectComponents
   alias VoyagerWeb.ConnectLive.RecentConnections
-  alias VoyagerWeb.ConnectLive.SecretVisibility
   alias VoyagerWeb.FormSchemas.SshConnectionParams
 
   @id_prefix "ssh-"
@@ -27,7 +26,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     |> assign(:id, assigns.id)
     |> assign(:connected?, assigns.connected?)
     |> assign(:ssh_form, empty_ssh_form())
-    |> SecretVisibility.init()
+    |> assign(:shown_secrets, MapSet.new())
     |> assign(:show_ssh_advanced, false)
     |> assign(:ssh_connecting, false)
     |> assign(:ssh_last_applied, nil)
@@ -105,7 +104,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
           field={@ssh_form[:cookie]}
           label="Cookie"
           secret_key="cookie"
-          shown={SecretVisibility.shown?(@secret_visibility, "cookie")}
+          shown={"cookie" in @shown_secrets}
           target={@myself}
           remember_name="ssh[remember_cookie]"
           remember_checked={to_string(@ssh_form[:remember_cookie].value) == "true"}
@@ -133,7 +132,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
           field={@ssh_form[:password]}
           label="SSH Password"
           secret_key="password"
-          shown={SecretVisibility.shown?(@secret_visibility, "password")}
+          shown={"password" in @shown_secrets}
           target={@myself}
           remember_name="ssh[remember_password]"
           remember_checked={to_string(@ssh_form[:remember_password].value) == "true"}
@@ -266,6 +265,12 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     {:noreply, update(socket, :show_ssh_advanced, &(!&1))}
   end
 
+  def handle_event("toggle_secret_visibility", %{"key" => key}, socket) do
+    shown = socket.assigns.shown_secrets
+    shown = if key in shown, do: MapSet.delete(shown, key), else: MapSet.put(shown, key)
+    {:noreply, assign(socket, :shown_secrets, shown)}
+  end
+
   def handle_event("connect_ssh", _, %{assigns: %{ssh_connecting: true}} = socket) do
     {:noreply, socket}
   end
@@ -309,7 +314,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
 
       socket
       |> assign(:ssh_form, to_form(SshConnectionParams.changeset(params), as: :ssh))
-      |> SecretVisibility.reset()
+      |> assign(:shown_secrets, MapSet.new())
     end)
   end
 
