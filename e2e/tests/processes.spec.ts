@@ -18,12 +18,7 @@ async function setPidFormat(page: Page, format: 'distribution' | 'local') {
 async function expectPids(page: Page, format: RegExp) {
   const links = page.locator(sel.pidLinks);
   await expect(links.first()).toBeVisible();
-
-  await expect(async () => {
-    const pids = (await links.allTextContents()).map((text) => text.trim());
-    expect(pids.length).toBeGreaterThan(0);
-    for (const pid of pids) expect(pid).toMatch(format);
-  }).toPass();
+  await expect(links.filter({ hasNotText: format })).toHaveCount(0);
 }
 
 test.describe('ProcessesLive › pid format', () => {
@@ -46,7 +41,7 @@ test.describe('ProcessesLive › pid format', () => {
 
     await page.goto(processesUrl);
     await waitForLiveView(page);
-    await expectPids(page, /^<[1-9]\d*\.\d+\.\d+>$/);
+    await expectPids(page, /^\s*<[1-9]\d*\.\d+\.\d+>\s*$/);
 
     await page.locator(sel.openSettings).click();
     await waitForLiveView(page);
@@ -55,6 +50,6 @@ test.describe('ProcessesLive › pid format', () => {
     await page.locator(sel.back).click();
     await waitForLiveView(page);
     await expect(page).toHaveURL(/\/processes/);
-    await expectPids(page, /^<0\.\d+\.\d+>$/);
+    await expectPids(page, /^\s*<0\.\d+\.\d+>\s*$/);
   });
 });
