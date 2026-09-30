@@ -8,6 +8,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
   alias Voyager.Services.NodeInfo.Limits
   alias Voyager.Services.NodeInfo.Memory
   alias VoyagerWeb.Formatters
+  alias VoyagerWeb.Helpers
   alias VoyagerWeb.NodeInfoHelp
   alias VoyagerWeb.Utils.URL
 
@@ -488,16 +489,9 @@ defmodule VoyagerWeb.NodeInfoComponents do
   end
 
   defp application_href(node_name, app_name, current_url) do
-    path = "/node/#{URI.encode(node_name)}/supervision-tree"
-    params = %{"apps" => to_string(app_name)}
-
-    params =
-      case current_url && URL.get_query_param(current_url, "sidebar") do
-        mode when mode in ["compact", "full"] -> Map.put(params, "sidebar", mode)
-        _ -> params
-      end
-
-    URL.put_query_params(path, params)
+    "/node/#{URI.encode(node_name)}/supervision-tree"
+    |> URL.put_query_params(%{"apps" => to_string(app_name)})
+    |> Helpers.keep_sidebar(current_url)
   end
 
   defp limit_rows(limits) do

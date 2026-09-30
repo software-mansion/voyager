@@ -6,6 +6,7 @@ defmodule VoyagerWeb.Components.Shell do
   use VoyagerWeb, :html
 
   alias Voyager.NodeSession.Session
+  alias VoyagerWeb.Helpers
   alias VoyagerWeb.Utils.URL
 
   attr :active_nav, :atom, default: nil
@@ -213,7 +214,7 @@ defmodule VoyagerWeb.Components.Shell do
           :for={page <- inspect_pages()}
           id={"sidebar-nav-#{page.feature}"}
           active={@active_nav == page.feature}
-          navigate={nav_path(node_path(@session, page.path), @sidebar_mode)}
+          navigate={Helpers.keep_sidebar(node_path(@session, page.path), @current_url)}
           label={page.label}
         >
           <:icon>
@@ -230,7 +231,7 @@ defmodule VoyagerWeb.Components.Shell do
           :for={page <- coming_soon_pages()}
           id={"sidebar-nav-#{page.feature}"}
           active={@active_nav == page.feature}
-          navigate={nav_path(node_path(@session, page.path), @sidebar_mode)}
+          navigate={Helpers.keep_sidebar(node_path(@session, page.path), @current_url)}
           label={page.label}
           coming_soon
         >
@@ -388,13 +389,6 @@ defmodule VoyagerWeb.Components.Shell do
   end
 
   defp sidebar_mode(_url), do: nil
-
-  # Carries the current sidebar mode onto a nav link so the choice survives
-  # navigation to another page.
-  defp nav_path(path, mode) when mode in ["compact", "full"],
-    do: URL.put_query_params(path, %{"sidebar" => mode})
-
-  defp nav_path(path, _mode), do: path
 
   defp toggle_sidebar_path(current_url, sidebar_mode) do
     next_mode = if sidebar_mode == "compact", do: "full", else: "compact"
