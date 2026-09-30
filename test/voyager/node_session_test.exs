@@ -3,6 +3,7 @@ defmodule Voyager.NodeSessionTest do
 
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Session
+  alias Voyager.Test.VoyagerAgentFixture
 
   @agent_module Voyager.Agent.module()
 
@@ -52,27 +53,10 @@ defmodule Voyager.NodeSessionTest do
       # state does not cover; a leaked :fake fails the telemetry export tests.
       :persistent_term.put(:connected_via, previous_connector_name)
       Application.put_env(:voyager, :erpc, previous_erpc)
-      stop_agent()
+      VoyagerAgentFixture.unload()
     end)
 
     Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
-    :ok
-  end
-
-  defp stop_agent do
-    case Process.whereis(@agent_module) do
-      nil ->
-        :ok
-
-      pid ->
-        ref = Process.monitor(pid)
-        Process.exit(pid, :kill)
-        assert_receive {:DOWN, ^ref, :process, ^pid, _reason}
-    end
-
-    :code.purge(@agent_module)
-    :code.delete(@agent_module)
-    :code.purge(@agent_module)
     :ok
   end
 

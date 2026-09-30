@@ -7,6 +7,7 @@ defmodule Voyager.AgentTest do
   alias Voyager.Erpc
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Session
+  alias Voyager.Test.VoyagerAgentFixture
 
   @agent_module Voyager.Agent.module()
 
@@ -36,25 +37,7 @@ defmodule Voyager.AgentTest do
   setup :verify_on_exit!
 
   describe "install/1" do
-    setup do
-      on_exit(fn ->
-        case Process.whereis(@agent_module) do
-          nil ->
-            :ok
-
-          pid ->
-            ref = Process.monitor(pid)
-            Process.exit(pid, :kill)
-            assert_receive {:DOWN, ^ref, :process, ^pid, _reason}
-        end
-
-        :code.purge(@agent_module)
-        :code.delete(@agent_module)
-        :code.purge(@agent_module)
-      end)
-
-      :ok
-    end
+    setup do: on_exit(&VoyagerAgentFixture.unload/0)
 
     test "refuses a node older than OTP 27 without sending any code" do
       expect(Voyager.ErpcMock, :call, fn _node, :erlang, :system_info, [:otp_release], _timeout ->

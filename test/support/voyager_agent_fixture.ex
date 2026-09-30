@@ -3,7 +3,7 @@ defmodule Voyager.Test.VoyagerAgentFixture do
   Compiles and loads `priv/voyager_agent.erl` into this VM.
 
   Call `load!/0` from `setup` (the test process) so `on_exit` is valid.
-  Unload kills a leftover registered pid, then purges the module.
+  `unload/0` kills a leftover registered pid, then purges the module.
   """
 
   @module Voyager.Agent.module()
@@ -27,7 +27,8 @@ defmodule Voyager.Test.VoyagerAgentFixture do
     :ok
   end
 
-  defp unload do
+  @spec unload() :: :ok
+  def unload do
     case Process.whereis(@module) do
       nil ->
         :ok
@@ -44,5 +45,6 @@ defmodule Voyager.Test.VoyagerAgentFixture do
     :code.purge(@module)
     :code.delete(@module)
     :code.purge(@module)
+    :ok
   end
 end
