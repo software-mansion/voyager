@@ -392,13 +392,13 @@ defmodule VoyagerWeb.Components.Shell do
   # Carries the current sidebar mode onto a nav link so the choice survives
   # navigation to another page.
   defp nav_path(path, mode) when mode in ["compact", "full"],
-    do: URL.put_query_param(path, "sidebar", mode)
+    do: URL.put_query_params(path, %{"sidebar" => mode})
 
   defp nav_path(path, _mode), do: path
 
   defp toggle_sidebar_path(current_url, sidebar_mode) do
     next_mode = if sidebar_mode == "compact", do: "full", else: "compact"
-    URL.put_query_param(current_url || "/", "sidebar", next_mode)
+    URL.put_query_params(current_url || "/", %{"sidebar" => next_mode})
   end
 
   defp settings_return_to(active_nav, session, current_url) do

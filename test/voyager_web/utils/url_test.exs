@@ -32,24 +32,22 @@ defmodule VoyagerWeb.Utils.URLTest do
     end
   end
 
-  describe "put_query_param/3" do
+  describe "put_query_params/2" do
     test "adds a query parameter in a URL" do
-      assert URL.put_query_param("http://example.com/foo", "key", "value") ==
+      assert URL.put_query_params("http://example.com/foo", %{"key" => "value"}) ==
                "http://example.com/foo?key=value"
     end
 
     test "adds a query parameter to a URL with existing parameters" do
-      assert URL.put_query_param("http://example.com/foo?key1=value1", "key2", "value2") ==
+      assert URL.put_query_params("http://example.com/foo?key1=value1", %{"key2" => "value2"}) ==
                "http://example.com/foo?key1=value1&key2=value2"
     end
 
     test "updates an existing query parameter" do
-      assert URL.put_query_param("http://example.com/foo?key=old", "key", "new") ==
+      assert URL.put_query_params("http://example.com/foo?key=old", %{"key" => "new"}) ==
                "http://example.com/foo?key=new"
     end
-  end
 
-  describe "put_query_params/2" do
     test "adds multiple query parameters in a URL" do
       assert URL.put_query_params("http://example.com/foo", %{
                "key1" => "value1",

@@ -166,7 +166,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
   defp put_apps(url, apps) when apps in [nil, []], do: URL.drop_query_param(url, "apps")
 
   defp put_apps(url, apps) do
-    URL.put_query_param(url, "apps", Enum.map_join(apps, ",", &to_string/1))
+    URL.put_query_params(url, %{"apps" => Enum.map_join(apps, ",", &to_string/1)})
   end
 
   defp fuzzy_match?(_str, search) when search in [nil, ""], do: true

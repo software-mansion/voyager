@@ -19,9 +19,6 @@ defmodule VoyagerWeb.Utils.URL do
     URI.to_string(%URI{path: path || "/", query: query})
   end
 
-  @doc """
-  Returns the value of a query param, or `nil` when it is absent.
-  """
   @spec get_query_param(String.t(), String.t()) :: String.t() | nil
   def get_query_param(url, key) when is_binary(url) and is_binary(key) do
     (URI.parse(url).query || "")
@@ -29,26 +26,11 @@ defmodule VoyagerWeb.Utils.URL do
     |> Map.get(key)
   end
 
-  @doc """
-  Inserts or updates a single query param, preserving all others.
-  """
-  @spec put_query_param(String.t(), String.t(), String.t()) :: String.t()
-  def put_query_param(url, key, value)
-      when is_binary(url) and is_binary(key) and is_binary(value) do
-    put_query_params(url, %{key => value})
-  end
-
-  @doc """
-  Inserts or updates several query params at once, preserving all others.
-  """
   @spec put_query_params(String.t(), %{optional(String.t()) => String.t()}) :: String.t()
   def put_query_params(url, params) when is_binary(url) and is_map(params) do
     modify_query_params(url, &Map.merge(&1, params))
   end
 
-  @doc """
-  Removes a query param, preserving all others.
-  """
   @spec drop_query_param(String.t(), String.t()) :: String.t()
   def drop_query_param(url, key) when is_binary(url) and is_binary(key) do
     modify_query_params(url, &Map.delete(&1, key))

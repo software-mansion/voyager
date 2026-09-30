@@ -61,7 +61,7 @@ defmodule VoyagerWeb.Helpers do
   @spec keep_sidebar(String.t(), String.t() | nil) :: String.t()
   def keep_sidebar(path, current_url) when is_binary(current_url) do
     case URL.get_query_param(current_url, "sidebar") do
-      mode when mode in ["compact", "full"] -> URL.put_query_param(path, "sidebar", mode)
+      mode when mode in ["compact", "full"] -> URL.put_query_params(path, %{"sidebar" => mode})
       _other -> path
     end
   end

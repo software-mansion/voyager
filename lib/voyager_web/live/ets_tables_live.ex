@@ -367,7 +367,7 @@ defmodule VoyagerWeb.EtsTablesLive do
   defp row_class(row, %{id: selected_id}), do: row.id == selected_id && "bg-primary/5"
 
   defp table_path(url, table) do
-    URL.put_query_param(url, "table", TableId.display(table.id))
+    URL.put_query_params(url, %{"table" => TableId.display(table.id)})
   end
 
   # A named table travels as its name so the URL survives the table being
