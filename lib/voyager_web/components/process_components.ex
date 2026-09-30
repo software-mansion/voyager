@@ -11,6 +11,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.ProcessListControls
+  alias VoyagerWeb.ProcessInfoHelp
 
   @placeholder DataTableComponents.placeholder()
 
@@ -77,13 +78,20 @@ defmodule VoyagerWeb.Components.ProcessComponents do
             <.field_label
               field={@form[:timeout]}
               label="Timeout (ms)"
+              help="How long to wait for the node to return its processes before the fetch fails. Raise it for a busy node or a slow connection."
             />
-            <span class="text-base-content/70 text-xs font-medium">Columns</span>
+            <div class="flex h-6 items-center gap-1">
+              <span class="text-base-content/70 text-xs font-medium">Columns</span>
+              <.help_tooltip
+                id="process-controls-columns-help"
+                text="Which process properties to show as columns. PID and Memory are always shown."
+              />
+            </div>
 
             <.select
               field={@form[:limit]}
               options={ProcessListControls.limit_options()}
-              class="w-24"
+              class="min-w-20"
               disabled={@loading?}
             />
 
@@ -98,7 +106,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
               inputmode="numeric"
               phx-debounce="500"
               class={[
-                "input input-sm input-bordered no-spinner font-mono w-24",
+                "input input-sm input-bordered no-spinner font-mono w-26",
                 @form[:timeout].errors != [] && "input-error"
               ]}
             />
@@ -112,7 +120,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
               disabled={@loading?}
             />
 
-            <.field_error field={@form[:limit]} />
+            <.field_error field={@form[:limit]} class="min-w-20" />
             <.field_error field={@form[:timeout]} />
             <span />
           </div>
@@ -130,7 +138,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
 
   defp field_label(assigns) do
     ~H"""
-    <div class="flex items-center gap-1">
+    <div class="flex h-6 items-center gap-1">
       <label
         id={"#{@field.id}-label"}
         for={@field.id}
@@ -144,12 +152,13 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   end
 
   attr :field, Phoenix.HTML.FormField, required: true
+  attr :class, :any, default: "w-24"
 
   defp field_error(assigns) do
     ~H"""
     <%!-- The cell keeps the input's width and the message overflows it, so a
           long error cannot stretch the grid column and shift the controls. --%>
-    <p class="font-mono text-error relative h-4 w-24 text-xs">
+    <p class={["font-mono text-error relative h-4 text-xs", @class]}>
       <span class="absolute left-0 whitespace-nowrap">
         {@field.errors |> Enum.map_join(", ", &translate_error/1)}
       </span>
@@ -181,7 +190,9 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   """
   @spec columns([atom()]) :: [map()]
   def columns(selected) do
-    Enum.filter(@columns, &(&1.key in selected))
+    for column <- @columns, column.key in selected do
+      Map.put(column, :help, ProcessInfoHelp.get(column.key))
+    end
   end
 
   @doc "Human label for a selectable attribute."
@@ -222,6 +233,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
         <DataTableComponents.value_cell
           id={"#{@row_id}-memory"}
           value={Formatters.format_bytes(@row[:memory])}
+          tip={Formatters.format_exact_bytes(@row[:memory])}
         />
       <% :reductions -> %>
         <DataTableComponents.value_cell

@@ -104,7 +104,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
       text:
         "The reverse of a monitor: another process is watching this one and will be notified with a DOWN message when it terminates.",
       color_class: "bg-process-monitored-by",
-      doc_href: @erts <> "#process_info/2",
+      doc_href: @erts <> "#monitored_by-monitoredby",
       doc_label: "See erlang:process_info(monitored_by)",
       dashed: true
     }
@@ -360,6 +360,9 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
 
   defp node_legends, do: @node_legends
   defp edge_legends, do: @edge_legends
+
+  @spec edge_legend(String.t()) :: map()
+  def edge_legend(name), do: Enum.find(@edge_legends, &(&1.name == name))
 
   defp legend_entry_id(%{name: name}) do
     "#{name |> String.downcase() |> String.replace(" ", "-")}-legend-entry"

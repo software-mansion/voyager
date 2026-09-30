@@ -1,4 +1,4 @@
--module(voyager_agent).
+-module(?AGENT).
 
 -behaviour(gen_server).
 

@@ -9,6 +9,8 @@ defmodule Voyager.Services.ProcessListTest do
 
   setup :verify_on_exit!
 
+  @agent_module Voyager.Agent.module()
+
   @node :"peer@127.0.0.1"
 
   # Captures the args reaching the (mocked) :erpc transport and returns an empty
@@ -28,7 +30,7 @@ defmodule Voyager.Services.ProcessListTest do
 
       assert {:ok, {[], _}} = ProcessList.top(@node, [:memory, :reductions], :memory, 25, 3_000)
 
-      assert_received {:called, @node, :voyager_agent, :proc_top,
+      assert_received {:called, @node, @agent_module, :proc_top,
                        [[:memory, :reductions], :memory, 25, :desc, :undefined], 3_000}
     end
 

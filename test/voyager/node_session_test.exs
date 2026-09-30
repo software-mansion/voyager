@@ -4,7 +4,7 @@ defmodule Voyager.NodeSessionTest do
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Session
 
-  @agent_module :voyager_agent
+  @agent_module Voyager.Agent.module()
 
   defmodule FakeConnector do
     @moduledoc false

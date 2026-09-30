@@ -6,22 +6,12 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
   import Phoenix.LiveViewTest
 
   alias Voyager.Fakes
+  alias Voyager.Test.VoyagerAgentFixture
   alias VoyagerWeb.Formatters
 
   @node_name "nonode@nohost"
 
-  setup_all do
-    path = :voyager |> :code.priv_dir() |> Path.join("voyager_agent.erl")
-    {:ok, module, binary} = :compile.file(String.to_charlist(path), [:binary])
-    {:module, ^module} = :code.load_binary(module, String.to_charlist(path), binary)
-
-    on_exit(fn ->
-      :code.purge(module)
-      :code.delete(module)
-    end)
-
-    :ok
-  end
+  setup_all do: VoyagerAgentFixture.load!()
 
   setup do
     prev_erpc = Application.get_env(:voyager, :erpc)

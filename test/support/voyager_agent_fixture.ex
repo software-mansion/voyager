@@ -6,7 +6,7 @@ defmodule Voyager.Test.VoyagerAgentFixture do
   Unload kills a leftover registered pid, then purges the module.
   """
 
-  @module :voyager_agent
+  @module Voyager.Agent.module()
   @filename "voyager_agent.erl"
 
   @spec load!() :: :ok
@@ -19,7 +19,8 @@ defmodule Voyager.Test.VoyagerAgentFixture do
       |> Path.join(@filename)
       |> String.to_charlist()
 
-    {:ok, @module, binary} = :compile.file(path, [:binary, :return_errors])
+    opts = [:binary, :return_errors, {:d, :AGENT, @module}]
+    {:ok, @module, binary} = :compile.file(path, opts)
     {:module, @module} = :code.load_binary(@module, path, binary)
 
     ExUnit.Callbacks.on_exit(&unload/0)

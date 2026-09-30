@@ -20,6 +20,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
   alias Voyager.Services.Ets.TableId
   alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Components.ProcessComponents
+  alias VoyagerWeb.EtsTableHelp
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.EtsTableListControls
 
@@ -63,7 +64,9 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
   """
   @spec columns([atom()]) :: [map()]
   def columns(selected) do
-    Enum.filter(@columns, &(&1.key in selected))
+    for column <- @columns, column.key in selected do
+      Map.put(column, :help, EtsTableHelp.get(column.key))
+    end
   end
 
   @doc "The table's name as shown everywhere, e.g. `:my_table` or `MyApp.Cache`."
@@ -108,26 +111,40 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         </label>
 
         <div class="grid-cols-[auto_auto_auto_auto_auto] grid-rows-[auto_auto_auto] grid items-center gap-x-2">
-          <.field_label field={@form[:protection]} label="Protection" />
-          <.field_label field={@form[:type]} label="Type" />
-          <.field_label field={@form[:named]} label="Named" />
-          <.field_label field={@form[:timeout]} label="Timeout (ms)" />
-          <span class="text-base-content/70 text-xs font-medium">Columns</span>
+          <.field_label
+            field={@form[:protection]}
+            label="Protection"
+            help={EtsTableHelp.get(:protection)}
+          />
+          <.field_label field={@form[:type]} label="Type" help={EtsTableHelp.get(:type)} />
+          <.field_label field={@form[:named]} label="Named" help={EtsTableHelp.get(:named_table)} />
+          <.field_label
+            field={@form[:timeout]}
+            label="Timeout (ms)"
+            help={EtsTableHelp.get(:timeout)}
+          />
+          <div class="flex h-6 items-center gap-1">
+            <span class="text-base-content/70 text-xs font-medium">Columns</span>
+            <.help_tooltip
+              id="ets-table-controls-columns-help"
+              text="Which table properties to show as columns. Table and Memory are always shown."
+            />
+          </div>
 
           <.select
             field={@form[:protection]}
             options={EtsTableListControls.filter_options(:protection)}
-            class="w-32"
+            class="min-w-28"
           />
           <.select
             field={@form[:type]}
             options={EtsTableListControls.filter_options(:type)}
-            class="w-32"
+            class="min-w-35"
           />
           <.select
             field={@form[:named]}
             options={EtsTableListControls.filter_options(:named)}
-            class="w-32"
+            class="min-w-20"
           />
 
           <input
@@ -141,7 +158,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
             inputmode="numeric"
             phx-debounce="500"
             class={[
-              "input input-sm input-bordered no-spinner font-mono w-24",
+              "input input-sm input-bordered no-spinner font-mono w-26",
               @form[:timeout].errors != [] && "input-error"
             ]}
           />
@@ -164,10 +181,11 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
 
   attr :field, Phoenix.HTML.FormField, required: true
   attr :label, :string, required: true
+  attr :help, :map, default: nil
 
   defp field_label(assigns) do
     ~H"""
-    <div class="flex items-center gap-1">
+    <div class="flex h-6 items-center gap-1">
       <label
         id={"#{@field.id}-label"}
         for={@field.id}
@@ -175,6 +193,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
       >
         {@label}
       </label>
+      <.help_tooltip :if={@help} id={"#{@field.id}-help"} entry={@help} />
     </div>
     """
   end
@@ -250,7 +269,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         <DataTableComponents.value_cell
           id={"#{@row_id}-memory"}
           value={Formatters.format_bytes(@row.memory)}
-          tip={format_exact_bytes(@row.memory)}
+          tip={Formatters.format_exact_bytes(@row.memory)}
         />
       <% :owner -> %>
         <ProcessComponents.pid_cell pid={@row.owner} row_id={@row_id} href={@owner_href} />
@@ -341,12 +360,11 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
 
   defp protection_cell(assigns) do
     ~H"""
-    <span
+    <DataTableComponents.value_cell
       id={"#{@row_id}-protection"}
-      class="font-mono text-base-content/70 block truncate text-sm"
-    >
-      {@protection}
-    </span>
+      value={Atom.to_string(@protection)}
+      muted
+    />
     """
   end
 
@@ -488,20 +506,53 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         <.icon name="icon-database-search" class="size-4" /> View contents
       </.link>
       <.section title="Overview">
-        <.kv label="Type" value={Atom.to_string(@table.type)} />
-        <.kv label="Protection" value={Atom.to_string(@table.protection)} />
-        <.kv label="Named table" value={flag(@table, :named_table)} />
-        <.kv label="Key position" value={Integer.to_string(@table.keypos)} />
+        <.kv label="Type" help={EtsTableHelp.get(:type)} value={Atom.to_string(@table.type)} />
+        <.kv
+          label="Protection"
+          help={EtsTableHelp.get(:protection)}
+          value={Atom.to_string(@table.protection)}
+        />
+        <.kv
+          label="Named table"
+          help={EtsTableHelp.get(:named_table)}
+          value={flag(@table, :named_table)}
+        />
+        <.kv
+          label="Key position"
+          help={EtsTableHelp.get(:keypos)}
+          value={Integer.to_string(@table.keypos)}
+        />
         <.owner_kv href={@owner_href} pid={@table.owner} />
-        <.kv label="Heir" value={format_heir(@table.heir)} last />
+        <.kv label="Heir" help={EtsTableHelp.get(:heir)} value={format_heir(@table.heir)} last />
       </.section>
       <.section title="Storage">
-        <.kv label="Objects" value={Formatters.format_integer(@table.size)} />
-        <.kv label="Memory" value={format_memory(@table.memory)} />
-        <.kv label="Compressed" value={flag(@table, :compressed)} />
-        <.kv label="Read concurrency" value={flag(@table, :read_concurrency)} />
-        <.kv label="Write concurrency" value={flag(@table, :write_concurrency)} />
-        <.kv label="Decentralized counters" value={flag(@table, :decentralized_counters)} last />
+        <.kv
+          label="Objects"
+          help={EtsTableHelp.get(:size)}
+          value={Formatters.format_integer(@table.size)}
+        />
+        <.kv label="Memory" help={EtsTableHelp.get(:memory)} value={format_memory(@table.memory)} />
+        <.kv
+          label="Compressed"
+          help={EtsTableHelp.get(:compressed)}
+          value={flag(@table, :compressed)}
+        />
+        <.kv
+          label="Read concurrency"
+          help={EtsTableHelp.get(:read_concurrency)}
+          value={flag(@table, :read_concurrency)}
+        />
+        <.kv
+          label="Write concurrency"
+          help={EtsTableHelp.get(:write_concurrency)}
+          value={flag(@table, :write_concurrency)}
+        />
+        <.kv
+          label="Decentralized counters"
+          help={EtsTableHelp.get(:decentralized_counters)}
+          value={flag(@table, :decentralized_counters)}
+          last
+        />
       </.section>
     </div>
     """
@@ -513,7 +564,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
 
   defp owner_kv(assigns) do
     ~H"""
-    <.kv label="Owner" last={@last}>
+    <.kv label="Owner" help={EtsTableHelp.get(:owner)} last={@last}>
       <.link navigate={@href} class="text-primary hover:underline">
         {Formatters.pid(@pid)}
       </.link>
@@ -525,12 +576,12 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
     ~H"""
     <div class="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
       <.section title="Overview">
-        <.kv_skeleton label="Type" narrow />
-        <.kv_skeleton label="Protection" narrow />
-        <.kv_skeleton label="Named table" narrow />
-        <.kv_skeleton label="Key position" narrow />
-        <.kv_skeleton label="Owner" />
-        <.kv_skeleton label="Heir" last />
+        <.kv_skeleton label="Type" help={EtsTableHelp.get(:type)} narrow />
+        <.kv_skeleton label="Protection" help={EtsTableHelp.get(:protection)} narrow />
+        <.kv_skeleton label="Named table" help={EtsTableHelp.get(:named_table)} narrow />
+        <.kv_skeleton label="Key position" help={EtsTableHelp.get(:keypos)} narrow />
+        <.kv_skeleton label="Owner" help={EtsTableHelp.get(:owner)} />
+        <.kv_skeleton label="Heir" help={EtsTableHelp.get(:heir)} last />
       </.section>
     </div>
     """
@@ -560,7 +611,5 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
   defp format_heir(pid) when is_pid(pid), do: Formatters.pid(pid)
 
   defp format_memory(bytes),
-    do: "#{Formatters.format_bytes(bytes)} (#{format_exact_bytes(bytes)})"
-
-  defp format_exact_bytes(bytes), do: "#{Formatters.format_integer(bytes)} B"
+    do: "#{Formatters.format_bytes(bytes)} (#{Formatters.format_exact_bytes(bytes)})"
 end

@@ -1,13 +1,13 @@
 defmodule VoyagerAgentEtsTest do
   use ExUnit.Case, async: false
 
-  @compile {:no_warn_undefined, :voyager_agent}
+  @compile {:no_warn_undefined, Voyager.Agent.module()}
 
   alias Voyager.Services.Ets.Search
   alias Voyager.Test.EtsTable
   alias Voyager.Test.VoyagerAgentFixture
 
-  @agent_module :voyager_agent
+  @agent_module Voyager.Agent.module()
   @marker :"$voyager_truncated"
   @skip :"$voyager_skip"
   @budget Voyager.Agent.default_budget()

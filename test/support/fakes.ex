@@ -13,6 +13,8 @@ defmodule Voyager.Fakes do
   alias Voyager.NodeSession.Session
   alias Voyager.Pid
 
+  @agent_module Voyager.Agent.module()
+
   @doc """
   Builds a `Voyager.NodeSession.Session` with sensible defaults.
   """
@@ -115,7 +117,7 @@ defmodule Voyager.Fakes do
   `:process_info` is the `:erlang.process_info/2` keyword list; pass
   `process_info: [status: :running]` to override single attributes of it, or a
   bare `:undefined` for a dead process. Every other key is the verbatim reply of
-  the `:voyager_agent` function it is named after, so a test can hand back
+  the agent function it is named after, so a test can hand back
   `proc_links: {:error, :dead}` as easily as a bounded map. Drop a key to assert
   the call is never made -- `erpc_reply/4` raises on a section the fixture does
   not define.
@@ -188,7 +190,7 @@ defmodule Voyager.Fakes do
 
   def erpc_reply(:erlang, :system_info, [:wordsize], data), do: data.wordsize
 
-  def erpc_reply(:voyager_agent, fun, _args, data), do: Map.fetch!(data, fun)
+  def erpc_reply(@agent_module, fun, _args, data), do: Map.fetch!(data, fun)
 
   # Mirrors what :erlang.system_info/1 and :erlang.statistics/1 return per key.
   defp system_value(:otp_release, d), do: to_charlist(d.otp_release)

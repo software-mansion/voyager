@@ -11,6 +11,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   alias VoyagerWeb.Components.DetailsPanelComponents
   alias VoyagerWeb.Components.EtsTableComponents
   alias VoyagerWeb.Components.TermComponents
+  alias VoyagerWeb.EtsTableHelp
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.EtsLookupControls
   alias VoyagerWeb.FormSchemas.EtsPeekControls
@@ -22,6 +23,9 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   @budget_help "Caps how much of each fetched term the remote node sends back — " <>
                  "roughly one unit per subterm, binaries charged per byte kept. " <>
                  "Anything beyond the budget is truncated on the remote."
+
+  @records_timeout_help "How long to wait for the node to read a page of records before the fetch fails."
+  @lookup_timeout_help "How long to wait for the node to look up this key before the lookup fails."
 
   @preview_opts [
     limit: 20,
@@ -83,10 +87,10 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       id="ets-table-info"
       class="border-base-200 bg-base-100 grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border p-4 sm:grid-cols-3 lg:grid-cols-5"
     >
-      <.info_item label="Type">
+      <.info_item label="Type" help={:type}>
         <span class="badge badge-sm badge-ghost font-mono">{@info.type}</span>
       </.info_item>
-      <.info_item label="Protection">
+      <.info_item label="Protection" help={:protection}>
         <EtsTableComponents.private_badge
           :if={@info.protection == :private}
           id="ets-info-protection"
@@ -96,21 +100,29 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
           {@info.protection}
         </span>
       </.info_item>
-      <.info_item id="ets-info-keypos" label="Key position">{@info.keypos}</.info_item>
-      <.info_item label="Records">{Formatters.format_integer(@info.size)}</.info_item>
-      <.info_item label="Memory">{Formatters.format_bytes(@info.memory)}</.info_item>
-      <.info_item id="ets-info-owner" label="Owner">
+      <.info_item id="ets-info-keypos" label="Key position" help={:keypos}>{@info.keypos}</.info_item>
+      <.info_item label="Records" help={:size}>{Formatters.format_integer(@info.size)}</.info_item>
+      <.info_item label="Memory" help={:memory}>{Formatters.format_bytes(@info.memory)}</.info_item>
+      <.info_item id="ets-info-owner" label="Owner" help={:owner}>
         <.pid_link href={@owner_href} pid={@info.owner} />
       </.info_item>
-      <.info_item :if={@info.heir == :none} label="Heir">none</.info_item>
-      <.info_item :if={@info.heir != :none} label="Heir">
+      <.info_item :if={@info.heir == :none} label="Heir" help={:heir}>none</.info_item>
+      <.info_item :if={@info.heir != :none} label="Heir" help={:heir}>
         <.pid_link href={@heir_href} pid={@info.heir} />
       </.info_item>
-      <.info_item label="Named table">{@info.named_table}</.info_item>
-      <.info_item label="Compressed">{@info.compressed}</.info_item>
-      <.info_item label="Read concurrency">{@info.read_concurrency}</.info_item>
-      <.info_item label="Write concurrency">{@info.write_concurrency}</.info_item>
-      <.info_item :if={Map.has_key?(@info, :decentralized_counters)} label="Decentralized counters">
+      <.info_item label="Named table" help={:named_table}>{@info.named_table}</.info_item>
+      <.info_item label="Compressed" help={:compressed}>{@info.compressed}</.info_item>
+      <.info_item label="Read concurrency" help={:read_concurrency}>
+        {@info.read_concurrency}
+      </.info_item>
+      <.info_item label="Write concurrency" help={:write_concurrency}>
+        {@info.write_concurrency}
+      </.info_item>
+      <.info_item
+        :if={Map.has_key?(@info, :decentralized_counters)}
+        label="Decentralized counters"
+        help={:decentralized_counters}
+      >
         {@info.decentralized_counters}
       </.info_item>
     </dl>
@@ -118,13 +130,19 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   end
 
   attr :label, :string, required: true
+  attr :help, :atom, required: true, doc: "`EtsTableHelp` key"
   attr :id, :string, default: nil
   slot :inner_block, required: true
 
   defp info_item(assigns) do
+    assigns = assign(assigns, :entry, EtsTableHelp.get(assigns.help))
+
     ~H"""
     <div id={@id} class="flex min-w-0 flex-col gap-0.5">
-      <dt class="text-base-content/60 text-xs">{@label}</dt>
+      <dt class="text-base-content/60 flex h-6 items-center gap-1 text-xs">
+        {@label}
+        <.help_tooltip id={"ets-info-help-#{@help}"} entry={@entry} />
+      </dt>
       <dd class="font-mono text-base-content truncate text-xs">{render_slot(@inner_block)}</dd>
     </div>
     """
@@ -136,7 +154,10 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   attr :fetched?, :boolean, default: false
 
   def controls(assigns) do
-    assigns = assign(assigns, :budget_help, @budget_help)
+    assigns =
+      assigns
+      |> assign(:budget_help, @budget_help)
+      |> assign(:records_timeout_help, @records_timeout_help)
 
     ~H"""
     <.form for={@form} id="ets-peek-controls" phx-change="validate" class="flex flex-col gap-1">
@@ -145,11 +166,15 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
         class={["contents", (@loading? or not @readable?) && "opacity-60"]}
       >
         <div class="grid-cols-[auto_auto_auto] grid-rows-[auto_auto_auto] grid w-max items-center gap-x-3">
-          <.field_label field={@form[:budget]} label="Budget per record" help={@budget_help} />
-          <.field_label field={@form[:timeout]} label="Timeout (ms)" />
+          <.field_label field={@form[:budget]} label="Record budget" help={@budget_help} />
+          <.field_label field={@form[:timeout]} label="Timeout (ms)" help={@records_timeout_help} />
           <span />
 
-          <.number_input field={@form[:budget]} bounds={EtsPeekControls.budget_bounds()} />
+          <.number_input
+            field={@form[:budget]}
+            bounds={EtsPeekControls.budget_bounds()}
+            class="w-28"
+          />
           <.number_input field={@form[:timeout]} bounds={EtsPeekControls.timeout_bounds()} />
 
           <button
@@ -268,7 +293,10 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   attr :page_size_options, :list, required: true
 
   def sidebar(assigns) do
-    assigns = assign(assigns, :budget_help, @budget_help)
+    assigns =
+      assigns
+      |> assign(:budget_help, @budget_help)
+      |> assign(:lookup_timeout_help, @lookup_timeout_help)
 
     ~H"""
     <aside
@@ -303,7 +331,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
         >
           <div class="grid-cols-[auto_auto_auto] grid-rows-[auto_auto_auto] grid w-max items-center gap-x-3">
             <.field_label field={@form[:budget]} label="Term budget" help={@budget_help} />
-            <.field_label field={@form[:timeout]} label="Timeout (ms)" />
+            <.field_label field={@form[:timeout]} label="Timeout (ms)" help={@lookup_timeout_help} />
             <span />
 
             <.number_input field={@form[:budget]} bounds={{EtsLookupControls.min_budget(), nil}} />
@@ -420,6 +448,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   attr :field, Phoenix.HTML.FormField, required: true
   attr :bounds, :any, required: true, doc: "`{min, max}`; a nil max leaves the field unbounded"
+  attr :class, :any, default: "w-26"
 
   defp number_input(assigns) do
     ~H"""
@@ -434,7 +463,8 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       inputmode="numeric"
       phx-debounce="500"
       class={[
-        "input input-sm input-bordered no-spinner font-mono w-24",
+        "input input-sm input-bordered no-spinner font-mono",
+        @class,
         @field.errors != [] && "input-error"
       ]}
     />

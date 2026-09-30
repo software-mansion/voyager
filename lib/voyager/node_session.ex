@@ -191,7 +191,7 @@ defmodule Voyager.NodeSession do
     %{state | session: nil}
   end
 
-  # Connect owns loading the agent: a node without `:voyager_agent` is not a
+  # Connect owns loading the agent: a node without the agent is not a
   # usable session, so a failed install fails the whole connect.
   defp connect_and_install(connector, node_name, cookie, opts) do
     with {:ok, node, meta} <- safe_connect(connector, node_name, cookie, opts) do
