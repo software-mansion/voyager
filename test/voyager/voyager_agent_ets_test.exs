@@ -19,8 +19,7 @@ defmodule VoyagerAgentEtsTest do
 
   describe "ets_select_chunk/4" do
     test "walks each record with the budget and leaves the ETS continuation opaque" do
-      name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :set])
+      name = EtsTable.named()
 
       blob = :binary.copy(<<"a">>, 10_000)
 
@@ -52,8 +51,7 @@ defmodule VoyagerAgentEtsTest do
     end
 
     test "keeps the page length at Limit when the budget is zero" do
-      name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :set])
+      name = EtsTable.named()
 
       for i <- 1..10, do: :ets.insert(name, {i, i})
 
@@ -65,8 +63,7 @@ defmodule VoyagerAgentEtsTest do
     end
 
     test "pages through a table larger than the chunk size" do
-      name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :set])
+      name = EtsTable.named()
 
       for i <- 1..25, do: :ets.insert(name, {i, i})
 
@@ -89,8 +86,7 @@ defmodule VoyagerAgentEtsTest do
     end
 
     test "maps a table smaller than the chunk size to an undefined continuation" do
-      name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :set])
+      name = EtsTable.named()
 
       for i <- 1..3, do: :ets.insert(name, {i, i})
 
@@ -101,8 +97,7 @@ defmodule VoyagerAgentEtsTest do
     end
 
     test "returns an empty chunk for an empty table" do
-      name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :set])
+      name = EtsTable.named()
 
       assert {:ok, %{records: [], continuation: :undefined, truncated: false}} =
                @agent_module.ets_select_chunk(name, 10, @budget, :undefined)
@@ -118,8 +113,7 @@ defmodule VoyagerAgentEtsTest do
     end
 
     test "raises badarg for a negative budget" do
-      name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :set])
+      name = EtsTable.named()
 
       assert_raise ArgumentError, fn ->
         @agent_module.ets_select_chunk(name, 10, -1, :undefined)
@@ -129,14 +123,12 @@ defmodule VoyagerAgentEtsTest do
 
   describe "ets_lookup/5" do
     test "pages a duplicate_bag key after an ETF-round-tripped continuation" do
-      name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :duplicate_bag])
+      name = EtsTable.named(:duplicate_bag)
       assert_paged_key_lookup(name)
     end
 
     test "does not ship leftover bag binaries in the continuation" do
-      name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :duplicate_bag])
+      name = EtsTable.named(:duplicate_bag)
       blob = :binary.copy(<<"a">>, 10_000)
       for _i <- 1..30, do: :ets.insert(name, {:k, blob})
 
@@ -157,8 +149,7 @@ defmodule VoyagerAgentEtsTest do
     end
 
     test "returns at most one row for a set key" do
-      name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :set])
+      name = EtsTable.named()
       :ets.insert(name, {:k, 1})
       :ets.insert(name, {:other, 2})
 
@@ -167,8 +158,7 @@ defmodule VoyagerAgentEtsTest do
     end
 
     test "looks up a set row wider than 255 elements" do
-      name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :set])
+      name = EtsTable.named()
       wide = wide_record(:k, 256)
       :ets.insert(name, wide)
 
@@ -177,8 +167,7 @@ defmodule VoyagerAgentEtsTest do
     end
 
     test "looks up a bag row wider than 255 elements" do
-      name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :bag])
+      name = EtsTable.named(:bag)
       wide = wide_record(:k, 256)
       :ets.insert(name, wide)
       :ets.insert(name, {:other, 1})
@@ -213,8 +202,7 @@ defmodule VoyagerAgentEtsTest do
     end
 
     test "raises badarg for a zero limit" do
-      name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :bag])
+      name = EtsTable.named(:bag)
 
       assert_raise ArgumentError, fn ->
         @agent_module.ets_lookup(name, :k, 0, @budget, :undefined)
@@ -222,8 +210,7 @@ defmodule VoyagerAgentEtsTest do
     end
 
     test "does not duplicate a wide row when the key is a match-spec atom" do
-      name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :bag])
+      name = EtsTable.named(:bag)
       :ets.insert(name, {:"$1", 1})
       :ets.insert(name, wide_record(:"$1", 256))
       assert_lookup_matches_ets(name, :"$1")
@@ -231,8 +218,7 @@ defmodule VoyagerAgentEtsTest do
 
     test "treats match-spec keys as literals" do
       keys = [:"$1", {:"$1", :_}, [:"$1"], %{}]
-      name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :bag])
+      name = EtsTable.named(:bag)
 
       for key <- keys, do: :ets.insert(name, {key, :hit})
       :ets.insert(name, {%{a: 1}, :decoy})
@@ -241,8 +227,7 @@ defmodule VoyagerAgentEtsTest do
     end
 
     test "truncates matching bag rows within the page" do
-      name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :duplicate_bag])
+      name = EtsTable.named(:duplicate_bag)
 
       blob = :binary.copy(<<"a">>, 10_000)
       :ets.insert(name, {:k, blob})
@@ -268,8 +253,7 @@ defmodule VoyagerAgentEtsTest do
     end
 
     test "raises badarg for a negative budget" do
-      name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :set])
+      name = EtsTable.named()
 
       assert_raise ArgumentError, fn ->
         @agent_module.ets_lookup(name, :k, 10, -1, :undefined)
@@ -277,8 +261,7 @@ defmodule VoyagerAgentEtsTest do
     end
 
     test "restores the caller's max_heap_size instead of leaving it capped" do
-      name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :set])
+      name = EtsTable.named()
 
       before = Process.info(self(), :max_heap_size)
       assert {:ok, _chunk} = @agent_module.ets_lookup(name, :k, 10, @budget, :undefined)
@@ -288,8 +271,7 @@ defmodule VoyagerAgentEtsTest do
 
   describe "ets_select_spec/5" do
     test "does not require the gen_server to be registered" do
-      name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :set])
+      name = EtsTable.named()
       :ets.insert(name, {:k, 1})
       {:ok, spec} = Search.compile({:key_eq, :k})
 
@@ -300,8 +282,7 @@ defmodule VoyagerAgentEtsTest do
     end
 
     test "pages after an ETF-round-tripped continuation repaired against the caller spec" do
-      name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :set])
+      name = EtsTable.named()
 
       for i <- 1..25, do: :ets.insert(name, {i, :hit})
       {:ok, spec} = Search.compile({:element_eq, 2, :hit})
@@ -328,8 +309,7 @@ defmodule VoyagerAgentEtsTest do
     end
 
     test "raises badarg for a spec that is not a one-clause source MS" do
-      name = EtsTable.unique_name()
-      :ets.new(name, [:named_table, :public, :set])
+      name = EtsTable.named()
 
       assert_raise ArgumentError, fn ->
         @agent_module.ets_select_spec(name, "not a spec", 10, @budget, :undefined)

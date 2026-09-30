@@ -7,4 +7,8 @@ defmodule Voyager.Test.EtsTable do
 
   @spec unique_name() :: atom()
   def unique_name, do: :"voyager_ets_#{System.unique_integer([:positive])}"
+
+  @doc "Creates a public named table of `type` and returns its name."
+  @spec named(:ets.table_type()) :: atom()
+  def named(type \\ :set), do: :ets.new(unique_name(), [:named_table, :public, type])
 end

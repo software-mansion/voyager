@@ -14,8 +14,7 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
   end
 
   test "list/1 returns live local tables with memory in bytes" do
-    name = EtsTable.unique_name()
-    :ets.new(name, [:named_table, :public, :set])
+    name = EtsTable.named()
 
     assert {:ok, tables} = Remote.list(Node.self())
     table = Enum.find(tables, &(&1.id == name))
@@ -46,8 +45,7 @@ defmodule Voyager.Services.Ets.RemoteLiveTest do
   end
 
   test "info/2 fetches a named table and :not_found after delete" do
-    name = EtsTable.unique_name()
-    :ets.new(name, [:named_table, :public])
+    name = EtsTable.named()
 
     assert {:ok, info} = Remote.info(Node.self(), name)
     assert info.id == name
