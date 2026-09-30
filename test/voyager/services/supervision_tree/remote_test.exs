@@ -92,14 +92,15 @@ defmodule Voyager.Services.SupervisionTree.RemoteTest do
     end
   end
 
-  describe "process_info_batch/2" do
+  describe "process_info_many/3" do
     test "returns map with info for mid-supervisor pids", %{node: node} do
       {:ok, [master]} = Remote.app_masters(node, [:voyager_fixture])
       {:ok, [{root_pid, _}]} = Remote.app_children(node, [master])
       {:ok, children} = Remote.which_children(node, root_pid)
       mid_pids = Enum.map(children, fn {_id, pid, _type, _mods} -> pid end)
+      info_keys = [:registered_name, :initial_call, :current_function]
 
-      assert {:ok, info_map} = Remote.process_info_batch(node, mid_pids)
+      assert {:ok, info_map} = Remote.process_info_many(node, mid_pids, info_keys)
 
       Enum.each(mid_pids, fn pid ->
         assert Map.has_key?(info_map, pid)
@@ -107,13 +108,15 @@ defmodule Voyager.Services.SupervisionTree.RemoteTest do
         assert is_map(pinfo)
       end)
 
-      assert {:ok, info_map} = Remote.process_info_batch(node, mid_pids, include_relations?: true)
+      relation_keys = [:links, :monitors, :monitored_by]
+
+      assert {:ok, info_map} =
+               Remote.process_info_many(node, mid_pids, info_keys ++ relation_keys)
 
       Enum.each(mid_pids, fn pid ->
         assert Map.has_key?(info_map, pid)
         pinfo = info_map[pid]
         assert is_map(pinfo)
-        # Relationship keys ride along on the same batch call.
         assert Map.has_key?(pinfo, :links)
         assert Map.has_key?(pinfo, :monitors)
         assert Map.has_key?(pinfo, :monitored_by)
@@ -132,8 +135,9 @@ defmodule Voyager.Services.SupervisionTree.RemoteTest do
       # Sync: wait for the supervisor to have handled the DOWN and restarted the child
       :erpc.call(node, :sys, :get_state, [Voyager.Test.FixtureApp.MidSupA])
 
-      # The old pid is now dead; query a batch containing it alongside a live pid
-      assert {:ok, info_map} = Remote.process_info_batch(node, [worker_pid, mid_a_pid])
+      info_keys = [:registered_name, :initial_call, :current_function]
+
+      assert {:ok, info_map} = Remote.process_info_many(node, [worker_pid, mid_a_pid], info_keys)
       assert info_map[worker_pid] == :dead
       assert is_map(info_map[mid_a_pid])
     end

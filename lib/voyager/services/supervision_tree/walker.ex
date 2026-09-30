@@ -63,6 +63,8 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   alias Voyager.Services.SupervisionTree.TreeNode
 
   @walk_deadline_ms 5_000
+  @info_keys [:registered_name, :initial_call, :current_function]
+  @relation_keys [:links, :monitors, :monitored_by]
 
   @type walk_result :: %{
           nodes: %{String.t() => TreeNode.t()},
@@ -455,7 +457,9 @@ defmodule Voyager.Services.SupervisionTree.Walker do
       |> Enum.filter(&is_pid/1)
       |> Enum.uniq()
 
-    case Remote.process_info_batch(node, pids, include_relations?: include_relations?) do
+    keys = if include_relations?, do: @info_keys ++ @relation_keys, else: @info_keys
+
+    case Remote.process_info_many(node, pids, keys) do
       {:error, reason} ->
         {nodes, [{:process_info, :batch, reason}]}
 
@@ -523,7 +527,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   defp fetch_external_info(_node, []), do: {%{}, []}
 
   defp fetch_external_info(node, external_pids) do
-    case Remote.process_info_batch(node, external_pids, include_relations?: true) do
+    case Remote.process_info_many(node, external_pids, @info_keys ++ @relation_keys) do
       {:ok, info_map} -> {info_map, []}
       {:error, reason} -> {%{}, [{:process_info, :relations, reason}]}
     end
