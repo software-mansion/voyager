@@ -137,47 +137,28 @@ defmodule Voyager.Services.NodeInfo do
   end
 
   defp run_parallel(funs, timeout) do
-    tasks = Enum.map(funs, &safe_async/1)
-
-    results = Task.yield_many(tasks, timeout)
-
-    # Tasks that returned nil are still blocked on :erpc I/O; brutal_kill
-    # guarantees immediate termination rather than waiting for the remote end.
-    for {task, nil} <- results, do: Task.shutdown(task, :brutal_kill)
-
-    summarize(results)
-  end
-
-  defp safe_async(fun) do
-    Task.async(fn ->
-      try do
-        {:ok, fun.()}
-      catch
-        kind, reason -> {:error, kind, reason}
-      end
-    end)
-  end
-
-  defp summarize(results) do
-    results
+    funs
+    |> Task.async_stream(&capture/1,
+      timeout: timeout,
+      on_timeout: :kill_task,
+      max_concurrency: length(funs)
+    )
     |> Enum.reduce_while({:ok, []}, fn
-      {_task, {:ok, {:ok, value}}}, {:ok, acc} ->
-        {:cont, {:ok, [value | acc]}}
-
-      {_task, {:ok, {:error, kind, reason}}}, _ ->
-        {:halt, {:error, classify(kind, reason)}}
-
-      {_task, {:exit, reason}}, _ ->
-        # Untrappable exit (e.g. task killed externally during shutdown).
-        {:halt, {:error, {:rpc, reason}}}
-
-      {_task, nil}, _ ->
-        {:halt, {:error, :timeout}}
+      {:ok, {:ok, value}}, {:ok, acc} -> {:cont, {:ok, [value | acc]}}
+      {:ok, {:error, kind, reason}}, _ -> {:halt, {:error, classify(kind, reason)}}
+      {:exit, :timeout}, _ -> {:halt, {:error, :timeout}}
+      {:exit, reason}, _ -> {:halt, {:error, {:rpc, reason}}}
     end)
     |> case do
       {:ok, values} -> {:ok, Enum.reverse(values)}
       error -> error
     end
+  end
+
+  defp capture(fun) do
+    {:ok, fun.()}
+  catch
+    kind, reason -> {:error, kind, reason}
   end
 
   defp classify(:error, {:erpc, :noconnection}), do: :noconnection
