@@ -62,7 +62,8 @@ export const overlayMethods = {
 
     const dom = document.createElement('button');
     dom.type = 'button';
-    dom.className = 'cy-toggle';
+    dom.className =
+      'cy-toggle btn btn-circle btn-xs absolute pointer-events-auto shadow-none bg-base-100 border-base-content/20 text-base-content/60 hover:bg-primary hover:text-base-100';
     dom.dataset.key = key;
     this.decorateOverlay(dom, node);
     dom.addEventListener('click', (ev) => {
