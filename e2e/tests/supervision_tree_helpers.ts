@@ -1,7 +1,14 @@
-import cytoscape, { EdgeSingular } from 'cytoscape';
 import { execSync } from 'node:child_process';
 import { expect, type Page } from '@playwright/test';
 import { NODE_NAME, COOKIE, sel, ensureConnected } from './fixtures';
+
+interface Cy {
+  nodes(): any;
+  edges(): any;
+  zoom(level?: number): number;
+  center(eles: unknown): void;
+  emit(event: string): void;
+}
 
 /**
  * Runs `mock_app_ctl` (or any MFA) on the target node and returns the printed
@@ -47,7 +54,7 @@ type CyNodeSnapshot =
 export function cyNode(page: Page, ref: string): Promise<CyNodeSnapshot> {
   return page.evaluate((ref) => {
     const cy = (document.getElementById('supervision-tree-body') as any)
-      ?._cy as cytoscape.Core;
+      ?._cy as Cy;
     if (!cy) return { exists: false as const };
 
     const hit = cy
@@ -81,7 +88,7 @@ export function relEdge(
   return page.evaluate(
     ({ fromRef, toRef, kind }) => {
       const cy = (document.getElementById('supervision-tree-body') as any)
-        ?._cy as cytoscape.Core;
+        ?._cy as Cy;
       if (!cy) return false;
 
       const idOf = (ref: string) => {
@@ -97,8 +104,8 @@ export function relEdge(
       if (!a || !b) return false;
 
       return cy.edges().some((e) => {
-        const s = (e as EdgeSingular).source().id();
-        const t = (e as EdgeSingular).target().id();
+        const s = e.source().id();
+        const t = e.target().id();
         return (
           e.data('kind') === kind &&
           ((s === a && t === b) || (s === b && t === a))
@@ -117,7 +124,7 @@ export function relEdge(
 export function floatingNodes(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const cy = (document.getElementById('supervision-tree-body') as any)
-      ?._cy as cytoscape.Core;
+      ?._cy as Cy;
     if (!cy) return [];
 
     const out: string[] = [];
@@ -163,7 +170,7 @@ export async function openTree(page: Page) {
 export function focusNode(page: Page, ref: string): Promise<boolean> {
   return page.evaluate((ref) => {
     const cy = (document.getElementById('supervision-tree-body') as any)
-      ?._cy as cytoscape.Core;
+      ?._cy as Cy;
     if (!cy) return false;
 
     const node = cy
@@ -224,7 +231,7 @@ export async function refreshed(page: Page, assertion: () => Promise<void>) {
 export async function selectNode(page: Page, ref: string) {
   const ok = await page.evaluate((n) => {
     const cy = (document.getElementById('supervision-tree-body') as any)
-      ?._cy as cytoscape.Core;
+      ?._cy as Cy;
     if (!cy) return false;
     const hit = cy
       .nodes()
@@ -242,7 +249,7 @@ export async function selectNode(page: Page, ref: string) {
 export async function clearSelection(page: Page) {
   const ok = await page.evaluate(() => {
     const cy = (document.getElementById('supervision-tree-body') as any)
-      ?._cy as cytoscape.Core;
+      ?._cy as Cy;
     if (!cy) return false;
     cy.emit('tap');
     return true;

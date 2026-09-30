@@ -10,7 +10,6 @@
   "devDependencies": {
     "@playwright/test": "^1.60.0",
     "@types/node": "^25.9.1",
-    "cytoscape": "3.34.3",
     "prettier": "^3.8.3"
   }
 }
