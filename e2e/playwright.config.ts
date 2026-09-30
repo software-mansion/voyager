@@ -1,4 +1,29 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig, devices, type Project } from '@playwright/test';
+
+// One project per browser; `serial` runs firefox after chromium instead of alongside it.
+function pair(
+  name: string,
+  testMatch: string | string[],
+  dependencies?: string[],
+  { serial = false, ...options }: Project & { serial?: boolean } = {}
+): Project[] {
+  return [
+    {
+      name: `${name} chromium`,
+      use: { ...devices['Desktop Chrome'] },
+      testMatch,
+      dependencies,
+      ...options,
+    },
+    {
+      name: `${name} firefox`,
+      use: { ...devices['Desktop Firefox'] },
+      testMatch,
+      dependencies: serial ? [`${name} chromium`] : dependencies,
+      ...options,
+    },
+  ];
+}
 
 export default defineConfig({
   testDir: './tests',
@@ -23,17 +48,7 @@ export default defineConfig({
   },
 
   projects: [
-    {
-      name: 'connect-form chromium',
-      use: { ...devices['Desktop Chrome'] },
-      testMatch: '**/connect_form.spec.ts',
-    },
-    {
-      name: 'connect-form firefox',
-      use: { ...devices['Desktop Firefox'] },
-      testMatch: '**/connect_form.spec.ts',
-    },
-
+    ...pair('connect-form', '**/connect_form.spec.ts'),
     {
       name: 'connect',
       use: { ...devices['Desktop Chrome'] },
@@ -41,83 +56,27 @@ export default defineConfig({
       testMatch: '**/connect.spec.ts',
       dependencies: ['connect-form chromium', 'connect-form firefox'],
     },
-
-    {
-      name: 'recent-connections chromium',
-      use: { ...devices['Desktop Chrome'] },
-      workers: 1,
-      testMatch: '**/recent_connections.spec.ts',
-      dependencies: ['connect'],
-    },
-    {
-      name: 'recent-connections firefox',
-      use: { ...devices['Desktop Firefox'] },
-      workers: 1,
-      testMatch: '**/recent_connections.spec.ts',
-      dependencies: ['recent-connections chromium'],
-    },
-
-    {
-      name: 'ets chromium',
-      use: { ...devices['Desktop Chrome'] },
-      testMatch: '**/ets_tables.spec.ts',
-      dependencies: ['recent-connections firefox'],
-    },
-    {
-      name: 'ets firefox',
-      use: { ...devices['Desktop Firefox'] },
-      testMatch: '**/ets_tables.spec.ts',
-      dependencies: ['recent-connections firefox'],
-    },
-
-    {
-      name: 'node chromium',
-      use: { ...devices['Desktop Chrome'] },
-      testMatch: '**/node_info.spec.ts',
-      dependencies: ['recent-connections firefox'],
-    },
-    {
-      name: 'node firefox',
-      use: { ...devices['Desktop Firefox'] },
-      testMatch: '**/node_info.spec.ts',
-      dependencies: ['recent-connections firefox'],
-    },
-
-    {
-      name: 'sidebar chromium',
-      use: { ...devices['Desktop Chrome'] },
-      testMatch: '**/sidebar.spec.ts',
-      dependencies: ['recent-connections firefox'],
-    },
-    {
-      name: 'sidebar firefox',
-      use: { ...devices['Desktop Firefox'] },
-      testMatch: '**/sidebar.spec.ts',
-      dependencies: ['recent-connections firefox'],
-    },
-
+    ...pair(
+      'recent-connections',
+      '**/recent_connections.spec.ts',
+      ['connect'],
+      { serial: true, workers: 1 }
+    ),
+    ...pair('ets', '**/ets_tables.spec.ts', ['recent-connections firefox']),
+    ...pair('node', '**/node_info.spec.ts', ['recent-connections firefox']),
+    ...pair('sidebar', '**/sidebar.spec.ts', ['recent-connections firefox']),
     // Supervision Tree tests mutate shared state on the target node, so run them in order.
-    {
-      name: 'supervision-tree chromium',
-      use: { ...devices['Desktop Chrome'] },
-      fullyParallel: false,
-      testMatch: ['**/supervision_tree.spec.ts', '**/details_panel.spec.ts'],
-      dependencies: ['recent-connections firefox'],
-    },
-    {
-      name: 'supervision-tree firefox',
-      use: { ...devices['Desktop Firefox'] },
-      fullyParallel: false,
-      testMatch: ['**/supervision_tree.spec.ts', '**/details_panel.spec.ts'],
-      dependencies: ['supervision-tree chromium'],
-    },
-
+    ...pair(
+      'supervision-tree',
+      ['**/supervision_tree.spec.ts', '**/details_panel.spec.ts'],
+      ['recent-connections firefox'],
+      { serial: true, fullyParallel: false }
+    ),
     // Processes tests flip the global pid format, so run them after every other project.
-    {
-      name: 'processes chromium',
-      use: { ...devices['Desktop Chrome'] },
-      testMatch: '**/processes.spec.ts',
-      dependencies: [
+    ...pair(
+      'processes',
+      '**/processes.spec.ts',
+      [
         'ets chromium',
         'ets firefox',
         'node chromium',
@@ -126,12 +85,7 @@ export default defineConfig({
         'sidebar firefox',
         'supervision-tree firefox',
       ],
-    },
-    {
-      name: 'processes firefox',
-      use: { ...devices['Desktop Firefox'] },
-      testMatch: '**/processes.spec.ts',
-      dependencies: ['processes chromium'],
-    },
+      { serial: true }
+    ),
   ],
 });
