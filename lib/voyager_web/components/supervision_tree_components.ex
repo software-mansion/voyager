@@ -6,14 +6,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
   use VoyagerWeb, :component
 
   alias Voyager.Pid
-
-  @interval_options [
-    {"Off", "off"},
-    {"5s", "5000"},
-    {"10s", "10000"},
-    {"30s", "30000"},
-    {"60s", "60000"}
-  ]
+  alias VoyagerWeb.Helpers
 
   @erts "https://www.erlang.org/doc/apps/erts/erlang.html"
   @supervisor "https://www.erlang.org/doc/apps/stdlib/supervisor.html"
@@ -142,7 +135,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
           <.interval_select
             id="refresh-interval"
             settings_key="supervision-tree"
-            options={interval_options()}
+            options={Helpers.interval_options(5_000)}
             refresh_interval={@refresh_interval}
             loading={@status == :loading}
           />
@@ -349,14 +342,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
     """
   end
 
-  defp interval_options, do: @interval_options
-
-  def default_refresh_interval,
-    do:
-      interval_options()
-      |> Enum.at(1)
-      |> elem(1)
-      |> String.to_integer()
+  def default_refresh_interval, do: 5_000
 
   defp node_legends, do: @node_legends
   defp edge_legends, do: @edge_legends
