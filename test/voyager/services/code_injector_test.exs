@@ -2,6 +2,7 @@ defmodule Voyager.Services.CodeInjectorTest do
   use ExUnit.Case, async: false
 
   import Mox
+  import Voyager.TestUtils
 
   alias Voyager.Services.CodeInjector
 
@@ -12,19 +13,15 @@ defmodule Voyager.Services.CodeInjectorTest do
               :voyager_remote_code_path
             ]}
 
-  setup do
-    previous_erpc = Application.get_env(:voyager, :erpc)
-    Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
+  setup :use_real_erpc
 
+  setup do
     on_exit(fn ->
-      Application.put_env(:voyager, :erpc, previous_erpc)
       unload(:voyager_remote_code_file)
       unload(:voyager_remote_code_macro)
       unload(:voyager_remote_code_bad)
       unload(:voyager_remote_code_path)
     end)
-
-    :ok
   end
 
   describe "load/2" do

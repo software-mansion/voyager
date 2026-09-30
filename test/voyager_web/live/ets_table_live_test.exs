@@ -4,6 +4,7 @@ defmodule VoyagerWeb.EtsTableLiveTest do
   use VoyagerWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
+  import Voyager.TestUtils
 
   alias Voyager.Fakes
   alias Voyager.Test.EtsTable
@@ -11,13 +12,10 @@ defmodule VoyagerWeb.EtsTableLiveTest do
 
   @node_name "nonode@nohost"
 
+  setup :use_real_erpc
+
   setup do
     VoyagerAgentFixture.load!()
-
-    prev_erpc = Application.get_env(:voyager, :erpc)
-    Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
-    on_exit(fn -> Application.put_env(:voyager, :erpc, prev_erpc) end)
-
     Fakes.connect_node!(Fakes.node_session(node: Node.self(), node_name: @node_name))
     :ok
   end

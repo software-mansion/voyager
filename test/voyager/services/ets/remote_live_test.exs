@@ -1,17 +1,12 @@
 defmodule Voyager.Services.Ets.RemoteLiveTest do
   use ExUnit.Case, async: false
 
+  import Voyager.TestUtils
+
   alias Voyager.Services.Ets.Remote
   alias Voyager.Test.EtsTable
 
-  setup do
-    prev = Application.get_env(:voyager, :erpc)
-    Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
-
-    on_exit(fn -> Application.put_env(:voyager, :erpc, prev) end)
-
-    :ok
-  end
+  setup :use_real_erpc
 
   test "list/1 returns live local tables with memory in bytes" do
     name = EtsTable.named()

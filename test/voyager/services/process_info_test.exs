@@ -6,6 +6,7 @@ defmodule Voyager.Services.ProcessInfoTest do
   use ExUnit.Case, async: false
 
   import Mox
+  import Voyager.TestUtils
 
   alias Voyager.Services.ProcessInfo
   alias Voyager.Test.VoyagerAgentFixture
@@ -17,12 +18,7 @@ defmodule Voyager.Services.ProcessInfoTest do
   setup_all do: VoyagerAgentFixture.load!()
 
   describe "fetch/2 against a live local process" do
-    setup do
-      prev_erpc = Application.get_env(:voyager, :erpc)
-      Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
-      on_exit(fn -> Application.put_env(:voyager, :erpc, prev_erpc) end)
-      :ok
-    end
+    setup :use_real_erpc
 
     test "returns fixed-size attributes and never leaks the raw dictionary or links" do
       pid = spawn_idle()
@@ -158,12 +154,7 @@ defmodule Voyager.Services.ProcessInfoTest do
   end
 
   describe "unbounded fetches against a live local process" do
-    setup do
-      prev_erpc = Application.get_env(:voyager, :erpc)
-      Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
-      on_exit(fn -> Application.put_env(:voyager, :erpc, prev_erpc) end)
-      :ok
-    end
+    setup :use_real_erpc
 
     test "fetch_links/3 returns a bounded payload including the linked process" do
       # Linked to a throwaway companion, not the test process itself: an

@@ -2,6 +2,7 @@ defmodule Voyager.AgentTest do
   use ExUnit.Case, async: false
 
   import Mox
+  import Voyager.TestUtils
 
   alias Voyager.Agent
   alias Voyager.Erpc
@@ -54,18 +55,14 @@ defmodule Voyager.AgentTest do
     end
 
     test "loads and registers the agent on a reachable node" do
-      previous_erpc = Application.get_env(:voyager, :erpc)
-      Application.put_env(:voyager, :erpc, Erpc.Impl)
-      on_exit(fn -> Application.put_env(:voyager, :erpc, previous_erpc) end)
+      use_real_erpc()
 
       assert :ok = Agent.install(Node.self())
       assert :sys.get_state(@agent_module) == {:state, %{Node.self() => true}}
     end
 
     test "keeps an in-flight agent call alive when another Voyager connects" do
-      previous_erpc = Application.get_env(:voyager, :erpc)
-      Application.put_env(:voyager, :erpc, Erpc.Impl)
-      on_exit(fn -> Application.put_env(:voyager, :erpc, previous_erpc) end)
+      use_real_erpc()
 
       node = Node.self()
       test_pid = self()
