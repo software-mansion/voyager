@@ -53,9 +53,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
             <.help_tooltip
               :if={@help}
               id={help_id("info-card", @title)}
-              text={@help.text}
-              doc_href={@help[:doc_href]}
-              doc_label={@help[:doc_label] || "Learn more"}
+              entry={@help}
             />
           </div>
           <span :if={@subtitle} class="font-mono text-base-content/70 text-xs">{@subtitle}</span>
@@ -70,9 +68,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
                 <.help_tooltip
                   :if={help}
                   id={help_id("row", label)}
-                  text={help.text}
-                  doc_href={help[:doc_href]}
-                  doc_label={help[:doc_label] || "Learn more"}
+                  entry={help}
                 />
               </div>
               <div class={["font-mono text-base-content text-sm", full_width? && "truncate"]}>
@@ -111,9 +107,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
             <.help_tooltip
               :if={@help}
               id={help_id("metric", @title)}
-              text={@help.text}
-              doc_href={@help[:doc_href]}
-              doc_label={@help[:doc_label] || "Learn more"}
+              entry={@help}
             />
           </div>
           <span :if={@subtitle} class="font-mono text-base-content/70 text-xs">{@subtitle}</span>
@@ -159,9 +153,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
         <.help_tooltip
           :if={@help}
           id={help_id("stat", @label)}
-          text={@help.text}
-          doc_href={@help[:doc_href]}
-          doc_label={@help[:doc_label] || "Learn more"}
+          entry={@help}
         />
       </div>
       <div class="mt-1">
@@ -194,9 +186,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
             <.help_tooltip
               :if={@help}
               id="memory-breakdown-help"
-              text={@help.text}
-              doc_href={@help[:doc_href]}
-              doc_label={@help[:doc_label] || "Learn more"}
+              entry={@help}
             />
           </div>
           <span class="font-mono text-base-content/70 text-xs">
@@ -262,9 +252,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
                 {label}
                 <.help_tooltip
                   id={"limit-#{label}-help"}
-                  text={tooltip.text}
-                  doc_href={tooltip[:doc_href]}
-                  doc_label={tooltip[:doc_label] || "Learn more"}
+                  entry={tooltip}
                 />
               </span>
               <span class="text-base-content/70 text-right tabular-nums">
@@ -328,9 +316,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
             <.help_tooltip
               :if={@help}
               id="applications-help"
-              text={@help.text}
-              doc_href={@help[:doc_href]}
-              doc_label={@help[:doc_label] || "Learn more"}
+              entry={@help}
             />
           </div>
           <span class="font-mono text-base-content/70 text-xs">{@total} running</span>
