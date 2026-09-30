@@ -3,7 +3,7 @@ defmodule Voyager.Telemetry.Measurements do
   Builders for telemetry measurement payloads.
   """
 
-  @doc "Subset of `:erlang.memory/0` suitable for export and LiveDashboard summaries."
+  @doc "Subset of `:erlang.memory/0` suitable for export."
   @spec vm_memory() :: map()
   def vm_memory do
     memory = :erlang.memory()
