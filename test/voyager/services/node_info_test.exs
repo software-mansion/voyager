@@ -1,6 +1,5 @@
 defmodule Voyager.Services.NodeInfoTest do
-  # async: false: the LiveView tests drive the same Voyager.ErpcMock in Mox
-  # global mode, where their stubs would override this test's expectations.
+  # async: false because use_real_erpc swaps the erpc impl for the whole VM.
   use ExUnit.Case, async: false
 
   import Voyager.TestUtils

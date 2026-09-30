@@ -1,6 +1,5 @@
 defmodule VoyagerWeb.ProcessInfoLive.HeavyProcessTest do
-  # async: false because these tests swap the global erpc impl to the real
-  # `Voyager.Erpc.Impl` and inspect live local processes through it.
+  # async: false because use_real_erpc swaps the erpc impl for the whole VM.
   use VoyagerWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest

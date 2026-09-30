@@ -1,6 +1,5 @@
 defmodule Voyager.Services.ProcessTermTest do
-  # async: false because other modules swap the global `:erpc` impl to
-  # `Voyager.Erpc.Impl`, which would restore it underneath this module's mock.
+  # async: false because other modules' use_real_erpc would swap out this mock VM-wide.
   use ExUnit.Case, async: false
 
   import Mox

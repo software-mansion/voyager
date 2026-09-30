@@ -5,7 +5,6 @@ defmodule Voyager.AgentTest do
   import Voyager.TestUtils
 
   alias Voyager.Agent
-  alias Voyager.Erpc
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Session
   alias Voyager.Test.FakeConnector
@@ -46,7 +45,7 @@ defmodule Voyager.AgentTest do
       stub(Voyager.ErpcMock, :call, fn node, mod, fun, args, timeout ->
         case {mod, fun} do
           {@agent_module, :register} -> {:error, :unavailable}
-          _ -> Erpc.Impl.call(node, mod, fun, args, timeout)
+          _ -> :erpc.call(node, mod, fun, args, timeout)
         end
       end)
 

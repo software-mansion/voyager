@@ -29,7 +29,7 @@ defmodule Voyager.TestUtils do
   """
   def use_real_erpc(_context \\ %{}) do
     previous_erpc = Application.get_env(:voyager, :erpc)
-    Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
+    Application.put_env(:voyager, :erpc, :erpc)
     on_exit(fn -> Application.put_env(:voyager, :erpc, previous_erpc) end)
     :ok
   end

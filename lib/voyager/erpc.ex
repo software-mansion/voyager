@@ -3,8 +3,7 @@ defmodule Voyager.Erpc do
   Thin seam over Erlang's `:erpc` so remote calls can be mocked in tests.
 
   The concrete implementation is resolved at call time from application config
-  (`config :voyager, :erpc, ...`) and defaults to `Voyager.Erpc.Impl`, which
-  delegates straight to `:erpc`.
+  (`config :voyager, :erpc, ...`) and defaults to `:erpc` itself.
   """
 
   @default_timeout 5_000
@@ -33,7 +32,7 @@ defmodule Voyager.Erpc do
   Returns the configured `Voyager.Erpc` implementation.
   """
   @spec impl() :: module()
-  def impl, do: Application.get_env(:voyager, :erpc, __MODULE__.Impl)
+  def impl, do: Application.get_env(:voyager, :erpc, :erpc)
 
   @doc """
   Default timeout for `safe_call/4`, matching `:erpc.call/4`.
@@ -83,20 +82,5 @@ defmodule Voyager.Erpc do
     {:ok, call(node, mod, fun, args, timeout_or_options)}
   catch
     kind, reason -> format_error(kind, reason)
-  end
-
-  defmodule Impl do
-    @moduledoc """
-    Default `Voyager.Erpc` implementation that delegates to Erlang's `:erpc`.
-    """
-
-    @behaviour Voyager.Erpc
-
-    @impl Voyager.Erpc
-    def call(node, mod, fun, args), do: :erpc.call(node, mod, fun, args)
-
-    @impl Voyager.Erpc
-    def call(node, mod, fun, args, timeout_or_options),
-      do: :erpc.call(node, mod, fun, args, timeout_or_options)
   end
 end

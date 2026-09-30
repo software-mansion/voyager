@@ -1,8 +1,5 @@
 defmodule Voyager.Services.ProcessInfoTest do
-  # async: false because the real-node tests swap the global `:erpc` impl to
-  # `Voyager.Erpc.Impl`. Running that concurrently with another async module
-  # doing the same (node_info_test) makes whichever finishes first restore the
-  # mock underneath the other, failing it with Mox.UnexpectedCallError.
+  # async: false because use_real_erpc swaps the erpc impl for the whole VM.
   use ExUnit.Case, async: false
 
   import Mox
