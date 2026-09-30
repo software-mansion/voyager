@@ -17,8 +17,6 @@ defmodule Voyager.MCPCase do
       @moduletag capture_log: true
 
       alias Voyager.MCP
-      alias Voyager.MCP.EndpointManager
-      alias Voyager.Repo
       alias Voyager.Settings
 
       import Voyager.MCPCase
