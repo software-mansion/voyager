@@ -6,6 +6,14 @@ import {
 } from './constants';
 import { formatName, formatPid } from './elements';
 
+const TYPE_COLOR_CLASS = {
+  app: 'text-primary',
+  supervisor: 'text-primary',
+  worker: 'text-secondary',
+  port: 'text-port',
+  reference: 'text-success',
+};
+
 /**
  * Hover tooltip showing the details of the node under the cursor.
  *
@@ -105,7 +113,7 @@ export const tooltipMethods = {
 
     this.tooltip.innerHTML = `
           <ul class="flex font-mono flex-col gap-1 break-all">
-            <li class="${typeColorClass(type)}">${escapeHtml(type)}</li>
+            <li class="${TYPE_COLOR_CLASS[type] ?? ''}">${escapeHtml(type)}</li>
             <li class="font-semibold my-1">${escapeHtml(displayName)}</li>
             ${app ? `<li>app: <span class="font-semibold">${escapeHtml(app)}</span></li>` : ''}
             ${parseMfa(info?.initial_call, 'initial_call:')}
@@ -168,26 +176,6 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
-}
-
-/**
- * @param {string} type
- */
-function typeColorClass(type) {
-  switch (type) {
-    case 'app':
-      return 'text-primary';
-    case 'supervisor':
-      return 'text-primary';
-    case 'worker':
-      return 'text-secondary';
-    case 'port':
-      return 'text-port';
-    case 'reference':
-      return 'text-success';
-    default:
-      return '';
-  }
 }
 
 /**
