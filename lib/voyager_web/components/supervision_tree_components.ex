@@ -5,6 +5,8 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
 
   use VoyagerWeb, :component
 
+  alias Voyager.Pid
+
   @interval_options [
     {"Off", "off"},
     {"5s", "5000"},
@@ -206,7 +208,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
           </div>
         <% MapSet.size(@selected_apps) == 0 -> %>
           <div class="flex h-full flex-col items-center justify-center gap-3 rounded-lg text-center">
-            <.icon name="icon-network" class="size-10 text-base-content/60" />
+            <.icon name="icon-network" class="size-10 text-base-content/60 -rotate-90" />
             <div>
               <p class="text-base-content/80 font-medium">No applications selected</p>
               <p class="text-base-content/70 text-sm">
@@ -223,6 +225,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
             id="supervision-tree-body"
             phx-hook="SupervisionTree"
             phx-update="ignore"
+            data-node-id={Pid.cached_format() == :local && Pid.cached_node_id()}
             class="bg-base-100 relative h-full overflow-hidden rounded-lg"
           >
             <.portal id="supervision-tree-node-snippet-portal" target="#tooltip-portal-root">
