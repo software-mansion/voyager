@@ -134,17 +134,17 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
           <.select
             field={@form[:protection]}
             options={EtsTableListControls.filter_options(:protection)}
-            class="w-32"
+            class="min-w-28"
           />
           <.select
             field={@form[:type]}
             options={EtsTableListControls.filter_options(:type)}
-            class="w-35"
+            class="min-w-35"
           />
           <.select
             field={@form[:named]}
             options={EtsTableListControls.filter_options(:named)}
-            class="w-32"
+            class="min-w-20"
           />
 
           <input
@@ -158,7 +158,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
             inputmode="numeric"
             phx-debounce="500"
             class={[
-              "input input-sm input-bordered no-spinner font-mono w-28",
+              "input input-sm input-bordered no-spinner font-mono w-26",
               @form[:timeout].errors != [] && "input-error"
             ]}
           />

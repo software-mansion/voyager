@@ -91,7 +91,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
             <.select
               field={@form[:limit]}
               options={ProcessListControls.limit_options()}
-              class="w-24"
+              class="min-w-20"
               disabled={@loading?}
             />
 
@@ -106,7 +106,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
               inputmode="numeric"
               phx-debounce="500"
               class={[
-                "input input-sm input-bordered no-spinner font-mono w-28",
+                "input input-sm input-bordered no-spinner font-mono w-26",
                 @form[:timeout].errors != [] && "input-error"
               ]}
             />
@@ -120,7 +120,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
               disabled={@loading?}
             />
 
-            <.field_error field={@form[:limit]} />
+            <.field_error field={@form[:limit]} class="min-w-20" />
             <.field_error field={@form[:timeout]} />
             <span />
           </div>
@@ -152,12 +152,13 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   end
 
   attr :field, Phoenix.HTML.FormField, required: true
+  attr :class, :any, default: "w-24"
 
   defp field_error(assigns) do
     ~H"""
     <%!-- The cell keeps the input's width and the message overflows it, so a
           long error cannot stretch the grid column and shift the controls. --%>
-    <p class="font-mono text-error relative h-4 w-24 text-xs">
+    <p class={["font-mono text-error relative h-4 text-xs", @class]}>
       <span class="absolute left-0 whitespace-nowrap">
         {@field.errors |> Enum.map_join(", ", &translate_error/1)}
       </span>

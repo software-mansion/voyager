@@ -169,7 +169,11 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
           <.field_label field={@form[:timeout]} label="Timeout (ms)" help={@records_timeout_help} />
           <span />
 
-          <.number_input field={@form[:budget]} bounds={EtsPeekControls.budget_bounds()} />
+          <.number_input
+            field={@form[:budget]}
+            bounds={EtsPeekControls.budget_bounds()}
+            class="w-28"
+          />
           <.number_input field={@form[:timeout]} bounds={EtsPeekControls.timeout_bounds()} />
 
           <button
@@ -420,6 +424,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   attr :field, Phoenix.HTML.FormField, required: true
   attr :bounds, :any, required: true, doc: "`{min, max}`; a nil max leaves the field unbounded"
+  attr :class, :any, default: "w-26"
 
   defp number_input(assigns) do
     ~H"""
@@ -434,7 +439,8 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       inputmode="numeric"
       phx-debounce="500"
       class={[
-        "input input-sm input-bordered no-spinner font-mono w-28",
+        "input input-sm input-bordered no-spinner font-mono",
+        @class,
         @field.errors != [] && "input-error"
       ]}
     />
