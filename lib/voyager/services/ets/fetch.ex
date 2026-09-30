@@ -51,19 +51,10 @@ defmodule Voyager.Services.Ets.Fetch do
         timeout \\ Agent.default_timeout()
       )
 
-  def select_chunk(node, table, limit, budget, continuation, timeout)
-      when TableId.is_table_id(table) and is_integer(limit) and limit > 0 do
-    cont = continuation || :undefined
-    fetch_chunk(node, :ets_select_chunk, [table, limit, budget, cont], timeout)
+  def select_chunk(node, table, limit, budget, continuation, timeout) do
+    args = [table, limit, budget, continuation || :undefined]
+    fetch_chunk(node, :ets_select_chunk, args, limit, timeout)
   end
-
-  def select_chunk(_node, table, _limit, _budget, _continuation, _timeout)
-      when TableId.is_table_id(table) do
-    {:error, :invalid_limit}
-  end
-
-  def select_chunk(_node, _table, _limit, _budget, _continuation, _timeout),
-    do: {:error, :invalid_table}
 
   @spec select_spec(
           node(),
@@ -85,19 +76,10 @@ defmodule Voyager.Services.Ets.Fetch do
         timeout \\ Agent.default_timeout()
       )
 
-  def select_spec(node, table, spec, limit, budget, continuation, timeout)
-      when TableId.is_table_id(table) and is_integer(limit) and limit > 0 do
-    cont = continuation || :undefined
-    fetch_chunk(node, :ets_select_spec, [table, spec, limit, budget, cont], timeout)
+  def select_spec(node, table, spec, limit, budget, continuation, timeout) do
+    args = [table, spec, limit, budget, continuation || :undefined]
+    fetch_chunk(node, :ets_select_spec, args, limit, timeout)
   end
-
-  def select_spec(_node, table, _spec, _limit, _budget, _continuation, _timeout)
-      when TableId.is_table_id(table) do
-    {:error, :invalid_limit}
-  end
-
-  def select_spec(_node, _table, _spec, _limit, _budget, _continuation, _timeout),
-    do: {:error, :invalid_table}
 
   @spec lookup(
           node(),
@@ -119,26 +101,23 @@ defmodule Voyager.Services.Ets.Fetch do
         timeout \\ Agent.default_timeout()
       )
 
-  def lookup(node, table, key, limit, budget, continuation, timeout)
-      when TableId.is_table_id(table) and is_integer(limit) and limit > 0 do
-    cont = continuation || :undefined
-    fetch_chunk(node, :ets_lookup, [table, key, limit, budget, cont], timeout)
+  def lookup(node, table, key, limit, budget, continuation, timeout) do
+    args = [table, key, limit, budget, continuation || :undefined]
+    fetch_chunk(node, :ets_lookup, args, limit, timeout)
   end
 
-  def lookup(_node, table, _key, _limit, _budget, _continuation, _timeout)
-      when TableId.is_table_id(table) do
-    {:error, :invalid_limit}
-  end
-
-  def lookup(_node, _table, _key, _limit, _budget, _continuation, _timeout),
-    do: {:error, :invalid_table}
-
-  defp fetch_chunk(node, fun, args, timeout) do
+  defp fetch_chunk(node, fun, [table | _] = args, limit, timeout)
+       when TableId.is_table_id(table) and is_integer(limit) and limit > 0 do
     case Agent.fetch(node, fun, args, timeout) do
       {:ok, payload} -> decode_chunk(payload)
       {:error, _} = err -> map_read_error(err)
     end
   end
+
+  defp fetch_chunk(_node, _fun, [table | _], _limit, _timeout) when TableId.is_table_id(table),
+    do: {:error, :invalid_limit}
+
+  defp fetch_chunk(_node, _fun, _args, _limit, _timeout), do: {:error, :invalid_table}
 
   defp decode_chunk(%{records: records, continuation: cont, truncated?: truncated?} = chunk)
        when is_list(records) and is_boolean(truncated?) do
