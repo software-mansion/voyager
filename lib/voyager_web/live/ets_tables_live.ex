@@ -20,11 +20,9 @@ defmodule VoyagerWeb.EtsTablesLive do
   alias VoyagerWeb.EtsTablesLive.Query
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.EtsTableListControls
+  alias VoyagerWeb.ListPage
   alias VoyagerWeb.ListPage.Fetcher
   alias VoyagerWeb.Utils.URL
-
-  @page_sizes [10, 25, 50, 100]
-  @default_page_size 25
 
   @impl true
   def mount(_params, _session, socket) do
@@ -39,9 +37,7 @@ defmodule VoyagerWeb.EtsTablesLive do
     |> assign(:form, to_form(EtsTableListControls.changeset(controls), as: :controls))
     |> assign(:sort_by, sort_by)
     |> assign(:direction, direction)
-    |> assign(:page, 1)
-    |> assign(:page_size, @default_page_size)
-    |> assign(:page_sizes, @page_sizes)
+    |> ListPage.init()
     |> Fetcher.init(
       query: &tables_query/1,
       subject: "ETS tables",
@@ -177,7 +173,7 @@ defmodule VoyagerWeb.EtsTablesLive do
   # waits for them.
   def handle_event("restore_settings", params, socket) when is_map(params) do
     socket
-    |> assign(:page_size, page_size(parse_integer(params["page_size"])))
+    |> assign(:page_size, ListPage.page_size(params["page_size"]))
     |> apply_controls(params)
     |> refresh_view()
     |> Fetcher.start()
@@ -208,20 +204,15 @@ defmodule VoyagerWeb.EtsTablesLive do
   end
 
   def handle_event("set_page_size", %{"page_size" => size}, socket) do
-    size = page_size(parse_integer(size))
-
     socket
-    |> assign(:page_size, size)
-    |> assign(:page, clamp_page(1, length(socket.assigns.tables), size))
+    |> ListPage.set_page_size(size)
     |> store_settings()
     |> noreply()
   end
 
   def handle_event("paginate", %{"page" => page}, socket) do
-    page = parse_integer(page) || socket.assigns.page
-
     socket
-    |> assign(:page, clamp_page(page, length(socket.assigns.tables), socket.assigns.page_size))
+    |> ListPage.paginate(page, length(socket.assigns.tables))
     |> noreply()
   end
 
@@ -297,8 +288,7 @@ defmodule VoyagerWeb.EtsTablesLive do
   end
 
   defp refresh_view(socket) do
-    %{controls: controls, sort_by: sort_by, direction: direction, page_size: page_size} =
-      socket.assigns
+    %{controls: controls, sort_by: sort_by, direction: direction} = socket.assigns
 
     entries = Fetcher.entries(socket.assigns.page_result)
 
@@ -312,7 +302,7 @@ defmodule VoyagerWeb.EtsTablesLive do
     |> assign(:shown_count, length(tables))
     |> assign(:total_count, length(entries))
     |> assign(:total_memory, Query.total_memory(entries))
-    |> assign(:page, clamp_page(socket.assigns.page, length(tables), page_size))
+    |> ListPage.clamp_page(length(tables))
   end
 
   defp resolve_selection(%{assigns: %{table_param: nil}} = socket) do
@@ -357,9 +347,7 @@ defmodule VoyagerWeb.EtsTablesLive do
   end
 
   defp rows(tables, page, page_size) do
-    tables
-    |> Enum.slice((page - 1) * page_size, page_size)
-    |> Enum.map(&{row_dom_id(&1.id), &1})
+    ListPage.rows(tables, page, page_size, &row_dom_id(&1.id))
   end
 
   # A name can hold any character, so the readable part is for the eye; the
@@ -401,22 +389,6 @@ defmodule VoyagerWeb.EtsTablesLive do
   defp toggle_direction(%{assigns: %{sort_by: key}}, key), do: :desc
   defp toggle_direction(_socket, key) when key in [:size, :memory], do: :desc
   defp toggle_direction(_socket, _key), do: :asc
-
-  defp clamp_page(page, total, page_size) do
-    page |> max(1) |> min(max(div(total + page_size - 1, page_size), 1))
-  end
-
-  defp parse_integer(value) when is_binary(value) do
-    case Integer.parse(value) do
-      {int, ""} -> int
-      _ -> nil
-    end
-  end
-
-  defp parse_integer(_value), do: nil
-
-  defp page_size(size) when size in @page_sizes, do: size
-  defp page_size(_size), do: @default_page_size
 
   # Only reached with no rows to fall back on, so unlike the flash it advises.
   defp format_error(:timeout), do: "Request timed out. Try a longer timeout."

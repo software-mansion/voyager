@@ -13,11 +13,9 @@ defmodule VoyagerWeb.ProcessesLive do
   alias VoyagerWeb.Components.ProcessComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.ProcessListControls
+  alias VoyagerWeb.ListPage
   alias VoyagerWeb.ListPage.Fetcher
   alias VoyagerWeb.ProcessesLive.Query
-
-  @page_sizes [10, 25, 50, 100]
-  @default_page_size 25
 
   @impl true
   def mount(_params, _session, socket) do
@@ -30,9 +28,7 @@ defmodule VoyagerWeb.ProcessesLive do
     |> assign(:form, to_form(ProcessListControls.changeset(controls), as: :controls))
     |> assign(:sort_by, sort_by)
     |> assign(:direction, direction)
-    |> assign(:page, 1)
-    |> assign(:page_size, @default_page_size)
-    |> assign(:page_sizes, @page_sizes)
+    |> ListPage.init()
     |> Fetcher.init(query: &page_query/1, subject: "processes", replay_priority: :high)
     |> ok()
   end
@@ -138,7 +134,7 @@ defmodule VoyagerWeb.ProcessesLive do
   # Mount doesn't start fetch
   def handle_event("restore_settings", params, socket) when is_map(params) do
     socket
-    |> assign(:page_size, page_size(parse_integer(params["page_size"])))
+    |> assign(:page_size, ListPage.page_size(params["page_size"]))
     |> apply_controls(params)
     |> Fetcher.start()
     |> noreply()
@@ -168,20 +164,15 @@ defmodule VoyagerWeb.ProcessesLive do
   end
 
   def handle_event("set_page_size", %{"page_size" => size}, socket) do
-    size = page_size(parse_integer(size))
-
     socket
-    |> assign(:page_size, size)
-    |> assign(:page, clamp_page(1, total(socket), size))
+    |> ListPage.set_page_size(size)
     |> store_settings()
     |> noreply()
   end
 
   def handle_event("paginate", %{"page" => page}, socket) do
-    page = parse_integer(page) || socket.assigns.page
-
     socket
-    |> assign(:page, clamp_page(page, total(socket), socket.assigns.page_size))
+    |> ListPage.paginate(page, total(socket))
     |> noreply()
   end
 
@@ -202,7 +193,7 @@ defmodule VoyagerWeb.ProcessesLive do
   @impl true
   def handle_async(:page_result, _result, socket) do
     socket
-    |> assign(:page, clamp_page(socket.assigns.page, total(socket), socket.assigns.page_size))
+    |> ListPage.clamp_page(total(socket))
     |> noreply()
   end
 
@@ -239,11 +230,8 @@ defmodule VoyagerWeb.ProcessesLive do
     length(Fetcher.entries(page_result))
   end
 
-  # The remote already returned them ranked; paging only walks that result.
   defp rows(entries, page, page_size) do
-    entries
-    |> Enum.slice((page - 1) * page_size, page_size)
-    |> Enum.map(&{row_dom_id(&1.pid), &1})
+    ListPage.rows(entries, page, page_size, &row_dom_id(&1.pid))
   end
 
   # `<0.123.0>` is not a usable DOM id, so reduce a pid to `process-0-123-0`.
@@ -260,22 +248,6 @@ defmodule VoyagerWeb.ProcessesLive do
   # descending, the useful default for every numeric metric here.
   defp toggle_direction(%{assigns: %{sort_by: key, direction: :desc}}, key), do: :asc
   defp toggle_direction(_socket, _key), do: :desc
-
-  defp clamp_page(page, total, page_size) do
-    page |> max(1) |> min(max(div(total + page_size - 1, page_size), 1))
-  end
-
-  defp parse_integer(value) when is_binary(value) do
-    case Integer.parse(value) do
-      {int, ""} -> int
-      _ -> nil
-    end
-  end
-
-  defp parse_integer(_value), do: nil
-
-  defp page_size(size) when size in @page_sizes, do: size
-  defp page_size(_size), do: @default_page_size
 
   # Only reached with no rows to fall back on, so unlike the flash it advises.
   defp format_error(:timeout), do: "Request timed out. Try a longer timeout or a smaller limit."
