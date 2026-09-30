@@ -9,7 +9,6 @@ defmodule Voyager.Fakes do
   import Mox, only: [stub: 3]
 
   alias Voyager.NodeSession
-  alias Voyager.NodeSession.Connectors.Distribution
   alias Voyager.NodeSession.Session
   alias Voyager.Pid
 
@@ -21,12 +20,12 @@ defmodule Voyager.Fakes do
   @spec node_session(keyword()) :: Session.t()
   def node_session(attrs \\ []) do
     %Session{
-      node: Keyword.get(attrs, :node, :demo@localhost),
-      node_name: Keyword.get(attrs, :node_name, "demo@localhost"),
-      cookie: Keyword.get(attrs, :cookie, "secret"),
-      connected_at: Keyword.get(attrs, :connected_at, DateTime.utc_now()),
-      connector: Keyword.get(attrs, :connector, Distribution)
+      node: :demo@localhost,
+      node_name: "demo@localhost",
+      cookie: "secret",
+      connected_at: DateTime.utc_now()
     }
+    |> struct!(attrs)
   end
 
   @doc """
