@@ -12,12 +12,6 @@ defmodule VoyagerWeb do
     end
   end
 
-  def channel do
-    quote do
-      use Phoenix.Channel
-    end
-  end
-
   def controller do
     quote do
       use Phoenix.Controller, formats: [:html, :json]
@@ -54,7 +48,7 @@ defmodule VoyagerWeb do
   def html do
     quote do
       use Phoenix.Component
-      import Phoenix.Controller, only: [get_csrf_token: 0, view_module: 1, view_template: 1]
+      import Phoenix.Controller, only: [get_csrf_token: 0]
       unquote(html_helpers())
     end
   end
@@ -68,7 +62,6 @@ defmodule VoyagerWeb do
 
   defp html_helpers do
     quote do
-      import Phoenix.HTML
       import VoyagerWeb.CoreComponents
       alias Phoenix.LiveView.JS
       alias VoyagerWeb.Layouts

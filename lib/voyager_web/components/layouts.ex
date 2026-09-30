@@ -24,10 +24,6 @@ defmodule VoyagerWeb.Layouts do
   attr :flash, :map, required: true, doc: "the map of flash messages"
   attr :session, Session, required: true
 
-  attr :current_scope, :map,
-    default: nil,
-    doc: "the current [scope](https://hexdocs.pm/phoenix/scopes.html)"
-
   def app(assigns) do
     ~H"""
     <.flash_group flash={@flash} />

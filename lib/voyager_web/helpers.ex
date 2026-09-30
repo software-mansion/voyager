@@ -12,9 +12,6 @@ defmodule VoyagerWeb.Helpers do
   @spec noreply(term()) :: {:noreply, term()}
   def noreply(state), do: {:noreply, state}
 
-  @spec cont(term()) :: {:cont, term()}
-  def cont(state), do: {:cont, state}
-
   @spec halt(term()) :: {:halt, term()}
   def halt(state), do: {:halt, state}
 
