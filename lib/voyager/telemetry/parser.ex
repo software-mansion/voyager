@@ -60,14 +60,6 @@ defmodule Voyager.Telemetry.Parser do
     Map.take(m, [:total, :processes, :atom, :ets, :binary, :code, :system])
   end
 
-  def parse_measurements([:voyager, :node, :connect], _m), do: %{}
-  def parse_measurements([:voyager, :node, :connect_failed], _m), do: %{}
-  def parse_measurements([:voyager, :node, :disconnect], _m), do: %{}
-  def parse_measurements([:voyager, :mcp, :start], _m), do: %{}
-  def parse_measurements([:voyager, :mcp, :stop], _m), do: %{}
-
-  def parse_measurements([:anubis_mcp, :server, :tool_call, :start], _m), do: %{}
-
   def parse_measurements([:anubis_mcp, :server, :tool_call, :stop], m) do
     %{duration_ms: native_to_ms(m[:duration])}
   end
@@ -98,8 +90,6 @@ defmodule Voyager.Telemetry.Parser do
       reason: inspect(meta[:reason])
     }
   end
-
-  def parse_metadata([:voyager, :vm, :memory], _meta), do: %{}
 
   def parse_metadata([:voyager, :node, :connect], meta) do
     %{connected_via: meta[:connected_via]}
