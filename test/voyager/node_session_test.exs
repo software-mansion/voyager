@@ -3,42 +3,10 @@ defmodule Voyager.NodeSessionTest do
 
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Session
+  alias Voyager.Test.FakeConnector
   alias Voyager.Test.VoyagerAgentFixture
 
   @agent_module Voyager.Agent.module()
-
-  defmodule FakeConnector do
-    @moduledoc false
-    @behaviour Voyager.NodeSession.Connector
-
-    @impl true
-    def name, do: :fake
-
-    @impl true
-    def connect(_node_name, _cookie, opts) do
-      case Keyword.get(opts, :fail) do
-        nil ->
-          meta = %{test_pid: Keyword.fetch!(opts, :test_pid), ref: Keyword.get(opts, :ref)}
-          {:ok, Keyword.get(opts, :node, Node.self()), meta}
-
-        reason ->
-          {:error, reason}
-      end
-    end
-
-    @impl true
-    def disconnect(node, meta) do
-      send(meta.test_pid, {:connector_disconnect, node})
-      :ok
-    end
-
-    @impl true
-    def subscriptions, do: ["fake_connector_topic"]
-
-    @impl true
-    def teardown?({:fake_transport_down, ref}, %{ref: ref}), do: true
-    def teardown?(_msg, _meta), do: false
-  end
 
   setup do
     previous_state = :sys.get_state(NodeSession)

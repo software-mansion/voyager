@@ -7,32 +7,10 @@ defmodule Voyager.AgentTest do
   alias Voyager.Erpc
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Session
+  alias Voyager.Test.FakeConnector
   alias Voyager.Test.VoyagerAgentFixture
 
   @agent_module Voyager.Agent.module()
-
-  defmodule FakeConnector do
-    @moduledoc false
-    @behaviour Voyager.NodeSession.Connector
-
-    @impl true
-    def name, do: :fake
-
-    @impl true
-    def connect(_node_name, _cookie, _opts), do: {:error, :unsupported}
-
-    @impl true
-    def disconnect(node, meta) do
-      send(meta.test_pid, {:connector_disconnect, node})
-      :ok
-    end
-
-    @impl true
-    def subscriptions, do: []
-
-    @impl true
-    def teardown?(_msg, _meta), do: false
-  end
 
   setup :verify_on_exit!
 
