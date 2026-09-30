@@ -107,6 +107,8 @@ defmodule Voyager.MCP.Tools.ProcessListTest do
     end
   end
 
+  @agent_module Voyager.Agent.module()
+
   defp run(params) do
     {:ok, validated} = ProcessList.mcp_schema(params)
 
@@ -119,7 +121,7 @@ defmodule Voyager.MCP.Tools.ProcessListTest do
   defp proc_top_args(data, params) do
     test = self()
 
-    expect(Voyager.ErpcMock, :call, fn _node, :voyager_agent, :proc_top, args, _timeout ->
+    expect(Voyager.ErpcMock, :call, fn _node, @agent_module, :proc_top, args, _timeout ->
       send(test, {:proc_top, args})
       data.proc_top
     end)

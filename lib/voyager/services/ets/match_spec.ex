@@ -9,7 +9,7 @@ defmodule Voyager.Services.Ets.MatchSpec do
   Guard validity is not checked here: `:ets.select/3` on the target rejects a
   bad guard as `badarg`, which `Voyager.Services.Ets.Fetch` maps to
   `{:error, :cannot_read}`. Only the clause shape is, because
-  `:voyager_agent.ets_select_spec/5` takes one `{head, guards, body}` clause.
+  the agent's `ets_select_spec/5` takes one `{head, guards, body}` clause.
   """
 
   @max_bytes 4_096

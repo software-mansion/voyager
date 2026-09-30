@@ -1,11 +1,11 @@
 defmodule VoyagerAgentTest do
   use ExUnit.Case, async: false
 
-  @compile {:no_warn_undefined, :voyager_agent}
+  @compile {:no_warn_undefined, Voyager.Agent.module()}
 
   alias Voyager.Test.VoyagerAgentFixture
 
-  @agent_module :voyager_agent
+  @agent_module Voyager.Agent.module()
 
   setup do
     VoyagerAgentFixture.load!()

@@ -1,6 +1,6 @@
 defmodule Voyager.Services.Ets.Fetch do
   @moduledoc """
-  Fetches ETS record payloads from a remote node via `:voyager_agent`.
+  Fetches ETS record payloads from a remote node via the remote agent.
 
   Table metadata stays on `Voyager.Services.Ets.Remote`. These reads call
   `:ets_select_chunk/4`, `:ets_select_spec/5`, and `:ets_lookup/5` on the agent.

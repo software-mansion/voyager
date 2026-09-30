@@ -5,7 +5,7 @@ defmodule Voyager.Services.ProcessTerm do
 
   These are the expensive reads. Neither a rate limit nor a timeout bounds a
   *payload* -- a state or a mailbox can be gigabytes -- so both go through
-  `:voyager_agent`, which rewrites the term on the remote to fit a `budget`
+  the agent, which rewrites the term on the remote to fit a `budget`
   before it crosses the distribution channel. Elided subterms come back as
   `:"$voyager_truncated"`; the reply's `:truncated?` says whether anything was
   dropped.

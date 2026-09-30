@@ -9,6 +9,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
   alias Voyager.Fakes
   alias Voyager.Services.RateLimiter
 
+  @agent_module Voyager.Agent.module()
+
   @node_name "demo@localhost"
   @path "/node/demo@localhost/supervision-tree"
 
@@ -237,9 +239,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
         _node, :erlang, :system_info, [:wordsize], _timeout ->
           8
 
-        _node, :voyager_agent, :proc_label, [pid, budget], _timeout ->
+        _node, @agent_module, :proc_label, [pid, budget], _timeout ->
           supervision_reply(
-            :voyager_agent,
+            @agent_module,
             :proc_label,
             [pid, budget],
             sup_pid,
@@ -247,8 +249,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
             link_pids
           )
 
-        _node, :voyager_agent, :proc_links, [pid, limit], _timeout ->
-          supervision_reply(:voyager_agent, :proc_links, [pid, limit], sup_pid, [port], link_pids)
+        _node, @agent_module, :proc_links, [pid, limit], _timeout ->
+          supervision_reply(@agent_module, :proc_links, [pid, limit], sup_pid, [port], link_pids)
       end)
 
       view |> element("#details-panel-refresh") |> render_click()
@@ -464,13 +466,13 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
     process_info_kw(keys)
   end
 
-  defp supervision_reply(:voyager_agent, :proc_label, [_pid, _budget], _sup, _linked, _links) do
+  defp supervision_reply(@agent_module, :proc_label, [_pid, _budget], _sup, _linked, _links) do
     {:ok, %{term: :undefined, truncated: false}}
   end
 
   # Links are fetched from the remote agent, which truncates to `limit` and
   # reports the real total alongside the kept items.
-  defp supervision_reply(:voyager_agent, :proc_links, [_pid, limit], _sup, _linked, link_pids) do
+  defp supervision_reply(@agent_module, :proc_links, [_pid, limit], _sup, _linked, link_pids) do
     {:ok,
      %{
        total: length(link_pids),

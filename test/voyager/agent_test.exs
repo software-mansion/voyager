@@ -8,7 +8,7 @@ defmodule Voyager.AgentTest do
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Session
 
-  @agent_module :voyager_agent
+  @agent_module Voyager.Agent.module()
 
   defmodule FakeConnector do
     @moduledoc false
@@ -99,6 +99,40 @@ defmodule Voyager.AgentTest do
 
       assert :ok = Agent.install(Node.self())
       assert :sys.get_state(@agent_module) == {:state, %{Node.self() => true}}
+    end
+
+    test "keeps an in-flight agent call alive when another Voyager connects" do
+      previous_erpc = Application.get_env(:voyager, :erpc)
+      Application.put_env(:voyager, :erpc, Erpc.Impl)
+      on_exit(fn -> Application.put_env(:voyager, :erpc, previous_erpc) end)
+
+      node = Node.self()
+      test_pid = self()
+
+      # Never answers, so the agent worker stays parked inside agent code -- what
+      # a reload would purge.
+      victim =
+        spawn(fn ->
+          receive do
+            {:system, _from, _request} ->
+              send(test_pid, :probed)
+
+              receive do
+                :release -> :ok
+              end
+          end
+        end)
+
+      assert :ok = Agent.install(node)
+
+      task = Task.async(fn -> Agent.call(node, :proc_state, [victim, 1_000, 5_000], 10_000) end)
+      assert_receive :probed
+
+      assert :ok = Agent.install(node)
+      assert :ok = Agent.install(node)
+
+      send(victim, :release)
+      assert {:ok, {:error, :no_state}} = Task.await(task)
     end
 
     test "surfaces a transport failure" do
