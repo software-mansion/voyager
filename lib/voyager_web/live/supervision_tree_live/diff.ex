@@ -33,54 +33,29 @@ defmodule VoyagerWeb.SupervisionTreeLive.Diff do
 
   @spec diff(flat_tree(), flat_tree()) :: diff_result()
   def diff(prev, curr) when is_map(prev) and is_map(curr) do
-    {added, updated} = Enum.reduce(curr, {%{}, %{}}, &classify_node(&1, &2, prev))
-
-    removed =
+    updated =
       prev
-      |> Map.keys()
-      |> Enum.reject(&Map.has_key?(curr, &1))
+      |> Map.intersect(curr, fn _key, prev_node, node -> build_patch(prev_node, node) end)
+      |> Map.reject(fn {_key, patch} -> map_size(patch) == 0 end)
 
-    %{added: added, removed: removed, updated: updated}
+    %{
+      added: Map.drop(curr, Map.keys(prev)),
+      removed: Map.keys(prev) -- Map.keys(curr),
+      updated: updated
+    }
   end
 
-  @doc """
-  Diffs two edge maps into `edges_added` (full edge objects) and
-  `edges_removed` (ids). Edges have no mutable fields.
-  """
   @spec diff_relations(edge_map(), edge_map()) :: edge_diff_result()
   def diff_relations(prev, curr) when is_map(prev) and is_map(curr) do
-    edges_added =
-      curr
-      |> Enum.reject(fn {id, _edge} -> Map.has_key?(prev, id) end)
-      |> Map.new()
-
-    edges_removed =
-      prev
-      |> Map.keys()
-      |> Enum.reject(&Map.has_key?(curr, &1))
-
-    %{edges_added: edges_added, edges_removed: edges_removed}
-  end
-
-  defp classify_node({key, node}, {add_acc, upd_acc}, prev) do
-    case Map.fetch(prev, key) do
-      :error -> {Map.put(add_acc, key, node), upd_acc}
-      {:ok, prev_node} -> patch_node(prev_node, node, key, add_acc, upd_acc)
-    end
-  end
-
-  defp patch_node(prev_node, node, key, add_acc, upd_acc) do
-    case build_patch(prev_node, node) do
-      patch when map_size(patch) == 0 -> {add_acc, upd_acc}
-      patch -> {add_acc, Map.put(upd_acc, key, patch)}
-    end
+    %{
+      edges_added: Map.drop(curr, Map.keys(prev)),
+      edges_removed: Map.keys(prev) -- Map.keys(curr)
+    }
   end
 
   defp build_patch(prev, curr) do
-    Enum.reduce(@diff_fields, %{}, fn field, patch ->
-      pv = Map.get(prev, field)
-      cv = Map.get(curr, field)
-      if pv == cv, do: patch, else: Map.put(patch, field, cv)
-    end)
+    curr
+    |> Map.take(@diff_fields)
+    |> Map.reject(fn {field, value} -> Map.get(prev, field) == value end)
   end
 end
