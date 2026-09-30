@@ -204,7 +204,7 @@ defmodule VoyagerWeb.TermTree do
   defp append_comma(node, false), do: node
 
   defp append_comma(%Node{} = node, true) do
-    comma = [Segment.punctuation(",")]
+    comma = [seg(:punctuation, ",")]
 
     %Node{
       node
@@ -214,11 +214,11 @@ defmodule VoyagerWeb.TermTree do
   end
 
   defp build(@truncated) do
-    %Node{kind: :truncated, content: [Segment.muted("… (truncated)")]}
+    %Node{kind: :truncated, content: [seg(:muted, "… (truncated)")]}
   end
 
   defp build(binary) when is_binary(binary) do
-    %Node{kind: :binary, content: [Segment.string(inspect(binary, @inspect_opts))]}
+    %Node{kind: :binary, content: [seg(:string, inspect(binary, @inspect_opts))]}
   end
 
   defp build(atom) when is_atom(atom) do
@@ -226,11 +226,11 @@ defmodule VoyagerWeb.TermTree do
   end
 
   defp build(number) when is_number(number) do
-    %Node{kind: :number, content: [Segment.number(inspect(number))]}
+    %Node{kind: :number, content: [seg(:number, inspect(number))]}
   end
 
   defp build({}) do
-    %Node{kind: :tuple, content: [Segment.punctuation("{}")]}
+    %Node{kind: :tuple, content: [seg(:punctuation, "{}")]}
   end
 
   defp build(tuple) when is_tuple(tuple) do
@@ -238,14 +238,14 @@ defmodule VoyagerWeb.TermTree do
       kind: :tuple,
       child_count: tuple_size(tuple),
       truncated?: elem(tuple, tuple_size(tuple) - 1) == @truncated,
-      content: [Segment.punctuation("{...}")],
-      expanded_before: [Segment.punctuation("{")],
-      expanded_after: [Segment.punctuation("}")]
+      content: [seg(:punctuation, "{...}")],
+      expanded_before: [seg(:punctuation, "{")],
+      expanded_after: [seg(:punctuation, "}")]
     }
   end
 
   defp build([]) do
-    %Node{kind: :list, content: [Segment.punctuation("[]")]}
+    %Node{kind: :list, content: [seg(:punctuation, "[]")]}
   end
 
   defp build(list) when is_list(list) do
@@ -255,43 +255,43 @@ defmodule VoyagerWeb.TermTree do
         kind: :list,
         child_count: count,
         truncated?: :lists.last(list) == @truncated,
-        content: [Segment.punctuation("[...]")],
-        expanded_before: [Segment.punctuation("[")],
-        expanded_after: [Segment.punctuation("]")]
+        content: [seg(:punctuation, "[...]")],
+        expanded_before: [seg(:punctuation, "[")],
+        expanded_after: [seg(:punctuation, "]")]
       }
     else
       # A charlist reads as `~c"hi"` in IEx; showing it as a list of integers
       # would be honest but unrecognisable.
-      true -> %Node{kind: :list, content: [Segment.string(inspect(list, @inspect_opts))]}
+      true -> %Node{kind: :list, content: [seg(:string, inspect(list, @inspect_opts))]}
       :improper -> build_other(list)
     end
   end
 
   defp build(%Regex{} = regex) do
-    %Node{kind: :other, content: [Segment.other(inspect(regex))]}
+    %Node{kind: :other, content: [seg(:other, inspect(regex))]}
   end
 
   defp build(struct) when is_struct(struct) do
-    module_segments = [Segment.punctuation("%"), Segment.module(struct_name(struct))]
+    module_segments = [seg(:punctuation, "%"), seg(:module, struct_name(struct))]
 
     content =
       if Inspect.impl_for(struct) == Inspect.Any do
-        module_segments ++ [Segment.punctuation("{...}")]
+        module_segments ++ [seg(:punctuation, "{...}")]
       else
-        [Segment.other(inspect(struct, @inspect_opts))]
+        [seg(:other, inspect(struct, @inspect_opts))]
       end
 
     %Node{
       kind: :struct,
       child_count: struct |> Map.from_struct() |> map_size(),
       content: content,
-      expanded_before: module_segments ++ [Segment.punctuation("{")],
-      expanded_after: [Segment.punctuation("}")]
+      expanded_before: module_segments ++ [seg(:punctuation, "{")],
+      expanded_after: [seg(:punctuation, "}")]
     }
   end
 
   defp build(map) when is_map(map) and map_size(map) == 0 do
-    %Node{kind: :map, content: [Segment.punctuation("%{}")]}
+    %Node{kind: :map, content: [seg(:punctuation, "%{}")]}
   end
 
   defp build(map) when is_map(map) do
@@ -299,27 +299,29 @@ defmodule VoyagerWeb.TermTree do
       kind: :map,
       child_count: map_size(map),
       truncated?: Map.has_key?(map, @truncated),
-      content: [Segment.punctuation("%{...}")],
-      expanded_before: [Segment.punctuation("%{")],
-      expanded_after: [Segment.punctuation("}")]
+      content: [seg(:punctuation, "%{...}")],
+      expanded_before: [seg(:punctuation, "%{")],
+      expanded_after: [seg(:punctuation, "}")]
     }
   end
 
   defp build(other), do: build_other(other)
 
   defp build_other(term) do
-    %Node{kind: :other, content: [Segment.other(inspect(term, @inspect_opts))]}
+    %Node{kind: :other, content: [seg(:other, inspect(term, @inspect_opts))]}
   end
 
-  defp atom_segment(atom) when atom in [nil, true, false], do: Segment.special(inspect(atom))
+  defp seg(kind, text), do: %Segment{kind: kind, text: text}
+
+  defp atom_segment(atom) when atom in [nil, true, false], do: seg(:special, inspect(atom))
 
   defp atom_segment(atom) do
     text = inspect(atom)
 
     if String.starts_with?(text, ":") do
-      Segment.atom(text)
+      seg(:atom, text)
     else
-      Segment.module(text)
+      seg(:module, text)
     end
   end
 
@@ -331,19 +333,19 @@ defmodule VoyagerWeb.TermTree do
   defp key_segments(key) when is_atom(key) and key not in [nil, true, false] do
     case atom_segment(key) do
       %Segment{text: ":" <> name} = segment ->
-        [%Segment{segment | text: name <> ":"}, Segment.punctuation(" ")]
+        [%Segment{segment | text: name <> ":"}, seg(:punctuation, " ")]
 
       segment ->
-        [segment, Segment.punctuation(" => ")]
+        [segment, seg(:punctuation, " => ")]
     end
   end
 
   defp key_segments(key) do
-    key_content(key) ++ [Segment.punctuation(" => ")]
+    key_content(key) ++ [seg(:punctuation, " => ")]
   end
 
   defp key_content(key) when is_tuple(key) or is_list(key) or is_map(key) do
-    [Segment.other(inspect(key, @key_inspect_opts))]
+    [seg(:other, inspect(key, @key_inspect_opts))]
   end
 
   defp key_content(key), do: describe(key).content

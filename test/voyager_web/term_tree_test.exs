@@ -160,7 +160,7 @@ defmodule VoyagerWeb.TermTreeTest do
     end
 
     test "a key prefixes both the collapsed and the expanded opening" do
-      key = [Segment.atom("name:"), Segment.punctuation(" ")]
+      key = [%Segment{kind: :atom, text: "name:"}, %Segment{kind: :punctuation, text: " "}]
       node = TermTree.describe(%{a: 1}, key: key)
 
       assert text(node.content) == "name: %{...}"

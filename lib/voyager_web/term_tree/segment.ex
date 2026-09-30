@@ -24,34 +24,4 @@ defmodule VoyagerWeb.TermTree.Segment do
           | :other
 
   @type t :: %__MODULE__{text: String.t(), kind: kind()}
-
-  @spec atom(String.t()) :: t()
-  def atom(text), do: %__MODULE__{text: text, kind: :atom}
-
-  @spec number(String.t()) :: t()
-  def number(text), do: %__MODULE__{text: text, kind: :number}
-
-  @spec string(String.t()) :: t()
-  def string(text), do: %__MODULE__{text: text, kind: :string}
-
-  @doc "A literal with its own syntax colour — `nil`, `true` and `false`."
-  @spec special(String.t()) :: t()
-  def special(text), do: %__MODULE__{text: text, kind: :special}
-
-  @spec module(String.t()) :: t()
-  def module(text), do: %__MODULE__{text: text, kind: :module}
-
-  @spec punctuation(String.t()) :: t()
-  def punctuation(text), do: %__MODULE__{text: text, kind: :punctuation}
-
-  @doc "Text standing in for data that is not here, such as a truncation marker."
-  @spec muted(String.t()) :: t()
-  def muted(text), do: %__MODULE__{text: text, kind: :muted}
-
-  @doc """
-  A term with no syntax of its own, rendered through `inspect/2` — pids, ports,
-  references, functions.
-  """
-  @spec other(String.t()) :: t()
-  def other(text), do: %__MODULE__{text: text, kind: :other}
 end
