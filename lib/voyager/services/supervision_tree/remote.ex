@@ -39,15 +39,8 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   @spec app_masters(node(), [atom()]) :: {:ok, [pid() | :undefined]} | {:error, term()}
   def app_masters(_node, []), do: {:ok, []}
 
-  def app_masters(node, apps) do
-    Erpc.safe_call(
-      node,
-      :lists,
-      :map,
-      [&:application_controller.get_master/1, apps],
-      @timeout_fast
-    )
-  end
+  def app_masters(node, apps),
+    do: Erpc.map(node, &:application_controller.get_master/1, apps, @timeout_fast)
 
   @doc """
   Returns the root child for each application master in `master_pids` on `node`
@@ -60,15 +53,8 @@ defmodule Voyager.Services.SupervisionTree.Remote do
           {:ok, [{pid(), module()} | pid()]} | {:error, term()}
   def app_children(_node, []), do: {:ok, []}
 
-  def app_children(node, master_pids) do
-    Erpc.safe_call(
-      node,
-      :lists,
-      :map,
-      [&:application_master.get_child/1, master_pids],
-      @timeout_fast
-    )
-  end
+  def app_children(node, master_pids),
+    do: Erpc.map(node, &:application_master.get_child/1, master_pids, @timeout_fast)
 
   @spec which_children(node(), pid()) ::
           {:ok,
@@ -93,15 +79,8 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   @spec which_children_many(node(), [pid()]) :: {:ok, [list()]} | {:error, term()}
   def which_children_many(_node, []), do: {:ok, []}
 
-  def which_children_many(node, sup_pids) do
-    Erpc.safe_call(
-      node,
-      :lists,
-      :map,
-      [&:supervisor.which_children/1, sup_pids],
-      @timeout_children
-    )
-  end
+  def which_children_many(node, sup_pids),
+    do: Erpc.map(node, &:supervisor.which_children/1, sup_pids, @timeout_children)
 
   @doc """
   Returns the spec-children count for `sup_pid` on `node` via
@@ -135,13 +114,7 @@ defmodule Voyager.Services.SupervisionTree.Remote do
   def count_children_many(_node, []), do: {:ok, []}
 
   def count_children_many(node, sup_pids) do
-    case Erpc.safe_call(
-           node,
-           :lists,
-           :map,
-           [&:supervisor.count_children/1, sup_pids],
-           @timeout_fast
-         ) do
+    case Erpc.map(node, &:supervisor.count_children/1, sup_pids, @timeout_fast) do
       {:ok, counts_list} when is_list(counts_list) ->
         counts_list
         |> Enum.map(fn

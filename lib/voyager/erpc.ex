@@ -49,6 +49,14 @@ defmodule Voyager.Erpc do
     do: impl().call(node, mod, fun, args, timeout_or_options)
 
   @doc """
+  Runs `:lists.map(fun, list)` on `node` in one `safe_call/5`, so one raising
+  element fails the whole call with `{:error, {:remote_exception, reason}}`.
+  """
+  @spec map(node(), (term() -> term()), list(), timeout_time()) ::
+          {:ok, list()} | {:error, erpc_error()}
+  def map(node, fun, list, timeout), do: safe_call(node, :lists, :map, [fun, list], timeout)
+
+  @doc """
   Maps an `:erpc.call` catch kind/reason into `{:error, reason}`.
   """
   @spec format_error(:error | :exit | :throw, term()) :: {:error, erpc_error()}

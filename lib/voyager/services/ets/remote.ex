@@ -79,7 +79,7 @@ defmodule Voyager.Services.Ets.Remote do
     with {:ok, word_size} when is_integer(word_size) and word_size > 0 <-
            Erpc.safe_call(node, :erlang, :system_info, [:wordsize], timeout),
          {:ok, infos} when is_list(infos) and length(infos) == length(ids) <-
-           Erpc.safe_call(node, :lists, :map, [&:ets.info/1, ids], timeout) do
+           Erpc.map(node, &:ets.info/1, ids, timeout) do
       {:ok, zip_infos(ids, infos, word_size)}
     else
       {:ok, _} -> {:error, :invalid_response}
