@@ -1,0 +1,174 @@
+.halloween-decor {
+  display: none;
+}
+
+[data-theme='halloween'] .halloween-decor {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.halloween-web {
+  position: absolute;
+  top: var(--topbar-h);
+  right: 0;
+  width: 8rem;
+  height: 8rem;
+}
+
+.halloween-spider {
+  position: absolute;
+  top: var(--topbar-h);
+  right: 2.75rem;
+  width: 1.25rem;
+  height: 7rem;
+  overflow: hidden;
+}
+
+.halloween-spider svg {
+  animation: halloween-spider-drop 5s ease-in-out infinite alternate;
+}
+
+.halloween-legs {
+  transform-origin: 12px 106px;
+  animation: halloween-wiggle 0.6s ease-in-out infinite alternate;
+}
+
+.halloween-bat {
+  position: absolute;
+  top: calc(var(--topbar-h) + 2rem);
+  left: 0;
+  width: 2rem;
+  animation: halloween-fly 28s ease-in-out infinite;
+}
+
+.halloween-bat-2 {
+  top: calc(var(--topbar-h) + 5rem);
+  width: 1.5rem;
+  animation-duration: 34s;
+  animation-delay: -12s;
+}
+
+.halloween-bat svg {
+  animation: halloween-flap 0.2s ease-in-out infinite alternate;
+}
+
+.halloween-ghost {
+  position: absolute;
+  top: 55%;
+  left: 0;
+  width: 3rem;
+  opacity: 0;
+  animation: halloween-drift 36s linear infinite;
+}
+
+.halloween-ghost-2 {
+  top: 30%;
+  width: 2.25rem;
+  animation-duration: 44s;
+  animation-delay: -20s;
+}
+
+.halloween-ghost svg {
+  animation: halloween-bob 3s ease-in-out infinite alternate;
+}
+
+.halloween-pumpkins {
+  position: absolute;
+  right: 1rem;
+  bottom: var(--statusbar-h);
+  display: flex;
+  align-items: flex-end;
+  gap: 0.25rem;
+}
+
+.halloween-pumpkin {
+  width: 2.5rem;
+  overflow: visible;
+  animation: halloween-glow 3s infinite;
+}
+
+.halloween-pumpkin-sm {
+  width: 1.75rem;
+  animation-delay: -1.3s;
+}
+
+.halloween-face {
+  animation: halloween-flicker 1.8s infinite;
+}
+
+@keyframes halloween-spider-drop {
+  from { transform: translateY(-3rem); }
+  to { transform: translateY(0); }
+}
+
+@keyframes halloween-wiggle {
+  from { transform: scaleX(0.9); }
+  to { transform: scaleX(1.05); }
+}
+
+@keyframes halloween-flap {
+  from { transform: scaleY(1); }
+  to { transform: scaleY(0.35); }
+}
+
+@keyframes halloween-fly {
+  0% { transform: translate(100vw, 3rem); }
+  25% { transform: translate(55vw, -1rem); }
+  50% { transform: translate(-3rem, 2rem); }
+  100% { transform: translate(-3rem, 2rem); }
+}
+
+@keyframes halloween-drift {
+  0% { transform: translateX(-4rem); opacity: 0; }
+  4%, 40% { opacity: 0.5; }
+  45%, 100% { transform: translateX(100vw); opacity: 0; }
+}
+
+@keyframes halloween-bob {
+  from { transform: translateY(-0.5rem) rotate(-4deg); }
+  to { transform: translateY(0.5rem) rotate(4deg); }
+}
+
+@keyframes halloween-glow {
+  0%, 100% { filter: drop-shadow(0 0 6px color-mix(in oklch, var(--color-primary) 60%, transparent)); }
+  50% { filter: drop-shadow(0 0 12px color-mix(in oklch, var(--color-primary) 80%, transparent)); }
+  55% { filter: drop-shadow(0 0 3px color-mix(in oklch, var(--color-primary) 35%, transparent)); }
+}
+
+@keyframes halloween-flicker {
+  0%, 100% { opacity: 1; }
+  40% { opacity: 0.75; }
+  45% { opacity: 1; }
+  70% { opacity: 0.6; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .halloween-decor * {
+    animation: none !important;
+  }
+
+  .halloween-ghost,
+  .halloween-bat {
+    display: none;
+  }
+}
+
+[data-theme='halloween'] .icon-logo-voyager {
+  --icon-logo-voyager: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='black' d='M11 2.5Q12 1.5 13.5 2.5L13 5H11.2Z'/><path fill='black' fill-rule='evenodd' d='M12 5.5C9 4.5 7 5 5.5 6C2.5 7.5 1.5 11 1.5 14C1.5 18.5 4.5 22 8.5 22C10 22 11 21.5 12 21.5C13 21.5 14 22 15.5 22C19.5 22 22.5 18.5 22.5 14C22.5 11 21.5 7.5 18.5 6C17 5 15 4.5 12 5.5ZM6.5 12.5L8.5 9.5L10.5 12.5ZM13.5 12.5L15.5 9.5L17.5 12.5ZM6 15Q12 20.5 18 15L16 15.5L15 17L13.5 15.8L12 17.5L10.5 15.8L9 17L8 15.5Z'/></svg>");
+}
+
+[data-theme='halloween'] .icon-star-filled {
+  --icon-star-filled: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 32'><path fill='black' d='M32 10C30 6 28 6 27 8C24 4 16 2 2 8C8 10 10 14 9 18C13 15 17 16 19 20C22 17 26 18 28 22C30 20 31 20 32 24C33 20 34 20 36 22C38 18 42 17 45 20C47 16 51 15 55 18C54 14 56 10 62 8C48 2 40 4 37 8C36 6 34 6 32 10Z'/></svg>");
+}
+
+[data-theme='halloween'] .icon-star {
+  --icon-star: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 32'><path fill='none' stroke='black' stroke-width='3' stroke-linejoin='round' d='M32 10C30 6 28 6 27 8C24 4 16 2 2 8C8 10 10 14 9 18C13 15 17 16 19 20C22 17 26 18 28 22C30 20 31 20 32 24C33 20 34 20 36 22C38 18 42 17 45 20C47 16 51 15 55 18C54 14 56 10 62 8C48 2 40 4 37 8C36 6 34 6 32 10Z'/></svg>");
+}
+
+[data-theme='halloween'] .icon-circle-alert {
+  --icon-circle-alert: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='m12.5 17-.5-1-.5 1h1z'/><path d='M15 22a1 1 0 0 0 1-1v-1a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20v1a1 1 0 0 0 1 1z'/><circle cx='15' cy='12' r='1'/><circle cx='9' cy='12' r='1'/></svg>");
+}
