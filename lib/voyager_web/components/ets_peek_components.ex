@@ -301,6 +301,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       phx-click={if(!@disabled, do: "open_sidebar")}
       phx-value-index={@index}
       aria-disabled={if(@disabled, do: "true")}
+      aria-label={if(@disabled, do: "Lookup unavailable: key was truncated")}
       title={if(!@disabled, do: "Look up every record with this key")}
       class="btn btn-ghost btn-xs text-base-content/60 shrink-0 gap-1 aria-disabled:opacity-50 hover:text-primary"
     >
