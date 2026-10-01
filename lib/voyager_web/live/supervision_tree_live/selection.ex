@@ -81,9 +81,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.Selection do
     end
   end
 
-  # Expanding a stub to reveal a PID-link is the same work as a manual +/-
-  # expand: one `which_children` plus hydrate for that supervisor's direct
-  # children. Only pids can be revealed this way.
+  # Expanding a stub loads its supervised children, which are always pids, so a
+  # linked port can never be revealed this way and stays a placeholder.
   defp stub_to_expand(flat, identifier, from, expanded_pids) when is_pid(identifier) do
     stub =
       if expandable_stub?(from) do

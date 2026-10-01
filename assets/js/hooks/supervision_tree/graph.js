@@ -184,12 +184,8 @@ export const graphMethods = {
           patch.children_keys !== undefined &&
           patch.children_keys !== 'not_loaded'
         ) {
-          // Only flip on the not_loaded -> loaded transition (a stub just
-          // got hydrated). Ordinary child churn (a restarted child's key
-          // changing) also patches `children_keys` on an already-loaded
-          // node — recomputing from scratch there would clobber a manual
-          // client-side collapse even though the hidden descendants never
-          // moved.
+          // A stub's children just loaded, so show them expanded. Later `children_keys`
+          // patches (a child restarting) must not re-expand a node the user collapsed.
           node.data('is_collapsed', false);
         }
 
@@ -413,9 +409,8 @@ export const graphMethods = {
     return next;
   },
 
-  // Decrement the hidden_count of every successor, then reveal those no
-  // longer hidden by any other collapsed ancestor. Shared by the manual
-  // +/- toggle and by revealing a client-side-collapsed ancestor on focus.
+  // `hidden_count` is how many collapsed ancestors hide an element, so one
+  // expanding only unhides what no other collapsed ancestor still covers.
   expandCollapsedNode(node) {
     node.data('is_collapsed', false);
 
@@ -432,9 +427,7 @@ export const graphMethods = {
     });
   },
 
-  // Walks a node's supervision ancestors and expands any that are
-  // client-side collapsed, so a node already loaded into the graph but
-  // hidden under a collapsed ancestor becomes visible again.
+  // A focus target can be loaded in the graph yet hidden under an ancestor the user collapsed.
   revealCollapsedAncestors(node) {
     let current = node;
     let expanded = false;
