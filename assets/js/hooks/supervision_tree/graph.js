@@ -528,6 +528,11 @@ export const graphMethods = {
 
     if (node.hasClass('hidden')) return;
 
+    if (this.layoutPending) {
+      this.pendingFocusKey = key;
+      return;
+    }
+
     this.cy.stop();
     this.cy.animate({
       center: { eles: node },
