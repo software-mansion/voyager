@@ -261,17 +261,19 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
             </span>
           </button>
 
-          <button
+          <.lookup_button
             :if={lookup_key(record, @keypos) != :error}
             id={"#{@id}-#{index}-lookup"}
-            type="button"
-            phx-click="open_sidebar"
-            phx-value-index={index}
-            title="Look up every record with this key"
-            class="btn btn-ghost btn-xs text-base-content/60 shrink-0 gap-1 hover:text-primary"
+            index={index}
+          />
+          <.tooltip
+            :if={lookup_key(record, @keypos) == :error}
+            id={"#{@id}-#{index}-lookup-tip"}
+            class="shrink-0 cursor-not-allowed"
           >
-            <.icon name="icon-panel-left" class="size-3.5 -scale-x-100" /> Lookup
-          </button>
+            <.lookup_button id={"#{@id}-#{index}-lookup"} index={index} disabled />
+            <:content>Key was truncated</:content>
+          </.tooltip>
         </div>
 
         <div :if={row_open?(@open_rows, index)} class="border-base-200 border-t px-3 py-2">
@@ -284,6 +286,26 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
         </div>
       </li>
     </ol>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :index, :integer, required: true
+  attr :disabled, :boolean, default: false
+
+  defp lookup_button(assigns) do
+    ~H"""
+    <button
+      id={@id}
+      type="button"
+      phx-click="open_sidebar"
+      phx-value-index={@index}
+      disabled={@disabled}
+      title={if(!@disabled, do: "Look up every record with this key")}
+      class="btn btn-ghost btn-xs text-base-content/60 shrink-0 gap-1 hover:text-primary disabled:opacity-50"
+    >
+      <.icon name="icon-panel-left" class="size-3.5 -scale-x-100" /> Lookup
+    </button>
     """
   end
 
@@ -496,7 +518,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
     tuple |> Tuple.to_list() |> Enum.any?(&truncated_record?/1)
   end
 
-  defp truncated_record?(list) when is_list(list), do: Enum.any?(list, &truncated_record?/1)
+  defp truncated_record?([head | tail]), do: truncated_record?(head) or truncated_record?(tail)
 
   defp truncated_record?(map) when is_map(map) and not is_struct(map) do
     Enum.any?(map, fn {key, value} -> truncated_record?(key) or truncated_record?(value) end)
@@ -532,6 +554,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   end
 
   defp strip_markers(@truncated), do: :...
+  defp strip_markers({@truncated, :binary, prefix, _size}), do: prefix
 
   defp strip_markers(list) when is_list(list), do: Enum.map(list, &strip_markers/1)
 

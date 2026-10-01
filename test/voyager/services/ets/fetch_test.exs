@@ -217,18 +217,18 @@ defmodule Voyager.Services.Ets.FetchTest do
                Fetch.lookup(@node, :t, <<"k">>, 10, @budget, nil, @timeout)
     end
 
-    test "passes a composite key through to the agent" do
-      key = {:tuple, 1}
+    test "passes composite and pid keys through to the agent" do
+      for key <- [{:tuple, 1}, self()] do
+        expect(Voyager.ErpcMock, :call, fn @node,
+                                           @agent_module,
+                                           :ets_lookup,
+                                           [:t, ^key, 10, @budget, :undefined],
+                                           @timeout ->
+          ok_chunk([])
+        end)
 
-      expect(Voyager.ErpcMock, :call, fn @node,
-                                         @agent_module,
-                                         :ets_lookup,
-                                         [:t, ^key, 10, @budget, :undefined],
-                                         @timeout ->
-        ok_chunk([])
-      end)
-
-      assert {:ok, %{records: []}} = Fetch.lookup(@node, :t, key, 10, @budget, nil, @timeout)
+        assert {:ok, %{records: []}} = Fetch.lookup(@node, :t, key, 10, @budget, nil, @timeout)
+      end
     end
 
     test "rejects a non-positive or non-integer limit without touching the remote" do
