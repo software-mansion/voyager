@@ -283,6 +283,8 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   attr :page_size, :integer, required: true
   attr :total, :integer, required: true
   attr :page_size_options, :list, default: [], doc: "adds a rows-per-page selector"
+  attr :paginate_event, :string, default: "paginate"
+  attr :page_size_event, :string, default: "set_page_size"
 
   def pager(assigns) do
     total_pages = max(div(assigns.total + assigns.page_size - 1, assigns.page_size), 1)
@@ -309,7 +311,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         <form
           :if={@page_size_options != []}
           id={"#{@id}-page-size-form"}
-          phx-change="set_page_size"
+          phx-change={@page_size_event}
           class="flex items-center gap-2"
         >
           <label
@@ -334,7 +336,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         <button
           type="button"
           id={"#{@id}-prev"}
-          phx-click="paginate"
+          phx-click={@paginate_event}
           phx-value-page={@page - 1}
           disabled={@page <= 1}
           class="join-item btn btn-sm"
@@ -348,7 +350,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         <button
           type="button"
           id={"#{@id}-next"}
-          phx-click="paginate"
+          phx-click={@paginate_event}
           phx-value-page={@page + 1}
           disabled={@page >= @total_pages}
           class="join-item btn btn-sm"
