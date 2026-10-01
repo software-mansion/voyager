@@ -251,14 +251,14 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
                 class={key? && "text-primary font-bold"}
               >{text}</span>
             </span>
-            <span
+            <.tooltip
               :if={truncated_record?(record)}
               id={"#{@id}-#{index}-truncated"}
-              title="This record was shortened to fit the term budget"
               class="shrink-0"
             >
               <.icon name="icon-circle-alert" class="text-warning size-3.5" />
-            </span>
+              <:content>This record was shortened to fit the term budget</:content>
+            </.tooltip>
           </button>
 
           <.lookup_button
@@ -554,7 +554,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   end
 
   defp strip_markers(@truncated), do: :...
-  defp strip_markers({@truncated, :binary, prefix, _size}), do: prefix
+  defp strip_markers({@truncated, :binary, prefix, _size}), do: {prefix, :...}
 
   defp strip_markers(list) when is_list(list), do: Enum.map(list, &strip_markers/1)
 
