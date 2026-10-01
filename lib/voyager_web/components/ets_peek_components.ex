@@ -18,6 +18,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   alias VoyagerWeb.TermTree.State
 
   @truncated :"$voyager_truncated"
+  @key_marker :"$voyager_key"
 
   @budget_help "Caps how much of each fetched term the remote node sends back — " <>
                  "roughly one unit per subterm, binaries charged per byte kept. " <>
@@ -244,7 +245,11 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
               {@offset + index + 1}
             </span>
             <span class="font-mono text-base-content min-w-0 flex-1 truncate text-xs">
-              {preview(record)}
+              <span
+                :for={{text, key?} <- preview_parts(record, @keypos)}
+                id={key? && "#{@id}-#{index}-key"}
+                class={key? && "text-primary font-bold"}
+              >{text}</span>
             </span>
             <span
               :if={truncated_record?(record)}
@@ -474,6 +479,25 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   end
 
   defp truncated_record?(_other), do: false
+
+  # The marker spends less inspect limit than the key, so only the text before it is trusted.
+  defp preview_parts(record, keypos) when is_tuple(record) and tuple_size(record) >= keypos do
+    text = preview(record)
+    marked = record |> put_elem(keypos - 1, @key_marker) |> preview()
+    through_key = record |> Tuple.to_list() |> Enum.take(keypos) |> List.to_tuple() |> preview()
+    key_end = byte_size(through_key) - 1
+
+    with [before, _rest] <- String.split(marked, inspect(@key_marker), parts: 2),
+         key_start = byte_size(before),
+         <<head::binary-size(^key_start), key::binary-size(^key_end - ^key_start), tail::binary>> <-
+           text do
+      [{head, false}, {key, true}, {tail, false}]
+    else
+      _other -> [{text, false}]
+    end
+  end
+
+  defp preview_parts(record, _keypos), do: [{preview(record), false}]
 
   defp preview(record) do
     record
