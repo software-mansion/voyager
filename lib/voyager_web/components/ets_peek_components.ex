@@ -295,14 +295,15 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   defp lookup_button(assigns) do
     ~H"""
+    <%!-- aria-disabled, not disabled: a disabled button can't take focus, so keyboard users never reach the tooltip. --%>
     <button
       id={@id}
       type="button"
-      phx-click="open_sidebar"
+      phx-click={if(!@disabled, do: "open_sidebar")}
       phx-value-index={@index}
-      disabled={@disabled}
+      aria-disabled={if(@disabled, do: "true")}
       title={if(!@disabled, do: "Look up every record with this key")}
-      class="btn btn-ghost btn-xs text-base-content/60 shrink-0 gap-1 hover:text-primary disabled:opacity-50"
+      class="btn btn-ghost btn-xs text-base-content/60 shrink-0 gap-1 aria-disabled:opacity-50 hover:text-primary"
     >
       <.icon name="icon-panel-left" class="size-3.5 -scale-x-100" /> Lookup
     </button>

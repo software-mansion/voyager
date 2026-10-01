@@ -43,7 +43,7 @@ defmodule VoyagerWeb.EtsTableLiveTest do
 
     view = fetch_records(conn, name)
 
-    refute has_element?(view, "#ets-records-0-lookup[disabled]")
+    refute has_element?(view, "#ets-records-0-lookup[aria-disabled]")
 
     view |> element("#ets-records-0-lookup") |> render_click()
     render_async(view, 2_000)
@@ -58,7 +58,9 @@ defmodule VoyagerWeb.EtsTableLiveTest do
 
     view = fetch_records(conn, name)
 
-    assert has_element?(view, "#ets-records-0-lookup[disabled]")
+    assert has_element?(view, "#ets-records-0-lookup[aria-disabled='true']")
+    refute has_element?(view, "#ets-records-0-lookup[disabled]")
+    refute has_element?(view, "#ets-records-0-lookup[phx-click]")
 
     assert has_element?(
              view,
