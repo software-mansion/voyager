@@ -295,7 +295,6 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   defp lookup_button(assigns) do
     ~H"""
-    <%!-- aria-disabled, not disabled: a disabled button can't take focus, so keyboard users never reach the tooltip. --%>
     <button
       id={@id}
       type="button"
