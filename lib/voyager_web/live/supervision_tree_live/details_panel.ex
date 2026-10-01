@@ -122,17 +122,17 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
       <%= if @node do %>
         <%!-- Header --%>
         <div class="border-base-200 flex items-start gap-3 border-b px-5 py-4">
-          <.back_button
-            :if={@selection_history != []}
-            panel_id={@id}
-            on_back="back-details-node"
-            target={@myself}
-          />
           <div class="flex min-w-0 flex-1 flex-col gap-1.5">
             <.node_type_label panel_id={@id} node_type={@node.type} off_tree?={@node.placeholder?} />
             <.node_label panel_id={@id} node={@node} />
           </div>
           <div class="flex shrink-0 items-center gap-1.5">
+            <.back_button
+              :if={@selection_history != []}
+              panel_id={@id}
+              on_back="back-details-node"
+              target={@myself}
+            />
             <.refresh_button
               :if={is_pid(@node.pid)}
               panel_id={@id}
