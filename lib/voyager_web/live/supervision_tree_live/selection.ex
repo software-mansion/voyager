@@ -11,13 +11,12 @@ defmodule VoyagerWeb.SupervisionTreeLive.Selection do
   alias Voyager.Services.SupervisionTree.TreeNode
 
   @type flat_tree :: %{String.t() => TreeNode.t()} | nil
-  @type link_identifier :: pid() | port() | reference()
+  @type link_identifier :: pid() | port()
 
   @type jump ::
           {:select, TreeNode.t()}
           | {:select_placeholder, TreeNode.t()}
           | {:expand_and_reveal, TreeNode.t(), TreeNode.t()}
-          | :ignore
 
   @doc """
   Finds the node for `key` in the flat tree.
@@ -27,37 +26,21 @@ defmodule VoyagerWeb.SupervisionTreeLive.Selection do
   wrapper) so those nodes still resolve.
   """
   @spec lookup(flat_tree(), String.t()) :: TreeNode.t() | nil
-  def lookup(flat, key) do
-    case flat do
-      %{^key => %TreeNode{} = node} ->
-        node
-
-      flat when is_map(flat) ->
-        find_by_pid_key(flat, key)
-
-      _ ->
-        nil
-    end
-  end
+  def lookup(nil, _key), do: nil
+  def lookup(flat, key), do: Map.get(flat, key) || find_by_pid_key(flat, key)
 
   @doc """
   Returns the `[key, ..., root_key]` path for a node in the flat tree, or `[]`
-  when the key (or the tree) is missing.
+  when the key is missing.
   """
-  @spec path_to_root(flat_tree(), String.t() | nil) :: [String.t()]
-  def path_to_root(_flat, ""), do: []
-  def path_to_root(nil, _key), do: []
-
-  def path_to_root(flat, key) when is_map(flat) do
-    path_to_root(flat, key, [])
-  end
+  @spec path_to_root(%{String.t() => TreeNode.t()}, String.t()) :: [String.t()]
+  def path_to_root(flat, key), do: path_to_root(flat, key, [])
 
   @doc """
   Builds a stand-in `TreeNode` for an identifier that is not part of the
-  loaded walk, so the details panel can still display it. Returns `nil` for
-  identifiers that cannot be shown on their own (references).
+  loaded walk, so the details panel can still display it.
   """
-  @spec placeholder(link_identifier() | term()) :: TreeNode.t() | nil
+  @spec placeholder(link_identifier()) :: TreeNode.t()
   def placeholder(pid) when is_pid(pid) do
     %TreeNode{key: TreeNode.key(pid), pid: pid, name: pid, type: :process, placeholder?: true}
   end
@@ -65,8 +48,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.Selection do
   def placeholder(port) when is_port(port) do
     %TreeNode{key: TreeNode.key(port), name: port, type: :port, placeholder?: true}
   end
-
-  def placeholder(_), do: nil
 
   @doc """
   Decides what clicking a details-panel link should do.
@@ -78,7 +59,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.Selection do
       (the node the click came from, or a collapsed supervisor that links the
       target) can be expanded to reveal it: show the stand-in, expand the
       stub, and re-select once the fetch lands
-    * `:ignore` — the identifier can be neither found nor displayed
 
   `from` is the currently selected node (where the click originated) and
   `expanded_pids` the set of already-expanded supervisor pids.
@@ -93,14 +73,11 @@ defmodule VoyagerWeb.SupervisionTreeLive.Selection do
       in_tree ->
         {:select, in_tree}
 
-      is_nil(placeholder) ->
-        :ignore
+      stub = stub_to_expand(flat, identifier, from, expanded_pids) ->
+        {:expand_and_reveal, placeholder, stub}
 
       true ->
-        case stub_to_expand(flat, identifier, from, expanded_pids) do
-          nil -> {:select_placeholder, placeholder}
-          stub -> {:expand_and_reveal, placeholder, stub}
-        end
+        {:select_placeholder, placeholder}
     end
   end
 
@@ -132,12 +109,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.Selection do
   defp expandable_stub?(_), do: false
 
   defp find_stub_linking_to(flat, identifier) when is_map(flat) do
-    Enum.find_value(flat, fn
-      {_key, %TreeNode{} = node} ->
-        if expandable_stub?(node) and linked_to?(node, identifier), do: node
-
-      _ ->
-        nil
+    Enum.find_value(flat, fn {_key, node} ->
+      if expandable_stub?(node) and linked_to?(node, identifier), do: node
     end)
   end
 
@@ -149,13 +122,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.Selection do
   defp linked_to?(_node, _identifier), do: false
 
   defp find_by_pid_key(flat, key) do
-    matches =
-      Enum.filter(flat, fn
-        {_k, %TreeNode{pid: pid}} when is_pid(pid) -> TreeNode.key(pid) == key
-        _ -> false
-      end)
+    nodes =
+      for {_k, %TreeNode{pid: pid} = n} <- flat, is_pid(pid), TreeNode.key(pid) == key, do: n
 
-    nodes = Enum.map(matches, &elem(&1, 1))
     Enum.find(nodes, &(&1.type == :app)) || List.first(nodes)
   end
 

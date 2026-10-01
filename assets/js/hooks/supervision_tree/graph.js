@@ -436,17 +436,12 @@ export const graphMethods = {
   // client-side collapsed, so a node already loaded into the graph but
   // hidden under a collapsed ancestor becomes visible again.
   revealCollapsedAncestors(node) {
-    const seen = new Set();
     let current = node;
     let expanded = false;
 
     this.cy.batch(() => {
-      while (current && current.nonempty()) {
-        const parentKey = current.data('parent_key');
-        if (!parentKey || seen.has(parentKey)) break;
-        seen.add(parentKey);
-
-        const parent = this.cy.getElementById(parentKey);
+      while (current.data('parent_key')) {
+        const parent = this.cy.getElementById(current.data('parent_key'));
         if (parent.empty()) break;
 
         if (this.isCollapsed(parent)) {
@@ -510,7 +505,7 @@ export const graphMethods = {
   },
 
   focusNode({ key }) {
-    if (!key || !this.cy) return;
+    if (!key) return;
 
     this.pendingFocusKey = key;
     if (this.layoutPending || this.disabledClick) return;
@@ -522,7 +517,7 @@ export const graphMethods = {
     // Clear eagerly: whatever happens below, a focus request that cannot be
     // honoured now must not linger and fire later on an unrelated selection.
     this.pendingFocusKey = null;
-    if (!key || !this.cy) return;
+    if (!key) return;
 
     const node = this.cy.getElementById(key);
     if (node.empty()) return;

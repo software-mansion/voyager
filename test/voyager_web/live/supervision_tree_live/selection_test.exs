@@ -49,12 +49,10 @@ defmodule VoyagerWeb.SupervisionTreeLive.SelectionTest do
       assert Selection.path_to_root(tree([root, mid, leaf]), "leaf") == ["leaf", "mid", "root"]
     end
 
-    test "returns [] for a missing key, empty key, or missing tree" do
+    test "returns [] for a missing key" do
       root = node!("root", type: :supervisor)
 
       assert Selection.path_to_root(tree([root]), "nope") == []
-      assert Selection.path_to_root(tree([root]), "") == []
-      assert Selection.path_to_root(nil, "root") == []
     end
   end
 
@@ -77,11 +75,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.SelectionTest do
 
       assert key == inspect(port)
     end
-
-    test "returns nil for references and other terms" do
-      assert Selection.placeholder(make_ref()) == nil
-      assert Selection.placeholder(:other) == nil
-    end
   end
 
   describe "resolve_jump/4" do
@@ -90,10 +83,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.SelectionTest do
       node = node!(TreeNode.key(p), pid: p)
 
       assert Selection.resolve_jump(tree([node]), p, nil, MapSet.new()) == {:select, node}
-    end
-
-    test "ignores identifiers that cannot be found or displayed" do
-      assert Selection.resolve_jump(tree([]), make_ref(), nil, MapSet.new()) == :ignore
     end
 
     test "selects a placeholder when nothing can be expanded" do

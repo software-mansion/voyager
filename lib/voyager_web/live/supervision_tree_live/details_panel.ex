@@ -49,8 +49,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
           tree_node: tree_node,
           remote_node: remote_node,
           node_name: node_name,
-          current_url: current_url
-        } = assigns,
+          current_url: current_url,
+          selection_origin: origin
+        },
         socket
       ) do
     socket
@@ -58,7 +59,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(:remote_node, remote_node)
     |> assign(:node_name, node_name)
     |> assign(:current_url, current_url)
-    |> maybe_assign_node(tree_node, Map.get(assigns, :selection_origin, :external))
+    |> maybe_assign_node(tree_node, origin)
     |> ok()
   end
 
@@ -78,7 +79,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
         send(self(), {:select_link, identifier})
 
         socket
-        |> push_history(identifier)
+        |> push_history()
         |> noreply()
     end
   end
@@ -197,19 +198,10 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> maybe_fetch_links(node)
   end
 
-  defp push_history(socket, identifier) do
-    case socket.assigns.node do
-      %TreeNode{key: key} = node ->
-        if key == TreeNode.key(identifier) do
-          socket
-        else
-          assign(socket, :selection_history, [node | socket.assigns.selection_history])
-        end
+  defp push_history(%{assigns: %{node: %TreeNode{} = node}} = socket),
+    do: assign(socket, :selection_history, [node | socket.assigns.selection_history])
 
-      _ ->
-        socket
-    end
-  end
+  defp push_history(socket), do: socket
 
   defp maybe_fetch_node_info(socket, %TreeNode{pid: pid}) when is_pid(pid) do
     remote_node = socket.assigns.remote_node

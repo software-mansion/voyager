@@ -486,9 +486,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       )
 
     case resolved do
-      :ignore ->
-        socket
-
       {:select, node} ->
         put_selected_node(socket, node, focus: true, origin: :link)
 
@@ -505,7 +502,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   end
 
   defp maybe_reveal_pending(socket) do
-    case socket.assigns[:pending_reveal] do
+    case socket.assigns.pending_reveal do
       nil ->
         socket
 
