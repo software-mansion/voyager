@@ -361,7 +361,7 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       render_async(view)
       assert has_element?(view, "#node-info-content")
 
-      broadcast(Voyager.NodeSession.topic(), {:node_disconnected, session.node})
+      broadcast(Voyager.NodeSession.topic(), {:node_disconnected, session.node, nil})
 
       {"/", flash} = assert_redirect(view)
       assert flash["info"] == "Node disconnected: demo@localhost"
@@ -377,7 +377,7 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       render_async(view)
       assert has_element?(view, "#node-info-content")
 
-      broadcast(Voyager.NodeSession.topic(), {:nodedown, session.node})
+      broadcast(Voyager.NodeSession.topic(), {:nodedown, session.node, nil})
 
       {"/", flash} = assert_redirect(view)
       assert flash["error"] == "Node down: demo@localhost"
@@ -392,7 +392,7 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
       {:ok, view, _html} = live(conn, @path)
       render_async(view)
 
-      broadcast(Voyager.NodeSession.topic(), {:nodedown, session.node})
+      broadcast(Voyager.NodeSession.topic(), {:nodedown, session.node, nil})
 
       {"/?mode=ssh", flash} = assert_redirect(view)
       assert flash["error"] == "Node down: demo@localhost"

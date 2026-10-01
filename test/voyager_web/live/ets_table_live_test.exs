@@ -37,12 +37,86 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     refute has_element?(view, "#ets-lookup-error")
   end
 
-  test "a bag row has no lookup control and ignores open_sidebar", %{conn: conn} do
-    name = named_table(:bag)
-    :ets.insert(name, {:k, 1})
-    :ets.insert(name, {:k, 2})
+  for keypos <- [2, 6] do
+    test "the key at keypos #{keypos} is bold in the row preview", %{conn: conn} do
+      keypos = unquote(keypos)
+      record = Tuple.insert_at({:a, :b, :c, :d, :e, :f}, keypos - 1, :the_key)
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :set, keypos: keypos])
+      :ets.insert(name, record)
 
-    refute_lookup_sidebar(conn, name)
+      view = fetch_records(conn, name)
+
+      assert has_element?(view, "#ets-records-0-toggle", inspect(record))
+      assert has_element?(view, "#ets-records-0-key.font-bold.text-primary")
+      assert text(view, "#ets-records-0-key") == ":the_key"
+    end
+  end
+
+  test "a collection key keeps the inspect limit it has inside the record", %{conn: conn} do
+    record = {:a, :b, :c, Enum.to_list(1..30), :d}
+    name = EtsTable.unique_name()
+    :ets.new(name, [:named_table, :public, :set, keypos: 4])
+    :ets.insert(name, record)
+
+    view = fetch_records(conn, name)
+
+    row = inspect(record, limit: 20, printable_limit: 128, width: :infinity)
+    assert has_element?(view, "#ets-records-0-toggle", row)
+    assert text(view, "#ets-records-0-key") == "[#{Enum.join(1..16, ", ")}, ...]"
+  end
+
+  for type <- [:bag, :duplicate_bag] do
+    test "a #{type} key pages its records in the sidebar", %{conn: conn} do
+      name = named_table(unquote(type))
+      :ets.insert(name, for(i <- 1..15, do: {:k, record_value(unquote(type), i)}))
+
+      view = open_lookup(conn, name)
+
+      assert lookup_record_count(view) == 10
+      assert lookup_page_label(view) == "1 / 2"
+      refute has_element?(view, "#ets-lookup-pager-prev:not([disabled])")
+
+      view |> element("#ets-lookup-pager-next") |> render_click()
+      render_async(view, 2_000)
+
+      assert lookup_record_count(view) == 5
+      assert lookup_page_label(view) == "2 / 2"
+      assert has_element?(view, "#ets-lookup-pager-next[disabled]")
+
+      view |> element("#ets-lookup-pager-prev") |> render_click()
+      render_async(view, 2_000)
+
+      assert lookup_record_count(view) == 10
+    end
+  end
+
+  test "a new lookup page size restarts the key from its first page", %{conn: conn} do
+    name = named_table(:bag)
+    :ets.insert(name, for(i <- 1..15, do: {:k, i}))
+
+    view = open_lookup(conn, name)
+    view |> element("#ets-lookup-pager-next") |> render_click()
+    render_async(view, 2_000)
+
+    view
+    |> element("#ets-lookup-pager-page-size-form")
+    |> render_change(%{"page_size" => "5"})
+
+    render_async(view, 2_000)
+
+    assert lookup_record_count(view) == 5
+    assert has_element?(view, "#ets-lookup-pager-prev[disabled]")
+  end
+
+  test "a bag key too large to copy shows the error in the sidebar", %{conn: conn} do
+    name = named_table(:duplicate_bag)
+    :ets.insert(name, for(i <- 1..200_000, do: {:k, i}))
+
+    view = open_lookup(conn, name)
+
+    assert has_element?(view, "#ets-lookup-error")
+    refute has_element?(view, "#ets-lookup-record-0")
   end
 
   defp named_table(type) do
@@ -66,15 +140,37 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     view
   end
 
-  defp refute_lookup_sidebar(conn, name) do
+  defp text(view, selector) do
+    view |> render() |> LazyHTML.from_fragment() |> LazyHTML.query(selector) |> LazyHTML.text()
+  end
+
+  defp open_lookup(conn, name) do
     view = fetch_records(conn, name)
 
-    refute has_element?(view, "#ets-records-0-lookup")
-    refute has_element?(view, "#ets-lookup-sidebar")
-
-    render_click(view, "open_sidebar", %{"index" => "0"})
+    view |> element("#ets-records-0-lookup") |> render_click()
     render_async(view, 2_000)
 
-    refute has_element?(view, "#ets-lookup-sidebar")
+    assert has_element?(view, "#ets-lookup-sidebar")
+    view
   end
+
+  defp lookup_page_label(view) do
+    view
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query("#ets-lookup-pager .font-mono.pointer-events-none")
+    |> LazyHTML.text()
+    |> String.trim()
+  end
+
+  defp lookup_record_count(view) do
+    view
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query("#ets-lookup-records > [id^=ets-lookup-record-]")
+    |> Enum.count()
+  end
+
+  defp record_value(:bag, i), do: i
+  defp record_value(:duplicate_bag, _i), do: 1
 end
