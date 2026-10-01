@@ -37,6 +37,7 @@ defmodule Voyager.Telemetry.Handler.ExportTest do
 
     assert payload.metadata == %{
              reason: :nodedown,
+             nodedown_reason: nil,
              connected_via: nil,
              install_id: install_id,
              vsn: Voyager.version(),

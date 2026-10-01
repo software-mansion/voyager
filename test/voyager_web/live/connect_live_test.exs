@@ -55,12 +55,30 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
       assert has_element?(view, "#connected-indicator", "demo@localhost")
 
-      broadcast(NodeSession.topic(), {:nodedown, session.node})
+      broadcast(NodeSession.topic(), {:nodedown, session.node, nil})
 
       assert has_element?(view, "#flash-error", "Node down: demo@localhost")
       refute has_element?(view, "#connected-indicator")
       assert has_element?(view, ~s|#direct-connect-btn:not([disabled])|)
       assert has_element?(view, ~s|[data-testid="fill-recent-btn"]:not([disabled])|)
+    end
+
+    test "explains nodedown reasons", %{conn: conn} do
+      session = Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      for {reason, message} <- [
+            {:net_tick_timeout, "connection timed out, check your network"},
+            {:send_net_tick_failed, "connection timed out, check your network"},
+            {:shutdown, "connection lost"}
+          ] do
+        broadcast(NodeSession.topic(), {:nodedown, session.node, reason})
+
+        assert has_element?(view, "#flash-error", "Node down: demo@localhost — #{message}")
+      end
+
+      refute has_element?(view, "#connected-indicator")
     end
   end
 
@@ -255,7 +273,7 @@ defmodule VoyagerWeb.ConnectLiveTest do
       {:ok, view, _html} = live(conn, ~p"/")
 
       Fakes.put_session(nil)
-      broadcast(NodeSession.topic(), {:node_disconnected, session.node})
+      broadcast(NodeSession.topic(), {:node_disconnected, session.node, nil})
 
       refute has_element?(view, "#connected-indicator")
       assert has_element?(view, "input#mode-ssh[checked]")
@@ -269,7 +287,7 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
       {:ok, view, _html} = live(conn, ~p"/")
 
-      broadcast(NodeSession.topic(), {:nodedown, session.node})
+      broadcast(NodeSession.topic(), {:nodedown, session.node, nil})
 
       refute has_element?(view, "#connected-indicator")
       assert has_element?(view, "input#mode-ssh[checked]")

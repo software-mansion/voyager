@@ -431,8 +431,9 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   defp ssh_connect_error(:nxdomain),
     do: {:ssh_host, "Host not found — check the SSH hostname"}
 
-  defp ssh_connect_error(:ehostunreach),
-    do: {:ssh_host, "Host unreachable — check the SSH hostname and your network"}
+  defp ssh_connect_error(reason)
+       when reason in [:ehostunreach, :enetunreach, :enetdown, :ehostdown],
+       do: {:ssh_host, "Host unreachable — check the SSH hostname and your network"}
 
   defp ssh_connect_error({:node_not_found, _, _}),
     do:
