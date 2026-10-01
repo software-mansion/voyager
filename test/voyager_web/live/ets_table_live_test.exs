@@ -37,6 +37,35 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     refute has_element?(view, "#ets-lookup-error")
   end
 
+  for keypos <- [2, 6] do
+    test "the key at keypos #{keypos} is bold in the row preview", %{conn: conn} do
+      keypos = unquote(keypos)
+      record = Tuple.insert_at({:a, :b, :c, :d, :e, :f}, keypos - 1, :the_key)
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :set, keypos: keypos])
+      :ets.insert(name, record)
+
+      view = fetch_records(conn, name)
+
+      assert has_element?(view, "#ets-records-0-toggle", inspect(record))
+      assert has_element?(view, "#ets-records-0-key.font-bold.text-primary")
+      assert text(view, "#ets-records-0-key") == ":the_key"
+    end
+  end
+
+  test "a collection key keeps the inspect limit it has inside the record", %{conn: conn} do
+    record = {:a, :b, :c, Enum.to_list(1..30), :d}
+    name = EtsTable.unique_name()
+    :ets.new(name, [:named_table, :public, :set, keypos: 4])
+    :ets.insert(name, record)
+
+    view = fetch_records(conn, name)
+
+    row = inspect(record, limit: 20, printable_limit: 128, width: :infinity)
+    assert has_element?(view, "#ets-records-0-toggle", row)
+    assert text(view, "#ets-records-0-key") == "[#{Enum.join(1..16, ", ")}, ...]"
+  end
+
   for type <- [:bag, :duplicate_bag] do
     test "a #{type} key pages its records in the sidebar", %{conn: conn} do
       name = named_table(unquote(type))
@@ -109,6 +138,10 @@ defmodule VoyagerWeb.EtsTableLiveTest do
 
     assert has_element?(view, "#ets-records-0")
     view
+  end
+
+  defp text(view, selector) do
+    view |> render() |> LazyHTML.from_fragment() |> LazyHTML.query(selector) |> LazyHTML.text()
   end
 
   defp open_lookup(conn, name) do
