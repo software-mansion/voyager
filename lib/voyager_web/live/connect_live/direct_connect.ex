@@ -219,7 +219,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
       {:error, reason} ->
         changeset =
           ConnectionParams.changeset(params)
-          |> Ecto.Changeset.add_error(:node_name, connect_error(reason))
+          |> Ecto.Changeset.add_error(error_field(reason), connect_error(reason))
           |> Map.put(:action, :insert)
 
         {:noreply, assign(socket, :form, to_form(changeset, as: :conn))}
@@ -229,6 +229,9 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   defp empty_form do
     ConnectionParams.changeset() |> to_form(as: :conn)
   end
+
+  defp error_field(:bad_cookie), do: :cookie
+  defp error_field(_reason), do: :node_name
 
   defp connect_error(:connection_failed),
     do: "Node unreachable - check the name is correct and the node is running"
