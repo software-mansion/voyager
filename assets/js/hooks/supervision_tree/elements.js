@@ -27,8 +27,9 @@
 /**
  * @param {string} key
  * @param {ServerNode} node
+ * @param {string | undefined} nodeId
  */
-export function elementsFor(key, node) {
+export function elementsFor(key, node, nodeId) {
   const child_count = node.child_count ?? 0;
   const children_keys =
     node.children_keys === 'not_loaded' ? null : node.children_keys;
@@ -47,7 +48,7 @@ export function elementsFor(key, node) {
     is_collapsed: initialIsCollapsedState({ child_count, children_keys }),
     is_from_relation: node.parent_key === null,
   };
-  data.displayLabel = composeLabel(data);
+  data.displayLabel = composeLabel(data, nodeId);
 
   /** @type {Array<{group: string, data: Object, classes?: string}>} */
   const els = [{ group: 'nodes', data }];
@@ -105,19 +106,31 @@ export function initialIsCollapsedState({ child_count, children_keys }) {
 // The label is the process's registered name, or its pid when unregistered —
 // the server resolves this into `name`. Nodes with children also show their
 // direct child count as `(N)`.
-export function composeLabel(d) {
-  const name = formatName(d.name);
+export function composeLabel(d, nodeId) {
+  const name = formatName(d.name, nodeId);
   if (d.type === 'worker' || d.child_count === 0) {
     return name;
   }
   return `${name} (${d.child_count})`;
 }
 
-export function formatName(name) {
+export function formatName(name, nodeId) {
   if (name === null || name === undefined) return '';
-  if (Array.isArray(name)) return name.map(formatName).join(':');
-  if (typeof name === 'string') return name;
+  if (Array.isArray(name)) {
+    return name.map((part) => formatName(part, nodeId)).join(':');
+  }
+  if (typeof name === 'string') return formatPid(name, nodeId);
   return String(name);
+}
+
+/**
+ * @param {string} pid
+ * @param {string | undefined} nodeId the `N` of `<N.X.Y>` pids to shorten; unset
+ *   in the distribution format
+ */
+export function formatPid(pid, nodeId) {
+  if (!nodeId) return pid;
+  return pid.replace(new RegExp(`^<${nodeId}\\.(\\d+\\.\\d+)>$`), '<0.$1>');
 }
 
 export function edgeId(parentKey, childKey) {

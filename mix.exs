@@ -4,7 +4,7 @@ defmodule Voyager.MixProject do
   def project do
     [
       app: :voyager,
-      version: "0.1.0",
+      version: "0.2.0-dev",
       elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -121,10 +121,15 @@ defmodule Voyager.MixProject do
     [
       voyager: [
         rel_templates_path: "rel/app",
-        steps: [:assemble, &ElixirKit.Release.codesign/1],
+        steps: [:assemble, &remove_cookie/1, &ElixirKit.Release.codesign/1],
         entitlements: "#{__DIR__}/rel/app/src-tauri/App.entitlements"
       ]
     ]
+  end
+
+  defp remove_cookie(release) do
+    File.rm!(Path.join(release.path, "releases/COOKIE"))
+    release
   end
 
   defp copy_font_assets_cmd do

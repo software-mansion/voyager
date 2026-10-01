@@ -75,15 +75,17 @@ defmodule VoyagerWeb.CoreComponents do
   attr :node_name, :string, required: true
   attr :last_updated, :any, default: nil
 
-  attr :waiting_message, :string,
+  attr :waiting_message, :any,
     default: "waiting for first snapshot…",
-    doc: "shown until the first update arrives"
+    doc: "shown until the first update arrives; nil hides the line entirely"
+
+  attr :class, :any, default: "mb-8", doc: "replaces the default bottom margin"
 
   slot :actions
 
   def node_header(assigns) do
     ~H"""
-    <header class="mb-8 flex items-center justify-between gap-4">
+    <header class={["flex items-center justify-between gap-4" | List.wrap(@class)]}>
       <div class="min-w-0 flex-1">
         <h1 class="font-mono text-base-content min-w-0 text-2xl font-bold tracking-tight">
           <.tooltip
@@ -107,7 +109,10 @@ defmodule VoyagerWeb.CoreComponents do
             </:content>
           </.tooltip>
         </h1>
-        <p class="font-mono text-base-content/70 mt-0.5 text-xs">
+        <p
+          :if={@last_updated || @waiting_message}
+          class="font-mono text-base-content/70 mt-0.5 text-xs"
+        >
           <%= if @last_updated do %>
             updated {Formatters.format_time(@last_updated)} UTC
           <% else %>
@@ -121,12 +126,186 @@ defmodule VoyagerWeb.CoreComponents do
   end
 
   @doc """
+  Single-choice dropdown whose radios submit `name`/`value` like a `<select>`.
+
+  Options are `{label, value}` pairs, or a list of values used as both.
+  """
+  attr :id, :string, default: nil
+  attr :name, :string, default: nil
+  attr :value, :any, default: nil
+  attr :field, Phoenix.HTML.FormField
+  attr :options, :list, required: true, doc: "`{label, value}` pairs, or a list of values"
+  attr :class, :any, default: nil, doc: "width and other classes on the dropdown wrapper"
+  attr :align, :atom, default: :start, values: [:start, :end]
+  attr :side, :atom, default: :bottom, values: [:top, :bottom]
+  attr :disabled, :boolean, default: false
+
+  def select(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
+    assigns
+    |> assign(field: nil)
+    |> assign(:id, assigns[:id] || field.id)
+    |> assign(:name, field.name)
+    |> assign(:value, field.value)
+    |> select()
+  end
+
+  def select(assigns) do
+    options = Enum.map(assigns.options, &normalize_option/1)
+
+    assigns =
+      assigns
+      |> assign(:options, options)
+      |> assign(:current_label, option_label(options, assigns.value))
+
+    ~H"""
+    <details
+      id={"#{@id}-dropdown"}
+      phx-hook=".Select"
+      phx-mounted={JS.ignore_attributes("open")}
+      phx-click-away={JS.remove_attribute("open")}
+      inert={@disabled}
+      class={[
+        "dropdown",
+        @align == :end && "dropdown-end",
+        @side == :top && "dropdown-top",
+        @disabled && "opacity-50",
+        @class
+      ]}
+    >
+      <summary
+        id={@id}
+        phx-keydown={close_select(@id)}
+        phx-key="Escape"
+        aria-labelledby={"#{@id}-label #{@id}-value"}
+        class="select select-bordered select-sm select-caret font-mono w-full cursor-pointer list-none pr-8 text-left text-xs font-normal"
+      >
+        <span id={"#{@id}-value"}>{@current_label}</span>
+      </summary>
+      <div
+        phx-click={close_select(@id)}
+        class={[
+          "dropdown-content bg-base-100 rounded-box border-base-300 z-50 flex w-max min-w-full flex-col border p-2 shadow-lg",
+          @side == :top && "mb-1",
+          @side == :bottom && "mt-1"
+        ]}
+      >
+        <label
+          :for={{label, value} <- @options}
+          id={"#{@id}-#{option_id(value)}-option"}
+          class="font-mono flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs has-[:focus-visible]:bg-base-content/10 hover:bg-base-content/10"
+        >
+          <input
+            type="radio"
+            name={@name}
+            value={to_string(value)}
+            checked={option_selected?(@value, value)}
+            phx-keydown={close_select(@id)}
+            phx-key="Escape"
+            class="sr-only"
+          />
+          <span class="size-3.5 flex shrink-0 items-center justify-center">
+            <.icon
+              :if={option_selected?(@value, value)}
+              name="icon-check"
+              class="size-3.5"
+            />
+          </span>
+          {label}
+        </label>
+      </div>
+    </details>
+
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".Select">
+      export default {
+        mounted() {
+          this.onKeyDown = (event) => {
+            const radios = [...this.el.querySelectorAll('input[type="radio"]')]
+            if (radios.length === 0) return
+
+            if (event.key === "Enter") {
+              this.confirm(event, radios)
+              return
+            }
+
+            if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return
+
+            // A radio arrow fires a click, and phx-click on the menu would close it.
+            event.preventDefault()
+            this.el.open = true
+
+            const active = radios.indexOf(document.activeElement)
+            const current =
+              active === -1
+                ? Math.max(0, radios.findIndex((radio) => radio.checked))
+                : active
+            const next =
+              event.key === "ArrowDown"
+                ? Math.min(current + 1, radios.length - 1)
+                : Math.max(current - 1, 0)
+
+            radios[next].focus({preventScroll: true, focusVisible: true})
+          }
+
+          this.el.addEventListener("keydown", this.onKeyDown)
+        },
+
+        confirm(event, radios) {
+          const radio = document.activeElement
+          if (!(radio instanceof HTMLInputElement) || !radios.includes(radio)) return
+
+          event.preventDefault()
+          if (!radio.checked) {
+            radio.checked = true
+            radio.dispatchEvent(new Event("input", {bubbles: true}))
+            radio.dispatchEvent(new Event("change", {bubbles: true}))
+          }
+
+          this.el.querySelector("summary")?.focus({preventScroll: true})
+          this.el.open = false
+        },
+
+        destroyed() {
+          this.el.removeEventListener("keydown", this.onKeyDown)
+        }
+      }
+    </script>
+    """
+  end
+
+  defp close_select(id) do
+    JS.focus(to: "##{id}")
+    |> JS.remove_attribute("open", to: "##{id}-dropdown")
+  end
+
+  defp normalize_option({label, value}), do: {label, value}
+  defp normalize_option(value), do: {to_string(value), value}
+
+  defp option_label(options, value) do
+    match = to_string(value || "")
+
+    Enum.find_value(options, match, fn {label, option} ->
+      to_string(option) == match && label
+    end)
+  end
+
+  defp option_selected?(value, option), do: to_string(value || "") == to_string(option)
+
+  defp option_id(value) do
+    case to_string(value) do
+      "" -> "blank"
+      id -> id
+    end
+  end
+
+  @doc """
   Renders a form with select input with specified refresh interval options and
   button to refresh manually.
 
   ## Examples
 
       <.interval_select
+        id="refresh-interval"
+        settings_key="node-info" # localStorage key the chosen interval is kept under
         options={[
           {"Off", "off"},
           {"1s", "1000"},
@@ -136,7 +315,8 @@ defmodule VoyagerWeb.CoreComponents do
         loading={@loading}
       />
   """
-  attr :id, :string, default: nil
+  attr :id, :string, required: true
+  attr :settings_key, :string, required: true
   attr :options, :list, required: true
   attr :refresh_interval, :integer, default: nil
   attr :loading, :boolean, required: true
@@ -144,25 +324,27 @@ defmodule VoyagerWeb.CoreComponents do
   def interval_select(assigns) do
     ~H"""
     <div class="flex items-center gap-2">
-      <label class="font-mono text-base-content/70 tracking-label text-xs uppercase">
+      <label
+        id={"#{@id}-label"}
+        for={@id}
+        class="font-mono text-base-content/70 tracking-label text-xs uppercase"
+      >
         Auto-refresh
       </label>
-      <form phx-change="set_interval" id={"#{@id}-form"}>
-        <div class="select-caret">
-          <select
-            name="interval"
-            id={@id}
-            class="select select-bordered select-sm font-mono pr-8 text-xs"
-          >
-            <option
-              :for={{label, value} <- @options}
-              value={value}
-              selected={value == interval_value(@refresh_interval)}
-            >
-              {label}
-            </option>
-          </select>
-        </div>
+      <form
+        phx-change="set_interval"
+        phx-hook=".RefreshInterval"
+        data-settings-key={@settings_key}
+        id={"#{@id}-form"}
+      >
+        <.select
+          id={@id}
+          name="interval"
+          value={interval_value(@refresh_interval)}
+          options={@options}
+          align={:end}
+          class="min-w-19"
+        />
       </form>
       <button
         type="button"
@@ -178,11 +360,63 @@ defmodule VoyagerWeb.CoreComponents do
         />
       </button>
     </div>
+
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".RefreshInterval">
+      export default {
+        mounted() {
+          const key = `voyager:refresh-interval:${this.el.dataset.settingsKey}`
+          const checked = this.el.querySelector('input[type="radio"]:checked')
+          const defaultValue = checked ? checked.value : ""
+          try {
+            const stored = localStorage.getItem(key)
+            const storedInput =
+              stored && this.el.querySelector(`input[type="radio"][value="${stored}"]`)
+            if (storedInput && stored !== defaultValue) {
+              storedInput.checked = true
+              storedInput.dispatchEvent(new Event("change", {bubbles: true}))
+            }
+            this.el.addEventListener("change", (event) => {
+              if (event.target.value === defaultValue) localStorage.removeItem(key)
+              else localStorage.setItem(key, event.target.value)
+            })
+          } catch (error) {
+            console.warn(`Error while restoring ${key}: ${error}`)
+          }
+        }
+      }
+    </script>
     """
   end
 
   defp interval_value(nil), do: "off"
   defp interval_value(ms), do: Integer.to_string(ms)
+
+  @doc "A PID in the configured display format, marked with a primary dot."
+  attr :pid, :any, required: true, doc: "a pid or its string form"
+
+  def display_pid(assigns) do
+    ~H"""
+    <span class="font-mono inline-flex items-center gap-1.5">
+      <span class="bg-primary h-1.5 w-1.5 shrink-0 rounded-full" />
+      {Formatters.pid(@pid)}
+    </span>
+    """
+  end
+
+  @doc "A bordered chip linking to a process."
+  attr :pid, :any, required: true, doc: "a pid or its string form"
+  attr :href, :string, required: true
+
+  def pid_link(assigns) do
+    ~H"""
+    <.link
+      href={@href}
+      class="border-base-content/70 bg-base-200 text-base-content inline-flex rounded-md border px-2.5 py-1 text-xs transition-colors hover:border-primary hover:text-primary"
+    >
+      <.display_pid pid={@pid} />
+    </.link>
+    """
+  end
 
   @doc """
   Renders a button that copies text from another element.
@@ -197,10 +431,26 @@ defmodule VoyagerWeb.CoreComponents do
   attr :label, :string, default: "Copy"
   attr :copied_label, :string, default: "Copied"
   attr :icon_only, :boolean, default: false, doc: "hides the visible label"
+
+  attr :size, :atom,
+    default: :md,
+    values: [:md, :sm],
+    doc: "`:sm` for dense contexts such as table cells"
+
   attr :class, :any, default: nil
   attr :rest, :global
 
   def copy_button(assigns) do
+    assigns =
+      assign(
+        assigns,
+        :button_class,
+        if(assigns.icon_only,
+          do: ["btn-square", if(assigns.size == :sm, do: "toolbar-btn-sm", else: "toolbar-btn")],
+          else: "btn-sm gap-2"
+        )
+      )
+
     ~H"""
     <button
       type="button"
@@ -212,17 +462,14 @@ defmodule VoyagerWeb.CoreComponents do
       data-copy-copied-label={@copied_label}
       title={@label}
       aria-label={@label}
-      class={[
-        "btn btn-ghost",
-        if(@icon_only, do: "btn-square toolbar-btn", else: "btn-sm gap-2"),
-        @class
-      ]}
+      class={["btn btn-ghost", @button_class, @class]}
       {@rest}
     >
       <.icon
+        id={"#{@id}-icon"}
         name="icon-copy"
         data-copy-icon
-        class={if @icon_only, do: "toolbar-icon", else: "size-4"}
+        class={copy_icon_class(@icon_only, @size)}
       />
       <span data-copy-button-label class={@icon_only && "sr-only"}>{@label}</span>
       <span class="sr-only" aria-live="polite" data-copy-status></span>
@@ -416,7 +663,7 @@ defmodule VoyagerWeb.CoreComponents do
           <.icon name="icon-plus" class="toolbar-icon" />
         </button>
       </div>
-      <p :for={error <- @errors} class="font-mono text-error mt-1.5 text-xs">{error}</p>
+      <p :for={error <- @errors} class="font-mono text-error text-pretty mt-1.5 text-xs">{error}</p>
     </div>
     """
   end
@@ -437,10 +684,95 @@ defmodule VoyagerWeb.CoreComponents do
     """
   end
 
-  defp translate_error({msg, opts}) do
+  defp copy_icon_class(true, :sm), do: "toolbar-icon-sm"
+  defp copy_icon_class(true, _size), do: "toolbar-icon"
+  defp copy_icon_class(false, _size), do: "size-4"
+
+  @doc "Interpolates a changeset error's `%{count}`-style placeholders."
+  @spec translate_error({String.t(), keyword()}) :: String.t()
+  def translate_error({msg, opts}) do
     Enum.reduce(opts, msg, fn {key, value}, acc ->
       String.replace(acc, "%{#{key}}", fn _ -> to_string(value) end)
     end)
+  end
+
+  @doc """
+  Multi-select dropdown: a DaisyUI dropdown holding a checkbox per option.
+
+  Values are submitted as `name[]`, so the enclosing form's change event
+  receives a list. Options are `{value, label, locked?}` triples; a locked
+  option renders checked and disabled and must be re-added server-side, since a
+  disabled checkbox submits nothing.
+
+  ## Examples
+
+      <.multiselect
+        id="columns"
+        name="columns"
+        label="Columns"
+        options={[{"pid", "PID", true}, {"status", "Status", false}]}
+        selected={["pid"]}
+      />
+  """
+  attr :id, :string, required: true
+  attr :name, :string, required: true
+  attr :label, :string, required: true
+  attr :options, :list, required: true, doc: "list of `{value, label, locked?}` triples"
+  attr :selected, :list, required: true, doc: "list of selected values"
+  attr :disabled, :boolean, default: false
+
+  def multiselect(assigns) do
+    assigns = assign(assigns, :count, length(assigns.selected))
+
+    ~H"""
+    <div class="dropdown dropdown-end">
+      <div
+        tabindex={if @disabled, do: "-1", else: "0"}
+        role="button"
+        id={@id}
+        aria-label={@label}
+        aria-disabled={@disabled}
+        class={[
+          "input input-sm items-center gap-2",
+          if(@disabled, do: "pointer-events-none opacity-50", else: "cursor-pointer")
+        ]}
+      >
+        <span class="grow text-left">{@label}</span>
+        <span class="font-mono text-base-content/60">{@count}</span>
+        <.icon name="icon-chevron-right" class="size-3.5 shrink-0 rotate-90 opacity-60" />
+      </div>
+
+      <div
+        tabindex="0"
+        role="group"
+        aria-label={@label}
+        class="dropdown-content bg-base-100 rounded-box border-base-300 z-50 mt-1 w-56 border p-2 shadow-lg"
+      >
+        <label
+          :for={{value, label, locked?} <- @options}
+          id={"#{@id}-#{value}-option"}
+          class={[
+            "flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm",
+            locked? && "text-base-content/60 cursor-not-allowed",
+            not locked? && "cursor-pointer hover:bg-base-200"
+          ]}
+          title={locked? && "Always shown"}
+        >
+          <input :if={locked?} type="hidden" name={"#{@name}[]"} value={value} />
+          <input
+            :if={not locked?}
+            id={"#{@id}-#{value}-input"}
+            type="checkbox"
+            name={"#{@name}[]"}
+            value={value}
+            checked={value in @selected}
+            class="checkbox checkbox-xs checkbox-primary"
+          />
+          <span class={["font-mono", locked? && "pl-6"]}>{label}</span>
+        </label>
+      </div>
+    </div>
+    """
   end
 
   @doc """
@@ -530,7 +862,7 @@ defmodule VoyagerWeb.CoreComponents do
   def error_state(assigns) do
     ~H"""
     <div class="alert alert-error mb-8" id={@id} role="alert" {@rest}>
-      <.icon name="icon-circle-alert" class="size-5" />
+      <.icon name="icon-circle-alert" class="text-error size-5" />
       <span>{@message}</span>
     </div>
     """
@@ -569,6 +901,10 @@ defmodule VoyagerWeb.CoreComponents do
     doc:
       "when true, the tip stays open while hovered and can be pinned open with a click — required if the content holds clickable elements"
 
+  attr :pinnable, :boolean,
+    default: true,
+    doc: "set false where a pinned tip would outlive its anchor, e.g. scrolling table cells"
+
   attr :show_when, :string,
     default: nil,
     values: [nil, "sidebar-compact"],
@@ -587,6 +923,7 @@ defmodule VoyagerWeb.CoreComponents do
       data-tooltip-target={"##{@id}-tip"}
       data-tooltip-position={@position}
       data-tooltip-interactive={to_string(@interactive)}
+      data-tooltip-pinnable={to_string(@pinnable)}
       data-tooltip-show-when={@show_when}
     >
       {render_slot(@inner_block)}
@@ -656,12 +993,21 @@ defmodule VoyagerWeb.CoreComponents do
     default: true,
     doc: "when true, the tip can be hovered into and pinned open with a click"
 
+  attr :pinnable, :boolean, default: true, doc: "forwarded to `tooltip/1`"
+
+  attr :entry, :map,
+    default: nil,
+    doc:
+      "help entry (`%{text:, doc_href:, doc_label:}`) whose doc fields fill the documentation link"
+
   slot :inner_block, required: true, doc: "the hover/focus target"
   slot :content, required: true, doc: "tooltip content"
 
   def link_tooltip(assigns) do
+    assigns = assign_entry_link(assigns)
+
     ~H"""
-    <.tooltip id={@id} position={@position} interactive={@interactive}>
+    <.tooltip id={@id} position={@position} interactive={@interactive} pinnable={@pinnable}>
       {render_slot(@inner_block)}
       <:content>
         {render_slot(@content)}
@@ -684,11 +1030,13 @@ defmodule VoyagerWeb.CoreComponents do
   Renders a round "?" help affordance that reveals a tooltip on hover/focus.
 
   Thin wrapper over `tooltip/1` that supplies the "?" trigger button. Pass plain
-  text via `text`, or richer markup as the inner block.
+  text via `text`, a help entry via `entry`, or richer markup as the inner block.
 
   ## Examples
 
       <.help_tooltip id="cpu-help" text="Average scheduler utilization." />
+
+      <.help_tooltip id="uptime-help" entry={NodeInfoHelp.get(:uptime)} />
 
       <.help_tooltip id="mem-help" position="right">
         Total memory allocated by the BEAM, including
@@ -705,15 +1053,14 @@ defmodule VoyagerWeb.CoreComponents do
 
   attr :class, :any, default: nil, doc: "extra classes for the trigger button"
 
-  attr :doc_href, :string,
-    default: nil,
-    doc: "when set, renders a documentation link at the bottom of the tooltip"
-
-  attr :doc_label, :string, default: "Learn more", doc: "label for the documentation link"
-
   attr :interactive, :boolean,
     default: true,
     doc: "when true, the tip can be hovered into and pinned open with a click"
+
+  attr :entry, :map,
+    default: nil,
+    doc:
+      "help entry (`%{text:, doc_href:, doc_label:}`); supplies the text and the documentation link"
 
   slot :inner_block, doc: "rich tooltip content; overrides text"
 
@@ -722,8 +1069,7 @@ defmodule VoyagerWeb.CoreComponents do
     <.link_tooltip
       id={@id}
       position={@position}
-      doc_href={@doc_href}
-      doc_label={@doc_label}
+      entry={@entry}
       interactive={@interactive}
     >
       <button
@@ -742,11 +1088,20 @@ defmodule VoyagerWeb.CoreComponents do
         <%= if @inner_block != [] do %>
           {render_slot(@inner_block)}
         <% else %>
-          {@text}
+          {@text || @entry[:text]}
         <% end %>
       </:content>
     </.link_tooltip>
     """
+  end
+
+  defp assign_entry_link(%{entry: nil} = assigns), do: assigns
+
+  defp assign_entry_link(%{entry: entry} = assigns) do
+    assign(assigns,
+      doc_href: entry[:doc_href],
+      doc_label: entry[:doc_label] || assigns.doc_label
+    )
   end
 
   @doc """
@@ -780,7 +1135,7 @@ defmodule VoyagerWeb.CoreComponents do
       <div class="flex">
         <button
           type="button"
-          aria-expanded={@open}
+          aria-expanded={to_string(@open)}
           class={["flex w-full cursor-pointer items-center" | List.wrap(@label_class)]}
           {@rest}
         >

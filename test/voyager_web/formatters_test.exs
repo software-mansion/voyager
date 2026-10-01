@@ -42,6 +42,17 @@ defmodule VoyagerWeb.FormattersTest do
     end
   end
 
+  describe "format_exact_bytes/1" do
+    test "returns an em dash for nil" do
+      assert Formatters.format_exact_bytes(nil) == "—"
+    end
+
+    test "keeps every byte with thousands separators" do
+      assert Formatters.format_exact_bytes(0) == "0 B"
+      assert Formatters.format_exact_bytes(4_601_632) == "4,601,632 B"
+    end
+  end
+
   describe "format_bytes_compact/1" do
     test "joins value and unit with no space" do
       assert Formatters.format_bytes_compact(0) == "0B"
@@ -128,6 +139,15 @@ defmodule VoyagerWeb.FormattersTest do
       assert Formatters.format_uptime(3_661_000) == "1h 1m"
       assert Formatters.format_uptime(90_061_000) == "1d 1h"
       assert Formatters.format_uptime(31_536_000_000) == "1yr 0d"
+    end
+  end
+
+  describe "format_pid/1" do
+    test "formats a pid in its external form" do
+      formatted = VoyagerWeb.Formatters.format_pid(self())
+
+      assert "<" <> _rest = formatted
+      assert :erlang.list_to_pid(String.to_charlist(formatted)) == self()
     end
   end
 end

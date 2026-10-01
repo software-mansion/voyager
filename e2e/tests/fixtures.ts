@@ -86,6 +86,8 @@ export async function ensureDisconnected(page: Page) {
   if (await disconnect.isVisible()) {
     await disconnect.click();
     await expect(disconnect).toBeHidden();
+    // Disconnect keeps SSH mode; reload `/` so Direct's connectBtn is visible again.
+    await page.goto('/');
     await waitForLiveView(page);
   }
 

@@ -7,6 +7,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
   import Mox
 
   alias Voyager.Fakes
+  alias Voyager.Services.RateLimiter
+
+  @agent_module Voyager.Agent.module()
 
   @node_name "demo@localhost"
   @path "/node/demo@localhost/supervision-tree"
@@ -67,10 +70,11 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       link_pids: link_pids,
       sup_key: sup_key
     } do
-      # 9 erpc calls: which_applications + app masters (mount), then masters +
+      # 11 erpc calls: which_applications + app masters (mount), then masters +
       # root children + root ancestors + which_children batch + process_info
-      # hydrate (walk), then process_info + wordsize (ProcessInfo.fetch)
-      expect_supervision_erpc(9, sup_pid, [port], link_pids)
+      # hydrate (walk), then process_info + wordsize + proc_label + proc_links
+      # (ProcessInfo.fetch/fetch_label/fetch_links, all eager on selection)
+      expect_supervision_erpc(11, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
@@ -83,7 +87,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       assert has_element?(view, "#details-panel", "Supervisor")
       assert has_element?(view, "#details-panel", "demo_supervisor")
       assert has_element?(view, "#details-panel", "Overview")
-      assert has_element?(view, "#details-panel", "Binary")
+      assert has_element?(view, "#details-panel", "Message queue data")
       assert has_element?(view, "#details-panel", "Last calls")
       assert has_element?(view, "#details-panel", "Trace")
       assert has_element?(view, "#details-panel", "Suspending")
@@ -102,8 +106,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       link_pids: link_pids,
       port_key: port_key
     } do
-      # Same 9 calls as the supervisor test minus ProcessInfo.fetch's
-      # process_info + wordsize: port nodes have no pid to inspect.
+      # Same 11 calls as the supervisor test minus process_info + wordsize +
+      # proc_label + proc_links: port nodes have no pid to inspect.
       expect_supervision_erpc(7, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
@@ -130,8 +134,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       sup_key: sup_key,
       twentieth_link: twentieth_link
     } do
-      # Same 9 calls as "renders process details for a supervisor".
-      expect_supervision_erpc(9, sup_pid, [port], link_pids)
+      # Same 11 calls as "renders process details for a supervisor" — links are
+      # fetched eagerly alongside the rest on selection.
+      expect_supervision_erpc(11, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
@@ -151,19 +156,46 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       refute has_element?(view, "#details-panel", twentieth_link)
     end
 
+    test "collapses expanded links when a different node is selected", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      link_pids: link_pids,
+      sup_key: sup_key,
+      port_key: port_key
+    } do
+      # 7 base calls, plus 4 for each of the two supervisor selections; the port
+      # selection fetches nothing.
+      expect_supervision_erpc(15, sup_pid, [port], link_pids)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      view |> element("#details-panel-toggle-links") |> render_click()
+      assert has_element?(view, "#details-panel-toggle-links", "Show Less")
+
+      render_hook(view, "select-node", %{"key" => port_key})
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      assert has_element?(view, "#details-panel-toggle-links", "Show More")
+    end
+
     test "caps the expanded link list", %{
       conn: conn,
       sup_pid: sup_pid,
       port: port,
       sup_key: sup_key
     } do
-      # 206 links (linked port + 205 pids): expanding renders the first 200 and
-      # reports the rest as overflow rather than emitting a chip per link.
+      # 205 links: expanding renders the first 200 and reports the rest as
+      # overflow rather than emitting a chip per link.
       link_pids = for n <- 1..205, do: :erlang.list_to_pid(~c"<0.#{200 + n}.0>")
       last_link = link_pids |> List.last() |> pid_key()
 
-      # Same 9 calls as "renders process details for a supervisor".
-      expect_supervision_erpc(9, sup_pid, [port], link_pids)
+      # Same 11 calls as "renders process details for a supervisor" — links are
+      # fetched eagerly alongside the rest on selection.
+      expect_supervision_erpc(11, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
@@ -172,7 +204,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       view |> element("#details-panel-toggle-links") |> render_click()
 
       assert has_element?(view, "#details-panel-toggle-links", "Show Less")
-      assert has_element?(view, "#details-panel", "+6 more")
+      assert has_element?(view, "#details-panel", "+5 more")
       refute has_element?(view, "#details-panel", last_link)
     end
 
@@ -183,8 +215,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       link_pids: link_pids,
       sup_key: sup_key
     } do
-      # Open the panel with the default ProcessInfo payload (reductions 1,234).
-      expect_supervision_erpc(9, sup_pid, [port], link_pids)
+      expect_supervision_erpc(11, sup_pid, [port], link_pids)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
@@ -192,33 +223,95 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
 
       assert has_element?(view, "#details-panel-refresh")
       assert has_element?(view, "#details-panel", "1,234")
-      assert has_element?(view, "#details-panel", "waiting")
+      assert has_element?(view, ~s|#details-panel [title="waiting"]|)
       refute has_element?(view, "#details-panel", "9,999")
-      refute has_element?(view, "#details-panel", "running")
+      refute has_element?(view, ~s|#details-panel [title="running"]|)
       refute has_element?(view, "#details-panel", "Failed to load node details.")
 
-      # Refresh: ProcessInfo.fetch calls process_info then system_info — return
-      # a different snapshot so the panel content visibly changes.
-      expect(Voyager.ErpcMock, :call, fn _node, :erlang, :process_info, [_pid, keys], _timeout
-                                         when is_list(keys) ->
-        process_info_kw(keys, link_pids,
-          status: :running,
-          reductions: 9_999
-        )
-      end)
+      # Refresh re-fetches process_info, system_info, proc_label and proc_links
+      # as concurrent async tasks, so the erpc calls can land in any order —
+      # dispatch on mod/fun rather than a fixed sequence. Return a different
+      # snapshot so the panel content visibly changes.
+      expect(Voyager.ErpcMock, :call, 4, fn
+        _node, :erlang, :process_info, [_pid, keys], _timeout when is_list(keys) ->
+          process_info_kw(keys, status: :running, reductions: 9_999)
 
-      expect(Voyager.ErpcMock, :call, fn _node, :erlang, :system_info, [:wordsize], _timeout ->
-        8
+        _node, :erlang, :system_info, [:wordsize], _timeout ->
+          8
+
+        _node, @agent_module, :proc_label, [pid, budget], _timeout ->
+          supervision_reply(
+            @agent_module,
+            :proc_label,
+            [pid, budget],
+            sup_pid,
+            [port],
+            link_pids
+          )
+
+        _node, @agent_module, :proc_links, [pid, limit], _timeout ->
+          supervision_reply(@agent_module, :proc_links, [pid, limit], sup_pid, [port], link_pids)
       end)
 
       view |> element("#details-panel-refresh") |> render_click()
       render_async(view)
 
       assert has_element?(view, "#details-panel", "9,999")
-      assert has_element?(view, "#details-panel", "running")
+      assert has_element?(view, ~s|#details-panel [title="running"]|)
       refute has_element?(view, "#details-panel", "1,234")
-      refute has_element?(view, "#details-panel", "waiting")
+      refute has_element?(view, ~s|#details-panel [title="waiting"]|)
       refute has_element?(view, "#details-panel", "Failed to load node details.")
+    end
+
+    test "refresh re-fetches links", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      link_pids: link_pids,
+      sup_key: sup_key
+    } do
+      # Same 11 calls as "renders process details for a supervisor" — links
+      # are fetched eagerly alongside the rest on selection.
+      expect_supervision_erpc(11, sup_pid, [port], link_pids)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      assert has_element?(view, "#details-panel", "(20)")
+
+      # Refresh: process_info, system_info, proc_label and proc_links again — a
+      # different link set proves the refresh actually re-fetches instead of
+      # leaving the stale result.
+      new_links = for n <- 1..3, do: :erlang.list_to_pid(~c"<0.#{300 + n}.0>")
+      expect_supervision_erpc(4, sup_pid, [port], new_links)
+
+      view |> element("#details-panel-refresh") |> render_click()
+      render_async(view)
+
+      assert has_element?(view, "#details-panel", "(3)")
+      refute has_element?(view, "#details-panel", "(20)")
+    end
+
+    test "skips the process fetches when the rate limiter is exhausted", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      link_pids: link_pids,
+      sup_key: sup_key
+    } do
+      start_supervised!({RateLimiter, name: EmptyBucket, config: %{high_capacity: 0}})
+      Application.put_env(:voyager, :rate_limiter, EmptyBucket)
+      on_exit(fn -> Application.delete_env(:voyager, :rate_limiter) end)
+
+      expect_supervision_erpc(7, sup_pid, [port], link_pids)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      assert has_element?(view, "#details-panel", "Too many requests.")
+      refute has_element?(view, "#details-panel", "1,234")
     end
 
     test "refresh button is hidden for non-process nodes", %{
@@ -246,7 +339,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       sup_key: sup_key,
       port_key: port_key
     } do
-      expect_supervision_erpc(9, sup_pid, [port], link_pids)
+      # 7 base calls + 4 for the supervisor selection; the port is the first link.
+      expect_supervision_erpc(11, sup_pid, [port], [port | link_pids])
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
@@ -286,7 +380,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       link_pids: link_pids,
       sup_key: sup_key
     } do
-      expect_supervision_erpc(9, sup_pid, [port], link_pids)
+      # 7 base calls + 4 for the supervisor selection; the port is the first link.
+      expect_supervision_erpc(11, sup_pid, [port], [port | link_pids])
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
@@ -295,14 +390,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       target = hd(link_pids)
       target_key = pid_key(target)
 
-      expect(Voyager.ErpcMock, :call, fn _node, :erlang, :process_info, [^target, keys], _timeout
-                                         when is_list(keys) ->
-        process_info_kw(keys, [], registered_name: :linked_worker)
-      end)
-
-      expect(Voyager.ErpcMock, :call, fn _node, :erlang, :system_info, [:wordsize], _timeout ->
-        8
-      end)
+      expect_process_info_fetch(target, [], registered_name: :linked_worker)
 
       # Index 1: index 0 is the supervisor's linked port, which is already in the tree.
       view |> element("#details-panel-link-1") |> render_click()
@@ -343,7 +431,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
 
       # Distinct master vs root supervisor: the app wrapper is keyed
       # `app:demo_app` while PID-links look up the master's `<X.Y.Z>`.
-      expect_supervision_erpc(9, sup_pid, [port], [master_pid], master_pid)
+      expect_supervision_erpc(11, sup_pid, [port], [port, master_pid], master_pid)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => pid_key(sup_pid)})
@@ -356,9 +444,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       flush(view)
       render_async(view)
 
-      assert has_element?(view, "#details-panel", "App")
+      assert has_element?(view, "#details-panel-type", "App")
       refute has_element?(view, "#details-panel", "Not in tree")
-      refute has_element?(view, "#details-panel", "Process")
+      refute has_element?(view, "#details-panel-type", "Process")
     end
 
     test "clicking a linked pid hidden by max depth expands one stub level", %{
@@ -404,12 +492,12 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       render_async(view)
 
       assert has_element?(view, "#details-panel.translate-x-0")
-      assert has_element?(view, "#details-panel", "Worker")
+      assert has_element?(view, "#details-panel-type", "Worker")
       assert has_element?(view, "#details-panel", "hidden_worker")
       assert has_element?(view, "#details-panel-pid", pid_key(worker_pid))
       assert has_element?(view, "#details-panel-back")
       refute has_element?(view, "#details-panel", "Not in tree")
-      refute has_element?(view, "#details-panel", "Process")
+      refute has_element?(view, "#details-panel-type", "Process")
     end
 
     test "closes the details panel when the selected node disappears on refresh", %{
@@ -461,14 +549,16 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
     end)
   end
 
-  defp expect_process_info_fetch(pid, links) do
-    expect(Voyager.ErpcMock, :call, fn _node, :erlang, :process_info, [^pid, keys], _timeout
-                                       when is_list(keys) ->
-      process_info_kw(keys, links)
-    end)
+  # The four calls a process selection makes (process_info, wordsize,
+  # proc_label, proc_links). They run as concurrent async tasks, so dispatch on
+  # mod/fun rather than a fixed sequence.
+  defp expect_process_info_fetch(pid, links, overrides \\ []) do
+    expect(Voyager.ErpcMock, :call, 4, fn
+      _node, :erlang, :process_info, [^pid, keys], _timeout when is_list(keys) ->
+        process_info_kw(keys, overrides)
 
-    expect(Voyager.ErpcMock, :call, fn _node, :erlang, :system_info, [:wordsize], _timeout ->
-      8
+      _node, mod, fun, args, _timeout ->
+        supervision_reply(mod, fun, args, nil, [], links)
     end)
   end
 
@@ -573,9 +663,40 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
   defp supervision_reply(:erlang, :system_info, [:wordsize], _sup, _linked, _links, _master),
     do: 8
 
-  defp supervision_reply(:erlang, :process_info, [_pid, keys], _sup, linked, link_pids, _master)
+  defp supervision_reply(:erlang, :process_info, [_pid, keys], _sup, _linked, _links, _master)
        when is_list(keys) do
-    process_info_kw(keys, linked ++ link_pids)
+    process_info_kw(keys)
+  end
+
+  defp supervision_reply(
+         @agent_module,
+         :proc_label,
+         [_pid, _budget],
+         _sup,
+         _linked,
+         _links,
+         _master
+       ) do
+    {:ok, %{term: :undefined, truncated: false}}
+  end
+
+  # Links are fetched from the remote agent, which truncates to `limit` and
+  # reports the real total alongside the kept items.
+  defp supervision_reply(
+         @agent_module,
+         :proc_links,
+         [_pid, limit],
+         _sup,
+         _linked,
+         link_pids,
+         _master
+       ) do
+    {:ok,
+     %{
+       total: length(link_pids),
+       truncated: length(link_pids) > limit,
+       items: Enum.take(link_pids, limit)
+     }}
   end
 
   # Root is expanded at default depth 3; `mid` is a stub (`count_children` only)
@@ -632,15 +753,19 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
 
   defp depth_limited_reply(:erlang, :process_info, [pid, keys], ctx) when is_list(keys) do
     cond do
-      pid == ctx.mid ->
-        process_info_kw(keys, [ctx.worker], registered_name: :mid_supervisor)
-
-      pid == ctx.worker ->
-        process_info_kw(keys, [], registered_name: :hidden_worker)
-
-      true ->
-        process_info_kw(keys, [])
+      pid == ctx.mid -> process_info_kw(keys, registered_name: :mid_supervisor)
+      pid == ctx.worker -> process_info_kw(keys, registered_name: :hidden_worker)
+      true -> process_info_kw(keys)
     end
+  end
+
+  defp depth_limited_reply(@agent_module, :proc_label, [_pid, _budget], _ctx),
+    do: {:ok, %{term: :undefined, truncated: false}}
+
+  # `mid` links its hidden worker: the PID link the test clicks.
+  defp depth_limited_reply(@agent_module, :proc_links, [pid, _limit], ctx) do
+    items = if pid == ctx.mid, do: [ctx.worker], else: []
+    {:ok, %{total: length(items), truncated: false, items: items}}
   end
 
   defp which_children_for(pid, %{sup: pid, mid: mid}),
@@ -660,27 +785,29 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
   defp count_children_for(_pid, _ctx),
     do: [specs: 0, active: 0, supervisors: 0, workers: 0]
 
-  defp process_info_kw(keys, link_pids, overrides \\ []) do
+  defp process_info_kw(keys, overrides \\ []) do
     info =
       Map.merge(
         %{
           initial_call: {:supervisor, :init, 1},
           current_function: {:gen_server, :loop, 7},
+          current_stacktrace: [],
           registered_name: :demo_supervisor,
+          label: :undefined,
+          parent: self(),
           status: :waiting,
           message_queue_len: 0,
+          message_queue_data: :on_heap,
           group_leader: self(),
           priority: :normal,
           trap_exit: true,
           reductions: 1_234,
-          binary: [],
           last_calls: false,
           catchlevel: 0,
           trace: 0,
           suspending: [],
           sequential_trace_token: [],
           error_handler: :error_handler,
-          links: link_pids,
           memory: 2_048,
           total_heap_size: 233,
           heap_size: 100,

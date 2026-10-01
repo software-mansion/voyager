@@ -95,6 +95,7 @@ const Tooltip = {
     // plain ones are a transient hover/focus peek that hides as soon as the
     // cursor leaves the trigger.
     this._interactive = this.el.dataset.tooltipInteractive === 'true';
+    this._pinnable = this.el.dataset.tooltipPinnable !== 'false';
 
     this.getTip = () => document.querySelector(this.el.dataset.tooltipTarget);
     this.hovering = () => this._hoverTrigger || this._hoverTip;
@@ -225,6 +226,9 @@ const Tooltip = {
     // Click toggles the pinned state: pin → freeze open; unpin → fall back to
     // hover rules (stays if still hovered, otherwise closes).
     this.togglePin = (e) => {
+      // A click on a link inside the trigger is a navigation, not a pin
+      // gesture; preventDefault here would swallow plain href links.
+      if (e.target.closest('a')) return;
       e.preventDefault();
       this._pinned = !this._pinned;
       if (this._pinned) {
@@ -277,7 +281,7 @@ const Tooltip = {
     // Global scroll/resize and pin (pointerdown/keydown) listeners are attached
     // lazily in show()/togglePin() and torn down in hide(), so an idle tooltip
     // holds no global listeners.
-    if (this._interactive) {
+    if (this._interactive && this._pinnable) {
       this.el.addEventListener('click', this.togglePin);
     }
   },
@@ -293,7 +297,7 @@ const Tooltip = {
       this._tipEl.removeEventListener('mouseenter', this.onTipEnter);
       this._tipEl.removeEventListener('mouseleave', this.onTipLeave);
     }
-    if (this._interactive) {
+    if (this._interactive && this._pinnable) {
       this.el.removeEventListener('click', this.togglePin);
     }
     // hide() above already tore down the global scroll/resize and pin

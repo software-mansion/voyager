@@ -20,8 +20,12 @@ defmodule Voyager.Application do
       Voyager.ProxyEpmd.TunnelRegistry,
       Voyager.NodeSession,
       {ElixirKit.PubSub, connect: elixirkit_pubsub || :ignore, on_exit: fn -> System.stop() end},
+      {Voyager.Services.RateLimiter,
+       config: Application.get_env(:voyager, :rate_limiter_config, %{})},
+      {Voyager.Services.AppUpdater, native?: elixirkit_pubsub != nil},
       VoyagerWeb.Endpoint,
       Voyager.MCP,
+      Supervisor.child_spec({Task, &Voyager.Pid.load_format/0}, id: :load_pid_format),
       {Task, fn -> if elixirkit_pubsub, do: ElixirKit.PubSub.broadcast("messages", "ready") end}
     ]
 
