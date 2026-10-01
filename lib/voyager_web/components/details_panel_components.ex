@@ -224,6 +224,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :on_select, :string, required: true
   attr :on_toggle_links, :string, required: true
   attr :target, :any, required: true
+  attr :pid_href, :any, default: nil, doc: "forwarded to `overview/1`"
 
   def body(assigns) do
     assigns = assign(assigns, :process?, is_pid(assigns.node.pid))
@@ -231,7 +232,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     ~H"""
     <div class="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
       <%= if @process? do %>
-        <.overview info={@info} />
+        <.overview info={@info} pid_href={@pid_href} />
         <.links
           panel_id={@panel_id}
           links_info={@links_info}
@@ -457,7 +458,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       phx-target={@target}
       title={"Select #{@label}"}
       aria-label={"Select #{@label}"}
-      class="border-base-content/70 bg-base-200 text-base-content inline-flex cursor-pointer rounded-md border px-2.5 py-1 text-xs transition-colors hover:border-primary hover:bg-primary/10"
+      class="border-base-content/70 bg-base-200 text-base-content inline-flex cursor-pointer rounded-md border px-2.5 py-1 text-xs transition-colors hover:border-primary hover:text-primary"
     >
       <.display_pid pid={@label} />
     </button>

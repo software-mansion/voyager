@@ -152,19 +152,24 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
           on_select="select-link"
           on_toggle_links="toggle-links"
           target={@myself}
+          pid_href={&process_href(&1, @remote_node, @node_name, @current_url)}
         />
-        <.show_more_button panel_id={@id} href={show_more_href(@node, @node_name, @current_url)} />
+        <.show_more_button
+          panel_id={@id}
+          href={process_href(@node.pid, @remote_node, @node_name, @current_url)}
+        />
       <% end %>
     </aside>
     """
   end
 
-  defp show_more_href(%TreeNode{pid: pid}, node_name, current_url)
-       when is_pid(pid) and is_binary(node_name) do
+  # Only pids living on the inspected node have a process page.
+  defp process_href(pid, remote_node, node_name, current_url)
+       when is_pid(pid) and node(pid) == remote_node and is_binary(node_name) do
     keep_sidebar(~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}", current_url)
   end
 
-  defp show_more_href(_node, _node_name, _current_url), do: nil
+  defp process_href(_pid, _remote_node, _node_name, _current_url), do: nil
 
   defp maybe_assign_node(socket, nil, _origin) do
     socket
