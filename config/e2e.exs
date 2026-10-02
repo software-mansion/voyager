@@ -18,5 +18,13 @@ config :voyager, :distribution_suffix, "_e2e"
 # Skip the first-launch onboarding modal so it doesn't block interactions.
 config :voyager, :terms_accepted, true
 
+# Parallel Playwright workers share the global bucket; the default drains and fails panel fetches.
+config :voyager, :rate_limiter_config, %{
+  high_capacity: 1_000_000,
+  high_refill: 1_000_000,
+  low_capacity: 1_000_000,
+  low_refill: 1_000_000
+}
+
 config :logger, level: :warning
 config :phoenix, :plug_init_mode, :runtime

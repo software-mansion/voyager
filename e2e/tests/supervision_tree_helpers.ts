@@ -67,6 +67,18 @@ export function cyNode(page: Page, ref: string): Promise<CyNodeSnapshot> {
   }, ref);
 }
 
+/** The graph key (cytoscape id) of a node, looked up by id or registered name. */
+export function nodeKey(page: Page, ref: string): Promise<string | null> {
+  return page.evaluate((ref) => {
+    const cy = (document.getElementById('supervision-tree-body') as any)
+      ?._cy as cytoscape.Core;
+    const hit = cy
+      ?.nodes()
+      .filter((x) => x.id() === ref || String(x.data('name')) === ref);
+    return hit?.length ? hit[0].id() : null;
+  }, ref);
+}
+
 /**
  * Whether a relationship edge (link / monitor / monitored_by) of the given kind
  * connects the two named nodes, in either direction. Relationship edges are

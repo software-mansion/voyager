@@ -429,21 +429,26 @@ export const graphMethods = {
 
   // A focus target can be loaded in the graph yet hidden under an ancestor the user collapsed.
   revealCollapsedAncestors(node) {
-    let current = node;
+    // A relation-only node has no parent_key; it is hidden through the sources linking to it.
+    const starts = node.data('parent_key') ? node : node.incomers('node');
     let expanded = false;
 
     this.cy.batch(() => {
-      while (current.data('parent_key')) {
-        const parent = this.cy.getElementById(current.data('parent_key'));
-        if (parent.empty()) break;
+      starts.forEach((start) => {
+        let current = start;
 
-        if (this.isCollapsed(parent)) {
-          this.expandCollapsedNode(parent);
-          expanded = true;
+        while (current.data('parent_key')) {
+          const parent = this.cy.getElementById(current.data('parent_key'));
+          if (parent.empty()) break;
+
+          if (this.isCollapsed(parent)) {
+            this.expandCollapsedNode(parent);
+            expanded = true;
+          }
+
+          current = parent;
         }
-
-        current = parent;
-      }
+      });
     });
 
     if (expanded) this.scheduleLayout();

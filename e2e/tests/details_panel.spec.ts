@@ -5,6 +5,10 @@ import {
   clearSelection,
   detailsPanelCssWidth,
   resizeDetailsPanel,
+  rpcOk,
+  clickToggle,
+  cyNode,
+  nodeKey,
 } from './supervision_tree_helpers';
 
 test.describe('SupervisionTreeLive › DetailsPanel', () => {
@@ -85,5 +89,35 @@ test.describe('SupervisionTreeLive › DetailsPanel', () => {
 
     await expect(panel).toContainText('mock_root_sup');
     await expect(page.locator('#details-panel-back')).toHaveCount(0);
+  });
+});
+
+test.describe('SupervisionTreeLive › DetailsPanel › relation-only link', () => {
+  test.beforeAll(() => {
+    rpcOk('mock_worker link_orphan [mock_static_worker, mock_orphan]');
+  });
+
+  test.afterAll(() => {
+    rpcOk('mock_worker clear_relations [mock_static_worker]');
+  });
+
+  test('clicking a link to it reveals it under a collapsed source', async ({
+    page,
+  }) => {
+    await openTree(page);
+    await selectNode(page, 'mock_static_worker');
+    const orphanKey = await nodeKey(page, 'mock_orphan');
+
+    await clickToggle(page, 'mock_root_sup');
+    await expect
+      .poll(() => cyNode(page, 'mock_orphan'))
+      .toMatchObject({ hidden: true });
+
+    await page.locator(`#details-panel [phx-value-key="${orphanKey}"]`).click();
+
+    await expect(page.locator('#details-panel')).toContainText('mock_orphan');
+    await expect
+      .poll(() => cyNode(page, 'mock_orphan'))
+      .toMatchObject({ hidden: false });
   });
 });
