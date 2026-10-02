@@ -38,15 +38,25 @@ defmodule Voyager.Services.Erlssh.Connection do
   end
 
   @doc """
-  Discovers the distribution port of `node_name` registered with the `epmd` at `remote_host`.
+  Discovers the distribution port of `node_name` on the remote host.
 
-  Opens a short-lived TCP tunnel to that `epmd`, sends an EPMD `NAMES` request, and parses the reply.
+  Opens a short-lived TCP tunnel to the remote `epmd` at each of `remote_hosts`
+  in turn, sends an EPMD `NAMES` request, and parses the first reply.
   Performs blocking SSH and TCP operations and can block the caller for up to
-  #{@ssh_timeout}ms; run it inside a `Task` or supervised process.
+  #{@ssh_timeout}ms per host; run it inside a `Task` or supervised process.
   """
-  @spec discover_dist_port(:ssh.connection_ref(), charlist(), String.t(), integer()) ::
+  @spec discover_dist_port(:ssh.connection_ref(), [charlist()], String.t(), integer()) ::
           {:ok, pos_integer()} | {:error, term()}
-  def discover_dist_port(conn_ref, remote_host, node_name, epmd_port \\ @epmd_port) do
+  def discover_dist_port(conn_ref, remote_hosts, node_name, epmd_port \\ @epmd_port) do
+    Enum.reduce_while(remote_hosts, {:error, :no_remote_host}, fn remote_host, _acc ->
+      case discover_dist_port_at(conn_ref, remote_host, node_name, epmd_port) do
+        {:ok, _port} = ok -> {:halt, ok}
+        error -> {:cont, error}
+      end
+    end)
+  end
+
+  defp discover_dist_port_at(conn_ref, remote_host, node_name, epmd_port) do
     with {:ok, epmd_local_port} <- open_tunnel(conn_ref, remote_host, epmd_port),
          {:ok, output} <- query_epmd_names(epmd_local_port) do
       parse_epmd_names(output, node_name)
