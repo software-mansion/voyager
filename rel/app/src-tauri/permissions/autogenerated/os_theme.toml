@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-os-theme"
+description = "Enables the os_theme command without any pre-configured scope."
+commands.allow = ["os_theme"]
+
+[[permission]]
+identifier = "deny-os-theme"
+description = "Denies the os_theme command without any pre-configured scope."
+commands.deny = ["os_theme"]
