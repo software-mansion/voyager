@@ -42,7 +42,7 @@ defmodule Voyager.Services.NodeConnector do
   defp diagnose_epmd_failure(name, host) do
     task =
       Task.Supervisor.async_nolink(Voyager.TaskSupervisor, fn ->
-        :erl_epmd.names(String.to_charlist(host))
+        :erl_epmd.names(Distribution.host_address(host))
       end)
 
     case Task.yield(task, 1_000) || Task.shutdown(task) do
@@ -55,11 +55,10 @@ defmodule Voyager.Services.NodeConnector do
 
   defp diagnose_registered_name(name, host, registered) do
     name_cl = String.to_charlist(name)
-    host_cl = String.to_charlist(host)
 
     case Enum.find(registered, fn {n, _port} -> n == name_cl end) do
       {_n, port} ->
-        case check_port(host_cl, port) do
+        case check_port(host, port) do
           :ok -> diagnose_registered_failure(host)
           {:error, reason} -> {:error, {:node_unreachable, reason}}
         end
@@ -70,17 +69,14 @@ defmodule Voyager.Services.NodeConnector do
   end
 
   defp check_port(host, port) do
-    with {:ok, socket} <- :gen_tcp.connect(host, port, [], 1_000), do: :gen_tcp.close(socket)
+    with {:ok, socket} <- :gen_tcp.connect(Distribution.host_address(host), port, [], 1_000),
+         do: :gen_tcp.close(socket)
   end
 
   defp diagnose_registered_failure(host) do
     longnames? = :net_kernel.longnames() == true
-    has_dots? = String.contains?(host, ".")
+    long_host? = String.contains?(host, [".", ":"])
 
-    cond do
-      not longnames? and has_dots? -> {:error, :name_type_mismatch}
-      longnames? and not has_dots? -> {:error, :name_type_mismatch}
-      true -> {:error, :bad_cookie}
-    end
+    if longnames? == long_host?, do: {:error, :bad_cookie}, else: {:error, :name_type_mismatch}
   end
 end
