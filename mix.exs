@@ -44,6 +44,8 @@ defmodule Voyager.MixProject do
       {:ecto_sqlite3, ">= 0.0.0"},
       {:elixirkit, github: "livebook-dev/elixirkit"},
       {:jason, "~> 1.2"},
+      # Finch pulls Mint in; listed here so Dependabot can bump it.
+      {:mint, "~> 1.11"},
       {:phoenix, "~> 1.8.7"},
       {:phoenix_ecto, "~> 4.5"},
       {:phoenix_html, "~> 4.1"},
