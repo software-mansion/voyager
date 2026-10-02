@@ -116,7 +116,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
       <.link
         id="back-to-processes"
-        navigate={keep_sidebar(~p"/node/#{@session.node_name}/processes", @current_url)}
+        navigate={~p"/node/#{@session.node_name}/processes"}
         class="btn btn-ghost btn-sm w-max gap-2"
       >
         <.icon name="icon-arrow-left" class="size-4" /> All Processes
@@ -143,7 +143,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
         >
           <div class="grid grid-cols-1 items-start gap-y-5 lg:divide-base-300 lg:grid-cols-2 lg:divide-x">
             <div class="lg:pr-8">
-              <.overview info={@info} size={:sm} pid_href={pid_href(@session, @current_url)} />
+              <.overview info={@info} size={:sm} pid_href={pid_href(@session)} />
             </div>
             <div class="lg:pl-8">
               <.memory_and_garbage_collection info={@info} size={:sm} />
@@ -316,7 +316,6 @@ defmodule VoyagerWeb.ProcessInfoLive do
                     total={bounded.total}
                     node_name={@session.node_name}
                     remote_node={@session.node}
-                    current_url={@current_url}
                   />
                 </.section>
               </div>
@@ -457,11 +456,9 @@ defmodule VoyagerWeb.ProcessInfoLive do
   # A pid that cannot be inspected at all leaves nothing to show; back to the
   # list with the reason as a flash.
   defp redirect_fatal(socket, reason) do
-    path = ~p"/node/#{socket.assigns.session.node_name}/processes"
-
     socket
     |> put_flash(:error, error_message(reason))
-    |> push_navigate(to: keep_sidebar(path, socket.assigns[:current_url]))
+    |> push_navigate(to: ~p"/node/#{socket.assigns.session.node_name}/processes")
   end
 
   defp resolve_pid(socket, pid_string) do
@@ -539,9 +536,8 @@ defmodule VoyagerWeb.ProcessInfoLive do
   end
 
   defp tab_path(socket, tab) do
-    %{session: session, pid_string: pid_string, current_url: current_url} = socket.assigns
-    path = ~p"/node/#{session.node_name}/processes/#{pid_string}?tab=#{tab}"
-    keep_sidebar(path, current_url)
+    %{session: session, pid_string: pid_string} = socket.assigns
+    ~p"/node/#{session.node_name}/processes/#{pid_string}?tab=#{tab}"
   end
 
   # Opening a gated tab for the first time fetches it; data that is already
@@ -602,11 +598,10 @@ defmodule VoyagerWeb.ProcessInfoLive do
     |> assign(:forms, forms)
   end
 
-  defp pid_href(session, current_url) do
+  defp pid_href(session) do
     fn value ->
       if is_pid(value) and node(value) == session.node do
-        path = ~p"/node/#{session.node_name}/processes/#{Formatters.format_pid(value)}"
-        keep_sidebar(path, current_url)
+        ~p"/node/#{session.node_name}/processes/#{Formatters.format_pid(value)}"
       end
     end
   end

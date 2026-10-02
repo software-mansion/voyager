@@ -82,7 +82,7 @@ defmodule VoyagerWeb.EtsTableLive do
           table_name={@table_param}
           node_name={@session.node_name}
           last_updated={@last_updated}
-          back_href={keep_sidebar(~p"/node/#{@session.node_name}/ets-tables", @current_url)}
+          back_href={~p"/node/#{@session.node_name}/ets-tables"}
         />
 
         <.async_result :let={info} assign={@info}>
@@ -95,8 +95,8 @@ defmodule VoyagerWeb.EtsTableLive do
 
           <EtsPeekComponents.info_panel
             info={info}
-            owner_href={process_path(@session.node_name, info.owner, @current_url)}
-            heir_href={process_path(@session.node_name, info.heir, @current_url)}
+            owner_href={process_path(@session.node_name, info.owner)}
+            heir_href={process_path(@session.node_name, info.heir)}
           />
 
           <EtsPeekComponents.controls
@@ -538,10 +538,10 @@ defmodule VoyagerWeb.EtsTableLive do
 
   defp records_id, do: @records_id
 
-  defp process_path(_node_name, :none, _current_url), do: nil
+  defp process_path(_node_name, :none), do: nil
 
-  defp process_path(node_name, pid, current_url) do
-    keep_sidebar(~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}", current_url)
+  defp process_path(node_name, pid) do
+    ~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}"
   end
 
   defp keypos(socket) do

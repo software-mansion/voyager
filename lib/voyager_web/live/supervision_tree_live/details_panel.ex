@@ -48,8 +48,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
           id: id,
           tree_node: tree_node,
           remote_node: remote_node,
-          node_name: node_name,
-          current_url: current_url
+          node_name: node_name
         },
         socket
       ) do
@@ -57,7 +56,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(:id, id)
     |> assign(:remote_node, remote_node)
     |> assign(:node_name, node_name)
-    |> assign(:current_url, current_url)
     |> maybe_assign_node(tree_node)
     |> ok()
   end
@@ -116,18 +114,18 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
           links_expanded?={@links_expanded?}
           myself={@myself}
         />
-        <.show_more_button panel_id={@id} href={show_more_href(@node, @node_name, @current_url)} />
+        <.show_more_button panel_id={@id} href={show_more_href(@node, @node_name)} />
       <% end %>
     </aside>
     """
   end
 
-  defp show_more_href(%TreeNode{pid: pid}, node_name, current_url)
+  defp show_more_href(%TreeNode{pid: pid}, node_name)
        when is_pid(pid) and is_binary(node_name) do
-    keep_sidebar(~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}", current_url)
+    ~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}"
   end
 
-  defp show_more_href(_node, _node_name, _current_url), do: nil
+  defp show_more_href(_node, _node_name), do: nil
 
   defp maybe_assign_node(socket, nil), do: assign(socket, :open?, false)
 

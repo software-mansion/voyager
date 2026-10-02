@@ -153,7 +153,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
   end
 
   # Rewrites only the params this component owns (depth, relations, apps) on top
-  # of the current URL, so unrelated params (e.g. the sidebar width) are kept.
+  # of the current URL, so unrelated params are kept.
   defp controls_path(socket, apps, depth, include_relations?) do
     socket.assigns.current_url
     |> URL.put_query_params(%{

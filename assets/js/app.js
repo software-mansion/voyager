@@ -29,12 +29,13 @@ import Tooltip from './hooks/tooltip';
 import NumberStepper from './hooks/number_stepper';
 import DetailsPanelResize from './hooks/details_panel_resize';
 import TableSettings from './hooks/table_settings';
+import { sessionStorageParams } from './session_storage';
 
 const csrfToken = document
   .querySelector("meta[name='csrf-token']")
   .getAttribute('content');
 const liveSocket = new LiveSocket('/live', Socket, {
-  params: { _csrf_token: csrfToken },
+  params: () => ({ _csrf_token: csrfToken, ...sessionStorageParams() }),
   hooks: {
     SupervisionTree,
     Tooltip,
