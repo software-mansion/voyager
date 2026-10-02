@@ -25,7 +25,7 @@ setopts(S, Opts) -> inet_tcp_dist:setopts(S, Opts).
 getopts(S, Opts) -> inet_tcp_dist:getopts(S, Opts).
 
 family() -> inet.
-parse_address(Host) -> inet:parse_strict_address(Host).
+parse_address(Host) -> inet:parse_address(Host).
 connect(Ip, Port, Opts) -> inet_tcp:connect(Ip, Port, Opts).
 send(Socket, Packet) -> inet_tcp:send(Socket, Packet).
 send(Socket, Packet, Opts) -> inet_tcp:send(Socket, Packet, Opts).

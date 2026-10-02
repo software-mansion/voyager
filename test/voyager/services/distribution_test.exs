@@ -24,9 +24,8 @@ defmodule Voyager.Services.DistributionTest do
       assert Distribution.host_address("::1") == {0, 0, 0, 0, 0, 0, 0, 1}
     end
 
-    test "keeps hostnames and shorthand IPv4 as charlists" do
+    test "keeps hostnames as charlists" do
       assert Distribution.host_address("myhost") == ~c"myhost"
-      assert Distribution.host_address("127.1") == ~c"127.1"
     end
   end
 

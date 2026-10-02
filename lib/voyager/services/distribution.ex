@@ -64,7 +64,7 @@ defmodule Voyager.Services.Distribution do
   def host_address(host) when is_binary(host) do
     charlist = String.to_charlist(host)
 
-    case :inet.parse_strict_address(charlist) do
+    case :inet.parse_address(charlist) do
       {:ok, address} -> address
       {:error, _} -> charlist
     end
