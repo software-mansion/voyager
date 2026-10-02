@@ -9,6 +9,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   alias Phoenix.LiveView.AsyncResult
   alias Voyager.Pid
   alias Voyager.Services.SupervisionTree.TreeNode
+  alias VoyagerWeb.Components.ProcessComponents
   alias VoyagerWeb.Components.SupervisionTreeComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.ProcessInfoHelp
@@ -224,7 +225,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :on_select, :string, required: true
   attr :on_toggle_links, :string, required: true
   attr :target, :any, required: true
-  attr :pid_href, :any, default: nil, doc: "forwarded to `overview/1`"
+  attr :remote_node, :atom, default: nil, doc: "forwarded to `overview/1`"
 
   def body(assigns) do
     assigns = assign(assigns, :process?, is_pid(assigns.node.pid))
@@ -232,7 +233,13 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     ~H"""
     <div class="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
       <%= if @process? do %>
-        <.overview info={@info} pid_href={@pid_href} />
+        <.overview
+          info={@info}
+          remote_node={@remote_node}
+          panel_id={@panel_id}
+          on_select={@on_select}
+          target={@target}
+        />
         <.links
           panel_id={@panel_id}
           links_info={@links_info}
@@ -260,9 +267,17 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     values: [:xs, :sm],
     doc: "value font size, forwarded to `kv/1`"
 
-  attr :pid_href, :any,
+  attr :remote_node, :atom,
     default: nil,
-    doc: "1-arity fun mapping a pid to a link target (or nil); pid rows render as links with it"
+    doc: "parent and group leader pids on this node render as links"
+
+  attr :current_url, :string,
+    default: nil,
+    doc: "renders linkable pid rows as plain process links instead of tree jumps"
+
+  attr :panel_id, :string, default: nil
+  attr :on_select, :string, default: nil, doc: "tree-jump event for linkable pid rows"
+  attr :target, :any, default: nil
 
   def overview(assigns) do
     assigns = assign(assigns, :rows, @overview_rows)
@@ -286,13 +301,28 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         <%= for {key, label, _width} <- @rows do %>
           <.suspending_list :if={key == :suspending} suspending={info.suspending} size={@size} />
           <.kv
-            :if={key != :suspending}
+            :if={key != :suspending and is_nil(linkable_pid(key, info, @remote_node))}
             size={@size}
             label={label}
             help={ProcessInfoHelp.get(key)}
             value={overview_value(key, info)}
-            href={pid_row_href(key, info, @pid_href)}
           />
+          <.kv
+            :if={pid = linkable_pid(key, info, @remote_node)}
+            size={@size}
+            label={label}
+            help={ProcessInfoHelp.get(key)}
+          >
+            <ProcessComponents.process_link :if={@current_url} pid={pid} current_url={@current_url} />
+            <.chip
+              :if={is_nil(@current_url)}
+              id={"#{@panel_id}-#{key}"}
+              label={format_identifier(pid)}
+              node_key={TreeNode.key(pid)}
+              on_select={@on_select}
+              target={@target}
+            />
+          </.kv>
         <% end %>
       </.async_result>
     </.section>
@@ -404,7 +434,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :label, :string, required: true
   attr :value, :string, default: nil, doc: "text value; truncated on overflow but kept in `title`"
-  attr :href, :string, default: nil, doc: "renders the value as a navigate link"
   attr :last, :boolean, default: false
   attr :stacked, :boolean, default: false
   attr :help, :map, default: nil, doc: "help entry rendered as a \"?\" tooltip next to the label"
@@ -432,10 +461,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         ]}
         title={@value}
       >
-        <.pid_link :if={@href} href={@href} pid={@value} />
-        <%= if is_nil(@href) do %>
-          {@value}
-        <% end %>
+        {@value}
         {render_slot(@inner_block)}
       </div>
     </div>
@@ -663,10 +689,12 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   defp overview_value(key, info), do: info |> Map.fetch!(key) |> to_string()
 
-  defp pid_row_href(key, info, pid_href) when key in [:parent, :group_leader] and pid_href != nil,
-    do: pid_href.(Map.fetch!(info, key))
+  defp linkable_pid(key, info, remote_node) when key in [:parent, :group_leader] do
+    pid = Map.fetch!(info, key)
+    if is_pid(pid) and node(pid) == remote_node, do: pid
+  end
 
-  defp pid_row_href(_key, _info, _pid_href), do: nil
+  defp linkable_pid(_key, _info, _remote_node), do: nil
 
   defp memory_value(:gc_fullsweep_after, info), do: format_count(info.gc_fullsweep_after)
   defp memory_value(key, info), do: info |> Map.fetch!(key) |> Formatters.format_bytes()

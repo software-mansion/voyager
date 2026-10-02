@@ -138,9 +138,7 @@ defmodule VoyagerWeb.EtsTablesLive do
         table_param={@table_param}
         table={@selected_table}
         fetch_status={fetch_status(@page_result)}
-        owner_href={
-          @selected_table && process_path(@session.node_name, @selected_table.owner, @current_url)
-        }
+        current_url={@current_url}
         contents_href={
           @selected_table && contents_path(@session.node_name, @selected_table, @current_url)
         }

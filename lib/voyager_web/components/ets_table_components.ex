@@ -407,7 +407,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
     values: [:pending, :fetched, :failed],
     doc: "whether a fetch has landed, so an unresolved param can be explained"
 
-  attr :owner_href, :string, default: nil, doc: "details page for the owning process"
+  attr :current_url, :string, default: nil
   attr :contents_href, :string, default: nil, doc: "contents page for the table"
 
   def details_panel(assigns) do
@@ -433,7 +433,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         />
         <%= cond do %>
           <% @table -> %>
-            <.panel_body table={@table} owner_href={@owner_href} contents_href={@contents_href} />
+            <.panel_body table={@table} current_url={@current_url} contents_href={@contents_href} />
           <% @fetch_status == :pending -> %>
             <.panel_skeleton />
           <% @fetch_status == :failed -> %>
@@ -491,7 +491,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
   end
 
   attr :table, :map, required: true
-  attr :owner_href, :string, required: true
+  attr :current_url, :string, required: true
   attr :contents_href, :string, default: nil
 
   defp panel_body(assigns) do
@@ -522,7 +522,9 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
           help={EtsTableHelp.get(:keypos)}
           value={Integer.to_string(@table.keypos)}
         />
-        <.owner_kv href={@owner_href} pid={@table.owner} />
+        <.kv label="Owner" help={EtsTableHelp.get(:owner)}>
+          <ProcessComponents.process_link pid={@table.owner} current_url={@current_url} />
+        </.kv>
         <.kv label="Heir" help={EtsTableHelp.get(:heir)} value={format_heir(@table.heir)} last />
       </.section>
       <.section title="Storage">
@@ -555,20 +557,6 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         />
       </.section>
     </div>
-    """
-  end
-
-  attr :href, :string, required: true
-  attr :pid, :any, required: true
-  attr :last, :boolean, default: false
-
-  defp owner_kv(assigns) do
-    ~H"""
-    <.kv label="Owner" help={EtsTableHelp.get(:owner)} last={@last}>
-      <.link navigate={@href} class="text-primary hover:underline">
-        {Formatters.pid(@pid)}
-      </.link>
-    </.kv>
     """
   end
 

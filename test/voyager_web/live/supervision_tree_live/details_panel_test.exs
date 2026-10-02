@@ -449,6 +449,35 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       refute has_element?(view, "#details-panel-type", "Process")
     end
 
+    test "clicking the parent jumps to it in the tree", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port
+    } do
+      parent = remote_pid()
+
+      expect(Voyager.ErpcMock, :call, 11, fn
+        _node, :erlang, :process_info, [_pid, keys], _timeout when is_list(keys) ->
+          process_info_kw(keys, parent: parent)
+
+        _node, mod, fun, args, _timeout ->
+          supervision_reply(mod, fun, args, sup_pid, [port], [])
+      end)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => pid_key(sup_pid)})
+      render_async(view)
+
+      expect_process_info_fetch(parent, [])
+
+      view |> element("#details-panel-parent") |> render_click()
+      flush(view)
+      render_async(view)
+
+      assert has_element?(view, "#details-panel", "Not in tree")
+      assert has_element?(view, "#details-panel-back")
+    end
+
     test "clicking a linked pid hidden by max depth expands one stub level", %{
       conn: conn,
       sup_pid: sup_pid,
@@ -602,6 +631,12 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
   # `select-link` / `back-details-node` notify the parent LiveView via send/2;
   # drain that message before asserting on the updated selection.
   defp flush(view), do: _ = :sys.get_state(view.pid)
+
+  defp remote_pid do
+    :erlang.binary_to_term(
+      <<131, 88, 119, byte_size(@node_name), @node_name, 45::32, 6::32, 1::32>>
+    )
+  end
 
   defp pid_key(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
 

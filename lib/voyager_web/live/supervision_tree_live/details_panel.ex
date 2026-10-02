@@ -71,7 +71,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   end
 
   def handle_event("select-link", %{"key" => key}, socket) do
-    case link_by_key(socket.assigns.links, key) do
+    case link_by_key(socket.assigns.links, key) || info_pid_by_key(socket, key) do
       nil ->
         noreply(socket)
 
@@ -153,7 +153,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
           on_select="select-link"
           on_toggle_links="toggle-links"
           target={@myself}
-          pid_href={&process_href(&1, @remote_node, @node_name, @current_url)}
+          remote_node={@remote_node}
         />
         <.show_more_button
           panel_id={@id}
@@ -300,4 +300,16 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   end
 
   defp link_by_key(_, _), do: nil
+
+  defp info_pid_by_key(
+         %{assigns: %{node_info: %AsyncResult{ok?: true, result: info}}} = socket,
+         key
+       )
+       when is_map(info) do
+    Enum.find([info.parent, info.group_leader], fn pid ->
+      is_pid(pid) and node(pid) == socket.assigns.remote_node and TreeNode.key(pid) == key
+    end)
+  end
+
+  defp info_pid_by_key(_socket, _key), do: nil
 end

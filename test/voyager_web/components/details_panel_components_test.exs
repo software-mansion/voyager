@@ -3,6 +3,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponentsTest do
 
   import Phoenix.LiveViewTest
 
+  alias Phoenix.LiveView.AsyncResult
   alias Voyager.EtsFakes
   alias VoyagerWeb.Components.DetailsPanelComponents
   alias VoyagerWeb.Components.EtsTableComponents
@@ -82,6 +83,63 @@ defmodule VoyagerWeb.Components.DetailsPanelComponentsTest do
     end
   end
 
+  describe "overview/1" do
+    defp render_overview(attrs) do
+      info = %{
+        initial_call: {:gen_server, :init_it, 6},
+        current_function: {:gen_server, :loop, 7},
+        current_stacktrace: [],
+        registered_name: :demo,
+        label: :undefined,
+        parent: self(),
+        status: :waiting,
+        message_queue_len: 0,
+        message_queue_data: :on_heap,
+        group_leader: self(),
+        priority: :normal,
+        trap_exit: false,
+        reductions: 1,
+        last_calls: false,
+        catch_level: 0,
+        trace: 0,
+        suspending: [],
+        sequential_trace_token: [],
+        error_handler: :error_handler
+      }
+
+      defaults = [
+        info: AsyncResult.ok(info),
+        remote_node: node(),
+        panel_id: "panel",
+        on_select: "select-link"
+      ]
+
+      render_component(&DetailsPanelComponents.overview/1, Keyword.merge(defaults, attrs))
+    end
+
+    test "linkable pids jump in the tree" do
+      html = render_overview([])
+
+      assert count(html, "button#panel-parent[phx-click=select-link]") == 1
+      assert count(html, "button#panel-group_leader[phx-click=select-link]") == 1
+      assert count(html, "a") == 0
+    end
+
+    test "pids on another node are plain text" do
+      html = render_overview(remote_node: :other@host)
+
+      assert count(html, "[phx-click=select-link]") == 0
+      assert count(html, "a") == 0
+    end
+
+    test "linkable pids are plain process links with current_url" do
+      html = render_overview(current_url: "http://localhost/node/demo%40127.0.0.1/processes/x")
+
+      assert count(html, "[phx-click=select-link]") == 0
+      assert count(html, "a.text-primary") == 2
+    end
+  end
+
   describe "ETS details_panel/1" do
     test "renders a help tooltip on every table property row" do
       html =
@@ -90,7 +148,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponentsTest do
           table_param: "t",
           table: EtsFakes.table(),
           fetch_status: :fetched,
-          owner_href: "/owner",
+          current_url: "http://localhost/node/demo%40127.0.0.1/ets-tables",
           contents_href: nil
         )
 
