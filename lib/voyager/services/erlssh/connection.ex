@@ -40,7 +40,7 @@ defmodule Voyager.Services.Erlssh.Connection do
   @doc """
   Discovers the distribution port of `node_name` on the remote host.
 
-  Opens a short-lived TCP tunnel to the remote `epmd`, sends an EPMD `NAMES` request, and parses the reply.
+  Opens a TCP tunnel to the remote `epmd`, sends an EPMD `NAMES` request, and parses the reply.
   Performs blocking SSH and TCP operations and can block the caller for up to
   #{@ssh_timeout}ms; run it inside a `Task` or supervised process.
   """
