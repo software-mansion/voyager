@@ -85,6 +85,17 @@ defmodule VoyagerWeb.TermTreeTest do
       assert segment.text =~ "truncated"
     end
 
+    test "a cut binary renders its prefix and a muted elision, not as a tuple" do
+      cut = {@truncated, :binary, "abc", 100_000}
+
+      assert %Node{kind: :binary, content: content} = node = TermTree.describe(cut)
+      assert kinds(content) == [:string, :muted]
+      assert text(content) =~ ~s|"abc"|
+      assert text(content) =~ "100000 bytes"
+      refute Node.expandable?(node)
+      assert TermTree.children(cut, 0, 10) == []
+    end
+
     test "empty collections are not expandable" do
       for {term, rendered, kind} <- [{{}, "{}", :tuple}, {[], "[]", :list}, {%{}, "%{}", :map}] do
         node = TermTree.describe(term)
@@ -410,6 +421,12 @@ defmodule VoyagerWeb.TermTreeTest do
   end
 
   describe "copy_string/1" do
+    test "copies a cut binary with its prefix and size" do
+      record = {{@truncated, :binary, "abc", 100_000}, @truncated}
+
+      assert {^record, _binding} = Code.eval_string(TermTree.copy_string(record))
+    end
+
     test "renders the whole term, not the shortened display form" do
       copied = TermTree.copy_string(Enum.to_list(1..300))
 

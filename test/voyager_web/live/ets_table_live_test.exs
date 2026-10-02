@@ -37,6 +37,39 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     refute has_element?(view, "#ets-lookup-error")
   end
 
+  test "a row keyed by an intact tuple can be looked up", %{conn: conn} do
+    name = named_table(:set)
+    :ets.insert(name, {{:user, [1 | 2]}, 1})
+
+    view = fetch_records(conn, name)
+
+    refute has_element?(view, "#ets-records-0-lookup[aria-disabled]")
+
+    view |> element("#ets-records-0-lookup") |> render_click()
+    render_async(view, 2_000)
+
+    assert has_element?(view, "#ets-lookup-record-0")
+    refute has_element?(view, "#ets-lookup-empty")
+  end
+
+  test "a row whose key was cut by the budget cannot be looked up", %{conn: conn} do
+    name = named_table(:set)
+    :ets.insert(name, {{:user, :binary.copy("k", 5_000)}, 1})
+
+    view = fetch_records(conn, name)
+
+    assert has_element?(view, "#ets-records-0-lookup[aria-disabled='true']")
+    refute has_element?(view, "#ets-records-0-lookup[disabled]")
+    refute has_element?(view, "#ets-records-0-lookup[phx-click]")
+
+    assert has_element?(
+             view,
+             "#ets-records-0-lookup-tip[data-tooltip-target='#ets-records-0-lookup-tip-tip']"
+           )
+
+    assert has_element?(view, "#ets-records-0-truncated")
+  end
+
   for keypos <- [2, 6] do
     test "the key at keypos #{keypos} is bold in the row preview", %{conn: conn} do
       keypos = unquote(keypos)

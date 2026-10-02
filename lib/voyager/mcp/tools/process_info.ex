@@ -16,7 +16,8 @@ defmodule Voyager.MCP.Tools.ProcessInfo do
   (`dictionary`, `label`, `state`, `messages`). Collections report the real
   length as `total`, the kept entries as `items`, and whether anything was
   dropped as `truncated?`; `label` and `state` return a single `term` under
-  the same budget. Elided subterms come back as `"$voyager_truncated"`; raise
+  the same budget. Elided subterms come back as `"$voyager_truncated"`, cut
+  binaries as `["$voyager_truncated", "binary", prefix, byte_size]`; raise
   `budget` only to fetch the rest of a term that came back truncated. Sizes
   are in bytes.
 
