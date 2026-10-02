@@ -157,6 +157,7 @@
           };
           tryListen();
 
+          window.addEventListener("focus", refreshOsThemeFromTauri);
           window.addEventListener("pagehide", stopListeningForOsThemeChanges);
         }
       })();

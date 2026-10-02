@@ -9,6 +9,7 @@
   "permissions": [
     "core:default",
     "core:webview:allow-set-webview-zoom",
-    "opener:default"
+    "opener:default",
+    "allow-os-theme"
   ]
 }
