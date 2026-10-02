@@ -101,14 +101,11 @@ defmodule Voyager.Services.RemoteNodeConnector do
     node_key = String.to_charlist(node_name)
     remote_node = String.to_atom(full_node_name)
 
-    # Loopback reaches any node listening on all interfaces; node_host covers dist bound to one address (e.g. v6-only).
     remote_hosts = Enum.uniq([~c"127.0.0.1", String.to_charlist(node_host)])
 
     with :ok <- Distribution.ensure_distributed(name_type),
-         {:ok, dist_port} <-
-           Connection.discover_dist_port(conn_ref, remote_hosts, node_name, epmd_port),
          {:ok, local_port} <-
-           connect_through(remote_hosts, conn_ref, node_key, remote_node, cookie, dist_port) do
+           connect_through(remote_hosts, conn_ref, node_name, remote_node, cookie, epmd_port) do
       {:ok, remote_node, conn_ref, local_port}
     else
       {:error, _} = err ->
@@ -118,17 +115,21 @@ defmodule Voyager.Services.RemoteNodeConnector do
     end
   end
 
-  defp connect_through(remote_hosts, conn_ref, node_key, remote_node, cookie, dist_port) do
-    Enum.reduce_while(remote_hosts, {:error, :node_connect_failed}, fn remote_host, _acc ->
-      case connect_via(remote_host, conn_ref, node_key, remote_node, cookie, dist_port) do
+  defp connect_through(remote_hosts, conn_ref, node_name, remote_node, cookie, epmd_port) do
+    Enum.reduce_while(remote_hosts, nil, fn remote_host, first_error ->
+      case connect_via(remote_host, conn_ref, node_name, remote_node, cookie, epmd_port) do
         {:ok, _local_port} = ok -> {:halt, ok}
-        error -> {:cont, error}
+        error -> {:cont, first_error || error}
       end
     end)
   end
 
-  defp connect_via(remote_host, conn_ref, node_key, remote_node, cookie, dist_port) do
-    with {:ok, local_port} <- Connection.open_tunnel(conn_ref, remote_host, dist_port),
+  defp connect_via(remote_host, conn_ref, node_name, remote_node, cookie, epmd_port) do
+    node_key = String.to_charlist(node_name)
+
+    with {:ok, dist_port} <-
+           Connection.discover_dist_port(conn_ref, remote_host, node_name, epmd_port),
+         {:ok, local_port} <- Connection.open_tunnel(conn_ref, remote_host, dist_port),
          :ok <- TunnelRegistry.register(node_key, local_port, conn_ref) do
       case connect_node(remote_node, cookie) do
         true -> {:ok, local_port}
