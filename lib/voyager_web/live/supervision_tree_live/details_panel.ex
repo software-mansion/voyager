@@ -185,7 +185,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(:open?, true)
     |> assign(:node, node)
     |> then(fn socket ->
-      if changed? and origin == :external do
+      if origin == :external do
         assign(socket, :selection_history, [])
       else
         socket
