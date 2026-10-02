@@ -39,6 +39,7 @@ defmodule VoyagerWeb.Router do
         {VoyagerWeb.Hooks.NodeSessionHook, :require_connected_node},
         VoyagerWeb.Hooks.OnboardingHook,
         VoyagerWeb.Hooks.McpStatusHook,
+        VoyagerWeb.Hooks.SidebarHook,
         VoyagerWeb.Hooks.AppUpdateHook
       ] do
       live "/node/:node", NodeInfoLive, :index

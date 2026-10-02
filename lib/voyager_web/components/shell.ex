@@ -6,11 +6,12 @@ defmodule VoyagerWeb.Components.Shell do
   use VoyagerWeb, :html
 
   alias Voyager.NodeSession.Session
-  alias VoyagerWeb.Utils.URL
+  alias VoyagerWeb.Utils.SessionStorage
 
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
   attr :mcp_status, :map, default: %{alive?: false, url: nil}
+  attr :sidebar_mode, :string, default: nil
   attr :current_url, :string, default: nil
   slot :inner_block, required: true
 
@@ -30,6 +31,7 @@ defmodule VoyagerWeb.Components.Shell do
             active_nav={@active_nav}
             session={@session}
             mcp_status={@mcp_status}
+            sidebar_mode={@sidebar_mode}
             current_url={@current_url}
           />
 
@@ -193,27 +195,26 @@ defmodule VoyagerWeb.Components.Shell do
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
   attr :mcp_status, :map, default: %{alive?: false, url: nil}
+  attr :sidebar_mode, :string, default: nil
   attr :current_url, :string, default: nil
 
   defp sidebar(assigns) do
-    assigns = assign(assigns, :sidebar_mode, sidebar_mode(assigns.current_url))
-
     ~H"""
     <aside
       id="app-sidebar"
       class={[
-        "bg-base-100 border-base-300 flex h-full flex-none flex-col overflow-y-auto overflow-x-hidden border-r transition-all duration-200 ease-out",
+        "bg-base-100 border-base-300 flex h-full flex-none flex-col overflow-y-auto overflow-x-hidden border-r",
         @sidebar_mode == "compact" && "mode-compact",
         @sidebar_mode == "full" && "mode-full"
       ]}
     >
       <ul class="menu font-sans gap-1.75 w-full flex-1">
-        <.sidebar_toggle current_url={@current_url} sidebar_mode={@sidebar_mode} />
+        <.sidebar_toggle sidebar_mode={@sidebar_mode} />
         <.nav_item
           :for={page <- inspect_pages()}
           id={"sidebar-nav-#{page.feature}"}
           active={@active_nav == page.feature}
-          navigate={nav_path(node_path(@session, page.path), @sidebar_mode)}
+          navigate={node_path(@session, page.path)}
           label={page.label}
         >
           <:icon>
@@ -230,7 +231,7 @@ defmodule VoyagerWeb.Components.Shell do
           :for={page <- coming_soon_pages()}
           id={"sidebar-nav-#{page.feature}"}
           active={@active_nav == page.feature}
-          navigate={nav_path(node_path(@session, page.path), @sidebar_mode)}
+          navigate={node_path(@session, page.path)}
           label={page.label}
           coming_soon
         >
@@ -256,7 +257,6 @@ defmodule VoyagerWeb.Components.Shell do
     """
   end
 
-  attr :current_url, :string, default: nil
   attr :sidebar_mode, :string, default: nil
 
   defp sidebar_toggle(assigns) do
@@ -275,10 +275,11 @@ defmodule VoyagerWeb.Components.Shell do
       <span class="menu-title text-base-content/70 sidebar-label tracking-label p-0 text-xs uppercase">
         Inspect
       </span>
-      <.link
+      <button
         :for={{id, visibility, mode} <- @variants}
+        type="button"
         id={id}
-        patch={toggle_sidebar_path(@current_url, mode)}
+        phx-click={toggle_sidebar(mode)}
         aria-label="Toggle sidebar width"
         class={[
           "btn btn-ghost btn-square toolbar-btn text-base-content/70 hover:text-base-content",
@@ -290,7 +291,7 @@ defmodule VoyagerWeb.Components.Shell do
         data-tooltip-interactive="false"
       >
         <.icon name="icon-panel-left" class="toolbar-icon" />
-      </.link>
+      </button>
     </li>
     <.tooltip_portal :for={{id, _visibility, _mode} <- @variants} id={id}>
       <span class="flex items-center gap-3 whitespace-nowrap">
@@ -380,25 +381,14 @@ defmodule VoyagerWeb.Components.Shell do
   defp node_path(%Session{node_name: node_name}, path),
     do: "/node/#{URI.encode(node_name)}/#{path}"
 
-  defp sidebar_mode(url) when is_binary(url) do
-    case URL.get_query_param(url, "sidebar") do
-      mode when mode in ["compact", "full"] -> mode
-      _ -> nil
-    end
-  end
-
-  defp sidebar_mode(_url), do: nil
-
-  # Carries the current sidebar mode onto a nav link so the choice survives
-  # navigation to another page.
-  defp nav_path(path, mode) when mode in ["compact", "full"],
-    do: URL.put_query_param(path, "sidebar", mode)
-
-  defp nav_path(path, _mode), do: path
-
-  defp toggle_sidebar_path(current_url, sidebar_mode) do
+  # The width transition is added on click only, so the connected mount applying a stored
+  # mode over the dead render snaps instead of animating.
+  defp toggle_sidebar(sidebar_mode) do
     next_mode = if sidebar_mode == "compact", do: "full", else: "compact"
-    URL.put_query_param(current_url || "/", "sidebar", next_mode)
+
+    SessionStorage.put("sidebar", next_mode)
+    |> JS.add_class("transition-all duration-200 ease-out", to: "#app-sidebar")
+    |> JS.push("toggle_sidebar", value: %{mode: next_mode})
   end
 
   defp settings_return_to(active_nav, session, current_url) do
