@@ -331,6 +331,204 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       refute has_element?(view, "#details-panel-refresh")
     end
 
+    test "clicking a linked port that exists in the tree selects that node", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      link_pids: link_pids,
+      sup_key: sup_key,
+      port_key: port_key
+    } do
+      # 7 base calls + 4 for the supervisor selection; the port is the first link.
+      expect_supervision_erpc(11, sup_pid, [port], [port | link_pids])
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      assert has_element?(view, "#details-panel", "Supervisor")
+
+      view |> element("#details-panel-link-0") |> render_click()
+      flush(view)
+
+      assert has_element?(view, "#details-panel.translate-x-0")
+      assert has_element?(view, "#details-panel", "Port")
+      assert has_element?(view, "#details-panel", port_key)
+      assert has_element?(view, "#details-panel-back")
+
+      assert has_element?(
+               view,
+               "#details-panel",
+               "This is not a process node, so no process information is available."
+             )
+
+      expect_process_info_fetch(sup_pid, [port | link_pids])
+
+      view |> element("#details-panel-back") |> render_click()
+      flush(view)
+      render_async(view)
+
+      assert has_element?(view, "#details-panel", "Supervisor")
+      assert has_element?(view, "#details-panel", "demo_supervisor")
+      refute has_element?(view, "#details-panel-back")
+    end
+
+    test "clicking a linked pid not in the tree still opens it as the selected node", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      link_pids: link_pids,
+      sup_key: sup_key
+    } do
+      # 7 base calls + 4 for the supervisor selection; the port is the first link.
+      expect_supervision_erpc(11, sup_pid, [port], [port | link_pids])
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      target = hd(link_pids)
+      target_key = pid_key(target)
+
+      expect_process_info_fetch(target, [], registered_name: :linked_worker)
+
+      # Index 1: index 0 is the supervisor's linked port, which is already in the tree.
+      view |> element("#details-panel-link-1") |> render_click()
+      flush(view)
+      render_async(view)
+
+      assert has_element?(view, "#details-panel.translate-x-0")
+      assert has_element?(view, "#details-panel", "Process")
+      assert has_element?(view, "#details-panel", "Not in tree")
+      assert has_element?(view, "#details-panel-pid", target_key)
+      assert has_element?(view, "#details-panel", "linked_worker")
+      assert has_element?(view, "#details-panel-back")
+
+      expect_process_info_fetch(sup_pid, [port | link_pids])
+
+      view |> element("#details-panel-back") |> render_click()
+      flush(view)
+      render_async(view)
+
+      assert has_element?(view, "#details-panel", "Supervisor")
+      assert has_element?(view, "#details-panel", "demo_supervisor")
+      refute has_element?(view, "#details-panel-back")
+    end
+
+    test "clicking a linked app-master pid selects the app node", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port
+    } do
+      master_pid =
+        spawn(fn ->
+          receive do
+            :stop -> :ok
+          end
+        end)
+
+      on_exit(fn -> Process.exit(master_pid, :kill) end)
+
+      # Distinct master vs root supervisor: the app wrapper is keyed
+      # `app:demo_app` while PID-links look up the master's `<X.Y.Z>`.
+      expect_supervision_erpc(11, sup_pid, [port], [port, master_pid], master_pid)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => pid_key(sup_pid)})
+      render_async(view)
+
+      expect_process_info_fetch(master_pid, [port, master_pid])
+
+      # Index 0 is the linked port; index 1 is the application master.
+      view |> element("#details-panel-link-1") |> render_click()
+      flush(view)
+      render_async(view)
+
+      assert has_element?(view, "#details-panel-type", "App")
+      refute has_element?(view, "#details-panel", "Not in tree")
+      refute has_element?(view, "#details-panel-type", "Process")
+    end
+
+    test "clicking the parent jumps to it in the tree", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port
+    } do
+      parent = remote_pid()
+
+      expect(Voyager.ErpcMock, :call, 11, fn
+        _node, :erlang, :process_info, [_pid, keys], _timeout when is_list(keys) ->
+          process_info_kw(keys, parent: parent)
+
+        _node, mod, fun, args, _timeout ->
+          supervision_reply(mod, fun, args, sup_pid, [port], [])
+      end)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => pid_key(sup_pid)})
+      render_async(view)
+
+      expect_process_info_fetch(parent, [])
+
+      view |> element("#details-panel-parent") |> render_click()
+      flush(view)
+      render_async(view)
+
+      assert has_element?(view, "#details-panel", "Not in tree")
+      assert has_element?(view, "#details-panel-back")
+    end
+
+    test "clicking a linked pid hidden by max depth expands one stub level", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port
+    } do
+      mid_pid =
+        spawn(fn ->
+          receive do
+            :stop -> :ok
+          end
+        end)
+
+      worker_pid =
+        spawn(fn ->
+          receive do
+            :stop -> :ok
+          end
+        end)
+
+      on_exit(fn ->
+        Process.exit(mid_pid, :kill)
+        Process.exit(worker_pid, :kill)
+      end)
+
+      ctx = %{sup: sup_pid, mid: mid_pid, worker: worker_pid, port: port}
+
+      stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args, _timeout ->
+        depth_limited_reply(mod, fun, args, ctx)
+      end)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => pid_key(mid_pid)})
+      render_async(view)
+
+      assert has_element?(view, "#details-panel", "Supervisor")
+      refute has_element?(view, "#details-panel", "Not in tree")
+
+      view |> element("#details-panel-link-0") |> render_click()
+      flush(view)
+      await_tree_ok(view)
+      render_async(view)
+
+      assert has_element?(view, "#details-panel.translate-x-0")
+      assert has_element?(view, "#details-panel-type", "Worker")
+      assert has_element?(view, "#details-panel", "hidden_worker")
+      assert has_element?(view, "#details-panel-pid", pid_key(worker_pid))
+      assert has_element?(view, "#details-panel-back")
+      refute has_element?(view, "#details-panel", "Not in tree")
+      refute has_element?(view, "#details-panel-type", "Process")
+    end
+
     test "closes the details panel when the selected node disappears on refresh", %{
       conn: conn,
       sup_pid: sup_pid,
@@ -372,9 +570,24 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
     end
   end
 
-  defp expect_supervision_erpc(times, sup_pid, linked_ports, link_pids) do
+  defp expect_supervision_erpc(times, sup_pid, linked_ports, link_pids, master_pid \\ nil) do
+    master = master_pid || sup_pid
+
     expect(Voyager.ErpcMock, :call, times, fn _node, mod, fun, args, _timeout ->
-      supervision_reply(mod, fun, args, sup_pid, linked_ports, link_pids)
+      supervision_reply(mod, fun, args, sup_pid, linked_ports, link_pids, master)
+    end)
+  end
+
+  # The four calls a process selection makes (process_info, wordsize,
+  # proc_label, proc_links). They run as concurrent async tasks, so dispatch on
+  # mod/fun rather than a fixed sequence.
+  defp expect_process_info_fetch(pid, links, overrides \\ []) do
+    expect(Voyager.ErpcMock, :call, 4, fn
+      _node, :erlang, :process_info, [^pid, keys], _timeout when is_list(keys) ->
+        process_info_kw(keys, overrides)
+
+      _node, mod, fun, args, _timeout ->
+        supervision_reply(mod, fun, args, nil, [], links)
     end)
   end
 
@@ -415,14 +628,29 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
     end
   end
 
+  # `select-link` / `back-details-node` notify the parent LiveView via send/2;
+  # drain that message before asserting on the updated selection.
+  defp flush(view), do: _ = :sys.get_state(view.pid)
+
+  defp remote_pid do
+    :erlang.binary_to_term(
+      <<131, 88, 119, byte_size(@node_name), @node_name, 45::32, 6::32, 1::32>>
+    )
+  end
+
   defp pid_key(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
 
-  defp supervision_reply(:application, :which_applications, [], _sup, _linked, _links), do: @apps
+  defp supervision_reply(mod, fun, args, sup, linked, links) do
+    supervision_reply(mod, fun, args, sup, linked, links, sup)
+  end
 
-  defp supervision_reply(:lists, :map, [fun, list], sup_pid, _linked, _links) do
+  defp supervision_reply(:application, :which_applications, [], _sup, _linked, _links, _master),
+    do: @apps
+
+  defp supervision_reply(:lists, :map, [fun, list], sup_pid, _linked, _links, master_pid) do
     case mfa(fun) do
       {:application_controller, :get_master, 1} ->
-        Enum.map(list, fn _app -> sup_pid end)
+        Enum.map(list, fn _app -> master_pid end)
 
       {:application_master, :get_child, 1} ->
         Enum.map(list, fn _master -> {sup_pid, :demo_app} end)
@@ -435,7 +663,15 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
     end
   end
 
-  defp supervision_reply(:lists, :zipwith, [_fun, pids, dup_keys], _sup, linked_ports, _links) do
+  defp supervision_reply(
+         :lists,
+         :zipwith,
+         [_fun, pids, dup_keys],
+         _sup,
+         linked_ports,
+         _links,
+         _master
+       ) do
     keys = List.first(dup_keys) || []
 
     Enum.map(pids, fn _pid ->
@@ -459,20 +695,37 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
     end)
   end
 
-  defp supervision_reply(:erlang, :system_info, [:wordsize], _sup, _linked, _links), do: 8
+  defp supervision_reply(:erlang, :system_info, [:wordsize], _sup, _linked, _links, _master),
+    do: 8
 
-  defp supervision_reply(:erlang, :process_info, [_pid, keys], _sup, _linked, _links)
+  defp supervision_reply(:erlang, :process_info, [_pid, keys], _sup, _linked, _links, _master)
        when is_list(keys) do
     process_info_kw(keys)
   end
 
-  defp supervision_reply(@agent_module, :proc_label, [_pid, _budget], _sup, _linked, _links) do
+  defp supervision_reply(
+         @agent_module,
+         :proc_label,
+         [_pid, _budget],
+         _sup,
+         _linked,
+         _links,
+         _master
+       ) do
     {:ok, %{term: :undefined, truncated: false}}
   end
 
   # Links are fetched from the remote agent, which truncates to `limit` and
   # reports the real total alongside the kept items.
-  defp supervision_reply(@agent_module, :proc_links, [_pid, limit], _sup, _linked, link_pids) do
+  defp supervision_reply(
+         @agent_module,
+         :proc_links,
+         [_pid, limit],
+         _sup,
+         _linked,
+         link_pids,
+         _master
+       ) do
     {:ok,
      %{
        total: length(link_pids),
@@ -480,6 +733,92 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
        items: Enum.take(link_pids, limit)
      }}
   end
+
+  # Root is expanded at default depth 3; `mid` is a stub (`count_children` only)
+  # until a PID-link click adds it to `expanded_pids`.
+  defp depth_limited_reply(:application, :which_applications, [], _ctx), do: @apps
+
+  defp depth_limited_reply(:lists, :map, [fun, list], ctx) do
+    case mfa(fun) do
+      {:application_controller, :get_master, 1} ->
+        Enum.map(list, fn _app -> ctx.sup end)
+
+      {:application_master, :get_child, 1} ->
+        Enum.map(list, fn _master -> {ctx.sup, :demo_app} end)
+
+      {:supervisor, :which_children, 1} ->
+        Enum.map(list, &which_children_for(&1, ctx))
+
+      {:supervisor, :count_children, 1} ->
+        Enum.map(list, &count_children_for(&1, ctx))
+    end
+  end
+
+  defp depth_limited_reply(:supervisor, :which_children, [pid], ctx),
+    do: which_children_for(pid, ctx)
+
+  defp depth_limited_reply(:supervisor, :count_children, [pid], ctx),
+    do: count_children_for(pid, ctx)
+
+  defp depth_limited_reply(:lists, :zipwith, [_fun, pids, dup_keys], ctx) do
+    keys = List.first(dup_keys) || []
+
+    Enum.map(pids, fn pid ->
+      cond do
+        keys == [:dictionary] ->
+          [dictionary: []]
+
+        Enum.sort(keys) == Enum.sort(@process_info_keys) ->
+          [
+            registered_name: if(pid == ctx.worker, do: :hidden_worker, else: :mid_supervisor),
+            initial_call: {:supervisor, :init, 1},
+            current_function: {:gen_server, :loop, 7},
+            links: [ctx.port],
+            monitors: [],
+            monitored_by: []
+          ]
+
+        true ->
+          :undefined
+      end
+    end)
+  end
+
+  defp depth_limited_reply(:erlang, :system_info, [:wordsize], _ctx), do: 8
+
+  defp depth_limited_reply(:erlang, :process_info, [pid, keys], ctx) when is_list(keys) do
+    cond do
+      pid == ctx.mid -> process_info_kw(keys, registered_name: :mid_supervisor)
+      pid == ctx.worker -> process_info_kw(keys, registered_name: :hidden_worker)
+      true -> process_info_kw(keys)
+    end
+  end
+
+  defp depth_limited_reply(@agent_module, :proc_label, [_pid, _budget], _ctx),
+    do: {:ok, %{term: :undefined, truncated: false}}
+
+  # `mid` links its hidden worker: the PID link the test clicks.
+  defp depth_limited_reply(@agent_module, :proc_links, [pid, _limit], ctx) do
+    items = if pid == ctx.mid, do: [ctx.worker], else: []
+    {:ok, %{total: length(items), truncated: false, items: items}}
+  end
+
+  defp which_children_for(pid, %{sup: pid, mid: mid}),
+    do: [{:mid_supervisor, mid, :supervisor, []}]
+
+  defp which_children_for(pid, %{mid: pid, worker: worker}),
+    do: [{:hidden_worker, worker, :worker, []}]
+
+  defp which_children_for(_pid, _ctx), do: []
+
+  defp count_children_for(pid, %{mid: pid}),
+    do: [specs: 1, active: 1, supervisors: 0, workers: 1]
+
+  defp count_children_for(pid, %{sup: pid}),
+    do: [specs: 1, active: 1, supervisors: 1, workers: 0]
+
+  defp count_children_for(_pid, _ctx),
+    do: [specs: 0, active: 0, supervisors: 0, workers: 0]
 
   defp process_info_kw(keys, overrides \\ []) do
     info =

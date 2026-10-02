@@ -10,6 +10,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Components.DetailsPanelComponents
   alias VoyagerWeb.Components.EtsTableComponents
+  alias VoyagerWeb.Components.ProcessComponents
   alias VoyagerWeb.Components.TermComponents
   alias VoyagerWeb.EtsTableHelp
   alias VoyagerWeb.Formatters
@@ -79,8 +80,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   end
 
   attr :info, :map, required: true
-  attr :owner_href, :string, required: true
-  attr :heir_href, :string, default: nil
+  attr :current_url, :string, required: true
 
   def info_panel(assigns) do
     ~H"""
@@ -105,11 +105,11 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       <.info_item label="Records" help={:size}>{Formatters.format_integer(@info.size)}</.info_item>
       <.info_item label="Memory" help={:memory}>{Formatters.format_bytes(@info.memory)}</.info_item>
       <.info_item id="ets-info-owner" label="Owner" help={:owner}>
-        <.pid_link href={@owner_href} pid={@info.owner} />
+        <ProcessComponents.process_link pid={@info.owner} current_url={@current_url} />
       </.info_item>
       <.info_item :if={@info.heir == :none} label="Heir" help={:heir}>none</.info_item>
       <.info_item :if={@info.heir != :none} label="Heir" help={:heir}>
-        <.pid_link href={@heir_href} pid={@info.heir} />
+        <ProcessComponents.process_link pid={@info.heir} current_url={@current_url} />
       </.info_item>
       <.info_item label="Named table" help={:named_table}>{@info.named_table}</.info_item>
       <.info_item label="Compressed" help={:compressed}>{@info.compressed}</.info_item>
@@ -325,7 +325,10 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
               label="Copy key"
             />
           </div>
-          <DetailsPanelComponents.close_button panel_id="ets-lookup-sidebar" />
+          <DetailsPanelComponents.close_button
+            panel_id="ets-lookup-sidebar"
+            on_close="close-details-panel"
+          />
         </div>
 
         <.form
