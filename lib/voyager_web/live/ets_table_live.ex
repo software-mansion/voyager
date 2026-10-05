@@ -555,10 +555,14 @@ defmodule VoyagerWeb.EtsTableLive do
   # left the walked count is exact, otherwise the total must at least keep the
   # next page reachable. A result that shrank mid-walk can end on an empty
   # page, so the current page stays addressable or Previous disappears with it.
+  # ets:select/1 hands back a continuation even when exactly `limit` rows were left.
+  # ponytail: a walk landing on `known_size` counts as the end; rows added since mount need a reload.
   defp pager_total(known_size, conts, page, page_size, records) do
+    walked = page * page_size + length(records)
+
     cond do
-      length(conts) > page + 1 -> max(known_size, (page + 1) * page_size + 1)
-      page > 0 -> max(page * page_size + length(records), page * page_size + 1)
+      length(conts) > page + 1 and walked != known_size -> max(known_size, walked + 1)
+      page > 0 -> max(walked, page * page_size + 1)
       true -> length(records)
     end
   end

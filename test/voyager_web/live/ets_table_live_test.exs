@@ -37,6 +37,22 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     refute has_element?(view, "#ets-lookup-error")
   end
 
+  for type <- [:set, :ordered_set, :bag, :duplicate_bag] do
+    test "a #{type} whose size is a multiple of the page size has no extra page", %{conn: conn} do
+      name = named_table(unquote(type))
+      :ets.insert(name, for(i <- 1..100, do: {i, :test}))
+
+      view = fetch_records(conn, name)
+      assert page_label(view, "#ets-pager") == "1 / 2"
+
+      view |> element("#ets-pager-next") |> render_click()
+      render_async(view, 2_000)
+
+      assert page_label(view, "#ets-pager") == "2 / 2"
+      assert has_element?(view, "#ets-pager-next[disabled]")
+    end
+  end
+
   for keypos <- [2, 6] do
     test "the key at keypos #{keypos} is bold in the row preview", %{conn: conn} do
       keypos = unquote(keypos)
@@ -74,14 +90,14 @@ defmodule VoyagerWeb.EtsTableLiveTest do
       view = open_lookup(conn, name)
 
       assert lookup_record_count(view) == 10
-      assert lookup_page_label(view) == "1 / 2"
+      assert page_label(view, "#ets-lookup-pager") == "1 / 2"
       refute has_element?(view, "#ets-lookup-pager-prev:not([disabled])")
 
       view |> element("#ets-lookup-pager-next") |> render_click()
       render_async(view, 2_000)
 
       assert lookup_record_count(view) == 5
-      assert lookup_page_label(view) == "2 / 2"
+      assert page_label(view, "#ets-lookup-pager") == "2 / 2"
       assert has_element?(view, "#ets-lookup-pager-next[disabled]")
 
       view |> element("#ets-lookup-pager-prev") |> render_click()
@@ -154,11 +170,11 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     view
   end
 
-  defp lookup_page_label(view) do
+  defp page_label(view, pager) do
     view
     |> render()
     |> LazyHTML.from_fragment()
-    |> LazyHTML.query("#ets-lookup-pager .font-mono.pointer-events-none")
+    |> LazyHTML.query("#{pager} .font-mono.pointer-events-none")
     |> LazyHTML.text()
     |> String.trim()
   end
