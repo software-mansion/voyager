@@ -33,9 +33,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       |> assign(:errors, [])
       |> assign(:status, :idle)
       |> assign(:refresh_timer, nil)
-      |> assign(:selected_node, nil)
-      |> assign(:selection_origin, :external)
-      |> assign(:pending_reveal, nil)
+      |> clear_selection()
       |> assign(:oversized, nil)
 
     if connected?(socket) do
@@ -153,9 +151,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
 
   def handle_event("close-details-panel", _params, socket) do
     socket
-    |> assign(:selected_node, nil)
-    |> assign(:selection_origin, :external)
-    |> assign(:pending_reveal, nil)
+    |> clear_selection()
     |> noreply()
   end
 
@@ -459,9 +455,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   defp select_node(socket, key) when key in [nil, ""] do
     socket
     |> push_event("path-highlight", %{path: []})
-    |> assign(:selected_node, nil)
-    |> assign(:selection_origin, :external)
-    |> assign(:pending_reveal, nil)
+    |> clear_selection()
   end
 
   defp select_node(socket, key) do
@@ -551,9 +545,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
             assign(socket, :selected_node, Map.fetch!(new_flat, key))
 
           is_map(prev_flat) and Map.has_key?(prev_flat, key) ->
-            socket
-            |> assign(:selected_node, nil)
-            |> assign(:pending_reveal, nil)
+            clear_selection(socket)
 
           true ->
             socket
@@ -564,16 +556,14 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     end
   end
 
-  defp reset_tree(socket),
-    do:
-      assign(socket,
-        last_tree_flat: nil,
-        last_relations: %{},
-        selected_node: nil,
-        selection_origin: :external,
-        pending_reveal: nil,
-        oversized: nil
-      )
+  defp reset_tree(socket) do
+    socket
+    |> assign(last_tree_flat: nil, last_relations: %{}, oversized: nil)
+    |> clear_selection()
+  end
+
+  defp clear_selection(socket),
+    do: assign(socket, selected_node: nil, selection_origin: :external, pending_reveal: nil)
 
   defp params_to_attrs(params) do
     case Map.get(params, "apps") do
