@@ -4,10 +4,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   The parent LiveView owns the current selection (graph highlight / focus) and
   passes the selected `TreeNode` (or `nil` to close) together with
-  `selection_origin` — why the selection changed. This component owns the
-  in-panel navigation history: link clicks push the current node, Back pops it,
-  and an `:external` selection (graph click, close) resets the stack, while
-  `:link` / `:restore` selections keep it.
+  `keep_history?`. This component owns the in-panel navigation history: link
+  clicks push the current node, Back pops it, and a selection without
+  `keep_history?` (graph click, close) resets the stack.
 
   Link / back notify the parent via `send/2` (`{:select_link, id}` /
   `{:restore_details_node, node}`). Close has no `phx-target`, so it is handled
@@ -50,7 +49,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
           remote_node: remote_node,
           node_name: node_name,
           current_url: current_url,
-          selection_origin: origin
+          keep_history?: keep_history?
         },
         socket
       ) do
@@ -59,7 +58,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(:remote_node, remote_node)
     |> assign(:node_name, node_name)
     |> assign(:current_url, current_url)
-    |> maybe_assign_node(tree_node, origin)
+    |> maybe_assign_node(tree_node, keep_history?)
     |> ok()
   end
 
@@ -172,24 +171,20 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   defp process_href(_pid, _remote_node, _node_name, _current_url), do: nil
 
-  defp maybe_assign_node(socket, nil, _origin) do
+  defp maybe_assign_node(socket, nil, _keep_history?) do
     socket
     |> assign(:open?, false)
     |> assign(:selection_history, [])
   end
 
-  defp maybe_assign_node(socket, node, origin) do
+  defp maybe_assign_node(socket, node, keep_history?) do
     changed? = node_changed?(socket, node)
 
     socket
     |> assign(:open?, true)
     |> assign(:node, node)
     |> then(fn socket ->
-      if origin == :external do
-        assign(socket, :selection_history, [])
-      else
-        socket
-      end
+      if keep_history?, do: socket, else: assign(socket, :selection_history, [])
     end)
     |> then(fn socket ->
       if changed?, do: assign(socket, :links_expanded?, false), else: socket
