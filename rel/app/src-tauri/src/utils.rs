@@ -43,11 +43,11 @@ fn random_secret(len: usize) -> String {
 }
 
 /// Best-effort OS appearance (`"dark"` / `"light"`). Falls back to `"dark"`
-/// when unspecified or detection fails.
+/// when detection fails.
 pub fn os_theme_hint() -> &'static str {
     match dark_light::detect() {
-        Ok(dark_light::Mode::Light) => "light",
-        Ok(dark_light::Mode::Dark) | Ok(dark_light::Mode::Unspecified) | Err(_) => "dark",
+        Ok(dark_light::Mode::Light) | Ok(dark_light::Mode::Unspecified) => "light",
+        Ok(dark_light::Mode::Dark) | Err(_) => "dark",
     }
 }
 
