@@ -227,6 +227,7 @@ defmodule VoyagerWeb.EtsTableLive do
     socket
     |> assign(:conts, [nil])
     |> assign(:page_size, socket.assigns.controls.chunk_size)
+    |> resolve_table()
     |> fetch_page(0)
     |> noreply()
   end
@@ -556,7 +557,6 @@ defmodule VoyagerWeb.EtsTableLive do
   # next page reachable. A result that shrank mid-walk can end on an empty
   # page, so the current page stays addressable or Previous disappears with it.
   # ets:select/1 hands back a continuation even when exactly `limit` rows were left.
-  # ponytail: a walk landing on `known_size` counts as the end; rows added since mount need a reload.
   defp pager_total(known_size, conts, page, page_size, records) do
     walked = page * page_size + length(records)
 

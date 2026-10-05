@@ -53,6 +53,22 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     end
   end
 
+  test "a new fetch reaches rows inserted after the page opened", %{conn: conn} do
+    name = named_table(:ordered_set)
+    :ets.insert(name, for(i <- 1..100, do: {i, :test}))
+
+    view = fetch_records(conn, name)
+    :ets.insert(name, for(i <- 101..150, do: {i, :test}))
+
+    view |> element("#ets-peek-fetch") |> render_click()
+    render_async(view, 2_000)
+    view |> element("#ets-pager-next") |> render_click()
+    render_async(view, 2_000)
+
+    assert page_label(view, "#ets-pager") == "2 / 3"
+    refute has_element?(view, "#ets-pager-next[disabled]")
+  end
+
   for keypos <- [2, 6] do
     test "the key at keypos #{keypos} is bold in the row preview", %{conn: conn} do
       keypos = unquote(keypos)
