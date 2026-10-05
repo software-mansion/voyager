@@ -156,6 +156,13 @@ defmodule VoyagerWeb.TermTreeTest do
       assert text(node.expanded_before) == "%Date{"
     end
 
+    test "a struct cut short on the remote node is flagged" do
+      cut = Map.put(%State{}, @truncated, @truncated)
+
+      assert %Node{kind: :struct, truncated?: true} = TermTree.describe(cut)
+      refute TermTree.describe(%State{}).truncated?
+    end
+
     test "a struct tagged with an Erlang module name keeps that name unquoted" do
       node = TermTree.describe(%{__struct__: :erl_record, a: 1})
 

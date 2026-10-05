@@ -521,8 +521,10 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   defp truncated_record?([head | tail]), do: truncated_record?(head) or truncated_record?(tail)
 
-  defp truncated_record?(map) when is_map(map) and not is_struct(map) do
-    Enum.any?(map, fn {key, value} -> truncated_record?(key) or truncated_record?(value) end)
+  defp truncated_record?(map) when is_map(map) do
+    map
+    |> Map.to_list()
+    |> Enum.any?(fn {key, value} -> truncated_record?(key) or truncated_record?(value) end)
   end
 
   defp truncated_record?(_other), do: false
@@ -563,8 +565,8 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
     tuple |> Tuple.to_list() |> Enum.map(&strip_markers/1) |> List.to_tuple()
   end
 
-  defp strip_markers(map) when is_map(map) and not is_struct(map) do
-    Map.new(map, fn {k, v} -> {strip_markers(k), strip_markers(v)} end)
+  defp strip_markers(map) when is_map(map) do
+    map |> Map.to_list() |> Map.new(fn {k, v} -> {strip_markers(k), strip_markers(v)} end)
   end
 
   defp strip_markers(other), do: other

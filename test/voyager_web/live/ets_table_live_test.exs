@@ -52,6 +52,21 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     refute has_element?(view, "#ets-lookup-empty")
   end
 
+  test "a row whose struct key was cut by the budget cannot be looked up", %{conn: conn} do
+    name = named_table(:set)
+
+    :ets.insert(
+      name,
+      {%Version{major: 1, minor: 0, patch: 0, pre: [:binary.copy("P", 5_000)]}, 1}
+    )
+
+    view = fetch_records(conn, name)
+
+    assert has_element?(view, "#ets-records-0-lookup[aria-disabled='true']")
+    refute has_element?(view, "#ets-records-0-lookup[phx-click]")
+    assert has_element?(view, "#ets-records-0-truncated")
+  end
+
   test "a row whose key was cut by the budget cannot be looked up", %{conn: conn} do
     name = named_table(:set)
     :ets.insert(name, {{:user, :binary.copy("k", 5_000)}, 1})

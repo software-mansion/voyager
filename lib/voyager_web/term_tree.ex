@@ -297,6 +297,7 @@ defmodule VoyagerWeb.TermTree do
     %Node{
       kind: :struct,
       child_count: struct |> Map.from_struct() |> map_size(),
+      truncated?: Map.has_key?(struct, @truncated),
       content: content,
       expanded_before: module_segments ++ [Segment.punctuation("{")],
       expanded_after: [Segment.punctuation("}")]
