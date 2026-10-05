@@ -32,7 +32,7 @@ defmodule VoyagerAgentEtsTest do
       assert length(records) == 10
 
       assert Enum.all?(records, fn {_i, value} ->
-               is_binary(value) and byte_size(value) < 10_000
+               match?({@marker, :binary, _prefix, 10_000}, value)
              end)
 
       refute match?({@marker, _, _, _}, cont)
@@ -42,7 +42,11 @@ defmodule VoyagerAgentEtsTest do
                @agent_module.ets_select_chunk(name, 10, 50, cont)
 
       assert length(more) == 10
-      assert Enum.all?(more, fn {_i, value} -> is_binary(value) and byte_size(value) < 10_000 end)
+
+      assert Enum.all?(more, fn {_i, value} ->
+               match?({@marker, :binary, _prefix, 10_000}, value)
+             end)
+
       refute match?({@marker, _, _, _}, cont2)
 
       assert {:ok, %{records: last, continuation: :undefined, truncated: true}} =
@@ -254,7 +258,7 @@ defmodule VoyagerAgentEtsTest do
       assert length(records) == 2
 
       assert Enum.all?(records, fn {:k, value} ->
-               is_binary(value) and byte_size(value) < 10_000
+               match?({@marker, :binary, _prefix, 10_000}, value)
              end)
     end
 
