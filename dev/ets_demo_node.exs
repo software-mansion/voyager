@@ -66,6 +66,15 @@ deep =
 :ets.new(:binary_keys, [:set, :named_table, :public])
 :ets.insert(:binary_keys, {"session-abc", %{ttl: 300}})
 
+:ets.new(:truncated_struct_key, [:set, :named_table, :public])
+
+:ets.insert(
+  :truncated_struct_key,
+  {%Version{major: 1, minor: 0, patch: 0, pre: [:binary.copy("P", 500)]}, :value_a}
+)
+
+:ets.insert(:truncated_struct_key, {%Version{major: 2, minor: 0, patch: 0}, :value_b})
+
 :ets.new(:empty_set, [:set, :named_table, :public])
 
 IO.puts("""
