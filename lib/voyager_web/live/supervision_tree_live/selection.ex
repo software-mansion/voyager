@@ -34,19 +34,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.Selection do
   def path_to_root(flat, key), do: path_to_root(flat, key, [])
 
   @doc """
-  Builds a stand-in `TreeNode` for an identifier that is not part of the
-  loaded walk, so the details panel can still display it.
-  """
-  @spec placeholder(link_identifier()) :: TreeNode.t()
-  def placeholder(pid) when is_pid(pid) do
-    %TreeNode{key: TreeNode.key(pid), pid: pid, name: pid, type: :process, placeholder?: true}
-  end
-
-  def placeholder(port) when is_port(port) do
-    %TreeNode{key: TreeNode.key(port), name: port, type: :port, placeholder?: true}
-  end
-
-  @doc """
   Decides what clicking a details-panel link should do.
 
     * `{:select, node}` — the target's tree node, or its stand-in when it is
@@ -115,6 +102,14 @@ defmodule VoyagerWeb.SupervisionTreeLive.Selection do
     do: identifier in links
 
   defp linked_to?(_node, _identifier), do: false
+
+  defp placeholder(pid) when is_pid(pid) do
+    %TreeNode{key: TreeNode.key(pid), pid: pid, name: pid, type: :process, placeholder?: true}
+  end
+
+  defp placeholder(port) when is_port(port) do
+    %TreeNode{key: TreeNode.key(port), name: port, type: :port, placeholder?: true}
+  end
 
   defp find_by_pid_key(flat, key) do
     nodes =

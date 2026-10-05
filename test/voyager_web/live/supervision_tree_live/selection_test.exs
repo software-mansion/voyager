@@ -56,27 +56,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.SelectionTest do
     end
   end
 
-  describe "placeholder/1" do
-    test "builds a process node for a pid" do
-      p = pid("<0.40.0>")
-
-      assert %TreeNode{key: key, pid: ^p, name: ^p, type: :process, placeholder?: true} =
-               Selection.placeholder(p)
-
-      assert key == TreeNode.key(p)
-    end
-
-    test "builds a port node for a port" do
-      port = Port.open({:spawn, "cat"}, [:binary])
-      on_exit(fn -> if Port.info(port), do: Port.close(port) end)
-
-      assert %TreeNode{key: key, type: :port, name: ^port, placeholder?: true} =
-               Selection.placeholder(port)
-
-      assert key == inspect(port)
-    end
-  end
-
   describe "resolve_jump/4" do
     test "selects the node when the identifier is in the tree" do
       p = pid("<0.50.0>")
