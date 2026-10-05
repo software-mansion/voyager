@@ -23,6 +23,7 @@ defmodule Voyager.Application do
       {Voyager.Services.RateLimiter,
        config: Application.get_env(:voyager, :rate_limiter_config, %{})},
       {Voyager.Services.AppUpdater, native?: elixirkit_pubsub != nil},
+      Voyager.Services.Tracer,
       VoyagerWeb.Endpoint,
       Voyager.MCP,
       Supervisor.child_spec({Task, &Voyager.Pid.load_format/0}, id: :load_pid_format),

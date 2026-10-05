@@ -8,6 +8,7 @@
 -export([proc_links/2, proc_monitors/2, proc_monitored_by/2]).
 -export([proc_dictionary/3, proc_messages/3, proc_label/2, proc_state/3]).
 -export([ets_select_chunk/4, ets_lookup/5, ets_select_spec/5]).
+-export([trace_start/3]).
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
@@ -632,6 +633,258 @@ bound_records([], _Budget, Truncated, Acc) ->
 bound_records([Record | Rest], Budget, Truncated, Acc) ->
     {Bounded, Cut} = bound_term(Record, Budget),
     bound_records(Rest, Budget, Truncated orelse Cut, [Bounded | Acc]).
+
+%% =====================================================================
+%% TRACING - One OTP trace session per trace, owned by an unlinked tracer.
+%% =====================================================================
+%%
+%% The tracer pushes `{voyager_trace_events, Tracer, Events, Dropped}' batches
+%% to `Collector' and ends with `{voyager_trace_done, Tracer, Reason, Stats}'.
+%% Send it `voyager_trace_stop' to stop. Its exit destroys the session, so no
+%% trace flag outlives it.
+
+-define(TRACE_FLUSH_MS, 100).
+-define(TRACE_BATCH, 200).
+-define(TRACE_MAX_MAILBOX, 5_000).
+-define(TRACE_START_TIMEOUT, 5_000).
+-define(TRACE_NAMES_CAP, 1_000).
+%% Called from nearly every process: an all-process call trace on them floods the tracer.
+-define(TRACE_REFUSED, [erlang, lists, maps, io, io_lib, trace, ?MODULE]).
+
+-record(tracer,
+        {session,
+         collector :: pid(),
+         limits :: map(),
+         buffer = [] :: [map()],
+         buffered = 0 :: non_neg_integer(),
+         events = 0 :: non_neg_integer(),
+         dropped = 0 :: non_neg_integer(),
+         window :: {integer(), non_neg_integer()},
+         names = #{} :: #{pid() => term()}}).
+
+-type trace_spec() ::
+    #{module := binary(),
+      function := binary(),
+      arity := arity() | any,
+      capture := arity | args,
+      local := boolean()}.
+-type trace_limits() ::
+    #{max_events := pos_integer(),
+      max_rate := pos_integer(),
+      max_time_ms := pos_integer(),
+      budget := non_neg_integer()}.
+
+%% Module and function come as binaries and are only turned into existing atoms,
+%% so a typo cannot create atoms on the node.
+-spec trace_start(pid(), trace_spec(), trace_limits()) -> {ok, pid()} | {error, term()}.
+trace_start(Collector, Spec, Limits) when is_pid(Collector), is_map(Spec), is_map(Limits) ->
+    case trace_mfa(Spec) of
+        {ok, MFA} ->
+            spawn_tracer(Collector, MFA, Spec, Limits);
+        {error, _} = Error ->
+            Error
+    end.
+
+trace_mfa(#{module := Mod, function := Fun, arity := Arity}) ->
+    try {binary_to_existing_atom(Mod), binary_to_existing_atom(Fun)} of
+        {M, F} ->
+            case {lists:member(M, ?TRACE_REFUSED), code:is_loaded(M)} of
+                {true, _} ->
+                    {error, {refused, M}};
+                {false, false} ->
+                    {error, {not_loaded, M}};
+                {false, _} ->
+                    {ok, {M, F, trace_arity(Arity)}}
+            end
+    catch
+        error:badarg ->
+            {error, unknown_function}
+    end.
+
+trace_arity(any) ->
+    '_';
+trace_arity(Arity) when is_integer(Arity), Arity >= 0, Arity =< 255 ->
+    Arity.
+
+%% The caller is a transient erpc worker, so the tracer is spawned unlinked: the
+%% agent traps exits and stops on any 'EXIT', and the worker exits right after.
+spawn_tracer(Collector, MFA, Spec, Limits) ->
+    Caller = self(),
+    Ref = make_ref(),
+    {Pid, MRef} =
+        spawn_opt(fun() -> tracer_init(Caller, Ref, Collector, MFA, Spec, Limits) end,
+                  [monitor,
+                   {message_queue_data, off_heap},
+                   {max_heap_size,
+                    #{size => 10_000_000,
+                      kill => true,
+                      error_logger => true}}]),
+    receive
+        {Ref, Reply} ->
+            erlang:demonitor(MRef, [flush]),
+            Reply;
+        {'DOWN', MRef, process, Pid, Reason} ->
+            {error, {tracer_down, Reason}}
+    after ?TRACE_START_TIMEOUT ->
+        exit(Pid, kill),
+        erlang:demonitor(MRef, [flush]),
+        {error, timeout}
+    end.
+
+tracer_init(Caller, Ref, Collector, MFA, Spec, Limits) ->
+    Session = trace:session_create(voyager, self(), []),
+    case trace:function(Session, MFA, true, [pattern_scope(Spec)]) of
+        0 ->
+            trace:session_destroy(Session),
+            Caller ! {Ref, {error, no_function_matched}};
+        _ ->
+            trace:process(Session, all, true, [call, monotonic_timestamp | capture_flags(Spec)]),
+            %% `all' includes this process, and a tracer tracing itself gets no messages.
+            trace:process(Session, self(), false, [all]),
+            erlang:monitor(process, Collector),
+            erlang:send_after(maps:get(max_time_ms, Limits), self(), voyager_trace_ttl),
+            erlang:send_after(?TRACE_FLUSH_MS, self(), voyager_trace_flush),
+            Caller ! {Ref, {ok, self()}},
+            tracer_loop(#tracer{session = Session,
+                                collector = Collector,
+                                limits = Limits,
+                                window = {erlang:monotonic_time(millisecond), 0}})
+    end.
+
+%% Calls from inside the traced module are local and invisible to a `global' pattern.
+pattern_scope(#{local := true}) ->
+    local;
+pattern_scope(_Spec) ->
+    global.
+
+capture_flags(#{capture := arity}) ->
+    [arity];
+capture_flags(#{capture := args}) ->
+    [].
+
+tracer_loop(T) ->
+    receive
+        {trace_ts, Pid, call, MFA, Ts} ->
+            tracer_event(T, Pid, MFA, Ts);
+        voyager_trace_flush ->
+            erlang:send_after(?TRACE_FLUSH_MS, self(), voyager_trace_flush),
+            tracer_flush(T);
+        voyager_trace_ttl ->
+            tracer_stop(T, time_limit);
+        voyager_trace_stop ->
+            tracer_stop(T, stopped);
+        {'DOWN', _MRef, process, _Collector, _Reason} ->
+            trace:session_destroy(T#tracer.session);
+        _Other ->
+            tracer_loop(T)
+    end.
+
+%% `max_heap_size' does not count an off-heap mailbox, so the tracer checks its own queue.
+tracer_flush(T) ->
+    case erlang:process_info(self(), message_queue_len) of
+        {message_queue_len, Len} when Len > ?TRACE_MAX_MAILBOX ->
+            tracer_stop(T, mailbox_limit);
+        _ ->
+            tracer_loop(send_batch(T))
+    end.
+
+tracer_event(#tracer{limits = #{max_events := MaxEvents, max_rate := MaxRate, budget := Budget}} =
+                 T0,
+             Pid,
+             MFA,
+             Ts) ->
+    {Window, Rate} = tick(T0#tracer.window),
+    {Label, Names} = process_label(Pid, T0#tracer.names),
+    T = T0#tracer{buffer = [trace_event(Pid, Label, MFA, Ts, Budget) | T0#tracer.buffer],
+                  buffered = T0#tracer.buffered + 1,
+                  events = T0#tracer.events + 1,
+                  window = Window,
+                  names = Names},
+    if
+        T#tracer.events >= MaxEvents ->
+            tracer_stop(T, event_limit);
+        Rate > MaxRate ->
+            tracer_stop(T, rate_limit);
+        T#tracer.buffered >= ?TRACE_BATCH ->
+            tracer_loop(send_batch(T));
+        true ->
+            tracer_loop(T)
+    end.
+
+%% Events in the current one-second window.
+tick({Start, Count}) ->
+    Now = erlang:monotonic_time(millisecond),
+    case Now - Start >= 1_000 of
+        true ->
+            {{Now, 1}, 1};
+        false ->
+            {{Start, Count + 1}, Count + 1}
+    end.
+
+trace_event(Pid, Label, {M, F, Args}, Ts, Budget) when is_list(Args) ->
+    {Bounded, Truncated} = bound_term(Args, Budget),
+    Event = trace_event(Pid, Label, {M, F, length(Args)}, Ts, Budget),
+    Event#{args => Bounded, truncated => Truncated};
+trace_event(Pid, Label, MFA, Ts, _Budget) ->
+    #{pid => Pid,
+      process => Label,
+      mfa => MFA,
+      at => erlang:convert_time_unit(Ts + erlang:time_offset(), native, microsecond)}.
+
+process_label(Pid, Names) ->
+    case Names of
+        #{Pid := Label} ->
+            {Label, Names};
+        _ ->
+            Label = lookup_label(Pid),
+            {Label, maps:put(Pid, Label, cap_names(Names))}
+    end.
+
+cap_names(Names) when map_size(Names) >= ?TRACE_NAMES_CAP ->
+    #{};
+cap_names(Names) ->
+    Names.
+
+%% `{dictionary, Key}' reads one key without copying the whole dictionary.
+lookup_label(Pid) ->
+    case erlang:process_info(Pid, [registered_name, {dictionary, '$initial_call'}, initial_call])
+    of
+        undefined ->
+            undefined;
+        [{registered_name, Name}, _, _] when is_atom(Name) ->
+            Name;
+        [_, {_, {_, _, _} = InitialCall}, _] ->
+            InitialCall;
+        [_, _, {initial_call, InitialCall}] ->
+            InitialCall
+    end.
+
+%% `nosuspend': a busy distribution link drops the batch instead of blocking the
+%% tracer, which would stop draining while the VM keeps queueing trace messages.
+send_batch(#tracer{buffer = []} = T) ->
+    T;
+send_batch(#tracer{collector = Collector,
+                   buffer = Buffer,
+                   buffered = Buffered,
+                   dropped = Dropped} =
+               T) ->
+    Batch = {voyager_trace_events, self(), lists:reverse(Buffer), Dropped},
+    case erlang:send(Collector, Batch, [nosuspend, noconnect]) of
+        ok ->
+            T#tracer{buffer = [], buffered = 0};
+        _ ->
+            T#tracer{buffer = [],
+                     buffered = 0,
+                     dropped = Dropped + Buffered}
+    end.
+
+tracer_stop(#tracer{session = Session, collector = Collector} = T0, Reason) ->
+    trace:session_destroy(Session),
+    #tracer{events = Events, dropped = Dropped} = send_batch(T0),
+    erlang:send(Collector,
+                {voyager_trace_done, self(), Reason, #{events => Events, dropped => Dropped}},
+                [noconnect]),
+    ok.
 
 %% =====================================================================
 %% NODE WATCHER - gen_server callbacks and watcher for Nodes.

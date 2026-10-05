@@ -324,11 +324,11 @@ defmodule VoyagerWeb.Components.Shell do
       path: "ets-tables",
       label: "ETS Tables",
       icon: "icon-database-search"
-    }
+    },
+    %{feature: :tracing, path: "tracing", label: "Tracing", icon: "icon-binoculars"}
   ]
 
   @coming_soon_pages [
-    %{feature: :tracing, path: "tracing", label: "Tracing", icon: "icon-binoculars"},
     %{feature: :sockets, path: "sockets", label: "Sockets", icon: "icon-plug"},
     %{feature: :ports, path: "ports", label: "Ports", icon: "icon-ethernet-port"},
     %{feature: :charts, path: "charts", label: "Charts", icon: "icon-chart-column"},
