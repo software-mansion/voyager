@@ -13,10 +13,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Selection do
   @type flat_tree :: %{String.t() => TreeNode.t()} | nil
   @type link_identifier :: pid() | port()
 
-  @type jump ::
-          {:select, TreeNode.t()}
-          | {:select_placeholder, TreeNode.t()}
-          | {:expand_and_reveal, TreeNode.t(), TreeNode.t()}
+  @type jump :: {:select, TreeNode.t()} | {:expand_and_reveal, TreeNode.t(), TreeNode.t()}
 
   @doc """
   Finds the node for `key` in the flat tree.
@@ -52,9 +49,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.Selection do
   @doc """
   Decides what clicking a details-panel link should do.
 
-    * `{:select, node}` — the target is in the tree: select and focus it
-    * `{:select_placeholder, node}` — not in the tree and nothing to expand:
-      show the stand-in node only
+    * `{:select, node}` — the target's tree node, or its stand-in when it is
+      not in the tree and nothing can be expanded to reveal it
     * `{:expand_and_reveal, placeholder, stub}` — not in the tree, but `stub`
       (the node the click came from, or a collapsed supervisor that links the
       target) can be expanded to reveal it: show the stand-in, expand the
@@ -77,7 +73,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Selection do
         {:expand_and_reveal, placeholder, stub}
 
       true ->
-        {:select_placeholder, placeholder}
+        {:select, placeholder}
     end
   end
 

@@ -88,7 +88,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.SelectionTest do
     test "selects a placeholder when nothing can be expanded" do
       p = pid("<0.51.0>")
 
-      assert {:select_placeholder, %TreeNode{type: :process, pid: ^p}} =
+      assert {:select, %TreeNode{type: :process, pid: ^p, placeholder?: true}} =
                Selection.resolve_jump(tree([]), p, nil, MapSet.new())
     end
 
@@ -121,7 +121,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.SelectionTest do
       stub_pid = pid("<0.58.0>")
       from = node!("<0.58.0>", type: :supervisor, pid: stub_pid, child_count: 1)
 
-      assert {:select_placeholder, _placeholder} =
+      assert {:select, %TreeNode{placeholder?: true}} =
                Selection.resolve_jump(tree([from]), target, from, MapSet.new([stub_pid]))
     end
 
@@ -131,7 +131,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.SelectionTest do
 
       from = node!("<0.59.0>", type: :supervisor, pid: pid("<0.59.0>"), child_count: 1)
 
-      assert {:select_placeholder, %TreeNode{type: :port}} =
+      assert {:select, %TreeNode{type: :port, placeholder?: true}} =
                Selection.resolve_jump(tree([from]), port, from, MapSet.new())
     end
   end

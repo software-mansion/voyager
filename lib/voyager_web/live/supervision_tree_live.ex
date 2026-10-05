@@ -483,9 +483,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
       {:select, node} ->
         put_selected_node(socket, node, focus: true, keep_history?: true)
 
-      {:select_placeholder, node} ->
-        put_selected_node(socket, node, keep_history?: true)
-
       {:expand_and_reveal, placeholder, stub} ->
         socket
         |> put_selected_node(placeholder, keep_history?: true)
