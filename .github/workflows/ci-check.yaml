@@ -105,6 +105,11 @@ jobs:
       - name: Run unit tests
         run: mix test
 
+      - name: Run SSH integration tests
+        run: mix test --only ssh
+        env:
+          ELIXIR_ERL_OPTIONS: "-epmd_module Elixir.Voyager.ProxyEpmd"
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
