@@ -18,6 +18,17 @@ defmodule Voyager.Services.DistributionTest do
     end
   end
 
+  describe "host_address/1" do
+    test "parses IP literals into address tuples" do
+      assert Distribution.host_address("10.0.0.5") == {10, 0, 0, 5}
+      assert Distribution.host_address("::1") == {0, 0, 0, 0, 0, 0, 0, 1}
+    end
+
+    test "keeps hostnames as charlists" do
+      assert Distribution.host_address("myhost") == ~c"myhost"
+    end
+  end
+
   describe "ensure_distributed/1" do
     setup do
       on_exit(fn -> if Node.alive?(), do: :net_kernel.stop() end)
