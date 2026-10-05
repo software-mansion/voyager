@@ -117,6 +117,21 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     assert has_element?(view, "#ets-records-0-truncated")
   end
 
+  test "a failed info refresh on fetch keeps the controls on screen", %{conn: conn} do
+    name = named_table(:set)
+    :ets.insert(name, {:k, 1})
+
+    view = fetch_records(conn, name)
+    :ets.delete(name)
+
+    view |> element("#ets-peek-fetch") |> render_click()
+    render_async(view, 2_000)
+
+    assert has_element?(view, "#ets-peek-fetch")
+    assert has_element?(view, "#ets-peek-error")
+    refute has_element?(view, "#ets-table-error")
+  end
+
   for keypos <- [2, 6] do
     test "the key at keypos #{keypos} is bold in the row preview", %{conn: conn} do
       keypos = unquote(keypos)
