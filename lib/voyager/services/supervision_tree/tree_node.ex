@@ -50,7 +50,7 @@ defmodule Voyager.Services.SupervisionTree.TreeNode do
         }
 
   @spec key(pid() | port() | reference()) :: String.t()
-  def key(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
+  def key(pid) when is_pid(pid), do: Voyager.Pid.format(pid, :distribution)
   def key(port) when is_port(port), do: inspect(port)
   def key(ref) when is_reference(ref), do: inspect(ref)
 end

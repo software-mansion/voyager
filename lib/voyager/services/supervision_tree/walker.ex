@@ -181,13 +181,13 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   # the intermediate chain node is omitted.
   defp seed_app(nodes, worklist, app, master_pid, root_pid, p_pid, depth) do
     app_key = "app:#{app}"
-    root_key = id_key(root_pid)
+    root_key = TreeNode.key(root_pid)
 
     {root_parent_key, nodes} =
       if p_pid == root_pid or p_pid == master_pid do
         {app_key, Map.put(nodes, app_key, app_node(app, app_key, master_pid, [root_key]))}
       else
-        p_key = id_key(p_pid)
+        p_key = TreeNode.key(p_pid)
 
         nodes =
           nodes
@@ -368,7 +368,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   # resolved); their key is already known from their pid.
   defp walk_child(item, {{child_id, child_pid, :supervisor, _modules}, _}, nodes, worklist)
        when is_pid(child_pid) do
-    key = id_key(child_pid)
+    key = TreeNode.key(child_pid)
 
     next_item = %{
       app: item.app,
@@ -385,7 +385,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   # Workers (and any non-supervisor) are always leaves.
   defp walk_child(item, {{child_id, child_pid, _type, _modules}, _}, nodes, worklist)
        when is_pid(child_pid) do
-    key = id_key(child_pid)
+    key = TreeNode.key(child_pid)
     {key, Map.put(nodes, key, leaf_node(item.app, key, item.key, child_pid, child_id)), worklist}
   end
 
@@ -626,8 +626,8 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   defp rel_sig({from, to, kind}), do: {kind, from, to}
 
   defp build_edge(from, to, kind) do
-    source = id_key(from)
-    target = id_key(to)
+    source = TreeNode.key(from)
+    target = TreeNode.key(to)
     id = "rel:#{kind}:#{source}->#{target}"
     {id, %Edge{id: id, source: from, target: to, kind: kind}}
   end
@@ -636,29 +636,24 @@ defmodule Voyager.Services.SupervisionTree.Walker do
   # that also exists in the supervision tree keeps its richer tree entry.
   defp put_rel_node(nodes, id, info_map) when is_pid(id) do
     info = Map.get(info_map, id)
-    Map.put_new(nodes, id_key(id), rel_node(id, id, pid_label(id, info), :worker, info))
+    Map.put_new(nodes, TreeNode.key(id), rel_node(id, id, pid_label(id, info), :worker, info))
   end
 
   defp put_rel_node(nodes, id, _info_map) when is_port(id) do
-    Map.put_new(nodes, id_key(id), rel_node(id, nil, id, :port, nil))
+    Map.put_new(nodes, TreeNode.key(id), rel_node(id, nil, id, :port, nil))
   end
 
   defp put_rel_node(nodes, id, _info_map) when is_reference(id) do
-    Map.put_new(nodes, id_key(id), rel_node(id, nil, id, :reference, nil))
+    Map.put_new(nodes, TreeNode.key(id), rel_node(id, nil, id, :reference, nil))
   end
 
   defp rel_node(id, pid, name, type, info) do
-    build_node(%{key: id_key(id), pid: pid, name: name, type: type, info: info})
+    build_node(%{key: TreeNode.key(id), pid: pid, name: name, type: type, info: info})
   end
 
   # ---------------------------------------------------------------------------
   # keys & helpers
   # ---------------------------------------------------------------------------
-
-  defp id_key(pid) when is_pid(pid), do: Voyager.Pid.format(pid, :distribution)
-
-  defp id_key(port_or_ref) when is_port(port_or_ref) or is_reference(port_or_ref),
-    do: inspect(port_or_ref)
 
   defp ghost_key(parent_key, :undefined, status, index),
     do: "#{parent_key}::ghost::#{inspect(status)}::#{index}"

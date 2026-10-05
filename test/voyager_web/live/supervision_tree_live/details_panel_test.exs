@@ -638,7 +638,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
     )
   end
 
-  defp pid_key(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
+  defp pid_key(pid) when is_pid(pid), do: Voyager.Services.SupervisionTree.TreeNode.key(pid)
 
   defp supervision_reply(mod, fun, args, sup, linked, links) do
     supervision_reply(mod, fun, args, sup, linked, links, sup)
