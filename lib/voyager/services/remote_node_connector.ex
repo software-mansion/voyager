@@ -84,7 +84,7 @@ defmodule Voyager.Services.RemoteNodeConnector do
            :ok <- Validate.host(node_host),
            :ok <- Validate.host(ssh_host),
            {:ok, conn_ref} <- Connection.connect_ssh(ssh_host, ssh_port, ssh_user, auth) do
-        establish(conn_ref, full_node_name, node_name, name_type, cookie, epmd_port)
+        establish(conn_ref, full_node_name, node_name, node_host, name_type, cookie, epmd_port)
       end
     end
   end
@@ -97,31 +97,16 @@ defmodule Voyager.Services.RemoteNodeConnector do
     end
   end
 
-  defp establish(conn_ref, full_node_name, node_name, name_type, cookie, epmd_port) do
+  defp establish(conn_ref, full_node_name, node_name, node_host, name_type, cookie, epmd_port) do
     node_key = String.to_charlist(node_name)
+    remote_node = String.to_atom(full_node_name)
+
+    remote_hosts = Enum.uniq([~c"127.0.0.1", String.to_charlist(node_host)])
 
     with :ok <- Distribution.ensure_distributed(name_type),
-         {:ok, dist_port} <- Connection.discover_dist_port(conn_ref, node_name, epmd_port),
-         {:ok, local_port} <- Connection.open_tunnel(conn_ref, dist_port),
-         :ok <- TunnelRegistry.register(node_key, local_port, conn_ref) do
-      remote_node = String.to_atom(full_node_name)
-
-      :erlang.set_cookie(remote_node, String.to_atom(cookie))
-      connect_result = Node.connect(remote_node)
-      :erlang.set_cookie(remote_node, :nocookie)
-
-      case connect_result do
-        true ->
-          {:ok, remote_node, conn_ref, local_port}
-
-        false ->
-          cleanup(conn_ref, node_key)
-          {:error, :node_connect_failed}
-
-        :ignored ->
-          cleanup(conn_ref, node_key)
-          {:error, :not_distributed}
-      end
+         {:ok, local_port} <-
+           connect_through(remote_hosts, conn_ref, node_name, remote_node, cookie, epmd_port) do
+      {:ok, remote_node, conn_ref, local_port}
     else
       {:error, _} = err ->
         :ssh.close(conn_ref)
@@ -130,8 +115,34 @@ defmodule Voyager.Services.RemoteNodeConnector do
     end
   end
 
-  defp cleanup(conn_ref, node_key) do
-    :ssh.close(conn_ref)
-    TunnelRegistry.unregister(node_key)
+  defp connect_through(remote_hosts, conn_ref, node_name, remote_node, cookie, epmd_port) do
+    Enum.reduce_while(remote_hosts, nil, fn remote_host, first_error ->
+      case connect_via(remote_host, conn_ref, node_name, remote_node, cookie, epmd_port) do
+        {:ok, _local_port} = ok -> {:halt, ok}
+        error -> {:cont, first_error || error}
+      end
+    end)
+  end
+
+  defp connect_via(remote_host, conn_ref, node_name, remote_node, cookie, epmd_port) do
+    node_key = String.to_charlist(node_name)
+
+    with {:ok, dist_port} <-
+           Connection.discover_dist_port(conn_ref, remote_host, node_name, epmd_port),
+         {:ok, local_port} <- Connection.open_tunnel(conn_ref, remote_host, dist_port),
+         :ok <- TunnelRegistry.register(node_key, local_port, conn_ref) do
+      case connect_node(remote_node, cookie) do
+        true -> {:ok, local_port}
+        false -> {:error, :node_connect_failed}
+        :ignored -> {:error, :not_distributed}
+      end
+    end
+  end
+
+  defp connect_node(remote_node, cookie) do
+    :erlang.set_cookie(remote_node, String.to_atom(cookie))
+    result = Node.connect(remote_node)
+    :erlang.set_cookie(remote_node, :nocookie)
+    result
   end
 end

@@ -48,7 +48,8 @@ defmodule Voyager.Agent do
   @typedoc """
   A single arbitrary term rewritten on the remote to fit a term budget.
   `:truncated?` says whether anything was dropped; elided subterms are replaced
-  by `:"$voyager_truncated"`.
+  by `:"$voyager_truncated"` and cut binaries by
+  `{:"$voyager_truncated", :binary, prefix, byte_size}`.
   """
   @type truncated_term :: %{term: term(), truncated?: boolean()}
 
