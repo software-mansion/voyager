@@ -1,16 +1,7 @@
 defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   @moduledoc """
-  Side panel that displays details for a selected node in the supervision tree.
-
-  The parent LiveView owns the current selection (graph highlight / focus) and
-  passes the selected `TreeNode` (or `nil` to close) together with
-  `keep_history?`. This component owns the in-panel navigation history: link
-  clicks push the current node, Back pops it, and a selection without
-  `keep_history?` (graph click, close) resets the stack.
-
-  Link / back notify the parent via `send/2` (`{:select_link, id}` /
-  `{:restore_details_node, node}`). Close has no `phx-target`, so it is handled
-  on the parent as `"close-details-panel"`.
+  Details for the selected supervision tree node. The parent owns the selection;
+  this component owns the Back history, reset unless `keep_history?` is set.
   """
 
   use VoyagerWeb, :live_component

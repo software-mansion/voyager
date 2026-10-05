@@ -1,12 +1,5 @@
 defmodule VoyagerWeb.SupervisionTreeLive.Selection do
-  @moduledoc """
-  Pure selection logic over the flat node map produced by the supervision
-  tree walk: key lookups, root-path computation, and the decision of what a
-  details-panel link jump should do.
-
-  Knows nothing about sockets — `VoyagerWeb.SupervisionTreeLive` applies the
-  returned instructions (assigns, `push_event`, fetches).
-  """
+  @moduledoc false
 
   alias Voyager.Services.SupervisionTree.TreeNode
 
@@ -15,37 +8,14 @@ defmodule VoyagerWeb.SupervisionTreeLive.Selection do
 
   @type jump :: {:select, TreeNode.t()} | {:expand_and_reveal, TreeNode.t(), TreeNode.t()}
 
-  @doc """
-  Finds the node for `key` in the flat tree.
-
-  App wrappers are keyed `app:<name>` while PID-links look up `<X.Y.Z>`, so a
-  direct miss falls back to matching the live pid (preferring the `:app`
-  wrapper) so those nodes still resolve.
-  """
+  @doc "Falls back to the live pid on a miss, so a pid key resolves its `app:<name>` wrapper."
   @spec lookup(flat_tree(), String.t()) :: TreeNode.t() | nil
   def lookup(nil, _key), do: nil
   def lookup(flat, key), do: Map.get(flat, key) || find_by_pid_key(flat, key)
 
-  @doc """
-  Returns the `[key, ..., root_key]` path for a node in the flat tree, or `[]`
-  when the key is missing.
-  """
   @spec path_to_root(%{String.t() => TreeNode.t()}, String.t()) :: [String.t()]
   def path_to_root(flat, key), do: path_to_root(flat, key, [])
 
-  @doc """
-  Decides what clicking a details-panel link should do.
-
-    * `{:select, node}` — the target's tree node, or its stand-in when it is
-      not in the tree and nothing can be expanded to reveal it
-    * `{:expand_and_reveal, placeholder, stub}` — not in the tree, but `stub`
-      (the node the click came from, or a collapsed supervisor that links the
-      target) can be expanded to reveal it: show the stand-in, expand the
-      stub, and re-select once the fetch lands
-
-  `from` is the currently selected node (where the click originated) and
-  `expanded_pids` the set of already-expanded supervisor pids.
-  """
   @spec resolve_jump(flat_tree(), link_identifier(), TreeNode.t() | nil, MapSet.t(pid())) ::
           jump()
   def resolve_jump(flat, identifier, from, expanded_pids) do
