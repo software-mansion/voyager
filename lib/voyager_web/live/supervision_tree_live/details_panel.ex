@@ -169,17 +169,11 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   end
 
   defp maybe_assign_node(socket, node, keep_history?) do
-    changed? = node_changed?(socket, node)
+    history = if keep_history?, do: socket.assigns.selection_history, else: []
+    expanded? = socket.assigns.links_expanded? and not node_changed?(socket, node)
 
     socket
-    |> assign(:open?, true)
-    |> assign(:node, node)
-    |> then(fn socket ->
-      if keep_history?, do: socket, else: assign(socket, :selection_history, [])
-    end)
-    |> then(fn socket ->
-      if changed?, do: assign(socket, :links_expanded?, false), else: socket
-    end)
+    |> assign(open?: true, node: node, selection_history: history, links_expanded?: expanded?)
     |> maybe_fetch_node_info(node)
     |> maybe_fetch_links(node)
   end
