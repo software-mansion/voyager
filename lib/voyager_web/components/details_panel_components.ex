@@ -226,6 +226,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :on_toggle_links, :string, required: true
   attr :target, :any, required: true
   attr :remote_node, :atom, default: nil, doc: "forwarded to `overview/1`"
+  attr :links_disabled?, :boolean, default: false
 
   def body(assigns) do
     assigns = assign(assigns, :process?, is_pid(assigns.node.pid))
@@ -239,6 +240,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           panel_id={@panel_id}
           on_select={@on_select}
           target={@target}
+          links_disabled?={@links_disabled?}
         />
         <.links
           panel_id={@panel_id}
@@ -247,6 +249,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           on_select={@on_select}
           on_toggle_links={@on_toggle_links}
           target={@target}
+          links_disabled?={@links_disabled?}
         />
         <.memory_and_garbage_collection info={@info} />
       <% else %>
@@ -278,6 +281,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :panel_id, :string, default: nil
   attr :on_select, :string, default: nil, doc: "tree-jump event for linkable pid rows"
   attr :target, :any, default: nil
+  attr :links_disabled?, :boolean, default: false
 
   def overview(assigns) do
     assigns = assign(assigns, :rows, @overview_rows)
@@ -309,6 +313,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
                 node_key={TreeNode.key(pid)}
                 on_select={@on_select}
                 target={@target}
+                disabled={@links_disabled?}
               />
             <% else %>
               {overview_value(key, info)}
@@ -326,6 +331,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :on_select, :string, required: true
   attr :on_toggle_links, :string, required: true
   attr :target, :any, required: true
+  attr :links_disabled?, :boolean, default: false
 
   def links(assigns) do
     assigns = assign(assigns, :links_count, links_count(assigns.links_info))
@@ -352,6 +358,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           on_select={@on_select}
           on_toggle_links={@on_toggle_links}
           target={@target}
+          links_disabled?={@links_disabled?}
         />
       </.async_result>
     </.section>
@@ -464,6 +471,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :node_key, :string, required: true
   attr :on_select, :string, required: true
   attr :target, :any, required: true
+  attr :disabled, :boolean, default: false
 
   def chip(assigns) do
     ~H"""
@@ -473,9 +481,10 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       phx-click={@on_select}
       phx-value-key={@node_key}
       phx-target={@target}
+      disabled={@disabled}
       title={"Select #{@label}"}
       aria-label={"Select #{@label}"}
-      class="border-base-content/70 bg-base-200 text-base-content inline-flex cursor-pointer rounded-md border px-2.5 py-1 text-xs transition-colors hover:border-primary hover:text-primary"
+      class="border-base-content/70 bg-base-200 text-base-content inline-flex cursor-pointer rounded-md border px-2.5 py-1 text-xs transition-colors enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-wait disabled:opacity-50"
     >
       <.display_pid pid={@label} />
     </button>
@@ -586,6 +595,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :on_select, :string, required: true
   attr :on_toggle_links, :string, required: true
   attr :target, :any, required: true
+  attr :links_disabled?, :boolean, default: false
 
   def links_list(assigns) do
     limit = if assigns.links_expanded?, do: @max_expanded_links, else: @max_links
@@ -608,6 +618,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           node_key={TreeNode.key(link)}
           on_select={@on_select}
           target={@target}
+          disabled={@links_disabled?}
         />
       </div>
       <p

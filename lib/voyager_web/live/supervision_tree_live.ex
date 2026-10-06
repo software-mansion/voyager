@@ -100,6 +100,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         id="details-panel"
         tree_node={@selected_node}
         keep_history?={@keep_history?}
+        revealing?={not is_nil(@pending_reveal)}
         remote_node={@session.node}
         node_name={@session.node_name}
         current_url={@current_url}
@@ -250,7 +251,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     node = Selection.lookup(socket.assigns.last_tree_flat, node.key) || node
 
     socket
-    |> assign(:pending_reveal, nil)
     |> put_selected_node(node, focus: true, keep_history?: true)
     |> noreply()
   end
@@ -464,9 +464,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         socket
 
       node ->
-        socket
-        |> assign(:pending_reveal, nil)
-        |> put_selected_node(node)
+        put_selected_node(socket, node)
     end
   end
 
@@ -522,9 +520,11 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         socket
       end
 
+    # A newer selection cancels a pending reveal, which would otherwise override it.
     socket
     |> assign(:selected_node, node)
     |> assign(:keep_history?, Keyword.get(opts, :keep_history?, false))
+    |> assign(:pending_reveal, nil)
   end
 
   # Drop a graph-backed selection when its key disappears from the tree. Keep

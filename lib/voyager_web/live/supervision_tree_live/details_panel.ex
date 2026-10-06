@@ -40,7 +40,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
           remote_node: remote_node,
           node_name: node_name,
           current_url: current_url,
-          keep_history?: keep_history?
+          keep_history?: keep_history?,
+          revealing?: revealing?
         },
         socket
       ) do
@@ -49,6 +50,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(:remote_node, remote_node)
     |> assign(:node_name, node_name)
     |> assign(:current_url, current_url)
+    |> assign(:revealing?, revealing?)
     |> maybe_assign_node(tree_node, keep_history?)
     |> ok()
   end
@@ -144,6 +146,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
           on_toggle_links="toggle-links"
           target={@myself}
           remote_node={@remote_node}
+          links_disabled?={@revealing?}
         />
         <.show_more_button
           panel_id={@id}
