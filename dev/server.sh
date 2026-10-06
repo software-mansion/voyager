@@ -3,9 +3,10 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+mix deps.get
 mix compile
 
 env="${MIX_ENV:-dev}"
 ebin="$PWD/_build/$env/lib/voyager/ebin"
 
-exec iex --erl "-epmd_module Elixir.Voyager.ProxyEpmd -pa $ebin" -S mix phx.server
+exec iex --erl "-proto_dist dual_tcp -epmd_module Elixir.Voyager.ProxyEpmd -pa $ebin" -S mix phx.server

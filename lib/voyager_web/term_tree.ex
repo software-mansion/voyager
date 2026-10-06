@@ -15,8 +15,9 @@ defmodule VoyagerWeb.TermTree do
   which sorting on every render costs more than it is worth.
 
   Terms fetched from a remote node arrive already truncated, with elided
-  subterms replaced in place by `#{inspect(:"$voyager_truncated")}`. Those
-  render as a muted placeholder so a partial term is never mistaken for a
+  subterms replaced in place by `#{inspect(:"$voyager_truncated")}` and cut
+  binaries by `{#{inspect(:"$voyager_truncated")}, :binary, prefix, byte_size}`.
+  Those render as a muted placeholder so a partial term is never mistaken for a
   complete one. See `priv/voyager_agent.erl` for the truncation itself.
   """
 
@@ -61,6 +62,8 @@ defmodule VoyagerWeb.TermTree do
   """
   @spec children(term(), non_neg_integer(), pos_integer()) :: [{[Segment.t()] | nil, term()}]
   def children(term, offset, limit)
+
+  def children({@truncated, :binary, _prefix, _size}, _offset, _limit), do: []
 
   def children(tuple, offset, limit) when is_tuple(tuple) do
     tuple
@@ -217,6 +220,16 @@ defmodule VoyagerWeb.TermTree do
     %Node{kind: :truncated, content: [Segment.muted("… (truncated)")]}
   end
 
+  defp build({@truncated, :binary, prefix, size}) do
+    %Node{
+      kind: :binary,
+      content: [
+        Segment.string(inspect(prefix, @inspect_opts)),
+        Segment.muted(" … (truncated, #{size} bytes)")
+      ]
+    }
+  end
+
   defp build(binary) when is_binary(binary) do
     %Node{kind: :binary, content: [Segment.string(inspect(binary, @inspect_opts))]}
   end
@@ -284,6 +297,7 @@ defmodule VoyagerWeb.TermTree do
     %Node{
       kind: :struct,
       child_count: struct |> Map.from_struct() |> map_size(),
+      truncated?: Map.has_key?(struct, @truncated),
       content: content,
       expanded_before: module_segments ++ [Segment.punctuation("{")],
       expanded_after: [Segment.punctuation("}")]
@@ -341,6 +355,8 @@ defmodule VoyagerWeb.TermTree do
   defp key_segments(key) do
     key_content(key) ++ [Segment.punctuation(" => ")]
   end
+
+  defp key_content({@truncated, :binary, _prefix, _size} = key), do: describe(key).content
 
   defp key_content(key) when is_tuple(key) or is_list(key) or is_map(key) do
     [Segment.other(inspect(key, @key_inspect_opts))]

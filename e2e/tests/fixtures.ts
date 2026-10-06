@@ -1,6 +1,7 @@
 import { expect, type Page } from '@playwright/test';
 
 export const NODE_NAME = 'test@127.0.0.1';
+export const NODE_NAME_V6 = 'test6@::1';
 export const COOKIE = 'e2e_cookie';
 
 export const SSH_USER = 'e2e_ssh_user';

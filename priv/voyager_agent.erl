@@ -439,12 +439,12 @@ walk_tuple(Tuple, Index, Size, Budget, Truncated, Acc) ->
 %% of binaries each pay the same regardless of size, so they could still ship
 %% megabytes under a small budget. Floored at 1 so an empty binary cannot walk
 %% for free. Only the visible part of a sub-binary is copied over distribution,
-%% so cutting here really does bound the payload.
+%% so cutting here really does bound the payload. A cut binary is wrapped in a
+%% marker so its prefix is never mistaken for the whole value (e.g. as a key).
+walk_bitstring(Bin, Budget, _Truncated) when is_binary(Bin), byte_size(Bin) > Budget ->
+    {{?TRUNCATED, binary, binary:part(Bin, 0, Budget), byte_size(Bin)}, 0, true};
 walk_bitstring(Bin, Budget, Truncated) when is_binary(Bin) ->
-    Cost = max(min(byte_size(Bin), Budget), 1),
-    {binary:part(Bin, 0, min(Cost, byte_size(Bin))),
-     Budget - Cost,
-     Truncated orelse Cost < byte_size(Bin)};
+    {Bin, Budget - max(byte_size(Bin), 1), Truncated};
 %% A non-byte-aligned bitstring cannot be cut with `binary:part/3', so one
 %% over budget is dropped whole.
 walk_bitstring(Bits, Budget, _Truncated) when bit_size(Bits) > Budget * 8 ->
