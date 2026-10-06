@@ -16,6 +16,7 @@ defmodule Voyager.Services.Tracer do
   @kept_events 500
   @max_mailbox 1_000
   @start_timeout 6_000
+  @function_pattern ~r/^(?<module>:?[A-Za-z_][\w.]*)\.(?<function>[a-z_]\w*[?!]?)\/(?<arity>\d{1,3}|\*)$/
 
   @type spec :: %{
           module: String.t(),
@@ -30,6 +31,8 @@ defmodule Voyager.Services.Tracer do
           node: node(),
           spec: spec(),
           tracer: pid(),
+          origin: :ui | :mcp,
+          limits: map(),
           status: :running | :stopped,
           reason: term(),
           events: non_neg_integer(),
@@ -46,10 +49,17 @@ defmodule Voyager.Services.Tracer do
   @spec limits() :: map()
   def limits, do: @limits
 
-  @doc "Starts a trace on `node`; `{:error, :busy}` while another one runs."
-  @spec start(node(), spec()) :: {:ok, trace()} | {:error, term()}
-  def start(node, spec),
-    do: GenServer.call(__MODULE__, {:start, node, spec}, @start_timeout + 1_000)
+  @doc """
+  Starts a trace on `node`; `{:error, :busy}` while another one runs.
+
+  Options: `:limits` overrides entries of `limits/0`, `:origin` is `:ui` (default) or `:mcp`.
+  """
+  @spec start(node(), spec(), keyword()) :: {:ok, trace()} | {:error, term()}
+  def start(node, spec, opts \\ []) do
+    limits = Map.merge(@limits, Keyword.get(opts, :limits, %{}))
+    origin = Keyword.get(opts, :origin, :ui)
+    GenServer.call(__MODULE__, {:start, node, spec, limits, origin}, @start_timeout + 1_000)
+  end
 
   @spec stop() :: :ok
   def stop, do: GenServer.call(__MODULE__, :stop)
@@ -58,16 +68,100 @@ defmodule Voyager.Services.Tracer do
   @spec current() :: {trace() | nil, [map()]}
   def current, do: GenServer.call(__MODULE__, :current)
 
+  @doc """
+  Parses `Module.function/arity` (Elixir) or `:module.function/arity` (Erlang); `*` is
+  any arity. Names stay binaries: the agent only maps them to atoms that already exist.
+  """
+  @spec parse_function(String.t()) ::
+          {:ok, %{module: String.t(), function: String.t(), arity: non_neg_integer() | :any}}
+          | :error
+  def parse_function(text) when is_binary(text) do
+    case Regex.named_captures(@function_pattern, String.trim(text)) do
+      %{"module" => module, "function" => function, "arity" => arity} ->
+        {:ok, %{module: module_name(module), function: function, arity: parse_arity(arity)}}
+
+      nil ->
+        :error
+    end
+  end
+
+  def parse_function(_text), do: :error
+
+  @spec spec_label(spec()) :: String.t()
+  def spec_label(%{module: module, function: function, arity: arity}) do
+    display_module =
+      case module do
+        "Elixir." <> elixir_module -> elixir_module
+        erlang_module -> ":" <> erlang_module
+      end
+
+    "#{display_module}.#{function}/#{if arity == :any, do: "*", else: arity}"
+  end
+
+  @spec call_text(map()) :: String.t()
+  def call_text(%{mfa: {module, function, _arity}, args: args, truncated: truncated}) do
+    Exception.format_mfa(module, function, args) <> if(truncated, do: " …", else: "")
+  end
+
+  def call_text(%{mfa: {module, function, arity}}),
+    do: Exception.format_mfa(module, function, arity)
+
+  @doc "A traced process' registered name or initial call, `\"\"` when unknown."
+  @spec process_label(term()) :: String.t()
+  def process_label({module, function, arity}), do: Exception.format_mfa(module, function, arity)
+  def process_label(name) when is_atom(name) and name != :undefined, do: inspect(name)
+  def process_label(_none), do: ""
+
+  @spec status_text(trace()) :: String.t()
+  def status_text(%{status: :running}), do: "Running"
+
+  def status_text(%{reason: :event_limit, limits: limits}),
+    do: "Stopped at #{limits.max_events} events"
+
+  def status_text(%{reason: :rate_limit, limits: limits}),
+    do: "Stopped: over #{limits.max_rate} events/s"
+
+  def status_text(%{reason: :time_limit, limits: limits}),
+    do: "Stopped after #{div(limits.max_time_ms, 1000)} s"
+
+  def status_text(%{reason: :mailbox_limit}), do: "Stopped: tracer mailbox full"
+  def status_text(%{reason: :stopped}), do: "Stopped"
+  def status_text(%{reason: {:tracer_down, :noconnection}}), do: "Stopped: node disconnected"
+  def status_text(%{reason: reason}), do: "Stopped: #{inspect(reason)}"
+
+  @spec error_message(term()) :: String.t()
+  def error_message(:busy), do: "A trace is already running."
+
+  def error_message({:refused, module}),
+    do:
+      "Tracing #{inspect(module)} on all processes is refused: it is called from almost everywhere."
+
+  def error_message({:not_loaded, module}), do: "#{inspect(module)} is not loaded on the node."
+  def error_message(:unknown_function), do: "No such module or function on the node."
+  def error_message(:no_function_matched), do: "No function matches that name and arity."
+  def error_message(reason), do: "Could not start the trace: #{inspect(reason)}"
+
+  defp module_name(":" <> erlang_module), do: erlang_module
+  defp module_name(<<first, _::binary>> = module) when first in ?a..?z, do: module
+  defp module_name(module), do: "Elixir." <> module
+
+  defp parse_arity("*"), do: :any
+  defp parse_arity(arity), do: String.to_integer(arity)
+
   @impl true
   def init(nil), do: {:ok, %{trace: nil, events: [], dropped_here: 0}}
 
   @impl true
-  def handle_call({:start, _node, _spec}, _from, %{trace: %{status: :running}} = state) do
+  def handle_call(
+        {:start, _node, _spec, _limits, _origin},
+        _from,
+        %{trace: %{status: :running}} = state
+      ) do
     {:reply, {:error, :busy}, state}
   end
 
-  def handle_call({:start, node, spec}, _from, state) do
-    case Agent.call(node, :trace_start, [self(), spec, @limits], @start_timeout) do
+  def handle_call({:start, node, spec, limits, origin}, _from, state) do
+    case Agent.call(node, :trace_start, [self(), spec, limits], @start_timeout) do
       {:ok, {:ok, tracer}} ->
         Process.monitor(tracer)
 
@@ -76,6 +170,8 @@ defmodule Voyager.Services.Tracer do
           node: node,
           spec: spec,
           tracer: tracer,
+          origin: origin,
+          limits: limits,
           status: :running,
           reason: nil,
           events: 0,
