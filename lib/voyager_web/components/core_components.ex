@@ -676,7 +676,12 @@ defmodule VoyagerWeb.CoreComponents do
         id={@id}
         name={@name}
         value={Phoenix.HTML.Form.normalize_value(@type, @value)}
-        class={["input input-bordered w-full", @errors != [] && "input-error", @class]}
+        class={[
+          "input input-bordered w-full",
+          @type == "number" && "no-spinner",
+          @errors != [] && "input-error",
+          @class
+        ]}
         {@rest}
       />
       <p :for={error <- @errors} class="font-mono text-error mt-1.5 text-xs">{error}</p>
