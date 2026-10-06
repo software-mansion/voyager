@@ -84,7 +84,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     assigns =
       assigns
       |> assign(:label, assigns.node_type |> to_string() |> String.capitalize())
-      |> assign(:icon, Map.get(icons, assigns.node_type) || Map.get(icons, :worker))
+      |> assign(:icon, Map.get(icons, assigns.node_type, icons.worker))
 
     ~H"""
     <div class="flex flex-wrap items-center gap-2">
@@ -290,8 +290,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
             :for={{key, label, width} <- @rows}
             label={label}
             help={ProcessInfoHelp.get(key)}
-            narrow={width == :narrow}
-            wide={width == :wide}
+            width={width}
             last={key == :error_handler}
           />
         </:loading>
@@ -300,28 +299,20 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         </:failed>
         <%= for {key, label, _width} <- @rows do %>
           <.suspending_list :if={key == :suspending} suspending={info.suspending} size={@size} />
-          <.kv
-            :if={key != :suspending and is_nil(linkable_pid(key, info, @remote_node))}
-            size={@size}
-            label={label}
-            help={ProcessInfoHelp.get(key)}
-            value={overview_value(key, info)}
-          />
-          <.kv
-            :if={pid = linkable_pid(key, info, @remote_node)}
-            size={@size}
-            label={label}
-            help={ProcessInfoHelp.get(key)}
-          >
-            <ProcessComponents.process_link :if={@current_url} pid={pid} current_url={@current_url} />
-            <.chip
-              :if={is_nil(@current_url)}
-              id={"#{@panel_id}-#{key}"}
-              label={format_identifier(pid)}
-              node_key={TreeNode.key(pid)}
-              on_select={@on_select}
-              target={@target}
-            />
+          <.kv :if={key != :suspending} size={@size} label={label} help={ProcessInfoHelp.get(key)}>
+            <%= if pid = linkable_pid(key, info, @remote_node) do %>
+              <ProcessComponents.process_link :if={@current_url} pid={pid} current_url={@current_url} />
+              <.chip
+                :if={is_nil(@current_url)}
+                id={"#{@panel_id}-#{key}"}
+                label={format_identifier(pid)}
+                node_key={TreeNode.key(pid)}
+                on_select={@on_select}
+                target={@target}
+              />
+            <% else %>
+              {overview_value(key, info)}
+            <% end %>
           </.kv>
         <% end %>
       </.async_result>
@@ -385,7 +376,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
             :for={{key, label} <- @rows}
             label={label}
             help={ProcessInfoHelp.get(key)}
-            narrow
+            width={:narrow}
             last={key == :gc_fullsweep_after}
           />
         </:loading>
@@ -526,23 +517,19 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :label, :string, required: true
   attr :help, :map, default: nil
-  attr :narrow, :boolean, default: false
-  attr :wide, :boolean, default: false
+  attr :width, :atom, default: nil, values: [nil, :narrow, :wide]
   attr :last, :boolean, default: false
 
   def kv_skeleton(assigns) do
+    assigns = assign(assigns, :width_class, skeleton_width_class(assigns.width))
+
     ~H"""
     <div class={[
       "font-mono flex items-baseline justify-between gap-4 py-2.5 text-xs",
       not @last && "border-base-content/10 border-b"
     ]}>
       <.kv_label label={@label} help={@help} />
-      <div class={[
-        "skeleton shrink-1 h-2.5 rounded",
-        @narrow && "w-12",
-        @wide && "w-full",
-        (not @narrow and not @wide) && "w-20"
-      ]} />
+      <div class={["skeleton shrink-1 h-2.5 rounded", @width_class]} />
     </div>
     """
   end
@@ -695,6 +682,10 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   defp linkable_pid(_key, _info, _remote_node), do: nil
+
+  defp skeleton_width_class(:narrow), do: "w-12"
+  defp skeleton_width_class(:wide), do: "w-full"
+  defp skeleton_width_class(nil), do: "w-20"
 
   defp memory_value(:gc_fullsweep_after, info), do: format_count(info.gc_fullsweep_after)
   defp memory_value(key, info), do: info |> Map.fetch!(key) |> Formatters.format_bytes()

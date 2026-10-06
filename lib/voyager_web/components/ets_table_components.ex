@@ -564,10 +564,10 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
     ~H"""
     <div class="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
       <.section title="Overview">
-        <.kv_skeleton label="Type" help={EtsTableHelp.get(:type)} narrow />
-        <.kv_skeleton label="Protection" help={EtsTableHelp.get(:protection)} narrow />
-        <.kv_skeleton label="Named table" help={EtsTableHelp.get(:named_table)} narrow />
-        <.kv_skeleton label="Key position" help={EtsTableHelp.get(:keypos)} narrow />
+        <.kv_skeleton label="Type" help={EtsTableHelp.get(:type)} width={:narrow} />
+        <.kv_skeleton label="Protection" help={EtsTableHelp.get(:protection)} width={:narrow} />
+        <.kv_skeleton label="Named table" help={EtsTableHelp.get(:named_table)} width={:narrow} />
+        <.kv_skeleton label="Key position" help={EtsTableHelp.get(:keypos)} width={:narrow} />
         <.kv_skeleton label="Owner" help={EtsTableHelp.get(:owner)} />
         <.kv_skeleton label="Heir" help={EtsTableHelp.get(:heir)} last />
       </.section>
