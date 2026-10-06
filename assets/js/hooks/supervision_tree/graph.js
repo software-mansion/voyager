@@ -512,8 +512,7 @@ export const graphMethods = {
 
   applyPendingFocus() {
     const key = this.pendingFocusKey;
-    // Clear eagerly: whatever happens below, a focus request that cannot be
-    // honoured now must not linger and fire later on an unrelated selection.
+    // Clear first, so a focus that fails now doesn't run later on another node.
     this.pendingFocusKey = null;
     if (!key) return;
 
