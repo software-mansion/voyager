@@ -184,7 +184,7 @@ defmodule VoyagerWeb.CoreComponents do
       <div
         phx-click={close_select(@id)}
         class={[
-          "dropdown-content bg-base-100 rounded-box border-base-300 z-50 flex w-max min-w-full flex-col border p-2 shadow-lg",
+          "dropdown-content bg-base-100 rounded-box border-base-300 z-30 flex w-max min-w-full flex-col border p-2 shadow-lg",
           @side == :top && "mb-1",
           @side == :bottom && "mt-1"
         ]}
@@ -751,7 +751,7 @@ defmodule VoyagerWeb.CoreComponents do
         tabindex="0"
         role="group"
         aria-label={@label}
-        class="dropdown-content bg-base-100 rounded-box border-base-300 z-50 mt-1 w-56 border p-2 shadow-lg"
+        class="dropdown-content bg-base-100 rounded-box border-base-300 z-30 mt-1 w-56 border p-2 shadow-lg"
       >
         <label
           :for={{value, label, locked?} <- @options}
