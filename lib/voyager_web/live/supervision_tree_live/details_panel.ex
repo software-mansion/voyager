@@ -286,9 +286,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
          key
        )
        when is_map(info) do
-    Enum.find([info.parent, info.group_leader], fn pid ->
-      is_pid(pid) and node(pid) == socket.assigns.remote_node and TreeNode.key(pid) == key
-    end)
+    [:parent, :group_leader]
+    |> Enum.map(&linkable_pid(&1, info, socket.assigns.remote_node))
+    |> Enum.find(&(&1 && TreeNode.key(&1) == key))
   end
 
   defp info_pid_by_key(_socket, _key), do: nil

@@ -656,6 +656,15 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     """
   end
 
+  @doc "The `:parent` or `:group_leader` pid when it lives on `remote_node`, else `nil`."
+  @spec linkable_pid(atom(), map(), node() | nil) :: pid() | nil
+  def linkable_pid(key, info, remote_node) when key in [:parent, :group_leader] do
+    pid = Map.fetch!(info, key)
+    if is_pid(pid) and node(pid) == remote_node, do: pid
+  end
+
+  def linkable_pid(_key, _info, _remote_node), do: nil
+
   defp overview_value(:initial_call, info), do: format_mfa(info.initial_call)
   defp overview_value(:current_function, info), do: format_mfa(info.current_function)
   defp overview_value(:current_stacktrace, info), do: format_stacktrace(info.current_stacktrace)
@@ -675,13 +684,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
        do: info |> Map.fetch!(key) |> Formatters.format_integer()
 
   defp overview_value(key, info), do: info |> Map.fetch!(key) |> to_string()
-
-  defp linkable_pid(key, info, remote_node) when key in [:parent, :group_leader] do
-    pid = Map.fetch!(info, key)
-    if is_pid(pid) and node(pid) == remote_node, do: pid
-  end
-
-  defp linkable_pid(_key, _info, _remote_node), do: nil
 
   defp skeleton_width_class(:narrow), do: "w-12"
   defp skeleton_width_class(:wide), do: "w-full"
