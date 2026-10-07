@@ -1,6 +1,6 @@
 defmodule Voyager.Test.SshServer do
   @moduledoc """
-  Test-owned `:ssh.daemon` on a random loopback port with an in-memory host key.
+  Test-owned `:ssh.daemon` on a random port of `address` with an in-memory host key.
 
   Accepts password logins for `user/0` / `password/0` and allows `direct-tcpip`
   tunnels. The daemon is stopped on test exit.
@@ -16,12 +16,12 @@ defmodule Voyager.Test.SshServer do
   def user, do: @user
   def password, do: @password
 
-  @spec start!() :: %{port: :inet.port_number(), daemon: :ssh.daemon_ref()}
-  def start! do
+  @spec start!(:inet.ip_address()) :: %{port: :inet.port_number(), daemon: :ssh.daemon_ref()}
+  def start!(address) do
     host_key = :public_key.generate_key({:namedCurve, :ed25519})
 
     {:ok, daemon} =
-      :ssh.daemon({127, 0, 0, 1}, 0,
+      :ssh.daemon(address, 0,
         key_cb: {__MODULE__, host_key: host_key},
         user_passwords: [{String.to_charlist(@user), String.to_charlist(@password)}],
         tcpip_tunnel_in: true
