@@ -16,7 +16,7 @@ unsafe extern "C" {
 
 static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 
-pub struct Tray(AppHandle);
+pub struct Tray;
 
 /// Adds the menu bar icon and its SwiftUI popover. Must run on the main thread.
 pub fn setup(app: &tauri::App) -> tauri::Result<Tray> {
@@ -33,7 +33,7 @@ pub fn setup(app: &tauri::App) -> tauri::Result<Tray> {
         )
     };
 
-    Ok(Tray(app.handle().clone()))
+    Ok(Tray)
 }
 
 impl Tray {
@@ -41,9 +41,10 @@ impl Tray {
         let Ok(status_json) = CString::new(status_json) else {
             return;
         };
-        let _ = self
-            .0
-            .run_on_main_thread(move || unsafe { voyager_tray_update(status_json.as_ptr()) });
+        if let Some(app_handle) = APP_HANDLE.get() {
+            let _ = app_handle
+                .run_on_main_thread(move || unsafe { voyager_tray_update(status_json.as_ptr()) });
+        }
     }
 }
 
