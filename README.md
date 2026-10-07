@@ -31,11 +31,11 @@ https://github.com/user-attachments/assets/8aa3f69e-a692-4b9d-9bf5-75d972f6370f
 
 Voyager is a desktop app that inspects running BEAM systems — supervision trees, processes, memory and IO usage, running applications, and more — through one interface instead of a patchwork of shell commands copy-pasted into `iex`. It connects to any OTP 27+ node, local or remote, over plain Erlang distribution and surfaces the information the BEAM already exposes, in a form that is actually pleasant to read.
 
-Nothing is installed on the target node. Voyager gathers everything through Erlang's built-in introspection functions over RPC, and all rendering and storage happens on your machine — the node you are inspecting is only ever asked for information.
+No setup is required on the target node. Voyager gathers everything over RPC, and all rendering and storage happens on your machine.
 
 ### Why Voyager
 
-- **Nothing to install on the target** — no dependency in your app, no hook in your release. If the node is distributed and runs OTP 27+, Voyager can attach to it.
+- **No setup on the target** — no dependency in your app, no hook in your release. If the node is distributed and runs OTP 27+, Voyager can attach to it.
 - **The whole BEAM, not one framework** — Erlang, Elixir, Gleam. Voyager speaks the distribution protocol, not framework internals.
 - **Production without a remote shell** — connect over SSH and inspect a deployed node directly, instead of opening a shell and piecing the picture together by hand.
 - **First-class AI support** — the same data is exposed over MCP, so a coding agent can read a live system instead of guessing from source code.
