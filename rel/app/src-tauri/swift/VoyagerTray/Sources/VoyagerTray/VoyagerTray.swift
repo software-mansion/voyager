@@ -1,33 +1,43 @@
 // Menu bar icon and SwiftUI status popover, driven from Rust through the C functions at the bottom.
 import AppKit
+import Combine
 import SwiftUI
 
 public typealias ActionCallback = @convention(c) (UnsafePointer<CChar>) -> Void
 
 struct TrayStatus: Decodable {
-    var node: String?
-    var nodeLost = false
-    var connector: String?
-    var connectedAt: Date?
-    var mcpUrl: String?
+    let node: String?
+    let nodeLost: Bool
+    let connector: String?
+    let connectedAt: Date?
+    let mcpUrl: String?
+}
+
+enum TrayAction: String {
+    case open
+    case quit
+    case disconnect
+    case toggleMcp = "toggle_mcp"
+
+    var closesPopover: Bool { self == .open || self == .quit }
 }
 
 final class TrayModel: ObservableObject {
     @Published var status: TrayStatus?
     /// The user's System Settings accent; SwiftUI's `Color.accentColor` is the app's own, which defaults to blue.
-    @Published var accent = TrayModel.systemAccent()
+    @Published private(set) var accent = TrayModel.systemAccent()
     let version: String
-    var send: (String) -> Void = { _ in }
+    var perform: (TrayAction) -> Void = { _ in }
 
     init(version: String) {
         self.version = version
 
-        let refresh: (Notification) -> Void = { _ in self.accent = TrayModel.systemAccent() }
-        NotificationCenter.default.addObserver(
-            forName: NSColor.systemColorsDidChangeNotification, object: nil, queue: .main, using: refresh)
-        DistributedNotificationCenter.default().addObserver(
-            forName: Notification.Name("AppleColorPreferencesChangedNotification"), object: nil, queue: .main,
-            using: refresh)
+        NotificationCenter.default.publisher(for: NSColor.systemColorsDidChangeNotification)
+            .merge(with: DistributedNotificationCenter.default()
+                .publisher(for: Notification.Name("AppleColorPreferencesChangedNotification")))
+            .receive(on: DispatchQueue.main)
+            .map { _ in TrayModel.systemAccent() }
+            .assign(to: &$accent)
     }
 
     private static func systemAccent() -> Color {
@@ -43,16 +53,18 @@ final class TrayController: NSObject {
     init(icon: NSImage, version: String, onAction: @escaping ActionCallback) {
         model = TrayModel(version: version)
         super.init()
-        model.send = { action in
-            if action == "open" || action == "quit" { self.popover.performClose(nil) }
-            action.withCString(onAction)
+        model.perform = { action in
+            if action.closesPopover { self.popover.performClose(nil) }
+            action.rawValue.withCString(onAction)
         }
 
         icon.isTemplate = true
         icon.size = NSSize(width: 18, height: 18)
-        statusItem.button?.image = icon
-        statusItem.button?.target = self
-        statusItem.button?.action = #selector(toggle(_:))
+        if let button = statusItem.button {
+            button.image = icon
+            button.target = self
+            button.action = #selector(toggle(_:))
+        }
 
         let hosting = NSHostingController(rootView: TrayView(model: model, logo: icon))
         if #available(macOS 13.0, *) {
@@ -90,14 +102,14 @@ struct TrayView: View {
                 Image(nsImage: logo)
                     .resizable()
                     .renderingMode(.template)
-                    .foregroundColor(Theme.logo)
+                    .foregroundStyle(Theme.logo)
                     .frame(width: 20, height: 20)
                 Text("Voyager")
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
                 Text(model.version)
                     .font(.system(size: 10, design: .monospaced))
-                    .foregroundColor(Theme.muted)
+                    .foregroundStyle(Theme.muted)
             }
             .padding(.horizontal, 2)
             .padding(.bottom, 2)
@@ -107,9 +119,9 @@ struct TrayView: View {
             mcpCard
 
             HStack(spacing: 8) {
-                Button("Open Voyager") { model.send("open") }
+                Button("Open Voyager") { model.perform(.open) }
                     .buttonStyle(VoyagerButtonStyle(kind: .filled(model.accent)))
-                Button("Quit") { model.send("quit") }
+                Button("Quit") { model.perform(.quit) }
                     .buttonStyle(VoyagerButtonStyle(kind: .danger))
                     .frame(width: 84)
             }
@@ -119,33 +131,39 @@ struct TrayView: View {
         .controlSize(.mini)
         .labelsHidden()
         .tint(model.accent)
-        .foregroundColor(Theme.content)
+        .foregroundStyle(Theme.content)
         .padding(12)
         .frame(width: 300)
         .background(Theme.base200.ignoresSafeArea())
     }
 
     @ViewBuilder private var nodeCard: some View {
-        let status = model.status
-        if let node = status?.node, status?.nodeLost == true {
+        switch (model.status, model.status?.node) {
+        case (nil, _):
+            idleNodeCard(title: "Starting…")
+        case (_?, nil):
+            idleNodeCard(title: "Not connected")
+        case let (status?, node?) where status.nodeLost:
             Card(symbol: "antenna.radiowaves.left.and.right.slash", tint: Theme.idle, title: node, subtitle: Text("Connection lost")) {}
-        } else if let node = status?.node {
+        case let (status?, node?):
             Card(symbol: "antenna.radiowaves.left.and.right", tint: model.accent, title: node, subtitle: connectedSubtitle(status)) {
-                Button { model.send("disconnect") } label: {
+                Button { model.perform(.disconnect) } label: {
                     Image(systemName: "power").font(.system(size: 12, weight: .medium))
                 }
                 .buttonStyle(VoyagerButtonStyle(kind: .danger, compact: true))
                 .help("Disconnect")
                 .accessibilityLabel("Disconnect")
             }
-        } else {
-            Card(
-                symbol: "antenna.radiowaves.left.and.right.slash",
-                tint: Theme.idle,
-                title: status == nil ? "Starting…" : "Not connected",
-                subtitle: Text("Connect to a node from Voyager")
-            ) {}
         }
+    }
+
+    private func idleNodeCard(title: String) -> some View {
+        Card(
+            symbol: "antenna.radiowaves.left.and.right.slash",
+            tint: Theme.idle,
+            title: title,
+            subtitle: Text("Connect to a node from Voyager")
+        ) {}
     }
 
     private var mcpCard: some View {
@@ -156,15 +174,15 @@ struct TrayView: View {
             title: "MCP server",
             subtitle: Text(url.map { $0.replacingOccurrences(of: "http://", with: "") } ?? "Stopped")
         ) {
-            Toggle("MCP server", isOn: Binding(get: { url != nil }, set: { _ in model.send("toggle_mcp") }))
+            Toggle("MCP server", isOn: Binding(get: { url != nil }, set: { _ in model.perform(.toggleMcp) }))
                 .disabled(model.status == nil)
                 .pointingHandCursor()
         }
     }
 
-    private func connectedSubtitle(_ status: TrayStatus?) -> Text {
-        let via = Text(status?.connector ?? "Connected")
-        guard let since = status?.connectedAt else { return via }
+    private func connectedSubtitle(_ status: TrayStatus) -> Text {
+        let via = Text(status.connector ?? "Connected")
+        guard let since = status.connectedAt else { return via }
         return via + Text(" · ") + Text(since, style: .relative)
     }
 }
@@ -214,7 +232,7 @@ struct SectionLabel: View {
         Text(title.uppercased())
             .font(.system(size: 10, weight: .semibold, design: .monospaced))
             .tracking(0.8)
-            .foregroundColor(Theme.muted)
+            .foregroundStyle(Theme.muted)
             .padding(.horizontal, 2)
     }
 }
@@ -230,7 +248,7 @@ struct Card<Accessory: View>: View {
         HStack(spacing: 10) {
             Image(systemName: symbol)
                 .font(.system(size: 14))
-                .foregroundColor(tint)
+                .foregroundStyle(tint)
                 .frame(width: 20)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
@@ -239,7 +257,7 @@ struct Card<Accessory: View>: View {
                     .truncationMode(.middle)
                 subtitle
                     .font(.system(size: 10, design: .monospaced))
-                    .foregroundColor(Theme.muted)
+                    .foregroundStyle(Theme.muted)
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
@@ -279,7 +297,7 @@ struct VoyagerButtonStyle: ButtonStyle {
 
             configuration.label
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(foreground(active: active))
+                .foregroundStyle(foreground(active: active))
                 .frame(maxWidth: compact ? nil : .infinity)
                 .frame(minWidth: compact ? 26 : nil, minHeight: compact ? 26 : nil)
                 .padding(.horizontal, compact ? 0 : 10)
