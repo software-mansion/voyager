@@ -1,6 +1,11 @@
 #[cfg(target_os = "macos")]
 mod tray;
+#[cfg(not(target_os = "macos"))]
+mod tray_linux;
 mod utils;
+
+#[cfg(not(target_os = "macos"))]
+use tray_linux as tray;
 
 use std::sync::Mutex;
 use std::time::Duration;
@@ -24,8 +29,6 @@ const MIN_ZOOM: f64 = 0.5;
 const MAX_ZOOM: f64 = 2.0;
 const UPDATES_TOPIC: &str = "updates";
 const UPDATE_STALL_TIMEOUT: Duration = Duration::from_secs(30);
-/// Whether closing the window leaves Voyager running behind the tray icon.
-const BACKGROUND: bool = cfg!(target_os = "macos");
 
 /// Current zoom factor, since the webview does not expose a getter.
 struct ZoomLevel(Mutex<f64>);
@@ -99,7 +102,6 @@ pub fn run() {
                 }
             }
 
-            #[cfg(target_os = "macos")]
             tray::setup(app);
 
             let pubsub = elixirkit::PubSub::listen("tcp://127.0.0.1:0").expect("failed to listen");
@@ -123,7 +125,6 @@ pub fn run() {
                 }
             });
 
-            #[cfg(target_os = "macos")]
             pubsub.subscribe(tray::TOPIC, tray::update);
 
             let app_handle = app.handle().clone();
@@ -160,7 +161,7 @@ pub fn run() {
         .run(|app, event| match event {
             RunEvent::ExitRequested {
                 code: None, api, ..
-            } if BACKGROUND => api.prevent_exit(),
+            } if utils::tray_host_available() => api.prevent_exit(),
             #[cfg(target_os = "macos")]
             RunEvent::Reopen {
                 has_visible_windows: false,
@@ -317,7 +318,7 @@ fn create_window(app_handle: &tauri::AppHandle, port: u16) {
     let app_handle = app_handle.clone();
     window.on_window_event(move |event| {
         if let tauri::WindowEvent::Destroyed = event {
-            if !BACKGROUND {
+            if !utils::tray_host_available() {
                 app_handle.exit(0);
             }
             // Hides the Dock icon while only the tray is left.

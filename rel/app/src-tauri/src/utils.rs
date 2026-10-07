@@ -51,6 +51,31 @@ pub fn os_theme_hint() -> &'static str {
     }
 }
 
+/// Whether the desktop can show a tray icon. Linux needs a StatusNotifierItem host,
+/// which stock GNOME lacks without the AppIndicator extension.
+#[cfg(target_os = "linux")]
+pub fn tray_host_available() -> bool {
+    std::process::Command::new("gdbus")
+        .args([
+            "call",
+            "--session",
+            "--dest",
+            "org.freedesktop.DBus",
+            "--object-path",
+            "/org/freedesktop/DBus",
+            "--method",
+            "org.freedesktop.DBus.NameHasOwner",
+            "org.kde.StatusNotifierWatcher",
+        ])
+        .output()
+        .is_ok_and(|output| String::from_utf8_lossy(&output.stdout).contains("true"))
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn tray_host_available() -> bool {
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
