@@ -245,6 +245,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
   attr :row_id, :string, required: true, doc: "stable prefix for this row's element ids"
   attr :table_href, :string, required: true, doc: "opens this row's table in the side panel"
   attr :owner_href, :string, required: true, doc: "details page for the owning process"
+  attr :heir_href, :string, default: nil, doc: "details page for the heir process"
 
   def cell(assigns) do
     ~H"""
@@ -279,7 +280,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
           value={Integer.to_string(@row.keypos)}
         />
       <% :heir -> %>
-        <DataTableComponents.value_cell id={"#{@row_id}-heir"} value={format_heir(@row.heir)} muted />
+        <.heir_cell heir={@row.heir} row_id={@row_id} href={@heir_href} />
       <% key -> %>
         <DataTableComponents.value_cell id={"#{@row_id}-#{key}"} value={flag(@row, key)} muted />
     <% end %>
@@ -293,6 +294,22 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
       :auto -> "auto"
       value when is_boolean(value) -> yes_no(value)
     end
+  end
+
+  attr :heir, :any, required: true
+  attr :row_id, :string, required: true
+  attr :href, :string, default: nil
+
+  defp heir_cell(%{heir: :none} = assigns) do
+    ~H"""
+    <DataTableComponents.value_cell id={"#{@row_id}-heir"} value="none" muted />
+    """
+  end
+
+  defp heir_cell(assigns) do
+    ~H"""
+    <ProcessComponents.pid_cell pid={@heir} row_id={"#{@row_id}-heir"} href={@href} />
+    """
   end
 
   attr :table, :map, required: true
@@ -525,7 +542,10 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         <.kv label="Owner" help={EtsTableHelp.get(:owner)}>
           <ProcessComponents.process_link pid={@table.owner} current_url={@current_url} />
         </.kv>
-        <.kv label="Heir" help={EtsTableHelp.get(:heir)} value={format_heir(@table.heir)} last />
+        <.kv :if={@table.heir == :none} label="Heir" help={EtsTableHelp.get(:heir)} value="none" last />
+        <.kv :if={@table.heir != :none} label="Heir" help={EtsTableHelp.get(:heir)} last>
+          <ProcessComponents.process_link pid={@table.heir} current_url={@current_url} />
+        </.kv>
       </.section>
       <.section title="Storage">
         <.kv
@@ -616,9 +636,6 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
 
   defp yes_no(true), do: "yes"
   defp yes_no(false), do: "no"
-
-  defp format_heir(:none), do: "none"
-  defp format_heir(pid) when is_pid(pid), do: Formatters.pid(pid)
 
   defp format_memory(bytes),
     do: "#{Formatters.format_bytes(bytes)} (#{Formatters.format_exact_bytes(bytes)})"
