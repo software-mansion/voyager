@@ -563,6 +563,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
   defp panel_skeleton(assigns) do
     ~H"""
     <div class="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
+      <div class="skeleton w-33 h-8 rounded-md" />
       <.section title="Overview">
         <.kv_skeleton label="Type" help={EtsTableHelp.get(:type)} width={:narrow} />
         <.kv_skeleton label="Protection" help={EtsTableHelp.get(:protection)} width={:narrow} />
@@ -570,6 +571,27 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         <.kv_skeleton label="Key position" help={EtsTableHelp.get(:keypos)} width={:narrow} />
         <.kv_skeleton label="Owner" help={EtsTableHelp.get(:owner)} />
         <.kv_skeleton label="Heir" help={EtsTableHelp.get(:heir)} last />
+      </.section>
+      <.section title="Storage">
+        <.kv_skeleton label="Objects" help={EtsTableHelp.get(:size)} width={:narrow} />
+        <.kv_skeleton label="Memory" help={EtsTableHelp.get(:memory)} />
+        <.kv_skeleton label="Compressed" help={EtsTableHelp.get(:compressed)} width={:narrow} />
+        <.kv_skeleton
+          label="Read concurrency"
+          help={EtsTableHelp.get(:read_concurrency)}
+          width={:narrow}
+        />
+        <.kv_skeleton
+          label="Write concurrency"
+          help={EtsTableHelp.get(:write_concurrency)}
+          width={:narrow}
+        />
+        <.kv_skeleton
+          label="Decentralized counters"
+          help={EtsTableHelp.get(:decentralized_counters)}
+          width={:narrow}
+          last
+        />
       </.section>
     </div>
     """
