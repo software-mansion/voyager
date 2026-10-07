@@ -8,3 +8,5 @@
 /gen/schemas
 
 /rel-*/
+
+swift/*/.build
