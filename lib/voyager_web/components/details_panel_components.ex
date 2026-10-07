@@ -94,7 +94,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       </div>
       <span
         :if={@off_tree?}
-        class="badge badge-warning badge-sm font-sans font-semibold tracking-wide"
+        class="alert alert-warning px-2 py-1 text-xs"
       >
         Not in tree
       </span>
