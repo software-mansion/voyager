@@ -17,11 +17,10 @@ final class TrayModel: ObservableObject {
     /// The user's System Settings accent; SwiftUI's `Color.accentColor` is the app's own, which defaults to blue.
     @Published var accent = TrayModel.systemAccent()
     let version: String
-    let send: (String) -> Void
+    var send: (String) -> Void = { _ in }
 
-    init(version: String, send: @escaping (String) -> Void) {
+    init(version: String) {
         self.version = version
-        self.send = send
 
         let refresh: (Notification) -> Void = { [weak self] _ in self?.accent = TrayModel.systemAccent() }
         NotificationCenter.default.addObserver(
@@ -42,13 +41,12 @@ final class TrayController: NSObject {
     let model: TrayModel
 
     init(icon: NSImage, version: String, onAction: @escaping ActionCallback) {
-        var close: () -> Void = {}
-        model = TrayModel(version: version) { action in
-            if action == "open" || action == "quit" { close() }
+        model = TrayModel(version: version)
+        super.init()
+        model.send = { [weak self] action in
+            if action == "open" || action == "quit" { self?.popover.performClose(nil) }
             action.withCString(onAction)
         }
-        super.init()
-        close = { [weak self] in self?.popover.performClose(nil) }
 
         icon.isTemplate = true
         icon.size = NSSize(width: 18, height: 18)
@@ -65,7 +63,6 @@ final class TrayController: NSObject {
             popover.hasFullSizeContent = true
         }
         popover.behavior = .transient
-        popover.animates = true
     }
 
     @objc private func toggle(_ sender: NSStatusBarButton) {
@@ -181,7 +178,7 @@ enum Theme {
     static let content = adaptive(light: 0x1A273A, dark: 0xECF9FF)
     static let muted = content.opacity(0.6)
     static let idle = content.opacity(0.35)
-    static let error = Color(hex: 0xFD6160)
+    static let error = Color(NSColor(hex: 0xFD6160))
 
     private static func adaptive(light: UInt32, dark: UInt32) -> Color {
         Color(NSColor(name: nil) { appearance in
@@ -199,12 +196,6 @@ extension NSColor {
             blue: CGFloat(hex & 0xFF) / 255,
             alpha: 1
         )
-    }
-}
-
-extension Color {
-    init(hex: UInt32) {
-        self.init(NSColor(hex: hex))
     }
 }
 
