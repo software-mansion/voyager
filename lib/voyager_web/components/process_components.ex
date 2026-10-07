@@ -8,6 +8,8 @@ defmodule VoyagerWeb.Components.ProcessComponents do
 
   use VoyagerWeb, :component
 
+  import VoyagerWeb.Helpers, only: [keep_sidebar: 2]
+
   alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.ProcessListControls
@@ -260,6 +262,32 @@ defmodule VoyagerWeb.Components.ProcessComponents do
         />
     <% end %>
     """
+  end
+
+  @doc """
+  A pid linking to its process page on the node named in `current_url`'s path.
+  The caller decides whether the pid lives on that node.
+  """
+  attr :pid, :any, required: true, doc: "a pid or its string form"
+  attr :current_url, :string, required: true
+  attr :id, :string, default: nil
+
+  def process_link(assigns) do
+    ~H"""
+    <.link
+      id={@id}
+      href={process_href(@pid, @current_url)}
+      class="font-mono text-primary hover:underline focus-visible:underline"
+    >
+      {Formatters.pid(@pid)}
+    </.link>
+    """
+  end
+
+  defp process_href(pid, current_url) do
+    ["", "node", node_name | _rest] = String.split(URI.parse(current_url).path, "/")
+    path = ~p"/node/#{URI.decode(node_name)}/processes/#{Formatters.format_pid(pid)}"
+    keep_sidebar(path, current_url)
   end
 
   @doc """

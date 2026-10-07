@@ -7,16 +7,19 @@
 -module(mock_worker).
 -behaviour(gen_server).
 
--export([start_link/1, monitor_process/2, clear_relations/1]).
+-export([start_link/1, monitor_process/2, link_orphan/2, clear_relations/1]).
 -export([init/1, handle_call/3, handle_cast/2]).
 
 start_link(Name) ->
     gen_server:start_link({local, Name}, ?MODULE, [], []).
 
 monitor_process(Name, RegName) -> gen_server:call(Name, {monitor, RegName}).
+%% Links Name to a new unsupervised process registered as OrphanName, so it
+%% shows in the graph as a relation-only node.
+link_orphan(Name, OrphanName) -> gen_server:call(Name, {link_orphan, OrphanName}).
 clear_relations(Name) -> gen_server:call(Name, clear_relations).
 
-init([]) -> {ok, #{monitors => []}}.
+init([]) -> {ok, #{monitors => [], orphans => []}}.
 
 handle_call({monitor, RegName}, _From, State) when is_atom(RegName) ->
     #{monitors := Monitors} = State,
@@ -28,10 +31,17 @@ handle_call({monitor, RegName}, _From, State) when is_atom(RegName) ->
             {reply, {error, {no_registered_process, RegName}}, State}
     end;
 
+handle_call({link_orphan, OrphanName}, _From, State) ->
+    #{orphans := Orphans} = State,
+    Pid = spawn_link(fun() -> receive stop -> ok end end),
+    true = register(OrphanName, Pid),
+    {reply, ok, State#{orphans := [Pid | Orphans]}};
+
 handle_call(clear_relations, _From, State) ->
-    #{monitors := Monitors} = State,
+    #{monitors := Monitors, orphans := Orphans} = State,
     [erlang:demonitor(Ref, [flush]) || Ref <- Monitors],
-    {reply, ok, State#{monitors := []}};
+    [begin unlink(Pid), Pid ! stop end || Pid <- Orphans],
+    {reply, ok, State#{monitors := [], orphans := []}};
 
 handle_call(_Msg, _From, State) -> {reply, ok, State}.
 

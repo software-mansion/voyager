@@ -93,11 +93,7 @@ defmodule VoyagerWeb.EtsTableLive do
             <.error_state id="ets-table-error" message={format_error(reason)} />
           </:failed>
 
-          <EtsPeekComponents.info_panel
-            info={info}
-            owner_href={process_path(@session.node_name, info.owner, @current_url)}
-            heir_href={process_path(@session.node_name, info.heir, @current_url)}
-          />
+          <EtsPeekComponents.info_panel info={info} current_url={@current_url} />
 
           <EtsPeekComponents.controls
             form={@form}
@@ -537,12 +533,6 @@ defmodule VoyagerWeb.EtsTableLive do
   end
 
   defp records_id, do: @records_id
-
-  defp process_path(_node_name, :none, _current_url), do: nil
-
-  defp process_path(node_name, pid, current_url) do
-    keep_sidebar(~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}", current_url)
-  end
 
   defp keypos(socket) do
     case socket.assigns.info do

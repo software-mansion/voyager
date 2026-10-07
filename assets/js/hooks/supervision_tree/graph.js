@@ -148,6 +148,8 @@ export const graphMethods = {
         const node = this.cy.getElementById(key);
         if (node.empty()) continue;
 
+        const childrenKeysWereLoaded = node.data('children_keys') != null;
+
         for (const [field, value] of Object.entries(patch)) {
           if (field === 'parent_key') {
             const parent_key = node.data('parent_key');
@@ -177,6 +179,14 @@ export const graphMethods = {
 
         if (patch.child_count !== undefined) {
           node.data('is_collapsed', initialIsCollapsedState(node.data()));
+        } else if (
+          !childrenKeysWereLoaded &&
+          patch.children_keys !== undefined &&
+          patch.children_keys !== 'not_loaded'
+        ) {
+          // A stub's children just loaded, so show them expanded. Later `children_keys`
+          // patches (a child restarting) must not re-expand a node the user collapsed.
+          node.data('is_collapsed', false);
         }
 
         if (patch.info !== undefined) {
@@ -226,7 +236,10 @@ export const graphMethods = {
   // ---------------------------------------------------------------------------
 
   runLayout({ fit }) {
-    if (this.cy.elements().empty()) return;
+    if (this.cy.elements().empty()) {
+      this.layoutPending = false;
+      return;
+    }
 
     const layout = this.cy.layout({
       name: 'dagre',
@@ -245,8 +258,10 @@ export const graphMethods = {
     });
 
     layout.on('layoutstop', () => {
+      this.layoutPending = false;
       this.cy.style().update();
       this.disabledClick = false;
+      this.applyPendingFocus();
     });
 
     this.disabledClick = true;
@@ -255,6 +270,7 @@ export const graphMethods = {
   },
 
   scheduleLayout({ fit = false } = {}) {
+    this.layoutPending = true;
     clearTimeout(this.layoutTimer);
     this.layoutTimer = setTimeout(() => {
       this.runLayout({ fit });
@@ -357,36 +373,15 @@ export const graphMethods = {
       this.pushEventTo(this.el, 'toggle-expand', { pid: node.id() });
     }
 
-    const bumpHiddenCount = (ele, delta) => {
-      const current = ele.data('hidden_count') ?? 0;
-      const next = Math.max(current + delta, 0);
-      ele.data('hidden_count', next);
-      return next;
-    };
-
     this.cy.batch(() => {
       if (this.isCollapsed(node)) {
-        // Expand: decrement the hidden_count of every successor, then reveal
-        // those no longer hidden by any other collapsed ancestor.
-        node.data('is_collapsed', false);
-
-        this.getSupervisionSuccessors(node).forEach((ele) => {
-          if (bumpHiddenCount(ele, -1) == 0) {
-            ele.removeClass('hidden');
-          }
-        });
-
-        this.getRelationsSuccessors(node).forEach((ele) => {
-          if (bumpHiddenCount(ele, -1) == 0) {
-            ele.removeClass('hidden');
-          }
-        });
+        this.expandCollapsedNode(node);
       } else {
         // Collapse: hide tree successors outright.
         node.data('is_collapsed', true);
 
         this.getSupervisionSuccessors(node).forEach((ele) => {
-          bumpHiddenCount(ele, 1);
+          this.bumpHiddenCount(ele, 1);
           ele.addClass('hidden');
         });
 
@@ -397,7 +392,7 @@ export const graphMethods = {
             .difference('.hidden');
 
           if (visibleConnectedNodes.length == 0) {
-            bumpHiddenCount(ele, 1);
+            this.bumpHiddenCount(ele, 1);
             ele.addClass('hidden');
           }
         });
@@ -405,6 +400,58 @@ export const graphMethods = {
     });
 
     this.scheduleLayout();
+  },
+
+  bumpHiddenCount(ele, delta) {
+    const current = ele.data('hidden_count') ?? 0;
+    const next = Math.max(current + delta, 0);
+    ele.data('hidden_count', next);
+    return next;
+  },
+
+  // `hidden_count` is how many collapsed ancestors hide an element, so one
+  // expanding only unhides what no other collapsed ancestor still covers.
+  expandCollapsedNode(node) {
+    node.data('is_collapsed', false);
+
+    this.getSupervisionSuccessors(node).forEach((ele) => {
+      if (this.bumpHiddenCount(ele, -1) == 0) {
+        ele.removeClass('hidden');
+      }
+    });
+
+    this.getRelationsSuccessors(node).forEach((ele) => {
+      if (this.bumpHiddenCount(ele, -1) == 0) {
+        ele.removeClass('hidden');
+      }
+    });
+  },
+
+  // A focus target can be loaded in the graph yet hidden under an ancestor the user collapsed.
+  revealCollapsedAncestors(node) {
+    // A relation-only node has no parent_key; it is hidden through the sources linking to it.
+    const starts = node.data('parent_key') ? node : node.incomers('node');
+    let expanded = false;
+
+    this.cy.batch(() => {
+      starts.forEach((start) => {
+        let current = start;
+
+        while (current.data('parent_key')) {
+          const parent = this.cy.getElementById(current.data('parent_key'));
+          if (parent.empty()) break;
+
+          if (this.isCollapsed(parent)) {
+            this.expandCollapsedNode(parent);
+            expanded = true;
+          }
+
+          current = parent;
+        }
+      });
+    });
+
+    if (expanded) this.scheduleLayout();
   },
 
   /**
@@ -451,6 +498,43 @@ export const graphMethods = {
         position: { x, y },
       },
       duration: 200,
+      queue: false,
+    });
+  },
+
+  focusNode({ key }) {
+    if (!key) return;
+
+    this.pendingFocusKey = key;
+    if (this.layoutPending || this.disabledClick) return;
+    this.applyPendingFocus();
+  },
+
+  applyPendingFocus() {
+    const key = this.pendingFocusKey;
+    // Clear first, so a focus that fails now doesn't run later on another node.
+    this.pendingFocusKey = null;
+    if (!key) return;
+
+    const node = this.cy.getElementById(key);
+    if (node.empty()) return;
+
+    if (node.hasClass('hidden')) {
+      this.revealCollapsedAncestors(node);
+    }
+
+    if (node.hasClass('hidden')) return;
+
+    if (this.layoutPending) {
+      this.pendingFocusKey = key;
+      return;
+    }
+
+    this.cy.stop();
+    this.cy.animate({
+      center: { eles: node },
+      duration: this.animate ? 350 : 0,
+      easing: 'ease-in-out',
       queue: false,
     });
   },

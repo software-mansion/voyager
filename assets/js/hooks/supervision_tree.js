@@ -80,6 +80,7 @@ const SupervisionTree = {
 
     this.handleEvent('tree-data', (p) => this.applyPayload(p));
     this.handleEvent('path-highlight', (p) => this.applyPathHighlight(p));
+    this.handleEvent('focus-node', (p) => this.focusNode(p));
     this.el.addEventListener('zoom-in', () => this.zoomBy(1.2));
     this.el.addEventListener('zoom-out', () => this.zoomBy(0.8));
     this.el.addEventListener('maximize', () =>

@@ -201,10 +201,15 @@ Every rule below comes from a comment a reviewer or author deleted in this repo'
 - Add `@spec` and `@doc` if necessary (`@doc` its not a must-have in simple cases) on public functions
 - GenServers and LiveViews call services directly; avoid extra abstraction layers unless needed
 
-### LiveComponents
+### LiveComponents and function components
 
 - Initialize component-owned assigns (`form`, lock flags, counters) in `mount/1`. **Do not** use `assign_new/3` in `update/2` for this
 - `update/2` should only assign values received from the parent
+- Function components must not hardcode `phx-click` / `phx-target`. The LiveComponent (or LiveView) that defines `handle_event/3` passes the event name and target as attributes so the mapping is explicit at the call site:
+
+      <.chip on_select="select-link" target={@myself} node_key={key} />
+
+      def handle_event("select-link", %{"key" => key}, socket)
 <!-- voyager:architecture-end -->
 
 <!-- phoenix:html-start -->

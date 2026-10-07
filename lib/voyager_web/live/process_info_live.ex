@@ -143,7 +143,12 @@ defmodule VoyagerWeb.ProcessInfoLive do
         >
           <div class="grid grid-cols-1 items-start gap-y-5 lg:divide-base-300 lg:grid-cols-2 lg:divide-x">
             <div class="lg:pr-8">
-              <.overview info={@info} size={:sm} pid_href={pid_href(@session, @current_url)} />
+              <.overview
+                info={@info}
+                size={:sm}
+                remote_node={@session.node}
+                current_url={@current_url}
+              />
             </div>
             <div class="lg:pl-8">
               <.memory_and_garbage_collection info={@info} size={:sm} />
@@ -600,15 +605,6 @@ defmodule VoyagerWeb.ProcessInfoLive do
     socket
     |> assign(:controls, controls)
     |> assign(:forms, forms)
-  end
-
-  defp pid_href(session, current_url) do
-    fn value ->
-      if is_pid(value) and node(value) == session.node do
-        path = ~p"/node/#{session.node_name}/processes/#{Formatters.format_pid(value)}"
-        keep_sidebar(path, current_url)
-      end
-    end
   end
 
   defp seed_terms(socket, :state, %{term: term}),

@@ -9,6 +9,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   alias Phoenix.LiveView.AsyncResult
   alias Voyager.Pid
   alias Voyager.Services.SupervisionTree.TreeNode
+  alias VoyagerWeb.Components.ProcessComponents
   alias VoyagerWeb.Components.SupervisionTreeComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.ProcessInfoHelp
@@ -73,18 +74,30 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     """
   end
 
+  attr :panel_id, :string, required: true
   attr :node_type, :atom, required: true
+  attr :off_tree?, :boolean, default: false
 
   def node_type_label(assigns) do
+    icons = SupervisionTreeComponents.node_icons()
+
     assigns =
       assigns
       |> assign(:label, assigns.node_type |> to_string() |> String.capitalize())
-      |> assign(:icon, SupervisionTreeComponents.node_icons() |> Map.get(assigns.node_type))
+      |> assign(:icon, Map.get(icons, assigns.node_type, icons.worker))
 
     ~H"""
-    <div class="flex items-center gap-2">
+    <div class="flex flex-wrap items-center gap-2">
       <.icon :if={@icon} name={@icon.name} class={["size-3.5", @icon.color_class]} />
-      <div class="font-mono text-base-content text-xs uppercase">{@label}</div>
+      <div id={"#{@panel_id}-type"} class="font-mono text-base-content text-xs uppercase">
+        {@label}
+      </div>
+      <span
+        :if={@off_tree?}
+        class="alert alert-warning px-2 py-1 text-xs"
+      >
+        Not in tree
+      </span>
     </div>
     """
   end
@@ -118,7 +131,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :panel_id, :string, required: true
-  attr :myself, :any, required: true
+  attr :on_refresh, :string, required: true
+  attr :target, :any, required: true
   attr :loading?, :boolean, required: true
 
   def refresh_button(assigns) do
@@ -127,8 +141,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       <button
         type="button"
         id={"#{@panel_id}-refresh"}
-        phx-click="refresh-node-info"
-        phx-target={@myself}
+        phx-click={@on_refresh}
+        phx-target={@target}
         phx-throttle="1000"
         aria-label="Refresh fetched process information"
         title="Refresh fetched process information"
@@ -145,13 +159,37 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :panel_id, :string, required: true
+  attr :on_back, :string, required: true
+  attr :target, :any, required: true
+
+  def back_button(assigns) do
+    ~H"""
+    <.tooltip id={"#{@panel_id}-back-tip"} position="bottom">
+      <button
+        type="button"
+        id={"#{@panel_id}-back"}
+        phx-click={@on_back}
+        phx-target={@target}
+        title="Back to previous process"
+        aria-label="Back to previous process"
+        class="btn btn-ghost btn-square toolbar-btn hover:text-base-content"
+      >
+        <.icon name="icon-arrow-left" class="toolbar-icon" />
+      </button>
+      <:content>Back to previous process</:content>
+    </.tooltip>
+    """
+  end
+
+  attr :panel_id, :string, required: true
+  attr :on_close, :string, required: true
 
   def close_button(assigns) do
     ~H"""
     <button
       type="button"
       id={"#{@panel_id}-close"}
-      phx-click="close-details-panel"
+      phx-click={@on_close}
       title="Close"
       aria-label="Close panel"
       class="btn btn-ghost btn-square toolbar-btn hover:text-base-content"
@@ -184,7 +222,11 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :links_info, AsyncResult, required: true
   attr :node, TreeNode, required: true
   attr :links_expanded?, :boolean, required: true
-  attr :myself, :any, required: true
+  attr :on_select, :string, required: true
+  attr :on_toggle_links, :string, required: true
+  attr :target, :any, required: true
+  attr :remote_node, :atom, default: nil, doc: "forwarded to `overview/1`"
+  attr :links_disabled?, :boolean, default: false
 
   def body(assigns) do
     assigns = assign(assigns, :process?, is_pid(assigns.node.pid))
@@ -192,12 +234,22 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     ~H"""
     <div class="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
       <%= if @process? do %>
-        <.overview info={@info} />
+        <.overview
+          info={@info}
+          remote_node={@remote_node}
+          panel_id={@panel_id}
+          on_select={@on_select}
+          target={@target}
+          links_disabled?={@links_disabled?}
+        />
         <.links
           panel_id={@panel_id}
           links_info={@links_info}
           links_expanded?={@links_expanded?}
-          myself={@myself}
+          on_select={@on_select}
+          on_toggle_links={@on_toggle_links}
+          target={@target}
+          links_disabled?={@links_disabled?}
         />
         <.memory_and_garbage_collection info={@info} />
       <% else %>
@@ -218,9 +270,18 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     values: [:xs, :sm],
     doc: "value font size, forwarded to `kv/1`"
 
-  attr :pid_href, :any,
+  attr :remote_node, :atom,
     default: nil,
-    doc: "1-arity fun mapping a pid to a link target (or nil); pid rows render as links with it"
+    doc: "parent and group leader pids on this node render as links"
+
+  attr :current_url, :string,
+    default: nil,
+    doc: "renders linkable pid rows as plain process links instead of tree jumps"
+
+  attr :panel_id, :string, default: nil
+  attr :on_select, :string, default: nil, doc: "tree-jump event for linkable pid rows"
+  attr :target, :any, default: nil
+  attr :links_disabled?, :boolean, default: false
 
   def overview(assigns) do
     assigns = assign(assigns, :rows, @overview_rows)
@@ -233,8 +294,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
             :for={{key, label, width} <- @rows}
             label={label}
             help={ProcessInfoHelp.get(key)}
-            narrow={width == :narrow}
-            wide={width == :wide}
+            width={width}
             last={key == :error_handler}
           />
         </:loading>
@@ -243,14 +303,22 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         </:failed>
         <%= for {key, label, _width} <- @rows do %>
           <.suspending_list :if={key == :suspending} suspending={info.suspending} size={@size} />
-          <.kv
-            :if={key != :suspending}
-            size={@size}
-            label={label}
-            help={ProcessInfoHelp.get(key)}
-            value={overview_value(key, info)}
-            href={pid_row_href(key, info, @pid_href)}
-          />
+          <.kv :if={key != :suspending} size={@size} label={label} help={ProcessInfoHelp.get(key)}>
+            <%= if pid = linkable_pid(key, info, @remote_node) do %>
+              <ProcessComponents.process_link :if={@current_url} pid={pid} current_url={@current_url} />
+              <.chip
+                :if={is_nil(@current_url)}
+                id={"#{@panel_id}-#{key}"}
+                label={format_identifier(pid)}
+                node_key={TreeNode.key(pid)}
+                on_select={@on_select}
+                target={@target}
+                disabled={@links_disabled?}
+              />
+            <% else %>
+              {overview_value(key, info)}
+            <% end %>
+          </.kv>
         <% end %>
       </.async_result>
     </.section>
@@ -260,7 +328,10 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :panel_id, :string, required: true
   attr :links_info, AsyncResult, required: true
   attr :links_expanded?, :boolean, required: true
-  attr :myself, :any, required: true
+  attr :on_select, :string, required: true
+  attr :on_toggle_links, :string, required: true
+  attr :target, :any, required: true
+  attr :links_disabled?, :boolean, default: false
 
   def links(assigns) do
     assigns = assign(assigns, :links_count, links_count(assigns.links_info))
@@ -279,11 +350,15 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           <.load_error failure={failure} />
         </:failed>
         <.links_list
+          panel_id={@panel_id}
           toggle_id={"#{@panel_id}-toggle-links"}
           links={info.items}
           total={info.total}
           links_expanded?={@links_expanded?}
-          myself={@myself}
+          on_select={@on_select}
+          on_toggle_links={@on_toggle_links}
+          target={@target}
+          links_disabled?={@links_disabled?}
         />
       </.async_result>
     </.section>
@@ -308,7 +383,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
             :for={{key, label} <- @rows}
             label={label}
             help={ProcessInfoHelp.get(key)}
-            narrow
+            width={:narrow}
             last={key == :gc_fullsweep_after}
           />
         </:loading>
@@ -357,7 +432,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :label, :string, required: true
   attr :value, :string, default: nil, doc: "text value; truncated on overflow but kept in `title`"
-  attr :href, :string, default: nil, doc: "renders the value as a navigate link"
   attr :last, :boolean, default: false
   attr :stacked, :boolean, default: false
   attr :help, :map, default: nil, doc: "help entry rendered as a \"?\" tooltip next to the label"
@@ -385,10 +459,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         ]}
         title={@value}
       >
-        <.pid_link :if={@href} href={@href} pid={@value} />
-        <%= if is_nil(@href) do %>
-          {@value}
-        <% end %>
+        {@value}
         {render_slot(@inner_block)}
       </div>
     </div>
@@ -396,13 +467,24 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :label, :string, required: true
+  attr :id, :string, required: true
+  attr :node_key, :string, required: true
+  attr :on_select, :string, required: true
+  attr :target, :any, required: true
+  attr :disabled, :boolean, default: false
 
   def chip(assigns) do
     ~H"""
     <button
       type="button"
-      disabled
-      class="border-base-content/70 bg-base-200 text-base-content inline-flex rounded-md border px-2.5 py-1 text-xs"
+      id={@id}
+      phx-click={@on_select}
+      phx-value-key={@node_key}
+      phx-target={@target}
+      disabled={@disabled}
+      title={"Select #{@label}"}
+      aria-label={"Select #{@label}"}
+      class="border-base-content/70 bg-base-200 text-base-content inline-flex cursor-pointer rounded-md border px-2.5 py-1 text-xs transition-colors enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-wait disabled:opacity-50"
     >
       <.display_pid pid={@label} />
     </button>
@@ -444,23 +526,19 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :label, :string, required: true
   attr :help, :map, default: nil
-  attr :narrow, :boolean, default: false
-  attr :wide, :boolean, default: false
+  attr :width, :atom, default: nil, values: [nil, :narrow, :wide]
   attr :last, :boolean, default: false
 
   def kv_skeleton(assigns) do
+    assigns = assign(assigns, :width_class, skeleton_width_class(assigns.width))
+
     ~H"""
     <div class={[
       "font-mono flex items-baseline justify-between gap-4 py-2.5 text-xs",
       not @last && "border-base-content/10 border-b"
     ]}>
       <.kv_label label={@label} help={@help} />
-      <div class={[
-        "skeleton shrink-1 h-2.5 rounded",
-        @narrow && "w-12",
-        @wide && "w-full",
-        (not @narrow and not @wide) && "w-20"
-      ]} />
+      <div class={["skeleton shrink-1 h-2.5 rounded", @width_class]} />
     </div>
     """
   end
@@ -510,24 +588,38 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :toggle_id, :string, required: true
+  attr :panel_id, :string, required: true
   attr :links, :list, required: true, doc: "links kept by the remote, already truncated"
   attr :total, :integer, required: true, doc: "real link count on the remote node"
   attr :links_expanded?, :boolean, required: true
-  attr :myself, :any, required: true
+  attr :on_select, :string, required: true
+  attr :on_toggle_links, :string, required: true
+  attr :target, :any, required: true
+  attr :links_disabled?, :boolean, default: false
 
   def links_list(assigns) do
     limit = if assigns.links_expanded?, do: @max_expanded_links, else: @max_links
 
+    # Only the slice that gets rendered: a process can hold thousands of links
+    # and every chip lands in the LiveView diff.
     assigns =
       assigns
-      |> assign(:visible_links, format_links(assigns.links, limit))
+      |> assign(:visible_links, Enum.take(assigns.links, limit))
       |> assign(:toggle?, assigns.total > @max_links)
       |> assign(:overflow_count, max(assigns.total - limit, 0))
 
     ~H"""
     <div class="flex flex-col gap-2">
       <div class="flex flex-wrap gap-1.5">
-        <.chip :for={link <- @visible_links} label={link} />
+        <.chip
+          :for={{link, index} <- Enum.with_index(@visible_links)}
+          id={"#{@panel_id}-link-#{index}"}
+          label={format_identifier(link)}
+          node_key={TreeNode.key(link)}
+          on_select={@on_select}
+          target={@target}
+          disabled={@links_disabled?}
+        />
       </div>
       <p
         :if={@links_expanded? and @overflow_count > 0}
@@ -539,8 +631,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         :if={@toggle?}
         type="button"
         id={@toggle_id}
-        phx-click="toggle-links"
-        phx-target={@myself}
+        phx-click={@on_toggle_links}
+        phx-target={@target}
         class="btn btn-ghost btn-xs text-base-content/70 w-max items-center self-center px-3 py-2 hover:text-base-content"
       >
         {if(@links_expanded?, do: "Show Less", else: "Show More")}
@@ -575,6 +667,15 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     """
   end
 
+  @doc "The `:parent` or `:group_leader` pid when it lives on `remote_node`, else `nil`."
+  @spec linkable_pid(atom(), map(), node() | nil) :: pid() | nil
+  def linkable_pid(key, info, remote_node) when key in [:parent, :group_leader] do
+    pid = Map.fetch!(info, key)
+    if is_pid(pid) and node(pid) == remote_node, do: pid
+  end
+
+  def linkable_pid(_key, _info, _remote_node), do: nil
+
   defp overview_value(:initial_call, info), do: format_mfa(info.initial_call)
   defp overview_value(:current_function, info), do: format_mfa(info.current_function)
   defp overview_value(:current_stacktrace, info), do: format_stacktrace(info.current_stacktrace)
@@ -595,10 +696,9 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   defp overview_value(key, info), do: info |> Map.fetch!(key) |> to_string()
 
-  defp pid_row_href(key, info, pid_href) when key in [:parent, :group_leader] and pid_href != nil,
-    do: pid_href.(Map.fetch!(info, key))
-
-  defp pid_row_href(_key, _info, _pid_href), do: nil
+  defp skeleton_width_class(:narrow), do: "w-12"
+  defp skeleton_width_class(:wide), do: "w-full"
+  defp skeleton_width_class(nil), do: "w-20"
 
   defp memory_value(:gc_fullsweep_after, info), do: format_count(info.gc_fullsweep_after)
   defp memory_value(key, info), do: info |> Map.fetch!(key) |> Formatters.format_bytes()
@@ -650,13 +750,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   defp node_pid_string(%TreeNode{pid: pid}) when is_pid(pid), do: format_identifier(pid)
   defp node_pid_string(_), do: nil
-
-  # Formats only the rendered slice: every chip lands in the LiveView diff.
-  defp format_links(links, limit) do
-    links
-    |> Enum.take(limit)
-    |> Enum.map(&format_identifier/1)
-  end
 
   defp links_count(%AsyncResult{ok?: true, result: %{total: total}}),
     do: "(#{Formatters.format_integer(total)})"
