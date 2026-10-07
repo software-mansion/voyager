@@ -235,7 +235,9 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         {pluralize(@total, "table")} fetched
       <% end %>
       <DataTableComponents.round_trip :if={@round_trip_ms} ms={@round_trip_ms} /> ·
-      <span class="font-mono text-base-content">{Formatters.format_bytes(@total_memory)}</span>
+      <span class="font-mono text-base-content">
+        <.bytes id={"#{@id}-memory"} value={@total_memory} />
+      </span>
       in total
     </div>
     """
@@ -562,7 +564,9 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
           help={EtsTableHelp.get(:size)}
           value={Formatters.format_integer(@table.size)}
         />
-        <.kv label="Memory" help={EtsTableHelp.get(:memory)} value={format_memory(@table.memory)} />
+        <.kv label="Memory" help={EtsTableHelp.get(:memory)}>
+          <.bytes id="ets-panel-memory" value={@table.memory} />
+        </.kv>
         <.kv
           label="Compressed"
           help={EtsTableHelp.get(:compressed)}
@@ -642,7 +646,4 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
 
   defp pluralize(1, word), do: word
   defp pluralize(_count, word), do: word <> "s"
-
-  defp format_memory(bytes),
-    do: "#{Formatters.format_bytes(bytes)} (#{Formatters.format_exact_bytes(bytes)})"
 end

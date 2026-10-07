@@ -148,6 +148,22 @@ defmodule VoyagerWeb.CoreComponentsTest do
     end
   end
 
+  describe "bytes/1" do
+    test "shows the rounded size with the exact count in its tooltip" do
+      html = render_component(&CoreComponents.bytes/1, id: "mem", value: 8_736)
+
+      assert text(html, "#mem-8736") =~ "9 KB"
+      assert html =~ "8,736 B"
+    end
+
+    test "shows a dash with no tooltip for nil" do
+      html = render_component(&CoreComponents.bytes/1, id: "mem", value: nil)
+
+      assert html |> LazyHTML.from_fragment() |> LazyHTML.text() |> String.trim() == "—"
+      assert count(html, "[phx-hook=Tooltip]") == 0
+    end
+  end
+
   describe "translate_error/1" do
     test "interpolates the error's placeholders" do
       assert CoreComponents.translate_error(

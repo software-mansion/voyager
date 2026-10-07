@@ -36,13 +36,12 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     {:error_handler, "Error handler", nil}
   ]
 
-  @memory_rows [
+  @byte_rows [
     {:memory, "Memory"},
     {:stack_and_heap_size, "Stack and heaps"},
     {:heap_size, "Heap size"},
     {:stack_size, "Stack size"},
-    {:gc_min_heap_size, "GC min heap size"},
-    {:gc_fullsweep_after, "GC fullsweep after"}
+    {:gc_min_heap_size, "GC min heap size"}
   ]
 
   @max_links 12
@@ -373,29 +372,41 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     doc: "value font size, forwarded to `kv/1`"
 
   def memory_and_garbage_collection(assigns) do
-    assigns = assign(assigns, :rows, @memory_rows)
+    assigns = assign(assigns, :byte_rows, @byte_rows)
 
     ~H"""
     <.section title="Memory and Garbage Collection">
       <.async_result :let={info} assign={@info}>
         <:loading>
           <.kv_skeleton
-            :for={{key, label} <- @rows}
+            :for={{key, label} <- @byte_rows}
             label={label}
             help={ProcessInfoHelp.get(key)}
             width={:narrow}
-            last={key == :gc_fullsweep_after}
+          />
+          <.kv_skeleton
+            label="GC fullsweep after"
+            help={ProcessInfoHelp.get(:gc_fullsweep_after)}
+            width={:narrow}
+            last
           />
         </:loading>
         <:failed :let={failure}>
           <.load_error failure={failure} />
         </:failed>
         <.kv
-          :for={{key, label} <- @rows}
+          :for={{key, label} <- @byte_rows}
           size={@size}
           label={label}
           help={ProcessInfoHelp.get(key)}
-          value={memory_value(key, info)}
+        >
+          <.bytes id={"process-#{key}"} value={Map.fetch!(info, key)} />
+        </.kv>
+        <.kv
+          size={@size}
+          label="GC fullsweep after"
+          help={ProcessInfoHelp.get(:gc_fullsweep_after)}
+          value={format_count(info.gc_fullsweep_after)}
         />
       </.async_result>
     </.section>
@@ -699,9 +710,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp skeleton_width_class(:narrow), do: "w-12"
   defp skeleton_width_class(:wide), do: "w-full"
   defp skeleton_width_class(nil), do: "w-20"
-
-  defp memory_value(:gc_fullsweep_after, info), do: format_count(info.gc_fullsweep_after)
-  defp memory_value(key, info), do: info |> Map.fetch!(key) |> Formatters.format_bytes()
 
   defp format_mfa({mod, fun, arity}), do: "#{inspect(mod)}.#{fun}/#{arity}"
   defp format_mfa(mfa), do: inspect(mfa)

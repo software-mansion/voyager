@@ -419,6 +419,31 @@ defmodule VoyagerWeb.CoreComponents do
   end
 
   @doc """
+  A byte count rounded to its unit, with the exact count in a tooltip. `nil`
+  renders a dash.
+  """
+  attr :id, :string, required: true
+  attr :value, :integer, required: true
+
+  def bytes(%{value: nil} = assigns) do
+    ~H"""
+    {Formatters.format_bytes(nil)}
+    """
+  end
+
+  def bytes(assigns) do
+    # The tip is `phx-update="ignore"`, so a changed value needs a new id.
+    assigns = assign(assigns, :tip_id, "#{assigns.id}-#{assigns.value}")
+
+    ~H"""
+    <.tooltip id={@tip_id} tip_class="font-mono">
+      <span tabindex="0" aria-describedby={"#{@tip_id}-tip"}>{Formatters.format_bytes(@value)}</span>
+      <:content>{Formatters.format_exact_bytes(@value)}</:content>
+    </.tooltip>
+    """
+  end
+
+  @doc """
   Renders a button that copies text from another element.
 
   ## Examples
