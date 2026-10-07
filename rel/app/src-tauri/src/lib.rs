@@ -1,10 +1,15 @@
+#[cfg(target_os = "macos")]
+mod tray_macos;
 mod utils;
+
+#[cfg(target_os = "macos")]
+use tray_macos as tray;
 
 use std::sync::Mutex;
 use std::time::Duration;
 
 use tauri::{
-    Manager,
+    Manager, RunEvent,
     menu::{HELP_SUBMENU_ID, MenuItemBuilder, PredefinedMenuItem},
 };
 use tauri_plugin_opener::OpenerExt;
@@ -22,12 +27,23 @@ const MIN_ZOOM: f64 = 0.5;
 const MAX_ZOOM: f64 = 2.0;
 const UPDATES_TOPIC: &str = "updates";
 const UPDATE_STALL_TIMEOUT: Duration = Duration::from_secs(30);
+const TRAY_TOPIC: &str = "tray";
+const TRAY_DISCONNECT_ID: &str = "disconnect";
+const TRAY_TOGGLE_MCP_ID: &str = "toggle_mcp";
+const TRAY_OPEN_ID: &str = "open";
+const TRAY_QUIT_ID: &str = "quit";
 
 /// Current zoom factor, since the webview does not expose a getter.
 struct ZoomLevel(Mutex<f64>);
 
 /// Update found at startup, installed when the user asks for it from the UI.
 struct PendingUpdate(Mutex<Option<Update>>);
+
+/// Phoenix port, managed only once the server is ready so the tray cannot open a dead page.
+struct ServerPort(u16);
+
+/// Whether closing the window leaves Voyager running behind the tray icon.
+struct Background(bool);
 
 /// Current OS appearance for Auto theme after full page reloads.
 #[tauri::command]
@@ -40,7 +56,7 @@ pub fn run() {
     tauri::Builder::default()
         // Must be registered first so a second launch exits before Elixir starts.
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            focus_existing_window(app);
+            open_window(app);
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -92,7 +108,13 @@ pub fn run() {
                 }
             }
 
+            app.manage(Background(cfg!(target_os = "macos")));
+
+            #[cfg(target_os = "macos")]
+            let tray = tray::setup(app)?;
+
             let pubsub = elixirkit::PubSub::listen("tcp://127.0.0.1:0").expect("failed to listen");
+            app.manage(pubsub.clone());
 
             let app_handle = app.handle().clone();
             let port =
@@ -101,6 +123,7 @@ pub fn run() {
 
             pubsub.subscribe("messages", move |msg| {
                 if msg == b"ready" {
+                    app_handle.manage(ServerPort(port));
                     create_window(&app_handle, port);
                     // Debug builds run `mix phx.server` from the repo, there is no bundle to replace.
                     if !cfg!(debug_assertions) {
@@ -110,6 +133,9 @@ pub fn run() {
                     println!("[rust] {}", String::from_utf8_lossy(msg));
                 }
             });
+
+            #[cfg(target_os = "macos")]
+            pubsub.subscribe(TRAY_TOPIC, move |msg| tray.update(msg));
 
             let app_handle = app.handle().clone();
             let updates_pubsub = pubsub.clone();
@@ -140,8 +166,40 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| match event {
+            RunEvent::ExitRequested {
+                code: None, api, ..
+            } if app.state::<Background>().0 => api.prevent_exit(),
+            #[cfg(target_os = "macos")]
+            RunEvent::Reopen {
+                has_visible_windows: false,
+                ..
+            } => open_window(app),
+            _ => {}
+        });
+}
+
+/// Runs a tray menu or popover action; window actions stay in Rust, the rest go to Elixir.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn tray_action(app_handle: &tauri::AppHandle, action: &str) {
+    match action {
+        TRAY_OPEN_ID => open_window(app_handle),
+        TRAY_QUIT_ID => app_handle.exit(0),
+        TRAY_DISCONNECT_ID | TRAY_TOGGLE_MCP_ID => {
+            let _ = app_handle
+                .state::<elixirkit::PubSub>()
+                .broadcast(TRAY_TOPIC, action.as_bytes());
+        }
+        _ => {}
+    }
+}
+
+fn open_window(app_handle: &tauri::AppHandle) {
+    if let Some(port) = app_handle.try_state::<ServerPort>() {
+        create_window(app_handle, port.0);
+    }
 }
 
 fn focus_existing_window(app: &tauri::AppHandle) {
@@ -268,18 +326,25 @@ fn create_window(app_handle: &tauri::AppHandle, port: u16) {
         .zoom_hotkeys_enabled(cfg!(not(target_os = "macos")))
         .initialization_script(theme_init);
 
-    #[cfg_attr(target_os = "macos", allow(unused_variables))]
     let window = builder.build().unwrap();
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "macos")]
     {
-        let app_handle = window.app_handle().clone();
-        window.on_window_event(move |event| {
-            if let tauri::WindowEvent::Destroyed = event {
+        let _ = app_handle.set_activation_policy(tauri::ActivationPolicy::Regular);
+        let _ = window.set_focus();
+    }
+
+    let app_handle = app_handle.clone();
+    window.on_window_event(move |event| {
+        if let tauri::WindowEvent::Destroyed = event {
+            if !app_handle.state::<Background>().0 {
                 app_handle.exit(0);
             }
-        });
-    }
+            // Hides the Dock icon while only the tray is left.
+            #[cfg(target_os = "macos")]
+            let _ = app_handle.set_activation_policy(tauri::ActivationPolicy::Accessory);
+        }
+    });
 }
 
 fn elixir_command(
