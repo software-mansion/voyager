@@ -219,7 +219,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
       {:error, reason} ->
         changeset =
           ConnectionParams.changeset(params)
-          |> Ecto.Changeset.add_error(:node_name, connect_error(reason))
+          |> Ecto.Changeset.add_error(error_field(reason), connect_error(reason))
           |> Map.put(:action, :insert)
 
         {:noreply, assign(socket, :form, to_form(changeset, as: :conn))}
@@ -230,8 +230,39 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
     ConnectionParams.changeset() |> to_form(as: :conn)
   end
 
+  defp error_field(:bad_cookie), do: :cookie
+  defp error_field(_reason), do: :node_name
+
   defp connect_error(:connection_failed),
     do: "Node unreachable - check the name is correct and the node is running"
+
+  defp connect_error(:epmd_timeout),
+    do: "Node unreachable - the host didn't respond in time, check your network connection"
+
+  defp connect_error({:epmd_error, :nxdomain}),
+    do: "Host not found - check the node's hostname"
+
+  defp connect_error({:epmd_error, :address}),
+    do: "Could not reach epmd on the host - check the hostname and that epmd is running"
+
+  defp connect_error({tag, reason})
+       when tag in [:epmd_error, :node_unreachable] and reason in [:etimedout, :timeout],
+       do: "Connection timed out - check the node's hostname and your network"
+
+  defp connect_error({:epmd_error, _reason}), do: "Could not reach host"
+
+  defp connect_error(:node_not_registered),
+    do: "Node not found - check the node name is correct and the node is running"
+
+  defp connect_error({:node_unreachable, :econnrefused}),
+    do: "Connection refused - check the node is running"
+
+  defp connect_error({:node_unreachable, reason})
+       when reason in [:ehostunreach, :enetunreach, :enetdown, :ehostdown],
+       do: "Host unreachable - check the node's hostname and your network"
+
+  defp connect_error({:node_unreachable, _reason}),
+    do: "Node port unreachable - check the node is running"
 
   defp connect_error(:bad_cookie),
     do: "Authentication failed - the Erlang cookie does not match"

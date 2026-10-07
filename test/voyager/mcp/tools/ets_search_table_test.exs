@@ -144,6 +144,8 @@ defmodule Voyager.MCP.Tools.EtsSearchTableTest do
     end
   end
 
+  @agent_module Voyager.Agent.module()
+
   defp stub_intern do
     expect(Voyager.ErpcMock, :call, fn _node, :erlang, :list_to_existing_atom, [chars], _t ->
       :erlang.list_to_existing_atom(chars)
@@ -157,7 +159,7 @@ defmodule Voyager.MCP.Tools.EtsSearchTableTest do
       truncated: false
     }
 
-    expect(Voyager.ErpcMock, :call, fn _node, :voyager_agent, :ets_select_spec, args, _timeout ->
+    expect(Voyager.ErpcMock, :call, fn _node, @agent_module, :ets_select_spec, args, _timeout ->
       if cont = opts[:cont], do: assert(List.last(args) == cont)
       {:ok, chunk}
     end)

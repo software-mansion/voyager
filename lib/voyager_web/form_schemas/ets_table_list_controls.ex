@@ -102,11 +102,11 @@ defmodule VoyagerWeb.FormSchemas.EtsTableListControls do
       Enum.map(optional_columns(), &{to_string(&1), label_fun.(&1), false})
   end
 
-  @doc "Options for one of the filter selects, as `{value, label}`; blank means any."
+  @doc "Options for one of the filter selects, as `{label, value}`; blank means any."
   @spec filter_options(:protection | :type | :named) :: [{String.t(), String.t()}]
-  def filter_options(:protection), do: [{"", "Any"} | Enum.map(@protections, &{&1, &1})]
-  def filter_options(:type), do: [{"", "Any"} | Enum.map(@types, &{&1, &1})]
-  def filter_options(:named), do: [{"", "Any"}, {"true", "Yes"}, {"false", "No"}]
+  def filter_options(:protection), do: [{"Any", ""} | Enum.map(@protections, &{&1, &1})]
+  def filter_options(:type), do: [{"Any", ""} | Enum.map(@types, &{&1, &1})]
+  def filter_options(:named), do: [{"Any", ""}, {"Yes", "true"}, {"No", "false"}]
 
   # A null `search` from localStorage would reach `String.trim/1`. A blank
   # `timeout` goes the other way: `cast/4` skips "", nil is a change

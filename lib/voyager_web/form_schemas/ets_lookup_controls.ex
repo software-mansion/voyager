@@ -1,8 +1,8 @@
 defmodule VoyagerWeb.FormSchemas.EtsLookupControls do
   @moduledoc """
-  Controls form for the ETS record sidebar: the term budget a lookup may spend
-  and how long to wait for it. The budget has no upper bound — the worker's
-  heap cap on the target is the real limit.
+  Controls form for the ETS key lookup sidebar: how many records one page holds,
+  the term budget a lookup may spend and how long to wait for it. The budget has
+  no upper bound — the worker's heap cap on the target is the real limit.
   """
 
   use Ecto.Schema
@@ -15,8 +15,12 @@ defmodule VoyagerWeb.FormSchemas.EtsLookupControls do
   @max_timeout 30_000
   @default_timeout Voyager.Agent.default_timeout()
 
+  @page_sizes VoyagerWeb.FormSchemas.EtsPeekControls.chunk_size_options()
+  @default_page_size 10
+
   @primary_key false
   embedded_schema do
+    field :page_size, :integer, default: @default_page_size
     field :budget, :integer, default: @default_budget
     field :timeout, :integer, default: @default_timeout
   end
@@ -35,8 +39,11 @@ defmodule VoyagerWeb.FormSchemas.EtsLookupControls do
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(controls \\ default(), attrs \\ %{}) do
     controls
-    |> cast(attrs, [:budget, :timeout])
-    |> validate_required([:budget, :timeout])
+    |> cast(attrs, [:page_size, :budget, :timeout])
+    |> validate_required([:page_size, :budget, :timeout])
+    |> validate_inclusion(:page_size, @page_sizes,
+      message: "must be one of #{Enum.join(@page_sizes, ", ")}"
+    )
     |> validate_number(:budget,
       greater_than_or_equal_to: @min_budget,
       message: "must be at least #{@min_budget}"

@@ -7,6 +7,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
   import Mox
 
   alias Voyager.Fakes
+  alias Voyager.Services.RateLimiter
+
+  @agent_module Voyager.Agent.module()
 
   @node_name "demo@localhost"
   @path "/node/demo@localhost/supervision-tree"
@@ -220,9 +223,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
 
       assert has_element?(view, "#details-panel-refresh")
       assert has_element?(view, "#details-panel", "1,234")
-      assert has_element?(view, "#details-panel", "waiting")
+      assert has_element?(view, ~s|#details-panel [title="waiting"]|)
       refute has_element?(view, "#details-panel", "9,999")
-      refute has_element?(view, "#details-panel", "running")
+      refute has_element?(view, ~s|#details-panel [title="running"]|)
       refute has_element?(view, "#details-panel", "Failed to load node details.")
 
       # Refresh re-fetches process_info, system_info, proc_label and proc_links
@@ -236,9 +239,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
         _node, :erlang, :system_info, [:wordsize], _timeout ->
           8
 
-        _node, :voyager_agent, :proc_label, [pid, budget], _timeout ->
+        _node, @agent_module, :proc_label, [pid, budget], _timeout ->
           supervision_reply(
-            :voyager_agent,
+            @agent_module,
             :proc_label,
             [pid, budget],
             sup_pid,
@@ -246,17 +249,17 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
             link_pids
           )
 
-        _node, :voyager_agent, :proc_links, [pid, limit], _timeout ->
-          supervision_reply(:voyager_agent, :proc_links, [pid, limit], sup_pid, [port], link_pids)
+        _node, @agent_module, :proc_links, [pid, limit], _timeout ->
+          supervision_reply(@agent_module, :proc_links, [pid, limit], sup_pid, [port], link_pids)
       end)
 
       view |> element("#details-panel-refresh") |> render_click()
       render_async(view)
 
       assert has_element?(view, "#details-panel", "9,999")
-      assert has_element?(view, "#details-panel", "running")
+      assert has_element?(view, ~s|#details-panel [title="running"]|)
       refute has_element?(view, "#details-panel", "1,234")
-      refute has_element?(view, "#details-panel", "waiting")
+      refute has_element?(view, ~s|#details-panel [title="waiting"]|)
       refute has_element?(view, "#details-panel", "Failed to load node details.")
     end
 
@@ -288,6 +291,27 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
 
       assert has_element?(view, "#details-panel", "(3)")
       refute has_element?(view, "#details-panel", "(20)")
+    end
+
+    test "skips the process fetches when the rate limiter is exhausted", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      link_pids: link_pids,
+      sup_key: sup_key
+    } do
+      start_supervised!({RateLimiter, name: EmptyBucket, config: %{high_capacity: 0}})
+      Application.put_env(:voyager, :rate_limiter, EmptyBucket)
+      on_exit(fn -> Application.delete_env(:voyager, :rate_limiter) end)
+
+      expect_supervision_erpc(7, sup_pid, [port], link_pids)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      assert has_element?(view, "#details-panel", "Too many requests.")
+      refute has_element?(view, "#details-panel", "1,234")
     end
 
     test "refresh button is hidden for non-process nodes", %{
@@ -442,13 +466,13 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
     process_info_kw(keys)
   end
 
-  defp supervision_reply(:voyager_agent, :proc_label, [_pid, _budget], _sup, _linked, _links) do
+  defp supervision_reply(@agent_module, :proc_label, [_pid, _budget], _sup, _linked, _links) do
     {:ok, %{term: :undefined, truncated: false}}
   end
 
   # Links are fetched from the remote agent, which truncates to `limit` and
   # reports the real total alongside the kept items.
-  defp supervision_reply(:voyager_agent, :proc_links, [_pid, limit], _sup, _linked, link_pids) do
+  defp supervision_reply(@agent_module, :proc_links, [_pid, limit], _sup, _linked, link_pids) do
     {:ok,
      %{
        total: length(link_pids),

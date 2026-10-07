@@ -7,6 +7,8 @@ defmodule Voyager.Services.ProcessTermTest do
 
   alias Voyager.Services.ProcessTerm
 
+  @agent_module Voyager.Agent.module()
+
   setup :verify_on_exit!
 
   describe "with non-pid input" do
@@ -18,7 +20,7 @@ defmodule Voyager.Services.ProcessTermTest do
 
   describe "error translation" do
     test "surfaces a missing agent as a remote :undef exception" do
-      expect(Voyager.ErpcMock, :call, fn _node, :voyager_agent, :proc_state, _args, _timeout ->
+      expect(Voyager.ErpcMock, :call, fn _node, @agent_module, :proc_state, _args, _timeout ->
         :erlang.error({:exception, :undef, []})
       end)
 
@@ -27,7 +29,7 @@ defmodule Voyager.Services.ProcessTermTest do
     end
 
     test "surfaces a transport timeout" do
-      expect(Voyager.ErpcMock, :call, fn _node, :voyager_agent, :proc_messages, _args, _timeout ->
+      expect(Voyager.ErpcMock, :call, fn _node, @agent_module, :proc_messages, _args, _timeout ->
         :erlang.error({:erpc, :timeout})
       end)
 
@@ -35,7 +37,7 @@ defmodule Voyager.Services.ProcessTermTest do
     end
 
     test "surfaces a lost connection" do
-      expect(Voyager.ErpcMock, :call, fn _node, :voyager_agent, :proc_state, _args, _timeout ->
+      expect(Voyager.ErpcMock, :call, fn _node, @agent_module, :proc_state, _args, _timeout ->
         :erlang.error({:erpc, :noconnection})
       end)
 
@@ -46,7 +48,7 @@ defmodule Voyager.Services.ProcessTermTest do
     # opaque transport failure instead of {:error, :timeout}.
     test "gives the remote sys timeout room under the erpc timeout" do
       expect(Voyager.ErpcMock, :call, fn _node,
-                                         :voyager_agent,
+                                         @agent_module,
                                          :proc_state,
                                          [_pid, _budget, remote_timeout],
                                          erpc_timeout ->

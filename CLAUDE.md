@@ -220,27 +220,20 @@ Every rule below comes from a comment a reviewer or author deleted in this repo'
 
     <!-- DO THIS -->
 
-    def handle_event(_, _, socket) do
+    socket
+    |> do_something()
+    |> noreply()
+
+    {:noreply, socket}
+
+
+    <!-- AVOID THIS! -->
+
+    {:noreply,
       socket
-      |> do_something()
-      |> noreply()
-    end
+      |> do_something()}
 
-    def handle_event(_, _, socket) do
-      {:noreply, socket}
-    end
-
-    <!-- AVOID THIS -->
-    
-    def handle_event(_, _, socket) do
-      {:noreply,
-       socket
-       |> do_something()}
-    end
-
-    def handle_event(_, _, socket) do
-      noreply(socket)
-    end
+    noreply(socket)
 
 - **Avoid** code blocks for `if` and `for` statements:
 

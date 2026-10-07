@@ -97,7 +97,7 @@ export const graphMethods = {
 
       const addBatch = [];
       for (const [key, node] of Object.entries(incoming)) {
-        addBatch.push(...elementsFor(key, node));
+        addBatch.push(...elementsFor(key, node, this.el.dataset.nodeId));
       }
       // Relationship edges are appended after all nodes so their endpoints
       // already exist when cytoscape processes the batch.
@@ -138,7 +138,7 @@ export const graphMethods = {
       // Additions
       const addBatch = [];
       for (const [key, node] of Object.entries(added)) {
-        addBatch.push(...elementsFor(key, node));
+        addBatch.push(...elementsFor(key, node, this.el.dataset.nodeId));
         topologyChangeCounter++;
       }
       this.cy.add(addBatch);
@@ -169,7 +169,10 @@ export const graphMethods = {
         }
 
         if (patch.name !== undefined || patch.child_count !== undefined) {
-          node.data('displayLabel', composeLabel(node.data()));
+          node.data(
+            'displayLabel',
+            composeLabel(node.data(), this.el.dataset.nodeId)
+          );
         }
 
         if (patch.child_count !== undefined) {

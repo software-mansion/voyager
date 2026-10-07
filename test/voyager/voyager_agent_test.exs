@@ -1,11 +1,11 @@
 defmodule VoyagerAgentTest do
   use ExUnit.Case, async: false
 
-  @compile {:no_warn_undefined, :voyager_agent}
+  @compile {:no_warn_undefined, Voyager.Agent.module()}
 
   alias Voyager.Test.VoyagerAgentFixture
 
-  @agent_module :voyager_agent
+  @agent_module Voyager.Agent.module()
 
   setup do
     VoyagerAgentFixture.load!()
@@ -302,9 +302,11 @@ defmodule VoyagerAgentTest do
       assert bounded == [1, 2 | :tail]
     end
 
-    test "caps a binary to the remaining budget" do
-      assert {bounded, true} = bound(:binary.copy("x", 100_000), 10_000)
-      assert byte_size(bounded) == 10_000
+    test "wraps a binary cut to the remaining budget in a marker" do
+      assert {{:"$voyager_truncated", :binary, prefix, 100_000}, true} =
+               bound(:binary.copy("x", 100_000), 10_000)
+
+      assert byte_size(prefix) == 10_000
     end
 
     test "drops an oversized non-byte-aligned bitstring whole" do
@@ -314,8 +316,10 @@ defmodule VoyagerAgentTest do
     end
 
     test "keeps an already-truncated flag true across a later untruncated binary" do
-      assert {["small", cut], true} = bound(["small", :binary.copy("x", 5_000)], 100)
-      assert byte_size(cut) == 94
+      assert {["small", {:"$voyager_truncated", :binary, prefix, 5_000}], true} =
+               bound(["small", :binary.copy("x", 5_000)], 100)
+
+      assert byte_size(prefix) == 94
     end
 
     test "charges at least one unit for an empty binary instead of walking it for free" do

@@ -4,7 +4,7 @@ defmodule Voyager.MixProject do
   def project do
     [
       app: :voyager,
-      version: "0.2.0-rc.0",
+      version: "0.2.0-dev",
       elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
@@ -44,6 +44,8 @@ defmodule Voyager.MixProject do
       {:ecto_sqlite3, ">= 0.0.0"},
       {:elixirkit, github: "livebook-dev/elixirkit"},
       {:jason, "~> 1.2"},
+      # Finch pulls Mint in; listed here so Dependabot can bump it.
+      {:mint, "~> 1.11"},
       {:phoenix, "~> 1.8.7"},
       {:phoenix_ecto, "~> 4.5"},
       {:phoenix_html, "~> 4.1"},
@@ -76,7 +78,7 @@ defmodule Voyager.MixProject do
         "cmd --cd e2e npm ci",
         "cmd --cd e2e npx playwright install --with-deps"
       ],
-      "tauri.dev": ["cmd bash ./rel/app/tauri.sh dev"],
+      "tauri.dev": ["deps.get", "cmd bash ./rel/app/tauri.sh dev"],
       "tauri.app": ["cmd bash ./rel/app/tauri.sh app"],
       "tauri.build": ["cmd bash ./rel/app/tauri.sh build"],
       "tauri.test": ["cmd --cd rel/app/src-tauri cargo test"],

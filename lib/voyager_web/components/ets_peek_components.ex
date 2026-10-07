@@ -6,9 +6,12 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   use VoyagerWeb, :component
 
+  alias Voyager.Pid
+  alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Components.DetailsPanelComponents
   alias VoyagerWeb.Components.EtsTableComponents
   alias VoyagerWeb.Components.TermComponents
+  alias VoyagerWeb.EtsTableHelp
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.EtsLookupControls
   alias VoyagerWeb.FormSchemas.EtsPeekControls
@@ -16,10 +19,21 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   alias VoyagerWeb.TermTree.State
 
   @truncated :"$voyager_truncated"
+  @key_marker :"$voyager_key"
 
   @budget_help "Caps how much of each fetched term the remote node sends back — " <>
                  "roughly one unit per subterm, binaries charged per byte kept. " <>
                  "Anything beyond the budget is truncated on the remote."
+
+  @records_timeout_help "How long to wait for the node to read a page of records before the fetch fails."
+  @lookup_timeout_help "How long to wait for the node to look up this key before the lookup fails."
+
+  @preview_opts [
+    limit: 20,
+    printable_limit: 128,
+    width: :infinity,
+    inspect_fun: &Pid.inspect_fun/2
+  ]
 
   attr :table_name, :string, required: true
   attr :node_name, :string, required: true
@@ -66,6 +80,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   attr :info, :map, required: true
   attr :owner_href, :string, required: true
+  attr :heir_href, :string, default: nil
 
   def info_panel(assigns) do
     ~H"""
@@ -73,10 +88,10 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       id="ets-table-info"
       class="border-base-200 bg-base-100 grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border p-4 sm:grid-cols-3 lg:grid-cols-5"
     >
-      <.info_item label="Type">
+      <.info_item label="Type" help={:type}>
         <span class="badge badge-sm badge-ghost font-mono">{@info.type}</span>
       </.info_item>
-      <.info_item label="Protection">
+      <.info_item label="Protection" help={:protection}>
         <EtsTableComponents.private_badge
           :if={@info.protection == :private}
           id="ets-info-protection"
@@ -86,23 +101,29 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
           {@info.protection}
         </span>
       </.info_item>
-      <.info_item id="ets-info-keypos" label="Key position">{@info.keypos}</.info_item>
-      <.info_item label="Records">{Formatters.format_integer(@info.size)}</.info_item>
-      <.info_item label="Memory">{Formatters.format_bytes(@info.memory)}</.info_item>
-      <.info_item id="ets-info-owner" label="Owner">
-        <DetailsPanelComponents.pid_chip
-          href={@owner_href}
-          label={Formatters.format_pid(@info.owner)}
-        />
+      <.info_item id="ets-info-keypos" label="Key position" help={:keypos}>{@info.keypos}</.info_item>
+      <.info_item label="Records" help={:size}>{Formatters.format_integer(@info.size)}</.info_item>
+      <.info_item label="Memory" help={:memory}>{Formatters.format_bytes(@info.memory)}</.info_item>
+      <.info_item id="ets-info-owner" label="Owner" help={:owner}>
+        <.pid_link href={@owner_href} pid={@info.owner} />
       </.info_item>
-      <.info_item label="Heir">
-        {if @info.heir == :none, do: "none", else: inspect(@info.heir)}
+      <.info_item :if={@info.heir == :none} label="Heir" help={:heir}>none</.info_item>
+      <.info_item :if={@info.heir != :none} label="Heir" help={:heir}>
+        <.pid_link href={@heir_href} pid={@info.heir} />
       </.info_item>
-      <.info_item label="Named table">{@info.named_table}</.info_item>
-      <.info_item label="Compressed">{@info.compressed}</.info_item>
-      <.info_item label="Read concurrency">{@info.read_concurrency}</.info_item>
-      <.info_item label="Write concurrency">{@info.write_concurrency}</.info_item>
-      <.info_item :if={Map.has_key?(@info, :decentralized_counters)} label="Decentralized counters">
+      <.info_item label="Named table" help={:named_table}>{@info.named_table}</.info_item>
+      <.info_item label="Compressed" help={:compressed}>{@info.compressed}</.info_item>
+      <.info_item label="Read concurrency" help={:read_concurrency}>
+        {@info.read_concurrency}
+      </.info_item>
+      <.info_item label="Write concurrency" help={:write_concurrency}>
+        {@info.write_concurrency}
+      </.info_item>
+      <.info_item
+        :if={Map.has_key?(@info, :decentralized_counters)}
+        label="Decentralized counters"
+        help={:decentralized_counters}
+      >
         {@info.decentralized_counters}
       </.info_item>
     </dl>
@@ -110,13 +131,19 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   end
 
   attr :label, :string, required: true
+  attr :help, :atom, required: true, doc: "`EtsTableHelp` key"
   attr :id, :string, default: nil
   slot :inner_block, required: true
 
   defp info_item(assigns) do
+    assigns = assign(assigns, :entry, EtsTableHelp.get(assigns.help))
+
     ~H"""
     <div id={@id} class="flex min-w-0 flex-col gap-0.5">
-      <dt class="text-base-content/60 text-xs">{@label}</dt>
+      <dt class="text-base-content/60 flex h-6 items-center gap-1 text-xs">
+        {@label}
+        <.help_tooltip id={"ets-info-help-#{@help}"} entry={@entry} />
+      </dt>
       <dd class="font-mono text-base-content truncate text-xs">{render_slot(@inner_block)}</dd>
     </div>
     """
@@ -128,7 +155,10 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   attr :fetched?, :boolean, default: false
 
   def controls(assigns) do
-    assigns = assign(assigns, :budget_help, @budget_help)
+    assigns =
+      assigns
+      |> assign(:budget_help, @budget_help)
+      |> assign(:records_timeout_help, @records_timeout_help)
 
     ~H"""
     <.form for={@form} id="ets-peek-controls" phx-change="validate" class="flex flex-col gap-1">
@@ -137,11 +167,15 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
         class={["contents", (@loading? or not @readable?) && "opacity-60"]}
       >
         <div class="grid-cols-[auto_auto_auto] grid-rows-[auto_auto_auto] grid w-max items-center gap-x-3">
-          <.field_label field={@form[:budget]} label="Budget per record" help={@budget_help} />
-          <.field_label field={@form[:timeout]} label="Timeout (ms)" />
+          <.field_label field={@form[:budget]} label="Record budget" help={@budget_help} />
+          <.field_label field={@form[:timeout]} label="Timeout (ms)" help={@records_timeout_help} />
           <span />
 
-          <.number_input field={@form[:budget]} bounds={EtsPeekControls.budget_bounds()} />
+          <.number_input
+            field={@form[:budget]}
+            bounds={EtsPeekControls.budget_bounds()}
+            class="w-28"
+          />
           <.number_input field={@form[:timeout]} bounds={EtsPeekControls.timeout_bounds()} />
 
           <button
@@ -181,7 +215,6 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   attr :term_states, :map, required: true
   attr :open_rows, :any, required: true
   attr :offset, :integer, default: 0
-  attr :lookupable?, :boolean, default: false
   attr :keypos, :integer, default: 1
 
   def records(assigns) do
@@ -212,29 +245,35 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
               {@offset + index + 1}
             </span>
             <span class="font-mono text-base-content min-w-0 flex-1 truncate text-xs">
-              {preview(record)}
+              <span
+                :for={{text, key?} <- preview_parts(record, @keypos)}
+                id={key? && "#{@id}-#{index}-key"}
+                class={key? && "text-primary font-bold"}
+              >{text}</span>
             </span>
-            <span
+            <.tooltip
               :if={truncated_record?(record)}
               id={"#{@id}-#{index}-truncated"}
-              title="This record was shortened to fit the term budget"
               class="shrink-0"
             >
               <.icon name="icon-circle-alert" class="text-warning size-3.5" />
-            </span>
+              <:content>This record was shortened to fit the term budget</:content>
+            </.tooltip>
           </button>
 
-          <button
-            :if={@lookupable? and lookup_key(record, @keypos) != :error}
+          <.lookup_button
+            :if={lookup_key(record, @keypos) != :error}
             id={"#{@id}-#{index}-lookup"}
-            type="button"
-            phx-click="open_sidebar"
-            phx-value-index={index}
-            title="Look up this record"
-            class="btn btn-ghost btn-xs text-base-content/60 shrink-0 gap-1 hover:text-primary"
+            index={index}
+          />
+          <.tooltip
+            :if={lookup_key(record, @keypos) == :error}
+            id={"#{@id}-#{index}-lookup-tip"}
+            class="shrink-0 cursor-not-allowed"
           >
-            <.icon name="icon-panel-left" class="size-3.5 -scale-x-100" /> Lookup
-          </button>
+            <.lookup_button id={"#{@id}-#{index}-lookup"} index={index} disabled />
+            <:content>Key was truncated</:content>
+          </.tooltip>
         </div>
 
         <div :if={row_open?(@open_rows, index)} class="border-base-200 border-t px-3 py-2">
@@ -250,107 +289,155 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
     """
   end
 
+  attr :id, :string, required: true
+  attr :index, :integer, required: true
+  attr :disabled, :boolean, default: false
+
+  defp lookup_button(assigns) do
+    ~H"""
+    <button
+      id={@id}
+      type="button"
+      phx-click={if(!@disabled, do: "open_sidebar")}
+      phx-value-index={@index}
+      aria-disabled={if(@disabled, do: "true")}
+      aria-label={if(@disabled, do: "Lookup unavailable: key was truncated")}
+      title={if(!@disabled, do: "Look up every record with this key")}
+      class="btn btn-ghost btn-xs text-base-content/60 shrink-0 gap-1 aria-disabled:opacity-50 hover:text-primary"
+    >
+      <.icon name="icon-panel-left" class="size-3.5 -scale-x-100" /> Lookup
+    </button>
+    """
+  end
+
   attr :key, :any, required: true
   attr :lookup, Phoenix.LiveView.AsyncResult, required: true
   attr :form, Phoenix.HTML.Form, required: true
   attr :term_states, :map, required: true
   attr :error_message, :string, default: nil
+  attr :page, :integer, required: true, doc: "0-based"
+  attr :page_size, :integer, required: true
+  attr :total, :integer, required: true
+  attr :page_size_options, :list, required: true
 
   def sidebar(assigns) do
-    assigns = assign(assigns, :budget_help, @budget_help)
+    assigns =
+      assigns
+      |> assign(:budget_help, @budget_help)
+      |> assign(:lookup_timeout_help, @lookup_timeout_help)
 
     ~H"""
     <aside
       id="ets-lookup-sidebar"
       phx-hook="DetailsPanelResize"
       data-resize-persist="false"
-      class="details-panel border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex w-full flex-col gap-4 border-l p-4 shadow-2xl"
+      class="details-panel border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex h-full min-h-0 w-full flex-col border-l p-4 shadow-2xl"
     >
       <DetailsPanelComponents.resize_handle panel_id="ets-lookup-sidebar" open?={true} />
-      <div class="border-base-200 flex items-start gap-3 border-b pb-3">
-        <div class="flex min-w-0 flex-1 flex-col gap-1.5">
-          <div class="flex items-center gap-2">
-            <.icon name="icon-database-search" class="text-primary size-3.5" />
-            <div class="font-mono text-base-content text-xs uppercase">Record lookup</div>
+      <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+        <div class="border-base-200 flex shrink-0 items-start gap-3 border-b pb-3">
+          <div class="flex min-w-0 flex-1 flex-col gap-1.5">
+            <div class="flex items-center gap-2">
+              <.icon name="icon-database-search" class="text-primary size-3.5" />
+              <div class="font-mono text-base-content text-xs uppercase">Key lookup</div>
+            </div>
+            <DetailsPanelComponents.copyable
+              id="ets-sidebar-key"
+              class="font-mono text-base-content break-all text-sm font-medium"
+              text={inspect(@key, inspect_fun: &Pid.inspect_fun/2)}
+              label="Copy key"
+            />
           </div>
-          <DetailsPanelComponents.copyable
-            id="ets-sidebar-key"
-            class="font-mono text-base-content break-all text-sm font-medium"
-            text={inspect(@key)}
-            label="Copy key"
-          />
+          <DetailsPanelComponents.close_button panel_id="ets-lookup-sidebar" />
         </div>
-        <DetailsPanelComponents.close_button panel_id="ets-lookup-sidebar" />
-      </div>
 
-      <.form
-        for={@form}
-        id="ets-lookup-controls"
-        phx-change="validate_lookup"
-        class="flex flex-col gap-1"
-      >
-        <div class="grid-cols-[auto_auto_auto] grid-rows-[auto_auto_auto] grid w-max items-center gap-x-3">
-          <.field_label field={@form[:budget]} label="Term budget" help={@budget_help} />
-          <.field_label field={@form[:timeout]} label="Timeout (ms)" />
-          <span />
-
-          <.number_input field={@form[:budget]} bounds={{EtsLookupControls.min_budget(), nil}} />
-          <.number_input field={@form[:timeout]} bounds={EtsLookupControls.timeout_bounds()} />
-
-          <button
-            id="ets-lookup-refetch"
-            type="button"
-            phx-click="refetch_lookup"
-            disabled={@lookup.loading != nil}
-            class="btn btn-primary btn-sm gap-2"
-          >
-            <span :if={@lookup.loading != nil} class="loading loading-spinner loading-xs" /> Refetch
-          </button>
-
-          <.field_error field={@form[:budget]} />
-          <.field_error field={@form[:timeout]} />
-          <span />
-        </div>
-      </.form>
-
-      <.async_result :let={chunk} assign={@lookup}>
-        <:loading>
-          <.loading_state id="ets-lookup-loading" message="Looking up record…" />
-        </:loading>
-        <:failed>
-          <.error_state id="ets-lookup-error" message={@error_message} />
-        </:failed>
-
-        <p :if={chunk.records == []} id="ets-lookup-empty" class="text-base-content/70 text-sm">
-          No record with this key. It may have been deleted.
-        </p>
-
-        <div
-          :for={{record, index} <- Enum.with_index(chunk.records)}
-          id={"ets-lookup-record-#{index}"}
-          class="border-base-200 flex min-h-0 items-start gap-2 overflow-y-auto rounded-lg border p-3"
+        <.form
+          for={@form}
+          id="ets-lookup-controls"
+          phx-change="validate_lookup"
+          class="flex shrink-0 flex-col gap-1"
         >
-          <TermComponents.term_inspector
-            id={lookup_inspector_id(index)}
-            term={record}
-            state={@term_states[lookup_inspector_id(index)] || %State{}}
-            class="text-sm! min-w-0 flex-1 overflow-x-auto"
-          />
-          <.copy_button
-            id={"ets-lookup-record-#{index}-copy"}
-            target={"#ets-lookup-record-#{index}-copy-source"}
-            label="Copy record"
-            icon_only
-            size={:sm}
-            class="text-base-content/60 shrink-0 hover:text-primary"
-          />
-          <span id={"ets-lookup-record-#{index}-copy-source"} hidden>{TermTree.copy_string(record)}</span>
-        </div>
+          <div class="grid-cols-[auto_auto_auto] grid-rows-[auto_auto_auto] grid w-max items-center gap-x-3">
+            <.field_label field={@form[:budget]} label="Term budget" help={@budget_help} />
+            <.field_label field={@form[:timeout]} label="Timeout (ms)" help={@lookup_timeout_help} />
+            <span />
 
-        <p :if={chunk.truncated?} id="ets-lookup-truncated" class="text-base-content/50 text-xs">
-          Shortened to fit the term budget — raise it and refetch to see more.
-        </p>
-      </.async_result>
+            <.number_input field={@form[:budget]} bounds={{EtsLookupControls.min_budget(), nil}} />
+            <.number_input field={@form[:timeout]} bounds={EtsLookupControls.timeout_bounds()} />
+
+            <button
+              id="ets-lookup-refetch"
+              type="button"
+              phx-click="refetch_lookup"
+              disabled={@lookup.loading != nil}
+              class="btn btn-primary btn-sm gap-2"
+            >
+              <span :if={@lookup.loading != nil} class="loading loading-spinner loading-xs" /> Refetch
+            </button>
+
+            <.field_error field={@form[:budget]} />
+            <.field_error field={@form[:timeout]} />
+            <span />
+          </div>
+        </.form>
+
+        <.error_state :if={@error_message} id="ets-lookup-error" message={@error_message} />
+
+        <.async_result :let={chunk} assign={@lookup}>
+          <:loading>
+            <.loading_state id="ets-lookup-loading" message="Looking up key…" />
+          </:loading>
+
+          <p :if={chunk.records == []} id="ets-lookup-empty" class="text-base-content/70 text-sm">
+            {if @page == 0,
+              do: "No records with this key. They may have been deleted.",
+              else: "No more records for this key. They may have been deleted since the last page."}
+          </p>
+
+          <div
+            :if={chunk.records != []}
+            id="ets-lookup-records"
+            class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto"
+          >
+            <div
+              :for={{record, index} <- Enum.with_index(chunk.records)}
+              id={"ets-lookup-record-#{index}"}
+              class="border-base-200 flex shrink-0 items-start gap-2 rounded-lg border p-3"
+            >
+              <TermComponents.term_inspector
+                id={lookup_inspector_id(index)}
+                term={record}
+                state={@term_states[lookup_inspector_id(index)] || %State{}}
+                class="text-sm! min-w-0 flex-1 overflow-x-auto"
+              />
+              <.copy_button
+                id={"ets-lookup-record-#{index}-copy"}
+                target={"#ets-lookup-record-#{index}-copy-source"}
+                label="Copy record"
+                icon_only
+                size={:sm}
+                class="text-base-content/60 shrink-0 hover:text-primary"
+              />
+              <span id={"ets-lookup-record-#{index}-copy-source"} hidden>{TermTree.copy_string(record)}</span>
+            </div>
+          </div>
+
+          <p :if={chunk.truncated?} id="ets-lookup-truncated" class="text-base-content/50 text-xs">
+            Shortened to fit the term budget — raise it and refetch to see more.
+          </p>
+
+          <DataTableComponents.pager
+            :if={chunk.records != [] or @page > 0}
+            id="ets-lookup-pager"
+            page={@page + 1}
+            page_size={@page_size}
+            total={@total}
+            page_size_options={@page_size_options}
+            paginate_event="paginate_lookup"
+            page_size_event="set_lookup_page_size"
+          />
+        </.async_result>
+      </div>
     </aside>
     """
   end
@@ -389,6 +476,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   attr :field, Phoenix.HTML.FormField, required: true
   attr :bounds, :any, required: true, doc: "`{min, max}`; a nil max leaves the field unbounded"
+  attr :class, :any, default: "w-26"
 
   defp number_input(assigns) do
     ~H"""
@@ -403,7 +491,8 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       inputmode="numeric"
       phx-debounce="500"
       class={[
-        "input input-sm input-bordered no-spinner font-mono w-24",
+        "input input-sm input-bordered no-spinner font-mono",
+        @class,
         @field.errors != [] && "input-error"
       ]}
     />
@@ -430,23 +519,45 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
     tuple |> Tuple.to_list() |> Enum.any?(&truncated_record?/1)
   end
 
-  defp truncated_record?(list) when is_list(list), do: Enum.any?(list, &truncated_record?/1)
+  defp truncated_record?([head | tail]), do: truncated_record?(head) or truncated_record?(tail)
 
-  defp truncated_record?(map) when is_map(map) and not is_struct(map) do
-    Enum.any?(map, fn {key, value} -> truncated_record?(key) or truncated_record?(value) end)
+  defp truncated_record?(map) when is_map(map) do
+    map
+    |> Map.to_list()
+    |> Enum.any?(fn {key, value} -> truncated_record?(key) or truncated_record?(value) end)
   end
 
   defp truncated_record?(_other), do: false
 
+  # The marker spends less inspect limit than the key, so only the text before it is trusted.
+  defp preview_parts(record, keypos) when is_tuple(record) and tuple_size(record) >= keypos do
+    text = preview(record)
+    marked = record |> put_elem(keypos - 1, @key_marker) |> preview()
+    through_key = record |> Tuple.to_list() |> Enum.take(keypos) |> List.to_tuple() |> preview()
+    key_end = byte_size(through_key) - 1
+
+    with [before, _rest] <- String.split(marked, inspect(@key_marker), parts: 2),
+         key_start = byte_size(before),
+         <<head::binary-size(^key_start), key::binary-size(^key_end - ^key_start), tail::binary>> <-
+           text do
+      [{head, false}, {key, true}, {tail, false}]
+    else
+      _other -> [{text, false}]
+    end
+  end
+
+  defp preview_parts(record, _keypos), do: [{preview(record), false}]
+
   defp preview(record) do
     record
     |> strip_markers()
-    |> inspect(limit: 20, printable_limit: 128, width: :infinity)
+    |> inspect(@preview_opts)
   rescue
-    _e -> inspect(record, limit: 20, printable_limit: 128, width: :infinity)
+    _e -> inspect(record, @preview_opts)
   end
 
   defp strip_markers(@truncated), do: :...
+  defp strip_markers({@truncated, :binary, prefix, _size}), do: {prefix, :...}
 
   defp strip_markers(list) when is_list(list), do: Enum.map(list, &strip_markers/1)
 
@@ -454,8 +565,8 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
     tuple |> Tuple.to_list() |> Enum.map(&strip_markers/1) |> List.to_tuple()
   end
 
-  defp strip_markers(map) when is_map(map) and not is_struct(map) do
-    Map.new(map, fn {k, v} -> {strip_markers(k), strip_markers(v)} end)
+  defp strip_markers(map) when is_map(map) do
+    map |> Map.to_list() |> Map.new(fn {k, v} -> {strip_markers(k), strip_markers(v)} end)
   end
 
   defp strip_markers(other), do: other

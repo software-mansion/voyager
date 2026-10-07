@@ -40,7 +40,7 @@ defmodule VoyagerWeb.EtsTablesLive.Query do
   def optional_attrs, do: @optional_attrs
 
   @spec default_attrs() :: [atom()]
-  def default_attrs, do: @default_attrs
+  def default_attrs, do: @default_attrs ++ @required_attrs
 
   @doc "Fetches the metadata of every ETS table on `node`, bounding each remote call by `timeout`."
   @spec all(node(), timeout()) :: {:ok, page()} | {:error, term()}
@@ -103,7 +103,7 @@ defmodule VoyagerWeb.EtsTablesLive.Query do
   def total_memory(tables), do: Enum.sum_by(tables, & &1.memory)
 
   defp haystack(table) do
-    [inspect(table.name), TableId.display(table.id), Formatters.format_pid(table.owner)]
+    [inspect(table.name), TableId.display(table.id), Formatters.pid(table.owner)]
     |> Enum.map_join(" ", &to_string/1)
     |> String.downcase()
   end

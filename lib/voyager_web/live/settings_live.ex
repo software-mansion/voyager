@@ -5,6 +5,7 @@ defmodule VoyagerWeb.SettingsLive do
   alias VoyagerWeb.SettingsLive.AppearanceSettings
   alias VoyagerWeb.SettingsLive.DistributionSettings
   alias VoyagerWeb.SettingsLive.McpSettings
+  alias VoyagerWeb.SettingsLive.PidFormatSettings
   alias VoyagerWeb.SettingsLive.TelemetrySettings
   alias VoyagerWeb.SettingsLive.UpdateSettings
 
@@ -33,6 +34,7 @@ defmodule VoyagerWeb.SettingsLive do
       </div>
 
       <AppearanceSettings.appearance_settings />
+      <.live_component module={PidFormatSettings} id="pid-format-settings" />
       <.live_component
         module={DistributionSettings}
         id="distribution-settings"
@@ -56,7 +58,8 @@ defmodule VoyagerWeb.SettingsLive do
     |> noreply()
   end
 
-  def handle_info({event, _node}, socket) when event in [:node_disconnected, :nodedown] do
+  def handle_info({event, _node, _reason}, socket)
+      when event in [:node_disconnected, :nodedown] do
     socket
     |> assign(:connected?, false)
     |> noreply()

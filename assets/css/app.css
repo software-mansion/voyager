@@ -137,3 +137,4 @@
 @custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
 
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+@custom-variant mac (&:where(.is-mac *));

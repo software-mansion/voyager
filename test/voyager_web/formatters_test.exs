@@ -42,6 +42,17 @@ defmodule VoyagerWeb.FormattersTest do
     end
   end
 
+  describe "format_exact_bytes/1" do
+    test "returns an em dash for nil" do
+      assert Formatters.format_exact_bytes(nil) == "—"
+    end
+
+    test "keeps every byte with thousands separators" do
+      assert Formatters.format_exact_bytes(0) == "0 B"
+      assert Formatters.format_exact_bytes(4_601_632) == "4,601,632 B"
+    end
+  end
+
   describe "format_bytes_compact/1" do
     test "joins value and unit with no space" do
       assert Formatters.format_bytes_compact(0) == "0B"

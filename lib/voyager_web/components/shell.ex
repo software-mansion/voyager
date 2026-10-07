@@ -208,12 +208,7 @@ defmodule VoyagerWeb.Components.Shell do
       ]}
     >
       <ul class="menu font-sans gap-1.75 w-full flex-1">
-        <li class="sidebar-toggle-row mb-3 flex flex-row items-center justify-between">
-          <span class="menu-title text-base-content/70 sidebar-label tracking-label p-0 text-xs uppercase">
-            Inspect
-          </span>
-          <.sidebar_toggle current_url={@current_url} sidebar_mode={@sidebar_mode} />
-        </li>
+        <.sidebar_toggle current_url={@current_url} sidebar_mode={@sidebar_mode} />
         <.nav_item
           :for={page <- inspect_pages()}
           id={"sidebar-nav-#{page.feature}"}
@@ -221,7 +216,9 @@ defmodule VoyagerWeb.Components.Shell do
           navigate={nav_path(node_path(@session, page.path), @sidebar_mode)}
           label={page.label}
         >
-          <:icon><.icon name={page.icon} class="toolbar-icon" /></:icon>
+          <:icon>
+            <.icon name={page.icon} class={["toolbar-icon", page[:icon_class]]} />
+          </:icon>
         </.nav_item>
 
         <div class="border-base-content/10 my-4 border-t"></div>
@@ -274,20 +271,43 @@ defmodule VoyagerWeb.Components.Shell do
     assigns = assign(assigns, :variants, variants)
 
     ~H"""
-    <.link
-      :for={{id, visibility, mode} <- @variants}
-      id={id}
-      patch={toggle_sidebar_path(@current_url, mode)}
-      aria-label="Toggle sidebar width"
-      class={[
-        "btn btn-ghost btn-square toolbar-btn text-base-content/70 hover:text-base-content",
-        visibility
-      ]}
-    >
-      <.icon name="icon-panel-left" class="toolbar-icon" />
-    </.link>
+    <li class="sidebar-toggle-row mb-3 flex flex-row items-center justify-between">
+      <span class="menu-title text-base-content/70 sidebar-label tracking-label p-0 text-xs uppercase">
+        Inspect
+      </span>
+      <.link
+        :for={{id, visibility, mode} <- @variants}
+        id={id}
+        patch={toggle_sidebar_path(@current_url, mode)}
+        aria-label="Toggle sidebar width"
+        class={[
+          "btn btn-ghost btn-square toolbar-btn text-base-content/70 hover:text-base-content",
+          visibility
+        ]}
+        phx-hook="Tooltip"
+        data-tooltip-target={"##{id}-tip"}
+        data-tooltip-position="right"
+        data-tooltip-interactive="false"
+      >
+        <.icon name="icon-panel-left" class="toolbar-icon" />
+      </.link>
+    </li>
+    <.tooltip_portal :for={{id, _visibility, _mode} <- @variants} id={id}>
+      <span class="flex items-center gap-3 whitespace-nowrap">
+        Toggle sidebar
+        <span class="flex items-center gap-1">
+          <kbd class={["hidden mac:inline-flex", keycap_class()]}>⌘</kbd>
+          <kbd class={["inline-flex mac:hidden", keycap_class()]}>Ctrl</kbd>
+          <kbd class={["inline-flex", keycap_class()]}>B</kbd>
+        </span>
+      </span>
+    </.tooltip_portal>
     """
   end
+
+  defp keycap_class,
+    do:
+      "bg-base-content/10 text-base-content/70 h-5 min-w-5 items-center justify-center rounded-sm px-1 font-sans text-xs"
 
   @inspect_pages [
     %{feature: :node_info, path: nil, label: "Node Info", icon: "icon-grid"},
@@ -295,7 +315,8 @@ defmodule VoyagerWeb.Components.Shell do
       feature: :supervision_tree,
       path: "supervision-tree",
       label: "Supervision Tree",
-      icon: "icon-network"
+      icon: "icon-network",
+      icon_class: "-rotate-90"
     },
     %{feature: :processes, path: "processes", label: "Processes", icon: "icon-cpu"},
     %{

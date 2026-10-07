@@ -2,7 +2,7 @@ defmodule Voyager.MCP do
   @moduledoc """
   MCP (Model Context Protocol) integration for Voyager.
 
-  Port and IP are configured through `Voyager.Settings`, not supervisor options.
+  The port is configured through `Voyager.Settings`, not supervisor options.
   """
 
   use Supervisor

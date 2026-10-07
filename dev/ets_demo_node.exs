@@ -33,13 +33,12 @@ end
 :ets.insert(:by_second_key, {%{payload: 2}, :beta, "extra2"})
 
 :ets.new(:bag_events, [:bag, :named_table, :public])
-:ets.insert(:bag_events, {:login, "alice", 1})
-:ets.insert(:bag_events, {:login, "bob", 2})
-:ets.insert(:bag_events, {:logout, "alice", 3})
+:ets.insert(:bag_events, for(i <- 1..60, do: {:login, "user-#{i}", i}))
+:ets.insert(:bag_events, {:logout, "alice", 61})
 
 :ets.new(:dup_bag, [:duplicate_bag, :named_table, :public])
-:ets.insert(:dup_bag, {:x, 1})
-:ets.insert(:dup_bag, {:x, 1})
+:ets.insert(:dup_bag, List.duplicate({:x, 1}, 25))
+:ets.insert(:dup_bag, {:y, 2})
 
 :ets.new(:private_tab, [:set, :named_table, :private])
 :ets.insert(:private_tab, {:secret, 42})
@@ -66,6 +65,15 @@ deep =
 
 :ets.new(:binary_keys, [:set, :named_table, :public])
 :ets.insert(:binary_keys, {"session-abc", %{ttl: 300}})
+
+:ets.new(:truncated_struct_key, [:set, :named_table, :public])
+
+:ets.insert(
+  :truncated_struct_key,
+  {%Version{major: 1, minor: 0, patch: 0, pre: [:binary.copy("P", 500)]}, :value_a}
+)
+
+:ets.insert(:truncated_struct_key, {%Version{major: 2, minor: 0, patch: 0}, :value_b})
 
 :ets.new(:empty_set, [:set, :named_table, :public])
 

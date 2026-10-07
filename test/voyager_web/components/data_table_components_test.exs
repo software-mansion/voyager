@@ -56,6 +56,14 @@ defmodule VoyagerWeb.Components.DataTableComponentsTest do
       assert count(html, ~s|th[data-column="name"] button|) == 0
     end
 
+    test "renders a help tooltip for a column with a help entry" do
+      columns = [Map.put(hd(@columns), :help, %{text: "Registered name."}) | tl(@columns)]
+      html = table(columns: columns)
+
+      assert count(html, ~s|th[data-column="name"] #t-name-help|) == 1
+      assert count(html, ~s|th[data-column="memory"] [id$="-help"]|) == 0
+    end
+
     test "a narrow column set keeps the 64rem floor and a wide one derives more" do
       assert attr(table([]), "table", "style") == ["min-width: 64rem"]
 
@@ -151,7 +159,22 @@ defmodule VoyagerWeb.Components.DataTableComponentsTest do
 
       html = pager(page_size_options: [10, 25])
       assert attr(html, "#p-page-size-form", "phx-change") == ["set_page_size"]
-      assert attr(html, "#p-page-size option[selected]", "value") == ["10"]
+
+      assert attr(html, "#p-page-size", "aria-labelledby") == [
+               "p-page-size-label p-page-size-value"
+             ]
+
+      assert attr(html, ~s|#p-page-size-10-option input[checked]|, "value") == ["10"]
+      assert count(html, "#p-page-size-dropdown.dropdown-top") == 1
+    end
+
+    test "emits the given event names instead of the defaults" do
+      html =
+        pager(page_size_options: [10], paginate_event: "turn", page_size_event: "resize")
+
+      assert attr(html, "#p-next", "phx-click") == ["turn"]
+      assert attr(html, "#p-prev", "phx-click") == ["turn"]
+      assert attr(html, "#p-page-size-form", "phx-change") == ["resize"]
     end
   end
 end

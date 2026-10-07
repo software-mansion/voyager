@@ -4,7 +4,7 @@ defmodule Voyager.NodeSessionTest do
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Session
 
-  @agent_module :voyager_agent
+  @agent_module Voyager.Agent.module()
 
   defmodule FakeConnector do
     @moduledoc false
@@ -172,7 +172,7 @@ defmodule Voyager.NodeSessionTest do
       assert :ok = NodeSession.disconnect()
 
       assert_receive {:connector_disconnect, ^node}
-      assert_receive {:node_disconnected, ^node}
+      assert_receive {:node_disconnected, ^node, nil}
       refute NodeSession.connected?()
       assert {:error, :not_connected} = NodeSession.disconnect()
     end
@@ -184,10 +184,22 @@ defmodule Voyager.NodeSessionTest do
         NodeSession.connect_via(FakeConnector, "demo@localhost", "secret", test_pid: self())
 
       node = Node.self()
-      send(NodeSession, {:nodedown, node})
+      send(NodeSession, {:nodedown, node, %{}})
 
       assert_receive {:connector_disconnect, ^node}
-      assert_receive {:nodedown, ^node}
+      assert_receive {:nodedown, ^node, nil}
+      refute NodeSession.connected?()
+    end
+
+    test "includes the OTP nodedown reason in the broadcast" do
+      :ok =
+        NodeSession.connect_via(FakeConnector, "demo@localhost", "secret", test_pid: self())
+
+      node = Node.self()
+      send(NodeSession, {:nodedown, node, %{nodedown_reason: :net_tick_timeout}})
+
+      assert_receive {:connector_disconnect, ^node}
+      assert_receive {:nodedown, ^node, :net_tick_timeout}
       refute NodeSession.connected?()
     end
   end
@@ -201,7 +213,7 @@ defmodule Voyager.NodeSessionTest do
       NodeSession.agent_missing(node)
 
       assert_receive {:connector_disconnect, ^node}
-      assert_receive {:node_disconnected, ^node}
+      assert_receive {:node_disconnected, ^node, nil}
       refute NodeSession.connected?()
     end
 
@@ -229,7 +241,7 @@ defmodule Voyager.NodeSessionTest do
       node = Node.self()
       send(NodeSession, {:fake_transport_down, ref})
 
-      assert_receive {:nodedown, ^node}
+      assert_receive {:nodedown, ^node, :transport_down}
       refute_received {:connector_disconnect, _}
       refute NodeSession.connected?()
     end

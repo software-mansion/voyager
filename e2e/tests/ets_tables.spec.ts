@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 import { NODE_NAME, ensureConnected, waitForLiveView } from './fixtures';
 
 // Tables owned by mock_ets_owner on the target node (see e2e/mock_app).
@@ -28,6 +28,13 @@ function row(page: Page, name: string) {
   return page
     .locator(sel.rows)
     .filter({ has: page.locator('td[data-column="name"]', { hasText: name }) });
+}
+
+function style(locator: Locator) {
+  return locator.evaluate((el) => {
+    const { color, fontWeight } = getComputedStyle(el);
+    return { color, fontWeight: Number(fontWeight) };
+  });
 }
 
 /** Narrows the list to the four mock_ets_* tables the mock app owns. */
@@ -81,19 +88,64 @@ test.describe('EtsTablesLive', () => {
   test('the selects filter by protection, type and named', async ({ page }) => {
     await filterToMockTables(page);
 
-    await page.locator(sel.protection).selectOption('private');
+    await page.locator(sel.protection).click();
+    await page.locator('#controls_protection-private-option').click();
     await expect(page.locator(sel.rows)).toHaveCount(2);
     await expect(row(page, SECRETS)).toBeVisible();
     await expect(row(page, UNNAMED)).toBeVisible();
 
-    await page.locator(sel.type).selectOption('ordered_set');
+    await page.locator(sel.type).click();
+    await page.locator('#controls_type-ordered_set-option').click();
     await expect(page.locator(sel.rows)).toHaveCount(1);
     await expect(row(page, SECRETS)).toBeVisible();
 
-    await page.locator(sel.type).selectOption('');
-    await page.locator(sel.named).selectOption('false');
+    await page.locator(sel.type).click();
+    await page.locator('#controls_type-blank-option').click();
+    await page.locator(sel.named).click();
+    await page.locator('#controls_named-false-option').click();
     await expect(page.locator(sel.rows)).toHaveCount(1);
     await expect(row(page, UNNAMED)).toBeVisible();
+  });
+
+  test('clicking the already-selected option closes the select', async ({
+    page,
+  }) => {
+    await page.locator(sel.protection).click();
+    await expect(
+      page.locator('#controls_protection-blank-option')
+    ).toBeVisible();
+
+    await page.locator('#controls_protection-blank-option').click();
+    await expect(
+      page.locator('#controls_protection-blank-option')
+    ).toBeHidden();
+    await expect(page.locator(sel.protection)).toBeFocused();
+  });
+
+  test('escape closes the select and returns focus to the trigger', async ({
+    page,
+  }) => {
+    await page.locator(sel.protection).click();
+    await page.locator('#controls_protection-private-option input').focus();
+    await page.keyboard.press('Escape');
+
+    await expect(
+      page.locator('#controls_protection-private-option')
+    ).toBeHidden();
+    await expect(page.locator(sel.protection)).toBeFocused();
+  });
+
+  test('clicking outside an open select closes it', async ({ page }) => {
+    await page.locator(sel.protection).click();
+    await expect(
+      page.locator('#controls_protection-private-option')
+    ).toBeVisible();
+
+    await page.locator(sel.search).click();
+    await expect(
+      page.locator('#controls_protection-private-option')
+    ).toBeHidden();
+    await expect(page.locator(sel.search)).toBeFocused();
   });
 
   test('sorts by a clicked column locally', async ({ page }) => {
@@ -163,5 +215,25 @@ test.describe('EtsTablesLive', () => {
     await waitForLiveView(page);
 
     await expect(page.locator(sel.panelNotFound)).toBeVisible();
+  });
+});
+
+test.describe('EtsTableLive', () => {
+  test.beforeEach(async ({ page }) => {
+    await ensureConnected(page);
+    await page.goto(`${listUrl}/${encodeURIComponent(CACHE)}`);
+    await waitForLiveView(page);
+    await page.locator('#ets-peek-fetch').click();
+    await expect(page.locator('#ets-records-0')).toBeVisible();
+  });
+
+  test('the record key stands out in the row preview', async ({ page }) => {
+    const key = page.locator('#ets-records-0-key');
+    await expect(key).toBeVisible();
+
+    const keyStyle = await style(key);
+    const rowStyle = await style(key.locator('..'));
+    expect(keyStyle.color).not.toBe(rowStyle.color);
+    expect(keyStyle.fontWeight).toBeGreaterThan(rowStyle.fontWeight);
   });
 });

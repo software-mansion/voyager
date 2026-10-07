@@ -6,6 +6,8 @@ defmodule Voyager.Services.Ets.SearchTest do
   alias Voyager.Agent
   alias Voyager.Services.Ets.Search
 
+  @agent_module Voyager.Agent.module()
+
   setup :verify_on_exit!
 
   @node :"peer@127.0.0.1"
@@ -115,9 +117,9 @@ defmodule Voyager.Services.Ets.SearchTest do
 
     test "key_eq looks up through the agent without fetching table info" do
       expect(Voyager.ErpcMock, :call, fn @node,
-                                         :voyager_agent,
+                                         @agent_module,
                                          :ets_lookup,
-                                         [:t, :the_key, @budget],
+                                         [:t, :the_key, 10, @budget, :undefined],
                                          @timeout ->
         ok_chunk([{1, :the_key}])
       end)
@@ -129,6 +131,23 @@ defmodule Voyager.Services.Ets.SearchTest do
       refute Map.has_key?(chunk, :via)
       assert chunk.continuation == nil
       refute chunk.truncated?
+
+      cont = make_ref()
+
+      expect(Voyager.ErpcMock, :call, fn @node,
+                                         @agent_module,
+                                         :ets_lookup,
+                                         [:t, :k, 10, @budget, ^cont],
+                                         @timeout ->
+        ok_chunk([], :undefined)
+      end)
+
+      assert {:ok, resumed} =
+               Search.chunk(@node, :t, {:key_eq, :k}, 1, 10, @budget, cont, @timeout)
+
+      assert resumed.records == []
+      assert resumed.continuation == nil
+      refute resumed.truncated?
     end
 
     test "key_prefix compiles using the given keypos" do
@@ -143,7 +162,7 @@ defmodule Voyager.Services.Ets.SearchTest do
         ]
 
       expect(Voyager.ErpcMock, :call, fn @node,
-                                         :voyager_agent,
+                                         @agent_module,
                                          :ets_select_spec,
                                          [:t, ^spec, 10, @budget, :undefined],
                                          @timeout ->
@@ -162,7 +181,7 @@ defmodule Voyager.Services.Ets.SearchTest do
       spec = [{:"$1", [{:"=:=", {:element, 2, :"$1"}, {:const, :v}}], [:"$1"]}]
 
       expect(Voyager.ErpcMock, :call, fn @node,
-                                         :voyager_agent,
+                                         @agent_module,
                                          :ets_select_spec,
                                          [:t, ^spec, 10, @budget, :undefined],
                                          @timeout ->
@@ -180,7 +199,7 @@ defmodule Voyager.Services.Ets.SearchTest do
       cont = make_ref()
 
       expect(Voyager.ErpcMock, :call, fn @node,
-                                         :voyager_agent,
+                                         @agent_module,
                                          :ets_select_spec,
                                          [:t, ^spec, 10, @budget, ^cont],
                                          @timeout ->
@@ -207,7 +226,7 @@ defmodule Voyager.Services.Ets.SearchTest do
       assert {:error, {:remote_exception, :undef}} =
                Search.chunk(@node, :t, {:element_eq, 2, :v}, 1, 10, @budget, nil, @timeout)
 
-      assert_received {:called, :voyager_agent, :ets_select_spec,
+      assert_received {:called, @agent_module, :ets_select_spec,
                        [:t, ^spec, 10, @budget, :undefined]}
 
       refute_received {:called, :ets, _, _}
