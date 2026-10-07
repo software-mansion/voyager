@@ -327,6 +327,12 @@ fn create_window(app_handle: &tauri::AppHandle, port: u16) {
         .initialization_script(theme_init);
 
     let window = builder.build().unwrap();
+    let zoom = *app_handle
+        .state::<ZoomLevel>()
+        .0
+        .lock()
+        .expect("zoom level poisoned");
+    let _ = window.set_zoom(zoom);
 
     #[cfg(target_os = "macos")]
     {
