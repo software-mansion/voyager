@@ -9,6 +9,7 @@ defmodule VoyagerWeb.ProcessesLive do
 
   use VoyagerWeb, :live_view
 
+  alias Phoenix.LiveView.AsyncResult
   alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Components.ProcessComponents
   alias VoyagerWeb.Formatters
@@ -94,9 +95,7 @@ defmodule VoyagerWeb.ProcessesLive do
           rows={rows(Fetcher.entries(@page_result), @page, @page_size)}
           sort_by={@sort_by}
           direction={@direction}
-          empty_message={
-            if @page_result.ok?, do: "No processes matched.", else: "Scanning processes…"
-          }
+          empty_message={empty_message(@page_result)}
         >
           <:cell :let={%{column: column, row: row, row_id: row_id}}>
             <ProcessComponents.cell
@@ -232,6 +231,10 @@ defmodule VoyagerWeb.ProcessesLive do
       }
     })
   end
+
+  defp empty_message(%AsyncResult{ok?: true}), do: "No processes matched."
+  defp empty_message(%AsyncResult{failed: nil}), do: "Scanning processes…"
+  defp empty_message(_page_result), do: "Nothing fetched yet."
 
   defp total(%{assigns: %{page_result: page_result}}) do
     length(Fetcher.entries(page_result))
