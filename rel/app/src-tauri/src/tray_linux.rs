@@ -1,6 +1,6 @@
 use std::sync::OnceLock;
 
-use tauri::menu::{IconMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem};
+use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager};
 
@@ -20,19 +20,12 @@ struct TrayStatus {
     mcp_url: Option<String>,
 }
 
-/// Tray rows whose text, icon or state follow `TrayStatus`.
+/// Tray rows whose text or state follow `TrayStatus`.
 struct Tray {
-    node: IconMenuItem<tauri::Wry>,
-    mcp: IconMenuItem<tauri::Wry>,
+    node: MenuItem<tauri::Wry>,
+    mcp: MenuItem<tauri::Wry>,
     disconnect: MenuItem<tauri::Wry>,
     toggle_mcp: MenuItem<tauri::Wry>,
-}
-
-#[derive(Clone, Copy)]
-enum Dot {
-    On,
-    Off,
-    Alert,
 }
 
 static TRAY: OnceLock<Tray> = OnceLock::new();
@@ -55,13 +48,11 @@ pub fn update(status_json: &[u8]) {
 
 fn build(app: &tauri::App) -> tauri::Result<Tray> {
     let tray = Tray {
-        node: IconMenuItem::with_id(app, NODE_ID, "Starting…", true, None, None::<&str>)?,
-        mcp: IconMenuItem::with_id(app, MCP_ID, "MCP off", true, None, None::<&str>)?,
+        node: MenuItem::with_id(app, NODE_ID, "Starting…", true, None::<&str>)?,
+        mcp: MenuItem::with_id(app, MCP_ID, "MCP off", true, None::<&str>)?,
         disconnect: MenuItem::with_id(app, DISCONNECT_ID, "Disconnect", false, None::<&str>)?,
         toggle_mcp: MenuItem::with_id(app, TOGGLE_MCP_ID, "Start MCP Server", false, None::<&str>)?,
     };
-    set_dot(&tray.node, Dot::Off);
-    set_dot(&tray.mcp, Dot::Off);
 
     let menu = Menu::with_items(
         app,
@@ -107,33 +98,22 @@ impl Tray {
             Err(error) => return eprintln!("[rust] invalid tray status: {error}"),
         };
 
-        let (dot, text) = match (&status.node, status.node_lost) {
-            (Some(node), false) => (Dot::On, format!("Connected to {node}")),
-            (Some(node), true) => (Dot::Alert, format!("Lost connection to {node}")),
-            (None, _) => (Dot::Off, "Not connected".to_string()),
+        let text = match (&status.node, status.node_lost) {
+            (Some(node), false) => format!("Connected to {node}"),
+            (Some(node), true) => format!("Lost connection to {node}"),
+            (None, _) => "Not connected".to_string(),
         };
-        set_dot(&self.node, dot);
         let _ = self.node.set_text(text);
         let _ = self
             .disconnect
             .set_enabled(status.node.is_some() && !status.node_lost);
 
-        let (dot, text, action) = match &status.mcp_url {
-            Some(url) => (Dot::On, format!("MCP on · {url}"), "Stop MCP Server"),
-            None => (Dot::Off, "MCP off".to_string(), "Start MCP Server"),
+        let (text, action) = match &status.mcp_url {
+            Some(url) => (format!("MCP on · {url}"), "Stop MCP Server"),
+            None => ("MCP off".to_string(), "Start MCP Server"),
         };
-        set_dot(&self.mcp, dot);
         let _ = self.mcp.set_text(text);
         let _ = self.toggle_mcp.set_text(action);
         let _ = self.toggle_mcp.set_enabled(true);
     }
-}
-
-fn set_dot(item: &IconMenuItem<tauri::Wry>, dot: Dot) {
-    let icon = match dot {
-        Dot::On => tauri::include_image!("icons/dot-on.png"),
-        Dot::Off => tauri::include_image!("icons/dot-off.png"),
-        Dot::Alert => tauri::include_image!("icons/dot-alert.png"),
-    };
-    let _ = item.set_icon(Some(icon));
 }
