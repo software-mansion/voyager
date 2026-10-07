@@ -116,14 +116,14 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         id={"#{@panel_id}-name"}
         class="font-mono text-base-content break-all text-sm font-medium"
         text={@display_name}
-        label="Copy Node name"
+        label="Copy node name"
       />
       <.copyable
         :if={@pid_string}
         id={"#{@panel_id}-pid"}
         class="font-mono text-base-content/70 text-xs"
         text={@pid_string}
-        label="Copy Node PID"
+        label="Copy node PID"
       />
     </div>
     """
@@ -210,7 +210,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         href={@href}
         class="btn btn-ghost gap-2 hover:text-primary"
       >
-        Show More <.icon name="icon-arrow-right" class="size-4" />
+        Show more <.icon name="icon-arrow-right" class="size-4" />
       </.link>
     </div>
     """
@@ -646,7 +646,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         phx-target={@target}
         class="btn btn-ghost btn-xs text-base-content/70 w-max items-center self-center px-3 py-2 hover:text-base-content"
       >
-        {if(@links_expanded?, do: "Show Less", else: "Show More")}
+        {if(@links_expanded?, do: "Show less", else: "Show more")}
       </button>
     </div>
     """
