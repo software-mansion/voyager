@@ -106,7 +106,7 @@ defmodule VoyagerWeb.FormSchemas.EtsTableListControls do
   @spec filter_options(:protection | :type | :named) :: [{String.t(), String.t()}]
   def filter_options(:protection), do: [{"Any", ""} | Enum.map(@protections, &{&1, &1})]
   def filter_options(:type), do: [{"Any", ""} | Enum.map(@types, &{&1, &1})]
-  def filter_options(:named), do: [{"Any", ""}, {"Yes", "true"}, {"No", "false"}]
+  def filter_options(:named), do: [{"Any", ""}, {"true", "true"}, {"false", "false"}]
 
   # A null `search` from localStorage would reach `String.trim/1`. A blank
   # `timeout` goes the other way: `cast/4` skips "", nil is a change

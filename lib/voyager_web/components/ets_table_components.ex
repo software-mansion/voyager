@@ -144,7 +144,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
           <.select
             field={@form[:named]}
             options={EtsTableListControls.filter_options(:named)}
-            class="min-w-20"
+            class="min-w-22"
           />
 
           <input
@@ -282,19 +282,24 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
       <% :heir -> %>
         <.heir_cell heir={@row.heir} row_id={@row_id} href={@heir_href} />
       <% key -> %>
-        <DataTableComponents.value_cell id={"#{@row_id}-#{key}"} value={flag(@row, key)} muted />
+        <DataTableComponents.value_cell
+          id={"#{@row_id}-#{key}"}
+          value={format_flag(Map.get(@row, key))}
+          muted
+        />
     <% end %>
     """
   end
 
-  # `decentralized_counters` is only reported by nodes that know it.
-  defp flag(row, key) do
-    case Map.get(row, key) do
-      nil -> DataTableComponents.placeholder()
-      :auto -> "auto"
-      value when is_boolean(value) -> yes_no(value)
-    end
-  end
+  @doc """
+  A table option as `true`, `false` or `auto`. `nil` is a `decentralized_counters`
+  the node does not report, shown as a placeholder.
+  """
+  @spec format_flag(boolean() | :auto | nil) :: String.t()
+  def format_flag(nil), do: DataTableComponents.placeholder()
+  def format_flag(:auto), do: "auto"
+  def format_flag(true), do: "true"
+  def format_flag(false), do: "false"
 
   attr :heir, :any, required: true
   attr :row_id, :string, required: true
@@ -532,7 +537,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         <.kv
           label="Named table"
           help={EtsTableHelp.get(:named_table)}
-          value={flag(@table, :named_table)}
+          value={format_flag(@table.named_table)}
         />
         <.kv
           label="Key position"
@@ -557,22 +562,22 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         <.kv
           label="Compressed"
           help={EtsTableHelp.get(:compressed)}
-          value={flag(@table, :compressed)}
+          value={format_flag(@table.compressed)}
         />
         <.kv
           label="Read concurrency"
           help={EtsTableHelp.get(:read_concurrency)}
-          value={flag(@table, :read_concurrency)}
+          value={format_flag(@table.read_concurrency)}
         />
         <.kv
           label="Write concurrency"
           help={EtsTableHelp.get(:write_concurrency)}
-          value={flag(@table, :write_concurrency)}
+          value={format_flag(@table.write_concurrency)}
         />
         <.kv
           label="Decentralized counters"
           help={EtsTableHelp.get(:decentralized_counters)}
-          value={flag(@table, :decentralized_counters)}
+          value={format_flag(Map.get(@table, :decentralized_counters))}
           last
         />
       </.section>
@@ -633,9 +638,6 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
 
   defp pluralize(1, word), do: word
   defp pluralize(_count, word), do: word <> "s"
-
-  defp yes_no(true), do: "yes"
-  defp yes_no(false), do: "no"
 
   defp format_memory(bytes),
     do: "#{Formatters.format_bytes(bytes)} (#{Formatters.format_exact_bytes(bytes)})"

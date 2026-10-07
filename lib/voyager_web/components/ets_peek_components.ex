@@ -111,20 +111,24 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       <.info_item :if={@info.heir != :none} label="Heir" help={:heir}>
         <ProcessComponents.process_link pid={@info.heir} current_url={@current_url} />
       </.info_item>
-      <.info_item label="Named table" help={:named_table}>{@info.named_table}</.info_item>
-      <.info_item label="Compressed" help={:compressed}>{@info.compressed}</.info_item>
+      <.info_item label="Named table" help={:named_table}>
+        {EtsTableComponents.format_flag(@info.named_table)}
+      </.info_item>
+      <.info_item label="Compressed" help={:compressed}>
+        {EtsTableComponents.format_flag(@info.compressed)}
+      </.info_item>
       <.info_item label="Read concurrency" help={:read_concurrency}>
-        {@info.read_concurrency}
+        {EtsTableComponents.format_flag(@info.read_concurrency)}
       </.info_item>
       <.info_item label="Write concurrency" help={:write_concurrency}>
-        {@info.write_concurrency}
+        {EtsTableComponents.format_flag(@info.write_concurrency)}
       </.info_item>
       <.info_item
         :if={Map.has_key?(@info, :decentralized_counters)}
         label="Decentralized counters"
         help={:decentralized_counters}
       >
-        {@info.decentralized_counters}
+        {EtsTableComponents.format_flag(@info.decentralized_counters)}
       </.info_item>
     </dl>
     """
