@@ -88,9 +88,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       id="ets-table-info"
       class="border-base-200 bg-base-100 grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border p-4 sm:grid-cols-3 lg:grid-cols-5"
     >
-      <.info_item label="Type" help={:type}>
-        <span class="badge badge-sm badge-ghost font-mono">{@info.type}</span>
-      </.info_item>
+      <.info_item label="Type" help={:type}>{@info.type}</.info_item>
       <.info_item label="Protection" help={:protection}>
         <EtsTableComponents.private_badge
           :if={@info.protection == :private}
