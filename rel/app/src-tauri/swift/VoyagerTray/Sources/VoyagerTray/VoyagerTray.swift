@@ -22,7 +22,7 @@ final class TrayModel: ObservableObject {
     init(version: String) {
         self.version = version
 
-        let refresh: (Notification) -> Void = { [weak self] _ in self?.accent = TrayModel.systemAccent() }
+        let refresh: (Notification) -> Void = { _ in self.accent = TrayModel.systemAccent() }
         NotificationCenter.default.addObserver(
             forName: NSColor.systemColorsDidChangeNotification, object: nil, queue: .main, using: refresh)
         DistributedNotificationCenter.default().addObserver(
@@ -43,8 +43,8 @@ final class TrayController: NSObject {
     init(icon: NSImage, version: String, onAction: @escaping ActionCallback) {
         model = TrayModel(version: version)
         super.init()
-        model.send = { [weak self] action in
-            if action == "open" || action == "quit" { self?.popover.performClose(nil) }
+        model.send = { action in
+            if action == "open" || action == "quit" { self.popover.performClose(nil) }
             action.withCString(onAction)
         }
 
