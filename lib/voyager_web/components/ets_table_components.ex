@@ -32,8 +32,8 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
     %{key: :size, label: "Objects", sortable?: true, align: :right, width: :md},
     %{key: :memory, label: "Memory", sortable?: true, align: :right, width: :sm},
     %{key: :owner, label: "Owner", sortable?: false, align: :left, width: :md},
-    %{key: :named_table, label: "Named", sortable?: false, align: :center, width: :sm},
-    %{key: :keypos, label: "Keypos", sortable?: true, align: :right, width: :sm},
+    %{key: :named_table, label: "Named table", sortable?: false, align: :center, width: :sm},
+    %{key: :keypos, label: "Key position", sortable?: true, align: :right, width: :sm},
     %{key: :heir, label: "Heir", sortable?: false, align: :left, width: :md},
     %{key: :compressed, label: "Compressed", sortable?: false, align: :center, width: :sm},
     %{
@@ -117,7 +117,11 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
             help={EtsTableHelp.get(:protection)}
           />
           <.field_label field={@form[:type]} label="Type" help={EtsTableHelp.get(:type)} />
-          <.field_label field={@form[:named]} label="Named" help={EtsTableHelp.get(:named_table)} />
+          <.field_label
+            field={@form[:named]}
+            label="Named table"
+            help={EtsTableHelp.get(:named_table)}
+          />
           <.field_label
             field={@form[:timeout]}
             label="Timeout (ms)"
