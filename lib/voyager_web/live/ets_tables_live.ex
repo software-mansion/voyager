@@ -121,14 +121,16 @@ defmodule VoyagerWeb.EtsTablesLive do
               </:cell>
             </DataTableComponents.table>
 
-            <DataTableComponents.pager
-              :if={@page_result.ok?}
-              id="ets-tables-pager"
-              page={@page}
-              page_size={@page_size}
-              page_size_options={@page_sizes}
-              total={@shown_count}
-            />
+            <div class="min-h-8">
+              <DataTableComponents.pager
+                :if={@page_result.ok?}
+                id="ets-tables-pager"
+                page={@page}
+                page_size={@page_size}
+                page_size_options={@page_sizes}
+                total={@shown_count}
+              />
+            </div>
           </div>
         </div>
       </div>

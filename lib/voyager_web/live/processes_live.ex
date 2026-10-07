@@ -108,14 +108,16 @@ defmodule VoyagerWeb.ProcessesLive do
           </:cell>
         </DataTableComponents.table>
 
-        <DataTableComponents.pager
-          :if={@page_result.ok?}
-          id="processes-pager"
-          page={@page}
-          page_size={@page_size}
-          page_size_options={@page_sizes}
-          total={length(Fetcher.entries(@page_result))}
-        />
+        <div class="min-h-8">
+          <DataTableComponents.pager
+            :if={@page_result.ok?}
+            id="processes-pager"
+            page={@page}
+            page_size={@page_size}
+            page_size_options={@page_sizes}
+            total={length(Fetcher.entries(@page_result))}
+          />
+        </div>
       </div>
     </div>
     """
