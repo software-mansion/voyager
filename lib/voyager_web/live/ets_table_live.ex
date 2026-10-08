@@ -362,6 +362,7 @@ defmodule VoyagerWeb.EtsTableLive do
     socket
     |> assign(:table_id, info.id)
     |> assign(:info, AsyncResult.ok(socket.assigns.info, info))
+    |> drop_unreadable_records()
     |> noreply()
   end
 
@@ -399,6 +400,7 @@ defmodule VoyagerWeb.EtsTableLive do
   def handle_async(:chunk, {:ok, {:error, reason}}, socket) do
     socket
     |> assign(:chunk, AsyncResult.failed(socket.assigns.chunk, reason))
+    |> drop_unreadable_records()
     |> noreply()
   end
 
@@ -465,6 +467,18 @@ defmodule VoyagerWeb.EtsTableLive do
     do: put_flash(socket, :error, format_error(reason))
 
   defp flash_info_failure(socket, _reason), do: socket
+
+  defp drop_unreadable_records(socket) do
+    if readable?(socket.assigns.info) do
+      socket
+    else
+      socket
+      |> assign(:chunk, %AsyncResult{})
+      |> assign(:records, [])
+      |> assign(:truncated?, false)
+      |> assign(:fetched?, false)
+    end
+  end
 
   # A reference cannot be reconstructed from its inspect string, so it is
   # matched against the node's live table handles instead.

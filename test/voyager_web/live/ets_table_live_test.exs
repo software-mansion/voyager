@@ -74,6 +74,25 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     refute has_element?(view, "#ets-records-count")
   end
 
+  test "refetching records on a table that became private hides the records", %{conn: conn} do
+    name = named_table(:set)
+    :ets.insert(name, {:k, 1})
+
+    view = fetch_records(conn, name)
+
+    :ets.delete(name)
+    :ets.new(name, [:named_table, :private, :set])
+    :ets.insert(name, {:k, 1})
+
+    view |> element("#ets-peek-fetch") |> render_click()
+    render_async(view, 2_000)
+
+    assert has_element?(view, "#ets-private-notice")
+    assert has_element?(view, "#ets-peek-fetch", "Refetch info")
+    refute has_element?(view, "#ets-records-0")
+    refute has_element?(view, "#ets-peek-error")
+  end
+
   test "a set row can open the lookup sidebar", %{conn: conn} do
     name = named_table(:set)
     :ets.insert(name, {:k, 1})
