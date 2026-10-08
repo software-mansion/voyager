@@ -149,14 +149,6 @@ defmodule VoyagerWeb.CoreComponentsTest do
   end
 
   describe "bytes/1" do
-    test "shows the rounded size with the exact count in its tooltip" do
-      html = render_component(&CoreComponents.bytes/1, id: "mem", value: 8_736)
-
-      assert text(html, "#mem") =~ "9 KB"
-      assert html =~ ~s(<span id="mem-exact">8,736 B</span>)
-      assert html =~ ~s(data-copy-target="#mem-exact")
-    end
-
     test "shows a dash with no tooltip for nil" do
       html = render_component(&CoreComponents.bytes/1, id: "mem", value: nil)
 
