@@ -768,7 +768,7 @@ defmodule VoyagerWeb.CoreComponents do
         ]}
       >
         <span class="grow text-left">{@label}</span>
-        <span class="font-mono text-base-content/60">{@count}</span>
+        <span class="font-mono text-base-content/60 min-w-4 text-right">{@count}</span>
         <.icon name="icon-chevron-right" class="size-3.5 shrink-0 rotate-90 opacity-60" />
       </div>
 
