@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 (2026-10-07)
+## 0.2.0
 
 #### Features
 
@@ -17,7 +17,7 @@
 * In-app updates: the desktop app checks for a new release on startup and can install it, with an Updates card in Settings in [#251](https://github.com/software-mansion/voyager/pull/251)
 * IPv6 support when connecting to nodes, directly and over SSH in [#159](https://github.com/software-mansion/voyager/pull/159)
 * Setting to show the connected node's PIDs in local `<0.X.Y>` format in [#184](https://github.com/software-mansion/voyager/pull/184)
-* Help tooltips with Erlang docs links on process and ETS panels, and a connecting-to-a-node guide in [#245](https://github.com/software-mansion/voyager/pull/245)
+* Connecting-to-a-node guide in [#245](https://github.com/software-mansion/voyager/pull/245)
 
 #### Enhancements
 
@@ -34,7 +34,6 @@
 * Used-percentage column in System limits in [#261](https://github.com/software-mansion/voyager/pull/261)
 * Remember the auto-refresh interval across reloads in [#197](https://github.com/software-mansion/voyager/pull/197)
 * Keep the selected connection type (Direct / SSH) in the URL in [#183](https://github.com/software-mansion/voyager/pull/183)
-* Highlight the key in ETS record rows in [#270](https://github.com/software-mansion/voyager/pull/270)
 * Select dropdowns styled to match the app in [#259](https://github.com/software-mansion/voyager/pull/259)
 * Sidebar tooltips in compact mode in [#166](https://github.com/software-mansion/voyager/pull/166)
 * Feedback link in the sidebar in [#160](https://github.com/software-mansion/voyager/pull/160)
@@ -54,8 +53,6 @@
 * Follow GNOME theme changes in Auto mode on Linux in [#281](https://github.com/software-mansion/voyager/pull/281)
 * Fix app icon on older macOS versions in [#165](https://github.com/software-mansion/voyager/pull/165)
 * Update the connection-type tooltip after disconnecting from a node in [#148](https://github.com/software-mansion/voyager/pull/148)
-* Fix the ETS lookup sidebar button overflowing the window in [#272](https://github.com/software-mansion/voyager/pull/272)
-* Fix the multiselect dropdown covering the sidebar in [#286](https://github.com/software-mansion/voyager/pull/286)
 * Hide spinner arrows on number inputs in [#287](https://github.com/software-mansion/voyager/pull/287)
 * Hide the WebKit caps lock indicator in password fields in [#265](https://github.com/software-mansion/voyager/pull/265)
 * Dim the show-password toggle while connecting in [#199](https://github.com/software-mansion/voyager/pull/199)
