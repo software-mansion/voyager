@@ -89,7 +89,7 @@ against the file, confidence 80 or above, nothing already raised in an existing 
 boundaries hold too — a correctness, security or performance point belongs to the defect review,
 not here. A finding that contradicts a `CLAUDE.md` rule loses to the rule.
 
-Post each one inline with 🐴 in place of a severity label, in ponytail's line format minus the
+Post each one inline with 🦐 in place of a severity label, in ponytail's line format minus the
 location the inline comment already carries. In the summary they get their own block below the
 defects, and the verdict line gains ponytail's `net:` count. Nothing to cut → no block, no `net:`,
 and no "Lean already" line.
@@ -113,7 +113,7 @@ Severity: 🔴 blocking · 🟡 should-fix · 🟢 nit
 - 🟡 `lib/voyager/services/node_connector.ex:42` — `@default_port` is duplicated in three modules; keep it in one place behind a function.
 - 🟢 `lib/voyager/services/node_connector.ex:12` — comment restates the line below it.
 
-- 🐴 `lib/voyager/services/node_connector.ex:60-74` — yagni: `ConnectorBehaviour` with one implementation. Call `NodeConnector` directly until a second one exists.
+- 🦐 `lib/voyager/services/node_connector.ex:60-74` — yagni: `ConnectorBehaviour` with one implementation. Call `NodeConnector` directly until a second one exists.
 
 <verdict: 1 blocking, 1 should-fix, 1 nit, 1 ponytail · net: -15 lines possible>
 ```
@@ -121,7 +121,7 @@ Severity: 🔴 blocking · 🟡 should-fix · 🟢 nit
 Ponytail inline comment body:
 
 ```
-🐴 yagni: `ConnectorBehaviour` with one implementation. Call `NodeConnector` directly until a second one exists.
+🦐 yagni: `ConnectorBehaviour` with one implementation. Call `NodeConnector` directly until a second one exists.
 ```
 
 The summary is that block and nothing else. No notes section, no table of earlier findings
