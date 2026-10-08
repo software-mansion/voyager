@@ -302,7 +302,13 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         </:failed>
         <%= for {key, label, _width} <- @rows do %>
           <.suspending_list :if={key == :suspending} suspending={info.suspending} size={@size} />
-          <.kv :if={key != :suspending} size={@size} label={label} help={ProcessInfoHelp.get(key)}>
+          <.kv
+            :if={key != :suspending}
+            size={@size}
+            label={label}
+            help={ProcessInfoHelp.get(key)}
+            last={key == :error_handler}
+          >
             <%= if pid = linkable_pid(key, info, @remote_node) do %>
               <ProcessComponents.process_link :if={@current_url} pid={pid} current_url={@current_url} />
               <.chip
@@ -407,6 +413,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           label="GC fullsweep after"
           help={ProcessInfoHelp.get(:gc_fullsweep_after)}
           value={format_count(info.gc_fullsweep_after)}
+          last
         />
       </.async_result>
     </.section>
