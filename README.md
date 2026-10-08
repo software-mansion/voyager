@@ -31,6 +31,8 @@ https://github.com/user-attachments/assets/8aa3f69e-a692-4b9d-9bf5-75d972f6370f
 
 Voyager is a desktop app that inspects running BEAM systems — supervision trees, processes, ETS tables, memory and IO usage, running applications, and more — through one interface instead of a patchwork of shell commands copy-pasted into `iex`. It connects to any OTP 27+ node, local or remote, over plain Erlang distribution and surfaces the information the BEAM already exposes, in a form that is actually pleasant to read.
 
+The same data is available to coding agents such as Claude Code or Cursor through Voyager's built-in MCP server, so they can inspect a live system instead of guessing from source code.
+
 No setup is required on the target node. On connect, Voyager compiles and loads a small helper module (`voyager_agent`) into the node's memory and gathers everything else over RPC; nothing is written to the node's disk, and all rendering and storage happens on your machine.
 
 ### Why Voyager
@@ -62,13 +64,17 @@ iex --name my_app@127.0.0.1 --cookie my-secret-cookie -S mix phx.server
 erl -name my_app@127.0.0.1 -setcookie my-secret-cookie
 ```
 
-See [docs/connecting_to_a_node.md](docs/connecting_to_a_node.md) for short names, releases, IPv6, the SSH setup, how saved connections are stored, and troubleshooting.
+Check out the [connection guide](docs/connecting_to_a_node.md) for other setups or if the connection fails.
 
 ## MCP server
 
-Voyager can expose the connected node to MCP clients such as Claude Code or Cursor, so an agent can inspect a live system instead of guessing from source code.
+The MCP server is on by default. Point your MCP client at:
 
-Enable it under **Settings → MCP Server** and pick a port (default `4040`). Point your MCP client at `http://127.0.0.1:<port>/mcp`; the endpoint only listens on loopback and rejects requests from non-local origins. The tools operate on whichever node Voyager is currently connected to:
+```
+http://127.0.0.1:4040/mcp
+```
+
+(You can change the port or turn the server off under **Settings → MCP Server**.) The endpoint only listens on loopback and rejects requests from non-local origins. The tools operate on whichever node Voyager is currently connected to:
 
 - `node_info` — system, memory, runtime, limits and scheduler snapshot
 - `process_list` / `process_info` — rank processes by an attribute, then read one process's details
@@ -92,7 +98,7 @@ mix phx.server   # web app at localhost:4000
 mix tauri.dev    # desktop app
 ```
 
-See [docs/development.md](docs/development.md) for prerequisites, SSH tunnels in development, local production builds, and the checks to run before opening a pull request.
+Check out the [development guide](docs/development.md) if you want your own setup or want to contribute.
 
 ## License
 
