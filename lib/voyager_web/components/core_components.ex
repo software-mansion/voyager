@@ -432,18 +432,15 @@ defmodule VoyagerWeb.CoreComponents do
   end
 
   def bytes(assigns) do
-    # The tip is `phx-update="ignore"`, so a changed value needs a new id.
-    assigns = assign(assigns, :tip_id, "#{assigns.id}-#{assigns.value}")
-
     ~H"""
-    <.tooltip id={@tip_id} interactive tip_class="font-mono">
-      <span tabindex="0" aria-describedby={"#{@tip_id}-tip"}>{Formatters.format_bytes(@value)}</span>
+    <.tooltip id={@id} interactive tip_class="font-mono">
+      <span tabindex="0" aria-describedby={"#{@id}-tip"}>{Formatters.format_bytes(@value)}</span>
       <:content>
         <div class="flex items-center gap-1">
-          <span id={"#{@tip_id}-exact"}>{Formatters.format_exact_bytes(@value)}</span>
+          <span id={"#{@id}-exact"}>{Formatters.format_exact_bytes(@value)}</span>
           <.copy_button
-            id={"#{@tip_id}-copy"}
-            target={"##{@tip_id}-exact"}
+            id={"#{@id}-copy"}
+            target={"##{@id}-exact"}
             icon_only
             label="Copy bytes"
             size={:sm}
@@ -998,7 +995,7 @@ defmodule VoyagerWeb.CoreComponents do
       <div
         id={"#{@id}-tip"}
         role="tooltip"
-        phx-update="ignore"
+        phx-mounted={JS.ignore_attributes(["class", "style"])}
         class={[
           "tooltip-pop bg-base-100 text-base-content rounded-box max-w-xs px-3 py-2",
           "ring-base-content/15 text-xs leading-relaxed shadow-lg ring-1",
