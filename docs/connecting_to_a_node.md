@@ -17,14 +17,30 @@ Use this when the node runs on your machine, or on a host you can reach directly
 
 [Short names](https://www.erlang.org/doc/apps/erts/erl_cmd.html#sname) work when Voyager and the node are on the same host, or on hosts that resolve each other by bare hostname:
 
+Elixir:
+
 ```sh
 iex --sname my_app --cookie my-secret-cookie -S mix phx.server
 ```
 
+Erlang:
+
+```sh
+erl -sname my_app -setcookie my-secret-cookie
+```
+
 [Long names](https://www.erlang.org/doc/apps/erts/erl_cmd.html#name) are required when you connect by IP or fully qualified domain name:
+
+Elixir:
 
 ```sh
 iex --name my_app@127.0.0.1 --cookie my-secret-cookie -S mix phx.server
+```
+
+Erlang:
+
+```sh
+erl -name my_app@127.0.0.1 -setcookie my-secret-cookie
 ```
 
 For a Mix release set the equivalent [environment variables](https://hexdocs.pm/mix/Mix.Tasks.Release.html#module-environment-variables) instead:
@@ -35,17 +51,34 @@ RELEASE_DISTRIBUTION=name RELEASE_NODE=my_app@10.0.0.5 RELEASE_COOKIE=my-secret-
 
 `RELEASE_DISTRIBUTION=sname` gives you short names.
 
+For an Erlang release put the same `erl` flags in its `vm.args`:
+
+```sh
+-name my_app@10.0.0.5
+-setcookie my-secret-cookie
+```
+
+`-sname` gives you short names.
+
 IPv6 works too: start the node with the IPv6 carrier and use an IPv6 address as the host, for example:
+
+Elixir:
 
 ```sh
 iex --name my_app@::1 --cookie my-secret-cookie --erl "-proto_dist inet6_tcp" -S mix phx.server
 ```
 
+Erlang:
+
+```sh
+erl -name my_app@::1 -setcookie my-secret-cookie -proto_dist inet6_tcp
+```
+
 ### Fill in the form
 
-- **Node name**: exactly what you passed to `--sname` or `--name`. Short names look like `my_app@my-machine`, long names like `my_app@10.0.0.5` or `my_app@server.company.com`.
+- **Node name**: exactly what you passed to `--sname` or `--name` (`-sname` / `-name` in `vm.args`). Short names look like `my_app@my-machine`, long names like `my_app@10.0.0.5` or `my_app@server.company.com`.
 - **`--sname` / `--name` toggle** next to the node name: must match how the node was started. A short-named node and a long-named Voyager cannot see each other, even on the same machine.
-- **Cookie**: the value of [`--cookie`](https://www.erlang.org/doc/apps/erts/erl_cmd.html#setcookie) or `RELEASE_COOKIE`. If the node was started without an explicit cookie it uses the one in `~/.erlang.cookie` on its host.
+- **Cookie**: the value of `--cookie` / `RELEASE_COOKIE` (Elixir) or [`-setcookie`](https://www.erlang.org/doc/apps/erts/erl_cmd.html#setcookie) (Erlang). If the node was started without an explicit cookie it uses the one in `~/.erlang.cookie` on its host.
 - **Remember cookie**: stores the cookie encrypted in Voyager's local database so the next connect is one click.
 
 ## SSH tunnel
@@ -72,12 +105,12 @@ The SSH Tunnel option is disabled when Voyager was not started with its `proxy_e
 
 The form shows the reason under the field it relates to.
 
-- **"Node not found"** or **"Node unreachable"**: the node is not running, the name is wrong, or the node is not distributed. Run `node()` in the node's shell; `:nonode@nohost` means no name was given at boot. Over SSH the name must be registered with `epmd` on the SSH host; set a non-standard `epmd` port under **Advanced**.
+- **"Node not found"** or **"Node unreachable"**: the node is not running, the name is wrong, or the node is not distributed. Run `node()` in the node's shell (`node().` in Erlang); `:nonode@nohost` (`nonode@nohost`) means no name was given at boot. Over SSH the name must be registered with `epmd` on the SSH host; set a non-standard `epmd` port under **Advanced**.
 - **"Name type mismatch"**: flip the `--sname` / `--name` toggle to match how the node was started.
 - **"Connection refused"**, **"Connection timed out"**, **"Host not found"** or **"Host unreachable"**: the host or a port is not reachable. For a direct connection check that `epmd` (4369) and the distribution port (random by default, you can pin it with [`inet_dist_listen_min` / `inet_dist_listen_max`](https://www.erlang.org/doc/apps/kernel/kernel_app.html#inet_dist_listen)) are open in the firewall. Over SSH these refer to the SSH host and port; also check that the SSH host itself can reach the node.
 - **"Could not reach epmd on the host"**: `epmd` is not running on the node's host, or port 4369 is blocked.
 - **"SSH authentication failed"**: with SSH Agent, check that `ssh-add -l` lists a key the host accepts and that the agent is running. If it lists several keys of the same type, only the first is tried; see the Authentication note above. With Password, check the password. Try `ssh user@host` from a terminal first.
-- **"Authentication failed - the Erlang cookie does not match"** (direct) or **"Handshake failed"** (SSH): the node logs `** Connection attempt from disallowed node ... **`. Compare the cookie with [`:erlang.get_cookie()`](https://www.erlang.org/doc/apps/erts/erlang.html#get_cookie/0) on the node.
+- **"Authentication failed - the Erlang cookie does not match"** (direct) or **"Handshake failed"** (SSH): the node logs `** Connection attempt from disallowed node ... **`. Compare the cookie with [`:erlang.get_cookie()`](https://www.erlang.org/doc/apps/erts/erlang.html#get_cookie/0) (`erlang:get_cookie().` in Erlang) on the node.
 - **"Node runs OTP … - Voyager requires OTP 27 or newer"**: upgrade the node's Erlang/OTP.
 - **"Could not load the Voyager agent on the node"**: usually the node's release does not include the `compiler` application. Add it to the release.
 - **Name resolves differently**: a long name must resolve to the same address from Voyager and from the node. When in doubt use an IP address instead of a hostname.

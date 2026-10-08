@@ -62,7 +62,10 @@ The target node must have distribution enabled — a node started without a name
 
 ```sh
 # long names — use the `--name` toggle in Voyager
+# Elixir
 iex --name my_app@127.0.0.1 --cookie my-secret-cookie -S mix phx.server
+# Erlang
+erl -name my_app@127.0.0.1 -setcookie my-secret-cookie
 ```
 
 For a Mix release, set the equivalent environment variables instead:
@@ -70,6 +73,8 @@ For a Mix release, set the equivalent environment variables instead:
 ```sh
 RELEASE_DISTRIBUTION=name RELEASE_NODE=my_app@10.0.0.5 RELEASE_COOKIE=my-secret-cookie bin/my_app start
 ```
+
+For an Erlang release, put `-name my_app@10.0.0.5` and `-setcookie my-secret-cookie` in its `vm.args`.
 
 Recent connections are saved in a local SQLite database; secrets are encrypted before being written. The encryption key never leaves your machine — it is generated on first boot at `~/.voyager/vault.key` (readable only by you), so losing that file makes previously stored secrets unrecoverable.
 
