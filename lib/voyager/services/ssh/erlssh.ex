@@ -1,7 +1,5 @@
 defmodule Voyager.Services.Ssh.Erlssh do
-  @moduledoc """
-  `Voyager.Services.Ssh` over Erlang's `:ssh`.
-  """
+  @moduledoc false
 
   @behaviour Voyager.Services.Ssh
 
