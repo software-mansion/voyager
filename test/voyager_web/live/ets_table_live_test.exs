@@ -22,6 +22,37 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     :ok
   end
 
+  test "reloading the snapshot re-reads the table info", %{conn: conn} do
+    name = named_table(:set)
+    :ets.insert(name, for(i <- 1..60, do: {i, i}))
+
+    view = fetch_records(conn, name)
+
+    assert info_size(view) == "60"
+    assert has_element?(view, "#ets-pager", "of 60")
+
+    :ets.insert(name, for(i <- 61..80, do: {i, i}))
+    view |> element("#ets-peek-fetch") |> render_click()
+    render_async(view, 2_000)
+
+    assert info_size(view) == "80"
+    assert has_element?(view, "#ets-pager", "of 80")
+  end
+
+  test "a failed info reload flashes the error and keeps the last info", %{conn: conn} do
+    name = named_table(:set)
+    :ets.insert(name, {:k, 1})
+
+    view = fetch_records(conn, name)
+    :ets.delete(name)
+
+    view |> element("#ets-peek-fetch") |> render_click()
+    render_async(view, 2_000)
+
+    assert has_element?(view, "#flash-error")
+    assert has_element?(view, "#ets-table-info")
+  end
+
   test "a set row can open the lookup sidebar", %{conn: conn} do
     name = named_table(:set)
     :ets.insert(name, {:k, 1})
@@ -191,6 +222,8 @@ defmodule VoyagerWeb.EtsTableLiveTest do
   defp text(view, selector) do
     view |> render() |> LazyHTML.from_fragment() |> LazyHTML.query(selector) |> LazyHTML.text()
   end
+
+  defp info_size(view), do: view |> text("#ets-info-size dd") |> String.trim()
 
   defp open_lookup(conn, name) do
     view = fetch_records(conn, name)
