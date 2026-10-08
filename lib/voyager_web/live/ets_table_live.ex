@@ -468,7 +468,7 @@ defmodule VoyagerWeb.EtsTableLive do
     continuation = Enum.at(socket.assigns.conts, page)
 
     socket
-    |> resolve_table()
+    |> start_async(:info, fn -> Remote.info(node, table, timeout) end)
     |> cancel_async(:chunk, {:shutdown, :cancel})
     |> assign(:pending_page, page)
     |> assign(:chunk, AsyncResult.loading(socket.assigns.chunk))
