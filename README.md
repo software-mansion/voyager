@@ -29,9 +29,9 @@ https://github.com/user-attachments/assets/8aa3f69e-a692-4b9d-9bf5-75d972f6370f
 
 ## Overview
 
-Voyager is a desktop app that inspects running BEAM systems — supervision trees, processes, memory and IO usage, running applications, and more — through one interface instead of a patchwork of shell commands copy-pasted into `iex`. It connects to any OTP 27+ node, local or remote, over plain Erlang distribution and surfaces the information the BEAM already exposes, in a form that is actually pleasant to read.
+Voyager is a desktop app that inspects running BEAM systems — supervision trees, processes, ETS tables, memory and IO usage, running applications, and more — through one interface instead of a patchwork of shell commands copy-pasted into `iex`. It connects to any OTP 27+ node, local or remote, over plain Erlang distribution and surfaces the information the BEAM already exposes, in a form that is actually pleasant to read.
 
-No setup is required on the target node. Voyager gathers everything over RPC, and all rendering and storage happens on your machine.
+No setup is required on the target node. On connect, Voyager compiles and loads a small helper module (`voyager_agent`) into the node's memory and gathers everything else over RPC; nothing is written to the node's disk, and all rendering and storage happens on your machine.
 
 ### Why Voyager
 
@@ -49,9 +49,11 @@ Download the latest build for your platform from the [website](https://voyager.s
 - macOS (Intel)
 - Linux (x64) — distributed as an AppImage, see [docs/linux_appimage_guide.md](docs/linux_appimage_guide.md) for how to run and install it
 
+The app checks for a new release on startup and can install it in place; the current version and update status are under **Settings → Updates**.
+
 ## Connecting to a node
 
-Voyager needs to reach the target node over Erlang distribution and needs its cookie.
+Voyager needs to reach the target node over Erlang distribution and needs its cookie. See [docs/connecting_to_a_node.md](docs/connecting_to_a_node.md) for a full walkthrough of both connection types and troubleshooting.
 
 - **Local / remote node** — provide the node name (`myapp@host`) and the cookie. Voyager starts distribution on demand and connects.
 - **Over SSH** — provide SSH credentials to a host that can reach the node. Voyager tunnels the distribution connection through it, which is the usual path to a production node behind a bastion.
@@ -71,17 +73,21 @@ RELEASE_DISTRIBUTION=name RELEASE_NODE=my_app@10.0.0.5 RELEASE_COOKIE=my-secret-
 
 Recent connections are saved in a local SQLite database; secrets are encrypted before being written. The encryption key never leaves your machine — it is generated on first boot at `~/.voyager/vault.key` (readable only by you), so losing that file makes previously stored secrets unrecoverable.
 
-Distribution settings (node name, cookie handling) are configurable under **Settings → Distribution**.
+Voyager's own node is named `voyager<suffix>`; set the suffix under **Settings → Distribution** to run several Voyager instances side by side. Its own cookie is random per launch and only the target node's cookie is needed. IPv6 nodes are supported for both connection types.
 
 ### Supported OTP versions
 
-The inspected node must run **OTP 27 or later**, whether you connect directly or over SSH. Nodes on OTP 26 and older are refused.
+The inspected node must run **OTP 27 or later**, whether you connect directly or over SSH. Nodes on OTP 26 and older are refused. The node also needs the `compiler` application available (it is included in every Elixir release), since the helper module is compiled on it.
 
 ## MCP server
 
 Voyager can expose the connected node to MCP clients such as Claude Code or Cursor, so an agent can inspect a live system instead of guessing from source code.
 
-Enable it under **Settings → MCP** and pick a port. Point your MCP client at the resulting HTTP endpoint. The tool operates on whichever node Voyager is currently connected to.
+Enable it under **Settings → MCP Server** and pick a port (default `4040`). Point your MCP client at `http://127.0.0.1:<port>/mcp`; the endpoint only listens on loopback and rejects requests from non-local origins. The tools operate on whichever node Voyager is currently connected to:
+
+- `node_info` — system, memory, runtime, limits and scheduler snapshot
+- `process_list` / `process_info` — rank processes by an attribute, then read one process's details
+- `ets_list` / `ets_read_table_chunk` / `ets_search_table` — list ETS tables, page through one, or query it with a match spec
 
 ## Feedback and contributing
 
@@ -93,7 +99,11 @@ Voyager is in active development and feedback shapes what gets built next.
 
 ## Development
 
-Required Elixir, Erlang, Node.js, and Rust versions are pinned in [`.tool-versions`](.tool-versions).
+Required Elixir, Erlang, Node.js, and Rust versions are pinned in [`.tool-versions`](.tool-versions). The desktop app also needs the Tauri CLI:
+
+```sh
+cargo install tauri-cli --version "=2.8.0" --locked
+```
 
 Install dependencies and set up the database:
 
@@ -109,7 +119,7 @@ mix phx.server
 iex -S mix phx.server
 ```
 
-Then visit [localhost:4000](http://localhost:4000).
+Then visit [localhost:4000](http://localhost:4000). SSH tunnel connections need Voyager's `proxy_epmd` module set at VM boot, so to try them in the web app start it with `dev/server.sh` instead.
 
 Run the desktop application in development:
 
@@ -117,7 +127,7 @@ Run the desktop application in development:
 mix tauri.dev
 ```
 
-To check the production desktop app locally:
+To build and open the production desktop app locally:
 
 ```sh
 mix assets.deploy
