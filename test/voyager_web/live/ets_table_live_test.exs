@@ -53,6 +53,27 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     assert has_element?(view, "#ets-table-info")
   end
 
+  test "refetching info on a private table re-reads the table info", %{conn: conn} do
+    name = EtsTable.unique_name()
+    :ets.new(name, [:named_table, :private, :set])
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/ets-tables/#{inspect(name)}")
+    render_async(view, 2_000)
+
+    assert has_element?(view, "#ets-private-notice")
+    assert has_element?(view, "#ets-peek-fetch:not([disabled])", "Refetch info")
+
+    :ets.delete(name)
+    :ets.new(name, [:named_table, :public, :set])
+    :ets.insert(name, {:k, 1})
+
+    view |> element("#ets-peek-fetch") |> render_click()
+    render_async(view, 2_000)
+
+    refute has_element?(view, "#ets-private-notice")
+    refute has_element?(view, "#ets-records-count")
+  end
+
   test "a set row can open the lookup sidebar", %{conn: conn} do
     name = named_table(:set)
     :ets.insert(name, {:k, 1})
