@@ -59,6 +59,13 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
     }
   ]
 
+  @flag_rows [
+    {:compressed, "Compressed"},
+    {:read_concurrency, "Read concurrency"},
+    {:write_concurrency, "Write concurrency"},
+    {:decentralized_counters, "Decentralized counters"}
+  ]
+
   @doc """
   Column definitions for the selected attributes, in display order.
   """
@@ -286,7 +293,18 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
           value={Integer.to_string(@row.keypos)}
         />
       <% :heir -> %>
-        <.heir_cell heir={@row.heir} row_id={@row_id} href={@heir_href} />
+        <DataTableComponents.value_cell
+          :if={@row.heir == :none}
+          id={"#{@row_id}-heir"}
+          value="none"
+          muted
+        />
+        <ProcessComponents.pid_cell
+          :if={@row.heir != :none}
+          pid={@row.heir}
+          row_id={"#{@row_id}-heir"}
+          href={@heir_href}
+        />
       <% key -> %>
         <DataTableComponents.value_cell
           id={"#{@row_id}-#{key}"}
@@ -303,25 +321,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
   """
   @spec format_flag(boolean() | :auto | nil) :: String.t()
   def format_flag(nil), do: DataTableComponents.placeholder()
-  def format_flag(:auto), do: "auto"
-  def format_flag(true), do: "true"
-  def format_flag(false), do: "false"
-
-  attr :heir, :any, required: true
-  attr :row_id, :string, required: true
-  attr :href, :string, default: nil
-
-  defp heir_cell(%{heir: :none} = assigns) do
-    ~H"""
-    <DataTableComponents.value_cell id={"#{@row_id}-heir"} value="none" muted />
-    """
-  end
-
-  defp heir_cell(assigns) do
-    ~H"""
-    <ProcessComponents.pid_cell pid={@heir} row_id={"#{@row_id}-heir"} href={@href} />
-    """
-  end
+  def format_flag(value), do: to_string(value)
 
   attr :table, :map, required: true
   attr :row_id, :string, required: true
@@ -594,6 +594,8 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
   end
 
   defp panel_skeleton(assigns) do
+    assigns = assign(assigns, :flag_rows, @flag_rows)
+
     ~H"""
     <div class="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
       <div class="skeleton w-33 h-8 rounded-md" />
@@ -608,22 +610,12 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
       <.section title="Storage">
         <.kv_skeleton label="Objects" help={EtsTableHelp.get(:size)} width={:narrow} />
         <.kv_skeleton label="Memory" help={EtsTableHelp.get(:memory)} />
-        <.kv_skeleton label="Compressed" help={EtsTableHelp.get(:compressed)} width={:narrow} />
         <.kv_skeleton
-          label="Read concurrency"
-          help={EtsTableHelp.get(:read_concurrency)}
+          :for={{key, label} <- @flag_rows}
+          label={label}
+          help={EtsTableHelp.get(key)}
           width={:narrow}
-        />
-        <.kv_skeleton
-          label="Write concurrency"
-          help={EtsTableHelp.get(:write_concurrency)}
-          width={:narrow}
-        />
-        <.kv_skeleton
-          label="Decentralized counters"
-          help={EtsTableHelp.get(:decentralized_counters)}
-          width={:narrow}
-          last
+          last={key == :decentralized_counters}
         />
       </.section>
     </div>
