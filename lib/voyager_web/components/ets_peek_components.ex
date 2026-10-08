@@ -102,8 +102,12 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
         </span>
       </.info_item>
       <.info_item id="ets-info-keypos" label="Key position" help={:keypos}>{@info.keypos}</.info_item>
-      <.info_item label="Records" help={:size}>{Formatters.format_integer(@info.size)}</.info_item>
-      <.info_item label="Memory" help={:memory}>{Formatters.format_bytes(@info.memory)}</.info_item>
+      <.info_item id="ets-info-size" label="Records" help={:size}>
+        {Formatters.format_integer(@info.size)}
+      </.info_item>
+      <.info_item id="ets-info-memory" label="Memory" help={:memory}>
+        {Formatters.format_bytes(@info.memory)}
+      </.info_item>
       <.info_item id="ets-info-owner" label="Owner" help={:owner}>
         <ProcessComponents.process_link pid={@info.owner} current_url={@current_url} />
       </.info_item>

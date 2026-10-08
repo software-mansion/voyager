@@ -223,6 +223,7 @@ defmodule VoyagerWeb.EtsTableLive do
     socket
     |> assign(:conts, [nil])
     |> assign(:page_size, socket.assigns.controls.chunk_size)
+    |> refresh_info()
     |> fetch_page(0)
     |> noreply()
   end
@@ -360,12 +361,14 @@ defmodule VoyagerWeb.EtsTableLive do
 
   def handle_async(:info, {:ok, {:error, reason}}, socket) do
     socket
+    |> flash_info_failure(reason)
     |> assign(:info, AsyncResult.failed(socket.assigns.info, reason))
     |> noreply()
   end
 
   def handle_async(:info, {:exit, reason}, socket) do
     socket
+    |> flash_info_failure(reason)
     |> assign(:info, AsyncResult.failed(socket.assigns.info, reason))
     |> noreply()
   end
@@ -443,6 +446,19 @@ defmodule VoyagerWeb.EtsTableLive do
       end
     end)
   end
+
+  defp refresh_info(socket) do
+    node = socket.assigns.session.node
+    table = socket.assigns.table_id
+    timeout = socket.assigns.controls.timeout
+
+    start_async(socket, :info, fn -> Remote.info(node, table, timeout) end)
+  end
+
+  defp flash_info_failure(%{assigns: %{info: %AsyncResult{ok?: true}}} = socket, reason),
+    do: put_flash(socket, :error, format_error(reason))
+
+  defp flash_info_failure(socket, _reason), do: socket
 
   # A reference cannot be reconstructed from its inspect string, so it is
   # matched against the node's live table handles instead.
