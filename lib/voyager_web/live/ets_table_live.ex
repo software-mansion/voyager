@@ -220,12 +220,18 @@ defmodule VoyagerWeb.EtsTableLive do
   # A new snapshot starts a fresh select: the old continuations belong to a
   # walk that is no longer on screen.
   def handle_event("fetch", _params, socket) do
-    socket
-    |> assign(:conts, [nil])
-    |> assign(:page_size, socket.assigns.controls.chunk_size)
-    |> refresh_info()
-    |> fetch_page(0)
-    |> noreply()
+    if readable?(socket.assigns.info) do
+      socket
+      |> assign(:conts, [nil])
+      |> assign(:page_size, socket.assigns.controls.chunk_size)
+      |> refresh_info()
+      |> fetch_page(0)
+      |> noreply()
+    else
+      socket
+      |> refresh_info()
+      |> noreply()
+    end
   end
 
   # The pager is 1-based; a page is reachable only while its continuation is
