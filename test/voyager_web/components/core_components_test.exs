@@ -10,6 +10,7 @@ defmodule VoyagerWeb.CoreComponentsTest do
   defp count(html, selector), do: html |> query(selector) |> Enum.count()
   defp text(html, selector), do: html |> query(selector) |> LazyHTML.text()
   defp attr(html, selector, name), do: html |> query(selector) |> LazyHTML.attribute(name)
+
   @options [{"pid", "PID", true}, {"status", "Status", false}, {"memory", "Memory", false}]
 
   defp multiselect(attrs \\ []) do
