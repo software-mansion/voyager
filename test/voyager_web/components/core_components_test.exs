@@ -153,7 +153,8 @@ defmodule VoyagerWeb.CoreComponentsTest do
       html = render_component(&CoreComponents.bytes/1, id: "mem", value: 8_736)
 
       assert text(html, "#mem-8736") =~ "9 KB"
-      assert html =~ "8,736 B"
+      assert html =~ ~s(<span id="mem-8736-exact">8,736 B</span>)
+      assert html =~ ~s(data-copy-target="#mem-8736-exact")
     end
 
     test "shows a dash with no tooltip for nil" do

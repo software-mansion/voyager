@@ -419,8 +419,8 @@ defmodule VoyagerWeb.CoreComponents do
   end
 
   @doc """
-  A byte count rounded to its unit, with the exact count in a tooltip. `nil`
-  renders a dash.
+  A byte count rounded to its unit, with the exact count and a copy button in a
+  tooltip. `nil` renders a dash.
   """
   attr :id, :string, required: true
   attr :value, :integer, required: true
@@ -436,9 +436,21 @@ defmodule VoyagerWeb.CoreComponents do
     assigns = assign(assigns, :tip_id, "#{assigns.id}-#{assigns.value}")
 
     ~H"""
-    <.tooltip id={@tip_id} tip_class="font-mono">
+    <.tooltip id={@tip_id} interactive tip_class="font-mono">
       <span tabindex="0" aria-describedby={"#{@tip_id}-tip"}>{Formatters.format_bytes(@value)}</span>
-      <:content>{Formatters.format_exact_bytes(@value)}</:content>
+      <:content>
+        <div class="flex items-center gap-1">
+          <span id={"#{@tip_id}-exact"}>{Formatters.format_exact_bytes(@value)}</span>
+          <.copy_button
+            id={"#{@tip_id}-copy"}
+            target={"##{@tip_id}-exact"}
+            icon_only
+            label="Copy bytes"
+            size={:sm}
+            class="text-base-content/60 shrink-0 hover:text-primary"
+          />
+        </div>
+      </:content>
     </.tooltip>
     """
   end
