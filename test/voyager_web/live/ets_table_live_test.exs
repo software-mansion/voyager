@@ -69,6 +69,20 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     refute has_element?(view, "#ets-pager-next[disabled]")
   end
 
+  test "paging reaches rows inserted after the last fetch", %{conn: conn} do
+    name = named_table(:ordered_set)
+    :ets.insert(name, for(i <- 1..100, do: {i, :test}))
+
+    view = fetch_records(conn, name)
+    :ets.insert(name, for(i <- 101..150, do: {i, :test}))
+
+    view |> element("#ets-pager-next") |> render_click()
+    render_async(view, 2_000)
+
+    assert page_label(view, "#ets-pager") == "2 / 3"
+    refute has_element?(view, "#ets-pager-next[disabled]")
+  end
+
   test "a row keyed by an intact tuple can be looked up", %{conn: conn} do
     name = named_table(:set)
     :ets.insert(name, {{:user, [1 | 2]}, 1})
