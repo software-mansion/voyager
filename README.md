@@ -53,36 +53,16 @@ The app checks for a new release on startup and can install it in place; the cur
 
 ## Connecting to a node
 
-Voyager needs to reach the target node over Erlang distribution and needs its cookie. See [docs/connecting_to_a_node.md](docs/connecting_to_a_node.md) for a full walkthrough of both connection types and troubleshooting.
-
-- **Local / remote node** — provide the node name (`myapp@host`) and the cookie. Voyager starts distribution on demand and connects.
-- **Over SSH** — provide SSH credentials to a host that can reach the node. Voyager tunnels the distribution connection through it, which is the usual path to a production node behind a bastion.
-
-The target node must have distribution enabled — a node started without a name is not distributed and cannot be connected to at all. Give it a name and a cookie at boot, and make sure the name type matches the toggle next to the node name field:
+Voyager connects to any distributed node running **OTP 27 or later**, either directly or through an SSH tunnel to a host that can reach it, which is the usual path to a production node behind a bastion. Start the node with a name and a cookie, then enter both in the connect form:
 
 ```sh
-# long names — use the `--name` toggle in Voyager
 # Elixir
 iex --name my_app@127.0.0.1 --cookie my-secret-cookie -S mix phx.server
 # Erlang
 erl -name my_app@127.0.0.1 -setcookie my-secret-cookie
 ```
 
-For a Mix release, set the equivalent environment variables instead:
-
-```sh
-RELEASE_DISTRIBUTION=name RELEASE_NODE=my_app@10.0.0.5 RELEASE_COOKIE=my-secret-cookie bin/my_app start
-```
-
-For an Erlang release, put `-name my_app@10.0.0.5` and `-setcookie my-secret-cookie` in its `vm.args`.
-
-Recent connections are saved in a local SQLite database; secrets are encrypted before being written. The encryption key never leaves your machine — it is generated on first boot at `~/.voyager/vault.key` (readable only by you), so losing that file makes previously stored secrets unrecoverable.
-
-Voyager's own node is named `voyager<suffix>`; set the suffix under **Settings → Distribution** to run several Voyager instances side by side. Its own cookie is random per launch and only the target node's cookie is needed. IPv6 nodes are supported for both connection types.
-
-### Supported OTP versions
-
-The inspected node must run **OTP 27 or later**, whether you connect directly or over SSH. Nodes on OTP 26 and older are refused. The node also needs the `compiler` application available (it is included in every Elixir release), since the helper module is compiled on it.
+See [docs/connecting_to_a_node.md](docs/connecting_to_a_node.md) for short names, releases, IPv6, the SSH setup, how saved connections are stored, and troubleshooting.
 
 ## MCP server
 
@@ -104,50 +84,15 @@ Voyager is in active development and feedback shapes what gets built next.
 
 ## Development
 
-Required Elixir, Erlang, Node.js, and Rust versions are pinned in [`.tool-versions`](.tool-versions). The desktop app also needs the Tauri CLI:
-
-```sh
-cargo install tauri-cli --version "=2.8.0" --locked
-```
-
-Install dependencies and set up the database:
+With the tool versions from [`.tool-versions`](.tool-versions) installed:
 
 ```sh
 mix setup
+mix phx.server   # web app at localhost:4000
+mix tauri.dev    # desktop app
 ```
 
-Run the web app on its own:
-
-```sh
-mix phx.server
-# or
-iex -S mix phx.server
-```
-
-Then visit [localhost:4000](http://localhost:4000). SSH tunnel connections need Voyager's `proxy_epmd` module set at VM boot, so to try them in the web app start it with `dev/server.sh` instead.
-
-Run the desktop application in development:
-
-```sh
-mix tauri.dev
-```
-
-To build and open the production desktop app locally:
-
-```sh
-mix assets.deploy
-mix tauri.app
-```
-
-To tell a locally built desktop app apart from a release, set `VOYAGER_DEV_BUILD=true` in
-`rel/app/.env` (see [`.env.sample`](rel/app/.env.sample)). Apps built or run through `mix tauri.*`
-then show a `Dev Build` banner.
-
-Before opening a pull request, run:
-
-```sh
-mix precommit
-```
+See [docs/development.md](docs/development.md) for prerequisites, SSH tunnels in development, local production builds, and the checks to run before opening a pull request.
 
 ## License
 

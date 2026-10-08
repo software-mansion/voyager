@@ -101,6 +101,12 @@ Use this for a node behind a firewall or bastion, which is the usual production 
 
 The SSH Tunnel option is disabled when Voyager was not started with its `proxy_epmd` module. That is how the local BEAM learns to route distribution traffic through the tunnel; the packaged desktop app always enables it, and in development `dev/server.sh` or `mix tauri.dev` does.
 
+## Voyager's own node and saved connections
+
+- Voyager starts its own distributed node named `voyager<suffix>`, with host `127.0.0.1` for long names and `localhost` for short names. Set the suffix under **Settings → Distribution** to run several Voyager instances side by side.
+- Voyager's own cookie is random per launch; only the target node's cookie is needed.
+- Recent connections are saved in a local SQLite database; secrets are encrypted before being written. The encryption key never leaves your machine — it is generated on first boot at `~/.voyager/vault.key` (readable only by you), so losing that file makes previously stored secrets unrecoverable.
+
 ## When it does not connect
 
 The form shows the reason under the field it relates to.
