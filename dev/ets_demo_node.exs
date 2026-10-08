@@ -32,8 +32,17 @@ defmodule Demo do
     run(fn ->
       info = Keyword.merge(:ets.info(tab), changes)
       rows = :ets.tab2list(tab)
+      options = opts(info)
+      temporary = :ets.new(info[:name], List.delete(options, :named_table))
+
+      try do
+        :ets.insert(temporary, rows)
+      after
+        :ets.delete(temporary)
+      end
+
       :ets.delete(tab)
-      new_tab = :ets.new(info[:name], opts(info))
+      new_tab = :ets.new(info[:name], options)
       :ets.insert(new_tab, rows)
       new_tab
     end)
