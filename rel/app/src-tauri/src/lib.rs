@@ -1,10 +1,12 @@
+#[cfg(target_os = "macos")]
+mod tray;
 mod utils;
 
 use std::sync::Mutex;
 use std::time::Duration;
 
 use tauri::{
-    Manager,
+    Manager, RunEvent,
     menu::{HELP_SUBMENU_ID, MenuItemBuilder, PredefinedMenuItem},
 };
 use tauri_plugin_opener::OpenerExt;
@@ -22,12 +24,17 @@ const MIN_ZOOM: f64 = 0.5;
 const MAX_ZOOM: f64 = 2.0;
 const UPDATES_TOPIC: &str = "updates";
 const UPDATE_STALL_TIMEOUT: Duration = Duration::from_secs(30);
+/// Whether closing the window leaves Voyager running behind the tray icon.
+const BACKGROUND: bool = cfg!(target_os = "macos");
 
 /// Current zoom factor, since the webview does not expose a getter.
 struct ZoomLevel(Mutex<f64>);
 
 /// Update found at startup, installed when the user asks for it from the UI.
 struct PendingUpdate(Mutex<Option<Update>>);
+
+/// Phoenix port, managed only once the server is ready so the tray cannot open a dead page.
+struct ServerPort(u16);
 
 /// Current OS appearance for Auto theme after full page reloads.
 #[tauri::command]
@@ -40,7 +47,7 @@ pub fn run() {
     tauri::Builder::default()
         // Must be registered first so a second launch exits before Elixir starts.
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            focus_existing_window(app);
+            open_window(app);
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -92,7 +99,11 @@ pub fn run() {
                 }
             }
 
+            #[cfg(target_os = "macos")]
+            tray::setup(app);
+
             let pubsub = elixirkit::PubSub::listen("tcp://127.0.0.1:0").expect("failed to listen");
+            app.manage(pubsub.clone());
 
             let app_handle = app.handle().clone();
             let port =
@@ -101,6 +112,7 @@ pub fn run() {
 
             pubsub.subscribe("messages", move |msg| {
                 if msg == b"ready" {
+                    app_handle.manage(ServerPort(port));
                     create_window(&app_handle, port);
                     // Debug builds run `mix phx.server` from the repo, there is no bundle to replace.
                     if !cfg!(debug_assertions) {
@@ -110,6 +122,9 @@ pub fn run() {
                     println!("[rust] {}", String::from_utf8_lossy(msg));
                 }
             });
+
+            #[cfg(target_os = "macos")]
+            pubsub.subscribe(tray::TOPIC, tray::update);
 
             let app_handle = app.handle().clone();
             let updates_pubsub = pubsub.clone();
@@ -140,8 +155,25 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| match event {
+            RunEvent::ExitRequested {
+                code: None, api, ..
+            } if BACKGROUND => api.prevent_exit(),
+            #[cfg(target_os = "macos")]
+            RunEvent::Reopen {
+                has_visible_windows: false,
+                ..
+            } => open_window(app),
+            _ => {}
+        });
+}
+
+fn open_window(app_handle: &tauri::AppHandle) {
+    if let Some(port) = app_handle.try_state::<ServerPort>() {
+        create_window(app_handle, port.0);
+    }
 }
 
 fn focus_existing_window(app: &tauri::AppHandle) {
@@ -268,18 +300,31 @@ fn create_window(app_handle: &tauri::AppHandle, port: u16) {
         .zoom_hotkeys_enabled(cfg!(not(target_os = "macos")))
         .initialization_script(theme_init);
 
-    #[cfg_attr(target_os = "macos", allow(unused_variables))]
     let window = builder.build().unwrap();
+    let zoom = *app_handle
+        .state::<ZoomLevel>()
+        .0
+        .lock()
+        .expect("zoom level poisoned");
+    let _ = window.set_zoom(zoom);
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "macos")]
     {
-        let app_handle = window.app_handle().clone();
-        window.on_window_event(move |event| {
-            if let tauri::WindowEvent::Destroyed = event {
+        let _ = app_handle.set_activation_policy(tauri::ActivationPolicy::Regular);
+        let _ = window.set_focus();
+    }
+
+    let app_handle = app_handle.clone();
+    window.on_window_event(move |event| {
+        if let tauri::WindowEvent::Destroyed = event {
+            if !BACKGROUND {
                 app_handle.exit(0);
             }
-        });
-    }
+            // Hides the Dock icon while only the tray is left.
+            #[cfg(target_os = "macos")]
+            let _ = app_handle.set_activation_policy(tauri::ActivationPolicy::Accessory);
+        }
+    });
 }
 
 fn elixir_command(
