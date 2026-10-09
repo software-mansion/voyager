@@ -144,4 +144,30 @@ defmodule Voyager.ConnectionsTest do
       assert ConnectionQueries.get(-1) == nil
     end
   end
+
+  describe "last_connectable/0" do
+    test "returns the most recent connection with a saved cookie" do
+      insert_connection("older@h", "x", ~U[2020-01-01 00:00:00Z])
+      insert_connection("newer@h", "x", ~U[2020-01-02 00:00:00Z])
+      insert_connection("nocookie@h", nil, ~U[2020-01-03 00:00:00Z])
+
+      assert %Connection{node_name: "newer@h"} = ConnectionQueries.last_connectable()
+    end
+
+    test "returns nil when no connection has a saved cookie" do
+      insert_connection("nocookie@h", nil, ~U[2020-01-01 00:00:00Z])
+
+      assert ConnectionQueries.last_connectable() == nil
+    end
+  end
+
+  defp insert_connection(node_name, cookie, last_connected_at) do
+    %Connection{}
+    |> Connection.changeset(%{
+      node_name: node_name,
+      cookie: cookie,
+      last_connected_at: last_connected_at
+    })
+    |> Repo.insert!()
+  end
 end

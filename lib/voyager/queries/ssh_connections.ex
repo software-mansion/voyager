@@ -25,4 +25,15 @@ defmodule Voyager.Queries.SshConnections do
       node_name: node_name
     )
   end
+
+  @doc "Returns the most recently connected profile with every credential saved, so it can reconnect unattended."
+  @spec last_connectable() :: SshConnection.t() | nil
+  def last_connectable do
+    SshConnection
+    |> where([c], not is_nil(c.cookie))
+    |> where([c], c.auth_method == :agent or not is_nil(c.password))
+    |> order_by([c], desc: c.last_connected_at)
+    |> limit(1)
+    |> Repo.one()
+  end
 end
