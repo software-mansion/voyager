@@ -29,9 +29,13 @@ https://github.com/user-attachments/assets/8aa3f69e-a692-4b9d-9bf5-75d972f6370f
 
 ## Overview
 
-Voyager is a desktop app that inspects running BEAM systems — supervision trees, processes, ETS tables, memory and IO usage, running applications, and more — through one interface instead of a patchwork of shell commands copy-pasted into `iex`. It connects to any OTP 27+ node, local or remote, over plain Erlang distribution and surfaces the information the BEAM already exposes, in a form that is actually pleasant to read.
+Voyager is a desktop app that inspects running BEAM systems through one interface instead of a patchwork of shell commands copy-pasted into `iex`. It connects to any OTP 27+ node, local or remote, over plain Erlang distribution and surfaces the information the BEAM already exposes, in a form that is actually pleasant to read:
 
-The same data is available to coding agents such as Claude Code or Cursor through Voyager's built-in MCP server, so they can inspect a live system instead of guessing from source code.
+- **Node info** — memory and IO usage, schedulers, system limits, and running applications
+- **Supervision trees** — a graphical, navigable view of each application's process hierarchy
+- **Processes** — rank processes by memory, reductions, or message queue length, and drill into any one of them
+- **ETS tables** — list tables, browse their contents, look up keys, and search with match specs
+- **MCP server** — the same data for coding agents such as Claude Code or Cursor, so they can inspect a live system instead of guessing from source code
 
 No setup is required on the target node. On connect, Voyager compiles and loads a small helper module (`voyager_agent`) into the node's memory and gathers everything else over RPC; nothing is written to the node's disk, and all rendering and storage happens on your machine.
 
