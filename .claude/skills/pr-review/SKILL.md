@@ -51,7 +51,7 @@ refusal is silent in effect: you lose the existing comments and start re-raising
    sections that do not apply.
 3. Verify every finding against the actual file, then score your confidence that it is a real
    defect from 0 to 100. **Drop everything below the confidence threshold** — the one the
-   prompt that invoked you gives (`@claude review confidence 60` in CI), 80 when it gives none.
+   prompt that invoked you gives (`@claude review confidence 60` in CI), 60 when it gives none.
    A finding you cannot state a concrete failure for — the input that triggers it and the wrong
    result it produces — is below any threshold by definition.
 4. Post inline comments on the exact line for anything anchored to code, and put the full list in
@@ -97,10 +97,13 @@ and no "Lean already" line.
 
 ## Output
 
+Every finding carries its step 3 confidence score as a percentage right after its label, inline and
+in the summary, so a reader can weigh a 62% finding differently from a 95% one.
+
 Inline comment body:
 
 ```
-🟡 should-fix: `String.to_integer/1` raises on a tampered `id` param and crashes the LiveView. Use `Integer.parse/1` and ignore invalid values.
+🟡 should-fix · 90%: `String.to_integer/1` raises on a tampered `id` param and crashes the LiveView. Use `Integer.parse/1` and ignore invalid values.
 ```
 
 Summary comment:
@@ -110,11 +113,11 @@ Summary comment:
 
 Severity: 🔴 blocking · 🟡 should-fix · 🟢 nit
 
-- 🔴 `lib/voyager_web/live/connect_live.ex:88` — `String.to_integer/1` on a LiveView param; a tampered `id` raises and kills the LiveView. Use `Integer.parse/1` and ignore invalid values.
-- 🟡 `lib/voyager/services/node_connector.ex:42` — `@default_port` is duplicated in three modules; keep it in one place behind a function.
-- 🟢 `lib/voyager/services/node_connector.ex:12` — comment restates the line below it.
+- 🔴 95% `lib/voyager_web/live/connect_live.ex:88` — `String.to_integer/1` on a LiveView param; a tampered `id` raises and kills the LiveView. Use `Integer.parse/1` and ignore invalid values.
+- 🟡 85% `lib/voyager/services/node_connector.ex:42` — `@default_port` is duplicated in three modules; keep it in one place behind a function.
+- 🟢 70% `lib/voyager/services/node_connector.ex:12` — comment restates the line below it.
 
-- 🦐 `lib/voyager/services/node_connector.ex:60-74` — yagni: `ConnectorBehaviour` with one implementation. Call `NodeConnector` directly until a second one exists.
+- 🦐 80% `lib/voyager/services/node_connector.ex:60-74` — yagni: `ConnectorBehaviour` with one implementation. Call `NodeConnector` directly until a second one exists.
 
 <verdict: 1 blocking, 1 should-fix, 1 nit, 1 ponytail · net: -15 lines possible>
 ```
@@ -122,7 +125,7 @@ Severity: 🔴 blocking · 🟡 should-fix · 🟢 nit
 Ponytail inline comment body:
 
 ```
-🦐 yagni: `ConnectorBehaviour` with one implementation. Call `NodeConnector` directly until a second one exists.
+🦐 80% · yagni: `ConnectorBehaviour` with one implementation. Call `NodeConnector` directly until a second one exists.
 ```
 
 The summary is that block and nothing else. No notes section, no table of earlier findings

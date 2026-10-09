@@ -39,9 +39,9 @@ jobs:
         id: options
         run: |
           confidence=$(grep -oiE 'confidence[ =:]*[0-9]{1,3}' <<<"$TRIGGER_BODY" | head -1 | grep -oE '[0-9]+$' || true)
-          confidence=$((10#${confidence:-80}))
-          (( confidence <= 100 )) || confidence=80
-          echo "confidence=$confidence" >> "$GITHUB_OUTPUT"
+          if [[ -n "$confidence" ]] && (( 10#$confidence <= 100 )); then
+            echo "threshold=Confidence threshold: $((10#$confidence))." >> "$GITHUB_OUTPUT"
+          fi
 
       # Prompt injection: everything on the PR head is untrusted input. Before the
       # agent starts, the action replaces .claude/, CLAUDE.md, CLAUDE.local.md,
@@ -70,7 +70,7 @@ jobs:
             tracking comment, updated with `mcp__github_comment__update_claude_comment`.
             `track_progress` mode forbids creating new comments — never open a separate one.
             Never post test or placeholder comments.
-            Confidence threshold: ${{ steps.options.outputs.confidence }}.
+            ${{ steps.options.outputs.threshold }}
             ${{ contains(env.TRIGGER_BODY, 'no ponytail') && 'Skip the over-engineering pass.' || '' }}
           claude_args: |
             --model opus
