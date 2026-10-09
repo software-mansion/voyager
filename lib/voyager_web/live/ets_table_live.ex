@@ -97,7 +97,7 @@ defmodule VoyagerWeb.EtsTableLive do
 
           <EtsPeekComponents.controls
             form={@form}
-            loading?={loading?(@chunk)}
+            loading?={loading?(@chunk) or loading?(@info)}
             readable?={readable?(@info)}
             fetched?={@fetched?}
           />
@@ -220,11 +220,17 @@ defmodule VoyagerWeb.EtsTableLive do
   # A new snapshot starts a fresh select: the old continuations belong to a
   # walk that is no longer on screen.
   def handle_event("fetch", _params, socket) do
-    socket
-    |> assign(:conts, [nil])
-    |> assign(:page_size, socket.assigns.controls.chunk_size)
-    |> fetch_page(0)
-    |> noreply()
+    if readable?(socket.assigns.info) do
+      socket
+      |> assign(:conts, [nil])
+      |> assign(:page_size, socket.assigns.controls.chunk_size)
+      |> fetch_page(0)
+      |> noreply()
+    else
+      socket
+      |> refresh_info()
+      |> noreply()
+    end
   end
 
   # The pager is 1-based; a page is reachable only while its continuation is
@@ -355,17 +361,20 @@ defmodule VoyagerWeb.EtsTableLive do
     socket
     |> assign(:table_id, info.id)
     |> assign(:info, AsyncResult.ok(socket.assigns.info, info))
+    |> drop_unreadable_records()
     |> noreply()
   end
 
   def handle_async(:info, {:ok, {:error, reason}}, socket) do
     socket
+    |> flash_info_failure(reason)
     |> assign(:info, AsyncResult.failed(socket.assigns.info, reason))
     |> noreply()
   end
 
   def handle_async(:info, {:exit, reason}, socket) do
     socket
+    |> flash_info_failure(reason)
     |> assign(:info, AsyncResult.failed(socket.assigns.info, reason))
     |> noreply()
   end
@@ -384,12 +393,14 @@ defmodule VoyagerWeb.EtsTableLive do
     |> assign(:last_updated, DateTime.utc_now())
     |> assign(:round_trip_ms, round_trip_ms)
     |> put_record_terms(chunk.records)
+    |> drop_unreadable_records()
     |> noreply()
   end
 
   def handle_async(:chunk, {:ok, {:error, reason}}, socket) do
     socket
     |> assign(:chunk, AsyncResult.failed(socket.assigns.chunk, reason))
+    |> drop_unreadable_records()
     |> noreply()
   end
 
@@ -444,6 +455,34 @@ defmodule VoyagerWeb.EtsTableLive do
     end)
   end
 
+  defp refresh_info(socket) do
+    node = socket.assigns.session.node
+    table = socket.assigns.table_id
+    timeout = socket.assigns.controls.timeout
+
+    socket
+    |> assign(:info, AsyncResult.loading(socket.assigns.info))
+    |> start_async(:info, fn -> Remote.info(node, table, timeout) end)
+  end
+
+  defp flash_info_failure(%{assigns: %{info: %AsyncResult{ok?: true}}} = socket, reason),
+    do: put_flash(socket, :error, format_error(reason))
+
+  defp flash_info_failure(socket, _reason), do: socket
+
+  defp drop_unreadable_records(socket) do
+    if readable?(socket.assigns.info) do
+      socket
+    else
+      socket
+      |> cancel_async(:chunk, {:shutdown, :cancel})
+      |> assign(:chunk, %AsyncResult{})
+      |> assign(:records, [])
+      |> assign(:truncated?, false)
+      |> assign(:fetched?, false)
+    end
+  end
+
   # A reference cannot be reconstructed from its inspect string, so it is
   # matched against the node's live table handles instead.
   defp table_ids(node, "#Ref" <> _param, timeout) do
@@ -464,7 +503,7 @@ defmodule VoyagerWeb.EtsTableLive do
     continuation = Enum.at(socket.assigns.conts, page)
 
     socket
-    |> start_async(:info, fn -> Remote.info(node, table, timeout) end)
+    |> refresh_info()
     |> cancel_async(:chunk, {:shutdown, :cancel})
     |> assign(:pending_page, page)
     |> assign(:chunk, AsyncResult.loading(socket.assigns.chunk))

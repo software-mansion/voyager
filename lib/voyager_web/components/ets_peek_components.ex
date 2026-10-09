@@ -100,7 +100,9 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
         </span>
       </.info_item>
       <.info_item id="ets-info-keypos" label="Key position" help={:keypos}>{@info.keypos}</.info_item>
-      <.info_item label="Objects" help={:size}>{Formatters.format_integer(@info.size)}</.info_item>
+      <.info_item id="ets-info-size" label="Objects" help={:size}>
+        {Formatters.format_integer(@info.size)}
+      </.info_item>
       <.info_item label="Memory" help={:memory}>
         <.bytes id="ets-info-memory" value={@info.memory} />
       </.info_item>
@@ -166,10 +168,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
     ~H"""
     <.form for={@form} id="ets-peek-controls" phx-change="validate" class="flex flex-col gap-1">
-      <fieldset
-        disabled={@loading? or not @readable?}
-        class={["contents", (@loading? or not @readable?) && "opacity-60"]}
-      >
+      <fieldset disabled={@loading?} class={["contents", @loading? && "opacity-60"]}>
         <div class="grid-cols-[auto_auto_auto] grid-rows-[auto_auto_auto] grid w-max items-center gap-x-3">
           <.field_label field={@form[:budget]} label="Record budget" help={@budget_help} />
           <.field_label field={@form[:timeout]} label="Timeout (ms)" help={@records_timeout_help} />
@@ -186,11 +185,11 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
             id="ets-peek-fetch"
             type="button"
             phx-click="fetch"
-            disabled={@loading? or not @readable?}
+            disabled={@loading?}
             class="btn btn-primary btn-sm gap-2"
           >
             <span :if={@loading?} class="loading loading-spinner loading-xs" />
-            {if @fetched?, do: "Reload snapshot", else: "Fetch records"}
+            {fetch_label(@readable?, @fetched?)}
           </button>
 
           <.field_error field={@form[:budget]} />
@@ -517,6 +516,10 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
     </p>
     """
   end
+
+  defp fetch_label(false = _readable?, _fetched?), do: "Refetch info"
+  defp fetch_label(_readable?, true = _fetched?), do: "Refetch records"
+  defp fetch_label(_readable?, _fetched?), do: "Fetch records"
 
   defp row_open?(open_rows, index), do: MapSet.member?(open_rows, index)
 
