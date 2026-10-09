@@ -59,7 +59,7 @@ Voyager connects to any distributed node running **OTP 27 or later**, either dir
 
 ```sh
 # Elixir
-iex --name my_app@127.0.0.1 --cookie my-secret-cookie -S mix phx.server
+iex --name my_app@127.0.0.1 --cookie my-secret-cookie
 # Erlang
 erl -name my_app@127.0.0.1 -setcookie my-secret-cookie
 ```
