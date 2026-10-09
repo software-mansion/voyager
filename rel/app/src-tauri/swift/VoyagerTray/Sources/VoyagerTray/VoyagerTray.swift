@@ -18,6 +18,7 @@ struct TrayStatus: Decodable {
     struct LastConnected: Decodable {
         let node: String
         let connector: String
+        let host: String?
     }
 }
 
@@ -166,11 +167,8 @@ struct TrayView: View {
         switch (model.status, model.status?.node) {
         case (nil, _):
             idleNodeCard(title: "Starting…")
-        case let (status?, nil):
+        case (_?, nil):
             idleNodeCard(title: "Not connected")
-            if let last = status.lastConnected {
-                reconnectRow(last, connecting: status.connecting)
-            }
         case let (status?, node?) where status.nodeLost:
             Card(symbol: "antenna.radiowaves.left.and.right.slash", tint: Theme.idle, title: node, subtitle: Text("Connection lost")) {}
         case let (status?, node?):
@@ -185,11 +183,15 @@ struct TrayView: View {
                 }
             }
         }
+        if let status = model.status, status.node == nil || status.nodeLost, let last = status.lastConnected {
+            reconnectRow(last, connecting: status.connecting)
+        }
     }
 
     private func reconnectRow(_ last: TrayStatus.LastConnected, connecting: Bool) -> some View {
         HStack(spacing: 8) {
-            (Text("Last: ").foregroundColor(Theme.muted) + Text(last.node))
+            (Text("Last: ").foregroundColor(Theme.muted) + Text(last.node)
+                + Text(last.host.map { " · \($0)" } ?? "").foregroundColor(Theme.muted))
                 .font(.system(size: 10, design: .monospaced))
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -325,7 +327,6 @@ struct VoyagerSwitchStyle: ToggleStyle {
     }
 }
 
-/// Neutral at rest, filled with `hoverColor` on hover.
 struct SmallButtonStyle: ButtonStyle {
     let hoverColor: Color
 
@@ -414,7 +415,7 @@ struct Card<Accessory: View>: View {
     }
 }
 
-/// `.danger` rests grey and turns red on hover, for actions that end something.
+/// `.danger` is for actions that end something.
 struct VoyagerButtonStyle: ButtonStyle {
     enum Kind {
         case filled(Color)

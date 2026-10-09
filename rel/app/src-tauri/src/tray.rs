@@ -56,6 +56,8 @@ extern "C" fn on_action(action: *const c_char) {
     match action.as_ref() {
         OPEN_ID => crate::open_window(app_handle),
         QUIT_ID => app_handle.exit(0),
+        // broadcast() blocks the main thread until Elixir connects, which "ready" follows.
+        _ if app_handle.try_state::<crate::ServerPort>().is_none() => {}
         _ => {
             let _ = app_handle
                 .state::<elixirkit::PubSub>()
