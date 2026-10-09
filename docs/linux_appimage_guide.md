@@ -5,8 +5,8 @@ Voyager on Linux is distributed as an [AppImage](https://appimage.org/). Downloa
 ### Run directly
 
 ```sh
-chmod +x Voyager-*-AppImage
-./Voyager-*-AppImage
+chmod +x Voyager-linux-amd64.AppImage
+./Voyager-linux-amd64.AppImage
 ```
 
 ### Integrate into your app menu (recommended)

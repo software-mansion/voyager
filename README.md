@@ -29,9 +29,15 @@ https://github.com/user-attachments/assets/8aa3f69e-a692-4b9d-9bf5-75d972f6370f
 
 ## Overview
 
-Voyager is a desktop app that inspects running BEAM systems — supervision trees, processes, memory and IO usage, running applications, and more — through one interface instead of a patchwork of shell commands copy-pasted into `iex`. It connects to any OTP 27+ node, local or remote, over plain Erlang distribution and surfaces the information the BEAM already exposes, in a form that is actually pleasant to read.
+Voyager is a desktop app that inspects running BEAM systems through one interface instead of a patchwork of shell commands copy-pasted into `iex`. It connects to any OTP 27+ node, local or remote, over plain Erlang distribution and surfaces the information the BEAM already exposes, in a form that is actually pleasant to read:
 
-No setup is required on the target node. Voyager gathers everything over RPC, and all rendering and storage happens on your machine.
+- **Node info** — memory and IO usage, schedulers, system limits, and running applications
+- **Supervision trees** — a graphical, navigable view of each application's process hierarchy
+- **Processes** — rank processes by memory, reductions, or message queue length, and drill into any one of them
+- **ETS tables** — list tables, browse their contents, look up keys, and search with match specs
+- **MCP server** — the same data for coding agents such as Claude Code or Cursor, so they can inspect a live system instead of guessing from source code
+
+No setup is required on the target node. On connect, Voyager compiles and loads a small helper module (`voyager_agent`) into the node's memory and gathers everything else over RPC; nothing is written to the node's disk, and all rendering and storage happens on your machine.
 
 ### Why Voyager
 
@@ -49,39 +55,34 @@ Download the latest build for your platform from the [website](https://voyager.s
 - macOS (Intel)
 - Linux (x64) — distributed as an AppImage, see [docs/linux_appimage_guide.md](docs/linux_appimage_guide.md) for how to run and install it
 
+The app checks for a new release on startup and can install it in place; the current version and update status are under **Settings → Updates**.
+
 ## Connecting to a node
 
-Voyager needs to reach the target node over Erlang distribution and needs its cookie.
-
-- **Local / remote node** — provide the node name (`myapp@host`) and the cookie. Voyager starts distribution on demand and connects.
-- **Over SSH** — provide SSH credentials to a host that can reach the node. Voyager tunnels the distribution connection through it, which is the usual path to a production node behind a bastion.
-
-The target node must have distribution enabled — a node started without a name is not distributed and cannot be connected to at all. Give it a name and a cookie at boot, and make sure the name type matches the toggle next to the node name field:
+Voyager connects to any distributed node running **OTP 27 or later**, either directly or through an SSH tunnel to a host that can reach it, which is the usual path to a production node behind a bastion. Start the node with a name and a cookie, then enter both in the connect form:
 
 ```sh
-# long names — use the `--name` toggle in Voyager
-iex --name my_app@127.0.0.1 --cookie my-secret-cookie -S mix phx.server
+# Elixir
+iex --name my_app@127.0.0.1 --cookie my-secret-cookie
+# Erlang
+erl -name my_app@127.0.0.1 -setcookie my-secret-cookie
 ```
 
-For a Mix release, set the equivalent environment variables instead:
-
-```sh
-RELEASE_DISTRIBUTION=name RELEASE_NODE=my_app@10.0.0.5 RELEASE_COOKIE=my-secret-cookie bin/my_app start
-```
-
-Recent connections are saved in a local SQLite database; secrets are encrypted before being written. The encryption key never leaves your machine — it is generated on first boot at `~/.voyager/vault.key` (readable only by you), so losing that file makes previously stored secrets unrecoverable.
-
-Distribution settings (node name, cookie handling) are configurable under **Settings → Distribution**.
-
-### Supported OTP versions
-
-The inspected node must run **OTP 27 or later**, whether you connect directly or over SSH. Nodes on OTP 26 and older are refused.
+Check out the [connection guide](docs/connecting_to_a_node.md) for other setups or if the connection fails.
 
 ## MCP server
 
-Voyager can expose the connected node to MCP clients such as Claude Code or Cursor, so an agent can inspect a live system instead of guessing from source code.
+The MCP server is on by default. Point your MCP client at:
 
-Enable it under **Settings → MCP** and pick a port. Point your MCP client at the resulting HTTP endpoint. The tool operates on whichever node Voyager is currently connected to.
+```
+http://127.0.0.1:4040/mcp
+```
+
+(You can change the port or turn the server off under **Settings → MCP Server**.) The endpoint only listens on loopback and rejects requests from non-local origins. The tools operate on whichever node Voyager is currently connected to:
+
+- `node_info` — system, memory, runtime, limits and scheduler snapshot
+- `process_list` / `process_info` — rank processes by an attribute, then read one process's details
+- `ets_list` / `ets_read_table_chunk` / `ets_search_table` — list ETS tables, page through one, or query it with a match spec
 
 ## Feedback and contributing
 
@@ -93,46 +94,15 @@ Voyager is in active development and feedback shapes what gets built next.
 
 ## Development
 
-Required Elixir, Erlang, Node.js, and Rust versions are pinned in [`.tool-versions`](.tool-versions).
-
-Install dependencies and set up the database:
+With the tool versions from [`.tool-versions`](.tool-versions) installed:
 
 ```sh
 mix setup
+mix phx.server   # web app at localhost:4000
+mix tauri.dev    # desktop app
 ```
 
-Run the web app on its own:
-
-```sh
-mix phx.server
-# or
-iex -S mix phx.server
-```
-
-Then visit [localhost:4000](http://localhost:4000).
-
-Run the desktop application in development:
-
-```sh
-mix tauri.dev
-```
-
-To check the production desktop app locally:
-
-```sh
-mix assets.deploy
-mix tauri.app
-```
-
-To tell a locally built desktop app apart from a release, set `VOYAGER_DEV_BUILD=true` in
-`rel/app/.env` (see [`.env.sample`](rel/app/.env.sample)). Apps built or run through `mix tauri.*`
-then show a `Dev Build` banner.
-
-Before opening a pull request, run:
-
-```sh
-mix precommit
-```
+Check out the [development guide](docs/development.md) if you want your own setup or want to contribute.
 
 ## License
 
