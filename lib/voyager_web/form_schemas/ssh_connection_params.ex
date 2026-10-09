@@ -2,7 +2,7 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParams do
   use Ecto.Schema
   import Ecto.Changeset
 
-  alias Voyager.Services.Erlssh.Auth
+  alias Voyager.Services.Ssh
 
   @primary_key false
   embedded_schema do
@@ -60,7 +60,7 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParams do
     |> validate_password_when_required()
   end
 
-  @spec to_auth(t()) :: Auth.auth()
+  @spec to_auth(t()) :: Ssh.auth()
   def to_auth(%__MODULE__{auth_method: :agent}), do: :agent
 
   def to_auth(%__MODULE__{auth_method: :password, password: pw}) when is_binary(pw),
