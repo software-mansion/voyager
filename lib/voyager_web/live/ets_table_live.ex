@@ -475,6 +475,7 @@ defmodule VoyagerWeb.EtsTableLive do
       socket
     else
       socket
+      |> cancel_async(:chunk, {:shutdown, :cancel})
       |> assign(:chunk, %AsyncResult{})
       |> assign(:records, [])
       |> assign(:truncated?, false)

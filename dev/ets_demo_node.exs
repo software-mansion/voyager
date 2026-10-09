@@ -33,6 +33,11 @@ defmodule Demo do
       info = Keyword.merge(:ets.info(tab), changes)
       rows = :ets.tab2list(tab)
       options = opts(info)
+      registered = :ets.whereis(info[:name])
+
+      if info[:named_table] and registered not in [:undefined, :ets.info(tab, :id)],
+        do: raise(ArgumentError, "#{inspect(info[:name])} is already a named table")
+
       temporary = :ets.new(info[:name], List.delete(options, :named_table))
 
       try do
