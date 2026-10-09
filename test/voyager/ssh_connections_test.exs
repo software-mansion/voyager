@@ -254,4 +254,42 @@ defmodule Voyager.SshConnectionsTest do
       assert found.id == conn.id
     end
   end
+
+  describe "last_connectable/0" do
+    test "returns the most recent profile with every credential saved" do
+      insert_profile("deploy", "h", 22, "older@h", %{cookie: "x"})
+
+      insert_profile("deploy", "h", 22, "newer@h", %{
+        cookie: "x",
+        auth_method: :password,
+        password: "pw",
+        last_connected_at: ~U[2020-01-02 00:00:00Z]
+      })
+
+      insert_profile("deploy", "h", 22, "nocookie@h", %{
+        last_connected_at: ~U[2020-01-03 00:00:00Z]
+      })
+
+      insert_profile("deploy", "h", 22, "nopassword@h", %{
+        cookie: "x",
+        auth_method: :password,
+        last_connected_at: ~U[2020-01-04 00:00:00Z]
+      })
+
+      assert %SshConnection{node_name: "newer@h"} = SshConnectionQueries.last_connectable()
+    end
+
+    test "does not require a password for agent auth" do
+      insert_profile("deploy", "h", 22, "agent@h", %{cookie: "x", auth_method: :agent})
+
+      assert %SshConnection{node_name: "agent@h"} = SshConnectionQueries.last_connectable()
+    end
+
+    test "returns nil when no profile can reconnect unattended" do
+      insert_profile("deploy", "h", 22, "nocookie@h")
+      insert_profile("deploy", "h", 22, "nopassword@h", %{cookie: "x", auth_method: :password})
+
+      assert SshConnectionQueries.last_connectable() == nil
+    end
+  end
 end
