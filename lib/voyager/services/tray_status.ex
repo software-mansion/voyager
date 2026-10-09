@@ -45,7 +45,8 @@ defmodule Voyager.Services.TrayStatus do
   end
 
   @impl GenServer
-  def handle_info("connect", %{connecting: false, node: nil} = state) do
+  def handle_info("connect", %{connecting: false, node: node, node_lost: lost} = state)
+      when is_nil(node) or lost do
     case last_connectable() do
       nil ->
         {:noreply, push(state)}
@@ -79,7 +80,7 @@ defmodule Voyager.Services.TrayStatus do
 
   def handle_info({ref, result}, state) when is_reference(ref) do
     Process.demonitor(ref, [:flush])
-    error = if result != :ok, do: connect_error(result)
+    error = if result not in [:ok, {:error, :already_connected}], do: connect_error(result)
     {:noreply, push(%{state | connecting: false, error: error})}
   end
 
@@ -134,10 +135,10 @@ defmodule Voyager.Services.TrayStatus do
   defp last_connected_fields(nil), do: nil
 
   defp last_connected_fields(%Connection{} = connection),
-    do: %{node: connection.node_name, connector: connector_label(:distribution)}
+    do: %{node: connection.node_name, connector: connector_label(:distribution), host: nil}
 
   defp last_connected_fields(%SshConnection{} = connection),
-    do: %{node: connection.node_name, connector: connector_label(:ssh)}
+    do: %{node: connection.node_name, connector: connector_label(:ssh), host: connection.ssh_host}
 
   defp connect(%Connection{} = c) do
     with :ok <- NodeSession.connect(c.node_name, c.cookie, name_type: c.name_type) do

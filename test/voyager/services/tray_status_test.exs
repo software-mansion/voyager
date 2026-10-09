@@ -34,6 +34,14 @@ defmodule Voyager.Services.TrayStatusTest do
     assert %{"node" => nil, "node_lost" => false} = receive_status()
   end
 
+  test "accepts connect after the node is lost" do
+    broadcast(NodeSession.topic(), {:nodedown, @node, :connection_closed})
+    assert %{"node_lost" => true} = receive_status()
+
+    send(TrayStatus, "connect")
+    assert %{"node_lost" => true, "connecting" => false} = receive_status()
+  end
+
   test "follows the MCP listener" do
     broadcast(MCP.topic(), {:mcp_status, %{alive?: true, url: @mcp_url}})
     assert %{"mcp_url" => @mcp_url} = receive_status()
@@ -70,8 +78,13 @@ defmodule Voyager.Services.TrayStatusTest do
 
     send(TrayStatus, "refresh")
 
-    assert %{"last_connected" => %{"node" => "agent@host", "connector" => "SSH tunnel"}} =
-             receive_status()
+    assert %{
+             "last_connected" => %{
+               "node" => "agent@host",
+               "connector" => "SSH tunnel",
+               "host" => "gw"
+             }
+           } = receive_status()
   end
 
   test "has no connection to offer when none can reconnect unattended" do
