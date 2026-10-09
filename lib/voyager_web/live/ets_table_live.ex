@@ -97,7 +97,7 @@ defmodule VoyagerWeb.EtsTableLive do
 
           <EtsPeekComponents.controls
             form={@form}
-            loading?={loading?(@chunk)}
+            loading?={loading?(@chunk) or loading?(@info)}
             readable?={readable?(@info)}
             fetched?={@fetched?}
           />
@@ -224,7 +224,6 @@ defmodule VoyagerWeb.EtsTableLive do
       socket
       |> assign(:conts, [nil])
       |> assign(:page_size, socket.assigns.controls.chunk_size)
-      |> refresh_info()
       |> fetch_page(0)
       |> noreply()
     else
@@ -394,6 +393,7 @@ defmodule VoyagerWeb.EtsTableLive do
     |> assign(:last_updated, DateTime.utc_now())
     |> assign(:round_trip_ms, round_trip_ms)
     |> put_record_terms(chunk.records)
+    |> drop_unreadable_records()
     |> noreply()
   end
 
@@ -460,7 +460,9 @@ defmodule VoyagerWeb.EtsTableLive do
     table = socket.assigns.table_id
     timeout = socket.assigns.controls.timeout
 
-    start_async(socket, :info, fn -> Remote.info(node, table, timeout) end)
+    socket
+    |> assign(:info, AsyncResult.loading(socket.assigns.info))
+    |> start_async(:info, fn -> Remote.info(node, table, timeout) end)
   end
 
   defp flash_info_failure(%{assigns: %{info: %AsyncResult{ok?: true}}} = socket, reason),
@@ -500,6 +502,7 @@ defmodule VoyagerWeb.EtsTableLive do
     continuation = Enum.at(socket.assigns.conts, page)
 
     socket
+    |> refresh_info()
     |> cancel_async(:chunk, {:shutdown, :cancel})
     |> assign(:pending_page, page)
     |> assign(:chunk, AsyncResult.loading(socket.assigns.chunk))
@@ -577,16 +580,13 @@ defmodule VoyagerWeb.EtsTableLive do
     end
   end
 
-  # `known_size` is only an estimate once paging starts: with no continuation
-  # left the walked count is exact, otherwise the total must at least keep the
-  # next page reachable. A result that shrank mid-walk can end on an empty
-  # page, so the current page stays addressable or Previous disappears with it.
+  # :ets.select/3 returns a continuation even when the match count equals the limit.
   defp pager_total(known_size, conts, page, page_size, records) do
-    cond do
-      length(conts) > page + 1 -> max(known_size, (page + 1) * page_size + 1)
-      page > 0 -> max(page * page_size + length(records), page * page_size + 1)
-      true -> length(records)
-    end
+    walked = page * page_size + length(records)
+
+    if length(conts) > page + 1 and walked != known_size,
+      do: max(known_size, walked + 1),
+      else: max(walked, page * page_size + 1)
   end
 
   defp lookup_total(%AsyncResult{ok?: true, result: %{total: total}}) when is_integer(total),

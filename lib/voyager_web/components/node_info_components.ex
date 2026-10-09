@@ -190,7 +190,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
             />
           </div>
           <span class="font-mono text-base-content/70 text-xs">
-            {Formatters.format_bytes(@memory.total)} total
+            <.bytes id="memory-total" value={@memory.total} /> total
           </span>
         </div>
 
@@ -213,7 +213,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
               <div class={["size-2.5 shrink-0 rounded-sm", color_class]}></div>
               <span class="text-base-content/80 min-w-0 flex-1">{label}</span>
               <span class="text-base-content tabular-nums">
-                {Formatters.format_bytes(Map.get(@memory, key))}
+                <.bytes id={"memory-#{key}"} value={Map.get(@memory, key)} />
               </span>
               <span class="text-base-content/70 w-12 text-right tabular-nums">
                 {pct}%

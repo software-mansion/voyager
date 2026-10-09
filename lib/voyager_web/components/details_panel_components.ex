@@ -36,13 +36,12 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     {:error_handler, "Error handler", nil}
   ]
 
-  @memory_rows [
+  @byte_rows [
     {:memory, "Memory"},
     {:stack_and_heap_size, "Stack and heaps"},
     {:heap_size, "Heap size"},
     {:stack_size, "Stack size"},
-    {:gc_min_heap_size, "GC min heap size"},
-    {:gc_fullsweep_after, "GC fullsweep after"}
+    {:gc_min_heap_size, "GC min heap size"}
   ]
 
   @max_links 12
@@ -117,14 +116,14 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         id={"#{@panel_id}-name"}
         class="font-mono text-base-content break-all text-sm font-medium"
         text={@display_name}
-        label="Copy Node name"
+        label="Copy node name"
       />
       <.copyable
         :if={@pid_string}
         id={"#{@panel_id}-pid"}
         class="font-mono text-base-content/70 text-xs"
         text={@pid_string}
-        label="Copy Node PID"
+        label="Copy node PID"
       />
     </div>
     """
@@ -211,7 +210,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         href={@href}
         class="btn btn-ghost gap-2 hover:text-primary"
       >
-        Show More <.icon name="icon-arrow-right" class="size-4" />
+        Show more <.icon name="icon-arrow-right" class="size-4" />
       </.link>
     </div>
     """
@@ -303,7 +302,13 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         </:failed>
         <%= for {key, label, _width} <- @rows do %>
           <.suspending_list :if={key == :suspending} suspending={info.suspending} size={@size} />
-          <.kv :if={key != :suspending} size={@size} label={label} help={ProcessInfoHelp.get(key)}>
+          <.kv
+            :if={key != :suspending}
+            size={@size}
+            label={label}
+            help={ProcessInfoHelp.get(key)}
+            last={key == :error_handler}
+          >
             <%= if pid = linkable_pid(key, info, @remote_node) do %>
               <ProcessComponents.process_link :if={@current_url} pid={pid} current_url={@current_url} />
               <.chip
@@ -373,29 +378,42 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     doc: "value font size, forwarded to `kv/1`"
 
   def memory_and_garbage_collection(assigns) do
-    assigns = assign(assigns, :rows, @memory_rows)
+    assigns = assign(assigns, :byte_rows, @byte_rows)
 
     ~H"""
     <.section title="Memory and Garbage Collection">
       <.async_result :let={info} assign={@info}>
         <:loading>
           <.kv_skeleton
-            :for={{key, label} <- @rows}
+            :for={{key, label} <- @byte_rows}
             label={label}
             help={ProcessInfoHelp.get(key)}
             width={:narrow}
-            last={key == :gc_fullsweep_after}
+          />
+          <.kv_skeleton
+            label="GC fullsweep after"
+            help={ProcessInfoHelp.get(:gc_fullsweep_after)}
+            width={:narrow}
+            last
           />
         </:loading>
         <:failed :let={failure}>
           <.load_error failure={failure} />
         </:failed>
         <.kv
-          :for={{key, label} <- @rows}
+          :for={{key, label} <- @byte_rows}
           size={@size}
           label={label}
           help={ProcessInfoHelp.get(key)}
-          value={memory_value(key, info)}
+        >
+          <.bytes id={"process-#{key}"} value={Map.fetch!(info, key)} />
+        </.kv>
+        <.kv
+          size={@size}
+          label="GC fullsweep after"
+          help={ProcessInfoHelp.get(:gc_fullsweep_after)}
+          value={format_count(info.gc_fullsweep_after)}
+          last
         />
       </.async_result>
     </.section>
@@ -635,7 +653,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         phx-target={@target}
         class="btn btn-ghost btn-xs text-base-content/70 w-max items-center self-center px-3 py-2 hover:text-base-content"
       >
-        {if(@links_expanded?, do: "Show Less", else: "Show More")}
+        {if(@links_expanded?, do: "Show less", else: "Show more")}
       </button>
     </div>
     """
@@ -699,9 +717,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp skeleton_width_class(:narrow), do: "w-12"
   defp skeleton_width_class(:wide), do: "w-full"
   defp skeleton_width_class(nil), do: "w-20"
-
-  defp memory_value(:gc_fullsweep_after, info), do: format_count(info.gc_fullsweep_after)
-  defp memory_value(key, info), do: info |> Map.fetch!(key) |> Formatters.format_bytes()
 
   defp format_mfa({mod, fun, arity}), do: "#{inspect(mod)}.#{fun}/#{arity}"
   defp format_mfa(mfa), do: inspect(mfa)

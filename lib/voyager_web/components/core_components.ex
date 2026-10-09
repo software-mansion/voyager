@@ -419,6 +419,40 @@ defmodule VoyagerWeb.CoreComponents do
   end
 
   @doc """
+  A byte count rounded to its unit, with the exact count and a copy button in a
+  tooltip. `nil` renders a dash.
+  """
+  attr :id, :string, required: true
+  attr :value, :integer, required: true
+
+  def bytes(%{value: nil} = assigns) do
+    ~H"""
+    {Formatters.format_bytes(nil)}
+    """
+  end
+
+  def bytes(assigns) do
+    ~H"""
+    <.tooltip id={@id} interactive tip_class="font-mono">
+      <span tabindex="0" aria-describedby={"#{@id}-tip"}>{Formatters.format_bytes(@value)}</span>
+      <:content>
+        <div class="flex items-center gap-1">
+          <span id={"#{@id}-exact"}>{Formatters.format_exact_bytes(@value)}</span>
+          <.copy_button
+            id={"#{@id}-copy"}
+            target={"##{@id}-exact"}
+            icon_only
+            label="Copy bytes"
+            size={:sm}
+            class="text-base-content/60 shrink-0 hover:text-primary"
+          />
+        </div>
+      </:content>
+    </.tooltip>
+    """
+  end
+
+  @doc """
   Renders a button that copies text from another element.
 
   ## Examples
@@ -743,7 +777,7 @@ defmodule VoyagerWeb.CoreComponents do
         ]}
       >
         <span class="grow text-left">{@label}</span>
-        <span class="font-mono text-base-content/60">{@count}</span>
+        <span class="font-mono text-base-content/60 min-w-4 text-right">{@count}</span>
         <.icon name="icon-chevron-right" class="size-3.5 shrink-0 rotate-90 opacity-60" />
       </div>
 
@@ -961,7 +995,7 @@ defmodule VoyagerWeb.CoreComponents do
       <div
         id={"#{@id}-tip"}
         role="tooltip"
-        phx-update="ignore"
+        phx-mounted={JS.ignore_attributes(["class", "style"])}
         class={[
           "tooltip-pop bg-base-100 text-base-content rounded-box max-w-xs px-3 py-2",
           "ring-base-content/15 text-xs leading-relaxed shadow-lg ring-1",

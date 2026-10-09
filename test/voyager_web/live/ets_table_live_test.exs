@@ -39,20 +39,6 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     assert has_element?(view, "#ets-pager", "of 80")
   end
 
-  test "a failed info reload flashes the error and keeps the last info", %{conn: conn} do
-    name = named_table(:set)
-    :ets.insert(name, {:k, 1})
-
-    view = fetch_records(conn, name)
-    :ets.delete(name)
-
-    view |> element("#ets-peek-fetch") |> render_click()
-    render_async(view, 2_000)
-
-    assert has_element?(view, "#flash-error")
-    assert has_element?(view, "#ets-table-info")
-  end
-
   test "refetching info on a private table re-reads the table info", %{conn: conn} do
     name = EtsTable.unique_name()
     :ets.new(name, [:named_table, :private, :set])
@@ -93,6 +79,57 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     refute has_element?(view, "#ets-peek-error")
   end
 
+  test "records read before the table turned private stay hidden when they land last", %{
+    conn: conn
+  } do
+    name = named_table(:set)
+    :ets.insert(name, {:k, 1})
+
+    view = fetch_records(conn, name)
+
+    test_pid = self()
+    Mox.set_mox_global()
+    Application.put_env(:voyager, :erpc, Voyager.ErpcMock)
+
+    Mox.stub(Voyager.ErpcMock, :call, fn
+      node, :ets, :info, [^name] = args, timeout ->
+        send(test_pid, {:info_waiting, self()})
+
+        receive do
+          :go -> Voyager.Erpc.Impl.call(node, :ets, :info, args, timeout)
+        end
+
+      node, mod, :ets_select_chunk, args, timeout ->
+        result = Voyager.Erpc.Impl.call(node, mod, :ets_select_chunk, args, timeout)
+        send(test_pid, {:chunk_read, self()})
+
+        receive do
+          :go -> result
+        end
+
+      node, mod, fun, args, timeout ->
+        Voyager.Erpc.Impl.call(node, mod, fun, args, timeout)
+    end)
+
+    view |> element("#ets-peek-fetch") |> render_click()
+    assert_receive {:info_waiting, info_task}, 2_000
+    assert_receive {:chunk_read, chunk_task}, 2_000
+
+    :ets.delete(name)
+    :ets.new(name, [:named_table, :private, :set])
+
+    ref = Process.monitor(info_task)
+    send(info_task, :go)
+    assert_receive {:DOWN, ^ref, :process, ^info_task, _reason}, 2_000
+    assert has_element?(view, "#ets-private-notice")
+
+    send(chunk_task, :go)
+    render_async(view, 2_000)
+
+    assert has_element?(view, "#ets-private-notice")
+    refute has_element?(view, "#ets-records-0")
+  end
+
   test "a set row can open the lookup sidebar", %{conn: conn} do
     name = named_table(:set)
     :ets.insert(name, {:k, 1})
@@ -106,6 +143,52 @@ defmodule VoyagerWeb.EtsTableLiveTest do
 
     assert has_element?(view, "#ets-lookup-record-0")
     refute has_element?(view, "#ets-lookup-error")
+  end
+
+  for type <- [:set, :ordered_set, :bag, :duplicate_bag] do
+    test "a #{type} whose size is a multiple of the page size has no extra page", %{conn: conn} do
+      name = named_table(unquote(type))
+      :ets.insert(name, for(i <- 1..100, do: {i, :test}))
+
+      view = fetch_records(conn, name)
+      assert page_label(view, "#ets-pager") == "1 / 2"
+
+      view |> element("#ets-pager-next") |> render_click()
+      render_async(view, 2_000)
+
+      assert page_label(view, "#ets-pager") == "2 / 2"
+      assert has_element?(view, "#ets-pager-next[disabled]")
+    end
+  end
+
+  test "a new fetch reaches rows inserted after the page opened", %{conn: conn} do
+    name = named_table(:ordered_set)
+    :ets.insert(name, for(i <- 1..100, do: {i, :test}))
+
+    view = fetch_records(conn, name)
+    :ets.insert(name, for(i <- 101..150, do: {i, :test}))
+
+    view |> element("#ets-peek-fetch") |> render_click()
+    render_async(view, 2_000)
+    view |> element("#ets-pager-next") |> render_click()
+    render_async(view, 2_000)
+
+    assert page_label(view, "#ets-pager") == "2 / 3"
+    refute has_element?(view, "#ets-pager-next[disabled]")
+  end
+
+  test "paging reaches rows inserted after the last fetch", %{conn: conn} do
+    name = named_table(:ordered_set)
+    :ets.insert(name, for(i <- 1..100, do: {i, :test}))
+
+    view = fetch_records(conn, name)
+    :ets.insert(name, for(i <- 101..150, do: {i, :test}))
+
+    view |> element("#ets-pager-next") |> render_click()
+    render_async(view, 2_000)
+
+    assert page_label(view, "#ets-pager") == "2 / 3"
+    refute has_element?(view, "#ets-pager-next[disabled]")
   end
 
   test "a row keyed by an intact tuple can be looked up", %{conn: conn} do
@@ -156,6 +239,23 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     assert has_element?(view, "#ets-records-0-truncated")
   end
 
+  test "a failed info refresh on fetch keeps the controls on screen", %{conn: conn} do
+    name = named_table(:set)
+    :ets.insert(name, {:k, 1})
+
+    view = fetch_records(conn, name)
+    :ets.delete(name)
+
+    view |> element("#ets-peek-fetch") |> render_click()
+    render_async(view, 2_000)
+
+    assert has_element?(view, "#flash-error")
+    assert has_element?(view, "#ets-table-info")
+    assert has_element?(view, "#ets-peek-fetch")
+    assert has_element?(view, "#ets-peek-error")
+    refute has_element?(view, "#ets-table-error")
+  end
+
   for keypos <- [2, 6] do
     test "the key at keypos #{keypos} is bold in the row preview", %{conn: conn} do
       keypos = unquote(keypos)
@@ -193,14 +293,14 @@ defmodule VoyagerWeb.EtsTableLiveTest do
       view = open_lookup(conn, name)
 
       assert lookup_record_count(view) == 10
-      assert lookup_page_label(view) == "1 / 2"
+      assert page_label(view, "#ets-lookup-pager") == "1 / 2"
       refute has_element?(view, "#ets-lookup-pager-prev:not([disabled])")
 
       view |> element("#ets-lookup-pager-next") |> render_click()
       render_async(view, 2_000)
 
       assert lookup_record_count(view) == 5
-      assert lookup_page_label(view) == "2 / 2"
+      assert page_label(view, "#ets-lookup-pager") == "2 / 2"
       assert has_element?(view, "#ets-lookup-pager-next[disabled]")
 
       view |> element("#ets-lookup-pager-prev") |> render_click()
@@ -275,11 +375,11 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     view
   end
 
-  defp lookup_page_label(view) do
+  defp page_label(view, pager) do
     view
     |> render()
     |> LazyHTML.from_fragment()
-    |> LazyHTML.query("#ets-lookup-pager .font-mono.pointer-events-none")
+    |> LazyHTML.query("#{pager} .font-mono.pointer-events-none")
     |> LazyHTML.text()
     |> String.trim()
   end
