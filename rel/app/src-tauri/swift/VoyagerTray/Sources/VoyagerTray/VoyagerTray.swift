@@ -11,13 +11,24 @@ struct TrayStatus: Decodable {
     let connector: String?
     let connectedAt: Date?
     let mcpUrl: String?
+    let lastConnected: LastConnected?
+    let connecting: Bool
+    let error: String?
+
+    struct LastConnected: Decodable {
+        let node: String
+        let connector: String
+    }
 }
 
 enum TrayAction: String {
     case open
     case quit
+    case connect
     case disconnect
     case toggleMcp = "toggle_mcp"
+    case refresh
+    case dismissError = "dismiss_error"
 
     var closesPopover: Bool { self == .open || self == .quit }
 }
@@ -45,7 +56,7 @@ final class TrayModel: ObservableObject {
     }
 }
 
-final class TrayController: NSObject {
+final class TrayController: NSObject, NSPopoverDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let popover = NSPopover()
     let model: TrayModel
@@ -75,6 +86,11 @@ final class TrayController: NSObject {
             popover.hasFullSizeContent = true
         }
         popover.behavior = .transient
+        popover.delegate = self
+    }
+
+    func popoverDidClose(_ notification: Notification) {
+        model.perform(.dismissError)
     }
 
     @objc private func toggle(_ sender: NSStatusBarButton) {
@@ -88,7 +104,11 @@ final class TrayController: NSObject {
         // A transient popover only closes on outside clicks while the app is active.
         NSApp.activate(ignoringOtherApps: true)
         popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
-        popover.contentViewController?.view.window?.makeKey()
+        let window = popover.contentViewController?.view.window
+        window?.makeKey()
+        // Otherwise AppKit focuses the first button, drawing its focus ring on every open.
+        window?.makeFirstResponder(nil)
+        model.perform(.refresh)
     }
 }
 
@@ -114,9 +134,16 @@ struct TrayView: View {
             .padding(.horizontal, 2)
             .padding(.bottom, 2)
 
-            SectionLabel(title: "Status")
             nodeCard
             mcpCard
+
+            if let error = model.status?.error {
+                Label(error, systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Theme.error)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 2)
+            }
 
             HStack(spacing: 8) {
                 Button("Open Voyager") { model.perform(.open) }
@@ -127,9 +154,7 @@ struct TrayView: View {
             }
             .padding(.top, 4)
         }
-        .toggleStyle(.switch)
-        .controlSize(.mini)
-        .labelsHidden()
+        .toggleStyle(VoyagerSwitchStyle(tint: model.accent))
         .tint(model.accent)
         .foregroundStyle(Theme.content)
         .padding(12)
@@ -141,20 +166,45 @@ struct TrayView: View {
         switch (model.status, model.status?.node) {
         case (nil, _):
             idleNodeCard(title: "Starting…")
-        case (_?, nil):
+        case let (status?, nil):
             idleNodeCard(title: "Not connected")
+            if let last = status.lastConnected {
+                reconnectRow(last, connecting: status.connecting)
+            }
         case let (status?, node?) where status.nodeLost:
             Card(symbol: "antenna.radiowaves.left.and.right.slash", tint: Theme.idle, title: node, subtitle: Text("Connection lost")) {}
         case let (status?, node?):
-            Card(symbol: "antenna.radiowaves.left.and.right", tint: model.accent, title: node, subtitle: connectedSubtitle(status)) {
-                Button { model.perform(.disconnect) } label: {
-                    Image(systemName: "power").font(.system(size: 12, weight: .medium))
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Card(symbol: "antenna.radiowaves.left.and.right", tint: model.accent, title: node, subtitle: connectedSubtitle(status, now: context.date)) {
+                    Button { model.perform(.disconnect) } label: {
+                        Image(systemName: "power").font(.system(size: 12, weight: .medium))
+                    }
+                    .buttonStyle(VoyagerButtonStyle(kind: .danger, compact: true))
+                    .help("Disconnect")
+                    .accessibilityLabel("Disconnect")
                 }
-                .buttonStyle(VoyagerButtonStyle(kind: .danger, compact: true))
-                .help("Disconnect")
-                .accessibilityLabel("Disconnect")
             }
         }
+    }
+
+    private func reconnectRow(_ last: TrayStatus.LastConnected, connecting: Bool) -> some View {
+        HStack(spacing: 8) {
+            (Text("Last: ").foregroundColor(Theme.muted) + Text(last.node))
+                .font(.system(size: 10, design: .monospaced))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .help("\(last.node) via \(last.connector)")
+            Spacer(minLength: 6)
+            if connecting {
+                Text("Connecting…")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(Theme.muted)
+            } else {
+                Button("Connect") { model.perform(.connect) }
+                    .buttonStyle(SmallButtonStyle(hoverColor: model.accent))
+            }
+        }
+        .padding(.horizontal, 2)
     }
 
     private func idleNodeCard(title: String) -> some View {
@@ -174,16 +224,29 @@ struct TrayView: View {
             title: "MCP server",
             subtitle: Text(url.map { $0.replacingOccurrences(of: "http://", with: "") } ?? "Stopped")
         ) {
+            if let url {
+                CopyButton(text: url)
+            }
             Toggle("MCP server", isOn: Binding(get: { url != nil }, set: { _ in model.perform(.toggleMcp) }))
                 .disabled(model.status == nil)
-                .pointingHandCursor()
         }
     }
 
-    private func connectedSubtitle(_ status: TrayStatus) -> Text {
+    private func connectedSubtitle(_ status: TrayStatus, now: Date) -> Text {
         let via = Text(status.connector ?? "Connected")
         guard let since = status.connectedAt else { return via }
-        return via + Text(" · ") + Text(since, style: .relative)
+        return via + Text(" · ") + Text(compactUptime(since: since, now: now))
+    }
+}
+
+/// Only the largest unit, e.g. `14min` or `3d`.
+func compactUptime(since: Date, now: Date) -> String {
+    let seconds = max(0, Int(now.timeIntervalSince(since)))
+    switch seconds {
+    case ..<60: return "\(seconds)s"
+    case ..<3600: return "\(seconds / 60)min"
+    case ..<86400: return "\(seconds / 3600)h"
+    default: return "\(seconds / 86400)d"
     }
 }
 
@@ -225,15 +288,95 @@ extension View {
     }
 }
 
-struct SectionLabel: View {
-    let title: String
+struct VoyagerSwitchStyle: ToggleStyle {
+    let tint: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        Switch(configuration: configuration, tint: tint)
+    }
+
+    /// Drawn by hand: the AppKit-backed `.switch` loses its tint when flipped while the popover is closed.
+    private struct Switch: View {
+        let configuration: ToggleStyleConfiguration
+        let tint: Color
+        @Environment(\.isEnabled) private var isEnabled
+
+        var body: some View {
+            let isOn = configuration.isOn
+            Button { configuration.isOn.toggle() } label: {
+                Capsule()
+                    .fill(isOn ? tint : Theme.content.opacity(0.18))
+                    .frame(width: 30, height: 18)
+                    .overlay(alignment: isOn ? .trailing : .leading) {
+                        Circle()
+                            .fill(.white)
+                            .shadow(color: .black.opacity(0.2), radius: 0.5, y: 0.5)
+                            .padding(2)
+                    }
+                    .animation(.easeOut(duration: 0.15), value: isOn)
+            }
+            .buttonStyle(.plain)
+            .opacity(isEnabled ? 1 : 0.5)
+            .pointingHandCursor()
+            .accessibilityRepresentation {
+                Toggle(isOn: configuration.$isOn) { configuration.label }
+            }
+        }
+    }
+}
+
+/// Neutral at rest, filled with `hoverColor` on hover.
+struct SmallButtonStyle: ButtonStyle {
+    let hoverColor: Color
+
+    func makeBody(configuration: Configuration) -> some View {
+        Label(configuration: configuration, hoverColor: hoverColor)
+    }
+
+    private struct Label: View {
+        let configuration: ButtonStyleConfiguration
+        let hoverColor: Color
+        @State private var hovering = false
+
+        var body: some View {
+            configuration.label
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(hovering ? .white : Theme.content.opacity(0.85))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(hovering ? hoverColor.opacity(configuration.isPressed ? 0.75 : 1) : Theme.content.opacity(0.08))
+                )
+                .contentShape(Rectangle())
+                .onHover { hovering = $0 }
+                .pointingHandCursor()
+                .animation(.easeOut(duration: 0.12), value: hovering)
+        }
+    }
+}
+
+struct CopyButton: View {
+    let text: String
+    @State private var copied = false
 
     var body: some View {
-        Text(title.uppercased())
-            .font(.system(size: 10, weight: .semibold, design: .monospaced))
-            .tracking(0.8)
-            .foregroundStyle(Theme.muted)
-            .padding(.horizontal, 2)
+        Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            copied = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
+        } label: {
+            Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(copied ? Color.green : Theme.muted)
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .pointingHandCursor()
+        .help(copied ? "Copied" : "Copy address")
+        .accessibilityLabel("Copy address")
     }
 }
 

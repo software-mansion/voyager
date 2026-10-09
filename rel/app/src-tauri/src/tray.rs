@@ -4,8 +4,6 @@ use std::sync::OnceLock;
 use tauri::{AppHandle, Manager};
 
 pub const TOPIC: &str = "tray";
-const DISCONNECT_ID: &str = "disconnect";
-const TOGGLE_MCP_ID: &str = "toggle_mcp";
 const OPEN_ID: &str = "open";
 const QUIT_ID: &str = "quit";
 
@@ -58,11 +56,10 @@ extern "C" fn on_action(action: *const c_char) {
     match action.as_ref() {
         OPEN_ID => crate::open_window(app_handle),
         QUIT_ID => app_handle.exit(0),
-        DISCONNECT_ID | TOGGLE_MCP_ID => {
+        _ => {
             let _ = app_handle
                 .state::<elixirkit::PubSub>()
                 .broadcast(TOPIC, action.as_bytes());
         }
-        _ => {}
     }
 }
