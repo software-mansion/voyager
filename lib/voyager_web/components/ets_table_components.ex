@@ -59,6 +59,13 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
     }
   ]
 
+  @flag_rows [
+    {:compressed, "Compressed"},
+    {:read_concurrency, "Read concurrency"},
+    {:write_concurrency, "Write concurrency"},
+    {:decentralized_counters, "Decentralized counters"}
+  ]
+
   @doc """
   Column definitions for the selected attributes, in display order.
   """
@@ -117,7 +124,11 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
             help={EtsTableHelp.get(:protection)}
           />
           <.field_label field={@form[:type]} label="Type" help={EtsTableHelp.get(:type)} />
-          <.field_label field={@form[:named]} label="Named" help={EtsTableHelp.get(:named_table)} />
+          <.field_label
+            field={@form[:named]}
+            label="Named table"
+            help={EtsTableHelp.get(:named_table)}
+          />
           <.field_label
             field={@form[:timeout]}
             label="Timeout (ms)"
@@ -144,7 +155,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
           <.select
             field={@form[:named]}
             options={EtsTableListControls.filter_options(:named)}
-            class="min-w-20"
+            class="min-w-22"
           />
 
           <input
@@ -231,7 +242,9 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         {pluralize(@total, "table")} fetched
       <% end %>
       <DataTableComponents.round_trip :if={@round_trip_ms} ms={@round_trip_ms} /> ·
-      <span class="font-mono text-base-content">{Formatters.format_bytes(@total_memory)}</span>
+      <span class="font-mono text-base-content">
+        <.bytes id={"#{@id}-memory"} value={@total_memory} />
+      </span>
       in total
     </div>
     """
@@ -245,6 +258,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
   attr :row_id, :string, required: true, doc: "stable prefix for this row's element ids"
   attr :table_href, :string, required: true, doc: "opens this row's table in the side panel"
   attr :owner_href, :string, required: true, doc: "details page for the owning process"
+  attr :heir_href, :string, default: nil, doc: "details page for the heir process"
 
   def cell(assigns) do
     ~H"""
@@ -279,21 +293,35 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
           value={Integer.to_string(@row.keypos)}
         />
       <% :heir -> %>
-        <DataTableComponents.value_cell id={"#{@row_id}-heir"} value={format_heir(@row.heir)} muted />
+        <DataTableComponents.value_cell
+          :if={@row.heir == :none}
+          id={"#{@row_id}-heir"}
+          value="none"
+          muted
+        />
+        <ProcessComponents.pid_cell
+          :if={@row.heir != :none}
+          pid={@row.heir}
+          row_id={"#{@row_id}-heir"}
+          href={@heir_href}
+        />
       <% key -> %>
-        <DataTableComponents.value_cell id={"#{@row_id}-#{key}"} value={flag(@row, key)} muted />
+        <DataTableComponents.value_cell
+          id={"#{@row_id}-#{key}"}
+          value={format_flag(Map.get(@row, key))}
+          muted
+        />
     <% end %>
     """
   end
 
-  # `decentralized_counters` is only reported by nodes that know it.
-  defp flag(row, key) do
-    case Map.get(row, key) do
-      nil -> DataTableComponents.placeholder()
-      :auto -> "auto"
-      value when is_boolean(value) -> yes_no(value)
-    end
-  end
+  @doc """
+  A table option as `true`, `false` or `auto`. `nil` is a `decentralized_counters`
+  the node does not report, shown as a placeholder.
+  """
+  @spec format_flag(boolean() | :auto | nil) :: String.t()
+  def format_flag(nil), do: DataTableComponents.placeholder()
+  def format_flag(value), do: to_string(value)
 
   attr :table, :map, required: true
   attr :row_id, :string, required: true
@@ -515,7 +543,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         <.kv
           label="Named table"
           help={EtsTableHelp.get(:named_table)}
-          value={flag(@table, :named_table)}
+          value={format_flag(@table.named_table)}
         />
         <.kv
           label="Key position"
@@ -525,7 +553,10 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         <.kv label="Owner" help={EtsTableHelp.get(:owner)}>
           <ProcessComponents.process_link pid={@table.owner} current_url={@current_url} />
         </.kv>
-        <.kv label="Heir" help={EtsTableHelp.get(:heir)} value={format_heir(@table.heir)} last />
+        <.kv :if={@table.heir == :none} label="Heir" help={EtsTableHelp.get(:heir)} value="none" last />
+        <.kv :if={@table.heir != :none} label="Heir" help={EtsTableHelp.get(:heir)} last>
+          <ProcessComponents.process_link pid={@table.heir} current_url={@current_url} />
+        </.kv>
       </.section>
       <.section title="Storage">
         <.kv
@@ -533,26 +564,28 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
           help={EtsTableHelp.get(:size)}
           value={Formatters.format_integer(@table.size)}
         />
-        <.kv label="Memory" help={EtsTableHelp.get(:memory)} value={format_memory(@table.memory)} />
+        <.kv label="Memory" help={EtsTableHelp.get(:memory)}>
+          <.bytes id="ets-panel-memory" value={@table.memory} />
+        </.kv>
         <.kv
           label="Compressed"
           help={EtsTableHelp.get(:compressed)}
-          value={flag(@table, :compressed)}
+          value={format_flag(@table.compressed)}
         />
         <.kv
           label="Read concurrency"
           help={EtsTableHelp.get(:read_concurrency)}
-          value={flag(@table, :read_concurrency)}
+          value={format_flag(@table.read_concurrency)}
         />
         <.kv
           label="Write concurrency"
           help={EtsTableHelp.get(:write_concurrency)}
-          value={flag(@table, :write_concurrency)}
+          value={format_flag(@table.write_concurrency)}
         />
         <.kv
           label="Decentralized counters"
           help={EtsTableHelp.get(:decentralized_counters)}
-          value={flag(@table, :decentralized_counters)}
+          value={format_flag(Map.get(@table, :decentralized_counters))}
           last
         />
       </.section>
@@ -561,8 +594,11 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
   end
 
   defp panel_skeleton(assigns) do
+    assigns = assign(assigns, :flag_rows, @flag_rows)
+
     ~H"""
     <div class="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
+      <div class="skeleton w-33 h-8 rounded-md" />
       <.section title="Overview">
         <.kv_skeleton label="Type" help={EtsTableHelp.get(:type)} width={:narrow} />
         <.kv_skeleton label="Protection" help={EtsTableHelp.get(:protection)} width={:narrow} />
@@ -570,6 +606,17 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         <.kv_skeleton label="Key position" help={EtsTableHelp.get(:keypos)} width={:narrow} />
         <.kv_skeleton label="Owner" help={EtsTableHelp.get(:owner)} />
         <.kv_skeleton label="Heir" help={EtsTableHelp.get(:heir)} last />
+      </.section>
+      <.section title="Storage">
+        <.kv_skeleton label="Objects" help={EtsTableHelp.get(:size)} width={:narrow} />
+        <.kv_skeleton label="Memory" help={EtsTableHelp.get(:memory)} />
+        <.kv_skeleton
+          :for={{key, label} <- @flag_rows}
+          label={label}
+          help={EtsTableHelp.get(key)}
+          width={:narrow}
+          last={key == :decentralized_counters}
+        />
       </.section>
     </div>
     """
@@ -591,13 +638,4 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
 
   defp pluralize(1, word), do: word
   defp pluralize(_count, word), do: word <> "s"
-
-  defp yes_no(true), do: "yes"
-  defp yes_no(false), do: "no"
-
-  defp format_heir(:none), do: "none"
-  defp format_heir(pid) when is_pid(pid), do: Formatters.pid(pid)
-
-  defp format_memory(bytes),
-    do: "#{Formatters.format_bytes(bytes)} (#{Formatters.format_exact_bytes(bytes)})"
 end

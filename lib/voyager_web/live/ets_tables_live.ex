@@ -117,18 +117,21 @@ defmodule VoyagerWeb.EtsTablesLive do
                   row_id={row_id}
                   table_href={table_path(@current_url, row)}
                   owner_href={process_path(@session.node_name, row.owner, @current_url)}
+                  heir_href={process_path(@session.node_name, row.heir, @current_url)}
                 />
               </:cell>
             </DataTableComponents.table>
 
-            <DataTableComponents.pager
-              :if={@page_result.ok?}
-              id="ets-tables-pager"
-              page={@page}
-              page_size={@page_size}
-              page_size_options={@page_sizes}
-              total={@shown_count}
-            />
+            <div class="min-h-8">
+              <DataTableComponents.pager
+                :if={@page_result.ok?}
+                id="ets-tables-pager"
+                page={@page}
+                page_size={@page_size}
+                page_size_options={@page_sizes}
+                total={@shown_count}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -374,6 +377,8 @@ defmodule VoyagerWeb.EtsTablesLive do
     key = if table.named_table, do: inspect(table.name), else: TableId.display(table.id)
     keep_sidebar(~p"/node/#{node_name}/ets-tables/#{key}", current_url)
   end
+
+  defp process_path(_node_name, :none, _current_url), do: nil
 
   defp process_path(node_name, pid, current_url) do
     keep_sidebar(~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}", current_url)

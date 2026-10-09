@@ -119,7 +119,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
         navigate={keep_sidebar(~p"/node/#{@session.node_name}/processes", @current_url)}
         class="btn btn-ghost btn-sm w-max gap-2"
       >
-        <.icon name="icon-arrow-left" class="size-4" /> All Processes
+        <.icon name="icon-arrow-left" class="size-4" /> All processes
       </.link>
 
       <div class="flex min-h-0 flex-1 flex-col">

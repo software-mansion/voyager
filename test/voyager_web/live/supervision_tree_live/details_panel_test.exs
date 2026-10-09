@@ -127,7 +127,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       refute has_element?(view, "#details-panel", "Overview")
     end
 
-    test "Show More and Show Less toggle truncated links", %{
+    test "Show more and Show less toggle truncated links", %{
       conn: conn,
       sup_pid: sup_pid,
       port: port,
@@ -143,17 +143,17 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       render_hook(view, "select-node", %{"key" => sup_key})
       render_async(view)
 
-      assert has_element?(view, "#details-panel-toggle-links", "Show More")
+      assert has_element?(view, "#details-panel-toggle-links", "Show more")
       refute has_element?(view, "#details-panel", twentieth_link)
 
       view |> element("#details-panel-toggle-links") |> render_click()
 
-      assert has_element?(view, "#details-panel-toggle-links", "Show Less")
+      assert has_element?(view, "#details-panel-toggle-links", "Show less")
       assert has_element?(view, "#details-panel", twentieth_link)
 
       view |> element("#details-panel-toggle-links") |> render_click()
 
-      assert has_element?(view, "#details-panel-toggle-links", "Show More")
+      assert has_element?(view, "#details-panel-toggle-links", "Show more")
       refute has_element?(view, "#details-panel", twentieth_link)
     end
 
@@ -174,13 +174,13 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       render_async(view)
 
       view |> element("#details-panel-toggle-links") |> render_click()
-      assert has_element?(view, "#details-panel-toggle-links", "Show Less")
+      assert has_element?(view, "#details-panel-toggle-links", "Show less")
 
       render_hook(view, "select-node", %{"key" => port_key})
       render_hook(view, "select-node", %{"key" => sup_key})
       render_async(view)
 
-      assert has_element?(view, "#details-panel-toggle-links", "Show More")
+      assert has_element?(view, "#details-panel-toggle-links", "Show more")
     end
 
     test "caps the expanded link list", %{
@@ -204,7 +204,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
 
       view |> element("#details-panel-toggle-links") |> render_click()
 
-      assert has_element?(view, "#details-panel-toggle-links", "Show Less")
+      assert has_element?(view, "#details-panel-toggle-links", "Show less")
       assert has_element?(view, "#details-panel", "+5 more")
       refute has_element?(view, "#details-panel", last_link)
     end

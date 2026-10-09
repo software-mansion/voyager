@@ -69,9 +69,9 @@ defmodule VoyagerWeb.Components.ProcessComponents do
               type="search"
               name={@form[:search].name}
               value={@form[:search].value}
-              phx-debounce="500"
-              placeholder="Search by non-numeric fields"
-              aria-label="Search by non-numeric fields"
+              phx-debounce="300"
+              placeholder="Filter by PID or any text column"
+              aria-label="Filter by PID or any text column"
             />
           </label>
 

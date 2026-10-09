@@ -205,15 +205,11 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   attr :class, :any, default: nil
 
   def value_cell(assigns) do
-    full = assigns.tip || assigns.value
-
     assigns =
       assigns
       |> assign(:empty?, assigns.value == @placeholder)
-      |> assign(:full, full)
-      # The tip is `phx-update="ignore"`, so a changed value needs a new id to
-      # remount it.
-      |> assign(:tip_id, "#{assigns.id}-tip-#{:erlang.phash2(full)}")
+      |> assign(:full, assigns.tip || assigns.value)
+      |> assign(:tip_id, "#{assigns.id}-tip")
 
     ~H"""
     <.tooltip

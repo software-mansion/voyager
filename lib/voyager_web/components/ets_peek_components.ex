@@ -88,9 +88,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       id="ets-table-info"
       class="border-base-200 bg-base-100 grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border p-4 sm:grid-cols-3 lg:grid-cols-5"
     >
-      <.info_item label="Type" help={:type}>
-        <span class="badge badge-sm badge-ghost font-mono">{@info.type}</span>
-      </.info_item>
+      <.info_item label="Type" help={:type}>{@info.type}</.info_item>
       <.info_item label="Protection" help={:protection}>
         <EtsTableComponents.private_badge
           :if={@info.protection == :private}
@@ -102,8 +100,10 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
         </span>
       </.info_item>
       <.info_item id="ets-info-keypos" label="Key position" help={:keypos}>{@info.keypos}</.info_item>
-      <.info_item label="Records" help={:size}>{Formatters.format_integer(@info.size)}</.info_item>
-      <.info_item label="Memory" help={:memory}>{Formatters.format_bytes(@info.memory)}</.info_item>
+      <.info_item label="Objects" help={:size}>{Formatters.format_integer(@info.size)}</.info_item>
+      <.info_item label="Memory" help={:memory}>
+        <.bytes id="ets-info-memory" value={@info.memory} />
+      </.info_item>
       <.info_item id="ets-info-owner" label="Owner" help={:owner}>
         <ProcessComponents.process_link pid={@info.owner} current_url={@current_url} />
       </.info_item>
@@ -111,20 +111,24 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       <.info_item :if={@info.heir != :none} label="Heir" help={:heir}>
         <ProcessComponents.process_link pid={@info.heir} current_url={@current_url} />
       </.info_item>
-      <.info_item label="Named table" help={:named_table}>{@info.named_table}</.info_item>
-      <.info_item label="Compressed" help={:compressed}>{@info.compressed}</.info_item>
+      <.info_item label="Named table" help={:named_table}>
+        {EtsTableComponents.format_flag(@info.named_table)}
+      </.info_item>
+      <.info_item label="Compressed" help={:compressed}>
+        {EtsTableComponents.format_flag(@info.compressed)}
+      </.info_item>
       <.info_item label="Read concurrency" help={:read_concurrency}>
-        {@info.read_concurrency}
+        {EtsTableComponents.format_flag(@info.read_concurrency)}
       </.info_item>
       <.info_item label="Write concurrency" help={:write_concurrency}>
-        {@info.write_concurrency}
+        {EtsTableComponents.format_flag(@info.write_concurrency)}
       </.info_item>
       <.info_item
         :if={Map.has_key?(@info, :decentralized_counters)}
         label="Decentralized counters"
         help={:decentralized_counters}
       >
-        {@info.decentralized_counters}
+        {EtsTableComponents.format_flag(@info.decentralized_counters)}
       </.info_item>
     </dl>
     """
