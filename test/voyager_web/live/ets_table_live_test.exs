@@ -5,6 +5,7 @@ defmodule VoyagerWeb.EtsTableLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Voyager.Erpc
   alias Voyager.Fakes
   alias Voyager.Test.EtsTable
   alias Voyager.Test.VoyagerAgentFixture
@@ -96,11 +97,11 @@ defmodule VoyagerWeb.EtsTableLiveTest do
         send(test_pid, {:info_waiting, self()})
 
         receive do
-          :go -> Voyager.Erpc.Impl.call(node, :ets, :info, args, timeout)
+          :go -> Erpc.Impl.call(node, :ets, :info, args, timeout)
         end
 
       node, mod, :ets_select_chunk, args, timeout ->
-        result = Voyager.Erpc.Impl.call(node, mod, :ets_select_chunk, args, timeout)
+        result = Erpc.Impl.call(node, mod, :ets_select_chunk, args, timeout)
         send(test_pid, {:chunk_read, self()})
 
         receive do
@@ -108,7 +109,7 @@ defmodule VoyagerWeb.EtsTableLiveTest do
         end
 
       node, mod, fun, args, timeout ->
-        Voyager.Erpc.Impl.call(node, mod, fun, args, timeout)
+        Erpc.Impl.call(node, mod, fun, args, timeout)
     end)
 
     view |> element("#ets-peek-fetch") |> render_click()
