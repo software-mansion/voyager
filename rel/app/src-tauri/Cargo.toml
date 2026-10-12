@@ -17,7 +17,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
-swift-rs = { version = "1.0.7", features = ["build"] }
+swift-rs = { version = "1.0.9", features = ["build"] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
