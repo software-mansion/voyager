@@ -6,7 +6,6 @@ public typealias ActionCallback = @convention(c) (UnsafePointer<CChar>) -> Void
 
 struct TrayStatus: Decodable {
     let node: String?
-    let nodeLost: Bool
     let connector: String?
     let connectedAt: Date?
     let mcpUrl: String?
@@ -149,8 +148,6 @@ struct TrayView: View {
             idleNodeCard(title: "Starting…")
         case (_?, nil):
             idleNodeCard(title: "Not connected")
-        case let (status?, node?) where status.nodeLost:
-            Card(symbol: "antenna.radiowaves.left.and.right.slash", tint: Theme.idle, title: node, subtitle: Text("Connection lost")) {}
         case let (status?, node?):
             Card(symbol: "antenna.radiowaves.left.and.right", tint: Theme.accent, title: node, subtitle: connectedSubtitle(status)) {
                 Button { model.perform(.disconnect) } label: {
@@ -163,7 +160,7 @@ struct TrayView: View {
                 .accessibilityLabel("Disconnect")
             }
         }
-        if let status = model.status, status.node == nil || status.nodeLost, let last = status.lastConnected {
+        if let status = model.status, status.node == nil, let last = status.lastConnected {
             reconnectRow(last, connecting: status.connecting)
         }
     }

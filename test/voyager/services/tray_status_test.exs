@@ -16,30 +16,33 @@ defmodule Voyager.Services.TrayStatusTest do
     start_supervised!({Registry, keys: :duplicate, name: ElixirKit.PubSub.Registry})
     start_supervised!({TrayStatus, native?: true})
 
-    assert %{"node" => nil, "node_lost" => false, "connector" => nil} = receive_status()
+    assert %{"node" => nil, "connector" => nil} = receive_status()
     :ok
   end
 
   test "follows the node session" do
     broadcast(NodeSession.topic(), {:node_connected, @node})
-    assert %{"node" => "shop@10.0.4.12", "node_lost" => false} = receive_status()
+    assert %{"node" => "shop@10.0.4.12"} = receive_status()
 
     broadcast(NodeSession.topic(), {:nodedown, @node, :connection_closed})
-    assert %{"node" => "shop@10.0.4.12", "node_lost" => true} = receive_status()
+    assert %{"node" => nil, "connector" => nil, "connected_at" => nil} = receive_status()
 
     broadcast(NodeSession.topic(), {:node_connected, @node})
-    assert %{"node_lost" => false} = receive_status()
+    assert %{"node" => "shop@10.0.4.12"} = receive_status()
 
     broadcast(NodeSession.topic(), {:node_disconnected, @node, nil})
-    assert %{"node" => nil, "node_lost" => false} = receive_status()
+    assert %{"node" => nil} = receive_status()
   end
 
-  test "accepts connect after the node is lost" do
+  test "accepts connect after the node goes down" do
+    broadcast(NodeSession.topic(), {:node_connected, @node})
+    assert %{"node" => "shop@10.0.4.12"} = receive_status()
+
     broadcast(NodeSession.topic(), {:nodedown, @node, :connection_closed})
-    assert %{"node_lost" => true} = receive_status()
+    assert %{"node" => nil} = receive_status()
 
     send(TrayStatus, "connect")
-    assert %{"node_lost" => true, "connecting" => false} = receive_status()
+    assert %{"node" => nil, "connecting" => false} = receive_status()
   end
 
   test "clears connecting and reports the error when a reconnect fails" do

@@ -2,10 +2,10 @@ defmodule Voyager.Services.TrayStatus do
   @moduledoc """
   Bridges the Tauri tray menu over `ElixirKit.PubSub` on the `"tray"` topic.
 
-  Sends `%{node, node_lost, connector, connected_at, mcp_url, last_connected,
-  connecting, error}` as JSON whenever the node session or the MCP listener
-  changes, and runs the `"connect"`, `"disconnect"`, `"mcp_on"`, `"mcp_off"`,
-  `"refresh"` and `"dismiss_error"` actions.
+  Sends `%{node, connector, connected_at, mcp_url, last_connected, connecting,
+  error}` as JSON whenever the node session or the MCP listener changes, and runs
+  the `"connect"`, `"disconnect"`, `"mcp_on"`, `"mcp_off"`, `"refresh"` and
+  `"dismiss_error"` actions.
   """
 
   use GenServer
@@ -36,7 +36,7 @@ defmodule Voyager.Services.TrayStatus do
       Phoenix.PubSub.subscribe(Voyager.PubSub, MCP.topic())
 
       state =
-        %{node_lost: false, mcp_url: mcp_url(MCP.info()), connecting: false, error: nil}
+        %{mcp_url: mcp_url(MCP.info()), connecting: false, error: nil}
         |> Map.merge(session_fields(NodeSession.current()))
 
       {:ok, push(state)}
@@ -46,8 +46,7 @@ defmodule Voyager.Services.TrayStatus do
   end
 
   @impl GenServer
-  def handle_info("connect", %{connecting: false, node: node, node_lost: lost} = state)
-      when is_nil(node) or lost do
+  def handle_info("connect", %{connecting: false, node: nil} = state) do
     case last_connectable() do
       nil ->
         {:noreply, push(state)}
@@ -81,28 +80,25 @@ defmodule Voyager.Services.TrayStatus do
     {:noreply, push(%{state | error: nil})}
   end
 
+  # Reply from the async_nolink connect task; :flush drops its trailing :DOWN.
   def handle_info({ref, result}, state) when is_reference(ref) do
     Process.demonitor(ref, [:flush])
     error = if result not in [:ok, {:error, :already_connected}], do: @connect_error
     {:noreply, push(%{state | connecting: false, error: error})}
   end
 
+  # The connect task crashed, otherwise "Connecting…" would never clear.
   def handle_info({:DOWN, _ref, :process, _pid, _reason}, state) do
     {:noreply, push(%{state | connecting: false, error: @connect_error})}
   end
 
   def handle_info({:node_connected, node}, state) do
     fields = %{session_fields(NodeSession.current()) | node: node}
-    {:noreply, push(%{Map.merge(state, fields) | node_lost: false})}
+    {:noreply, push(Map.merge(state, fields))}
   end
 
-  def handle_info({:nodedown, node, _reason}, state) do
-    {:noreply, push(%{state | node: node, node_lost: true})}
-  end
-
-  def handle_info({:node_disconnected, _node, _reason}, state) do
-    state = Map.merge(state, session_fields(nil))
-    {:noreply, push(%{state | node_lost: false})}
+  def handle_info({event, _node, _reason}, state) when event in [:node_disconnected, :nodedown] do
+    {:noreply, push(Map.merge(state, session_fields(nil)))}
   end
 
   def handle_info({:mcp_status, status}, state) do
