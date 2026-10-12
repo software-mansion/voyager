@@ -21,6 +21,7 @@ defmodule Voyager.Services.TrayStatus do
   alias Voyager.Schemas.SshConnection
 
   @native_topic "tray"
+  @connect_error "Could not connect, open Voyager for details"
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
@@ -80,16 +81,16 @@ defmodule Voyager.Services.TrayStatus do
 
   def handle_info({ref, result}, state) when is_reference(ref) do
     Process.demonitor(ref, [:flush])
-    error = if result not in [:ok, {:error, :already_connected}], do: connect_error(result)
+    error = if result not in [:ok, {:error, :already_connected}], do: @connect_error
     {:noreply, push(%{state | connecting: false, error: error})}
   end
 
   def handle_info({:DOWN, _ref, :process, _pid, _reason}, state) do
-    {:noreply, push(%{state | connecting: false, error: connect_error(:crashed)})}
+    {:noreply, push(%{state | connecting: false, error: @connect_error})}
   end
 
   def handle_info({:node_connected, node}, state) do
-    fields = session_fields(NodeSession.current() || %{node: node})
+    fields = %{session_fields(NodeSession.current()) | node: node}
     {:noreply, push(%{Map.merge(state, fields) | node_lost: false})}
   end
 
@@ -117,8 +118,6 @@ defmodule Voyager.Services.TrayStatus do
       connected_at: DateTime.to_unix(session.connected_at)
     }
   end
-
-  defp session_fields(%{node: node}), do: %{node: node, connector: nil, connected_at: nil}
 
   defp connector_label(:ssh), do: "SSH tunnel"
   defp connector_label(_name), do: "Distribution"
@@ -169,11 +168,6 @@ defmodule Voyager.Services.TrayStatus do
       :ok
     end
   end
-
-  defp connect_error({:error, reason}) when reason in [:bad_cookie, :node_connect_failed],
-    do: "The Erlang cookie does not match"
-
-  defp connect_error(_result), do: "Could not connect, open Voyager for details"
 
   defp mcp_error(:port_in_use), do: "MCP port is already in use"
   defp mcp_error(:locked), do: "MCP server is controlled by application config"

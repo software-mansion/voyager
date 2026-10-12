@@ -42,6 +42,21 @@ defmodule Voyager.Services.TrayStatusTest do
     assert %{"node_lost" => true, "connecting" => false} = receive_status()
   end
 
+  test "clears connecting and reports the error when a reconnect fails" do
+    insert!(%Connection{node_name: "gone@127.0.0.1", cookie: "secret"}, 0)
+
+    send(TrayStatus, "connect")
+    assert %{"connecting" => true, "error" => nil} = receive_status()
+    assert %{"connecting" => false, "error" => error} = receive_status()
+    assert is_binary(error)
+  end
+
+  test "reports a failed MCP toggle" do
+    send(TrayStatus, "toggle_mcp")
+    assert %{"error" => error} = receive_status()
+    assert is_binary(error)
+  end
+
   test "follows the MCP listener" do
     broadcast(MCP.topic(), {:mcp_status, %{alive?: true, url: @mcp_url}})
     assert %{"mcp_url" => @mcp_url} = receive_status()

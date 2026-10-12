@@ -1,6 +1,5 @@
 // Menu bar icon and SwiftUI status popover, driven from Rust through the C functions at the bottom.
 import AppKit
-import Combine
 import SwiftUI
 
 public typealias ActionCallback = @convention(c) (UnsafePointer<CChar>) -> Void
@@ -34,24 +33,11 @@ enum TrayAction: String {
 
 final class TrayModel: ObservableObject {
     @Published var status: TrayStatus?
-    /// The user's System Settings accent; SwiftUI's `Color.accentColor` is the app's own, which defaults to blue.
-    @Published private(set) var accent = TrayModel.systemAccent()
     let version: String
     var perform: (TrayAction) -> Void = { _ in }
 
     init(version: String) {
         self.version = version
-
-        NotificationCenter.default.publisher(for: NSColor.systemColorsDidChangeNotification)
-            .merge(with: DistributedNotificationCenter.default()
-                .publisher(for: Notification.Name("AppleColorPreferencesChangedNotification")))
-            .receive(on: DispatchQueue.main)
-            .map { _ in TrayModel.systemAccent() }
-            .assign(to: &$accent)
-    }
-
-    private static func systemAccent() -> Color {
-        Color(NSColor.controlAccentColor.usingColorSpace(.sRGB) ?? .controlAccentColor)
     }
 }
 
@@ -141,15 +127,15 @@ struct TrayView: View {
 
             HStack(spacing: 8) {
                 Button("Open Voyager") { model.perform(.open) }
-                    .buttonStyle(VoyagerButtonStyle(kind: .filled(model.accent)))
+                    .buttonStyle(VoyagerButtonStyle(kind: .filled))
                 Button("Quit") { model.perform(.quit) }
                     .buttonStyle(VoyagerButtonStyle(kind: .danger))
                     .frame(width: 84)
             }
             .padding(.top, 4)
         }
-        .toggleStyle(VoyagerSwitchStyle(tint: model.accent))
-        .tint(model.accent)
+        .toggleStyle(VoyagerSwitchStyle())
+        .tint(Theme.accent)
         .foregroundStyle(Theme.content)
         .padding(12)
         .frame(width: 300)
@@ -165,15 +151,15 @@ struct TrayView: View {
         case let (status?, node?) where status.nodeLost:
             Card(symbol: "antenna.radiowaves.left.and.right.slash", tint: Theme.idle, title: node, subtitle: Text("Connection lost")) {}
         case let (status?, node?):
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                Card(symbol: "antenna.radiowaves.left.and.right", tint: model.accent, title: node, subtitle: connectedSubtitle(status, now: context.date)) {
-                    Button { model.perform(.disconnect) } label: {
-                        Image(systemName: "power").font(.system(size: 12, weight: .medium))
-                    }
-                    .buttonStyle(VoyagerButtonStyle(kind: .danger, compact: true))
-                    .help("Disconnect")
-                    .accessibilityLabel("Disconnect")
+            Card(symbol: "antenna.radiowaves.left.and.right", tint: Theme.accent, title: node, subtitle: connectedSubtitle(status)) {
+                Button { model.perform(.disconnect) } label: {
+                    Image(systemName: "power")
+                        .font(.system(size: 12, weight: .medium))
+                        .frame(width: 14, height: 20)
                 }
+                .buttonStyle(VoyagerButtonStyle(kind: .danger, compact: true))
+                .help("Disconnect")
+                .accessibilityLabel("Disconnect")
             }
         }
         if let status = model.status, status.node == nil || status.nodeLost, let last = status.lastConnected {
@@ -196,7 +182,7 @@ struct TrayView: View {
                     .foregroundStyle(Theme.muted)
             } else {
                 Button("Connect") { model.perform(.connect) }
-                    .buttonStyle(SmallButtonStyle(hoverColor: model.accent))
+                    .buttonStyle(VoyagerButtonStyle(kind: .subtle, compact: true))
             }
         }
         .padding(.horizontal, 2)
@@ -215,7 +201,7 @@ struct TrayView: View {
         let url = model.status?.mcpUrl
         return Card(
             symbol: "sparkles",
-            tint: url == nil ? Theme.idle : model.accent,
+            tint: url == nil ? Theme.idle : Theme.accent,
             title: "MCP server",
             subtitle: Text(url.map { $0.replacingOccurrences(of: "http://", with: "") } ?? "Stopped")
         ) {
@@ -227,23 +213,17 @@ struct TrayView: View {
         }
     }
 
-    private func connectedSubtitle(_ status: TrayStatus, now: Date) -> Text {
+    private func connectedSubtitle(_ status: TrayStatus) -> Text {
         let via = Text(status.connector ?? "Connected")
         guard let since = status.connectedAt else { return via }
-        return via + Text(" · ") + Text(uptimeFormatter.string(from: since, to: max(since, now)) ?? "")
+        return via + Text(" · ") + Text(since, style: .relative)
     }
 }
 
-private let uptimeFormatter: DateComponentsFormatter = {
-    let formatter = DateComponentsFormatter()
-    formatter.allowedUnits = [.second, .minute, .hour, .day]
-    formatter.maximumUnitCount = 1
-    formatter.unitsStyle = .abbreviated
-    return formatter
-}()
-
 /// Voyager's DaisyUI `light` / `dark` theme tokens from assets/css/app.css.
 enum Theme {
+    /// The user's System Settings accent; SwiftUI's `Color.accentColor` is the app's own, which defaults to blue.
+    static let accent = Color(nsColor: .controlAccentColor)
     static let logo = adaptive(light: 0x001A72, dark: 0xECF9FF)
     static let base100 = adaptive(light: 0xFFFFFF, dark: 0x1D232A)
     static let base200 = adaptive(light: 0xF7F9FA, dark: 0x191E24)
@@ -281,23 +261,20 @@ extension View {
 }
 
 struct VoyagerSwitchStyle: ToggleStyle {
-    let tint: Color
-
     func makeBody(configuration: Configuration) -> some View {
-        Switch(configuration: configuration, tint: tint)
+        Switch(configuration: configuration)
     }
 
     /// Drawn by hand: the AppKit-backed `.switch` loses its tint when flipped while the popover is closed.
     private struct Switch: View {
         let configuration: ToggleStyleConfiguration
-        let tint: Color
         @Environment(\.isEnabled) private var isEnabled
 
         var body: some View {
             let isOn = configuration.isOn
             Button { configuration.isOn.toggle() } label: {
                 Capsule()
-                    .fill(isOn ? tint : Theme.content.opacity(0.18))
+                    .fill(isOn ? Theme.accent : Theme.content.opacity(0.18))
                     .frame(width: 30, height: 18)
                     .overlay(alignment: isOn ? .trailing : .leading) {
                         Circle()
@@ -313,36 +290,6 @@ struct VoyagerSwitchStyle: ToggleStyle {
             .accessibilityRepresentation {
                 Toggle(isOn: configuration.$isOn) { configuration.label }
             }
-        }
-    }
-}
-
-struct SmallButtonStyle: ButtonStyle {
-    let hoverColor: Color
-
-    func makeBody(configuration: Configuration) -> some View {
-        Label(configuration: configuration, hoverColor: hoverColor)
-    }
-
-    private struct Label: View {
-        let configuration: ButtonStyleConfiguration
-        let hoverColor: Color
-        @State private var hovering = false
-
-        var body: some View {
-            configuration.label
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(hovering ? .white : Theme.content.opacity(0.85))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(hovering ? hoverColor.opacity(configuration.isPressed ? 0.75 : 1) : Theme.content.opacity(0.08))
-                )
-                .contentShape(Rectangle())
-                .onHover { hovering = $0 }
-                .pointingHandCursor()
-                .animation(.easeOut(duration: 0.12), value: hovering)
         }
     }
 }
@@ -408,8 +355,9 @@ struct Card<Accessory: View>: View {
 /// `.danger` is for actions that end something.
 struct VoyagerButtonStyle: ButtonStyle {
     enum Kind {
-        case filled(Color)
+        case filled
         case danger
+        case subtle
     }
 
     let kind: Kind
@@ -430,12 +378,11 @@ struct VoyagerButtonStyle: ButtonStyle {
             let active = hovering || configuration.isPressed
 
             configuration.label
-                .font(.system(size: 12, weight: .medium))
+                .font(.system(size: compact ? 10 : 12, weight: .medium))
                 .foregroundStyle(foreground(active: active))
                 .frame(maxWidth: compact ? nil : .infinity)
-                .frame(minWidth: compact ? 26 : nil, minHeight: compact ? 26 : nil)
-                .padding(.horizontal, compact ? 0 : 10)
-                .padding(.vertical, compact ? 0 : 6)
+                .padding(.horizontal, compact ? 6 : 10)
+                .padding(.vertical, compact ? 3 : 6)
                 .background(shape.fill(background(active: active)))
                 .contentShape(Rectangle())
                 .onHover { hovering = $0 }
@@ -447,14 +394,16 @@ struct VoyagerButtonStyle: ButtonStyle {
             switch kind {
             case .filled: return .white
             case .danger: return active ? Theme.error : Theme.content.opacity(0.85)
+            case .subtle: return active ? .white : Theme.content.opacity(0.85)
             }
         }
 
         private func background(active: Bool) -> Color {
             let pressed = configuration.isPressed
             switch kind {
-            case .filled(let color): return color.opacity(pressed ? 0.75 : active ? 0.88 : 1)
+            case .filled: return Theme.accent.opacity(pressed ? 0.75 : active ? 0.88 : 1)
             case .danger: return active ? Theme.error.opacity(pressed ? 0.25 : 0.16) : Theme.content.opacity(0.08)
+            case .subtle: return active ? Theme.accent.opacity(pressed ? 0.75 : 1) : Theme.content.opacity(0.08)
             }
         }
     }
