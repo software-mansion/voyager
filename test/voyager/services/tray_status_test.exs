@@ -17,44 +17,43 @@ defmodule Voyager.Services.TrayStatusTest do
     start_supervised!({Registry, keys: :duplicate, name: ElixirKit.PubSub.Registry})
     start_supervised!({TrayStatus, native?: true})
 
-    assert %{"node" => nil, "connector" => nil} = receive_status()
+    assert %{"connection" => nil, "last_connection" => nil, "connecting" => false} =
+             receive_status()
+
     :ok
   end
 
   test "follows the node session" do
     connect_node()
     broadcast(NodeSession.topic(), {:node_connected, @node})
-    assert %{"node" => "shop@10.0.4.12"} = receive_status()
+
+    assert %{"connection" => %{"node" => "shop@10.0.4.12", "connector" => "Distribution"}} =
+             receive_status()
 
     broadcast(NodeSession.topic(), {:nodedown, @node, :connection_closed})
-    assert %{"node" => nil, "connector" => nil, "connected_at" => nil} = receive_status()
+    assert %{"connection" => nil} = receive_status()
 
     broadcast(NodeSession.topic(), {:node_connected, @node})
-    assert %{"node" => "shop@10.0.4.12"} = receive_status()
+    assert %{"connection" => %{"node" => "shop@10.0.4.12"}} = receive_status()
 
     broadcast(NodeSession.topic(), {:node_disconnected, @node, nil})
-    assert %{"node" => nil} = receive_status()
+    assert %{"connection" => nil} = receive_status()
   end
 
-  test "accepts connect after the node goes down" do
-    connect_node()
-    broadcast(NodeSession.topic(), {:node_connected, @node})
-    assert %{"node" => "shop@10.0.4.12"} = receive_status()
-
-    broadcast(NodeSession.topic(), {:nodedown, @node, :connection_closed})
-    assert %{"node" => nil} = receive_status()
-
-    send(TrayStatus, "connect")
-    assert %{"node" => nil, "connecting" => false} = receive_status()
-  end
-
-  test "clears connecting and reports the error when a reconnect fails" do
+  test "reconnects the last connection and reports the error when it fails" do
     insert!(%Connection{node_name: "gone@127.0.0.1", cookie: "secret"}, 0)
+    broadcast(NodeSession.topic(), {:nodedown, @node, :connection_closed})
+    assert %{"last_connection" => %{"node" => "gone@127.0.0.1"}} = receive_status()
 
     send(TrayStatus, "connect")
     assert %{"connecting" => true, "error" => nil} = receive_status()
     assert %{"connecting" => false, "error" => error} = receive_status()
     assert is_binary(error)
+  end
+
+  test "ignores connect without a last connection" do
+    send(TrayStatus, "connect")
+    refute_receive {:"$gen_cast", {:broadcast, "tray", _json}}
   end
 
   test "reports a failed MCP start" do
@@ -65,15 +64,15 @@ defmodule Voyager.Services.TrayStatusTest do
 
   test "leaves a stopped MCP server alone on mcp_off" do
     send(TrayStatus, "mcp_off")
-    assert %{"mcp_url" => nil, "error" => nil} = receive_status()
+    assert %{"mcp" => nil, "error" => nil} = receive_status()
   end
 
   test "follows the MCP listener" do
     broadcast(MCP.topic(), {:mcp_status, %{alive?: true, url: @mcp_url}})
-    assert %{"mcp_url" => @mcp_url} = receive_status()
+    assert %{"mcp" => %{"url" => @mcp_url}} = receive_status()
 
     broadcast(MCP.topic(), {:mcp_status, %{alive?: false, url: @mcp_url}})
-    assert %{"mcp_url" => nil} = receive_status()
+    assert %{"mcp" => nil} = receive_status()
   end
 
   test "offers the latest connection across direct and SSH profiles" do
@@ -89,10 +88,10 @@ defmodule Voyager.Services.TrayStatusTest do
       2
     )
 
-    send(TrayStatus, "refresh")
+    broadcast(NodeSession.topic(), {:node_disconnected, @node, nil})
 
     assert %{
-             "last_connected" => %{
+             "last_connection" => %{
                "node" => "agent@host",
                "connector" => "SSH tunnel",
                "host" => "gw"
@@ -103,9 +102,9 @@ defmodule Voyager.Services.TrayStatusTest do
   test "has no connection to offer when none can reconnect unattended" do
     insert!(%Connection{node_name: "nocookie@host"}, 0)
 
-    send(TrayStatus, "refresh")
+    broadcast(NodeSession.topic(), {:node_disconnected, @node, nil})
 
-    assert %{"last_connected" => nil} = receive_status()
+    assert %{"last_connection" => nil} = receive_status()
   end
 
   defp insert!(connection, hours_ago) do

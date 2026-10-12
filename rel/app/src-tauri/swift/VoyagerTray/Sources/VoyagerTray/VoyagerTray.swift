@@ -4,16 +4,25 @@ import SwiftUI
 
 public typealias ActionCallback = @convention(c) (UnsafePointer<CChar>) -> Void
 
+/// A missing `connection` means disconnected, a missing `mcp` means the server is stopped.
 struct TrayStatus: Decodable {
-    let node: String?
-    let connector: String?
-    let connectedAt: Date?
-    let mcpUrl: String?
-    let lastConnected: LastConnected?
+    let connection: Connection?
+    let mcp: Mcp?
+    let lastConnection: LastConnection?
     let connecting: Bool
     let error: String?
 
-    struct LastConnected: Decodable {
+    struct Connection: Decodable {
+        let node: String
+        let connector: String
+        let connectedAt: Date
+    }
+
+    struct Mcp: Decodable {
+        let url: String
+    }
+
+    struct LastConnection: Decodable {
         let node: String
         let connector: String
         let host: String?
@@ -143,13 +152,13 @@ struct TrayView: View {
     }
 
     @ViewBuilder private var nodeCard: some View {
-        switch (model.status, model.status?.node) {
+        switch (model.status, model.status?.connection) {
         case (nil, _):
             idleNodeCard(title: "Starting…")
         case (_?, nil):
             idleNodeCard(title: "Not connected")
-        case let (status?, node?):
-            Card(symbol: "antenna.radiowaves.left.and.right", tint: Theme.accent, title: node, subtitle: connectedSubtitle(status)) {
+        case let (_?, connection?):
+            Card(symbol: "antenna.radiowaves.left.and.right", tint: Theme.accent, title: connection.node, subtitle: connectedSubtitle(connection)) {
                 Button { model.perform(.disconnect) } label: {
                     Image(systemName: "power")
                         .font(.system(size: 12, weight: .medium))
@@ -160,12 +169,12 @@ struct TrayView: View {
                 .accessibilityLabel("Disconnect")
             }
         }
-        if let status = model.status, status.node == nil, let last = status.lastConnected {
+        if let status = model.status, status.connection == nil, let last = status.lastConnection {
             reconnectRow(last, connecting: status.connecting)
         }
     }
 
-    private func reconnectRow(_ last: TrayStatus.LastConnected, connecting: Bool) -> some View {
+    private func reconnectRow(_ last: TrayStatus.LastConnection, connecting: Bool) -> some View {
         HStack(spacing: 8) {
             (Text("Last: ").foregroundColor(Theme.muted) + Text(last.node)
                 + Text(last.host.map { " · \($0)" } ?? "").foregroundColor(Theme.muted))
@@ -196,7 +205,7 @@ struct TrayView: View {
     }
 
     private var mcpCard: some View {
-        let url = model.status?.mcpUrl
+        let url = model.status?.mcp?.url
         return Card(
             symbol: "sparkles",
             tint: url == nil ? Theme.idle : Theme.accent,
@@ -211,10 +220,8 @@ struct TrayView: View {
         }
     }
 
-    private func connectedSubtitle(_ status: TrayStatus) -> Text {
-        let via = Text(status.connector ?? "Connected")
-        guard let since = status.connectedAt else { return via }
-        return via + Text(" · ") + Text(since, style: .relative)
+    private func connectedSubtitle(_ connection: TrayStatus.Connection) -> Text {
+        Text(connection.connector) + Text(" · ") + Text(connection.connectedAt, style: .relative)
     }
 }
 

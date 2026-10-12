@@ -2,10 +2,11 @@ defmodule Voyager.Services.TrayStatus do
   @moduledoc """
   Bridges the Tauri tray menu over `ElixirKit.PubSub` on the `"tray"` topic.
 
-  Sends `%{node, connector, connected_at, mcp_url, last_connected, connecting,
-  error}` as JSON whenever the node session or the MCP listener changes, and runs
-  the `"connect"`, `"disconnect"`, `"mcp_on"`, `"mcp_off"`, `"refresh"` and
-  `"dismiss_error"` actions.
+  Sends `%{connection, mcp, last_connection, connecting, error}` as JSON whenever
+  the node session or the MCP listener changes; a `nil` `connection` means
+  disconnected and a `nil` `mcp` means stopped. Runs the `"connect"`,
+  `"disconnect"`, `"mcp_on"`, `"mcp_off"`, `"refresh"` and `"dismiss_error"`
+  actions.
   """
 
   use GenServer
@@ -35,9 +36,13 @@ defmodule Voyager.Services.TrayStatus do
       Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
       Phoenix.PubSub.subscribe(Voyager.PubSub, MCP.topic())
 
-      state =
-        %{mcp_url: mcp_url(MCP.info()), connecting: false, error: nil}
-        |> Map.merge(session_fields(NodeSession.current()))
+      state = %{
+        connection: connection_info(NodeSession.current()),
+        mcp: mcp_info(MCP.info()),
+        last_connection: last_connectable(),
+        connecting: false,
+        error: nil
+      }
 
       {:ok, push(state)}
     else
@@ -46,15 +51,10 @@ defmodule Voyager.Services.TrayStatus do
   end
 
   @impl GenServer
-  def handle_info("connect", %{connecting: false, node: nil} = state) do
-    case last_connectable() do
-      nil ->
-        {:noreply, push(state)}
-
-      connection ->
-        Task.Supervisor.async_nolink(Voyager.TaskSupervisor, fn -> connect(connection) end)
-        {:noreply, push(%{state | connecting: true, error: nil})}
-    end
+  def handle_info("connect", %{connecting: false, connection: nil, last_connection: last} = state)
+      when last != nil do
+    Task.Supervisor.async_nolink(Voyager.TaskSupervisor, fn -> connect(last) end)
+    {:noreply, push(%{state | connecting: true, error: nil})}
   end
 
   def handle_info("disconnect", state) do
@@ -93,22 +93,23 @@ defmodule Voyager.Services.TrayStatus do
   end
 
   def handle_info({:node_connected, _node}, state) do
-    {:noreply, push(Map.merge(state, session_fields(NodeSession.current())))}
+    connection = connection_info(NodeSession.current())
+    {:noreply, push(%{state | connection: connection, last_connection: last_connectable()})}
   end
 
   def handle_info({event, _node, _reason}, state) when event in [:node_disconnected, :nodedown] do
-    {:noreply, push(Map.merge(state, session_fields(nil)))}
+    {:noreply, push(%{state | connection: nil, last_connection: last_connectable()})}
   end
 
   def handle_info({:mcp_status, status}, state) do
-    {:noreply, push(%{state | mcp_url: mcp_url(status)})}
+    {:noreply, push(%{state | mcp: mcp_info(status)})}
   end
 
   def handle_info(_message, state), do: {:noreply, state}
 
-  defp session_fields(nil), do: %{node: nil, connector: nil, connected_at: nil}
+  defp connection_info(nil), do: nil
 
-  defp session_fields(%NodeSession.Session{} = session) do
+  defp connection_info(%NodeSession.Session{} = session) do
     %{
       node: session.node,
       connector: connector_label(session.connector.name()),
@@ -119,8 +120,8 @@ defmodule Voyager.Services.TrayStatus do
   defp connector_label(:ssh), do: "SSH tunnel"
   defp connector_label(_name), do: "Distribution"
 
-  defp mcp_url(%{alive?: true, url: url}), do: url
-  defp mcp_url(_status), do: nil
+  defp mcp_info(%{alive?: true, url: url}), do: %{url: url}
+  defp mcp_info(_status), do: nil
 
   defp last_connectable do
     [ConnectionQueries.last_connectable(), SshConnectionQueries.last_connectable()]
@@ -128,12 +129,12 @@ defmodule Voyager.Services.TrayStatus do
     |> Enum.max_by(& &1.last_connected_at, DateTime, fn -> nil end)
   end
 
-  defp last_connected_fields(nil), do: nil
+  defp last_connection_info(nil), do: nil
 
-  defp last_connected_fields(%Connection{} = connection),
+  defp last_connection_info(%Connection{} = connection),
     do: %{node: connection.node_name, connector: connector_label(:distribution), host: nil}
 
-  defp last_connected_fields(%SshConnection{} = connection),
+  defp last_connection_info(%SshConnection{} = connection),
     do: %{node: connection.node_name, connector: connector_label(:ssh), host: connection.ssh_host}
 
   defp connect(%Connection{} = c) do
@@ -171,7 +172,7 @@ defmodule Voyager.Services.TrayStatus do
   defp mcp_error(reason), do: "Could not toggle the MCP server: #{inspect(reason)}"
 
   defp push(state) do
-    payload = Map.put(state, :last_connected, last_connected_fields(last_connectable()))
+    payload = %{state | last_connection: last_connection_info(state.last_connection)}
     ElixirKit.PubSub.broadcast(@native_topic, JSON.encode!(payload))
     state
   end
