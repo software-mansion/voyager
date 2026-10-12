@@ -1,5 +1,6 @@
 // Menu bar icon and SwiftUI status popover, driven from Rust through the C functions at the bottom.
 import AppKit
+import os
 import SwiftUI
 
 public typealias ActionCallback = @convention(c) (UnsafePointer<CChar>) -> Void
@@ -40,28 +41,32 @@ enum TrayAction: String {
     case dismissError = "dismiss_error"
 }
 
+@MainActor
 final class TrayModel: ObservableObject {
     @Published var status: TrayStatus?
     let version: String
-    var perform: (TrayAction) -> Void = { _ in }
+    let perform: (TrayAction) -> Void
 
-    init(version: String) {
+    init(version: String, perform: @escaping (TrayAction) -> Void) {
         self.version = version
+        self.perform = perform
     }
 }
 
+@MainActor
 final class TrayController: NSObject, NSPopoverDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    private let popover = NSPopover()
+    private let popover: NSPopover
     let model: TrayModel
 
     init(icon: NSImage, version: String, onAction: @escaping ActionCallback) {
-        model = TrayModel(version: version)
-        super.init()
-        model.perform = { action in
-            if action == .open || action == .quit { self.popover.performClose(nil) }
+        let popover = NSPopover()
+        self.popover = popover
+        model = TrayModel(version: version) { action in
+            if action == .open || action == .quit { popover.performClose(nil) }
             action.rawValue.withCString(onAction)
         }
+        super.init()
 
         icon.isTemplate = true
         icon.size = NSSize(width: 18, height: 18)
@@ -82,7 +87,7 @@ final class TrayController: NSObject, NSPopoverDelegate {
     }
 
     func popoverDidClose(_ notification: Notification) {
-        model.perform(.dismissError)
+        if model.status?.error != nil { model.perform(.dismissError) }
     }
 
     @objc private func toggle(_ sender: NSStatusBarButton) {
@@ -152,25 +157,27 @@ struct TrayView: View {
     }
 
     @ViewBuilder private var nodeCard: some View {
-        switch (model.status, model.status?.connection) {
-        case (nil, _):
+        switch model.status {
+        case nil:
             idleNodeCard(title: "Starting…")
-        case (_?, nil):
-            idleNodeCard(title: "Not connected")
-        case let (_?, connection?):
-            Card(symbol: "antenna.radiowaves.left.and.right", tint: Theme.accent, title: connection.node, subtitle: connectedSubtitle(connection)) {
-                Button { model.perform(.disconnect) } label: {
-                    Image(systemName: "power")
-                        .font(.system(size: 12, weight: .medium))
-                        .frame(width: 14, height: 20)
+        case let status?:
+            if let connection = status.connection {
+                Card(symbol: "antenna.radiowaves.left.and.right", tint: Theme.accent, title: connection.node, subtitle: connectedSubtitle(connection)) {
+                    Button { model.perform(.disconnect) } label: {
+                        Image(systemName: "power")
+                            .font(.system(size: 12, weight: .medium))
+                            .frame(width: 14, height: 20)
+                    }
+                    .buttonStyle(VoyagerButtonStyle(kind: .danger, compact: true))
+                    .help("Disconnect")
+                    .accessibilityLabel("Disconnect")
                 }
-                .buttonStyle(VoyagerButtonStyle(kind: .danger, compact: true))
-                .help("Disconnect")
-                .accessibilityLabel("Disconnect")
+            } else {
+                idleNodeCard(title: "Not connected")
+                if let last = status.lastConnection {
+                    reconnectRow(last, connecting: status.connecting)
+                }
             }
-        }
-        if let status = model.status, status.connection == nil, let last = status.lastConnection {
-            reconnectRow(last, connecting: status.connecting)
         }
     }
 
@@ -260,7 +267,7 @@ extension NSColor {
 extension View {
     func pointingHandCursor() -> some View {
         onHover { inside in
-            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+            (inside ? NSCursor.pointingHand : NSCursor.arrow).set()
         }
     }
 }
@@ -301,6 +308,7 @@ struct VoyagerSwitchStyle: ToggleStyle {
 
 struct CopyButton: View {
     let text: String
+    @State private var copies = 0
     @State private var copied = false
 
     var body: some View {
@@ -308,7 +316,7 @@ struct CopyButton: View {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(text, forType: .string)
             copied = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
+            copies += 1
         } label: {
             Image(systemName: copied ? "checkmark" : "doc.on.doc")
                 .font(.system(size: 11, weight: .medium))
@@ -320,6 +328,14 @@ struct CopyButton: View {
         .pointingHandCursor()
         .help(copied ? "Copied" : "Copy address")
         .accessibilityLabel("Copy address")
+        .task(id: copies) {
+            guard copied else { return }
+            do {
+                try await Task.sleep(for: .seconds(1.5))
+                copied = false
+            } catch {}
+        }
+        .onDisappear { copied = false }
     }
 }
 
@@ -391,6 +407,7 @@ struct VoyagerButtonStyle: ButtonStyle {
                 .background(shape.fill(background(active: active)))
                 .contentShape(Rectangle())
                 .onHover { hovering = $0 }
+                .onDisappear { hovering = false }
                 .pointingHandCursor()
                 .animation(.easeOut(duration: 0.12), value: hovering)
         }
@@ -414,7 +431,8 @@ struct VoyagerButtonStyle: ButtonStyle {
     }
 }
 
-private var controller: TrayController?
+@MainActor private var controller: TrayController?
+private let log = Logger(subsystem: "com.swmansion.voyager", category: "tray")
 private let decoder: JSONDecoder = {
     let decoder = JSONDecoder()
     decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -429,13 +447,23 @@ public func voyagerTraySetup(
     _ version: UnsafePointer<CChar>,
     _ onAction: @escaping ActionCallback
 ) {
-    guard let icon = NSImage(data: Data(bytes: iconBytes, count: iconLength)) else { return }
-    controller = TrayController(icon: icon, version: String(cString: version), onAction: onAction)
+    guard let icon = NSImage(data: Data(bytes: iconBytes, count: iconLength)) else {
+        preconditionFailure("tray.png is not a valid image")
+    }
+    let version = String(cString: version)
+    MainActor.assumeIsolated {
+        controller = TrayController(icon: icon, version: version, onAction: onAction)
+    }
 }
 
 @_cdecl("voyager_tray_update")
 public func voyagerTrayUpdate(_ json: UnsafePointer<CChar>) {
     let data = Data(String(cString: json).utf8)
-    guard let status = try? decoder.decode(TrayStatus.self, from: data) else { return }
-    controller?.model.status = status
+    MainActor.assumeIsolated {
+        do {
+            controller?.model.status = try decoder.decode(TrayStatus.self, from: data)
+        } catch {
+            log.error("Dropped tray status: \(error, privacy: .public)")
+        }
+    }
 }

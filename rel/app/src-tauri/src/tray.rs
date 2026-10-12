@@ -4,6 +4,14 @@ use std::sync::OnceLock;
 use tauri::{AppHandle, Manager};
 
 pub const TOPIC: &str = "tray";
+const ELIXIR_ACTIONS: &[&str] = &[
+    "connect",
+    "disconnect",
+    "mcp_on",
+    "mcp_off",
+    "refresh",
+    "dismiss_error",
+];
 
 // Implemented in swift/VoyagerTray, linked by build.rs.
 unsafe extern "C" {
@@ -54,6 +62,9 @@ extern "C" fn on_action(action: *const c_char) {
     match action.as_ref() {
         "open" => crate::open_window(app_handle),
         "quit" => app_handle.exit(0),
+        other if !ELIXIR_ACTIONS.contains(&other) => {
+            eprintln!("[rust] unknown tray action: {other}");
+        }
         // broadcast() blocks the main thread until Elixir connects, which "ready" follows.
         _ if app_handle.try_state::<crate::ServerPort>().is_none() => {}
         _ => {

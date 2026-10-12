@@ -24,8 +24,6 @@ const MIN_ZOOM: f64 = 0.5;
 const MAX_ZOOM: f64 = 2.0;
 const UPDATES_TOPIC: &str = "updates";
 const UPDATE_STALL_TIMEOUT: Duration = Duration::from_secs(30);
-/// Whether closing the window leaves Voyager running behind the tray icon.
-const BACKGROUND: bool = cfg!(target_os = "macos");
 
 /// Current zoom factor, since the webview does not expose a getter.
 struct ZoomLevel(Mutex<f64>);
@@ -158,9 +156,11 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| match event {
+            // Closing the last window leaves Voyager running behind the tray icon.
+            #[cfg(target_os = "macos")]
             RunEvent::ExitRequested {
                 code: None, api, ..
-            } if BACKGROUND => api.prevent_exit(),
+            } => api.prevent_exit(),
             #[cfg(target_os = "macos")]
             RunEvent::Reopen {
                 has_visible_windows: false,
@@ -317,12 +317,11 @@ fn create_window(app_handle: &tauri::AppHandle, port: u16) {
     let app_handle = app_handle.clone();
     window.on_window_event(move |event| {
         if let tauri::WindowEvent::Destroyed = event {
-            if !BACKGROUND {
-                app_handle.exit(0);
-            }
             // Hides the Dock icon while only the tray is left.
             #[cfg(target_os = "macos")]
             let _ = app_handle.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            #[cfg(not(target_os = "macos"))]
+            app_handle.exit(0);
         }
     });
 }
