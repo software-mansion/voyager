@@ -51,10 +51,15 @@ defmodule Voyager.Services.TrayStatusTest do
     assert is_binary(error)
   end
 
-  test "reports a failed MCP toggle" do
-    send(TrayStatus, "toggle_mcp")
+  test "reports a failed MCP start" do
+    send(TrayStatus, "mcp_on")
     assert %{"error" => error} = receive_status()
     assert is_binary(error)
+  end
+
+  test "leaves a stopped MCP server alone on mcp_off" do
+    send(TrayStatus, "mcp_off")
+    assert %{"mcp_url" => nil, "error" => nil} = receive_status()
   end
 
   test "follows the MCP listener" do

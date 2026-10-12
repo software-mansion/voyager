@@ -4,8 +4,8 @@ defmodule Voyager.Services.TrayStatus do
 
   Sends `%{node, node_lost, connector, connected_at, mcp_url, last_connected,
   connecting, error}` as JSON whenever the node session or the MCP listener
-  changes, and runs the `"connect"`, `"disconnect"`, `"toggle_mcp"`, `"refresh"`
-  and `"dismiss_error"` actions.
+  changes, and runs the `"connect"`, `"disconnect"`, `"mcp_on"`, `"mcp_off"`,
+  `"refresh"` and `"dismiss_error"` actions.
   """
 
   use GenServer
@@ -63,11 +63,13 @@ defmodule Voyager.Services.TrayStatus do
     {:noreply, state}
   end
 
-  def handle_info("toggle_mcp", state) do
+  def handle_info(action, state) when action in ["mcp_on", "mcp_off"] do
     error =
-      case MCP.toggle() do
-        {:ok, _status} -> nil
-        {:error, reason} -> mcp_error(reason)
+      if MCP.info().alive? != (action == "mcp_on") do
+        case MCP.toggle() do
+          {:ok, _status} -> nil
+          {:error, reason} -> mcp_error(reason)
+        end
       end
 
     {:noreply, push(%{state | error: error})}
