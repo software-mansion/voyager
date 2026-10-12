@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "VoyagerTray",
-    platforms: [.macOS(.v12)],
+    platforms: [.macOS(.v13)],
     products: [
         .library(name: "VoyagerTray", type: .static, targets: ["VoyagerTray"])
     ],

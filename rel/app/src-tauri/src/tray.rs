@@ -4,8 +4,6 @@ use std::sync::OnceLock;
 use tauri::{AppHandle, Manager};
 
 pub const TOPIC: &str = "tray";
-const OPEN_ID: &str = "open";
-const QUIT_ID: &str = "quit";
 
 // Implemented in swift/VoyagerTray, linked by build.rs.
 unsafe extern "C" {
@@ -54,8 +52,8 @@ extern "C" fn on_action(action: *const c_char) {
     };
 
     match action.as_ref() {
-        OPEN_ID => crate::open_window(app_handle),
-        QUIT_ID => app_handle.exit(0),
+        "open" => crate::open_window(app_handle),
+        "quit" => app_handle.exit(0),
         // broadcast() blocks the main thread until Elixir connects, which "ready" follows.
         _ if app_handle.try_state::<crate::ServerPort>().is_none() => {}
         _ => {

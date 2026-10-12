@@ -30,8 +30,6 @@ enum TrayAction: String {
     case toggleMcp = "toggle_mcp"
     case refresh
     case dismissError = "dismiss_error"
-
-    var closesPopover: Bool { self == .open || self == .quit }
 }
 
 final class TrayModel: ObservableObject {
@@ -66,7 +64,7 @@ final class TrayController: NSObject, NSPopoverDelegate {
         model = TrayModel(version: version)
         super.init()
         model.perform = { action in
-            if action.closesPopover { self.popover.performClose(nil) }
+            if action == .open || action == .quit { self.popover.performClose(nil) }
             action.rawValue.withCString(onAction)
         }
 
@@ -79,9 +77,7 @@ final class TrayController: NSObject, NSPopoverDelegate {
         }
 
         let hosting = NSHostingController(rootView: TrayView(model: model, logo: icon))
-        if #available(macOS 13.0, *) {
-            hosting.sizingOptions = .preferredContentSize
-        }
+        hosting.sizingOptions = .preferredContentSize
         popover.contentViewController = hosting
         if #available(macOS 14.0, *) {
             popover.hasFullSizeContent = true
@@ -98,9 +94,6 @@ final class TrayController: NSObject, NSPopoverDelegate {
         if popover.isShown {
             popover.performClose(sender)
             return
-        }
-        if #unavailable(macOS 13.0) {
-            popover.contentSize = popover.contentViewController?.view.fittingSize ?? .zero
         }
         // A transient popover only closes on outside clicks while the app is active.
         NSApp.activate(ignoringOtherApps: true)
@@ -237,20 +230,17 @@ struct TrayView: View {
     private func connectedSubtitle(_ status: TrayStatus, now: Date) -> Text {
         let via = Text(status.connector ?? "Connected")
         guard let since = status.connectedAt else { return via }
-        return via + Text(" · ") + Text(compactUptime(since: since, now: now))
+        return via + Text(" · ") + Text(uptimeFormatter.string(from: since, to: max(since, now)) ?? "")
     }
 }
 
-/// Only the largest unit, e.g. `14min` or `3d`.
-func compactUptime(since: Date, now: Date) -> String {
-    let seconds = max(0, Int(now.timeIntervalSince(since)))
-    switch seconds {
-    case ..<60: return "\(seconds)s"
-    case ..<3600: return "\(seconds / 60)min"
-    case ..<86400: return "\(seconds / 3600)h"
-    default: return "\(seconds / 86400)d"
-    }
-}
+private let uptimeFormatter: DateComponentsFormatter = {
+    let formatter = DateComponentsFormatter()
+    formatter.allowedUnits = [.second, .minute, .hour, .day]
+    formatter.maximumUnitCount = 1
+    formatter.unitsStyle = .abbreviated
+    return formatter
+}()
 
 /// Voyager's DaisyUI `light` / `dark` theme tokens from assets/css/app.css.
 enum Theme {

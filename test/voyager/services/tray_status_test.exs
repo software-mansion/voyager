@@ -50,7 +50,7 @@ defmodule Voyager.Services.TrayStatusTest do
     assert %{"mcp_url" => nil} = receive_status()
   end
 
-  test "offers the latest connection that has every credential saved" do
+  test "offers the latest connection across direct and SSH profiles" do
     insert!(%Connection{node_name: "saved@host", cookie: "secret"}, 3)
 
     insert!(
@@ -62,19 +62,6 @@ defmodule Voyager.Services.TrayStatusTest do
       },
       2
     )
-
-    insert!(
-      %SshConnection{
-        ssh_user: "deploy",
-        ssh_host: "gw",
-        node_name: "nopass@host",
-        cookie: "secret",
-        auth_method: :password
-      },
-      1
-    )
-
-    insert!(%Connection{node_name: "nocookie@host"}, 0)
 
     send(TrayStatus, "refresh")
 

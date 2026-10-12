@@ -1,5 +1,5 @@
 // Keep in sync with Package.swift platforms and bundle.macOS.minimumSystemVersion.
-const MACOS_MIN_VERSION: &str = "12.0";
+const MACOS_MIN_VERSION: &str = "13.0";
 
 fn main() {
     // `option_env!("TELEMETRY_*")` is compile-time; rebuild when these change.

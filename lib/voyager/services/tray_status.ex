@@ -173,21 +173,7 @@ defmodule Voyager.Services.TrayStatus do
   defp connect_error({:error, reason}) when reason in [:bad_cookie, :node_connect_failed],
     do: "The Erlang cookie does not match"
 
-  defp connect_error({:error, reason}) when is_list(reason), do: "SSH authentication failed"
-
-  defp connect_error({:error, reason})
-       when reason in [:node_not_registered, :connection_failed] or
-              (is_tuple(reason) and elem(reason, 0) == :node_not_found),
-       do: "Node not found, check it is running"
-
-  defp connect_error({:error, {tag, _reason}}) when tag in [:epmd_error, :node_unreachable],
-    do: "Node unreachable, check the host and your network"
-
-  defp connect_error({:error, reason})
-       when reason in [:etimedout, :econnrefused, :nxdomain, :ehostunreach, :enetunreach],
-       do: "SSH host unreachable, check the host and your network"
-
-  defp connect_error(_result), do: "Could not connect to the node"
+  defp connect_error(_result), do: "Could not connect, open Voyager for details"
 
   defp mcp_error(:port_in_use), do: "MCP port is already in use"
   defp mcp_error(:locked), do: "MCP server is controlled by application config"
