@@ -92,9 +92,8 @@ defmodule Voyager.Services.TrayStatus do
     {:noreply, push(%{state | connecting: false, error: @connect_error})}
   end
 
-  def handle_info({:node_connected, node}, state) do
-    fields = %{session_fields(NodeSession.current()) | node: node}
-    {:noreply, push(Map.merge(state, fields))}
+  def handle_info({:node_connected, _node}, state) do
+    {:noreply, push(Map.merge(state, session_fields(NodeSession.current())))}
   end
 
   def handle_info({event, _node, _reason}, state) when event in [:node_disconnected, :nodedown] do

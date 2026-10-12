@@ -2,6 +2,7 @@ defmodule Voyager.Services.TrayStatusTest do
   # async: false because the test process takes the global ElixirKit.PubSub name to receive the casts.
   use Voyager.DataCase, async: false
 
+  alias Voyager.Fakes
   alias Voyager.MCP
   alias Voyager.NodeSession
   alias Voyager.Schemas.Connection
@@ -21,6 +22,7 @@ defmodule Voyager.Services.TrayStatusTest do
   end
 
   test "follows the node session" do
+    connect_node()
     broadcast(NodeSession.topic(), {:node_connected, @node})
     assert %{"node" => "shop@10.0.4.12"} = receive_status()
 
@@ -35,6 +37,7 @@ defmodule Voyager.Services.TrayStatusTest do
   end
 
   test "accepts connect after the node goes down" do
+    connect_node()
     broadcast(NodeSession.topic(), {:node_connected, @node})
     assert %{"node" => "shop@10.0.4.12"} = receive_status()
 
@@ -109,6 +112,8 @@ defmodule Voyager.Services.TrayStatusTest do
     at = DateTime.utc_now() |> DateTime.add(-hours_ago, :hour) |> DateTime.truncate(:second)
     Repo.insert!(%{connection | last_connected_at: at})
   end
+
+  defp connect_node, do: Fakes.connect_node!(Fakes.node_session(node: @node))
 
   defp broadcast(topic, message), do: Phoenix.PubSub.broadcast(Voyager.PubSub, topic, message)
 
