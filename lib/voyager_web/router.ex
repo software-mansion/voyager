@@ -17,6 +17,8 @@ defmodule VoyagerWeb.Router do
   scope "/", VoyagerWeb do
     pipe_through :browser
 
+    get "/open", OpenController, :show
+
     live_session :connect,
       layout: {VoyagerWeb.Layouts, :connect},
       on_mount: [

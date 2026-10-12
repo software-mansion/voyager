@@ -274,7 +274,7 @@ fn create_window(app_handle: &tauri::AppHandle, port: u16) {
         return;
     }
 
-    let url = tauri::WebviewUrl::External(format!("http://127.0.0.1:{port}").parse().unwrap());
+    let url = tauri::WebviewUrl::External(format!("http://127.0.0.1:{port}/open").parse().unwrap());
     // Prefer sessionStorage over create-time detect on reload.
     let theme = utils::os_theme_hint();
     let theme_init = [
