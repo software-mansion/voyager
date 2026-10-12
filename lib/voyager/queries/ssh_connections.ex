@@ -26,7 +26,7 @@ defmodule Voyager.Queries.SshConnections do
     )
   end
 
-  @doc "Returns the most recently connected profile with every credential saved, so it can reconnect unattended."
+  @doc "Returns the most recently connected profile it can reconnect unattended."
   @spec last_connectable() :: SshConnection.t() | nil
   def last_connectable do
     SshConnection
