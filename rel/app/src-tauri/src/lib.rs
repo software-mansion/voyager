@@ -1,11 +1,10 @@
 #[cfg(target_os = "macos")]
 mod tray;
-#[cfg(not(target_os = "macos"))]
-mod tray_linux;
+mod tray_menu;
 mod utils;
 
 #[cfg(not(target_os = "macos"))]
-use tray_linux as tray;
+use tray_menu as tray;
 
 use std::sync::Mutex;
 use std::time::Duration;

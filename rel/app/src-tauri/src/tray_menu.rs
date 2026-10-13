@@ -48,7 +48,7 @@ struct Tray {
 
 static TRAY: OnceLock<Tray> = OnceLock::new();
 
-/// Adds the tray icon with a native menu; Linux sends no tray clicks, so the menu is the whole UI.
+/// Adds the tray icon with a native menu, the whole UI where the SwiftUI popover is unavailable.
 pub fn setup(app: &tauri::App) {
     match build(app) {
         Ok(tray) => {
@@ -88,6 +88,7 @@ fn build(app: &tauri::App) -> tauri::Result<Tray> {
 
     TrayIconBuilder::with_id("voyager")
         .icon(tauri::include_image!("icons/tray.png"))
+        .icon_as_template(true)
         .menu(&menu)
         .on_menu_event(on_action)
         .build(app)?;
