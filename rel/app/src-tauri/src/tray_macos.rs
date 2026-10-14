@@ -18,7 +18,7 @@ unsafe extern "C" {
 
 static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 
-/// Adds the menu bar icon and its SwiftUI popover, or the Tauri menu tray before macOS 13.
+/// Adds the menu bar icon and its SwiftUI popover, which needs macOS 13.
 /// Must run on the main thread.
 pub fn setup(app: &tauri::App) {
     let icon = include_bytes!("../icons/icon.png");
@@ -34,14 +34,12 @@ pub fn setup(app: &tauri::App) {
     };
     if popover {
         let _ = APP_HANDLE.set(app.handle().clone());
-    } else {
-        crate::tray_menu::setup(app);
     }
 }
 
 pub fn update(status_json: &[u8]) {
     let Some(app_handle) = APP_HANDLE.get() else {
-        return crate::tray_menu::update(status_json);
+        return;
     };
     let Ok(status_json) = CString::new(status_json) else {
         return;
