@@ -63,7 +63,7 @@ pub fn update(status_json: &[u8]) {
 fn build(app: &tauri::App) -> tauri::Result<Tray> {
     let status = MenuItem::new(app, "Starting…", false, None::<&str>)?;
     // broadcast() blocks the main thread until Elixir connects, which the first status follows.
-    let connect = MenuItem::with_id(app, CONNECT_ID, "Connect", false, None::<&str>)?;
+    let connect = MenuItem::with_id(app, CONNECT_ID, "Reconnect", false, None::<&str>)?;
     let mcp = MenuItem::with_id(app, MCP_ID, "MCP: OFF", false, None::<&str>)?;
     let open = MenuItem::with_id(app, OPEN_ID, "Open Voyager", true, None::<&str>)?;
 
