@@ -318,14 +318,13 @@ fn create_window(app_handle: &tauri::AppHandle, port: u16) {
     #[cfg(target_os = "macos")]
     let _ = window.set_focus();
 
+    // The tray's Hide uses destroy(), which skips CloseRequested, so only Hide keeps Voyager running.
     #[cfg(not(target_os = "macos"))]
     {
         let app_handle = app_handle.clone();
         window.on_window_event(move |event| {
-            if let tauri::WindowEvent::Destroyed = event {
-                if !tray::available() {
-                    app_handle.exit(0);
-                }
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                app_handle.exit(0);
             }
         });
     }

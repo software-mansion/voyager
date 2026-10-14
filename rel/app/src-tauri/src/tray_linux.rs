@@ -10,6 +10,7 @@ pub const TOPIC: &str = "tray";
 const CONNECT_ID: &str = "connect";
 const MCP_ID: &str = "mcp";
 const OPEN_ID: &str = "open";
+const HIDE_ID: &str = "hide";
 const QUIT_ID: &str = "quit";
 
 /// Status pushed by `Voyager.Services.TrayStatus`.
@@ -74,6 +75,7 @@ fn build(app: &tauri::App) -> tauri::Result<Tray> {
             &mcp,
             &PredefinedMenuItem::separator(app)?,
             &open,
+            &MenuItem::with_id(app, HIDE_ID, "Hide Voyager", true, None::<&str>)?,
             &MenuItem::with_id(app, QUIT_ID, "Quit", true, None::<&str>)?,
         ],
     )?;
@@ -98,6 +100,12 @@ fn build(app: &tauri::App) -> tauri::Result<Tray> {
 fn on_action(app_handle: &AppHandle, event: MenuEvent) {
     let action = match event.id().as_ref() {
         OPEN_ID => return crate::open_window(app_handle),
+        HIDE_ID => {
+            if let Some(window) = app_handle.get_webview_window(crate::MAIN_WINDOW_LABEL) {
+                let _ = window.destroy();
+            }
+            return;
+        }
         QUIT_ID => return app_handle.exit(0),
         CONNECT_ID => "connect",
         MCP_ID
