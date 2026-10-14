@@ -156,7 +156,7 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| match event {
-            // Closing the last window leaves Voyager running behind the tray icon.
+            // Closing the last window keeps Voyager in the Dock and tray; Cmd+Q still quits.
             #[cfg(target_os = "macos")]
             RunEvent::ExitRequested {
                 code: None, api, ..
@@ -309,21 +309,17 @@ fn create_window(app_handle: &tauri::AppHandle, port: u16) {
     let _ = window.set_zoom(zoom);
 
     #[cfg(target_os = "macos")]
-    {
-        let _ = app_handle.set_activation_policy(tauri::ActivationPolicy::Regular);
-        let _ = window.set_focus();
-    }
+    let _ = window.set_focus();
 
-    let app_handle = app_handle.clone();
-    window.on_window_event(move |event| {
-        if let tauri::WindowEvent::Destroyed = event {
-            // Hides the Dock icon while only the tray is left.
-            #[cfg(target_os = "macos")]
-            let _ = app_handle.set_activation_policy(tauri::ActivationPolicy::Accessory);
-            #[cfg(not(target_os = "macos"))]
-            app_handle.exit(0);
-        }
-    });
+    #[cfg(not(target_os = "macos"))]
+    {
+        let app_handle = app_handle.clone();
+        window.on_window_event(move |event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                app_handle.exit(0);
+            }
+        });
+    }
 }
 
 fn elixir_command(
