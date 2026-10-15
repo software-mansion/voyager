@@ -159,15 +159,10 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| match event {
-            // Closing the last window keeps Voyager in the Dock and tray; Cmd+Q still quits.
-            #[cfg(target_os = "macos")]
+            // Losing the last window keeps Voyager in the tray; Quit, Cmd+Q and Linux's close pass a code.
             RunEvent::ExitRequested {
                 code: None, api, ..
             } => api.prevent_exit(),
-            #[cfg(not(target_os = "macos"))]
-            RunEvent::ExitRequested {
-                code: None, api, ..
-            } if tray::available() => api.prevent_exit(),
             #[cfg(target_os = "macos")]
             RunEvent::Reopen {
                 has_visible_windows: false,

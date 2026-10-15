@@ -37,21 +37,14 @@ struct Tray {
 
 static TRAY: OnceLock<Tray> = OnceLock::new();
 
-/// Adds the tray icon with a native menu when the desktop has a tray host.
+/// Adds the tray icon with a native menu.
 pub fn setup(app: &tauri::App) {
-    if !tray_host_available() {
-        return;
-    }
     match build(app) {
         Ok(tray) => {
             let _ = TRAY.set(tray);
         }
         Err(error) => eprintln!("[rust] tray setup failed: {error}"),
     }
-}
-
-pub fn available() -> bool {
-    TRAY.get().is_some()
 }
 
 pub fn update(status_json: &[u8]) {
@@ -152,22 +145,4 @@ impl Tray {
         // /open blocks on NodeSession.current/0 during a connect.
         let _ = self.open.set_enabled(!status.connecting);
     }
-}
-
-/// Linux needs a StatusNotifierItem host, which stock GNOME lacks without the AppIndicator extension.
-fn tray_host_available() -> bool {
-    std::process::Command::new("gdbus")
-        .args([
-            "call",
-            "--session",
-            "--dest",
-            "org.freedesktop.DBus",
-            "--object-path",
-            "/org/freedesktop/DBus",
-            "--method",
-            "org.freedesktop.DBus.NameHasOwner",
-            "org.kde.StatusNotifierWatcher",
-        ])
-        .output()
-        .is_ok_and(|output| String::from_utf8_lossy(&output.stdout).contains("true"))
 }
