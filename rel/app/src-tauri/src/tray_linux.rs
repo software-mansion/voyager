@@ -81,7 +81,7 @@ fn build(app: &tauri::App) -> tauri::Result<Tray> {
     )?;
 
     TrayIconBuilder::with_id("voyager")
-        .icon(tauri::include_image!("icons/tray.png"))
+        .icon(tauri::include_image!("icons/icon.png"))
         .icon_as_template(true)
         .menu(&menu)
         .on_menu_event(on_action)
