@@ -68,7 +68,7 @@ fn build(app: &tauri::App) -> tauri::Result<Tray> {
             &mcp,
             &PredefinedMenuItem::separator(app)?,
             &open,
-            &MenuItem::with_id(app, HIDE_ID, "Hide Voyager", true, None::<&str>)?,
+            &MenuItem::with_id(app, HIDE_ID, "Hide to Tray", true, None::<&str>)?,
             &MenuItem::with_id(app, QUIT_ID, "Quit", true, None::<&str>)?,
         ],
     )?;
