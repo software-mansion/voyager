@@ -203,7 +203,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
       {:ok, %ConnectionParams{} = p} ->
         socket
         |> assign(:form, to_form(changeset, as: :conn))
-        |> start_connect(p)
+        |> start_async(:connect, fn -> connect(p) end)
         |> noreply()
 
       {:error, changeset} ->
@@ -222,10 +222,6 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
 
   def handle_async(:connect, {:ok, :ok}, socket) do
     {:noreply, redirect(socket, to: ~p"/open")}
-  end
-
-  defp start_connect(socket, %ConnectionParams{} = p) do
-    start_async(socket, :connect, fn -> connect(p) end)
   end
 
   defp connect(%ConnectionParams{} = p) do

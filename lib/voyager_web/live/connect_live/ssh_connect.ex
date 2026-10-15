@@ -284,7 +284,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       {:ok, %SshConnectionParams{} = p} ->
         socket
         |> assign(:ssh_form, to_form(changeset, as: :ssh))
-        |> start_ssh_connect(p)
+        |> start_async(:ssh_connect, fn -> connect(p) end)
         |> noreply()
 
       {:error, changeset} ->
@@ -327,10 +327,6 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
 
   def handle_async(:ssh_connect, {:ok, :ok}, socket) do
     {:noreply, redirect(socket, to: ~p"/open")}
-  end
-
-  defp start_ssh_connect(socket, %SshConnectionParams{} = p) do
-    start_async(socket, :ssh_connect, fn -> connect(p) end)
   end
 
   defp connect(%SshConnectionParams{} = p) do
