@@ -143,7 +143,7 @@ impl Tray {
         let _ = self.connect.set_text(if status.connecting {
             "Connecting…"
         } else {
-            "Connect"
+            "Reconnect"
         });
         let _ = self.connect.set_enabled(can_connect);
         let _ = self
