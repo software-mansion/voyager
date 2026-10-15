@@ -23,6 +23,9 @@ defmodule Voyager.Services.Distribution do
   @spec ensure_distributed(atom()) :: :ok | {:error, term()}
   def ensure_distributed(name_type) when name_type in [:longnames, :shortnames] do
     cond do
+      not filtered?() ->
+        {:error, :unfiltered_distribution}
+
       not Node.alive?() ->
         start_distribution(name_type)
 
@@ -68,6 +71,19 @@ defmodule Voyager.Services.Distribution do
       {:ok, address} -> address
       {:error, _} -> charlist
     end
+  end
+
+  @doc """
+  Whether a `-proto_dist` argument, as `:init.get_argument/1` returns it, names
+  `dual_tcp_dist` alone. Any other carrier lets a connected node run code here.
+  """
+  @spec filtering_carrier?(term()) :: boolean()
+  def filtering_carrier?({:ok, [[~c"dual_tcp"]]}), do: true
+  def filtering_carrier?(_proto_dist_argument), do: false
+
+  defp filtered? do
+    filtering_carrier?(:init.get_argument(:proto_dist)) or
+      Application.get_env(:voyager, :unfiltered_distribution, false)
   end
 
   defp distribution_name do

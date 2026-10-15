@@ -1,0 +1,4 @@
+[env]
+# Both flags are read only at VM boot, so every mix and iex in this checkout gets them: without the
+# carrier Voyager refuses to connect, without the epmd module it cannot tunnel over SSH.
+ELIXIR_ERL_OPTIONS = "-proto_dist dual_tcp -epmd_module Elixir.Voyager.ProxyEpmd"

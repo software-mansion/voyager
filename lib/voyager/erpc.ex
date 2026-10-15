@@ -8,6 +8,7 @@ defmodule Voyager.Erpc do
   """
 
   @default_timeout 5_000
+  @fun :"$voyager_fun"
 
   @type timeout_time :: 0..4_294_967_295 | :infinity | {:abs, integer()}
   @type call_options :: %{timeout: timeout_time(), always_spawn: boolean()}
@@ -77,18 +78,56 @@ defmodule Voyager.Erpc do
     kind, reason -> format_error(kind, reason)
   end
 
+  @doc """
+  Replaces funs with `{:"$voyager_fun", inspected_text}` and turns every struct
+  into a plain map whose `"__struct__"` string key names the module, so no local
+  function or protocol implementation can be reached through a term from the
+  remote node.
+  """
+  @spec inert(term()) :: term()
+  def inert(term) when is_function(term), do: {@fun, inspect(term)}
+  def inert(list) when is_list(list), do: inert_list(list)
+
+  def inert(tuple) when is_tuple(tuple),
+    do: tuple |> Tuple.to_list() |> Enum.map(&inert/1) |> List.to_tuple()
+
+  def inert(%{__struct__: mod} = struct) when is_atom(mod),
+    do: struct |> inert_map() |> Map.delete(:__struct__) |> Map.put("__struct__", inspect(mod))
+
+  def inert(map) when is_map(map), do: inert_map(map)
+  def inert(term), do: term
+
+  # :maps keeps protocol dispatch on `__struct__` out of the walk.
+  defp inert_map(map),
+    do:
+      map
+      |> :maps.to_list()
+      |> Enum.map(fn {k, v} -> {inert(k), inert(v)} end)
+      |> :maps.from_list()
+
+  defp inert_list([head | tail]), do: [inert(head) | inert_list(tail)]
+  defp inert_list([]), do: []
+  defp inert_list(tail), do: inert(tail)
+
   defmodule Impl do
     @moduledoc """
-    Default `Voyager.Erpc` implementation that delegates to Erlang's `:erpc`.
+    Default `Voyager.Erpc` implementation that delegates to Erlang's `:erpc` and
+    passes results and exception reasons through `Voyager.Erpc.inert/1`.
     """
 
     @behaviour Voyager.Erpc
 
     @impl Voyager.Erpc
-    def call(node, mod, fun, args), do: :erpc.call(node, mod, fun, args)
+    def call(node, mod, fun, args), do: inert_call(fn -> :erpc.call(node, mod, fun, args) end)
 
     @impl Voyager.Erpc
     def call(node, mod, fun, args, timeout_or_options),
-      do: :erpc.call(node, mod, fun, args, timeout_or_options)
+      do: inert_call(fn -> :erpc.call(node, mod, fun, args, timeout_or_options) end)
+
+    defp inert_call(call) do
+      Voyager.Erpc.inert(call.())
+    catch
+      kind, reason -> :erlang.raise(kind, Voyager.Erpc.inert(reason), __STACKTRACE__)
+    end
   end
 end

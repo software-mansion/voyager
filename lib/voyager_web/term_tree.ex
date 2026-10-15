@@ -19,6 +19,8 @@ defmodule VoyagerWeb.TermTree do
   binaries by `{#{inspect(:"$voyager_truncated")}, :binary, prefix, byte_size}`.
   Those render as a muted placeholder so a partial term is never mistaken for a
   complete one. See `priv/voyager_agent.erl` for the truncation itself.
+  `Voyager.Erpc.inert/1` replaces funs with `{:"$voyager_fun", text}`, rendered
+  as the fun they stood for.
   """
 
   alias Voyager.Pid
@@ -27,6 +29,7 @@ defmodule VoyagerWeb.TermTree do
   alias VoyagerWeb.TermTree.State
 
   @truncated :"$voyager_truncated"
+  @fun :"$voyager_fun"
 
   @window 50
   @sort_limit 200
@@ -64,6 +67,7 @@ defmodule VoyagerWeb.TermTree do
   def children(term, offset, limit)
 
   def children({@truncated, :binary, _prefix, _size}, _offset, _limit), do: []
+  def children({@fun, _text}, _offset, _limit), do: []
 
   def children(tuple, offset, limit) when is_tuple(tuple) do
     tuple
@@ -92,6 +96,10 @@ defmodule VoyagerWeb.TermTree do
 
   def children(struct, offset, limit) when is_struct(struct) do
     struct |> Map.from_struct() |> children(offset, limit)
+  end
+
+  def children(%{"__struct__" => name} = map, offset, limit) when is_binary(name) do
+    map |> Map.delete("__struct__") |> children(offset, limit)
   end
 
   def children(map, offset, limit) when is_map(map) do
@@ -230,6 +238,10 @@ defmodule VoyagerWeb.TermTree do
     }
   end
 
+  defp build({@fun, text}) when is_binary(text) do
+    %Node{kind: :other, content: [Segment.other(text)]}
+  end
+
   defp build(binary) when is_binary(binary) do
     %Node{kind: :binary, content: [Segment.string(inspect(binary, @inspect_opts))]}
   end
@@ -299,6 +311,19 @@ defmodule VoyagerWeb.TermTree do
       child_count: struct |> Map.from_struct() |> map_size(),
       truncated?: Map.has_key?(struct, @truncated),
       content: content,
+      expanded_before: module_segments ++ [Segment.punctuation("{")],
+      expanded_after: [Segment.punctuation("}")]
+    }
+  end
+
+  defp build(%{"__struct__" => name} = map) when is_binary(name) do
+    module_segments = [Segment.punctuation("%"), Segment.module(String.trim_leading(name, ":"))]
+
+    %Node{
+      kind: :struct,
+      child_count: map_size(map) - 1,
+      truncated?: Map.has_key?(map, @truncated),
+      content: module_segments ++ [Segment.punctuation("{...}")],
       expanded_before: module_segments ++ [Segment.punctuation("{")],
       expanded_after: [Segment.punctuation("}")]
     }

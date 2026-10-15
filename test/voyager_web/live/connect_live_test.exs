@@ -12,10 +12,13 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
   setup do
     previous_state = :sys.get_state(NodeSession)
+    previous_epmd = :persistent_term.get(:voyager_epmd_module, :erl_epmd)
     Fakes.put_session(nil)
+    :persistent_term.put(:voyager_epmd_module, :erl_epmd)
 
     on_exit(fn ->
       :sys.replace_state(NodeSession, fn _ -> previous_state end)
+      :persistent_term.put(:voyager_epmd_module, previous_epmd)
     end)
 
     :ok

@@ -26,7 +26,11 @@ mix phx.server
 iex -S mix phx.server
 ```
 
-Then visit [localhost:4000](http://localhost:4000). SSH tunnel connections need Voyager's `proxy_epmd` module set at VM boot, so to try them in the web app start it with `dev/server.sh` instead.
+Then visit [localhost:4000](http://localhost:4000). Connecting to a node needs two VM flags that `mise.toml` exports for every `mix` and `iex` in this checkout (run `mise trust` once). Without mise, export them yourself or start the app with `dev/server.sh`:
+
+```sh
+export ELIXIR_ERL_OPTIONS="-proto_dist dual_tcp -epmd_module Elixir.Voyager.ProxyEpmd"
+```
 
 ## Desktop app
 

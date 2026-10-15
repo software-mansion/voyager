@@ -14,14 +14,19 @@ defmodule VoyagerWeb.ProcessInfoLive.QueryIntegrationTest do
 
       {:ok, _pid} =
         :net_kernel.start(:"voyager_test_#{System.unique_integer([:positive])}", %{
-          name_domain: :shortnames
+          name_domain: :shortnames,
+          dist_listen: false,
+          hidden: true
         })
 
       on_exit(fn -> :net_kernel.stop() end)
     end
 
     {:ok, peer, peer_node} =
-      :peer.start(%{name: :"voyager_peer_#{System.unique_integer([:positive])}"})
+      :peer.start(%{
+        name: :"voyager_peer_#{System.unique_integer([:positive])}",
+        connection: :standard_io
+      })
 
     on_exit(fn -> :peer.stop(peer) end)
 

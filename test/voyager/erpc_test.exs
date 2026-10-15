@@ -50,4 +50,28 @@ defmodule Voyager.ErpcTest do
       assert Erpc.format_error(:other, :x) == {:error, {:unknown_error, :x}}
     end
   end
+
+  describe "Impl" do
+    test "results cannot carry funs or structs that run local code" do
+      result = Erpc.Impl.call(node(), Stream, :map, [[:pwned], &send(self(), &1)], 5_000)
+
+      assert %{"__struct__" => "Stream", funs: [{:"$voyager_fun", fun}]} = result
+      assert is_binary(fun)
+      Enum.to_list(result)
+      refute_received :pwned
+    end
+
+    test "exception reasons are made inert too" do
+      gadget = Stream.map([:pwned], &send(self(), &1))
+
+      reason =
+        try do
+          Erpc.Impl.call(node(), :erlang, :throw, [gadget], 5_000)
+        catch
+          :throw, value -> value
+        end
+
+      assert %{"__struct__" => "Stream"} = reason
+    end
+  end
 end

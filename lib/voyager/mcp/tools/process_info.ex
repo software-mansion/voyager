@@ -17,7 +17,8 @@ defmodule Voyager.MCP.Tools.ProcessInfo do
   length as `total`, the kept entries as `items`, and whether anything was
   dropped as `truncated?`; `label` and `state` return a single `term` under
   the same budget. Elided subterms come back as `"$voyager_truncated"`, cut
-  binaries as `["$voyager_truncated", "binary", prefix, byte_size]`; raise
+  binaries as `["$voyager_truncated", "binary", prefix, byte_size]` and funs
+  as `["$voyager_fun", text]`; raise
   `budget` only to fetch the rest of a term that came back truncated. Sizes
   are in bytes.
 

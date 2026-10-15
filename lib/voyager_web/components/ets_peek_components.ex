@@ -20,6 +20,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   alias VoyagerWeb.TermTree.State
 
   @truncated :"$voyager_truncated"
+  @fun :"$voyager_fun"
   @key_marker :"$voyager_key"
 
   @budget_help "Caps how much of each fetched term the remote node sends back — " <>
@@ -568,6 +569,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   defp strip_markers(@truncated), do: :...
   defp strip_markers({@truncated, :binary, prefix, _size}), do: {prefix, :...}
+  defp strip_markers({@fun, text}), do: text
 
   defp strip_markers(list) when is_list(list), do: Enum.map(list, &strip_markers/1)
 

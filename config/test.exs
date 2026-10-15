@@ -22,6 +22,9 @@ config :voyager, VoyagerWeb.Endpoint,
 
 config :voyager, :telemetry_handler, :noop
 
+# The test VM starts without -proto_dist dual_tcp; DualTcpDistFilterTest covers the carrier itself.
+config :voyager, :unfiltered_distribution, true
+
 # Skip the first-launch onboarding modal so unrelated LiveView tests are not blocked.
 config :voyager, :terms_accepted, true
 

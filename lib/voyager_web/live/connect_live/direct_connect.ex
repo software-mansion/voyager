@@ -270,6 +270,9 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   defp connect_error(:name_type_mismatch),
     do: "Name type mismatch - try switching between --sname and --name"
 
+  defp connect_error(:unfiltered_distribution),
+    do: "Voyager was started without its protected connection mode (-proto_dist dual_tcp)"
+
   defp connect_error(:not_distributed), do: "Failed to start Erlang distribution"
   defp connect_error({:net_kernel, _}), do: "Failed to start Erlang distribution"
   defp connect_error({:net_kernel_stop, _}), do: "Failed to restart Erlang distribution"
