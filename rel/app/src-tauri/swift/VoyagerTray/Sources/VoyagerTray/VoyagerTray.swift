@@ -454,7 +454,7 @@ public func voyagerTraySetup(
     _ onAction: @escaping ActionCallback
 ) {
     guard let icon = NSImage(data: Data(bytes: iconBytes, count: iconLength)) else {
-        preconditionFailure("tray.png is not a valid image")
+        preconditionFailure("icon.png is not a valid image")
     }
     controller = TrayController(icon: icon, version: String(cString: version), onAction: onAction)
 }

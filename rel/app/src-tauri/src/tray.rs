@@ -20,7 +20,7 @@ static APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 
 /// Adds the menu bar icon and its SwiftUI popover. Must run on the main thread.
 pub fn setup(app: &tauri::App) {
-    let icon = include_bytes!("../icons/tray.png");
+    let icon = include_bytes!("../icons/icon.png");
     let version = CString::new(app.package_info().version.to_string()).unwrap_or_default();
     let _ = APP_HANDLE.set(app.handle().clone());
 
