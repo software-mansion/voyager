@@ -22,7 +22,7 @@ defmodule Voyager.Services.TrayStatus do
   alias Voyager.Schemas.SshConnection
 
   @native_topic "tray"
-  @connect_error "Could not connect, open Voyager for details"
+  @connect_error "Could not connect"
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
