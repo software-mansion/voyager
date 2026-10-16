@@ -64,11 +64,13 @@ defmodule VoyagerWeb.TermFormatter do
     end
   end
 
+  defp inspect_fun(pid, opts) when is_pid(pid), do: Pid.inspect_fun(pid, opts)
+
   defp inspect_fun(struct, opts) when is_struct(struct) do
     Inspect.inspect(struct, opts)
   rescue
     _error -> Inspect.Any.inspect(struct, opts)
   end
 
-  defp inspect_fun(term, opts), do: Pid.inspect_fun(term, opts)
+  defp inspect_fun(term, opts), do: Inspect.inspect(term, opts)
 end
