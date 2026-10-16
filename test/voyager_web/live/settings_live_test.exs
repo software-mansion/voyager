@@ -294,4 +294,43 @@ defmodule VoyagerWeb.SettingsLiveTest do
       assert has_element?(view, ~s|#pid-format-distribution[disabled]|)
     end
   end
+
+  describe "term syntax settings" do
+    setup do
+      setting = Voyager.TermSyntax.cached_setting()
+      on_exit(fn -> Voyager.TermSyntax.put_setting(setting) end)
+      Voyager.TermSyntax.put_setting(:auto)
+      :ok
+    end
+
+    test "saves the chosen syntax and caches it for formatting", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      assert has_element?(view, ~s|#term-syntax-auto[aria-pressed="true"]|)
+
+      view |> element("#term-syntax-erlang") |> render_click()
+
+      assert has_element?(view, ~s|#term-syntax-erlang[aria-pressed="true"]|)
+      assert Settings.get(:term_syntax) == :erlang
+      assert Voyager.TermSyntax.current() == :erlang
+
+      view |> element("#term-syntax-elixir") |> render_click()
+
+      assert has_element?(view, ~s|#term-syntax-elixir[aria-pressed="true"]|)
+      assert Settings.get(:term_syntax) == :elixir
+      assert Voyager.TermSyntax.current() == :elixir
+    end
+
+    test "disables the buttons when locked by application config", %{conn: conn} do
+      Application.put_env(:voyager, :term_syntax, :erlang)
+      on_exit(fn -> Application.delete_env(:voyager, :term_syntax) end)
+      Voyager.TermSyntax.load_setting()
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      assert has_element?(view, "#term-syntax-locked")
+      assert has_element?(view, ~s|#term-syntax-erlang[aria-pressed="true"][disabled]|)
+      assert has_element?(view, ~s|#term-syntax-auto[disabled]|)
+    end
+  end
 end

@@ -340,6 +340,57 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     refute has_element?(view, "#ets-lookup-record-0")
   end
 
+  test "copies the looked-up key in a form IEx evaluates back", %{conn: conn} do
+    name = named_table(:set)
+    key = {:worker, self()}
+    :ets.insert(name, {key, :v})
+
+    view = open_lookup(conn, name)
+
+    assert view |> text("#ets-sidebar-key") =~ "#PID<"
+    assert {^key, _binding} = view |> text("#ets-sidebar-key-copy-text") |> Code.eval_string()
+  end
+
+  describe "with the Erlang term syntax" do
+    setup do
+      setting = Voyager.TermSyntax.cached_setting()
+      Voyager.TermSyntax.put_setting(:erlang)
+      on_exit(fn -> Voyager.TermSyntax.put_setting(setting) end)
+    end
+
+    test "names the table and renders its records as Erlang terms", %{conn: conn} do
+      name = named_table(:set)
+      :ets.insert(name, {:k, "v"})
+
+      view = fetch_records(conn, name)
+
+      assert view |> text("#ets-table-name") |> String.trim() ==
+               to_string(:io_lib.write_atom(name))
+
+      assert has_element?(view, "#ets-records-0", ~S|{k, <<"v">>}|)
+    end
+
+    test "copies a looked-up record in a form the Erlang shell parses", %{conn: conn} do
+      name = named_table(:set)
+      :ets.insert(name, {:k, %{list: [1, 2]}})
+
+      view = open_lookup(conn, name)
+      copied = text(view, "#ets-lookup-record-0-copy-source")
+
+      assert view |> text("#ets-sidebar-key") |> String.trim() == "k"
+      assert has_element?(view, "#ets-lookup-0-term", "\#{")
+      assert copied =~ "\#{list => [1, 2]}"
+      assert erl_eval(copied) == {:k, %{list: [1, 2]}}
+    end
+  end
+
+  defp erl_eval(source) do
+    {:ok, tokens, _end} = :erl_scan.string(String.to_charlist(source <> "."))
+    {:ok, exprs} = :erl_parse.parse_exprs(tokens)
+    {:value, value, _binding} = :erl_eval.exprs(exprs, :erl_eval.new_bindings())
+    value
+  end
+
   defp named_table(type) do
     name = EtsTable.unique_name()
     :ets.new(name, [:named_table, :public, type])
