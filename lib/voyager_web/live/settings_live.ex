@@ -4,6 +4,7 @@ defmodule VoyagerWeb.SettingsLive do
   alias Voyager.NodeSession
   alias Voyager.Pid
   alias Voyager.Settings
+  alias Voyager.TermSyntax
   alias VoyagerWeb.SettingsComponents
   alias VoyagerWeb.SettingsLive.AppearanceSettings
   alias VoyagerWeb.SettingsLive.DistributionSettings
@@ -18,6 +19,14 @@ defmodule VoyagerWeb.SettingsLive do
      "Replaces the node index with 0, so you can use it on remote shells."}
   ]
 
+  @term_syntaxes [
+    {:auto, "icon-plug", "Auto", nil,
+     "Erlang for nodes without the Elixir application, Elixir otherwise."},
+    {:elixir, "icon-diamond", "Elixir", ~S|%{name: "voyager"}|, "Shows values as Elixir terms."},
+    {:erlang, "icon-triangle", "Erlang", ~S|#{name => <<"voyager">>}|,
+     "Shows values as Erlang terms."}
+  ]
+
   @impl true
   def mount(params, _session, socket) do
     if connected?(socket) do
@@ -29,12 +38,13 @@ defmodule VoyagerWeb.SettingsLive do
     |> assign(:connected?, not is_nil(NodeSession.current()))
     |> assign(:terms_of_service_url, Application.get_env(:voyager, :terms_of_service_url))
     |> assign(:pid_format, Pid.cached_format())
+    |> assign(:term_syntax, TermSyntax.cached_setting())
     |> ok()
   end
 
   @impl true
   def render(assigns) do
-    assigns = assign(assigns, :pid_formats, @pid_formats)
+    assigns = assign(assigns, pid_formats: @pid_formats, term_syntaxes: @term_syntaxes)
 
     ~H"""
     <div class="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-10">
@@ -54,6 +64,15 @@ defmodule VoyagerWeb.SettingsLive do
         selected={@pid_format}
         locked?={Settings.locked?(:pid_format)}
         on_select="select-pid-format"
+      />
+      <SettingsComponents.choice_setting
+        id="term-syntax"
+        title="Term syntax"
+        description="Choose the language syntax values are shown in."
+        options={@term_syntaxes}
+        selected={@term_syntax}
+        locked?={Settings.locked?(:term_syntax)}
+        on_select="select-term-syntax"
       />
       <.live_component
         module={DistributionSettings}
@@ -75,6 +94,11 @@ defmodule VoyagerWeb.SettingsLive do
   def handle_event("select-pid-format", %{"choice" => choice}, socket)
       when choice in ~w(distribution local) do
     save_choice(socket, :pid_format, String.to_existing_atom(choice), &Pid.put_format/1)
+  end
+
+  def handle_event("select-term-syntax", %{"choice" => choice}, socket)
+      when choice in ~w(auto elixir erlang) do
+    save_choice(socket, :term_syntax, String.to_existing_atom(choice), &TermSyntax.put_setting/1)
   end
 
   @impl true
