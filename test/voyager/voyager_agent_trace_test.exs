@@ -289,6 +289,9 @@ defmodule VoyagerAgentTraceTest do
       assert {:error, {:refused, :lists}} = start(spec(lists ++ [processes: set]), @limits)
     end
 
+    assert {:error, {:refused, :prim_file}} =
+             start(spec(module: "prim_file", function: :_, arity: :_, processes: :all), @limits)
+
     assert {:ok, _tracer} = start(spec(lists), @limits)
   end
 

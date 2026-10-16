@@ -13,10 +13,27 @@ defmodule Voyager.Pid do
   @formats [:distribution, :local]
 
   @spec parse(String.t()) :: pid() | nil
-  def parse(pid_str) when is_binary(pid_str) do
-    pid_str |> String.trim_leading("#PID") |> String.to_charlist() |> :erlang.list_to_pid()
+  def parse(pid_string) when is_binary(pid_string) do
+    pid_string |> String.trim_leading("#PID") |> String.to_charlist() |> :erlang.list_to_pid()
   rescue
     ArgumentError -> nil
+  end
+
+  @doc """
+  Resolves a pid string to a pid of `node`. The normal form embeds this node's
+  index for the owning node and parses locally; a `<0.X.Y>` string names a
+  process only on the node that prints it, so it is resolved there.
+  """
+  @spec resolve(node(), String.t()) :: {:ok, pid()} | {:error, term()}
+  def resolve(node, "<0." <> _rest = pid_string) do
+    Erpc.safe_call(node, :erlang, :list_to_pid, [String.to_charlist(pid_string)])
+  end
+
+  def resolve(node, pid_string) do
+    pid = parse(pid_string)
+    if node(pid) == node, do: {:ok, pid}, else: {:error, :invalid_pid}
+  rescue
+    ArgumentError -> {:error, :invalid_pid}
   end
 
   @doc "The `N` of the connected node's `<N.X.Y>` pids, cached by `put_node/1`."

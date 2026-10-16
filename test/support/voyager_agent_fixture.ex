@@ -19,7 +19,8 @@ defmodule Voyager.Test.VoyagerAgentFixture do
       |> Path.join(@filename)
       |> String.to_charlist()
 
-    opts = [:binary, :return_errors, {:d, :AGENT, @module}]
+    defines = for {name, value} <- Voyager.Agent.macros(), do: {:d, name, value}
+    opts = [:binary, :return_errors | defines]
     {:ok, @module, binary} = :compile.file(path, opts)
     {:module, @module} = :code.load_binary(@module, path, binary)
 
