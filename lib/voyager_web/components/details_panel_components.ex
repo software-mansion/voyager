@@ -7,7 +7,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   use VoyagerWeb, :component
 
   alias Phoenix.LiveView.AsyncResult
-  alias Voyager.Pid
   alias Voyager.Services.SupervisionTree.TreeNode
   alias VoyagerWeb.Components.ProcessComponents
   alias VoyagerWeb.Components.SupervisionTreeComponents
@@ -665,6 +664,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :id, :string, required: true
   attr :text, :string, required: true
   attr :label, :string, required: true
+  attr :copy_text, :string, default: nil, doc: "what the button copies; defaults to `text`"
   attr :class, :any, default: nil
 
   def copyable(assigns) do
@@ -673,7 +673,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       <p id={@id} class={["min-w-0 truncate", @class]}>
         {@text}
       </p>
-      <div id={"#{@id}-copy-text"} class="hidden">{@text}</div>
+      <div id={"#{@id}-copy-text"} class="hidden">{@copy_text || @text}</div>
       <.copy_button
         id={"#{@id}-copy"}
         target={"##{@id}-copy-text"}
@@ -694,14 +694,14 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   def linkable_pid(_key, _info, _remote_node), do: nil
 
-  defp overview_value(:initial_call, info), do: format_mfa(info.initial_call)
-  defp overview_value(:current_function, info), do: format_mfa(info.current_function)
+  defp overview_value(:initial_call, info), do: Formatters.format_mfa(info.initial_call)
+  defp overview_value(:current_function, info), do: Formatters.format_mfa(info.current_function)
   defp overview_value(:current_stacktrace, info), do: format_stacktrace(info.current_stacktrace)
   defp overview_value(:registered_name, info), do: format_registered_name(info.registered_name)
   defp overview_value(:label, info), do: format_optional(info.label)
   defp overview_value(:parent, info), do: format_optional_identifier(info.parent)
   defp overview_value(:group_leader, info), do: format_identifier(info.group_leader)
-  defp overview_value(:error_handler, info), do: inspect(info.error_handler)
+  defp overview_value(:error_handler, info), do: Formatters.format_term(info.error_handler)
 
   defp overview_value(:sequential_trace_token, info),
     do: format_sequential_trace_token(info.sequential_trace_token)
@@ -718,22 +718,21 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp skeleton_width_class(:wide), do: "w-full"
   defp skeleton_width_class(nil), do: "w-20"
 
-  defp format_mfa({mod, fun, arity}), do: "#{inspect(mod)}.#{fun}/#{arity}"
-  defp format_mfa(mfa), do: inspect(mfa)
-
   defp format_registered_name(nil), do: "—"
-  defp format_registered_name(name) when is_atom(name), do: inspect(name)
+  defp format_registered_name(name) when is_atom(name), do: Formatters.format_term(name)
 
   defp format_stacktrace([]), do: "[]"
 
   defp format_stacktrace(stacktrace) when is_list(stacktrace),
     do: Enum.map_join(stacktrace, ", ", &format_stack_entry/1)
 
-  defp format_stack_entry({mod, fun, arity, _location}), do: format_mfa({mod, fun, arity})
-  defp format_stack_entry(entry), do: format_mfa(entry)
+  defp format_stack_entry({mod, fun, arity, _location}),
+    do: Formatters.format_mfa({mod, fun, arity})
+
+  defp format_stack_entry(entry), do: Formatters.format_mfa(entry)
 
   defp format_optional(nil), do: "—"
-  defp format_optional(value), do: inspect(value, inspect_fun: &Pid.inspect_fun/2)
+  defp format_optional(value), do: Formatters.format_term(value)
 
   defp format_optional_identifier(nil), do: "—"
   defp format_optional_identifier(identifier), do: format_identifier(identifier)
@@ -742,12 +741,12 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp format_last_calls([]), do: "[]"
 
   defp format_last_calls(calls) when is_list(calls),
-    do: Enum.map_join(calls, ", ", &format_mfa/1)
+    do: Enum.map_join(calls, ", ", &Formatters.format_mfa/1)
 
-  defp format_last_calls(calls), do: inspect(calls)
+  defp format_last_calls(calls), do: Formatters.format_term(calls)
 
   defp format_sequential_trace_token(nil), do: "—"
-  defp format_sequential_trace_token(token), do: inspect(token)
+  defp format_sequential_trace_token(token), do: Formatters.format_term(token)
 
   defp format_count(nil), do: "—"
   defp format_count(n) when is_integer(n), do: Formatters.format_integer(n)
@@ -757,7 +756,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp format_identifier(port) when is_port(port),
     do: port |> :erlang.port_to_list() |> List.to_string()
 
-  defp format_identifier(other), do: inspect(other)
+  defp format_identifier(other), do: Formatters.format_term(other)
 
   defp node_display_name(%TreeNode{name: name}) when is_atom(name), do: Atom.to_string(name)
   defp node_display_name(%TreeNode{name: name}) when is_binary(name), do: Formatters.pid(name)

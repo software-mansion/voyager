@@ -103,7 +103,7 @@ defmodule VoyagerWeb.EtsTablesLive.Query do
   def total_memory(tables), do: Enum.sum_by(tables, & &1.memory)
 
   defp haystack(table) do
-    [inspect(table.name), TableId.display(table.id), Formatters.pid(table.owner)]
+    [Formatters.format_term(table.name), TableId.display(table.id), Formatters.pid(table.owner)]
     |> Enum.map_join(" ", &to_string/1)
     |> String.downcase()
   end
@@ -111,5 +111,5 @@ defmodule VoyagerWeb.EtsTablesLive.Query do
   defp sort_key(table, :name), do: name_key(table)
   defp sort_key(table, key), do: Map.get(table, key)
 
-  defp name_key(table), do: table.name |> inspect() |> String.downcase()
+  defp name_key(table), do: table.name |> Formatters.format_term() |> String.downcase()
 end

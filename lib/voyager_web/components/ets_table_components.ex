@@ -78,7 +78,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
 
   @doc "The table's name as shown everywhere, e.g. `:my_table` or `MyApp.Cache`."
   @spec display_name(map()) :: String.t()
-  def display_name(%{name: name}), do: inspect(name)
+  def display_name(%{name: name}), do: Formatters.format_term(name)
 
   @doc "Human label for a selectable column."
   @spec column_label(atom()) :: String.t()

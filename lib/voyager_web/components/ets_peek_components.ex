@@ -6,7 +6,6 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   use VoyagerWeb, :component
 
-  alias Voyager.Pid
   alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Components.DetailsPanelComponents
   alias VoyagerWeb.Components.EtsTableComponents
@@ -29,12 +28,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   @records_timeout_help "How long to wait for the node to read a page of records before the fetch fails."
   @lookup_timeout_help "How long to wait for the node to look up this key before the lookup fails."
 
-  @preview_opts [
-    limit: 20,
-    printable_limit: 128,
-    width: :infinity,
-    inspect_fun: &Pid.inspect_fun/2
-  ]
+  @preview_opts [limit: 20, printable_limit: 128, width: :infinity]
 
   attr :table_name, :string, required: true
   attr :node_name, :string, required: true
@@ -347,7 +341,8 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
             <DetailsPanelComponents.copyable
               id="ets-sidebar-key"
               class="font-mono text-base-content break-all text-sm font-medium"
-              text={inspect(@key, inspect_fun: &Pid.inspect_fun/2)}
+              text={Formatters.format_term(@key)}
+              copy_text={TermTree.copy_string(@key)}
               label="Copy key"
             />
           </div>
@@ -546,7 +541,8 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
     through_key = record |> Tuple.to_list() |> Enum.take(keypos) |> List.to_tuple() |> preview()
     key_end = byte_size(through_key) - 1
 
-    with [before, _rest] <- String.split(marked, inspect(@key_marker), parts: 2),
+    with [before, _rest] <-
+           String.split(marked, Formatters.format_term(@key_marker), parts: 2),
          key_start = byte_size(before),
          <<head::binary-size(^key_start), key::binary-size(^key_end - ^key_start), tail::binary>> <-
            text do
@@ -561,9 +557,9 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   defp preview(record) do
     record
     |> strip_markers()
-    |> inspect(@preview_opts)
+    |> Formatters.format_term(@preview_opts)
   rescue
-    _e -> inspect(record, @preview_opts)
+    _e -> Formatters.format_term(record, @preview_opts)
   end
 
   defp strip_markers(@truncated), do: :...
