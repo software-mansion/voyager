@@ -3,6 +3,7 @@ defmodule VoyagerWeb.TermFormatterIdentifierTest do
   use ExUnit.Case, async: false
 
   import Mox
+  import Voyager.TestUtils, only: [erl_eval: 1]
 
   alias Voyager.Pid
   alias VoyagerWeb.TermFormatter
@@ -43,17 +44,18 @@ defmodule VoyagerWeb.TermFormatterIdentifierTest do
   test "numbers the connected node's pids, refs and ports as its own shell does" do
     connect()
 
-    assert TermFormatter.identifier(pid_on(@node, 45)) == {:list_to_pid, "<0.45.0>"}
-    assert TermFormatter.identifier(ref_on(@node)) == {:list_to_ref, "#Ref<0.9.8.7>"}
-    assert TermFormatter.identifier(port_on(@node)) == {:list_to_port, "#Port<0.5>"}
+    assert TermFormatter.identifier(pid_on(@node, 45)) == {:list_to_pid, ~c"<0.45.0>"}
+    assert TermFormatter.identifier(ref_on(@node)) == {:list_to_ref, ~c"#Ref<0.9.8.7>"}
+    assert TermFormatter.identifier(port_on(@node)) == {:list_to_port, ~c"#Port<0.5>"}
   end
 
-  test "leaves ids of other nodes in their distribution form" do
+  test "carries ids of other nodes in their external term format, which names the node" do
     connect()
     pid = pid_on(@other, 45)
 
-    assert TermFormatter.identifier(pid) ==
-             {:list_to_pid, List.to_string(:erlang.pid_to_list(pid))}
+    assert TermFormatter.identifier(pid) == {:binary_to_term, :erlang.term_to_binary(pid)}
+    assert erl_eval(TermTree.copy_string(pid, syntax: :erlang)) == pid
+    assert {^pid, _binding} = Code.eval_string(TermTree.copy_string(pid, syntax: :elixir))
   end
 
   test "copies the connected node's ids in its local form in either syntax" do

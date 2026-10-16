@@ -29,12 +29,20 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
   @spec format_mfa({module(), atom(), arity()}) :: String.t()
   def format_mfa({mod, fun, arity}), do: "#{atom(mod)}:#{atom(fun)}/#{arity}"
 
+  @spec atom(atom()) :: String.t()
+  def atom(atom), do: atom |> :io_lib.write_atom() |> IO.chardata_to_string()
+
+  @doc "Whether the first `limit` elements of `list` read as a string; the rest is not walked."
+  @spec printable_list?(list(), non_neg_integer() | :infinity) :: boolean()
+  def printable_list?(list, limit),
+    do: match?({:ok, _chars, _more?}, printable_prefix(list, limit))
+
   defp line_length(%Inspect.Opts{pretty: true, width: width}) when is_integer(width), do: width
   defp line_length(_opts), do: @single_line
 
   defp abstract(id, :copy) when is_pid(id) or is_reference(id) or is_port(id) do
-    {fun, text} = TermFormatter.identifier(id)
-    call(fun, text)
+    {fun, arg} = TermFormatter.identifier(id)
+    call(fun, :erl_parse.abstract(arg))
   end
 
   defp abstract(pid, _opts) when is_pid(pid), do: text(Pid.format(pid))
@@ -77,10 +85,9 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
   end
 
   defp abstract([_ | _] = list, mode) do
-    if :io_lib.printable_unicode_list(list) do
-      string(list, printable_limit(mode))
-    else
-      cons(list, limit(mode), mode)
+    case printable_prefix(list, printable_limit(mode)) do
+      {:ok, chars, more?} -> string(chars, more?)
+      :error -> cons(list, limit(mode), mode)
     end
   end
 
@@ -114,12 +121,8 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
     for elision <- elision(more?), do: {:bin_element, anno(), elision, :default, :default}
   end
 
-  defp string(chars, limit) do
-    case cut(chars, limit) do
-      {chars, false} -> {:string, anno(), chars}
-      {kept, true} -> {:op, anno(), :++, {:string, anno(), kept}, @elision}
-    end
-  end
+  defp string(chars, false), do: {:string, anno(), chars}
+  defp string(chars, true), do: {:op, anno(), :++, {:string, anno(), chars}, @elision}
 
   defp cons(_list, 0, _mode), do: {:cons, anno(), @elision, {nil, anno()}}
   defp cons(list, limit, mode), do: cons_tail(list, limit, mode)
@@ -151,34 +154,35 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
     {:bin, anno, elements ++ elision_element(true)}
   end
 
-  # Decodes at most `limit` codepoints, so a huge binary costs no more than its shown prefix.
-  defp printable_prefix(bitstring, limit) do
-    {chars, rest} = take_codepoints(bitstring, limit, [])
+  # Walks at most `limit` characters, so a huge text costs no more than its shown prefix.
+  defp printable_prefix(text, limit) do
+    {chars, rest} = take_chars(text, limit, [])
 
     cond do
       not :io_lib.printable_unicode_list(chars) -> :error
-      rest == "" -> {:ok, chars, false}
+      rest == [] or rest == "" -> {:ok, chars, false}
       is_integer(limit) and length(chars) == limit -> {:ok, chars, true}
       true -> :error
     end
   end
 
-  defp take_codepoints(<<char::utf8, rest::bitstring>>, limit, acc)
-       when limit == :infinity or limit > 0,
-       do: take_codepoints(rest, decrement(limit), [char | acc])
+  defp take_chars([char | rest], limit, acc) when limit == :infinity or limit > 0,
+    do: take_chars(rest, decrement(limit), [char | acc])
 
-  defp take_codepoints(rest, _limit, acc), do: {Enum.reverse(acc), rest}
+  defp take_chars(<<char::utf8, rest::bitstring>>, limit, acc)
+       when limit == :infinity or limit > 0,
+       do: take_chars(rest, decrement(limit), [char | acc])
+
+  defp take_chars(rest, _limit, acc), do: {Enum.reverse(acc), rest}
 
   defp text(chardata), do: {:text, :unicode.characters_to_list(chardata)}
 
   defp text_hook({:text, chars}, _indent, _precedence, _options), do: chars
 
-  defp call(fun, text) do
+  defp call(fun, arg) do
     remote = {:remote, anno(), {:atom, anno(), :erlang}, {:atom, anno(), fun}}
-    {:call, anno(), remote, [{:string, anno(), to_charlist(text)}]}
+    {:call, anno(), remote, [arg]}
   end
-
-  defp atom(atom), do: atom |> :io_lib.write_atom() |> IO.chardata_to_string()
 
   # erl_anno:anno() is opaque to Dialyzer, so a literal 0 would not type-check.
   defp anno, do: :erl_anno.new(0)

@@ -20,9 +20,8 @@ defmodule VoyagerWeb.TermTree.Erlang do
   @impl TermTree
   def key_segments(key), do: TermTree.key_content(key, :erlang) ++ [Segment.punctuation(" => ")]
 
-  defp atom_segment(atom) when atom in [true, false, :undefined] do
-    Segment.special(ErlangFormatter.inspect(atom))
-  end
+  defp atom_segment(atom) when atom in [true, false, :undefined],
+    do: Segment.special(ErlangFormatter.atom(atom))
 
-  defp atom_segment(atom), do: Segment.atom(ErlangFormatter.inspect(atom))
+  defp atom_segment(atom), do: Segment.atom(ErlangFormatter.atom(atom))
 end

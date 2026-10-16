@@ -44,25 +44,29 @@ defmodule VoyagerWeb.TermFormatter do
 
   @doc """
   The `erlang` BIF and its argument that rebuild `id` in a shell on the
-  connected node, which numbers its own pids, refs and ports `0`.
+  connected node: `list_to_*` from the local form for that node's own pids,
+  refs and ports, which it numbers `0`, and `binary_to_term` for any other
+  node's, whose `<N.X.Y>` form would name a different node there.
   """
-  @spec identifier(pid() | reference() | port()) :: {atom(), String.t()}
-  def identifier(pid) when is_pid(pid), do: {:list_to_pid, localize(:erlang.pid_to_list(pid))}
+  @spec identifier(pid() | reference() | port()) :: {atom(), charlist() | binary()}
+  def identifier(id) when is_pid(id) or is_reference(id) or is_port(id) do
+    text = id |> id_to_list() |> List.to_string()
+    local = Pid.localize(text)
 
-  def identifier(ref) when is_reference(ref),
-    do: {:list_to_ref, localize(:erlang.ref_to_list(ref))}
-
-  def identifier(port) when is_port(port),
-    do: {:list_to_port, localize(:erlang.port_to_list(port))}
-
-  defp localize(chars) do
-    text = List.to_string(chars)
-
-    case Pid.cached_node_id() do
-      nil -> text
-      id -> String.replace(text, "<#{id}.", "<0.", global: false)
+    if local == text and Pid.cached_node_id() != nil do
+      {:binary_to_term, :erlang.term_to_binary(id)}
+    else
+      {list_to_id(id), String.to_charlist(local)}
     end
   end
+
+  defp id_to_list(pid) when is_pid(pid), do: :erlang.pid_to_list(pid)
+  defp id_to_list(ref) when is_reference(ref), do: :erlang.ref_to_list(ref)
+  defp id_to_list(port) when is_port(port), do: :erlang.port_to_list(port)
+
+  defp list_to_id(pid) when is_pid(pid), do: :list_to_pid
+  defp list_to_id(ref) when is_reference(ref), do: :list_to_ref
+  defp list_to_id(port) when is_port(port), do: :list_to_port
 
   defp inspect_fun(pid, opts) when is_pid(pid), do: Pid.inspect_fun(pid, opts)
 

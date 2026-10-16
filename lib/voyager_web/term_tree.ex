@@ -29,6 +29,7 @@ defmodule VoyagerWeb.TermTree do
 
   alias Voyager.Services.TermSyntax
   alias VoyagerWeb.TermFormatter
+  alias VoyagerWeb.TermFormatter.Erlang, as: ErlangFormatter
   alias VoyagerWeb.TermTree.Elixir, as: ElixirSyntax
   alias VoyagerWeb.TermTree.Erlang, as: ErlangSyntax
   alias VoyagerWeb.TermTree.Node
@@ -277,7 +278,8 @@ defmodule VoyagerWeb.TermTree do
   defp string_list?(list, :elixir),
     do: List.ascii_printable?(list, @inspect_opts[:printable_limit])
 
-  defp string_list?(list, :erlang), do: :io_lib.printable_unicode_list(list)
+  defp string_list?(list, :erlang),
+    do: ErlangFormatter.printable_list?(list, @inspect_opts[:printable_limit])
 
   defp map_open(:elixir), do: "%{"
   defp map_open(:erlang), do: "\#{"

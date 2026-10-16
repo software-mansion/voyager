@@ -35,8 +35,7 @@ defmodule Voyager.Services.TermSyntax do
   @spec load_setting() :: :ok
   def load_setting do
     :term_syntax
-    |> Settings.get(:auto)
-    |> normalize_setting()
+    |> Settings.get_choice(@settings, :auto)
     |> put_setting()
   end
 
@@ -56,7 +55,4 @@ defmodule Voyager.Services.TermSyntax do
       _loaded_or_error -> :elixir
     end
   end
-
-  defp normalize_setting(setting) when setting in @settings, do: setting
-  defp normalize_setting(_setting), do: :auto
 end
