@@ -302,6 +302,68 @@ defmodule VoyagerWeb.ConnectComponents do
     """
   end
 
+  attr :id, :string, required: true
+  attr :form, Phoenix.HTML.Form, required: true
+  attr :key_path, :string, required: true
+  attr :shown, :boolean, default: false
+  attr :target, :any, default: nil
+  attr :on_change, :string, required: true
+  attr :on_submit, :string, required: true
+  attr :on_cancel, :string, required: true
+
+  def passphrase_modal(assigns) do
+    ~H"""
+    <div
+      id={@id}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={"#{@id}-title"}
+      class="modal modal-open"
+    >
+      <div class="modal-box border-base-300 max-w-md border shadow-2xl">
+        <h2 id={"#{@id}-title"} class="text-base-content text-lg font-semibold tracking-tight">
+          Key passphrase
+        </h2>
+        <p class="font-mono text-base-content/70 mt-1 mb-4 truncate text-xs">{@key_path}</p>
+
+        <.form
+          for={@form}
+          id={"#{@id}-form"}
+          phx-target={@target}
+          phx-change={@on_change}
+          phx-submit={@on_submit}
+        >
+          <.secret_field
+            field={@form[:passphrase]}
+            label="Passphrase"
+            secret_key="passphrase"
+            shown={@shown}
+            target={@target}
+            remember_name={@form[:remember].name}
+            remember_checked={to_string(@form[:remember].value) == "true"}
+            remember_label="Remember passphrase"
+          />
+
+          <div class="modal-action">
+            <button
+              type="button"
+              id={"#{@id}-cancel"}
+              phx-target={@target}
+              phx-click={@on_cancel}
+              class="btn btn-ghost"
+            >
+              Cancel
+            </button>
+            <button type="submit" id={"#{@id}-submit"} class="btn btn-primary">
+              Connect
+            </button>
+          </div>
+        </.form>
+      </div>
+    </div>
+    """
+  end
+
   @doc "Segmented radio group for a set of mutually exclusive options."
   attr :name, :string, required: true
   attr :value, :any, required: true, doc: "Currently selected value (compared as a string)"

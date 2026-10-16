@@ -12,11 +12,14 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParams do
     field :node_name, :string
     field :cookie, :string
     field :name_type, Ecto.Enum, values: [:shortnames, :longnames], default: :longnames
-    field :auth_method, Ecto.Enum, values: [:agent, :password], default: :agent
+    field :auth_method, Ecto.Enum, values: [:agent, :password, :key], default: :agent
     field :password, :string
+    field :key_path, :string
+    field :passphrase, :string
     field :epmd_port, :integer, default: 4369
     field :remember_cookie, :boolean, default: false
     field :remember_password, :boolean, default: false
+    field :remember_passphrase, :boolean, default: false
   end
 
   @type t :: %__MODULE__{
@@ -26,11 +29,14 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParams do
           node_name: String.t() | nil,
           cookie: String.t() | nil,
           name_type: :shortnames | :longnames,
-          auth_method: :agent | :password,
+          auth_method: :agent | :password | :key,
           password: String.t() | nil,
+          key_path: String.t() | nil,
+          passphrase: String.t() | nil,
           epmd_port: integer(),
           remember_cookie: boolean(),
-          remember_password: boolean()
+          remember_password: boolean(),
+          remember_passphrase: boolean()
         }
 
   @spec changeset(map()) :: Ecto.Changeset.t()
@@ -45,6 +51,7 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParams do
       :name_type,
       :auth_method,
       :password,
+      :key_path,
       :epmd_port,
       :remember_cookie,
       :remember_password
@@ -55,9 +62,10 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParams do
     |> validate_length(:ssh_host, max: 255)
     |> validate_length(:node_name, max: 255)
     |> validate_length(:cookie, max: 255)
+    |> validate_length(:key_path, max: 4096)
     |> validate_number(:ssh_port, greater_than_or_equal_to: 1, less_than_or_equal_to: 65_535)
     |> validate_number(:epmd_port, greater_than_or_equal_to: 1, less_than_or_equal_to: 65_535)
-    |> validate_password_when_required()
+    |> validate_auth_fields()
   end
 
   @spec to_auth(t()) :: SSH.auth()
@@ -66,9 +74,14 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParams do
   def to_auth(%__MODULE__{auth_method: :password, password: pw}) when is_binary(pw),
     do: {:password, pw}
 
-  defp validate_password_when_required(changeset) do
+  def to_auth(%__MODULE__{auth_method: :key, key_path: path, passphrase: passphrase})
+      when is_binary(path),
+      do: {:key, path, passphrase}
+
+  defp validate_auth_fields(changeset) do
     case get_field(changeset, :auth_method) do
       :password -> validate_required(changeset, [:password])
+      :key -> validate_required(changeset, [:key_path])
       _ -> changeset
     end
   end

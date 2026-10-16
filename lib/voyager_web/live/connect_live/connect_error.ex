@@ -70,5 +70,11 @@ defmodule VoyagerWeb.ConnectLive.ConnectError do
     do: "Node runs OTP #{release} - Voyager requires OTP #{Voyager.Agent.min_otp()} or newer"
 
   def message({:agent_install_failed, _}), do: "Could not load the Voyager agent on the node"
+
+  def message(:key_encrypted_openssh),
+    do: "Passphrase-protected OpenSSH keys aren't supported — use SSH Agent or Password"
+
+  def message(:key_unreadable), do: "Not a private key Voyager can read"
+  def message({:read_failed, _}), do: "Can't read this file"
   def message(_reason), do: "Could not connect to node"
 end
