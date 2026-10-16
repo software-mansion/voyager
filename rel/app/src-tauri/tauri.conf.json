@@ -29,7 +29,7 @@
       "icons/icon.ico"
     ],
     "macOS": {
-      "minimumSystemVersion": "13.0"
+      "minimumSystemVersion": "10.15"
     },
     "linux": {
       "deb": {
