@@ -9,6 +9,7 @@ defmodule Voyager.Services.SSH.Erlssh do
   require SSH
 
   @ssh_timeout 5000
+  @alive %{interval: 15_000, count_max: 3}
 
   @impl true
   def connect(host, port, user, auth) when SSH.is_ssh_auth(auth) do
@@ -18,7 +19,8 @@ defmodule Voyager.Services.SSH.Erlssh do
         user_interaction: false,
         silently_accept_hosts: true,
         save_accepted_host: false,
-        connect_timeout: @ssh_timeout
+        connect_timeout: @ssh_timeout,
+        alive: Application.get_env(:voyager, :ssh_alive, @alive)
       ] ++ auth_opts(auth)
 
     :ssh.connect(Distribution.host_address(host), port, opts)

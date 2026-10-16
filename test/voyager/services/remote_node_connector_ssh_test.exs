@@ -102,6 +102,18 @@ defmodule Voyager.Services.RemoteNodeConnectorSshTest do
     assert_receive {:tunnel_down, ^conn_ref}, 5_000
   end
 
+  test "broadcasts tunnel_down when the SSH server stops responding", ctx do
+    Application.put_env(:voyager, :ssh_alive, %{interval: 100, count_max: 2})
+    on_exit(fn -> Application.delete_env(:voyager, :ssh_alive) end)
+    Phoenix.PubSub.subscribe(Voyager.PubSub, TunnelRegistry.topic())
+    assert {:ok, _node, conn_ref, _local_port} = connect(ctx)
+    assert_receive {:ssh_server_connection, server_pid}
+
+    :sys.suspend(server_pid)
+    assert_receive {:tunnel_down, ^conn_ref}, 5_000
+    :sys.resume(server_pid)
+  end
+
   test "fails when the node is not registered in the remote epmd", ctx do
     assert {:error, {:node_not_found, "missing", _names}} =
              connect(ctx, node_name: "missing@#{ctx.node_host}")
