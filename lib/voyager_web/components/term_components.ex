@@ -1,6 +1,6 @@
 defmodule VoyagerWeb.Components.TermComponents do
   @moduledoc """
-  Renders an Elixir term as a collapsible tree.
+  Renders a term as a collapsible tree, in Elixir or Erlang syntax.
 
   Only the open parts of the term are turned into markup, so pointing this at a
   large term is cheap until the user asks to see more of it. Which parts are

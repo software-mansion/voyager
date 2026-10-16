@@ -457,12 +457,16 @@ defmodule VoyagerWeb.TermTreeTest do
       assert {%{pid: ^pid}, _binding} = Code.eval_string(copied)
     end
 
-    test "quotes other #Name<...> forms so the result still parses" do
-      copied = TermTree.copy_string([make_ref()])
+    test "rebuilds references and ports with their list_to_* BIF" do
+      term = [make_ref(), hd(Port.list())]
 
-      assert copied =~ ~r/\["#Reference<[\d.]+>"\]/
-      assert {[reference], _binding} = Code.eval_string(copied)
-      assert is_binary(reference)
+      assert {^term, _binding} = Code.eval_string(TermTree.copy_string(term))
+    end
+
+    test "quotes a local fun, which has no literal form" do
+      fun = fn -> :ok end
+
+      assert {"#Function<" <> _, _binding} = Code.eval_string(TermTree.copy_string(fun))
     end
 
     test "leaves a #Name<...> form inside a binary alone" do
