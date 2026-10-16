@@ -426,7 +426,8 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   end
 
   defp identifier_entry({name, node}, _remote_node) when is_atom(name),
-    do: %{pid?: false, text: "#{inspect(name)} on #{node}"}
+    do: %{pid?: false, text: "#{Formatters.format_term(name)} on #{node}"}
 
-  defp identifier_entry(other, _remote_node), do: %{pid?: false, text: inspect(other)}
+  defp identifier_entry(other, _remote_node),
+    do: %{pid?: false, text: Formatters.format_term(other)}
 end

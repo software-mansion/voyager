@@ -3,6 +3,8 @@ defmodule Voyager.Application do
 
   use Application
 
+  alias Voyager.Services.TermSyntax
+
   @impl true
   def start(_type, _args) do
     store_active_epmd_module()
@@ -27,6 +29,9 @@ defmodule Voyager.Application do
       Voyager.MCP,
       {Voyager.Services.TrayStatus, native?: elixirkit_pubsub != nil},
       Supervisor.child_spec({Task, &Voyager.Pid.load_format/0}, id: :load_pid_format),
+      Supervisor.child_spec({Task, &TermSyntax.load_setting/0},
+        id: :load_term_syntax
+      ),
       {Task, fn -> if elixirkit_pubsub, do: ElixirKit.PubSub.broadcast("messages", "ready") end}
     ]
 

@@ -7,6 +7,7 @@ defmodule Voyager.NodeSession do
 
   alias Voyager.Agent
   alias Voyager.NodeSession.Connectors.Distribution
+  alias Voyager.Services.TermSyntax
 
   @default_connector Distribution
 
@@ -108,7 +109,7 @@ defmodule Voyager.NodeSession do
         }
 
         cache_connector_name(connector.name())
-        Voyager.Pid.put_node(node)
+        cache_node(node)
 
         broadcast({:node_connected, node})
 
@@ -190,6 +191,7 @@ defmodule Voyager.NodeSession do
     unsubscribe(session.connector)
     cache_connector_name(nil)
     Voyager.Pid.put_node(nil)
+    TermSyntax.put_node(nil)
 
     broadcast({event, session.node, reason})
 
@@ -237,5 +239,12 @@ defmodule Voyager.NodeSession do
 
   defp cache_connector_name(via) do
     :persistent_term.put(@connector_name_cache_key, via)
+  end
+
+  # Each cache makes its own erpc call; together they cost connect one round trip, not two.
+  defp cache_node(node) do
+    [Voyager.Pid, TermSyntax]
+    |> Task.async_stream(& &1.put_node(node), timeout: :infinity)
+    |> Stream.run()
   end
 end

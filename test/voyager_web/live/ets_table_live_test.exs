@@ -4,9 +4,11 @@ defmodule VoyagerWeb.EtsTableLiveTest do
   use VoyagerWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
+  import Voyager.TestUtils, only: [erl_eval: 1]
 
   alias Voyager.Erpc
   alias Voyager.Fakes
+  alias Voyager.Services.TermSyntax
   alias Voyager.Test.EtsTable
   alias Voyager.Test.VoyagerAgentFixture
 
@@ -338,6 +340,50 @@ defmodule VoyagerWeb.EtsTableLiveTest do
 
     assert has_element?(view, "#ets-lookup-error")
     refute has_element?(view, "#ets-lookup-record-0")
+  end
+
+  test "copies the looked-up key in a form IEx evaluates back", %{conn: conn} do
+    name = named_table(:set)
+    key = {:worker, self()}
+    :ets.insert(name, {key, :v})
+
+    view = open_lookup(conn, name)
+
+    assert view |> text("#ets-sidebar-key") =~ "#PID<"
+    assert {^key, _binding} = view |> text("#ets-sidebar-key-copy-text") |> Code.eval_string()
+  end
+
+  describe "with the Erlang term syntax" do
+    setup do
+      setting = TermSyntax.cached_setting()
+      TermSyntax.put_setting(:erlang)
+      on_exit(fn -> TermSyntax.put_setting(setting) end)
+    end
+
+    test "names the table and renders its records as Erlang terms", %{conn: conn} do
+      name = named_table(:set)
+      :ets.insert(name, {:k, "v"})
+
+      view = fetch_records(conn, name)
+
+      assert view |> text("#ets-table-name") |> String.trim() ==
+               to_string(:io_lib.write_atom(name))
+
+      assert has_element?(view, "#ets-records-0", ~S|{k, <<"v">>}|)
+    end
+
+    test "copies a looked-up record in a form the Erlang shell parses", %{conn: conn} do
+      name = named_table(:set)
+      :ets.insert(name, {:k, %{list: [1, 2]}})
+
+      view = open_lookup(conn, name)
+      copied = text(view, "#ets-lookup-record-0-copy-source")
+
+      assert view |> text("#ets-sidebar-key") |> String.trim() == "k"
+      assert has_element?(view, "#ets-lookup-0-term", "\#{")
+      assert copied =~ "\#{list => [1, 2]}"
+      assert erl_eval(copied) == {:k, %{list: [1, 2]}}
+    end
   end
 
   defp named_table(type) do

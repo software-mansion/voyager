@@ -53,6 +53,13 @@ defmodule Voyager.Settings do
     end
   end
 
+  @doc "Like `get/2`, but a stored value outside `choices` also yields `default`."
+  @spec get_choice(atom(), [term()], term()) :: term()
+  def get_choice(key, choices, default) when is_atom(key) do
+    value = get(key, default)
+    if value in choices, do: value, else: default
+  end
+
   @doc """
   Persists a setting to the database.
 

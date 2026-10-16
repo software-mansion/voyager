@@ -18,6 +18,7 @@ defmodule VoyagerWeb.EtsTableLive do
   alias Voyager.Services.Ets.TableId
   alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Components.EtsPeekComponents
+  alias VoyagerWeb.Components.EtsTableComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.EtsLookupControls
   alias VoyagerWeb.FormSchemas.EtsPeekControls
@@ -79,7 +80,7 @@ defmodule VoyagerWeb.EtsTableLive do
     >
       <div class="min-w-2xl mx-auto flex h-full max-w-screen-2xl flex-1 flex-col gap-4 overflow-hidden p-6 sm:p-8">
         <EtsPeekComponents.header
-          table_name={@table_param}
+          table_name={header_name(@info, @table_param)}
           node_name={@session.node_name}
           last_updated={@last_updated}
           back_href={keep_sidebar(~p"/node/#{@session.node_name}/ets-tables", @current_url)}
@@ -443,6 +444,14 @@ defmodule VoyagerWeb.EtsTableLive do
     |> assign(:lookup, AsyncResult.failed(socket.assigns.lookup, reason))
     |> noreply()
   end
+
+  defp header_name(%AsyncResult{ok?: true, result: %{named_table: true} = table}, _param),
+    do: EtsTableComponents.display_name(table)
+
+  defp header_name(%AsyncResult{ok?: true, result: table}, _param),
+    do: Formatters.format_term(table.id)
+
+  defp header_name(_info, param), do: param
 
   defp resolve_table(socket) do
     node = socket.assigns.session.node
