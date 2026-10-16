@@ -1,0 +1,185 @@
+defmodule VoyagerWeb.TermFormatter.Erlang do
+  @moduledoc """
+  Prints terms in Erlang syntax with `erl_pp`, from an abstract form built
+  here, so the output never depends on the VM's `+pc` flag.
+
+  Display output cuts each collection at `:limit` items and each text at
+  `:printable_limit` characters, marking the cut with `...`, and shows pids in
+  the PID format setting. With `round_trip: true` nothing is cut and pids, refs
+  and ports become calls that rebuild them, so the output pastes into `erl`.
+  """
+
+  alias Voyager.Pid
+  alias VoyagerWeb.TermFormatter
+
+  @single_line 1_000_000_000
+  @elision {:text, ~c"..."}
+
+  @spec inspect(term(), keyword()) :: String.t()
+  def inspect(term, opts \\ []) do
+    {round_trip?, opts} = Keyword.pop(opts, :round_trip, false)
+    opts = Inspect.Opts.new(opts)
+
+    term
+    |> abstract(if(round_trip?, do: :copy, else: opts))
+    |> :erl_pp.expr(hook: &text_hook/4, encoding: :unicode, linewidth: line_length(opts))
+    |> IO.chardata_to_string()
+  end
+
+  @spec format_mfa({module(), atom(), arity()}) :: String.t()
+  def format_mfa({mod, fun, arity}), do: "#{atom(mod)}:#{atom(fun)}/#{arity}"
+
+  defp line_length(%Inspect.Opts{pretty: true, width: width}) when is_integer(width), do: width
+  defp line_length(_opts), do: @single_line
+
+  defp abstract(id, :copy) when is_pid(id) or is_reference(id) or is_port(id) do
+    {fun, text} = TermFormatter.identifier(id)
+    call(fun, text)
+  end
+
+  defp abstract(pid, _opts) when is_pid(pid), do: text(Pid.format(pid))
+  defp abstract(ref, _opts) when is_reference(ref), do: text(:erlang.ref_to_list(ref))
+  defp abstract(port, _opts) when is_port(port), do: text(:erlang.port_to_list(port))
+
+  defp abstract(fun, mode) when is_function(fun) do
+    case :erlang.fun_info(fun, :type) do
+      {:type, :external} ->
+        {:module, mod} = :erlang.fun_info(fun, :module)
+        {:name, name} = :erlang.fun_info(fun, :name)
+        {:arity, arity} = :erlang.fun_info(fun, :arity)
+
+        {:fun, anno(),
+         {:function, abstract(mod, mode), abstract(name, mode), abstract(arity, mode)}}
+
+      {:type, :local} when mode == :copy ->
+        {:string, anno(), :erlang.fun_to_list(fun)}
+
+      {:type, :local} ->
+        text(:erlang.fun_to_list(fun))
+    end
+  end
+
+  defp abstract(tuple, mode) when is_tuple(tuple) do
+    {items, more?} = tuple |> Tuple.to_list() |> cut(limit(mode))
+    {:tuple, anno(), Enum.map(items, &abstract(&1, mode)) ++ elision(more?)}
+  end
+
+  defp abstract(map, mode) when is_map(map) do
+    {pairs, more?} = map |> :maps.to_list() |> Enum.sort() |> cut(limit(mode))
+
+    fields =
+      for {key, value} <- pairs do
+        {:map_field_assoc, anno(), abstract(key, mode), abstract(value, mode)}
+      end
+
+    elided = for elision <- elision(more?), do: {:map_field_assoc, anno(), elision, elision}
+    {:map, anno(), fields ++ elided}
+  end
+
+  defp abstract([_ | _] = list, mode) do
+    if :io_lib.printable_unicode_list(list) do
+      string(list, printable_limit(mode))
+    else
+      cons(list, limit(mode), mode)
+    end
+  end
+
+  defp abstract(bitstring, mode) when is_bitstring(bitstring) and bitstring != "" do
+    case printable_prefix(bitstring, printable_limit(mode)) do
+      {:ok, chars, more?} -> {:bin, anno(), [string_element(chars) | elision_element(more?)]}
+      :error -> bytes(bitstring, limit(mode))
+    end
+  end
+
+  defp abstract(other, _mode), do: :erl_parse.abstract(other)
+
+  # ponytail: per-collection limit grows as limit^depth; share one budget if agent truncation stops bounding it.
+  defp limit(:copy), do: :infinity
+  defp limit(%Inspect.Opts{limit: limit}), do: limit
+
+  defp printable_limit(:copy), do: :infinity
+  defp printable_limit(%Inspect.Opts{printable_limit: limit}), do: limit
+
+  defp cut(items, :infinity), do: {items, false}
+
+  defp cut(items, limit) do
+    {kept, rest} = Enum.split(items, limit)
+    {kept, rest != []}
+  end
+
+  defp elision(true), do: [@elision]
+  defp elision(false), do: []
+
+  defp elision_element(more?) do
+    for elision <- elision(more?), do: {:bin_element, anno(), elision, :default, :default}
+  end
+
+  defp string(chars, limit) do
+    case cut(chars, limit) do
+      {chars, false} -> {:string, anno(), chars}
+      {kept, true} -> {:op, anno(), :++, {:string, anno(), kept}, @elision}
+    end
+  end
+
+  defp cons(_list, 0, _mode), do: {:cons, anno(), @elision, {nil, anno()}}
+  defp cons(list, limit, mode), do: cons_tail(list, limit, mode)
+
+  defp cons_tail([], _limit, _mode), do: {nil, anno()}
+  defp cons_tail([_ | _], 0, _mode), do: @elision
+
+  defp cons_tail([head | tail], limit, mode) do
+    {:cons, anno(), abstract(head, mode), cons_tail(tail, decrement(limit), mode)}
+  end
+
+  defp cons_tail(tail, _limit, mode), do: abstract(tail, mode)
+
+  defp decrement(:infinity), do: :infinity
+  defp decrement(limit), do: limit - 1
+
+  defp string_element(chars) do
+    type = if Enum.all?(chars, &(&1 < 128)), do: :default, else: [:utf8]
+    {:bin_element, anno(), {:string, anno(), chars}, :default, type}
+  end
+
+  defp bytes(bitstring, limit) when limit == :infinity or byte_size(bitstring) <= limit do
+    :erl_parse.abstract(bitstring)
+  end
+
+  defp bytes(bitstring, limit) do
+    <<head::binary-size(^limit), _rest::bitstring>> = bitstring
+    {:bin, anno, elements} = :erl_parse.abstract(head)
+    {:bin, anno, elements ++ elision_element(true)}
+  end
+
+  # Decodes at most `limit` codepoints, so a huge binary costs no more than its shown prefix.
+  defp printable_prefix(bitstring, limit) do
+    {chars, rest} = take_codepoints(bitstring, limit, [])
+
+    cond do
+      not :io_lib.printable_unicode_list(chars) -> :error
+      rest == "" -> {:ok, chars, false}
+      is_integer(limit) and length(chars) == limit -> {:ok, chars, true}
+      true -> :error
+    end
+  end
+
+  defp take_codepoints(<<char::utf8, rest::bitstring>>, limit, acc)
+       when limit == :infinity or limit > 0,
+       do: take_codepoints(rest, decrement(limit), [char | acc])
+
+  defp take_codepoints(rest, _limit, acc), do: {Enum.reverse(acc), rest}
+
+  defp text(chardata), do: {:text, :unicode.characters_to_list(chardata)}
+
+  defp text_hook({:text, chars}, _indent, _precedence, _options), do: chars
+
+  defp call(fun, text) do
+    remote = {:remote, anno(), {:atom, anno(), :erlang}, {:atom, anno(), fun}}
+    {:call, anno(), remote, [{:string, anno(), to_charlist(text)}]}
+  end
+
+  defp atom(atom), do: atom |> :io_lib.write_atom() |> IO.chardata_to_string()
+
+  # erl_anno:anno() is opaque to Dialyzer, so a literal 0 would not type-check.
+  defp anno, do: :erl_anno.new(0)
+end
