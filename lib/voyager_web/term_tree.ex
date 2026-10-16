@@ -24,10 +24,10 @@ defmodule VoyagerWeb.TermTree do
   How a term reads is up to a syntax module implementing this behaviour,
   `VoyagerWeb.TermTree.Elixir` or `VoyagerWeb.TermTree.Erlang`; every function
   taking `opts` picks one with `:syntax` (`:elixir` or `:erlang`), defaulting
-  to `Voyager.TermSyntax.current/0`.
+  to `Voyager.Services.TermSyntax.current/0`.
   """
 
-  alias Voyager.TermSyntax
+  alias Voyager.Services.TermSyntax
   alias VoyagerWeb.TermFormatter
   alias VoyagerWeb.TermTree.Elixir, as: ElixirSyntax
   alias VoyagerWeb.TermTree.Erlang, as: ErlangSyntax
@@ -98,7 +98,9 @@ defmodule VoyagerWeb.TermTree do
     depth = Keyword.get(opts, :depth, @auto_open_depth)
     open_all? = Keyword.get(opts, :open_all, false)
 
-    %State{open: MapSet.new([[] | auto_open(term, [], depth, open_all?, syntax(opts))])}
+    syntax = syntax(opts)
+
+    %State{open: MapSet.new([[] | auto_open(term, [], depth, open_all?, syntax)]), syntax: syntax}
   end
 
   @spec open?(State.t(), State.path()) :: boolean()
@@ -146,7 +148,7 @@ defmodule VoyagerWeb.TermTree do
   depending on `:syntax`.
   """
   @spec copy_string(term(), keyword()) :: String.t()
-  def copy_string(term, opts \\ []), do: syntax(opts).copy_string(term)
+  def copy_string(term, opts \\ []), do: module(syntax(opts)).copy_string(term)
 
   @doc false
   @spec build_default(term(), TermSyntax.syntax()) :: Node.t()
@@ -234,7 +236,7 @@ defmodule VoyagerWeb.TermTree do
   def inspect_term(term, syntax),
     do: TermFormatter.inspect(term, [syntax: syntax] ++ @inspect_opts)
 
-  defp syntax(opts), do: opts |> Keyword.get_lazy(:syntax, &TermSyntax.current/0) |> module()
+  defp syntax(opts), do: Keyword.get(opts, :syntax) || TermSyntax.current()
 
   defp module(:elixir), do: ElixirSyntax
   defp module(:erlang), do: ErlangSyntax
@@ -246,14 +248,15 @@ defmodule VoyagerWeb.TermTree do
   defp build({@truncated, :binary, prefix, size}, syntax) do
     %Node{
       kind: :binary,
-      content: syntax.build(prefix).content ++ [Segment.muted(" … (truncated, #{size} bytes)")]
+      content:
+        module(syntax).build(prefix).content ++ [Segment.muted(" … (truncated, #{size} bytes)")]
     }
   end
 
-  defp build(term, syntax), do: syntax.build(term)
+  defp build(term, syntax), do: module(syntax).build(term)
 
   defp children_of({@truncated, :binary, _prefix, _size}, _offset, _limit, _syntax), do: []
-  defp children_of(term, offset, limit, syntax), do: syntax.children(term, offset, limit)
+  defp children_of(term, offset, limit, syntax), do: module(syntax).children(term, offset, limit)
 
   defp branch(kind, count, truncated?, open, close) do
     %Node{

@@ -31,7 +31,8 @@ defmodule VoyagerWeb.Components.TermComponents do
   attr :class, :any, default: nil
 
   def term_inspector(assigns) do
-    assigns = assign(assigns, :node, TermTree.describe(assigns.term))
+    assigns =
+      assign(assigns, :node, TermTree.describe(assigns.term, syntax: assigns.state.syntax))
 
     ~H"""
     <div id={@id} class={["font-mono text-xs" | List.wrap(@class)]}>
@@ -156,14 +157,15 @@ defmodule VoyagerWeb.Components.TermComponents do
     last_index = node.child_count - 1
 
     term
-    |> TermTree.children(0, TermTree.window(state, node.path))
+    |> TermTree.children(0, TermTree.window(state, node.path), syntax: state.syntax)
     |> Enum.with_index()
     |> Enum.map(fn {{key, child}, index} ->
       child_node =
         TermTree.describe(child,
           path: node.path ++ [index],
           key: key,
-          comma?: index < last_index
+          comma?: index < last_index,
+          syntax: state.syntax
         )
 
       {child, child_node}

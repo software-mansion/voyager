@@ -1,4 +1,4 @@
-defmodule Voyager.TermSyntax do
+defmodule Voyager.Services.TermSyntax do
   @moduledoc """
   Which language's syntax terms are displayed in: `:elixir` or `:erlang`.
 

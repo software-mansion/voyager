@@ -1,11 +1,11 @@
-defmodule Voyager.TermSyntaxTest do
+defmodule Voyager.Services.TermSyntaxTest do
   # async: false because the setting and the node's syntax are cached for the whole VM.
   use Voyager.DataCase, async: false
 
   import Mox
 
+  alias Voyager.Services.TermSyntax
   alias Voyager.Settings
-  alias Voyager.TermSyntax
 
   @node :"peer@127.0.0.1"
 

@@ -408,7 +408,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
               <TermComponents.term_inspector
                 id={lookup_inspector_id(index)}
                 term={record}
-                state={@term_states[lookup_inspector_id(index)] || %State{}}
+                state={lookup_state(@term_states, index)}
                 class="text-sm! min-w-0 flex-1 overflow-x-auto"
               />
               <.copy_button
@@ -419,7 +419,9 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
                 size={:sm}
                 class="text-base-content/60 shrink-0 hover:text-primary"
               />
-              <span id={"ets-lookup-record-#{index}-copy-source"} hidden>{TermTree.copy_string(record)}</span>
+              <span id={"ets-lookup-record-#{index}-copy-source"} hidden>{TermTree.copy_string(record,
+                syntax: lookup_state(@term_states, index).syntax
+              )}</span>
             </div>
           </div>
 
@@ -448,6 +450,8 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   @spec lookup_inspector_id(non_neg_integer()) :: String.t()
   def lookup_inspector_id(index), do: "ets-lookup-#{index}-term"
+
+  defp lookup_state(term_states, index), do: term_states[lookup_inspector_id(index)] || %State{}
 
   @doc """
   The lookup key at `keypos`, or `:error` when the record is not a plain tuple

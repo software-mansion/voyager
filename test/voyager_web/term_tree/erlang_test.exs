@@ -1,6 +1,8 @@
 defmodule VoyagerWeb.TermTree.ErlangTest do
   use ExUnit.Case, async: true
 
+  import Voyager.TestUtils, only: [erl_eval: 1]
+
   alias VoyagerWeb.TermTree
   alias VoyagerWeb.TermTree.Node
   alias VoyagerWeb.TermTree.Segment
@@ -22,13 +24,6 @@ defmodule VoyagerWeb.TermTree.ErlangTest do
   end
 
   defp child_terms(children), do: Enum.map(children, fn {_key, term} -> term end)
-
-  defp erl_eval(source) do
-    {:ok, tokens, _end} = :erl_scan.string(String.to_charlist(source <> "."))
-    {:ok, exprs} = :erl_parse.parse_exprs(tokens)
-    {:value, value, _binding} = :erl_eval.exprs(exprs, :erl_eval.new_bindings())
-    value
-  end
 
   describe "describe/2 leaves" do
     test "atoms are written as Erlang spells them" do
@@ -85,7 +80,7 @@ defmodule VoyagerWeb.TermTree.ErlangTest do
     test "a struct is the map it is, its __struct__ key counted" do
       node = describe_erl(%State{})
 
-      assert %Node{kind: :map, child_count: 3} = node
+      assert %Node{kind: :map, child_count: 4} = node
       assert text(node.content) == "\#{...}"
     end
 
@@ -109,7 +104,12 @@ defmodule VoyagerWeb.TermTree.ErlangTest do
     end
 
     test "struct fields include __struct__" do
-      assert child_keys(children_erl(%State{})) == ["'__struct__' => ", "open => ", "windows => "]
+      assert child_keys(children_erl(%State{})) == [
+               "'__struct__' => ",
+               "open => ",
+               "syntax => ",
+               "windows => "
+             ]
     end
 
     test "container keys are rendered whole" do

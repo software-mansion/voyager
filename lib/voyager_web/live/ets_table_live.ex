@@ -18,6 +18,7 @@ defmodule VoyagerWeb.EtsTableLive do
   alias Voyager.Services.Ets.TableId
   alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Components.EtsPeekComponents
+  alias VoyagerWeb.Components.EtsTableComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.EtsLookupControls
   alias VoyagerWeb.FormSchemas.EtsPeekControls
@@ -444,8 +445,11 @@ defmodule VoyagerWeb.EtsTableLive do
     |> noreply()
   end
 
-  defp header_name(%AsyncResult{ok?: true, result: %{named_table: true, name: name}}, _param),
-    do: Formatters.format_term(name)
+  defp header_name(%AsyncResult{ok?: true, result: %{named_table: true} = table}, _param),
+    do: EtsTableComponents.display_name(table)
+
+  defp header_name(%AsyncResult{ok?: true, result: table}, _param),
+    do: Formatters.format_term(table.id)
 
   defp header_name(_info, param), do: param
 

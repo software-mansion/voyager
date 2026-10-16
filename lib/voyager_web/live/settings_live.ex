@@ -3,8 +3,8 @@ defmodule VoyagerWeb.SettingsLive do
 
   alias Voyager.NodeSession
   alias Voyager.Pid
+  alias Voyager.Services.TermSyntax
   alias Voyager.Settings
-  alias Voyager.TermSyntax
   alias VoyagerWeb.SettingsComponents
   alias VoyagerWeb.SettingsLive.AppearanceSettings
   alias VoyagerWeb.SettingsLive.DistributionSettings
@@ -126,8 +126,13 @@ defmodule VoyagerWeb.SettingsLive do
       |> assign(key, choice)
       |> noreply()
     else
-      true -> {:noreply, socket}
-      {:error, _} -> {:noreply, put_flash(socket, :error, "Failed to save the setting")}
+      true ->
+        {:noreply, socket}
+
+      {:error, _} ->
+        socket
+        |> put_flash(:error, "Failed to save the setting")
+        |> noreply()
     end
   end
 

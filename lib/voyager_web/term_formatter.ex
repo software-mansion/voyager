@@ -8,13 +8,13 @@ defmodule VoyagerWeb.TermFormatter do
   """
 
   alias Voyager.Pid
-  alias Voyager.TermSyntax
+  alias Voyager.Services.TermSyntax
   alias VoyagerWeb.TermFormatter.Erlang
 
   @doc """
   Renders `term` as text.
 
-  Accepts `:syntax` (defaults to `Voyager.TermSyntax.current/0`) and the
+  Accepts `:syntax` (defaults to `Voyager.Services.TermSyntax.current/0`) and the
   `Inspect.Opts` fields both syntaxes honour: `:limit`, `:printable_limit`,
   `:pretty` and `:width`. The Elixir syntax takes any other `inspect/2` option.
   """

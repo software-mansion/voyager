@@ -17,7 +17,6 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
       section: 1
     ]
 
-  alias Voyager.Services.Ets.TableId
   alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Components.ProcessComponents
   alias VoyagerWeb.EtsTableHelp
@@ -331,7 +330,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
     assigns =
       assigns
       |> assign(:name, display_name(assigns.table))
-      |> assign(:id, TableId.display(assigns.table.id))
+      |> assign(:id, Formatters.format_term(assigns.table.id))
 
     ~H"""
     <.tooltip
@@ -508,7 +507,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
             :if={@table && not @table.named_table}
             id={"#{@id}-table-id"}
             class="font-mono text-base-content/70 text-xs"
-            text={TableId.display(@table.id)}
+            text={Formatters.format_term(@table.id)}
             label="Copy table id"
           />
         </div>

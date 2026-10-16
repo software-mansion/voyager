@@ -568,7 +568,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
   defp registered_name(%AsyncResult{ok?: true, result: %{registered_name: name}})
        when not is_nil(name),
-       do: inspect(name)
+       do: Formatters.format_term(name)
 
   defp registered_name(_info), do: nil
 

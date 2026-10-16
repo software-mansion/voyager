@@ -140,7 +140,7 @@ defmodule VoyagerWeb.TermTreeTest do
     test "a struct without an Inspect implementation renders as its module" do
       node = TermTree.describe(%State{})
 
-      assert %Node{kind: :struct, child_count: 2} = node
+      assert %Node{kind: :struct, child_count: 3} = node
       assert text(node.content) == "%VoyagerWeb.TermTree.State{...}"
       assert text(node.expanded_before) == "%VoyagerWeb.TermTree.State{"
       assert text(node.expanded_after) == "}"
@@ -235,7 +235,7 @@ defmodule VoyagerWeb.TermTreeTest do
     test "struct children are its fields, without __struct__" do
       children = TermTree.children(%State{}, 0, 10)
 
-      assert child_keys(children) == ["open: ", "windows: "]
+      assert child_keys(children) == ["open: ", "syntax: ", "windows: "]
     end
 
     test "leaves and regexes have no children" do
@@ -259,7 +259,12 @@ defmodule VoyagerWeb.TermTreeTest do
       assert child_terms(TermTree.children([a: improper], 0, 10)) == [improper]
       assert child_terms(TermTree.children(%{a: improper}, 0, 10)) == [improper]
       assert child_keys(TermTree.children(%{improper => 1}, 0, 10)) == ["[1 | 2] => "]
-      assert TermTree.initial_state(%{a: improper}) == %State{open: MapSet.new([[]])}
+
+      assert TermTree.initial_state(%{a: improper}) == %State{
+               open: MapSet.new([[]]),
+               syntax: :elixir
+             }
+
       assert TermTree.copy_string(%{a: improper}) == "%{a: [1 | 2]}"
     end
 
@@ -267,7 +272,7 @@ defmodule VoyagerWeb.TermTreeTest do
       children = TermTree.children(%{%State{} => 1}, 0, 10)
 
       assert child_keys(children) == [
-               "%VoyagerWeb.TermTree.State{open: MapSet.new([]), windows: %{}} => "
+               "%VoyagerWeb.TermTree.State{open: MapSet.new([]), windows: %{}, syntax: nil} => "
              ]
 
       children = TermTree.children(%{{:a, 1} => 1, [1, 2] => 2, %{x: 1} => 3}, 0, 10)

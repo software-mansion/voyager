@@ -1,17 +1,12 @@
 defmodule VoyagerWeb.TermFormatterTest do
   use ExUnit.Case, async: true
 
+  import Voyager.TestUtils, only: [erl_eval: 1]
+
   alias VoyagerWeb.TermFormatter
 
   defp erlang(term, opts \\ []), do: TermFormatter.inspect(term, [syntax: :erlang] ++ opts)
   defp elixir(term, opts \\ []), do: TermFormatter.inspect(term, [syntax: :elixir] ++ opts)
-
-  defp evaluate(text) do
-    {:ok, tokens, _end} = :erl_scan.string(String.to_charlist(text <> "."))
-    {:ok, exprs} = :erl_parse.parse_exprs(tokens)
-    {:value, value, _bindings} = :erl_eval.exprs(exprs, :erl_eval.new_bindings())
-    value
-  end
 
   defp random_term(0), do: random_leaf()
 
@@ -91,7 +86,7 @@ defmodule VoyagerWeb.TermFormatterTest do
       ]
 
       for term <- terms do
-        assert evaluate(erlang(term, limit: :infinity, printable_limit: :infinity)) == term
+        assert erl_eval(erlang(term, limit: :infinity, printable_limit: :infinity)) == term
       end
     end
 
@@ -139,13 +134,13 @@ defmodule VoyagerWeb.TermFormatterTest do
     test "round-trip output evaluates back to the same term, opaque values included" do
       term = {self(), make_ref(), hd(Port.list()), &Enum.map/2, %URI{host: "zażółć"}, [1 | 2]}
 
-      assert evaluate(erlang(term, round_trip: true)) == term
+      assert erl_eval(erlang(term, round_trip: true)) == term
     end
 
     test "round-trip output keeps a local fun as its text" do
       fun = fn -> :ok end
 
-      assert evaluate(erlang(fun, round_trip: true)) ==
+      assert erl_eval(erlang(fun, round_trip: true)) ==
                fun |> :erlang.fun_to_list() |> to_string() |> to_charlist()
     end
 

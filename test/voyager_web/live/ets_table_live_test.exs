@@ -4,9 +4,11 @@ defmodule VoyagerWeb.EtsTableLiveTest do
   use VoyagerWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
+  import Voyager.TestUtils, only: [erl_eval: 1]
 
   alias Voyager.Erpc
   alias Voyager.Fakes
+  alias Voyager.Services.TermSyntax
   alias Voyager.Test.EtsTable
   alias Voyager.Test.VoyagerAgentFixture
 
@@ -353,9 +355,9 @@ defmodule VoyagerWeb.EtsTableLiveTest do
 
   describe "with the Erlang term syntax" do
     setup do
-      setting = Voyager.TermSyntax.cached_setting()
-      Voyager.TermSyntax.put_setting(:erlang)
-      on_exit(fn -> Voyager.TermSyntax.put_setting(setting) end)
+      setting = TermSyntax.cached_setting()
+      TermSyntax.put_setting(:erlang)
+      on_exit(fn -> TermSyntax.put_setting(setting) end)
     end
 
     test "names the table and renders its records as Erlang terms", %{conn: conn} do
@@ -382,13 +384,6 @@ defmodule VoyagerWeb.EtsTableLiveTest do
       assert copied =~ "\#{list => [1, 2]}"
       assert erl_eval(copied) == {:k, %{list: [1, 2]}}
     end
-  end
-
-  defp erl_eval(source) do
-    {:ok, tokens, _end} = :erl_scan.string(String.to_charlist(source <> "."))
-    {:ok, exprs} = :erl_parse.parse_exprs(tokens)
-    {:value, value, _binding} = :erl_eval.exprs(exprs, :erl_eval.new_bindings())
-    value
   end
 
   defp named_table(type) do

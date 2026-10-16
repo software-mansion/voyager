@@ -93,7 +93,7 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
 
   defp abstract(other, _mode), do: :erl_parse.abstract(other)
 
-  # ponytail: per-collection limit grows as limit^depth; share one budget if agent truncation stops bounding it.
+  # Each nested collection gets its own :limit; the agent's term budget bounds the total.
   defp limit(:copy), do: :infinity
   defp limit(%Inspect.Opts{limit: limit}), do: limit
 
