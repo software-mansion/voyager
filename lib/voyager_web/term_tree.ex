@@ -21,33 +21,19 @@ defmodule VoyagerWeb.TermTree do
   Those render as a muted placeholder so a partial term is never mistaken for a
   complete one. See `priv/voyager_agent.erl` for the truncation itself.
 
-  How a term reads is up to a syntax module implementing this behaviour,
-  `VoyagerWeb.TermTree.Elixir` or `VoyagerWeb.TermTree.Erlang`; every function
-  taking `opts` picks one with `:syntax` (`:elixir` or `:erlang`), defaulting
-  to `Voyager.Services.TermSyntax.current/0`.
+  Every function taking `opts` picks how a term reads with `:syntax` (`:elixir`
+  or `:erlang`), defaulting to `Voyager.Services.TermSyntax.current/0`.
   """
 
   alias Voyager.Services.TermSyntax
   alias VoyagerWeb.TermFormatter
   alias VoyagerWeb.TermFormatter.Erlang, as: ErlangFormatter
-  alias VoyagerWeb.TermTree.Elixir, as: ElixirSyntax
-  alias VoyagerWeb.TermTree.Erlang, as: ErlangSyntax
   alias VoyagerWeb.TermTree.Node
   alias VoyagerWeb.TermTree.Segment
   alias VoyagerWeb.TermTree.State
 
   @typedoc "A child as `children/4` returns it: its key segments, `nil` when positional, and its term."
   @type child :: {[Segment.t()] | nil, term()}
-
-  @doc "The node for a term that is neither a truncation marker nor a cut binary; falls back to `build_default/2`."
-  @callback build(term()) :: Node.t()
-
-  @callback children(term(), non_neg_integer(), pos_integer()) :: [child()]
-
-  @callback copy_string(term()) :: String.t()
-
-  @doc "The segments rendering `key` and its separator as a map key."
-  @callback key_segments(term()) :: [Segment.t()]
 
   @truncated :"$voyager_truncated"
 
@@ -68,9 +54,7 @@ defmodule VoyagerWeb.TermTree do
   """
   @spec describe(term(), keyword()) :: Node.t()
   def describe(term, opts \\ []) do
-    %Node{} = node = build(term, syntax(opts))
-
-    %Node{node | path: Keyword.get(opts, :path, [])}
+    %Node{build(term, syntax(opts)) | path: Keyword.get(opts, :path, [])}
     |> prefix(Keyword.get(opts, :key))
     |> append_comma(Keyword.get(opts, :comma?, false))
   end
@@ -149,28 +133,74 @@ defmodule VoyagerWeb.TermTree do
   depending on `:syntax`.
   """
   @spec copy_string(term(), keyword()) :: String.t()
-  def copy_string(term, opts \\ []), do: module(syntax(opts)).copy_string(term)
+  def copy_string(term, opts \\ []) do
+    case syntax(opts) do
+      :elixir ->
+        inspect(term,
+          limit: :infinity,
+          printable_limit: :infinity,
+          pretty: true,
+          structs: false,
+          custom_options: [sort_maps: true],
+          inspect_fun: &copy_inspect/2
+        )
 
-  @doc false
-  @spec build_default(term(), TermSyntax.syntax()) :: Node.t()
-  def build_default(binary, syntax) when is_binary(binary) do
+      :erlang ->
+        ErlangFormatter.inspect(term, pretty: true, round_trip: true)
+    end
+  end
+
+  # Pids and other `#Name<...>` forms have no literal syntax. Rewriting the flattened output
+  # instead would reach inside string literals and break any binary that reads like a pid.
+  defp copy_inspect(id, _opts) when is_pid(id) or is_reference(id) or is_port(id) do
+    {fun, arg} = TermFormatter.identifier(id)
+    ":erlang.#{fun}(#{inspect(arg, limit: :infinity)})"
+  end
+
+  defp copy_inspect(fun, _opts) when is_function(fun) do
+    case inspect(fun) do
+      "#" <> _ = text -> inspect(text)
+      text -> text
+    end
+  end
+
+  defp copy_inspect(term, opts), do: Inspect.inspect(term, opts)
+
+  defp syntax(opts), do: Keyword.get(opts, :syntax) || TermSyntax.current()
+
+  defp build(@truncated, _syntax) do
+    %Node{kind: :truncated, content: [Segment.muted("… (truncated)")]}
+  end
+
+  defp build({@truncated, :binary, prefix, size}, syntax) do
+    %Node{
+      kind: :binary,
+      content: build(prefix, syntax).content ++ [Segment.muted(" … (truncated, #{size} bytes)")]
+    }
+  end
+
+  defp build(atom, syntax) when is_atom(atom) do
+    %Node{kind: :atom, content: [atom_segment(atom, syntax)]}
+  end
+
+  defp build(binary, syntax) when is_binary(binary) do
     %Node{kind: :binary, content: [Segment.string(inspect_term(binary, syntax))]}
   end
 
-  def build_default(number, syntax) when is_number(number) do
+  defp build(number, syntax) when is_number(number) do
     %Node{kind: :number, content: [Segment.number(inspect_term(number, syntax))]}
   end
 
-  def build_default({}, _syntax), do: %Node{kind: :tuple, content: [Segment.punctuation("{}")]}
+  defp build({}, _syntax), do: %Node{kind: :tuple, content: [Segment.punctuation("{}")]}
 
-  def build_default(tuple, _syntax) when is_tuple(tuple) do
+  defp build(tuple, _syntax) when is_tuple(tuple) do
     last = elem(tuple, tuple_size(tuple) - 1)
     branch(:tuple, tuple_size(tuple), last == @truncated, "{", "}")
   end
 
-  def build_default([], _syntax), do: %Node{kind: :list, content: [Segment.punctuation("[]")]}
+  defp build([], _syntax), do: %Node{kind: :list, content: [Segment.punctuation("[]")]}
 
-  def build_default(list, syntax) when is_list(list) do
+  defp build(list, syntax) when is_list(list) do
     with {:ok, count} <- list_length(list),
          false <- string_list?(list, syntax) do
       branch(:list, count, :lists.last(list) == @truncated, "[", "]")
@@ -180,84 +210,37 @@ defmodule VoyagerWeb.TermTree do
     end
   end
 
-  def build_default(map, syntax) when map_size(map) == 0 do
-    %Node{kind: :map, content: [Segment.punctuation(map_open(syntax) <> "}")]}
-  end
+  defp build(%Regex{} = regex, :elixir), do: build_other(regex, :elixir)
 
-  def build_default(map, syntax) when is_map(map) do
-    branch(:map, map_size(map), Map.has_key?(map, @truncated), map_open(syntax), "}")
-  end
+  defp build(struct, :elixir) when is_struct(struct) do
+    module_segments = [Segment.punctuation("%"), Segment.module(struct_name(struct))]
 
-  def build_default(other, syntax), do: build_other(other, syntax)
+    content =
+      if Inspect.impl_for(struct) == Inspect.Any do
+        module_segments ++ [Segment.punctuation("{...}")]
+      else
+        [Segment.other(inspect_term(struct, :elixir))]
+      end
 
-  @doc false
-  @spec children_default(term(), non_neg_integer(), pos_integer(), TermSyntax.syntax()) ::
-          [child()]
-  def children_default(tuple, offset, limit, _syntax) when is_tuple(tuple) do
-    tuple |> Tuple.to_list() |> positional(offset, limit)
-  end
-
-  def children_default(list, offset, limit, syntax) when is_list(list) do
-    if list_length(list) == :improper or string_list?(list, syntax),
-      do: [],
-      else: positional(list, offset, limit)
-  end
-
-  def children_default(map, offset, limit, syntax) when is_map(map) do
-    {markers, rest} = pop_markers(map)
-    syntax_module = module(syntax)
-
-    rest
-    |> ordered_pairs()
-    |> Stream.concat(markers)
-    |> Enum.slice(offset, limit)
-    |> keyed(&syntax_module.key_segments/1)
-  end
-
-  def children_default(_term, _offset, _limit, _syntax), do: []
-
-  @doc false
-  @spec keyed([{term(), term()}], (term() -> [Segment.t()])) :: [child()]
-  def keyed(pairs, key_segments), do: Enum.map(pairs, &key_value(&1, key_segments))
-
-  @doc false
-  @spec key_content(term(), TermSyntax.syntax()) :: [Segment.t()]
-  def key_content({@truncated, :binary, _prefix, _size} = key, syntax) do
-    describe(key, syntax: syntax).content
-  end
-
-  def key_content(key, syntax) when is_tuple(key) or is_list(key) or is_map(key) do
-    [Segment.other(TermFormatter.inspect(key, [syntax: syntax] ++ @key_inspect_opts))]
-  end
-
-  def key_content(key, syntax), do: module(syntax).build(key).content
-
-  @doc false
-  @spec inspect_term(term(), TermSyntax.syntax()) :: String.t()
-  def inspect_term(term, syntax),
-    do: TermFormatter.inspect(term, [syntax: syntax] ++ @inspect_opts)
-
-  defp syntax(opts), do: Keyword.get(opts, :syntax) || TermSyntax.current()
-
-  defp module(:elixir), do: ElixirSyntax
-  defp module(:erlang), do: ErlangSyntax
-
-  defp build(@truncated, _syntax) do
-    %Node{kind: :truncated, content: [Segment.muted("… (truncated)")]}
-  end
-
-  defp build({@truncated, :binary, prefix, size}, syntax) do
     %Node{
-      kind: :binary,
-      content:
-        module(syntax).build(prefix).content ++ [Segment.muted(" … (truncated, #{size} bytes)")]
+      kind: :struct,
+      child_count: struct |> Map.from_struct() |> map_size(),
+      truncated?: Map.has_key?(struct, @truncated),
+      content: content,
+      expanded_before: module_segments ++ [Segment.punctuation("{")],
+      expanded_after: [Segment.punctuation("}")]
     }
   end
 
-  defp build(term, syntax), do: module(syntax).build(term)
+  defp build(map, syntax) when map_size(map) == 0 do
+    %Node{kind: :map, content: [Segment.punctuation(map_open(syntax) <> "}")]}
+  end
 
-  defp children_of({@truncated, :binary, _prefix, _size}, _offset, _limit, _syntax), do: []
-  defp children_of(term, offset, limit, syntax), do: module(syntax).children(term, offset, limit)
+  defp build(map, syntax) when is_map(map) do
+    branch(:map, map_size(map), Map.has_key?(map, @truncated), map_open(syntax), "}")
+  end
+
+  defp build(other, syntax), do: build_other(other, syntax)
 
   defp branch(kind, count, truncated?, open, close) do
     %Node{
@@ -274,6 +257,34 @@ defmodule VoyagerWeb.TermTree do
     %Node{kind: :other, content: [Segment.other(inspect_term(term, syntax))]}
   end
 
+  defp inspect_term(term, syntax),
+    do: TermFormatter.inspect(term, [syntax: syntax] ++ @inspect_opts)
+
+  defp atom_segment(atom, :elixir) when atom in [nil, true, false],
+    do: Segment.special(inspect(atom))
+
+  defp atom_segment(atom, :elixir) do
+    text = inspect(atom)
+
+    if String.starts_with?(text, ":") do
+      Segment.atom(text)
+    else
+      Segment.module(text)
+    end
+  end
+
+  defp atom_segment(atom, :erlang) when atom in [true, false, :undefined],
+    do: Segment.special(ErlangFormatter.atom(atom))
+
+  defp atom_segment(atom, :erlang), do: Segment.atom(ErlangFormatter.atom(atom))
+
+  defp struct_name(%module{}) do
+    case inspect(module) do
+      ":" <> name -> name
+      name -> name
+    end
+  end
+
   # A charlist reads as `~c"hi"` in IEx; a printable list is a string in Erlang.
   defp string_list?(list, :elixir),
     do: List.ascii_printable?(list, @inspect_opts[:printable_limit])
@@ -284,9 +295,74 @@ defmodule VoyagerWeb.TermTree do
   defp map_open(:elixir), do: "%{"
   defp map_open(:erlang), do: "\#{"
 
+  defp children_of({@truncated, :binary, _prefix, _size}, _offset, _limit, _syntax), do: []
+
+  defp children_of(tuple, offset, limit, _syntax) when is_tuple(tuple) do
+    tuple |> Tuple.to_list() |> positional(offset, limit)
+  end
+
+  defp children_of(list, offset, limit, syntax) when is_list(list) do
+    cond do
+      syntax == :elixir and Keyword.keyword?(list) ->
+        list |> Enum.slice(offset, limit) |> keyed(syntax)
+
+      list_length(list) == :improper or string_list?(list, syntax) ->
+        []
+
+      true ->
+        positional(list, offset, limit)
+    end
+  end
+
+  defp children_of(%Regex{}, _offset, _limit, :elixir), do: []
+
+  defp children_of(struct, offset, limit, :elixir) when is_struct(struct) do
+    struct |> Map.from_struct() |> children_of(offset, limit, :elixir)
+  end
+
+  defp children_of(map, offset, limit, syntax) when is_map(map) do
+    {markers, rest} = pop_markers(map)
+
+    rest
+    |> ordered_pairs()
+    |> Stream.concat(markers)
+    |> Enum.slice(offset, limit)
+    |> keyed(syntax)
+  end
+
+  defp children_of(_term, _offset, _limit, _syntax), do: []
+
   defp positional(items, offset, limit) do
     items |> Enum.slice(offset, limit) |> Enum.map(&{nil, &1})
   end
+
+  defp keyed(pairs, syntax), do: Enum.map(pairs, &key_value(&1, syntax))
+
+  # A truncated subterm the agent left as a map key carries no information in
+  # that position; rendering it as `key => value` would only repeat the marker.
+  defp key_value({@truncated, _value}, _syntax), do: {nil, @truncated}
+  defp key_value({key, value}, syntax), do: {key_segments(key, syntax), value}
+
+  defp key_segments(key, :elixir) when is_atom(key) and key not in [nil, true, false] do
+    case atom_segment(key, :elixir) do
+      %Segment{text: ":" <> name} = segment ->
+        [%Segment{segment | text: name <> ":"}, Segment.punctuation(" ")]
+
+      segment ->
+        [segment, Segment.punctuation(" => ")]
+    end
+  end
+
+  defp key_segments(key, syntax), do: key_content(key, syntax) ++ [Segment.punctuation(" => ")]
+
+  defp key_content({@truncated, :binary, _prefix, _size} = key, syntax),
+    do: build(key, syntax).content
+
+  defp key_content(key, syntax) when is_tuple(key) or is_list(key) or is_map(key) do
+    [Segment.other(TermFormatter.inspect(key, [syntax: syntax] ++ @key_inspect_opts))]
+  end
+
+  defp key_content(key, syntax), do: build(key, syntax).content
 
   defp list_length(list) do
     {:ok, length(list)}
@@ -315,11 +391,6 @@ defmodule VoyagerWeb.TermTree do
         expanded_after: node.expanded_after ++ comma
     }
   end
-
-  # A truncated subterm the agent left as a map key carries no information in
-  # that position; rendering it as `key => value` would only repeat the marker.
-  defp key_value({@truncated, _value}, _key_segments), do: {nil, @truncated}
-  defp key_value({key, value}, key_segments), do: {key_segments.(key), value}
 
   defp pop_markers(map) do
     if Map.has_key?(map, @truncated) do
