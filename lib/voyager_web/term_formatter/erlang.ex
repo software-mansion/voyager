@@ -166,14 +166,19 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
     end
   end
 
-  defp take_chars([char | rest], limit, acc) when limit == :infinity or limit > 0,
-    do: take_chars(rest, decrement(limit), [char | acc])
+  defp take_chars(list, limit, acc) when is_list(list), do: take_list_chars(list, limit, acc)
+  defp take_chars(bitstring, limit, acc), do: take_binary_chars(bitstring, limit, acc)
 
-  defp take_chars(<<char::utf8, rest::bitstring>>, limit, acc)
+  defp take_list_chars([char | rest], limit, acc) when limit == :infinity or limit > 0,
+    do: take_list_chars(rest, decrement(limit), [char | acc])
+
+  defp take_list_chars(rest, _limit, acc), do: {Enum.reverse(acc), rest}
+
+  defp take_binary_chars(<<char::utf8, rest::bitstring>>, limit, acc)
        when limit == :infinity or limit > 0,
-       do: take_chars(rest, decrement(limit), [char | acc])
+       do: take_binary_chars(rest, decrement(limit), [char | acc])
 
-  defp take_chars(rest, _limit, acc), do: {Enum.reverse(acc), rest}
+  defp take_binary_chars(rest, _limit, acc), do: {Enum.reverse(acc), rest}
 
   defp text(chardata), do: {:text, :unicode.characters_to_list(chardata)}
 

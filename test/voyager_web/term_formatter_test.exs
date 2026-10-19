@@ -78,6 +78,7 @@ defmodule VoyagerWeb.TermFormatterTest do
         ~c"zażółć",
         [a: 1, b: 2],
         [1, 2 | :x],
+        [?h, ?i | "!"],
         {:state, [], %{k: {1, 2}}},
         %{"b" => [1, 2], a: 1},
         %URI{host: "x"},
