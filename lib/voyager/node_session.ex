@@ -109,7 +109,8 @@ defmodule Voyager.NodeSession do
         }
 
         cache_connector_name(connector.name())
-        cache_node(node)
+        Voyager.Pid.put_node(node)
+        TermSyntax.put_node(node)
 
         broadcast({:node_connected, node})
 
@@ -239,12 +240,5 @@ defmodule Voyager.NodeSession do
 
   defp cache_connector_name(via) do
     :persistent_term.put(@connector_name_cache_key, via)
-  end
-
-  # Each cache makes its own erpc call; together they cost connect one round trip, not two.
-  defp cache_node(node) do
-    [Voyager.Pid, TermSyntax]
-    |> Task.async_stream(& &1.put_node(node), timeout: :infinity)
-    |> Stream.run()
   end
 end
