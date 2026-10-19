@@ -52,12 +52,7 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
   defp abstract(fun, mode) when is_function(fun) do
     case :erlang.fun_info(fun, :type) do
       {:type, :external} ->
-        {:module, mod} = :erlang.fun_info(fun, :module)
-        {:name, name} = :erlang.fun_info(fun, :name)
-        {:arity, arity} = :erlang.fun_info(fun, :arity)
-
-        {:fun, anno(),
-         {:function, abstract(mod, mode), abstract(name, mode), abstract(arity, mode)}}
+        :erl_parse.abstract(fun)
 
       {:type, :local} when mode == :copy ->
         {:string, anno(), :erlang.fun_to_list(fun)}
