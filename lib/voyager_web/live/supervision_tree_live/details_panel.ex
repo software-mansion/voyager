@@ -16,8 +16,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   require Logger
 
-  # No point fetching more links than the panel can ever render.
-  @links_limit max_expanded_links()
+  # No point fetching more relations than the panel can ever render.
+  @relations_limit max_expanded_links()
+  @relation_names ~w(links monitors monitored_by)
 
   @impl true
   def mount(socket) do
@@ -25,10 +26,10 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(:node, nil)
     |> assign(:remote_node, nil)
     |> assign(:open?, false)
-    |> assign(:links_expanded?, false)
+    |> assign(:expanded_relations, MapSet.new())
     |> assign(:selection_history, [])
     |> assign(:node_info, AsyncResult.loading())
-    |> assign(:links, AsyncResult.loading())
+    |> assign(:relations, AsyncResult.loading())
     |> ok()
   end
 
@@ -56,14 +57,23 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   end
 
   @impl true
-  def handle_event("toggle-links", _params, socket) do
+  def handle_event("toggle-relation", %{"relation" => relation}, socket)
+      when relation in @relation_names do
+    relation = String.to_existing_atom(relation)
+    expanded = socket.assigns.expanded_relations
+
+    expanded =
+      if MapSet.member?(expanded, relation),
+        do: MapSet.delete(expanded, relation),
+        else: MapSet.put(expanded, relation)
+
     socket
-    |> assign(:links_expanded?, not socket.assigns.links_expanded?)
+    |> assign(:expanded_relations, expanded)
     |> noreply()
   end
 
   def handle_event("select-link", %{"key" => key}, socket) do
-    case link_by_key(socket.assigns.links, key) || info_pid_by_key(socket, key) do
+    case relation_by_key(socket.assigns.relations, key) || info_pid_by_key(socket, key) do
       nil ->
         noreply(socket)
 
@@ -93,7 +103,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   def handle_event("refresh-node-info", _params, socket) do
     socket
     |> maybe_fetch_node_info(socket.assigns.node)
-    |> maybe_fetch_links(socket.assigns.node)
+    |> maybe_fetch_relations(socket.assigns.node)
     |> noreply()
   end
 
@@ -139,11 +149,11 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
         <.body
           panel_id={@id}
           info={@node_info}
-          links_info={@links}
+          relations_info={@relations}
           node={@node}
-          links_expanded?={@links_expanded?}
+          expanded_relations={@expanded_relations}
           on_select="select-link"
-          on_toggle_links="toggle-links"
+          on_toggle_relation="toggle-relation"
           target={@myself}
           remote_node={@remote_node}
           links_disabled?={@revealing?}
@@ -173,12 +183,14 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   defp maybe_assign_node(socket, node, keep_history?) do
     history = if keep_history?, do: socket.assigns.selection_history, else: []
-    expanded? = socket.assigns.links_expanded? and not node_changed?(socket, node)
+
+    expanded =
+      if node_changed?(socket, node), do: MapSet.new(), else: socket.assigns.expanded_relations
 
     socket
-    |> assign(open?: true, node: node, selection_history: history, links_expanded?: expanded?)
+    |> assign(open?: true, node: node, selection_history: history, expanded_relations: expanded)
     |> maybe_fetch_node_info(node)
-    |> maybe_fetch_links(node)
+    |> maybe_fetch_relations(node)
   end
 
   defp push_history(%{assigns: %{node: %TreeNode{} = node}} = socket),
@@ -200,16 +212,16 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     assign(socket, :node_info, AsyncResult.ok(nil))
   end
 
-  defp maybe_fetch_links(socket, %TreeNode{pid: pid}) when is_pid(pid) do
+  defp maybe_fetch_relations(socket, %TreeNode{pid: pid}) when is_pid(pid) do
     remote_node = socket.assigns.remote_node
 
     socket
-    |> assign(:links, AsyncResult.loading())
-    |> assign_async(:links, fn -> fetch_links_result(remote_node, pid) end)
+    |> assign(:relations, AsyncResult.loading())
+    |> assign_async(:relations, fn -> fetch_relations(remote_node, pid) end)
   end
 
-  defp maybe_fetch_links(socket, _node) do
-    assign(socket, :links, AsyncResult.ok(nil))
+  defp maybe_fetch_relations(socket, _node) do
+    assign(socket, :relations, AsyncResult.ok(nil))
   end
 
   defp node_changed?(socket, node) do
@@ -257,14 +269,30 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     end
   end
 
-  defp fetch_links_result(remote_node, pid) do
-    case rate_limited(fn -> ProcessInfo.fetch_links(remote_node, pid, @links_limit) end) do
-      {:ok, bounded} ->
-        {:ok, %{links: bounded}}
+  defp fetch_relations(remote_node, pid) do
+    result =
+      rate_limited(fn ->
+        with {:ok, links} <- ProcessInfo.fetch_links(remote_node, pid, @relations_limit),
+             {:ok, monitors} <- ProcessInfo.fetch_monitors(remote_node, pid, @relations_limit),
+             {:ok, monitored_by} <-
+               ProcessInfo.fetch_monitored_by(remote_node, pid, @relations_limit) do
+          {:ok,
+           %{
+             links: links,
+             monitors:
+               Map.update!(monitors, :items, &Enum.map(&1, fn {_kind, target} -> target end)),
+             monitored_by: monitored_by
+           }}
+        end
+      end)
+
+    case result do
+      {:ok, relations} ->
+        {:ok, %{relations: relations}}
 
       {:error, reason} ->
         Logger.warning(
-          "Failed to load links for #{inspect(remote_node)}/#{inspect(pid)}: #{inspect(reason)}"
+          "Failed to load relations for #{inspect(remote_node)}/#{inspect(pid)}: #{inspect(reason)}"
         )
 
         {:error, reason}
@@ -278,11 +306,14 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     end
   end
 
-  defp link_by_key(%AsyncResult{ok?: true, result: %{items: links}}, key) when is_list(links) do
-    Enum.find(links, &(TreeNode.key(&1) == key))
+  defp relation_by_key(%AsyncResult{ok?: true, result: relations}, key) when is_map(relations) do
+    relations
+    |> Map.values()
+    |> Enum.flat_map(& &1.items)
+    |> Enum.find(&(selectable_relation?(&1) and TreeNode.key(&1) == key))
   end
 
-  defp link_by_key(_, _), do: nil
+  defp relation_by_key(_, _), do: nil
 
   defp info_pid_by_key(
          %{assigns: %{node_info: %AsyncResult{ok?: true, result: info}}} = socket,
