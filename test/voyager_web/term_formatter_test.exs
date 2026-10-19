@@ -58,6 +58,41 @@ defmodule VoyagerWeb.TermFormatterTest do
     ])
   end
 
+  defp random_data(0) do
+    Enum.random([
+      :ok,
+      :"it's",
+      :żółć,
+      -1,
+      ?a,
+      159,
+      0x10FFFF,
+      10 ** 30,
+      -0.0,
+      5.0e-324,
+      "",
+      "zażółć",
+      <<"ab", 255>>,
+      <<"ab", 1::3>>,
+      [],
+      {},
+      %{}
+    ])
+  end
+
+  defp random_data(depth) do
+    items = Enum.map(1..:rand.uniform(4), fn _ -> random_data(depth - 1) end)
+
+    case :rand.uniform(6) do
+      1 -> List.to_tuple(items)
+      2 -> items
+      3 -> Map.new(items, &{&1, random_data(depth - 1)})
+      4 -> [?a, random_data(0) | random_data(0)]
+      5 -> Enum.map(items, fn _ -> Enum.random([?a, ?λ, 10, 160]) end)
+      _ -> random_data(0)
+    end
+  end
+
   describe "inspect/2 with the Erlang syntax" do
     test "prints literal terms as Erlang that parses back to the same term" do
       terms = [
@@ -79,6 +114,7 @@ defmodule VoyagerWeb.TermFormatterTest do
         [a: 1, b: 2],
         [1, 2 | :x],
         [?h, ?i | "!"],
+        [?h, ?i | ""],
         {:state, [], %{k: {1, 2}}},
         %{"b" => [1, 2], a: 1},
         %URI{host: "x"},
@@ -94,6 +130,13 @@ defmodule VoyagerWeb.TermFormatterTest do
     test "prints Elixir structs as the maps they are" do
       assert erlang(%URI{host: "x"}) =~ ~S|#{'__struct__' => 'Elixir.URI',|
       assert erlang(a: 1) == "[{a, 1}]"
+    end
+
+    test "prints any data term as Erlang that parses back to the same term" do
+      for _ <- 1..1_000, term = random_data(4) do
+        assert erl_eval(erlang(term, limit: :infinity, printable_limit: :infinity)) === term
+        assert erl_eval(erlang(term, round_trip: true, pretty: true, width: 20)) === term
+      end
     end
 
     test "cuts each collection at the limit" do

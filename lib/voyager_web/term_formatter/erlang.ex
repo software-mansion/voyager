@@ -160,11 +160,14 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
 
     cond do
       not :io_lib.printable_unicode_list(chars) -> :error
-      rest == [] or rest == "" -> {:ok, chars, false}
+      text_end?(text, rest) -> {:ok, chars, false}
       is_integer(limit) and length(chars) == limit -> {:ok, chars, true}
       true -> :error
     end
   end
+
+  defp text_end?(list, rest) when is_list(list), do: rest == []
+  defp text_end?(_bitstring, rest), do: rest == ""
 
   defp take_chars(list, limit, acc) when is_list(list), do: take_list_chars(list, limit, acc)
   defp take_chars(bitstring, limit, acc), do: take_binary_chars(bitstring, limit, acc)
