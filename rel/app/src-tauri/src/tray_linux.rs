@@ -18,7 +18,7 @@ const QUIT_ID: &str = "quit";
 struct TrayStatus {
     connection: Option<Connection>,
     mcp: Option<IgnoredAny>,
-    last_connection: Option<IgnoredAny>,
+    last_connection: Option<Connection>,
     connecting: bool,
 }
 
@@ -32,6 +32,7 @@ struct Tray {
     connect: MenuItem<tauri::Wry>,
     mcp: MenuItem<tauri::Wry>,
     open: MenuItem<tauri::Wry>,
+    connected: AtomicBool,
     mcp_on: AtomicBool,
 }
 
@@ -57,14 +58,15 @@ fn build(app: &tauri::App) -> tauri::Result<Tray> {
     let status = MenuItem::new(app, "Starting…", false, None::<&str>)?;
     // broadcast() blocks the main thread until Elixir connects, which the first status follows.
     let connect = MenuItem::with_id(app, CONNECT_ID, "Reconnect", false, None::<&str>)?;
-    let mcp = MenuItem::with_id(app, MCP_ID, "MCP: OFF", false, None::<&str>)?;
-    let open = MenuItem::with_id(app, OPEN_ID, "Open Voyager", true, None::<&str>)?;
+    let mcp = MenuItem::with_id(app, MCP_ID, "MCP Server: OFF", false, None::<&str>)?;
+    let open = MenuItem::with_id(app, OPEN_ID, "Open Voyager", false, None::<&str>)?;
 
     let menu = Menu::with_items(
         app,
         &[
             &status,
             &connect,
+            &PredefinedMenuItem::separator(app)?,
             &mcp,
             &PredefinedMenuItem::separator(app)?,
             &open,
@@ -84,6 +86,7 @@ fn build(app: &tauri::App) -> tauri::Result<Tray> {
         connect,
         mcp,
         open,
+        connected: AtomicBool::new(false),
         mcp_on: AtomicBool::new(false),
     })
 }
@@ -99,6 +102,13 @@ fn on_action(app_handle: &AppHandle, event: MenuEvent) {
             return;
         }
         QUIT_ID => return app_handle.exit(0),
+        CONNECT_ID
+            if TRAY
+                .get()
+                .is_some_and(|tray| tray.connected.load(Ordering::Relaxed)) =>
+        {
+            "disconnect"
+        }
         CONNECT_ID => "connect",
         MCP_ID
             if TRAY
@@ -126,21 +136,26 @@ impl Tray {
             Some(connection) => format!("Connected to {}", connection.node),
             None => "Not connected".to_string(),
         };
-        let can_connect =
-            status.connection.is_none() && status.last_connection.is_some() && !status.connecting;
+        // The status does not name the node being connected, which may not be last_connection.
+        let (connect_text, connect_enabled) = match (&status.connection, &status.last_connection) {
+            _ if status.connecting => ("Connecting…".to_string(), false),
+            (Some(_), _) => ("Disconnect".to_string(), true),
+            (None, Some(last)) => (format!("Reconnect to {}", last.node), true),
+            (None, None) => ("Reconnect".to_string(), false),
+        };
         let mcp_on = status.mcp.is_some();
+        self.connected
+            .store(status.connection.is_some(), Ordering::Relaxed);
         self.mcp_on.store(mcp_on, Ordering::Relaxed);
 
         let _ = self.status.set_text(text);
-        let _ = self.connect.set_text(if status.connecting {
-            "Connecting…"
+        let _ = self.connect.set_text(connect_text);
+        let _ = self.connect.set_enabled(connect_enabled);
+        let _ = self.mcp.set_text(if mcp_on {
+            "MCP Server: ON"
         } else {
-            "Reconnect"
+            "MCP Server: OFF"
         });
-        let _ = self.connect.set_enabled(can_connect);
-        let _ = self
-            .mcp
-            .set_text(if mcp_on { "MCP: ON" } else { "MCP: OFF" });
         let _ = self.mcp.set_enabled(true);
         // /open blocks on NodeSession.current/0 during a connect.
         let _ = self.open.set_enabled(!status.connecting);
