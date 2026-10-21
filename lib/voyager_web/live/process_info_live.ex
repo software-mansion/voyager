@@ -633,10 +633,9 @@ defmodule VoyagerWeb.ProcessInfoLive do
   # The copy text is computed once here; inspecting a large term in full on
   # every render would redo it for every term on the page per click.
   defp put_term(socket, id, term) do
-    socket = TermTreeHook.put_term(socket, id, term)
-    syntax = socket.assigns.term_states[id].syntax
-
-    update(socket, :copy_texts, &Map.put(&1, id, TermTree.copy_string(term, syntax: syntax)))
+    socket
+    |> TermTreeHook.put_term(id, term)
+    |> update(:copy_texts, &Map.put(&1, id, TermTree.copy_string(term)))
   end
 
   defp seed_term_list(socket, prefix, items) do

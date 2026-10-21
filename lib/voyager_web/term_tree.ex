@@ -83,9 +83,7 @@ defmodule VoyagerWeb.TermTree do
     depth = Keyword.get(opts, :depth, @auto_open_depth)
     open_all? = Keyword.get(opts, :open_all, false)
 
-    syntax = syntax(opts)
-
-    %State{open: MapSet.new([[] | auto_open(term, [], depth, open_all?, syntax)]), syntax: syntax}
+    %State{open: MapSet.new([[] | auto_open(term, [], depth, open_all?, syntax(opts))])}
   end
 
   @spec open?(State.t(), State.path()) :: boolean()

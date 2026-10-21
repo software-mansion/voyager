@@ -80,7 +80,7 @@ defmodule VoyagerWeb.TermTree.ErlangTest do
     test "a struct is the map it is, its __struct__ key counted" do
       node = describe_erl(%State{})
 
-      assert %Node{kind: :map, child_count: 4} = node
+      assert %Node{kind: :map, child_count: 3} = node
       assert text(node.content) == "\#{...}"
     end
 
@@ -104,12 +104,7 @@ defmodule VoyagerWeb.TermTree.ErlangTest do
     end
 
     test "struct fields include __struct__" do
-      assert child_keys(children_erl(%State{})) == [
-               "'__struct__' => ",
-               "open => ",
-               "syntax => ",
-               "windows => "
-             ]
+      assert child_keys(children_erl(%State{})) == ["'__struct__' => ", "open => ", "windows => "]
     end
 
     test "container keys are rendered whole" do

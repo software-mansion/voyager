@@ -419,9 +419,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
                 size={:sm}
                 class="text-base-content/60 shrink-0 hover:text-primary"
               />
-              <span id={"ets-lookup-record-#{index}-copy-source"} hidden>{TermTree.copy_string(record,
-                syntax: lookup_state(@term_states, index).syntax
-              )}</span>
+              <span id={"ets-lookup-record-#{index}-copy-source"} hidden>{TermTree.copy_string(record)}</span>
             </div>
           </div>
 
