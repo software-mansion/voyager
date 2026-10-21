@@ -1,9 +1,9 @@
 %% Seeds a plain Erlang node with ETS tables covering every Erlang data type.
 %%
 %% Run:
-%%   dev/mock_nodes/ets_erl.sh
+%%   dev/mock_nodes/erl_ets.sh
 %%
-%% Then in Voyager connect to ets_erl@127.0.0.1 with cookie "demo".
+%% Then in Voyager connect to "erl_ets@127.0.0.1" with cookie "demo".
 -module(ets_demo_node).
 -export([start/0]).
 

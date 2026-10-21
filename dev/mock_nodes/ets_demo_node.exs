@@ -1,9 +1,9 @@
 # Seeds a node with ETS tables covering every case the Voyager ETS UI handles.
 #
 # Run:
-#   dev/mock_nodes/ets.sh
+#   dev/mock_nodes/ex_ets.sh
 #
-# Then in Voyager connect to ets@127.0.0.1 with cookie "demo".
+# Then in Voyager connect to "ex_ets@127.0.0.1" with cookie "demo".
 
 defmodule Demo do
   # Protected and private tables only accept writes from their owner, so every call runs there.
@@ -201,7 +201,8 @@ end
       {:struct_regex, ~r/^voy(ager)?$/iu},
       {:struct_version, Version.parse!("1.2.3-rc.1+build.5")},
       {:struct_exception, %ArgumentError{message: "boom"}},
-      {:struct_invalid_fields, %{__struct__: Date, calendar: Calendar.ISO, year: "x", month: 1, day: 1}},
+      {:struct_invalid_fields,
+       %{__struct__: Date, calendar: Calendar.ISO, year: "x", month: 1, day: 1}},
       {:struct_unknown_module, %{__struct__: Remote.Only.Struct, id: 1}},
       {:pid, self()},
       {:port, hd(Port.list())},
