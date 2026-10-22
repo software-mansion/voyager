@@ -131,38 +131,8 @@ defmodule VoyagerWeb.TermTree do
   depending on `:syntax`.
   """
   @spec copy_string(term(), keyword()) :: String.t()
-  def copy_string(term, opts \\ []) do
-    case syntax(opts) do
-      :elixir ->
-        inspect(term,
-          limit: :infinity,
-          printable_limit: :infinity,
-          pretty: true,
-          structs: false,
-          custom_options: [sort_maps: true],
-          inspect_fun: &copy_inspect/2
-        )
-
-      :erlang ->
-        ErlangFormatter.inspect(term, pretty: true, round_trip: true)
-    end
-  end
-
-  # Pids and other `#Name<...>` forms have no literal syntax. Rewriting the flattened output
-  # instead would reach inside string literals and break any binary that reads like a pid.
-  defp copy_inspect(id, _opts) when is_pid(id) or is_reference(id) or is_port(id) do
-    {fun, arg} = TermFormatter.identifier(id)
-    ":erlang.#{fun}(#{inspect(arg, limit: :infinity)})"
-  end
-
-  defp copy_inspect(fun, _opts) when is_function(fun) do
-    case inspect(fun) do
-      "#" <> _ = text -> inspect(text)
-      text -> text
-    end
-  end
-
-  defp copy_inspect(term, opts), do: Inspect.inspect(term, opts)
+  def copy_string(term, opts \\ []),
+    do: TermFormatter.inspect(term, syntax: syntax(opts), pretty: true, round_trip: true)
 
   defp syntax(opts), do: Keyword.get(opts, :syntax) || TermSyntax.current()
 

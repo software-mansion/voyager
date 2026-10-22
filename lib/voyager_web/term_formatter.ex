@@ -9,10 +9,12 @@ defmodule VoyagerWeb.TermFormatter do
 
   alias Voyager.Pid
   alias Voyager.Services.TermSyntax
-  alias VoyagerWeb.TermFormatter.Erlang
+  alias VoyagerWeb.TermFormatter.Elixir, as: ElixirFormatter
+  alias VoyagerWeb.TermFormatter.Erlang, as: ErlangFormatter
 
   @doc """
-  Accepts `:syntax` (defaults to `Voyager.Services.TermSyntax.current/0`) and the
+  Accepts `:syntax` (defaults to `Voyager.Services.TermSyntax.current/0`),
+  `:round_trip` (uncut output that pastes back into IEx or `erl`) and the
   `Inspect.Opts` fields both syntaxes honour: `:limit`, `:printable_limit`,
   `:pretty` and `:width`. The Elixir syntax takes any other `inspect/2` option.
   """
@@ -21,8 +23,8 @@ defmodule VoyagerWeb.TermFormatter do
     {syntax, opts} = Keyword.pop_lazy(opts, :syntax, &TermSyntax.current/0)
 
     case syntax do
-      :elixir -> Kernel.inspect(term, Keyword.put_new(opts, :inspect_fun, &inspect_fun/2))
-      :erlang -> Erlang.inspect(term, opts)
+      :elixir -> ElixirFormatter.inspect(term, opts)
+      :erlang -> ErlangFormatter.inspect(term, opts)
     end
   end
 
@@ -34,7 +36,7 @@ defmodule VoyagerWeb.TermFormatter do
       when is_atom(mod) and is_atom(fun) and is_integer(arity) and arity >= 0 do
     case Keyword.get_lazy(opts, :syntax, &TermSyntax.current/0) do
       :elixir -> Exception.format_mfa(mod, fun, arity)
-      :erlang -> Erlang.format_mfa(mfa)
+      :erlang -> ErlangFormatter.format_mfa(mfa)
     end
   end
 
@@ -64,14 +66,4 @@ defmodule VoyagerWeb.TermFormatter do
   defp list_to_id(pid) when is_pid(pid), do: :list_to_pid
   defp list_to_id(ref) when is_reference(ref), do: :list_to_ref
   defp list_to_id(port) when is_port(port), do: :list_to_port
-
-  defp inspect_fun(pid, opts) when is_pid(pid), do: Pid.inspect_fun(pid, opts)
-
-  defp inspect_fun(struct, opts) when is_struct(struct) do
-    Inspect.inspect(struct, opts)
-  rescue
-    _error -> Inspect.Any.inspect(struct, opts)
-  end
-
-  defp inspect_fun(term, opts), do: Inspect.inspect(term, opts)
 end
