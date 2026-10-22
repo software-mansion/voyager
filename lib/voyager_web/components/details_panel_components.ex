@@ -712,7 +712,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
        when key in [:message_queue_len, :reductions, :catch_level, :trace],
        do: info |> Map.fetch!(key) |> Formatters.format_integer()
 
-  defp overview_value(key, info), do: info |> Map.fetch!(key) |> Formatters.format_term()
+  defp overview_value(key, info), do: info |> Map.fetch!(key) |> to_string()
 
   defp skeleton_width_class(:narrow), do: "w-12"
   defp skeleton_width_class(:wide), do: "w-full"

@@ -269,7 +269,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
       <% :type -> %>
         <DataTableComponents.value_cell
           id={"#{@row_id}-type"}
-          value={Formatters.format_term(@row.type)}
+          value={Atom.to_string(@row.type)}
           muted
         />
       <% :size -> %>
@@ -295,7 +295,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         <DataTableComponents.value_cell
           :if={@row.heir == :none}
           id={"#{@row_id}-heir"}
-          value={Formatters.format_term(:none)}
+          value="none"
           muted
         />
         <ProcessComponents.pid_cell
@@ -315,12 +315,12 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
   end
 
   @doc """
-  A table option: `true`, `false` or `:auto`. `nil` is a `decentralized_counters`
+  A table option as `true`, `false` or `auto`. `nil` is a `decentralized_counters`
   the node does not report, shown as a placeholder.
   """
   @spec format_flag(boolean() | :auto | nil) :: String.t()
   def format_flag(nil), do: DataTableComponents.placeholder()
-  def format_flag(value), do: Formatters.format_term(value)
+  def format_flag(value), do: to_string(value)
 
   attr :table, :map, required: true
   attr :row_id, :string, required: true
@@ -389,7 +389,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
     ~H"""
     <DataTableComponents.value_cell
       id={"#{@row_id}-protection"}
-      value={Formatters.format_term(@protection)}
+      value={Atom.to_string(@protection)}
       muted
     />
     """
@@ -411,7 +411,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
       ]}
       title="Only the owner process can read this table"
     >
-      {Formatters.format_term(:private)}
+      private
     </span>
     """
   end
@@ -533,11 +533,11 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         <.icon name="icon-database-search" class="size-4" /> View contents
       </.link>
       <.section title="Overview">
-        <.kv label="Type" help={EtsTableHelp.get(:type)} value={Formatters.format_term(@table.type)} />
+        <.kv label="Type" help={EtsTableHelp.get(:type)} value={Atom.to_string(@table.type)} />
         <.kv
           label="Protection"
           help={EtsTableHelp.get(:protection)}
-          value={Formatters.format_term(@table.protection)}
+          value={Atom.to_string(@table.protection)}
         />
         <.kv
           label="Named table"

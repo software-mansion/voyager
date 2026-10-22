@@ -82,9 +82,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       id="ets-table-info"
       class="border-base-200 bg-base-100 grid grid-cols-2 gap-x-6 gap-y-3 rounded-lg border p-4 sm:grid-cols-3 lg:grid-cols-5"
     >
-      <.info_item label="Type" help={:type}>
-        {Formatters.format_term(@info.type)}
-      </.info_item>
+      <.info_item label="Type" help={:type}>{@info.type}</.info_item>
       <.info_item label="Protection" help={:protection}>
         <EtsTableComponents.private_badge
           :if={@info.protection == :private}
@@ -92,7 +90,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
           size={:sm}
         />
         <span :if={@info.protection != :private} class="font-mono text-base-content/70">
-          {Formatters.format_term(@info.protection)}
+          {@info.protection}
         </span>
       </.info_item>
       <.info_item id="ets-info-keypos" label="Key position" help={:keypos}>{@info.keypos}</.info_item>
@@ -105,9 +103,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       <.info_item id="ets-info-owner" label="Owner" help={:owner}>
         <ProcessComponents.process_link pid={@info.owner} current_url={@current_url} />
       </.info_item>
-      <.info_item :if={@info.heir == :none} label="Heir" help={:heir}>
-        {Formatters.format_term(:none)}
-      </.info_item>
+      <.info_item :if={@info.heir == :none} label="Heir" help={:heir}>none</.info_item>
       <.info_item :if={@info.heir != :none} label="Heir" help={:heir}>
         <ProcessComponents.process_link pid={@info.heir} current_url={@current_url} />
       </.info_item>

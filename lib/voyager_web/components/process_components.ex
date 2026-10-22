@@ -351,6 +351,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   def format_mfa(mfa), do: Formatters.format_mfa(mfa)
 
   defp format_atom(nil), do: @placeholder
+  defp format_atom(value) when is_atom(value), do: to_string(value)
   defp format_atom(value), do: Formatters.format_term(value)
 
   defp format_number(n) when is_integer(n), do: Formatters.format_integer(n)
