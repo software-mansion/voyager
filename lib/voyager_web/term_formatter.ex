@@ -12,8 +12,6 @@ defmodule VoyagerWeb.TermFormatter do
   alias VoyagerWeb.TermFormatter.Erlang
 
   @doc """
-  Renders `term` as text.
-
   Accepts `:syntax` (defaults to `Voyager.Services.TermSyntax.current/0`) and the
   `Inspect.Opts` fields both syntaxes honour: `:limit`, `:printable_limit`,
   `:pretty` and `:width`. The Elixir syntax takes any other `inspect/2` option.
@@ -43,10 +41,9 @@ defmodule VoyagerWeb.TermFormatter do
   def format_mfa(other, opts), do: __MODULE__.inspect(other, opts)
 
   @doc """
-  The `erlang` BIF and its argument that rebuild `id` in a shell on the
-  connected node: `list_to_*` from the local form for that node's own pids,
-  refs and ports, which it numbers `0`, and `binary_to_term` for any other
-  node's, whose `<N.X.Y>` form would name a different node there.
+  The `erlang` BIF and argument that rebuild `id` in a shell on the connected
+  node: `list_to_*` of its local form, or `binary_to_term` for another node's
+  id, whose `<N.X.Y>` would name a different node there.
   """
   @spec identifier(pid() | reference() | port()) :: {atom(), charlist() | binary()}
   def identifier(id) when is_pid(id) or is_reference(id) or is_port(id) do

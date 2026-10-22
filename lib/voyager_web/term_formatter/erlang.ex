@@ -3,10 +3,8 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
   Prints terms in Erlang syntax with `erl_pp`, from an abstract form built
   here, so the output never depends on the VM's `+pc` flag.
 
-  Display output cuts each collection at `:limit` items and each text at
-  `:printable_limit` characters, marking the cut with `...`, and shows pids in
-  the PID format setting. With `round_trip: true` nothing is cut and pids, refs
-  and ports become calls that rebuild them, so the output pastes into `erl`.
+  With `round_trip: true` nothing is cut and pids, refs and ports become calls
+  that rebuild them, so the output pastes into `erl`.
   """
 
   alias Voyager.Pid
@@ -149,7 +147,6 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
     {:bin, anno, elements ++ elision_element(true)}
   end
 
-  # Walks at most `limit` characters, so a huge text costs no more than its shown prefix.
   defp printable_prefix(text, limit) do
     {chars, rest} = take_chars(text, limit, [])
 
