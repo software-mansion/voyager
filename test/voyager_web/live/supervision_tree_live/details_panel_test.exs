@@ -224,9 +224,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
 
       assert has_element?(view, "#details-panel-refresh")
       assert has_element?(view, "#details-panel", "1,234")
-      assert has_element?(view, "#details-panel div", ~r/^\s*waiting\s*$/)
+      assert has_element?(view, "#details-panel div", ~r/^\s*:waiting\s*$/)
       refute has_element?(view, "#details-panel", "9,999")
-      refute has_element?(view, "#details-panel div", ~r/^\s*running\s*$/)
+      refute has_element?(view, "#details-panel div", ~r/^\s*:running\s*$/)
       refute has_element?(view, "#details-panel", "Failed to load node details.")
 
       # Refresh re-fetches process_info, system_info, proc_label and proc_links
@@ -258,9 +258,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       render_async(view)
 
       assert has_element?(view, "#details-panel", "9,999")
-      assert has_element?(view, "#details-panel div", ~r/^\s*running\s*$/)
+      assert has_element?(view, "#details-panel div", ~r/^\s*:running\s*$/)
       refute has_element?(view, "#details-panel", "1,234")
-      refute has_element?(view, "#details-panel div", ~r/^\s*waiting\s*$/)
+      refute has_element?(view, "#details-panel div", ~r/^\s*:waiting\s*$/)
       refute has_element?(view, "#details-panel", "Failed to load node details.")
     end
 

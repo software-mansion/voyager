@@ -343,7 +343,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
             <tbody class="divide-base-content/10 divide-y">
               <tr :for={app <- @visible_applications}>
                 <td class="text-base-content truncate px-2 py-2.5 text-sm font-medium">
-                  {app.name}
+                  {Formatters.format_term(app.name)}
                 </td>
                 <td class="px-2 py-2.5">
                   <span class="bg-base-200/80 border-base-200 text-base-content/80 font-mono rounded border px-1.5 py-0.5 text-xs">

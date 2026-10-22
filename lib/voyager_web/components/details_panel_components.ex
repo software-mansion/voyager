@@ -712,7 +712,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
        when key in [:message_queue_len, :reductions, :catch_level, :trace],
        do: info |> Map.fetch!(key) |> Formatters.format_integer()
 
-  defp overview_value(key, info), do: info |> Map.fetch!(key) |> to_string()
+  defp overview_value(key, info), do: info |> Map.fetch!(key) |> Formatters.format_term()
 
   defp skeleton_width_class(:narrow), do: "w-12"
   defp skeleton_width_class(:wide), do: "w-full"
@@ -758,7 +758,9 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   defp format_identifier(other), do: Formatters.format_term(other)
 
-  defp node_display_name(%TreeNode{name: name}) when is_atom(name), do: Atom.to_string(name)
+  defp node_display_name(%TreeNode{name: name}) when is_atom(name),
+    do: Formatters.format_term(name)
+
   defp node_display_name(%TreeNode{name: name}) when is_binary(name), do: Formatters.pid(name)
   defp node_display_name(%TreeNode{key: key}), do: Formatters.pid(key)
 

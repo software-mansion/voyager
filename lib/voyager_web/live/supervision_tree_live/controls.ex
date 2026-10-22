@@ -12,6 +12,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
 
   use VoyagerWeb, :live_component
 
+  alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.SupervisionTreeControls
   alias VoyagerWeb.Utils.URL
 
@@ -356,7 +357,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
           checked={MapSet.member?(@selected_apps, app)}
           class="checkbox checkbox-xs checkbox-primary"
         />
-        <span class="font-mono">{app}</span>
+        <span class="font-mono">{Formatters.format_term(app)}</span>
         <span class="badge badge-ghost badge-xs">{vsn}</span>
       </label>
     </div>
