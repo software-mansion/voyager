@@ -139,7 +139,7 @@ defmodule VoyagerWeb.TermTree do
     end
   end
 
-  defp syntax(opts), do: Keyword.get(opts, :syntax) || TermSyntax.current()
+  defp syntax(opts), do: Keyword.get_lazy(opts, :syntax, &TermSyntax.current/0)
 
   defp build(@truncated, _syntax) do
     %Node{kind: :truncated, content: [Segment.muted("… (truncated)")]}
