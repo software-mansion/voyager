@@ -12,6 +12,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   alias VoyagerWeb.Components.SupervisionTreeComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.ProcessInfoHelp
+  alias VoyagerWeb.SupervisionTreeLive.Display
 
   @overview_rows [
     {:initial_call, "Initial call", :wide},
@@ -106,7 +107,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   def node_label(assigns) do
     assigns =
       assigns
-      |> assign(:display_name, node_display_name(assigns.node))
+      |> assign(:display_name, Display.name(assigns.node))
       |> assign(:pid_string, node_pid_string(assigns.node))
 
     ~H"""
@@ -757,12 +758,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     do: port |> :erlang.port_to_list() |> List.to_string()
 
   defp format_identifier(other), do: Formatters.format_term(other)
-
-  defp node_display_name(%TreeNode{name: name}) when is_atom(name),
-    do: Formatters.format_term(name)
-
-  defp node_display_name(%TreeNode{name: name}) when is_binary(name), do: Formatters.pid(name)
-  defp node_display_name(%TreeNode{key: key}), do: Formatters.pid(key)
 
   defp node_pid_string(%TreeNode{pid: pid}) when is_pid(pid), do: format_identifier(pid)
   defp node_pid_string(_), do: nil
