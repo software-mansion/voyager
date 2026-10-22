@@ -40,9 +40,9 @@ defmodule Voyager.MCP.Tools.ModuleList do
 
   @impl true
   def execute(params, frame) do
-    case Map.get(params, :module) do
-      module when module in [nil, ""] -> Remote.reply(&modules(&1, params), frame)
-      module -> Remote.reply(&functions(&1, String.trim(module), params), frame)
+    case String.trim(Map.get(params, :module) || "") do
+      "" -> Remote.reply(&modules(&1, params), frame)
+      module -> Remote.reply(&functions(&1, module, params), frame)
     end
   end
 
