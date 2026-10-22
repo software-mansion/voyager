@@ -20,11 +20,10 @@ defmodule VoyagerWeb.SettingsLive do
   ]
 
   @term_syntaxes [
-    {:auto, "icon-plug", "Auto", nil,
+    {:auto, nil, "Auto", nil,
      "Erlang for nodes without the Elixir application, Elixir otherwise."},
-    {:elixir, "icon-diamond", "Elixir", ~S|%{name: "voyager"}|, "Shows values as Elixir terms."},
-    {:erlang, "icon-triangle", "Erlang", ~S|#{name => <<"voyager">>}|,
-     "Shows values as Erlang terms."}
+    {:elixir, nil, "Elixir", ~S|%{name: "voyager"}|, "Shows values as Elixir terms."},
+    {:erlang, nil, "Erlang", ~S|#{name => <<"voyager">>}|, "Shows values as Erlang terms."}
   ]
 
   @impl true

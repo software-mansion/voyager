@@ -23,7 +23,8 @@ defmodule VoyagerWeb.SettingsComponents do
   end
 
   @doc """
-  A card picking one of `options`, each `{value, icon, label, example, description}`.
+  A card picking one of `options`, each `{value, icon, label, example, description}`;
+  a `nil` icon is left out.
   """
   attr :id, :string, required: true
   attr :title, :string, required: true
@@ -45,7 +46,7 @@ defmodule VoyagerWeb.SettingsComponents do
               :for={{_value, icon, label, example, description} <- @options}
               class="list-row flex items-center gap-4"
             >
-              <.icon name={icon} class="text-base-content/70 size-4" />
+              <.icon :if={icon} name={icon} class="text-base-content/70 size-4" />
               <div class="list-col-grow">
                 <div class="flex flex-wrap items-center gap-2">
                   <span class="text-base-content font-medium">{label}</span>
@@ -76,7 +77,7 @@ defmodule VoyagerWeb.SettingsComponents do
             phx-click={@on_select}
             phx-value-choice={value}
           >
-            <.icon name={icon} class="size-4" /> {label}
+            <.icon :if={icon} name={icon} class="size-4" /> {label}
           </button>
         </div>
       </div>
