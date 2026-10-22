@@ -27,6 +27,7 @@ defmodule VoyagerWeb.TermTree do
 
   alias Voyager.Services.TermSyntax
   alias VoyagerWeb.TermFormatter
+  alias VoyagerWeb.TermFormatter.Elixir, as: ElixirFormatter
   alias VoyagerWeb.TermFormatter.Erlang, as: ErlangFormatter
   alias VoyagerWeb.TermTree.Node
   alias VoyagerWeb.TermTree.Segment
@@ -131,8 +132,12 @@ defmodule VoyagerWeb.TermTree do
   depending on `:syntax`.
   """
   @spec copy_string(term(), keyword()) :: String.t()
-  def copy_string(term, opts \\ []),
-    do: TermFormatter.inspect(term, syntax: syntax(opts), pretty: true, round_trip: true)
+  def copy_string(term, opts \\ []) do
+    case syntax(opts) do
+      :elixir -> ElixirFormatter.copy_string(term)
+      :erlang -> ErlangFormatter.copy_string(term)
+    end
+  end
 
   defp syntax(opts), do: Keyword.get(opts, :syntax) || TermSyntax.current()
 

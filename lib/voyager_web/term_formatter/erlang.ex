@@ -2,9 +2,6 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
   @moduledoc """
   Prints terms in Erlang syntax with `erl_pp`, from an abstract form built
   here, so the output never depends on the VM's `+pc` flag.
-
-  With `round_trip: true` nothing is cut and pids, refs and ports become calls
-  that rebuild them, so the output pastes into `erl`.
   """
 
   alias Voyager.Pid
@@ -15,13 +12,18 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
 
   @spec inspect(term(), keyword()) :: String.t()
   def inspect(term, opts \\ []) do
-    {round_trip?, opts} = Keyword.pop(opts, :round_trip, false)
     opts = Inspect.Opts.new(opts)
+    term |> abstract(opts) |> print(line_length(opts))
+  end
 
-    term
-    |> abstract(if(round_trip?, do: :copy, else: opts))
-    |> :erl_pp.expr(hook: &text_hook/4, encoding: :unicode, linewidth: line_length(opts))
-    |> IO.chardata_to_string()
+  @doc """
+  `term` uncut, with pids, refs and ports as calls that rebuild them, so it
+  pastes into `erl`. Wraps at `:width`.
+  """
+  @spec copy_string(term(), keyword()) :: String.t()
+  def copy_string(term, opts \\ []) do
+    opts = Inspect.Opts.new([pretty: true] ++ opts)
+    term |> abstract(:copy) |> print(line_length(opts))
   end
 
   @spec format_mfa({module(), atom(), arity()}) :: String.t()
@@ -34,6 +36,12 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
   @spec printable_list?(list(), non_neg_integer() | :infinity) :: boolean()
   def printable_list?(list, limit),
     do: match?({:ok, _chars, _more?}, printable_prefix(list, limit))
+
+  defp print(form, line_length) do
+    form
+    |> :erl_pp.expr(hook: &text_hook/4, encoding: :unicode, linewidth: line_length)
+    |> IO.chardata_to_string()
+  end
 
   defp line_length(%Inspect.Opts{pretty: true, width: width}) when is_integer(width), do: width
   defp line_length(_opts), do: @single_line

@@ -13,8 +13,7 @@ defmodule VoyagerWeb.TermFormatter do
   alias VoyagerWeb.TermFormatter.Erlang, as: ErlangFormatter
 
   @doc """
-  Accepts `:syntax` (defaults to `Voyager.Services.TermSyntax.current/0`),
-  `:round_trip` (uncut output that pastes back into IEx or `erl`) and the
+  Accepts `:syntax` (defaults to `Voyager.Services.TermSyntax.current/0`) and the
   `Inspect.Opts` fields both syntaxes honour: `:limit`, `:printable_limit`,
   `:pretty` and `:width`. The Elixir syntax takes any other `inspect/2` option.
   """

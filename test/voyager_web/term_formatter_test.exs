@@ -4,6 +4,7 @@ defmodule VoyagerWeb.TermFormatterTest do
   import Voyager.TestUtils, only: [erl_eval: 1]
 
   alias VoyagerWeb.TermFormatter
+  alias VoyagerWeb.TermFormatter.Erlang, as: ErlangFormatter
 
   defp erlang(term, opts \\ []), do: TermFormatter.inspect(term, [syntax: :erlang] ++ opts)
   defp elixir(term, opts \\ []), do: TermFormatter.inspect(term, [syntax: :elixir] ++ opts)
@@ -135,7 +136,7 @@ defmodule VoyagerWeb.TermFormatterTest do
     test "prints any data term as Erlang that parses back to the same term" do
       for _ <- 1..1_000, term = random_data(4) do
         assert erl_eval(erlang(term, limit: :infinity, printable_limit: :infinity)) === term
-        assert erl_eval(erlang(term, round_trip: true, pretty: true, width: 20)) === term
+        assert erl_eval(ErlangFormatter.copy_string(term, width: 20)) === term
       end
     end
 
@@ -178,13 +179,13 @@ defmodule VoyagerWeb.TermFormatterTest do
     test "round-trip output evaluates back to the same term, opaque values included" do
       term = {self(), make_ref(), hd(Port.list()), &Enum.map/2, %URI{host: "zażółć"}, [1 | 2]}
 
-      assert erl_eval(erlang(term, round_trip: true)) == term
+      assert erl_eval(ErlangFormatter.copy_string(term)) == term
     end
 
     test "round-trip output keeps a local fun as its text" do
       fun = fn -> :ok end
 
-      assert erl_eval(erlang(fun, round_trip: true)) ==
+      assert erl_eval(ErlangFormatter.copy_string(fun)) ==
                fun |> :erlang.fun_to_list() |> to_string() |> to_charlist()
     end
 
@@ -193,7 +194,7 @@ defmodule VoyagerWeb.TermFormatterTest do
           term = random_term(4),
           opts <- [[], [limit: 0, printable_limit: 0], [pretty: true, width: 5]] do
         assert is_binary(erlang(term, opts))
-        assert is_binary(erlang(term, [round_trip: true] ++ opts))
+        assert is_binary(ErlangFormatter.copy_string(term, opts))
       end
     end
   end

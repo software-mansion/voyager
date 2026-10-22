@@ -1,33 +1,27 @@
 defmodule VoyagerWeb.TermFormatter.Elixir do
-  @moduledoc """
-  Prints terms in Elixir syntax with `inspect/2`.
-
-  With `round_trip: true` nothing is cut, structs print as maps and pids, refs,
-  ports and anonymous functions become expressions that rebuild them, so the
-  output pastes into IEx.
-  """
+  @moduledoc false
 
   alias Voyager.Pid
   alias VoyagerWeb.TermFormatter
 
   @spec inspect(term(), keyword()) :: String.t()
-  def inspect(term, opts \\ []) do
-    {round_trip?, opts} = Keyword.pop(opts, :round_trip, false)
+  def inspect(term, opts \\ []),
+    do: Kernel.inspect(term, Keyword.put_new(opts, :inspect_fun, &inspect_fun/2))
 
-    opts =
-      if round_trip? do
-        Keyword.merge(opts,
-          limit: :infinity,
-          printable_limit: :infinity,
-          structs: false,
-          custom_options: [sort_maps: true],
-          inspect_fun: &copy_inspect/2
-        )
-      else
-        Keyword.put_new(opts, :inspect_fun, &inspect_fun/2)
-      end
-
-    Kernel.inspect(term, opts)
+  @doc """
+  `term` uncut, with structs as maps and pids, refs, ports and anonymous
+  functions as expressions that rebuild them, so it pastes into IEx.
+  """
+  @spec copy_string(term()) :: String.t()
+  def copy_string(term) do
+    Kernel.inspect(term,
+      limit: :infinity,
+      printable_limit: :infinity,
+      pretty: true,
+      structs: false,
+      custom_options: [sort_maps: true],
+      inspect_fun: &copy_inspect/2
+    )
   end
 
   defp inspect_fun(pid, opts) when is_pid(pid), do: Pid.inspect_fun(pid, opts)
