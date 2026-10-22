@@ -30,7 +30,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   @preview_opts [limit: 20, printable_limit: 128, width: :infinity]
 
-  attr :table_name, :string, required: true
+  attr :table_name, :string, required: true, doc: "`nil` shows a skeleton"
   attr :node_name, :string, required: true
   attr :back_href, :string, required: true
   attr :last_updated, :any, default: nil
@@ -44,7 +44,13 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       class="mb-0"
     >
       <:actions>
-        <.tooltip id="ets-table-name-tip" position="bottom" interactive tip_class="font-mono">
+        <.tooltip
+          :if={@table_name}
+          id="ets-table-name-tip"
+          position="bottom"
+          interactive
+          tip_class="font-mono"
+        >
           <h2
             id="ets-table-name"
             class="text-base-content font-mono flex min-w-0 items-center gap-2 text-2xl font-bold tracking-tight"

@@ -360,6 +360,18 @@ defmodule VoyagerWeb.EtsTableLiveTest do
       on_exit(fn -> TermSyntax.put_setting(setting) end)
     end
 
+    test "shows a skeleton, not the URL's Elixir name, until the table loads", %{conn: conn} do
+      name = named_table(:set)
+
+      html =
+        conn |> get(~p"/node/#{@node_name}/ets-tables/#{inspect(name)}") |> html_response(200)
+
+      document = LazyHTML.from_document(html)
+
+      assert document |> LazyHTML.query("#ets-table-name-skeleton") |> Enum.count() == 1
+      assert document |> LazyHTML.query("#ets-table-name") |> Enum.empty?()
+    end
+
     test "names the table and renders its records as Erlang terms", %{conn: conn} do
       name = named_table(:set)
       :ets.insert(name, {:k, "v"})

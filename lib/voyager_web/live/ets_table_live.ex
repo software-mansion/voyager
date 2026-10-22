@@ -451,6 +451,8 @@ defmodule VoyagerWeb.EtsTableLive do
   defp header_name(%AsyncResult{ok?: true, result: table}, _param),
     do: Formatters.format_term(table.id)
 
+  # The URL param is in `inspect` form, which the term syntax may print differently.
+  defp header_name(%AsyncResult{loading: loading}, _param) when loading != nil, do: nil
   defp header_name(_info, param), do: param
 
   defp resolve_table(socket) do
