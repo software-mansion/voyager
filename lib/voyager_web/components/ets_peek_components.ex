@@ -30,7 +30,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   @preview_opts [limit: 20, printable_limit: 128, width: :infinity]
 
-  attr :table_name, :string, required: true, doc: "`nil` shows a skeleton"
+  attr :table_name, :string, required: true, doc: "`nil` hides the name"
   attr :node_name, :string, required: true
   attr :back_href, :string, required: true
   attr :last_updated, :any, default: nil
