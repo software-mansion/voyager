@@ -65,6 +65,8 @@ defmodule Voyager.Services.TermSyntaxTest do
       TermSyntax.put_setting(:elixir)
       assert TermSyntax.current() == :elixir
 
+      connect(fn -> {:ok, ~c"1.20.2"} end)
+
       TermSyntax.put_setting(:erlang)
       assert TermSyntax.current() == :erlang
     end
