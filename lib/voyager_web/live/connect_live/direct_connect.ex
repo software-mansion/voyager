@@ -3,9 +3,9 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
 
   alias Voyager.Actions.Connections, as: ConnectionActions
   alias Voyager.NodeSession
+  alias Voyager.NodeSession.ConnectError
   alias Voyager.Queries.Connections, as: ConnectionQueries
   alias VoyagerWeb.ConnectComponents
-  alias VoyagerWeb.ConnectLive.ConnectError
   alias VoyagerWeb.ConnectLive.RecentConnections
   alias VoyagerWeb.ConnectLive.SecretVisibility
   alias VoyagerWeb.FormSchemas.ConnectionParams

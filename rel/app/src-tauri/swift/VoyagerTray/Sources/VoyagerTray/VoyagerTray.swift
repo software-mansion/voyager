@@ -198,7 +198,7 @@ struct TrayView: View {
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(Theme.muted)
             } else {
-                Button("Connect") { model.perform(.connect) }
+                Button("Reconnect") { model.perform(.connect) }
                     .buttonStyle(VoyagerButtonStyle(kind: .subtle, compact: true))
             }
         }
