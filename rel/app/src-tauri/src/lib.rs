@@ -1,4 +1,8 @@
 #[cfg(target_os = "macos")]
+#[path = "tray_macos.rs"]
+mod tray;
+#[cfg(not(target_os = "macos"))]
+#[path = "tray_linux.rs"]
 mod tray;
 mod utils;
 
@@ -98,7 +102,6 @@ pub fn run() {
                 }
             }
 
-            #[cfg(target_os = "macos")]
             tray::setup(app);
 
             let pubsub = elixirkit::PubSub::listen("tcp://127.0.0.1:0").expect("failed to listen");
@@ -122,7 +125,6 @@ pub fn run() {
                 }
             });
 
-            #[cfg(target_os = "macos")]
             pubsub.subscribe(tray::TOPIC, tray::update);
 
             let app_handle = app.handle().clone();
@@ -157,8 +159,7 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| match event {
-            // Closing the last window keeps Voyager in the Dock and tray; Cmd+Q still quits.
-            #[cfg(target_os = "macos")]
+            // Losing the last window keeps Voyager in the tray; Quit, Cmd+Q and Linux's close pass a code.
             RunEvent::ExitRequested {
                 code: None, api, ..
             } => api.prevent_exit(),
@@ -312,11 +313,12 @@ fn create_window(app_handle: &tauri::AppHandle, port: u16) {
     #[cfg(target_os = "macos")]
     let _ = window.set_focus();
 
+    // The tray's Hide uses destroy(), which skips CloseRequested, so only Hide keeps Voyager running.
     #[cfg(not(target_os = "macos"))]
     {
         let app_handle = app_handle.clone();
         window.on_window_event(move |event| {
-            if let tauri::WindowEvent::Destroyed = event {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
                 app_handle.exit(0);
             }
         });
