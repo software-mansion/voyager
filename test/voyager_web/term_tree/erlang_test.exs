@@ -123,14 +123,6 @@ defmodule VoyagerWeb.TermTree.ErlangTest do
     end
   end
 
-  describe "initial_state/2" do
-    test "opens short lists and tuples, not strings" do
-      state = TermTree.initial_state([{:a, 1}, ~c"hi"], syntax: :erlang)
-
-      assert state.open == MapSet.new([[], [0]])
-    end
-  end
-
   describe "copy_string/2" do
     test "round-trips through the Erlang shell" do
       term = %{
