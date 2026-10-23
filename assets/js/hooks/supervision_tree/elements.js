@@ -4,6 +4,13 @@
  * @property {[string, string, number]} initial_call
  * @property {[string, string, number]} current_function
  *
+ * @typedef {Object} Display
+ * @property {string} name
+ * @property {string | null} app
+ * @property {string | null} pid
+ * @property {string | null} initial_call
+ * @property {string | null} current_function
+ *
  * @typedef {Object} ServerNode
  * @property {string} key
  * @property {string | null} app
@@ -14,6 +21,7 @@
  * @property {number} child_count
  * @property {Info | 'dead' | null} info
  * @property {string[] | 'not_loaded'} children_keys
+ * @property {Display} display
  */
 
 /**
@@ -27,9 +35,8 @@
 /**
  * @param {string} key
  * @param {ServerNode} node
- * @param {string | undefined} nodeId
  */
-export function elementsFor(key, node, nodeId) {
+export function elementsFor(key, node) {
   const child_count = node.child_count ?? 0;
   const children_keys =
     node.children_keys === 'not_loaded' ? null : node.children_keys;
@@ -41,6 +48,7 @@ export function elementsFor(key, node, nodeId) {
     type: node.type,
     pid: node.pid,
     info: node.info,
+    display: node.display,
     child_count: child_count,
     parent_key: node.parent_key,
     children_keys: children_keys,
@@ -48,7 +56,7 @@ export function elementsFor(key, node, nodeId) {
     is_collapsed: initialIsCollapsedState({ child_count, children_keys }),
     is_from_relation: node.parent_key === null,
   };
-  data.displayLabel = composeLabel(data, nodeId);
+  data.displayLabel = composeLabel(data);
 
   /** @type {Array<{group: string, data: Object, classes?: string}>} */
   const els = [{ group: 'nodes', data }];
@@ -103,34 +111,13 @@ export function initialIsCollapsedState({ child_count, children_keys }) {
   );
 }
 
-// The label is the process's registered name, or its pid when unregistered —
-// the server resolves this into `name`. Nodes with children also show their
-// direct child count as `(N)`.
-export function composeLabel(d, nodeId) {
-  const name = formatName(d.name, nodeId);
+// Nodes with children also show their direct child count as `(N)`.
+export function composeLabel(d) {
+  const name = d.display.name;
   if (d.type === 'worker' || d.child_count === 0) {
     return name;
   }
   return `${name} (${d.child_count})`;
-}
-
-export function formatName(name, nodeId) {
-  if (name === null || name === undefined) return '';
-  if (Array.isArray(name)) {
-    return name.map((part) => formatName(part, nodeId)).join(':');
-  }
-  if (typeof name === 'string') return formatPid(name, nodeId);
-  return String(name);
-}
-
-/**
- * @param {string} pid
- * @param {string | undefined} nodeId the `N` of `<N.X.Y>` pids to shorten; unset
- *   in the distribution format
- */
-export function formatPid(pid, nodeId) {
-  if (!nodeId) return pid;
-  return pid.replace(new RegExp(`^<${nodeId}\\.(\\d+\\.\\d+)>$`), '<0.$1>');
 }
 
 export function edgeId(parentKey, childKey) {

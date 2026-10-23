@@ -22,4 +22,12 @@ defmodule Voyager.TestUtils do
     on_exit(fn -> :persistent_term.put(:voyager_epmd_module, previous_epmd_module) end)
     :ok
   end
+
+  @doc "Evaluates `source` as one Erlang expression, the trailing dot added, and returns its value."
+  def erl_eval(source) do
+    {:ok, tokens, _end} = :erl_scan.string(String.to_charlist(source <> "."))
+    {:ok, exprs} = :erl_parse.parse_exprs(tokens)
+    {:value, value, _bindings} = :erl_eval.exprs(exprs, :erl_eval.new_bindings())
+    value
+  end
 end

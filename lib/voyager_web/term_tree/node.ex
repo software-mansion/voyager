@@ -4,8 +4,8 @@ defmodule VoyagerWeb.TermTree.Node do
 
   A node knows how to draw itself both ways: `content` is the collapsed form
   (`%{...}`), while `expanded_before` and `expanded_after` wrap its children
-  when it is open (`%{` … `}`). `truncated?` marks a container the remote node
-  cut short, which is otherwise only visible once it is opened.
+  when it is open (`%{` … `}`). `truncated?` marks a container with a child the
+  remote node elided, which is otherwise only visible once it is opened.
 
   Children are deliberately absent. `VoyagerWeb.TermTree.children/3` fetches
   them for the paths that are actually open, which is what keeps a collapsed
