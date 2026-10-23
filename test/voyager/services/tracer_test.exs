@@ -1,8 +1,11 @@
 defmodule Voyager.Services.TracerTest do
   # async: false because these tests swap the global erpc impl and share the app's Tracer.
-  use ExUnit.Case, async: false
+  use Voyager.DataCase, async: false
 
+  alias Voyager.Queries.TraceSessions, as: TraceSessionQueries
   alias Voyager.Services.Tracer
+  alias Voyager.Services.Tracer.Config
+  alias Voyager.Test.Recursive
   alias Voyager.Test.VoyagerAgentFixture
 
   setup do
@@ -13,7 +16,12 @@ defmodule Voyager.Services.TracerTest do
     on_exit(fn -> Application.put_env(:voyager, :erpc, prev_erpc) end)
 
     Phoenix.PubSub.subscribe(Voyager.PubSub, Tracer.topic())
-    on_exit(fn -> Tracer.stop(:ui) end)
+    # The stop's DB write must land before the sandbox owner exits.
+    on_exit(fn ->
+      Tracer.stop(:ui)
+      _ = :sys.get_state(Tracer)
+    end)
+
     {:ok, session} = Tracer.create(:ui)
     %{session: session}
   end
@@ -29,7 +37,8 @@ defmodule Voyager.Services.TracerTest do
     assert :ok = Tracer.close()
     assert_receive {:session_closed, ^new_id}
     assert nil == Tracer.active()
-    assert {:error, :not_found} = Tracer.entries(new_id)
+    assert {:ok, %{entries: []}} = Tracer.entries(new_id)
+    assert {:error, :not_found} = Tracer.entries(id)
     assert {:error, :no_session} = configure()
     assert {:error, :no_session} = Tracer.start(:ui)
   end
@@ -86,6 +95,112 @@ defmodule Voyager.Services.TracerTest do
     assert {:ok, %{entries: [], truncated?: false}} = Tracer.entries(id, since: 4)
   end
 
+  test "saves a saved session's log as it is appended" do
+    assert {:ok, %{id: id}} = Tracer.create(:mcp, save: true)
+    assert id > 0
+    assert %{status: :idle, origin: :mcp} = TraceSessionQueries.get(id)
+
+    assert {:ok, _session} = configure()
+    assert {:ok, _session} = Tracer.start(:ui)
+    assert %{status: :running, started_at: %DateTime{}} = TraceSessionQueries.get(id)
+
+    Date.leap_year?(~D[2024-01-01])
+    assert_receive {:session_entries, %{traces: 1}, [%{kind: :trace}]}, 1_000
+    assert :ok = Tracer.stop(:mcp)
+    assert_receive {:session_entries, _session, [%{kind: :stopped}]}
+
+    assert %{status: :stopped, stop_reason: "stopped", traces: 1, bytes: bytes, node: node} =
+             TraceSessionQueries.get(id)
+
+    assert bytes > 0
+    assert node == Atom.to_string(Node.self())
+
+    assert {:ok, %{entries: entries, truncated?: false}} = Tracer.entries(id)
+
+    assert [
+             %{seq: 3, kind: :stopped, origin: :mcp, reason: "stopped", traces: 1},
+             %{seq: 2, kind: :trace, mfa: "Date.leap_year?/1", args: "[~D[2024-01-01]]"},
+             %{seq: 1, kind: :started, origin: :ui},
+             %{seq: 0, kind: :configured, node: node_atom, config: %Config{module: "Elixir.Date"}}
+           ] = entries
+
+    assert node_atom == Node.self()
+    assert {:ok, %{entries: [%{seq: 1}, %{seq: 2}]}} = Tracer.entries(id, since: 1, limit: 2)
+    assert {:ok, %{entries: [%{seq: 1}]}} = Tracer.entries(id, before: 2, limit: 1)
+  end
+
+  test "stops a saved session over the storage limit" do
+    Application.put_env(:voyager, :trace_storage_limit_mb, 0)
+    on_exit(fn -> Application.delete_env(:voyager, :trace_storage_limit_mb) end)
+
+    assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
+    assert {:ok, _session} = configure()
+    assert {:ok, _session} = Tracer.start(:ui)
+    Date.leap_year?(~D[2024-01-01])
+
+    assert_receive {:session_entries, %{stop_reason: :storage_limit},
+                    [%{kind: :stopped, origin: nil, reason: :storage_limit}]},
+                   1_000
+
+    assert %{stop_reason: "storage_limit"} = TraceSessionQueries.get(id)
+  end
+
+  test "keeps an unsaved session out of the database" do
+    assert {:ok, %{id: id}} = configure(%{max_events: 1})
+    assert id < 0
+    assert {:ok, _session} = Tracer.start(:ui)
+    Date.leap_year?(~D[2024-01-01])
+    assert_receive {:session_entries, _session, [%{kind: :stopped}]}
+
+    assert TraceSessionQueries.all() == []
+    assert {:ok, %{entries: [%{kind: :stopped} | _]}} = Tracer.entries(id)
+  end
+
+  test "loads a saved session and resumes it from its config" do
+    assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
+    assert {:ok, _session} = configure(%{max_events: 1})
+    assert {:ok, _session} = Tracer.start(:ui)
+    Date.leap_year?(~D[2024-01-01])
+    assert_receive {:session_entries, _session, [%{kind: :stopped}]}
+    assert {:ok, _session} = Tracer.create(:ui)
+
+    assert {:ok, %{id: ^id, status: :stopped, seq: 4, traces: 1, node: node, config: config}} =
+             Tracer.load(id)
+
+    assert_receive {:session_created, %{id: ^id}}
+    assert node == Node.self()
+    assert %Config{module: "Elixir.Date", max_events: 1} = config
+    assert %{id: ^id} = Tracer.active()
+
+    assert {:ok, %{status: :running}} = Tracer.start(:ui)
+    Date.leap_year?(~D[2024-01-01])
+    assert_receive {:session_entries, %{traces: 2}, [%{seq: 6, kind: :stopped}]}
+    assert %{traces: 2} = TraceSessionQueries.get(id)
+  end
+
+  test "refuses to load a missing session or while running" do
+    assert {:error, :not_found} = Tracer.load(0)
+    assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
+    assert {:ok, _session} = configure()
+    assert {:ok, _session} = Tracer.start(:ui)
+    assert {:error, :busy} = Tracer.load(id)
+  end
+
+  test "deletes a saved session unless it runs" do
+    assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
+    assert {:ok, _session} = configure()
+    assert {:ok, _session} = Tracer.start(:ui)
+    assert {:error, :busy} = Tracer.delete(id)
+
+    assert :ok = Tracer.stop(:ui)
+    assert_receive {:session_entries, _session, [%{kind: :stopped}]}
+    assert {:ok, _row} = Tracer.delete(id)
+    assert_receive {:session_closed, ^id}
+    assert nil == Tracer.active()
+    assert {:error, :not_found} = Tracer.entries(id)
+    assert {:error, :not_found} = Tracer.delete(id)
+  end
+
   test "resumes a stopped session" do
     assert {:ok, %{id: id}} = configure(%{max_events: 1})
     assert {:ok, _session} = Tracer.start(:ui)
@@ -109,6 +224,41 @@ defmodule Voyager.Services.TracerTest do
              {1, :started},
              {0, :configured}
            ]
+  end
+
+  test "puts the call's duration on its return" do
+    assert {:ok, %{id: id}} = configure(%{return_trace: true, max_events: 4})
+    assert {:ok, _session} = Tracer.start(:ui)
+    Date.leap_year?(~D[2024-01-01])
+    Date.leap_year?(~D[2023-01-01])
+    assert_receive {:session_entries, %{id: ^id}, [%{kind: :stopped}]}
+
+    assert [call1, ret1, call2, ret2] = traces(id)
+    assert %{type: :return, value: false, duration_us: duration} = ret2
+    assert duration == ret2.at - call2.at
+    assert %{type: :return, value: true, duration_us: _} = ret1
+    refute Map.has_key?(call1, :duration_us)
+  end
+
+  test "a recursive call's inner duration is shorter than its outer one" do
+    Code.ensure_loaded!(Recursive)
+
+    assert {:ok, %{id: id}} =
+             configure(%{
+               module: "Elixir.Voyager.Test.Recursive",
+               function: "countdown",
+               return_trace: true,
+               max_events: 4
+             })
+
+    assert {:ok, _session} = Tracer.start(:ui)
+    Recursive.countdown(1)
+    assert_receive {:session_entries, %{id: ^id}, [%{kind: :stopped}]}
+
+    assert [outer_call, inner_call, inner_ret, outer_ret] = traces(id)
+    assert %{type: :call, args: [1]} = outer_call
+    assert %{type: :call, args: [0]} = inner_call
+    assert inner_ret.duration_us < outer_ret.duration_us
   end
 
   test "returns the config errors" do
@@ -269,6 +419,11 @@ defmodule Voyager.Services.TracerTest do
                     %{events: 0, dropped: 0, duration_ms: _}, %{origin: :ui, reason: :stopped}}
 
     assert_receive {:telemetry, [:voyager, :trace, :start_failed], _, %{origin: :mcp}}
+  end
+
+  defp traces(id) do
+    {:ok, %{entries: entries}} = Tracer.entries(id, since: 0)
+    Enum.filter(entries, &(&1.kind == :trace))
   end
 
   defp await_queued(len) do
