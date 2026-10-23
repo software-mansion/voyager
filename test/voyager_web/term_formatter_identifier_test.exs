@@ -7,7 +7,6 @@ defmodule VoyagerWeb.TermFormatterIdentifierTest do
 
   alias Voyager.Pid
   alias VoyagerWeb.TermFormatter
-  alias VoyagerWeb.TermTree
 
   @node :"peer@127.0.0.1"
 
@@ -64,8 +63,8 @@ defmodule VoyagerWeb.TermFormatterIdentifierTest do
       assert :erlang.binary_to_term(binary) == id
     end
 
-    assert erl_eval(TermTree.copy_string(ids, syntax: :erlang)) == ids
-    assert {^ids, _binding} = Code.eval_string(TermTree.copy_string(ids, syntax: :elixir))
+    assert erl_eval(TermFormatter.copy_string(ids, syntax: :erlang)) == ids
+    assert {^ids, _binding} = Code.eval_string(TermFormatter.copy_string(ids, syntax: :elixir))
   end
 
   test "renumbers the connected node's ids to 0 as its own shell does, whatever the display format" do
@@ -75,8 +74,11 @@ defmodule VoyagerWeb.TermFormatterIdentifierTest do
 
     assert :erlang.pid_to_list(pid) == ~c"<#{Pid.cached_node_id()}.45.0>"
     assert TermFormatter.identifier(pid) == {:list_to_pid, ~c"<0.45.0>"}
-    assert TermTree.copy_string({pid}, syntax: :elixir) == ~s|{:erlang.list_to_pid(~c"<0.45.0>")}|
-    assert TermTree.copy_string({pid}, syntax: :erlang) == ~s|{list_to_pid("<0.45.0>")}|
+
+    assert TermFormatter.copy_string({pid}, syntax: :elixir) ==
+             ~s|{:erlang.list_to_pid(~c"<0.45.0>")}|
+
+    assert TermFormatter.copy_string({pid}, syntax: :erlang) == ~s|{list_to_pid("<0.45.0>")}|
   end
 
   test "displays pids in the PID format setting in the Erlang syntax" do

@@ -27,6 +27,20 @@ defmodule VoyagerWeb.TermFormatter do
     end
   end
 
+  @doc """
+  Renders `term` uncut as text that pastes back into IEx or the Erlang shell.
+  Accepts `:syntax` and `:width`.
+  """
+  @spec copy_string(term(), keyword()) :: String.t()
+  def copy_string(term, opts \\ []) do
+    {syntax, opts} = Keyword.pop_lazy(opts, :syntax, &TermSyntax.current/0)
+
+    case syntax do
+      :elixir -> ElixirFormatter.copy_string(term, opts)
+      :erlang -> ErlangFormatter.copy_string(term, opts)
+    end
+  end
+
   @doc ~S|Renders an `{module, function, arity}` call target, e.g. `"Enum.map/2"` or `"lists:map/2"`.|
   @spec format_mfa(term(), keyword()) :: String.t()
   def format_mfa(mfa, opts \\ [])

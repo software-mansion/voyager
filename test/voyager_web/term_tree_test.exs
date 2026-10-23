@@ -268,8 +268,6 @@ defmodule VoyagerWeb.TermTreeTest do
       assert child_keys(TermTree.children(%{improper => 1}, 0, 10)) == ["[1 | 2] => "]
 
       assert TermTree.initial_state(%{a: improper}) == %State{open: MapSet.new([[]])}
-
-      assert TermTree.copy_string(%{a: improper}) == "%{a: [1 | 2]}"
     end
 
     test "container keys are inspected whole, not left as a collapsed placeholder" do
@@ -433,63 +431,6 @@ defmodule VoyagerWeb.TermTreeTest do
       assert TermTree.decode_path(nil) == :error
       assert TermTree.decode_path(["0"]) == :error
       assert TermTree.decode_path(%{"0" => "1"}) == :error
-    end
-  end
-
-  describe "copy_string/1" do
-    test "copies a cut binary with its prefix and size" do
-      record = {{@truncated, :binary, "abc", 100_000}, @truncated}
-
-      assert {^record, _binding} = Code.eval_string(TermTree.copy_string(record))
-    end
-
-    test "renders the whole term, not the shortened display form" do
-      copied = TermTree.copy_string(Enum.to_list(1..300))
-
-      assert copied =~ "300"
-      refute copied =~ "..."
-    end
-
-    test "keeps long binaries intact" do
-      binary = String.duplicate("a", 10_000)
-
-      assert TermTree.copy_string(binary) == inspect(binary, printable_limit: :infinity)
-    end
-
-    test "rewrites pids into something that can be pasted into IEx" do
-      pid = :erlang.list_to_pid(~c"<0.123.0>")
-      copied = TermTree.copy_string(%{pid: pid})
-
-      refute copied =~ "#PID"
-      assert copied =~ ~s|:erlang.list_to_pid(~c"<0.123.0>")|
-
-      assert {%{pid: ^pid}, _binding} = Code.eval_string(copied)
-    end
-
-    test "rebuilds references and ports with their list_to_* BIF" do
-      term = [make_ref(), hd(Port.list())]
-
-      assert {^term, _binding} = Code.eval_string(TermTree.copy_string(term))
-    end
-
-    test "quotes a local fun, which has no literal form" do
-      fun = fn -> :ok end
-
-      assert {"#Function<" <> _, _binding} = Code.eval_string(TermTree.copy_string(fun))
-    end
-
-    test "leaves a #Name<...> form inside a binary alone" do
-      log = "boot #PID<0.1.0> ready #Foo<1>"
-      copied = TermTree.copy_string(%{log: log})
-
-      assert {%{log: ^log}, _binding} = Code.eval_string(copied)
-    end
-
-    test "expands structs, which have no literal form on the far side" do
-      copied = TermTree.copy_string(~D[2024-01-02])
-
-      assert copied =~ "__struct__: Date"
-      assert {%{__struct__: Date}, _binding} = Code.eval_string(copied)
     end
   end
 end

@@ -15,7 +15,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.EtsLookupControls
   alias VoyagerWeb.FormSchemas.EtsPeekControls
-  alias VoyagerWeb.TermTree
+  alias VoyagerWeb.TermFormatter
   alias VoyagerWeb.TermTree.State
 
   @truncated :"$voyager_truncated"
@@ -348,7 +348,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
               id="ets-sidebar-key"
               class="font-mono text-base-content break-all text-sm font-medium"
               text={Formatters.format_term(@key)}
-              copy_text={TermTree.copy_string(@key)}
+              copy_text={TermFormatter.copy_string(@key)}
               label="Copy key"
             />
           </div>
@@ -425,7 +425,9 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
                 size={:sm}
                 class="text-base-content/60 shrink-0 hover:text-primary"
               />
-              <span id={"ets-lookup-record-#{index}-copy-source"} hidden>{TermTree.copy_string(record)}</span>
+              <span id={"ets-lookup-record-#{index}-copy-source"} hidden>{TermFormatter.copy_string(
+                record
+              )}</span>
             </div>
           </div>
 

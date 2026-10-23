@@ -4,7 +4,6 @@ defmodule VoyagerWeb.TermFormatterTest do
   import Voyager.TestUtils, only: [erl_eval: 1]
 
   alias VoyagerWeb.TermFormatter
-  alias VoyagerWeb.TermFormatter.Erlang, as: ErlangFormatter
 
   @atoms [:ok, :"hello world", :"it's", :żółć, :end, Enum, nil]
   @numbers [-3, ?a, 159, 0x10FFFF, 10 ** 40, 0.1, -0.0, 5.0e-324]
@@ -38,6 +37,12 @@ defmodule VoyagerWeb.TermFormatterTest do
 
   defp erlang(term, opts \\ []), do: TermFormatter.inspect(term, [syntax: :erlang] ++ opts)
   defp elixir(term, opts \\ []), do: TermFormatter.inspect(term, [syntax: :elixir] ++ opts)
+
+  defp erlang_copy(term, opts \\ []),
+    do: TermFormatter.copy_string(term, [syntax: :erlang] ++ opts)
+
+  defp elixir_copy(term, opts \\ []),
+    do: TermFormatter.copy_string(term, [syntax: :elixir] ++ opts)
 
   defp any_terms do
     unusual = [self(), make_ref(), hd(Port.list()), fn -> :ok end, ~r/a(b)?/u]
@@ -107,26 +112,102 @@ defmodule VoyagerWeb.TermFormatterTest do
   describe "copy_string/2 with the Erlang syntax" do
     test "evaluates back to the same term when wrapped" do
       for term <- @data do
-        assert erl_eval(ErlangFormatter.copy_string(term, width: 20)) === term
+        assert erl_eval(erlang_copy(term, width: 20)) === term
       end
     end
 
     test "evaluates back to the same term, opaque values included" do
       term = {self(), make_ref(), hd(Port.list()), &Enum.map/2, %URI{host: "zażółć"}, [1 | 2]}
 
-      assert erl_eval(ErlangFormatter.copy_string(term)) == term
+      assert erl_eval(erlang_copy(term)) == term
     end
 
     test "keeps a local fun as its text" do
       fun = fn -> :ok end
 
-      assert erl_eval(ErlangFormatter.copy_string(fun)) ==
+      assert erl_eval(erlang_copy(fun)) ==
                fun |> :erlang.fun_to_list() |> to_string() |> to_charlist()
+    end
+
+    test "renders the whole term" do
+      copied = erlang_copy(Enum.to_list(1..300))
+
+      assert copied =~ "300"
+      refute copied =~ "..."
     end
 
     test "renders any term without raising" do
       for term <- any_terms(), opts <- [[], [width: 5]] do
-        assert is_binary(ErlangFormatter.copy_string(term, opts))
+        assert is_binary(erlang_copy(term, opts))
+      end
+    end
+  end
+
+  describe "copy_string/2 with the Elixir syntax" do
+    test "evaluates back to the same term when wrapped" do
+      for term <- @data do
+        assert {^term, _binding} = Code.eval_string(elixir_copy(term, width: 20))
+      end
+    end
+
+    test "copies a cut binary with its prefix and size" do
+      record = {{:"$voyager_truncated", :binary, "abc", 100_000}, :"$voyager_truncated"}
+
+      assert {^record, _binding} = Code.eval_string(elixir_copy(record))
+    end
+
+    test "renders the whole term, not the shortened display form" do
+      copied = elixir_copy(Enum.to_list(1..300))
+
+      assert copied =~ "300"
+      refute copied =~ "..."
+    end
+
+    test "keeps long binaries intact" do
+      binary = String.duplicate("a", 10_000)
+
+      assert elixir_copy(binary) == inspect(binary, printable_limit: :infinity)
+    end
+
+    test "rewrites pids into something that can be pasted into IEx" do
+      pid = :erlang.list_to_pid(~c"<0.123.0>")
+      copied = elixir_copy(%{pid: pid})
+
+      refute copied =~ "#PID"
+      assert copied =~ ~s|:erlang.list_to_pid(~c"<0.123.0>")|
+
+      assert {%{pid: ^pid}, _binding} = Code.eval_string(copied)
+    end
+
+    test "rebuilds references and ports with their list_to_* BIF" do
+      term = [make_ref(), hd(Port.list())]
+
+      assert {^term, _binding} = Code.eval_string(elixir_copy(term))
+    end
+
+    test "quotes a local fun, which has no literal form" do
+      fun = fn -> :ok end
+
+      assert {"#Function<" <> _, _binding} = Code.eval_string(elixir_copy(fun))
+    end
+
+    test "leaves a #Name<...> form inside a binary alone" do
+      log = "boot #PID<0.1.0> ready #Foo<1>"
+      copied = elixir_copy(%{log: log})
+
+      assert {%{log: ^log}, _binding} = Code.eval_string(copied)
+    end
+
+    test "expands structs, which have no literal form on the far side" do
+      copied = elixir_copy(~D[2024-01-02])
+
+      assert copied =~ "__struct__: Date"
+      assert {%{__struct__: Date}, _binding} = Code.eval_string(copied)
+    end
+
+    test "renders any term without raising" do
+      for term <- any_terms(), opts <- [[], [width: 5]] do
+        assert is_binary(elixir_copy(term, opts))
       end
     end
   end

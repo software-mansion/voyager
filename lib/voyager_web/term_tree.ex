@@ -27,7 +27,6 @@ defmodule VoyagerWeb.TermTree do
 
   alias Voyager.Services.TermSyntax
   alias VoyagerWeb.TermFormatter
-  alias VoyagerWeb.TermFormatter.Elixir, as: ElixirFormatter
   alias VoyagerWeb.TermFormatter.Erlang, as: ErlangFormatter
   alias VoyagerWeb.TermTree.Node
   alias VoyagerWeb.TermTree.Segment
@@ -126,18 +125,6 @@ defmodule VoyagerWeb.TermTree do
   end
 
   def decode_path(_other), do: :error
-
-  @doc """
-  Renders `term` as text that can be pasted back into IEx or the Erlang shell,
-  depending on `:syntax`.
-  """
-  @spec copy_string(term(), keyword()) :: String.t()
-  def copy_string(term, opts \\ []) do
-    case syntax(opts) do
-      :elixir -> ElixirFormatter.copy_string(term)
-      :erlang -> ErlangFormatter.copy_string(term)
-    end
-  end
 
   defp syntax(opts), do: Keyword.get_lazy(opts, :syntax, &TermSyntax.current/0)
 

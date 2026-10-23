@@ -1,8 +1,6 @@
 defmodule VoyagerWeb.TermTree.ErlangTest do
   use ExUnit.Case, async: true
 
-  import Voyager.TestUtils, only: [erl_eval: 1]
-
   alias VoyagerWeb.TermTree
   alias VoyagerWeb.TermTree.Node
   alias VoyagerWeb.TermTree.Segment
@@ -12,7 +10,6 @@ defmodule VoyagerWeb.TermTree.ErlangTest do
 
   defp describe_erl(term, opts \\ []), do: TermTree.describe(term, [syntax: :erlang] ++ opts)
   defp children_erl(term), do: TermTree.children(term, 0, 50, syntax: :erlang)
-  defp copy_erl(term), do: TermTree.copy_string(term, syntax: :erlang)
 
   defp text(segments), do: Enum.map_join(segments, & &1.text)
 
@@ -120,43 +117,6 @@ defmodule VoyagerWeb.TermTree.ErlangTest do
     test "strings and improper lists have no children" do
       assert children_erl(~c"hi") == []
       assert children_erl([1 | 2]) == []
-    end
-  end
-
-  describe "copy_string/2" do
-    test "round-trips through the Erlang shell" do
-      term = %{
-        list: [1, 2 | :tail],
-        binary: "zażółć",
-        bits: <<1, 2::3>>,
-        float: 1.5,
-        tuple: {:ok, ~c"chars", nil},
-        fun: &Enum.map/2,
-        struct: %State{}
-      }
-
-      assert erl_eval(copy_erl(term)) == term
-    end
-
-    test "rewrites pids, refs and ports into calls that rebuild them" do
-      ref = make_ref()
-      port = hd(Port.list())
-      term = {self(), ref, port}
-      copied = copy_erl(term)
-
-      assert copied =~ "list_to_pid("
-      assert erl_eval(copied) == term
-    end
-
-    test "quotes local funs, which have no literal form" do
-      assert ~c"#Fun<" ++ _ = erl_eval(copy_erl(fn -> :ok end))
-    end
-
-    test "renders the whole term" do
-      copied = copy_erl(Enum.to_list(1..300))
-
-      assert copied =~ "300"
-      refute copied =~ "..."
     end
   end
 end

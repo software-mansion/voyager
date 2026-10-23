@@ -10,17 +10,22 @@ defmodule VoyagerWeb.TermFormatter.Elixir do
 
   @doc """
   `term` uncut, with structs as maps and pids, refs, ports and anonymous
-  functions as expressions that rebuild them, so it pastes into IEx.
+  functions as expressions that rebuild them, so it pastes into IEx. Wraps at
+  `:width`.
   """
-  @spec copy_string(term()) :: String.t()
-  def copy_string(term) do
-    Kernel.inspect(term,
-      limit: :infinity,
-      printable_limit: :infinity,
-      pretty: true,
-      structs: false,
-      custom_options: [sort_maps: true],
-      inspect_fun: &copy_inspect/2
+  @spec copy_string(term(), keyword()) :: String.t()
+  def copy_string(term, opts \\ []) do
+    Kernel.inspect(
+      term,
+      Keyword.take(opts, [:width]) ++
+        [
+          limit: :infinity,
+          printable_limit: :infinity,
+          pretty: true,
+          structs: false,
+          custom_options: [sort_maps: true],
+          inspect_fun: &copy_inspect/2
+        ]
     )
   end
 
