@@ -50,7 +50,6 @@ defmodule VoyagerWeb.TermFormatterTest do
     test "prints data as Erlang that evaluates back to the same term" do
       for term <- @data do
         assert erl_eval(erlang(term, limit: :infinity, printable_limit: :infinity)) === term
-        assert erl_eval(ErlangFormatter.copy_string(term, width: 20)) === term
       end
     end
 
@@ -97,13 +96,28 @@ defmodule VoyagerWeb.TermFormatterTest do
       refute erlang(term, width: 30, limit: 5) =~ "\n"
     end
 
-    test "round-trip output evaluates back to the same term, opaque values included" do
+    test "renders any term without raising" do
+      for term <- any_terms(),
+          opts <- [[], [limit: 0, printable_limit: 0], [pretty: true, width: 5]] do
+        assert is_binary(erlang(term, opts))
+      end
+    end
+  end
+
+  describe "copy_string/2 with the Erlang syntax" do
+    test "evaluates back to the same term when wrapped" do
+      for term <- @data do
+        assert erl_eval(ErlangFormatter.copy_string(term, width: 20)) === term
+      end
+    end
+
+    test "evaluates back to the same term, opaque values included" do
       term = {self(), make_ref(), hd(Port.list()), &Enum.map/2, %URI{host: "zażółć"}, [1 | 2]}
 
       assert erl_eval(ErlangFormatter.copy_string(term)) == term
     end
 
-    test "round-trip output keeps a local fun as its text" do
+    test "keeps a local fun as its text" do
       fun = fn -> :ok end
 
       assert erl_eval(ErlangFormatter.copy_string(fun)) ==
@@ -111,9 +125,7 @@ defmodule VoyagerWeb.TermFormatterTest do
     end
 
     test "renders any term without raising" do
-      for term <- any_terms(),
-          opts <- [[], [limit: 0, printable_limit: 0], [pretty: true, width: 5]] do
-        assert is_binary(erlang(term, opts))
+      for term <- any_terms(), opts <- [[], [width: 5]] do
         assert is_binary(ErlangFormatter.copy_string(term, opts))
       end
     end
