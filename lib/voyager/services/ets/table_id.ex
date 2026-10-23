@@ -16,8 +16,7 @@ defmodule Voyager.Services.Ets.TableId do
   defguard is_table_id(id) when is_atom(id) or is_reference(id)
 
   @doc """
-  `inspect/1` form of a table handle, for URLs, DOM ids and `matches?/2`; what
-  the UI shows goes through the term syntax instead.
+  `inspect/1` form of a table handle.
   """
   @spec display(t()) :: String.t()
   def display(id) when is_table_id(id), do: inspect(id)
