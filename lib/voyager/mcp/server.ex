@@ -8,6 +8,9 @@ defmodule Voyager.MCP.Server do
     version: Voyager.version(),
     capabilities: [:tools]
 
+  component(Voyager.MCP.Tools.ListConnections)
+  component(Voyager.MCP.Tools.Connect)
+  component(Voyager.MCP.Tools.Disconnect)
   component(Voyager.MCP.Tools.NodeInfo)
   component(Voyager.MCP.Tools.ProcessList)
   component(Voyager.MCP.Tools.ProcessInfo)

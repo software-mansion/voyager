@@ -4,6 +4,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   alias Voyager.Actions.Connections, as: ConnectionActions
   alias Voyager.NodeSession
   alias Voyager.Queries.Connections, as: ConnectionQueries
+  alias Voyager.Schemas.Connection
   alias VoyagerWeb.ConnectComponents
   alias VoyagerWeb.ConnectLive.ConnectError
   alias VoyagerWeb.ConnectLive.RecentConnections
@@ -25,7 +26,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
     |> assign(:id, assigns.id)
     |> assign(:disabled?, assigns.disabled?)
     |> assign(:connecting?, assigns.connecting?)
-    |> assign(:form, empty_form())
+    |> assign(:form, prefill_form(assigns.prefill))
     |> SecretVisibility.init()
     |> RecentConnections.init(
       queries: ConnectionQueries,
@@ -178,15 +179,8 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
             {:noreply, RecentConnections.reset(socket)}
 
           conn ->
-            changeset =
-              ConnectionParams.changeset(%{
-                "node_name" => conn.node_name,
-                "cookie" => conn.cookie || "",
-                "name_type" => conn.name_type
-              })
-
             socket
-            |> assign(:form, to_form(changeset, as: :conn))
+            |> assign(:form, saved_form(conn))
             |> SecretVisibility.reset()
             |> noreply()
         end
@@ -249,6 +243,26 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   defp empty_form do
     ConnectionParams.changeset() |> to_form(as: :conn)
   end
+
+  defp saved_form(conn) do
+    %{"node_name" => conn.node_name, "cookie" => conn.cookie || "", "name_type" => conn.name_type}
+    |> ConnectionParams.changeset()
+    |> to_form(as: :conn)
+  end
+
+  defp prefill_form(%{"connection" => id}) when is_binary(id) do
+    with {int_id, ""} <- Integer.parse(id),
+         %Connection{} = conn <- ConnectionQueries.get(int_id) do
+      saved_form(conn)
+    else
+      _ -> empty_form()
+    end
+  end
+
+  defp prefill_form(%{} = params),
+    do: params |> ConnectionParams.changeset() |> to_form(as: :conn)
+
+  defp prefill_form(nil), do: empty_form()
 
   defp error_field(:bad_cookie), do: :cookie
   defp error_field(_reason), do: :node_name

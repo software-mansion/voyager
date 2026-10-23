@@ -25,7 +25,9 @@ defmodule Voyager.NodeSession.Connectors.Ssh do
             conn_ref: conn_ref,
             local_port: local_port,
             ssh_user: ssh_user,
-            ssh_host: ssh_host
+            ssh_host: ssh_host,
+            ssh_port: Keyword.get(opts, :ssh_port, 22),
+            epmd_port: Keyword.get(opts, :epmd_port, 4369)
           }
 
           {:ok, node, meta}
