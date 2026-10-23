@@ -54,9 +54,11 @@ defmodule VoyagerWeb.TermFormatterTest do
       end
     end
 
-    test "prints Elixir structs as the maps they are" do
+    test "prints Elixir structs and keyword lists as plain Erlang data" do
+      keyword = [a: 1]
+
       assert erlang(%URI{host: "x"}) =~ ~S|#{'__struct__' => 'Elixir.URI',|
-      assert erlang(a: 1) == "[{a, 1}]"
+      assert erlang(keyword) == "[{a, 1}]"
     end
 
     test "cuts each collection at the limit" do
