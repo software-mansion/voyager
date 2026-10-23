@@ -49,12 +49,18 @@ defmodule VoyagerWeb.TermFormatter do
   @spec identifier(pid() | reference() | port()) :: {atom(), charlist() | binary()}
   def identifier(id) when is_pid(id) or is_reference(id) or is_port(id) do
     text = id |> id_to_list() |> List.to_string()
-    local = Pid.localize(text)
 
-    if local == text and Pid.cached_node_id() != nil do
+    if another_node?(text) do
       {:binary_to_term, :erlang.term_to_binary(id)}
     else
-      {list_to_id(id), String.to_charlist(local)}
+      {list_to_id(id), text |> Pid.localize() |> String.to_charlist()}
+    end
+  end
+
+  defp another_node?(text) do
+    case Pid.cached_node_id() do
+      nil -> false
+      node_id -> not String.contains?(text, "<#{node_id}.")
     end
   end
 
