@@ -374,19 +374,19 @@ defmodule VoyagerWeb.EtsTableLiveTest do
 
     test "names the table and renders its records as Erlang terms", %{conn: conn} do
       name = named_table(:set)
+      erlang_name = name |> Atom.to_string() |> String.trim_leading(":")
       :ets.insert(name, {:k, "v"})
 
       view = fetch_records(conn, name)
 
-      assert view |> text("#ets-table-name") |> String.trim() ==
-               to_string(:io_lib.write_atom(name))
-
-      assert has_element?(view, "#ets-records-0", ~S|{k, <<"v">>}|)
+      assert view |> text("#ets-table-name") |> String.trim() == erlang_name
+      assert(has_element?(view, "#ets-records-0", ~S|{k, <<"v">>}|))
     end
 
     test "copies a looked-up record in a form the Erlang shell parses", %{conn: conn} do
       name = named_table(:set)
-      :ets.insert(name, {:k, %{list: [1, 2]}})
+      record = {:k, %{list: [1, 2]}, :c.pid(0, 45, 0), :erlang.list_to_ref(~c"#Ref<0.9.8.7>")}
+      :ets.insert(name, record)
 
       view = open_lookup(conn, name)
       copied = text(view, "#ets-lookup-record-0-copy-source")
@@ -394,7 +394,9 @@ defmodule VoyagerWeb.EtsTableLiveTest do
       assert view |> text("#ets-sidebar-key") |> String.trim() == "k"
       assert has_element?(view, "#ets-lookup-0-term", "\#{")
       assert copied =~ "\#{list => [1, 2]}"
-      assert erl_eval(copied) == {:k, %{list: [1, 2]}}
+      assert copied =~ ~s|list_to_pid("<0.45.0>")|
+      assert copied =~ ~s|list_to_ref("#Ref<0.9.8.7>")|
+      assert erl_eval(copied) == record
     end
   end
 
