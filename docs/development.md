@@ -7,7 +7,7 @@ Voyager is a Phoenix app that ships as a desktop app through [Tauri](https://tau
 Required Elixir, Erlang, Node.js, and Rust versions are pinned in [`.tool-versions`](../.tool-versions). The desktop app also needs the Tauri CLI:
 
 ```sh
-cargo install tauri-cli --version "=2.8.0" --locked
+cargo install tauri-cli --version "=2.12.3" --locked
 ```
 
 Install dependencies and set up the database:

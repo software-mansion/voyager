@@ -20,7 +20,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg", "appimage"],
+    "targets": ["app", "dmg", "appimage", "deb"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

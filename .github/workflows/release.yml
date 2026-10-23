@@ -171,8 +171,9 @@ jobs:
       - name: Install Tauri CLI
         shell: bash
         run: |
-          if ! command -v cargo-tauri &> /dev/null; then
-            cargo install tauri-cli --version "=2.8.0" --locked
+          # tauri-cli older than 2.10 cannot write __TAURI_BUNDLE_TYPE, so the updater cannot tell a .deb from an AppImage.
+          if [ "$(cargo-tauri --version 2>/dev/null)" != "tauri-cli 2.12.3" ]; then
+            cargo install tauri-cli --version "=2.12.3" --locked --force
           else
             echo "cargo-tauri already installed: $(cargo-tauri --version)"
           fi

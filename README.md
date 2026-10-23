@@ -53,7 +53,7 @@ Download the latest build for your platform from the [website](https://voyager.s
 
 - macOS (Apple Silicon)
 - macOS (Intel)
-- Linux (x64) — distributed as an AppImage, see [docs/linux_appimage_guide.md](docs/linux_appimage_guide.md) for how to run and install it
+- Linux (x64) — distributed as a `.deb` package and an AppImage, see [docs/linux_appimage_guide.md](docs/linux_appimage_guide.md) for how to run and install it
 
 The app checks for a new release on startup and can install it in place; the current version and update status are under **Settings → Updates**.
 
