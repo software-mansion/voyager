@@ -167,8 +167,7 @@ defmodule VoyagerWeb.TermTree do
   defp build({}, _syntax), do: %Node{kind: :tuple, content: [Segment.punctuation("{}")]}
 
   defp build(tuple, _syntax) when is_tuple(tuple) do
-    last = elem(tuple, tuple_size(tuple) - 1)
-    branch(:tuple, tuple_size(tuple), last == @truncated, "{", "}")
+    branch(:tuple, tuple_size(tuple), @truncated in Tuple.to_list(tuple), "{", "}")
   end
 
   defp build([], _syntax), do: %Node{kind: :list, content: [Segment.punctuation("[]")]}
@@ -176,7 +175,7 @@ defmodule VoyagerWeb.TermTree do
   defp build(list, syntax) when is_list(list) do
     with {:ok, count} <- list_length(list),
          false <- string_list?(list, syntax) do
-      branch(:list, count, :lists.last(list) == @truncated, "[", "]")
+      branch(:list, count, @truncated in list, "[", "]")
     else
       true -> %Node{kind: :list, content: [Segment.string(inspect_term(list, syntax))]}
       :improper -> build_other(list, syntax)
@@ -198,7 +197,7 @@ defmodule VoyagerWeb.TermTree do
     %Node{
       kind: :struct,
       child_count: struct |> Map.from_struct() |> map_size(),
-      truncated?: Map.has_key?(struct, @truncated),
+      truncated?: elided_entry?(struct),
       content: content,
       expanded_before: module_segments ++ [Segment.punctuation("{")],
       expanded_after: [Segment.punctuation("}")]
@@ -210,7 +209,7 @@ defmodule VoyagerWeb.TermTree do
   end
 
   defp build(map, syntax) when is_map(map) do
-    branch(:map, map_size(map), Map.has_key?(map, @truncated), map_open(syntax), "}")
+    branch(:map, map_size(map), elided_entry?(map), map_open(syntax), "}")
   end
 
   defp build(other, syntax), do: build_other(other, syntax)
@@ -225,6 +224,10 @@ defmodule VoyagerWeb.TermTree do
       expanded_after: [Segment.punctuation(close)]
     }
   end
+
+  # The agent drops a fun or bignum that overruns the budget in place, so a
+  # marker can sit anywhere in a container, not only where it was cut short.
+  defp elided_entry?(map), do: Map.has_key?(map, @truncated) or @truncated in Map.values(map)
 
   defp build_other(term, syntax) do
     %Node{kind: :other, content: [Segment.other(inspect_term(term, syntax))]}

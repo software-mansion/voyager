@@ -163,6 +163,13 @@ defmodule VoyagerWeb.TermTreeTest do
       refute TermTree.describe(%State{}).truncated?
     end
 
+    test "a container is flagged when a child was elided mid-way, not only at its end" do
+      assert TermTree.describe({@truncated, {:log, :super}}).truncated?
+      assert TermTree.describe([:a, @truncated, :b]).truncated?
+      assert TermTree.describe(%{filter: @truncated, level: :all}).truncated?
+      refute TermTree.describe({:no_domain, {@truncated, :log}}).truncated?
+    end
+
     test "a struct tagged with an Erlang module name keeps that name unquoted" do
       node = TermTree.describe(%{__struct__: :erl_record, a: 1})
 
