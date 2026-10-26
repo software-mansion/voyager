@@ -13,6 +13,8 @@ for sig in $(gh release view "$tag" --repo "$repo" --json assets --jq '.assets[]
   case "$archive" in
     *-darwin-aarch64*) platform="darwin-aarch64" ;;
     *-darwin-x64*) platform="darwin-x86_64" ;;
+    # The updater looks up `{os}-{arch}-{bundle_type}` before `{os}-{arch}`, so .deb installs skip the AppImage.
+    *-linux-amd64*.deb) platform="linux-x86_64-deb" ;;
     *-linux-amd64*) platform="linux-x86_64" ;;
     *) echo "unknown platform in asset name: $archive" >&2; exit 1 ;;
   esac
