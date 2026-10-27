@@ -145,19 +145,16 @@ defmodule Voyager.ConnectionsTest do
     end
   end
 
-  describe "last_connectable/0" do
-    test "returns the most recent connection with a saved cookie" do
+  describe "last/0" do
+    test "returns the most recent connection, with or without a saved cookie" do
       insert_connection("older@h", "x", ~U[2020-01-01 00:00:00Z])
-      insert_connection("newer@h", "x", ~U[2020-01-02 00:00:00Z])
-      insert_connection("nocookie@h", nil, ~U[2020-01-03 00:00:00Z])
+      insert_connection("nocookie@h", nil, ~U[2020-01-02 00:00:00Z])
 
-      assert %Connection{node_name: "newer@h"} = ConnectionQueries.last_connectable()
+      assert %Connection{node_name: "nocookie@h"} = ConnectionQueries.last()
     end
 
-    test "returns nil when no connection has a saved cookie" do
-      insert_connection("nocookie@h", nil, ~U[2020-01-01 00:00:00Z])
-
-      assert ConnectionQueries.last_connectable() == nil
+    test "returns nil without connections" do
+      assert ConnectionQueries.last() == nil
     end
   end
 

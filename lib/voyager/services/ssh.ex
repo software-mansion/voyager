@@ -8,7 +8,7 @@ defmodule Voyager.Services.SSH do
   """
 
   @type conn :: pid()
-  @type auth :: :agent | {:password, String.t()}
+  @type auth :: :agent | {:password, String.t()} | {:key, Path.t(), String.t() | nil}
 
   @callback connect(host :: String.t(), port :: :inet.port_number(), user :: String.t(), auth()) ::
               {:ok, conn()} | {:error, term()}
@@ -18,10 +18,16 @@ defmodule Voyager.Services.SSH do
 
   @callback close(conn()) :: :ok
 
-  defguard is_ssh_auth(auth)
-           when auth == :agent or
-                  (is_tuple(auth) and tuple_size(auth) == 2 and elem(auth, 0) == :password and
-                     is_binary(elem(auth, 1)))
+  defguardp is_password_auth(auth)
+            when is_tuple(auth) and tuple_size(auth) == 2 and elem(auth, 0) == :password and
+                   is_binary(elem(auth, 1))
+
+  defguardp is_key_auth(auth)
+            when is_tuple(auth) and tuple_size(auth) == 3 and elem(auth, 0) == :key and
+                   is_binary(elem(auth, 1)) and
+                   (is_binary(elem(auth, 2)) or is_nil(elem(auth, 2)))
+
+  defguard is_ssh_auth(auth) when auth == :agent or is_password_auth(auth) or is_key_auth(auth)
 
   @spec connect(String.t(), :inet.port_number(), String.t(), auth()) ::
           {:ok, conn()} | {:error, term()}

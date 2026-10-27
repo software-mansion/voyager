@@ -6,10 +6,11 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
 
   alias Voyager.Actions.SshConnections, as: SshConnectionActions
   alias Voyager.NodeSession
+  alias Voyager.NodeSession.ConnectError
   alias Voyager.NodeSession.Connectors.Ssh, as: SshConnector
   alias Voyager.Queries.SshConnections, as: SshConnectionQueries
   alias VoyagerWeb.ConnectComponents
-  alias VoyagerWeb.ConnectLive.ConnectError
+  alias VoyagerWeb.ConnectLive.KeyAuth
   alias VoyagerWeb.ConnectLive.RecentConnections
   alias VoyagerWeb.ConnectLive.SecretVisibility
   alias VoyagerWeb.FormSchemas.SshConnectionParams
@@ -40,6 +41,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     |> assign(:connecting?, assigns.connecting?)
     |> assign(:ssh_form, empty_ssh_form())
     |> SecretVisibility.init()
+    |> KeyAuth.init()
     |> assign(:show_ssh_advanced, false)
     |> RecentConnections.init(
       queries: SshConnectionQueries,
@@ -134,23 +136,34 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
             disabled={@disabled?}
             options={[
               %{value: "agent", label: "SSH Agent", id: "ssh-auth-agent"},
-              %{value: "password", label: "Password", id: "ssh-auth-password"}
+              %{value: "password", label: "Password", id: "ssh-auth-password"},
+              %{value: "key", label: "Key file", id: "ssh-auth-key"}
             ]}
           />
         </div>
 
-        <ConnectComponents.secret_field
-          :if={@current_auth_method == "password"}
-          field={@ssh_form[:password]}
-          label="SSH Password"
-          secret_key="password"
-          shown={SecretVisibility.shown?(@secret_visibility, "password")}
-          target={@myself}
-          remember_name="ssh[remember_password]"
-          remember_checked={to_string(@ssh_form[:remember_password].value) == "true"}
-          remember_label="Remember password"
-          disabled={@disabled?}
-        />
+        <div class={[@current_auth_method != "password" && "hidden"]}>
+          <ConnectComponents.secret_field
+            field={@ssh_form[:password]}
+            label="SSH Password"
+            secret_key="password"
+            shown={SecretVisibility.shown?(@secret_visibility, "password")}
+            target={@myself}
+            remember_name="ssh[remember_password]"
+            remember_checked={to_string(@ssh_form[:remember_password].value) == "true"}
+            remember_label="Remember password"
+            disabled={@disabled?}
+          />
+        </div>
+
+        <div class={[@current_auth_method != "key" && "hidden"]}>
+          <ConnectComponents.path_field
+            field={@ssh_form[:key_path]}
+            label="Identity file"
+            placeholder="~/.ssh/id_ed25519"
+            disabled={@disabled?}
+          />
+        </div>
 
         <div>
           <button
@@ -218,6 +231,17 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       <p class="font-mono tracking-snug text-base-content/70 mt-6 text-center text-xs">
         Remote nodes via SSH
       </p>
+
+      <ConnectComponents.passphrase_modal
+        :if={@passphrase_form}
+        id={"#{@id_prefix}passphrase-modal"}
+        form={@passphrase_form}
+        key_path={@ssh_form[:key_path].value}
+        target={@myself}
+        on_change="change_passphrase"
+        on_submit="submit_passphrase"
+        on_cancel="cancel_passphrase"
+      />
     </div>
     """
   end
@@ -248,6 +272,11 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
             </span>
             <ConnectComponents.saved_badge :if={@conn.cookie} label="cookie" title="Cookie saved" />
             <ConnectComponents.saved_badge :if={@conn.password} label="pass" title="Password saved" />
+            <ConnectComponents.saved_badge
+              :if={@conn.key_path}
+              label="key path"
+              title="Key path saved"
+            />
           </div>
         </div>
         <span class="font-mono text-base-content/70 shrink-0 self-center text-xs">
@@ -270,7 +299,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   @impl true
   def handle_event("validate_ssh", %{"ssh" => params}, socket) do
     changeset = SshConnectionParams.changeset(params)
-    {:noreply, assign(socket, :ssh_form, to_form(changeset, as: :ssh))}
+    {:noreply, assign(socket, :ssh_form, KeyAuth.checked_form(changeset))}
   end
 
   def handle_event("toggle_ssh_advanced", _, socket) do
@@ -278,19 +307,37 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   end
 
   def handle_event("connect_ssh", %{"ssh" => params}, socket) do
-    changeset = SshConnectionParams.changeset(params)
+    changeset = params |> SshConnectionParams.changeset() |> KeyAuth.add_error()
 
     case Ecto.Changeset.apply_action(changeset, :insert) do
       {:ok, %SshConnectionParams{} = p} ->
         socket
         |> assign(:ssh_form, to_form(changeset, as: :ssh))
-        |> start_async(:ssh_connect, fn -> connect(p) end)
+        |> KeyAuth.connect(p, &start_connect/2)
         |> noreply()
 
       {:error, changeset} ->
         {:noreply, assign(socket, :ssh_form, to_form(changeset, as: :ssh))}
     end
   end
+
+  def handle_event(
+        "submit_passphrase",
+        %{"passphrase" => %{"passphrase" => passphrase}},
+        %{assigns: %{passphrase_form: %Phoenix.HTML.Form{}}} = socket
+      ) do
+    case Ecto.Changeset.apply_action(socket.assigns.ssh_form.source, :insert) do
+      {:ok, %SshConnectionParams{} = p} ->
+        socket
+        |> KeyAuth.connect(%{p | passphrase: passphrase}, &start_connect/2)
+        |> noreply()
+
+      {:error, _changeset} ->
+        {:noreply, assign(socket, :passphrase_form, nil)}
+    end
+  end
+
+  def handle_event("submit_passphrase", _params, socket), do: {:noreply, socket}
 
   def handle_event("fill_ssh_recent", _params, %{assigns: %{disabled?: true}} = socket) do
     {:noreply, socket}
@@ -307,11 +354,12 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         "name_type" => to_string(conn.name_type),
         "auth_method" => to_string(conn.auth_method),
         "password" => conn.password || "",
+        "key_path" => conn.key_path || "",
         "epmd_port" => to_string(conn.epmd_port)
       }
 
       socket
-      |> assign(:ssh_form, to_form(SshConnectionParams.changeset(params), as: :ssh))
+      |> assign(:ssh_form, KeyAuth.checked_form(SshConnectionParams.changeset(params)))
       |> SecretVisibility.reset()
     end)
   end
@@ -328,6 +376,9 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   def handle_async(:ssh_connect, {:ok, :ok}, socket) do
     {:noreply, redirect(socket, to: ~p"/open")}
   end
+
+  defp start_connect(socket, %SshConnectionParams{} = p),
+    do: start_async(socket, :ssh_connect, fn -> connect(p) end)
 
   defp connect(%SshConnectionParams{} = p) do
     opts = [
@@ -355,6 +406,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       name_type: p.name_type,
       auth_method: p.auth_method,
       password: if(p.remember_password and p.auth_method == :password, do: p.password),
+      key_path: if(p.auth_method == :key, do: p.key_path),
       epmd_port: p.epmd_port
     )
   end

@@ -10,7 +10,6 @@ defmodule VoyagerWeb.ProcessInfoLive.Query do
   """
 
   alias Voyager.Agent
-  alias Voyager.Erpc
   alias Voyager.Services.ProcessInfo
   alias Voyager.Services.ProcessTerm
   alias Voyager.Services.RateLimiter
@@ -38,23 +37,6 @@ defmodule VoyagerWeb.ProcessInfoLive.Query do
 
   @spec valid_pid_string?(String.t()) :: boolean()
   def valid_pid_string?(pid_string), do: Regex.match?(@pid_format, pid_string)
-
-  @doc """
-  Resolves a pid string to a pid of `node`. The normal form embeds this node's
-  index for the owning node and parses locally; a `<0.X.Y>` string names a
-  process only on the node that prints it, so it is resolved there.
-  """
-  @spec resolve_pid(node(), String.t()) :: {:ok, pid()} | {:error, term()}
-  def resolve_pid(node, "<0." <> _rest = pid_string) do
-    Erpc.safe_call(node, :erlang, :list_to_pid, [String.to_charlist(pid_string)])
-  end
-
-  def resolve_pid(node, pid_string) do
-    pid = :erlang.list_to_pid(String.to_charlist(pid_string))
-    if node(pid) == node, do: {:ok, pid}, else: {:error, :invalid_pid}
-  rescue
-    ArgumentError -> {:error, :invalid_pid}
-  end
 
   @spec overview(node(), pid(), timeout()) :: {:ok, map(), non_neg_integer()} | {:error, term()}
   def overview(node, pid, timeout) do

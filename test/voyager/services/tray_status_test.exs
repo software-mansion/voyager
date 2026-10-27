@@ -8,6 +8,7 @@ defmodule Voyager.Services.TrayStatusTest do
   alias Voyager.Schemas.Connection
   alias Voyager.Schemas.SshConnection
   alias Voyager.Services.TrayStatus
+  alias Voyager.Test.SshKeys
 
   @node :"shop@10.0.4.12"
   @mcp_url "http://127.0.0.1:4040/mcp"
@@ -129,12 +130,62 @@ defmodule Voyager.Services.TrayStatusTest do
            } = receive_status()
   end
 
-  test "has no connection to offer when none can reconnect unattended" do
+  test "offers a connection without a saved cookie and reports it on connect" do
     insert!(%Connection{node_name: "nocookie@host"}, 0)
+    broadcast(NodeSession.topic(), {:node_disconnected, @node, nil})
+    assert %{"last_connection" => %{"node" => "nocookie@host"}} = receive_status()
+
+    send(TrayStatus, "connect")
+    assert %{"connecting" => true} = receive_status()
+    assert %{"connecting" => false, "error" => error} = receive_status()
+    assert is_binary(error)
+  end
+
+  test "reports an SSH profile without a saved password on connect" do
+    insert!(
+      %SshConnection{
+        ssh_user: "deploy",
+        ssh_host: "gw",
+        node_name: "nopassword@host",
+        cookie: "secret",
+        auth_method: :password
+      },
+      0
+    )
 
     broadcast(NodeSession.topic(), {:node_disconnected, @node, nil})
+    assert %{"last_connection" => %{"node" => "nopassword@host"}} = receive_status()
 
-    assert %{"last_connection" => nil} = receive_status()
+    send(TrayStatus, "connect")
+    assert %{"connecting" => true} = receive_status()
+    assert %{"connecting" => false, "error" => error} = receive_status()
+    assert is_binary(error)
+  end
+
+  @tag :tmp_dir
+  test "reports a passphrase-protected key on connect", %{tmp_dir: dir} do
+    key = :public_key.generate_key({:namedCurve, :secp256r1})
+    {path, _public_key} = SshKeys.pem!(dir, "id_ecdsa", key, "test-passphrase")
+
+    insert!(
+      %SshConnection{
+        ssh_user: "deploy",
+        ssh_host: "gw",
+        node_name: "key@host",
+        cookie: "secret",
+        auth_method: :key,
+        key_path: path
+      },
+      0
+    )
+
+    broadcast(NodeSession.topic(), {:node_disconnected, @node, nil})
+    assert %{"last_connection" => %{"node" => "key@host"}} = receive_status()
+
+    send(TrayStatus, "connect")
+    assert %{"connecting" => true} = receive_status()
+    assert %{"connecting" => false, "error" => error} = receive_status()
+    assert error =~ "passphrase"
   end
 
   defp insert!(connection, hours_ago) do

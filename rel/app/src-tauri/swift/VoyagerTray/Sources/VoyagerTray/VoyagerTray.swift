@@ -51,6 +51,7 @@ final class TrayModel: ObservableObject {
     }
 }
 
+@available(macOS 13, *)
 final class TrayController: NSObject, NSPopoverDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let popover: NSPopover
@@ -103,6 +104,7 @@ final class TrayController: NSObject, NSPopoverDelegate {
     }
 }
 
+@available(macOS 13, *)
 struct TrayView: View {
     @ObservedObject var model: TrayModel
     let logo: NSImage
@@ -198,7 +200,7 @@ struct TrayView: View {
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(Theme.muted)
             } else {
-                Button("Connect") { model.perform(.connect) }
+                Button("Reconnect") { model.perform(.connect) }
                     .buttonStyle(VoyagerButtonStyle(kind: .subtle, compact: true))
             }
         }
@@ -240,6 +242,7 @@ struct TrayView: View {
 }
 
 /// Voyager's DaisyUI `light` / `dark` theme tokens from assets/css/app.css.
+@available(macOS 13, *)
 enum Theme {
     /// The user's System Settings accent; SwiftUI's `Color.accentColor` is the app's own, which defaults to blue.
     static let accent = Color(nsColor: .controlAccentColor)
@@ -280,6 +283,7 @@ extension View {
     }
 }
 
+@available(macOS 13, *)
 struct VoyagerSwitchStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
         Switch(configuration: configuration)
@@ -316,6 +320,7 @@ struct VoyagerSwitchStyle: ToggleStyle {
     }
 }
 
+@available(macOS 13, *)
 struct CopyButton: View {
     let text: String
     @State private var copied = false
@@ -340,6 +345,7 @@ struct CopyButton: View {
     }
 }
 
+@available(macOS 13, *)
 struct Card<Accessory: View>: View {
     let symbol: String
     let tint: Color
@@ -375,6 +381,7 @@ struct Card<Accessory: View>: View {
 }
 
 /// `.danger` is for actions that end something.
+@available(macOS 13, *)
 struct VoyagerButtonStyle: ButtonStyle {
     enum Kind {
         case filled
@@ -438,7 +445,9 @@ struct VoyagerButtonStyle: ButtonStyle {
     }
 }
 
-private var controller: TrayController?
+// Stored globals cannot be @available-gated, so this only retains the macOS 13 controller.
+private var controller: AnyObject?
+private var model: TrayModel?
 private let decoder: JSONDecoder = {
     let decoder = JSONDecoder()
     decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -452,16 +461,20 @@ public func voyagerTraySetup(
     _ iconLength: Int,
     _ version: UnsafePointer<CChar>,
     _ onAction: @escaping ActionCallback
-) {
+) -> Bool {
+    guard #available(macOS 13, *) else { return false }
     guard let icon = NSImage(data: Data(bytes: iconBytes, count: iconLength)) else {
         preconditionFailure("icon.png is not a valid image")
     }
-    controller = TrayController(icon: icon, version: String(cString: version), onAction: onAction)
+    let tray = TrayController(icon: icon, version: String(cString: version), onAction: onAction)
+    controller = tray
+    model = tray.model
+    return true
 }
 
 @_cdecl("voyager_tray_update")
 public func voyagerTrayUpdate(_ json: UnsafePointer<CChar>) {
     let data = Data(String(cString: json).utf8)
     guard let status = try? decoder.decode(TrayStatus.self, from: data) else { return }
-    controller?.model.status = status
+    model?.status = status
 }

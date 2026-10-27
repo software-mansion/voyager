@@ -20,11 +20,9 @@ defmodule Voyager.Queries.Connections do
   @spec get_by_node_name(String.t()) :: optional()
   def get_by_node_name(node_name), do: Repo.get_by(Connection, node_name: node_name)
 
-  @doc "Returns the most recently connected node it can reconnect unattended."
-  @spec last_connectable() :: optional()
-  def last_connectable do
+  @spec last() :: optional()
+  def last do
     Connection
-    |> where([c], not is_nil(c.cookie))
     |> order_by([c], desc: c.last_connected_at)
     |> limit(1)
     |> Repo.one()

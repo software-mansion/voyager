@@ -19,6 +19,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
   import VoyagerWeb.Components.ProcessInfoComponents
 
   alias Phoenix.LiveView.AsyncResult
+  alias Voyager.Pid
   alias VoyagerWeb.Components.SupervisionTreeComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.ProcessInfoControls
@@ -480,7 +481,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
         redirect_fatal(socket, :invalid_pid)
 
       true ->
-        start_async(socket, :pid, fn -> Query.resolve_pid(node, pid_string) end)
+        start_async(socket, :pid, fn -> Pid.resolve(node, pid_string) end)
     end
   end
 

@@ -8,6 +8,7 @@ defmodule Voyager.NodeSession do
   alias Voyager.Agent
   alias Voyager.NodeSession.Connectors.Distribution
   alias Voyager.Services.TermSyntax
+  alias Voyager.Services.Tracer
 
   @default_connector Distribution
 
@@ -137,6 +138,7 @@ defmodule Voyager.NodeSession do
   end
 
   def handle_call(:disconnect, _from, %{session: session} = state) do
+    :ok = Tracer.disconnecting()
     session.connector.disconnect(session.node, session.meta)
     new_state = drop_session(state, session, :node_disconnected, "manual disconnect")
 
