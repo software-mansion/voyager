@@ -5,8 +5,9 @@ defmodule Voyager.Services.SSH do
   `connect/5` returns once authenticated, with a `t:conn/0` pid that exits when
   the SSH connection is gone. A host key not in any known_hosts fails with
   `{:unknown_host_key, fingerprint}` unless `opts[:host_key]` is that
-  fingerprint, which pins it; a changed key fails with `:host_key_mismatch`. `open_tunnel/3` listens on `127.0.0.1` until
-  `close/1`.
+  fingerprint, which pins it; a changed key fails with
+  `{:host_key_mismatch, known_hosts_path}`. `open_tunnel/3` listens on
+  `127.0.0.1` until `close/1`.
   """
 
   @type conn :: pid()

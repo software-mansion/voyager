@@ -95,7 +95,21 @@ defmodule Voyager.Services.SSH.ErlsshTest do
 
       write_known_host!(ctx.known_hosts, "[127.0.0.1]:#{port}", other_key)
 
-      assert {:error, :host_key_mismatch} = connect(port)
+      known_hosts = ctx.known_hosts
+      assert {:error, {:host_key_mismatch, ^known_hosts}} = connect(port)
+    end
+
+    test "pins and checks the host name connected to, not its IP", ctx do
+      %{port: port, fingerprint: fingerprint} = SshServer.start!(@loopback)
+
+      assert {:ok, conn} = connect("localhost", port, host_key: fingerprint)
+      Erlssh.close(conn)
+
+      pinned = File.read!(ctx.known_hosts)
+      assert pinned =~ "[localhost]:#{port} ssh-ed25519 "
+      refute pinned =~ "127.0.0.1"
+      assert {:ok, conn} = connect("localhost", port, [])
+      Erlssh.close(conn)
     end
   end
 
@@ -134,9 +148,10 @@ defmodule Voyager.Services.SSH.ErlsshTest do
     end
   end
 
-  defp connect(port, opts \\ []),
-    do:
-      Erlssh.connect("127.0.0.1", port, SshServer.user(), {:password, SshServer.password()}, opts)
+  defp connect(port, opts \\ []), do: connect("127.0.0.1", port, opts)
+
+  defp connect(host, port, opts),
+    do: Erlssh.connect(host, port, SshServer.user(), {:password, SshServer.password()}, opts)
 
   defp connect_with_key(server, path, passphrase),
     do:

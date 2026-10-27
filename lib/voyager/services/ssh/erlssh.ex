@@ -25,7 +25,8 @@ defmodule Voyager.Services.SSH.Erlssh do
         user_interaction: false,
         silently_accept_hosts: {:sha256, accept_host(caller, ref, opts[:host_key])},
         save_accepted_host: true,
-        key_cb: {KnownHosts, [user_key_cb: user_key_cb, notify: {caller, ref}] ++ key_opts},
+        key_cb:
+          {KnownHosts, [host: host, user_key_cb: user_key_cb, notify: {caller, ref}] ++ key_opts},
         connect_timeout: @ssh_timeout,
         alive: Application.get_env(:voyager, :ssh_alive, @alive)
       ] ++ password_opts(auth)
