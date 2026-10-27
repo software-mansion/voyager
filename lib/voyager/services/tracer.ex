@@ -194,6 +194,7 @@ defmodule Voyager.Services.Tracer do
 
   @impl true
   def handle_continue(:interrupt_running, state) do
+    Writer.flush()
     TraceSessionActions.interrupt_running()
     {:noreply, state}
   end
@@ -370,17 +371,24 @@ defmodule Voyager.Services.Tracer do
         do: {[], run.shed + length(events)},
         else: {events, run.shed}
 
-    {events, open_calls} =
-      if session.config.return_trace,
-        do: pair_returns(events, run.open_calls),
-        else: {events, run.open_calls}
-
     dropped = run.dropped_before + agent_dropped + shed
+
+    {open_calls, open_count} =
+      if dropped > session.dropped, do: {%{}, 0}, else: {run.open_calls, run.open_count}
+
+    {events, open_calls, open_count} =
+      if session.config.return_trace,
+        do: pair_returns(events, open_calls, open_count),
+        else: {events, open_calls, open_count}
 
     session = %{session | traces: session.traces + length(events), dropped: dropped}
 
     state =
-      %{state | session: session, run: %{run | shed: shed, open_calls: open_calls}}
+      %{
+        state
+        | session: session,
+          run: %{run | shed: shed, open_calls: open_calls, open_count: open_count}
+      }
       |> append(
         dropped_entry(dropped - state.session.dropped) ++
           Enum.map(events, &Map.put(&1, :kind, :trace))
@@ -466,15 +474,22 @@ defmodule Voyager.Services.Tracer do
   defp storage_limit,
     do: Settings.get(:trace_storage_limit_mb, @default_storage_limit_mb) * 1_000_000
 
-  defp pair_returns(events, open_calls) do
-    open_calls = if map_size(open_calls) > @max_open_calls, do: %{}, else: open_calls
-    Enum.map_reduce(events, open_calls, &pair_return/2)
+  defp pair_returns(events, open_calls, open_count) do
+    {open_calls, open_count} =
+      if open_count > @max_open_calls, do: {%{}, 0}, else: {open_calls, open_count}
+
+    {events, {open_calls, open_count}} =
+      Enum.map_reduce(events, {open_calls, open_count}, &pair_return/2)
+
+    {events, open_calls, open_count}
   end
 
-  defp pair_return(%{type: :call} = event, open_calls),
-    do: {event, Map.update(open_calls, {event.pid, event.mfa}, [event.at], &[event.at | &1])}
+  defp pair_return(%{type: :call} = event, {open_calls, open_count}) do
+    open_calls = Map.update(open_calls, {event.pid, event.mfa}, [event.at], &[event.at | &1])
+    {event, {open_calls, open_count + 1}}
+  end
 
-  defp pair_return(event, open_calls) do
+  defp pair_return(event, {open_calls, open_count}) do
     key = {event.pid, event.mfa}
 
     case open_calls do
@@ -482,10 +497,10 @@ defmodule Voyager.Services.Tracer do
         open_calls =
           if rest == [], do: Map.delete(open_calls, key), else: Map.put(open_calls, key, rest)
 
-        {Map.put(event, :duration_us, event.at - at), open_calls}
+        {Map.put(event, :duration_us, event.at - at), {open_calls, open_count - 1}}
 
       _no_call ->
-        {event, open_calls}
+        {event, {open_calls, open_count}}
     end
   end
 

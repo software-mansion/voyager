@@ -57,7 +57,14 @@ defmodule Voyager.Services.Tracer.Writer do
   def init(nil) do
     counter = :counters.new(1, [:atomics])
     :persistent_term.put(@pending_key, counter)
+    Process.flag(:trap_exit, true)
     {:ok, %__MODULE__{counter: counter}}
+  end
+
+  @impl true
+  def terminate(_reason, state) do
+    flush(state)
+    :ok
   end
 
   @impl true
@@ -100,15 +107,20 @@ defmodule Voyager.Services.Tracer.Writer do
 
     case guarded(fn -> write(session, entries) end) do
       {:ok, bytes} ->
-        send(Tracer, {:trace_written, session.id, bytes})
+        notify({:trace_written, session.id, bytes})
 
       {:error, reason} ->
         Logger.error("Saving trace session #{session.id} failed: #{inspect(reason)}")
-        send(Tracer, {:trace_write_failed, session.id, reason})
+        notify({:trace_write_failed, session.id, reason})
     end
 
     :counters.sub(state.counter, 1, length(entries))
     %{state | pending: [], count: 0}
+  end
+
+  # The Tracer is already stopped when the Writer drains on shutdown.
+  defp notify(message) do
+    if pid = Process.whereis(Tracer), do: send(pid, message)
   end
 
   defp write(session, entries) do

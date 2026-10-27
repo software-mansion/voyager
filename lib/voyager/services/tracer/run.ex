@@ -11,6 +11,7 @@ defmodule Voyager.Services.Tracer.Run do
     :started_ms,
     shed: 0,
     open_calls: %{},
+    open_count: 0,
     stop_request: nil
   ]
 
@@ -21,6 +22,7 @@ defmodule Voyager.Services.Tracer.Run do
           started_ms: integer(),
           shed: non_neg_integer(),
           open_calls: %{{pid(), mfa()} => [integer()]},
+          open_count: non_neg_integer(),
           stop_request: {Tracer.stop_reason(), Tracer.origin() | nil} | nil
         }
 end

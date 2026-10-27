@@ -289,7 +289,71 @@ defmodule Voyager.Services.TracerTest do
     assert [outer_call, inner_call, inner_ret, outer_ret] = traces(id)
     assert %{type: :call, args: [1]} = outer_call
     assert %{type: :call, args: [0]} = inner_call
-    assert inner_ret.duration_us < outer_ret.duration_us
+    assert inner_ret.duration_us == inner_ret.at - inner_call.at
+    assert outer_ret.duration_us == outer_ret.at - outer_call.at
+    assert inner_ret.duration_us <= outer_ret.duration_us
+  end
+
+  test "a return after dropped events gets no duration" do
+    assert {:ok, %{id: id}} = configure(%{return_trace: true})
+    assert {:ok, %{tracer: tracer}} = Tracer.start(:ui)
+    call = %{type: :call, pid: self(), process: nil, mfa: {Date, :leap_year?, 1}, at: 10}
+    send(Tracer, {:voyager_trace_events, tracer, [call], 0})
+    send(Tracer, {:voyager_trace_events, tracer, [%{call | type: :return, at: 20}], 1})
+    _ = :sys.get_state(Tracer)
+
+    assert [_call, return] = traces(id)
+    refute Map.has_key?(return, :duration_us)
+  end
+
+  test "forgets open calls once too many timestamps are retained" do
+    assert {:ok, %{id: id}} = configure(%{return_trace: true})
+    assert {:ok, %{tracer: tracer}} = Tracer.start(:ui)
+    call = %{type: :call, pid: self(), process: nil, mfa: {Date, :leap_year?, 1}, at: 10}
+    send(Tracer, {:voyager_trace_events, tracer, List.duplicate(call, 10_001), 0})
+    send(Tracer, {:voyager_trace_events, tracer, [%{call | type: :return, at: 20}], 0})
+    _ = :sys.get_state(Tracer)
+
+    assert {:ok, %{entries: [%{type: :return} = return]}} = Tracer.entries(id, limit: 1)
+    refute Map.has_key?(return, :duration_us)
+  end
+
+  test "a restarted Tracer interrupts the run after the Writer's buffered rows land" do
+    assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
+    assert {:ok, _session} = configure()
+    assert {:ok, _session} = Tracer.start(:ui)
+    old = Process.whereis(Tracer)
+    Process.exit(old, :kill)
+
+    Stream.repeatedly(fn -> Process.whereis(Tracer) end)
+    |> Enum.find(&(&1 && &1 != old))
+
+    _ = :sys.get_state(Tracer)
+    assert %{status: :stopped, stop_reason: :interrupted} = TraceSessionQueries.get(id)
+  end
+
+  test "the writer saves what it buffered when it shuts down" do
+    assert {:ok, session} = Tracer.create(:ui, save: true)
+
+    entry = %{
+      seq: 0,
+      kind: :trace,
+      at: 1,
+      type: :call,
+      pid: self(),
+      process: nil,
+      mfa: {Date, :leap_year?, 1}
+    }
+
+    Writer.append(session, [entry])
+    old = Process.whereis(Writer)
+    GenServer.stop(old)
+    assert Repo.aggregate(TraceEvent, :count) == 1
+
+    Stream.repeatedly(fn -> {Process.whereis(Writer), Process.whereis(Tracer)} end)
+    |> Enum.find(fn {writer, tracer} -> writer && writer != old && tracer end)
+
+    _ = :sys.get_state(Tracer)
   end
 
   test "returns the config errors" do
