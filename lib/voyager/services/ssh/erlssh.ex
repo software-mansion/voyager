@@ -44,6 +44,5 @@ defmodule Voyager.Services.SSH.Erlssh do
   defp auth_opts(:agent), do: [key_cb: {:ssh_agent, []}]
   defp auth_opts({:password, pass}), do: [password: String.to_charlist(pass)]
 
-  defp auth_opts({:key, path, passphrase}),
-    do: [key_cb: {KeyFile, path: path, passphrase: passphrase}]
+  defp auth_opts({:key, key}), do: [key_cb: {KeyFile, key: key}]
 end

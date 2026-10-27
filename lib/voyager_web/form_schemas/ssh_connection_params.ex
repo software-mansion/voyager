@@ -72,10 +72,6 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParams do
   def to_auth(%__MODULE__{auth_method: :password, password: pw}) when is_binary(pw),
     do: {:password, pw}
 
-  def to_auth(%__MODULE__{auth_method: :key, key_path: path, passphrase: passphrase})
-      when is_binary(path),
-      do: {:key, path, passphrase}
-
   defp validate_auth_fields(changeset) do
     case get_field(changeset, :auth_method) do
       :password -> validate_required(changeset, [:password])

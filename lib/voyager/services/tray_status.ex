@@ -175,7 +175,7 @@ defmodule Voyager.Services.TrayStatus do
   defp ssh_auth(%{auth_method: :password, password: password}), do: {:ok, {:password, password}}
 
   defp ssh_auth(%{auth_method: :key, key_path: path}) do
-    with :ok <- KeyFile.check(path, nil), do: {:ok, {:key, path, nil}}
+    with {:ok, key} <- KeyFile.decode(path, nil), do: {:ok, {:key, key}}
   end
 
   defp connect_ssh(c, auth) do

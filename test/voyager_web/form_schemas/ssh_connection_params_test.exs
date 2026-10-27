@@ -154,18 +154,5 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParamsTest do
 
       assert SshConnectionParams.to_auth(params) == {:password, "s3cr3t"}
     end
-
-    test "returns {:key, path, passphrase} for key auth_method" do
-      attrs = Map.merge(valid_attrs(), %{"auth_method" => "key", "key_path" => "~/.ssh/id_rsa"})
-
-      {:ok, params} =
-        SshConnectionParams.changeset(attrs)
-        |> Ecto.Changeset.apply_action(:insert)
-
-      assert SshConnectionParams.to_auth(params) == {:key, "~/.ssh/id_rsa", nil}
-
-      assert SshConnectionParams.to_auth(%{params | passphrase: "pw"}) ==
-               {:key, "~/.ssh/id_rsa", "pw"}
-    end
   end
 end

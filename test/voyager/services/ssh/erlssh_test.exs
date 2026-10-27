@@ -3,6 +3,7 @@ defmodule Voyager.Services.SSH.ErlsshTest do
   use ExUnit.Case, async: false
 
   alias Voyager.Services.SSH.Erlssh
+  alias Voyager.Services.SSH.KeyFile
   alias Voyager.Test.SshKeys
   alias Voyager.Test.SshServer
 
@@ -96,6 +97,18 @@ defmodule Voyager.Services.SSH.ErlsshTest do
       Erlssh.close(conn)
     end
 
+    for args <- [~w(-t ed25519), ~w(-t ecdsa -b 384), ~w(-t rsa -b 2048)] do
+      test "logs in with an encrypted OpenSSH key: #{Enum.join(args, " ")}", %{tmp_dir: dir} do
+        {path, public_key} =
+          SshKeys.ssh_keygen!(dir, "id", unquote(args) ++ ~w(-a 1 -N #{@passphrase}))
+
+        %{port: port} = SshServer.start!(@loopback, authorized_keys: [public_key])
+
+        assert {:ok, conn} = connect_with_key(port, path, @passphrase)
+        Erlssh.close(conn)
+      end
+    end
+
     test "fails with a key the server does not accept", %{tmp_dir: dir} do
       {path, _public_key} = SshKeys.ssh_keygen!(dir, "id_ed25519", ["-t", "ed25519", "-N", ""])
       %{port: port} = SshServer.start!(@loopback)
@@ -104,6 +117,8 @@ defmodule Voyager.Services.SSH.ErlsshTest do
     end
   end
 
-  defp connect_with_key(port, path, passphrase),
-    do: Erlssh.connect("127.0.0.1", port, SshServer.user(), {:key, path, passphrase})
+  defp connect_with_key(port, path, passphrase) do
+    {:ok, key} = KeyFile.decode(path, passphrase)
+    Erlssh.connect("127.0.0.1", port, SshServer.user(), {:key, key})
+  end
 end
