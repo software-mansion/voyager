@@ -43,7 +43,7 @@ defmodule VoyagerWeb.ConnectLiveSshHostKeyTest do
       )
 
     view |> element("#ssh-connect-form") |> render_submit(%{"ssh" => params})
-    render_async(view)
+    render_async(view, 2_000)
   end
 
   test "asks to trust an unknown host key before sending the password", %{
@@ -75,7 +75,7 @@ defmodule VoyagerWeb.ConnectLiveSshHostKeyTest do
     submit_connect(view, server)
 
     view |> element("#ssh-host-key-modal-accept") |> render_click()
-    render_async(view)
+    render_async(view, 2_000)
 
     refute has_element?(view, "#ssh-host-key-modal")
     assert has_element?(view, "#ssh_ssh_user.input-error")
