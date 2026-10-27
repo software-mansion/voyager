@@ -8,6 +8,7 @@ defmodule Voyager.Services.SSH.KnownHostsTest do
 
   setup %{tmp_dir: tmp_dir} do
     home = System.get_env("HOME")
+    configured_global = Application.fetch_env!(:voyager, :global_known_hosts_path)
     System.put_env("HOME", tmp_dir)
     voyager = Path.join(tmp_dir, "voyager_known_hosts")
     global = Path.join(tmp_dir, "ssh_known_hosts")
@@ -17,7 +18,7 @@ defmodule Voyager.Services.SSH.KnownHostsTest do
     on_exit(fn ->
       System.put_env("HOME", home)
       Application.delete_env(:voyager, :known_hosts_path)
-      Application.delete_env(:voyager, :global_known_hosts_path)
+      Application.put_env(:voyager, :global_known_hosts_path, configured_global)
     end)
 
     File.mkdir_p!(Path.join(tmp_dir, ".ssh"))
