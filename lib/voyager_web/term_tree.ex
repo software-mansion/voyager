@@ -161,7 +161,7 @@ defmodule VoyagerWeb.TermTree do
 
   defp build(list, syntax) when is_list(list) do
     with {:ok, count} <- list_length(list),
-         false <- string_list?(list, syntax) do
+         false <- string_list?(list) do
       branch(:list, count, @truncated in list, "[", "]")
     else
       true -> %Node{kind: :list, content: [Segment.string(inspect_term(list, syntax))]}
@@ -248,12 +248,7 @@ defmodule VoyagerWeb.TermTree do
     end
   end
 
-  # A charlist reads as `~c"hi"` in IEx; a printable list is a string in Erlang.
-  defp string_list?(list, :elixir),
-    do: List.ascii_printable?(list, @inspect_opts[:printable_limit])
-
-  defp string_list?(list, :erlang),
-    do: ErlangFormatter.printable_list?(list, @inspect_opts[:printable_limit])
+  defp string_list?(list), do: List.ascii_printable?(list, @inspect_opts[:printable_limit])
 
   defp map_open(:elixir), do: "%{"
   defp map_open(:erlang), do: "\#{"
@@ -269,7 +264,7 @@ defmodule VoyagerWeb.TermTree do
       syntax == :elixir and Keyword.keyword?(list) ->
         list |> Enum.slice(offset, limit) |> keyed(syntax)
 
-      list_length(list) == :improper or string_list?(list, syntax) ->
+      list_length(list) == :improper or string_list?(list) ->
         []
 
       true ->

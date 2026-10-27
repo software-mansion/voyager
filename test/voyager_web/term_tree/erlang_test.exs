@@ -42,6 +42,8 @@ defmodule VoyagerWeb.TermTree.ErlangTest do
 
       assert %Node{kind: :list, child_count: 0, content: [%Segment{text: ~S|"hi"|}]} =
                describe_erl(~c"hi")
+
+      assert %Node{kind: :list, child_count: 3} = describe_erl([200, 201, 204])
     end
 
     test "terms without literal syntax use their Erlang form" do

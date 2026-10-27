@@ -2,7 +2,7 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
   @moduledoc """
   Prints terms in Erlang syntax with `erl_pp`, from an abstract form built
   here, so the output never depends on the VM's `+pc` flag. A list reads as a
-  string only within Latin-1, as in a default `erl` shell; a binary within Unicode.
+  string only within ASCII, as an Elixir charlist does; a binary within Unicode.
   """
 
   alias Voyager.Pid
@@ -34,11 +34,6 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
 
   @spec atom(atom()) :: String.t()
   def atom(atom), do: atom |> :io_lib.write_atom() |> IO.chardata_to_string()
-
-  @doc "Whether the first `limit` elements of `list` read as a string; the rest is not walked."
-  @spec printable_list?(list(), non_neg_integer() | :infinity) :: boolean()
-  def printable_list?(list, limit),
-    do: match?({:ok, _chars, _more?}, printable_prefix(list, limit))
 
   defp print(form, line_length) do
     form
@@ -217,8 +212,8 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
 
   defp take_binary_chars(rest, _limit, acc), do: {Enum.reverse(acc), rest}
 
-  # Lists follow observer under the default `+pc latin1`, so [200, 404, 500] stays numbers;
-  # binaries follow `+pc unicode`, so UTF-8 text is not shown as bytes.
-  defp printable?(list, chars) when is_list(list), do: :io_lib.printable_latin1_list(chars)
+  # Lists follow Elixir's ASCII charlists rather than observer's default `+pc latin1`, so
+  # [200, 201, 204] stays numbers in both syntaxes; binaries follow `+pc unicode`.
+  defp printable?(list, chars) when is_list(list), do: List.ascii_printable?(chars)
   defp printable?(_bitstring, chars), do: :io_lib.printable_unicode_list(chars)
 end
