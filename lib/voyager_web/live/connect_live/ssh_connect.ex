@@ -248,7 +248,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       <ConnectComponents.host_key_modal
         :if={@host_key_prompt}
         id={"#{@id_prefix}host-key-modal"}
-        host={"#{@connect_params.ssh_user}@#{@connect_params.ssh_host}:#{@connect_params.ssh_port}"}
+        host={"#{@connect_params.ssh_user}@#{host_with_port(@connect_params)}"}
         fingerprint={@host_key_prompt}
         password_auth={@connect_params.auth_method == :password}
         target={@myself}
@@ -472,6 +472,10 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       |> to_form(as: :ssh)
 
     assign(socket, :ssh_form, form)
+  end
+
+  defp host_with_port(%SshConnectionParams{ssh_host: host, ssh_port: port}) do
+    if String.contains?(host, ":"), do: "[#{host}]:#{port}", else: "#{host}:#{port}"
   end
 
   defp error_field({:invalid_host, _}), do: :ssh_host

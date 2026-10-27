@@ -59,6 +59,14 @@ defmodule VoyagerWeb.ConnectLiveSshHostKeyTest do
     refute_received {:ssh_server_connection, _pid}
   end
 
+  test "brackets an IPv6 host in the prompt", %{conn: conn} do
+    server = SshServer.start!({0, 0, 0, 0, 0, 0, 0, 1})
+    {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
+    submit_connect(view, server, %{"ssh_host" => "::1"})
+
+    assert view |> element("#ssh-host-key-modal") |> render() =~ "@[::1]:#{server.port}"
+  end
+
   test "does not warn about the password for agent auth", %{conn: conn, server: server} do
     {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
     submit_connect(view, server, %{"auth_method" => "agent"})

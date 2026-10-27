@@ -1,8 +1,8 @@
 defmodule Voyager.Services.SSH.KnownHosts do
   @moduledoc """
-  `:ssh_client_key_api` callback that checks host keys against the system
-  `~/.ssh/known_hosts` and Voyager's own `known_hosts`, and pins accepted keys
-  only in Voyager's file.
+  `:ssh_client_key_api` callback that checks host keys against
+  `/etc/ssh/ssh_known_hosts`, `~/.ssh/known_hosts` and Voyager's own
+  `known_hosts`, and pins accepted keys only in Voyager's file.
 
   Hosts are looked up and pinned by `key_cb_private[:host]`, the name the user
   connected to. User keys are delegated to the module in
@@ -68,7 +68,9 @@ defmodule Voyager.Services.SSH.KnownHosts do
   end
 
   defp entries(name, type) do
-    Enum.reduce_while([system_path(), path()], {:ok, []}, fn file, {:ok, entries} ->
+    files = [global_path(), system_path(), path()]
+
+    Enum.reduce_while(files, {:ok, []}, fn file, {:ok, entries} ->
       case LocalFiles.read(file) do
         {:ok, contents} -> {:cont, {:ok, entries ++ parse(file, contents, name, type)}}
         {:error, {:read_failed, {_path, :enoent}}} -> {:cont, {:ok, entries}}
@@ -112,6 +114,9 @@ defmodule Voyager.Services.SSH.KnownHosts do
     regex = pattern |> Regex.escape() |> String.replace("\\*", ".*") |> String.replace("\\?", ".")
     Regex.match?(Regex.compile!("\\A#{regex}\\z"), name)
   end
+
+  defp global_path,
+    do: Application.get_env(:voyager, :global_known_hosts_path, "/etc/ssh/ssh_known_hosts")
 
   defp system_path, do: Path.join([System.get_env("HOME", ""), ".ssh", "known_hosts"])
 

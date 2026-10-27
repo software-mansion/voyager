@@ -10,16 +10,20 @@ defmodule Voyager.Services.SSH.KnownHostsTest do
     home = System.get_env("HOME")
     System.put_env("HOME", tmp_dir)
     voyager = Path.join(tmp_dir, "voyager_known_hosts")
+    global = Path.join(tmp_dir, "ssh_known_hosts")
     Application.put_env(:voyager, :known_hosts_path, voyager)
+    Application.put_env(:voyager, :global_known_hosts_path, global)
 
     on_exit(fn ->
       System.put_env("HOME", home)
       Application.delete_env(:voyager, :known_hosts_path)
+      Application.delete_env(:voyager, :global_known_hosts_path)
     end)
 
     File.mkdir_p!(Path.join(tmp_dir, ".ssh"))
 
     %{
+      global: global,
       system: Path.join([tmp_dir, ".ssh", "known_hosts"]),
       voyager: voyager,
       key: ed25519()
@@ -61,6 +65,13 @@ defmodule Voyager.Services.SSH.KnownHostsTest do
     assert host_key?(key, "app.example.com")
     assert host_key?(key, "gw1")
     refute host_key?(key, "db.example.com")
+  end
+
+  test "checks the global known_hosts", %{global: global, key: key} do
+    File.write!(global, line(key, "gw") <> line(ed25519(), "db"))
+
+    assert host_key?(key, "gw")
+    assert host_key?(key, "db") == {:error, {:host_key_mismatch, global}}
   end
 
   test "matches a hashed entry", %{system: system, key: key} do
