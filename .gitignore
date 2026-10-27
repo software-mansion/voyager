@@ -1,4 +1,4 @@
-# The directory Mix will write compiled artifacts to.
+generates# The directory Mix will write compiled artifacts to.
 /_build/
 
 # If you run "mix test --cover", coverage assets end up here.
@@ -54,6 +54,7 @@ npm-debug.log
 # Database files
 *.db
 *.db-*
+/priv/db/known_hosts
 
 *.beam
 .DS_Store

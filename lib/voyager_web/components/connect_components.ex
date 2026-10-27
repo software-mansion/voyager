@@ -358,6 +358,78 @@ defmodule VoyagerWeb.ConnectComponents do
     """
   end
 
+  attr :id, :string, required: true
+  attr :host, :string, required: true, doc: "`user@host:port` being verified"
+  attr :fingerprint, :string, required: true
+  attr :password_auth, :boolean, default: false
+  attr :target, :any, default: nil
+  attr :on_accept, :string, required: true
+  attr :on_reject, :string, required: true
+
+  def host_key_modal(assigns) do
+    ~H"""
+    <div
+      id={@id}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={"#{@id}-title"}
+      class="modal modal-open"
+    >
+      <.focus_wrap
+        id={"#{@id}-box"}
+        phx-mounted={JS.focus_first()}
+        class="modal-box border-base-300 max-w-md border shadow-2xl"
+      >
+        <h2 id={"#{@id}-title"} class="text-base-content text-lg font-semibold tracking-tight">
+          Unknown host key
+        </h2>
+        <p class="text-base-content/70 mt-1 text-sm">
+          Voyager has not connected to <span class="font-mono text-base-content">{@host}</span>
+          before. Check that its key fingerprint matches the server's before trusting it.
+        </p>
+
+        <code
+          id={"#{@id}-fingerprint"}
+          class="font-mono bg-base-200 text-base-content mt-4 block break-all rounded-md px-3 py-2 text-xs"
+        >
+          {@fingerprint}
+        </code>
+
+        <div
+          :if={@password_auth}
+          id={"#{@id}-password-warning"}
+          role="alert"
+          class="alert alert-warning mt-4 text-sm"
+        >
+          <.icon name="icon-circle-alert" class="size-4 shrink-0" />
+          <span>Your SSH password will be sent to this host once you trust it.</span>
+        </div>
+
+        <div class="modal-action">
+          <button
+            type="button"
+            id={"#{@id}-reject"}
+            phx-target={@target}
+            phx-click={@on_reject}
+            class="btn btn-ghost"
+          >
+            Reject
+          </button>
+          <button
+            type="button"
+            id={"#{@id}-accept"}
+            phx-target={@target}
+            phx-click={@on_accept}
+            class="btn btn-primary"
+          >
+            Trust and connect
+          </button>
+        </div>
+      </.focus_wrap>
+    </div>
+    """
+  end
+
   @doc "Segmented radio group for a set of mutually exclusive options."
   attr :name, :string, required: true
   attr :value, :any, required: true, doc: "Currently selected value (compared as a string)"

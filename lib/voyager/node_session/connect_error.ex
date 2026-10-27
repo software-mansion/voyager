@@ -45,6 +45,12 @@ defmodule Voyager.NodeSession.ConnectError do
   def message(reason) when is_list(reason),
     do: "SSH authentication failed — check your credentials or ensure the SSH agent is running"
 
+  def message({:unknown_host_key, _fingerprint}), do: "Unverified SSH host key"
+
+  def message(:host_key_mismatch),
+    do:
+      "SSH host key changed — this could be a man-in-the-middle attack. If the change is expected, remove the old key from known_hosts"
+
   def message(:etimedout), do: "Connection timed out — check the SSH host and port"
   def message(:econnrefused), do: "Connection refused — check the SSH host and port"
   def message(:nxdomain), do: "Host not found — check the SSH hostname"
