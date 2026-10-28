@@ -41,7 +41,7 @@ defmodule VoyagerWeb.TermFormatter.Elixir do
   # Pids and other `#Name<...>` forms have no literal syntax. Rewriting the flattened output
   # instead would reach inside string literals and break any binary that reads like a pid.
   defp copy_inspect(id, _opts) when is_pid(id) or is_reference(id) or is_port(id) do
-    {fun, arg} = TermFormatter.identifier(id)
+    {fun, arg} = TermFormatter.term_to_local_term(id)
     ":erlang.#{fun}(#{Kernel.inspect(arg, limit: :infinity)})"
   end
 

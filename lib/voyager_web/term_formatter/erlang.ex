@@ -77,7 +77,7 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
   defp abstract(term, mode), do: {leaf(term, mode), mode}
 
   defp leaf(id, :copy) when is_pid(id) or is_reference(id) or is_port(id) do
-    {fun, arg} = TermFormatter.identifier(id)
+    {fun, arg} = TermFormatter.term_to_local_term(id)
     call(fun, :erl_parse.abstract(arg))
   end
 

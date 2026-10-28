@@ -7,7 +7,6 @@ defmodule VoyagerWeb.TermFormatter do
   follow the PID format setting in both syntaxes.
   """
 
-  alias Voyager.Pid
   alias Voyager.Services.TermSyntax
   alias VoyagerWeb.TermFormatter.Elixir, as: ElixirFormatter
   alias VoyagerWeb.TermFormatter.Erlang, as: ErlangFormatter
@@ -56,33 +55,11 @@ defmodule VoyagerWeb.TermFormatter do
   def format_mfa(other, opts), do: __MODULE__.inspect(other, opts)
 
   @doc """
-  The `erlang` BIF and argument that rebuild `id` in a shell on the connected
-  node: `list_to_*` of its local form, or `binary_to_term` for another node's
-  id, whose `<N.X.Y>` would name a different node there.
+  The `erlang` BIF and argument that rebuild `id` in a shell on any node. The
+  binary carries the owning node and its creation, which `<N.X.Y>` text does
+  not: `N` is numbered per node, and a restarted node reuses `X.Y`.
   """
-  @spec identifier(pid() | reference() | port()) :: {atom(), charlist() | binary()}
-  def identifier(id) when is_pid(id) or is_reference(id) or is_port(id) do
-    text = id |> id_to_list() |> List.to_string()
-
-    if another_node?(text) do
-      {:binary_to_term, :erlang.term_to_binary(id)}
-    else
-      {list_to_id(id), text |> Pid.localize() |> String.to_charlist()}
-    end
-  end
-
-  defp another_node?(text) do
-    case Pid.cached_node_id() do
-      nil -> false
-      node_id -> not String.contains?(text, "<#{node_id}.")
-    end
-  end
-
-  defp id_to_list(pid) when is_pid(pid), do: :erlang.pid_to_list(pid)
-  defp id_to_list(ref) when is_reference(ref), do: :erlang.ref_to_list(ref)
-  defp id_to_list(port) when is_port(port), do: :erlang.port_to_list(port)
-
-  defp list_to_id(pid) when is_pid(pid), do: :list_to_pid
-  defp list_to_id(ref) when is_reference(ref), do: :list_to_ref
-  defp list_to_id(port) when is_port(port), do: :list_to_port
+  @spec term_to_local_term(pid() | reference() | port()) :: {:binary_to_term, binary()}
+  def term_to_local_term(id) when is_pid(id) or is_reference(id) or is_port(id),
+    do: {:binary_to_term, :erlang.term_to_binary(id)}
 end

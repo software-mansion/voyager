@@ -395,8 +395,7 @@ defmodule VoyagerWeb.EtsTableLiveTest do
       assert view |> text("#ets-sidebar-key") |> String.trim() == "k"
       assert has_element?(view, "#ets-lookup-0-term", "\#{")
       assert copied =~ "\#{list => [1, 2]}"
-      assert copied =~ ~s|list_to_pid("<0.45.0>")|
-      assert copied =~ ~s|list_to_ref("#{:erlang.ref_to_list(ref)}")|
+      assert copied =~ "binary_to_term(<<131,"
       assert erl_eval(copied) == record
     end
   end

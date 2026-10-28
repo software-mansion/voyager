@@ -88,15 +88,6 @@ defmodule Voyager.Pid do
   def inspect_fun(pid, _opts) when is_pid(pid), do: "#PID" <> format(pid)
   def inspect_fun(term, opts), do: Inspect.inspect(term, opts)
 
-  @doc "Renumbers the connected node's `N` to `0` in a pid, ref or port text, as its own shell does."
-  @spec localize(String.t()) :: String.t()
-  def localize(text) do
-    case cached_node_id() do
-      nil -> text
-      id -> String.replace(text, "<#{id}.", "<0.", global: false)
-    end
-  end
-
   # Any pid of the node, printed here, carries the `N` this node gives it.
   defp node_id(node) do
     case Erpc.safe_call(node, :erlang, :self, []) do
@@ -115,6 +106,12 @@ defmodule Voyager.Pid do
   defp maybe_localize(pid_string, :distribution), do: pid_string
 
   defp maybe_localize(pid_string, :local) do
-    if Regex.match?(~r/^<\d+\.\d+\.\d+>$/, pid_string), do: localize(pid_string), else: pid_string
+    node_id = cached_node_id()
+
+    if node_id && Regex.match?(~r/^<\d+\.\d+\.\d+>$/, pid_string) do
+      String.replace_prefix(pid_string, "<#{node_id}.", "<0.")
+    else
+      pid_string
+    end
   end
 end

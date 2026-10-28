@@ -184,16 +184,17 @@ defmodule VoyagerWeb.TermFormatterTest do
     end
 
     test "rewrites pids into something that can be pasted into IEx" do
-      pid = :erlang.list_to_pid(~c"<0.123.0>")
+      pid = :erlang.list_to_pid(~c"<0.123.4>")
       copied = elixir_copy(%{pid: pid})
 
       refute copied =~ "#PID"
-      assert copied =~ ~s|:erlang.list_to_pid(~c"<0.123.0>")|
+      assert copied =~ ":erlang.binary_to_term(<<131,"
 
-      assert {%{pid: ^pid}, _binding} = Code.eval_string(copied)
+      assert {%{pid: ^pid} = rebuilt, _binding} = Code.eval_string(copied)
+      assert :erlang.pid_to_list(rebuilt.pid) == ~c"<0.123.4>"
     end
 
-    test "rebuilds references and ports with their list_to_* BIF" do
+    test "rebuilds references and ports with binary_to_term" do
       term = [make_ref(), hd(Port.list())]
 
       assert {^term, _binding} = Code.eval_string(elixir_copy(term))
