@@ -46,6 +46,31 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
     end
   end
 
+  describe "navigation" do
+    test "renders breadcrumbs to the process list and a hidden back button", %{conn: conn} do
+      {:ok, view, _html} =
+        live(conn, ~p"/node/#{@node_name}/processes/#{Formatters.format_pid(self())}")
+
+      assert has_element?(
+               view,
+               ~s|#process-info-breadcrumbs a[href="#{~p"/node/#{@node_name}/processes"}"]|
+             )
+
+      assert has_element?(view, ~s|#process-info-breadcrumbs li[aria-current="page"]|)
+      refute has_element?(view, ~s|#process-info-breadcrumbs li[aria-current="page"] a|)
+      assert has_element?(view, "#node-header-back-wrapper[hidden]")
+    end
+
+    test "switching tabs patches the tab into the url", %{conn: conn} do
+      pid_string = Formatters.format_pid(self())
+      {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/processes/#{pid_string}")
+
+      view |> element("#process-tab-relations") |> render_click()
+
+      assert_patch(view, ~p"/node/#{@node_name}/processes/#{pid_string}?tab=relations")
+    end
+  end
+
   describe "dictionary" do
     # 40 three-unit entries against the smallest allowed budget leave exactly
     # one unit for the last one, which the remote truncates to a bare marker.

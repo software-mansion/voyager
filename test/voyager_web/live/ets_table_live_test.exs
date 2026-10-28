@@ -23,6 +23,18 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     :ok
   end
 
+  test "renders breadcrumbs to the ETS table list and a hidden back button", %{conn: conn} do
+    name = named_table(:set)
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/ets-tables/#{inspect(name)}")
+
+    assert has_element?(
+             view,
+             ~s|#ets-table-breadcrumbs a[href="#{~p"/node/#{@node_name}/ets-tables"}"]|
+           )
+
+    assert has_element?(view, "#node-header-back-wrapper[hidden]")
+  end
+
   test "reloading the snapshot re-reads the table info", %{conn: conn} do
     name = named_table(:set)
     :ets.insert(name, for(i <- 1..60, do: {i, i}))
