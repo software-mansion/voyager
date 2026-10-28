@@ -24,6 +24,24 @@ defmodule Voyager.SettingsTest do
     end
   end
 
+  describe "get_choice/3" do
+    @choices [:auto, :elixir, :erlang]
+
+    test "returns a saved value that is one of the choices" do
+      assert {:ok, _} = Settings.put(:term_syntax, :erlang)
+      assert Settings.get_choice(:term_syntax, @choices, :auto) == :erlang
+    end
+
+    test "returns the default for a saved value outside the choices" do
+      assert {:ok, _} = Settings.put(:term_syntax, :lfe)
+      assert Settings.get_choice(:term_syntax, @choices, :auto) == :auto
+    end
+
+    test "returns the default when nothing is saved" do
+      assert Settings.get_choice(:term_syntax, @choices, :auto) == :auto
+    end
+  end
+
   describe "put/2" do
     test "upserts a setting in the database" do
       assert {:ok, %Setting{}} = Settings.put(:mcp_port, 5050)
