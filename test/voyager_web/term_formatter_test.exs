@@ -74,6 +74,11 @@ defmodule VoyagerWeb.TermFormatterTest do
       assert erlang(<<200, 1, 2>>, limit: 2) == "<<200,1,...>>"
     end
 
+    test "reads a negative limit as zero" do
+      assert erlang([1, 2], limit: -1) == "[...]"
+      assert erlang(<<200, 1, 2>>, limit: -1) == "<<...>>"
+    end
+
     test "spends one limit across nested collections" do
       assert erlang([[1, 2, 3], [4, 5, 6], [7, 8, 9]], limit: 5) == "[[1, 2, 3], [...] | ...]"
       assert erlang({{1, 2}, {3, 4}}, limit: 3) == "{{1, 2}, ...}"

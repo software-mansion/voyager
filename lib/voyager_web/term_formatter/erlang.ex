@@ -16,7 +16,7 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
   @impl true
   def inspect(term, opts \\ []) do
     opts = Inspect.Opts.new(opts)
-    {form, _opts} = abstract(term, opts)
+    {form, _opts} = abstract(term, spend(opts, 0))
     print(form, line_length(opts))
   end
 
