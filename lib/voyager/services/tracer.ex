@@ -238,7 +238,7 @@ defmodule Voyager.Services.Tracer do
   def handle_call({:delete, id}, _from, %{session: %{id: id, status: :running}} = state),
     do: {:reply, {:error, :busy}, state}
 
-  def handle_call({:delete, id}, _from, %{session: %{id: id}}) do
+  def handle_call({:delete, id}, _from, %{session: %{id: id, save: true}}) do
     Writer.flush()
     broadcast({:session_closed, id})
     {:reply, TraceSessionActions.delete(id), %__MODULE__{}}

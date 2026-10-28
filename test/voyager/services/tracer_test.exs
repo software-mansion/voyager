@@ -215,6 +215,19 @@ defmodule Voyager.Services.TracerTest do
     assert {:error, :not_found} = Tracer.delete(id)
   end
 
+  test "leaves an unsaved active session intact on delete" do
+    assert {:ok, %{id: id}} = Tracer.create(:ui)
+    assert {:ok, %{id: ^id, status: :idle}} = configure()
+
+    assert {:error, :not_found} = Tracer.delete(id)
+
+    refute_receive {:session_closed, ^id}, 100
+    assert %{id: ^id, status: :idle} = Tracer.active()
+
+    assert {:ok, %{entries: [%{seq: 0, kind: :configured}], truncated?: false}} =
+             Tracer.entries(id, since: 0, order: :asc)
+  end
+
   test "resumes a stopped session" do
     assert {:ok, %{id: id}} = configure(%{max_events: 1})
     assert {:ok, _session} = Tracer.start(:ui)
