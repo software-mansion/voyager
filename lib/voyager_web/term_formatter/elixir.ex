@@ -23,7 +23,6 @@ defmodule VoyagerWeb.TermFormatter.Elixir do
           printable_limit: :infinity,
           pretty: true,
           structs: false,
-          custom_options: [sort_maps: true],
           inspect_fun: &copy_inspect/2
         ]
     )

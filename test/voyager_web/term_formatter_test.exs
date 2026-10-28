@@ -61,7 +61,7 @@ defmodule VoyagerWeb.TermFormatterTest do
     test "prints Elixir structs and keyword lists as plain Erlang data" do
       keyword = [a: 1]
 
-      assert erlang(%URI{host: "x"}) =~ ~S|#{'__struct__' => 'Elixir.URI',|
+      assert erlang(%URI{host: "x"}) =~ ~S|'__struct__' => 'Elixir.URI'|
       assert erlang(keyword) == "[{a, 1}]"
     end
 
@@ -70,14 +70,14 @@ defmodule VoyagerWeb.TermFormatterTest do
       assert erlang([1, 2], limit: 0) == "[...]"
       assert erlang([1, 2 | :tail], limit: 2) == "[1, 2 | tail]"
       assert erlang({1, 2, 3, 4}, limit: 2) == "{1, 2, ...}"
-      assert erlang(%{a: 1, b: 2}, limit: 1) == "\#{a => 1, ... => ...}"
+      assert erlang(%{1 => :a, 2 => :b}, limit: 1) == "\#{1 => a, ... => ...}"
       assert erlang(<<200, 1, 2>>, limit: 2) == "<<200,1,...>>"
     end
 
     test "spends one limit across nested collections" do
       assert erlang([[1, 2, 3], [4, 5, 6], [7, 8, 9]], limit: 5) == "[[1, 2, 3], [...] | ...]"
       assert erlang({{1, 2}, {3, 4}}, limit: 3) == "{{1, 2}, ...}"
-      assert erlang(%{a: [1, 2], b: [3, 4]}, limit: 3) == "\#{a => [1, 2], ... => ...}"
+      assert erlang(%{1 => [1, 2], 2 => [3, 4]}, limit: 3) == "\#{1 => [1, 2], ... => ...}"
       assert erlang([<<1, 2, 3>>, <<4>>], limit: 3) == "[<<1,2,...>> | ...]"
       assert erlang(["abcdef", [1, 2]], limit: 2) == ~S|[<<"abcdef">>, [...]]|
       assert erlang([1, 2 | {3, 4}], limit: 3) == "[1, 2 | {...}]"

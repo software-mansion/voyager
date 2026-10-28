@@ -52,7 +52,7 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
   end
 
   defp abstract(map, mode) when is_map(map) do
-    {fields, more?, mode} = map |> :maps.to_list() |> Enum.sort() |> abstract_each(mode, &field/2)
+    {fields, more?, mode} = map |> :maps.to_list() |> abstract_each(mode, &field/2)
     elided = for elision <- elision(more?), do: {:map_field_assoc, anno(), elision, elision}
     {{:map, anno(), fields ++ elided}, mode}
   end
