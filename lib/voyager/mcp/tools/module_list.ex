@@ -3,11 +3,13 @@ defmodule Voyager.MCP.Tools.ModuleList do
   Finds tracing targets on the connected node: loaded modules, or one module's
   functions.
 
-  Without `module`, searches loaded modules by name and pages through them with
-  `limit`/`offset`; `total` counts every match, `next_offset` is `null` on the
-  last page. Modules the agent refuses to trace are left out, and so are modules
-  that are on the code path but not loaded. `traceability` is `ok`, or `hot`
-  for modules that can only be traced on a list of pids.
+  Without `module`, fuzzy-searches loaded modules by name, closest matches first,
+  and pages through them with `limit`/`offset`; `total` counts every match,
+  `next_offset` is `null` on the last page. Modules the agent refuses to trace
+  are left out, and so are modules that are on the code path but not loaded.
+  `name` is the full module name (`Elixir.Foo.Bar`, `lists`) to pass to tracing.
+  `traceability` is `ok`, or `hot` for modules that can only be traced on a list
+  of pids.
 
   With `module` (`Foo.Bar`, `Elixir.Foo.Bar`, `:lists` or `lists`), lists that
   module's functions and arities, local ones included with `exported: false`,
@@ -24,7 +26,8 @@ defmodule Voyager.MCP.Tools.ModuleList do
       description: "Module to list the functions of. Omit to search modules instead."
 
     field :search, :string,
-      description: "Case-insensitive substring of the module name. Ignored with `module`."
+      description:
+        "Case-insensitive fuzzy match on the module name; its characters must appear in order. Ignored with `module`."
 
     field :limit, :integer,
       default: 50,
@@ -72,7 +75,7 @@ defmodule Voyager.MCP.Tools.ModuleList do
   defp find_module(entries, input) do
     candidates = [input, "Elixir." <> input, String.trim_leading(input, ":")]
 
-    case Enum.find(entries, &(&1.name == input or Atom.to_string(&1.module) in candidates)) do
+    case Enum.find(entries, &(&1.name in candidates)) do
       nil -> {:error, {:not_loaded, input}}
       %{traceability: :refused} -> {:error, {:refused, input}}
       entry -> {:ok, entry}

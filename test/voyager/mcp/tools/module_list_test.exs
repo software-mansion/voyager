@@ -51,29 +51,31 @@ defmodule Voyager.MCP.Tools.ModuleListTest do
       result = run(%{})
 
       assert result["modules"] == [
-               %{"name" => ":lists", "traceability" => "hot"},
-               %{"name" => "Date", "traceability" => "ok"},
-               %{"name" => "Voyager.Pid", "traceability" => "ok"}
+               %{"name" => "Elixir.Date", "traceability" => "ok"},
+               %{"name" => "Elixir.Voyager.Pid", "traceability" => "ok"},
+               %{"name" => "lists", "traceability" => "hot"}
              ]
 
       assert result["total"] == 3
       assert result["next_offset"] == nil
     end
 
-    test "filters by name" do
+    test "fuzzy-filters by name" do
       stub_modules()
 
-      assert %{"modules" => [%{"name" => "Voyager.Pid"}], "total" => 1} =
-               run(%{"search" => "PID"})
+      assert %{"modules" => [%{"name" => "Elixir.Voyager.Pid"}], "total" => 1} =
+               run(%{"search" => "VPID"})
     end
 
     test "pages with limit and offset" do
       stub_modules()
 
-      assert %{"modules" => [%{"name" => ":lists"}, %{"name" => "Date"}], "next_offset" => 2} =
-               run(%{"limit" => 2})
+      assert %{
+               "modules" => [%{"name" => "Elixir.Date"}, %{"name" => "Elixir.Voyager.Pid"}],
+               "next_offset" => 2
+             } = run(%{"limit" => 2})
 
-      assert %{"modules" => [%{"name" => "Voyager.Pid"}], "next_offset" => nil, "total" => 3} =
+      assert %{"modules" => [%{"name" => "lists"}], "next_offset" => nil, "total" => 3} =
                run(%{"limit" => 2, "offset" => 2})
     end
 
@@ -90,7 +92,7 @@ defmodule Voyager.MCP.Tools.ModuleListTest do
 
       result = run(%{"module" => "Date"})
 
-      assert result["module"] == "Date"
+      assert result["module"] == "Elixir.Date"
       assert result["traceability"] == "ok"
       assert result["total"] == 3
 
@@ -105,7 +107,7 @@ defmodule Voyager.MCP.Tools.ModuleListTest do
       test "resolves an Elixir module given as #{name}" do
         stub_functions(Voyager.Pid, [{:parse, 1, true}])
 
-        assert %{"module" => "Voyager.Pid"} = run(%{"module" => unquote(name)})
+        assert %{"module" => "Elixir.Voyager.Pid"} = run(%{"module" => unquote(name)})
       end
     end
 
@@ -113,7 +115,7 @@ defmodule Voyager.MCP.Tools.ModuleListTest do
       test "resolves an Erlang module given as #{name}" do
         stub_functions(:lists, [{:map, 2, true}])
 
-        assert %{"module" => ":lists", "traceability" => "hot"} =
+        assert %{"module" => "lists", "traceability" => "hot"} =
                  run(%{"module" => unquote(name)})
       end
     end
