@@ -226,6 +226,16 @@ defmodule VoyagerWeb.TermTreeTest do
       assert child_terms(children) == [1, 2]
     end
 
+    test "keyword lists render nil and quoted keys the way inspect does" do
+      assert child_keys(TermTree.children([nil: 1, "a b": 2], 0, 10)) == ["nil: ", ~s("a b": )]
+    end
+
+    test "a list of tuples keyed by modules is positional, not a keyword list" do
+      children = [{Foo, 1}, {:a, 2}]
+
+      assert TermTree.children(children, 0, 10) == [{nil, {Foo, 1}}, {nil, {:a, 2}}]
+    end
+
     test "map keys are sorted, since a map has no order of its own" do
       children = TermTree.children(%{c: 3, a: 1, b: 2}, 0, 10)
 

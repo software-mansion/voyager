@@ -261,8 +261,8 @@ defmodule VoyagerWeb.TermTree do
 
   defp children_of(list, offset, limit, syntax) when is_list(list) do
     cond do
-      syntax == :elixir and Keyword.keyword?(list) ->
-        list |> Enum.slice(offset, limit) |> keyed(syntax)
+      syntax == :elixir and Inspect.List.keyword?(list) ->
+        list |> Enum.slice(offset, limit) |> Enum.map(&keyword_pair/1)
 
       list_length(list) == :improper or string_list?(list) ->
         []
@@ -295,6 +295,9 @@ defmodule VoyagerWeb.TermTree do
   end
 
   defp keyed(pairs, syntax), do: Enum.map(pairs, &key_value(&1, syntax))
+
+  defp keyword_pair({key, value}),
+    do: {[Segment.atom(Macro.inspect_atom(:key, key)), Segment.punctuation(" ")], value}
 
   # A truncated subterm the agent left as a map key carries no information in
   # that position; rendering it as `key => value` would only repeat the marker.
