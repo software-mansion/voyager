@@ -30,17 +30,33 @@ defmodule Voyager.Services.ModuleCatalogTest do
 
       assert {:ok, entries} = ModuleCatalog.modules(node)
 
-      assert Enum.map(entries, & &1.name) == [":lists", ":trace", "Date", "Voyager.Pid"]
-      assert %{module: :lists, traceability: :hot} = hd(entries)
+      assert Enum.map(entries, & &1.name) == [
+               "Elixir.Date",
+               "Elixir.Voyager.Pid",
+               "lists",
+               "trace"
+             ]
+
+      assert %{module: :lists, traceability: :hot} = Enum.at(entries, 2)
     end
 
-    test "filters by display name, case-insensitively", %{node: node} do
+    test "fuzzy-filters by name, case-insensitively", %{node: node} do
       expect_modules()
 
       assert {:ok, [%{module: Voyager.Pid}]} = ModuleCatalog.modules(node, "voyager.p")
-      assert {:ok, [%{module: :lists}]} = ModuleCatalog.modules(node, " :LIS ")
+      assert {:ok, [%{module: Voyager.Pid}]} = ModuleCatalog.modules(node, "vpid")
+      assert {:ok, [%{module: :lists}]} = ModuleCatalog.modules(node, " LIS ")
       assert {:ok, []} = ModuleCatalog.modules(node, "nothing")
       assert {:ok, [_, _, _, _]} = ModuleCatalog.modules(node, "")
+    end
+
+    test "ranks closer matches first", %{node: node} do
+      expect_modules()
+
+      assert {:ok, [%{module: :trace}, %{module: Date}, %{module: Voyager.Pid}]} =
+               ModuleCatalog.modules(node, "ra")
+
+      assert {:ok, [%{module: Date} | _]} = ModuleCatalog.modules(node, "date")
     end
 
     test "serves repeated lookups from the cache", %{node: node} do

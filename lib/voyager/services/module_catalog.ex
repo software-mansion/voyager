@@ -14,6 +14,7 @@ defmodule Voyager.Services.ModuleCatalog do
   use GenServer
 
   alias Voyager.Agent
+  alias Voyager.FuzzySearch
   alias Voyager.NodeSession
 
   @table __MODULE__
@@ -31,8 +32,12 @@ defmodule Voyager.Services.ModuleCatalog do
   end
 
   @doc """
-  Loaded modules whose display name (`Foo.Bar`, `:lists`) contains `filter`,
-  case-insensitively, sorted by name. A `nil` or blank filter returns all.
+  Loaded modules, named in full (`Elixir.Foo.Bar`, `lists`) so the name can be
+  passed to tracing as is.
+
+  A `filter` keeps the modules it fuzzy-matches case-insensitively, ranked
+  exact, prefix, substring, then subsequence; `Foo` matches `Elixir.Foo`
+  exactly. A `nil` or blank filter returns all, sorted by name.
   """
   @spec modules(node(), String.t() | nil) :: {:ok, [module_entry()]} | {:error, term()}
   def modules(node, filter \\ nil) do
@@ -88,10 +93,9 @@ defmodule Voyager.Services.ModuleCatalog do
       entries =
         modules
         |> Enum.map(fn {module, traceability} ->
-          name = inspect(module)
-          {%{module: module, name: name, traceability: traceability}, String.downcase(name)}
+          %{module: module, name: Atom.to_string(module), traceability: traceability}
         end)
-        |> Enum.sort_by(fn {entry, _needle} -> entry.name end)
+        |> Enum.sort_by(& &1.name)
 
       {:ok, entries}
     end
@@ -120,17 +124,29 @@ defmodule Voyager.Services.ModuleCatalog do
   defp normalize_filter(nil), do: nil
 
   defp normalize_filter(filter) do
-    case filter |> String.trim() |> String.downcase() do
+    case String.trim(filter) do
       "" -> nil
-      needle -> needle
+      query -> query
     end
   end
 
-  defp filter_modules(entries, nil), do: Enum.map(entries, &elem(&1, 0))
+  defp filter_modules(entries, nil), do: entries
 
-  defp filter_modules(entries, needle) do
-    for {entry, name} <- entries, String.contains?(name, needle), do: entry
+  defp filter_modules(entries, query) do
+    ranked = for entry <- entries, rank <- [best_rank(entry.name, query)], rank, do: {rank, entry}
+
+    ranked
+    |> Enum.sort_by(&elem(&1, 0))
+    |> Enum.map(&elem(&1, 1))
   end
+
+  defp best_rank("Elixir." <> short = name, query) do
+    [FuzzySearch.rank(name, query), FuzzySearch.rank(short, query)]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.min(fn -> nil end)
+  end
+
+  defp best_rank(name, query), do: FuzzySearch.rank(name, query)
 
   defp ttl_ms, do: Application.get_env(:voyager, :module_catalog_ttl_ms, @default_ttl_ms)
 
