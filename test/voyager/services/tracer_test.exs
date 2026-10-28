@@ -506,6 +506,34 @@ defmodule Voyager.Services.TracerTest do
                     [%{seq: 1_004, kind: :dropped, count: 2}, %{seq: 1_005, kind: :trace}]}
   end
 
+  test "an unsaved session ignores the Writer's backlog" do
+    on_exit(fn -> :sys.resume(Writer) end)
+    assert {:ok, saved} = Tracer.create(:ui, save: true)
+    :sys.suspend(Writer)
+
+    entry = %{
+      seq: 0,
+      kind: :trace,
+      at: 1,
+      type: :call,
+      pid: self(),
+      process: nil,
+      mfa: {Date, :leap_year?, 1}
+    }
+
+    Writer.append(saved, for(seq <- 0..10_000, do: %{entry | seq: seq}))
+    assert Writer.overloaded?()
+
+    assert {:ok, _session} = Tracer.create(:ui)
+    assert {:ok, _session} = configure()
+    assert {:ok, %{tracer: tracer}} = Tracer.start(:ui)
+    send(Tracer, {:voyager_trace_events, tracer, [entry], 0})
+    _ = :sys.get_state(Tracer)
+
+    assert %{traces: 1, dropped: 0} = Tracer.active()
+    :sys.resume(Writer)
+  end
+
   test "keeps a saved session's bytes in step with its saved rows" do
     assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
     assert {:ok, _session} = configure(%{max_events: 3})

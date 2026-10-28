@@ -368,7 +368,7 @@ defmodule Voyager.Services.Tracer do
         {:voyager_trace_events, tracer, events, agent_dropped},
         %{session: %{tracer: tracer, status: :running} = session, run: run} = state
       ) do
-    shedding? = overloaded?()
+    shedding? = overloaded?(session)
 
     {events, shed} =
       if shedding?,
@@ -619,9 +619,9 @@ defmodule Voyager.Services.Tracer do
   defp down_reason(reason), do: {:tracer_down, reason}
 
   # Batches are dropped here too, so a flood cannot grow this process' mailbox either.
-  defp overloaded? do
+  defp overloaded?(session) do
     {:message_queue_len, len} = Process.info(self(), :message_queue_len)
-    len > @max_mailbox or Writer.overloaded?()
+    len > @max_mailbox or (session.save and Writer.overloaded?())
   end
 
   defp broadcast(message), do: Phoenix.PubSub.broadcast(Voyager.PubSub, @topic, message)
