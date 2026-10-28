@@ -261,11 +261,11 @@ defmodule VoyagerWeb.TermTree do
 
   defp children_of(list, offset, limit, syntax) when is_list(list) do
     cond do
-      syntax == :elixir and Inspect.List.keyword?(list) ->
-        list |> Enum.slice(offset, limit) |> Enum.map(&keyword_pair/1)
-
       list_length(list) == :improper or string_list?(list) ->
         []
+
+      syntax == :elixir and list |> List.delete(@truncated) |> Inspect.List.keyword?() ->
+        list |> Enum.slice(offset, limit) |> Enum.map(&keyword_pair/1)
 
       true ->
         positional(list, offset, limit)
@@ -280,12 +280,13 @@ defmodule VoyagerWeb.TermTree do
 
   defp children_of(map, offset, limit, syntax) when is_map(map) do
     {markers, rest} = pop_markers(map)
+    pairs = ordered_pairs(rest)
+    keyword? = syntax == :elixir and Enum.all?(pairs, &Inspect.List.keyword?([&1]))
 
-    rest
-    |> ordered_pairs()
+    pairs
     |> Stream.concat(markers)
     |> Enum.slice(offset, limit)
-    |> keyed(syntax)
+    |> Enum.map(&key_value(&1, syntax, keyword?))
   end
 
   defp children_of(_term, _offset, _limit, _syntax), do: []
@@ -294,27 +295,18 @@ defmodule VoyagerWeb.TermTree do
     items |> Enum.slice(offset, limit) |> Enum.map(&{nil, &1})
   end
 
-  defp keyed(pairs, syntax), do: Enum.map(pairs, &key_value(&1, syntax))
+  defp keyword_pair(@truncated), do: {nil, @truncated}
 
   defp keyword_pair({key, value}),
     do: {[Segment.atom(Macro.inspect_atom(:key, key)), Segment.punctuation(" ")], value}
 
   # A truncated subterm the agent left as a map key carries no information in
   # that position; rendering it as `key => value` would only repeat the marker.
-  defp key_value({@truncated, _value}, _syntax), do: {nil, @truncated}
-  defp key_value({key, value}, syntax), do: {key_segments(key, syntax), value}
+  defp key_value({@truncated, _value}, _syntax, _keyword?), do: {nil, @truncated}
+  defp key_value(pair, _syntax, true = _keyword?), do: keyword_pair(pair)
 
-  defp key_segments(key, :elixir) when is_atom(key) and key not in [nil, true, false] do
-    case atom_segment(key, :elixir) do
-      %Segment{text: ":" <> name} = segment ->
-        [%Segment{segment | text: name <> ":"}, Segment.punctuation(" ")]
-
-      segment ->
-        [segment, Segment.punctuation(" => ")]
-    end
-  end
-
-  defp key_segments(key, syntax), do: key_content(key, syntax) ++ [Segment.punctuation(" => ")]
+  defp key_value({key, value}, syntax, false = _keyword?),
+    do: {key_content(key, syntax) ++ [Segment.punctuation(" => ")], value}
 
   defp key_content({@truncated, :binary, _prefix, _size} = key, syntax),
     do: build(key, syntax).content

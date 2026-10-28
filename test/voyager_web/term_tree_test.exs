@@ -230,6 +230,13 @@ defmodule VoyagerWeb.TermTreeTest do
       assert child_keys(TermTree.children([nil: 1, "a b": 2], 0, 10)) == ["nil: ", ~s("a b": )]
     end
 
+    test "a keyword list cut at the tail keeps its keys" do
+      children = TermTree.children([{:a, 1}, {:b, 2}, @truncated], 0, 10)
+
+      assert child_keys(children) == ["a: ", "b: ", nil]
+      assert child_terms(children) == [1, 2, @truncated]
+    end
+
     test "a list of tuples keyed by modules is positional, not a keyword list" do
       children = [{Foo, 1}, {:a, 2}]
 
@@ -247,6 +254,16 @@ defmodule VoyagerWeb.TermTreeTest do
       children = TermTree.children(%{"z" => 1, 2 => :x, nil => :y}, 0, 10)
 
       assert child_keys(children) == ["2 => ", "nil => ", ~s("z" => )]
+    end
+
+    test "atom keys use the arrow form when the map also has non-atom keys" do
+      children = TermTree.children(%{:a => 1, Foo => 2, "b" => 3}, 0, 10)
+
+      assert child_keys(children) == ["Foo => ", ":a => ", ~s("b" => )]
+    end
+
+    test "a map with only atom keys renders them all in keyword form" do
+      assert child_keys(TermTree.children(%{nil: 1, ok: 2}, 0, 10)) == ["nil: ", "ok: "]
     end
 
     test "struct children are its fields, without __struct__" do
