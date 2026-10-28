@@ -53,4 +53,22 @@ defmodule VoyagerWeb.ConnectLiveSshAgentTest do
     assert has_element?(view, ~s|#ssh_agent_socket_path[value="#{@socket_path}"]|)
     refute has_element?(view, "#ssh-advanced.hidden")
   end
+
+  test "filling a recent key connection keeps Advanced closed despite a saved socket", %{
+    conn: conn
+  } do
+    SshConnectionActions.upsert_connected("deploy", "gw", 22, "demo@localhost",
+      agent_socket_path: @socket_path
+    )
+
+    SshConnectionActions.upsert_connected("deploy", "gw", 22, "demo@localhost",
+      auth_method: :key,
+      key_path: "~/.ssh/id_ed25519"
+    )
+
+    {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
+    view |> element("[data-testid='fill-ssh-recent-btn']") |> render_click()
+
+    assert has_element?(view, "#ssh-advanced.hidden")
+  end
 end

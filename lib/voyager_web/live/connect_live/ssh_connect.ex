@@ -375,7 +375,10 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
 
       socket
       |> assign(:ssh_form, KeyAuth.checked_form(SshConnectionParams.changeset(params)))
-      |> update(:show_ssh_advanced, &(&1 or conn.agent_socket_path != nil))
+      |> update(
+        :show_ssh_advanced,
+        &(&1 or (conn.auth_method == :agent and conn.agent_socket_path != nil))
+      )
       |> SecretVisibility.reset()
     end)
   end

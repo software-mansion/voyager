@@ -164,7 +164,7 @@ defmodule Voyager.Services.TrayStatusTest do
     assert is_binary(error)
   end
 
-  test "passes the saved agent socket to the SSH connector" do
+  test "reconnects an SSH agent profile with a saved socket" do
     enable_proxy_epmd(%{})
 
     insert!(
