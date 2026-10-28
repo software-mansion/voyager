@@ -4,7 +4,7 @@ import PackageDescription
 let package = Package(
     name: "VoyagerTray",
     // Keep in sync with bundle.macOS.minimumSystemVersion in tauri.conf.json.
-    platforms: [.macOS(.v13)],
+    platforms: [.macOS(.v10_15)],
     products: [
         .library(name: "VoyagerTray", type: .static, targets: ["VoyagerTray"])
     ],

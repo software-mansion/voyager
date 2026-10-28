@@ -141,6 +141,34 @@ defmodule Voyager.Telemetry.ParserTest do
     end
   end
 
+  describe "parse_metadata/2 for trace events" do
+    test "keeps only the spec shape for `trace.start`" do
+      meta = %{
+        origin: :ui,
+        capture: :args,
+        scope: :global,
+        return_trace: true,
+        processes: :pids,
+        module: "Elixir.Secret"
+      }
+
+      assert Parser.parse_metadata([:voyager, :trace, :start], meta) == Map.delete(meta, :module)
+    end
+
+    test "keeps only the reason tag for `trace.start_failed` and `trace.stop`" do
+      assert Parser.parse_metadata([:voyager, :trace, :start_failed], %{
+               origin: :mcp,
+               reason: {:refused, :"Elixir.Secret"}
+             }) == %{origin: :mcp, reason: "refused"}
+
+      assert Parser.parse_metadata([:voyager, :trace, :stop], %{origin: :ui, reason: :event_limit}) ==
+               %{origin: :ui, reason: "event_limit"}
+
+      assert Parser.parse_metadata([:voyager, :trace, :stop], %{origin: :ui, reason: "x"}) ==
+               %{origin: :ui, reason: "unknown"}
+    end
+  end
+
   describe "parse_metadata/2 for mcp tool call events" do
     test "includes tool name for `tool_call.start` and `tool_call.stop`" do
       assert Parser.parse_metadata([:anubis_mcp, :server, :tool_call, :start], %{
@@ -221,6 +249,17 @@ defmodule Voyager.Telemetry.ParserTest do
     test "returns empty map for `mcp.start` and `mcp.stop`" do
       assert %{} == Parser.parse_measurements([:voyager, :mcp, :start], %{foo: :bar})
       assert %{} == Parser.parse_measurements([:voyager, :mcp, :stop], %{foo: :bar})
+    end
+  end
+
+  describe "parse_measurements/2 for trace events" do
+    test "keeps counts and duration for `trace.stop`" do
+      m = %{events: 3, dropped: 1, duration_ms: 20, foo: :bar}
+
+      assert Parser.parse_measurements([:voyager, :trace, :stop], m) ==
+               %{events: 3, dropped: 1, duration_ms: 20}
+
+      assert %{} == Parser.parse_measurements([:voyager, :trace, :start], %{foo: :bar})
     end
   end
 

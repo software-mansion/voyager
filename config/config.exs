@@ -43,4 +43,6 @@ config :logger, :default_formatter,
 
 config :phoenix, :json_library, Jason
 
+config :phoenix, :filter_parameters, ["password", "passphrase", "cookie"]
+
 import_config "#{config_env()}.exs"

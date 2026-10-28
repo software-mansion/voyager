@@ -2,8 +2,8 @@ defmodule VoyagerWeb.ConnectLive do
   use VoyagerWeb, :live_view
 
   alias Voyager.NodeSession
+  alias Voyager.NodeSession.ConnectError
   alias VoyagerWeb.ConnectComponents
-  alias VoyagerWeb.ConnectLive.ConnectError
 
   @impl true
   def mount(_params, _session, socket) do
