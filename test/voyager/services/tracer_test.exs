@@ -192,6 +192,20 @@ defmodule Voyager.Services.TracerTest do
     assert %{traces: 2} = TraceSessionQueries.get(id)
   end
 
+  test "loads a session whose saved status stayed running as interrupted" do
+    assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
+    assert {:ok, _session} = configure(%{max_events: 1})
+    assert {:ok, _session} = Tracer.start(:ui)
+    Date.leap_year?(~D[2024-01-01])
+    assert_receive {:session_entries, _session, [%{kind: :stopped}]}
+    assert {:ok, _session} = Tracer.create(:ui)
+    Writer.flush()
+    Repo.update_all(TraceSession, set: [status: :running, stop_reason: nil])
+
+    assert {:ok, %{id: ^id, status: :stopped, stop_reason: :interrupted}} = Tracer.load(id)
+    assert {:ok, %{status: :running}} = Tracer.start(:ui)
+  end
+
   test "refuses to load a missing session or while running" do
     assert {:error, :not_found} = Tracer.load(0)
     assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)

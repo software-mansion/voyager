@@ -228,6 +228,7 @@ defmodule Voyager.Services.Tracer do
 
   def handle_call({:load, id}, _from, state) do
     Writer.flush()
+    TraceSessionActions.interrupt_running()
 
     case TraceSessionQueries.get(id) do
       nil -> {:reply, {:error, :not_found}, state}
