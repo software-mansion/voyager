@@ -151,6 +151,28 @@ end
 
     :ets.new(:empty_set, [:set, :named_table, :public])
 
+    long_keyword = for i <- 1..10_000, do: {:"key_#{i}", i}
+
+    :ets.new(:keyword_terms, [:set, :named_table, :public])
+
+    :ets.insert(:keyword_terms, [
+      {:keyword, [name: "voyager", port: 4000, debug: false]},
+      {:special_keys, [nil: 1, true: 2, "with space": 3]},
+      {:elixir_prefixed_key, [{:"Elixir.foo", 1}, {:a, 2}]},
+      {:child_specs, [{Phoenix.PubSub, name: Demo.PubSub}, {Registry, keys: :unique}]},
+      {:module_keyed, [{Foo, 1}, {:a, 2}]},
+      {:mixed_keys_map, %{:a => 1, "b" => 2, Foo => 3}},
+      {:atom_keys_map, %{nil: 1, ok: 2, "with space": 3}},
+      {:long_keyword, long_keyword},
+      {:big,
+       %{
+         config: [name: "voyager", port: 4000, debug: false],
+         payload: String.duplicate("voyager ", 20_000),
+         users: Map.new(1..5_000, &{&1, %{id: &1, name: "user #{&1}", roles: [:admin]}}),
+         long_keyword: long_keyword
+       }}
+    ])
+
     :ets.new(:all_elixir_types, [:ordered_set, :named_table, :public])
 
     :ets.insert(:all_elixir_types, [
