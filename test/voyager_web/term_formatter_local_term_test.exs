@@ -1,9 +1,9 @@
 defmodule VoyagerWeb.TermFormatterLocalTermTest do
   # async: false because the connected node's id and the PID format are cached for the whole VM.
-  use ExUnit.Case, async: false
+  use Voyager.DataCase, async: false
 
   import Mox
-  import Voyager.TestUtils, only: [erl_eval: 1]
+  import Voyager.TestUtils, only: [erl_eval: 1, reset_pid_format: 1]
 
   alias Voyager.Pid
   alias VoyagerWeb.TermFormatter
@@ -16,15 +16,10 @@ defmodule VoyagerWeb.TermFormatterLocalTermTest do
   @new_pid_ext 88
 
   setup :verify_on_exit!
+  setup :reset_pid_format
 
   setup do
-    format = Pid.cached_format()
-
-    on_exit(fn ->
-      Pid.put_node(nil)
-      Pid.put_format(format)
-    end)
-
+    on_exit(fn -> Pid.put_node(nil) end)
     %{ids: [self(), make_ref(), hd(Port.list())]}
   end
 
@@ -114,10 +109,10 @@ defmodule VoyagerWeb.TermFormatterLocalTermTest do
       connect()
       pid = remote_pid(@node, 45)
 
-      Pid.put_format(:local)
+      :ok = Pid.save_setting(:local)
       local = TermFormatter.copy_string(pid, syntax: :erlang)
 
-      Pid.put_format(:distribution)
+      :ok = Pid.save_setting(:distribution)
       assert TermFormatter.copy_string(pid, syntax: :erlang) == local
     end
   end
@@ -126,10 +121,10 @@ defmodule VoyagerWeb.TermFormatterLocalTermTest do
     connect()
     pid = remote_pid(@node, 45)
 
-    Pid.put_format(:local)
+    :ok = Pid.save_setting(:local)
     assert TermFormatter.inspect({pid}, syntax: :erlang) == "{<0.45.0>}"
 
-    Pid.put_format(:distribution)
+    :ok = Pid.save_setting(:distribution)
     assert TermFormatter.inspect({pid}, syntax: :erlang) == "{<#{Pid.cached_node_id()}.45.0>}"
   end
 end

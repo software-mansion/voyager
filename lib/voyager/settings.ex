@@ -53,11 +53,23 @@ defmodule Voyager.Settings do
     end
   end
 
-  @doc "Like `get/2`, but a stored value outside `choices` also yields `default`."
-  @spec get_choice(atom(), [term()], term()) :: term()
-  def get_choice(key, choices, default) when is_atom(key) do
-    value = get(key, default)
-    if value in choices, do: value, else: default
+  @doc """
+  Like `get/2`, but a value outside `choices` also yields `default`. The value
+  is cached under `cache_key` in `:persistent_term` after the first read; save
+  it with `save_with_cache/3` to keep the cache in step.
+  """
+  @spec get_cached_choice(atom(), [term()], term(), term()) :: term()
+  def get_cached_choice(key, choices, default, cache_key) when is_atom(key) do
+    case :persistent_term.get(cache_key, nil) do
+      nil ->
+        value = get(key, default)
+        value = if value in choices, do: value, else: default
+        :persistent_term.put(cache_key, value)
+        value
+
+      value ->
+        value
+    end
   end
 
   @doc """
@@ -82,6 +94,12 @@ defmodule Voyager.Settings do
         conflict_target: :key
       )
     end
+  end
+
+  @doc "Like `put/2`, but also caches `value` under `cache_key` for `get_cached_choice/4`."
+  @spec save_with_cache(atom(), term(), term()) :: :ok | {:error, :locked | Ecto.Changeset.t()}
+  def save_with_cache(key, value, cache_key) do
+    with {:ok, _setting} <- put(key, value), do: :persistent_term.put(cache_key, value)
   end
 
   @doc """

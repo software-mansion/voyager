@@ -3,8 +3,6 @@ defmodule Voyager.Application do
 
   use Application
 
-  alias Voyager.Services.TermSyntax
-
   @impl true
   def start(_type, _args) do
     store_active_epmd_module()
@@ -16,6 +14,7 @@ defmodule Voyager.Application do
       Voyager.Repo,
       {Ecto.Migrator,
        repos: Application.fetch_env!(:voyager, :ecto_repos), skip: skip_migrations?()},
+      %{id: :load_settings, start: {__MODULE__, :load_settings, []}, restart: :temporary},
       Voyager.Telemetry,
       {Phoenix.PubSub, name: Voyager.PubSub},
       {Task.Supervisor, name: Voyager.TaskSupervisor},
@@ -29,10 +28,6 @@ defmodule Voyager.Application do
       VoyagerWeb.Endpoint,
       Voyager.MCP,
       {Voyager.Services.TrayStatus, native?: elixirkit_pubsub != nil},
-      Supervisor.child_spec({Task, &Voyager.Pid.load_format/0}, id: :load_pid_format),
-      Supervisor.child_spec({Task, &TermSyntax.load_setting/0},
-        id: :load_term_syntax
-      ),
       {Task, fn -> if elixirkit_pubsub, do: ElixirKit.PubSub.broadcast("messages", "ready") end}
     ]
 
@@ -44,6 +39,14 @@ defmodule Voyager.Application do
   def config_change(changed, _new, removed) do
     VoyagerWeb.Endpoint.config_change(changed, removed)
     :ok
+  end
+
+  # Runs inside the supervisor's start, so the caches are filled before the Endpoint serves a save.
+  @doc false
+  def load_settings do
+    Voyager.Pid.get_setting()
+    Voyager.Services.TermSyntax.get_setting()
+    :ignore
   end
 
   defp skip_migrations?, do: System.get_env("RELEASE_NAME") == nil

@@ -12,6 +12,8 @@ defmodule Voyager.Pid do
   @node_id_key {__MODULE__, :node_id}
   @formats [:distribution, :local]
 
+  @type format :: :distribution | :local
+
   @spec parse(String.t()) :: pid() | nil
   def parse(pid_string) when is_binary(pid_string) do
     pid_string |> String.trim_leading("#PID") |> String.to_charlist() |> :erlang.list_to_pid()
@@ -46,38 +48,34 @@ defmodule Voyager.Pid do
   def put_node(nil), do: :persistent_term.put(@node_id_key, nil)
   def put_node(node), do: :persistent_term.put(@node_id_key, node_id(node))
 
+  @spec settings() :: [format()]
+  def settings, do: @formats
+
   @doc """
-  The display format cached by `load_format/0` or `put_format/1`;
-  `:distribution` until either runs.
+  The saved PID format setting; `:distribution` when none is saved or the saved
+  value is unknown. Only the first call reads the database.
   """
-  @spec cached_format() :: :distribution | :local
-  def cached_format, do: :persistent_term.get(@format_key, :distribution)
+  @spec get_setting() :: format()
+  def get_setting,
+    do: Settings.get_cached_choice(:pid_format, @formats, :distribution, @format_key)
+
+  @spec setting_locked?() :: boolean()
+  def setting_locked?, do: Settings.locked?(:pid_format)
+
+  @doc "Saves `format` and caches it; `{:error, :locked}` when application config sets it."
+  @spec save_setting(format()) :: :ok | {:error, :locked | Ecto.Changeset.t()}
+  def save_setting(format) when format in @formats,
+    do: Settings.save_with_cache(:pid_format, format, @format_key)
 
   @doc """
-  Reads the PID format setting into the cache. Unknown values fall back to
-  `:distribution`.
-  """
-  @spec load_format() :: :ok
-  def load_format do
-    :pid_format
-    |> Settings.get_choice(@formats, :distribution)
-    |> put_format()
-  end
-
-  @spec put_format(:distribution | :local) :: :ok
-  def put_format(format) when format in @formats do
-    :persistent_term.put(@format_key, format)
-  end
-
-  @doc """
-  Formats a PID for display. Omitting the format uses `cached_format/0`.
+  Formats a PID for display. Omitting the format uses `get_setting/0`.
   `:local` shortens only the connected node's pids.
 
       iex> Voyager.Pid.format("<123.23.423>", :distribution)
       "<123.23.423>"
   """
-  @spec format(pid() | String.t(), :distribution | :local) :: String.t()
-  def format(pid, format \\ cached_format()) when format in @formats do
+  @spec format(pid() | String.t(), format()) :: String.t()
+  def format(pid, format \\ get_setting()) when format in @formats do
     pid
     |> pid_to_string()
     |> maybe_localize(format)

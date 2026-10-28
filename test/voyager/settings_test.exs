@@ -1,6 +1,8 @@
 defmodule Voyager.SettingsTest do
   use Voyager.DataCase, async: false
 
+  import Voyager.TestUtils, only: [reset_cached_setting: 1]
+
   alias Voyager.Schemas.Setting
   alias Voyager.Settings
 
@@ -24,21 +26,52 @@ defmodule Voyager.SettingsTest do
     end
   end
 
-  describe "get_choice/3" do
-    @choices [:auto, :elixir, :erlang]
+  @choices [:small, :medium, :large]
+  @cache_key {__MODULE__, :test_size}
+
+  defp get_cached_choice,
+    do: Settings.get_cached_choice(:test_size, @choices, :medium, @cache_key)
+
+  describe "get_cached_choice/4" do
+    setup do: reset_cached_setting(@cache_key)
 
     test "returns a saved value that is one of the choices" do
-      assert {:ok, _} = Settings.put(:term_syntax, :erlang)
-      assert Settings.get_choice(:term_syntax, @choices, :auto) == :erlang
+      assert {:ok, _} = Settings.put(:test_size, :large)
+      assert get_cached_choice() == :large
     end
 
     test "returns the default for a saved value outside the choices" do
-      assert {:ok, _} = Settings.put(:term_syntax, :lfe)
-      assert Settings.get_choice(:term_syntax, @choices, :auto) == :auto
+      assert {:ok, _} = Settings.put(:test_size, :huge)
+      assert get_cached_choice() == :medium
     end
 
     test "returns the default when nothing is saved" do
-      assert Settings.get_choice(:term_syntax, @choices, :auto) == :auto
+      assert get_cached_choice() == :medium
+    end
+
+    test "keeps the first value read until the cache is replaced" do
+      assert get_cached_choice() == :medium
+      assert {:ok, _} = Settings.put(:test_size, :large)
+      assert get_cached_choice() == :medium
+    end
+  end
+
+  describe "save_with_cache/3" do
+    setup do: reset_cached_setting(@cache_key)
+
+    test "saves the value and caches it" do
+      assert Settings.save_with_cache(:test_size, :large, @cache_key) == :ok
+
+      assert Settings.get(:test_size) == :large
+      assert get_cached_choice() == :large
+    end
+
+    test "leaves the cache alone when the key is locked" do
+      Application.put_env(:voyager, :test_size, :small)
+      on_exit(fn -> Application.delete_env(:voyager, :test_size) end)
+
+      assert Settings.save_with_cache(:test_size, :large, @cache_key) == {:error, :locked}
+      assert :persistent_term.get(@cache_key, nil) == nil
     end
   end
 

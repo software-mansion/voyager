@@ -4,7 +4,7 @@ defmodule VoyagerWeb.EtsTableLiveTest do
   use VoyagerWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
-  import Voyager.TestUtils, only: [erl_eval: 1]
+  import Voyager.TestUtils, only: [erl_eval: 1, reset_term_syntax: 1]
 
   alias Voyager.Erpc
   alias Voyager.Fakes
@@ -354,11 +354,9 @@ defmodule VoyagerWeb.EtsTableLiveTest do
   end
 
   describe "with the Erlang term syntax" do
-    setup do
-      setting = TermSyntax.cached_setting()
-      TermSyntax.put_setting(:erlang)
-      on_exit(fn -> TermSyntax.put_setting(setting) end)
-    end
+    setup :reset_term_syntax
+
+    setup do: TermSyntax.save_setting(:erlang)
 
     test "hides the URL's Elixir name until the table loads", %{conn: conn} do
       name = named_table(:set)

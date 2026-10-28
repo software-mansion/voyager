@@ -5,49 +5,47 @@ defmodule Voyager.Services.TermSyntax do
   The `:term_syntax` setting is `:auto`, `:elixir` or `:erlang`. `:auto` follows
   the connected node: Erlang when it has no `:elixir` application, Elixir
   otherwise. The setting and the connected node's syntax are cached in
-  `:persistent_term`, so `current/0` never makes a call.
+  `:persistent_term`; only the first `get_setting/0` reads the database.
   """
 
   alias Voyager.Erpc
   alias Voyager.Settings
 
   @setting_key {__MODULE__, :setting}
-  @node_key {__MODULE__, :node}
+  @node_syntax {__MODULE__, :node}
   @settings [:auto, :elixir, :erlang]
 
   @type syntax :: :elixir | :erlang
   @type setting :: :auto | syntax()
 
+  @spec settings() :: [setting()]
+  def settings, do: @settings
+
   @doc "The syntax to render with: the setting, with `:auto` resolved against the connected node."
   @spec current() :: syntax()
   def current do
-    case cached_setting() do
-      :auto -> :persistent_term.get(@node_key, :elixir)
+    case get_setting() do
+      :auto -> :persistent_term.get(@node_syntax, :elixir)
       syntax -> syntax
     end
   end
 
-  @doc "The setting cached by `load_setting/0` or `put_setting/1`; `:auto` until either runs."
-  @spec cached_setting() :: setting()
-  def cached_setting, do: :persistent_term.get(@setting_key, :auto)
+  @doc "The saved setting; `:auto` when none is saved or the saved value is unknown."
+  @spec get_setting() :: setting()
+  def get_setting, do: Settings.get_cached_choice(:term_syntax, @settings, :auto, @setting_key)
 
-  @doc "Reads the `:term_syntax` setting into the cache. Unknown values fall back to `:auto`."
-  @spec load_setting() :: :ok
-  def load_setting do
-    :term_syntax
-    |> Settings.get_choice(@settings, :auto)
-    |> put_setting()
-  end
+  @spec setting_locked?() :: boolean()
+  def setting_locked?, do: Settings.locked?(:term_syntax)
 
-  @spec put_setting(setting()) :: :ok
-  def put_setting(setting) when setting in @settings do
-    :persistent_term.put(@setting_key, setting)
-  end
+  @doc "Saves `setting` and caches it; `{:error, :locked}` when application config sets it."
+  @spec save_setting(setting()) :: :ok | {:error, :locked | Ecto.Changeset.t()}
+  def save_setting(setting) when setting in @settings,
+    do: Settings.save_with_cache(:term_syntax, setting, @setting_key)
 
   @doc "Caches the syntax `:auto` resolves to for `node`; an unreachable node counts as Elixir."
   @spec put_node(node() | nil) :: :ok
-  def put_node(nil), do: :persistent_term.put(@node_key, :elixir)
-  def put_node(node), do: :persistent_term.put(@node_key, node_syntax(node))
+  def put_node(nil), do: :persistent_term.put(@node_syntax, :elixir)
+  def put_node(node), do: :persistent_term.put(@node_syntax, node_syntax(node))
 
   defp node_syntax(node) do
     case Erpc.safe_call(node, :application, :get_key, [:elixir, :vsn]) do

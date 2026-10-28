@@ -4,7 +4,6 @@ defmodule VoyagerWeb.SettingsLive do
   alias Voyager.NodeSession
   alias Voyager.Pid
   alias Voyager.Services.TermSyntax
-  alias Voyager.Settings
   alias VoyagerWeb.SettingsComponents
   alias VoyagerWeb.SettingsLive.AppearanceSettings
   alias VoyagerWeb.SettingsLive.DistributionSettings
@@ -36,8 +35,8 @@ defmodule VoyagerWeb.SettingsLive do
     |> assign(:return_to, safe_return_to(params["return_to"]))
     |> assign(:connected?, not is_nil(NodeSession.current()))
     |> assign(:terms_of_service_url, Application.get_env(:voyager, :terms_of_service_url))
-    |> assign(:pid_format, Pid.cached_format())
-    |> assign(:term_syntax, TermSyntax.cached_setting())
+    |> assign(:pid_format, Pid.get_setting())
+    |> assign(:term_syntax, TermSyntax.get_setting())
     |> ok()
   end
 
@@ -61,7 +60,7 @@ defmodule VoyagerWeb.SettingsLive do
         description="Choose how process identifiers are shown in the Voyager UI."
         options={@pid_formats}
         selected={@pid_format}
-        locked?={Settings.locked?(:pid_format)}
+        locked?={Pid.setting_locked?()}
         on_select="select-pid-format"
       />
       <SettingsComponents.choice_setting
@@ -70,7 +69,7 @@ defmodule VoyagerWeb.SettingsLive do
         description="Choose the language syntax values are shown in."
         options={@term_syntaxes}
         selected={@term_syntax}
-        locked?={Settings.locked?(:term_syntax)}
+        locked?={TermSyntax.setting_locked?()}
         on_select="select-term-syntax"
       />
       <.live_component
@@ -90,14 +89,12 @@ defmodule VoyagerWeb.SettingsLive do
   end
 
   @impl true
-  def handle_event("select-pid-format", %{"choice" => choice}, socket)
-      when choice in ~w(distribution local) do
-    save_choice(socket, :pid_format, String.to_existing_atom(choice), &Pid.put_format/1)
+  def handle_event("select-pid-format", %{"choice" => choice}, socket) do
+    save_choice(socket, :pid_format, Pid.settings(), choice, &Pid.save_setting/1)
   end
 
-  def handle_event("select-term-syntax", %{"choice" => choice}, socket)
-      when choice in ~w(auto elixir erlang) do
-    save_choice(socket, :term_syntax, String.to_existing_atom(choice), &TermSyntax.put_setting/1)
+  def handle_event("select-term-syntax", %{"choice" => choice}, socket) do
+    save_choice(socket, :term_syntax, TermSyntax.settings(), choice, &TermSyntax.save_setting/1)
   end
 
   @impl true
@@ -116,22 +113,22 @@ defmodule VoyagerWeb.SettingsLive do
 
   def handle_info(_, socket), do: {:noreply, socket}
 
-  defp save_choice(socket, key, choice, cache) do
-    with false <- Settings.locked?(key) or socket.assigns[key] == choice,
-         {:ok, _setting} <- Settings.put(key, choice) do
-      cache.(choice)
+  defp save_choice(socket, key, choices, param, save) do
+    choice = Enum.find(choices, &(Atom.to_string(&1) == param))
 
-      socket
-      |> assign(key, choice)
-      |> noreply()
-    else
-      true ->
-        {:noreply, socket}
+    case choice && save.(choice) do
+      :ok ->
+        socket
+        |> assign(key, choice)
+        |> noreply()
 
-      {:error, _} ->
+      {:error, %Ecto.Changeset{}} ->
         socket
         |> put_flash(:error, "Failed to save the setting")
         |> noreply()
+
+      _unknown_or_locked ->
+        {:noreply, socket}
     end
   end
 

@@ -2,6 +2,7 @@ defmodule VoyagerWeb.SettingsLiveTest do
   use VoyagerWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
+  import Voyager.TestUtils, only: [reset_pid_format: 1, reset_term_syntax: 1]
 
   alias Voyager.Fakes
   alias Voyager.Services.TermSyntax
@@ -259,11 +260,7 @@ defmodule VoyagerWeb.SettingsLiveTest do
   end
 
   describe "pid format settings" do
-    setup do
-      format = Voyager.Pid.cached_format()
-      on_exit(fn -> Voyager.Pid.put_format(format) end)
-      :ok
-    end
+    setup :reset_pid_format
 
     test "saves the chosen format and caches it for formatting", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/settings")
@@ -274,19 +271,18 @@ defmodule VoyagerWeb.SettingsLiveTest do
 
       assert has_element?(view, ~s|#pid-format-local[aria-pressed="true"]|)
       assert Settings.get(:pid_format) == :local
-      assert Voyager.Pid.cached_format() == :local
+      assert Voyager.Pid.get_setting() == :local
 
       view |> element("#pid-format-distribution") |> render_click()
 
       assert has_element?(view, ~s|#pid-format-distribution[aria-pressed="true"]|)
       assert Settings.get(:pid_format) == :distribution
-      assert Voyager.Pid.cached_format() == :distribution
+      assert Voyager.Pid.get_setting() == :distribution
     end
 
     test "disables the buttons when locked by application config", %{conn: conn} do
       Application.put_env(:voyager, :pid_format, :local)
       on_exit(fn -> Application.delete_env(:voyager, :pid_format) end)
-      Voyager.Pid.load_format()
 
       {:ok, view, _html} = live(conn, ~p"/settings")
 
@@ -297,12 +293,7 @@ defmodule VoyagerWeb.SettingsLiveTest do
   end
 
   describe "term syntax settings" do
-    setup do
-      setting = TermSyntax.cached_setting()
-      on_exit(fn -> TermSyntax.put_setting(setting) end)
-      TermSyntax.put_setting(:auto)
-      :ok
-    end
+    setup :reset_term_syntax
 
     test "saves the chosen syntax and caches it for formatting", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/settings")
@@ -325,7 +316,6 @@ defmodule VoyagerWeb.SettingsLiveTest do
     test "disables the buttons when locked by application config", %{conn: conn} do
       Application.put_env(:voyager, :term_syntax, :erlang)
       on_exit(fn -> Application.delete_env(:voyager, :term_syntax) end)
-      TermSyntax.load_setting()
 
       {:ok, view, _html} = live(conn, ~p"/settings")
 
