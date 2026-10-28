@@ -1,10 +1,12 @@
 defmodule VoyagerWeb.TermFormatter.Elixir do
   @moduledoc false
 
+  @behaviour VoyagerWeb.TermFormatter
+
   alias Voyager.Pid
   alias VoyagerWeb.TermFormatter
 
-  @spec inspect(term(), keyword()) :: String.t()
+  @impl true
   def inspect(term, opts \\ []),
     do: Kernel.inspect(term, Keyword.put_new(opts, :inspect_fun, &inspect_fun/2))
 
@@ -13,7 +15,7 @@ defmodule VoyagerWeb.TermFormatter.Elixir do
   functions as expressions that rebuild them, so it pastes into IEx. Wraps at
   `:width`.
   """
-  @spec copy_string(term(), keyword()) :: String.t()
+  @impl true
   def copy_string(term, opts \\ []) do
     Kernel.inspect(
       term,
@@ -27,6 +29,9 @@ defmodule VoyagerWeb.TermFormatter.Elixir do
         ]
     )
   end
+
+  @impl true
+  def format_mfa({mod, fun, arity}), do: Exception.format_mfa(mod, fun, arity)
 
   defp inspect_fun(pid, opts) when is_pid(pid), do: Pid.inspect_fun(pid, opts)
 

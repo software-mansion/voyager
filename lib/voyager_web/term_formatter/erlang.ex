@@ -5,13 +5,15 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
   string only within ASCII; a binary within Unicode.
   """
 
+  @behaviour VoyagerWeb.TermFormatter
+
   alias Voyager.Pid
   alias VoyagerWeb.TermFormatter
 
   @single_line 1_000_000_000
   @elision {:text, ~c"..."}
 
-  @spec inspect(term(), keyword()) :: String.t()
+  @impl true
   def inspect(term, opts \\ []) do
     opts = Inspect.Opts.new(opts)
     {form, _opts} = abstract(term, opts)
@@ -22,14 +24,14 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
   `term` uncut, with pids, refs and ports as calls that rebuild them, so it
   pastes into `erl`. Wraps at `:width`.
   """
-  @spec copy_string(term(), keyword()) :: String.t()
+  @impl true
   def copy_string(term, opts \\ []) do
     opts = Inspect.Opts.new([pretty: true] ++ opts)
     {form, _mode} = abstract(term, :copy)
     print(form, line_length(opts))
   end
 
-  @spec format_mfa({module(), atom(), arity()}) :: String.t()
+  @impl true
   def format_mfa({mod, fun, arity}), do: "#{atom(mod)}:#{atom(fun)}/#{arity}"
 
   @spec atom(atom()) :: String.t()
