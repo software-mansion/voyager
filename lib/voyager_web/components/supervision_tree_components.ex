@@ -131,6 +131,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
         node_name={@node_name}
         last_updated={@last_updated}
         waiting_message="waiting for first fetch…"
+        back
       >
         <:actions>
           <span

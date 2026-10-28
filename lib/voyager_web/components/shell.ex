@@ -357,6 +357,7 @@ defmodule VoyagerWeb.Components.Shell do
         id={@id}
         navigate={@navigate}
         class={["sidebar-nav-row", @active && "menu-active"]}
+        data-sidebar-nav
         phx-hook="Tooltip"
         data-tooltip-target={"##{@id}-tip"}
         data-tooltip-position="right"

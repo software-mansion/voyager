@@ -38,7 +38,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   attr :table_name, :string, required: true
   attr :node_name, :string, required: true
-  attr :back_href, :string, required: true
+  attr :parent_href, :string, required: true
   attr :last_updated, :any, default: nil
 
   def header(assigns) do
@@ -48,6 +48,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       last_updated={@last_updated}
       waiting_message={nil}
       class="mb-0"
+      back
     >
       <:actions>
         <.tooltip id="ets-table-name-tip" position="bottom" interactive tip_class="font-mono">
@@ -73,9 +74,10 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       </:actions>
     </.node_header>
 
-    <.link id="back-to-ets-tables" navigate={@back_href} class="btn btn-ghost btn-sm w-max gap-2">
-      <.icon name="icon-arrow-left" class="size-4" /> ETS Tables
-    </.link>
+    <.breadcrumbs id="ets-table-breadcrumbs">
+      <:crumb navigate={@parent_href}>ETS tables</:crumb>
+      <:crumb class="font-mono">{@table_name}</:crumb>
+    </.breadcrumbs>
     """
   end
 

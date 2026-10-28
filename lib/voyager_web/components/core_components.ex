@@ -81,47 +81,115 @@ defmodule VoyagerWeb.CoreComponents do
 
   attr :class, :any, default: "mb-8", doc: "replaces the default bottom margin"
 
+  attr :back, :boolean,
+    default: false,
+    doc:
+      "leads with a back button, shown only when the page was reached from inside the app but not from the sidebar"
+
   slot :actions
 
   def node_header(assigns) do
     ~H"""
     <header class={["flex items-center justify-between gap-4" | List.wrap(@class)]}>
-      <div class="min-w-0 flex-1">
-        <h1 class="font-mono text-base-content min-w-0 text-2xl font-bold tracking-tight">
-          <.tooltip
-            id="node-header-name-tip"
-            position="bottom"
-            interactive
-            class="min-w-0 max-w-full"
-            tip_class="max-w-lg break-all font-mono"
+      <div class="flex min-w-0 flex-1 items-start gap-2">
+        <.history_back :if={@back} />
+        <div class="min-w-0 flex-1">
+          <h1 class="font-mono text-base-content min-w-0 text-2xl font-bold tracking-tight">
+            <.tooltip
+              id="node-header-name-tip"
+              position="bottom"
+              interactive
+              class="min-w-0 max-w-full"
+              tip_class="max-w-lg break-all font-mono"
+            >
+              <span class="block truncate">{@node_name}</span>
+              <:content>
+                <div class="flex items-center gap-1">
+                  <span id="node-header-name">{@node_name}</span>
+                  <.copy_button
+                    id="node-header-name-copy"
+                    target="#node-header-name"
+                    icon_only
+                    class="btn-xs text-base-content/50 shrink-0 hover:text-base-content"
+                  />
+                </div>
+              </:content>
+            </.tooltip>
+          </h1>
+          <p
+            :if={@last_updated || @waiting_message}
+            class="font-mono text-base-content/70 mt-0.5 text-xs"
           >
-            <span class="block truncate">{@node_name}</span>
-            <:content>
-              <div class="flex items-center gap-1">
-                <span id="node-header-name">{@node_name}</span>
-                <.copy_button
-                  id="node-header-name-copy"
-                  target="#node-header-name"
-                  icon_only
-                  class="btn-xs text-base-content/50 shrink-0 hover:text-base-content"
-                />
-              </div>
-            </:content>
-          </.tooltip>
-        </h1>
-        <p
-          :if={@last_updated || @waiting_message}
-          class="font-mono text-base-content/70 mt-0.5 text-xs"
-        >
-          <%= if @last_updated do %>
-            updated {Formatters.format_time(@last_updated)} UTC
-          <% else %>
-            {@waiting_message}
-          <% end %>
-        </p>
+            <%= if @last_updated do %>
+              updated {Formatters.format_time(@last_updated)} UTC
+            <% else %>
+              {@waiting_message}
+            <% end %>
+          </p>
+        </div>
       </div>
       <div :if={@actions != []} class="flex shrink-0 items-center gap-2">{render_slot(@actions)}</div>
     </header>
+    """
+  end
+
+  defp history_back(assigns) do
+    ~H"""
+    <div
+      id="node-header-back-wrapper"
+      class="flex shrink-0 translate-y-0.5"
+      hidden
+      phx-hook="HistoryBack"
+      phx-mounted={JS.ignore_attributes(["hidden"])}
+    >
+      <.tooltip id="node-header-back-tip" position="bottom">
+        <button
+          type="button"
+          id="node-header-back"
+          aria-label="Back"
+          class="btn btn-ghost btn-square toolbar-btn text-base-content/70 hover:text-base-content"
+        >
+          <.icon name="icon-arrow-left" class="toolbar-icon" />
+        </button>
+        <:content>Back</:content>
+      </.tooltip>
+    </div>
+    """
+  end
+
+  @doc """
+  Breadcrumbs for a detail page. The last crumb is the current page and takes
+  no `navigate`.
+  """
+  attr :id, :string, required: true
+
+  slot :crumb, required: true do
+    attr :navigate, :string
+    attr :class, :any
+  end
+
+  def breadcrumbs(assigns) do
+    ~H"""
+    <nav id={@id} aria-label="Breadcrumb" class="breadcrumbs py-1 text-sm">
+      <ul>
+        <li
+          :for={crumb <- @crumb}
+          aria-current={!crumb[:navigate] && "page"}
+          class={[!crumb[:navigate] && "text-base-content", crumb[:class]]}
+        >
+          <%= if crumb[:navigate] do %>
+            <.link
+              navigate={crumb.navigate}
+              class="text-base-content/70 transition-colors hover:text-base-content"
+            >
+              {render_slot(crumb)}
+            </.link>
+          <% else %>
+            {render_slot(crumb)}
+          <% end %>
+        </li>
+      </ul>
+    </nav>
     """
   end
 
