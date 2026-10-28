@@ -1,5 +1,5 @@
 defmodule VoyagerWeb.SupervisionTreeLive.Display do
-  @moduledoc false
+  @moduledoc "Builds the per-node labels pushed to the supervision tree hook, in the current term syntax."
 
   alias Voyager.Services.SupervisionTree.TreeNode
   alias VoyagerWeb.Formatters
