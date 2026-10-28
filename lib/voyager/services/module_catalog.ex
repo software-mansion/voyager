@@ -32,12 +32,8 @@ defmodule Voyager.Services.ModuleCatalog do
   end
 
   @doc """
-  Loaded modules, named in full (`Elixir.Foo.Bar`, `lists`) so the name can be
-  passed to tracing as is.
-
-  A `filter` keeps the modules it fuzzy-matches case-insensitively, ranked
-  exact, prefix, substring, then subsequence; `Foo` matches `Elixir.Foo`
-  exactly. A `nil` or blank filter returns all, sorted by name.
+  Loaded modules named in full (`Elixir.Foo.Bar`, `lists`), fuzzy-matched against
+  `filter` with the closest first. `Foo` matches `Elixir.Foo`. Blank returns all.
   """
   @spec modules(node(), String.t() | nil) :: {:ok, [module_entry()]} | {:error, term()}
   def modules(node, filter \\ nil) do
