@@ -161,7 +161,7 @@ defmodule VoyagerWeb.TermTree do
 
   defp build(list, syntax) when is_list(list) do
     with {:ok, count} <- list_length(list),
-         false <- string_list?(list) do
+         false <- string_list?(list, syntax) do
       branch(:list, count, @truncated in list, "[", "]")
     else
       true -> %Node{kind: :list, content: [Segment.string(inspect_term(list, syntax))]}
@@ -248,7 +248,8 @@ defmodule VoyagerWeb.TermTree do
     end
   end
 
-  defp string_list?(list), do: List.ascii_printable?(list, @inspect_opts[:printable_limit])
+  defp string_list?(list, syntax),
+    do: TermFormatter.printable_list?(list, [syntax: syntax] ++ @inspect_opts)
 
   defp map_open(:elixir), do: "%{"
   defp map_open(:erlang), do: "\#{"
@@ -261,7 +262,7 @@ defmodule VoyagerWeb.TermTree do
 
   defp children_of(list, offset, limit, syntax) when is_list(list) do
     cond do
-      list_length(list) == :improper or string_list?(list) ->
+      list_length(list) == :improper or string_list?(list, syntax) ->
         []
 
       syntax == :elixir and list |> List.delete(@truncated) |> Inspect.List.keyword?() ->

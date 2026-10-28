@@ -89,10 +89,11 @@ defmodule VoyagerWeb.TermFormatterTest do
       assert erlang("abc" <> <<255>>, printable_limit: 2) == ~S|<<"ab",...>>|
     end
 
-    test "prints a list as a string only within ASCII" do
+    test "prints a list as a string only within Latin-1, as a default erl shell does" do
       assert erlang(~c"hi\n") == ~S|"hi\n"|
-      assert erlang([200, 201, 204]) == "[200, 201, 204]"
-      assert erlang(~c"café") == "[99, 97, 102, 233]"
+      assert erlang([200, 201, 204]) == ~S|"ÈÉÌ"|
+      assert erlang(~c"zażółć") == "[122, 97, 380, 243, 322, 263]"
+      assert erlang([7, 65]) == "[7, 65]"
     end
 
     test "prints a UTF-8 binary as text" do

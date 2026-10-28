@@ -14,6 +14,7 @@ defmodule VoyagerWeb.TermFormatter do
   @callback inspect(term(), keyword()) :: String.t()
   @callback copy_string(term(), keyword()) :: String.t()
   @callback format_mfa({module(), atom(), arity()}) :: String.t()
+  @callback printable_list?(list(), keyword()) :: boolean()
 
   @doc """
   Accepts `:syntax` (defaults to `Voyager.Services.TermSyntax.current/0`) and the
@@ -34,6 +35,15 @@ defmodule VoyagerWeb.TermFormatter do
   def copy_string(term, opts \\ []) do
     {formatter, opts} = pop_formatter(opts)
     formatter.copy_string(term, opts)
+  end
+
+  @doc """
+  Whether `list` prints as text. Accepts `:syntax` and `:printable_limit`
+  """
+  @spec printable_list?(list(), keyword()) :: boolean()
+  def printable_list?(list, opts \\ []) do
+    {formatter, opts} = pop_formatter(opts)
+    formatter.printable_list?(list, opts)
   end
 
   @doc ~S|Renders an `{module, function, arity}` call target, e.g. `"Enum.map/2"` or `"lists:map/2"`.|

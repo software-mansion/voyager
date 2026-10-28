@@ -2,7 +2,7 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
   @moduledoc """
   Prints terms in Erlang syntax with `erl_pp`, from an abstract form built
   here, so the output never depends on the VM's `+pc` flag. A list reads as a
-  string only within ASCII; a binary within Unicode.
+  string only within Latin-1, as in a default `erl` shell; a binary within Unicode.
   """
 
   @behaviour VoyagerWeb.TermFormatter
@@ -36,6 +36,12 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
 
   @spec atom(atom()) :: String.t()
   def atom(atom), do: atom |> :io_lib.write_atom() |> IO.chardata_to_string()
+
+  @impl true
+  def printable_list?(list, opts \\ []) do
+    limit = Inspect.Opts.new(opts).printable_limit
+    match?({:ok, _chars, _more?}, printable_prefix(list, limit))
+  end
 
   defp print(form, line_length) do
     form
@@ -214,7 +220,8 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
 
   defp take_binary_chars(rest, _limit, acc), do: {Enum.reverse(acc), rest}
 
-  # ASCII only for lists, so a list of numbers such as [200, 201, 204] is not shown as text.
-  defp printable?(list, chars) when is_list(list), do: List.ascii_printable?(chars)
+  # Lists follow observer under the default `+pc latin1`, so [200, 404, 500] stays numbers;
+  # binaries follow `+pc unicode`, so UTF-8 text is not shown as bytes.
+  defp printable?(list, chars) when is_list(list), do: :io_lib.printable_latin1_list(chars)
   defp printable?(_bitstring, chars), do: :io_lib.printable_unicode_list(chars)
 end

@@ -33,6 +33,10 @@ defmodule VoyagerWeb.TermFormatter.Elixir do
   @impl true
   def format_mfa({mod, fun, arity}), do: Exception.format_mfa(mod, fun, arity)
 
+  @impl true
+  def printable_list?(list, opts \\ []),
+    do: List.ascii_printable?(list, Inspect.Opts.new(opts).printable_limit)
+
   defp inspect_fun(pid, opts) when is_pid(pid), do: Pid.inspect_fun(pid, opts)
 
   defp inspect_fun(struct, opts) when is_struct(struct) do
