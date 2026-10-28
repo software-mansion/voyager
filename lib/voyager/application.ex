@@ -14,7 +14,6 @@ defmodule Voyager.Application do
       Voyager.Repo,
       {Ecto.Migrator,
        repos: Application.fetch_env!(:voyager, :ecto_repos), skip: skip_migrations?()},
-      %{id: :load_settings, start: {__MODULE__, :load_settings, []}, restart: :temporary},
       Voyager.Telemetry,
       {Phoenix.PubSub, name: Voyager.PubSub},
       {Task.Supervisor, name: Voyager.TaskSupervisor},
@@ -39,14 +38,6 @@ defmodule Voyager.Application do
   def config_change(changed, _new, removed) do
     VoyagerWeb.Endpoint.config_change(changed, removed)
     :ok
-  end
-
-  # Runs inside the supervisor's start, so the caches are filled before the Endpoint serves a save.
-  @doc false
-  def load_settings do
-    Voyager.Pid.get_setting()
-    Voyager.Services.TermSyntax.get_setting()
-    :ignore
   end
 
   defp skip_migrations?, do: System.get_env("RELEASE_NAME") == nil
