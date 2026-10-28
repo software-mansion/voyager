@@ -138,6 +138,15 @@ defmodule Voyager.TraceSessionsTest do
              64 + terms + byte_size(text) + byte_size("Elixir.Date") + byte_size("leap_year?")
   end
 
+  test "insert_all/2 counts a configured entry's config bytes" do
+    %{id: id} = session!(:idle)
+    pids = for n <- 1..100, do: "<0.#{n}.0>"
+    config = %Voyager.Services.Tracer.Config{module: "Elixir.Date", pids: pids}
+    entry = %{seq: 0, kind: :configured, at: 1, origin: :ui, node: node(), config: config}
+
+    assert TraceEntryActions.insert_all(id, [entry]) > 100 * byte_size("<0.1.0>")
+  end
+
   test "compresses large terms and counts the compressed bytes" do
     %{id: id} = session!(:running)
     args = [List.duplicate(%{state: :running, name: "worker"}, 200)]

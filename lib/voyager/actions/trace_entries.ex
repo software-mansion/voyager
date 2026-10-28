@@ -117,6 +117,9 @@ defmodule Voyager.Actions.TraceEntries do
     row
     |> Map.values()
     |> Enum.filter(&is_binary/1)
-    |> Enum.reduce(@row_overhead_bytes, &(byte_size(&1) + &2))
+    |> Enum.reduce(@row_overhead_bytes + config_bytes(row), &(byte_size(&1) + &2))
   end
+
+  defp config_bytes(%{config: config}) when is_map(config), do: :erlang.external_size(config)
+  defp config_bytes(_row), do: 0
 end
