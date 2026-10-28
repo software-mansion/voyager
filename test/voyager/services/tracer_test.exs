@@ -34,7 +34,7 @@ defmodule Voyager.Services.TracerTest do
   end
 
   test "creates and closes the active session", %{session: %{id: id}} do
-    assert_receive {:session_created, %{id: ^id, origin: :ui, save: false, status: :idle}}
+    assert_receive {:session_activated, %{id: ^id, origin: :ui, save: false, status: :idle}}
 
     assert {:ok, %{id: new_id, origin: :mcp, save: true}} = Tracer.create(:mcp, save: true)
     refute new_id == id
@@ -180,7 +180,7 @@ defmodule Voyager.Services.TracerTest do
     assert {:ok, %{id: ^id, status: :stopped, seq: 4, traces: 1, node: node, config: config}} =
              Tracer.load(id)
 
-    assert_receive {:session_created, %{id: ^id}}
+    assert_receive {:session_activated, %{id: ^id}}
     assert node == Node.self()
     assert %Config{module: "Elixir.Date", max_events: 1} = config
     assert %{id: ^id} = Tracer.active()

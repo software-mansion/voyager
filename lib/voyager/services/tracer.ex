@@ -11,7 +11,7 @@ defmodule Voyager.Services.Tracer do
   `:stopped`, `:trace` (a trace event) and `:dropped` (how many events were lost
   since the previous entry). The configured, started and stopped entries and the
   newest trace and dropped entries are kept in memory. Broadcasts on `topic/0` are
-  `{:session_created, session}`, `{:session_closed, id}` and
+  `{:session_activated, session}`, `{:session_closed, id}` and
   `{:session_entries, session, entries}` with the entries just appended, oldest first.
 
   A session created with `save: true` gets a `Voyager.Schemas.TraceSession` row and
@@ -222,7 +222,7 @@ defmodule Voyager.Services.Tracer do
       storage_limit: storage_limit()
     }
 
-    broadcast({:session_created, session})
+    broadcast({:session_activated, session})
     {:reply, {:ok, session}, %__MODULE__{session: session}}
   end
 
@@ -538,7 +538,7 @@ defmodule Voyager.Services.Tracer do
       stopped_at: row.stopped_at
     }
 
-    broadcast({:session_created, session})
+    broadcast({:session_activated, session})
 
     state = %__MODULE__{
       session: session,
