@@ -48,9 +48,6 @@ defmodule Voyager.Pid do
   def put_node(nil), do: :persistent_term.put(@node_id_key, nil)
   def put_node(node), do: :persistent_term.put(@node_id_key, node_id(node))
 
-  @spec settings() :: [format()]
-  def settings, do: @formats
-
   @doc """
   The saved PID format setting; `:distribution` when none is saved or the saved
   value is unknown. Only the first call reads the database.
@@ -62,10 +59,11 @@ defmodule Voyager.Pid do
   @spec setting_locked?() :: boolean()
   def setting_locked?, do: Settings.locked?(:pid_format)
 
-  @doc "Saves `format` and caches it; `{:error, :locked}` when application config sets it."
-  @spec save_setting(format()) :: :ok | {:error, :locked | Ecto.Changeset.t()}
-  def save_setting(format) when format in @formats,
-    do: Settings.save_with_cache(:pid_format, format, @format_key)
+  @doc "Saves `format`, given as an atom or its name, and caches it."
+  @spec save_setting(format() | String.t()) ::
+          {:ok, format()} | {:error, :unsupported_choice | :locked | Ecto.Changeset.t()}
+  def save_setting(format),
+    do: Settings.save_cached_choice(:pid_format, @formats, format, @format_key)
 
   @doc """
   Formats a PID for display. Omitting the format uses `get_setting/0`.

@@ -109,10 +109,10 @@ defmodule VoyagerWeb.TermFormatterLocalTermTest do
       connect()
       pid = remote_pid(@node, 45)
 
-      :ok = Pid.save_setting(:local)
+      {:ok, :local} = Pid.save_setting(:local)
       local = TermFormatter.copy_string(pid, syntax: :erlang)
 
-      :ok = Pid.save_setting(:distribution)
+      {:ok, :distribution} = Pid.save_setting(:distribution)
       assert TermFormatter.copy_string(pid, syntax: :erlang) == local
     end
   end
@@ -121,10 +121,10 @@ defmodule VoyagerWeb.TermFormatterLocalTermTest do
     connect()
     pid = remote_pid(@node, 45)
 
-    :ok = Pid.save_setting(:local)
+    {:ok, :local} = Pid.save_setting(:local)
     assert TermFormatter.inspect({pid}, syntax: :erlang) == "{<0.45.0>}"
 
-    :ok = Pid.save_setting(:distribution)
+    {:ok, :distribution} = Pid.save_setting(:distribution)
     assert TermFormatter.inspect({pid}, syntax: :erlang) == "{<#{Pid.cached_node_id()}.45.0>}"
   end
 end

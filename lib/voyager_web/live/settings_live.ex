@@ -90,11 +90,11 @@ defmodule VoyagerWeb.SettingsLive do
 
   @impl true
   def handle_event("select-pid-format", %{"choice" => choice}, socket) do
-    save_choice(socket, :pid_format, Pid.settings(), choice, &Pid.save_setting/1)
+    save_choice(socket, :pid_format, Pid.save_setting(choice))
   end
 
   def handle_event("select-term-syntax", %{"choice" => choice}, socket) do
-    save_choice(socket, :term_syntax, TermSyntax.settings(), choice, &TermSyntax.save_setting/1)
+    save_choice(socket, :term_syntax, TermSyntax.save_setting(choice))
   end
 
   @impl true
@@ -113,11 +113,9 @@ defmodule VoyagerWeb.SettingsLive do
 
   def handle_info(_, socket), do: {:noreply, socket}
 
-  defp save_choice(socket, key, choices, param, save) do
-    choice = Enum.find(choices, &(Atom.to_string(&1) == param))
-
-    case choice && save.(choice) do
-      :ok ->
+  defp save_choice(socket, key, result) do
+    case result do
+      {:ok, choice} ->
         socket
         |> assign(key, choice)
         |> noreply()
@@ -127,7 +125,7 @@ defmodule VoyagerWeb.SettingsLive do
         |> put_flash(:error, "Failed to save the setting")
         |> noreply()
 
-      _unknown_or_locked ->
+      {:error, _unsupported_or_locked} ->
         {:noreply, socket}
     end
   end

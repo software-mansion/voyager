@@ -18,9 +18,6 @@ defmodule Voyager.Services.TermSyntax do
   @type syntax :: :elixir | :erlang
   @type setting :: :auto | syntax()
 
-  @spec settings() :: [setting()]
-  def settings, do: @settings
-
   @doc "The syntax to render with: the setting, with `:auto` resolved against the connected node."
   @spec current() :: syntax()
   def current do
@@ -37,10 +34,11 @@ defmodule Voyager.Services.TermSyntax do
   @spec setting_locked?() :: boolean()
   def setting_locked?, do: Settings.locked?(:term_syntax)
 
-  @doc "Saves `setting` and caches it; `{:error, :locked}` when application config sets it."
-  @spec save_setting(setting()) :: :ok | {:error, :locked | Ecto.Changeset.t()}
-  def save_setting(setting) when setting in @settings,
-    do: Settings.save_with_cache(:term_syntax, setting, @setting_key)
+  @doc "Saves `setting`, given as an atom or its name, and caches it."
+  @spec save_setting(setting() | String.t()) ::
+          {:ok, setting()} | {:error, :unsupported_choice | :locked | Ecto.Changeset.t()}
+  def save_setting(setting),
+    do: Settings.save_cached_choice(:term_syntax, @settings, setting, @setting_key)
 
   @doc "Caches the syntax `:auto` resolves to for `node`; an unreachable node counts as Elixir."
   @spec put_node(node() | nil) :: :ok

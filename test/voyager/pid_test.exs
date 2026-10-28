@@ -83,10 +83,10 @@ defmodule Voyager.PidTest do
       connect(@node)
       pid = pid_on(@node, 45)
 
-      assert Pid.save_setting(:local) == :ok
+      assert Pid.save_setting(:local) == {:ok, :local}
       assert Pid.format(pid) == "<0.45.0>"
 
-      assert Pid.save_setting(:distribution) == :ok
+      assert Pid.save_setting(:distribution) == {:ok, :distribution}
       assert Pid.format(pid) == distribution(pid)
     end
   end
@@ -94,7 +94,7 @@ defmodule Voyager.PidTest do
   describe "inspect_fun/2" do
     test "renders nested pids in the format setting" do
       connect(@node)
-      assert Pid.save_setting(:local) == :ok
+      assert Pid.save_setting(:local) == {:ok, :local}
       pid = pid_on(@node, 45)
 
       assert inspect({:ok, [pid]}, inspect_fun: &Pid.inspect_fun/2) == "{:ok, [#PID<0.45.0>]}"
@@ -158,10 +158,15 @@ defmodule Voyager.PidTest do
 
   describe "save_setting/1" do
     test "saves and caches the format" do
-      assert Pid.save_setting(:local) == :ok
+      assert Pid.save_setting(:local) == {:ok, :local}
 
       assert Settings.get(:pid_format) == :local
       assert Pid.get_setting() == :local
+    end
+
+    test "rejects an unknown format" do
+      assert Pid.save_setting("bogus") == {:error, :unsupported_choice}
+      assert Pid.get_setting() == :distribution
     end
 
     test "leaves the database and the cache alone when the config locks the format" do

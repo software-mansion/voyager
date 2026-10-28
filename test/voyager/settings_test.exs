@@ -56,21 +56,39 @@ defmodule Voyager.SettingsTest do
     end
   end
 
-  describe "save_with_cache/3" do
+  defp save_cached_choice(value),
+    do: Settings.save_cached_choice(:test_size, @choices, value, @cache_key)
+
+  describe "save_cached_choice/4" do
     setup do: reset_cached_setting(@cache_key)
 
     test "saves the value and caches it" do
-      assert Settings.save_with_cache(:test_size, :large, @cache_key) == :ok
+      assert save_cached_choice(:large) == {:ok, :large}
 
       assert Settings.get(:test_size) == :large
       assert get_cached_choice() == :large
+    end
+
+    test "accepts a choice by its name" do
+      assert save_cached_choice("small") == {:ok, :small}
+
+      assert Settings.get(:test_size) == :small
+      assert get_cached_choice() == :small
+    end
+
+    test "rejects a value outside the choices" do
+      assert save_cached_choice(:huge) == {:error, :unsupported_choice}
+      assert save_cached_choice("huge") == {:error, :unsupported_choice}
+
+      assert Settings.get(:test_size) == nil
+      assert :persistent_term.get(@cache_key, nil) == nil
     end
 
     test "leaves the cache alone when the key is locked" do
       Application.put_env(:voyager, :test_size, :small)
       on_exit(fn -> Application.delete_env(:voyager, :test_size) end)
 
-      assert Settings.save_with_cache(:test_size, :large, @cache_key) == {:error, :locked}
+      assert save_cached_choice(:large) == {:error, :locked}
       assert :persistent_term.get(@cache_key, nil) == nil
     end
   end

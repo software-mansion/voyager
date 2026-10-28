@@ -356,7 +356,10 @@ defmodule VoyagerWeb.EtsTableLiveTest do
   describe "with the Erlang term syntax" do
     setup :reset_term_syntax
 
-    setup do: TermSyntax.save_setting(:erlang)
+    setup do
+      {:ok, :erlang} = TermSyntax.save_setting(:erlang)
+      :ok
+    end
 
     test "hides the URL's Elixir name until the table loads", %{conn: conn} do
       name = named_table(:set)

@@ -60,12 +60,12 @@ defmodule Voyager.Services.TermSyntaxTest do
     test "an explicit setting wins over the node" do
       connect(fn -> :undefined end)
 
-      assert TermSyntax.save_setting(:elixir) == :ok
+      assert TermSyntax.save_setting(:elixir) == {:ok, :elixir}
       assert TermSyntax.current() == :elixir
 
       connect(fn -> {:ok, ~c"1.20.2"} end)
 
-      assert TermSyntax.save_setting(:erlang) == :ok
+      assert TermSyntax.save_setting(:erlang) == {:ok, :erlang}
       assert TermSyntax.current() == :erlang
     end
   end
@@ -97,10 +97,15 @@ defmodule Voyager.Services.TermSyntaxTest do
 
   describe "save_setting/1" do
     test "saves and caches the setting" do
-      assert TermSyntax.save_setting(:erlang) == :ok
+      assert TermSyntax.save_setting(:erlang) == {:ok, :erlang}
 
       assert Settings.get(:term_syntax) == :erlang
       assert TermSyntax.get_setting() == :erlang
+    end
+
+    test "rejects an unknown setting" do
+      assert TermSyntax.save_setting("lfe") == {:error, :unsupported_choice}
+      assert TermSyntax.get_setting() == :auto
     end
 
     test "leaves the database and the cache alone when the config locks the setting" do
