@@ -3,11 +3,12 @@ defmodule Voyager.Services.Tracer.Run do
 
   alias Voyager.Services.Tracer
 
-  @enforce_keys [:origin, :traces_before, :dropped_before, :started_ms]
+  @enforce_keys [:origin, :traces_before, :dropped_before, :dropped_logged, :started_ms]
   defstruct [
     :origin,
     :traces_before,
     :dropped_before,
+    :dropped_logged,
     :started_ms,
     shed: 0,
     open_calls: %{},
@@ -19,6 +20,7 @@ defmodule Voyager.Services.Tracer.Run do
           origin: Tracer.origin(),
           traces_before: non_neg_integer(),
           dropped_before: non_neg_integer(),
+          dropped_logged: non_neg_integer(),
           started_ms: integer(),
           shed: non_neg_integer(),
           open_calls: %{{pid(), mfa()} => [integer()]},

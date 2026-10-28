@@ -495,18 +495,15 @@ defmodule Voyager.Services.TracerTest do
     for _ <- 1..1_005, do: send(Tracer, {:voyager_trace_events, tracer, [%{}], 0})
     :sys.resume(Tracer)
 
-    assert_receive {:session_entries, %{traces: 0, dropped: 1},
-                    [%{seq: 2, kind: :dropped, count: 1}]}
+    assert_receive {:session_entries, %{traces: 1, dropped: 4},
+                    [%{seq: 2, kind: :dropped, count: 4}, %{seq: 3, kind: :trace}]}
 
-    assert_receive {:session_entries, %{traces: 0, dropped: 4},
-                    [%{seq: 5, kind: :dropped, count: 1}]}
-
-    assert_receive {:session_entries, %{traces: 1_001, dropped: 4}, [%{seq: 1_006, kind: :trace}]}
+    assert_receive {:session_entries, %{traces: 1_001, dropped: 4}, [%{seq: 1_003, kind: :trace}]}
 
     send(Tracer, {:voyager_trace_events, tracer, [%{}], 2})
 
     assert_receive {:session_entries, %{dropped: 6},
-                    [%{seq: 1_007, kind: :dropped, count: 2}, %{seq: 1_008, kind: :trace}]}
+                    [%{seq: 1_004, kind: :dropped, count: 2}, %{seq: 1_005, kind: :trace}]}
   end
 
   test "keeps a saved session's bytes in step with its saved rows" do

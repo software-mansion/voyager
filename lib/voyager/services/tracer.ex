@@ -298,6 +298,7 @@ defmodule Voyager.Services.Tracer do
           origin: origin,
           traces_before: session.traces,
           dropped_before: session.dropped,
+          dropped_logged: session.dropped,
           started_ms: System.monotonic_time(:millisecond)
         }
 
@@ -367,8 +368,10 @@ defmodule Voyager.Services.Tracer do
         {:voyager_trace_events, tracer, events, agent_dropped},
         %{session: %{tracer: tracer, status: :running} = session, run: run} = state
       ) do
+    shedding? = overloaded?()
+
     {events, shed} =
-      if overloaded?(),
+      if shedding?,
         do: {[], run.shed + length(events)},
         else: {events, run.shed}
 
@@ -384,16 +387,24 @@ defmodule Voyager.Services.Tracer do
 
     session = %{session | traces: session.traces + length(events), dropped: dropped}
 
-    state =
-      %{
-        state
-        | session: session,
-          run: %{run | shed: shed, open_calls: open_calls, open_count: open_count}
-      }
-      |> append(
-        dropped_entry(dropped - state.session.dropped) ++
-          Enum.map(events, &Map.put(&1, :kind, :trace))
-      )
+    # While shedding, drops are only counted: a marker per batch would queue on the overloaded Writer.
+    {dropped_entries, dropped_logged} =
+      if shedding?,
+        do: {[], run.dropped_logged},
+        else: {dropped_entry(dropped - run.dropped_logged), dropped}
+
+    run = %{
+      run
+      | shed: shed,
+        open_calls: open_calls,
+        open_count: open_count,
+        dropped_logged: dropped_logged
+    }
+
+    state = %{state | session: session, run: run}
+
+    entries = dropped_entries ++ Enum.map(events, &Map.put(&1, :kind, :trace))
+    state = if entries == [], do: state, else: append(state, entries)
 
     {:noreply, stop_over_limit(state)}
   end
@@ -447,7 +458,7 @@ defmodule Voyager.Services.Tracer do
     state =
       append(
         %{state | session: session, run: nil},
-        dropped_entry(session.dropped - state.session.dropped) ++
+        dropped_entry(session.dropped - run.dropped_logged) ++
           [entry(:stopped, origin, reason: reason, traces: run_traces, dropped: run_dropped)]
       )
 
