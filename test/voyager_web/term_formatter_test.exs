@@ -74,7 +74,7 @@ defmodule VoyagerWeb.TermFormatterTest do
       assert erlang(<<200, 1, 2>>, limit: 2) == "<<200,1,...>>"
     end
 
-    test "spends one limit across nested collections, as Kernel.inspect/2 does" do
+    test "spends one limit across nested collections" do
       assert erlang([[1, 2, 3], [4, 5, 6], [7, 8, 9]], limit: 5) == "[[1, 2, 3], [...] | ...]"
       assert erlang({{1, 2}, {3, 4}}, limit: 3) == "{{1, 2}, ...}"
       assert erlang(%{a: [1, 2], b: [3, 4]}, limit: 3) == "\#{a => [1, 2], ... => ...}"
@@ -89,7 +89,7 @@ defmodule VoyagerWeb.TermFormatterTest do
       assert erlang("abc" <> <<255>>, printable_limit: 2) == ~S|<<"ab",...>>|
     end
 
-    test "prints a list as a string only within ASCII, as the Elixir syntax does" do
+    test "prints a list as a string only within ASCII" do
       assert erlang(~c"hi\n") == ~S|"hi\n"|
       assert erlang([200, 201, 204]) == "[200, 201, 204]"
       assert erlang(~c"café") == "[99, 97, 102, 233]"

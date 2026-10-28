@@ -2,7 +2,7 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
   @moduledoc """
   Prints terms in Erlang syntax with `erl_pp`, from an abstract form built
   here, so the output never depends on the VM's `+pc` flag. A list reads as a
-  string only within ASCII, as an Elixir charlist does; a binary within Unicode.
+  string only within ASCII; a binary within Unicode.
   """
 
   alias Voyager.Pid
@@ -100,7 +100,7 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
 
   defp leaf(other, _mode), do: :erl_parse.abstract(other)
 
-  # :limit is one budget for the whole term, spent depth-first as Kernel.inspect/2 spends it.
+  # :limit is one budget for the whole term, spent depth-first one item at a time.
   defp abstract_each(items, mode, fun, acc \\ [])
   defp abstract_each([], mode, _fun, acc), do: {Enum.reverse(acc), false, mode}
 
@@ -212,8 +212,7 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
 
   defp take_binary_chars(rest, _limit, acc), do: {Enum.reverse(acc), rest}
 
-  # Lists follow Elixir's ASCII charlists rather than observer's default `+pc latin1`, so
-  # [200, 201, 204] stays numbers in both syntaxes; binaries follow `+pc unicode`.
+  # ASCII only for lists, so a list of numbers such as [200, 201, 204] is not shown as text.
   defp printable?(list, chars) when is_list(list), do: List.ascii_printable?(chars)
   defp printable?(_bitstring, chars), do: :io_lib.printable_unicode_list(chars)
 end
