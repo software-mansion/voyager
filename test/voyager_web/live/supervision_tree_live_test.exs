@@ -35,9 +35,8 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
       assert has_element?(view, "h1", @node_name)
     end
 
-    test "renders no back arrow when opened from the sidebar", %{conn: conn} do
-      conn = put_connect_params(conn, %{"_live_referer" => "http://localhost/node/#{@node_name}"})
-      {:ok, view, _html} = live(conn, "#{@path}?nav=root")
+    test "renders no back arrow when opened without a return_to", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
 
       refute has_element?(view, "#node-header-back")
     end

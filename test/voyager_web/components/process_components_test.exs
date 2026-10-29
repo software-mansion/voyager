@@ -7,14 +7,14 @@ defmodule VoyagerWeb.Components.ProcessComponentsTest do
   alias VoyagerWeb.Formatters
 
   describe "process_link/1" do
-    test "links to the pid on the node in the current url and keeps the sidebar mode" do
+    test "links to the pid on the node in the current url, returning to it" do
       pid = self()
 
       html =
         render_component(&ProcessComponents.process_link/1,
           id: "owner",
           pid: pid,
-          current_url: "http://localhost/node/demo%40127.0.0.1/ets-tables/t?sidebar=compact"
+          current_url: "/node/demo%40127.0.0.1/ets-tables/t?sidebar=compact"
         )
 
       [href] =
@@ -22,7 +22,12 @@ defmodule VoyagerWeb.Components.ProcessComponentsTest do
 
       pid_string = URI.encode_www_form(Formatters.format_pid(pid))
 
-      assert href == "/node/demo%40127.0.0.1/processes/#{pid_string}?sidebar=compact"
+      assert href ==
+               "/node/demo%40127.0.0.1/processes/#{pid_string}?" <>
+                 URI.encode_query(
+                   return_to: "/node/demo%40127.0.0.1/ets-tables/t?sidebar=compact",
+                   sidebar: "compact"
+                 )
     end
   end
 end

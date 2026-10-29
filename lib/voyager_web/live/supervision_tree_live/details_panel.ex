@@ -160,7 +160,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   # Only pids living on the inspected node have a process page.
   defp process_href(pid, remote_node, node_name, current_url)
        when is_pid(pid) and node(pid) == remote_node and is_binary(node_name) do
-    keep_sidebar(~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}", current_url)
+    put_return_to(~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}", current_url)
   end
 
   defp process_href(_pid, _remote_node, _node_name, _current_url), do: nil

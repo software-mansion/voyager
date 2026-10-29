@@ -14,7 +14,6 @@ defmodule VoyagerWeb.CoreComponents do
 
   alias Phoenix.LiveView.JS
   alias VoyagerWeb.Formatters
-  alias VoyagerWeb.Hooks.UrlHook
 
   @doc """
   Renders flash notices.
@@ -94,7 +93,7 @@ defmodule VoyagerWeb.CoreComponents do
           <.tooltip id="node-header-back-tip" position="bottom">
             <.link
               id="node-header-back"
-              navigate={UrlHook.without_back_arrow(@return_to)}
+              navigate={@return_to}
               aria-label="Back"
               class="btn btn-ghost btn-square toolbar-btn text-base-content/70 hover:text-base-content"
             >
