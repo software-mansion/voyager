@@ -6,6 +6,8 @@ defmodule Voyager.MCP.Tools.Remote do
   alias Voyager.NodeSession
   alias Voyager.Services.RateLimiter
 
+  @not_connected "Not connected to any node, call `list_connections` then `connect`"
+
   @spec reply((node() -> {:ok, term()} | {:error, term()}), Frame.t()) ::
           {:reply, Response.t(), Frame.t()}
   def reply(fun, frame) when is_function(fun, 1) do
@@ -14,7 +16,7 @@ defmodule Voyager.MCP.Tools.Remote do
 
   defp run(fun) do
     case NodeSession.current() do
-      nil -> Response.error(Response.tool(), "Not connected to any node")
+      nil -> Response.error(Response.tool(), @not_connected)
       session -> limited(session.node, fun)
     end
   end

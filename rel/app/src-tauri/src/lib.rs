@@ -115,11 +115,13 @@ pub fn run() {
             pubsub.subscribe("messages", move |msg| {
                 if msg == b"ready" {
                     app_handle.manage(ServerPort(port));
-                    create_window(&app_handle, port);
+                    create_window(&app_handle, port, "/open");
                     // Debug builds run `mix phx.server` from the repo, there is no bundle to replace.
                     if !cfg!(debug_assertions) {
                         check_for_update(app_handle.clone(), updates_pubsub.clone());
                     }
+                } else if let Some(path) = msg.strip_prefix(b"open:") {
+                    open_path(&app_handle, &String::from_utf8_lossy(path));
                 } else {
                     println!("[rust] {}", String::from_utf8_lossy(msg));
                 }
@@ -174,8 +176,29 @@ pub fn run() {
 
 fn open_window(app_handle: &tauri::AppHandle) {
     if let Some(port) = app_handle.try_state::<ServerPort>() {
-        create_window(app_handle, port.0);
+        create_window(app_handle, port.0, "/open");
     }
+}
+
+fn open_path(app_handle: &tauri::AppHandle, path: &str) {
+    // Without a leading slash the path could turn the host into userinfo, e.g. "@evil.com".
+    if !path.starts_with('/') {
+        return;
+    }
+    let Some(port) = app_handle.try_state::<ServerPort>() else {
+        return;
+    };
+    match app_handle.get_webview_window(MAIN_WINDOW_LABEL) {
+        Some(window) => {
+            let _ = window.navigate(local_url(port.0, path));
+            focus_existing_window(app_handle);
+        }
+        None => create_window(app_handle, port.0, path),
+    }
+}
+
+fn local_url(port: u16, path: &str) -> tauri::Url {
+    format!("http://127.0.0.1:{port}{path}").parse().unwrap()
 }
 
 fn focus_existing_window(app: &tauri::AppHandle) {
@@ -270,13 +293,13 @@ fn zoom_to(app_handle: &tauri::AppHandle, level: f64) {
     }
 }
 
-fn create_window(app_handle: &tauri::AppHandle, port: u16) {
+fn create_window(app_handle: &tauri::AppHandle, port: u16, path: &str) {
     if app_handle.get_webview_window(MAIN_WINDOW_LABEL).is_some() {
         focus_existing_window(app_handle);
         return;
     }
 
-    let url = tauri::WebviewUrl::External(format!("http://127.0.0.1:{port}/open").parse().unwrap());
+    let url = tauri::WebviewUrl::External(local_url(port, path));
     // Prefer sessionStorage over create-time detect on reload.
     let theme = utils::os_theme_hint();
     let theme_init = [
