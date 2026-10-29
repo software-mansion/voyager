@@ -44,6 +44,12 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     {:gc_min_heap_size, "GC min heap size"}
   ]
 
+  @relations [
+    {:links, "links", "Links", "Link"},
+    {:monitors, "monitors", "Monitors", "Monitor"},
+    {:monitored_by, "monitored-by", "Monitored by", "Monitored by"}
+  ]
+
   @max_links 12
   # Public so DetailsPanel can cap its remote fetch at what this panel renders.
   @max_expanded_links 200
@@ -218,14 +224,14 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :panel_id, :string, required: true
   attr :info, AsyncResult, required: true
-  attr :links_info, AsyncResult, required: true
+  attr :relations_info, AsyncResult, required: true
   attr :node, TreeNode, required: true
-  attr :links_expanded?, :boolean, required: true
+  attr :expanded_relations, MapSet, required: true
   attr :on_select, :string, required: true
-  attr :on_toggle_links, :string, required: true
+  attr :on_toggle_relation, :string, required: true
   attr :target, :any, required: true
   attr :remote_node, :atom, default: nil, doc: "forwarded to `overview/1`"
-  attr :links_disabled?, :boolean, default: false
+  attr :chips_disabled?, :boolean, default: false
 
   def body(assigns) do
     assigns = assign(assigns, :process?, is_pid(assigns.node.pid))
@@ -239,16 +245,16 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           panel_id={@panel_id}
           on_select={@on_select}
           target={@target}
-          links_disabled?={@links_disabled?}
+          chips_disabled?={@chips_disabled?}
         />
-        <.links
+        <.relations
           panel_id={@panel_id}
-          links_info={@links_info}
-          links_expanded?={@links_expanded?}
+          relations_info={@relations_info}
+          expanded_relations={@expanded_relations}
           on_select={@on_select}
-          on_toggle_links={@on_toggle_links}
+          on_toggle_relation={@on_toggle_relation}
           target={@target}
-          links_disabled?={@links_disabled?}
+          chips_disabled?={@chips_disabled?}
         />
         <.memory_and_garbage_collection info={@info} />
       <% else %>
@@ -280,7 +286,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :panel_id, :string, default: nil
   attr :on_select, :string, default: nil, doc: "tree-jump event for linkable pid rows"
   attr :target, :any, default: nil
-  attr :links_disabled?, :boolean, default: false
+  attr :chips_disabled?, :boolean, default: false
 
   def overview(assigns) do
     assigns = assign(assigns, :rows, @overview_rows)
@@ -318,7 +324,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
                 node_key={TreeNode.key(pid)}
                 on_select={@on_select}
                 target={@target}
-                disabled={@links_disabled?}
+                disabled={@chips_disabled?}
               />
             <% else %>
               {overview_value(key, info)}
@@ -331,19 +337,24 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :panel_id, :string, required: true
-  attr :links_info, AsyncResult, required: true
-  attr :links_expanded?, :boolean, required: true
+  attr :relations_info, AsyncResult, required: true
+  attr :expanded_relations, MapSet, required: true
   attr :on_select, :string, required: true
-  attr :on_toggle_links, :string, required: true
+  attr :on_toggle_relation, :string, required: true
   attr :target, :any, required: true
-  attr :links_disabled?, :boolean, default: false
+  attr :chips_disabled?, :boolean, default: false
 
-  def links(assigns) do
-    assigns = assign(assigns, :links_count, links_count(assigns.links_info))
+  def relations(assigns) do
+    assigns = assign(assigns, :relations, @relations)
 
     ~H"""
-    <.section title="Links" muted={@links_count} help={SupervisionTreeComponents.edge_legend("Link")}>
-      <.async_result :let={info} assign={@links_info}>
+    <.section
+      :for={{key, slug, title, legend} <- @relations}
+      title={title}
+      muted={relation_count(@relations_info, key)}
+      help={SupervisionTreeComponents.edge_legend(legend)}
+    >
+      <.async_result :let={relations} assign={@relations_info}>
         <:loading>
           <div class="flex flex-wrap gap-1.5">
             <.chip_skeleton />
@@ -354,16 +365,17 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         <:failed :let={failure}>
           <.load_error failure={failure} />
         </:failed>
-        <.links_list
-          panel_id={@panel_id}
-          toggle_id={"#{@panel_id}-toggle-links"}
-          links={info.items}
-          total={info.total}
-          links_expanded?={@links_expanded?}
+        <.relation_list
+          id_prefix={"#{@panel_id}-#{slug}"}
+          toggle_id={"#{@panel_id}-toggle-#{slug}"}
+          relation={key}
+          items={Map.fetch!(relations, key).items}
+          total={Map.fetch!(relations, key).total}
+          expanded?={MapSet.member?(@expanded_relations, key)}
           on_select={@on_select}
-          on_toggle_links={@on_toggle_links}
+          on_toggle={@on_toggle_relation}
           target={@target}
-          links_disabled?={@links_disabled?}
+          chips_disabled?={@chips_disabled?}
         />
       </.async_result>
     </.section>
@@ -490,6 +502,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :on_select, :string, required: true
   attr :target, :any, required: true
   attr :disabled, :boolean, default: false
+  attr :dot_class, :string, default: "bg-primary"
 
   def chip(assigns) do
     ~H"""
@@ -504,7 +517,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       aria-label={"Select #{@label}"}
       class="border-base-content/70 bg-base-200 text-base-content inline-flex cursor-pointer rounded-md border px-2.5 py-1 text-xs transition-colors enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-wait disabled:opacity-50"
     >
-      <.display_pid pid={@label} />
+      <.display_pid pid={@label} dot_class={@dot_class} />
     </button>
     """
   end
@@ -605,42 +618,42 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     """
   end
 
+  attr :id_prefix, :string, required: true
   attr :toggle_id, :string, required: true
-  attr :panel_id, :string, required: true
-  attr :links, :list, required: true, doc: "links kept by the remote, already truncated"
-  attr :total, :integer, required: true, doc: "real link count on the remote node"
-  attr :links_expanded?, :boolean, required: true
+  attr :relation, :atom, required: true
+  attr :items, :list, required: true, doc: "entries kept by the remote, already truncated"
+  attr :total, :integer, required: true, doc: "real entry count on the remote node"
+  attr :expanded?, :boolean, required: true
   attr :on_select, :string, required: true
-  attr :on_toggle_links, :string, required: true
+  attr :on_toggle, :string, required: true
   attr :target, :any, required: true
-  attr :links_disabled?, :boolean, default: false
+  attr :chips_disabled?, :boolean, default: false
 
-  def links_list(assigns) do
-    limit = if assigns.links_expanded?, do: @max_expanded_links, else: @max_links
+  def relation_list(assigns) do
+    limit = if assigns.expanded?, do: @max_expanded_links, else: @max_links
 
     # Only the slice that gets rendered: a process can hold thousands of links
     # and every chip lands in the LiveView diff.
     assigns =
       assigns
-      |> assign(:visible_links, Enum.take(assigns.links, limit))
+      |> assign(:visible_items, Enum.take(assigns.items, limit))
       |> assign(:toggle?, assigns.total > @max_links)
       |> assign(:overflow_count, max(assigns.total - limit, 0))
 
     ~H"""
     <div class="flex flex-col gap-2">
       <div class="flex flex-wrap gap-1.5">
-        <.chip
-          :for={{link, index} <- Enum.with_index(@visible_links)}
-          id={"#{@panel_id}-link-#{index}"}
-          label={format_identifier(link)}
-          node_key={TreeNode.key(link)}
+        <.relation_entry
+          :for={{item, index} <- Enum.with_index(@visible_items)}
+          id={"#{@id_prefix}-#{index}"}
+          item={item}
           on_select={@on_select}
           target={@target}
-          disabled={@links_disabled?}
+          disabled={@chips_disabled?}
         />
       </div>
       <p
-        :if={@links_expanded? and @overflow_count > 0}
+        :if={@expanded? and @overflow_count > 0}
         class="font-mono text-base-content/70 self-center text-xs"
       >
         +{Formatters.format_integer(@overflow_count)} more
@@ -649,15 +662,53 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         :if={@toggle?}
         type="button"
         id={@toggle_id}
-        phx-click={@on_toggle_links}
+        phx-click={@on_toggle}
+        phx-value-relation={@relation}
         phx-target={@target}
         class="btn btn-ghost btn-xs text-base-content/70 w-max items-center self-center px-3 py-2 hover:text-base-content"
       >
-        {if(@links_expanded?, do: "Show less", else: "Show more")}
+        {if(@expanded?, do: "Show less", else: "Show more")}
       </button>
     </div>
     """
   end
+
+  attr :id, :string, required: true
+  attr :item, :any, required: true
+  attr :on_select, :string, required: true
+  attr :target, :any, required: true
+  attr :disabled, :boolean, default: false
+
+  defp relation_entry(assigns) do
+    if selectable_relation?(assigns.item) do
+      assigns = assign(assigns, :dot_class, relation_dot_class(assigns.item))
+
+      ~H"""
+      <.chip
+        id={@id}
+        label={format_identifier(@item)}
+        node_key={TreeNode.key(@item)}
+        on_select={@on_select}
+        target={@target}
+        disabled={@disabled}
+        dot_class={@dot_class}
+      />
+      """
+    else
+      ~H"""
+      <span
+        id={@id}
+        class="border-base-content/30 text-base-content/70 font-mono inline-flex rounded-md border px-2.5 py-1 text-xs"
+      >
+        {format_identifier(@item)}
+      </span>
+      """
+    end
+  end
+
+  defp relation_dot_class(pid) when is_pid(pid), do: "bg-primary"
+  defp relation_dot_class(port) when is_port(port), do: "bg-port"
+  defp relation_dot_class(ref) when is_reference(ref), do: "bg-success"
 
   @doc """
   A single line of text with a copy button that appears on hover.
@@ -693,6 +744,10 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   def linkable_pid(_key, _info, _remote_node), do: nil
+
+  @doc "False for a monitor held by registered name (`{name, node}`), which has no tree node."
+  @spec selectable_relation?(term()) :: boolean()
+  def selectable_relation?(item), do: is_pid(item) or is_port(item) or is_reference(item)
 
   defp overview_value(:initial_call, info), do: format_mfa(info.initial_call)
   defp overview_value(:current_function, info), do: format_mfa(info.current_function)
@@ -757,6 +812,9 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp format_identifier(port) when is_port(port),
     do: port |> :erlang.port_to_list() |> List.to_string()
 
+  defp format_identifier({name, node}) when is_atom(name) and is_atom(node),
+    do: "#{inspect(name)} on #{node}"
+
   defp format_identifier(other), do: inspect(other)
 
   defp node_display_name(%TreeNode{name: name}) when is_atom(name), do: Atom.to_string(name)
@@ -766,8 +824,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp node_pid_string(%TreeNode{pid: pid}) when is_pid(pid), do: format_identifier(pid)
   defp node_pid_string(_), do: nil
 
-  defp links_count(%AsyncResult{ok?: true, result: %{total: total}}),
-    do: "(#{Formatters.format_integer(total)})"
+  defp relation_count(%AsyncResult{ok?: true, result: %{} = relations}, key),
+    do: "(#{Formatters.format_integer(Map.fetch!(relations, key).total)})"
 
-  defp links_count(_), do: nil
+  defp relation_count(_, _), do: nil
 end
