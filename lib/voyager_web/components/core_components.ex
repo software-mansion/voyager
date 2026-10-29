@@ -91,20 +91,7 @@ defmodule VoyagerWeb.CoreComponents do
     ~H"""
     <header class={["flex items-center justify-between gap-4" | List.wrap(@class)]}>
       <div class="flex min-w-0 flex-1 items-start gap-2">
-        <div :if={@show_back_arrow} class="flex shrink-0 translate-y-0.5">
-          <.tooltip id="node-header-back-tip" position="bottom">
-            <button
-              type="button"
-              id="node-header-back"
-              phx-click={JS.dispatch("phx:history-back")}
-              aria-label="Back"
-              class="btn btn-ghost btn-square toolbar-btn text-base-content/70 hover:text-base-content"
-            >
-              <.icon name="icon-arrow-left" class="toolbar-icon" />
-            </button>
-            <:content>Back</:content>
-          </.tooltip>
-        </div>
+        <.back_arrow :if={@show_back_arrow} id="node-header-back" class="translate-y-0.5" />
         <div class="min-w-0 flex-1">
           <h1 class="font-mono text-base-content min-w-0 text-2xl font-bold tracking-tight">
             <.tooltip
@@ -144,6 +131,40 @@ defmodule VoyagerWeb.CoreComponents do
     </header>
     """
   end
+
+  @doc """
+  Arrow that goes back in history, or links to `href` when given (for pages that
+  may have no history to go back to).
+  """
+  attr :id, :string, required: true
+  attr :href, :string, default: nil
+  attr :class, :any, default: nil
+
+  def back_arrow(assigns) do
+    ~H"""
+    <div class={["flex shrink-0", @class]}>
+      <.tooltip id={"#{@id}-tip"} position="bottom">
+        <.link :if={@href} id={@id} href={@href} aria-label="Back" class={back_arrow_class()}>
+          <.icon name="icon-arrow-left" class="toolbar-icon" />
+        </.link>
+        <button
+          :if={!@href}
+          type="button"
+          id={@id}
+          phx-click={JS.dispatch("phx:history-back")}
+          aria-label="Back"
+          class={back_arrow_class()}
+        >
+          <.icon name="icon-arrow-left" class="toolbar-icon" />
+        </button>
+        <:content>Back</:content>
+      </.tooltip>
+    </div>
+    """
+  end
+
+  defp back_arrow_class,
+    do: "btn btn-ghost btn-square toolbar-btn text-base-content/70 hover:text-base-content"
 
   @doc """
   Single-choice dropdown whose radios submit `name`/`value` like a `<select>`.

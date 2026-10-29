@@ -25,11 +25,9 @@ defmodule VoyagerWeb.SettingsLive do
   def render(assigns) do
     ~H"""
     <div class="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-10">
-      <div>
+      <div class="flex items-center gap-2">
+        <.back_arrow id="settings-back" href={if(!@can_go_back?, do: ~p"/")} />
         <h1 class="text-base-content text-2xl font-semibold tracking-tight">Settings</h1>
-        <p class="text-base-content/70 mt-1 text-sm">
-          Configure Voyager's appearance and distribution.
-        </p>
       </div>
 
       <AppearanceSettings.appearance_settings />

@@ -61,34 +61,12 @@ defmodule VoyagerWeb.Components.Shell do
   end
 
   @doc """
-  Renders the topbar used by the settings page — a back arrow followed by the
-  brand mark. Without history to go back to, the arrow links to the connect page.
+  Renders the topbar used by the settings page, showing the brand mark.
   """
-  attr :show_back_arrow, :boolean, default: false
-
   def settings_topbar(assigns) do
     ~H"""
     <div class="navbar bg-base-100 border-base-300 min-h-14 z-10 flex-none gap-3 border-b px-4">
       <div class="navbar-start gap-3">
-        <button
-          :if={@show_back_arrow}
-          type="button"
-          id="settings-back"
-          phx-click={JS.dispatch("phx:history-back")}
-          title="Back"
-          class="btn btn-ghost btn-square toolbar-btn text-base-content"
-        >
-          <.icon name="icon-arrow-left" class="toolbar-icon" />
-        </button>
-        <.link
-          :if={!@show_back_arrow}
-          id="settings-back"
-          href={~p"/"}
-          title="Back"
-          class="btn btn-ghost btn-square toolbar-btn text-base-content"
-        >
-          <.icon name="icon-arrow-left" class="toolbar-icon" />
-        </.link>
         <.brand />
       </div>
     </div>
