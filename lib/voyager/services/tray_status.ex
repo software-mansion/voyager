@@ -11,17 +11,14 @@ defmodule Voyager.Services.TrayStatus do
 
   use GenServer
 
-  alias Voyager.Actions.Connections, as: ConnectionActions
-  alias Voyager.Actions.SshConnections, as: SshConnectionActions
   alias Voyager.MCP
   alias Voyager.NodeSession
   alias Voyager.NodeSession.ConnectError
-  alias Voyager.NodeSession.Connectors.Ssh, as: SshConnector
   alias Voyager.Queries.Connections, as: ConnectionQueries
   alias Voyager.Queries.SshConnections, as: SshConnectionQueries
   alias Voyager.Schemas.Connection
   alias Voyager.Schemas.SshConnection
-  alias Voyager.Services.SSH.KeyFile
+  alias Voyager.Services.SavedConnections
 
   @native_topic "tray"
   @connect_error "Could not connect"
@@ -56,7 +53,11 @@ defmodule Voyager.Services.TrayStatus do
   @impl GenServer
   def handle_info("connect", %{connecting: false, connection: nil, last_connection: last} = state)
       when last != nil do
-    task = Task.Supervisor.async_nolink(Voyager.TaskSupervisor, fn -> connect(last) end)
+    task =
+      Task.Supervisor.async_nolink(Voyager.TaskSupervisor, fn ->
+        SavedConnections.connect(last)
+      end)
+
     {:noreply, push(%{state | connecting: true, connect_task: task.ref, error: nil})}
   end
 
@@ -156,48 +157,6 @@ defmodule Voyager.Services.TrayStatus do
 
   defp last_connection_info(%SshConnection{} = connection),
     do: %{node: connection.node_name, connector: connector_label(:ssh), host: connection.ssh_host}
-
-  defp connect(%{cookie: nil}), do: {:error, :missing_cookie}
-
-  defp connect(%Connection{} = c) do
-    with :ok <- NodeSession.connect(c.node_name, c.cookie, name_type: c.name_type) do
-      ConnectionActions.upsert_connected(c.node_name, name_type: c.name_type)
-      :ok
-    end
-  end
-
-  defp connect(%SshConnection{} = c) do
-    with {:ok, auth} <- ssh_auth(c), do: connect_ssh(c, auth)
-  end
-
-  defp ssh_auth(%{auth_method: :agent}), do: {:ok, :agent}
-  defp ssh_auth(%{auth_method: :password, password: nil}), do: {:error, :missing_password}
-  defp ssh_auth(%{auth_method: :password, password: password}), do: {:ok, {:password, password}}
-
-  defp ssh_auth(%{auth_method: :key, key_path: path}) do
-    with :ok <- KeyFile.check(path, nil), do: {:ok, {:key, path, nil}}
-  end
-
-  defp connect_ssh(c, auth) do
-    opts = [
-      ssh_user: c.ssh_user,
-      ssh_host: c.ssh_host,
-      auth: auth,
-      ssh_port: c.ssh_port,
-      epmd_port: c.epmd_port,
-      name_type: c.name_type
-    ]
-
-    with :ok <- NodeSession.connect_via(SshConnector, c.node_name, c.cookie, opts) do
-      SshConnectionActions.upsert_connected(c.ssh_user, c.ssh_host, c.ssh_port, c.node_name,
-        name_type: c.name_type,
-        auth_method: c.auth_method,
-        epmd_port: c.epmd_port
-      )
-
-      :ok
-    end
-  end
 
   defp reconnect_error(reason), do: "#{reconnect_message(reason)}. Connect from Voyager instead"
 

@@ -11,6 +11,7 @@ defmodule Voyager.Services.SSH.Erlssh do
   require SSH
 
   @ssh_timeout 5000
+  @agent_timeout 60_000
   @alive %{interval: 15_000, count_max: 3}
 
   @impl true
@@ -31,7 +32,7 @@ defmodule Voyager.Services.SSH.Erlssh do
         alive: Application.get_env(:voyager, :ssh_alive, @alive)
       ] ++ password_opts(auth)
 
-    case :ssh.connect(Distribution.host_address(host), port, ssh_opts) do
+    case :ssh.connect(Distribution.host_address(host), port, ssh_opts, negotiation_timeout(auth)) do
       {:ok, conn} ->
         {:ok, conn}
 
@@ -59,6 +60,9 @@ defmodule Voyager.Services.SSH.Erlssh do
   @impl true
   def close(conn), do: :ssh.close(conn)
 
+  defp negotiation_timeout({:agent, path}) when is_binary(path), do: @agent_timeout
+  defp negotiation_timeout(_auth), do: @ssh_timeout
+
   defp accept_host(caller, ref, accepted) do
     fn _peer, fingerprint ->
       fingerprint = to_string(fingerprint)
@@ -72,7 +76,13 @@ defmodule Voyager.Services.SSH.Erlssh do
     end
   end
 
-  defp key_cb(:agent), do: {:ssh_agent, []}
+  defp key_cb({:agent, nil}), do: {:ssh_agent, []}
+
+  defp key_cb({:agent, socket_path}),
+    do:
+      {:ssh_agent,
+       socket_path: socket_path |> Path.expand() |> String.to_charlist(), timeout: @agent_timeout}
+
   defp key_cb({:password, _pass}), do: {:ssh_file, []}
   defp key_cb({:key, path, passphrase}), do: {KeyFile, path: path, passphrase: passphrase}
 

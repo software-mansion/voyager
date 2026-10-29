@@ -148,6 +148,39 @@ defmodule Voyager.Services.SSH.ErlsshTest do
     end
   end
 
+  describe "agent auth" do
+    @describetag :tmp_dir
+
+    setup %{tmp_dir: dir} do
+      {path, public_key} = SshKeys.ssh_keygen!(dir, "id_ed25519", ["-t", "ed25519", "-N", ""])
+      server = SshServer.start!(@loopback, authorized_keys: [public_key])
+      %{server: server, socket: start_agent!(path)}
+    end
+
+    test "logs in through a custom agent socket", %{server: server, socket: socket} do
+      assert {:ok, conn} = connect_with_agent(server, socket)
+      Erlssh.close(conn)
+    end
+
+    test "falls back to SSH_AUTH_SOCK without a socket path", %{server: server, socket: socket} do
+      previous = System.get_env("SSH_AUTH_SOCK")
+      System.put_env("SSH_AUTH_SOCK", socket)
+
+      on_exit(fn ->
+        if previous,
+          do: System.put_env("SSH_AUTH_SOCK", previous),
+          else: System.delete_env("SSH_AUTH_SOCK")
+      end)
+
+      assert {:ok, conn} = connect_with_agent(server, nil)
+      Erlssh.close(conn)
+    end
+
+    test "fails when nothing listens on the agent socket", %{server: server, tmp_dir: dir} do
+      assert {:error, _reason} = connect_with_agent(server, Path.join(dir, "missing.sock"))
+    end
+  end
+
   defp connect(port, opts \\ []), do: connect("127.0.0.1", port, opts)
 
   defp connect(host, port, opts),
@@ -159,9 +192,28 @@ defmodule Voyager.Services.SSH.ErlsshTest do
         host_key: server.fingerprint
       )
 
+  defp connect_with_agent(server, socket),
+    do:
+      Erlssh.connect("127.0.0.1", server.port, SshServer.user(), {:agent, socket},
+        host_key: server.fingerprint
+      )
+
   defp write_known_host!(path, host, key) do
     line = :ssh_file.encode([{key, [hostnames: [String.to_charlist(host)]]}], :known_hosts)
     File.mkdir_p!(Path.dirname(path))
     File.write!(path, line)
+  end
+
+  # tmp_dir paths overflow the 104-byte Unix socket path limit on macOS.
+  defp start_agent!(key_path) do
+    socket = Path.join(System.tmp_dir!(), "voyager-#{System.unique_integer([:positive])}.sock")
+    {output, 0} = System.cmd("ssh-agent", ["-a", socket])
+    [_, pid] = Regex.run(~r/SSH_AGENT_PID=(\d+)/, output)
+    on_exit(fn -> System.cmd("kill", [pid]) end)
+
+    {_, 0} =
+      System.cmd("ssh-add", [key_path], env: [{"SSH_AUTH_SOCK", socket}], stderr_to_stdout: true)
+
+    socket
   end
 end

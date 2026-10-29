@@ -10,7 +10,10 @@ defmodule Voyager.Telemetry.Events do
     [:voyager, :node, :connect_failed],
     [:voyager, :node, :disconnect],
     [:voyager, :mcp, :start],
-    [:voyager, :mcp, :stop]
+    [:voyager, :mcp, :stop],
+    [:voyager, :trace, :start],
+    [:voyager, :trace, :start_failed],
+    [:voyager, :trace, :stop]
   ]
 
   @system_events [

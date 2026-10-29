@@ -2,6 +2,8 @@ defmodule Voyager.Services.TrayStatusTest do
   # async: false because the test process takes the global ElixirKit.PubSub name to receive the casts.
   use Voyager.DataCase, async: false
 
+  import Voyager.TestUtils
+
   alias Voyager.Fakes
   alias Voyager.MCP
   alias Voyager.NodeSession
@@ -160,6 +162,30 @@ defmodule Voyager.Services.TrayStatusTest do
     assert %{"connecting" => true} = receive_status()
     assert %{"connecting" => false, "error" => error} = receive_status()
     assert is_binary(error)
+  end
+
+  test "reconnects an SSH agent profile with a saved socket" do
+    enable_proxy_epmd(%{})
+
+    insert!(
+      %SshConnection{
+        ssh_user: "deploy",
+        ssh_host: "gw",
+        node_name: "no_at_sign",
+        cookie: "secret",
+        auth_method: :agent,
+        agent_socket_path: "~/.1password/agent.sock"
+      },
+      0
+    )
+
+    broadcast(NodeSession.topic(), {:node_disconnected, @node, nil})
+    assert %{"last_connection" => %{"node" => "no_at_sign"}} = receive_status()
+
+    send(TrayStatus, "connect")
+    assert %{"connecting" => true} = receive_status()
+    assert %{"connecting" => false, "error" => error} = receive_status()
+    assert error =~ "name@host"
   end
 
   @tag :tmp_dir

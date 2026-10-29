@@ -18,7 +18,7 @@ defmodule Voyager.Services.RemoteNodeConnectorTest do
           "127.0.0.1",
           "node@127.0.0.1",
           "cookie",
-          :agent,
+          {:agent, nil},
           ssh_port: 1
         )
 
@@ -45,7 +45,13 @@ defmodule Voyager.Services.RemoteNodeConnectorTest do
 
     test "rejects a malformed node name before opening any connection" do
       assert {:error, {:invalid_node_name, "no_at_sign"}} =
-               RemoteNodeConnector.connect("nobody", "127.0.0.1", "no_at_sign", "cookie", :agent)
+               RemoteNodeConnector.connect(
+                 "nobody",
+                 "127.0.0.1",
+                 "no_at_sign",
+                 "cookie",
+                 {:agent, nil}
+               )
     end
 
     test "returns an error without opening any connection when proxy_epmd is not active" do
@@ -57,7 +63,7 @@ defmodule Voyager.Services.RemoteNodeConnectorTest do
                  "127.0.0.1",
                  "node@127.0.0.1",
                  "cookie",
-                 :agent
+                 {:agent, nil}
                )
     end
   end

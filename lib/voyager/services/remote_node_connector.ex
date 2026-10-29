@@ -16,7 +16,7 @@ defmodule Voyager.Services.RemoteNodeConnector do
           "bastion.example.com",
           "myapp@10.0.0.5",
           "s3cret-cookie",
-          :agent
+          {:agent, nil}
         )
 
       # Using a password
@@ -63,7 +63,7 @@ defmodule Voyager.Services.RemoteNodeConnector do
   ## Examples
 
       # Using the local SSH agent
-      Voyager.Services.RemoteNodeConnector.connect("voyager", "1.2.3.4", "test@10.0.0.5", "cookie", :agent)
+      Voyager.Services.RemoteNodeConnector.connect("voyager", "1.2.3.4", "test@10.0.0.5", "cookie", {:agent, nil})
       #=> {:ok, :"test@10.0.0.5", conn_ref, 54321}
 
       # Using a password and custom options
