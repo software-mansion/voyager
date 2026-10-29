@@ -260,18 +260,26 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
       assert text(html, "#chips span") =~ "on nonode@nohost"
     end
 
-    test "unwraps monitor entries and lists non-pid targets plainly" do
+    test "unwraps monitor entries and explains the ones with nothing to open" do
       port = Port.open({:spawn, "cat"}, [:binary])
       on_exit(fn -> if Port.info(port), do: Port.close(port) end)
 
       html =
         chips(
-          items: [{:process, remote_pid()}, {:port, port}, {:name, :other@node}],
-          total: 3
+          items: [
+            {:process, remote_pid()},
+            {:port, port},
+            {:process, {:name, :other@node}},
+            {:time_offset, :clock_service}
+          ],
+          total: 4
         )
 
       assert count(html, "#chips a") == 1
-      assert text(html, "#chips") =~ ":name on other@node"
+      assert text(html, "#chips-2") =~ ":name on other@node"
+      assert text(html, "#chips-2-portal") =~ "Monitor by registered name"
+      assert text(html, "#chips-3") =~ ":clock_service"
+      assert text(html, "#chips-3-portal") =~ "Time offset monitor"
     end
 
     test "shows how many entries stayed on the remote" do

@@ -83,6 +83,10 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :node_type, :atom, required: true
   attr :off_tree?, :boolean, default: false
 
+  attr :off_node, :atom,
+    default: nil,
+    doc: "the node a pid lives on when it is not the inspected one"
+
   def node_type_label(assigns) do
     icons = SupervisionTreeComponents.node_icons()
 
@@ -103,6 +107,12 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       >
         Not in tree
       </span>
+      <.tooltip :if={@off_node} id={"#{@panel_id}-off-node"}>
+        <span tabindex="0" class="alert alert-warning cursor-help px-2 py-1 text-xs">
+          Not on node
+        </span>
+        <:content>node: {@off_node}</:content>
+      </.tooltip>
     </div>
     """
   end
@@ -254,6 +264,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           on_select={@on_select}
           on_toggle_relation={@on_toggle_relation}
           target={@target}
+          remote_node={@remote_node}
           chips_disabled?={@chips_disabled?}
         />
         <.memory_and_garbage_collection info={@info} />
@@ -342,6 +353,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :on_select, :string, required: true
   attr :on_toggle_relation, :string, required: true
   attr :target, :any, required: true
+  attr :remote_node, :atom, default: nil, doc: "names registered here can be selected"
   attr :chips_disabled?, :boolean, default: false
 
   def relations(assigns) do
@@ -375,6 +387,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           on_select={@on_select}
           on_toggle={@on_toggle_relation}
           target={@target}
+          remote_node={@remote_node}
           chips_disabled?={@chips_disabled?}
         />
       </.async_result>
@@ -627,6 +640,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :on_select, :string, required: true
   attr :on_toggle, :string, required: true
   attr :target, :any, required: true
+  attr :remote_node, :atom, default: nil
   attr :chips_disabled?, :boolean, default: false
 
   def relation_list(assigns) do
@@ -647,6 +661,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           :for={{item, index} <- Enum.with_index(@visible_items)}
           id={"#{@id_prefix}-#{index}"}
           item={item}
+          selectable?={selectable_relation?(item, @remote_node)}
+          remote_node={@remote_node}
           on_select={@on_select}
           target={@target}
           disabled={@chips_disabled?}
@@ -675,19 +691,21 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :id, :string, required: true
   attr :item, :any, required: true
+  attr :selectable?, :boolean, required: true
+  attr :remote_node, :atom, default: nil
   attr :on_select, :string, required: true
   attr :target, :any, required: true
   attr :disabled, :boolean, default: false
 
   defp relation_entry(assigns) do
-    if selectable_relation?(assigns.item) do
+    if assigns.selectable? do
       assigns = assign(assigns, :dot_class, relation_dot_class(assigns.item))
 
       ~H"""
       <.chip
         id={@id}
         label={format_identifier(@item)}
-        node_key={TreeNode.key(@item)}
+        node_key={relation_key(@item)}
         on_select={@on_select}
         target={@target}
         disabled={@disabled}
@@ -695,13 +713,23 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       />
       """
     else
+      assigns =
+        assign(
+          assigns,
+          :entry,
+          SupervisionTreeComponents.monitor_entry(assigns.item, assigns.remote_node)
+        )
+
       ~H"""
-      <span
-        id={@id}
-        class="border-base-content/30 text-base-content/70 font-mono inline-flex rounded-md border px-2.5 py-1 text-xs"
-      >
-        {format_identifier(@item)}
-      </span>
+      <.link_tooltip id={@id} entry={@entry}>
+        <span
+          tabindex="0"
+          class="border-base-content/30 text-base-content/70 font-mono inline-flex cursor-help rounded-md border px-2.5 py-1 text-xs"
+        >
+          {@entry.label}
+        </span>
+        <:content>{@entry.text}</:content>
+      </.link_tooltip>
       """
     end
   end
@@ -709,6 +737,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp relation_dot_class(pid) when is_pid(pid), do: "bg-primary"
   defp relation_dot_class(port) when is_port(port), do: "bg-port"
   defp relation_dot_class(ref) when is_reference(ref), do: "bg-success"
+  defp relation_dot_class({:port, _name}), do: "bg-port"
+  defp relation_dot_class({_kind, _name}), do: "bg-primary"
 
   @doc """
   A single line of text with a copy button that appears on hover.
@@ -745,9 +775,17 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   def linkable_pid(_key, _info, _remote_node), do: nil
 
-  @doc "False for a monitor held by registered name (`{name, node}`), which has no tree node."
-  @spec selectable_relation?(term()) :: boolean()
-  def selectable_relation?(item), do: is_pid(item) or is_port(item) or is_reference(item)
+  @doc "A monitor by registered name is selectable only when the name lives on the tree's node."
+  @spec selectable_relation?(term(), node() | nil) :: boolean()
+  def selectable_relation?({_kind, {name, node}}, remote_node) when is_atom(name),
+    do: node == remote_node
+
+  def selectable_relation?(item, _remote_node),
+    do: is_pid(item) or is_port(item) or is_reference(item)
+
+  @spec relation_key(term()) :: String.t()
+  def relation_key({_kind, {_name, _node}} = monitor), do: inspect(monitor)
+  def relation_key(item), do: TreeNode.key(item)
 
   defp overview_value(:initial_call, info), do: format_mfa(info.initial_call)
   defp overview_value(:current_function, info), do: format_mfa(info.current_function)
@@ -812,8 +850,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp format_identifier(port) when is_port(port),
     do: port |> :erlang.port_to_list() |> List.to_string()
 
-  defp format_identifier({name, node}) when is_atom(name) and is_atom(node),
-    do: "#{inspect(name)} on #{node}"
+  defp format_identifier({_kind, _target} = monitor),
+    do: SupervisionTreeComponents.monitor_label(monitor)
 
   defp format_identifier(other), do: inspect(other)
 

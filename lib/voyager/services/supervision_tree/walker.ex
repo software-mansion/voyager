@@ -540,11 +540,12 @@ defmodule Voyager.Services.SupervisionTree.Walker do
 
     target_ids = deduped |> Enum.map(fn {_from, to, _kind} -> to end) |> Enum.uniq()
     external = Enum.reject(target_ids, &MapSet.member?(seen, &1))
-    external_pids = Enum.filter(external, &is_pid/1)
+    # `process_info/2` raises for a pid of another node, failing the whole batch.
+    external_pids = Enum.filter(external, &(is_pid(&1) and node(&1) == node))
 
     {info_map, pinfo_errors} = fetch_external_info(node, external_pids)
 
-    nodes = Enum.reduce(external, nodes, &put_rel_node(&2, &1, info_map))
+    nodes = Enum.reduce(external, nodes, &put_rel_node(&2, &1, info_map, node))
 
     edges = Map.new(deduped, fn {from, to, kind} -> build_edge(from, to, kind) end)
 
@@ -634,16 +635,18 @@ defmodule Voyager.Services.SupervisionTree.Walker do
 
   # Relationship-only nodes are parentless leaves. `put_new` ensures a target
   # that also exists in the supervision tree keeps its richer tree entry.
-  defp put_rel_node(nodes, id, info_map) when is_pid(id) do
+  defp put_rel_node(nodes, id, info_map, node) when is_pid(id) do
     info = Map.get(info_map, id)
-    Map.put_new(nodes, TreeNode.key(id), rel_node(id, id, pid_label(id, info), :worker, info))
+    rel = rel_node(id, id, pid_label(id, info), :worker, info)
+    pid_node = if node(id) != node, do: node(id)
+    Map.put_new(nodes, TreeNode.key(id), %{rel | pid_node: pid_node})
   end
 
-  defp put_rel_node(nodes, id, _info_map) when is_port(id) do
+  defp put_rel_node(nodes, id, _info_map, _node) when is_port(id) do
     Map.put_new(nodes, TreeNode.key(id), rel_node(id, nil, id, :port, nil))
   end
 
-  defp put_rel_node(nodes, id, _info_map) when is_reference(id) do
+  defp put_rel_node(nodes, id, _info_map, _node) when is_reference(id) do
     Map.put_new(nodes, TreeNode.key(id), rel_node(id, nil, id, :reference, nil))
   end
 
