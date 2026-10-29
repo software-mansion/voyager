@@ -64,6 +64,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
           status={@status}
           last_updated={@last_updated}
           refresh_interval={@refresh_interval}
+          return_to={@return_to}
         />
         <.async_result :let={available_apps} assign={@available_apps}>
           <:loading>

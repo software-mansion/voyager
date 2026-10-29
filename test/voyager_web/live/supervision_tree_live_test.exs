@@ -35,10 +35,10 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
       assert has_element?(view, "h1", @node_name)
     end
 
-    test "renders a back button hidden until there is history", %{conn: conn} do
+    test "renders no back arrow when opened without a return_to", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
 
-      assert has_element?(view, "#node-header-back-wrapper[hidden]")
+      refute has_element?(view, "#node-header-back")
     end
 
     test "starts idle, waiting for the first fetch", %{conn: conn} do

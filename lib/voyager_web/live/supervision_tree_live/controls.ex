@@ -104,7 +104,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
        %SupervisionTreeControls{apps: apps, depth: depth, include_relations?: include_relations?}} ->
         socket
         |> assign(:apps_form, to_form(params, as: :tree_controls))
-        |> push_patch(to: controls_path(socket, apps, depth, include_relations?), replace: true)
+        |> push_patch(to: controls_path(socket, apps, depth, include_relations?))
 
       {:error, changeset} ->
         assign(socket, :apps_form, to_form(changeset, as: :tree_controls))
@@ -122,8 +122,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
   def handle_event("clear_all_apps", _params, socket) do
     socket
     |> push_patch(
-      to: controls_path(socket, [], socket.assigns.depth, socket.assigns.include_relations?),
-      replace: true
+      to: controls_path(socket, [], socket.assigns.depth, socket.assigns.include_relations?)
     )
     |> noreply()
   end

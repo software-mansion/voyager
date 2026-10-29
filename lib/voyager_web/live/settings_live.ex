@@ -10,13 +10,12 @@ defmodule VoyagerWeb.SettingsLive do
   alias VoyagerWeb.SettingsLive.UpdateSettings
 
   @impl true
-  def mount(params, _session, socket) do
+  def mount(_params, _session, socket) do
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
     end
 
     socket
-    |> assign(:return_to, safe_return_to(params["return_to"]))
     |> assign(:connected?, not is_nil(NodeSession.current()))
     |> assign(:terms_of_service_url, Application.get_env(:voyager, :terms_of_service_url))
     |> ok()
@@ -66,20 +65,4 @@ defmodule VoyagerWeb.SettingsLive do
   end
 
   def handle_info(_, socket), do: {:noreply, socket}
-
-  defp safe_return_to(path) when is_binary(path) do
-    case URI.parse(path) do
-      %URI{scheme: nil, host: nil, path: "/" <> _ = route_path} ->
-        if Phoenix.Router.route_info(VoyagerWeb.Router, "GET", route_path, "") == :error do
-          "/"
-        else
-          path
-        end
-
-      _ ->
-        "/"
-    end
-  end
-
-  defp safe_return_to(_), do: "/"
 end

@@ -23,16 +23,16 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     :ok
   end
 
-  test "renders breadcrumbs to the ETS table list and a hidden back button", %{conn: conn} do
+  test "shows a back arrow only when reached with a return_to", %{conn: conn} do
     name = named_table(:set)
-    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/ets-tables/#{inspect(name)}")
+    path = ~p"/node/#{@node_name}/ets-tables/#{inspect(name)}"
+    return_to = ~p"/node/#{@node_name}/ets-tables"
 
-    assert has_element?(
-             view,
-             ~s|#ets-table-breadcrumbs a[href="#{~p"/node/#{@node_name}/ets-tables"}"]|
-           )
+    {:ok, view, _html} = live(conn, path)
+    refute has_element?(view, "#node-header-back")
 
-    assert has_element?(view, "#node-header-back-wrapper[hidden]")
+    {:ok, view, _html} = live(conn, "#{path}?#{URI.encode_query(return_to: return_to)}")
+    assert has_element?(view, ~s|#node-header-back[href="#{return_to}"]|)
   end
 
   test "reloading the snapshot re-reads the table info", %{conn: conn} do

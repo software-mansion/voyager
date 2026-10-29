@@ -29,7 +29,6 @@ import Tooltip from './hooks/tooltip';
 import NumberStepper from './hooks/number_stepper';
 import DetailsPanelResize from './hooks/details_panel_resize';
 import TableSettings from './hooks/table_settings';
-import HistoryBack from './hooks/history_back';
 
 const csrfToken = document
   .querySelector("meta[name='csrf-token']")
@@ -42,7 +41,6 @@ const liveSocket = new LiveSocket('/live', Socket, {
     NumberStepper,
     DetailsPanelResize,
     TableSettings,
-    HistoryBack,
     ...colocatedHooks,
   },
 });

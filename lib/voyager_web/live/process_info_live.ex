@@ -26,6 +26,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
   alias VoyagerWeb.Hooks.TermTreeHook
   alias VoyagerWeb.ProcessInfoLive.Query
   alias VoyagerWeb.TermTree
+  alias VoyagerWeb.Utils.URL
 
   require Logger
 
@@ -64,7 +65,12 @@ defmodule VoyagerWeb.ProcessInfoLive do
       data-settings-key="process-info"
       class="mx-auto flex h-full w-full max-w-screen-2xl flex-col gap-4 overflow-hidden p-6 sm:p-8"
     >
-      <.node_header node_name={@session.node_name} waiting_message={nil} class="mb-0" back>
+      <.node_header
+        node_name={@session.node_name}
+        waiting_message={nil}
+        class="mb-0"
+        return_to={@return_to}
+      >
         <:actions>
           <div class="flex flex-col items-end gap-0.5">
             <.tooltip id="process-info-pid-tip" position="bottom" interactive tip_class="font-mono">
@@ -114,13 +120,6 @@ defmodule VoyagerWeb.ProcessInfoLive do
           </div>
         </:actions>
       </.node_header>
-
-      <.breadcrumbs id="process-info-breadcrumbs">
-        <:crumb navigate={keep_sidebar(~p"/node/#{@session.node_name}/processes", @current_url)}>
-          Processes
-        </:crumb>
-        <:crumb class="font-mono">{Formatters.pid(@pid_string)}</:crumb>
-      </.breadcrumbs>
 
       <div class="flex min-h-0 flex-1 flex-col">
         <div id="process-info-tabs" role="tablist" class="tabs tabs-lift">
@@ -337,7 +336,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
   def handle_event("set-tab", %{"tab" => tab}, socket) do
     case Enum.find(@tabs, &(to_string(&1) == tab)) do
       nil -> noreply(socket)
-      tab -> socket |> push_patch(to: tab_path(socket, tab), replace: true) |> noreply()
+      tab -> socket |> push_patch(to: tab_path(socket, tab)) |> noreply()
     end
   end
 
@@ -543,11 +542,8 @@ defmodule VoyagerWeb.ProcessInfoLive do
     |> noreply()
   end
 
-  defp tab_path(socket, tab) do
-    %{session: session, pid_string: pid_string, current_url: current_url} = socket.assigns
-    path = ~p"/node/#{session.node_name}/processes/#{pid_string}?tab=#{tab}"
-    keep_sidebar(path, current_url)
-  end
+  defp tab_path(socket, tab),
+    do: URL.put_query_param(socket.assigns.current_url, "tab", to_string(tab))
 
   # Opening a gated tab for the first time fetches it; data that is already
   # there (or in flight) is left alone.

@@ -81,10 +81,7 @@ defmodule VoyagerWeb.CoreComponents do
 
   attr :class, :any, default: "mb-8", doc: "replaces the default bottom margin"
 
-  attr :back, :boolean,
-    default: false,
-    doc:
-      "leads with a back button, shown only when the page was reached from inside the app but not from the sidebar"
+  attr :return_to, :string, default: nil, doc: "leads with a back arrow to this path"
 
   slot :actions
 
@@ -92,7 +89,19 @@ defmodule VoyagerWeb.CoreComponents do
     ~H"""
     <header class={["flex items-center justify-between gap-4" | List.wrap(@class)]}>
       <div class="flex min-w-0 flex-1 items-start gap-2">
-        <.history_back :if={@back} />
+        <div :if={@return_to} class="flex shrink-0 translate-y-0.5">
+          <.tooltip id="node-header-back-tip" position="bottom">
+            <.link
+              id="node-header-back"
+              navigate={@return_to}
+              aria-label="Back"
+              class="btn btn-ghost btn-square toolbar-btn text-base-content/70 hover:text-base-content"
+            >
+              <.icon name="icon-arrow-left" class="toolbar-icon" />
+            </.link>
+            <:content>Back</:content>
+          </.tooltip>
+        </div>
         <div class="min-w-0 flex-1">
           <h1 class="font-mono text-base-content min-w-0 text-2xl font-bold tracking-tight">
             <.tooltip
@@ -130,66 +139,6 @@ defmodule VoyagerWeb.CoreComponents do
       </div>
       <div :if={@actions != []} class="flex shrink-0 items-center gap-2">{render_slot(@actions)}</div>
     </header>
-    """
-  end
-
-  defp history_back(assigns) do
-    ~H"""
-    <div
-      id="node-header-back-wrapper"
-      class="flex shrink-0 translate-y-0.5"
-      hidden
-      phx-hook="HistoryBack"
-      phx-mounted={JS.ignore_attributes(["hidden"])}
-    >
-      <.tooltip id="node-header-back-tip" position="bottom">
-        <button
-          type="button"
-          id="node-header-back"
-          aria-label="Back"
-          class="btn btn-ghost btn-square toolbar-btn text-base-content/70 hover:text-base-content"
-        >
-          <.icon name="icon-arrow-left" class="toolbar-icon" />
-        </button>
-        <:content>Back</:content>
-      </.tooltip>
-    </div>
-    """
-  end
-
-  @doc """
-  Breadcrumbs for a detail page. The last crumb is the current page and takes
-  no `navigate`.
-  """
-  attr :id, :string, required: true
-
-  slot :crumb, required: true do
-    attr :navigate, :string
-    attr :class, :any
-  end
-
-  def breadcrumbs(assigns) do
-    ~H"""
-    <nav id={@id} aria-label="Breadcrumb" class="breadcrumbs py-1 text-sm">
-      <ul>
-        <li
-          :for={crumb <- @crumb}
-          aria-current={!crumb[:navigate] && "page"}
-          class={[!crumb[:navigate] && "text-base-content", crumb[:class]]}
-        >
-          <%= if crumb[:navigate] do %>
-            <.link
-              navigate={crumb.navigate}
-              class="text-base-content/70 transition-colors hover:text-base-content"
-            >
-              {render_slot(crumb)}
-            </.link>
-          <% else %>
-            {render_slot(crumb)}
-          <% end %>
-        </li>
-      </ul>
-    </nav>
     """
   end
 
