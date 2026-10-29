@@ -18,7 +18,7 @@ defmodule Voyager.Services.ModuleCatalog do
   alias Voyager.NodeSession
 
   @table __MODULE__
-  @default_ttl_ms 60_000
+  @default_ttl_ms 120_000
   @timeout Agent.default_timeout()
 
   @typedoc "`:hot` modules can only be traced on a list of pids."
