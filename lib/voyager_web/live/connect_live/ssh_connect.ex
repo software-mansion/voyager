@@ -9,6 +9,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   alias Voyager.NodeSession.ConnectError
   alias Voyager.NodeSession.Connectors.Ssh, as: SshConnector
   alias Voyager.Queries.SshConnections, as: SshConnectionQueries
+  alias Voyager.Schemas.SshConnection
   alias VoyagerWeb.ConnectComponents
   alias VoyagerWeb.ConnectLive.KeyAuth
   alias VoyagerWeb.ConnectLive.RecentConnections
@@ -35,14 +36,16 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
 
   @impl true
   def update(assigns, socket) when not is_map_key(socket.assigns, :initialized) do
+    form = prefill_form(assigns.prefill)
+
     socket
     |> assign(:id, assigns.id)
     |> assign(:disabled?, assigns.disabled?)
     |> assign(:connecting?, assigns.connecting?)
-    |> assign(:ssh_form, empty_ssh_form())
+    |> assign(:ssh_form, form)
     |> SecretVisibility.init()
     |> KeyAuth.init()
-    |> assign(:show_ssh_advanced, false)
+    |> assign(:show_ssh_advanced, agent_socket_set?(form))
     |> RecentConnections.init(
       queries: SshConnectionQueries,
       actions: SshConnectionActions
@@ -359,26 +362,11 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
 
   def handle_event("fill_ssh_recent", %{"id" => id}, socket) do
     with_ssh_connection(socket, id, fn conn ->
-      params = %{
-        "ssh_user" => conn.ssh_user,
-        "ssh_host" => conn.ssh_host,
-        "ssh_port" => to_string(conn.ssh_port),
-        "node_name" => conn.node_name,
-        "cookie" => conn.cookie || "",
-        "name_type" => to_string(conn.name_type),
-        "auth_method" => to_string(conn.auth_method),
-        "password" => conn.password || "",
-        "key_path" => conn.key_path || "",
-        "agent_socket_path" => conn.agent_socket_path || "",
-        "epmd_port" => to_string(conn.epmd_port)
-      }
+      form = saved_ssh_form(conn)
 
       socket
-      |> assign(:ssh_form, KeyAuth.checked_form(SshConnectionParams.changeset(params)))
-      |> update(
-        :show_ssh_advanced,
-        &(&1 or (conn.auth_method == :agent and conn.agent_socket_path != nil))
-      )
+      |> assign(:ssh_form, form)
+      |> update(:show_ssh_advanced, &(&1 or agent_socket_set?(form)))
       |> SecretVisibility.reset()
     end)
   end
@@ -447,6 +435,44 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   defp empty_ssh_form do
     SshConnectionParams.changeset() |> to_form(as: :ssh)
   end
+
+  defp saved_ssh_form(conn) do
+    %{
+      "ssh_user" => conn.ssh_user,
+      "ssh_host" => conn.ssh_host,
+      "ssh_port" => to_string(conn.ssh_port),
+      "node_name" => conn.node_name,
+      "cookie" => conn.cookie || "",
+      "name_type" => to_string(conn.name_type),
+      "auth_method" => to_string(conn.auth_method),
+      "password" => conn.password || "",
+      "key_path" => conn.key_path || "",
+      "agent_socket_path" => conn.agent_socket_path || "",
+      "epmd_port" => to_string(conn.epmd_port)
+    }
+    |> SshConnectionParams.changeset()
+    |> KeyAuth.checked_form()
+  end
+
+  defp agent_socket_set?(form) do
+    Ecto.Changeset.get_field(form.source, :auth_method) == :agent and
+      Ecto.Changeset.get_field(form.source, :agent_socket_path) != nil
+  end
+
+  defp prefill_form(%{"connection" => id}) when is_binary(id) do
+    with {int_id, ""} <- Integer.parse(id),
+         %SshConnection{} = conn <- SshConnectionQueries.get(int_id) do
+      saved_ssh_form(conn)
+    else
+      _ -> empty_ssh_form()
+    end
+  end
+
+  defp prefill_form(%{} = params) do
+    params |> SshConnectionParams.changeset() |> to_form(as: :ssh)
+  end
+
+  defp prefill_form(nil), do: empty_ssh_form()
 
   defp put_connect_error(socket, reason) do
     form =
