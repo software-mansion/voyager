@@ -82,6 +82,16 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
       assert has_element?(view, "#node-header-back")
     end
 
+    test "is absent in a tab with no history to go back to", %{conn: conn} do
+      {:ok, view, _html} =
+        conn
+        |> put_req_header("referer", "http://#{conn.host}" <> ~p"/node/#{@node_name}/processes")
+        |> put_connect_params(%{"_history_length" => 1})
+        |> live(process_path())
+
+      refute has_element?(view, "#node-header-back")
+    end
+
     test "ignores a referer from another origin", %{conn: conn} do
       {:ok, view, _html} =
         conn

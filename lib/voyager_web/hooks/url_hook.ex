@@ -49,7 +49,11 @@ defmodule VoyagerWeb.Hooks.UrlHook do
   defp can_go_back?(%{@no_back_param => "root"}, _session, _socket), do: false
 
   defp can_go_back?(_params, session, socket) do
-    referer = (get_connect_params(socket) || %{})["_live_referer"] || session["referer"]
-    is_binary(referer) and URI.parse(referer).host == socket.host_uri.host
+    connect_params = get_connect_params(socket) || %{}
+    referer = connect_params["_live_referer"] || session["referer"]
+
+    # A tab opened straight onto this page (e.g. middle-click) has a referer but no history.
+    connect_params["_history_length"] != 1 and is_binary(referer) and
+      URI.parse(referer).host == socket.host_uri.host
   end
 end
