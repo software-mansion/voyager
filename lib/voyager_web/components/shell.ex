@@ -6,6 +6,7 @@ defmodule VoyagerWeb.Components.Shell do
   use VoyagerWeb, :html
 
   alias Voyager.NodeSession.Session
+  alias VoyagerWeb.Hooks.UrlHook
   alias VoyagerWeb.Utils.URL
 
   attr :active_nav, :atom, default: nil
@@ -392,9 +393,9 @@ defmodule VoyagerWeb.Components.Shell do
   # Carries the current sidebar mode onto a nav link so the choice survives
   # navigation to another page.
   defp nav_path(path, mode) when mode in ["compact", "full"],
-    do: URL.put_query_param(path, "sidebar", mode)
+    do: path |> URL.put_query_param("sidebar", mode) |> UrlHook.without_back_arrow()
 
-  defp nav_path(path, _mode), do: path
+  defp nav_path(path, _mode), do: UrlHook.without_back_arrow(path)
 
   defp toggle_sidebar_path(current_url, sidebar_mode) do
     next_mode = if sidebar_mode == "compact", do: "full", else: "compact"

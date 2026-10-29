@@ -8,7 +8,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
 
   use VoyagerWeb, :component
 
-  import VoyagerWeb.Helpers, only: [put_return_to: 2]
+  import VoyagerWeb.Helpers, only: [keep_sidebar: 2]
 
   alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Formatters
@@ -287,7 +287,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   defp process_href(pid, current_url) do
     ["", "node", node_name | _rest] = String.split(URI.parse(current_url).path, "/")
     path = ~p"/node/#{URI.decode(node_name)}/processes/#{Formatters.format_pid(pid)}"
-    put_return_to(path, current_url)
+    keep_sidebar(path, current_url)
   end
 
   @doc """

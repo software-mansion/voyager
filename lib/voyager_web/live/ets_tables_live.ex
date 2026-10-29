@@ -375,13 +375,13 @@ defmodule VoyagerWeb.EtsTablesLive do
   # recreated; only an unnamed one falls back to the reference.
   defp contents_path(node_name, table, current_url) do
     key = if table.named_table, do: inspect(table.name), else: TableId.display(table.id)
-    put_return_to(~p"/node/#{node_name}/ets-tables/#{key}", current_url)
+    keep_sidebar(~p"/node/#{node_name}/ets-tables/#{key}", current_url)
   end
 
   defp process_path(_node_name, :none, _current_url), do: nil
 
   defp process_path(node_name, pid, current_url) do
-    put_return_to(~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}", current_url)
+    keep_sidebar(~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}", current_url)
   end
 
   defp table_param(%{"table" => param}) when is_binary(param) and param != "", do: param

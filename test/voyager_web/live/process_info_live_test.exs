@@ -8,7 +8,6 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
   alias Voyager.Fakes
   alias Voyager.Test.VoyagerAgentFixture
   alias VoyagerWeb.Formatters
-  alias VoyagerWeb.Utils.URL
 
   @node_name "nonode@nohost"
 
@@ -48,34 +47,39 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
   end
 
   describe "back arrow" do
-    test "is absent without a return_to", %{conn: conn} do
+    test "is absent after a full page load", %{conn: conn} do
       {:ok, view, _html} =
         live(conn, ~p"/node/#{@node_name}/processes/#{Formatters.format_pid(self())}")
 
       refute has_element?(view, "#node-header-back")
     end
 
-    test "links to return_to and keeps it across tab switches", %{conn: conn} do
-      return_to = ~p"/node/#{@node_name}/processes"
+    test "links to the live referer and survives tab switches", %{conn: conn} do
       pid_string = Formatters.format_pid(self())
 
-      {:ok, view, _html} =
-        live(conn, ~p"/node/#{@node_name}/processes/#{pid_string}?#{[return_to: return_to]}")
+      conn =
+        put_connect_params(conn, %{
+          "_live_referer" => "http://localhost" <> ~p"/node/#{@node_name}/processes"
+        })
 
-      assert has_element?(view, ~s|#node-header-back[href="#{return_to}"]|)
+      {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/processes/#{pid_string}")
+
+      back = ~p"/node/#{@node_name}/processes?nav=root"
+      assert has_element?(view, ~s|#node-header-back[href="#{back}"]|)
 
       view |> element("#process-tab-relations") |> render_click()
-      path = assert_patch(view)
-
-      assert URL.get_query_param(path, "tab") == "relations"
-      assert has_element?(view, ~s|#node-header-back[href="#{return_to}"]|)
+      assert has_element?(view, ~s|#node-header-back[href="#{back}"]|)
     end
 
-    test "ignores an off-site return_to", %{conn: conn} do
+    test "is absent when the link opts out", %{conn: conn} do
       pid_string = Formatters.format_pid(self())
 
-      {:ok, view, _html} =
-        live(conn, ~p"/node/#{@node_name}/processes/#{pid_string}?return_to=//evil.example")
+      conn =
+        put_connect_params(conn, %{
+          "_live_referer" => "http://localhost" <> ~p"/node/#{@node_name}/processes"
+        })
+
+      {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/processes/#{pid_string}?nav=root")
 
       refute has_element?(view, "#node-header-back")
     end
