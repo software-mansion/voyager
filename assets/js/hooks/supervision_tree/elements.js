@@ -9,6 +9,7 @@
  * @property {string | null} app
  * @property {string | null} parent_key
  * @property {string | null} pid "<X.Y.Z>" (null for ghost children)
+ * @property {string | null} pid_node set when the pid lives on another node
  * @property {string | any[]} name
  * @property {'app' | 'supervisor' | 'worker' | 'port' | 'reference'} type
  * @property {number} child_count
@@ -40,6 +41,7 @@ export function elementsFor(key, node, nodeId) {
     name: node.name,
     type: node.type,
     pid: node.pid,
+    pid_node: node.pid_node,
     info: node.info,
     child_count: child_count,
     parent_key: node.parent_key,

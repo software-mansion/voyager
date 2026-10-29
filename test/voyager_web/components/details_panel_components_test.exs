@@ -83,6 +83,30 @@ defmodule VoyagerWeb.Components.DetailsPanelComponentsTest do
     end
   end
 
+  describe "node_type_label/1" do
+    test "flags a pid on another node and names that node in its tooltip" do
+      html =
+        render_component(&DetailsPanelComponents.node_type_label/1,
+          panel_id: "panel",
+          node_type: :worker,
+          off_node: :"peer@127.0.0.1"
+        )
+
+      assert count(html, "#panel-off-node") == 1
+      assert html |> query("#panel-off-node-portal") |> LazyHTML.text() =~ "node: peer@127.0.0.1"
+    end
+
+    test "shows no off-node flag for a pid on the inspected node" do
+      html =
+        render_component(&DetailsPanelComponents.node_type_label/1,
+          panel_id: "panel",
+          node_type: :worker
+        )
+
+      assert count(html, "#panel-off-node") == 0
+    end
+  end
+
   describe "overview/1" do
     defp render_overview(attrs) do
       info = %{

@@ -96,7 +96,7 @@ export const tooltipMethods = {
       return;
     }
 
-    const { name, type, pid, info, app } = node.data();
+    const { name, type, pid, pid_node, info, app } = node.data();
 
     const pidNodeId = this.el.dataset.nodeId;
     const displayName =
@@ -111,6 +111,7 @@ export const tooltipMethods = {
             ${parseMfa(info?.initial_call, 'initial_call:')}
             ${parseMfa(info?.current_function, 'current_function:')}
             ${pid ? `<li>PID: <span class="font-semibold">${escapeHtml(formatPid(pid, pidNodeId))}</span></li>` : ''}
+            ${pid_node ? `<li>node: <span class="font-semibold">${escapeHtml(pid_node)}</span></li>` : ''}
           </ul>
         `;
   },

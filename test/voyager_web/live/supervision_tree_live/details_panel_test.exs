@@ -274,7 +274,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       refute has_element?(view, "#details-panel", "(20)")
     end
 
-    test "renders monitors and monitored-by, selecting pid entries", %{
+    test "renders monitors and monitored-by, selecting a pid entry", %{
       conn: conn,
       sup_pid: sup_pid,
       port: port,
@@ -284,8 +284,15 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
 
       expect(Voyager.ErpcMock, :call, 13, fn
         _node, @agent_module, :proc_monitors, [_pid, _limit], _timeout ->
-          items = [{:process, monitored}, {:process, {:demo_registry, :demo@localhost}}]
-          {:ok, %{total: 2, truncated: false, items: items}}
+          items = [
+            {:process, monitored},
+            {:process, {:demo_registry, :demo@localhost}},
+            {:port, port},
+            {:time_offset, :clock_service},
+            {:process, {:other_registry, :other@localhost}}
+          ]
+
+          {:ok, %{total: 5, truncated: false, items: items}}
 
         _node, @agent_module, :proc_monitored_by, [_pid, _limit], _timeout ->
           {:ok, %{total: 3, truncated: false, items: [monitor, make_ref(), port]}}
@@ -302,9 +309,26 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
 
       assert has_element?(
                view,
-               "span#details-panel-monitors-1",
+               "button#details-panel-monitors-1",
                ":demo_registry on demo@localhost"
              )
+
+      assert has_element?(view, "button#details-panel-monitors-2 .bg-port")
+      assert has_element?(view, "#details-panel h4", ~r/Monitors\s+\(5\)/)
+      assert has_element?(view, "span#details-panel-monitors-3", ":clock_service")
+      tip_html = view |> element("#details-panel-monitors-3-portal") |> render()
+      assert tip_html =~ "Time offset monitor"
+
+      assert tip_html =~
+               ~s(href="https://www.erlang.org/doc/apps/erts/erlang.html#monitor_time_offset")
+
+      assert has_element?(
+               view,
+               "span#details-panel-monitors-4",
+               ":other_registry on other@localhost"
+             )
+
+      assert has_element?(view, "#details-panel-monitors-4-portal", "on another node")
 
       assert has_element?(view, "button#details-panel-monitored-by-0", TreeNode.key(monitor))
       assert has_element?(view, "button#details-panel-monitored-by-0 .bg-primary")
@@ -318,6 +342,42 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       render_async(view)
 
       assert has_element?(view, "#details-panel-pid", TreeNode.key(monitor))
+      assert has_element?(view, "#details-panel-back")
+    end
+
+    test "selecting a monitor by registered name jumps to the process holding it", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      sup_key: sup_key
+    } do
+      holder = :erlang.list_to_pid(~c"<0.410.0>")
+
+      expect(Voyager.ErpcMock, :call, 13, fn
+        _node, @agent_module, :proc_monitors, [_pid, _limit], _timeout ->
+          items = [{:process, {:demo_registry, :demo@localhost}}]
+          {:ok, %{total: 1, truncated: false, items: items}}
+
+        _node, mod, fun, args, _timeout ->
+          supervision_reply(mod, fun, args, sup_pid, [port], [])
+      end)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      expect(Voyager.ErpcMock, :call, fn _node, :erlang, :whereis, [:demo_registry], _timeout ->
+        holder
+      end)
+
+      expect_process_info_fetch(holder, [])
+
+      view |> element("#details-panel-monitors-0") |> render_click()
+      render_async(view)
+      flush(view)
+      render_async(view)
+
+      assert has_element?(view, "#details-panel-pid", TreeNode.key(holder))
       assert has_element?(view, "#details-panel-back")
     end
 
@@ -347,6 +407,23 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       assert has_element?(view, "#details-panel-type", "Reference")
       assert has_element?(view, "#details-panel", TreeNode.key(ref))
       assert has_element?(view, "#details-panel-back")
+    end
+
+    test "ignores a toggle for an unknown relation", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      link_pids: link_pids
+    } do
+      expect_supervision_erpc(7, sup_pid, [port], link_pids)
+
+      view = open_tree!(conn)
+
+      view
+      |> with_target("#details-panel")
+      |> render_click("toggle-relation", %{"relation" => "bogus"})
+
+      assert has_element?(view, "#details-panel")
     end
 
     test "skips the process fetches when the rate limiter is exhausted", %{

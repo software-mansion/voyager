@@ -14,6 +14,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   import VoyagerWeb.Helpers, only: [keep_sidebar: 2]
 
   alias Phoenix.LiveView.AsyncResult
+  alias VoyagerWeb.Components.SupervisionTreeComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.ProcessInfoControls
 
@@ -357,18 +358,17 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
     <div id={@id} class="flex flex-col gap-2">
       <p :if={@items == []} class="font-mono text-base-content/70 text-xs">None</p>
       <div :if={@items != []} class="flex flex-wrap gap-1.5">
-        <%= for item <- Enum.map(@items, &identifier_entry(&1, @remote_node)) do %>
+        <%= for {item, index} <- Enum.with_index(@items, &{identifier_entry(&1, @remote_node), &2}) do %>
           <.pid_link
             :if={item.pid?}
             href={keep_sidebar(~p"/node/#{@node_name}/processes/#{item.text}", @current_url)}
             pid={item.text}
           />
-          <span
-            :if={not item.pid?}
-            class="border-base-content/40 bg-base-200 text-base-content/80 font-mono inline-flex items-center rounded-md border px-2.5 py-1 text-xs"
-          >
-            {item.text}
-          </span>
+          <.link_tooltip :if={item.entry} id={"#{@id}-#{index}"} entry={item.entry}>
+            <.plain_identifier text={item.text} focusable />
+            <:content>{item.entry.text}</:content>
+          </.link_tooltip>
+          <.plain_identifier :if={not item.pid? and is_nil(item.entry)} text={item.text} />
         <% end %>
       </div>
       <p :if={@overflow > 0} class="font-mono text-base-content/70 text-xs">
@@ -410,23 +410,40 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   def error_kind(:no_state), do: :info
   def error_kind(_reason), do: :error
 
-  # Monitor entries arrive as `{:process, target}` / `{:port, port}`; links and
-  # monitored-by entries as bare pids and ports.
-  defp identifier_entry({:process, target}, remote_node),
+  attr :text, :string, required: true
+  attr :focusable, :boolean, default: false
+
+  defp plain_identifier(assigns) do
+    ~H"""
+    <span
+      tabindex={@focusable && "0"}
+      class={[
+        "border-base-content/40 bg-base-200 text-base-content/80 font-mono inline-flex items-center rounded-md border px-2.5 py-1 text-xs",
+        @focusable && "cursor-help"
+      ]}
+    >
+      {@text}
+    </span>
+    """
+  end
+
+  # Monitor entries arrive as `{kind, target}`; links and monitored-by entries as
+  # bare pids, ports and references.
+  defp identifier_entry({_kind, target}, remote_node) when is_pid(target) or is_port(target),
     do: identifier_entry(target, remote_node)
 
-  defp identifier_entry({:port, port}, remote_node), do: identifier_entry(port, remote_node)
+  defp identifier_entry({_kind, _target} = monitor, remote_node) do
+    entry = SupervisionTreeComponents.monitor_entry(monitor, remote_node)
+    %{pid?: false, text: entry.label, entry: entry}
+  end
 
   defp identifier_entry(pid, remote_node) when is_pid(pid) do
     if node(pid) == remote_node do
-      %{pid?: true, text: Formatters.format_pid(pid)}
+      %{pid?: true, text: Formatters.format_pid(pid), entry: nil}
     else
-      %{pid?: false, text: "#{Formatters.pid(pid)} on #{node(pid)}"}
+      %{pid?: false, text: "#{Formatters.pid(pid)} on #{node(pid)}", entry: nil}
     end
   end
 
-  defp identifier_entry({name, node}, _remote_node) when is_atom(name),
-    do: %{pid?: false, text: "#{inspect(name)} on #{node}"}
-
-  defp identifier_entry(other, _remote_node), do: %{pid?: false, text: inspect(other)}
+  defp identifier_entry(other, _remote_node), do: %{pid?: false, text: inspect(other), entry: nil}
 end

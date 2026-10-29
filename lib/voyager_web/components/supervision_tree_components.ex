@@ -364,6 +364,51 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
   @spec edge_legend(String.t()) :: map()
   def edge_legend(name), do: Enum.find(@edge_legends, &(&1.name == name))
 
+  @spec monitor_label({atom(), term()}) :: String.t()
+  def monitor_label({_kind, {name, node}}) when is_atom(name) and is_atom(node),
+    do: "#{inspect(name)} on #{node}"
+
+  def monitor_label({_kind, target}), do: inspect(target)
+
+  @doc """
+  Chip label and help entry for a monitor whose target is not a pid or port,
+  such as a registered name or a time offset. `remote_node` is the inspected node.
+  """
+  @spec monitor_entry({atom(), term()}, node() | nil) :: %{
+          label: String.t(),
+          text: String.t(),
+          doc_href: String.t(),
+          doc_label: String.t()
+        }
+  def monitor_entry({kind, {name, node}} = monitor, remote_node)
+      when is_atom(name) and is_atom(node) do
+    text =
+      if node == remote_node,
+        do: "Monitor by registered name: it follows whichever #{kind} holds the name.",
+        else: "Monitor by registered name on another node, so there is nothing to jump to here."
+
+    %{
+      label: monitor_label(monitor),
+      text: text,
+      doc_href: monitor_doc_href(kind),
+      doc_label: "See #{kind} monitors"
+    }
+  end
+
+  def monitor_entry({kind, _target} = monitor, _remote_node) do
+    kind_label = kind |> to_string() |> String.replace("_", " ")
+
+    %{
+      label: monitor_label(monitor),
+      text:
+        "#{String.capitalize(kind_label)} monitor. Its target is not a process, so there is nothing to jump to.",
+      doc_href: monitor_doc_href(kind),
+      doc_label: "See #{kind_label} monitors"
+    }
+  end
+
+  defp monitor_doc_href(kind), do: "#{@erts}#monitor_#{kind}"
+
   defp legend_entry_id(%{name: name}) do
     "#{name |> String.downcase() |> String.replace(" ", "-")}-legend-entry"
   end
