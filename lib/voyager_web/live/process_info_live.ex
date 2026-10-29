@@ -26,7 +26,6 @@ defmodule VoyagerWeb.ProcessInfoLive do
   alias VoyagerWeb.Hooks.TermTreeHook
   alias VoyagerWeb.ProcessInfoLive.Query
   alias VoyagerWeb.TermTree
-  alias VoyagerWeb.Utils.URL
 
   require Logger
 
@@ -69,7 +68,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
         node_name={@session.node_name}
         waiting_message={nil}
         class="mb-0"
-        return_to={@return_to}
+        back={@can_go_back?}
       >
         <:actions>
           <div class="flex flex-col items-end gap-0.5">
@@ -336,7 +335,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
   def handle_event("set-tab", %{"tab" => tab}, socket) do
     case Enum.find(@tabs, &(to_string(&1) == tab)) do
       nil -> noreply(socket)
-      tab -> socket |> push_patch(to: tab_path(socket, tab)) |> noreply()
+      tab -> socket |> push_patch(to: tab_path(socket, tab), replace: true) |> noreply()
     end
   end
 
@@ -542,8 +541,11 @@ defmodule VoyagerWeb.ProcessInfoLive do
     |> noreply()
   end
 
-  defp tab_path(socket, tab),
-    do: URL.put_query_param(socket.assigns.current_url, "tab", to_string(tab))
+  defp tab_path(socket, tab) do
+    %{session: session, pid_string: pid_string, current_url: current_url} = socket.assigns
+    path = ~p"/node/#{session.node_name}/processes/#{pid_string}?tab=#{tab}"
+    keep_sidebar(path, current_url)
+  end
 
   # Opening a gated tab for the first time fetches it; data that is already
   # there (or in flight) is left alone.

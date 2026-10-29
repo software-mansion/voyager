@@ -23,25 +23,25 @@ defmodule VoyagerWeb.SettingsLiveTest do
       {:ok, view, _html} = live(conn, ~p"/settings")
 
       refute has_element?(view, "aside")
-      assert has_element?(view, ~s|a[href="/"]|)
+      assert has_element?(view, ~s|a[href="/?nav=root"]|)
     end
 
     test "back link honors the return_to param", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/settings?return_to=/node/demo@localhost")
 
-      assert has_element?(view, ~s|a[href="/node/demo@localhost"]|)
+      assert has_element?(view, ~s|a[href="/node/demo@localhost?nav=root"]|)
     end
 
     test "ignores an unsafe return_to and falls back to /", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/settings?return_to=https://evil.example")
 
-      assert has_element?(view, ~s|a[href="/"]|)
+      assert has_element?(view, ~s|a[href="/?nav=root"]|)
     end
 
     test "ignores a protocol-relative return_to and falls back to /", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/settings?return_to=//evil.example")
 
-      assert has_element?(view, ~s|a[href="/"]|)
+      assert has_element?(view, ~s|a[href="/?nav=root"]|)
     end
   end
 

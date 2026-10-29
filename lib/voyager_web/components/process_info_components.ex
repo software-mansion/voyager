@@ -11,7 +11,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   use VoyagerWeb, :component
 
   import VoyagerWeb.Components.TermComponents, only: [term_inspector: 1]
-  import VoyagerWeb.Helpers, only: [put_return_to: 2]
+  import VoyagerWeb.Helpers, only: [keep_sidebar: 2]
 
   alias Phoenix.LiveView.AsyncResult
   alias VoyagerWeb.Formatters
@@ -360,7 +360,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
         <%= for item <- Enum.map(@items, &identifier_entry(&1, @remote_node)) do %>
           <.pid_link
             :if={item.pid?}
-            href={put_return_to(~p"/node/#{@node_name}/processes/#{item.text}", @current_url)}
+            href={keep_sidebar(~p"/node/#{@node_name}/processes/#{item.text}", @current_url)}
             pid={item.text}
           />
           <span

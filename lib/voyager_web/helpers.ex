@@ -70,19 +70,4 @@ defmodule VoyagerWeb.Helpers do
   end
 
   def keep_sidebar(path, _current_url), do: path
-
-  @doc """
-  `keep_sidebar/2` plus a `return_to` param pointing back at `current_url`, which
-  the target page's header shows as a back arrow. The `return_to` already on
-  `current_url` is dropped, so the arrow goes back one hop and URLs do not grow
-  along a chain of links.
-  """
-  @spec put_return_to(String.t(), String.t() | nil) :: String.t()
-  def put_return_to(path, current_url) when is_binary(current_url) do
-    path
-    |> keep_sidebar(current_url)
-    |> URL.put_query_param("return_to", URL.drop_query_param(current_url, "return_to"))
-  end
-
-  def put_return_to(path, _current_url), do: path
 end

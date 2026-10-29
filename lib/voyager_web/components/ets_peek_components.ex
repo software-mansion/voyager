@@ -38,7 +38,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   attr :table_name, :string, required: true
   attr :node_name, :string, required: true
-  attr :return_to, :string, default: nil
+  attr :back, :boolean, default: false
   attr :last_updated, :any, default: nil
 
   def header(assigns) do
@@ -48,7 +48,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       last_updated={@last_updated}
       waiting_message={nil}
       class="mb-0"
-      return_to={@return_to}
+      back={@back}
     >
       <:actions>
         <.tooltip id="ets-table-name-tip" position="bottom" interactive tip_class="font-mono">

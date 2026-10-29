@@ -254,7 +254,7 @@ defmodule VoyagerWeb.ProcessesLive do
   end
 
   defp process_path(node_name, pid, current_url) do
-    put_return_to(~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}", current_url)
+    keep_sidebar(~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}", current_url)
   end
 
   # Re-selecting the active column flips the direction; a new column starts

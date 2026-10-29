@@ -8,7 +8,6 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
   alias Voyager.Fakes
   alias Voyager.Test.VoyagerAgentFixture
   alias VoyagerWeb.Formatters
-  alias VoyagerWeb.Utils.URL
 
   @node_name "nonode@nohost"
 
@@ -48,37 +47,49 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
   end
 
   describe "back arrow" do
-    test "is absent without a return_to", %{conn: conn} do
-      {:ok, view, _html} =
-        live(conn, ~p"/node/#{@node_name}/processes/#{Formatters.format_pid(self())}")
+    test "is absent without a referer", %{conn: conn} do
+      {:ok, view, _html} = live(conn, process_path())
 
       refute has_element?(view, "#node-header-back")
     end
 
-    test "links to return_to and keeps it across tab switches", %{conn: conn} do
-      return_to = ~p"/node/#{@node_name}/processes"
-      pid_string = Formatters.format_pid(self())
-
+    test "shows after a live navigation and survives tab switches", %{conn: conn} do
       {:ok, view, _html} =
-        live(conn, ~p"/node/#{@node_name}/processes/#{pid_string}?#{[return_to: return_to]}")
+        conn |> with_referer("_live_referer") |> live(process_path())
 
-      assert has_element?(view, ~s|#node-header-back[href="#{return_to}"]|)
+      assert has_element?(view, "#node-header-back")
 
       view |> element("#process-tab-relations") |> render_click()
-      path = assert_patch(view)
-
-      assert URL.get_query_param(path, "tab") == "relations"
-      assert has_element?(view, ~s|#node-header-back[href="#{return_to}"]|)
+      assert has_element?(view, "#node-header-back")
     end
 
-    test "ignores an off-site return_to", %{conn: conn} do
-      pid_string = Formatters.format_pid(self())
+    test "shows after a full page load from inside the app", %{conn: conn} do
+      {:ok, view, _html} = conn |> with_referer("_referrer") |> live(process_path())
 
+      assert has_element?(view, "#node-header-back")
+    end
+
+    test "ignores a referer from another origin", %{conn: conn} do
       {:ok, view, _html} =
-        live(conn, ~p"/node/#{@node_name}/processes/#{pid_string}?return_to=//evil.example")
+        conn
+        |> put_connect_params(%{"_referrer" => "https://evil.example/"})
+        |> live(process_path())
 
       refute has_element?(view, "#node-header-back")
     end
+
+    test "is absent when the link opts out", %{conn: conn} do
+      {:ok, view, _html} =
+        conn |> with_referer("_live_referer") |> live(process_path() <> "?nav=root")
+
+      refute has_element?(view, "#node-header-back")
+    end
+  end
+
+  defp process_path, do: ~p"/node/#{@node_name}/processes/#{Formatters.format_pid(self())}"
+
+  defp with_referer(conn, key) do
+    put_connect_params(conn, %{key => "http://#{conn.host}" <> ~p"/node/#{@node_name}/processes"})
   end
 
   describe "dictionary" do

@@ -123,7 +123,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
   attr :status, :atom, required: true
   attr :last_updated, :any, required: true
   attr :refresh_interval, :integer, default: nil
-  attr :return_to, :string, default: nil
+  attr :back, :boolean, default: false
 
   def header(assigns) do
     ~H"""
@@ -132,7 +132,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
         node_name={@node_name}
         last_updated={@last_updated}
         waiting_message="waiting for first fetch…"
-        return_to={@return_to}
+        back={@back}
       >
         <:actions>
           <span
