@@ -63,16 +63,29 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
       assert has_element?(view, "#node-header-back")
     end
 
-    test "shows after a full page load from inside the app", %{conn: conn} do
-      {:ok, view, _html} = conn |> with_referer("_referrer") |> live(process_path())
+    test "renders in the static and connected render of a full page load", %{conn: conn} do
+      conn =
+        put_req_header(
+          conn,
+          "referer",
+          "http://#{conn.host}" <> ~p"/node/#{@node_name}/processes"
+        )
 
+      static_html = conn |> get(process_path()) |> html_response(200)
+
+      assert static_html
+             |> LazyHTML.from_document()
+             |> LazyHTML.query("#node-header-back")
+             |> Enum.any?()
+
+      {:ok, view, _html} = live(conn, process_path())
       assert has_element?(view, "#node-header-back")
     end
 
     test "ignores a referer from another origin", %{conn: conn} do
       {:ok, view, _html} =
         conn
-        |> put_connect_params(%{"_referrer" => "https://evil.example/"})
+        |> put_req_header("referer", "https://evil.example/")
         |> live(process_path())
 
       refute has_element?(view, "#node-header-back")

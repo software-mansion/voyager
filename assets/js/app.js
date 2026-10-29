@@ -34,7 +34,7 @@ const csrfToken = document
   .querySelector("meta[name='csrf-token']")
   .getAttribute('content');
 const liveSocket = new LiveSocket('/live', Socket, {
-  params: { _csrf_token: csrfToken, _referrer: document.referrer },
+  params: { _csrf_token: csrfToken },
   hooks: {
     SupervisionTree,
     Tooltip,
