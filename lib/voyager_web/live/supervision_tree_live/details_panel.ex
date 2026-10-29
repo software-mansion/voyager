@@ -13,6 +13,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   alias Voyager.Services.RateLimiter
   alias Voyager.Services.SupervisionTree.TreeNode
   alias VoyagerWeb.Formatters
+  alias VoyagerWeb.ProcessInfoLive.Query
 
   require Logger
 
@@ -156,7 +157,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
           on_toggle_relation="toggle-relation"
           target={@myself}
           remote_node={@remote_node}
-          links_disabled?={@revealing?}
+          chips_disabled?={@revealing?}
         />
         <.show_more_button
           panel_id={@id}
@@ -270,25 +271,10 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   end
 
   defp fetch_relations(remote_node, pid) do
-    result =
-      rate_limited(fn ->
-        with {:ok, links} <- ProcessInfo.fetch_links(remote_node, pid, @relations_limit),
-             {:ok, monitors} <- ProcessInfo.fetch_monitors(remote_node, pid, @relations_limit),
-             {:ok, monitored_by} <-
-               ProcessInfo.fetch_monitored_by(remote_node, pid, @relations_limit) do
-          {:ok,
-           %{
-             links: links,
-             monitors:
-               Map.update!(monitors, :items, &Enum.map(&1, fn {_kind, target} -> target end)),
-             monitored_by: monitored_by
-           }}
-        end
-      end)
-
-    case result do
-      {:ok, relations} ->
-        {:ok, %{relations: relations}}
+    case Query.relations(remote_node, pid, @relations_limit, Query.default_timeout()) do
+      {:ok, relations, _elapsed_ms} ->
+        monitors = Enum.map(relations.monitors.items, fn {_kind, target} -> target end)
+        {:ok, %{relations: put_in(relations.monitors.items, monitors)}}
 
       {:error, reason} ->
         Logger.warning(
