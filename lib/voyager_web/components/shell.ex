@@ -253,6 +253,7 @@ defmodule VoyagerWeb.Components.Shell do
         :for={{id, visibility, mode} <- @variants}
         id={id}
         patch={toggle_sidebar_path(@current_url, mode)}
+        replace
         aria-label="Toggle sidebar width"
         class={[
           "btn btn-ghost btn-square toolbar-btn text-base-content/70 hover:text-base-content",
