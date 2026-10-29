@@ -308,7 +308,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
           {:ok, %{total: 2, truncated: false, items: items}}
 
         _node, @agent_module, :proc_monitored_by, [_pid, _limit], _timeout ->
-          {:ok, %{total: 1, truncated: false, items: [monitor]}}
+          {:ok, %{total: 2, truncated: false, items: [monitor, make_ref()]}}
 
         _node, mod, fun, args, _timeout ->
           supervision_reply(mod, fun, args, sup_pid, [port], [])
@@ -327,6 +327,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
              )
 
       assert has_element?(view, "button#details-panel-monitored-by-0", TreeNode.key(monitor))
+      assert has_element?(view, "span#details-panel-monitored-by-1", "#Reference<")
 
       expect_process_info_fetch(monitor, [])
 
