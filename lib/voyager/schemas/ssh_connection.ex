@@ -18,6 +18,7 @@ defmodule Voyager.Schemas.SshConnection do
           auth_method: :agent | :password | :key,
           password: String.t() | nil,
           key_path: String.t() | nil,
+          agent_socket_path: String.t() | nil,
           epmd_port: integer(),
           pinned: boolean(),
           last_connected_at: DateTime.t() | nil,
@@ -35,6 +36,7 @@ defmodule Voyager.Schemas.SshConnection do
     field :auth_method, Ecto.Enum, values: [:agent, :password, :key], default: :agent
     field :password, Voyager.Encrypted.Binary
     field :key_path, :string
+    field :agent_socket_path, :string
     field :epmd_port, :integer, default: 4369
     field :pinned, :boolean, default: false
     field :last_connected_at, :utc_datetime
@@ -55,6 +57,7 @@ defmodule Voyager.Schemas.SshConnection do
       :auth_method,
       :password,
       :key_path,
+      :agent_socket_path,
       :epmd_port,
       :pinned,
       :last_connected_at
@@ -75,6 +78,7 @@ defmodule Voyager.Schemas.SshConnection do
     |> validate_length(:cookie, max: 255)
     |> validate_length(:password, max: 255)
     |> validate_length(:key_path, max: 4096)
+    |> validate_length(:agent_socket_path, max: 4096)
     |> validate_number(:ssh_port, greater_than_or_equal_to: 1, less_than_or_equal_to: 65_535)
     |> validate_number(:epmd_port, greater_than_or_equal_to: 1, less_than_or_equal_to: 65_535)
     |> unique_constraint([:ssh_user, :ssh_host, :ssh_port, :node_name])

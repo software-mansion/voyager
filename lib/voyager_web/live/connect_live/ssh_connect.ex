@@ -36,14 +36,16 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
 
   @impl true
   def update(assigns, socket) when not is_map_key(socket.assigns, :initialized) do
+    form = prefill_form(assigns.prefill)
+
     socket
     |> assign(:id, assigns.id)
     |> assign(:disabled?, assigns.disabled?)
     |> assign(:connecting?, assigns.connecting?)
-    |> assign(:ssh_form, prefill_form(assigns.prefill))
+    |> assign(:ssh_form, form)
     |> SecretVisibility.init()
     |> KeyAuth.init()
-    |> assign(:show_ssh_advanced, false)
+    |> assign(:show_ssh_advanced, agent_socket_set?(form))
     |> RecentConnections.init(
       queries: SshConnectionQueries,
       actions: SshConnectionActions
@@ -176,27 +178,41 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
             Advanced {if @show_ssh_advanced, do: "▾", else: "▸"}
           </button>
 
-          <div class={[
-            "border-base-300 mt-3 flex gap-3 rounded-lg border p-4",
-            not @show_ssh_advanced && "hidden"
-          ]}>
-            <div class="flex-1">
-              <ConnectComponents.form_field
-                field={@ssh_form[:ssh_port]}
-                label="SSH Port"
-                type="number"
-                min="1"
-                max="65535"
-                disabled={@disabled?}
-              />
+          <div
+            id="ssh-advanced"
+            class={[
+              "border-base-300 mt-3 flex flex-col gap-3 rounded-lg border p-4",
+              not @show_ssh_advanced && "hidden"
+            ]}
+          >
+            <div class="flex gap-3">
+              <div class="flex-1">
+                <ConnectComponents.form_field
+                  field={@ssh_form[:ssh_port]}
+                  label="SSH Port"
+                  type="number"
+                  min="1"
+                  max="65535"
+                  disabled={@disabled?}
+                />
+              </div>
+              <div class="flex-1">
+                <ConnectComponents.form_field
+                  field={@ssh_form[:epmd_port]}
+                  label="EPMD Port"
+                  type="number"
+                  min="1"
+                  max="65535"
+                  disabled={@disabled?}
+                />
+              </div>
             </div>
-            <div class="flex-1">
+
+            <div id="ssh-agent-socket" class={[@current_auth_method != "agent" && "hidden"]}>
               <ConnectComponents.form_field
-                field={@ssh_form[:epmd_port]}
-                label="EPMD Port"
-                type="number"
-                min="1"
-                max="65535"
+                field={@ssh_form[:agent_socket_path]}
+                label="Agent socket"
+                placeholder="~/.1password/agent.sock"
                 disabled={@disabled?}
               />
             </div>
@@ -346,8 +362,11 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
 
   def handle_event("fill_ssh_recent", %{"id" => id}, socket) do
     with_ssh_connection(socket, id, fn conn ->
+      form = saved_ssh_form(conn)
+
       socket
-      |> assign(:ssh_form, saved_ssh_form(conn))
+      |> assign(:ssh_form, form)
+      |> update(:show_ssh_advanced, &(&1 or agent_socket_set?(form)))
       |> SecretVisibility.reset()
     end)
   end
@@ -395,6 +414,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       auth_method: p.auth_method,
       password: if(p.remember_password and p.auth_method == :password, do: p.password),
       key_path: if(p.auth_method == :key, do: p.key_path),
+      agent_socket_path: if(p.auth_method == :agent, do: p.agent_socket_path),
       epmd_port: p.epmd_port
     )
   end
@@ -427,10 +447,16 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       "auth_method" => to_string(conn.auth_method),
       "password" => conn.password || "",
       "key_path" => conn.key_path || "",
+      "agent_socket_path" => conn.agent_socket_path || "",
       "epmd_port" => to_string(conn.epmd_port)
     }
     |> SshConnectionParams.changeset()
     |> KeyAuth.checked_form()
+  end
+
+  defp agent_socket_set?(form) do
+    Ecto.Changeset.get_field(form.source, :auth_method) == :agent and
+      Ecto.Changeset.get_field(form.source, :agent_socket_path) != nil
   end
 
   defp prefill_form(%{"connection" => id}) when is_binary(id) do

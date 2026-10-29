@@ -61,6 +61,11 @@ defmodule Voyager.MCP.Tools.Connect do
 
     field :key_path, :string,
       description: "Private key file for `key` auth, e.g. \"~/.ssh/id_ed25519\"."
+
+    field :agent_socket_path, :string,
+      description:
+        "ssh-agent socket for `agent` auth when it is not `SSH_AUTH_SOCK`, " <>
+          "e.g. \"~/.1password/agent.sock\"."
   end
 
   @impl true
@@ -140,6 +145,7 @@ defmodule Voyager.MCP.Tools.Connect do
           name_type: Map.fetch!(@name_types, params.name_type),
           auth_method: Map.fetch!(@auth_methods, params.auth_method),
           key_path: Map.get(params, :key_path),
+          agent_socket_path: Map.get(params, :agent_socket_path),
           epmd_port: epmd_port
         }
     end
@@ -220,7 +226,8 @@ defmodule Voyager.MCP.Tools.Connect do
       ssh_port: c.ssh_port,
       epmd_port: c.epmd_port,
       auth_method: c.auth_method,
-      key_path: c.key_path
+      key_path: c.key_path,
+      agent_socket_path: c.agent_socket_path
     ]
     |> Enum.reject(fn {_key, value} -> is_nil(value) end)
   end

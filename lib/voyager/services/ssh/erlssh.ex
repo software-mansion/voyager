@@ -10,6 +10,7 @@ defmodule Voyager.Services.SSH.Erlssh do
   require SSH
 
   @ssh_timeout 5000
+  @agent_timeout 60_000
   @alive %{interval: 15_000, count_max: 3}
 
   @impl true
@@ -24,7 +25,7 @@ defmodule Voyager.Services.SSH.Erlssh do
         alive: Application.get_env(:voyager, :ssh_alive, @alive)
       ] ++ auth_opts(auth)
 
-    :ssh.connect(Distribution.host_address(host), port, opts)
+    :ssh.connect(Distribution.host_address(host), port, opts, negotiation_timeout(auth))
   end
 
   @impl true
@@ -41,7 +42,19 @@ defmodule Voyager.Services.SSH.Erlssh do
   @impl true
   def close(conn), do: :ssh.close(conn)
 
-  defp auth_opts(:agent), do: [key_cb: {:ssh_agent, []}]
+  defp negotiation_timeout({:agent, path}) when is_binary(path), do: @agent_timeout
+  defp negotiation_timeout(_auth), do: @ssh_timeout
+
+  defp auth_opts({:agent, nil}), do: [key_cb: {:ssh_agent, []}]
+
+  defp auth_opts({:agent, socket_path}),
+    do: [
+      key_cb:
+        {:ssh_agent,
+         socket_path: socket_path |> Path.expand() |> String.to_charlist(),
+         timeout: @agent_timeout}
+    ]
+
   defp auth_opts({:password, pass}), do: [password: String.to_charlist(pass)]
 
   defp auth_opts({:key, path, passphrase}),

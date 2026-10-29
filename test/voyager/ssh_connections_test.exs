@@ -161,6 +161,46 @@ defmodule Voyager.SshConnectionsTest do
                "~/.ssh/id_rsa"
     end
 
+    test "overwrites agent_socket_path when a new socket path is supplied" do
+      {user, host, port, node} = @base_profile
+
+      SshConnectionActions.upsert_connected(user, host, port, node,
+        agent_socket_path: "/old.sock"
+      )
+
+      SshConnectionActions.upsert_connected(user, host, port, node,
+        agent_socket_path: "/new.sock"
+      )
+
+      assert SshConnectionQueries.get_by_profile(user, host, port, node).agent_socket_path ==
+               "/new.sock"
+    end
+
+    test "clears agent_socket_path when agent auth connects without one" do
+      {user, host, port, node} = @base_profile
+
+      SshConnectionActions.upsert_connected(user, host, port, node,
+        agent_socket_path: "/old.sock"
+      )
+
+      SshConnectionActions.upsert_connected(user, host, port, node, auth_method: :agent)
+
+      assert SshConnectionQueries.get_by_profile(user, host, port, node).agent_socket_path == nil
+    end
+
+    test "preserves agent_socket_path when connecting with another auth method" do
+      {user, host, port, node} = @base_profile
+
+      SshConnectionActions.upsert_connected(user, host, port, node,
+        agent_socket_path: "/keep.sock"
+      )
+
+      SshConnectionActions.upsert_connected(user, host, port, node, auth_method: :password)
+
+      assert SshConnectionQueries.get_by_profile(user, host, port, node).agent_socket_path ==
+               "/keep.sock"
+    end
+
     test "updates name_type on conflict" do
       {user, host, port, node} = @base_profile
       SshConnectionActions.upsert_connected(user, host, port, node, name_type: :longnames)
