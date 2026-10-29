@@ -203,6 +203,14 @@ defmodule Voyager.Services.ProcessInfoTest do
       assert watcher in items
     end
 
+    test "whereis/2 resolves a registered name and reports a free one" do
+      pid = spawn_idle(fn -> Process.register(self(), :voyager_whereis_test) end)
+      kill_on_exit([pid])
+
+      assert {:ok, ^pid} = ProcessInfo.whereis(Node.self(), :voyager_whereis_test)
+      assert {:error, :not_registered} = ProcessInfo.whereis(Node.self(), :voyager_whereis_free)
+    end
+
     test "fetch_dictionary/3 returns raw key/value terms" do
       pid =
         spawn_idle(fn ->

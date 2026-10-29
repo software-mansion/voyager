@@ -13,6 +13,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.ProcessInfoLive.Query
 
+  require Logger
+
   # No point fetching more relations than the panel can ever render.
   @relations_limit max_expanded_relations()
   @relation_names ~w(links monitors monitored_by)
@@ -70,15 +72,23 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   def handle_event("toggle-relation", _, socket), do: noreply(socket)
 
   def handle_event("select-relation", %{"key" => key}, socket) do
-    case relation_by_key(socket.assigns.relations, key) || info_pid_by_key(socket, key) do
+    remote_node = socket.assigns.remote_node
+
+    case relation_by_key(socket.assigns.relations, key, remote_node) ||
+           info_pid_by_key(socket, key) do
       nil ->
         noreply(socket)
 
-      identifier ->
-        send(self(), {:select_link, identifier})
-
+      {_kind, {name, _node}} ->
         socket
-        |> push_history()
+        |> start_async(:resolve_name, fn ->
+          Query.whereis(remote_node, name, Query.default_timeout())
+        end)
+        |> noreply()
+
+      identifier ->
+        socket
+        |> select_link(identifier)
         |> noreply()
     end
   end
@@ -104,6 +114,18 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   end
 
   @impl true
+  def handle_async(:resolve_name, {:ok, {:ok, target, _elapsed_ms}}, socket) do
+    socket
+    |> select_link(target)
+    |> noreply()
+  end
+
+  def handle_async(:resolve_name, result, socket) do
+    Logger.warning("Failed to resolve a monitored name: #{inspect(result)}")
+    {:noreply, socket}
+  end
+
+  @impl true
   def render(assigns) do
     ~H"""
     <aside
@@ -121,7 +143,12 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
         <%!-- Header --%>
         <div class="border-base-200 flex items-start gap-3 border-b px-5 py-4">
           <div class="flex min-w-0 flex-1 flex-col gap-1.5">
-            <.node_type_label panel_id={@id} node_type={@node.type} off_tree?={@node.placeholder?} />
+            <.node_type_label
+              panel_id={@id}
+              node_type={@node.type}
+              off_tree?={@node.placeholder?}
+              off_node={off_node(@node, @remote_node)}
+            />
             <.node_label panel_id={@id} node={@node} />
           </div>
           <div class="flex shrink-0 items-center gap-1.5">
@@ -188,6 +215,16 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> fetch_details(not showing?)
   end
 
+  defp off_node(%TreeNode{pid: pid}, remote_node) when is_pid(pid) and node(pid) != remote_node,
+    do: node(pid)
+
+  defp off_node(_node, _remote_node), do: nil
+
+  defp select_link(socket, identifier) do
+    send(self(), {:select_link, identifier})
+    push_history(socket)
+  end
+
   defp push_history(%{assigns: %{node: %TreeNode{} = node}} = socket),
     do: assign(socket, :selection_history, [node | socket.assigns.selection_history])
 
@@ -225,19 +262,23 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   defp fetch_relations(remote_node, pid, timeout) do
     with {:ok, relations, _elapsed_ms} <-
            Query.relations(remote_node, pid, @relations_limit, timeout) do
-      monitors = Enum.map(relations.monitors.items, fn {_kind, target} -> target end)
+      monitors = Enum.map(relations.monitors.items, &monitor_target/1)
       {:ok, %{relations: put_in(relations.monitors.items, monitors)}}
     end
   end
 
-  defp relation_by_key(%AsyncResult{ok?: true, result: relations}, key) when is_map(relations) do
+  defp monitor_target({_kind, target}) when is_pid(target) or is_port(target), do: target
+  defp monitor_target(monitor), do: monitor
+
+  defp relation_by_key(%AsyncResult{ok?: true, result: relations}, key, remote_node)
+       when is_map(relations) do
     relations
     |> Map.values()
     |> Enum.flat_map(& &1.items)
-    |> Enum.find(&(selectable_relation?(&1) and TreeNode.key(&1) == key))
+    |> Enum.find(&(selectable_relation?(&1, remote_node) and relation_key(&1) == key))
   end
 
-  defp relation_by_key(_, _), do: nil
+  defp relation_by_key(_, _, _), do: nil
 
   defp info_pid_by_key(
          %{assigns: %{node_info: %AsyncResult{ok?: true, result: info}}} = socket,

@@ -82,6 +82,12 @@ defmodule VoyagerWeb.ProcessInfoLive.Query do
     rate_limited(fn -> ProcessTerm.fetch_state(node, pid, budget, timeout) end)
   end
 
+  @spec whereis(node(), atom(), timeout()) ::
+          {:ok, pid() | port(), non_neg_integer()} | {:error, term()}
+  def whereis(node, name, timeout) do
+    rate_limited(fn -> ProcessInfo.whereis(node, name, timeout) end)
+  end
+
   # A label is an arbitrary term needing the agent's remote truncation; a node
   # without the agent simply has no label to show -- it must not fail the
   # overview.
