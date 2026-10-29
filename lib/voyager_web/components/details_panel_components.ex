@@ -502,6 +502,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :on_select, :string, required: true
   attr :target, :any, required: true
   attr :disabled, :boolean, default: false
+  attr :dot_class, :string, default: "bg-primary"
 
   def chip(assigns) do
     ~H"""
@@ -516,7 +517,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       aria-label={"Select #{@label}"}
       class="border-base-content/70 bg-base-200 text-base-content inline-flex cursor-pointer rounded-md border px-2.5 py-1 text-xs transition-colors enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-wait disabled:opacity-50"
     >
-      <.display_pid pid={@label} />
+      <.display_pid pid={@label} dot_class={@dot_class} />
     </button>
     """
   end
@@ -680,6 +681,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   defp relation_entry(assigns) do
     if selectable_relation?(assigns.item) do
+      assigns = assign(assigns, :dot_class, relation_dot_class(assigns.item))
+
       ~H"""
       <.chip
         id={@id}
@@ -688,6 +691,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         on_select={@on_select}
         target={@target}
         disabled={@disabled}
+        dot_class={@dot_class}
       />
       """
     else
@@ -701,6 +705,10 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       """
     end
   end
+
+  defp relation_dot_class(pid) when is_pid(pid), do: "bg-primary"
+  defp relation_dot_class(port) when is_port(port), do: "bg-port"
+  defp relation_dot_class(ref) when is_reference(ref), do: "bg-success"
 
   @doc """
   A single line of text with a copy button that appears on hover.
@@ -737,9 +745,9 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   def linkable_pid(_key, _info, _remote_node), do: nil
 
-  @doc "False for `{name, node}` and NIF-resource (reference) monitors: neither has a tree node."
+  @doc "False for a monitor held by registered name (`{name, node}`), which has no tree node."
   @spec selectable_relation?(term()) :: boolean()
-  def selectable_relation?(item), do: is_pid(item) or is_port(item)
+  def selectable_relation?(item), do: is_pid(item) or is_port(item) or is_reference(item)
 
   defp overview_value(:initial_call, info), do: format_mfa(info.initial_call)
   defp overview_value(:current_function, info), do: format_mfa(info.current_function)

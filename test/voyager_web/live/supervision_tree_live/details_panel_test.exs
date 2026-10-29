@@ -288,7 +288,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
           {:ok, %{total: 2, truncated: false, items: items}}
 
         _node, @agent_module, :proc_monitored_by, [_pid, _limit], _timeout ->
-          {:ok, %{total: 2, truncated: false, items: [monitor, make_ref()]}}
+          {:ok, %{total: 3, truncated: false, items: [monitor, make_ref(), port]}}
 
         _node, mod, fun, args, _timeout ->
           supervision_reply(mod, fun, args, sup_pid, [port], [])
@@ -307,7 +307,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
              )
 
       assert has_element?(view, "button#details-panel-monitored-by-0", TreeNode.key(monitor))
-      assert has_element?(view, "span#details-panel-monitored-by-1", "#Reference<")
+      assert has_element?(view, "button#details-panel-monitored-by-0 .bg-primary")
+      assert has_element?(view, "button#details-panel-monitored-by-1 .bg-success")
+      assert has_element?(view, "button#details-panel-monitored-by-2 .bg-port")
 
       expect_process_info_fetch(monitor, [])
 
@@ -316,6 +318,34 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       render_async(view)
 
       assert has_element?(view, "#details-panel-pid", TreeNode.key(monitor))
+      assert has_element?(view, "#details-panel-back")
+    end
+
+    test "selecting a monitored-by reference opens it as a reference node", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      sup_key: sup_key
+    } do
+      ref = make_ref()
+
+      expect(Voyager.ErpcMock, :call, 13, fn
+        _node, @agent_module, :proc_monitored_by, [_pid, _limit], _timeout ->
+          {:ok, %{total: 1, truncated: false, items: [ref]}}
+
+        _node, mod, fun, args, _timeout ->
+          supervision_reply(mod, fun, args, sup_pid, [port], [])
+      end)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      view |> element("#details-panel-monitored-by-0") |> render_click()
+      flush(view)
+
+      assert has_element?(view, "#details-panel-type", "Reference")
+      assert has_element?(view, "#details-panel", TreeNode.key(ref))
       assert has_element?(view, "#details-panel-back")
     end
 
