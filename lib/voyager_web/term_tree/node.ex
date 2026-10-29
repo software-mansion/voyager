@@ -7,7 +7,7 @@ defmodule VoyagerWeb.TermTree.Node do
   when it is open (`%{` … `}`). `truncated?` marks a container with a child the
   remote node elided, which is otherwise only visible once it is opened.
 
-  Children are deliberately absent. `VoyagerWeb.TermTree.children/3` fetches
+  Children are deliberately absent. `VoyagerWeb.TermTree.children/4` fetches
   them for the paths that are actually open, which is what keeps a collapsed
   branch free no matter how large the term behind it is.
   """
