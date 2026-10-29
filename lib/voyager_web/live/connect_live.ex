@@ -39,7 +39,7 @@ defmodule VoyagerWeb.ConnectLive do
               <div class="text-base-content text-lg font-semibold tracking-tight">Voyager</div>
               <.link
                 id="open-settings"
-                href={~p"/settings?#{[return_to: @current_url]}"}
+                href={~p"/settings"}
                 title="Settings"
                 class="btn btn-ghost btn-square toolbar-btn text-base-content/60 ml-auto hover:text-base-content"
               >

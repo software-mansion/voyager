@@ -68,7 +68,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
         node_name={@session.node_name}
         waiting_message={nil}
         class="mb-0"
-        back={@can_go_back?}
+        show_back_arrow={@can_go_back?}
       >
         <:actions>
           <div class="flex flex-col items-end gap-0.5">

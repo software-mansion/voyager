@@ -134,21 +134,21 @@ defmodule VoyagerWeb.ConnectLiveTest do
     test "links to the settings page", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 
-      assert has_element?(view, ~s|a#open-settings[href="/settings?return_to=%2F"]|)
+      assert has_element?(view, ~s|a#open-settings[href="/settings"]|)
     end
 
-    test "drops SSH mode from settings return_to when proxy_epmd is inactive", %{conn: conn} do
+    test "falls back to Direct mode when proxy_epmd is inactive", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
 
       assert has_element?(view, "input#mode-direct[checked]")
-      assert has_element?(view, ~s|a#open-settings[href="/settings?return_to=%2F"]|)
+      assert has_element?(view, ~s|a#open-settings[href="/settings"]|)
     end
 
-    test "drops an unknown mode query param from settings return_to", %{conn: conn} do
+    test "falls back to Direct mode on an unknown mode query param", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/?mode=garbage")
 
       assert has_element?(view, "input#mode-direct[checked]")
-      assert has_element?(view, ~s|a#open-settings[href="/settings?return_to=%2F"]|)
+      assert has_element?(view, ~s|a#open-settings[href="/settings"]|)
     end
 
     test "links to the connection tutorial", %{conn: conn} do
@@ -239,7 +239,7 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
       assert has_element?(
                view,
-               ~s|a#open-settings[href="/settings?return_to=%2F%3Fmode%3Dssh"]|
+               ~s|a#open-settings[href="/settings"]|
              )
 
       assert has_element?(view, "input#mode-ssh[checked]")
@@ -339,7 +339,7 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
       assert has_element?(
                view,
-               ~s|a#open-settings[href="/settings?return_to=%2F%3Fmode%3Dssh"]|
+               ~s|a#open-settings[href="/settings"]|
              )
     end
 

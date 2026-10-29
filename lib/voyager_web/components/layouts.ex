@@ -72,7 +72,7 @@ defmodule VoyagerWeb.Layouts do
     ~H"""
     <.flash_group flash={@flash} />
     <div class="bg-base-200 flex h-full flex-col overflow-hidden">
-      <VoyagerWeb.Components.Shell.settings_topbar return_to={assigns[:return_to]} />
+      <VoyagerWeb.Components.Shell.settings_topbar show_back_arrow={assigns[:can_go_back?]} />
       <main class="flex-1 overflow-y-auto">
         {@inner_content}
       </main>

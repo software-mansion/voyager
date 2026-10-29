@@ -31,6 +31,7 @@ defmodule VoyagerWeb.Router do
 
     live_session :settings,
       layout: {VoyagerWeb.Layouts, :settings},
+      session: {VoyagerWeb.Hooks.UrlHook, :referer_session, []},
       on_mount: [VoyagerWeb.Hooks.McpStatusHook, VoyagerWeb.Hooks.AppUpdateHook] do
       live "/settings", SettingsLive, :index
     end

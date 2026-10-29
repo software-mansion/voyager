@@ -81,7 +81,9 @@ defmodule VoyagerWeb.CoreComponents do
 
   attr :class, :any, default: "mb-8", doc: "replaces the default bottom margin"
 
-  attr :back, :boolean, default: false, doc: "leads with a back arrow that goes back in history"
+  attr :show_back_arrow, :boolean,
+    default: false,
+    doc: "leads with an arrow that goes back in history"
 
   slot :actions
 
@@ -89,7 +91,7 @@ defmodule VoyagerWeb.CoreComponents do
     ~H"""
     <header class={["flex items-center justify-between gap-4" | List.wrap(@class)]}>
       <div class="flex min-w-0 flex-1 items-start gap-2">
-        <div :if={@back} class="flex shrink-0 translate-y-0.5">
+        <div :if={@show_back_arrow} class="flex shrink-0 translate-y-0.5">
           <.tooltip id="node-header-back-tip" position="bottom">
             <button
               type="button"
