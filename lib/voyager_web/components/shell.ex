@@ -126,7 +126,7 @@ defmodule VoyagerWeb.Components.Shell do
         </span>
         <span
           id="tracing-indicator-count"
-          class="badge badge-success badge-sm font-mono h-(--toolbar-btn-size-sm) shrink-0"
+          class="badge badge-success badge-sm font-mono h-(--toolbar-btn-size-sm) shrink-0 dark:text-neutral"
         >
           {Formatters.format_count_compact(@session.traces)}
         </span>
@@ -137,6 +137,12 @@ defmodule VoyagerWeb.Components.Shell do
           <span class="text-base-content/70">
             Tracing <span class="font-mono">{format_traced_mfa(@session.config)}</span>
             on <span class="font-mono">{@session.node}</span>
+          </span>
+          <span class="text-base-content/70 flex items-center gap-1.5">
+            <span class="badge badge-success badge-xs font-mono dark:text-neutral">
+              {Formatters.format_integer(@session.traces)}
+            </span>
+            traces captured in this session
           </span>
           <span class="text-base-content/70">
             Click to open the session.
