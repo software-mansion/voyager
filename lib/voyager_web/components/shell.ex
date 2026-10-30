@@ -154,8 +154,8 @@ defmodule VoyagerWeb.Components.Shell do
     """
   end
 
-  defp tracing_session_path(%Tracer.Session{id: id, node: node}),
-    do: "/node/#{URI.encode(Atom.to_string(node))}/tracing/#{id}"
+  # Points at the tracing page until the session viewer adds /node/:node/tracing/:id.
+  defp tracing_session_path(%Tracer.Session{node: node}), do: ~p"/node/#{node}/tracing"
 
   defp format_traced_mfa(%Tracer.Config{module: module, function: function, arity: arity}),
     do: "#{format_module(module)}.#{function}/#{arity || "_"}"
