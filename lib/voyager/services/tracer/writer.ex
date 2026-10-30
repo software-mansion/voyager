@@ -109,15 +109,15 @@ defmodule Voyager.Services.Tracer.Writer do
   end
 
   defp write(session, entries) do
+    prepared =
+      entries
+      |> Enum.chunk_every(@chunk_rows)
+      |> prepared_chunks(session.id)
+      |> Enum.to_list()
+
     {:ok, bytes} =
       Repo.transact(fn ->
-        stored =
-          entries
-          |> Enum.chunk_every(@chunk_rows)
-          |> prepared_chunks(session.id)
-          |> Enum.map(&TraceEntryActions.insert_prepared/1)
-          |> Enum.sum()
-
+        stored = prepared |> Enum.map(&TraceEntryActions.insert_prepared/1) |> Enum.sum()
         {:ok, TraceSessionActions.sync(session, stored)}
       end)
 
