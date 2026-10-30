@@ -9,13 +9,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   import VoyagerWeb.Components.DetailsPanelComponents
 
   alias Phoenix.LiveView.AsyncResult
-  alias Voyager.Services.ProcessInfo
-  alias Voyager.Services.RateLimiter
   alias Voyager.Services.SupervisionTree.TreeNode
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.ProcessInfoLive.Query
-
-  require Logger
 
   # No point fetching more relations than the panel can ever render.
   @relations_limit max_expanded_links()
@@ -103,8 +99,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   def handle_event("refresh-node-info", _params, socket) do
     socket
-    |> maybe_fetch_node_info(socket.assigns.node)
-    |> maybe_fetch_relations(socket.assigns.node)
+    |> fetch_details()
     |> noreply()
   end
 
@@ -182,16 +177,19 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(:selection_history, [])
   end
 
+  # Every tree refresh re-sends the selection; refetching then would blank the panel each tick.
   defp maybe_assign_node(socket, node, keep_history?) do
     history = if keep_history?, do: socket.assigns.selection_history, else: []
+    showing? = socket.assigns.open? and same_process?(socket.assigns.node, node)
+    socket = assign(socket, open?: true, node: node, selection_history: history)
 
-    expanded =
-      if node_changed?(socket, node), do: MapSet.new(), else: socket.assigns.expanded_relations
-
-    socket
-    |> assign(open?: true, node: node, selection_history: history, expanded_relations: expanded)
-    |> maybe_fetch_node_info(node)
-    |> maybe_fetch_relations(node)
+    if showing? do
+      socket
+    else
+      socket
+      |> assign(:expanded_relations, MapSet.new())
+      |> fetch_details()
+    end
   end
 
   defp push_history(%{assigns: %{node: %TreeNode{} = node}} = socket),
@@ -199,96 +197,35 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   defp push_history(socket), do: socket
 
-  defp maybe_fetch_node_info(socket, %TreeNode{pid: pid}) when is_pid(pid) do
+  defp fetch_details(%{assigns: %{node: %TreeNode{pid: pid}}} = socket) when is_pid(pid) do
     remote_node = socket.assigns.remote_node
+    timeout = Query.default_timeout()
 
     socket
-    |> assign(:node_info, AsyncResult.loading())
-    |> assign_async(:node_info, fn -> fetch_node_info(remote_node, pid) end)
+    |> assign_async(:node_info, fn -> fetch_node_info(remote_node, pid, timeout) end, reset: true)
+    |> assign_async(:relations, fn -> fetch_relations(remote_node, pid, timeout) end, reset: true)
   end
 
-  # Nothing to fetch for apps, ports and references: settle the async assign so
+  # Nothing to fetch for apps, ports and references: settle the async assigns so
   # the body never shows a load state it will not leave.
-  defp maybe_fetch_node_info(socket, _node) do
-    assign(socket, :node_info, AsyncResult.ok(nil))
+  defp fetch_details(socket) do
+    assign(socket, node_info: AsyncResult.ok(nil), relations: AsyncResult.ok(nil))
   end
 
-  defp maybe_fetch_relations(socket, %TreeNode{pid: pid}) when is_pid(pid) do
-    remote_node = socket.assigns.remote_node
+  defp same_process?(%TreeNode{pid: pid}, %TreeNode{pid: pid}) when is_pid(pid), do: true
+  defp same_process?(_previous, _node), do: false
 
-    socket
-    |> assign(:relations, AsyncResult.loading())
-    |> assign_async(:relations, fn -> fetch_relations(remote_node, pid) end)
-  end
-
-  defp maybe_fetch_relations(socket, _node) do
-    assign(socket, :relations, AsyncResult.ok(nil))
-  end
-
-  defp node_changed?(socket, node) do
-    case socket.assigns[:node] do
-      %TreeNode{key: key} -> key != node.key
-      _ -> true
+  defp fetch_node_info(remote_node, pid, timeout) do
+    with {:ok, info, _elapsed_ms} <- Query.overview(remote_node, pid, timeout) do
+      {:ok, %{node_info: info}}
     end
   end
 
-  defp fetch_node_info(remote_node, pid) do
-    result =
-      rate_limited(fn ->
-        with {:ok, info} <- ProcessInfo.fetch(remote_node, pid) do
-          {:ok, Map.put(info, :label, fetch_label(remote_node, pid))}
-        end
-      end)
-
-    case result do
-      {:ok, info} ->
-        {:ok, %{node_info: info}}
-
-      {:error, reason} ->
-        Logger.warning(
-          "Failed to load node info for #{inspect(remote_node)}/#{inspect(pid)}: #{inspect(reason)}"
-        )
-
-        {:error, reason}
-    end
-  end
-
-  # The label is an arbitrary term, so it needs the agent's remote truncation and
-  # cannot ride along in the cheap `fetch/2` payload. A node without the agent
-  # loaded simply has no label to show -- it must not fail the whole overview.
-  defp fetch_label(remote_node, pid) do
-    case ProcessInfo.fetch_label(remote_node, pid) do
-      {:ok, %{term: term}} ->
-        term
-
-      {:error, reason} ->
-        Logger.warning(
-          "Failed to load label for #{inspect(remote_node)}/#{inspect(pid)}: #{inspect(reason)}"
-        )
-
-        nil
-    end
-  end
-
-  defp fetch_relations(remote_node, pid) do
-    case Query.relations(remote_node, pid, @relations_limit, Query.default_timeout()) do
-      {:ok, relations, _elapsed_ms} ->
-        monitors = Enum.map(relations.monitors.items, fn {_kind, target} -> target end)
-        {:ok, %{relations: put_in(relations.monitors.items, monitors)}}
-
-      {:error, reason} ->
-        Logger.warning(
-          "Failed to load relations for #{inspect(remote_node)}/#{inspect(pid)}: #{inspect(reason)}"
-        )
-
-        {:error, reason}
-    end
-  end
-
-  defp rate_limited(fun) do
-    case RateLimiter.run(:high, fun) do
-      {:ok, result, _elapsed_us} -> result
-      {:error, :rate_limited, _retry_after_ms} -> {:error, :rate_limited}
+  defp fetch_relations(remote_node, pid, timeout) do
+    with {:ok, relations, _elapsed_ms} <-
+           Query.relations(remote_node, pid, @relations_limit, timeout) do
+      monitors = Enum.map(relations.monitors.items, fn {_kind, target} -> target end)
+      {:ok, %{relations: put_in(relations.monitors.items, monitors)}}
     end
   end
 
