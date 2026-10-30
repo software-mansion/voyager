@@ -109,6 +109,7 @@ defmodule VoyagerWeb.Components.Shell do
       <.link
         navigate={tracing_session_path(@session)}
         id="tracing-indicator"
+        aria-label={"Open the running tracing session, #{Formatters.format_integer(@session.traces)} traces captured"}
         class="border-success/30 bg-success/10 flex items-center gap-1.5 rounded-lg border py-1 pr-1 pl-2.5 transition-colors hover:bg-success/20 hover:border-success/50 focus-visible:outline-success focus-visible:outline-2 focus-visible:outline-offset-2"
       >
         <span class="relative flex h-1.5 w-1.5 shrink-0">
@@ -153,7 +154,6 @@ defmodule VoyagerWeb.Components.Shell do
     """
   end
 
-  # shortcut: plain path while the session viewer route does not exist; switch to ~p when it lands.
   defp tracing_session_path(%Tracer.Session{id: id, node: node}),
     do: "/node/#{URI.encode(Atom.to_string(node))}/tracing/#{id}"
 

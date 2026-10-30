@@ -26,6 +26,10 @@ defmodule VoyagerWeb.Hooks.TracingStatusHook do
     {:halt, assign(socket, :tracing_session, running(session))}
   end
 
+  defp handle_tracing_status({:session_created, session}, socket) do
+    {:halt, assign(socket, :tracing_session, running(session))}
+  end
+
   defp handle_tracing_status({:session_closed, _id}, socket) do
     {:halt, assign(socket, :tracing_session, nil)}
   end

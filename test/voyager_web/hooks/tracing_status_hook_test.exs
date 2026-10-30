@@ -76,6 +76,18 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     assert has_element?(view, "#tracing-indicator")
   end
 
+  test "consumes a new session's broadcast on an app page", %{conn: conn} do
+    Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
+    stub_erpc(Fakes.node_data())
+
+    {:ok, view, _html} = live(conn, ~p"/node/demo@localhost")
+
+    broadcast({:session_created, %{session() | status: :idle}})
+
+    assert render(view)
+    refute has_element?(view, "#tracing-indicator")
+  end
+
   defp session do
     %Session{
       id: 7,
