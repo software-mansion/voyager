@@ -36,10 +36,6 @@ defmodule Voyager.Services.Tracer.Writer do
     GenServer.cast(__MODULE__, {:append, session, entries})
   end
 
-  @doc "Flushes what is queued, then prunes older sessions over the storage limit."
-  @spec close_run(Session.t()) :: :ok
-  def close_run(session), do: GenServer.cast(__MODULE__, {:close_run, session})
-
   @doc "Blocks until everything appended so far is in the database."
   @spec flush() :: :ok
   def flush, do: GenServer.call(__MODULE__, :flush)
@@ -76,17 +72,6 @@ defmodule Voyager.Services.Tracer.Writer do
     if state.count >= @flush_rows,
       do: {:noreply, flush(state)},
       else: {:noreply, schedule_flush(state)}
-  end
-
-  def handle_cast({:close_run, session}, state) do
-    state = flush(%{state | session: session})
-
-    with {:error, reason} <-
-           guarded(fn -> TraceSessionActions.prune(session.storage_limit, session.id) end) do
-      Logger.error("Pruning trace sessions failed: #{inspect(reason)}")
-    end
-
-    {:noreply, state}
   end
 
   @impl true

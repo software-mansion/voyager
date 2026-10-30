@@ -16,8 +16,9 @@ defmodule Voyager.Services.Tracer do
 
   A session created with `save: true` gets a `Voyager.Schemas.TraceSession` row and
   every entry is handed to `Writer` as it is appended; `load/1` makes it active again later.
-  Saved entries are capped by the `:trace_storage_limit_mb` setting: a run over it
-  stops with `:storage_limit`, and older sessions are pruned when a run ends.
+  Saved sessions share the `:trace_storage_limit_mb` setting as a total budget: a run
+  gets what is left after the other saved sessions and stops with `:storage_limit`
+  once that runs out.
   """
 
   use GenServer
@@ -219,7 +220,7 @@ defmodule Voyager.Services.Tracer do
       origin: origin,
       save: save,
       created_at: DateTime.utc_now(),
-      storage_limit: storage_limit()
+      storage_limit: storage_limit(id)
     }
 
     broadcast({:session_activated, session})
@@ -284,7 +285,8 @@ defmodule Voyager.Services.Tracer do
             status: :running,
             stop_reason: nil,
             started_at: session.started_at || DateTime.utc_now(),
-            stopped_at: nil
+            stopped_at: nil,
+            storage_limit: storage_limit(session.id)
         }
 
         Voyager.Telemetry.dispatch!("voyager.trace.start",
@@ -462,9 +464,6 @@ defmodule Voyager.Services.Tracer do
           [entry(:stopped, origin, reason: reason, traces: run_traces, dropped: run_dropped)]
       )
 
-    # Pruning only here lets disk peak near twice the limit.
-    if session.save, do: Writer.close_run(state.session)
-
     state
   end
 
@@ -483,8 +482,10 @@ defmodule Voyager.Services.Tracer do
 
   defp request_stop(state, _reason), do: state
 
-  defp storage_limit,
-    do: Settings.get(:trace_storage_limit_mb, @default_storage_limit_mb) * 1_000_000
+  defp storage_limit(id) do
+    limit = Settings.get(:trace_storage_limit_mb, @default_storage_limit_mb) * 1_000_000
+    max(limit - TraceSessionQueries.bytes_except(id), 0)
+  end
 
   defp pair_returns(events, open_calls, open_count) do
     {open_calls, open_count} =
@@ -532,7 +533,7 @@ defmodule Voyager.Services.Tracer do
       traces: row.traces,
       dropped: row.dropped,
       bytes: row.bytes,
-      storage_limit: storage_limit(),
+      storage_limit: storage_limit(row.id),
       seq: TraceEntryQueries.next_seq(row.id),
       started_at: row.started_at,
       stopped_at: row.stopped_at

@@ -46,29 +46,6 @@ defmodule Voyager.Actions.TraceSessions do
   end
 
   @doc """
-  Deletes the oldest sessions with saved entries, never `keep_id`, until their
-  `bytes` together with `keep_id`'s fit in `limit`.
-  """
-  @spec prune(non_neg_integer(), integer()) :: :ok
-  def prune(limit, keep_id) do
-    kept = Repo.one(from s in TraceSession, where: s.id == ^keep_id, select: s.bytes) || 0
-
-    ids =
-      from(s in TraceSession,
-        where: s.id != ^keep_id and s.bytes > 0,
-        order_by: [desc: s.id],
-        select: {s.id, s.bytes}
-      )
-      |> Repo.all()
-      |> Enum.scan({nil, kept}, fn {id, bytes}, {_id, total} -> {id, total + bytes} end)
-      |> Enum.filter(fn {_id, total} -> total > limit end)
-      |> Enum.map(fn {id, _total} -> id end)
-
-    TraceSession |> where([s], s.id in ^ids) |> Repo.delete_all()
-    :ok
-  end
-
-  @doc """
   Run on boot: sessions left `running` are stopped with reason `interrupted`,
   since the remote tracer stops when Voyager dies.
   """

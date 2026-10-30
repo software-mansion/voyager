@@ -22,16 +22,14 @@ defmodule Voyager.TraceSessionsTest do
     assert %{status: :idle} = TraceSessionQueries.get(idle)
   end
 
-  test "prune/2 deletes the oldest saved sessions over the limit, never the kept one" do
-    session!(:stopped, 40)
-    %{id: empty} = session!(:stopped)
-    session!(:stopped, 40)
-    %{id: newer} = session!(:stopped, 30)
-    %{id: kept} = session!(:running, 50)
+  test "bytes_except/1 sums the other sessions' bytes, 0 when there are none" do
+    assert 0 == TraceSessionQueries.bytes_except(0)
 
-    assert :ok = TraceSessionActions.prune(100, kept)
+    %{id: id} = session!(:stopped, 40)
+    session!(:stopped, 60)
 
-    assert Enum.map(TraceSessionQueries.all(), & &1.id) == [kept, newer, empty]
+    assert 100 == TraceSessionQueries.bytes_except(0)
+    assert 60 == TraceSessionQueries.bytes_except(id)
   end
 
   test "deleting a session deletes its entries" do

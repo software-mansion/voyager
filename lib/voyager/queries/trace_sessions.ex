@@ -14,4 +14,8 @@ defmodule Voyager.Queries.TraceSessions do
 
   @spec get(integer()) :: TraceSession.t() | nil
   def get(id), do: Repo.get(TraceSession, id)
+
+  @spec bytes_except(integer()) :: non_neg_integer()
+  def bytes_except(id),
+    do: Repo.one(from s in TraceSession, where: s.id != ^id, select: coalesce(sum(s.bytes), 0))
 end
