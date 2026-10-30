@@ -45,7 +45,7 @@ defmodule Voyager.Services.ModuleCatalog do
   @doc """
   Functions of a loaded `module`, local ones included, fuzzy-matched as
   `name/arity` against `filter` with the closest first. Blank returns all,
-  sorted by name and arity. Compiler-generated funs are left out.
+  sorted by name and arity. Anonymous fun bodies are left out.
   """
   @spec functions(node(), module(), String.t() | nil) ::
           {:ok, [function_entry()]} | {:error, term()}
