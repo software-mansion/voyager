@@ -46,6 +46,75 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
     end
   end
 
+  describe "back arrow" do
+    test "is absent without a referer", %{conn: conn} do
+      {:ok, view, _html} = live(conn, process_path())
+
+      refute has_element?(view, "#node-header-back")
+    end
+
+    test "shows after a live navigation and survives tab switches", %{conn: conn} do
+      {:ok, view, _html} =
+        conn |> with_referer("_live_referer") |> live(process_path())
+
+      assert has_element?(view, "#node-header-back")
+
+      view |> element("#process-tab-relations") |> render_click()
+      assert has_element?(view, "#node-header-back")
+    end
+
+    test "renders in the static and connected render of a full page load", %{conn: conn} do
+      conn =
+        put_req_header(
+          conn,
+          "referer",
+          "http://#{conn.host}" <> ~p"/node/#{@node_name}/processes"
+        )
+
+      static_html = conn |> get(process_path()) |> html_response(200)
+
+      assert static_html
+             |> LazyHTML.from_document()
+             |> LazyHTML.query("#node-header-back")
+             |> Enum.any?()
+
+      {:ok, view, _html} = live(conn, process_path())
+      assert has_element?(view, "#node-header-back")
+    end
+
+    test "is absent in a tab with no history to go back to", %{conn: conn} do
+      {:ok, view, _html} =
+        conn
+        |> put_req_header("referer", "http://#{conn.host}" <> ~p"/node/#{@node_name}/processes")
+        |> put_connect_params(%{"_history_length" => 1})
+        |> live(process_path())
+
+      refute has_element?(view, "#node-header-back")
+    end
+
+    test "ignores a referer from another origin", %{conn: conn} do
+      {:ok, view, _html} =
+        conn
+        |> put_req_header("referer", "https://evil.example/")
+        |> live(process_path())
+
+      refute has_element?(view, "#node-header-back")
+    end
+
+    test "is absent when the link opts out", %{conn: conn} do
+      {:ok, view, _html} =
+        conn |> with_referer("_live_referer") |> live(process_path() <> "?nav=root")
+
+      refute has_element?(view, "#node-header-back")
+    end
+  end
+
+  defp process_path, do: ~p"/node/#{@node_name}/processes/#{Formatters.format_pid(self())}"
+
+  defp with_referer(conn, key) do
+    put_connect_params(conn, %{key => "http://#{conn.host}" <> ~p"/node/#{@node_name}/processes"})
+  end
+
   describe "dictionary" do
     # 40 three-unit entries against the smallest allowed budget leave exactly
     # one unit for the last one, which the remote truncates to a bare marker.

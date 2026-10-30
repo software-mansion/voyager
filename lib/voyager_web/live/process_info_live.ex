@@ -64,7 +64,12 @@ defmodule VoyagerWeb.ProcessInfoLive do
       data-settings-key="process-info"
       class="mx-auto flex h-full w-full max-w-screen-2xl flex-col gap-4 overflow-hidden p-6 sm:p-8"
     >
-      <.node_header node_name={@session.node_name} waiting_message={nil} class="mb-0">
+      <.node_header
+        node_name={@session.node_name}
+        waiting_message={nil}
+        class="mb-0"
+        show_back_arrow={@can_go_back?}
+      >
         <:actions>
           <div class="flex flex-col items-end gap-0.5">
             <.tooltip id="process-info-pid-tip" position="bottom" interactive tip_class="font-mono">
@@ -114,14 +119,6 @@ defmodule VoyagerWeb.ProcessInfoLive do
           </div>
         </:actions>
       </.node_header>
-
-      <.link
-        id="back-to-processes"
-        navigate={keep_sidebar(~p"/node/#{@session.node_name}/processes", @current_url)}
-        class="btn btn-ghost btn-sm w-max gap-2"
-      >
-        <.icon name="icon-arrow-left" class="size-4" /> All processes
-      </.link>
 
       <div class="flex min-h-0 flex-1 flex-col">
         <div id="process-info-tabs" role="tablist" class="tabs tabs-lift">
@@ -338,7 +335,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
   def handle_event("set-tab", %{"tab" => tab}, socket) do
     case Enum.find(@tabs, &(to_string(&1) == tab)) do
       nil -> noreply(socket)
-      tab -> socket |> push_patch(to: tab_path(socket, tab)) |> noreply()
+      tab -> socket |> push_patch(to: tab_path(socket, tab), replace: true) |> noreply()
     end
   end
 

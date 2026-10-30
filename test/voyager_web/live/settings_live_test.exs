@@ -19,29 +19,29 @@ defmodule VoyagerWeb.SettingsLiveTest do
   end
 
   describe "layout" do
-    test "renders no sidebar and a back link to the default return path", %{conn: conn} do
+    test "renders no sidebar and a back link to the connect page", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/settings")
 
       refute has_element?(view, "aside")
-      assert has_element?(view, ~s|a[href="/"]|)
+      assert has_element?(view, ~s|a#settings-back[href="/"]|)
     end
 
-    test "back link honors the return_to param", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/settings?return_to=/node/demo@localhost")
+    test "goes back in history when opened from inside the app", %{conn: conn} do
+      {:ok, view, _html} =
+        conn
+        |> put_req_header("referer", "http://#{conn.host}/")
+        |> live(~p"/settings")
 
-      assert has_element?(view, ~s|a[href="/node/demo@localhost"]|)
+      assert has_element?(view, "button#settings-back")
     end
 
-    test "ignores an unsafe return_to and falls back to /", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/settings?return_to=https://evil.example")
+    test "ignores a referer from another origin", %{conn: conn} do
+      {:ok, view, _html} =
+        conn
+        |> put_req_header("referer", "https://evil.example/")
+        |> live(~p"/settings")
 
-      assert has_element?(view, ~s|a[href="/"]|)
-    end
-
-    test "ignores a protocol-relative return_to and falls back to /", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/settings?return_to=//evil.example")
-
-      assert has_element?(view, ~s|a[href="/"]|)
+      assert has_element?(view, ~s|a#settings-back[href="/"]|)
     end
   end
 

@@ -23,6 +23,21 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     :ok
   end
 
+  test "shows a back arrow only after a live navigation", %{conn: conn} do
+    path = ~p"/node/#{@node_name}/ets-tables/#{inspect(named_table(:set))}"
+
+    {:ok, view, _html} = live(conn, path)
+    refute has_element?(view, "#node-header-back")
+
+    conn =
+      put_connect_params(conn, %{
+        "_live_referer" => "http://#{conn.host}/node/#{@node_name}/ets-tables"
+      })
+
+    {:ok, view, _html} = live(conn, path)
+    assert has_element?(view, "#node-header-back")
+  end
+
   test "reloading the snapshot re-reads the table info", %{conn: conn} do
     name = named_table(:set)
     :ets.insert(name, for(i <- 1..60, do: {i, i}))

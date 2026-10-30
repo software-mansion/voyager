@@ -82,7 +82,7 @@ defmodule VoyagerWeb.EtsTableLive do
           table_name={@table_param}
           node_name={@session.node_name}
           last_updated={@last_updated}
-          back_href={keep_sidebar(~p"/node/#{@session.node_name}/ets-tables", @current_url)}
+          show_back_arrow={@can_go_back?}
         />
 
         <.async_result :let={info} assign={@info}>
