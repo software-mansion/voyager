@@ -12,8 +12,10 @@ defmodule Voyager.MCP.Tools.ModuleList do
   of pids.
 
   With `module` (`Foo.Bar`, `Elixir.Foo.Bar`, `:lists` or `lists`), lists that
-  module's functions and arities, local ones included with `exported: false`,
-  paged the same way. Results are cached for up to a minute.
+  module's functions and arities, local ones included with `exported: false`.
+  `search` then fuzzy-matches `name/arity`, closest first; blank returns all,
+  sorted by name and arity. Paged the same way. Results are cached for up to
+  two minutes.
   """
 
   use Anubis.Server.Component, type: :tool
@@ -27,7 +29,7 @@ defmodule Voyager.MCP.Tools.ModuleList do
 
     field :search, :string,
       description:
-        "Case-insensitive fuzzy match on the module name; its characters must appear in order. Ignored with `module`."
+        "Case-insensitive fuzzy match, characters in order. Matches the module name, or `name/arity` when `module` is set."
 
     field :limit, :integer,
       default: 50,
@@ -62,7 +64,8 @@ defmodule Voyager.MCP.Tools.ModuleList do
   defp functions(node, input, params) do
     with {:ok, entries} <- ModuleCatalog.modules(node),
          {:ok, entry} <- find_module(entries, input),
-         {:ok, functions} <- ModuleCatalog.functions(node, entry.module) do
+         {:ok, functions} <-
+           ModuleCatalog.functions(node, entry.module, Map.get(params, :search)) do
       payload =
         functions
         |> Enum.map(&%{name: &1.name, arity: &1.arity, exported: &1.exported?})
