@@ -6,22 +6,26 @@ defmodule VoyagerWeb.Components.Shell do
   use VoyagerWeb, :html
 
   alias Voyager.NodeSession.Session
+  alias Voyager.Services.Tracer
+  alias VoyagerWeb.Formatters
   alias VoyagerWeb.Utils.URL
 
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
   attr :mcp_status, :map, default: %{alive?: false, url: nil}
+  attr :tracing_session, Tracer.Session, default: nil
   attr :current_url, :string, default: nil
   slot :inner_block, required: true
 
   def shell(assigns) do
     ~H"""
     <div class="bg-base-200 flex h-full flex-col overflow-x-auto overflow-y-hidden">
-      <div class="min-w-sm flex min-h-0 flex-1 flex-col">
+      <div class="min-w-lg flex min-h-0 flex-1 flex-col">
         <.topbar
           active_nav={@active_nav}
           session={@session}
           mcp_status={@mcp_status}
+          tracing_session={@tracing_session}
           current_url={@current_url}
         />
 
@@ -45,14 +49,16 @@ defmodule VoyagerWeb.Components.Shell do
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
   attr :mcp_status, :map, default: %{alive?: false, url: nil}
+  attr :tracing_session, Tracer.Session, default: nil
   attr :current_url, :string, default: nil
 
   defp topbar(assigns) do
     ~H"""
     <div class="bg-base-100 border-base-300 min-h-14 grid-cols-[auto_1fr_auto] z-10 grid flex-none items-center gap-4 border-b px-4">
       <.brand />
-      <div class="@container/nav-status flex min-w-0">
+      <div class="@container/nav-status flex min-w-0 items-center gap-3">
         <.node_indicator session={@session} />
+        <.tracing_indicator session={@tracing_session} />
       </div>
       <.link
         href={~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_url)]}"}
@@ -71,6 +77,7 @@ defmodule VoyagerWeb.Components.Shell do
   (defaults to the connect page) followed by the brand mark.
   """
   attr :return_to, :string, default: nil
+  attr :tracing_session, Tracer.Session, default: nil
 
   def settings_topbar(assigns) do
     ~H"""
@@ -85,9 +92,76 @@ defmodule VoyagerWeb.Components.Shell do
         </.link>
         <.brand />
       </div>
+      <div class="navbar-end @container/nav-status min-w-0">
+        <.tracing_indicator session={@tracing_session} />
+      </div>
     </div>
     """
   end
+
+  attr :session, Tracer.Session, default: nil
+
+  defp tracing_indicator(%{session: nil} = assigns), do: ~H""
+
+  defp tracing_indicator(assigns) do
+    ~H"""
+    <.tooltip id="tracing-indicator-tip" position="bottom" class="ml-auto shrink-0">
+      <.link
+        navigate={tracing_session_path(@session)}
+        id="tracing-indicator"
+        aria-label={"Open the running tracing session, #{Formatters.format_integer(@session.traces)} traces captured"}
+        class="border-success/30 bg-success/10 flex items-center gap-1.5 rounded-lg border py-1 pr-1 pl-2.5 transition-colors hover:bg-success/20 hover:border-success/50 focus-visible:outline-success focus-visible:outline-2 focus-visible:outline-offset-2"
+      >
+        <span class="relative flex h-1.5 w-1.5 shrink-0">
+          <span class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"></span>
+          <span class="bg-success relative inline-flex h-1.5 w-1.5 rounded-full"></span>
+        </span>
+        <span class="text-success text-xs font-medium @max-sm/nav-status:hidden">
+          Tracing
+        </span>
+        <span
+          id="tracing-indicator-mfa"
+          class="font-mono text-base-content/70 max-w-56 truncate text-xs @max-lg/nav-status:hidden"
+        >
+          {format_traced_mfa(@session.config)}
+        </span>
+        <span
+          id="tracing-indicator-count"
+          class="badge badge-success badge-sm font-mono h-(--toolbar-btn-size-sm) shrink-0 dark:text-neutral"
+        >
+          {Formatters.format_count_compact(@session.traces)}
+        </span>
+      </.link>
+      <:content>
+        <div class="flex flex-col gap-1">
+          <span class="font-medium">Tracing session running</span>
+          <span class="text-base-content/70">
+            Tracing <span class="font-mono">{format_traced_mfa(@session.config)}</span>
+            on <span class="font-mono">{@session.node}</span>
+          </span>
+          <span class="text-base-content/70 flex items-center gap-1.5">
+            <span class="badge badge-success badge-xs font-mono dark:text-neutral">
+              {Formatters.format_integer(@session.traces)}
+            </span>
+            traces captured in this session
+          </span>
+          <span class="text-base-content/70">
+            Click to open the session.
+          </span>
+        </div>
+      </:content>
+    </.tooltip>
+    """
+  end
+
+  # Points at the tracing page until the session viewer adds /node/:node/tracing/:id.
+  defp tracing_session_path(%Tracer.Session{node: node}), do: ~p"/node/#{node}/tracing"
+
+  defp format_traced_mfa(%Tracer.Config{module: module, function: function, arity: arity}),
+    do: "#{format_module(module)}.#{function}/#{arity || "_"}"
+
+  defp format_module("Elixir." <> module), do: module
+  defp format_module(module), do: ":" <> module
 
   defp brand(assigns) do
     assigns = assign(assigns, :version, Voyager.version())
