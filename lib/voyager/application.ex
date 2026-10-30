@@ -10,7 +10,6 @@ defmodule Voyager.Application do
     elixirkit_pubsub = System.get_env("ELIXIRKIT_PUBSUB")
 
     children = [
-      Voyager.Vault,
       Voyager.Repo,
       {Ecto.Migrator,
        repos: Application.fetch_env!(:voyager, :ecto_repos), skip: skip_migrations?()},
