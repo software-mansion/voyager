@@ -25,7 +25,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
   alias VoyagerWeb.FormSchemas.ProcessInfoControls
   alias VoyagerWeb.Hooks.TermTreeHook
   alias VoyagerWeb.ProcessInfoLive.Query
-  alias VoyagerWeb.TermTree
+  alias VoyagerWeb.TermFormatter
 
   require Logger
 
@@ -569,7 +569,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
   defp registered_name(%AsyncResult{ok?: true, result: %{registered_name: name}})
        when not is_nil(name),
-       do: inspect(name)
+       do: Formatters.format_term(name)
 
   defp registered_name(_info), do: nil
 
@@ -636,7 +636,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
   defp put_term(socket, id, term) do
     socket
     |> TermTreeHook.put_term(id, term)
-    |> update(:copy_texts, &Map.put(&1, id, TermTree.copy_string(term)))
+    |> update(:copy_texts, &Map.put(&1, id, TermFormatter.copy_string(term)))
   end
 
   defp seed_term_list(socket, prefix, items) do

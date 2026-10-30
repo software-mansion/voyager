@@ -7,6 +7,7 @@ defmodule Voyager.NodeSession do
 
   alias Voyager.Agent
   alias Voyager.NodeSession.Connectors.Distribution
+  alias Voyager.Services.TermSyntax
   alias Voyager.Services.Tracer
 
   @default_connector Distribution
@@ -110,6 +111,7 @@ defmodule Voyager.NodeSession do
 
         cache_connector_name(connector.name())
         Voyager.Pid.put_node(node)
+        TermSyntax.put_node(node)
 
         broadcast({:node_connected, node})
 
@@ -192,6 +194,7 @@ defmodule Voyager.NodeSession do
     unsubscribe(session.connector)
     cache_connector_name(nil)
     Voyager.Pid.put_node(nil)
+    TermSyntax.put_node(nil)
 
     broadcast({event, session.node, reason})
 

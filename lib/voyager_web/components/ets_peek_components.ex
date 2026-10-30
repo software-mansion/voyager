@@ -6,7 +6,6 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   use VoyagerWeb, :component
 
-  alias Voyager.Pid
   alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Components.DetailsPanelComponents
   alias VoyagerWeb.Components.EtsTableComponents
@@ -16,7 +15,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.EtsLookupControls
   alias VoyagerWeb.FormSchemas.EtsPeekControls
-  alias VoyagerWeb.TermTree
+  alias VoyagerWeb.TermFormatter
   alias VoyagerWeb.TermTree.State
 
   @truncated :"$voyager_truncated"
@@ -29,14 +28,9 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   @records_timeout_help "How long to wait for the node to read a page of records before the fetch fails."
   @lookup_timeout_help "How long to wait for the node to look up this key before the lookup fails."
 
-  @preview_opts [
-    limit: 20,
-    printable_limit: 128,
-    width: :infinity,
-    inspect_fun: &Pid.inspect_fun/2
-  ]
+  @preview_opts [limit: 20, printable_limit: 128, width: :infinity]
 
-  attr :table_name, :string, required: true
+  attr :table_name, :string, required: true, doc: "`nil` hides the name"
   attr :node_name, :string, required: true
   attr :back_href, :string, required: true
   attr :last_updated, :any, default: nil
@@ -50,7 +44,13 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
       class="mb-0"
     >
       <:actions>
-        <.tooltip id="ets-table-name-tip" position="bottom" interactive tip_class="font-mono">
+        <.tooltip
+          :if={@table_name}
+          id="ets-table-name-tip"
+          position="bottom"
+          interactive
+          tip_class="font-mono"
+        >
           <h2
             id="ets-table-name"
             class="text-base-content font-mono flex min-w-0 items-center gap-2 text-2xl font-bold tracking-tight"
@@ -347,7 +347,8 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
             <DetailsPanelComponents.copyable
               id="ets-sidebar-key"
               class="font-mono text-base-content break-all text-sm font-medium"
-              text={inspect(@key, inspect_fun: &Pid.inspect_fun/2)}
+              text={Formatters.format_term(@key)}
+              copy_text={TermFormatter.copy_string(@key)}
               label="Copy key"
             />
           </div>
@@ -413,7 +414,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
               <TermComponents.term_inspector
                 id={lookup_inspector_id(index)}
                 term={record}
-                state={@term_states[lookup_inspector_id(index)] || %State{}}
+                state={lookup_state(@term_states, index)}
                 class="text-sm! min-w-0 flex-1 overflow-x-auto"
               />
               <.copy_button
@@ -424,7 +425,9 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
                 size={:sm}
                 class="text-base-content/60 shrink-0 hover:text-primary"
               />
-              <span id={"ets-lookup-record-#{index}-copy-source"} hidden>{TermTree.copy_string(record)}</span>
+              <span id={"ets-lookup-record-#{index}-copy-source"} hidden>{TermFormatter.copy_string(
+                record
+              )}</span>
             </div>
           </div>
 
@@ -453,6 +456,8 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   @spec lookup_inspector_id(non_neg_integer()) :: String.t()
   def lookup_inspector_id(index), do: "ets-lookup-#{index}-term"
+
+  defp lookup_state(term_states, index), do: term_states[lookup_inspector_id(index)] || %State{}
 
   @doc """
   The lookup key at `keypos`, or `:error` when the record is not a plain tuple
@@ -546,7 +551,8 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
     through_key = record |> Tuple.to_list() |> Enum.take(keypos) |> List.to_tuple() |> preview()
     key_end = byte_size(through_key) - 1
 
-    with [before, _rest] <- String.split(marked, inspect(@key_marker), parts: 2),
+    with [before, _rest] <-
+           String.split(marked, Formatters.format_term(@key_marker), parts: 2),
          key_start = byte_size(before),
          <<head::binary-size(^key_start), key::binary-size(^key_end - ^key_start), tail::binary>> <-
            text do
@@ -561,9 +567,9 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   defp preview(record) do
     record
     |> strip_markers()
-    |> inspect(@preview_opts)
+    |> Formatters.format_term(@preview_opts)
   rescue
-    _e -> inspect(record, @preview_opts)
+    _e -> Formatters.format_term(record, @preview_opts)
   end
 
   defp strip_markers(@truncated), do: :...

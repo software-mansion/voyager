@@ -1,6 +1,6 @@
 defmodule VoyagerWeb.Components.TermComponents do
   @moduledoc """
-  Renders an Elixir term as a collapsible tree.
+  Renders a term as a collapsible tree, in Elixir or Erlang syntax.
 
   Only the open parts of the term are turned into markup, so pointing this at a
   large term is cheap until the user asks to see more of it. Which parts are
@@ -12,6 +12,7 @@ defmodule VoyagerWeb.Components.TermComponents do
 
   use VoyagerWeb, :component
 
+  alias Voyager.Services.TermSyntax
   alias VoyagerWeb.TermTree
   alias VoyagerWeb.TermTree.Segment
   alias VoyagerWeb.TermTree.State
@@ -31,7 +32,12 @@ defmodule VoyagerWeb.Components.TermComponents do
   attr :class, :any, default: nil
 
   def term_inspector(assigns) do
-    assigns = assign(assigns, :node, TermTree.describe(assigns.term))
+    syntax = TermSyntax.current()
+
+    assigns =
+      assigns
+      |> assign(:syntax, syntax)
+      |> assign(:node, TermTree.describe(assigns.term, syntax: syntax))
 
     ~H"""
     <div id={@id} class={["font-mono text-xs" | List.wrap(@class)]}>
@@ -40,6 +46,7 @@ defmodule VoyagerWeb.Components.TermComponents do
         term={@term}
         node={@node}
         state={@state}
+        syntax={@syntax}
         toggle_event={@toggle_event}
         window_event={@window_event}
       />
@@ -51,13 +58,14 @@ defmodule VoyagerWeb.Components.TermComponents do
   attr :term, :any, required: true
   attr :node, TermTree.Node, required: true
   attr :state, State, required: true
+  attr :syntax, :atom, required: true
   attr :toggle_event, :string, required: true
   attr :window_event, :string, required: true
 
   defp term_node(assigns) do
     node = assigns.node
     open? = TermTree.Node.expandable?(node) and TermTree.open?(assigns.state, node.path)
-    children = if open?, do: child_nodes(assigns.term, node, assigns.state), else: []
+    children = if open?, do: child_nodes(assigns, node), else: []
 
     assigns =
       assigns
@@ -93,6 +101,7 @@ defmodule VoyagerWeb.Components.TermComponents do
                 term={child_term}
                 node={child_node}
                 state={@state}
+                syntax={@syntax}
                 toggle_event={@toggle_event}
                 window_event={@window_event}
               />
@@ -152,18 +161,19 @@ defmodule VoyagerWeb.Components.TermComponents do
     """
   end
 
-  defp child_nodes(term, node, state) do
+  defp child_nodes(%{term: term, state: state, syntax: syntax}, node) do
     last_index = node.child_count - 1
 
     term
-    |> TermTree.children(0, TermTree.window(state, node.path))
+    |> TermTree.children(0, TermTree.window(state, node.path), syntax: syntax)
     |> Enum.with_index()
     |> Enum.map(fn {{key, child}, index} ->
       child_node =
         TermTree.describe(child,
           path: node.path ++ [index],
           key: key,
-          comma?: index < last_index
+          comma?: index < last_index,
+          syntax: syntax
         )
 
       {child, child_node}

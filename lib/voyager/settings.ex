@@ -54,6 +54,25 @@ defmodule Voyager.Settings do
   end
 
   @doc """
+  Like `get/2`, but a value outside `choices` also yields `default`. The value
+  is cached under `cache_key` in `:persistent_term` after the first read; save
+  it with `save_cached_choice/4` to keep the cache in step.
+  """
+  @spec get_cached_choice(atom(), [term()], term(), term()) :: term()
+  def get_cached_choice(key, choices, default, cache_key) when is_atom(key) do
+    case :persistent_term.get(cache_key, nil) do
+      nil ->
+        value = get(key, default)
+        value = if value in choices, do: value, else: default
+        :persistent_term.put(cache_key, value)
+        value
+
+      value ->
+        value
+    end
+  end
+
+  @doc """
   Persists a setting to the database.
 
   Returns `{:error, :locked}` when the key is set in application config.
@@ -74,6 +93,25 @@ defmodule Voyager.Settings do
         on_conflict: [set: [value: encoded, updated_at: now]],
         conflict_target: :key
       )
+    end
+  end
+
+  @doc """
+  Like `put/2`, but also caches the value under `cache_key` for
+  `get_cached_choice/4`. `value` is one of `choices` or its name as a string;
+  returns the saved choice.
+  """
+  @spec save_cached_choice(atom(), [atom()], atom() | String.t(), term()) ::
+          {:ok, atom()} | {:error, :unsupported_choice | :locked | Ecto.Changeset.t()}
+  def save_cached_choice(key, choices, value, cache_key) do
+    with choice when choice != nil <-
+           Enum.find(choices, &(&1 == value or Atom.to_string(&1) == value)),
+         {:ok, _setting} <- put(key, choice) do
+      :persistent_term.put(cache_key, choice)
+      {:ok, choice}
+    else
+      nil -> {:error, :unsupported_choice}
+      error -> error
     end
   end
 
