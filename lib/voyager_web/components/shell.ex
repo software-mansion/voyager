@@ -107,23 +107,38 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp tracing_indicator(assigns) do
     ~H"""
-    <.link
-      navigate={tracing_session_path(@session)}
-      id="tracing-indicator"
-      title="Open the running tracing session"
-      class="btn btn-ghost btn-sm border-success/30 bg-success/10 max-w-xs gap-2 font-normal transition-colors hover:bg-success/20 hover:border-success/50"
-    >
-      <span class="size-2 relative flex shrink-0">
-        <span class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"></span>
-        <span class="bg-success size-2 relative inline-flex rounded-full"></span>
-      </span>
-      <span id="tracing-indicator-mfa" class="font-mono truncate text-xs">
-        {format_traced_mfa(@session.config)}
-      </span>
-      <span id="tracing-indicator-count" class="badge badge-success badge-sm font-mono shrink-0">
-        {Formatters.format_count_compact(@session.traces)}
-      </span>
-    </.link>
+    <.tooltip id="tracing-indicator-tip" position="bottom">
+      <.link
+        navigate={tracing_session_path(@session)}
+        id="tracing-indicator"
+        class="btn btn-ghost btn-sm border-success/30 bg-success/10 max-w-xs gap-2 font-normal transition-colors hover:bg-success/20 hover:border-success/50"
+      >
+        <span class="size-2 relative flex shrink-0">
+          <span class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"></span>
+          <span class="bg-success size-2 relative inline-flex rounded-full"></span>
+        </span>
+        <span class="text-success shrink-0 text-xs font-medium">Tracing</span>
+        <span id="tracing-indicator-mfa" class="font-mono text-base-content/70 truncate text-xs">
+          {format_traced_mfa(@session.config)}
+        </span>
+        <span id="tracing-indicator-count" class="badge badge-success badge-sm font-mono shrink-0">
+          {Formatters.format_count_compact(@session.traces)}
+        </span>
+      </.link>
+      <:content>
+        <div class="flex flex-col gap-1">
+          <span class="font-medium">Tracing session running</span>
+          <span class="text-base-content/70">
+            Tracing
+            <span class="font-mono">{format_traced_mfa(@session.config)}</span>
+            on <span class="font-mono">{@session.node}</span>
+          </span>
+          <span class="text-base-content/70">
+            Click to open the session.
+          </span>
+        </div>
+      </:content>
+    </.tooltip>
     """
   end
 

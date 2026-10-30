@@ -35,6 +35,7 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     assert has_element?(view, ~s|#tracing-indicator[href="/node/demo@localhost/tracing/7"]|)
     assert has_element?(view, "#tracing-indicator-mfa", "Date.leap_year?/1")
     assert has_element?(view, "#tracing-indicator-count", "1,234")
+    assert has_element?(view, "#tracing-indicator-tip[phx-hook=Tooltip]")
   end
 
   test "follows the session through its broadcasts", %{conn: conn} do
