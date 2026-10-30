@@ -120,6 +120,26 @@ defmodule Voyager.MCP.Tools.ModuleListTest do
       end
     end
 
+    test "fuzzy-filters functions by name/arity, closest first" do
+      stub(Voyager.ErpcMock, :call, fn
+        @node, @agent_module, :trace_modules, [], _ ->
+          [{GenServer, :ok} | @modules]
+
+        @node, @agent_module, :trace_functions, [GenServer], _ ->
+          {:ok,
+           [{:init, 1, true}, {:handle_cast, 2, true}, {:handle_call, 3, true}, {:call, 1, true}]}
+      end)
+
+      assert %{
+               "functions" => [
+                 %{"name" => "call", "arity" => 1},
+                 %{"name" => "handle_call", "arity" => 3}
+               ],
+               "total" => 2,
+               "next_offset" => nil
+             } = run(%{"module" => "GenServer", "search" => "call"})
+    end
+
     test "pages functions with limit and offset" do
       stub_functions(Date, [{:a, 0, true}, {:b, 0, true}, {:c, 0, true}])
 
