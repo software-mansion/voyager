@@ -6,11 +6,14 @@ defmodule VoyagerWeb.Components.Shell do
   use VoyagerWeb, :html
 
   alias Voyager.NodeSession.Session
+  alias Voyager.Services.Tracer
+  alias VoyagerWeb.Formatters
   alias VoyagerWeb.Utils.URL
 
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
   attr :mcp_status, :map, default: %{alive?: false, url: nil}
+  attr :tracing_session, Tracer.Session, default: nil
   attr :current_url, :string, default: nil
   slot :inner_block, required: true
 
@@ -22,6 +25,7 @@ defmodule VoyagerWeb.Components.Shell do
           active_nav={@active_nav}
           session={@session}
           mcp_status={@mcp_status}
+          tracing_session={@tracing_session}
           current_url={@current_url}
         />
 
@@ -45,6 +49,7 @@ defmodule VoyagerWeb.Components.Shell do
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
   attr :mcp_status, :map, default: %{alive?: false, url: nil}
+  attr :tracing_session, Tracer.Session, default: nil
   attr :current_url, :string, default: nil
 
   defp topbar(assigns) do
@@ -54,14 +59,17 @@ defmodule VoyagerWeb.Components.Shell do
       <div class="@container/nav-status flex min-w-0">
         <.node_indicator session={@session} />
       </div>
-      <.link
-        href={~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_url)]}"}
-        id="open-settings"
-        title="Settings"
-        class="btn btn-ghost btn-square toolbar-btn text-base-content/70 hover:text-base-content"
-      >
-        <.icon name="icon-settings" class="toolbar-icon" />
-      </.link>
+      <div class="flex items-center gap-2">
+        <.tracing_indicator session={@tracing_session} />
+        <.link
+          href={~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_url)]}"}
+          id="open-settings"
+          title="Settings"
+          class="btn btn-ghost btn-square toolbar-btn text-base-content/70 hover:text-base-content"
+        >
+          <.icon name="icon-settings" class="toolbar-icon" />
+        </.link>
+      </div>
     </div>
     """
   end
@@ -71,6 +79,7 @@ defmodule VoyagerWeb.Components.Shell do
   (defaults to the connect page) followed by the brand mark.
   """
   attr :return_to, :string, default: nil
+  attr :tracing_session, Tracer.Session, default: nil
 
   def settings_topbar(assigns) do
     ~H"""
@@ -85,9 +94,48 @@ defmodule VoyagerWeb.Components.Shell do
         </.link>
         <.brand />
       </div>
+      <div class="navbar-end">
+        <.tracing_indicator session={@tracing_session} />
+      </div>
     </div>
     """
   end
+
+  attr :session, Tracer.Session, default: nil
+
+  defp tracing_indicator(%{session: nil} = assigns), do: ~H""
+
+  defp tracing_indicator(assigns) do
+    ~H"""
+    <.link
+      navigate={tracing_session_path(@session)}
+      id="tracing-indicator"
+      title="Open the running tracing session"
+      class="btn btn-ghost btn-sm border-success/30 bg-success/10 max-w-xs gap-2 font-normal transition-colors hover:bg-success/20 hover:border-success/50"
+    >
+      <span class="size-2 relative flex shrink-0">
+        <span class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"></span>
+        <span class="bg-success size-2 relative inline-flex rounded-full"></span>
+      </span>
+      <span id="tracing-indicator-mfa" class="font-mono truncate text-xs">
+        {format_traced_mfa(@session.config)}
+      </span>
+      <span id="tracing-indicator-count" class="badge badge-success badge-sm font-mono shrink-0">
+        {Formatters.format_count_compact(@session.traces)}
+      </span>
+    </.link>
+    """
+  end
+
+  # shortcut: plain path while the session viewer route does not exist; switch to ~p when it lands.
+  defp tracing_session_path(%Tracer.Session{id: id, node: node}),
+    do: "/node/#{URI.encode(Atom.to_string(node))}/tracing/#{id}"
+
+  defp format_traced_mfa(%Tracer.Config{module: module, function: function, arity: arity}),
+    do: "#{format_module(module)}.#{function}/#{arity || "_"}"
+
+  defp format_module("Elixir." <> module), do: module
+  defp format_module(module), do: ":" <> module
 
   defp brand(assigns) do
     assigns = assign(assigns, :version, Voyager.version())
