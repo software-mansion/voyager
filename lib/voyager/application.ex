@@ -20,6 +20,7 @@ defmodule Voyager.Application do
       Voyager.ProxyEpmd.TunnelRegistry,
       Voyager.NodeSession,
       Voyager.Services.Tracer.Supervisor,
+      Voyager.Services.ModuleCatalog,
       {ElixirKit.PubSub, connect: elixirkit_pubsub || :ignore, on_exit: fn -> System.stop() end},
       {Voyager.Services.RateLimiter,
        config: Application.get_env(:voyager, :rate_limiter_config, %{})},
