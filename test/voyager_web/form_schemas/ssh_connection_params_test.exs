@@ -96,6 +96,25 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParamsTest do
       assert Keyword.has_key?(changeset.errors, :password)
     end
 
+    test "requires key_path when auth_method is :key" do
+      changeset = SshConnectionParams.changeset(Map.put(valid_attrs(), "auth_method", "key"))
+      refute changeset.valid?
+      assert Keyword.has_key?(changeset.errors, :key_path)
+    end
+
+    test "does not cast the passphrase from form params" do
+      attrs =
+        Map.merge(valid_attrs(), %{
+          "auth_method" => "key",
+          "key_path" => "~/.ssh/id_rsa",
+          "passphrase" => "from-the-form"
+        })
+
+      changeset = SshConnectionParams.changeset(attrs)
+      assert changeset.valid?
+      assert Ecto.Changeset.get_field(changeset, :passphrase) == nil
+    end
+
     test "does not require password when auth_method is :agent" do
       changeset = SshConnectionParams.changeset(valid_attrs())
       assert changeset.valid?
@@ -118,12 +137,22 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParamsTest do
   end
 
   describe "to_auth/1" do
-    test "returns :agent for agent auth_method" do
+    test "returns {:agent, nil} for agent auth_method" do
       {:ok, params} =
         SshConnectionParams.changeset(valid_attrs())
         |> Ecto.Changeset.apply_action(:insert)
 
-      assert SshConnectionParams.to_auth(params) == :agent
+      assert SshConnectionParams.to_auth(params) == {:agent, nil}
+    end
+
+    test "returns {:agent, socket_path} when an agent socket is set" do
+      attrs = Map.put(valid_attrs(), "agent_socket_path", "~/.1password/agent.sock")
+
+      {:ok, params} =
+        SshConnectionParams.changeset(attrs)
+        |> Ecto.Changeset.apply_action(:insert)
+
+      assert SshConnectionParams.to_auth(params) == {:agent, "~/.1password/agent.sock"}
     end
 
     test "returns {:password, pw} for password auth_method" do
@@ -134,6 +163,19 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParamsTest do
         |> Ecto.Changeset.apply_action(:insert)
 
       assert SshConnectionParams.to_auth(params) == {:password, "s3cr3t"}
+    end
+
+    test "returns {:key, path, passphrase} for key auth_method" do
+      attrs = Map.merge(valid_attrs(), %{"auth_method" => "key", "key_path" => "~/.ssh/id_rsa"})
+
+      {:ok, params} =
+        SshConnectionParams.changeset(attrs)
+        |> Ecto.Changeset.apply_action(:insert)
+
+      assert SshConnectionParams.to_auth(params) == {:key, "~/.ssh/id_rsa", nil}
+
+      assert SshConnectionParams.to_auth(%{params | passphrase: "pw"}) ==
+               {:key, "~/.ssh/id_rsa", "pw"}
     end
   end
 end

@@ -19,6 +19,7 @@ defmodule Voyager.Application do
       {Task.Supervisor, name: Voyager.TaskSupervisor},
       Voyager.ProxyEpmd.TunnelRegistry,
       Voyager.NodeSession,
+      Voyager.Services.Tracer.Supervisor,
       Voyager.Services.ModuleCatalog,
       {ElixirKit.PubSub, connect: elixirkit_pubsub || :ignore, on_exit: fn -> System.stop() end},
       {Voyager.Services.RateLimiter,
@@ -27,7 +28,6 @@ defmodule Voyager.Application do
       VoyagerWeb.Endpoint,
       Voyager.MCP,
       {Voyager.Services.TrayStatus, native?: elixirkit_pubsub != nil},
-      Supervisor.child_spec({Task, &Voyager.Pid.load_format/0}, id: :load_pid_format),
       {Task, fn -> if elixirkit_pubsub, do: ElixirKit.PubSub.broadcast("messages", "ready") end}
     ]
 

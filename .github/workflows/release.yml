@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - "v*.*.*"
+      - 'v*.*.*'
 
 permissions:
   contents: read
@@ -85,7 +85,7 @@ jobs:
           retention-days: 7
 
   app:
-    name: "Build desktop app (${{ matrix.gui_target }})"
+    name: 'Build desktop app (${{ matrix.gui_target }})'
     needs: [create_release, assets]
     permissions:
       contents: write
@@ -94,11 +94,11 @@ jobs:
       matrix:
         include:
           - platform: macos-15
-            gui_target: "aarch64-apple-darwin"
+            gui_target: 'aarch64-apple-darwin'
           - platform: macos-15-intel
-            gui_target: "x86_64-apple-darwin"
+            gui_target: 'x86_64-apple-darwin'
           - platform: ubuntu-22.04
-            gui_target: "x86_64-unknown-linux-gnu"
+            gui_target: 'x86_64-unknown-linux-gnu'
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout repository
@@ -171,8 +171,9 @@ jobs:
       - name: Install Tauri CLI
         shell: bash
         run: |
-          if ! command -v cargo-tauri &> /dev/null; then
-            cargo install tauri-cli --version "=2.8.0" --locked
+          # tauri-cli older than 2.10 cannot write __TAURI_BUNDLE_TYPE, so the updater cannot tell a .deb from an AppImage.
+          if [ "$(cargo-tauri --version 2>/dev/null)" != "tauri-cli 2.12.4" ]; then
+            cargo install tauri-cli --version "=2.12.4" --locked --force
           else
             echo "cargo-tauri already installed: $(cargo-tauri --version)"
           fi
@@ -216,7 +217,7 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: ${{ github.ref_name }}
           releaseDraft: true
-          assetNamePattern: "Voyager-[platform]-[arch][ext]"
+          assetNamePattern: 'Voyager-[platform]-[arch]-[version][ext]'
           # Every matrix job would rewrite latest.json and drop the others' platforms.
           includeUpdaterJson: false
 

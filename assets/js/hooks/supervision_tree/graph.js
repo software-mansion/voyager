@@ -56,6 +56,7 @@ export const graphMethods = {
    * @property {number} child_count
    * @property {Info | 'dead' | null} info
    * @property {string[] | 'not_loaded'} children_keys
+   * @property {import('./elements').Display} display
    *
    * @typedef {Object} DeltaPayload
    * @property {'delta'} kind
@@ -97,7 +98,7 @@ export const graphMethods = {
 
       const addBatch = [];
       for (const [key, node] of Object.entries(incoming)) {
-        addBatch.push(...elementsFor(key, node, this.el.dataset.nodeId));
+        addBatch.push(...elementsFor(key, node));
       }
       // Relationship edges are appended after all nodes so their endpoints
       // already exist when cytoscape processes the batch.
@@ -138,7 +139,7 @@ export const graphMethods = {
       // Additions
       const addBatch = [];
       for (const [key, node] of Object.entries(added)) {
-        addBatch.push(...elementsFor(key, node, this.el.dataset.nodeId));
+        addBatch.push(...elementsFor(key, node));
         topologyChangeCounter++;
       }
       this.cy.add(addBatch);
@@ -170,11 +171,8 @@ export const graphMethods = {
           if (TOPOLOGY_FIELDS.has(field)) topologyChangeCounter++;
         }
 
-        if (patch.name !== undefined || patch.child_count !== undefined) {
-          node.data(
-            'displayLabel',
-            composeLabel(node.data(), this.el.dataset.nodeId)
-          );
+        if (patch.display !== undefined || patch.child_count !== undefined) {
+          node.data('displayLabel', composeLabel(node.data()));
         }
 
         if (patch.child_count !== undefined) {

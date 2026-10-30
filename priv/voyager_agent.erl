@@ -659,17 +659,6 @@ bound_records([Record | Rest], Budget, Truncated, Acc) ->
         [module, function, arity, processes, capture, scope, return_trace, match_spec]).
 -define(TRACE_LIMITS, [max_events, max_rate, max_time_ms]).
 -define(TRACE_PROCESS_SETS, [all, existing, new]).
--define(TRACE_ALWAYS_REFUSED, [?MODULE, trace]).
-%% Called from nearly every process: an all-process call trace on them floods the tracer.
--define(TRACE_HOT,
-        [erlang, lists, maps, ets, gen, gen_server, gen_statem, gen_event, proc_lib, io, io_lib,
-         logger, timer, code, erl_eval, 'Elixir.Enum', 'Elixir.Map', 'Elixir.Kernel',
-         'Elixir.String', 'Elixir.GenServer', erpc, rpc, gen_tcp, inet, ssl, net_kernel,
-         dist_util, proplists, persistent_term, unicode, binary, telemetry, 'Elixir.Keyword',
-         'Elixir.Access', 'Elixir.Enumerable', 'Elixir.List']).
--define(TRACE_REFUSED_ACTIONS,
-        [trace, enable_trace, disable_trace, silent, set_seq_token, process_dump, display,
-         current_stacktrace, caller_line, set_tcw, return_trace, exception_trace]).
 
 -record(tracer,
         {session,
@@ -843,19 +832,14 @@ traceable(Module, Processes) ->
             ok
     end.
 
+%% The refusal macros come from `Voyager.Services.Tracer.Refusals.agent_macros/0'.
 refused(Module, Pids) when is_list(Pids) ->
-    lists:member(Module, ?TRACE_ALWAYS_REFUSED);
+    Module =:= ?MODULE orelse lists:member(Module, ?TRACE_ALWAYS_REFUSED);
 refused(Module, _ProcessSet) ->
     refused(Module, [])
     orelse lists:member(Module, ?TRACE_HOT)
-    orelse hot_prefix(atom_to_binary(Module)).
-
-hot_prefix(<<"prim_", _/binary>>) ->
-    true;
-hot_prefix(<<"erts_", _/binary>>) ->
-    true;
-hot_prefix(_Module) ->
-    false.
+    orelse lists:any(fun(Prefix) -> lists:prefix(Prefix, atom_to_list(Module)) end,
+                     ?TRACE_HOT_PREFIXES).
 
 %% `hot' modules are refused on `all' / `existing' / `new' and allowed on a pid list.
 -spec trace_modules() -> [{module(), ok | hot | refused}].
@@ -1053,7 +1037,7 @@ trace_processes(Session, ProcessSet, Flags) ->
 tracer_loop(T) ->
     case erlang:process_info(self(), message_queue_len) of
         {message_queue_len, Len} when Len > ?TRACE_MAX_MAILBOX ->
-            tracer_stop(T, mailbox_limit);
+            tracer_stop(T#tracer{dropped = T#tracer.dropped + Len}, mailbox_limit);
         _ ->
             tracer_receive(T)
     end.

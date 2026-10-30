@@ -3,7 +3,11 @@ defmodule Voyager.Services.SSH.ErlsshTest do
   use ExUnit.Case, async: false
 
   alias Voyager.Services.SSH.Erlssh
+  alias Voyager.Test.SshKeys
   alias Voyager.Test.SshServer
+
+  @loopback {127, 0, 0, 1}
+  @passphrase "test-passphrase"
 
   setup %{tmp_dir: tmp_dir} do
     home = System.get_env("HOME")
@@ -61,5 +65,94 @@ defmodule Voyager.Services.SSH.ErlsshTest do
 
     Erlssh.close(conn)
     refute File.exists?(Path.join([tmp_dir, ".ssh", "known_hosts"]))
+  end
+
+  describe "key file auth" do
+    @describetag :tmp_dir
+
+    test "logs in with an OpenSSH key", %{tmp_dir: dir} do
+      {path, public_key} = SshKeys.ssh_keygen!(dir, "id_ed25519", ["-t", "ed25519", "-N", ""])
+      %{port: port} = SshServer.start!(@loopback, authorized_keys: [public_key])
+
+      assert {:ok, conn} = connect_with_key(port, path, nil)
+      Erlssh.close(conn)
+    end
+
+    test "logs in with an RSA key", %{tmp_dir: dir} do
+      key = :public_key.generate_key({:rsa, 2048, 65_537})
+      {path, public_key} = SshKeys.pem!(dir, "id_rsa", key)
+      %{port: port} = SshServer.start!(@loopback, authorized_keys: [public_key])
+
+      assert {:ok, conn} = connect_with_key(port, path, nil)
+      Erlssh.close(conn)
+    end
+
+    test "logs in with an encrypted PEM key and its passphrase", %{tmp_dir: dir} do
+      key = :public_key.generate_key({:namedCurve, :secp256r1})
+      {path, public_key} = SshKeys.pem!(dir, "id_ecdsa", key, @passphrase)
+      %{port: port} = SshServer.start!(@loopback, authorized_keys: [public_key])
+
+      assert {:ok, conn} = connect_with_key(port, path, @passphrase)
+      Erlssh.close(conn)
+    end
+
+    test "fails with a key the server does not accept", %{tmp_dir: dir} do
+      {path, _public_key} = SshKeys.ssh_keygen!(dir, "id_ed25519", ["-t", "ed25519", "-N", ""])
+      %{port: port} = SshServer.start!(@loopback)
+
+      assert {:error, _reason} = connect_with_key(port, path, nil)
+    end
+  end
+
+  defp connect_with_key(port, path, passphrase),
+    do: Erlssh.connect("127.0.0.1", port, SshServer.user(), {:key, path, passphrase})
+
+  describe "agent auth" do
+    @describetag :tmp_dir
+
+    setup %{tmp_dir: dir} do
+      {path, public_key} = SshKeys.ssh_keygen!(dir, "id_ed25519", ["-t", "ed25519", "-N", ""])
+      %{port: port} = SshServer.start!(@loopback, authorized_keys: [public_key])
+      %{port: port, socket: start_agent!(path)}
+    end
+
+    test "logs in through a custom agent socket", %{port: port, socket: socket} do
+      assert {:ok, conn} = connect_with_agent(port, socket)
+      Erlssh.close(conn)
+    end
+
+    test "falls back to SSH_AUTH_SOCK without a socket path", %{port: port, socket: socket} do
+      previous = System.get_env("SSH_AUTH_SOCK")
+      System.put_env("SSH_AUTH_SOCK", socket)
+
+      on_exit(fn ->
+        if previous,
+          do: System.put_env("SSH_AUTH_SOCK", previous),
+          else: System.delete_env("SSH_AUTH_SOCK")
+      end)
+
+      assert {:ok, conn} = connect_with_agent(port, nil)
+      Erlssh.close(conn)
+    end
+
+    test "fails when nothing listens on the agent socket", %{port: port, tmp_dir: dir} do
+      assert {:error, _reason} = connect_with_agent(port, Path.join(dir, "missing.sock"))
+    end
+  end
+
+  defp connect_with_agent(port, socket),
+    do: Erlssh.connect("127.0.0.1", port, SshServer.user(), {:agent, socket})
+
+  # tmp_dir paths overflow the 104-byte Unix socket path limit on macOS.
+  defp start_agent!(key_path) do
+    socket = Path.join(System.tmp_dir!(), "voyager-#{System.unique_integer([:positive])}.sock")
+    {output, 0} = System.cmd("ssh-agent", ["-a", socket])
+    [_, pid] = Regex.run(~r/SSH_AGENT_PID=(\d+)/, output)
+    on_exit(fn -> System.cmd("kill", [pid]) end)
+
+    {_, 0} =
+      System.cmd("ssh-add", [key_path], env: [{"SSH_AUTH_SOCK", socket}], stderr_to_stdout: true)
+
+    socket
   end
 end

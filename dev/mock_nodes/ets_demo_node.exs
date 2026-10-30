@@ -1,9 +1,9 @@
 # Seeds a node with ETS tables covering every case the Voyager ETS UI handles.
 #
 # Run:
-#   dev/mock_nodes/ets.sh
+#   dev/mock_nodes/ex_ets.sh
 #
-# Then in Voyager connect to ets@127.0.0.1 with cookie "demo".
+# Then in Voyager connect to "ex_ets@127.0.0.1" with cookie "demo".
 
 defmodule Demo do
   # Protected and private tables only accept writes from their owner, so every call runs there.
@@ -150,6 +150,96 @@ end
     :ets.insert(:truncated_struct_key, {%Version{major: 2, minor: 0, patch: 0}, :value_b})
 
     :ets.new(:empty_set, [:set, :named_table, :public])
+
+    long_keyword = for i <- 1..10_000, do: {:"key_#{i}", i}
+
+    :ets.new(:keyword_terms, [:set, :named_table, :public])
+
+    :ets.insert(:keyword_terms, [
+      {:keyword, [name: "voyager", port: 4000, debug: false]},
+      {:special_keys, [nil: 1, true: 2, "with space": 3]},
+      {:elixir_prefixed_key, [{:"Elixir.foo", 1}, {:a, 2}]},
+      {:child_specs, [{Phoenix.PubSub, name: Demo.PubSub}, {Registry, keys: :unique}]},
+      {:module_keyed, [{Foo, 1}, {:a, 2}]},
+      {:mixed_keys_map, %{:a => 1, "b" => 2, Foo => 3}},
+      {:atom_keys_map, %{nil: 1, ok: 2, "with space": 3}},
+      {:long_keyword, long_keyword},
+      {:big,
+       %{
+         config: [name: "voyager", port: 4000, debug: false],
+         payload: String.duplicate("voyager ", 20_000),
+         users: Map.new(1..5_000, &{&1, %{id: &1, name: "user #{&1}", roles: [:admin]}}),
+         long_keyword: long_keyword
+       }}
+    ])
+
+    :ets.new(:all_elixir_types, [:ordered_set, :named_table, :public])
+
+    :ets.insert(:all_elixir_types, [
+      {:atom, :ok},
+      {:atom_quoted, :"hello world"},
+      {:atom_unicode, :zażółć},
+      {:atom_module, Enum},
+      {:atom_erlang_module, :gen_server},
+      {:atom_special, [nil, true, false]},
+      {:integer, 42},
+      {:integer_negative, -7},
+      {:integer_big, 2 ** 100},
+      {:float, 3.14},
+      {:float_extremes, [-0.0, 1.0e308, 5.0e-324]},
+      {:binary, "hello"},
+      {:binary_unicode, "zażółć 🚀"},
+      {:binary_empty, ""},
+      {:binary_escapes, "quote \" backslash \\ newline \n tab \t"},
+      {:binary_bytes, <<0, 1, 2, 255>>},
+      {:binary_latin1, <<255, 254>>},
+      {:binary_long, String.duplicate("lorem ipsum ", 1_000)},
+      {:bitstring, <<1::3>>},
+      {:bitstring_mixed, <<1, 2, 5::3>>},
+      {:charlist, ~c"hello"},
+      {:charlist_unicode, ~c"zażółć"},
+      {:list, [1, :two, "three", 4.0]},
+      {:list_empty, []},
+      {:list_improper, [1, 2 | :tail]},
+      {:list_nested, [[1, [2, [3, [4]]]]]},
+      {:keyword, [name: "voyager", port: 4000, opts: [timeout: 5_000]]},
+      {:tuple, {:ok, "value"}},
+      {:tuple_empty, {}},
+      {:tuple_error, {:error, {:timeout, 5_000}}},
+      {:map, %{name: "voyager", tags: [:a, :b]}},
+      {:map_empty, %{}},
+      {:map_mixed_keys, %{1 => :int, "s" => :string, {:t, 1} => :tuple, [1] => :list}},
+      {:map_large, Map.new(1..40, &{:"key_#{&1}", &1})},
+      {:struct_uri, URI.parse("https://user@example.com:8080/path?q=1#top")},
+      {:struct_date, ~D[2026-10-16]},
+      {:struct_time, ~T[12:34:56.789]},
+      {:struct_naive_datetime, ~N[2026-10-16 12:34:56]},
+      {:struct_datetime, ~U[2026-10-16 12:34:56Z]},
+      {:struct_duration, Duration.new!(hour: 1, minute: 30)},
+      {:struct_range, 1..10},
+      {:struct_range_step, 10..1//-3},
+      {:struct_date_range, Date.range(~D[2026-01-01], ~D[2026-01-31])},
+      {:struct_mapset, MapSet.new([1, :a, "b"])},
+      {:struct_regex, ~r/^voy(ager)?$/iu},
+      {:struct_version, Version.parse!("1.2.3-rc.1+build.5")},
+      {:struct_exception, %ArgumentError{message: "boom"}},
+      {:struct_invalid_fields,
+       %{__struct__: Date, calendar: Calendar.ISO, year: "x", month: 1, day: 1}},
+      {:struct_unknown_module, %{__struct__: Remote.Only.Struct, id: 1}},
+      {:pid, self()},
+      {:port, hd(Port.list())},
+      {:reference, make_ref()},
+      {:fun_external, &Enum.map/2},
+      {:fun_anonymous, fn x -> x * 2 end},
+      {:fun_capture, &(&1 + 1)},
+      {:everything_nested,
+       %{
+         list: [1, ~c"cl", "bin", :atom, {:tuple}],
+         struct: %URI{host: "nested"},
+         pid: self(),
+         deep: {:a, {:b, {:c, %{d: [e: "f"]}}}}
+       }}
+    ])
   end)
 
 IO.puts("""

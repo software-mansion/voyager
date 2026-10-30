@@ -2,12 +2,28 @@ defmodule VoyagerWeb.SettingsLive do
   use VoyagerWeb, :live_view
 
   alias Voyager.NodeSession
+  alias Voyager.Pid
+  alias Voyager.Services.TermSyntax
+  alias VoyagerWeb.SettingsComponents
   alias VoyagerWeb.SettingsLive.AppearanceSettings
   alias VoyagerWeb.SettingsLive.DistributionSettings
   alias VoyagerWeb.SettingsLive.McpSettings
-  alias VoyagerWeb.SettingsLive.PidFormatSettings
   alias VoyagerWeb.SettingsLive.TelemetrySettings
   alias VoyagerWeb.SettingsLive.UpdateSettings
+
+  @pid_formats [
+    {:distribution, "icon-network", "Distribution", "<123.23.423>",
+     "Keeps the remote node index, which is used when making RPC calls."},
+    {:local, "icon-laptop", "Local", "<0.23.423>",
+     "Replaces the node index with 0, so you can use it on remote shells."}
+  ]
+
+  @term_syntaxes [
+    {:auto, nil, "Auto", nil,
+     "Erlang for nodes without the Elixir application, Elixir otherwise."},
+    {:elixir, nil, "Elixir", ~S|%{name: "voyager"}|, "Shows values as Elixir terms."},
+    {:erlang, nil, "Erlang", ~S|#{name => <<"voyager">>}|, "Shows values as Erlang terms."}
+  ]
 
   @impl true
   def mount(params, _session, socket) do
@@ -19,11 +35,15 @@ defmodule VoyagerWeb.SettingsLive do
     |> assign(:return_to, safe_return_to(params["return_to"]))
     |> assign(:connected?, not is_nil(NodeSession.current()))
     |> assign(:terms_of_service_url, Application.get_env(:voyager, :terms_of_service_url))
+    |> assign(:pid_format, Pid.get_setting())
+    |> assign(:term_syntax, TermSyntax.get_setting())
     |> ok()
   end
 
   @impl true
   def render(assigns) do
+    assigns = assign(assigns, pid_formats: @pid_formats, term_syntaxes: @term_syntaxes)
+
     ~H"""
     <div class="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-10">
       <div>
@@ -34,7 +54,24 @@ defmodule VoyagerWeb.SettingsLive do
       </div>
 
       <AppearanceSettings.appearance_settings />
-      <.live_component module={PidFormatSettings} id="pid-format-settings" />
+      <SettingsComponents.choice_setting
+        id="pid-format"
+        title="PID format"
+        description="Choose how process identifiers are shown in the Voyager UI."
+        options={@pid_formats}
+        selected={@pid_format}
+        locked?={Pid.setting_locked?()}
+        on_select="select-pid-format"
+      />
+      <SettingsComponents.choice_setting
+        id="term-syntax"
+        title="Term syntax"
+        description="Choose the language syntax values are shown in."
+        options={@term_syntaxes}
+        selected={@term_syntax}
+        locked?={TermSyntax.setting_locked?()}
+        on_select="select-term-syntax"
+      />
       <.live_component
         module={DistributionSettings}
         id="distribution-settings"
@@ -52,6 +89,15 @@ defmodule VoyagerWeb.SettingsLive do
   end
 
   @impl true
+  def handle_event("select-pid-format", %{"choice" => choice}, socket) do
+    save_choice(socket, :pid_format, Pid.save_setting(choice))
+  end
+
+  def handle_event("select-term-syntax", %{"choice" => choice}, socket) do
+    save_choice(socket, :term_syntax, TermSyntax.save_setting(choice))
+  end
+
+  @impl true
   def handle_info({:node_connected, _node}, socket) do
     socket
     |> assign(:connected?, not is_nil(NodeSession.current()))
@@ -66,6 +112,23 @@ defmodule VoyagerWeb.SettingsLive do
   end
 
   def handle_info(_, socket), do: {:noreply, socket}
+
+  defp save_choice(socket, key, result) do
+    case result do
+      {:ok, choice} ->
+        socket
+        |> assign(key, choice)
+        |> noreply()
+
+      {:error, %Ecto.Changeset{}} ->
+        socket
+        |> put_flash(:error, "Failed to save the setting")
+        |> noreply()
+
+      {:error, _unsupported_or_locked} ->
+        {:noreply, socket}
+    end
+  end
 
   defp safe_return_to(path) when is_binary(path) do
     case URI.parse(path) do

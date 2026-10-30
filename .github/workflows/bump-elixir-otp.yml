@@ -1,0 +1,35 @@
+name: Bump Elixir and OTP
+
+on:
+  schedule:
+    - cron: "0 6 1,15 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  bump:
+    name: Bump Elixir and OTP
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BRANCH: chore/bump-elixir-otp
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Resolve latest versions
+        id: versions
+        run: bash .github/scripts/bump_elixir_otp.sh
+
+      - name: Open PR and run CI
+        env:
+          TITLE: "Chore: Bump Elixir to ${{ steps.versions.outputs.elixir }} and OTP to ${{ steps.versions.outputs.otp }}"
+          ELIXIR_RELEASES: ${{ steps.versions.outputs.elixir_releases }}
+          OTP_RELEASES: ${{ steps.versions.outputs.otp_releases }}
+        run: bash .github/scripts/open_bump_pr.sh
