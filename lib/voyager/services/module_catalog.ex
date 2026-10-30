@@ -38,17 +38,22 @@ defmodule Voyager.Services.ModuleCatalog do
   @spec modules(node(), String.t() | nil) :: {:ok, [module_entry()]} | {:error, term()}
   def modules(node, filter \\ nil) do
     with {:ok, entries} <- cached(node, :modules, fn -> fetch_modules(node) end) do
-      {:ok, filter_modules(entries, normalize_filter(filter))}
+      {:ok, filter_ranked(entries, normalize_filter(filter), &module_rank/2)}
     end
   end
 
   @doc """
-  Every function of a loaded `module`, local ones included, sorted by name and
-  arity. Compiler-generated funs are left out.
+  Functions of a loaded `module`, local ones included, fuzzy-matched as
+  `name/arity` against `filter` with the closest first. Blank returns all,
+  sorted by name and arity. Compiler-generated funs are left out.
   """
-  @spec functions(node(), module()) :: {:ok, [function_entry()]} | {:error, term()}
-  def functions(node, module) when is_atom(module) do
-    cached(node, {:functions, module}, fn -> fetch_functions(node, module) end)
+  @spec functions(node(), module(), String.t() | nil) ::
+          {:ok, [function_entry()]} | {:error, term()}
+  def functions(node, module, filter \\ nil) when is_atom(module) do
+    with {:ok, entries} <-
+           cached(node, {:functions, module}, fn -> fetch_functions(node, module) end) do
+      {:ok, filter_ranked(entries, normalize_filter(filter), &function_rank/2)}
+    end
   end
 
   @doc "Drops everything cached for `node`, so the next lookup refetches."
@@ -126,23 +131,26 @@ defmodule Voyager.Services.ModuleCatalog do
     end
   end
 
-  defp filter_modules(entries, nil), do: entries
+  defp filter_ranked(entries, nil, _rank_fun), do: entries
 
-  defp filter_modules(entries, query) do
-    ranked = for entry <- entries, rank <- [best_rank(entry.name, query)], rank, do: {rank, entry}
+  defp filter_ranked(entries, query, rank_fun) do
+    ranked = for entry <- entries, rank <- [rank_fun.(entry, query)], rank, do: {rank, entry}
 
     ranked
     |> Enum.sort_by(&elem(&1, 0))
     |> Enum.map(&elem(&1, 1))
   end
 
-  defp best_rank("Elixir." <> short = name, query) do
+  defp module_rank(%{name: "Elixir." <> short = name}, query) do
     [FuzzySearch.rank(name, query), FuzzySearch.rank(short, query)]
     |> Enum.reject(&is_nil/1)
     |> Enum.min(fn -> nil end)
   end
 
-  defp best_rank(name, query), do: FuzzySearch.rank(name, query)
+  defp module_rank(%{name: name}, query), do: FuzzySearch.rank(name, query)
+
+  defp function_rank(%{name: name, arity: arity}, query),
+    do: FuzzySearch.rank("#{name}/#{arity}", query)
 
   defp ttl_ms, do: Application.get_env(:voyager, :module_catalog_ttl_ms, @default_ttl_ms)
 

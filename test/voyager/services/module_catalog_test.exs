@@ -119,6 +119,29 @@ defmodule Voyager.Services.ModuleCatalogTest do
     end
   end
 
+  describe "functions/3" do
+    test "fuzzy-matches name/arity with the closest first", %{node: node} do
+      expect(Voyager.ErpcMock, :call, fn _, _, :trace_functions, [GenServer], _ ->
+        {:ok,
+         [{:init, 1, true}, {:handle_cast, 2, true}, {:handle_call, 3, true}, {:call, 1, true}]}
+      end)
+
+      names = fn {:ok, entries} -> Enum.map(entries, &{&1.name, &1.arity}) end
+
+      assert names.(ModuleCatalog.functions(node, GenServer, "call")) ==
+               [call: 1, handle_call: 3]
+
+      assert names.(ModuleCatalog.functions(node, GenServer, "HANDLE_CALL/3")) ==
+               [handle_call: 3]
+
+      assert names.(ModuleCatalog.functions(node, GenServer, "hc")) ==
+               [handle_call: 3, handle_cast: 2]
+
+      assert names.(ModuleCatalog.functions(node, GenServer, "nothing")) == []
+      assert {:ok, [_, _, _, _]} = ModuleCatalog.functions(node, GenServer, " ")
+    end
+  end
+
   describe "functions/2" do
     test "returns functions sorted by name and arity, and caches them", %{node: node} do
       expect(Voyager.ErpcMock, :call, fn ^node, @agent_module, :trace_functions, [Date], _ ->
