@@ -54,6 +54,7 @@ npm-debug.log
 # Database files
 *.db
 *.db-*
+/priv/db/known_hosts
 
 *.beam
 .DS_Store

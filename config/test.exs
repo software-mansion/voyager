@@ -15,6 +15,8 @@ config :voyager, Voyager.Repo,
 
 config :voyager, Voyager.MCP, enabled: false
 
+config :voyager, :global_known_hosts_path, Path.expand("../tmp/ssh_known_hosts", __DIR__)
+
 config :voyager, VoyagerWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
   secret_key_base: "xadc/ex/aZLzBKM3evVVaZqtQyL16e/3cb8k81ThIB0OcCuTx0wQifiVdQFuGk6E",

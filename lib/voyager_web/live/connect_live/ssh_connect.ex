@@ -31,6 +31,8 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   def mount(socket) do
     socket
     |> assign(:id_prefix, @id_prefix)
+    |> assign(:connect_params, nil)
+    |> assign(:host_key_prompt, nil)
     |> ok()
   end
 
@@ -259,6 +261,17 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         on_submit="submit_passphrase"
         on_cancel="cancel_passphrase"
       />
+
+      <ConnectComponents.host_key_modal
+        :if={@host_key_prompt}
+        id={"#{@id_prefix}host-key-modal"}
+        host={"#{@connect_params.ssh_user}@#{host_with_port(@connect_params)}"}
+        fingerprint={@host_key_prompt}
+        password_auth={@connect_params.auth_method == :password}
+        target={@myself}
+        on_accept="accept_host_key"
+        on_reject="reject_host_key"
+      />
     </div>
     """
   end
@@ -356,6 +369,20 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
 
   def handle_event("submit_passphrase", _params, socket), do: {:noreply, socket}
 
+  def handle_event("accept_host_key", _params, %{assigns: %{host_key_prompt: fp}} = socket)
+      when is_binary(fp) do
+    socket
+    |> assign(:host_key_prompt, nil)
+    |> start_connect(socket.assigns.connect_params, fp)
+    |> noreply()
+  end
+
+  def handle_event("accept_host_key", _params, socket), do: {:noreply, socket}
+
+  def handle_event("reject_host_key", _params, socket) do
+    {:noreply, assign(socket, :host_key_prompt, nil)}
+  end
+
   def handle_event("fill_ssh_recent", _params, %{assigns: %{disabled?: true}} = socket) do
     {:noreply, socket}
   end
@@ -372,6 +399,10 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   end
 
   @impl true
+  def handle_async(:ssh_connect, {:ok, {:error, {:unknown_host_key, fp}}}, socket) do
+    {:noreply, assign(socket, :host_key_prompt, fp)}
+  end
+
   def handle_async(:ssh_connect, {:ok, {:error, reason}}, socket) do
     {:noreply, put_connect_error(socket, reason)}
   end
@@ -384,17 +415,21 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     {:noreply, redirect(socket, to: ~p"/open")}
   end
 
-  defp start_connect(socket, %SshConnectionParams{} = p),
-    do: start_async(socket, :ssh_connect, fn -> connect(p) end)
+  defp start_connect(socket, %SshConnectionParams{} = p, host_key \\ nil) do
+    socket
+    |> assign(:connect_params, p)
+    |> start_async(:ssh_connect, fn -> connect(p, host_key) end)
+  end
 
-  defp connect(%SshConnectionParams{} = p) do
+  defp connect(%SshConnectionParams{} = p, host_key) do
     opts = [
       ssh_user: p.ssh_user,
       ssh_host: p.ssh_host,
       auth: SshConnectionParams.to_auth(p),
       ssh_port: p.ssh_port,
       epmd_port: p.epmd_port,
-      name_type: p.name_type
+      name_type: p.name_type,
+      host_key: host_key
     ]
 
     with :ok <- NodeSession.connect_via(SshConnector, p.node_name, p.cookie, opts) do
@@ -485,7 +520,16 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     assign(socket, :ssh_form, form)
   end
 
+  defp host_with_port(%SshConnectionParams{ssh_host: host, ssh_port: port}) do
+    if String.contains?(host, ":"), do: "[#{host}]:#{port}", else: "#{host}:#{port}"
+  end
+
   defp error_field({:invalid_host, _}), do: :ssh_host
+
+  defp error_field({reason, _file})
+       when reason in [:host_key_mismatch, :host_key_revoked, :known_hosts_unreadable],
+       do: :ssh_host
+
   defp error_field(reason) when is_list(reason), do: :ssh_user
 
   defp error_field(reason) when reason in @ssh_host_errors, do: :ssh_host

@@ -159,6 +159,10 @@ defmodule VoyagerWeb.ConnectLive do
     {:noreply, assign(socket, :connecting?, true)}
   end
 
+  def handle_info({:node_connect_failed, _node_name, {:unknown_host_key, _fp}}, socket) do
+    {:noreply, assign(socket, :connecting?, false)}
+  end
+
   def handle_info({:node_connect_failed, _node_name, reason}, socket) do
     socket
     |> assign(:connecting?, false)

@@ -2,17 +2,25 @@ defmodule Voyager.Services.SSH do
   @moduledoc """
   SSH transport used by `Voyager.Services.RemoteNodeConnector`.
 
-  `connect/4` returns once authenticated, with a `t:conn/0` pid that exits when
-  the SSH connection is gone. `open_tunnel/3` listens on `127.0.0.1` until
-  `close/1`.
+  `connect/5` returns once authenticated, with a `t:conn/0` pid that exits when
+  the SSH connection is gone. A host key not in any known_hosts fails with
+  `{:unknown_host_key, fingerprint}` unless `opts[:host_key]` is that
+  fingerprint, which pins it; a changed key fails with
+  `{:host_key_mismatch, known_hosts_path}`. `open_tunnel/3` listens on
+  `127.0.0.1` until `close/1`.
   """
 
   @type conn :: pid()
   @type auth ::
           {:agent, Path.t() | nil} | {:password, String.t()} | {:key, Path.t(), String.t() | nil}
 
-  @callback connect(host :: String.t(), port :: :inet.port_number(), user :: String.t(), auth()) ::
-              {:ok, conn()} | {:error, term()}
+  @callback connect(
+              host :: String.t(),
+              port :: :inet.port_number(),
+              user :: String.t(),
+              auth(),
+              opts :: [host_key: String.t() | nil]
+            ) :: {:ok, conn()} | {:error, term()}
 
   @callback open_tunnel(conn(), remote_host :: String.t(), remote_port :: :inet.port_number()) ::
               {:ok, local_port :: :inet.port_number()} | {:error, term()}
@@ -35,9 +43,10 @@ defmodule Voyager.Services.SSH do
   defguard is_ssh_auth(auth)
            when is_agent_auth(auth) or is_password_auth(auth) or is_key_auth(auth)
 
-  @spec connect(String.t(), :inet.port_number(), String.t(), auth()) ::
+  @spec connect(String.t(), :inet.port_number(), String.t(), auth(), keyword()) ::
           {:ok, conn()} | {:error, term()}
-  def connect(host, port, user, auth), do: impl().connect(host, port, user, auth)
+  def connect(host, port, user, auth, opts \\ []),
+    do: impl().connect(host, port, user, auth, opts)
 
   @spec open_tunnel(conn(), String.t(), :inet.port_number()) ::
           {:ok, :inet.port_number()} | {:error, term()}
