@@ -99,6 +99,20 @@ defmodule RelationsDemo.Crowd do
   def handle_info(_message, state), do: {:noreply, state}
 end
 
+defmodule RelationsDemo.Swarm do
+  use GenServer
+
+  @links 500
+
+  def start_link(_), do: GenServer.start_link(__MODULE__, nil, name: __MODULE__)
+
+  @impl true
+  def init(nil) do
+    for _ <- 1..@links, do: spawn_link(&RelationsDemo.idle/0)
+    {:ok, nil}
+  end
+end
+
 defmodule RelationsDemo.Application do
   use Application
 
@@ -123,6 +137,7 @@ defmodule RelationsDemo.Application do
       RelationsDemo.Hub,
       RelationsDemo.Watcher,
       RelationsDemo.Crowd,
+      RelationsDemo.Swarm,
       inner
     ]
 
