@@ -63,14 +63,14 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
       with {:ok, node} <- check_ready(frame),
            :ok <- check_function(params[:function]) do
         case {Frame.request_state(frame), Frame.input_response(frame, @form)} do
-          {@form_state, %{"action" => "accept", "content" => content}} ->
+          {{@form_state, ^node}, %{"action" => "accept", "content" => content}} ->
             start(node, content)
 
-          {@form_state, %{"action" => _declined}} ->
+          {{@form_state, _node}, %{"action" => action}} when action != "accept" ->
             Response.json(Response.tool(), %{status: "declined"})
 
-          _unanswered ->
-            ask(params)
+          _unanswered_or_other_node ->
+            ask(params, node)
         end
       else
         {:error, message} -> Response.error(Response.tool(), message)
@@ -111,10 +111,10 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
   defp check_function(function),
     do: if(parse_function(function), do: :ok, else: {:error, @function_format})
 
-  defp ask(params) do
+  defp ask(params, node) do
     InputRequired.new()
-    |> InputRequired.elicit(@form, "Start this tracing session?", form_schema(params))
-    |> InputRequired.state(@form_state)
+    |> InputRequired.elicit(@form, "Start this tracing session on #{node}?", form_schema(params))
+    |> InputRequired.state({@form_state, node})
   end
 
   defp form_schema(params) do

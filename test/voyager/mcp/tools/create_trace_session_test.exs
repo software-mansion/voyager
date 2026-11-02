@@ -46,7 +46,19 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
       assert properties["max_rate"]["default"] == 5
       assert properties["capture_args"]["default"] == false
       refute Map.has_key?(properties["pids"], "default")
-      assert input.request_state == {:set, :create_trace_session}
+      assert params["message"] =~ Atom.to_string(node())
+      assert input.request_state == {:set, {:create_trace_session, node()}}
+    end
+
+    test "asks again for a form accepted for another node" do
+      frame =
+        frame(%{"session" => accept(%{"function" => "Date"})}, {:create_trace_session, :a@b})
+
+      assert {:reply, %InputRequired{request_state: {:set, {_, node}}}, _frame} =
+               execute(%{}, frame)
+
+      assert node == node()
+      refute match?(%{status: :running}, Tracer.active())
     end
 
     test "asks again for an answer without its form state" do
@@ -172,7 +184,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
     }
   end
 
-  defp answered(answer), do: frame(%{"session" => answer}, :create_trace_session)
+  defp answered(answer), do: frame(%{"session" => answer}, {:create_trace_session, node()})
 
   defp accept(content),
     do: %{
