@@ -12,37 +12,47 @@ defmodule VoyagerWeb.Hooks.TracingStatusHook do
   alias Voyager.Services.Tracer.Session
 
   def on_mount(:default, _params, _session, socket) do
-    if connected?(socket) do
-      Phoenix.PubSub.subscribe(Voyager.PubSub, Tracer.topic())
-    end
-
     socket =
       socket
-      |> assign(:tracing_session, shown(active_session()))
+      |> assign(:tracing_session, nil)
       |> attach_hook(:tracing_status, :handle_info, &handle_tracing_status/2)
+      |> attach_hook(:tracing_status_load, :handle_async, &handle_tracing_load/3)
+
+    socket =
+      if connected?(socket) do
+        Phoenix.PubSub.subscribe(Voyager.PubSub, Tracer.topic())
+        # Tracer.active/0 queues behind a run's start, which calls the remote node.
+        start_async(socket, :tracing_session, &Tracer.active/0)
+      else
+        socket
+      end
 
     {:cont, socket}
   end
 
-  defp handle_tracing_status({:session_entries, session, _entries}, socket) do
-    {:halt, assign(socket, :tracing_session, shown(session))}
-  end
+  defp handle_tracing_status({:session_entries, session, _entries}, socket),
+    do: {:halt, put_session(socket, session)}
 
-  defp handle_tracing_status({:session_activated, session}, socket) do
-    {:halt, assign(socket, :tracing_session, shown(session))}
-  end
+  defp handle_tracing_status({:session_activated, session}, socket),
+    do: {:halt, put_session(socket, session)}
 
-  defp handle_tracing_status({:session_closed, _id}, socket) do
-    {:halt, assign(socket, :tracing_session, nil)}
-  end
+  defp handle_tracing_status({:session_closed, _id}, socket),
+    do: {:halt, put_session(socket, nil)}
 
   defp handle_tracing_status(_event, socket), do: {:cont, socket}
 
-  # The Tracer blocks on the agent while starting or stopping a run; the broadcast that follows sets the state.
-  defp active_session do
-    Tracer.active()
-  catch
-    :exit, _reason -> nil
+  defp handle_tracing_load(:tracing_session, {:ok, session}, socket),
+    do: {:halt, assign(socket, :tracing_session, shown(session))}
+
+  defp handle_tracing_load(:tracing_session, {:exit, _reason}, socket), do: {:halt, socket}
+
+  defp handle_tracing_load(_name, _result, socket), do: {:cont, socket}
+
+  # A broadcast is newer than the load still in flight, so the load is dropped.
+  defp put_session(socket, session) do
+    socket
+    |> cancel_async(:tracing_session)
+    |> assign(:tracing_session, shown(session))
   end
 
   defp shown(%Session{config: %Config{}} = session), do: session

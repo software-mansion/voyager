@@ -24,6 +24,7 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     :sys.replace_state(Tracer, fn _ -> %Tracer{session: unconfigured} end)
 
     {:ok, view, _html} = live(conn, ~p"/settings")
+    render_async(view)
 
     refute has_element?(view, "#tracing-indicator")
   end
@@ -32,6 +33,7 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     :sys.replace_state(Tracer, fn _ -> %Tracer{session: session()} end)
 
     {:ok, view, _html} = live(conn, ~p"/settings")
+    render_async(view)
 
     assert has_element?(view, ~s|#tracing-indicator[href="/node/demo%40localhost/tracing"]|)
     assert has_element?(view, "#tracing-indicator[data-tone=running]")
@@ -42,6 +44,7 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
 
   test "follows the session through its broadcasts", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/settings")
+    render_async(view)
 
     refute has_element?(view, "#tracing-indicator")
 
@@ -65,6 +68,7 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     :sys.replace_state(Tracer, fn _ -> %Tracer{session: %{session() | config: config}} end)
 
     {:ok, view, _html} = live(conn, ~p"/settings")
+    render_async(view)
 
     assert has_element?(view, "#tracing-indicator-mfa", ":lists._/_")
   end
@@ -75,6 +79,7 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     :sys.replace_state(Tracer, fn _ -> %Tracer{session: session()} end)
 
     {:ok, view, _html} = live(conn, ~p"/node/demo@localhost")
+    render_async(view)
 
     assert has_element?(view, "#tracing-indicator")
   end
@@ -84,6 +89,7 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     :sys.replace_state(Tracer, fn _ -> %Tracer{session: stopped} end)
 
     {:ok, view, _html} = live(conn, ~p"/settings")
+    render_async(view)
 
     assert has_element?(view, "#tracing-indicator[data-tone=failed]")
     assert view |> element("#tracing-indicator-tip-portal") |> render() =~ "Node went down"
@@ -94,6 +100,7 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     :sys.replace_state(Tracer, fn _ -> %Tracer{session: stopped} end)
 
     {:ok, view, _html} = live(conn, ~p"/settings")
+    render_async(view)
 
     assert has_element?(view, "#tracing-indicator[data-tone=open]")
     assert view |> element("#tracing-indicator-tip-portal") |> render() =~ "Storage limit reached"
@@ -104,6 +111,7 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     stub_erpc(Fakes.node_data())
 
     {:ok, view, _html} = live(conn, ~p"/node/demo@localhost")
+    render_async(view)
 
     broadcast({:session_activated, %{session() | status: :idle, node: nil, config: nil}})
     refute has_element?(view, "#tracing-indicator")
