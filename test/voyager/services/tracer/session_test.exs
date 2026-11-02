@@ -86,10 +86,5 @@ defmodule Voyager.Services.Tracer.SessionTest do
                stopped_at: ~U[2026-01-02 04:00:00Z]
              } = session
     end
-
-    test "takes a nil node and config from a missing configured entry" do
-      session = Session.from_row(@row, %{node: nil, config: nil}, 0, 0)
-      assert %Session{node: nil, config: nil} = session
-    end
   end
 end

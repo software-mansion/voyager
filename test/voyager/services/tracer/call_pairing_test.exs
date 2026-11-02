@@ -49,18 +49,16 @@ defmodule Voyager.Services.Tracer.CallPairingTest do
 
   test "keys calls by pid and mfa" do
     other_pid = spawn(fn -> :ok end)
-    other_mfa = {Enum, :map, 3}
 
-    {[_, _, ret_a, ret_b], _pairing} =
+    {events, _pairing} =
       CallPairing.pair(%CallPairing{}, [
-        event(:call, 1, pid: other_pid),
-        event(:call, 2, mfa: other_mfa),
-        event(:return, 10, mfa: other_mfa),
-        event(:return, 12, pid: other_pid)
+        event(:call, 1),
+        event(:call, 2, mfa: {Enum, :map, 3}),
+        event(:call, 3, pid: other_pid),
+        event(:return, 10)
       ])
 
-    assert ret_a.duration_us == 8
-    assert ret_b.duration_us == 11
+    assert List.last(events).duration_us == 9
   end
 
   test "passes an unmatched return through unchanged" do

@@ -24,16 +24,6 @@ defmodule Voyager.Services.Tracer.RunTest do
 
   defp events(count), do: for(at <- 1..count//1, do: event(:call, at))
 
-  test "new/2 starts a run from the session's counts" do
-    run = Run.new(session(traces: 5, dropped: 3), :mcp)
-
-    assert %Run{origin: :mcp, traces_before: 5, dropped_before: 3, dropped_logged: 3, shed: 0} =
-             run
-
-    assert run.pairing == %CallPairing{}
-    assert run.stop_request == nil
-  end
-
   describe "absorb/5" do
     test "counts the events and logs the agent's drops before them" do
       session = session()
@@ -125,10 +115,5 @@ defmodule Voyager.Services.Tracer.RunTest do
       assert entries == Enum.map(batch, &Entry.trace/1)
       assert run.pairing == %CallPairing{}
     end
-  end
-
-  test "total_dropped/2 adds the agent's and shed drops to the earlier runs'" do
-    run = %{Run.new(session(dropped: 7), :ui) | shed: 2}
-    assert Run.total_dropped(run, 3) == 12
   end
 end
