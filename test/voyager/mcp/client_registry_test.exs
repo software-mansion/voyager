@@ -10,6 +10,7 @@ defmodule Voyager.MCP.ClientRegistryTest do
     ClientRegistry.seen(%{"name" => "claude-code", "version" => "2.1.0"})
     ClientRegistry.seen(%{"name" => "claude-code", "version" => "2.1.1"})
     ClientRegistry.seen(nil)
+    ClientRegistry.seen(%{"name" => "auto-recovered", "version" => "unknown"})
 
     assert_receive {:mcp_clients, [%{name: "claude-code", version: "2.1.0"}]}
     assert_receive {:mcp_clients, [%{name: "claude-code", version: "2.1.1"}]}

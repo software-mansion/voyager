@@ -121,9 +121,33 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
               name={client.name}
               subtitle={client.subtitle}
               connection={client.connection}
+              added?={client.added?}
             >
+              <div
+                :if={not client.installed? and not client.added?}
+                id={"#{dom_id}-missing"}
+                role="status"
+                class="alert alert-info alert-soft gap-2 px-3 py-2 text-xs"
+              >
+                <.icon name="icon-info" class="size-4 shrink-0" />
+                <span>
+                  {client.name} wasn't found on this machine. Install it, then {if(client.link,
+                    do: "click Add",
+                    else: "run the command below"
+                  )}.
+                </span>
+              </div>
               <:action :if={client.link}>
-                <a id={"#{dom_id}-add"} href={client.link} class="btn btn-sm btn-primary">Add</a>
+                <a
+                  id={"#{dom_id}-add"}
+                  href={client.link}
+                  class={[
+                    "btn btn-sm",
+                    if(client.added? or client.connection, do: "btn-ghost", else: "btn-primary")
+                  ]}
+                >
+                  {if client.added? or client.connection, do: "Reinstall", else: "Add"}
+                </a>
               </:action>
               <div
                 :if={client.command}
@@ -244,14 +268,12 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
     by_id = Enum.group_by(connections, &McpClients.match(&1.name))
 
     clients =
-      Enum.map(McpClients.installed(socket.assigns.status.url), fn client ->
+      Enum.map(McpClients.all(socket.assigns.status.url), fn client ->
         Map.put(client, :connection, latest(Map.get(by_id, client.id, [])))
       end)
 
-    shown = MapSet.new(clients, & &1.id)
-
     socket
-    |> assign(:other_connections, Enum.reject(connections, &(McpClients.match(&1.name) in shown)))
+    |> assign(:other_connections, Enum.filter(connections, &is_nil(McpClients.match(&1.name))))
     |> stream(:clients, clients, reset: true)
   end
 
@@ -262,6 +284,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
   attr :name, :string, required: true
   attr :subtitle, :string, required: true
   attr :connection, :map, default: nil
+  attr :added?, :boolean, default: false
   slot :action
   slot :inner_block
 
@@ -279,6 +302,13 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
           <div class="flex flex-wrap items-center gap-x-2">
             <span class="text-base-content text-sm font-medium">{@name}</span>
             <.connected_badge :if={@connection} id={"#{@id}-connected"} connection={@connection} />
+            <span
+              :if={@added? and is_nil(@connection)}
+              id={"#{@id}-added"}
+              class="text-base-content/60 flex items-center gap-1 text-xs"
+            >
+              <.icon name="icon-check" class="text-success size-3.5" /> Added
+            </span>
           </div>
           <p class="text-base-content/60 truncate text-xs">{@subtitle}</p>
         </div>

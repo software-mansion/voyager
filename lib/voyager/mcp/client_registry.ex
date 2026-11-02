@@ -22,6 +22,9 @@ defmodule Voyager.MCP.ClientRegistry do
   def topic, do: @topic
 
   @spec seen(map() | nil) :: :ok
+  # Anubis reports a session it restored after a server restart under this placeholder name.
+  def seen(%{"name" => "auto-recovered"}), do: :ok
+
   def seen(%{"name" => name} = client_info) when is_binary(name) do
     GenServer.cast(__MODULE__, {:seen, name, client_info["version"]})
   end

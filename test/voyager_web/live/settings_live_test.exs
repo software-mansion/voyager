@@ -229,28 +229,33 @@ defmodule VoyagerWeb.SettingsLiveTest do
 
   describe "connect your AI" do
     @describetag capture_log: true
+    @describetag :tmp_dir
 
-    setup do
+    setup %{tmp_dir: home} do
       Voyager.MCPCase.stop_mcp()
       {:ok, _} = Settings.put(:mcp_port, Voyager.MCPCase.unique_port())
       start_supervised!({Voyager.MCP, enabled: true})
       Application.put_env(:voyager, :mcp_clients_installed, [:claude_code, :cursor])
+      Application.put_env(:voyager, :mcp_clients_home, home)
 
       on_exit(fn ->
         Voyager.MCPCase.stop_mcp()
         Application.delete_env(:voyager, :mcp_clients_installed)
+        Application.delete_env(:voyager, :mcp_clients_home)
       end)
     end
 
-    test "shows installed clients and the other agent row", %{conn: conn} do
+    test "shows every client, the other agent row, and a notice for missing ones", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/settings")
       url = Voyager.MCP.info().url
 
       assert has_element?(view, "#mcp-client-claude_code-command", "claude mcp add")
       assert has_element?(view, "#mcp-client-claude_code-copy")
       refute has_element?(view, "#mcp-client-claude_code-add")
-      refute has_element?(view, "#mcp-client-codex")
-      refute has_element?(view, "#mcp-client-gemini")
+      refute has_element?(view, "#mcp-client-claude_code-missing")
+      assert has_element?(view, "#mcp-client-codex-missing")
+      assert has_element?(view, "#mcp-client-codex-command", "codex mcp add")
+      assert has_element?(view, "#mcp-client-gemini-missing")
 
       assert has_element?(
                view,
@@ -260,6 +265,20 @@ defmodule VoyagerWeb.SettingsLiveTest do
       assert has_element?(view, "#mcp-client-other")
       assert has_element?(view, "#mcp-setup-prompt-copy")
       assert has_element?(view, "#mcp-setup-prompt", url)
+    end
+
+    test "shows cursor as added and offers a quiet reinstall", %{conn: conn, tmp_dir: home} do
+      File.mkdir_p!(Path.join(home, ".cursor"))
+
+      File.write!(
+        Path.join(home, ".cursor/mcp.json"),
+        JSON.encode!(%{mcpServers: %{voyager: %{url: Voyager.MCP.info().url}}})
+      )
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      assert has_element?(view, "#mcp-client-cursor-added")
+      assert has_element?(view, "#mcp-client-cursor-add.btn-ghost", "Reinstall")
     end
 
     test "marks a client connected after it initializes", %{conn: conn} do

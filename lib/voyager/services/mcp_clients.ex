@@ -1,7 +1,7 @@
 defmodule Voyager.Services.McpClients do
   @moduledoc """
-  The AI clients installed on this machine and how to point each at Voyager's MCP endpoint.
-  Nothing here writes to disk.
+  The AI clients Voyager knows, whether each is installed, and how to point each at Voyager's MCP endpoint.
+  Client configs are only ever read, never written.
   """
 
   @type id :: :claude_code | :codex | :gemini | :cursor
@@ -10,18 +10,24 @@ defmodule Voyager.Services.McpClients do
           name: String.t(),
           subtitle: String.t(),
           command: String.t() | nil,
-          link: String.t() | nil
+          link: String.t() | nil,
+          installed?: boolean(),
+          added?: boolean()
         }
 
   @ids [:claude_code, :codex, :gemini, :cursor]
 
-  @doc "Installed clients in display order. `config :voyager, :mcp_clients_installed, [id]` overrides detection."
-  @spec installed(String.t()) :: [client()]
-  def installed(url) do
-    detected =
+  @doc "Every client in display order. `config :voyager, :mcp_clients_installed, [id]` overrides detection."
+  @spec all(String.t()) :: [client()]
+  def all(url) do
+    installed =
       Application.get_env(:voyager, :mcp_clients_installed) || Enum.filter(@ids, &detect?/1)
 
-    for id <- @ids, id in detected, do: client(id, url)
+    Enum.map(@ids, fn id ->
+      client(id, url)
+      |> Map.put(:installed?, id in installed)
+      |> Map.put(:added?, added?(id, url))
+    end)
   end
 
   @doc "The row a connected client belongs to, from the name in its `clientInfo`."
@@ -89,13 +95,56 @@ defmodule Voyager.Services.McpClients do
   end
 
   defp detect?(:claude_code), do: executable_or_dir?("claude", ".claude")
-  defp detect?(:codex), do: executable_or_dir?("codex", ".codex")
+
+  defp detect?(:codex),
+    do: File.dir?("/Applications/Codex.app") or executable_or_dir?("codex", ".codex")
+
   defp detect?(:gemini), do: executable_or_dir?("gemini", ".gemini")
 
   defp detect?(:cursor),
     do: File.dir?("/Applications/Cursor.app") or executable_or_dir?("cursor", ".cursor")
 
   defp executable_or_dir?(executable, dir) do
-    System.find_executable(executable) != nil or File.dir?(Path.join(System.user_home!(), dir))
+    System.find_executable(executable) != nil or File.dir?(home_path(dir))
   end
+
+  defp added?(:claude_code, url) do
+    config = read_json(".claude.json")
+    projects = Map.values(config["projects"] || %{})
+    Enum.any?([config | projects], &servers_with_url?(&1["mcpServers"], url))
+  end
+
+  defp added?(:cursor, url),
+    do: servers_with_url?(read_json(".cursor/mcp.json")["mcpServers"], url)
+
+  defp added?(:gemini, url),
+    do: servers_with_url?(read_json(".gemini/settings.json")["mcpServers"], url)
+
+  defp added?(:codex, url) do
+    case File.read(home_path(".codex/config.toml")) do
+      {:ok, toml} -> String.contains?(toml, ~s|url = "#{url}"|)
+      {:error, _reason} -> false
+    end
+  end
+
+  defp servers_with_url?(servers, url) when is_map(servers) do
+    Enum.any?(Map.values(servers), fn server ->
+      is_map(server) and url in [server["url"], server["httpUrl"], server["serverUrl"]]
+    end)
+  end
+
+  defp servers_with_url?(_servers, _url), do: false
+
+  defp read_json(relative) do
+    with {:ok, contents} <- File.read(home_path(relative)),
+         {:ok, %{} = config} <- JSON.decode(contents) do
+      config
+    else
+      _ -> %{}
+    end
+  end
+
+  defp home_path(relative),
+    do:
+      Path.join(Application.get_env(:voyager, :mcp_clients_home) || System.user_home!(), relative)
 end
