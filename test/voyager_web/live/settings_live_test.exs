@@ -5,6 +5,8 @@ defmodule VoyagerWeb.SettingsLiveTest do
   import Voyager.TestUtils, only: [reset_pid_format: 1, reset_term_syntax: 1]
 
   alias Voyager.Fakes
+  alias Voyager.MCP.ClientRegistry
+  alias Voyager.MCP.Server
   alias Voyager.Services.TermSyntax
   alias Voyager.Settings
 
@@ -232,40 +234,44 @@ defmodule VoyagerWeb.SettingsLiveTest do
       Voyager.MCPCase.stop_mcp()
       {:ok, _} = Settings.put(:mcp_port, Voyager.MCPCase.unique_port())
       start_supervised!({Voyager.MCP, enabled: true})
-      on_exit(fn -> Voyager.MCPCase.stop_mcp() end)
-      :ok
+      Application.put_env(:voyager, :mcp_clients_installed, [:claude_code, :cursor])
+
+      on_exit(fn ->
+        Voyager.MCPCase.stop_mcp()
+        Application.delete_env(:voyager, :mcp_clients_installed)
+      end)
     end
 
-    test "links each desktop app to its install deeplink", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/settings")
-
-      for {id, prefix} <- [
-            {"cursor", "cursor://anysphere.cursor-deeplink/mcp/install?"},
-            {"vscode", "vscode:mcp/install?"},
-            {"vscode_insiders", "vscode-insiders:mcp/install?"},
-            {"lm_studio", "lmstudio://add_mcp?"},
-            {"goose", "goose://extension?"},
-            {"kiro", "https://kiro.dev/launch/mcp/add?"}
-          ] do
-        assert has_element?(view, ~s|#mcp-app-#{id}-add[href^="#{prefix}"]|)
-      end
-    end
-
-    test "lists copyable commands for other clients", %{conn: conn} do
+    test "shows installed clients and the other agent row", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/settings")
       url = Voyager.MCP.info().url
 
-      assert has_element?(view, "#mcp-command-claude_code-command", "claude mcp add")
+      assert has_element?(view, "#mcp-client-claude_code-command", "claude mcp add")
+      assert has_element?(view, "#mcp-client-claude_code-copy")
+      refute has_element?(view, "#mcp-client-claude_code-add")
+      refute has_element?(view, "#mcp-client-codex")
+      refute has_element?(view, "#mcp-client-gemini")
 
       assert has_element?(
                view,
-               "#mcp-command-codex-command",
-               "codex mcp add voyager --url #{url}"
+               ~s|#mcp-client-cursor-add[href^="cursor://anysphere.cursor-deeplink/mcp/install?"]|
              )
 
-      assert has_element?(view, "#mcp-command-gemini-command", url)
-      assert has_element?(view, "#mcp-command-windsurf-command", "serverUrl")
-      assert has_element?(view, "#mcp-claude-desktop")
+      assert has_element?(view, "#mcp-client-other")
+      assert has_element?(view, "#mcp-setup-prompt-copy")
+      assert has_element?(view, "#mcp-setup-prompt", url)
+    end
+
+    test "marks a client connected after it initializes", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings")
+      refute has_element?(view, "#mcp-client-claude_code-connected")
+
+      Server.init(%{"name" => "claude-code", "version" => "2.1.0"}, %{})
+      Server.init(%{"name" => "zed", "version" => "0.200"}, %{})
+      _ = :sys.get_state(ClientRegistry)
+
+      assert has_element?(view, "#mcp-client-claude_code-connected", "v2.1.0")
+      assert has_element?(view, "#mcp-client-other", "zed")
     end
   end
 

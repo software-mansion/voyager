@@ -18,8 +18,8 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
     |> assign(:enabled_locked?, Settings.locked?(:mcp_enabled))
     |> assign(:toggle_revision, 0)
     |> assign(:form, mcp_port_form())
-    |> stream_configure(:apps, dom_id: &"mcp-app-#{&1.id}")
-    |> stream_configure(:commands, dom_id: &"mcp-command-#{&1.id}")
+    |> stream_configure(:clients, dom_id: &"mcp-client-#{&1.id}")
+    |> assign(:other_connections, [])
     |> ok()
   end
 
@@ -111,66 +111,65 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
         </.form>
 
         <div id="mcp-clients-section" class="border-base-200 flex flex-col gap-3 border-t pt-4">
-          <div>
-            <h4 class="text-base-content text-sm font-semibold">Connect your AI</h4>
-            <p class="text-base-content/70 mt-1 text-sm">
-              Opens the app with Voyager prefilled, so you only confirm there.
-            </p>
-          </div>
+          <h4 class="text-base-content text-sm font-semibold">Connect your AI</h4>
 
-          <ul id="mcp-apps" phx-update="stream" class="divide-base-200 flex flex-col divide-y">
-            <li
-              :for={{dom_id, app} <- @streams.apps}
+          <ul id="mcp-clients" phx-update="stream" class="flex flex-col gap-2">
+            <.client_card
+              :for={{dom_id, client} <- @streams.clients}
               id={dom_id}
-              class="flex items-center justify-between gap-3 py-2"
+              icon={client.icon}
+              name={client.name}
+              subtitle={client.subtitle}
+              connection={client.connection}
             >
-              <span class="text-base-content text-sm font-medium">{app.name}</span>
-              <a
-                id={"#{dom_id}-add"}
-                href={app.link}
-                target={if(String.starts_with?(app.link, "https:"), do: "_blank")}
-                rel="noopener noreferrer"
-                class="btn btn-sm btn-primary"
+              <:action :if={client.link}>
+                <a id={"#{dom_id}-add"} href={client.link} class="btn btn-sm btn-primary">Add</a>
+              </:action>
+              <div
+                :if={client.command}
+                class="bg-base-200/60 flex items-center gap-2 rounded-md py-1 pr-1 pl-2.5"
               >
-                Add
-              </a>
-            </li>
+                <code
+                  id={"#{dom_id}-command"}
+                  title={client.command}
+                  class="font-mono text-base-content/80 min-w-0 flex-1 truncate text-xs"
+                >{client.command}</code>
+                <.copy_button
+                  id={"#{dom_id}-copy"}
+                  target={"##{dom_id}-command"}
+                  icon_only
+                  label="Copy command"
+                  size={:sm}
+                />
+              </div>
+            </.client_card>
           </ul>
 
-          <details id="mcp-other-clients" class="collapse-arrow bg-base-200 collapse">
-            <summary class="collapse-title text-base-content text-sm font-medium">
-              Other clients
-            </summary>
-            <div class="collapse-content flex flex-col gap-3">
-              <ul id="mcp-commands" phx-update="stream" class="flex flex-col gap-3">
-                <li
-                  :for={{dom_id, command} <- @streams.commands}
-                  id={dom_id}
-                  class="flex flex-col gap-1"
-                >
-                  <span class="text-base-content/70 text-xs font-medium">{command.name}</span>
-                  <div class="bg-base-100 flex items-center gap-2 rounded-md px-2 py-1">
-                    <code
-                      id={"#{dom_id}-command"}
-                      class="font-mono text-base-content/80 flex-1 break-all text-xs"
-                    >
-                      {command.command}
-                    </code>
-                    <.copy_button
-                      id={"#{dom_id}-copy"}
-                      target={"##{dom_id}-command"}
-                      icon_only
-                      label="Copy"
-                      size={:sm}
-                    />
-                  </div>
-                </li>
-              </ul>
-              <p id="mcp-claude-desktop" class="text-base-content/70 text-xs">
-                Claude Desktop only accepts local servers over stdio, so it needs a bridge that is not available yet.
-              </p>
-            </div>
-          </details>
+          <ul class="flex flex-col gap-2">
+            <.client_card
+              id="mcp-client-other"
+              icon="icon-brain"
+              name="Other agent"
+              subtitle="Paste the setup prompt into any agent"
+            >
+              <:action>
+                <span id="mcp-setup-prompt" class="hidden">{McpClients.setup_prompt(@status.url)}</span>
+                <.copy_button
+                  id="mcp-setup-prompt-copy"
+                  target="#mcp-setup-prompt"
+                  label="Copy setup prompt"
+                />
+              </:action>
+              <div :if={@other_connections != []} class="flex flex-wrap gap-x-4 gap-y-1">
+                <.connected_badge
+                  :for={connection <- @other_connections}
+                  id={"mcp-client-other-#{:erlang.phash2(connection.name)}"}
+                  connection={connection}
+                  label={connection.name}
+                />
+              </div>
+            </.client_card>
+          </ul>
         </div>
       </div>
     </div>
@@ -241,11 +240,84 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
   end
 
   defp stream_clients(socket) do
-    url = socket.assigns.status.url
+    connections = Map.get(socket.assigns, :connections, [])
+    by_id = Enum.group_by(connections, &McpClients.match(&1.name))
+
+    clients =
+      Enum.map(McpClients.installed(socket.assigns.status.url), fn client ->
+        Map.put(client, :connection, latest(Map.get(by_id, client.id, [])))
+      end)
+
+    shown = MapSet.new(clients, & &1.id)
 
     socket
-    |> stream(:apps, McpClients.apps(url), reset: true)
-    |> stream(:commands, McpClients.commands(url), reset: true)
+    |> assign(:other_connections, Enum.reject(connections, &(McpClients.match(&1.name) in shown)))
+    |> stream(:clients, clients, reset: true)
+  end
+
+  defp latest(connections), do: Enum.max_by(connections, & &1.last_seen, DateTime, fn -> nil end)
+
+  attr :id, :string, required: true
+  attr :icon, :string, required: true
+  attr :name, :string, required: true
+  attr :subtitle, :string, required: true
+  attr :connection, :map, default: nil
+  slot :action
+  slot :inner_block
+
+  defp client_card(assigns) do
+    ~H"""
+    <li
+      id={@id}
+      class="rounded-box border-base-200 flex flex-col gap-3 border p-3 transition-colors hover:border-base-300 hover:bg-base-200/30"
+    >
+      <div class="flex items-center gap-3">
+        <span class="bg-base-200 text-base-content size-9 flex shrink-0 items-center justify-center rounded-lg">
+          <.icon name={@icon} class="size-5" />
+        </span>
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-x-2">
+            <span class="text-base-content text-sm font-medium">{@name}</span>
+            <.connected_badge :if={@connection} id={"#{@id}-connected"} connection={@connection} />
+          </div>
+          <p class="text-base-content/60 truncate text-xs">{@subtitle}</p>
+        </div>
+        {render_slot(@action)}
+      </div>
+      {render_slot(@inner_block)}
+    </li>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :connection, :map, required: true
+  attr :label, :string, default: "Connected"
+
+  defp connected_badge(assigns) do
+    ~H"""
+    <span id={@id} class="text-base-content/60 flex items-center gap-1.5 text-xs">
+      <span class="relative flex h-1.5 w-1.5">
+        <span class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"></span>
+        <span class="bg-success relative inline-flex h-1.5 w-1.5 rounded-full"></span>
+      </span>
+      {Enum.join(
+        Enum.reject(
+          [@label, @connection.version && "v#{@connection.version}", ago(@connection.last_seen)],
+          &is_nil/1
+        ),
+        " · "
+      )}
+    </span>
+    """
+  end
+
+  defp ago(datetime) do
+    case DateTime.diff(DateTime.utc_now(), datetime) do
+      seconds when seconds < 60 -> "just now"
+      seconds when seconds < 3600 -> "#{div(seconds, 60)}m ago"
+      seconds when seconds < 86_400 -> "#{div(seconds, 3600)}h ago"
+      seconds -> "#{div(seconds, 86_400)}d ago"
+    end
   end
 
   defp mcp_port_form do

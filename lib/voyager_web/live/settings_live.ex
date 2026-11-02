@@ -1,6 +1,7 @@
 defmodule VoyagerWeb.SettingsLive do
   use VoyagerWeb, :live_view
 
+  alias Voyager.MCP.ClientRegistry
   alias Voyager.NodeSession
   alias Voyager.Pid
   alias Voyager.Services.TermSyntax
@@ -29,6 +30,7 @@ defmodule VoyagerWeb.SettingsLive do
   def mount(params, _session, socket) do
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
+      Phoenix.PubSub.subscribe(Voyager.PubSub, ClientRegistry.topic())
     end
 
     socket
@@ -37,6 +39,7 @@ defmodule VoyagerWeb.SettingsLive do
     |> assign(:terms_of_service_url, Application.get_env(:voyager, :terms_of_service_url))
     |> assign(:pid_format, Pid.get_setting())
     |> assign(:term_syntax, TermSyntax.get_setting())
+    |> assign(:mcp_connections, ClientRegistry.all())
     |> ok()
   end
 
@@ -77,7 +80,12 @@ defmodule VoyagerWeb.SettingsLive do
         id="distribution-settings"
         connected?={@connected?}
       />
-      <.live_component module={McpSettings} id="mcp-settings" status={@mcp_status} />
+      <.live_component
+        module={McpSettings}
+        id="mcp-settings"
+        status={@mcp_status}
+        connections={@mcp_connections}
+      />
       <.live_component
         module={TelemetrySettings}
         id="telemetry-settings"
@@ -108,6 +116,12 @@ defmodule VoyagerWeb.SettingsLive do
       when event in [:node_disconnected, :nodedown] do
     socket
     |> assign(:connected?, false)
+    |> noreply()
+  end
+
+  def handle_info({:mcp_clients, clients}, socket) do
+    socket
+    |> assign(:mcp_connections, clients)
     |> noreply()
   end
 

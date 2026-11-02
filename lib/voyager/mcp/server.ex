@@ -18,6 +18,13 @@ defmodule Voyager.MCP.Server do
   component(Voyager.MCP.Tools.EtsReadTableChunk)
   component(Voyager.MCP.Tools.EtsSearchTable)
 
+  alias Voyager.MCP.ClientRegistry
+
+  @before_compile {ClientRegistry, :track_requests}
+
   @impl true
-  def init(_client_info, frame), do: {:ok, frame}
+  def init(client_info, frame) do
+    ClientRegistry.seen(client_info)
+    {:ok, frame}
+  end
 end

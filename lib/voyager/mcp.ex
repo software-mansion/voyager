@@ -7,6 +7,7 @@ defmodule Voyager.MCP do
 
   use Supervisor
 
+  alias Voyager.MCP.ClientRegistry
   alias Voyager.MCP.EndpointManager
   alias Voyager.MCP.Server
 
@@ -66,12 +67,13 @@ defmodule Voyager.MCP do
 
   @impl Supervisor
   def init(_) do
-    # `:one_for_all`: the three children form one logical MCP unit.
+    # `:one_for_all`: the children form one logical MCP unit.
     # `EndpointManager` depends on both the `DynamicSupervisor` (which owns the
     # Bandit listener pid) and `Server` (the listener's Router forwards to it)
-    # Restarting all three together keeps them consistent
+    # Restarting them together keeps them consistent
     children = [
       {DynamicSupervisor, name: Voyager.MCP.DynamicSupervisor, strategy: :one_for_one},
+      ClientRegistry,
       {Server, transport: {:streamable_http, start: true}},
       EndpointManager
     ]

@@ -1,87 +1,106 @@
 defmodule Voyager.Services.McpClients do
   @moduledoc """
-  Install links and setup commands that point AI clients at Voyager's MCP endpoint.
-  Nothing here writes to disk: install links hand the config to the client app, which asks the user to confirm.
+  The AI clients installed on this machine and how to point each at Voyager's MCP endpoint.
+  Nothing here writes to disk.
   """
 
-  @type app :: %{id: String.t(), name: String.t(), link: String.t()}
-  @type command :: %{id: String.t(), name: String.t(), command: String.t()}
+  @type id :: :claude_code | :codex | :gemini | :cursor
+  @type client :: %{
+          id: id(),
+          name: String.t(),
+          subtitle: String.t(),
+          icon: String.t(),
+          command: String.t() | nil,
+          link: String.t() | nil
+        }
 
-  @spec apps(String.t()) :: [app()]
-  def apps(url) do
-    vscode_config = encode(JSON.encode!(%{name: "voyager", type: "http", url: url}))
+  @ids [:claude_code, :codex, :gemini, :cursor]
 
-    [
-      %{
-        id: "cursor",
-        name: "Cursor",
-        link:
-          "cursor://anysphere.cursor-deeplink/mcp/install?" <>
-            query(name: "voyager", config: base64_json(%{url: url}))
-      },
-      %{id: "vscode", name: "VS Code", link: "vscode:mcp/install?" <> vscode_config},
-      %{
-        id: "vscode_insiders",
-        name: "VS Code Insiders",
-        link: "vscode-insiders:mcp/install?" <> vscode_config
-      },
-      %{
-        id: "lm_studio",
-        name: "LM Studio",
-        link: "lmstudio://add_mcp?" <> query(name: "voyager", config: base64_json(%{url: url}))
-      },
-      %{
-        id: "goose",
-        name: "Goose",
-        link:
-          "goose://extension?" <>
-            query(
-              url: url,
-              type: "streamable_http",
-              id: "voyager",
-              name: "Voyager",
-              description: "Inspect the connected BEAM node",
-              timeout: 300
-            )
-      },
-      %{
-        id: "kiro",
-        name: "Kiro",
-        link:
-          "https://kiro.dev/launch/mcp/add?" <>
-            query(
-              name: "voyager",
-              config: JSON.encode!(%{url: url, disabled: false, autoApprove: []})
-            )
-      }
-    ]
+  @doc "Installed clients in display order. `config :voyager, :mcp_clients_installed, [id]` overrides detection."
+  @spec installed(String.t()) :: [client()]
+  def installed(url) do
+    detected =
+      Application.get_env(:voyager, :mcp_clients_installed) || Enum.filter(@ids, &detect?/1)
+
+    for id <- @ids, id in detected, do: client(id, url)
   end
 
-  @spec commands(String.t()) :: [command()]
-  def commands(url) do
-    [
-      %{
-        id: "claude_code",
-        name: "Claude Code",
-        command: "claude mcp add --transport http --scope user voyager #{url}"
-      },
-      %{id: "codex", name: "Codex", command: "codex mcp add voyager --url #{url}"},
-      %{
-        id: "gemini",
-        name: "Gemini CLI",
-        command: "gemini mcp add --transport http voyager #{url}"
-      },
-      %{
-        id: "windsurf",
-        name: "Windsurf · ~/.codeium/windsurf/mcp_config.json",
-        command: JSON.encode!(%{mcpServers: %{voyager: %{serverUrl: url}}})
-      }
-    ]
+  @doc "The row a connected client belongs to, from the name in its `clientInfo`."
+  @spec match(String.t()) :: id() | nil
+  def match(name) do
+    name = String.downcase(name)
+
+    cond do
+      String.starts_with?(name, "claude-code") -> :claude_code
+      String.contains?(name, "codex") -> :codex
+      String.contains?(name, "gemini") -> :gemini
+      String.contains?(name, "cursor") -> :cursor
+      true -> nil
+    end
   end
 
-  defp base64_json(config), do: Base.encode64(JSON.encode!(config))
+  @spec setup_prompt(String.t()) :: String.t()
+  def setup_prompt(url) do
+    "Add an MCP server named \"voyager\" to your MCP config. " <>
+      "It uses the Streamable HTTP transport at #{url} and needs no authentication."
+  end
 
-  defp query(params), do: URI.encode_query(params, :rfc3986)
+  defp client(:claude_code, url) do
+    %{
+      id: :claude_code,
+      name: "Claude Code",
+      subtitle: "Also covers the Code tab in the Claude app",
+      icon: "icon-brand-claude",
+      command: "claude mcp add --transport http --scope user voyager #{url}",
+      link: nil
+    }
+  end
 
-  defp encode(string), do: URI.encode(string, &URI.char_unreserved?/1)
+  defp client(:codex, url) do
+    %{
+      id: :codex,
+      name: "Codex",
+      subtitle: "CLI, IDE extension and app",
+      icon: "icon-brand-openai",
+      command: "codex mcp add voyager --url #{url}",
+      link: nil
+    }
+  end
+
+  defp client(:gemini, url) do
+    %{
+      id: :gemini,
+      name: "Gemini CLI",
+      subtitle: "Google's terminal agent",
+      icon: "icon-brand-gemini",
+      command: "gemini mcp add --transport http voyager #{url}",
+      link: nil
+    }
+  end
+
+  defp client(:cursor, url) do
+    config = Base.encode64(JSON.encode!(%{url: url}))
+
+    %{
+      id: :cursor,
+      name: "Cursor",
+      subtitle: "Opens Cursor to confirm the install",
+      icon: "icon-brand-cursor",
+      command: nil,
+      link:
+        "cursor://anysphere.cursor-deeplink/mcp/install?" <>
+          URI.encode_query([name: "voyager", config: config], :rfc3986)
+    }
+  end
+
+  defp detect?(:claude_code), do: executable_or_dir?("claude", ".claude")
+  defp detect?(:codex), do: executable_or_dir?("codex", ".codex")
+  defp detect?(:gemini), do: executable_or_dir?("gemini", ".gemini")
+
+  defp detect?(:cursor),
+    do: File.dir?("/Applications/Cursor.app") or executable_or_dir?("cursor", ".cursor")
+
+  defp executable_or_dir?(executable, dir) do
+    System.find_executable(executable) != nil or File.dir?(Path.join(System.user_home!(), dir))
+  end
 end
