@@ -376,6 +376,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
                ":demo_registry on demo@localhost"
              )
 
+      assert has_element?(view, "button#details-panel-monitors-2 .bg-port")
       assert has_element?(view, "#details-panel h4", ~r/Monitors\s+\(5\)/)
       assert has_element?(view, "span#details-panel-monitors-3", ":clock_service")
       tip_html = view |> element("#details-panel-monitors-3-portal") |> render()
@@ -393,6 +394,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       assert has_element?(view, "#details-panel-monitors-4-portal", "on another node")
 
       assert has_element?(view, "button#details-panel-monitored-by-0", TreeNode.key(monitor))
+      assert has_element?(view, "button#details-panel-monitored-by-0 .bg-primary")
+      assert has_element?(view, "button#details-panel-monitored-by-1 .bg-success")
+      assert has_element?(view, "button#details-panel-monitored-by-2 .bg-port")
 
       expect_process_info_fetch(monitor, [])
 
