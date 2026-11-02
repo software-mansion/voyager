@@ -30,13 +30,13 @@ defmodule Voyager.Services.Tracer do
   alias Voyager.Queries.TraceSessions, as: TraceSessionQueries
   alias Voyager.Services.Tracer.CallPairing
   alias Voyager.Services.Tracer.Config
+  alias Voyager.Services.Tracer.MemoryLog
   alias Voyager.Services.Tracer.Run
   alias Voyager.Services.Tracer.Session
   alias Voyager.Services.Tracer.Writer
   alias Voyager.Settings
 
   @topic "tracing"
-  @kept_traces 500
   @max_mailbox 1_000
   @call_timeout Agent.default_timeout() + 1_000
   @default_storage_limit_mb 100
@@ -63,15 +63,12 @@ defmodule Voyager.Services.Tracer do
           optional(atom()) => term()
         }
 
-  # `controls` keeps every configured/started/stopped entry, `traces` the newest
-  # trace and dropped entries; both newest first.
-  defstruct session: nil, run: nil, controls: [], traces: []
+  defstruct session: nil, run: nil, log: %MemoryLog{}
 
   @typep state :: %__MODULE__{
            session: Session.t() | nil,
            run: Run.t() | nil,
-           controls: [entry()],
-           traces: [entry()]
+           log: MemoryLog.t()
          }
 
   @spec start_link(keyword()) :: GenServer.on_start()
@@ -335,26 +332,7 @@ defmodule Voyager.Services.Tracer do
         _from,
         %{session: %{id: id, save: false} = session} = state
       ) do
-    since = Keyword.get(opts, :since, 0)
-    before = min(Keyword.get(opts, :before, session.seq), session.seq)
-    order = opts[:order]
-
-    page =
-      (state.controls ++ state.traces)
-      |> Enum.filter(&(&1.seq >= since and &1.seq < before))
-      |> Enum.sort_by(& &1.seq, order)
-      |> Enum.take(opts[:limit])
-
-    # Seqs have no gaps, so a seq in the covered range without an entry was evicted.
-    # A full page covers the range up to its last entry; a short one the whole range.
-    covered =
-      case {order, length(page) == opts[:limit]} do
-        {:asc, true} -> since..List.last(page).seq//1
-        {:desc, true} -> List.last(page).seq..(before - 1)//1
-        _short -> since..(before - 1)//1
-      end
-
-    {:reply, {:ok, %{entries: page, truncated?: length(page) < Range.size(covered)}}, state}
+    {:reply, {:ok, MemoryLog.page(state.log, session.seq, opts)}, state}
   end
 
   def handle_call({:entries, _id, _opts}, _from, state), do: {:reply, :saved, state}
@@ -540,26 +518,15 @@ defmodule Voyager.Services.Tracer do
   defp dropped_entry(0), do: []
   defp dropped_entry(count), do: [entry(:dropped, nil, count: count)]
 
-  # Dropped entries come with every shed batch, so they are capped with the traces.
   @spec append(state(), [entry()]) :: state()
   defp append(%__MODULE__{session: session} = state, entries) do
-    entries = Enum.with_index(entries, &Map.put(&1, :seq, session.seq + &2))
+    {entries, log} = MemoryLog.append(state.log, entries, session.seq)
     session = %{session | seq: session.seq + length(entries)}
-
-    {traces, controls} =
-      Enum.split_with(entries, &(&1.kind in [:trace, :dropped]))
 
     if session.save and entries != [], do: Writer.append(session, entries)
     broadcast({:session_entries, session, entries})
 
-    kept = Enum.take(Enum.reverse(traces) ++ state.traces, @kept_traces)
-
-    %{
-      state
-      | session: session,
-        controls: Enum.reverse(controls) ++ state.controls,
-        traces: kept
-    }
+    %{state | session: session, log: log}
   end
 
   defp resolve_pids(_node, %Config{processes: processes}) when processes != :pids, do: {:ok, []}
