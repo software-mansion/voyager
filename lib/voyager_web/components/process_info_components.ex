@@ -239,9 +239,9 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   @doc """
   A term inspector with a copy button.
 
-  The button copies the term inspected in full (`inspect/2` with no limit) from
-  a hidden element, not the collapsed-and-windowed tree the user sees. The term
-  is already truncated on the remote before it reaches here, so inspecting it
+  The button copies the term in full (`VoyagerWeb.TermFormatter.copy_string/2`)
+  from a hidden element, not the collapsed-and-windowed tree the user sees. The
+  term is already truncated on the remote before it reaches here, so copying it
   fully is bounded by that same truncation; elided subterms copy as their
   `:"$voyager_truncated"` marker.
   """
@@ -426,7 +426,8 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   end
 
   defp identifier_entry({name, node}, _remote_node) when is_atom(name),
-    do: %{pid?: false, text: "#{inspect(name)} on #{node}"}
+    do: %{pid?: false, text: "#{Formatters.format_term(name)} on #{node}"}
 
-  defp identifier_entry(other, _remote_node), do: %{pid?: false, text: inspect(other)}
+  defp identifier_entry(other, _remote_node),
+    do: %{pid?: false, text: Formatters.format_term(other)}
 end

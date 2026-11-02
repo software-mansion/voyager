@@ -4,9 +4,11 @@ defmodule VoyagerWeb.EtsTableLiveTest do
   use VoyagerWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
+  import Voyager.TestUtils, only: [erl_eval: 1, reset_term_syntax: 1]
 
   alias Voyager.Erpc
   alias Voyager.Fakes
+  alias Voyager.Services.TermSyntax
   alias Voyager.Test.EtsTable
   alias Voyager.Test.VoyagerAgentFixture
 
@@ -338,6 +340,65 @@ defmodule VoyagerWeb.EtsTableLiveTest do
 
     assert has_element?(view, "#ets-lookup-error")
     refute has_element?(view, "#ets-lookup-record-0")
+  end
+
+  test "copies the looked-up key in a form IEx evaluates back", %{conn: conn} do
+    name = named_table(:set)
+    key = {:worker, self()}
+    :ets.insert(name, {key, :v})
+
+    view = open_lookup(conn, name)
+
+    assert view |> text("#ets-sidebar-key") =~ "#PID<"
+    assert {^key, _binding} = view |> text("#ets-sidebar-key-copy-text") |> Code.eval_string()
+  end
+
+  describe "with the Erlang term syntax" do
+    setup :reset_term_syntax
+
+    setup do
+      {:ok, :erlang} = TermSyntax.save_setting(:erlang)
+      :ok
+    end
+
+    test "hides the URL's Elixir name until the table loads", %{conn: conn} do
+      name = named_table(:set)
+
+      html =
+        conn |> get(~p"/node/#{@node_name}/ets-tables/#{inspect(name)}") |> html_response(200)
+
+      assert html
+             |> LazyHTML.from_document()
+             |> LazyHTML.query("#ets-table-name")
+             |> Enum.empty?()
+    end
+
+    test "names the table and renders its records as Erlang terms", %{conn: conn} do
+      name = named_table(:set)
+      erlang_name = name |> Atom.to_string() |> String.trim_leading(":")
+      :ets.insert(name, {:k, "v"})
+
+      view = fetch_records(conn, name)
+
+      assert view |> text("#ets-table-name") |> String.trim() == erlang_name
+      assert(has_element?(view, "#ets-records-0", ~S|{k, <<"v">>}|))
+    end
+
+    test "copies a looked-up record in a form the Erlang shell parses", %{conn: conn} do
+      name = named_table(:set)
+      ref = make_ref()
+      record = {:k, %{list: [1, 2]}, :c.pid(0, 45, 0), ref}
+      :ets.insert(name, record)
+
+      view = open_lookup(conn, name)
+      copied = text(view, "#ets-lookup-record-0-copy-source")
+
+      assert view |> text("#ets-sidebar-key") |> String.trim() == "k"
+      assert has_element?(view, "#ets-lookup-0-term", "\#{")
+      assert copied =~ "\#{list => [1, 2]}"
+      assert copied =~ "binary_to_term(<<131,"
+      assert erl_eval(copied) == record
+    end
   end
 
   defp named_table(type) do
