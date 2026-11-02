@@ -307,9 +307,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
              )
 
       assert has_element?(view, "button#details-panel-monitored-by-0", TreeNode.key(monitor))
-      assert has_element?(view, "button#details-panel-monitored-by-0 .bg-primary")
-      assert has_element?(view, "button#details-panel-monitored-by-1 .bg-success")
-      assert has_element?(view, "button#details-panel-monitored-by-2 .bg-port")
 
       expect_process_info_fetch(monitor, [])
 

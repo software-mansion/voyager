@@ -391,14 +391,13 @@ defmodule VoyagerWeb.CoreComponents do
   defp interval_value(nil), do: "off"
   defp interval_value(ms), do: Integer.to_string(ms)
 
-  @doc "A PID in the configured display format, marked with a dot."
+  @doc "A PID in the configured display format, marked with a primary dot."
   attr :pid, :any, required: true, doc: "a pid or its string form"
-  attr :dot_class, :string, default: "bg-primary"
 
   def display_pid(assigns) do
     ~H"""
     <span class="font-mono inline-flex items-center gap-1.5">
-      <span class={["h-1.5 w-1.5 shrink-0 rounded-full", @dot_class]} />
+      <span class="bg-primary h-1.5 w-1.5 shrink-0 rounded-full" />
       {Formatters.pid(@pid)}
     </span>
     """
