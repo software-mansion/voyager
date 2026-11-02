@@ -127,9 +127,9 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
                 :if={not client.installed? and not client.added?}
                 id={"#{dom_id}-missing"}
                 role="status"
-                class="alert alert-info alert-soft gap-2 px-3 py-2 text-xs"
+                class="alert alert-info gap-2 px-3 py-2 text-xs"
               >
-                <.icon name="icon-info" class="size-4 shrink-0" />
+                <.icon name="icon-info" class="text-info size-4 shrink-0" />
                 <span>
                   {client.name} wasn't found on this machine. Install it, then {if(client.link,
                     do: "click Add",
