@@ -3,8 +3,11 @@ defmodule Voyager.Services.Tracer.Run do
 
   alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.CallPairing
+  alias Voyager.Services.Tracer.Entry
   alias Voyager.Services.Tracer.Session
 
+  # `*_before` are the session's counts when the run began, `shed` the events dropped here
+  # rather than by the agent, and `dropped_logged` the session total covered by `:dropped` entries.
   @enforce_keys [:origin, :traces_before, :dropped_before, :dropped_logged, :started_ms]
   defstruct [
     :origin,
@@ -41,19 +44,30 @@ defmodule Voyager.Services.Tracer.Run do
 
   @doc """
   Accounts for a batch from the remote tracer: sheds it when `shedding?`, pairs returns with
-  their calls and updates the session's counts. Returns the events to log, how many drops
-  have not been logged yet, the session and the run.
+  their calls and updates the session's counts. Returns the entries to log, the session and
+  the run.
   """
   @spec absorb(t(), Session.t(), [map()], non_neg_integer(), boolean()) ::
-          {[map()], non_neg_integer(), Session.t(), t()}
+          {[map()], Session.t(), t()}
   def absorb(%__MODULE__{} = run, %Session{} = session, events, agent_dropped, shedding?) do
-    {events, shed} =
-      if shedding?,
-        do: {[], run.shed + length(events)},
-        else: {events, run.shed}
+    {events, run} = shed(run, events, shedding?)
+    dropped = total_dropped(run, agent_dropped)
+    {events, run} = pair_returns(run, session, events, dropped)
+    session = %{session | traces: session.traces + length(events), dropped: dropped}
+    {dropped_entries, run} = log_drops(run, dropped, shedding?)
 
-    dropped = run.dropped_before + agent_dropped + shed
+    {dropped_entries ++ Enum.map(events, &Entry.trace/1), session, run}
+  end
 
+  @doc "The session's drops so far, given the `agent_dropped` count the agent reports for this run."
+  @spec total_dropped(t(), non_neg_integer()) :: non_neg_integer()
+  def total_dropped(%__MODULE__{} = run, agent_dropped),
+    do: run.dropped_before + agent_dropped + run.shed
+
+  defp shed(run, events, true), do: {[], %{run | shed: run.shed + length(events)}}
+  defp shed(run, events, false), do: {events, run}
+
+  defp pair_returns(run, session, events, dropped) do
     pairing = if dropped > session.dropped, do: %CallPairing{}, else: run.pairing
 
     {events, pairing} =
@@ -61,16 +75,12 @@ defmodule Voyager.Services.Tracer.Run do
         do: CallPairing.pair(pairing, events),
         else: {events, pairing}
 
-    session = %{session | traces: session.traces + length(events), dropped: dropped}
-
-    # While shedding, drops are only counted: a marker per batch would queue on the overloaded Writer.
-    {unlogged, dropped_logged} =
-      if shedding?,
-        do: {0, run.dropped_logged},
-        else: {dropped - run.dropped_logged, dropped}
-
-    run = %{run | shed: shed, pairing: pairing, dropped_logged: dropped_logged}
-
-    {events, unlogged, session, run}
+    {events, %{run | pairing: pairing}}
   end
+
+  # While shedding, drops are only counted: a marker per batch would queue on the overloaded Writer.
+  defp log_drops(run, _dropped, true), do: {[], run}
+
+  defp log_drops(run, dropped, false),
+    do: {Entry.dropped(dropped - run.dropped_logged), %{run | dropped_logged: dropped}}
 end

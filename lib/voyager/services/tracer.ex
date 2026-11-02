@@ -29,6 +29,7 @@ defmodule Voyager.Services.Tracer do
   alias Voyager.Queries.TraceEntries, as: TraceEntryQueries
   alias Voyager.Queries.TraceSessions, as: TraceSessionQueries
   alias Voyager.Services.Tracer.Config
+  alias Voyager.Services.Tracer.Entry
   alias Voyager.Services.Tracer.MemoryLog
   alias Voyager.Services.Tracer.Run
   alias Voyager.Services.Tracer.Session
@@ -69,6 +70,11 @@ defmodule Voyager.Services.Tracer do
            run: Run.t() | nil,
            log: MemoryLog.t()
          }
+
+  defguardp is_session_change(request)
+            when request == :close or
+                   (is_tuple(request) and
+                      elem(request, 0) in [:create, :load, :configure, :start])
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(_opts), do: GenServer.start_link(__MODULE__, nil, name: __MODULE__)
@@ -117,25 +123,15 @@ defmodule Voyager.Services.Tracer do
   """
   @spec start(origin()) :: {:ok, Session.t()} | {:error, term()}
   def start(origin) when origin in [:ui, :mcp] do
-    case active() do
-      nil ->
-        {:error, :no_session}
+    with {:ok, %{node: node, config: config}} <- startable(active()) do
+      case resolve_pids(node, config) do
+        {:ok, pids} ->
+          args = Config.to_agent(config, pids)
+          GenServer.call(__MODULE__, {:start, origin, node, config, args}, @call_timeout)
 
-      %Session{config: nil} ->
-        {:error, :not_configured}
-
-      %Session{status: :running} ->
-        {:error, :busy}
-
-      %Session{node: node, config: config} ->
-        case resolve_pids(node, config) do
-          {:ok, pids} ->
-            args = Config.to_agent(config, pids)
-            GenServer.call(__MODULE__, {:start, origin, node, config, args}, @call_timeout)
-
-          {:error, reason} ->
-            start_failed(reason, origin)
-        end
+        {:error, reason} ->
+          start_failed(reason, origin)
+      end
     end
   end
 
@@ -146,7 +142,7 @@ defmodule Voyager.Services.Tracer do
   @spec stop(origin()) :: :ok
   def stop(origin) when origin in [:ui, :mcp] do
     with {:ok, node, tracer} <- GenServer.call(__MODULE__, {:stop, origin}) do
-      Agent.call(node, :trace_stop, [tracer], Agent.default_timeout())
+      stop_tracer(node, tracer)
     end
 
     :ok
@@ -198,29 +194,13 @@ defmodule Voyager.Services.Tracer do
 
   @impl true
   def handle_call(request, _from, %{session: %Session{status: :running}} = state)
-      when request == :close or
-             (is_tuple(request) and elem(request, 0) in [:create, :load, :configure, :start]),
+      when is_session_change(request),
       do: {:reply, {:error, :busy}, state}
 
   def handle_call({:create, origin, save}, _from, _state) do
-    id =
-      if save do
-        {:ok, row} = TraceSessionActions.create(%{origin: origin, status: :idle})
-        row.id
-      else
-        -System.unique_integer([:positive])
-      end
-
-    session = %Session{
-      id: id,
-      origin: origin,
-      save: save,
-      created_at: DateTime.utc_now(),
-      storage_limit: storage_limit(id)
-    }
-
-    broadcast({:session_activated, session})
-    {:reply, {:ok, session}, %__MODULE__{session: session}}
+    origin
+    |> new_session(save)
+    |> activate()
   end
 
   def handle_call({:load, id}, _from, state) do
@@ -228,8 +208,13 @@ defmodule Voyager.Services.Tracer do
     TraceSessionActions.interrupt_running()
 
     case TraceSessionQueries.get(id) do
-      nil -> {:reply, {:error, :not_found}, state}
-      row -> loaded(row)
+      nil ->
+        {:reply, {:error, :not_found}, state}
+
+      row ->
+        row
+        |> saved_session()
+        |> activate()
     end
   end
 
@@ -254,45 +239,30 @@ defmodule Voyager.Services.Tracer do
     {:reply, :ok, %__MODULE__{}}
   end
 
-  def handle_call(request, _from, %{session: nil} = state)
-      when elem(request, 0) in [:configure, :start],
-      do: {:reply, {:error, :no_session}, state}
+  def handle_call({:configure, _node, _config, _origin}, _from, %{session: nil} = state),
+    do: {:reply, {:error, :no_session}, state}
 
   def handle_call({:configure, node, config, origin}, _from, state) do
     state =
       %{state | session: %{state.session | node: node, config: config}}
-      |> append([entry(:configured, origin, node: node, config: config)])
+      |> append([Entry.configured(origin, node, config)])
 
     {:reply, {:ok, state.session}, state}
   end
 
+  def handle_call({:start, _origin, _node, _config, _args}, _from, %{session: nil} = state),
+    do: {:reply, {:error, :no_session}, state}
+
+  # The caller resolved the pids, so `node` and `config` must still be the session's.
   def handle_call(
         {:start, origin, node, config, {spec, limits}},
         _from,
         %{session: %Session{node: node, config: config} = session} = state
       ) do
-    case Agent.call(session.node, :trace_start, [self(), spec, limits], Agent.default_timeout()) do
-      {:ok, {:ok, tracer}} ->
-        Process.monitor(tracer)
-
-        session = Session.running(session, tracer, storage_limit(session.id))
-
-        Voyager.Telemetry.dispatch!("voyager.trace.start",
-          metadata:
-            session.config
-            |> Map.take([:capture, :scope, :return_trace, :processes])
-            |> Map.put(:origin, origin)
-        )
-
-        state =
-          append(%{state | session: session, run: Run.new(session, origin)}, [
-            entry(:started, origin)
-          ])
-
+    case start_tracer(session, spec, limits) do
+      {:ok, tracer} ->
+        state = begin_run(state, tracer, origin)
         {:reply, {:ok, state.session}, state}
-
-      {:ok, {:error, reason}} ->
-        {:reply, start_failed(reason, origin), state}
 
       {:error, reason} ->
         {:reply, start_failed(reason, origin), state}
@@ -304,8 +274,7 @@ defmodule Voyager.Services.Tracer do
 
   # The session ends on the tracer's done message or its DOWN, never on this reply.
   def handle_call({:stop, origin}, _from, %{session: %{status: :running} = session} = state) do
-    {:reply, {:ok, session.node, session.tracer},
-     %{state | run: %{state.run | stop_request: {:stopped, origin}}}}
+    {:reply, {:ok, session.node, session.tracer}, put_stop_request(state, :stopped, origin)}
   end
 
   def handle_call({:stop, _origin}, _from, state), do: {:reply, :ok, state}
@@ -324,7 +293,7 @@ defmodule Voyager.Services.Tracer do
 
   @impl true
   def handle_cast(:disconnecting, %{session: %{status: :running}} = state),
-    do: {:noreply, %{state | run: %{state.run | stop_request: {:disconnected, nil}}}}
+    do: {:noreply, put_stop_request(state, :disconnected, nil)}
 
   def handle_cast(:disconnecting, state), do: {:noreply, state}
 
@@ -333,21 +302,18 @@ defmodule Voyager.Services.Tracer do
         {:voyager_trace_events, tracer, events, agent_dropped},
         %{session: %{tracer: tracer, status: :running} = session, run: run} = state
       ) do
-    {events, unlogged, session, run} =
+    {entries, session, run} =
       Run.absorb(run, session, events, agent_dropped, overloaded?(session))
 
-    entries = dropped_entry(unlogged) ++ Enum.map(events, &Map.put(&1, :kind, :trace))
-    state = %{state | session: session, run: run}
-    state = if entries == [], do: state, else: append(state, entries)
-
+    state = append(%{state | session: session, run: run}, entries)
     {:noreply, stop_over_limit(state)}
   end
 
   def handle_info(
-        {:voyager_trace_done, tracer, reason, %{dropped: dropped}},
-        %{session: %{tracer: tracer, status: :running}} = state
+        {:voyager_trace_done, tracer, reason, %{dropped: agent_dropped}},
+        %{session: %{tracer: tracer, status: :running}, run: run} = state
       ) do
-    {:noreply, end_run(state, reason, state.run.dropped_before + dropped + state.run.shed)}
+    {:noreply, end_run(state, reason, Run.total_dropped(run, agent_dropped))}
   end
 
   def handle_info(
@@ -365,106 +331,10 @@ defmodule Voyager.Services.Tracer do
 
   def handle_info(_stale, state), do: {:noreply, state}
 
-  @spec end_run(state(), stop_reason(), non_neg_integer()) :: state()
-  defp end_run(%{run: run} = state, reason, dropped) do
-    {reason, origin} = run.stop_request || {reason, nil}
-
-    session = Session.stopped(state.session, reason, dropped)
-
-    run_traces = session.traces - run.traces_before
-    run_dropped = session.dropped - run.dropped_before
-
-    Voyager.Telemetry.dispatch!("voyager.trace.stop",
-      measurements: %{
-        events: run_traces,
-        dropped: run_dropped,
-        duration_ms: System.monotonic_time(:millisecond) - run.started_ms
-      },
-      metadata: %{origin: run.origin, reason: reason}
-    )
-
-    append(
-      %{state | session: session, run: nil},
-      dropped_entry(session.dropped - run.dropped_logged) ++
-        [entry(:stopped, origin, reason: reason, traces: run_traces, dropped: run_dropped)]
-    )
-  end
-
-  defp stop_over_limit(%{session: session} = state) when session.bytes > session.storage_limit,
-    do: request_stop(state, :storage_limit)
-
-  defp stop_over_limit(state), do: state
-
-  defp request_stop(%{session: session, run: %Run{stop_request: nil} = run} = state, reason) do
-    Task.Supervisor.start_child(Voyager.TaskSupervisor, fn ->
-      Agent.call(session.node, :trace_stop, [session.tracer], Agent.default_timeout())
-    end)
-
-    %{state | run: %{run | stop_request: {reason, nil}}}
-  end
-
-  defp request_stop(state, _reason), do: state
-
-  defp storage_limit(id) do
-    limit = Settings.get(:trace_storage_limit_mb, @default_storage_limit_mb) * 1_000_000
-    max(limit - TraceSessionQueries.bytes_except(id), 0)
-  end
-
-  defp loaded(row) do
-    controls = TraceEntryQueries.controls(row.id)
-    configured = Enum.find(controls, &(&1.kind == :configured)) || %{node: nil, config: nil}
-
-    session =
-      Session.from_row(row, configured, TraceEntryQueries.next_seq(row.id), storage_limit(row.id))
-
-    broadcast({:session_activated, session})
-
-    {:reply, {:ok, session}, %__MODULE__{session: session}}
-  end
-
-  defp saved_entries(id, opts) do
-    Writer.flush()
-
-    if TraceSessionQueries.get(id),
-      do: {:ok, %{entries: TraceEntryQueries.page(id, opts), truncated?: false}},
-      else: {:error, :not_found}
-  end
-
-  defp start_failed(reason, origin) do
-    Voyager.Telemetry.dispatch!("voyager.trace.start_failed",
-      metadata: %{origin: origin, reason: reason}
-    )
-
-    {:error, reason}
-  end
-
-  defp entry(kind, origin, fields \\ []),
-    do:
-      Map.merge(%{kind: kind, origin: origin, at: System.os_time(:microsecond)}, Map.new(fields))
-
-  defp validate_entries_opt!(:order, order) when order in [:asc, :desc], do: :ok
-  defp validate_entries_opt!(:limit, limit) when is_integer(limit) and limit >= 1, do: :ok
-
-  defp validate_entries_opt!(key, seq)
-       when key in [:since, :before] and is_integer(seq) and seq >= 0,
-       do: :ok
-
-  defp validate_entries_opt!(key, value),
-    do: raise(ArgumentError, "invalid #{inspect(key)} option: #{inspect(value)}")
-
-  defp dropped_entry(0), do: []
-  defp dropped_entry(count), do: [entry(:dropped, nil, count: count)]
-
-  @spec append(state(), [entry()]) :: state()
-  defp append(%__MODULE__{session: session} = state, entries) do
-    {entries, log} = MemoryLog.append(state.log, entries, session.seq)
-    session = %{session | seq: session.seq + length(entries)}
-
-    if session.save and entries != [], do: Writer.append(session, entries)
-    broadcast({:session_entries, session, entries})
-
-    %{state | session: session, log: log}
-  end
+  defp startable(nil), do: {:error, :no_session}
+  defp startable(%Session{config: nil}), do: {:error, :not_configured}
+  defp startable(%Session{status: :running}), do: {:error, :busy}
+  defp startable(%Session{} = session), do: {:ok, session}
 
   defp resolve_pids(_node, %Config{processes: processes}) when processes != :pids, do: {:ok, []}
 
@@ -477,6 +347,139 @@ defmodule Voyager.Services.Tracer do
     end)
   end
 
+  defp start_failed(reason, origin) do
+    Voyager.Telemetry.dispatch!("voyager.trace.start_failed",
+      metadata: %{origin: origin, reason: reason}
+    )
+
+    {:error, reason}
+  end
+
+  defp stop_tracer(node, tracer),
+    do: Agent.call(node, :trace_stop, [tracer], Agent.default_timeout())
+
+  defp validate_entries_opt!(:order, order) when order in [:asc, :desc], do: :ok
+  defp validate_entries_opt!(:limit, limit) when is_integer(limit) and limit >= 1, do: :ok
+
+  defp validate_entries_opt!(key, seq)
+       when key in [:since, :before] and is_integer(seq) and seq >= 0,
+       do: :ok
+
+  defp validate_entries_opt!(key, value),
+    do: raise(ArgumentError, "invalid #{inspect(key)} option: #{inspect(value)}")
+
+  defp saved_entries(id, opts) do
+    Writer.flush()
+
+    if TraceSessionQueries.get(id),
+      do: {:ok, %{entries: TraceEntryQueries.page(id, opts), truncated?: false}},
+      else: {:error, :not_found}
+  end
+
+  defp new_session(origin, save) do
+    id = new_session_id(origin, save)
+
+    %Session{
+      id: id,
+      origin: origin,
+      save: save,
+      created_at: DateTime.utc_now(),
+      storage_limit: storage_limit(id)
+    }
+  end
+
+  defp new_session_id(origin, true) do
+    {:ok, row} = TraceSessionActions.create(%{origin: origin, status: :idle})
+    row.id
+  end
+
+  defp new_session_id(_origin, false), do: -System.unique_integer([:positive])
+
+  defp saved_session(row) do
+    controls = TraceEntryQueries.controls(row.id)
+    configured = Enum.find(controls, &(&1.kind == :configured)) || %{node: nil, config: nil}
+
+    Session.from_row(row, configured, TraceEntryQueries.next_seq(row.id), storage_limit(row.id))
+  end
+
+  defp activate(session) do
+    broadcast({:session_activated, session})
+    {:reply, {:ok, session}, %__MODULE__{session: session}}
+  end
+
+  defp start_tracer(session, spec, limits) do
+    case Agent.call(session.node, :trace_start, [self(), spec, limits], Agent.default_timeout()) do
+      {:ok, reply} -> reply
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp begin_run(%{session: session} = state, tracer, origin) do
+    Process.monitor(tracer)
+    session = Session.running(session, tracer, storage_limit(session.id))
+    emit_started(session, origin)
+
+    append(%{state | session: session, run: Run.new(session, origin)}, [Entry.started(origin)])
+  end
+
+  @spec end_run(state(), stop_reason(), non_neg_integer()) :: state()
+  defp end_run(%{run: run} = state, reason, dropped) do
+    {reason, origin} = run.stop_request || {reason, nil}
+    session = Session.stopped(state.session, reason, dropped)
+    run_traces = session.traces - run.traces_before
+    run_dropped = session.dropped - run.dropped_before
+    emit_stopped(run, reason, run_traces, run_dropped)
+
+    %{state | session: session, run: nil}
+    |> append(
+      Entry.dropped(session.dropped - run.dropped_logged) ++
+        [Entry.stopped(origin, reason, run_traces, run_dropped)]
+    )
+  end
+
+  defp emit_started(session, origin) do
+    Voyager.Telemetry.dispatch!("voyager.trace.start",
+      metadata:
+        session.config
+        |> Map.take([:capture, :scope, :return_trace, :processes])
+        |> Map.put(:origin, origin)
+    )
+  end
+
+  defp emit_stopped(run, reason, traces, dropped) do
+    Voyager.Telemetry.dispatch!("voyager.trace.stop",
+      measurements: %{
+        events: traces,
+        dropped: dropped,
+        duration_ms: System.monotonic_time(:millisecond) - run.started_ms
+      },
+      metadata: %{origin: run.origin, reason: reason}
+    )
+  end
+
+  defp stop_over_limit(%{session: session} = state) when session.bytes > session.storage_limit,
+    do: request_stop(state, :storage_limit)
+
+  defp stop_over_limit(state), do: state
+
+  defp request_stop(%{session: session, run: %Run{stop_request: nil}} = state, reason) do
+    Task.Supervisor.start_child(Voyager.TaskSupervisor, fn ->
+      stop_tracer(session.node, session.tracer)
+    end)
+
+    put_stop_request(state, reason, nil)
+  end
+
+  defp request_stop(state, _reason), do: state
+
+  defp put_stop_request(%{run: run} = state, reason, origin),
+    do: %{state | run: %{run | stop_request: {reason, origin}}}
+
+  defp storage_limit(id) do
+    limit = Settings.get(:trace_storage_limit_mb, @default_storage_limit_mb) * 1_000_000
+    max(limit - TraceSessionQueries.bytes_except(id), 0)
+  end
+
   defp down_reason(:noconnection), do: :node_down
   defp down_reason(reason), do: {:tracer_down, reason}
 
@@ -484,6 +487,19 @@ defmodule Voyager.Services.Tracer do
   defp overloaded?(session) do
     {:message_queue_len, len} = Process.info(self(), :message_queue_len)
     len > @max_mailbox or (session.save and Writer.overloaded?())
+  end
+
+  @spec append(state(), [map()]) :: state()
+  defp append(state, []), do: state
+
+  defp append(%__MODULE__{session: session} = state, entries) do
+    {entries, log} = MemoryLog.append(state.log, entries, session.seq)
+    session = %{session | seq: session.seq + length(entries)}
+
+    if session.save, do: Writer.append(session, entries)
+    broadcast({:session_entries, session, entries})
+
+    %{state | session: session, log: log}
   end
 
   defp broadcast(message), do: Phoenix.PubSub.broadcast(Voyager.PubSub, @topic, message)

@@ -21,26 +21,29 @@ defmodule Voyager.Services.Tracer.CallPairing do
     Enum.map_reduce(events, pairing, &pair_event/2)
   end
 
-  defp pair_event(%{type: :call} = event, pairing) do
-    open = Map.update(pairing.open, {event.pid, event.mfa}, [event.at], &[event.at | &1])
-    {event, %{pairing | open: open, count: pairing.count + 1}}
-  end
+  defp pair_event(%{type: :call} = event, pairing), do: {event, open_call(pairing, event)}
 
   defp pair_event(event, pairing) do
+    case close_call(pairing, event) do
+      {at, pairing} -> {Map.put(event, :duration_us, event.at - at), pairing}
+      nil -> {event, pairing}
+    end
+  end
+
+  defp open_call(pairing, event) do
+    open = Map.update(pairing.open, {event.pid, event.mfa}, [event.at], &[event.at | &1])
+    %{pairing | open: open, count: pairing.count + 1}
+  end
+
+  defp close_call(pairing, event) do
     key = {event.pid, event.mfa}
 
     case pairing.open do
-      %{^key => [at | rest]} ->
-        open =
-          if rest == [],
-            do: Map.delete(pairing.open, key),
-            else: Map.put(pairing.open, key, rest)
-
-        {Map.put(event, :duration_us, event.at - at),
-         %{pairing | open: open, count: pairing.count - 1}}
-
-      _no_call ->
-        {event, pairing}
+      %{^key => [at]} -> {at, closed(pairing, Map.delete(pairing.open, key))}
+      %{^key => [at | rest]} -> {at, closed(pairing, Map.put(pairing.open, key, rest))}
+      _no_call -> nil
     end
   end
+
+  defp closed(pairing, open), do: %{pairing | open: open, count: pairing.count - 1}
 end

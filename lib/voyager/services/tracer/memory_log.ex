@@ -15,9 +15,7 @@ defmodule Voyager.Services.Tracer.MemoryLog do
   @spec append(t(), [map()], non_neg_integer()) :: {[Tracer.entry()], t()}
   def append(%__MODULE__{} = log, entries, seq) do
     entries = Enum.with_index(entries, &Map.put(&1, :seq, seq + &2))
-
-    {traces, controls} =
-      Enum.split_with(entries, &(&1.kind in [:trace, :dropped]))
+    {traces, controls} = Enum.split_with(entries, &(&1.kind in [:trace, :dropped]))
 
     # Dropped entries come with every shed batch, so they are capped with the traces.
     kept = Enum.take(Enum.reverse(traces) ++ log.traces, @kept_traces)
@@ -34,22 +32,22 @@ defmodule Voyager.Services.Tracer.MemoryLog do
     since = Keyword.get(opts, :since, 0)
     before = min(Keyword.get(opts, :before, next_seq), next_seq)
     order = opts[:order]
+    limit = opts[:limit]
 
     page =
       (log.controls ++ log.traces)
       |> Enum.filter(&(&1.seq >= since and &1.seq < before))
       |> Enum.sort_by(& &1.seq, order)
-      |> Enum.take(opts[:limit])
+      |> Enum.take(limit)
+
+    covered = covered_range(page, since, before, order, length(page) == limit)
 
     # Seqs have no gaps, so a seq in the covered range without an entry was evicted.
-    # A full page covers the range up to its last entry; a short one the whole range.
-    covered =
-      case {order, length(page) == opts[:limit]} do
-        {:asc, true} -> since..List.last(page).seq//1
-        {:desc, true} -> List.last(page).seq..(before - 1)//1
-        _short -> since..(before - 1)//1
-      end
-
     %{entries: page, truncated?: length(page) < Range.size(covered)}
   end
+
+  # A full page covers the range up to its last entry; a short one the whole range.
+  defp covered_range(page, since, _before, :asc, true), do: since..List.last(page).seq//1
+  defp covered_range(page, _since, before, :desc, true), do: List.last(page).seq..(before - 1)//1
+  defp covered_range(_page, since, before, _order, false), do: since..(before - 1)//1
 end
