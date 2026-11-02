@@ -105,12 +105,12 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp tracing_indicator(assigns) do
     ~H"""
-    <.tooltip id="tracing-indicator-tip" position="bottom" class="ml-auto shrink-0">
+    <.tooltip id="tracing-indicator-tip" position="bottom" class="shrink-0">
       <.link
         navigate={tracing_session_path(@session)}
         id="tracing-indicator"
         aria-label={"Open the running tracing session, #{Formatters.format_integer(@session.traces)} traces captured"}
-        class="border-success/30 bg-success/10 flex items-center gap-1.5 rounded-lg border py-1 pr-1 pl-2.5 transition-colors hover:bg-success/20 hover:border-success/50 focus-visible:outline-success focus-visible:outline-2 focus-visible:outline-offset-2"
+        class="border-success/30 bg-success/10 flex items-center gap-2 rounded-lg border py-1 pr-1 pl-2.5 transition-colors hover:bg-success/20 hover:border-success/50 focus-visible:outline-success focus-visible:outline-2 focus-visible:outline-offset-2"
       >
         <span class="relative flex h-1.5 w-1.5 shrink-0">
           <span class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"></span>
@@ -121,7 +121,7 @@ defmodule VoyagerWeb.Components.Shell do
         </span>
         <span
           id="tracing-indicator-mfa"
-          class="font-mono text-base-content/70 max-w-56 truncate text-xs @max-lg/nav-status:hidden"
+          class="font-mono text-base-content/70 max-w-56 truncate px-1 text-xs @max-lg/nav-status:hidden"
         >
           {format_traced_mfa(@session.config)}
         </span>
@@ -137,7 +137,6 @@ defmodule VoyagerWeb.Components.Shell do
           <span class="font-medium">Tracing session running</span>
           <span class="text-base-content/70">
             Tracing <span class="font-mono">{format_traced_mfa(@session.config)}</span>
-            on <span class="font-mono">{@session.node}</span>
           </span>
           <span class="text-base-content/70 flex items-center gap-1.5">
             <span class="badge badge-success badge-xs font-mono dark:text-neutral">
