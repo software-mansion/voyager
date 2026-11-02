@@ -28,7 +28,6 @@ defmodule Voyager.Services.Tracer do
   alias Voyager.Agent
   alias Voyager.Queries.TraceEntries, as: TraceEntryQueries
   alias Voyager.Queries.TraceSessions, as: TraceSessionQueries
-  alias Voyager.Services.Tracer.CallPairing
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.MemoryLog
   alias Voyager.Services.Tracer.Run
@@ -293,16 +292,10 @@ defmodule Voyager.Services.Tracer do
             |> Map.put(:origin, origin)
         )
 
-        run = %Run{
-          origin: origin,
-          traces_before: session.traces,
-          dropped_before: session.dropped,
-          dropped_logged: session.dropped,
-          started_ms: System.monotonic_time(:millisecond)
-        }
-
         state =
-          append(%{state | session: session, run: run}, [entry(:started, origin)])
+          append(%{state | session: session, run: Run.new(session, origin)}, [
+            entry(:started, origin)
+          ])
 
         {:reply, {:ok, state.session}, state}
 
@@ -348,35 +341,11 @@ defmodule Voyager.Services.Tracer do
         {:voyager_trace_events, tracer, events, agent_dropped},
         %{session: %{tracer: tracer, status: :running} = session, run: run} = state
       ) do
-    shedding? = overloaded?(session)
+    {events, unlogged, session, run} =
+      Run.absorb(run, session, events, agent_dropped, overloaded?(session))
 
-    {events, shed} =
-      if shedding?,
-        do: {[], run.shed + length(events)},
-        else: {events, run.shed}
-
-    dropped = run.dropped_before + agent_dropped + shed
-
-    pairing = if dropped > session.dropped, do: %CallPairing{}, else: run.pairing
-
-    {events, pairing} =
-      if session.config.return_trace,
-        do: CallPairing.pair(pairing, events),
-        else: {events, pairing}
-
-    session = %{session | traces: session.traces + length(events), dropped: dropped}
-
-    # While shedding, drops are only counted: a marker per batch would queue on the overloaded Writer.
-    {dropped_entries, dropped_logged} =
-      if shedding?,
-        do: {[], run.dropped_logged},
-        else: {dropped_entry(dropped - run.dropped_logged), dropped}
-
-    run = %{run | shed: shed, pairing: pairing, dropped_logged: dropped_logged}
-
+    entries = dropped_entry(unlogged) ++ Enum.map(events, &Map.put(&1, :kind, :trace))
     state = %{state | session: session, run: run}
-
-    entries = dropped_entries ++ Enum.map(events, &Map.put(&1, :kind, :trace))
     state = if entries == [], do: state, else: append(state, entries)
 
     {:noreply, stop_over_limit(state)}
