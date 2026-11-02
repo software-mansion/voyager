@@ -5,6 +5,7 @@ defmodule VoyagerWeb.ConnectLiveTest do
   import Voyager.TestUtils
 
   alias Voyager.Actions.Connections, as: ConnectionActions
+  alias Voyager.Actions.SshConnections, as: SshConnectionActions
   alias Voyager.Fakes
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Connectors.Ssh, as: SshConnector
@@ -113,6 +114,49 @@ defmodule VoyagerWeb.ConnectLiveTest do
       render_async(view)
 
       assert has_element?(view, "#ssh_node_name.input-error")
+    end
+  end
+
+  describe "pre-filled from an agent request" do
+    setup :enable_proxy_epmd
+
+    test "fills a saved direct connection, cookie included", %{conn: conn} do
+      {:ok, saved} = ConnectionActions.upsert_connected("shop@10.0.4.12", cookie: "secret")
+
+      {:ok, view, _html} = live(conn, ~p"/?#{[connection: saved.id]}")
+
+      assert has_element?(view, "#mcp-connect-request")
+      assert has_element?(view, ~s|#conn_node_name[value="shop@10.0.4.12"]|)
+      assert has_element?(view, ~s|#conn_cookie[value="secret"]|)
+    end
+
+    test "fills a saved SSH connection", %{conn: conn} do
+      {:ok, saved} =
+        SshConnectionActions.upsert_connected("deploy", "gw", 22, "app@127.0.0.1",
+          cookie: "secret"
+        )
+
+      {:ok, view, _html} = live(conn, ~p"/?#{[mode: "ssh", connection: saved.id]}")
+
+      assert has_element?(view, "#mcp-connect-request")
+      assert has_element?(view, ~s|#ssh_node_name[value="app@127.0.0.1"]|)
+      assert has_element?(view, ~s|#ssh_ssh_host[value="gw"]|)
+    end
+
+    test "fills the non-secret fields of a node that is not saved", %{conn: conn} do
+      query = [mode: "ssh", node_name: "app@10.0.0.5", ssh_user: "deploy", ssh_host: "gw"]
+
+      {:ok, view, _html} = live(conn, ~p"/?#{query}")
+
+      assert has_element?(view, ~s|#ssh_node_name[value="app@10.0.0.5"]|)
+      assert has_element?(view, ~s|#ssh_ssh_user[value="deploy"]|)
+      refute has_element?(view, ~s|#ssh_cookie[value]:not([value=""])|)
+    end
+
+    test "shows no banner without a request", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      refute has_element?(view, "#mcp-connect-request")
     end
   end
 

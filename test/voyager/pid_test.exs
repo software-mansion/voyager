@@ -3,6 +3,7 @@ defmodule Voyager.PidTest do
   use Voyager.DataCase, async: false
 
   import Mox
+  import Voyager.TestUtils, only: [reset_pid_format: 1]
 
   alias Voyager.Pid
   alias Voyager.Settings
@@ -12,15 +13,11 @@ defmodule Voyager.PidTest do
   doctest Voyager.Pid
 
   setup :verify_on_exit!
+  setup :reset_pid_format
 
   setup do
-    format = Pid.cached_format()
     Pid.put_node(nil)
-
-    on_exit(fn ->
-      Pid.put_format(format)
-      Pid.put_node(nil)
-    end)
+    on_exit(fn -> Pid.put_node(nil) end)
   end
 
   # NEW_PID_EXT: a pid of `node` without connecting to it.
@@ -82,22 +79,22 @@ defmodule Voyager.PidTest do
       assert Pid.format(not_pid, :local) == not_pid
     end
 
-    test "defaults to the cached format" do
+    test "defaults to the format setting" do
       connect(@node)
       pid = pid_on(@node, 45)
 
-      Pid.put_format(:local)
+      assert Pid.save_setting(:local) == {:ok, :local}
       assert Pid.format(pid) == "<0.45.0>"
 
-      Pid.put_format(:distribution)
+      assert Pid.save_setting(:distribution) == {:ok, :distribution}
       assert Pid.format(pid) == distribution(pid)
     end
   end
 
   describe "inspect_fun/2" do
-    test "renders nested pids in the cached format" do
+    test "renders nested pids in the format setting" do
       connect(@node)
-      Pid.put_format(:local)
+      assert Pid.save_setting(:local) == {:ok, :local}
       pid = pid_on(@node, 45)
 
       assert inspect({:ok, [pid]}, inspect_fun: &Pid.inspect_fun/2) == "{:ok, [#PID<0.45.0>]}"
@@ -129,51 +126,55 @@ defmodule Voyager.PidTest do
     end
   end
 
-  describe "put_format/1" do
-    test "stores the format cached_format/0 returns" do
-      Pid.put_format(:local)
-      assert Pid.cached_format() == :local
-
-      Pid.put_format(:distribution)
-      assert Pid.cached_format() == :distribution
-    end
+  defp lock_format(format) do
+    Application.put_env(:voyager, :pid_format, format)
+    on_exit(fn -> Application.delete_env(:voyager, :pid_format) end)
   end
 
-  describe "load_format/0" do
-    test "caches the saved setting" do
+  describe "get_setting/0" do
+    test "loads the saved setting on first read" do
       assert {:ok, _} = Settings.put(:pid_format, :local)
-      Pid.put_format(:distribution)
 
-      Pid.load_format()
-
-      assert Pid.cached_format() == :local
+      assert Pid.get_setting() == :local
     end
 
-    test "falls back to distribution when nothing is saved" do
-      Pid.put_format(:local)
-
-      Pid.load_format()
-
-      assert Pid.cached_format() == :distribution
+    test "is distribution when nothing is saved" do
+      assert Pid.get_setting() == :distribution
     end
 
-    test "falls back to distribution for an unknown saved value" do
+    test "is distribution for an unknown saved value" do
       assert {:ok, _} = Settings.put(:pid_format, :bogus)
-      Pid.put_format(:local)
 
-      Pid.load_format()
-
-      assert Pid.cached_format() == :distribution
+      assert Pid.get_setting() == :distribution
     end
 
     test "prefers the application config" do
       assert {:ok, _} = Settings.put(:pid_format, :distribution)
-      Application.put_env(:voyager, :pid_format, :local)
-      on_exit(fn -> Application.delete_env(:voyager, :pid_format) end)
+      lock_format(:local)
 
-      Pid.load_format()
+      assert Pid.get_setting() == :local
+    end
+  end
 
-      assert Pid.cached_format() == :local
+  describe "save_setting/1" do
+    test "saves and caches the format" do
+      assert Pid.save_setting(:local) == {:ok, :local}
+
+      assert Settings.get(:pid_format) == :local
+      assert Pid.get_setting() == :local
+    end
+
+    test "rejects an unknown format" do
+      assert Pid.save_setting("bogus") == {:error, :unsupported_choice}
+      assert Pid.get_setting() == :distribution
+    end
+
+    test "leaves the database and the cache alone when the config locks the format" do
+      lock_format(:local)
+
+      assert Pid.setting_locked?()
+      assert Pid.save_setting(:distribution) == {:error, :locked}
+      assert Pid.get_setting() == :local
     end
   end
 

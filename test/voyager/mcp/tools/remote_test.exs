@@ -31,7 +31,7 @@ defmodule Voyager.MCP.Tools.RemoteTest do
       Fakes.put_session(nil)
 
       assert error(fn _node -> flunk("must not reach the node") end) ==
-               "Not connected to any node"
+               "Not connected to any node, call `list_connections` then `connect`"
     end
   end
 
