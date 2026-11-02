@@ -19,8 +19,9 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     on_exit(fn -> :sys.replace_state(Tracer, fn _ -> previous_state end) end)
   end
 
-  test "shows nothing while no session runs", %{conn: conn} do
-    :sys.replace_state(Tracer, fn _ -> %Tracer{session: %{session() | status: :stopped}} end)
+  test "shows nothing while the session is not configured", %{conn: conn} do
+    unconfigured = %{session() | status: :idle, node: nil, config: nil, traces: 0}
+    :sys.replace_state(Tracer, fn _ -> %Tracer{session: unconfigured} end)
 
     {:ok, view, _html} = live(conn, ~p"/settings")
 
@@ -33,6 +34,7 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     {:ok, view, _html} = live(conn, ~p"/settings")
 
     assert has_element?(view, ~s|#tracing-indicator[href="/node/demo%40localhost/tracing"]|)
+    assert has_element?(view, "#tracing-indicator[data-tone=running]")
     assert has_element?(view, "#tracing-indicator-mfa", "Date.leap_year?/1")
     assert has_element?(view, "#tracing-indicator-count", "1,234")
     assert has_element?(view, "#tracing-indicator-tip[phx-hook=Tooltip]")
@@ -49,8 +51,9 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     broadcast({:session_entries, %{session() | traces: 2_000}, []})
     assert has_element?(view, "#tracing-indicator-count", "2,000")
 
-    broadcast({:session_entries, %{session() | status: :stopped}, []})
-    refute has_element?(view, "#tracing-indicator")
+    broadcast({:session_entries, %{session() | status: :stopped, stop_reason: :stopped}, []})
+    assert has_element?(view, "#tracing-indicator[data-tone=open]")
+    assert has_element?(view, "#tracing-indicator-label", "Stopped")
 
     broadcast({:session_entries, session(), []})
     broadcast({:session_closed, 7})
@@ -76,16 +79,37 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     assert has_element?(view, "#tracing-indicator")
   end
 
-  test "consumes a new session's broadcast on an app page", %{conn: conn} do
+  test "warns when the run failed", %{conn: conn} do
+    stopped = %{session() | status: :stopped, stop_reason: :node_down}
+    :sys.replace_state(Tracer, fn _ -> %Tracer{session: stopped} end)
+
+    {:ok, view, _html} = live(conn, ~p"/settings")
+
+    assert has_element?(view, "#tracing-indicator[data-tone=failed]")
+    assert view |> element("#tracing-indicator-tip-portal") |> render() =~ "Node went down"
+  end
+
+  test "shows a hit limit as a plain stop with its reason", %{conn: conn} do
+    stopped = %{session() | status: :stopped, stop_reason: :storage_limit}
+    :sys.replace_state(Tracer, fn _ -> %Tracer{session: stopped} end)
+
+    {:ok, view, _html} = live(conn, ~p"/settings")
+
+    assert has_element?(view, "#tracing-indicator[data-tone=open]")
+    assert view |> element("#tracing-indicator-tip-portal") |> render() =~ "Storage limit reached"
+  end
+
+  test "consumes an activated session's broadcast on an app page", %{conn: conn} do
     Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
     stub_erpc(Fakes.node_data())
 
     {:ok, view, _html} = live(conn, ~p"/node/demo@localhost")
 
-    broadcast({:session_created, %{session() | status: :idle}})
-
-    assert render(view)
+    broadcast({:session_activated, %{session() | status: :idle, node: nil, config: nil}})
     refute has_element?(view, "#tracing-indicator")
+
+    broadcast({:session_activated, %{session() | status: :idle, traces: 0}})
+    assert has_element?(view, "#tracing-indicator-label", "Ready")
   end
 
   defp session do

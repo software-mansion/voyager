@@ -104,20 +104,33 @@ defmodule VoyagerWeb.Components.Shell do
   defp tracing_indicator(%{session: nil} = assigns), do: ~H""
 
   defp tracing_indicator(assigns) do
+    assigns =
+      assign(assigns, tone: tracing_tone(assigns.session), state: tracing_state(assigns.session))
+
     ~H"""
     <.tooltip id="tracing-indicator-tip" position="bottom" class="shrink-0">
       <.link
         navigate={tracing_session_path(@session)}
         id="tracing-indicator"
-        aria-label={"Open the running tracing session, #{Formatters.format_integer(@session.traces)} traces captured"}
-        class="border-success/30 bg-success/10 flex items-center gap-2 rounded-lg border py-1 pr-1 pl-2.5 transition-colors hover:bg-success/20 hover:border-success/50 focus-visible:outline-success focus-visible:outline-2 focus-visible:outline-offset-2"
+        data-tone={@tone}
+        aria-label={"Open the #{@state} tracing session, #{Formatters.format_integer(@session.traces)} traces captured"}
+        class={[
+          "flex items-center gap-2 rounded-lg border py-1 pr-1 pl-2.5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2",
+          tone_class(@tone, :chip)
+        ]}
       >
         <span class="relative flex h-1.5 w-1.5 shrink-0">
-          <span class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"></span>
-          <span class="bg-success relative inline-flex h-1.5 w-1.5 rounded-full"></span>
+          <span
+            :if={@tone == :running}
+            class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
+          ></span>
+          <span class={["relative inline-flex h-1.5 w-1.5 rounded-full", tone_class(@tone, :dot)]}></span>
         </span>
-        <span class="text-success text-xs font-medium @max-sm/nav-status:hidden">
-          Tracing
+        <span
+          id="tracing-indicator-label"
+          class={["text-xs font-medium @max-sm/nav-status:hidden", tone_class(@tone, :label)]}
+        >
+          {tracing_label(@session)}
         </span>
         <span
           id="tracing-indicator-mfa"
@@ -127,24 +140,32 @@ defmodule VoyagerWeb.Components.Shell do
         </span>
         <span
           id="tracing-indicator-count"
-          class="badge badge-success badge-sm font-mono h-(--toolbar-btn-size-sm) shrink-0 dark:text-neutral"
+          class={[
+            "badge badge-sm font-mono h-(--toolbar-btn-size-sm) shrink-0",
+            tone_class(@tone, :badge)
+          ]}
         >
           {Formatters.format_count_compact(@session.traces)}
         </span>
       </.link>
       <:content>
-        <div class="flex flex-col gap-1">
-          <span class="font-medium">Tracing session running</span>
-          <span class="text-base-content/70">
-            Tracing <span class="font-mono">{format_traced_mfa(@session.config)}</span>
-          </span>
-          <span class="text-base-content/70 flex items-center gap-1.5">
-            <span class="badge badge-success badge-xs font-mono dark:text-neutral">
-              {Formatters.format_integer(@session.traces)}
-            </span>
-            traces captured in this session
-          </span>
-          <span class="text-base-content/70">
+        <div class="flex flex-col gap-1.5">
+          <span class="font-medium">Tracing session {@state}</span>
+          <dl class="grid-cols-[auto_1fr] grid gap-x-3 gap-y-0.5">
+            <dt class="text-base-content/60">Function</dt>
+            <dd class="font-mono">{format_traced_mfa(@session.config)}</dd>
+            <dt class="text-base-content/60">Traces</dt>
+            <dd class="font-mono">{Formatters.format_integer(@session.traces)}</dd>
+            <dt :if={@session.stop_reason} class="text-base-content/60">Reason</dt>
+            <dd
+              :if={@session.stop_reason}
+              id="tracing-indicator-reason"
+              class={if @tone == :failed, do: "text-warning", else: nil}
+            >
+              {stop_reason_label(@session.stop_reason)}
+            </dd>
+          </dl>
+          <span class="border-base-300 text-base-content/70 border-t pt-1.5">
             Click to open the session.
           </span>
         </div>
@@ -153,8 +174,62 @@ defmodule VoyagerWeb.Components.Shell do
     """
   end
 
-  # Points at the tracing page until the session viewer adds /node/:node/tracing/:id.
   defp tracing_session_path(%Tracer.Session{node: node}), do: ~p"/node/#{node}/tracing"
+
+  defp tracing_tone(%Tracer.Session{status: :running}), do: :running
+
+  defp tracing_tone(%Tracer.Session{status: :stopped, stop_reason: reason})
+       when reason in [:node_down, :write_failed],
+       do: :failed
+
+  defp tracing_tone(%Tracer.Session{status: :stopped, stop_reason: {:tracer_down, _reason}}),
+    do: :failed
+
+  defp tracing_tone(_session), do: :open
+
+  defp tracing_state(%Tracer.Session{status: :running}), do: "running"
+  defp tracing_state(%Tracer.Session{status: :stopped}), do: "stopped"
+  defp tracing_state(%Tracer.Session{status: :idle}), do: "ready"
+
+  defp tracing_label(%Tracer.Session{status: :running}), do: "Tracing"
+  defp tracing_label(%Tracer.Session{status: :stopped}), do: "Stopped"
+  defp tracing_label(%Tracer.Session{status: :idle}), do: "Ready"
+
+  defp tone_class(:running, :chip),
+    do:
+      "border-success/30 bg-success/10 hover:bg-success/20 hover:border-success/50 focus-visible:outline-success"
+
+  defp tone_class(:running, :dot), do: "bg-success"
+  defp tone_class(:running, :label), do: "text-success"
+  defp tone_class(:running, :badge), do: "badge-success dark:text-neutral"
+
+  defp tone_class(:failed, :chip),
+    do:
+      "border-warning/30 bg-warning/10 hover:bg-warning/20 hover:border-warning/50 focus-visible:outline-warning"
+
+  defp tone_class(:failed, :dot), do: "bg-warning"
+  defp tone_class(:failed, :label), do: "text-warning"
+  defp tone_class(:failed, :badge), do: "badge-warning"
+
+  defp tone_class(:open, :chip),
+    do:
+      "border-base-300 bg-base-100 hover:bg-base-200 hover:border-base-content/20 focus-visible:outline-base-content"
+
+  defp tone_class(:open, :dot), do: "bg-base-content/40"
+  defp tone_class(:open, :label), do: "text-base-content/70"
+  defp tone_class(:open, :badge), do: "badge-ghost"
+
+  defp stop_reason_label(:stopped), do: "Stopped on request"
+  defp stop_reason_label(:disconnected), do: "Node disconnected"
+  defp stop_reason_label(:interrupted), do: "Voyager restarted during the run"
+  defp stop_reason_label(:event_limit), do: "Event limit reached"
+  defp stop_reason_label(:rate_limit), do: "Rate limit exceeded"
+  defp stop_reason_label(:time_limit), do: "Time limit reached"
+  defp stop_reason_label(:mailbox_limit), do: "Tracer mailbox limit reached"
+  defp stop_reason_label(:storage_limit), do: "Storage limit reached"
+  defp stop_reason_label(:write_failed), do: "Saving traces failed"
+  defp stop_reason_label(:node_down), do: "Node went down"
+  defp stop_reason_label({:tracer_down, _reason}), do: "Remote tracer crashed"
 
   defp format_traced_mfa(%Tracer.Config{module: module, function: function, arity: arity}),
     do: "#{format_module(module)}.#{function}/#{arity || "_"}"
