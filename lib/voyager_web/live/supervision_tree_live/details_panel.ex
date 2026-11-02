@@ -69,6 +69,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> noreply()
   end
 
+  def handle_event("toggle-relation", _, socket), do: noreply(socket)
+
   def handle_event("select-link", %{"key" => key}, socket) do
     case relation_by_key(socket.assigns.relations, key) || info_pid_by_key(socket, key) do
       nil ->
