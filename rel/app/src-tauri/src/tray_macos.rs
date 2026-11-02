@@ -58,6 +58,7 @@ extern "C" fn on_action(action: *const c_char) {
     match action.as_ref() {
         "open" => crate::open_window(app_handle),
         "quit" => app_handle.exit(0),
+        "mcp_settings" => crate::open_path(app_handle, "/settings#mcp"),
         // broadcast() blocks the main thread until Elixir connects, which "ready" follows.
         _ if app_handle.try_state::<crate::ServerPort>().is_none() => {}
         _ => {

@@ -10,6 +10,10 @@
     "core:default",
     "core:webview:allow-set-webview-zoom",
     "opener:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "cursor://*" }]
+    },
     "dialog:allow-open",
     "allow-os-theme"
   ]

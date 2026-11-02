@@ -1,9 +1,9 @@
 defmodule VoyagerWeb.SettingsLive do
   use VoyagerWeb, :live_view
 
-  alias Voyager.MCP.ClientRegistry
   alias Voyager.NodeSession
   alias Voyager.Pid
+  alias Voyager.Services.McpAgents
   alias Voyager.Services.TermSyntax
   alias VoyagerWeb.SettingsComponents
   alias VoyagerWeb.SettingsLive.AppearanceSettings
@@ -30,7 +30,7 @@ defmodule VoyagerWeb.SettingsLive do
   def mount(params, _session, socket) do
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
-      Phoenix.PubSub.subscribe(Voyager.PubSub, ClientRegistry.topic())
+      McpAgents.refresh()
     end
 
     socket
@@ -39,7 +39,6 @@ defmodule VoyagerWeb.SettingsLive do
     |> assign(:terms_of_service_url, Application.get_env(:voyager, :terms_of_service_url))
     |> assign(:pid_format, Pid.get_setting())
     |> assign(:term_syntax, TermSyntax.get_setting())
-    |> assign(:mcp_connections, ClientRegistry.all())
     |> ok()
   end
 
@@ -52,7 +51,7 @@ defmodule VoyagerWeb.SettingsLive do
       <div>
         <h1 class="text-base-content text-2xl font-semibold tracking-tight">Settings</h1>
         <p class="text-base-content/70 mt-1 text-sm">
-          Configure Voyager's appearance and distribution.
+          Configure Voyager's appearance, distribution and AI agents.
         </p>
       </div>
 
@@ -80,12 +79,7 @@ defmodule VoyagerWeb.SettingsLive do
         id="distribution-settings"
         connected?={@connected?}
       />
-      <.live_component
-        module={McpSettings}
-        id="mcp-settings"
-        status={@mcp_status}
-        connections={@mcp_connections}
-      />
+      <.live_component module={McpSettings} id="mcp" agents={@mcp_agents} />
       <.live_component
         module={TelemetrySettings}
         id="telemetry-settings"
@@ -116,12 +110,6 @@ defmodule VoyagerWeb.SettingsLive do
       when event in [:node_disconnected, :nodedown] do
     socket
     |> assign(:connected?, false)
-    |> noreply()
-  end
-
-  def handle_info({:mcp_clients, clients}, socket) do
-    socket
-    |> assign(:mcp_connections, clients)
     |> noreply()
   end
 

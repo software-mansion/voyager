@@ -3,8 +3,9 @@ defmodule Voyager.Services.TrayStatus do
   Bridges the Tauri tray menu over `ElixirKit.PubSub` on the `"tray"` topic.
 
   Sends `%{connection, mcp, last_connection, connecting, error}` as JSON whenever
-  the node session or the MCP listener changes; a `nil` `connection` means
-  disconnected and a `nil` `mcp` means stopped. Runs the `"connect"`,
+  the node session or `McpAgents` changes; a `nil` `connection` means disconnected
+  and a `nil` `mcp` means stopped, otherwise `mcp` carries the URL and the names of
+  connected agents. Runs the `"connect"`,
   `"disconnect"`, `"mcp_on"`, `"mcp_off"`, `"refresh"` and `"dismiss_error"`
   actions.
   """
@@ -18,6 +19,7 @@ defmodule Voyager.Services.TrayStatus do
   alias Voyager.Queries.SshConnections, as: SshConnectionQueries
   alias Voyager.Schemas.Connection
   alias Voyager.Schemas.SshConnection
+  alias Voyager.Services.McpAgents
   alias Voyager.Services.SavedConnections
 
   @native_topic "tray"
@@ -33,11 +35,11 @@ defmodule Voyager.Services.TrayStatus do
     if Keyword.fetch!(opts, :native?) do
       ElixirKit.PubSub.subscribe(@native_topic)
       Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
-      Phoenix.PubSub.subscribe(Voyager.PubSub, MCP.topic())
+      Phoenix.PubSub.subscribe(Voyager.PubSub, McpAgents.topic())
 
       state = %{
         connection: connection_info(NodeSession.current()),
-        mcp: mcp_info(MCP.info()),
+        mcp: mcp_info(McpAgents.get()),
         last_connection: last_connection(),
         connecting: false,
         connect_task: nil,
@@ -78,7 +80,10 @@ defmodule Voyager.Services.TrayStatus do
     {:noreply, push(%{state | error: error})}
   end
 
-  def handle_info("refresh", state), do: {:noreply, push(state)}
+  def handle_info("refresh", state) do
+    McpAgents.refresh()
+    {:noreply, push(state)}
+  end
 
   def handle_info("dismiss_error", %{error: error} = state) when error != nil do
     {:noreply, push(%{state | error: nil})}
@@ -122,8 +127,8 @@ defmodule Voyager.Services.TrayStatus do
     {:noreply, push(%{state | connection: nil, last_connection: last_connection()})}
   end
 
-  def handle_info({:mcp_status, status}, state) do
-    {:noreply, push(%{state | mcp: mcp_info(status)})}
+  def handle_info({:mcp_agents, agents}, state) do
+    {:noreply, push(%{state | mcp: mcp_info(agents)})}
   end
 
   def handle_info(_message, state), do: {:noreply, state}
@@ -141,8 +146,10 @@ defmodule Voyager.Services.TrayStatus do
   defp connector_label(:ssh), do: "SSH tunnel"
   defp connector_label(_name), do: "Distribution"
 
-  defp mcp_info(%{alive?: true, url: url}), do: %{url: url}
-  defp mcp_info(_status), do: nil
+  defp mcp_info(%McpAgents{state: :off}), do: nil
+
+  defp mcp_info(%McpAgents{url: url, connected: connected}),
+    do: %{url: url, agents: Enum.map(connected, & &1.name)}
 
   defp last_connection do
     [ConnectionQueries.last(), SshConnectionQueries.last()]

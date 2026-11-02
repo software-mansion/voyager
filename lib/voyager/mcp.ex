@@ -7,9 +7,9 @@ defmodule Voyager.MCP do
 
   use Supervisor
 
-  alias Voyager.MCP.ClientRegistry
   alias Voyager.MCP.EndpointManager
   alias Voyager.MCP.Server
+  alias Voyager.Services.McpAgents
 
   @doc """
   Starts the MCP supervision tree, or returns `:ignore` when disabled.
@@ -73,7 +73,7 @@ defmodule Voyager.MCP do
     # Restarting them together keeps them consistent
     children = [
       {DynamicSupervisor, name: Voyager.MCP.DynamicSupervisor, strategy: :one_for_one},
-      ClientRegistry,
+      McpAgents,
       {Server, transport: {:streamable_http, start: true}},
       EndpointManager
     ]

@@ -5,6 +5,7 @@ import SwiftUI
 public typealias ActionCallback = @convention(c) (UnsafePointer<CChar>) -> Void
 
 /// A missing `connection` means disconnected, a missing `mcp` means the server is stopped.
+/// `mcp.agents` names the agents that called the server recently.
 struct TrayStatus: Decodable {
     let connection: Connection?
     let mcp: Mcp?
@@ -20,6 +21,7 @@ struct TrayStatus: Decodable {
 
     struct Mcp: Decodable {
         let url: String
+        let agents: [String]
     }
 
     struct LastConnection: Decodable {
@@ -38,6 +40,7 @@ enum TrayAction: String {
     case mcpOff = "mcp_off"
     case refresh
     case dismissError = "dismiss_error"
+    case mcpSettings = "mcp_settings"
 }
 
 final class TrayModel: ObservableObject {
@@ -61,7 +64,7 @@ final class TrayController: NSObject, NSPopoverDelegate {
         let popover = NSPopover()
         self.popover = popover
         model = TrayModel(version: version) { action in
-            if action == .open || action == .quit { popover.performClose(nil) }
+            if [.open, .quit, .mcpSettings].contains(action) { popover.performClose(nil) }
             action.rawValue.withCString(onAction)
         }
         super.init()
@@ -217,23 +220,53 @@ struct TrayView: View {
     }
 
     private var mcpCard: some View {
-        let url = model.status?.mcp?.url
+        let mcp = model.status?.mcp
         return Card(
             symbol: "sparkles",
-            tint: url == nil ? Theme.idle : Theme.accent,
+            tint: mcp == nil ? Theme.idle : Theme.accent,
             title: "MCP server",
             subtitle: Text(
-                url.map { $0.replacingOccurrences(of: "http://", with: "") } ?? "Stopped")
+                mcp.map { $0.url.replacingOccurrences(of: "http://", with: "") }
+                    ?? "Off · agents can't read nodes")
         ) {
-            if let url {
-                CopyButton(text: url)
+            if let mcp {
+                CopyButton(text: mcp.url)
             }
             Toggle(
                 "MCP server",
-                isOn: Binding(get: { url != nil }, set: { model.perform($0 ? .mcpOn : .mcpOff) })
+                isOn: Binding(get: { mcp != nil }, set: { model.perform($0 ? .mcpOn : .mcpOff) })
             )
             .disabled(model.status == nil)
+        } footer: {
+            if let mcp {
+                agentsRow(mcp.agents)
+            }
         }
+    }
+
+    private func agentsRow(_ agents: [String]) -> some View {
+        HStack(spacing: 8) {
+            Group {
+                if agents.isEmpty {
+                    Text("No agent connected yet").foregroundColor(Theme.muted)
+                } else {
+                    Text(agents.joined(separator: ", ")) + Text(" connected").foregroundColor(Theme.muted)
+                }
+            }
+            .lineLimit(1)
+            .truncationMode(.tail)
+            Spacer(minLength: 6)
+            Button(agents.isEmpty ? "Set up in Settings ↗" : "Manage ↗") {
+                model.perform(.mcpSettings)
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(agents.isEmpty ? Theme.accent : Theme.muted)
+            .pointingHandCursor()
+        }
+        .font(.system(size: 11))
+        .padding(.top, 8)
+        .overlay(alignment: .top) { Rectangle().fill(Theme.border).frame(height: 1) }
     }
 
     private func connectedSubtitle(_ connection: TrayStatus.Connection) -> Text {
@@ -346,14 +379,26 @@ struct CopyButton: View {
 }
 
 @available(macOS 13, *)
-struct Card<Accessory: View>: View {
+struct Card<Accessory: View, Footer: View>: View {
     let symbol: String
     let tint: Color
     let title: String
     let subtitle: Text
     @ViewBuilder var accessory: Accessory
+    @ViewBuilder var footer: Footer
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            header
+            footer
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Theme.base100))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.border))
+    }
+
+    private var header: some View {
         HStack(spacing: 10) {
             Image(systemName: symbol)
                 .font(.system(size: 14))
@@ -373,10 +418,18 @@ struct Card<Accessory: View>: View {
             Spacer(minLength: 6)
             accessory
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Theme.base100))
-        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Theme.border))
+    }
+}
+
+@available(macOS 13, *)
+extension Card where Footer == EmptyView {
+    init(
+        symbol: String, tint: Color, title: String, subtitle: Text,
+        @ViewBuilder accessory: () -> Accessory
+    ) {
+        self.init(
+            symbol: symbol, tint: tint, title: title, subtitle: subtitle,
+            accessory: accessory, footer: { EmptyView() })
     }
 }
 

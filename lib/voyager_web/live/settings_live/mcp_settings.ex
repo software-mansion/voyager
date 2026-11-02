@@ -6,6 +6,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
   alias Voyager.Services.McpClients
   alias Voyager.Settings
   alias VoyagerWeb.FormSchemas.McpPort
+  alias VoyagerWeb.McpComponents
 
   require Logger
 
@@ -18,8 +19,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
     |> assign(:enabled_locked?, Settings.locked?(:mcp_enabled))
     |> assign(:toggle_revision, 0)
     |> assign(:form, mcp_port_form())
-    |> stream_configure(:clients, dom_id: &"mcp-client-#{&1.id}")
-    |> assign(:other_connections, [])
+    |> stream_configure(:agents, dom_id: &"mcp-agent-#{McpComponents.agent_key(&1)}")
     |> ok()
   end
 
@@ -27,20 +27,25 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
   def update(assigns, socket) do
     socket
     |> assign(assigns)
-    |> stream_clients()
+    |> stream(:agents, assigns.agents.agents, reset: true)
     |> ok()
   end
 
   @impl true
   def render(assigns) do
+    assigns = assign(assigns, :running?, assigns.agents.state != :off)
+
     ~H"""
-    <div id={@id} class="card bg-base-100 border-base-200 border shadow-sm">
-      <div class="card-body gap-4 p-5">
+    <div
+      id={@id}
+      class="card bg-base-100 border-base-200 scroll-mt-6 border shadow-sm target:outline-primary target:outline-2 target:outline-offset-4"
+    >
+      <div class="card-body gap-5 p-5">
         <div class="flex items-start justify-between gap-4">
           <div>
-            <h3 class="text-base-content text-sm font-semibold">MCP Server</h3>
+            <h3 class="text-base-content text-sm font-semibold">MCP server</h3>
             <p class="text-base-content/70 mt-1 text-sm">
-              Exposes node introspection tools to MCP clients over HTTP.
+              Let coding agents inspect the node you are connected to, through Voyager's MCP server.
             </p>
           </div>
           <input
@@ -48,7 +53,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
             type="checkbox"
             class="toggle toggle-primary mt-1"
             aria-label="Toggle MCP server"
-            checked={@status.alive?}
+            checked={@running?}
             disabled={@enabled_locked?}
             data-toggle-revision={@toggle_revision}
             phx-click="toggle"
@@ -63,138 +68,98 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
           </span>
         </div>
 
-        <div class="text-base-content/70 font-mono flex items-center gap-1.5 text-xs">
-          <span class="relative flex h-1.5 w-1.5">
+        <div class="text-base-content/70 font-mono -mt-2 flex items-center gap-1.5 text-xs">
+          <span class="size-1.5 relative flex">
             <span
-              :if={@status.alive?}
+              :if={@running?}
               class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
             ></span>
             <span class={[
-              "relative inline-flex h-1.5 w-1.5 rounded-full",
-              if(@status.alive?, do: "bg-success", else: "bg-error")
+              "size-1.5 relative inline-flex rounded-full",
+              if(@running?, do: "bg-success", else: "bg-error")
             ]}></span>
           </span>
-          {if @status.alive?, do: "Running at #{@status.url}", else: "Stopped"}
+          <span id="mcp-url-status">
+            {if @running?, do: "Running at #{@agents.url}", else: "Stopped"}
+          </span>
+          <McpComponents.copy_text
+            :if={@running?}
+            id="mcp-url-copy"
+            text={@agents.url}
+            label="Copy MCP URL"
+            icon_only
+          />
         </div>
 
-        <.form
-          for={@form}
-          id="mcp-port-form"
-          phx-change="validate_port"
-          phx-submit="save_port"
-          phx-target={@myself}
-          class="flex flex-col gap-4"
-        >
-          <div>
-            <div class="mb-1.5 flex items-center gap-2">
-              <label
-                class="font-mono tracking-label text-base-content/70 flex items-center gap-0.5 text-xs font-semibold uppercase"
-                for={@form[:port].id}
-              >
-                Port
-              </label>
+        <section id="mcp-agents" class="flex flex-col gap-2">
+          <span class="font-mono tracking-label text-base-content/70 text-xs font-semibold uppercase">
+            Agents on this machine
+          </span>
+          <div class="border-base-300 divide-base-content/10 flex flex-col divide-y rounded-lg border px-3">
+            <ul
+              id="mcp-agent-list"
+              phx-update="stream"
+              class="divide-base-content/10 divide-y empty:hidden"
+            >
+              <.agent_row :for={{dom_id, agent} <- @streams.agents} id={dom_id} agent={agent} />
+            </ul>
+            <div
+              id="mcp-agent-other"
+              class="grid-cols-[auto_1fr_auto] grid items-center gap-x-2.5 gap-y-1 py-2"
+            >
+              <McpComponents.agent_logo />
+              <span class="text-sm">Another agent</span>
+              <McpComponents.copy_text
+                id="mcp-setup-prompt"
+                text={McpClients.setup_prompt(@agents.url)}
+                label="Copy setup prompt"
+              />
+              <span class="text-base-content/70 col-span-2 col-start-2 text-xs">
+                Paste it into any agent and it adds Voyager itself.
+              </span>
             </div>
-            <.input
-              field={@form[:port]}
-              type="number"
-              placeholder="4040"
-              disabled={@port_locked?}
-              class="font-mono text-sm"
-            />
           </div>
+          <div class="flex items-center justify-between gap-4 text-xs">
+            <span class="text-base-content/70">Only agents found on this machine are listed.</span>
+            <a
+              id="mcp-docs"
+              href={McpComponents.docs_url()}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-base-content/70 hover:text-base-content"
+            >
+              What can agents do?
+            </a>
+          </div>
+        </section>
 
-          <div class="card-actions justify-end">
+        <details id="mcp-port" phx-mounted={JS.ignore_attributes(["open"])} class="text-sm">
+          <summary class="text-base-content/70 cursor-pointer hover:text-base-content">
+            Advanced: port
+          </summary>
+          <.form
+            for={@form}
+            id="mcp-port-form"
+            phx-change="validate_port"
+            phx-submit="save_port"
+            phx-target={@myself}
+            class="mt-3 flex items-start gap-2"
+          >
+            <div class="flex-1">
+              <.input
+                field={@form[:port]}
+                type="number"
+                placeholder="4040"
+                disabled={@port_locked?}
+                aria-label="Port"
+                class="font-mono text-sm"
+              />
+            </div>
             <button type="submit" class="btn btn-primary" disabled={@port_locked?}>
               Save port
             </button>
-          </div>
-        </.form>
-
-        <div id="mcp-clients-section" class="border-base-200 flex flex-col gap-3 border-t pt-4">
-          <h4 class="text-base-content text-sm font-semibold">Connect your AI</h4>
-
-          <ul id="mcp-clients" phx-update="stream" class="flex flex-col gap-2">
-            <.client_card
-              :for={{dom_id, client} <- @streams.clients}
-              id={dom_id}
-              icon={client_icon(client.id)}
-              name={client.name}
-              subtitle={client.subtitle}
-              connection={client.connection}
-              added?={client.added?}
-            >
-              <div
-                :if={not client.installed? and not client.added?}
-                id={"#{dom_id}-missing"}
-                role="status"
-                class="alert alert-info gap-2 px-3 py-2 text-xs"
-              >
-                <.icon name="icon-info" class="text-info size-4 shrink-0" />
-                <span>
-                  {client.name} wasn't found on this machine. Install it, then {if(client.link,
-                    do: "click Add",
-                    else: "run the command below"
-                  )}.
-                </span>
-              </div>
-              <:action :if={client.link}>
-                <a
-                  id={"#{dom_id}-add"}
-                  href={client.link}
-                  class={[
-                    "btn btn-sm",
-                    if(client.added? or client.connection, do: "btn-ghost", else: "btn-primary")
-                  ]}
-                >
-                  {if client.added? or client.connection, do: "Reinstall", else: "Add"}
-                </a>
-              </:action>
-              <div
-                :if={client.command}
-                class="bg-base-200/60 flex items-center gap-2 rounded-md py-1 pr-1 pl-2.5"
-              >
-                <code
-                  id={"#{dom_id}-command"}
-                  title={client.command}
-                  class="font-mono text-base-content/80 min-w-0 flex-1 truncate text-xs"
-                >{client.command}</code>
-                <.copy_button
-                  id={"#{dom_id}-copy"}
-                  target={"##{dom_id}-command"}
-                  icon_only
-                  label="Copy command"
-                  size={:sm}
-                />
-              </div>
-            </.client_card>
-          </ul>
-
-          <ul class="flex flex-col gap-2">
-            <.client_card
-              id="mcp-client-other"
-              icon="icon-brain"
-              name="Other agent"
-              subtitle="Paste the setup prompt into any agent"
-            >
-              <:action>
-                <span id="mcp-setup-prompt" class="hidden">{McpClients.setup_prompt(@status.url)}</span>
-                <.copy_button
-                  id="mcp-setup-prompt-copy"
-                  target="#mcp-setup-prompt"
-                  label="Copy setup prompt"
-                />
-              </:action>
-              <div :if={@other_connections != []} class="flex flex-wrap gap-x-4 gap-y-1">
-                <.connected_badge
-                  :for={connection <- @other_connections}
-                  id={"mcp-client-other-#{:erlang.phash2(connection.name)}"}
-                  connection={connection}
-                  label={connection.name}
-                />
-              </div>
-            </.client_card>
-          </ul>
-        </div>
+          </.form>
+        </details>
       </div>
     </div>
     """
@@ -263,96 +228,55 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
     end
   end
 
-  defp stream_clients(socket) do
-    connections = Map.get(socket.assigns, :connections, [])
-    by_id = Enum.group_by(connections, &McpClients.match(&1.name))
-
-    clients =
-      Enum.map(McpClients.all(socket.assigns.status.url), fn client ->
-        Map.put(client, :connection, latest(Map.get(by_id, client.id, [])))
-      end)
-
-    socket
-    |> assign(:other_connections, Enum.filter(connections, &is_nil(McpClients.match(&1.name))))
-    |> stream(:clients, clients, reset: true)
-  end
-
-  defp latest(connections), do: Enum.max_by(connections, & &1.last_seen, DateTime, fn -> nil end)
-
   attr :id, :string, required: true
-  attr :icon, :string, required: true
-  attr :name, :string, required: true
-  attr :subtitle, :string, required: true
-  attr :connection, :map, default: nil
-  attr :added?, :boolean, default: false
-  slot :action
-  slot :inner_block
+  attr :agent, :map, required: true
 
-  defp client_card(assigns) do
+  defp agent_row(assigns) do
     ~H"""
-    <li
-      id={@id}
-      class="rounded-box border-base-200 flex flex-col gap-3 border p-3 transition-colors hover:border-base-300 hover:bg-base-200/30"
-    >
-      <div class="flex items-center gap-3">
-        <span class="bg-base-200 text-base-content size-9 flex shrink-0 items-center justify-center rounded-lg">
-          <.icon name={@icon} class="size-5" />
+    <li id={@id} class="grid-cols-[auto_1fr_auto] grid items-center gap-x-2.5 gap-y-1.5 py-2">
+      <McpComponents.agent_logo id={@agent.id} />
+      <span class="min-w-0 truncate text-sm">
+        {@agent.name}
+        <span :if={@agent.connection} class="font-mono text-base-content/70 text-xs">
+          {McpComponents.client_label(@agent.connection)}
         </span>
-        <div class="min-w-0 flex-1">
-          <div class="flex flex-wrap items-center gap-x-2">
-            <span class="text-base-content text-sm font-medium">{@name}</span>
-            <.connected_badge :if={@connection} id={"#{@id}-connected"} connection={@connection} />
-            <span
-              :if={@added? and is_nil(@connection)}
-              id={"#{@id}-added"}
-              class="text-base-content/60 flex items-center gap-1 text-xs"
-            >
-              <.icon name="icon-check" class="text-success size-3.5" /> Added
-            </span>
+      </span>
+      <%= cond do %>
+        <% @agent.connection -> %>
+          <span class="text-success flex items-center gap-1 text-xs font-medium">
+            <span class="bg-success size-1.5 rounded-full"></span> Connected
+          </span>
+          <span class="font-mono text-base-content/70 col-span-2 col-start-2 text-xs">
+            {McpComponents.last_call(@agent.connection)}
+          </span>
+        <% @agent.added? -> %>
+          <span id={"#{@id}-added"} class="badge badge-ghost badge-sm">Added</span>
+          <span class="font-mono text-base-content/70 col-span-2 col-start-2 text-xs">
+            in {@agent.config_path} · no call yet
+          </span>
+        <% @agent.link -> %>
+          <a id={"#{@id}-add"} href={@agent.link} class="btn btn-primary btn-xs">
+            Add to {@agent.name}
+          </a>
+        <% true -> %>
+          <span class="text-base-content/70 text-xs">detected</span>
+          <div class="border-base-300 bg-base-200 col-span-2 col-start-2 flex min-w-0 items-center gap-1 rounded-md border py-0.5 pr-0.5 pl-2">
+            <code
+              id={"#{@id}-command"}
+              title={@agent.command}
+              class="font-mono text-base-content/80 min-w-0 flex-1 truncate text-xs"
+            >{@agent.command}</code>
+            <.copy_button
+              id={"#{@id}-copy"}
+              target={"##{@id}-command"}
+              icon_only
+              label="Copy command"
+              size={:sm}
+            />
           </div>
-          <p class="text-base-content/60 truncate text-xs">{@subtitle}</p>
-        </div>
-        {render_slot(@action)}
-      </div>
-      {render_slot(@inner_block)}
+      <% end %>
     </li>
     """
-  end
-
-  attr :id, :string, required: true
-  attr :connection, :map, required: true
-  attr :label, :string, default: "Connected"
-
-  defp connected_badge(assigns) do
-    ~H"""
-    <span id={@id} class="text-base-content/60 flex items-center gap-1.5 text-xs">
-      <span class="relative flex h-1.5 w-1.5">
-        <span class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"></span>
-        <span class="bg-success relative inline-flex h-1.5 w-1.5 rounded-full"></span>
-      </span>
-      {Enum.join(
-        Enum.reject(
-          [@label, @connection.version && "v#{@connection.version}", ago(@connection.last_seen)],
-          &is_nil/1
-        ),
-        " · "
-      )}
-    </span>
-    """
-  end
-
-  defp client_icon(:claude_code), do: "icon-brand-claude"
-  defp client_icon(:codex), do: "icon-brand-openai"
-  defp client_icon(:gemini), do: "icon-brand-gemini"
-  defp client_icon(:cursor), do: "icon-brand-cursor"
-
-  defp ago(datetime) do
-    case DateTime.diff(DateTime.utc_now(), datetime) do
-      seconds when seconds < 60 -> "just now"
-      seconds when seconds < 3600 -> "#{div(seconds, 60)}m ago"
-      seconds when seconds < 86_400 -> "#{div(seconds, 3600)}h ago"
-      seconds -> "#{div(seconds, 86_400)}d ago"
-    end
   end
 
   defp mcp_port_form do

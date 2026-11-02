@@ -6,11 +6,13 @@ defmodule VoyagerWeb.Components.Shell do
   use VoyagerWeb, :html
 
   alias Voyager.NodeSession.Session
+  alias Voyager.Services.McpAgents
+  alias VoyagerWeb.McpComponents
   alias VoyagerWeb.Utils.URL
 
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
-  attr :mcp_status, :map, default: %{alive?: false, url: nil}
+  attr :mcp_agents, McpAgents, default: %McpAgents{}
   attr :current_url, :string, default: nil
   slot :inner_block, required: true
 
@@ -21,7 +23,7 @@ defmodule VoyagerWeb.Components.Shell do
         <.topbar
           active_nav={@active_nav}
           session={@session}
-          mcp_status={@mcp_status}
+          mcp_agents={@mcp_agents}
           current_url={@current_url}
         />
 
@@ -29,7 +31,7 @@ defmodule VoyagerWeb.Components.Shell do
           <.sidebar
             active_nav={@active_nav}
             session={@session}
-            mcp_status={@mcp_status}
+            mcp_agents={@mcp_agents}
             current_url={@current_url}
           />
 
@@ -44,7 +46,7 @@ defmodule VoyagerWeb.Components.Shell do
 
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
-  attr :mcp_status, :map, default: %{alive?: false, url: nil}
+  attr :mcp_agents, McpAgents, default: %McpAgents{}
   attr :current_url, :string, default: nil
 
   defp topbar(assigns) do
@@ -124,84 +126,72 @@ defmodule VoyagerWeb.Components.Shell do
     """
   end
 
-  attr :status, :map, required: true
-  attr :active_nav, :atom, default: nil
-  attr :session, Session, required: true
-  attr :current_url, :string, default: nil
+  attr :agents, McpAgents, required: true
+  attr :settings_path, :string, required: true
+  attr :on_refresh, :string, required: true
+  attr :on_turn_on, :string, required: true
 
-  defp mcp_status_indicator(assigns) do
+  defp agents_hub(assigns) do
     ~H"""
     <.tooltip
-      id={"mcp-status-tip-#{@status.alive?}-#{:erlang.phash2(@status.url)}"}
+      id={"mcp-status-tip-#{@agents.state}-#{length(@agents.agents)}"}
       interactive
       position="top"
       class="w-full"
+      tip_class="w-96 max-w-96"
     >
-      <div
+      <button
         id="mcp-status"
-        class="sidebar-nav-row flex w-full cursor-default items-center justify-start gap-2 rounded-md px-2 py-1.5"
+        type="button"
+        aria-label="AI agents"
+        phx-click={@on_refresh}
+        class="sidebar-nav-row flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 hover:bg-base-content/5"
       >
-        <span class="relative inline-flex shrink-0">
-          <.icon name="icon-brain" class="text-base-content/70 size-4" />
-          <span class="absolute -right-0.5 -bottom-0.5 flex h-1.5 w-1.5">
-            <span
-              :if={@status.alive?}
-              class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
-            ></span>
-            <span class={[
-              "relative inline-flex h-1.5 w-1.5 rounded-full",
-              if(@status.alive?, do: "bg-success", else: "bg-error")
-            ]}></span>
-          </span>
-        </span>
-        <span class="sidebar-label font-mono text-base-content/70 truncate text-xs">
-          MCP {if @status.alive?, do: "running", else: "stopped"}
-        </span>
-      </div>
-      <:content>
-        <%= if @status.alive? do %>
-          <div>
-            <span>
-              MCP server is running at
+        <span class="flex min-w-0 items-center gap-2.5">
+          <span class="relative inline-flex shrink-0">
+            <.icon
+              name="icon-brain"
+              class={["size-4", @agents.state == :off && "text-base-content/70"]}
+            />
+            <span class="absolute -right-0.5 -bottom-0.5 flex">
+              <McpComponents.status_dot state={@agents.state} />
             </span>
-            <div class="flex items-center gap-1">
-              <span id="mcp-status-url" class="font-mono">{@status.url}</span>
-              <.copy_button
-                id="mcp-status-copy"
-                target="#mcp-status-url"
-                icon_only
-                class="btn-xs text-base-content/70 shrink-0 hover:text-base-content"
-              />
-            </div>
-          </div>
-          <.link
-            id="mcp-status-connect"
-            href={
-              ~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_url)]}"
-            }
-            class="text-primary mt-2 flex w-fit items-center gap-1 font-medium underline-offset-2 hover:underline"
-          >
-            Connect AI client
-          </.link>
-        <% else %>
-          MCP server is not active. It can be enabled and configured in Settings.
-          <.link
-            href={
-              ~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_url)]}"
-            }
-            class="text-primary mt-2 flex w-fit items-center gap-1 font-medium underline-offset-2 hover:underline"
-          >
-            Open Settings
-          </.link>
-        <% end %>
+          </span>
+          <span class="sidebar-label truncate text-sm font-medium">AI agents</span>
+        </span>
+        <span
+          :if={@agents.state == :off}
+          class="sidebar-badge font-mono text-base-content/70 shrink-0 text-xs"
+        >
+          MCP off
+        </span>
+        <span :if={@agents.state == :on} class="sidebar-badge badge badge-primary badge-soft badge-xs">
+          Set up
+        </span>
+        <span
+          :if={@agents.state == :connected}
+          class="sidebar-badge font-mono text-base-content/70 truncate text-xs"
+        >
+          {connected_hint(@agents.connected)}
+        </span>
+      </button>
+      <:content>
+        <McpComponents.agents_panel
+          agents={@agents}
+          settings_path={@settings_path}
+          on_turn_on={@on_turn_on}
+        />
       </:content>
     </.tooltip>
     """
   end
 
+  defp connected_hint([agent]), do: agent.name
+  defp connected_hint([agent | rest]), do: "#{agent.name} +#{length(rest)}"
+
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
-  attr :mcp_status, :map, default: %{alive?: false, url: nil}
+  attr :mcp_agents, McpAgents, default: %McpAgents{}
   attr :current_url, :string, default: nil
 
   defp sidebar(assigns) do
@@ -254,11 +244,14 @@ defmodule VoyagerWeb.Components.Shell do
       <div class="border-base-content/10 border-t mx-[length:var(--sidebar-compact-pad)]"></div>
 
       <div class="flex flex-none flex-col gap-1 p-3">
-        <.mcp_status_indicator
-          status={@mcp_status}
-          active_nav={@active_nav}
-          session={@session}
-          current_url={@current_url}
+        <.agents_hub
+          agents={@mcp_agents}
+          settings_path={
+            ~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_url)]}" <>
+              "#mcp"
+          }
+          on_refresh="mcp-refresh"
+          on_turn_on="mcp-turn-on"
         />
       </div>
     </aside>

@@ -5,10 +5,10 @@ defmodule Voyager.Services.TrayStatusTest do
   import Voyager.TestUtils
 
   alias Voyager.Fakes
-  alias Voyager.MCP
   alias Voyager.NodeSession
   alias Voyager.Schemas.Connection
   alias Voyager.Schemas.SshConnection
+  alias Voyager.Services.McpAgents
   alias Voyager.Services.TrayStatus
   alias Voyager.Test.SshKeys
 
@@ -100,11 +100,20 @@ defmodule Voyager.Services.TrayStatusTest do
     assert %{"mcp" => nil, "error" => nil} = receive_status()
   end
 
-  test "follows the MCP listener" do
-    broadcast(MCP.topic(), {:mcp_status, %{alive?: true, url: @mcp_url}})
-    assert %{"mcp" => %{"url" => @mcp_url}} = receive_status()
+  test "follows the MCP server and its connected agents" do
+    broadcast(McpAgents.topic(), {:mcp_agents, %McpAgents{state: :on, url: @mcp_url}})
+    assert %{"mcp" => %{"url" => @mcp_url, "agents" => []}} = receive_status()
 
-    broadcast(MCP.topic(), {:mcp_status, %{alive?: false, url: @mcp_url}})
+    connected = %McpAgents{
+      state: :connected,
+      url: @mcp_url,
+      connected: [%{name: "Claude Code"}, %{name: "zed"}]
+    }
+
+    broadcast(McpAgents.topic(), {:mcp_agents, connected})
+    assert %{"mcp" => %{"agents" => ["Claude Code", "zed"]}} = receive_status()
+
+    broadcast(McpAgents.topic(), {:mcp_agents, %McpAgents{state: :off, url: @mcp_url}})
     assert %{"mcp" => nil} = receive_status()
   end
 

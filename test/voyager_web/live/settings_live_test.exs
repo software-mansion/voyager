@@ -5,8 +5,8 @@ defmodule VoyagerWeb.SettingsLiveTest do
   import Voyager.TestUtils, only: [reset_pid_format: 1, reset_term_syntax: 1]
 
   alias Voyager.Fakes
-  alias Voyager.MCP.ClientRegistry
   alias Voyager.MCP.Server
+  alias Voyager.Services.McpAgents
   alias Voyager.Services.TermSyntax
   alias Voyager.Settings
 
@@ -123,9 +123,11 @@ defmodule VoyagerWeb.SettingsLiveTest do
       assert render(view) =~ "Running at http://127.0.0.1:#{port}/mcp"
 
       view |> element("#mcp-toggle") |> render_click()
+      _ = :sys.get_state(McpAgents)
       assert render(view) =~ "Stopped"
 
       view |> element("#mcp-toggle") |> render_click()
+      _ = :sys.get_state(McpAgents)
       assert render(view) =~ "Running at http://127.0.0.1:#{port}/mcp"
     end
 
@@ -133,6 +135,7 @@ defmodule VoyagerWeb.SettingsLiveTest do
       {:ok, view, _html} = live(conn, ~p"/settings")
 
       view |> element("#mcp-toggle") |> render_click()
+      _ = :sys.get_state(McpAgents)
       assert render(view) =~ "Stopped"
 
       {:ok, socket} = :gen_tcp.listen(port, [:binary, active: false, ip: {127, 0, 0, 1}])
@@ -155,6 +158,7 @@ defmodule VoyagerWeb.SettingsLiveTest do
       |> render_submit()
 
       assert Settings.get(:mcp_port) == new_port
+      _ = :sys.get_state(McpAgents)
       assert render(view) =~ "MCP port updated"
       assert render(view) =~ "Running at http://127.0.0.1:#{new_port}/mcp"
     end
@@ -227,16 +231,16 @@ defmodule VoyagerWeb.SettingsLiveTest do
     end
   end
 
-  describe "connect your AI" do
+  describe "AI agents" do
     @describetag capture_log: true
     @describetag :tmp_dir
 
     setup %{tmp_dir: home} do
       Voyager.MCPCase.stop_mcp()
       {:ok, _} = Settings.put(:mcp_port, Voyager.MCPCase.unique_port())
-      start_supervised!({Voyager.MCP, enabled: true})
       Application.put_env(:voyager, :mcp_clients_installed, [:claude_code, :cursor])
       Application.put_env(:voyager, :mcp_clients_home, home)
+      start_supervised!({Voyager.MCP, enabled: true})
 
       on_exit(fn ->
         Voyager.MCPCase.stop_mcp()
@@ -245,29 +249,28 @@ defmodule VoyagerWeb.SettingsLiveTest do
       end)
     end
 
-    test "shows every client, the other agent row, and a notice for missing ones", %{conn: conn} do
+    test "lists only the agents found on this machine, plus another agent", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/settings")
       url = Voyager.MCP.info().url
 
-      assert has_element?(view, "#mcp-client-claude_code-command", "claude mcp add")
-      assert has_element?(view, "#mcp-client-claude_code-copy")
-      refute has_element?(view, "#mcp-client-claude_code-add")
-      refute has_element?(view, "#mcp-client-claude_code-missing")
-      assert has_element?(view, "#mcp-client-codex-missing")
-      assert has_element?(view, "#mcp-client-codex-command", "codex mcp add")
-      assert has_element?(view, "#mcp-client-gemini-missing")
+      assert has_element?(view, "#mcp-agent-claude_code-command", "claude mcp add")
+      assert has_element?(view, "#mcp-agent-claude_code-copy")
 
       assert has_element?(
                view,
-               ~s|#mcp-client-cursor-add[href^="cursor://anysphere.cursor-deeplink/mcp/install?"]|
+               ~s|#mcp-agent-cursor-add[href^="cursor://anysphere.cursor-deeplink/mcp/install?"]|
              )
 
-      assert has_element?(view, "#mcp-client-other")
-      assert has_element?(view, "#mcp-setup-prompt-copy")
-      assert has_element?(view, "#mcp-setup-prompt", url)
+      refute has_element?(view, "#mcp-agent-codex")
+      refute has_element?(view, "#mcp-agent-gemini")
+      assert has_element?(view, "#mcp-agent-other")
+      assert has_element?(view, "#mcp-setup-prompt-text", url)
     end
 
-    test "shows cursor as added and offers a quiet reinstall", %{conn: conn, tmp_dir: home} do
+    test "shows an agent whose config already points at Voyager as added", %{
+      conn: conn,
+      tmp_dir: home
+    } do
       File.mkdir_p!(Path.join(home, ".cursor"))
 
       File.write!(
@@ -276,21 +279,21 @@ defmodule VoyagerWeb.SettingsLiveTest do
       )
 
       {:ok, view, _html} = live(conn, ~p"/settings")
+      _ = :sys.get_state(McpAgents)
 
-      assert has_element?(view, "#mcp-client-cursor-added")
-      assert has_element?(view, "#mcp-client-cursor-add.btn-ghost", "Reinstall")
+      assert has_element?(view, "#mcp-agent-cursor-added")
+      refute has_element?(view, "#mcp-agent-cursor-add")
     end
 
-    test "marks a client connected after it initializes", %{conn: conn} do
+    test "marks agents connected once they initialize", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/settings")
-      refute has_element?(view, "#mcp-client-claude_code-connected")
 
       Server.init(%{"name" => "claude-code", "version" => "2.1.0"}, %{})
       Server.init(%{"name" => "zed", "version" => "0.200"}, %{})
-      _ = :sys.get_state(ClientRegistry)
+      _ = :sys.get_state(McpAgents)
 
-      assert has_element?(view, "#mcp-client-claude_code-connected", "v2.1.0")
-      assert has_element?(view, "#mcp-client-other", "zed")
+      assert has_element?(view, "#mcp-agent-claude_code", "claude-code 2.1.0")
+      assert has_element?(view, "#mcp-agent-list li", "zed")
     end
   end
 

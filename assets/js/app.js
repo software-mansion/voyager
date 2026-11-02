@@ -46,8 +46,8 @@ const liveSocket = new LiveSocket('/live', Socket, {
 });
 
 // Inside the Tauri webview, `target="_blank"` links do nothing because there is
-// no browser to open a new tab. Intercept them and hand the URL to the Tauri
-// opener plugin so they open in the user's default browser instead.
+// no browser to open a new tab, and app deep links such as `cursor:` never leave
+// the webview. Intercept both and hand the URL to the Tauri opener plugin.
 //
 // We call the plugin command through `__TAURI_INTERNALS__.invoke`, which Tauri
 // always injects into every webview, rather than `window.__TAURI__.opener`,
@@ -71,11 +71,15 @@ if (window.__TAURI_INTERNALS__) {
       const target = e.target;
       if (!(target instanceof Element)) return;
 
-      const link = target.closest('a[target="_blank"]');
+      const link = target.closest('a[target="_blank"], a[href^="cursor:"]');
       if (!link?.href) return;
 
       const url = new URL(link.href);
-      if (!['http:', 'https:', 'mailto:', 'tel:'].includes(url.protocol)) {
+      if (
+        !['http:', 'https:', 'mailto:', 'tel:', 'cursor:'].includes(
+          url.protocol
+        )
+      ) {
         return;
       }
 
