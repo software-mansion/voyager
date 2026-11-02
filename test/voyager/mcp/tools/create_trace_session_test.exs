@@ -1,6 +1,6 @@
 defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
   # async: false because the tool reads the global `Voyager.NodeSession` and `Tracer`.
-  use ExUnit.Case, async: false
+  use Voyager.DataCase, async: false
 
   alias Anubis.Server.Context
   alias Anubis.Server.Frame
@@ -9,6 +9,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
   alias Voyager.Fakes
   alias Voyager.MCP.Tools.CreateTraceSession
   alias Voyager.Services.Tracer
+  alias Voyager.Services.Tracer.Writer
   alias Voyager.Test.VoyagerAgentFixture
 
   @stateless Anubis.Protocol.V2026_07_28
@@ -22,7 +23,12 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
     on_exit(fn -> Application.put_env(:voyager, :erpc, prev_erpc) end)
 
     Fakes.connect_node!(Fakes.node_session(node: node(), node_name: Atom.to_string(node())))
-    on_exit(fn -> Tracer.stop(:ui) end)
+    # The stop's DB write must land before the sandbox owner exits.
+    on_exit(fn ->
+      Tracer.stop(:ui)
+      _ = :sys.get_state(Tracer)
+      Writer.flush()
+    end)
 
     %{pid: Voyager.Pid.format(self(), :distribution)}
   end
@@ -98,6 +104,23 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
       end
 
       refute match?(%{origin: :mcp, status: :running}, Tracer.active())
+    end
+
+    test "reads max_seconds sent as a string", %{pid: pid} do
+      content = %{"function" => "Date", "pids" => pid, "max_seconds" => "60"}
+      %{"status" => "started"} = %{} |> execute(answered(accept(content))) |> run()
+
+      assert %{max_time_ms: 60_000} = Tracer.active().config
+    end
+
+    test "leaves no session behind when the start fails" do
+      {pid, ref} = spawn_monitor(fn -> :ok end)
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}
+
+      content = %{"function" => "Date", "pids" => Voyager.Pid.format(pid, :distribution)}
+      %{} |> execute(answered(accept(content))) |> assert_error()
+
+      assert Tracer.active() == nil
     end
   end
 

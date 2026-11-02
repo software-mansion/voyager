@@ -16,10 +16,11 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
   1000); the session stops at the first one reached. `pids` restricts
   tracing to those processes ("<0.123.0>, <0.456.0>"); empty traces all of them.
 
-  Refused modules: :trace and Voyager's agent always. On all processes also the
-  modules called from nearly every process, which need `pids`:
-  #{Voyager.Services.Tracer.Refusals.agent_macros()[:TRACE_HOT] |> Enum.map_join(", ", &inspect/1)},
-  and modules starting with prim_ or erts_.
+  Refused modules: #{Enum.map_join(Voyager.Services.Tracer.Refusals.agent_macros()[:TRACE_ALWAYS_REFUSED], ", ", &inspect/1)} and
+  Voyager's agent always. On all processes also the modules called from nearly
+  every process, which need `pids`:
+  #{Enum.map_join(Voyager.Services.Tracer.Refusals.agent_macros()[:TRACE_HOT], ", ", &inspect/1)},
+  and modules starting with #{Enum.join(Voyager.Services.Tracer.Refusals.agent_macros()[:TRACE_HOT_PREFIXES], " or ")}.
   """
 
   use Anubis.Server.Component, type: :tool
@@ -159,8 +160,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
     with {:ok, attrs} <- config_attrs(content),
          {:ok, _config} <- validate(attrs),
          {:ok, _session} <- Tracer.create(:mcp),
-         {:ok, _session} <- Tracer.configure(node, attrs, :mcp),
-         {:ok, session} <- Tracer.start(:mcp) do
+         {:ok, session} <- configure_and_start(node, attrs) do
       Response.json(Response.tool(), %{status: "started", session_id: session.id, node: node})
     else
       {:error, %Ecto.Changeset{} = changeset} ->
@@ -175,6 +175,17 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
       {:error, reason} ->
         message = "Could not trace #{inspect(content["function"])} on #{node}: #{inspect(reason)}"
         Response.error(Response.tool(), message)
+    end
+  end
+
+  defp configure_and_start(node, attrs) do
+    with {:ok, _session} <- Tracer.configure(node, attrs, :mcp),
+         {:ok, session} <- Tracer.start(:mcp) do
+      {:ok, session}
+    else
+      error ->
+        Tracer.close()
+        error
     end
   end
 
@@ -202,11 +213,18 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
     |> Config.changeset()
     |> Ecto.Changeset.validate_number(:max_events, less_than_or_equal_to: @max_calls)
     |> Ecto.Changeset.validate_number(:max_rate, less_than_or_equal_to: @max_rate)
-    |> Ecto.Changeset.validate_number(:max_time_ms, less_than_or_equal_to: @max_seconds * 1_000)
     |> Ecto.Changeset.apply_action(:validate)
   end
 
   defp to_ms(seconds) when is_integer(seconds), do: seconds * 1_000
+
+  defp to_ms(seconds) when is_binary(seconds) do
+    case Integer.parse(seconds) do
+      {seconds, ""} -> seconds * 1_000
+      _invalid -> seconds
+    end
+  end
+
   defp to_ms(other), do: other
 
   defp processes(pids) when is_binary(pids) do
