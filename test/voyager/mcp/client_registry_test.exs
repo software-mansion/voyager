@@ -18,6 +18,22 @@ defmodule Voyager.MCP.ClientRegistryTest do
              ClientRegistry.all()
   end
 
+  test "drops clients idle for more than five minutes" do
+    pid = start_supervised!(ClientRegistry)
+    ClientRegistry.seen(%{"name" => "codex-mcp-client", "version" => "0.50.0"})
+    ClientRegistry.seen(%{"name" => "claude-code", "version" => "2.1.0"})
+
+    :sys.replace_state(pid, fn clients ->
+      put_in(clients["codex-mcp-client"].last_seen, DateTime.add(DateTime.utc_now(), -301))
+    end)
+
+    Phoenix.PubSub.subscribe(Voyager.PubSub, ClientRegistry.topic())
+    send(pid, :prune)
+
+    assert_receive {:mcp_clients, [%{name: "claude-code"}]}
+    assert [%{name: "claude-code"}] = ClientRegistry.all()
+  end
+
   test "all/0 is empty when the registry is not running" do
     assert ClientRegistry.all() == []
   end

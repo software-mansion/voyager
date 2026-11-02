@@ -1,7 +1,8 @@
 defmodule Voyager.MCP.ClientRegistry do
   @moduledoc """
-  Remembers which MCP clients have talked to the server, keyed by the name from
-  their `initialize` `clientInfo`, and broadcasts `{:mcp_clients, [client()]}` on `topic/0`.
+  Remembers which MCP clients have talked to the server in the last five minutes,
+  keyed by the name from their `initialize` `clientInfo`, and broadcasts
+  `{:mcp_clients, [client()]}` on `topic/0` whenever that list changes.
   """
 
   use GenServer
@@ -11,6 +12,8 @@ defmodule Voyager.MCP.ClientRegistry do
   @type client :: %{name: String.t(), version: String.t() | nil, last_seen: DateTime.t()}
 
   @topic "mcp_clients"
+  @ttl_seconds 300
+  @prune_interval_ms 30_000
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(_opts), do: GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
@@ -44,7 +47,10 @@ defmodule Voyager.MCP.ClientRegistry do
   end
 
   @impl true
-  def init(clients), do: {:ok, clients}
+  def init(clients) do
+    schedule_prune()
+    {:ok, clients}
+  end
 
   @impl true
   def handle_cast({:seen, name, version}, clients) do
@@ -54,10 +60,27 @@ defmodule Voyager.MCP.ClientRegistry do
     clients =
       Map.put(clients, name, %{name: name, version: version, last_seen: DateTime.utc_now()})
 
-    Phoenix.PubSub.broadcast(Voyager.PubSub, @topic, {:mcp_clients, Map.values(clients)})
+    broadcast(clients)
     {:noreply, clients}
   end
 
   @impl true
+  def handle_info(:prune, clients) do
+    schedule_prune()
+    cutoff = DateTime.add(DateTime.utc_now(), -@ttl_seconds)
+
+    fresh =
+      Map.filter(clients, fn {_name, client} -> DateTime.after?(client.last_seen, cutoff) end)
+
+    if map_size(fresh) != map_size(clients), do: broadcast(fresh)
+    {:noreply, fresh}
+  end
+
+  @impl true
   def handle_call(:all, _from, clients), do: {:reply, Map.values(clients), clients}
+
+  defp broadcast(clients),
+    do: Phoenix.PubSub.broadcast(Voyager.PubSub, @topic, {:mcp_clients, Map.values(clients)})
+
+  defp schedule_prune, do: Process.send_after(self(), :prune, @prune_interval_ms)
 end

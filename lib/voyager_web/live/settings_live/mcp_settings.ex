@@ -117,7 +117,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
             <.client_card
               :for={{dom_id, client} <- @streams.clients}
               id={dom_id}
-              icon={client.icon}
+              icon={client_icon(client.id)}
               name={client.name}
               subtitle={client.subtitle}
               connection={client.connection}
@@ -310,6 +310,11 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
     </span>
     """
   end
+
+  defp client_icon(:claude_code), do: "icon-brand-claude"
+  defp client_icon(:codex), do: "icon-brand-openai"
+  defp client_icon(:gemini), do: "icon-brand-gemini"
+  defp client_icon(:cursor), do: "icon-brand-cursor"
 
   defp ago(datetime) do
     case DateTime.diff(DateTime.utc_now(), datetime) do

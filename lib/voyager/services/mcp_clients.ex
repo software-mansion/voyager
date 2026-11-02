@@ -9,7 +9,6 @@ defmodule Voyager.Services.McpClients do
           id: id(),
           name: String.t(),
           subtitle: String.t(),
-          icon: String.t(),
           command: String.t() | nil,
           link: String.t() | nil
         }
@@ -50,7 +49,6 @@ defmodule Voyager.Services.McpClients do
       id: :claude_code,
       name: "Claude Code",
       subtitle: "Also covers the Code tab in the Claude app",
-      icon: "icon-brand-claude",
       command: "claude mcp add --transport http --scope user voyager #{url}",
       link: nil
     }
@@ -61,7 +59,6 @@ defmodule Voyager.Services.McpClients do
       id: :codex,
       name: "Codex",
       subtitle: "CLI, IDE extension and app",
-      icon: "icon-brand-openai",
       command: "codex mcp add voyager --url #{url}",
       link: nil
     }
@@ -72,7 +69,6 @@ defmodule Voyager.Services.McpClients do
       id: :gemini,
       name: "Gemini CLI",
       subtitle: "Google's terminal agent",
-      icon: "icon-brand-gemini",
       command: "gemini mcp add --transport http voyager #{url}",
       link: nil
     }
@@ -85,7 +81,6 @@ defmodule Voyager.Services.McpClients do
       id: :cursor,
       name: "Cursor",
       subtitle: "Opens Cursor to confirm the install",
-      icon: "icon-brand-cursor",
       command: nil,
       link:
         "cursor://anysphere.cursor-deeplink/mcp/install?" <>
