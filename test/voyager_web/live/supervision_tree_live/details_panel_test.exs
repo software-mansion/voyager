@@ -149,6 +149,43 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       refute has_element?(view, "#details-panel", twentieth_link)
     end
 
+    test "expanding one relation leaves the others collapsed", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      link_pids: link_pids,
+      sup_key: sup_key,
+      twentieth_link: twentieth_link
+    } do
+      monitor_pids = for n <- 1..20, do: :erlang.list_to_pid(~c"<0.#{500 + n}.0>")
+      twentieth_monitor = monitor_pids |> List.last() |> TreeNode.key()
+      relation = %{total: 20, truncated: false, items: monitor_pids}
+
+      expect(Voyager.ErpcMock, :call, 13, fn
+        _node, @agent_module, :proc_monitors, [_pid, _limit], _timeout ->
+          {:ok, %{relation | items: Enum.map(monitor_pids, &{:process, &1})}}
+
+        _node, @agent_module, :proc_monitored_by, [_pid, _limit], _timeout ->
+          {:ok, relation}
+
+        _node, mod, fun, args, _timeout ->
+          supervision_reply(mod, fun, args, sup_pid, [port], link_pids)
+      end)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      view |> element("#details-panel-toggle-monitors") |> render_click()
+
+      assert has_element?(view, "#details-panel-toggle-monitors", "Show less")
+      assert has_element?(view, "#details-panel-monitors-19", twentieth_monitor)
+      assert has_element?(view, "#details-panel-toggle-links", "Show more")
+      refute has_element?(view, "#details-panel", twentieth_link)
+      assert has_element?(view, "#details-panel-toggle-monitored-by", "Show more")
+      refute has_element?(view, "#details-panel-monitored-by-19")
+    end
+
     test "collapses expanded links when a different node is selected", %{
       conn: conn,
       sup_pid: sup_pid,
