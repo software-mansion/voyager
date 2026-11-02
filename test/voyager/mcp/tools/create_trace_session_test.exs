@@ -106,10 +106,10 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
       for content <- [
             %{"function" => ":trace.function/4"},
             %{"function" => "Enum.map/2"},
-            %{"function" => "Date", "max_calls" => 10_001},
+            %{"function" => "Date", "max_events" => 10_001},
             %{"function" => "Date", "max_seconds" => 3_601},
             %{"function" => "Date", "max_rate" => 1_001},
-            %{"function" => "Date", "max_calls" => nil, "max_seconds" => nil},
+            %{"function" => "Date", "max_events" => nil, "max_seconds" => nil},
             %{"function" => "nope nope"}
           ] do
         %{} |> execute(answered(accept(content))) |> assert_error()
@@ -189,7 +189,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
   defp accept(content),
     do: %{
       "action" => "accept",
-      "content" => Map.merge(%{"max_calls" => 100, "max_seconds" => 60}, content)
+      "content" => Map.merge(%{"max_events" => 100, "max_seconds" => 60}, content)
     }
 
   defp run(result) do

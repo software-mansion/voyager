@@ -11,9 +11,10 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
   Examples: "MyApp.Repo.insert/2", "MyApp.Orders.place", ":gen_tcp.send/2".
 
   The user chooses whether call arguments are captured; captured arguments are
-  sent to the AI. Set at least one limit: `max_calls` (1 to 10000),
-  `max_seconds` (1 to 3600) or `max_rate` (calls per second, 1 to
-  1000); the session stops at the first one reached. `pids` restricts
+  sent to the AI. Set at least one limit: `max_events` (1 to 10000),
+  `max_seconds` (1 to 3600) or `max_rate` (events per second, 1 to
+  1000); the session stops at the first one reached. Calls, returns and
+  exceptions each count as one event, so with `return_trace` a call takes two. `pids` restricts
   tracing to those processes ("<0.123.0>, <0.456.0>"); empty traces all of them.
 
   Refused modules: #{Enum.map_join(Voyager.Services.Tracer.Refusals.agent_macros()[:TRACE_ALWAYS_REFUSED], ", ", &inspect/1)} and
@@ -33,7 +34,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
   alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Config
 
-  @max_calls 10_000
+  @max_events 10_000
   @max_seconds 3_600
   @max_rate 1_000
   @form "session"
@@ -49,9 +50,9 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
       description: ~s(Function to trace, e.g. "MyApp.Repo.insert/2". Prefills the form.)
 
     field :return_trace, :boolean, default: false, description: "Also trace return values."
-    field :max_calls, :integer, min: 1, max: @max_calls, default: 100
+    field :max_events, :integer, min: 1, max: @max_events, default: 100
     field :max_seconds, :integer, min: 1, max: @max_seconds, default: 60
-    field :max_rate, :integer, min: 1, max: @max_rate, description: "Calls per second."
+    field :max_rate, :integer, min: 1, max: @max_rate, description: "Events per second."
 
     field :pids, :string,
       description: ~s(Comma-separated pids such as "<0.123.0>"; empty traces all processes.)
@@ -133,11 +134,16 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
           }),
         "return_trace" =>
           property("boolean", params[:return_trace], %{"title" => "Trace return values"}),
-        "max_calls" => limit(params[:max_calls], @max_calls, "Stop after this many calls"),
+        "max_events" =>
+          limit(
+            params[:max_events],
+            @max_events,
+            "Stop after this many events (calls, returns, exceptions)"
+          ),
         "max_seconds" =>
           limit(params[:max_seconds], @max_seconds, "Stop after this many seconds"),
         "max_rate" =>
-          limit(params[:max_rate], @max_rate, "Stop above this many calls per second"),
+          limit(params[:max_rate], @max_rate, "Stop above this many events per second"),
         "pids" =>
           property("string", params[:pids], %{
             "title" => "Processes",
@@ -189,7 +195,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
          |> Map.merge(%{
            "capture" => if(content["capture_args"] == true, do: "args", else: "arity"),
            "return_trace" => content["return_trace"] == true,
-           "max_events" => content["max_calls"],
+           "max_events" => content["max_events"],
            "max_rate" => content["max_rate"],
            "max_time_ms" => to_ms(content["max_seconds"])
          })}
@@ -199,7 +205,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
   defp validate(attrs) do
     attrs
     |> Config.changeset()
-    |> Ecto.Changeset.validate_number(:max_events, less_than_or_equal_to: @max_calls)
+    |> Ecto.Changeset.validate_number(:max_events, less_than_or_equal_to: @max_events)
     |> Ecto.Changeset.validate_number(:max_rate, less_than_or_equal_to: @max_rate)
     |> Ecto.Changeset.apply_action(:validate)
   end
