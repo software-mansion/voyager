@@ -236,7 +236,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
     cond do
       match = Regex.run(@elixir_mfa, function, capture: :all_but_first) ->
         [module | rest] = match
-        mfa_attrs(["Elixir." <> module | rest])
+        mfa_attrs(["Elixir." <> String.replace_prefix(module, "Elixir.", "") | rest])
 
       match = Regex.run(@erlang_mfa, function, capture: :all_but_first) ->
         mfa_attrs(match)

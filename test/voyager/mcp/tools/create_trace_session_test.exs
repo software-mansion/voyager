@@ -86,6 +86,13 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
       assert %{processes: :pids, pids: [^pid], max_events: 100, max_time_ms: 60_000} = config
     end
 
+    test "keeps the Elixir prefix of a fully qualified module", %{pid: pid} do
+      content = %{"function" => "Elixir.Date.leap_year?/1", "pids" => pid}
+      %{"status" => "started"} = %{} |> execute(answered(accept(content))) |> run()
+
+      assert %{module: "Elixir.Date", function: "leap_year?", arity: 1} = Tracer.active().config
+    end
+
     test "parses Erlang functions and traces all processes without pids" do
       Code.ensure_loaded!(:calendar)
       content = %{"function" => "calendar:is_leap_year/1", "pids" => " "}
