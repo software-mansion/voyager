@@ -56,13 +56,6 @@ defmodule Voyager.Services.Tracer do
           | :node_down
           | {:tracer_down, term()}
 
-  @type entry :: %{
-          required(:seq) => non_neg_integer(),
-          required(:kind) => :configured | :started | :stopped | :dropped | :trace,
-          required(:at) => integer(),
-          optional(atom()) => term()
-        }
-
   defstruct session: nil, run: nil, log: %MemoryLog{}
 
   @typep state :: %__MODULE__{
@@ -171,7 +164,7 @@ defmodule Voyager.Services.Tracer do
           order: :asc | :desc,
           limit: pos_integer()
         ) ::
-          {:ok, %{entries: [entry()], truncated?: boolean()}} | {:error, :not_found}
+          {:ok, %{entries: [Entry.t()], truncated?: boolean()}} | {:error, :not_found}
   def entries(id, opts \\ []) do
     opts = Keyword.validate!(opts, [:since, :before, order: :desc, limit: 100])
     Enum.each(opts, fn {key, value} -> validate_entries_opt!(key, value) end)
@@ -489,7 +482,7 @@ defmodule Voyager.Services.Tracer do
     len > @max_mailbox or (session.save and Writer.overloaded?())
   end
 
-  @spec append(state(), [map()]) :: state()
+  @spec append(state(), [Entry.unnumbered()]) :: state()
   defp append(state, []), do: state
 
   defp append(%__MODULE__{session: session} = state, entries) do

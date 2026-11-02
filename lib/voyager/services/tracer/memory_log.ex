@@ -1,7 +1,7 @@
 defmodule Voyager.Services.Tracer.MemoryLog do
   @moduledoc false
 
-  alias Voyager.Services.Tracer
+  alias Voyager.Services.Tracer.Entry
 
   @kept_traces 500
 
@@ -9,10 +9,10 @@ defmodule Voyager.Services.Tracer.MemoryLog do
   # trace and dropped entries; both newest first.
   defstruct controls: [], traces: []
 
-  @type t :: %__MODULE__{controls: [Tracer.entry()], traces: [Tracer.entry()]}
+  @type t :: %__MODULE__{controls: [Entry.t()], traces: [Entry.t()]}
 
   @doc "Numbers `entries` from `seq` and keeps them. Returns the numbered entries."
-  @spec append(t(), [map()], non_neg_integer()) :: {[Tracer.entry()], t()}
+  @spec append(t(), [Entry.unnumbered()], non_neg_integer()) :: {[Entry.t()], t()}
   def append(%__MODULE__{} = log, entries, seq) do
     entries = Enum.with_index(entries, &Map.put(&1, :seq, seq + &2))
     {traces, controls} = Enum.split_with(entries, &(&1.kind in [:trace, :dropped]))
@@ -25,7 +25,7 @@ defmodule Voyager.Services.Tracer.MemoryLog do
 
   @doc "The `Voyager.Services.Tracer.entries/2` page of the kept entries, where `next_seq` is the session's."
   @spec page(t(), non_neg_integer(), keyword()) :: %{
-          entries: [Tracer.entry()],
+          entries: [Entry.t()],
           truncated?: boolean()
         }
   def page(%__MODULE__{} = log, next_seq, opts) do

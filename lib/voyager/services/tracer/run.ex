@@ -48,7 +48,7 @@ defmodule Voyager.Services.Tracer.Run do
   the run.
   """
   @spec absorb(t(), Session.t(), [map()], non_neg_integer(), boolean()) ::
-          {[map()], Session.t(), t()}
+          {[Entry.unnumbered()], Session.t(), t()}
   def absorb(%__MODULE__{} = run, %Session{} = session, events, agent_dropped, shedding?) do
     {events, run} = shed(run, events, shedding?)
     dropped = total_dropped(run, agent_dropped)

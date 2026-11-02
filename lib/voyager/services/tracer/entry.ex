@@ -4,23 +4,36 @@ defmodule Voyager.Services.Tracer.Entry do
   alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Config
 
-  @spec configured(Tracer.origin(), node(), Config.t()) :: map()
+  @type t :: %{
+          required(:seq) => non_neg_integer(),
+          required(:kind) => :configured | :started | :stopped | :dropped | :trace,
+          required(:at) => integer(),
+          optional(atom()) => term()
+        }
+
+  @type unnumbered :: %{
+          required(:kind) => :configured | :started | :stopped | :dropped | :trace,
+          required(:at) => integer(),
+          optional(atom()) => term()
+        }
+
+  @spec configured(Tracer.origin(), node(), Config.t()) :: unnumbered()
   def configured(origin, node, config), do: build(:configured, origin, node: node, config: config)
 
-  @spec started(Tracer.origin()) :: map()
+  @spec started(Tracer.origin()) :: unnumbered()
   def started(origin), do: build(:started, origin)
 
   @spec stopped(Tracer.origin() | nil, Tracer.stop_reason(), non_neg_integer(), non_neg_integer()) ::
-          map()
+          unnumbered()
   def stopped(origin, reason, traces, dropped),
     do: build(:stopped, origin, reason: reason, traces: traces, dropped: dropped)
 
   @doc "A list so that no drops add no entry to the log."
-  @spec dropped(non_neg_integer()) :: [map()]
+  @spec dropped(non_neg_integer()) :: [unnumbered()]
   def dropped(0), do: []
   def dropped(count), do: [build(:dropped, nil, count: count)]
 
-  @spec trace(map()) :: map()
+  @spec trace(map()) :: unnumbered()
   def trace(event), do: Map.put(event, :kind, :trace)
 
   defp build(kind, origin, fields \\ []) do
