@@ -14,8 +14,9 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
   sent to the AI. Set at least one limit: `max_events` (1 to 10000),
   `max_seconds` (1 to 3600) or `max_rate` (events per second, 1 to
   1000); the session stops at the first one reached. Calls, returns and
-  exceptions each count as one event, so with `return_trace` a call takes two. `pids` restricts
-  tracing to those processes ("<0.123.0>, <0.456.0>"); empty traces all of them.
+  exceptions each count as one event, so with `return_trace` a call takes
+  two. `pids` restricts tracing to those processes ("<0.123.0>, <0.456.0>");
+  empty traces all of them.
 
   Refused modules: #{Enum.map_join(Voyager.Services.Tracer.Refusals.agent_macros()[:TRACE_ALWAYS_REFUSED], ", ", &inspect/1)} and
   Voyager's agent always. On all processes also the modules called from nearly
