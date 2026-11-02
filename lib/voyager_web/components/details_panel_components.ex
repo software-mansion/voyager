@@ -519,6 +519,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :on_select, :string, required: true
   attr :target, :any, required: true
   attr :disabled, :boolean, default: false
+  attr :kind, :atom, default: :pid, values: [:pid, :port, :reference]
 
   def chip(assigns) do
     ~H"""
@@ -533,7 +534,9 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       aria-label={"Select #{@label}"}
       class="border-base-content/70 bg-base-200 text-base-content inline-flex cursor-pointer rounded-md border px-2.5 py-1 text-xs transition-colors enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-wait disabled:opacity-50"
     >
-      <.display_pid pid={@label} />
+      <.display_pid :if={@kind == :pid} pid={@label} />
+      <.display_port :if={@kind == :port} port={@label} />
+      <.display_ref :if={@kind == :reference} ref={@label} />
     </button>
     """
   end
@@ -704,6 +707,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       <.chip
         id={@id}
         label={format_identifier(@item)}
+        kind={identifier_kind(@item)}
         node_key={relation_key(@item)}
         on_select={@on_select}
         target={@target}
@@ -731,6 +735,11 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       """
     end
   end
+
+  defp identifier_kind(port) when is_port(port), do: :port
+  defp identifier_kind(ref) when is_reference(ref), do: :reference
+  defp identifier_kind({:port, _name}), do: :port
+  defp identifier_kind(_pid_or_name), do: :pid
 
   @doc """
   A single line of text with a copy button that appears on hover.
