@@ -70,4 +70,25 @@ defmodule Voyager.Services.McpClientsTest do
              cursor: false
            }
   end
+
+  test "finds executables on PATH but never looks inside privacy-protected folders", %{
+    tmp_dir: home
+  } do
+    path = System.get_env("PATH")
+    on_exit(fn -> System.put_env("PATH", path) end)
+
+    for dir <- ["bin", "Documents/bin"] do
+      File.mkdir_p!(Path.join(home, dir))
+      File.write!(Path.join([home, dir, "gemini"]), "")
+    end
+
+    System.put_env("PATH", Path.join(home, "Documents/bin"))
+    refute gemini_installed?()
+
+    System.put_env("PATH", Path.join(home, "bin"))
+    assert gemini_installed?()
+  end
+
+  defp gemini_installed?,
+    do: McpClients.all(@url) |> Enum.find(&(&1.id == :gemini)) |> Map.fetch!(:installed?)
 end

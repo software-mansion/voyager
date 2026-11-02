@@ -104,8 +104,18 @@ defmodule Voyager.Services.McpClients do
   defp detect?(:cursor),
     do: File.dir?("/Applications/Cursor.app") or executable_or_dir?("cursor", ".cursor")
 
-  defp executable_or_dir?(executable, dir) do
-    System.find_executable(executable) != nil or File.dir?(home_path(dir))
+  defp executable_or_dir?(executable, dir), do: on_path?(executable) or File.dir?(home_path(dir))
+
+  # Touching a folder macOS guards with a privacy prompt would ask the user for access.
+  @protected_dirs ["Desktop", "Documents", "Downloads", "Library/Mobile Documents"]
+
+  defp on_path?(executable) do
+    protected = Enum.map(@protected_dirs, &home_path/1)
+
+    (System.get_env("PATH") || "")
+    |> String.split(":", trim: true)
+    |> Enum.reject(fn dir -> Enum.any?(protected, &String.starts_with?(Path.expand(dir), &1)) end)
+    |> Enum.any?(&File.regular?(Path.join(&1, executable)))
   end
 
   defp added?(:claude_code, url) do
