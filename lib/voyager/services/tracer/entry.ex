@@ -28,7 +28,6 @@ defmodule Voyager.Services.Tracer.Entry do
   def stopped(origin, reason, traces, dropped),
     do: build(:stopped, origin, reason: reason, traces: traces, dropped: dropped)
 
-  @doc "A list so that no drops add no entry to the log."
   @spec dropped(non_neg_integer()) :: [unnumbered()]
   def dropped(0), do: []
   def dropped(count), do: [build(:dropped, nil, count: count)]

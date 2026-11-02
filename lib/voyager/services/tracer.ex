@@ -401,10 +401,9 @@ defmodule Voyager.Services.Tracer do
   end
 
   defp start_tracer(session, spec, limits) do
-    case Agent.call(session.node, :trace_start, [self(), spec, limits], Agent.default_timeout()) do
-      {:ok, reply} -> reply
-      {:error, reason} -> {:error, reason}
-    end
+    with {:ok, reply} <-
+           Agent.call(session.node, :trace_start, [self(), spec, limits], Agent.default_timeout()),
+         do: reply
   end
 
   defp begin_run(%{session: session} = state, tracer, origin) do
