@@ -226,41 +226,46 @@ defmodule VoyagerWeb.SettingsLiveTest do
   end
 
   describe "connect your AI" do
-    @describetag :tmp_dir
     @describetag capture_log: true
 
-    setup %{tmp_dir: home} do
+    setup do
       Voyager.MCPCase.stop_mcp()
       {:ok, _} = Settings.put(:mcp_port, Voyager.MCPCase.unique_port())
       start_supervised!({Voyager.MCP, enabled: true})
-      Application.put_env(:voyager, :mcp_clients_home, home)
-
-      on_exit(fn ->
-        Voyager.MCPCase.stop_mcp()
-        Application.delete_env(:voyager, :mcp_clients_home)
-      end)
-
-      File.mkdir_p!(Path.join(home, ".claude"))
-      %{home: home}
+      on_exit(fn -> Voyager.MCPCase.stop_mcp() end)
+      :ok
     end
 
-    test "adds and removes Voyager from a detected client", %{conn: conn, home: home} do
+    test "links each desktop app to its install deeplink", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/settings")
 
-      assert has_element?(view, "#mcp-client-claude_code-status", "Not configured")
-      assert has_element?(view, "#mcp-client-cursor-status", "Not detected")
-      refute has_element?(view, "#mcp-client-cursor-install")
-      assert has_element?(view, "#mcp-client-codex-command", "codex mcp add voyager --url")
-      assert has_element?(view, "#mcp-client-cursor-deeplink")
+      for {id, prefix} <- [
+            {"cursor", "cursor://anysphere.cursor-deeplink/mcp/install?"},
+            {"vscode", "vscode:mcp/install?"},
+            {"vscode_insiders", "vscode-insiders:mcp/install?"},
+            {"lm_studio", "lmstudio://add_mcp?"},
+            {"goose", "goose://extension?"},
+            {"kiro", "https://kiro.dev/launch/mcp/add?"}
+          ] do
+        assert has_element?(view, ~s|#mcp-app-#{id}-add[href^="#{prefix}"]|)
+      end
+    end
 
-      view |> element("#mcp-client-claude_code-install") |> render_click()
+    test "lists copyable commands for other clients", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings")
+      url = Voyager.MCP.info().url
 
-      assert has_element?(view, "#mcp-client-claude_code-status", "Configured")
-      assert File.read!(Path.join(home, ".claude.json")) =~ Voyager.MCP.info().url
+      assert has_element?(view, "#mcp-command-claude_code-command", "claude mcp add")
 
-      view |> element("#mcp-client-claude_code-remove") |> render_click()
+      assert has_element?(
+               view,
+               "#mcp-command-codex-command",
+               "codex mcp add voyager --url #{url}"
+             )
 
-      assert has_element?(view, "#mcp-client-claude_code-status", "Not configured")
+      assert has_element?(view, "#mcp-command-gemini-command", url)
+      assert has_element?(view, "#mcp-command-windsurf-command", "serverUrl")
+      assert has_element?(view, "#mcp-claude-desktop")
     end
   end
 

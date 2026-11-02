@@ -15,8 +15,6 @@ config :voyager, Voyager.Repo,
 
 config :voyager, Voyager.MCP, enabled: false
 
-config :voyager, :mcp_clients_home, Path.join(System.tmp_dir!(), "voyager_test_mcp_clients_home")
-
 config :voyager, VoyagerWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
   secret_key_base: "xadc/ex/aZLzBKM3evVVaZqtQyL16e/3cb8k81ThIB0OcCuTx0wQifiVdQFuGk6E",
