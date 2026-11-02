@@ -58,7 +58,7 @@ defmodule VoyagerWeb.Components.Shell do
       <.brand />
       <div class="@container/nav-status flex min-w-0 items-center gap-3">
         <.node_indicator session={@session} />
-        <.tracing_indicator session={@tracing_session} />
+        <.tracing_indicator session={@tracing_session} navigate={node_path(@session, "tracing")} />
       </div>
       <.link
         href={~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_url)]}"}
@@ -100,6 +100,7 @@ defmodule VoyagerWeb.Components.Shell do
   end
 
   attr :session, Tracer.Session, default: nil
+  attr :navigate, :string, default: nil
 
   defp tracing_indicator(%{session: nil} = assigns), do: ~H""
 
@@ -110,7 +111,7 @@ defmodule VoyagerWeb.Components.Shell do
     ~H"""
     <.tooltip id="tracing-indicator-tip" position="bottom" class="shrink-0">
       <.link
-        navigate={tracing_session_path(@session)}
+        navigate={@navigate || tracing_session_path(@session)}
         id="tracing-indicator"
         data-tone={@tone}
         aria-label={"Open the #{@state} tracing session, #{Formatters.format_integer(@session.traces)} traces captured"}
@@ -152,6 +153,8 @@ defmodule VoyagerWeb.Components.Shell do
         <div class="flex flex-col gap-1.5">
           <span class="font-medium">Tracing session {@state}</span>
           <dl class="grid-cols-[auto_1fr] grid gap-x-3 gap-y-0.5">
+            <dt class="text-base-content/60">Node</dt>
+            <dd id="tracing-indicator-node" class="font-mono">{@session.node}</dd>
             <dt class="text-base-content/60">Function</dt>
             <dd class="font-mono">{format_traced_mfa(@session.config)}</dd>
             <dt class="text-base-content/60">Traces</dt>
