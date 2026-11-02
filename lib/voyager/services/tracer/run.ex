@@ -2,6 +2,7 @@ defmodule Voyager.Services.Tracer.Run do
   @moduledoc false
 
   alias Voyager.Services.Tracer
+  alias Voyager.Services.Tracer.CallPairing
 
   @enforce_keys [:origin, :traces_before, :dropped_before, :dropped_logged, :started_ms]
   defstruct [
@@ -11,8 +12,7 @@ defmodule Voyager.Services.Tracer.Run do
     :dropped_logged,
     :started_ms,
     shed: 0,
-    open_calls: %{},
-    open_count: 0,
+    pairing: %CallPairing{},
     stop_request: nil
   ]
 
@@ -23,8 +23,7 @@ defmodule Voyager.Services.Tracer.Run do
           dropped_logged: non_neg_integer(),
           started_ms: integer(),
           shed: non_neg_integer(),
-          open_calls: %{{pid(), mfa()} => [integer()]},
-          open_count: non_neg_integer(),
+          pairing: CallPairing.t(),
           stop_request: {Tracer.stop_reason(), Tracer.origin() | nil} | nil
         }
 end

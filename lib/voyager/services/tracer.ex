@@ -28,6 +28,7 @@ defmodule Voyager.Services.Tracer do
   alias Voyager.Agent
   alias Voyager.Queries.TraceEntries, as: TraceEntryQueries
   alias Voyager.Queries.TraceSessions, as: TraceSessionQueries
+  alias Voyager.Services.Tracer.CallPairing
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Run
   alias Voyager.Services.Tracer.Session
@@ -37,8 +38,6 @@ defmodule Voyager.Services.Tracer do
   @topic "tracing"
   @kept_traces 500
   @max_mailbox 1_000
-  # Returns that never come would grow the open calls forever, so they reset past this.
-  @max_open_calls 10_000
   @call_timeout Agent.default_timeout() + 1_000
   @default_storage_limit_mb 100
 
@@ -380,13 +379,12 @@ defmodule Voyager.Services.Tracer do
 
     dropped = run.dropped_before + agent_dropped + shed
 
-    {open_calls, open_count} =
-      if dropped > session.dropped, do: {%{}, 0}, else: {run.open_calls, run.open_count}
+    pairing = if dropped > session.dropped, do: %CallPairing{}, else: run.pairing
 
-    {events, open_calls, open_count} =
+    {events, pairing} =
       if session.config.return_trace,
-        do: pair_returns(events, open_calls, open_count),
-        else: {events, open_calls, open_count}
+        do: CallPairing.pair(pairing, events),
+        else: {events, pairing}
 
     session = %{session | traces: session.traces + length(events), dropped: dropped}
 
@@ -396,13 +394,7 @@ defmodule Voyager.Services.Tracer do
         do: {[], run.dropped_logged},
         else: {dropped_entry(dropped - run.dropped_logged), dropped}
 
-    run = %{
-      run
-      | shed: shed,
-        open_calls: open_calls,
-        open_count: open_count,
-        dropped_logged: dropped_logged
-    }
+    run = %{run | shed: shed, pairing: pairing, dropped_logged: dropped_logged}
 
     state = %{state | session: session, run: run}
 
@@ -486,36 +478,6 @@ defmodule Voyager.Services.Tracer do
   defp storage_limit(id) do
     limit = Settings.get(:trace_storage_limit_mb, @default_storage_limit_mb) * 1_000_000
     max(limit - TraceSessionQueries.bytes_except(id), 0)
-  end
-
-  defp pair_returns(events, open_calls, open_count) do
-    {open_calls, open_count} =
-      if open_count > @max_open_calls, do: {%{}, 0}, else: {open_calls, open_count}
-
-    {events, {open_calls, open_count}} =
-      Enum.map_reduce(events, {open_calls, open_count}, &pair_return/2)
-
-    {events, open_calls, open_count}
-  end
-
-  defp pair_return(%{type: :call} = event, {open_calls, open_count}) do
-    open_calls = Map.update(open_calls, {event.pid, event.mfa}, [event.at], &[event.at | &1])
-    {event, {open_calls, open_count + 1}}
-  end
-
-  defp pair_return(event, {open_calls, open_count}) do
-    key = {event.pid, event.mfa}
-
-    case open_calls do
-      %{^key => [at | rest]} ->
-        open_calls =
-          if rest == [], do: Map.delete(open_calls, key), else: Map.put(open_calls, key, rest)
-
-        {Map.put(event, :duration_us, event.at - at), {open_calls, open_count - 1}}
-
-      _no_call ->
-        {event, {open_calls, open_count}}
-    end
   end
 
   defp loaded(row) do
