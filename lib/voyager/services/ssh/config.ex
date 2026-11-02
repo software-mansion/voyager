@@ -17,8 +17,9 @@ defmodule Voyager.Services.SSH.Config do
   @type result :: %{hosts: [host()], unsupported: [unsupported()]}
 
   @max_include_depth 16
-  @bad_include %{keyword: "include", type: :value}
-  @top_level {"host", ["*"]}
+  @bad_include {:problem, "include", :value}
+  @all_hosts {:header, ["*"]}
+  @no_hosts {:header, []}
 
   @fields %{
     "hostname" => :host_name,
@@ -37,84 +38,162 @@ defmodule Voyager.Services.SSH.Config do
 
   @spec parse(String.t()) :: result()
   def parse(contents) do
-    {lines, unsupported} = lines(contents, 0, [])
-    {settings, unsupported} = Enum.flat_map_reduce([@top_level | lines], unsupported, &setting/2)
-    blocks = blocks(settings)
+    items = Enum.map([@all_hosts | parse_file(contents, 0)], &classify/1)
 
     %{
-      hosts: blocks |> aliases() |> Enum.map(&host(&1, blocks)),
-      unsupported: unsupported |> Enum.reverse() |> Enum.uniq()
+      hosts: items |> aliases() |> Enum.map(&host(&1, items)),
+      unsupported: unsupported(items)
     }
   end
 
-  defp setting({"host", _patterns} = line, unsupported), do: {[line], unsupported}
+  defp parse_file(contents, depth) do
+    {top_level, blocks} =
+      contents
+      |> String.split("\n")
+      |> Enum.flat_map(&parse_line/1)
+      |> Enum.split_while(&(not match?({:header, _patterns}, &1)))
 
-  defp setting({"match", _criteria} = line, unsupported),
-    do: {[line], [%{keyword: "match", type: :block} | unsupported]}
+    Enum.flat_map(top_level, &expand_include(&1, depth)) ++ Enum.map(blocks, &reject_include/1)
+  end
 
-  defp setting({keyword, [arg | _rest]}, unsupported) do
-    case value(keyword, arg) do
-      {:ok, setting} -> {[setting], unsupported}
-      :error -> {[], [%{keyword: keyword, type: :value} | unsupported]}
-      :unsupported -> {[], [%{keyword: keyword, type: :keyword} | unsupported]}
+  defp parse_line(line) do
+    case String.trim(line) do
+      "" ->
+        []
+
+      <<c, _::binary>> when c in [?#, ?=] ->
+        []
+
+      trimmed ->
+        [keyword | rest] = String.split(trimmed, ~r/\s*=\s*|\s+/, parts: 2)
+        keyword = String.downcase(keyword)
+
+        case split_args(Enum.join(rest), []) do
+          {:ok, [_ | _] = args} -> directive(keyword, args)
+          {:ok, []} -> bad_value(keyword)
+          :error -> bad_value(keyword)
+        end
     end
   end
 
-  defp value("identityagent", "none"), do: {:ok, {:identity_agent, :none}}
+  defp directive("host", patterns), do: [{:header, patterns}]
+  defp directive("match", _criteria), do: [@no_hosts, {:problem, "match", :block}]
+  defp directive(keyword, args), do: [{:directive, keyword, args}]
 
-  defp value("identityagent", agent) when agent in @default_agent,
-    do: {:ok, {:identity_agent, nil}}
+  defp bad_value(keyword) when keyword in ["host", "match"],
+    do: [@no_hosts, {:problem, keyword, :value}]
 
-  defp value(keyword, arg) when is_map_key(@fields, keyword) do
-    if String.contains?(arg, ["%", "$"]), do: :error, else: field(@fields[keyword], arg)
+  defp bad_value(keyword), do: [{:problem, keyword, :value}]
+
+  defp split_args(<<c, rest::binary>>, args) when c in [?\s, ?\t], do: split_args(rest, args)
+  defp split_args("#" <> _comment, args), do: {:ok, Enum.reverse(args)}
+  defp split_args("", args), do: {:ok, Enum.reverse(args)}
+  defp split_args(rest, args), do: read_arg(rest, "", nil, args)
+
+  defp read_arg(<<?\\, c, rest::binary>>, arg, quote_char, args)
+       when c in [?', ?", ?\\] or (c == ?\s and is_nil(quote_char)),
+       do: read_arg(rest, <<arg::binary, c>>, quote_char, args)
+
+  defp read_arg(<<c, rest::binary>>, arg, nil, args) when c in [?\s, ?\t],
+    do: split_args(rest, [arg | args])
+
+  defp read_arg(<<c, rest::binary>>, arg, nil, args) when c in [?", ?'],
+    do: read_arg(rest, arg, c, args)
+
+  defp read_arg(<<quote_char, rest::binary>>, arg, quote_char, args),
+    do: read_arg(rest, arg, nil, args)
+
+  defp read_arg(<<c, rest::binary>>, arg, quote_char, args),
+    do: read_arg(rest, <<arg::binary, c>>, quote_char, args)
+
+  defp read_arg("", arg, nil, args), do: {:ok, Enum.reverse([arg | args])}
+  defp read_arg("", _arg, _quote_char, _args), do: :error
+
+  defp expand_include({:directive, "include", patterns}, depth),
+    do: Enum.flat_map(patterns, &include_pattern(&1, depth)) ++ [@all_hosts]
+
+  defp expand_include(item, _depth), do: [item]
+
+  defp reject_include({:directive, "include", _patterns}), do: {:problem, "include", :block}
+  defp reject_include(item), do: item
+
+  defp include_pattern(pattern, depth) do
+    if depth == @max_include_depth or String.contains?(pattern, ["%", "${"]) do
+      [@bad_include]
+    else
+      pattern
+      |> Path.expand("~/.ssh")
+      |> Path.wildcard()
+      |> Enum.flat_map(&include_file(&1, depth + 1))
+    end
   end
 
-  defp value(_keyword, _arg), do: :unsupported
+  defp include_file(path, depth) do
+    case File.read(path) do
+      {:ok, contents} -> parse_file(contents, depth)
+      {:error, _reason} -> [@bad_include]
+    end
+  end
 
-  defp field(:port, arg) do
+  defp classify({:directive, keyword, [arg | _rest]}), do: parse_value(keyword, arg)
+  defp classify(item), do: item
+
+  defp parse_value("identityagent", "none"), do: {:setting, :identity_agent, :none}
+
+  defp parse_value("identityagent", agent) when agent in @default_agent,
+    do: {:setting, :identity_agent, nil}
+
+  defp parse_value(keyword, arg) when is_map_key(@fields, keyword) do
+    if String.contains?(arg, ["%", "$"]),
+      do: {:problem, keyword, :value},
+      else: parse_field(@fields[keyword], arg)
+  end
+
+  defp parse_value(keyword, _arg), do: {:problem, keyword, :keyword}
+
+  defp parse_field(:port, arg) do
     case Integer.parse(arg) do
-      {port, ""} when port in 1..65_535 -> {:ok, {:port, port}}
-      _ -> :error
+      {port, ""} when port in 1..65_535 -> {:setting, :port, port}
+      _ -> {:problem, "port", :value}
     end
   end
 
-  defp field(name, path) when name in [:identity_files, :identity_agent],
-    do: {:ok, {name, Path.expand(path)}}
+  defp parse_field(name, path) when name in [:identity_files, :identity_agent],
+    do: {:setting, name, Path.expand(path)}
 
-  defp field(name, arg), do: {:ok, {name, arg}}
+  defp parse_field(name, arg), do: {:setting, name, arg}
 
-  defp blocks(settings) do
-    settings
-    |> Enum.reduce([], &block/2)
-    |> Enum.map(&%{&1 | settings: Enum.reverse(&1.settings)})
-    |> Enum.reverse()
+  defp unsupported(items) do
+    for {:problem, keyword, type} <- items, uniq: true, do: %{keyword: keyword, type: type}
   end
 
-  defp block({"host", patterns}, blocks), do: [%{patterns: patterns, settings: []} | blocks]
-  defp block({"match", _criteria}, blocks), do: [%{patterns: [], settings: []} | blocks]
-
-  defp block(setting, [block | blocks]),
-    do: [%{block | settings: [setting | block.settings]} | blocks]
-
-  defp aliases(blocks) do
-    blocks
-    |> Enum.flat_map(& &1.patterns)
-    |> Enum.reject(&String.contains?(&1, ["*", "?", "!"]))
-    |> Enum.uniq()
+  defp aliases(items) do
+    for {:header, patterns} <- items,
+        pattern <- patterns,
+        not String.contains?(pattern, ["*", "?", "!"]),
+        uniq: true,
+        do: pattern
   end
 
-  defp host(name, blocks) do
-    resolved =
-      blocks
-      |> Enum.filter(&applies?(&1.patterns, name))
-      |> Enum.flat_map(& &1.settings)
-      |> Enum.reduce(%{alias: name}, &resolve/2)
+  defp host(name, items) do
+    {_active?, resolved} = Enum.reduce(items, {false, %{alias: name}}, &apply_item(&1, &2, name))
 
     Map.merge(
       %{host_name: nil, user: nil, port: nil, identity_files: [], identity_agent: nil},
       resolved
     )
   end
+
+  defp apply_item({:header, patterns}, {_active?, host}, name),
+    do: {applies?(patterns, name), host}
+
+  defp apply_item({:setting, :identity_files, path}, {true, host}, _name),
+    do: {true, Map.update(host, :identity_files, [path], &Enum.uniq(&1 ++ [path]))}
+
+  defp apply_item({:setting, field, value}, {true, host}, _name),
+    do: {true, Map.put_new(host, field, value)}
+
+  defp apply_item(_item, state, _name), do: state
 
   defp applies?(patterns, name) do
     Enum.any?(patterns, &glob_match?(&1, name)) and
@@ -133,92 +212,4 @@ defmodule Voyager.Services.SSH.Config do
 
     Regex.match?(~r/\A#{regex}\z/, name)
   end
-
-  defp resolve({:identity_files, path}, host),
-    do: Map.update(host, :identity_files, [path], &Enum.uniq(&1 ++ [path]))
-
-  defp resolve({field, value}, host), do: Map.put_new(host, field, value)
-
-  defp lines(contents, depth, unsupported) do
-    {lines, unsupported} =
-      contents
-      |> String.split("\n")
-      |> Enum.flat_map_reduce(unsupported, &line/2)
-
-    {lines, {_in_block?, unsupported}} =
-      Enum.flat_map_reduce(lines, {false, unsupported}, &include(&1, &2, depth))
-
-    {lines, unsupported}
-  end
-
-  defp include({"include", patterns}, {false, unsupported}, depth) do
-    {lines, unsupported} =
-      Enum.flat_map_reduce(patterns, unsupported, &include_pattern(&1, &2, depth))
-
-    {lines ++ [@top_level], {false, unsupported}}
-  end
-
-  defp include({"include", _patterns}, {true, unsupported}, _depth),
-    do: {[], {true, [%{keyword: "include", type: :block} | unsupported]}}
-
-  defp include({keyword, _args} = line, {in_block?, unsupported}, _depth),
-    do: {[line], {in_block? or keyword in ["host", "match"], unsupported}}
-
-  defp include_pattern(pattern, unsupported, depth) do
-    if depth == @max_include_depth or String.contains?(pattern, ["%", "${"]) do
-      {[], [@bad_include | unsupported]}
-    else
-      pattern
-      |> Path.expand("~/.ssh")
-      |> Path.wildcard()
-      |> Enum.flat_map_reduce(unsupported, &include_file(&1, &2, depth + 1))
-    end
-  end
-
-  defp include_file(path, unsupported, depth) do
-    case File.read(path) do
-      {:ok, contents} -> lines(contents, depth, unsupported)
-      {:error, _reason} -> {[], [@bad_include | unsupported]}
-    end
-  end
-
-  defp line(line, unsupported) do
-    case String.trim(line) do
-      "" ->
-        {[], unsupported}
-
-      <<c, _::binary>> when c in [?#, ?=] ->
-        {[], unsupported}
-
-      line ->
-        [keyword | rest] = String.split(line, ~r/\s*=\s*|\s+/, parts: 2)
-        keyword = String.downcase(keyword)
-
-        case args(Enum.join(rest)) do
-          {:ok, [_ | _] = args} -> {[{keyword, args}], unsupported}
-          _ -> {broken_block(keyword), [%{keyword: keyword, type: :value} | unsupported]}
-        end
-    end
-  end
-
-  defp broken_block(keyword) when keyword in ["host", "match"], do: [{"host", []}]
-  defp broken_block(_keyword), do: []
-
-  defp args(s), do: skip(s, [])
-
-  defp skip(<<c, rest::binary>>, acc) when c in [?\s, ?\t], do: skip(rest, acc)
-  defp skip("#" <> _comment, acc), do: {:ok, Enum.reverse(acc)}
-  defp skip("", acc), do: {:ok, Enum.reverse(acc)}
-  defp skip(s, acc), do: token(s, "", nil, acc)
-
-  defp token(<<?\\, c, rest::binary>>, arg, q, acc)
-       when c in [?', ?", ?\\] or (c == ?\s and is_nil(q)),
-       do: token(rest, <<arg::binary, c>>, q, acc)
-
-  defp token(<<c, rest::binary>>, arg, nil, acc) when c in [?\s, ?\t], do: skip(rest, [arg | acc])
-  defp token(<<c, rest::binary>>, arg, nil, acc) when c in [?", ?'], do: token(rest, arg, c, acc)
-  defp token(<<q, rest::binary>>, arg, q, acc), do: token(rest, arg, nil, acc)
-  defp token(<<c, rest::binary>>, arg, q, acc), do: token(rest, <<arg::binary, c>>, q, acc)
-  defp token("", arg, nil, acc), do: {:ok, Enum.reverse([arg | acc])}
-  defp token("", _arg, _q, _acc), do: :error
 end
