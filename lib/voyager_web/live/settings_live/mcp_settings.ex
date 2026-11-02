@@ -3,6 +3,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
   use VoyagerWeb, :live_component
 
   alias Voyager.MCP
+  alias Voyager.Services.McpClients
   alias Voyager.Settings
   alias VoyagerWeb.FormSchemas.McpPort
 
@@ -17,6 +18,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
     |> assign(:enabled_locked?, Settings.locked?(:mcp_enabled))
     |> assign(:toggle_revision, 0)
     |> assign(:form, mcp_port_form())
+    |> stream_configure(:clients, dom_id: &"mcp-client-#{&1.id}")
     |> ok()
   end
 
@@ -24,6 +26,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
   def update(assigns, socket) do
     socket
     |> assign(assigns)
+    |> stream_clients()
     |> ok()
   end
 
@@ -105,6 +108,88 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
             </button>
           </div>
         </.form>
+
+        <div id="mcp-clients-section" class="border-base-200 flex flex-col gap-3 border-t pt-4">
+          <div>
+            <h4 class="text-base-content text-sm font-semibold">Connect your AI</h4>
+            <p class="text-base-content/70 mt-1 text-sm">
+              Add Voyager to the AI clients installed on this machine, or run the command yourself.
+            </p>
+          </div>
+
+          <ul id="mcp-clients" phx-update="stream" class="divide-base-200 flex flex-col divide-y">
+            <li
+              :for={{dom_id, client} <- @streams.clients}
+              id={dom_id}
+              class="flex flex-col gap-2 py-3"
+            >
+              <div class="flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                  <span class="text-base-content text-sm font-medium">{client.name}</span>
+                  <span
+                    id={"#{dom_id}-status"}
+                    class={["badge badge-sm", status_badge_class(client.status)]}
+                  >
+                    {status_label(client.status)}
+                  </span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button
+                    :if={client.status in [:missing, :outdated]}
+                    id={"#{dom_id}-install"}
+                    type="button"
+                    class={[
+                      "btn btn-sm",
+                      if(client.status == :outdated, do: "btn-warning", else: "btn-primary")
+                    ]}
+                    phx-click="install_client"
+                    phx-value-id={client.id}
+                    phx-target={@myself}
+                  >
+                    {if client.status == :outdated, do: "Update", else: "Add"}
+                  </button>
+                  <button
+                    :if={client.status in [:configured, :outdated]}
+                    id={"#{dom_id}-remove"}
+                    type="button"
+                    class="btn btn-sm btn-ghost"
+                    phx-click="remove_client"
+                    phx-value-id={client.id}
+                    phx-target={@myself}
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+              <div
+                :if={command = McpClients.cli_command(client.id, @status.url)}
+                class="bg-base-200 flex items-center gap-2 rounded-md px-2 py-1"
+              >
+                <code
+                  id={"#{dom_id}-command"}
+                  class="font-mono text-base-content/80 flex-1 truncate text-xs"
+                >
+                  {command}
+                </code>
+                <.copy_button
+                  id={"#{dom_id}-command-copy"}
+                  target={"##{dom_id}-command"}
+                  icon_only
+                  label="Copy command"
+                  size={:sm}
+                />
+              </div>
+              <a
+                :if={client.id == "cursor"}
+                id={"#{dom_id}-deeplink"}
+                href={McpClients.cursor_deeplink(@status.url)}
+                class="link link-primary w-fit text-xs"
+              >
+                Open in Cursor
+              </a>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
     """
@@ -126,6 +211,18 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
         |> assign(:toggle_revision, socket.assigns.toggle_revision + 1)
         |> noreply()
     end
+  end
+
+  def handle_event("install_client", %{"id" => id}, socket) do
+    socket
+    |> apply_client_change(McpClients.install(id, socket.assigns.status.url), "Voyager added")
+    |> noreply()
+  end
+
+  def handle_event("remove_client", %{"id" => id}, socket) do
+    socket
+    |> apply_client_change(McpClients.remove(id), "Voyager removed")
+    |> noreply()
   end
 
   def handle_event("validate_port", %{"mcp_port" => params}, socket) do
@@ -172,6 +269,29 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
         |> noreply()
     end
   end
+
+  defp apply_client_change(socket, :ok, message) do
+    socket
+    |> push_flash(:info, message)
+    |> stream_clients()
+  end
+
+  defp apply_client_change(socket, {:error, reason}, _message) do
+    push_flash(socket, :error, "Failed to update client config: #{inspect(reason)}")
+  end
+
+  defp stream_clients(socket) do
+    stream(socket, :clients, McpClients.statuses(socket.assigns.status.url), reset: true)
+  end
+
+  defp status_badge_class(:configured), do: "badge-success"
+  defp status_badge_class(:outdated), do: "badge-warning"
+  defp status_badge_class(_status), do: "badge-ghost"
+
+  defp status_label(:configured), do: "Configured"
+  defp status_label(:outdated), do: "Update available"
+  defp status_label(:missing), do: "Not configured"
+  defp status_label(:not_detected), do: "Not detected"
 
   defp mcp_port_form do
     %{"port" => Settings.get(:mcp_port, @default_port)}

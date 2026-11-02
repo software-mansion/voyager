@@ -225,6 +225,45 @@ defmodule VoyagerWeb.SettingsLiveTest do
     end
   end
 
+  describe "connect your AI" do
+    @describetag :tmp_dir
+    @describetag capture_log: true
+
+    setup %{tmp_dir: home} do
+      Voyager.MCPCase.stop_mcp()
+      {:ok, _} = Settings.put(:mcp_port, Voyager.MCPCase.unique_port())
+      start_supervised!({Voyager.MCP, enabled: true})
+      Application.put_env(:voyager, :mcp_clients_home, home)
+
+      on_exit(fn ->
+        Voyager.MCPCase.stop_mcp()
+        Application.delete_env(:voyager, :mcp_clients_home)
+      end)
+
+      File.mkdir_p!(Path.join(home, ".claude"))
+      %{home: home}
+    end
+
+    test "adds and removes Voyager from a detected client", %{conn: conn, home: home} do
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      assert has_element?(view, "#mcp-client-claude_code-status", "Not configured")
+      assert has_element?(view, "#mcp-client-cursor-status", "Not detected")
+      refute has_element?(view, "#mcp-client-cursor-install")
+      assert has_element?(view, "#mcp-client-codex-command", "codex mcp add voyager --url")
+      assert has_element?(view, "#mcp-client-cursor-deeplink")
+
+      view |> element("#mcp-client-claude_code-install") |> render_click()
+
+      assert has_element?(view, "#mcp-client-claude_code-status", "Configured")
+      assert File.read!(Path.join(home, ".claude.json")) =~ Voyager.MCP.info().url
+
+      view |> element("#mcp-client-claude_code-remove") |> render_click()
+
+      assert has_element?(view, "#mcp-client-claude_code-status", "Not configured")
+    end
+  end
+
   describe "telemetry settings" do
     setup do
       on_exit(fn -> Voyager.Telemetry.set_enabled(true) end)

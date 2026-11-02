@@ -174,6 +174,15 @@ defmodule VoyagerWeb.Components.Shell do
               />
             </div>
           </div>
+          <.link
+            id="mcp-status-connect"
+            href={
+              ~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_url)]}"
+            }
+            class="text-primary mt-2 flex w-fit items-center gap-1 font-medium underline-offset-2 hover:underline"
+          >
+            Connect AI client
+          </.link>
         <% else %>
           MCP server is not active. It can be enabled and configured in Settings.
           <.link
