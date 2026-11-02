@@ -275,15 +275,7 @@ defmodule Voyager.Services.Tracer do
       {:ok, {:ok, tracer}} ->
         Process.monitor(tracer)
 
-        session = %{
-          session
-          | tracer: tracer,
-            status: :running,
-            stop_reason: nil,
-            started_at: session.started_at || DateTime.utc_now(),
-            stopped_at: nil,
-            storage_limit: storage_limit(session.id)
-        }
+        session = Session.running(session, tracer, storage_limit(session.id))
 
         Voyager.Telemetry.dispatch!("voyager.trace.start",
           metadata:
@@ -377,13 +369,7 @@ defmodule Voyager.Services.Tracer do
   defp end_run(%{run: run} = state, reason, dropped) do
     {reason, origin} = run.stop_request || {reason, nil}
 
-    session = %{
-      state.session
-      | status: :stopped,
-        stop_reason: reason,
-        dropped: dropped,
-        stopped_at: DateTime.utc_now()
-    }
+    session = Session.stopped(state.session, reason, dropped)
 
     run_traces = session.traces - run.traces_before
     run_dropped = session.dropped - run.dropped_before
@@ -397,14 +383,11 @@ defmodule Voyager.Services.Tracer do
       metadata: %{origin: run.origin, reason: reason}
     )
 
-    state =
-      append(
-        %{state | session: session, run: nil},
-        dropped_entry(session.dropped - run.dropped_logged) ++
-          [entry(:stopped, origin, reason: reason, traces: run_traces, dropped: run_dropped)]
-      )
-
-    state
+    append(
+      %{state | session: session, run: nil},
+      dropped_entry(session.dropped - run.dropped_logged) ++
+        [entry(:stopped, origin, reason: reason, traces: run_traces, dropped: run_dropped)]
+    )
   end
 
   defp stop_over_limit(%{session: session} = state) when session.bytes > session.storage_limit,
@@ -431,23 +414,8 @@ defmodule Voyager.Services.Tracer do
     controls = TraceEntryQueries.controls(row.id)
     configured = Enum.find(controls, &(&1.kind == :configured)) || %{node: nil, config: nil}
 
-    session = %Session{
-      id: row.id,
-      origin: row.origin,
-      save: true,
-      created_at: DateTime.from_naive!(row.inserted_at, "Etc/UTC"),
-      node: configured.node,
-      config: configured.config,
-      status: row.status,
-      stop_reason: row.stop_reason,
-      traces: row.traces,
-      dropped: row.dropped,
-      bytes: row.bytes,
-      storage_limit: storage_limit(row.id),
-      seq: TraceEntryQueries.next_seq(row.id),
-      started_at: row.started_at,
-      stopped_at: row.stopped_at
-    }
+    session =
+      Session.from_row(row, configured, TraceEntryQueries.next_seq(row.id), storage_limit(row.id))
 
     broadcast({:session_activated, session})
 
