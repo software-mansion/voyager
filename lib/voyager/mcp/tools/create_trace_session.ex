@@ -159,8 +159,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
   defp start(node, content) do
     with {:ok, attrs} <- config_attrs(content),
          {:ok, _config} <- validate(attrs),
-         {:ok, _session} <- Tracer.create(:mcp),
-         {:ok, session} <- configure_and_start(node, attrs) do
+         {:ok, session} <- Tracer.create_and_start(node, attrs, :mcp) do
       Response.json(Response.tool(), %{status: "started", session_id: session.id, node: node})
     else
       {:error, %Ecto.Changeset{} = changeset} ->
@@ -175,17 +174,6 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
       {:error, reason} ->
         message = "Could not trace #{inspect(content["function"])} on #{node}: #{inspect(reason)}"
         Response.error(Response.tool(), message)
-    end
-  end
-
-  defp configure_and_start(node, attrs) do
-    with {:ok, _session} <- Tracer.configure(node, attrs, :mcp),
-         {:ok, session} <- Tracer.start(:mcp) do
-      {:ok, session}
-    else
-      error ->
-        Tracer.close()
-        error
     end
   end
 

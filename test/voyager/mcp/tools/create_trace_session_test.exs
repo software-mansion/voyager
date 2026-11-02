@@ -113,14 +113,15 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
       assert %{max_time_ms: 60_000} = Tracer.active().config
     end
 
-    test "leaves no session behind when the start fails" do
+    test "keeps the previous session when the start fails" do
+      {:ok, %{id: id}} = Tracer.create(:ui)
       {pid, ref} = spawn_monitor(fn -> :ok end)
       assert_receive {:DOWN, ^ref, :process, ^pid, :normal}
 
       content = %{"function" => "Date", "pids" => Voyager.Pid.format(pid, :distribution)}
       %{} |> execute(answered(accept(content))) |> assert_error()
 
-      assert Tracer.active() == nil
+      assert %{id: ^id} = Tracer.active()
     end
   end
 
