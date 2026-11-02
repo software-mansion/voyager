@@ -109,6 +109,23 @@ defmodule Voyager.Services.TracerTest do
              Tracer.entries(id, before: 1_000)
   end
 
+  test "publishes the session status with each change" do
+    Phoenix.PubSub.subscribe(Voyager.PubSub, Tracer.session_topic())
+
+    assert {:ok, _session} = configure()
+    assert_receive {:session_updated, %{status: :idle, config: %Config{}}}
+    assert {:ok, _session} = Tracer.start(:ui)
+    assert_receive {:session_updated, %{status: :running, traces: 0}}
+
+    Date.leap_year?(~D[2024-01-01])
+    assert_receive {:session_updated, %{status: :running, traces: 1}}, 1_000
+
+    assert :ok = Tracer.stop(:ui)
+    assert_receive {:session_updated, %{status: :stopped, traces: 1}}
+    assert :ok = Tracer.close()
+    assert_receive {:session_updated, nil}
+  end
+
   test "saves a saved session's log as it is appended, reading back what was broadcast" do
     assert {:ok, %{id: id}} = Tracer.create(:mcp, save: true)
     assert id > 0

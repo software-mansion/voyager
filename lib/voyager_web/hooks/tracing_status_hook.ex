@@ -20,7 +20,7 @@ defmodule VoyagerWeb.Hooks.TracingStatusHook do
 
     socket =
       if connected?(socket) do
-        Phoenix.PubSub.subscribe(Voyager.PubSub, Tracer.topic())
+        Phoenix.PubSub.subscribe(Voyager.PubSub, Tracer.session_topic())
         # Tracer.active/0 queues behind a run's start, which calls the remote node.
         start_async(socket, :tracing_session, &Tracer.active/0)
       else
@@ -30,14 +30,8 @@ defmodule VoyagerWeb.Hooks.TracingStatusHook do
     {:cont, socket}
   end
 
-  defp handle_tracing_status({:session_entries, session, _entries}, socket),
+  defp handle_tracing_status({:session_updated, session}, socket),
     do: {:halt, put_session(socket, session)}
-
-  defp handle_tracing_status({:session_activated, session}, socket),
-    do: {:halt, put_session(socket, session)}
-
-  defp handle_tracing_status({:session_closed, _id}, socket),
-    do: {:halt, put_session(socket, nil)}
 
   defp handle_tracing_status(_event, socket), do: {:cont, socket}
 

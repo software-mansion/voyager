@@ -48,18 +48,18 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
 
     refute has_element?(view, "#tracing-indicator")
 
-    broadcast({:session_entries, session(), []})
+    broadcast({:session_updated, session()})
     assert has_element?(view, "#tracing-indicator-count", "1,234")
 
-    broadcast({:session_entries, %{session() | traces: 2_000}, []})
+    broadcast({:session_updated, %{session() | traces: 2_000}})
     assert has_element?(view, "#tracing-indicator-count", "2,000")
 
-    broadcast({:session_entries, %{session() | status: :stopped, stop_reason: :stopped}, []})
+    broadcast({:session_updated, %{session() | status: :stopped, stop_reason: :stopped}})
     assert has_element?(view, "#tracing-indicator[data-tone=open]")
     assert has_element?(view, "#tracing-indicator-label", "Stopped")
 
-    broadcast({:session_entries, session(), []})
-    broadcast({:session_closed, 7})
+    broadcast({:session_updated, session()})
+    broadcast({:session_updated, nil})
     refute has_element?(view, "#tracing-indicator")
   end
 
@@ -113,10 +113,10 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     {:ok, view, _html} = live(conn, ~p"/node/demo@localhost")
     render_async(view)
 
-    broadcast({:session_activated, %{session() | status: :idle, node: nil, config: nil}})
+    broadcast({:session_updated, %{session() | status: :idle, node: nil, config: nil}})
     refute has_element?(view, "#tracing-indicator")
 
-    broadcast({:session_activated, %{session() | status: :idle, traces: 0}})
+    broadcast({:session_updated, %{session() | status: :idle, traces: 0}})
     assert has_element?(view, "#tracing-indicator-label", "Ready")
   end
 
@@ -133,6 +133,6 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
   end
 
   defp broadcast(message) do
-    Phoenix.PubSub.broadcast(Voyager.PubSub, Tracer.topic(), message)
+    Phoenix.PubSub.broadcast(Voyager.PubSub, Tracer.session_topic(), message)
   end
 end
