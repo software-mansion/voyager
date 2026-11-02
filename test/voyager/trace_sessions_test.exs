@@ -65,7 +65,6 @@ defmodule Voyager.TraceSessionsTest do
     assert TraceEntryQueries.page(id, since: 0, order: :asc, limit: 10) == entries
 
     assert [%{seq: 3}, %{seq: 1}, %{seq: 0}] = TraceEntryQueries.controls(id)
-    assert [%{seq: 2}] = TraceEntryQueries.traces(id, 10)
     assert TraceEntryQueries.next_seq(id) == 4
   end
 
@@ -94,7 +93,6 @@ defmodule Voyager.TraceSessionsTest do
 
     assert [0, 1, 2, 3] == seqs(TraceEntryQueries.page(id, since: 0, order: :asc, limit: 4))
     assert [4, 3, 2] == seqs(TraceEntryQueries.page(id, before: 5, limit: 3))
-    assert [4, 3] == seqs(TraceEntryQueries.traces(id, 2))
     assert [5, 0] == seqs(TraceEntryQueries.controls(id))
     assert TraceEntryQueries.next_seq(id) == 6
 

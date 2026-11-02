@@ -10,7 +10,8 @@ defmodule Voyager.Services.Tracer do
   A session is a log of entries numbered by `seq`: `:configured`, `:started`,
   `:stopped`, `:trace` (a trace event) and `:dropped` (how many events were lost
   since the previous entry). The configured, started and stopped entries and the
-  newest trace and dropped entries are kept in memory. Broadcasts on `topic/0` are
+  newest trace and dropped entries are kept in memory while a session is unsaved;
+  saved sessions are read from the database. Broadcasts on `topic/0` are
   `{:session_activated, session}`, `{:session_closed, id}` and
   `{:session_entries, session, entries}` with the entries just appended, oldest first.
 
@@ -86,7 +87,7 @@ defmodule Voyager.Services.Tracer do
     do: GenServer.call(__MODULE__, {:create, origin, Keyword.get(opts, :save, false)})
 
   @doc """
-  Makes saved session `id` active, with its config, counts and newest entries.
+  Makes saved session `id` active, with its config and counts.
   Returns `{:error, :busy}` while the active session runs.
   """
   @spec load(pos_integer()) :: {:ok, Session.t()} | {:error, :busy | :not_found}
@@ -541,13 +542,7 @@ defmodule Voyager.Services.Tracer do
 
     broadcast({:session_activated, session})
 
-    state = %__MODULE__{
-      session: session,
-      controls: controls,
-      traces: TraceEntryQueries.traces(row.id, @kept_traces)
-    }
-
-    {:reply, {:ok, session}, state}
+    {:reply, {:ok, session}, %__MODULE__{session: session}}
   end
 
   defp saved_entries(id, opts) do
