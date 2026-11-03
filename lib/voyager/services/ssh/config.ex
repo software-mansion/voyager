@@ -16,12 +16,19 @@ defmodule Voyager.Services.SSH.Config do
 
   @type result :: %{hosts: [host()], unsupported: [unsupported()]}
 
+  @typep header :: {:header, patterns :: [String.t()]}
+  @typep problem :: {:problem, keyword :: String.t(), type :: :keyword | :block | :value}
+  @typep directive :: {:directive, keyword :: String.t(), args :: [String.t(), ...]}
+  @typep setting :: {:setting, field :: atom(), value :: term()}
+  @typep line_item :: header() | problem() | directive()
+  @typep item :: header() | problem() | setting()
+
   @max_include_depth 16
   @bad_include {:problem, "include", :value}
-  @all_hosts {:header, ["*"]}
-  @no_hosts {:header, []}
+  @every_host_header {:header, ["*"]}
+  @no_host_header {:header, []}
 
-  @fields %{
+  @field_by_keyword %{
     "hostname" => :host_name,
     "user" => :user,
     "port" => :port,
@@ -29,7 +36,7 @@ defmodule Voyager.Services.SSH.Config do
     "identityagent" => :identity_agent
   }
 
-  @default_agent ["SSH_AUTH_SOCK", "$SSH_AUTH_SOCK", "${SSH_AUTH_SOCK}"]
+  @env_agent_values ["SSH_AUTH_SOCK", "$SSH_AUTH_SOCK", "${SSH_AUTH_SOCK}"]
 
   @spec read(Path.t()) :: {:ok, result()} | {:error, {:read_failed, {Path.t(), File.posix()}}}
   def read(path \\ "~/.ssh/config") do
@@ -38,15 +45,22 @@ defmodule Voyager.Services.SSH.Config do
 
   @spec parse(String.t()) :: result()
   def parse(contents) do
-    items = Enum.map([@all_hosts | parse_file(contents, 0)], &classify/1)
+    items =
+      contents
+      |> parse_contents(0)
+      |> apply_top_level_to_every_host()
+      |> Enum.map(&to_setting/1)
 
     %{
-      hosts: items |> aliases() |> Enum.map(&host(&1, items)),
+      hosts: items |> aliases() |> Enum.map(&resolve_host(&1, items)),
       unsupported: unsupported(items)
     }
   end
 
-  defp parse_file(contents, depth) do
+  defp apply_top_level_to_every_host(items), do: [@every_host_header | items]
+
+  @spec parse_contents(String.t(), non_neg_integer()) :: [line_item()]
+  defp parse_contents(contents, depth) do
     {top_level, blocks} =
       contents
       |> String.split("\n")
@@ -58,59 +72,37 @@ defmodule Voyager.Services.SSH.Config do
 
   defp parse_line(line) do
     case String.trim(line) do
-      "" ->
-        []
-
-      <<c, _::binary>> when c in [?#, ?=] ->
-        []
-
-      trimmed ->
-        [keyword | rest] = String.split(trimmed, ~r/\s*=\s*|\s+/, parts: 2)
-        keyword = String.downcase(keyword)
-
-        case split_args(Enum.join(rest), []) do
-          {:ok, [_ | _] = args} -> directive(keyword, args)
-          {:ok, []} -> bad_value(keyword)
-          :error -> bad_value(keyword)
-        end
+      "" -> []
+      <<c, _::binary>> when c in [?#, ?=] -> []
+      trimmed -> parse_keyword_line(trimmed)
     end
   end
 
-  defp directive("host", patterns), do: [{:header, patterns}]
-  defp directive("match", _criteria), do: [@no_hosts, {:problem, "match", :block}]
-  defp directive(keyword, args), do: [{:directive, keyword, args}]
+  defp parse_keyword_line(line) do
+    case String.split(line, ~r/\s*=\s*|\s+/, parts: 2) do
+      [keyword] -> bad_value(String.downcase(keyword))
+      [keyword, raw_args] -> parse_args(String.downcase(keyword), raw_args)
+    end
+  end
+
+  defp parse_args(keyword, raw_args) do
+    case split_args(raw_args, []) do
+      {:ok, [_ | _] = args} -> line_items(keyword, args)
+      _no_args -> bad_value(keyword)
+    end
+  end
+
+  defp line_items("host", patterns), do: [{:header, patterns}]
+  defp line_items("match", _criteria), do: [@no_host_header, {:problem, "match", :block}]
+  defp line_items(keyword, args), do: [{:directive, keyword, args}]
 
   defp bad_value(keyword) when keyword in ["host", "match"],
-    do: [@no_hosts, {:problem, keyword, :value}]
+    do: [@no_host_header, {:problem, keyword, :value}]
 
   defp bad_value(keyword), do: [{:problem, keyword, :value}]
 
-  defp split_args(<<c, rest::binary>>, args) when c in [?\s, ?\t], do: split_args(rest, args)
-  defp split_args("#" <> _comment, args), do: {:ok, Enum.reverse(args)}
-  defp split_args("", args), do: {:ok, Enum.reverse(args)}
-  defp split_args(rest, args), do: read_arg(rest, "", nil, args)
-
-  defp read_arg(<<?\\, c, rest::binary>>, arg, quote_char, args)
-       when c in [?', ?", ?\\] or (c == ?\s and is_nil(quote_char)),
-       do: read_arg(rest, <<arg::binary, c>>, quote_char, args)
-
-  defp read_arg(<<c, rest::binary>>, arg, nil, args) when c in [?\s, ?\t],
-    do: split_args(rest, [arg | args])
-
-  defp read_arg(<<c, rest::binary>>, arg, nil, args) when c in [?", ?'],
-    do: read_arg(rest, arg, c, args)
-
-  defp read_arg(<<quote_char, rest::binary>>, arg, quote_char, args),
-    do: read_arg(rest, arg, nil, args)
-
-  defp read_arg(<<c, rest::binary>>, arg, quote_char, args),
-    do: read_arg(rest, <<arg::binary, c>>, quote_char, args)
-
-  defp read_arg("", arg, nil, args), do: {:ok, Enum.reverse([arg | args])}
-  defp read_arg("", _arg, _quote_char, _args), do: :error
-
   defp expand_include({:directive, "include", patterns}, depth),
-    do: Enum.flat_map(patterns, &include_pattern(&1, depth)) ++ [@all_hosts]
+    do: Enum.flat_map(patterns, &include_pattern(&1, depth)) ++ [@every_host_header]
 
   defp expand_include(item, _depth), do: [item]
 
@@ -130,38 +122,42 @@ defmodule Voyager.Services.SSH.Config do
 
   defp include_file(path, depth) do
     case File.read(path) do
-      {:ok, contents} -> parse_file(contents, depth)
+      {:ok, contents} -> parse_contents(contents, depth)
       {:error, _reason} -> [@bad_include]
     end
   end
 
-  defp classify({:directive, keyword, [arg | _rest]}), do: parse_value(keyword, arg)
-  defp classify(item), do: item
+  @spec to_setting(line_item()) :: item()
+  defp to_setting({:directive, "identityagent", ["none" | _rest]}),
+    do: {:setting, :identity_agent, :none}
 
-  defp parse_value("identityagent", "none"), do: {:setting, :identity_agent, :none}
+  defp to_setting({:directive, "identityagent", [agent | _rest]})
+       when agent in @env_agent_values,
+       do: {:setting, :identity_agent, nil}
 
-  defp parse_value("identityagent", agent) when agent in @default_agent,
-    do: {:setting, :identity_agent, nil}
-
-  defp parse_value(keyword, arg) when is_map_key(@fields, keyword) do
-    if String.contains?(arg, ["%", "$"]),
-      do: {:problem, keyword, :value},
-      else: parse_field(@fields[keyword], arg)
+  defp to_setting({:directive, keyword, [arg | _rest]})
+       when is_map_key(@field_by_keyword, keyword) do
+    if String.contains?(arg, ["%", "$"]) do
+      {:problem, keyword, :value}
+    else
+      parse_field(keyword, arg)
+    end
   end
 
-  defp parse_value(keyword, _arg), do: {:problem, keyword, :keyword}
+  defp to_setting({:directive, keyword, _args}), do: {:problem, keyword, :keyword}
+  defp to_setting(item), do: item
 
-  defp parse_field(:port, arg) do
+  defp parse_field("port", arg) do
     case Integer.parse(arg) do
       {port, ""} when port in 1..65_535 -> {:setting, :port, port}
       _ -> {:problem, "port", :value}
     end
   end
 
-  defp parse_field(name, path) when name in [:identity_files, :identity_agent],
-    do: {:setting, name, Path.expand(path)}
+  defp parse_field(keyword, path) when keyword in ["identityfile", "identityagent"],
+    do: {:setting, @field_by_keyword[keyword], Path.expand(path)}
 
-  defp parse_field(name, arg), do: {:setting, name, arg}
+  defp parse_field(keyword, arg), do: {:setting, @field_by_keyword[keyword], arg}
 
   defp unsupported(items) do
     for {:problem, keyword, type} <- items, uniq: true, do: %{keyword: keyword, type: type}
@@ -175,8 +171,11 @@ defmodule Voyager.Services.SSH.Config do
         do: pattern
   end
 
-  defp host(name, items) do
-    {_active?, resolved} = Enum.reduce(items, {false, %{alias: name}}, &apply_item(&1, &2, name))
+  defp resolve_host(host_alias, items) do
+    resolved =
+      items
+      |> settings_for(host_alias)
+      |> Enum.reduce(%{alias: host_alias}, &merge_setting/2)
 
     Map.merge(
       %{host_name: nil, user: nil, port: nil, identity_files: [], identity_agent: nil},
@@ -184,32 +183,68 @@ defmodule Voyager.Services.SSH.Config do
     )
   end
 
-  defp apply_item({:header, patterns}, {_active?, host}, name),
-    do: {applies?(patterns, name), host}
+  @spec settings_for([item()], String.t()) :: [setting()]
+  defp settings_for(items, host_alias) do
+    {settings, _active?} =
+      Enum.flat_map_reduce(items, false, fn
+        {:header, patterns}, _active? -> {[], applies?(patterns, host_alias)}
+        {:setting, _field, _value} = setting, true -> {[setting], true}
+        _item, active? -> {[], active?}
+      end)
 
-  defp apply_item({:setting, :identity_files, path}, {true, host}, _name),
-    do: {true, Map.update(host, :identity_files, [path], &Enum.uniq(&1 ++ [path]))}
+    settings
+  end
 
-  defp apply_item({:setting, field, value}, {true, host}, _name),
-    do: {true, Map.put_new(host, field, value)}
+  defp merge_setting({:setting, :identity_files, path}, host),
+    do: Map.update(host, :identity_files, [path], &Enum.uniq(&1 ++ [path]))
 
-  defp apply_item(_item, state, _name), do: state
+  defp merge_setting({:setting, field, value}, host), do: Map.put_new(host, field, value)
 
-  defp applies?(patterns, name) do
-    Enum.any?(patterns, &glob_match?(&1, name)) and
+  defp applies?(patterns, host_alias) do
+    Enum.any?(patterns, &glob_match?(&1, host_alias)) and
       not Enum.any?(patterns, fn
-        "!" <> pattern -> glob_match?(pattern, name)
+        "!" <> pattern -> glob_match?(pattern, host_alias)
         _pattern -> false
       end)
   end
 
-  defp glob_match?(pattern, name) do
+  defp glob_match?(pattern, host_alias) do
     regex =
       pattern
       |> Regex.escape()
       |> String.replace("\\*", ".*")
       |> String.replace("\\?", ".")
 
-    Regex.match?(~r/\A#{regex}\z/, name)
+    Regex.match?(~r/\A#{regex}\z/, host_alias)
   end
+
+  defp split_args(<<c, rest::binary>>, args) when c in [?\s, ?\t], do: split_args(rest, args)
+  defp split_args("#" <> _comment, args), do: {:ok, Enum.reverse(args)}
+  defp split_args("", args), do: {:ok, Enum.reverse(args)}
+  defp split_args(rest, args), do: read_unquoted(rest, "", args)
+
+  defp read_unquoted(<<?\\, c, rest::binary>>, arg, args) when c in [?', ?", ?\\, ?\s],
+    do: read_unquoted(rest, <<arg::binary, c>>, args)
+
+  defp read_unquoted(<<c, rest::binary>>, arg, args) when c in [?\s, ?\t],
+    do: split_args(rest, [arg | args])
+
+  defp read_unquoted(<<c, rest::binary>>, arg, args) when c in [?", ?'],
+    do: read_quoted(rest, arg, c, args)
+
+  defp read_unquoted(<<c, rest::binary>>, arg, args),
+    do: read_unquoted(rest, <<arg::binary, c>>, args)
+
+  defp read_unquoted("", arg, args), do: {:ok, Enum.reverse([arg | args])}
+
+  defp read_quoted(<<?\\, c, rest::binary>>, arg, quote_char, args) when c in [?', ?", ?\\],
+    do: read_quoted(rest, <<arg::binary, c>>, quote_char, args)
+
+  defp read_quoted(<<c, rest::binary>>, arg, quote_char, args) when c == quote_char,
+    do: read_unquoted(rest, arg, args)
+
+  defp read_quoted(<<c, rest::binary>>, arg, quote_char, args),
+    do: read_quoted(rest, <<arg::binary, c>>, quote_char, args)
+
+  defp read_quoted("", _arg, _quote_char, _args), do: :error
 end
