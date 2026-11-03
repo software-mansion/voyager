@@ -286,6 +286,32 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       refute has_element?(view, "#details-panel", "Failed to load node details.")
     end
 
+    test "a failed refresh replaces the shown details with the error", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      link_pids: link_pids,
+      sup_key: sup_key
+    } do
+      expect_supervision_erpc(13, sup_pid, [port], link_pids)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      assert has_element?(view, "#details-panel", "1,234")
+
+      start_supervised!({RateLimiter, name: EmptyBucket, config: %{high_capacity: 0}})
+      Application.put_env(:voyager, :rate_limiter, EmptyBucket)
+      on_exit(fn -> Application.delete_env(:voyager, :rate_limiter) end)
+
+      view |> element("#details-panel-refresh") |> render_click()
+      render_async(view)
+
+      assert has_element?(view, "#details-panel", "Too many requests.")
+      refute has_element?(view, "#details-panel", "1,234")
+    end
+
     test "refresh re-fetches links", %{
       conn: conn,
       sup_pid: sup_pid,
