@@ -256,7 +256,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
 
   defp log_row(%{entry: %{kind: :trace}} = assigns) do
     ~H"""
-    <tr id={@id} class="hover:bg-base-content/3">
+    <tr id={@id} class="h-11 hover:bg-base-content/3">
       <td class="font-mono text-base-content/70 truncate py-2 text-sm">{format_at(@entry.at)}</td>
       <td class="py-2">
         <ProcessComponents.pid_cell
@@ -312,7 +312,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
       )
 
     ~H"""
-    <tr id={@id} class={@row_class}>
+    <tr id={@id} class={["h-11", @row_class]}>
       <td colspan={if @durations?, do: 4, else: 3} class="py-2">
         <div class="flex items-center gap-2">
           <.icon name={@icon} class={["size-4 shrink-0", @icon_class]} />
