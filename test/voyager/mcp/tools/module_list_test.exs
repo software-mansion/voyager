@@ -150,13 +150,13 @@ defmodule Voyager.MCP.Tools.ModuleListTest do
     test "rejects a module that is not loaded" do
       stub_modules()
 
-      assert error(%{"module" => "Nope"}) =~ "not_loaded"
+      assert error(%{"module" => "Nope"}) =~ "`Nope` is not loaded"
     end
 
     test "rejects a refused module" do
       stub_modules()
 
-      assert error(%{"module" => ":trace"}) =~ "refused"
+      assert error(%{"module" => ":trace"}) =~ "`:trace` can never be traced"
     end
   end
 
