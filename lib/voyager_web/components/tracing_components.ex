@@ -78,6 +78,11 @@ defmodule VoyagerWeb.Components.TracingComponents do
   def stop_reason_label(:node_down), do: "Node went down"
   def stop_reason_label({:tracer_down, _reason}), do: "Remote tracer crashed"
 
+  @spec format_elapsed(non_neg_integer()) :: String.t()
+  def format_elapsed(seconds),
+    do:
+      "#{div(seconds, 60)}:#{seconds |> rem(60) |> Integer.to_string() |> String.pad_leading(2, "0")}"
+
   @spec traced_mfa(Config.t()) :: String.t()
   def traced_mfa(%Config{module: module, function: function, arity: arity}),
     do: "#{format_module(module)}.#{function}/#{arity || "_"}"

@@ -11,10 +11,13 @@ defmodule VoyagerWeb.TracingSessionLive do
   alias Voyager.Services.Tracer.Session
   alias VoyagerWeb.Components.TracingComponents
   alias VoyagerWeb.Formatters
+  alias VoyagerWeb.TracingSessionLive.Stats
 
   @actions [:stop, :start, :load, :delete]
   @row_limit 200
   @flush_ms 250
+  @tick_ms 1_000
+  @rate_history 10
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -37,6 +40,10 @@ defmodule VoyagerWeb.TracingSessionLive do
         |> assign(:newest_seq, nil)
         |> assign(:oldest_seq, 0)
         |> assign(:held_kinds, [])
+        |> assign(:rates, [])
+        |> assign(:previous_traces, 0)
+        |> assign(:tick_scheduled?, false)
+        |> assign(:storage_limit_mb, Tracer.storage_limit_mb())
         |> stream_configure(:entries, dom_id: &entry_dom_id/1)
         |> stream(:entries, [])
         |> subscribe_and_load()
@@ -178,6 +185,43 @@ defmodule VoyagerWeb.TracingSessionLive do
             >
               <.icon name="icon-trash" class="size-3.5" />
             </button>
+          </div>
+        </div>
+        <div
+          :if={@trace_session.run_started_at}
+          id="session-stats"
+          class="border-base-200 grid grid-cols-5 border-t"
+        >
+          <div
+            :for={cell <- Stats.cells(@trace_session, @rates, @now, @storage_limit_mb)}
+            id={"stat-#{cell.key}"}
+            class="border-base-200 min-w-0 border-r px-5 py-3 last:border-r-0"
+          >
+            <div class="font-mono tracking-label text-base-content/70 mb-1 text-xs font-semibold uppercase">
+              {cell.label}
+            </div>
+            <div class="min-h-5 flex items-center gap-2">
+              <span class={["font-mono truncate text-base font-semibold", cell[:tone]]}>
+                {cell.value}
+              </span>
+              <span class="font-mono text-base-content/70 shrink-0 text-xs">{cell[:unit]}</span>
+              <span
+                :if={cell[:bar]}
+                class="bg-base-content/10 min-w-8 h-1 flex-1 overflow-hidden rounded-full"
+              >
+                <span
+                  class={["block h-full rounded-full", cell[:fill] || "bg-primary"]}
+                  style={"width: #{cell.bar}%"}
+                ></span>
+              </span>
+              <span :if={cell[:spark]} aria-hidden="true" class="ml-auto flex h-5 items-end gap-0.5">
+                <span
+                  :for={height <- cell.spark}
+                  class="bg-primary w-0.75 rounded-xs opacity-55 last:opacity-100"
+                  style={"height: #{height}%"}
+                ></span>
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -358,6 +402,18 @@ defmodule VoyagerWeb.TracingSessionLive do
   def handle_info(:flush_log, socket),
     do: socket |> assign(:flush_scheduled?, false) |> flush() |> noreply()
 
+  def handle_info(:tick, socket) do
+    %{trace_session: %Session{traces: traces}, previous_traces: previous} = socket.assigns
+
+    socket
+    |> assign(:tick_scheduled?, false)
+    |> assign(:now, DateTime.utc_now())
+    |> update(:rates, &Enum.take(&1 ++ [traces - previous], -@rate_history))
+    |> assign(:previous_traces, traces)
+    |> tick()
+    |> noreply()
+  end
+
   def handle_info({:session_closed, id}, %{assigns: %{id: id}} = socket),
     do: socket |> gone() |> noreply()
 
@@ -400,12 +456,35 @@ defmodule VoyagerWeb.TracingSessionLive do
         else: load_page(socket)
 
     socket
+    |> reset_rates(shown, session)
     |> assign(:loading?, false)
     |> assign(:trace_session, session)
     |> assign(:mode, mode)
     |> assign(:failed?, false)
     |> assign(:now, DateTime.utc_now())
+    |> tick()
   end
+
+  defp reset_rates(socket, %Session{run_started_at: run}, %Session{run_started_at: run}),
+    do: socket
+
+  defp reset_rates(socket, _shown, session),
+    do: socket |> assign(:rates, []) |> assign(:previous_traces, session.traces)
+
+  defp tick(
+         %{
+           assigns: %{
+             tick_scheduled?: false,
+             mode: :active,
+             trace_session: %Session{status: :running}
+           }
+         } = socket
+       ) do
+    Process.send_after(self(), :tick, @tick_ms)
+    assign(socket, :tick_scheduled?, true)
+  end
+
+  defp tick(socket), do: socket
 
   defp load_page(socket) do
     id = socket.assigns.id
@@ -536,17 +615,13 @@ defmodule VoyagerWeb.TracingSessionLive do
   end
 
   defp elapsed(%Session{status: :running, run_started_at: %DateTime{} = started}, now),
-    do: format_elapsed(DateTime.diff(now, started))
+    do: TracingComponents.format_elapsed(DateTime.diff(now, started))
 
   defp elapsed(%Session{status: :stopped, run_started_at: %DateTime{} = started} = session, _now)
        when not is_nil(session.stopped_at),
-       do: format_elapsed(DateTime.diff(session.stopped_at, started))
+       do: TracingComponents.format_elapsed(DateTime.diff(session.stopped_at, started))
 
   defp elapsed(_session, _now), do: nil
-
-  defp format_elapsed(seconds),
-    do:
-      "#{div(seconds, 60)}:#{seconds |> rem(60) |> Integer.to_string() |> String.pad_leading(2, "0")}"
 
   defp chips(%Session{config: nil, save: save}),
     do: [{:storage, "Storage", if(save, do: "Saved", else: "Not saved")}]
