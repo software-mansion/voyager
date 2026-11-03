@@ -6,7 +6,7 @@ defmodule Voyager.Services.SSH.KnownHosts do
 
   Hosts are looked up and pinned by `key_cb_private[:host]`, the name the user
   connected to. User keys are delegated to the module in
-  `key_cb_private[:user_key_cb]`. A failed check also sends `{ref, reason}` to
+  `key_cb_private[:user_key_cb]`. A failed check or pin also sends `{ref, reason}` to
   the `key_cb_private[:notify]` `{pid, ref}`.
   """
 
@@ -25,8 +25,7 @@ defmodule Voyager.Services.SSH.KnownHosts do
         false
 
       {:error, reason} = error ->
-        {pid, ref} = opts[:key_cb_private][:notify]
-        send(pid, {ref, reason})
+        notify(opts, reason)
         error
     end
   end
@@ -35,7 +34,17 @@ defmodule Voyager.Services.SSH.KnownHosts do
   def add_host_key(_hosts, port, key, opts) do
     hostnames = [String.to_charlist(name(port, opts))]
     line = :ssh_file.encode([{key, [hostnames: hostnames]}], :known_hosts)
-    LocalFiles.write(path(), line, [:append])
+    path = path()
+
+    with {:error, _reason} = error <- LocalFiles.write(path, line, [:append]) do
+      notify(opts, {:known_hosts_unwritable, path})
+      error
+    end
+  end
+
+  defp notify(opts, reason) do
+    {pid, ref} = opts[:key_cb_private][:notify]
+    send(pid, {ref, reason})
   end
 
   @impl true

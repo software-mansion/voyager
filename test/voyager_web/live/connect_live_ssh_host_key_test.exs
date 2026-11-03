@@ -124,4 +124,24 @@ defmodule VoyagerWeb.ConnectLiveSshHostKeyTest do
     refute has_element?(view, "#ssh-host-key-modal")
     assert has_element?(view, "#ssh_ssh_host.input-error")
   end
+
+  test "marks the host when the trusted key can't be saved", %{
+    conn: conn,
+    server: server,
+    known_hosts: known_hosts
+  } do
+    File.write!(known_hosts, "")
+    File.chmod!(known_hosts, 0o400)
+    on_exit(fn -> File.chmod(known_hosts, 0o600) end)
+
+    {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
+    submit_connect(view, server)
+
+    view |> element("#ssh-host-key-modal-accept") |> render_click()
+    render_async(view, 2_000)
+
+    refute has_element?(view, "#ssh-host-key-modal")
+    assert has_element?(view, "#ssh_ssh_host.input-error")
+    refute has_element?(view, "#ssh_ssh_user.input-error")
+  end
 end

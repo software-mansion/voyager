@@ -527,7 +527,12 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   defp error_field({:invalid_host, _}), do: :ssh_host
 
   defp error_field({reason, _file})
-       when reason in [:host_key_mismatch, :host_key_revoked, :known_hosts_unreadable],
+       when reason in [
+              :host_key_mismatch,
+              :host_key_revoked,
+              :known_hosts_unreadable,
+              :known_hosts_unwritable
+            ],
        do: :ssh_host
 
   defp error_field(reason) when is_list(reason), do: :ssh_user

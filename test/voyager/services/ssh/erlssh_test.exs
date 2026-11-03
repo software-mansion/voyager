@@ -99,6 +99,19 @@ defmodule Voyager.Services.SSH.ErlsshTest do
       assert {:error, {:host_key_mismatch, ^known_hosts}} = connect(port)
     end
 
+    test "fails when the accepted key can't be pinned", ctx do
+      %{port: port, fingerprint: fingerprint} = SshServer.start!(@loopback)
+      File.mkdir_p!(Path.dirname(ctx.known_hosts))
+      File.write!(ctx.known_hosts, "")
+      File.chmod!(ctx.known_hosts, 0o400)
+      on_exit(fn -> File.chmod(ctx.known_hosts, 0o600) end)
+
+      known_hosts = ctx.known_hosts
+
+      assert {:error, {:known_hosts_unwritable, ^known_hosts}} =
+               connect(port, host_key: fingerprint)
+    end
+
     test "pins and checks the host name connected to, not its IP", ctx do
       %{port: port, fingerprint: fingerprint} = SshServer.start!(@loopback)
 

@@ -54,6 +54,9 @@ defmodule Voyager.NodeSession.ConnectError do
   def message({:host_key_revoked, file}), do: "This SSH host key is revoked in #{file}"
   def message({:known_hosts_unreadable, file}), do: "Can't read #{file}"
 
+  def message({:known_hosts_unwritable, file}),
+    do: "Can't save the host key to #{file} — check its permissions"
+
   def message(:etimedout), do: "Connection timed out — check the SSH host and port"
   def message(:econnrefused), do: "Connection refused — check the SSH host and port"
   def message(:nxdomain), do: "Host not found — check the SSH hostname"
