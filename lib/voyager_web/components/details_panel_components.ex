@@ -628,7 +628,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :target, :any, required: true
   attr :chips_disabled?, :boolean, default: false
 
-  def relation_list(assigns) do
+  defp relation_list(assigns) do
     limit = if assigns.expanded?, do: @max_expanded_links, else: @max_links
 
     # Only the slice that gets rendered: a process can hold thousands of links
