@@ -101,7 +101,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   def handle_event("refresh-node-info", _params, socket) do
     socket
-    |> fetch_details(false)
+    |> fetch_details(true)
     |> noreply()
   end
 
