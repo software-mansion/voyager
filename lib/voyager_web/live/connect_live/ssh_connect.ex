@@ -14,6 +14,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   alias VoyagerWeb.ConnectLive.KeyAuth
   alias VoyagerWeb.ConnectLive.RecentConnections
   alias VoyagerWeb.ConnectLive.SecretVisibility
+  alias VoyagerWeb.ConnectLive.SshConfigImport
   alias VoyagerWeb.FormSchemas.SshConnectionParams
 
   @id_prefix "ssh-"
@@ -45,6 +46,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     |> assign(:ssh_form, form)
     |> SecretVisibility.init()
     |> KeyAuth.init()
+    |> SshConfigImport.init()
     |> assign(:show_ssh_advanced, agent_socket_set?(form))
     |> RecentConnections.init(
       queries: SshConnectionQueries,

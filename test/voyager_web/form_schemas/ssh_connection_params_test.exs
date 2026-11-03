@@ -14,6 +14,20 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParamsTest do
     }
   end
 
+  defp host(attrs \\ %{}) do
+    Map.merge(
+      %{
+        alias: "prod",
+        host_name: nil,
+        user: nil,
+        port: nil,
+        identity_files: [],
+        identity_agent: nil
+      },
+      attrs
+    )
+  end
+
   describe "changeset/1" do
     test "accepts valid attrs" do
       changeset = SshConnectionParams.changeset(valid_attrs())
@@ -176,6 +190,56 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParamsTest do
 
       assert SshConnectionParams.to_auth(%{params | passphrase: "pw"}) ==
                {:key, "~/.ssh/id_rsa", "pw"}
+    end
+  end
+
+  describe "params_from_host/1" do
+    test "uses host_name for ssh_host" do
+      params = SshConnectionParams.params_from_host(host(%{host_name: "10.0.0.5"}))
+      assert params["ssh_host"] == "10.0.0.5"
+    end
+
+    test "falls back to the alias for ssh_host" do
+      assert SshConnectionParams.params_from_host(host())["ssh_host"] == "prod"
+    end
+
+    test "uses user for ssh_user, blank when unset" do
+      assert SshConnectionParams.params_from_host(host(%{user: "deploy"}))["ssh_user"] == "deploy"
+      assert SshConnectionParams.params_from_host(host())["ssh_user"] == ""
+    end
+
+    test "uses port for ssh_port, 22 when unset" do
+      assert SshConnectionParams.params_from_host(host(%{port: 2222}))["ssh_port"] == "2222"
+      assert SshConnectionParams.params_from_host(host())["ssh_port"] == "22"
+    end
+
+    test "uses the first identity file for key_path, blank when there is none" do
+      params = SshConnectionParams.params_from_host(host(%{identity_files: ["/k/a", "/k/b"]}))
+
+      assert params["key_path"] == "/k/a"
+      assert SshConnectionParams.params_from_host(host())["key_path"] == ""
+    end
+
+    test "uses an identity_agent path for agent_socket_path" do
+      params = SshConnectionParams.params_from_host(host(%{identity_agent: "/a/agent.sock"}))
+      assert params["agent_socket_path"] == "/a/agent.sock"
+    end
+
+    test "leaves agent_socket_path blank for identity_agent none and nil" do
+      params = SshConnectionParams.params_from_host(host(%{identity_agent: :none}))
+
+      assert params["agent_socket_path"] == ""
+      assert SshConnectionParams.params_from_host(host())["agent_socket_path"] == ""
+    end
+
+    test "fills both key_path and agent_socket_path and does not set auth_method" do
+      params =
+        SshConnectionParams.params_from_host(
+          host(%{identity_files: ["/k/a"], identity_agent: "/a/agent.sock"})
+        )
+
+      assert %{"key_path" => "/k/a", "agent_socket_path" => "/a/agent.sock"} = params
+      refute Map.has_key?(params, "auth_method")
     end
   end
 end
