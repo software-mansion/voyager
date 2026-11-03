@@ -103,9 +103,16 @@ defmodule VoyagerWeb.Components.TracingComponents do
     default: nil,
     doc: "function from a pid to its process page; nil for plain pids"
 
+  attr :search, :map,
+    default: nil,
+    doc:
+      "the shown search: `query`, `total`, `shown`, `oldest_seq` and the `traces` it covered; nil for the live list"
+
+  attr :search_form, Phoenix.HTML.Form, required: true
   attr :on_pause, :string, required: true
   attr :on_resume, :string, required: true
   attr :on_older, :string, required: true
+  attr :on_search, :string, required: true
 
   def log(assigns) do
     config = assigns.trace_session.config
@@ -124,24 +131,51 @@ defmodule VoyagerWeb.Components.TracingComponents do
         <div class="flex items-center gap-2">
           <h2 class="text-sm font-semibold">Events</h2>
           <span
-            :if={@live? and not @paused?}
+            :if={@live? and not @paused? and is_nil(@search)}
             id="log-live"
             class="badge badge-sm badge-soft badge-success font-mono"
           >
             live
           </span>
-          <span :if={@paused?} id="log-paused" class="badge badge-sm badge-ghost font-mono">
+          <span
+            :if={@paused? and is_nil(@search)}
+            id="log-paused"
+            class="badge badge-sm badge-ghost font-mono"
+          >
             paused
           </span>
-          <span :if={@paused?} id="log-new-count" class="text-base-content/70 text-xs">
+          <span
+            :if={@paused? and is_nil(@search)}
+            id="log-new-count"
+            class="text-base-content/70 text-xs"
+          >
             {Formatters.format_integer(@new_count)} new {if @new_count == 1,
               do: "event",
               else: "events"}
           </span>
         </div>
         <div class="flex items-center gap-2">
+          <.form
+            for={@search_form}
+            id="log-search-form"
+            phx-change={@on_search}
+            phx-submit={@on_search}
+          >
+            <label class="input input-sm w-80">
+              <.icon name="icon-search" class="text-base-content/60 size-4" />
+              <input
+                id="log-search"
+                type="search"
+                name={@search_form[:query].name}
+                value={@search_form[:query].value}
+                phx-debounce="300"
+                placeholder={search_placeholder(@trace_session)}
+                aria-label="Search traces"
+              />
+            </label>
+          </.form>
           <button
-            :if={@live? and not @paused?}
+            :if={@live? and not @paused? and is_nil(@search)}
             type="button"
             id="log-pause"
             phx-click={@on_pause}
@@ -150,7 +184,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
             <.icon name="icon-pause" class="size-3.5" /> Pause view
           </button>
           <button
-            :if={@paused?}
+            :if={@paused? and is_nil(@search)}
             type="button"
             id="log-resume"
             phx-click={@on_resume}
@@ -180,19 +214,27 @@ defmodule VoyagerWeb.Components.TracingComponents do
               durations?={@durations?}
               wildcard?={@wildcard?}
               pid_href={@pid_href}
+              query={@search && @search.query}
             />
           </tbody>
         </table>
+        <p
+          :if={@search && @search.total == 0}
+          id="log-no-matches"
+          class="text-base-content/70 py-6 text-center text-sm"
+        >
+          No traces match the search.
+        </p>
       </div>
       <div
         id="log-footer"
         class="border-base-200 min-h-11 flex flex-none items-center justify-between gap-3 border-t px-5 py-1.5"
       >
         <p class="text-base-content/70 text-xs">
-          {footer(@trace_session, @trace_rows, @oldest_seq)}
+          {footer(@search, @trace_session, @trace_rows, @oldest_seq)}
         </p>
         <button
-          :if={@oldest_seq > 0}
+          :if={older?(@search, @oldest_seq)}
           type="button"
           id="log-older"
           phx-click={@on_older}
@@ -210,6 +252,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
   attr :durations?, :boolean, required: true
   attr :wildcard?, :boolean, required: true
   attr :pid_href, :any, required: true
+  attr :query, :string, default: nil
 
   defp log_row(%{entry: %{kind: :trace}} = assigns) do
     ~H"""
@@ -238,7 +281,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
             <span :if={@wildcard? and @entry.type != :call} class="text-base-content/50 mr-1">
               {fun_arity(@entry.mfa)}
             </span>
-            <span class={term_class(@entry.type)}>{term_text(@entry, @wildcard?)}</span>
+            <span class={term_class(@entry.type)}>{highlight(term_text(@entry, @wildcard?), @query)}</span>
           </span>
           <.icon
             :if={@entry[:truncated]}
@@ -350,6 +393,32 @@ defmodule VoyagerWeb.Components.TracingComponents do
       else: text
   end
 
+  defp highlight(text, nil), do: text
+
+  defp highlight(text, query) do
+    {parts, from} =
+      text
+      |> String.downcase(:ascii)
+      |> :binary.matches(String.downcase(query, :ascii))
+      |> Enum.map_reduce(0, fn {at, length}, from ->
+        {[
+           escape(binary_part(text, from, at - from)),
+           ~s(<mark class="bg-warning/30 rounded-sm text-inherit">),
+           escape(binary_part(text, at, length)),
+           "</mark>"
+         ], at + length}
+      end)
+
+    {:safe, [parts, escape(binary_part(text, from, byte_size(text) - from))]}
+  end
+
+  defp escape(text), do: text |> html_escape() |> elem(1)
+
+  defp search_placeholder(%Session{id: id, traces: traces}) when id > 0,
+    do: "Search all #{Formatters.format_integer(traces)} traces"
+
+  defp search_placeholder(_session), do: "Search newest 500 events"
+
   defp format_at(at) do
     at
     |> DateTime.from_unix!(:microsecond)
@@ -367,6 +436,24 @@ defmodule VoyagerWeb.Components.TracingComponents do
 
   defp format_duration(us), do: Formatters.format_integer(round(us / 1_000)) <> " ms"
 
+  defp older?(nil, oldest_seq), do: oldest_seq > 0
+  defp older?(%{total: total, shown: shown}, _oldest_seq), do: is_integer(total) and shown < total
+
+  defp footer(%{total: nil}, _session, _trace_rows, _oldest_seq), do: "Searching…"
+
+  defp footer(%{total: 0} = search, session, _trace_rows, _oldest_seq),
+    do: "No matches in #{search_scope(session, search)}"
+
+  defp footer(%{total: total, shown: shown} = search, session, _trace_rows, _oldest_seq)
+       when shown < total,
+       do:
+         "Newest #{Formatters.format_integer(shown)} of #{Formatters.format_integer(total)} matches in #{search_scope(session, search)}"
+
+  defp footer(%{total: total} = search, session, _trace_rows, _oldest_seq),
+    do: "#{count(total, "match", "matches")} in #{search_scope(session, search)}"
+
+  defp footer(nil, session, trace_rows, oldest_seq), do: footer(session, trace_rows, oldest_seq)
+
   defp footer(session, trace_rows, oldest_seq) when oldest_seq > 0,
     do:
       "Newest #{Formatters.format_integer(trace_rows)} of #{Formatters.format_integer(session.traces)} traces"
@@ -377,5 +464,17 @@ defmodule VoyagerWeb.Components.TracingComponents do
          "All #{Formatters.format_integer(trace_rows)} kept events shown · #{Formatters.format_integer(traces)} traced"
 
   defp footer(session, _trace_rows, _oldest_seq),
-    do: "All #{Formatters.format_integer(session.traces)} traces shown"
+    do: "All #{count(session.traces, "trace", "traces")} shown"
+
+  defp search_scope(%Session{id: id}, %{traces: traces}) when id > 0,
+    do: count(traces, "trace", "traces")
+
+  defp search_scope(_session, %{traces: traces}) when traces > 500,
+    do:
+      "the newest 500 events · #{Formatters.format_integer(traces - 500)} older traces are no longer in memory"
+
+  defp search_scope(_session, _search), do: "the newest 500 events"
+
+  defp count(1, singular, _plural), do: "1 #{singular}"
+  defp count(n, _singular, plural), do: "#{Formatters.format_integer(n)} #{plural}"
 end

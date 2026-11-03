@@ -15,6 +15,7 @@ defmodule VoyagerWeb.TracingSessionLive do
 
   @actions [:stop, :start, :load, :delete]
   @row_limit 200
+  @search_limit 100
   @flush_ms 250
   @tick_ms 1_000
   @rate_history 10
@@ -43,6 +44,8 @@ defmodule VoyagerWeb.TracingSessionLive do
         |> assign(:rates, [])
         |> assign(:previous_traces, 0)
         |> assign(:tick_scheduled?, false)
+        |> assign(:search, nil)
+        |> assign(:search_form, to_form(%{}, as: :search))
         |> assign(:storage_limit_mb, Tracer.storage_limit_mb())
         |> stream_configure(:entries, dom_id: &entry_dom_id/1)
         |> stream(:entries, [])
@@ -256,6 +259,9 @@ defmodule VoyagerWeb.TracingSessionLive do
         on_pause="pause-log"
         on_resume="resume-log"
         on_older="load-older"
+        search={@search}
+        search_form={@search_form}
+        on_search="search-log"
       />
 
       <div
@@ -335,6 +341,9 @@ defmodule VoyagerWeb.TracingSessionLive do
 
   def handle_event("resume-log", _params, socket), do: socket |> load_page() |> noreply()
 
+  def handle_event("load-older", _params, %{assigns: %{search: %{}}} = socket),
+    do: socket |> search() |> noreply()
+
   def handle_event("load-older", _params, socket) do
     %{id: id, oldest_seq: before} = socket.assigns
 
@@ -342,6 +351,24 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> pause_running()
     |> start_async(:older, fn -> Tracer.entries(id, before: before) end)
     |> noreply()
+  end
+
+  def handle_event("search-log", %{"search" => %{"query" => query} = params}, socket) do
+    socket = assign(socket, :search_form, to_form(params, as: :search))
+
+    case String.trim(query) do
+      "" when is_nil(socket.assigns.search) ->
+        noreply(socket)
+
+      "" ->
+        socket |> load_page() |> noreply()
+
+      query ->
+        socket
+        |> assign(:search, %{query: query, total: nil, shown: 0, oldest_seq: nil, traces: nil})
+        |> search()
+        |> noreply()
+    end
   end
 
   @impl true
@@ -361,6 +388,21 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> assign(:failed?, true)
     |> noreply()
   end
+
+  def handle_async(name, _result, %{assigns: %{search: %{}}} = socket)
+      when name in [:page, :older],
+      do: noreply(socket)
+
+  def handle_async(:search, {:ok, {:ok, page}}, %{assigns: %{search: %{}}} = socket),
+    do: socket |> put_matches(page) |> noreply()
+
+  def handle_async(:search, {:ok, {:error, reason}}, %{assigns: %{search: %{}}} = socket),
+    do: socket |> fail_search(error_message(reason)) |> noreply()
+
+  def handle_async(:search, {:exit, _reason}, %{assigns: %{search: %{}}} = socket),
+    do: socket |> fail_search(error_message(:exit)) |> noreply()
+
+  def handle_async(:search, _stale, socket), do: noreply(socket)
 
   def handle_async(:page, {:ok, {:ok, page}}, socket),
     do: socket |> put_page(page) |> flush() |> noreply()
@@ -490,6 +532,9 @@ defmodule VoyagerWeb.TracingSessionLive do
     id = socket.assigns.id
 
     socket
+    |> cancel_async(:search)
+    |> assign(:search, nil)
+    |> assign(:search_form, to_form(%{}, as: :search))
     |> assign(:newest_seq, nil)
     |> assign(:paused?, false)
     |> assign(:new_count, 0)
@@ -517,6 +562,42 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> update(:held_kinds, &(&1 ++ kinds(rows)))
   end
 
+  defp search(%{assigns: %{id: id, search: %{query: query, oldest_seq: before}}} = socket) do
+    opts = [limit: @search_limit] ++ if(before, do: [before: before], else: [])
+
+    socket
+    |> cancel_async(:search)
+    |> start_async(:search, fn -> Tracer.search(id, query, opts) end)
+  end
+
+  defp put_matches(%{assigns: %{search: search}} = socket, %{entries: entries, total: total}) do
+    first? = is_nil(search.total)
+    shown = if(first?, do: 0, else: search.shown) + length(entries)
+
+    # Later pages recount matches newer than the first page, which paging by `before` never reaches.
+    total =
+      cond do
+        length(entries) < @search_limit -> shown
+        first? -> total
+        true -> search.total
+      end
+
+    socket
+    |> stream(:entries, entries, if(first?, do: [reset: true], else: [at: -1]))
+    |> assign(:search, %{
+      search
+      | total: total,
+        shown: shown,
+        oldest_seq: List.last(entries, %{seq: search.oldest_seq}).seq,
+        traces: search.traces || socket.assigns.trace_session.traces
+    })
+  end
+
+  defp fail_search(%{assigns: %{search: %{total: nil}}} = socket, message),
+    do: socket |> load_page() |> put_flash(:error, message)
+
+  defp fail_search(socket, message), do: put_flash(socket, :error, message)
+
   defp newest_seq([]), do: -1
   defp newest_seq([%{seq: seq} | _older]), do: seq
 
@@ -543,6 +624,8 @@ defmodule VoyagerWeb.TracingSessionLive do
 
   defp buffer(socket, []), do: socket
 
+  defp buffer(%{assigns: %{search: %{}}} = socket, _entries), do: socket
+
   defp buffer(%{assigns: %{paused?: true}} = socket, entries),
     do: update(socket, :new_count, &(&1 + count_traces(entries)))
 
@@ -558,7 +641,7 @@ defmodule VoyagerWeb.TracingSessionLive do
   end
 
   # Until the first page lands, the buffer cannot tell which entries that page already holds.
-  defp flush(%{assigns: %{paused?: false, newest_seq: newest_seq}} = socket)
+  defp flush(%{assigns: %{paused?: false, search: nil, newest_seq: newest_seq}} = socket)
        when is_integer(newest_seq) do
     case Enum.filter(socket.assigns.buffer, &(&1.seq > newest_seq)) do
       [] ->
