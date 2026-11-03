@@ -130,7 +130,7 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     {:ok, view, _html} = live(conn, ~p"/node/demo@localhost")
     render_async(view)
 
-    broadcast({:session_updated, %{session() | status: :idle, node: nil, config: nil}})
+    {:ok, _session} = Tracer.create(:ui)
     refute has_element?(view, "#tracing-indicator")
 
     broadcast({:session_updated, %{session() | status: :idle, traces: 0}})
