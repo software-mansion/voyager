@@ -6,6 +6,7 @@ defmodule VoyagerWeb.Components.Shell do
   use VoyagerWeb, :html
 
   alias Voyager.NodeSession.Session
+  alias Voyager.Services.TermSyntax
   alias Voyager.Services.Tracer
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.Utils.URL
@@ -233,8 +234,12 @@ defmodule VoyagerWeb.Components.Shell do
   defp stop_reason_label(:node_down), do: "Node went down"
   defp stop_reason_label({:tracer_down, _reason}), do: "Remote tracer crashed"
 
-  defp format_traced_mfa(%Tracer.Config{module: module, function: function, arity: arity}),
-    do: "#{format_module(module)}.#{function}/#{arity || "_"}"
+  defp format_traced_mfa(%Tracer.Config{module: module, function: function, arity: arity}) do
+    case TermSyntax.current() do
+      :erlang -> "#{module}:#{function}/#{arity || "_"}"
+      :elixir -> "#{format_module(module)}.#{function}/#{arity || "_"}"
+    end
+  end
 
   defp format_module("Elixir." <> module), do: module
   defp format_module(module), do: ":" <> module

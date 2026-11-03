@@ -5,8 +5,10 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
   import Phoenix.LiveViewTest
   import Mox
   import Voyager.Fakes, only: [stub_erpc: 1]
+  import Voyager.TestUtils, only: [reset_term_syntax: 1]
 
   alias Voyager.Fakes
+  alias Voyager.Services.TermSyntax
   alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Session
@@ -71,6 +73,21 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     render_async(view)
 
     assert has_element?(view, "#tracing-indicator-mfa", ":lists._/_")
+  end
+
+  describe "with the Erlang term syntax" do
+    setup :reset_term_syntax
+
+    test "formats the traced function in Erlang syntax", %{conn: conn} do
+      {:ok, :erlang} = TermSyntax.save_setting(:erlang)
+      config = %Config{module: "lists", function: "_", arity: nil}
+      :sys.replace_state(Tracer, fn _ -> %Tracer{session: %{session() | config: config}} end)
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+      render_async(view)
+
+      assert has_element?(view, "#tracing-indicator-mfa", "lists:_/_")
+    end
   end
 
   test "shows the indicator in the app topbar", %{conn: conn} do
