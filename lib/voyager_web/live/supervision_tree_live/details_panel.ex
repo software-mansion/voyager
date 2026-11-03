@@ -262,10 +262,14 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   defp fetch_relations(remote_node, pid, timeout) do
     with {:ok, relations, _elapsed_ms} <-
            Query.relations(remote_node, pid, @relations_limit, timeout) do
-      monitors = Enum.map(relations.monitors.items, &monitor_target/1)
-      {:ok, %{relations: put_in(relations.monitors.items, monitors)}}
+      {:ok, %{relations: Map.update!(relations, :monitors, &monitor_targets/1)}}
     end
   end
+
+  defp monitor_targets({:ok, bounded}),
+    do: {:ok, %{bounded | items: Enum.map(bounded.items, &monitor_target/1)}}
+
+  defp monitor_targets(error), do: error
 
   defp monitor_target({_kind, target}) when is_pid(target) or is_port(target), do: target
   defp monitor_target(monitor), do: monitor
@@ -274,7 +278,10 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
        when is_map(relations) do
     relations
     |> Map.values()
-    |> Enum.flat_map(& &1.items)
+    |> Enum.flat_map(fn
+      {:ok, bounded} -> bounded.items
+      {:error, _reason} -> []
+    end)
     |> Enum.find(&(selectable_relation?(&1, remote_node) and relation_key(&1) == key))
   end
 
