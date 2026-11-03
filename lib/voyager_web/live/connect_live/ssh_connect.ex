@@ -73,6 +73,10 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       assigns
       |> assign(:current_auth_method, to_string(assigns.ssh_form[:auth_method].value || "agent"))
       |> assign(:current_name_type, to_string(assigns.ssh_form[:name_type].value || "longnames"))
+      |> assign(
+        :ssh_config_selected,
+        SshConfigImport.selected_host(assigns.ssh_config_hosts, assigns.ssh_form)
+      )
 
     ~H"""
     <div id={@id}>
@@ -84,6 +88,14 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         phx-submit="connect_ssh"
         class={["flex flex-col gap-4", @disabled? && "pointer-events-none"]}
       >
+        <ConnectComponents.ssh_config_opener
+          selected={@ssh_config_selected}
+          config_path={@ssh_config_form[:path].value}
+          disabled={@disabled?}
+          target={@myself}
+          on_open="open_ssh_config"
+        />
+
         <div class="flex gap-3">
           <div class="min-w-0 flex-1">
             <ConnectComponents.form_field
@@ -250,9 +262,22 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         </:row>
       </RecentConnections.render>
 
-      <p class="font-mono tracking-snug text-base-content/70 mt-6 text-center text-xs">
-        Remote nodes via SSH
-      </p>
+      <ConnectComponents.ssh_config_modal
+        :if={@ssh_config_modal?}
+        id={"#{@id_prefix}config-modal"}
+        form={@ssh_config_form}
+        hosts={@ssh_config_hosts}
+        unsupported={@ssh_config_unsupported}
+        selected={@ssh_config_selected}
+        target={@myself}
+        on_close="close_ssh_config"
+        on_change_path="change_ssh_config_path"
+        on_edit_path="edit_ssh_config_path"
+        on_import="import_ssh_config"
+        on_reload="reload_ssh_config"
+        on_fill="fill_ssh_host"
+        on_remove="remove_ssh_host"
+      />
 
       <ConnectComponents.passphrase_modal
         :if={@passphrase_form}
