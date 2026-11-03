@@ -617,7 +617,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       refute has_element?(view, "#details-panel-type", "Process")
     end
 
-    test "a tree refresh that changes the selected node does not refetch its details", %{
+    test "a tree refresh refetches the selected node's details without blanking them", %{
       conn: conn,
       sup_pid: sup_pid,
       port: port,
@@ -628,22 +628,32 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       linked = start_supervised!({Agent, fn -> [port] end})
 
       stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args, _timeout ->
-        if fun == :proc_links, do: send(test_pid, :links_fetched)
-        supervision_reply(mod, fun, args, sup_pid, Agent.get(linked, & &1), link_pids)
+        links = Agent.get(linked, & &1)
+        refreshed? = links == []
+
+        if fun == :proc_links do
+          send(test_pid, {:links_fetched, self()})
+          if refreshed?, do: receive(do: (:release -> :ok))
+        end
+
+        supervision_reply(mod, fun, args, sup_pid, links, if(refreshed?, do: [], else: link_pids))
       end)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
       render_async(view)
-      assert_received :links_fetched
+      assert_received {:links_fetched, _}
 
       Agent.update(linked, fn _ -> [] end)
       view |> element("#refresh-interval-refresh-now-button") |> render_click()
       await_tree_ok(view)
-      render_async(view)
 
-      refute_received :links_fetched
+      assert_receive {:links_fetched, fetcher}
       assert has_element?(view, "#details-panel-links-0")
+
+      send(fetcher, :release)
+      render_async(view)
+      refute has_element?(view, "#details-panel-links-0")
     end
 
     test "closes the details panel when the selected node disappears on refresh", %{

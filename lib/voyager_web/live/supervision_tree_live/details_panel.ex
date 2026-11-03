@@ -101,7 +101,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   def handle_event("refresh-node-info", _params, socket) do
     socket
-    |> fetch_details()
+    |> fetch_details(false)
     |> noreply()
   end
 
@@ -179,19 +179,15 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(:selection_history, [])
   end
 
-  # Every tree refresh re-sends the selection; refetching then would blank the panel each tick.
+  # A tree refresh of the shown process keeps its data on screen until the refetch lands.
   defp maybe_assign_node(socket, node, keep_history?) do
     history = if keep_history?, do: socket.assigns.selection_history, else: []
     showing? = socket.assigns.open? and same_process?(socket.assigns.node, node)
-    socket = assign(socket, open?: true, node: node, selection_history: history)
+    expanded = if showing?, do: socket.assigns.expanded_relations, else: MapSet.new()
 
-    if showing? do
-      socket
-    else
-      socket
-      |> assign(:expanded_relations, MapSet.new())
-      |> fetch_details()
-    end
+    socket
+    |> assign(open?: true, node: node, selection_history: history, expanded_relations: expanded)
+    |> fetch_details(not showing?)
   end
 
   defp push_history(%{assigns: %{node: %TreeNode{} = node}} = socket),
@@ -199,18 +195,23 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   defp push_history(socket), do: socket
 
-  defp fetch_details(%{assigns: %{node: %TreeNode{pid: pid}}} = socket) when is_pid(pid) do
+  defp fetch_details(%{assigns: %{node: %TreeNode{pid: pid}}} = socket, reset?)
+       when is_pid(pid) do
     remote_node = socket.assigns.remote_node
     timeout = Query.default_timeout()
 
     socket
-    |> assign_async(:node_info, fn -> fetch_node_info(remote_node, pid, timeout) end, reset: true)
-    |> assign_async(:relations, fn -> fetch_relations(remote_node, pid, timeout) end, reset: true)
+    |> assign_async(:node_info, fn -> fetch_node_info(remote_node, pid, timeout) end,
+      reset: reset?
+    )
+    |> assign_async(:relations, fn -> fetch_relations(remote_node, pid, timeout) end,
+      reset: reset?
+    )
   end
 
   # Nothing to fetch for apps, ports and references: settle the async assigns so
   # the body never shows a load state it will not leave.
-  defp fetch_details(socket) do
+  defp fetch_details(socket, _reset?) do
     assign(socket, node_info: AsyncResult.ok(nil), relations: AsyncResult.ok(nil))
   end
 
