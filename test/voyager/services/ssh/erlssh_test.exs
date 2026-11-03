@@ -149,8 +149,6 @@ defmodule Voyager.Services.SSH.ErlsshTest do
   end
 
   describe "agent auth" do
-    @describetag :tmp_dir
-
     setup %{tmp_dir: dir} do
       {path, public_key} = SshKeys.ssh_keygen!(dir, "id_ed25519", ["-t", "ed25519", "-N", ""])
       server = SshServer.start!(@loopback, authorized_keys: [public_key])

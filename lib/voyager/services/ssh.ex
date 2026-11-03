@@ -45,7 +45,7 @@ defmodule Voyager.Services.SSH do
 
   @spec connect(String.t(), :inet.port_number(), String.t(), auth(), keyword()) ::
           {:ok, conn()} | {:error, term()}
-  def connect(host, port, user, auth, opts \\ []),
+  def connect(host, port, user, auth, opts),
     do: impl().connect(host, port, user, auth, opts)
 
   @spec open_tunnel(conn(), String.t(), :inet.port_number()) ::
