@@ -120,7 +120,7 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     assert has_element?(view, "#tracing-indicator-label", "Ready")
   end
 
-  test "links a session from another node to the connected node's tracing page", %{conn: conn} do
+  test "links a session from another node to that node's tracing page", %{conn: conn} do
     stopped = %{session() | node: :other@localhost, status: :stopped, stop_reason: :disconnected}
     :sys.replace_state(Tracer, fn _ -> %Tracer{session: stopped} end)
     Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
@@ -129,7 +129,7 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     {:ok, view, _html} = live(conn, ~p"/node/demo@localhost")
     render_async(view)
 
-    assert has_element?(view, ~s|#tracing-indicator[href="/node/demo@localhost/tracing"]|)
+    assert has_element?(view, ~s|#tracing-indicator[href="/node/other%40localhost/tracing"]|)
     assert view |> element("#tracing-indicator-tip-portal") |> render() =~ "other@localhost"
   end
 

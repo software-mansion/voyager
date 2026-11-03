@@ -58,7 +58,7 @@ defmodule VoyagerWeb.Components.Shell do
       <.brand />
       <div class="@container/nav-status flex min-w-0 items-center gap-3">
         <.node_indicator session={@session} />
-        <.tracing_indicator session={@tracing_session} navigate={node_path(@session, "tracing")} />
+        <.tracing_indicator session={@tracing_session} />
       </div>
       <.link
         href={~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_url)]}"}
@@ -100,7 +100,6 @@ defmodule VoyagerWeb.Components.Shell do
   end
 
   attr :session, Tracer.Session, default: nil
-  attr :navigate, :string, default: nil
 
   defp tracing_indicator(%{session: nil} = assigns), do: ~H""
 
@@ -111,7 +110,7 @@ defmodule VoyagerWeb.Components.Shell do
     ~H"""
     <.tooltip id="tracing-indicator-tip" position="bottom" class="shrink-0">
       <.link
-        navigate={@navigate || tracing_session_path(@session)}
+        navigate={tracing_session_path(@session)}
         id="tracing-indicator"
         data-tone={@tone}
         aria-label={"Open the #{@state} tracing session, #{Formatters.format_integer(@session.traces)} traces captured"}
