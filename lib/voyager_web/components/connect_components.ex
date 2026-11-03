@@ -378,7 +378,7 @@ defmodule VoyagerWeb.ConnectComponents do
       <.focus_wrap
         id={"#{@id}-box"}
         phx-mounted={JS.focus_first()}
-        class="modal-box border-base-300 max-w-md border shadow-2xl"
+        class="modal-box border-base-300 max-w-xl border shadow-2xl"
       >
         <h2 id={"#{@id}-title"} class="text-base-content text-lg font-semibold tracking-tight">
           Unknown host key
@@ -388,12 +388,20 @@ defmodule VoyagerWeb.ConnectComponents do
           before. Check that its key fingerprint matches the server's before trusting it.
         </p>
 
-        <code
-          id={"#{@id}-fingerprint"}
-          class="font-mono bg-base-200 text-base-content mt-4 block break-all rounded-md px-3 py-2 text-xs"
-        >
-          {@fingerprint}
-        </code>
+        <div class="bg-base-200 mt-4 flex w-full items-center gap-2 rounded-md py-1 pr-1 pl-3">
+          <code
+            id={"#{@id}-fingerprint"}
+            class="font-mono text-base-content min-w-0 flex-1 whitespace-nowrap text-xs"
+          >{@fingerprint}</code>
+          <.copy_button
+            id={"#{@id}-fingerprint-copy"}
+            target={"##{@id}-fingerprint"}
+            icon_only
+            size={:sm}
+            label="Copy fingerprint"
+            class="shrink-0"
+          />
+        </div>
 
         <div
           :if={@password_auth}

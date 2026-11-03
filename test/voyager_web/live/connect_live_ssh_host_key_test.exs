@@ -54,6 +54,12 @@ defmodule VoyagerWeb.ConnectLiveSshHostKeyTest do
     submit_connect(view, server)
 
     assert view |> element("#ssh-host-key-modal-fingerprint") |> render() =~ server.fingerprint
+
+    assert has_element?(
+             view,
+             "#ssh-host-key-modal-fingerprint-copy[data-copy-target='#ssh-host-key-modal-fingerprint']"
+           )
+
     assert has_element?(view, "#ssh-host-key-modal-password-warning")
     refute has_element?(view, "#flash-error")
     refute_received {:ssh_server_connection, _pid}
