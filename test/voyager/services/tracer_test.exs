@@ -125,6 +125,17 @@ defmodule Voyager.Services.TracerTest do
     assert_receive {:session_updated, nil}
   end
 
+  for save <- [false, true] do
+    test "a configured entry carries the config it replaced, save: #{save}" do
+      assert {:ok, %{id: id}} = Tracer.create(:ui, save: unquote(save))
+      assert {:ok, %{config: first}} = configure()
+      assert {:ok, %{config: second}} = configure(%{max_events: 5})
+
+      assert {:ok, %{entries: [%{previous: ^first, config: ^second}, %{previous: nil}]}} =
+               Tracer.entries(id)
+    end
+  end
+
   test "saves a saved session's log as it is appended, reading back what was broadcast" do
     assert {:ok, %{id: id}} = Tracer.create(:mcp, save: true)
     assert id > 0

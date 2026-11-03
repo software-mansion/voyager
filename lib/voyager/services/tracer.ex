@@ -9,7 +9,8 @@ defmodule Voyager.Services.Tracer do
 
   A session is a log of entries numbered by `seq`: `:configured`, `:started`,
   `:stopped`, `:trace` (a trace event) and `:dropped` (how many events were lost
-  since the previous entry). The configured, started and stopped entries and the
+  since the previous entry). A `:configured` entry's `previous` is the config it
+  replaced, nil for the first. The configured, started and stopped entries and the
   newest trace and dropped entries are kept in memory while a session is unsaved;
   saved sessions are read from the database. Broadcasts on `topic/0` are
   `{:session_activated, session}`, `{:session_closed, id}` and
@@ -277,7 +278,7 @@ defmodule Voyager.Services.Tracer do
   def handle_call({:configure, node, config, origin}, _from, state) do
     state =
       %{state | session: %{state.session | node: node, config: config}}
-      |> append([Entry.configured(origin, node, config)])
+      |> append([Entry.configured(origin, node, config, state.session.config)])
 
     {:reply, {:ok, state.session}, state}
   end

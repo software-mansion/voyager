@@ -47,7 +47,15 @@ defmodule Voyager.TraceSessionsTest do
     config = %Config{module: "Elixir.Date", pids: ["<0.1.0>"], capture: :args, max_events: 5}
 
     entries = [
-      %{seq: 0, kind: :configured, at: 1, origin: :mcp, node: :app@host, config: config},
+      %{
+        seq: 0,
+        kind: :configured,
+        at: 1,
+        origin: :mcp,
+        node: :app@host,
+        config: config,
+        previous: nil
+      },
       %{seq: 1, kind: :started, at: 2, origin: :ui},
       %{seq: 2, kind: :dropped, at: 3, origin: nil, count: 4},
       %{
