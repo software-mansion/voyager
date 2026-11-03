@@ -59,7 +59,7 @@ defmodule VoyagerWeb.Components.Shell do
       <.brand />
       <div class="@container/nav-status flex min-w-0 items-center gap-3">
         <.node_indicator session={@session} />
-        <.tracing_indicator session={@tracing_session} />
+        <.tracing_indicator session={@tracing_session} connected_node={@session.node} />
       </div>
       <.link
         href={~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_url)]}"}
@@ -101,12 +101,16 @@ defmodule VoyagerWeb.Components.Shell do
   end
 
   attr :session, Tracer.Session, default: nil
+  attr :connected_node, :atom, default: nil
 
   defp tracing_indicator(%{session: nil} = assigns), do: ~H""
 
   defp tracing_indicator(assigns) do
     assigns =
-      assign(assigns, tone: tracing_tone(assigns.session), state: tracing_state(assigns.session))
+      assign(assigns,
+        tone: tracing_tone(assigns.session, assigns.connected_node),
+        state: tracing_state(assigns.session)
+      )
 
     ~H"""
     <.tooltip id="tracing-indicator-tip" position="bottom" class="shrink-0">
@@ -155,6 +159,15 @@ defmodule VoyagerWeb.Components.Shell do
           <dl class="grid-cols-[auto_1fr] grid gap-x-3 gap-y-0.5">
             <dt class="text-base-content/60">Node</dt>
             <dd id="tracing-indicator-node" class="font-mono">{@session.node}</dd>
+            <dd
+              :if={@tone == :other_node}
+              id="tracing-indicator-other-node"
+              role="note"
+              class="alert alert-info col-span-2 my-1 gap-1.5 px-2 py-1.5 text-xs"
+            >
+              <.icon name="icon-info" class="text-info size-3.5 shrink-0" />
+              <span>Session associated with a different node.</span>
+            </dd>
             <dt class="text-base-content/60">Function</dt>
             <dd class="font-mono">{format_traced_mfa(@session.config)}</dd>
             <dt class="text-base-content/60">Traces</dt>
@@ -179,16 +192,23 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp tracing_session_path(%Tracer.Session{node: node}), do: ~p"/node/#{node}/tracing"
 
-  defp tracing_tone(%Tracer.Session{status: :running}), do: :running
+  defp tracing_tone(%Tracer.Session{status: :running}, _connected_node), do: :running
 
-  defp tracing_tone(%Tracer.Session{status: :stopped, stop_reason: reason})
+  defp tracing_tone(%Tracer.Session{node: node}, connected_node)
+       when not is_nil(connected_node) and node != connected_node,
+       do: :other_node
+
+  defp tracing_tone(%Tracer.Session{status: :stopped, stop_reason: reason}, _connected_node)
        when reason in [:node_down, :write_failed],
        do: :failed
 
-  defp tracing_tone(%Tracer.Session{status: :stopped, stop_reason: {:tracer_down, _reason}}),
-    do: :failed
+  defp tracing_tone(
+         %Tracer.Session{status: :stopped, stop_reason: {:tracer_down, _reason}},
+         _connected_node
+       ),
+       do: :failed
 
-  defp tracing_tone(_session), do: :open
+  defp tracing_tone(_session, _connected_node), do: :open
 
   defp tracing_state(%Tracer.Session{status: :running}), do: "running"
   defp tracing_state(%Tracer.Session{status: :stopped}), do: "stopped"
@@ -213,6 +233,14 @@ defmodule VoyagerWeb.Components.Shell do
   defp tone_class(:failed, :dot), do: "bg-warning"
   defp tone_class(:failed, :label), do: "text-warning"
   defp tone_class(:failed, :badge), do: "badge-warning"
+
+  defp tone_class(:other_node, :chip),
+    do:
+      "border-info/30 bg-info/10 hover:bg-info/20 hover:border-info/50 focus-visible:outline-info"
+
+  defp tone_class(:other_node, :dot), do: "bg-info"
+  defp tone_class(:other_node, :label), do: "text-info"
+  defp tone_class(:other_node, :badge), do: "badge-info"
 
   defp tone_class(:open, :chip),
     do:
