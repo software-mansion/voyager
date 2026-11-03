@@ -5,8 +5,9 @@ defmodule Voyager.MCP.Tools.ModuleList do
 
   Without `module`, fuzzy-searches loaded modules by name, closest matches first,
   and pages through them with `limit`/`offset`; `total` counts every match,
-  `next_offset` is `null` on the last page. Modules the agent refuses to trace
-  are left out, and so are modules that are on the code path but not loaded.
+  `next_offset` is `null` on the last page. Modules on the code path but not
+  loaded are left out. `trace` and Voyager's own agent module are never
+  traceable, on any process set, so they are left out too.
   `name` is the full module name (`Elixir.Foo.Bar`, `lists`) to pass to tracing.
   `traceability` is `ok`, or `hot` for modules that can only be traced on a list
   of pids.
@@ -79,9 +80,16 @@ defmodule Voyager.MCP.Tools.ModuleList do
     candidates = [input, "Elixir." <> input, String.trim_leading(input, ":")]
 
     case Enum.find(entries, &(&1.name in candidates)) do
-      nil -> {:error, {:not_loaded, input}}
-      %{traceability: :refused} -> {:error, {:refused, input}}
-      entry -> {:ok, entry}
+      nil ->
+        {:error,
+         "`#{input}` is not loaded on the connected node. Omit `module` and pass `search` to find loaded modules."}
+
+      %{traceability: :refused} ->
+        {:error,
+         "`#{input}` can never be traced: tracing it would trace Voyager's own tracer. Pick another module."}
+
+      entry ->
+        {:ok, entry}
     end
   end
 
