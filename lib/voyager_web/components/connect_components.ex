@@ -358,6 +358,258 @@ defmodule VoyagerWeb.ConnectComponents do
     """
   end
 
+  attr :selected, :map, default: nil
+  attr :config_path, :string, required: true
+  attr :disabled, :boolean, default: false
+  attr :target, :any, default: nil
+  attr :on_open, :string, required: true
+
+  def ssh_config_opener(%{selected: nil} = assigns) do
+    ~H"""
+    <button
+      type="button"
+      id="ssh-config-open"
+      phx-target={@target}
+      phx-click={@on_open}
+      disabled={@disabled}
+      class="btn btn-soft btn-sm w-full gap-2"
+    >
+      <.icon name="icon-download" class="size-4" /> Import SSH config
+    </button>
+    """
+  end
+
+  def ssh_config_opener(assigns) do
+    ~H"""
+    <div
+      id="ssh-config-filled-from"
+      class="border-base-300 flex min-w-0 items-center gap-2 rounded-lg border px-3 py-2"
+    >
+      <.icon name="icon-check" class="text-success size-3.5 shrink-0" />
+      <span class="font-mono text-base-content/90 min-w-0 truncate text-xs">{@selected.alias}</span>
+      <span class="font-mono text-base-content/50 min-w-0 truncate text-xs">
+        from {ssh_config_path_label(@config_path)}
+      </span>
+      <button
+        type="button"
+        id="ssh-config-open"
+        phx-target={@target}
+        phx-click={@on_open}
+        disabled={@disabled}
+        class="btn btn-ghost btn-xs font-mono ml-auto shrink-0 text-xs"
+      >
+        Change
+      </button>
+    </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :form, Phoenix.HTML.Form, required: true
+  attr :hosts, :list, default: nil, doc: "`nil` until a file has been read"
+  attr :unsupported, :list, default: []
+  attr :selected, :map, default: nil
+  attr :target, :any, default: nil
+  attr :on_close, :string, required: true
+  attr :on_change_path, :string, required: true
+  attr :on_edit_path, :string, required: true
+  attr :on_import, :string, required: true
+  attr :on_reload, :string, required: true
+  attr :on_fill, :string, required: true
+  attr :on_remove, :string, required: true
+
+  def ssh_config_modal(assigns) do
+    ~H"""
+    <div
+      id={@id}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={"#{@id}-title"}
+      class="modal modal-open"
+    >
+      <.focus_wrap
+        id={"#{@id}-box"}
+        phx-mounted={JS.focus_first()}
+        class="modal-box border-base-300 flex max-w-md flex-col gap-3 border shadow-2xl"
+      >
+        <div>
+          <h2 id={"#{@id}-title"} class="text-base-content text-lg font-semibold tracking-tight">
+            Import from SSH config
+          </h2>
+          <p class="font-mono text-base-content/70 mt-1 text-xs">Pick a host to fill in the form.</p>
+        </div>
+
+        <.form
+          :if={is_nil(@hosts)}
+          for={@form}
+          id={"#{@id}-form"}
+          phx-target={@target}
+          phx-change={@on_change_path}
+          phx-submit={@on_import}
+          class="flex flex-col gap-2"
+        >
+          <.path_field field={@form[:path]} label="Config file" placeholder="~/.ssh/config" />
+          <button type="submit" id={"#{@id}-import"} class="btn btn-soft btn-sm w-full gap-2">
+            <.icon name="icon-download" class="size-4" /> Import config
+          </button>
+        </.form>
+
+        <div :if={@hosts} id={"#{@id}-source"} class="flex min-w-0 items-center gap-1">
+          <span class="font-mono text-base-content/70 min-w-0 truncate text-xs">
+            {ssh_config_path_label(@form[:path].value)}
+          </span>
+          <span class="font-mono text-base-content/50 shrink-0 text-xs">
+            · {length(@hosts)} {if length(@hosts) == 1, do: "host", else: "hosts"}
+          </span>
+          <button
+            type="button"
+            id={"#{@id}-reload"}
+            phx-target={@target}
+            phx-click={@on_reload}
+            title="Read the file again"
+            aria-label="Read the file again"
+            class="btn btn-ghost btn-square toolbar-btn-sm text-base-content/60 ml-auto shrink-0 hover:text-base-content"
+          >
+            <.icon name="icon-rotate-cw" class="toolbar-icon-sm" />
+          </button>
+          <button
+            type="button"
+            id={"#{@id}-edit-path"}
+            phx-target={@target}
+            phx-click={@on_edit_path}
+            class="btn btn-ghost btn-xs font-mono shrink-0 text-xs"
+          >
+            Change
+          </button>
+        </div>
+
+        <.ssh_config_notice :if={@hosts && @unsupported != []} unsupported={@unsupported} />
+
+        <p
+          :if={@hosts == []}
+          id={"#{@id}-empty"}
+          class="text-base-content/70 border-base-300 rounded-lg border border-dashed p-4 text-center text-xs"
+        >
+          No hosts in this file.
+        </p>
+
+        <ul
+          :if={@hosts not in [nil, []]}
+          id={"#{@id}-hosts"}
+          class="flex max-h-72 flex-col gap-0.5 overflow-y-auto"
+        >
+          <li :for={host <- @hosts} class="list-none">
+            <.ssh_host_row
+              host={host}
+              selected={not is_nil(@selected) and @selected.alias == host.alias}
+              target={@target}
+              on_fill={@on_fill}
+              on_remove={@on_remove}
+            />
+          </li>
+        </ul>
+
+        <div class="modal-action mt-2">
+          <button
+            type="button"
+            id={"#{@id}-close"}
+            phx-target={@target}
+            phx-click={@on_close}
+            class="btn btn-ghost"
+          >
+            Close
+          </button>
+        </div>
+      </.focus_wrap>
+    </div>
+    """
+  end
+
+  attr :unsupported, :list, required: true
+
+  def ssh_config_notice(assigns) do
+    assigns =
+      assign(assigns, :keywords, assigns.unsupported |> Enum.map(& &1.keyword) |> Enum.uniq())
+
+    ~H"""
+    <div id="ssh-config-notice" role="note" class="alert alert-warning text-xs">
+      <.icon name="icon-circle-alert" class="text-warning size-4 shrink-0" />
+      <span>Not supported: <span class="font-mono">{Enum.join(@keywords, ", ")}</span></span>
+    </div>
+    """
+  end
+
+  attr :host, :map, required: true
+  attr :selected, :boolean, default: false
+  attr :target, :any, default: nil
+  attr :on_fill, :string, required: true
+  attr :on_remove, :string, required: true
+
+  def ssh_host_row(assigns) do
+    ~H"""
+    <div class="flex w-full items-center gap-1">
+      <button
+        type="button"
+        phx-target={@target}
+        phx-click={@on_fill}
+        phx-value-alias={@host.alias}
+        data-testid="fill-ssh-host-btn"
+        class={[
+          "font-mono text-base-content/90 flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-xs transition-colors hover:bg-base-200 hover:text-base-content",
+          @selected && "bg-base-200"
+        ]}
+      >
+        <.icon name="icon-network" class="size-3.5 text-base-content/60 shrink-0 self-center" />
+        <div class="flex min-w-0 flex-1 flex-col gap-1">
+          <span class="truncate text-left">{@host.alias}</span>
+          <div class="flex flex-wrap items-center gap-1">
+            <span class="font-mono text-base-content/70 border-base-400/50 rounded border px-1 text-xs">
+              {ssh_host_address(@host)}
+            </span>
+            <.saved_badge
+              :if={@host.identity_files != []}
+              label="key"
+              title={hd(@host.identity_files)}
+            />
+            <.saved_badge
+              :if={is_binary(@host.identity_agent)}
+              label="agent"
+              title={@host.identity_agent}
+            />
+          </div>
+        </div>
+        <.icon
+          :if={@selected}
+          name="icon-check"
+          class="size-3.5 text-success shrink-0 self-center"
+        />
+      </button>
+
+      <button
+        type="button"
+        phx-target={@target}
+        phx-click={@on_remove}
+        phx-value-alias={@host.alias}
+        data-testid="remove-ssh-host-btn"
+        title="Remove from this list"
+        aria-label={"Remove #{@host.alias} from this list"}
+        class="btn btn-square btn-ghost toolbar-btn-sm text-base-content/60 hover:text-error"
+      >
+        <.icon name="icon-x" class="toolbar-icon-sm" />
+      </button>
+    </div>
+    """
+  end
+
+  defp ssh_host_address(host) do
+    user = if host.user, do: "#{host.user}@"
+    port = if host.port, do: ":#{host.port}"
+    "#{user}#{host.host_name || host.alias}#{port}"
+  end
+
+  defp ssh_config_path_label(""), do: "~/.ssh/config"
+  defp ssh_config_path_label(path), do: path
+
   @doc "Segmented radio group for a set of mutually exclusive options."
   attr :name, :string, required: true
   attr :value, :any, required: true, doc: "Currently selected value (compared as a string)"
