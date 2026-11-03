@@ -14,7 +14,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   alias VoyagerWeb.ProcessInfoLive.Query
 
   # No point fetching more relations than the panel can ever render.
-  @relations_limit max_expanded_links()
+  @relations_limit max_expanded_relations()
   @relation_names ~w(links monitors monitored_by)
 
   @impl true
@@ -71,7 +71,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   def handle_event("toggle-relation", _, socket), do: noreply(socket)
 
-  def handle_event("select-link", %{"key" => key}, socket) do
+  def handle_event("select-relation", %{"key" => key}, socket) do
     case relation_by_key(socket.assigns.relations, key) || info_pid_by_key(socket, key) do
       nil ->
         noreply(socket)
@@ -150,7 +150,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
           relations_info={@relations}
           node={@node}
           expanded_relations={@expanded_relations}
-          on_select="select-link"
+          on_select="select-relation"
           on_toggle_relation="toggle-relation"
           target={@myself}
           remote_node={@remote_node}

@@ -750,7 +750,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
     end
   end
 
-  # `select-link` / `back-details-node` notify the parent LiveView via send/2;
+  # `select-relation` / `back-details-node` notify the parent LiveView via send/2;
   # drain that message before asserting on the updated selection.
   defp flush(view), do: _ = :sys.get_state(view.pid)
 

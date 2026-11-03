@@ -52,8 +52,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   @max_links 12
   # Public so DetailsPanel can cap its remote fetch at what this panel renders.
-  @max_expanded_links 200
-  def max_expanded_links, do: @max_expanded_links
+  @max_expanded_relations 200
+  def max_expanded_relations, do: @max_expanded_relations
 
   attr :panel_id, :string, required: true
   attr :open?, :boolean, required: true
@@ -629,7 +629,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :chips_disabled?, :boolean, default: false
 
   defp relation_list(assigns) do
-    limit = if assigns.expanded?, do: @max_expanded_links, else: @max_links
+    limit = if assigns.expanded?, do: @max_expanded_relations, else: @max_links
 
     # Only the slice that gets rendered: a process can hold thousands of links
     # and every chip lands in the LiveView diff.
