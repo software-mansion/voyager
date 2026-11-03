@@ -13,6 +13,8 @@ defmodule VoyagerWeb.TracingSessionLive do
   alias VoyagerWeb.Formatters
 
   @actions [:stop, :start, :load, :delete]
+  @row_limit 200
+  @flush_ms 250
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -28,6 +30,15 @@ defmodule VoyagerWeb.TracingSessionLive do
         |> assign(:failed?, false)
         |> assign(:pending, nil)
         |> assign(:confirm_delete?, false)
+        |> assign(:paused?, false)
+        |> assign(:new_count, 0)
+        |> assign(:buffer, [])
+        |> assign(:flush_scheduled?, false)
+        |> assign(:newest_seq, nil)
+        |> assign(:oldest_seq, 0)
+        |> assign(:held_kinds, [])
+        |> stream_configure(:entries, dom_id: &entry_dom_id/1)
+        |> stream(:entries, [])
         |> subscribe_and_load()
         |> ok()
 
@@ -188,6 +199,21 @@ defmodule VoyagerWeb.TracingSessionLive do
         </button>
       </div>
 
+      <TracingComponents.log
+        :if={(!@failed? and @trace_session) && @trace_session.config}
+        rows={@streams.entries}
+        trace_session={@trace_session}
+        live?={@mode == :active and @trace_session.status == :running}
+        paused?={@paused?}
+        new_count={@new_count}
+        trace_rows={Enum.count(@held_kinds, &(&1 == :trace))}
+        oldest_seq={@oldest_seq}
+        pid_href={pid_href(@trace_session, @session)}
+        on_pause="pause-log"
+        on_resume="resume-log"
+        on_older="load-older"
+      />
+
       <div
         :if={@confirm_delete?}
         id="delete-session-modal"
@@ -261,6 +287,19 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> noreply()
   end
 
+  def handle_event("pause-log", _params, socket), do: socket |> pause() |> noreply()
+
+  def handle_event("resume-log", _params, socket), do: socket |> load_page() |> noreply()
+
+  def handle_event("load-older", _params, socket) do
+    %{id: id, oldest_seq: before} = socket.assigns
+
+    socket
+    |> pause_running()
+    |> start_async(:older, fn -> Tracer.entries(id, before: before) end)
+    |> noreply()
+  end
+
   @impl true
   # A broadcast for our id already ended the load, and is newer than its result.
   def handle_async(:session, _result, %{assigns: %{loading?: false}} = socket),
@@ -278,6 +317,17 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> assign(:failed?, true)
     |> noreply()
   end
+
+  def handle_async(:page, {:ok, {:ok, page}}, socket),
+    do: socket |> put_page(page) |> flush() |> noreply()
+
+  def handle_async(:older, {:ok, {:ok, page}}, socket),
+    do: socket |> put_older(page) |> noreply()
+
+  def handle_async(:page, _failed, socket),
+    do: socket |> pause() |> put_flash(:error, "Could not load the events.") |> noreply()
+
+  def handle_async(:older, _failed, socket), do: noreply(socket)
 
   def handle_async(:delete, {:ok, {:ok, _row}}, socket),
     do: socket |> leave(:info, "Tracing session deleted.") |> noreply()
@@ -300,10 +350,13 @@ defmodule VoyagerWeb.TracingSessionLive do
       do: socket |> put_session(session, :active) |> noreply()
 
   def handle_info(
-        {:session_entries, %Session{id: id} = session, _entries},
+        {:session_entries, %Session{id: id} = session, entries},
         %{assigns: %{id: id}} = socket
       ),
-      do: socket |> put_session(session, :active) |> noreply()
+      do: socket |> put_session(session, :active) |> buffer(entries) |> noreply()
+
+  def handle_info(:flush_log, socket),
+    do: socket |> assign(:flush_scheduled?, false) |> flush() |> noreply()
 
   def handle_info({:session_closed, id}, %{assigns: %{id: id}} = socket),
     do: socket |> gone() |> noreply()
@@ -339,6 +392,13 @@ defmodule VoyagerWeb.TracingSessionLive do
   defp gone(socket), do: load(socket)
 
   defp put_session(socket, session, mode) do
+    %{mode: shown_mode, trace_session: shown} = socket.assigns
+
+    socket =
+      if shown_mode == mode and shown.config == session.config,
+        do: socket,
+        else: load_page(socket)
+
     socket
     |> assign(:loading?, false)
     |> assign(:trace_session, session)
@@ -346,6 +406,124 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> assign(:failed?, false)
     |> assign(:now, DateTime.utc_now())
   end
+
+  defp load_page(socket) do
+    id = socket.assigns.id
+
+    socket
+    |> assign(:newest_seq, nil)
+    |> assign(:paused?, false)
+    |> assign(:new_count, 0)
+    |> start_async(:page, fn -> Tracer.entries(id) end)
+  end
+
+  defp put_page(socket, %{entries: entries, truncated?: truncated?}) do
+    rows = with_evicted(entries, truncated?, nil)
+
+    # An older page still in flight was fetched below the stream this page replaces.
+    socket
+    |> cancel_async(:older)
+    |> stream(:entries, rows, reset: true)
+    |> assign(:newest_seq, newest_seq(entries))
+    |> assign(:oldest_seq, oldest_seq(entries))
+    |> assign(:held_kinds, kinds(rows))
+  end
+
+  defp put_older(socket, %{entries: entries, truncated?: truncated?}) do
+    rows = with_evicted(entries, truncated?, socket.assigns.oldest_seq)
+
+    socket
+    |> stream(:entries, rows, at: -1)
+    |> assign(:oldest_seq, oldest_seq(entries))
+    |> update(:held_kinds, &(&1 ++ kinds(rows)))
+  end
+
+  defp newest_seq([]), do: -1
+  defp newest_seq([%{seq: seq} | _older]), do: seq
+
+  defp oldest_seq([]), do: 0
+  defp oldest_seq(entries), do: List.last(entries).seq
+
+  defp with_evicted(entries, false, _newer_seq), do: entries
+
+  defp with_evicted(entries, true, newer_seq) do
+    {rows, _acc} =
+      Enum.flat_map_reduce(entries, newer_seq, fn
+        entry, newer when is_integer(newer) and newer - entry.seq > 1 ->
+          {[%{kind: :evicted, seq: entry.seq + 1}, entry], :marked}
+
+        entry, :marked ->
+          {[entry], :marked}
+
+        entry, _newer ->
+          {[entry], entry.seq}
+      end)
+
+    rows
+  end
+
+  defp buffer(socket, []), do: socket
+
+  defp buffer(%{assigns: %{paused?: true}} = socket, entries),
+    do: update(socket, :new_count, &(&1 + count_traces(entries)))
+
+  defp buffer(socket, entries) do
+    socket = update(socket, :buffer, &Enum.take(&1 ++ entries, -@row_limit))
+
+    if socket.assigns.flush_scheduled? do
+      socket
+    else
+      Process.send_after(self(), :flush_log, @flush_ms)
+      assign(socket, :flush_scheduled?, true)
+    end
+  end
+
+  # Until the first page lands, the buffer cannot tell which entries that page already holds.
+  defp flush(%{assigns: %{paused?: false, newest_seq: newest_seq}} = socket)
+       when is_integer(newest_seq) do
+    case Enum.filter(socket.assigns.buffer, &(&1.seq > newest_seq)) do
+      [] ->
+        assign(socket, :buffer, [])
+
+      rows ->
+        newest_seq = List.last(rows).seq
+
+        socket
+        |> stream(:entries, rows, at: 0, limit: @row_limit)
+        |> assign(:buffer, [])
+        |> assign(:newest_seq, newest_seq)
+        |> update(:held_kinds, &Enum.take(Enum.reverse(kinds(rows)) ++ &1, @row_limit))
+        |> update(:oldest_seq, &max(&1, newest_seq - @row_limit + 1))
+    end
+  end
+
+  defp flush(socket), do: socket
+
+  defp pause(socket) do
+    socket
+    |> assign(:paused?, true)
+    |> assign(:new_count, count_traces(socket.assigns.buffer))
+    |> assign(:buffer, [])
+  end
+
+  defp pause_running(
+         %{assigns: %{mode: :active, paused?: false, trace_session: %{status: :running}}} = socket
+       ),
+       do: pause(socket)
+
+  defp pause_running(socket), do: socket
+
+  defp kinds(rows), do: Enum.map(rows, & &1.kind)
+
+  defp count_traces(entries), do: Enum.count(entries, &(&1.kind == :trace))
+
+  defp entry_dom_id(%{kind: :evicted, seq: seq}), do: "entry-evicted-#{seq}"
+  defp entry_dom_id(%{seq: seq}), do: "entry-#{seq}"
+
+  defp pid_href(%Session{node: node}, %{node: node, node_name: node_name}),
+    do: &~p"/node/#{node_name}/processes/#{Formatters.format_pid(&1)}"
+
+  defp pid_href(_trace_session, _node_session), do: nil
 
   defp run(socket, name, fun), do: socket |> assign(:pending, name) |> start_async(name, fun)
 
