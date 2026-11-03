@@ -408,6 +408,35 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       assert has_element?(view, "#details-panel-back")
     end
 
+    test "a failed relation shows its error and keeps the others", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      sup_key: sup_key
+    } do
+      monitor = :erlang.list_to_pid(~c"<0.401.0>")
+
+      expect(Voyager.ErpcMock, :call, 13, fn
+        _node, @agent_module, :proc_links, [_pid, _limit], _timeout ->
+          {:error, :dead}
+
+        _node, @agent_module, :proc_monitored_by, [_pid, _limit], _timeout ->
+          {:ok, %{total: 1, truncated: false, items: [monitor]}}
+
+        _node, mod, fun, args, _timeout ->
+          supervision_reply(mod, fun, args, sup_pid, [port], [])
+      end)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      assert has_element?(view, "#details-panel-links-error")
+      refute has_element?(view, "#details-panel-monitors-error")
+      refute has_element?(view, "#details-panel-monitored-by-error")
+      assert has_element?(view, "button#details-panel-monitored-by-0", TreeNode.key(monitor))
+    end
+
     test "selecting a monitor by registered name jumps to the process holding it", %{
       conn: conn,
       sup_pid: sup_pid,

@@ -377,13 +377,15 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   end
 
   @doc """
-  Formats the `muted` counter of a section from a bounded result, or from an
-  `AsyncResult` holding one.
+  Formats the `muted` counter of a section from a bounded result, an `{:ok, bounded}`
+  tuple, or an `AsyncResult` holding one.
   """
-  @spec bounded_count(async_result() | map() | nil) :: String.t() | nil
+  @spec bounded_count(async_result() | map() | {:ok, map()} | {:error, term()} | nil) ::
+          String.t() | nil
   def bounded_count(%AsyncResult{ok?: true, result: %{total: total}}),
     do: "(#{Formatters.format_integer(total)})"
 
+  def bounded_count({:ok, bounded}), do: bounded_count(bounded)
   def bounded_count(%{total: total}), do: "(#{Formatters.format_integer(total)})"
   def bounded_count(_result), do: nil
 

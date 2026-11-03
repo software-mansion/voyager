@@ -381,19 +381,24 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         <:failed :let={failure}>
           <.load_error failure={failure} />
         </:failed>
-        <.relation_list
-          id_prefix={"#{@panel_id}-#{slug}"}
-          toggle_id={"#{@panel_id}-toggle-#{slug}"}
-          relation={key}
-          items={Map.fetch!(relations, key).items}
-          total={Map.fetch!(relations, key).total}
-          expanded?={MapSet.member?(@expanded_relations, key)}
-          on_select={@on_select}
-          on_toggle={@on_toggle_relation}
-          target={@target}
-          remote_node={@remote_node}
-          chips_disabled?={@chips_disabled?}
-        />
+        <%= case Map.fetch!(relations, key) do %>
+          <% {:ok, bounded} -> %>
+            <.relation_list
+              id_prefix={"#{@panel_id}-#{slug}"}
+              toggle_id={"#{@panel_id}-toggle-#{slug}"}
+              relation={key}
+              items={bounded.items}
+              total={bounded.total}
+              expanded?={MapSet.member?(@expanded_relations, key)}
+              on_select={@on_select}
+              on_toggle={@on_toggle_relation}
+              target={@target}
+              remote_node={@remote_node}
+              chips_disabled?={@chips_disabled?}
+            />
+          <% {:error, reason} -> %>
+            <.load_error id={"#{@panel_id}-#{slug}-error"} failure={reason} />
+        <% end %>
       </.async_result>
     </.section>
     """
@@ -541,12 +546,13 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     """
   end
 
+  attr :id, :string, default: nil
   attr :failure, :any, default: nil
 
   @spec load_error(any()) :: Phoenix.LiveView.Rendered.t()
   def load_error(assigns) do
     ~H"""
-    <div class="alert alert-error border px-3 py-2.5 text-xs">
+    <div id={@id} class="alert alert-error border px-3 py-2.5 text-xs">
       <.icon name="icon-circle-alert" class="text-error size-4 shrink-0" />
       {load_error_message(@failure)}
     </div>
@@ -865,8 +871,12 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   defp failed_over_stale(result), do: result
 
-  defp relation_count(%AsyncResult{ok?: true, result: %{} = relations}, key),
-    do: "(#{Formatters.format_integer(Map.fetch!(relations, key).total)})"
+  defp relation_count(%AsyncResult{ok?: true, result: %{} = relations}, key) do
+    case Map.fetch!(relations, key) do
+      {:ok, %{total: total}} -> "(#{Formatters.format_integer(total)})"
+      {:error, _reason} -> nil
+    end
+  end
 
   defp relation_count(_, _), do: nil
 end
