@@ -376,6 +376,13 @@ defmodule Voyager.Services.TracerTest do
     assert %{status: :stopped, stop_reason: :interrupted} = TraceSessionQueries.get(id)
   end
 
+  test "a restarted Tracer tells the indicator the session is gone" do
+    Phoenix.PubSub.subscribe(Voyager.PubSub, Tracer.session_topic())
+    Process.exit(Process.whereis(Tracer), :kill)
+
+    assert_receive {:session_updated, nil}
+  end
+
   test "the writer saves what it buffered when it shuts down" do
     assert {:ok, session} = Tracer.create(:ui, save: true)
 

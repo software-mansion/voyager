@@ -202,6 +202,7 @@ defmodule Voyager.Services.Tracer do
   def handle_continue(:interrupt_running, state) do
     Writer.flush()
     TraceSessionActions.interrupt_running()
+    broadcast_session(nil)
     {:noreply, state}
   end
 
