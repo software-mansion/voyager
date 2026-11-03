@@ -64,9 +64,11 @@ defmodule Voyager.Services.Tracer.SessionTest do
       inserted_at: ~N[2026-01-02 02:00:00]
     }
 
-    test "builds a saved session from the row and its configured entry" do
+    test "builds a saved session from the row and its control entries" do
       config = %Config{module: "Elixir.Date"}
-      session = Session.from_row(@row, %{node: :a@host, config: config}, 20, 5_000)
+
+      session =
+        Session.from_row(@row, [%{kind: :configured, node: :a@host, config: config}], 20, 5_000)
 
       assert %Session{
                id: 7,

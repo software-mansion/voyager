@@ -40,6 +40,20 @@ defmodule Voyager.Actions.TraceEntries do
   def insert_prepared(%{trace: traces, session: session_events}),
     do: insert(TraceEvent, traces) + insert(TraceSessionEvent, session_events)
 
+  @spec search_text(Voyager.Services.Tracer.entry()) :: String.t()
+  def search_text(%{mfa: {m, f, a}} = entry) do
+    terms = for key <- [:args, :value], Map.has_key?(entry, key), do: inspect_term(entry[key])
+
+    Enum.join(
+      [
+        inspect_term(entry.pid),
+        inspect_term(entry.process),
+        Exception.format_mfa(m, f, a) | terms
+      ],
+      " "
+    )
+  end
+
   defp insert(_schema, []), do: 0
 
   defp insert(schema, rows) do
@@ -89,19 +103,6 @@ defmodule Voyager.Actions.TraceEntries do
       duration_us: entry[:duration_us],
       search_text: search_text(entry)
     })
-  end
-
-  defp search_text(%{mfa: {m, f, a}} = entry) do
-    terms = for key <- [:args, :value], Map.has_key?(entry, key), do: inspect_term(entry[key])
-
-    Enum.join(
-      [
-        inspect_term(entry.pid),
-        inspect_term(entry.process),
-        Exception.format_mfa(m, f, a) | terms
-      ],
-      " "
-    )
   end
 
   defp base(session_id, entry),

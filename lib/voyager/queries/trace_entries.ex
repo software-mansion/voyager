@@ -28,6 +28,23 @@ defmodule Voyager.Queries.TraceEntries do
     |> window(session_id, [])
   end
 
+  @doc """
+  Up to `:limit` trace entries containing `query`, ignoring ASCII case, with `seq` below `:before`,
+  newest first, and the `total` of matches in the session whatever `:before` is.
+  """
+  @spec search(integer(), String.t(), keyword()) :: %{entries: [map()], total: non_neg_integer()}
+  def search(session_id, query, opts) do
+    pattern = "%" <> String.replace(query, ["\\", "%", "_"], &("\\" <> &1)) <> "%"
+
+    matches =
+      from e in TraceEvent,
+        where:
+          e.session_id == ^session_id and
+            fragment("? LIKE ? ESCAPE '\\'", e.search_text, ^pattern)
+
+    %{entries: window(matches, session_id, opts), total: Repo.aggregate(matches, :count)}
+  end
+
   @doc "The `seq` after the session's last entry."
   @spec next_seq(integer()) :: non_neg_integer()
   def next_seq(session_id) do

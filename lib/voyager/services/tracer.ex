@@ -25,6 +25,7 @@ defmodule Voyager.Services.Tracer do
 
   use GenServer
 
+  alias Voyager.Actions.TraceEntries, as: TraceEntryActions
   alias Voyager.Actions.TraceSessions, as: TraceSessionActions
   alias Voyager.Agent
   alias Voyager.Queries.TraceEntries, as: TraceEntryQueries
@@ -42,6 +43,7 @@ defmodule Voyager.Services.Tracer do
   @max_mailbox 1_000
   @call_timeout Agent.default_timeout() + 1_000
   @default_storage_limit_mb 100
+  @kept_traces MemoryLog.kept_traces()
 
   @type origin :: :ui | :mcp
 
@@ -156,6 +158,19 @@ defmodule Voyager.Services.Tracer do
   @spec active() :: Session.t() | nil
   def active, do: GenServer.call(__MODULE__, :active)
 
+  @doc "Session `id`, and whether it is the `:active` one or only `:saved`. The database is read in the caller."
+  @spec session(integer()) :: {:ok, Session.t(), :active | :saved} | {:error, :not_found}
+  def session(id) when is_integer(id) do
+    case active() do
+      %Session{id: ^id} = session -> {:ok, session, :active}
+      _other -> saved(id)
+    end
+  end
+
+  @doc "The total budget in MB that saved sessions share."
+  @spec storage_limit_mb() :: non_neg_integer()
+  def storage_limit_mb, do: Settings.get(:trace_storage_limit_mb, @default_storage_limit_mb)
+
   @doc """
   A page of up to `:limit` (default 100, at least 1) entries of session `id` with `seq` in
   `[:since, :before)` (integers >= 0). `:order` is `:desc` (default) for the newest entries of the
@@ -178,6 +193,22 @@ defmodule Voyager.Services.Tracer do
       :saved -> saved_entries(id, opts)
       reply -> reply
     end
+  end
+
+  @doc """
+  Up to `:limit` (default 100) trace entries of session `id` containing `query`, ignoring ASCII
+  case, with `seq` below `:before`, newest first. Runs in the caller. A saved session searches
+  all its traces, an unsaved one its newest #{@kept_traces} entries. `total` counts every match,
+  whatever `:before` is. Raises `ArgumentError` on an unknown option or a bad value.
+  """
+  @spec search(integer(), String.t(), before: non_neg_integer(), limit: pos_integer()) ::
+          {:ok, %{entries: [Entry.t()], total: non_neg_integer()}} | {:error, :not_found}
+  def search(id, query, opts \\ []) do
+    opts = Keyword.validate!(opts, [:before, limit: 100])
+    Enum.each(opts, fn {key, value} -> validate_entries_opt!(key, value) end)
+    query = Regex.replace(~r/<\d+\.\d+\.\d+>/, query, &Voyager.Pid.format(&1, :local))
+
+    if id > 0, do: search_saved(id, query, opts), else: search_unsaved(id, query, opts)
   end
 
   @impl true
@@ -341,6 +372,37 @@ defmodule Voyager.Services.Tracer do
 
   defp resolve_pids(node, config), do: Voyager.Pid.resolve_all(node, config.pids)
 
+  defp search_saved(id, query, opts) do
+    Writer.flush()
+
+    if TraceSessionQueries.get(id),
+      do: {:ok, TraceEntryQueries.search(id, query, opts)},
+      else: {:error, :not_found}
+  end
+
+  defp search_unsaved(id, query, opts) do
+    with {:ok, %{entries: entries}} <- entries(id, limit: @kept_traces) do
+      # Folds like SQLite's LIKE, so saved and unsaved sessions match the same text.
+      query = String.downcase(query, :ascii)
+
+      matches =
+        Enum.filter(entries, fn entry ->
+          entry.kind == :trace and
+            entry
+            |> TraceEntryActions.search_text()
+            |> String.downcase(:ascii)
+            |> String.contains?(query)
+        end)
+
+      page =
+        matches
+        |> Enum.drop_while(&(opts[:before] && &1.seq >= opts[:before]))
+        |> Enum.take(opts[:limit])
+
+      {:ok, %{entries: page, total: length(matches)}}
+    end
+  end
+
   defp start_failed(reason, origin) do
     Voyager.Telemetry.dispatch!("voyager.trace.start_failed",
       metadata: %{origin: origin, reason: reason}
@@ -389,11 +451,18 @@ defmodule Voyager.Services.Tracer do
 
   defp new_session_id(_origin, false), do: -System.unique_integer([:positive])
 
+  defp saved(id) do
+    Writer.flush()
+
+    case TraceSessionQueries.get(id) do
+      nil -> {:error, :not_found}
+      row -> {:ok, saved_session(row), :saved}
+    end
+  end
+
   defp saved_session(row) do
     controls = TraceEntryQueries.controls(row.id)
-    configured = Enum.find(controls, &(&1.kind == :configured)) || %{node: nil, config: nil}
-
-    Session.from_row(row, configured, TraceEntryQueries.next_seq(row.id), storage_limit(row.id))
+    Session.from_row(row, controls, TraceEntryQueries.next_seq(row.id), storage_limit(row.id))
   end
 
   defp activate(session) do
@@ -420,7 +489,7 @@ defmodule Voyager.Services.Tracer do
   defp end_run(%{run: run} = state, reason, dropped) do
     {reason, origin} = run.stop_request || {reason, nil}
     session = Session.stopped(state.session, reason, dropped)
-    run_traces = session.traces - run.traces_before
+    run_traces = session.traces - session.run_traces_before
     run_dropped = session.dropped - run.dropped_before
     emit_stopped(run, reason, run_traces, run_dropped)
 
@@ -470,8 +539,7 @@ defmodule Voyager.Services.Tracer do
     do: %{state | run: %{run | stop_request: {reason, origin}}}
 
   defp storage_limit(id) do
-    limit = Settings.get(:trace_storage_limit_mb, @default_storage_limit_mb) * 1_000_000
-    max(limit - TraceSessionQueries.bytes_except(id), 0)
+    max(storage_limit_mb() * 1_000_000 - TraceSessionQueries.bytes_except(id), 0)
   end
 
   defp down_reason(:noconnection), do: :node_down
