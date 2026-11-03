@@ -7,7 +7,6 @@ defmodule VoyagerWeb.TracingSessionLive do
   use VoyagerWeb, :live_view
 
   alias Voyager.Services.Tracer
-  alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Session
   alias VoyagerWeb.Components.TracingComponents
   alias VoyagerWeb.Formatters
@@ -79,52 +78,80 @@ defmodule VoyagerWeb.TracingSessionLive do
         class="card bg-base-100 border-base-200 text-base-content flex-none border shadow-sm"
       >
         <div class="flex items-center gap-3 px-4 py-3">
-          <.link
-            navigate={~p"/node/#{@session.node_name}/tracing"}
-            id="session-back"
-            aria-label="Back to sessions"
-            class="btn btn-ghost btn-square toolbar-btn-sm text-base-content shrink-0"
-          >
-            <.icon name="icon-arrow-left" class="toolbar-icon-sm" />
-          </.link>
-          <span
-            id="session-status"
-            data-tone={TracingComponents.tone(@trace_session)}
-            class="flex shrink-0 items-center gap-2"
-          >
-            <span class="relative flex h-2 w-2 shrink-0">
-              <span
-                :if={@trace_session.status == :running}
-                class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
-              ></span>
-              <span class={[
-                "relative inline-flex h-2 w-2 rounded-full",
-                TracingComponents.tone_class(TracingComponents.tone(@trace_session), :dot)
-              ]}></span>
-            </span>
-            <span class="text-sm font-semibold">
-              {String.capitalize(TracingComponents.state(@trace_session))}
-            </span>
-            <span id="session-elapsed" class="font-mono text-base-content/70 text-xs">
-              {elapsed(@trace_session, @now)}
-            </span>
-          </span>
-          <span id="session-mfa" class="font-mono text-base-content shrink-0 text-sm font-medium">
-            {if @trace_session.config,
-              do: TracingComponents.traced_mfa(@trace_session.config),
-              else: "New session"}
-          </span>
-          <div class="flex min-w-0 flex-1 items-center gap-2">
-            <span
-              :for={{key, label, value} <- chips(@trace_session)}
-              id={"session-chip-#{key}"}
-              class="bg-primary/10 flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1"
+          <.tooltip id="session-back-tip" position="bottom" class="shrink-0">
+            <.link
+              navigate={~p"/node/#{@session.node_name}/tracing"}
+              id="session-back"
+              aria-label="Back to sessions"
+              class="btn btn-ghost btn-square toolbar-btn-sm text-base-content"
             >
-              <span class="font-mono tracking-label text-primary shrink-0 text-xs font-semibold uppercase">
-                {label}
+              <.icon name="icon-arrow-left" class="toolbar-icon-sm" />
+            </.link>
+            <:content>Back to sessions</:content>
+          </.tooltip>
+          <div class="min-w-0 flex-1">
+            <div class="flex min-w-0 items-center gap-3">
+              <.tooltip id="session-mfa-tip" position="bottom" class="min-w-0" tip_class="font-mono">
+                <span
+                  id="session-mfa"
+                  tabindex="0"
+                  class="font-mono text-base-content block truncate text-sm font-semibold"
+                >
+                  {title(@trace_session)}
+                </span>
+                <:content>{title(@trace_session)}</:content>
+              </.tooltip>
+              <span
+                id="session-status"
+                data-tone={TracingComponents.tone(@trace_session)}
+                class="flex shrink-0 items-center gap-1.5"
+              >
+                <span class="relative flex h-2 w-2 shrink-0">
+                  <span
+                    :if={@trace_session.status == :running}
+                    class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
+                  ></span>
+                  <span class={[
+                    "relative inline-flex h-2 w-2 rounded-full",
+                    TracingComponents.tone_class(TracingComponents.tone(@trace_session), :dot)
+                  ]}></span>
+                </span>
+                <span class={[
+                  "text-xs font-semibold",
+                  TracingComponents.tone_class(TracingComponents.tone(@trace_session), :label)
+                ]}>
+                  {String.capitalize(TracingComponents.state(@trace_session))}
+                </span>
+                <span id="session-elapsed" class="font-mono text-base-content/70 text-xs">
+                  {elapsed(@trace_session, @now)}
+                </span>
               </span>
-              <span class="font-mono truncate text-xs">{value}</span>
-            </span>
+            </div>
+            <.tooltip
+              :if={@trace_session.config}
+              id="session-config"
+              position="bottom"
+              class="mt-0.5 max-w-full"
+              tip_class="max-w-md!"
+            >
+              <span
+                id="session-summary"
+                tabindex="0"
+                class="font-mono text-base-content/70 block truncate text-xs"
+              >
+                {TracingComponents.config_summary(@trace_session.config)}
+              </span>
+              <:content>
+                <TracingComponents.config_table config={@trace_session.config} />
+              </:content>
+            </.tooltip>
+            <p
+              :if={!@trace_session.config}
+              id="session-summary"
+              class="font-mono text-base-content/70 mt-0.5 text-xs"
+            >
+              {if @trace_session.save, do: "Saved", else: "Not saved"}
+            </p>
           </div>
           <div class="flex shrink-0 items-center gap-2">
             <button
@@ -177,54 +204,47 @@ defmodule VoyagerWeb.TracingSessionLive do
             >
               <.icon name="icon-log-in" class="size-3.5" /> Load into tracer
             </button>
-            <button
-              :if={@mode == :saved}
-              type="button"
-              id="session-delete"
-              phx-click="delete"
-              disabled={@pending != nil}
-              aria-label="Delete session"
-              class="btn btn-sm btn-square text-error"
-            >
-              <.icon name="icon-trash" class="size-3.5" />
-            </button>
+            <.tooltip :if={@mode == :saved} id="session-delete-tip" position="bottom">
+              <button
+                type="button"
+                id="session-delete"
+                phx-click="delete"
+                disabled={@pending != nil}
+                aria-label="Delete session"
+                class="btn btn-sm btn-square text-error"
+              >
+                <.icon name="icon-trash" class="size-3.5" />
+              </button>
+              <:content>Delete session</:content>
+            </.tooltip>
           </div>
         </div>
         <div
           :if={@trace_session.run_started_at}
           id="session-stats"
-          class="border-base-200 grid grid-cols-5 border-t"
+          class="bg-base-200 border-base-200 rounded-b-box grid grid-cols-2 gap-px overflow-hidden border-t lg:grid-cols-5"
         >
           <div
             :for={cell <- Stats.cells(@trace_session, @rates, @now, @storage_limit_mb)}
             id={"stat-#{cell.key}"}
-            class="border-base-200 min-w-0 border-r px-5 py-3 last:border-r-0"
+            class="bg-base-100 min-w-0 px-5 py-3 last:col-span-2 lg:last:col-span-1"
           >
             <div class="font-mono tracking-label text-base-content/70 mb-1 text-xs font-semibold uppercase">
               {cell.label}
             </div>
-            <div class="min-h-5 flex items-center gap-2">
-              <span class={["font-mono truncate text-base font-semibold", cell[:tone]]}>
-                {cell.value}
-              </span>
-              <span class="font-mono text-base-content/70 shrink-0 text-xs">{cell[:unit]}</span>
-              <span
-                :if={cell[:bar]}
-                class="bg-base-content/10 min-w-8 h-1 flex-1 overflow-hidden rounded-full"
-              >
-                <span
-                  class={["block h-full rounded-full", cell[:fill] || "bg-primary"]}
-                  style={"width: #{cell.bar}%"}
-                ></span>
-              </span>
-              <span :if={cell[:spark]} aria-hidden="true" class="ml-auto flex h-5 items-end gap-0.5">
-                <span
-                  :for={height <- cell.spark}
-                  class="bg-primary w-0.75 rounded-xs opacity-55 last:opacity-100"
-                  style={"height: #{height}%"}
-                ></span>
-              </span>
-            </div>
+            <.tooltip :if={cell[:tip]} id={"stat-#{cell.key}-tip"} position="bottom" class="w-full">
+              <.stat_value cell={cell} />
+              <:content>
+                <span :if={is_binary(cell.tip)}>{cell.tip}</span>
+                <table :if={is_list(cell.tip)} class="font-mono">
+                  <tr :for={{label, value} <- cell.tip}>
+                    <td class="text-base-content/60 py-0.5 pr-4">{label}</td>
+                    <td class="py-0.5 text-right">{value}</td>
+                  </tr>
+                </table>
+              </:content>
+            </.tooltip>
+            <.stat_value :if={!cell[:tip]} cell={cell} />
           </div>
         </div>
       </div>
@@ -706,45 +726,38 @@ defmodule VoyagerWeb.TracingSessionLive do
 
   defp elapsed(_session, _now), do: nil
 
-  defp chips(%Session{config: nil, save: save}),
-    do: [{:storage, "Storage", if(save, do: "Saved", else: "Not saved")}]
+  defp title(%Session{config: nil}), do: "New session"
+  defp title(%Session{config: config}), do: TracingComponents.traced_mfa(config)
 
-  defp chips(%Session{config: %Config{} = config}) do
-    [
-      {:where, "Where", "#{processes(config)} · #{config.scope}"},
-      {:capture, "Capture", capture(config)},
-      {:stop_after, "Stop after", stop_after(config)}
-    ]
+  attr :cell, :map, required: true
+
+  defp stat_value(assigns) do
+    ~H"""
+    <div class="min-h-5 flex w-full items-center gap-2">
+      <span class={["font-mono truncate text-base font-semibold", @cell[:tone]]}>
+        {@cell.value}
+      </span>
+      <span class="font-mono text-base-content/70 shrink-0 text-xs">{@cell[:unit]}</span>
+      <span
+        :if={@cell[:bar]}
+        class="bg-base-content/10 min-w-8 flex h-1 flex-1 overflow-hidden rounded-full"
+      >
+        <span
+          :for={{fill, width} <- @cell.bar}
+          class={["block h-full", fill]}
+          style={"width: #{width}%"}
+        ></span>
+      </span>
+      <span :if={@cell[:spark]} aria-hidden="true" class="ml-auto flex h-5 items-end gap-0.5">
+        <span
+          :for={height <- @cell.spark}
+          class="bg-primary w-0.75 rounded-xs opacity-55 last:opacity-100"
+          style={"height: #{height}%"}
+        ></span>
+      </span>
+    </div>
+    """
   end
-
-  defp processes(%Config{processes: :all}), do: "All processes"
-  defp processes(%Config{processes: :existing}), do: "Existing processes"
-  defp processes(%Config{processes: :new}), do: "New processes"
-  defp processes(%Config{processes: :pids, pids: pids}), do: "#{length(pids)} pids"
-
-  defp capture(config) do
-    captured =
-      if config.capture == :args,
-        do: "Args ≤ #{Formatters.format_integer(config.budget)}",
-        else: "Arity"
-
-    if config.return_trace, do: captured <> " + returns", else: captured
-  end
-
-  defp stop_after(config) do
-    [
-      config.max_events && Formatters.format_integer(config.max_events),
-      config.max_rate && "#{Formatters.format_integer(config.max_rate)}/s",
-      config.max_time_ms && format_time_limit(config.max_time_ms)
-    ]
-    |> Enum.reject(&is_nil/1)
-    |> Enum.join(" · ")
-  end
-
-  defp format_time_limit(ms) when rem(ms, 1_000) != 0, do: "#{Formatters.format_integer(ms)} ms"
-  defp format_time_limit(ms) when rem(ms, 60_000) != 0, do: "#{div(ms, 1_000)} s"
-  defp format_time_limit(ms) when ms < 3_600_000, do: "#{div(ms, 60_000)} min"
-  defp format_time_limit(ms), do: "#{div(ms, 3_600_000)} h"
 
   defp error_message(:busy), do: "A tracing session is running. Stop it first."
   defp error_message(:not_found), do: "No such tracing session."

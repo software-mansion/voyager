@@ -26,7 +26,10 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
         cell
 
       max ->
-        Map.merge(cell, %{unit: "/ #{Formatters.format_integer(max)}", bar: percent(count, max)})
+        Map.merge(cell, %{
+          unit: "/ #{Formatters.format_integer(max)}",
+          bar: [{"bg-primary", percent(count, max)}]
+        })
     end
   end
 
@@ -48,6 +51,7 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
       key: :stop_reason,
       label: "Stop reason",
       value: TracingComponents.stop_reason_label(session.stop_reason),
+      tip: TracingComponents.stop_reason_label(session.stop_reason),
       tone: if(TracingComponents.tone(session) == :failed, do: "text-warning")
     }
   end
@@ -70,8 +74,7 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
       key: :auto_stop,
       label: "Auto-stop in",
       value: TracingComponents.format_elapsed(div(remaining_ms, 1_000)),
-      bar: percent(remaining_ms, max_ms),
-      fill: "bg-success"
+      bar: [{"bg-success", percent(remaining_ms, max_ms)}]
     }
   end
 
@@ -86,18 +89,45 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
     end
   end
 
-  defp storage(%Session{save: true, bytes: bytes}, limit_mb) do
+  # `storage_limit` is what the other saved sessions left of the shared limit.
+  defp storage(%Session{save: true, bytes: bytes, storage_limit: left}, limit_mb) do
+    limit = limit_mb * 1_000_000
+    others = max(limit - left, 0)
+
     %{
       key: :storage,
       label: "Storage",
-      value: :erlang.float_to_binary(bytes / 1_000_000, decimals: 1) <> " MB",
-      unit: "of #{Formatters.format_integer(limit_mb)} MB",
-      bar: percent(bytes, limit_mb * 1_000_000)
+      value: format_size(bytes),
+      unit: "of #{format_size(limit)}",
+      bar: [
+        {"bg-base-content/30", percent(others, limit)},
+        {"bg-primary", if(bytes > 0, do: max(percent(bytes, limit), 1), else: 0)}
+      ],
+      tip: [
+        {"This session", format_size(bytes)},
+        {"Other saved sessions", format_size(others)},
+        {"Free", format_size(max(left - bytes, 0))}
+      ]
     }
   end
 
-  defp storage(_session, _limit_mb),
-    do: %{key: :storage, label: "Storage", value: "Not saved", unit: "newest 500"}
+  defp storage(_session, _limit_mb) do
+    %{
+      key: :storage,
+      label: "Storage",
+      value: "Not saved",
+      unit: "newest 500",
+      tip: "Unsaved sessions keep only their newest 500 events, in memory"
+    }
+  end
+
+  defp format_size(bytes) when bytes < 1_000_000,
+    do: "#{Formatters.format_integer(div(bytes + 999, 1_000))} KB"
+
+  defp format_size(bytes) when bytes < 100_000_000,
+    do: :erlang.float_to_binary(bytes / 1_000_000, decimals: 1) <> " MB"
+
+  defp format_size(bytes), do: "#{Formatters.format_integer(div(bytes, 1_000_000))} MB"
 
   defp percent(part, whole) when whole > 0, do: min(max(div(part * 100, whole), 0), 100)
   defp percent(_part, _whole), do: 0

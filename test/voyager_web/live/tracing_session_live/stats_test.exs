@@ -27,15 +27,15 @@ defmodule VoyagerWeb.TracingSessionLive.StatsTest do
     assert [events, rate, _dropped, auto_stop, _storage] =
              Stats.cells(session, [380], at(108), 100)
 
-    assert %{unit: "/ 10,000", bar: 32} = events
+    assert %{unit: "/ 10,000", bar: [{"bg-primary", 32}]} = events
     assert %{value: "380", unit: "/s of 1,000", spark: [38]} = rate
-    assert %{key: :auto_stop, value: "3:12", bar: 64, fill: "bg-success"} = auto_stop
+    assert %{key: :auto_stop, value: "3:12", bar: [{"bg-success", 64}]} = auto_stop
   end
 
   test "counts only the current run of a resumed session" do
     session = running(%{traces: 1_500, run_traces_before: 1_000}, %{max_events: 1_000})
 
-    assert [%{value: "500", bar: 50} | _rest] = Stats.cells(session, [], at(10), 100)
+    assert [%{value: "500", bar: [{_fill, 50}]} | _rest] = Stats.cells(session, [], at(10), 100)
   end
 
   test "shows the stop reason and run time of a stopped session" do
@@ -47,7 +47,13 @@ defmodule VoyagerWeb.TracingSessionLive.StatsTest do
     assert [_events, reason, dropped, run_time, _storage] =
              Stats.cells(session, [5], at(500), 100)
 
-    assert %{key: :stop_reason, value: "Node went down", tone: "text-warning"} = reason
+    assert %{
+             key: :stop_reason,
+             value: "Node went down",
+             tip: "Node went down",
+             tone: "text-warning"
+           } = reason
+
     assert %{value: "412", tone: "text-warning"} = dropped
     assert %{key: :run_time, value: "0:38", unit: "of 5:00"} = run_time
   end
@@ -62,19 +68,39 @@ defmodule VoyagerWeb.TracingSessionLive.StatsTest do
   test "clamps the bars to 0-100" do
     session = running(%{traces: 2_000}, %{max_events: 1_000, max_time_ms: 60_000})
 
-    assert [%{bar: 100}, _rate, _dropped, auto_stop, _storage] =
+    assert [%{bar: [{_fill, 100}]}, _rate, _dropped, auto_stop, _storage] =
              Stats.cells(session, [], at(90), 100)
 
-    assert %{value: "0:00", bar: 0} = auto_stop
+    assert %{value: "0:00", bar: [{_fill, 0}]} = auto_stop
   end
 
-  test "shows a saved session's storage against the limit" do
-    session = running(%{save: true, bytes: 18_400_000})
+  test "shows a saved session's storage beside the other saved sessions' share of the limit" do
+    session = running(%{save: true, bytes: 18_400_000, storage_limit: 60_000_000})
 
-    assert %{value: "18.4 MB", unit: "of 100 MB", bar: 18} =
+    assert %{
+             value: "18.4 MB",
+             unit: "of 100 MB",
+             bar: [{_others, 40}, {_this, 18}],
+             tip: [
+               {"This session", "18.4 MB"},
+               {"Other saved sessions", "40.0 MB"},
+               {"Free", "41.6 MB"}
+             ]
+           } = session |> Stats.cells([], at(1), 100) |> List.last()
+
+    assert %{bar: [{_others, 0}, {_this, 1}]} =
+             session |> Stats.cells([], at(1), 0) |> List.last()
+  end
+
+  test "shows a small session's size in KB, rounded up, and keeps it visible on the bar" do
+    session = running(%{save: true, bytes: 1_200, storage_limit: 100_000_000})
+
+    assert %{
+             value: "2 KB",
+             bar: [{_others, 0}, {_this, 1}],
+             tip: [_this_size, {"Other saved sessions", "0 KB"}, _free]
+           } =
              session |> Stats.cells([], at(1), 100) |> List.last()
-
-    assert %{bar: 0} = session |> Stats.cells([], at(1), 0) |> List.last()
   end
 
   test "scales the sparkline to the larger of max rate and the busiest tick" do

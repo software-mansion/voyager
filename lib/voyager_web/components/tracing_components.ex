@@ -5,10 +5,13 @@ defmodule VoyagerWeb.Components.TracingComponents do
 
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Session
+  alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Components.ProcessComponents
   alias VoyagerWeb.Formatters
 
-  @term_cap 200
+  @row_cap 200
+  # The tooltip renders for every row, so its text is capped too.
+  @tip_cap 4_000
 
   @spec tone(Session.t(), node() | nil) :: :running | :other_node | :failed | :open
   def tone(session, connected_node \\ nil)
@@ -89,6 +92,101 @@ defmodule VoyagerWeb.Components.TracingComponents do
 
   defp format_module("Elixir." <> module), do: module
   defp format_module(module), do: ":" <> module
+
+  @spec config_summary(Config.t()) :: String.t()
+  def config_summary(%Config{} = config) do
+    limits =
+      [
+        config.max_events && count(config.max_events, "event", "events"),
+        config.max_rate && "#{Formatters.format_integer(config.max_rate)}/s",
+        config.max_time_ms && format_time_limit(config.max_time_ms)
+      ]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.join(", ")
+
+    processes =
+      if config.processes == :pids,
+        do: count(length(config.pids), "pid", "pids"),
+        else: processes(config)
+
+    capture = if config.return_trace, do: capture(config) <> " + returns", else: capture(config)
+
+    Enum.join([processes, config.scope, capture, "stop at " <> limits], " · ")
+  end
+
+  @doc "Every parameter of `config`, the ones that differ from `previous` highlighted with their old value."
+  attr :config, Config, required: true
+  attr :previous, Config, default: nil
+
+  def config_table(assigns) do
+    assigns = assign(assigns, :rows, config_rows(assigns.config, assigns.previous))
+
+    ~H"""
+    <table class="font-mono">
+      <tr :for={row <- @rows} class={row.old && "bg-primary/10 text-primary font-semibold"}>
+        <td class={[
+          "whitespace-nowrap py-0.5 pr-4 pl-1 align-top",
+          !row.old && "text-base-content/60"
+        ]}>
+          {row.label}
+        </td>
+        <td class="break-all py-0.5 pr-1">
+          <span :if={row.old} class="text-base-content/50 mr-1 font-normal line-through">
+            {row.old}
+          </span>
+          {row.value}
+        </td>
+      </tr>
+    </table>
+    """
+  end
+
+  defp config_rows(config, previous) do
+    old = if previous, do: Map.new(config_params(previous)), else: %{}
+
+    for {label, value} <- config_params(config) do
+      changed = Map.get(old, label, value)
+      %{label: label, value: value, old: if(changed != value, do: changed)}
+    end
+  end
+
+  defp config_params(config) do
+    [
+      {"Function", traced_mfa(config)},
+      {"Processes", processes(config)},
+      {"Scope", config.scope |> Atom.to_string() |> String.capitalize()},
+      {"Capture", capture(config)},
+      {"Returns", if(config.return_trace, do: "Traced", else: "Not traced")},
+      {"Max events", config.max_events && Formatters.format_integer(config.max_events)},
+      {"Max rate", config.max_rate && "#{Formatters.format_integer(config.max_rate)}/s"},
+      {"Max time", config.max_time_ms && format_time_limit(config.max_time_ms)}
+    ]
+    |> Enum.map(fn {label, value} -> {label, value || "None"} end)
+  end
+
+  defp config_changes(nil, config), do: traced_mfa(config)
+
+  defp config_changes(previous, config) do
+    case Enum.filter(config_rows(config, previous), & &1.old) do
+      [] -> "no changes"
+      rows -> Enum.map_join(rows, " · ", &"#{&1.label} #{&1.old} → #{&1.value}")
+    end
+  end
+
+  defp processes(%Config{processes: :all}), do: "All processes"
+  defp processes(%Config{processes: :existing}), do: "Existing processes"
+  defp processes(%Config{processes: :new}), do: "New processes"
+  defp processes(%Config{processes: :pids, pids: pids}), do: Enum.join(pids, ", ")
+
+  defp capture(%Config{capture: :args, budget: budget}),
+    do: "Args ≤ #{Formatters.format_integer(budget)}"
+
+  defp capture(_config), do: "Arity"
+
+  defp format_time_limit(ms) when rem(ms, 1_000) != 0, do: "#{Formatters.format_integer(ms)} ms"
+  defp format_time_limit(ms) when rem(ms, 60_000) != 0, do: "#{div(ms, 1_000)} s"
+  defp format_time_limit(ms) when ms < 3_600_000, do: "#{div(ms, 60_000)} min"
+  defp format_time_limit(ms), do: "#{div(ms, 3_600_000)} h"
 
   @doc "The session's Events card: a streamed table of its log entries, newest first."
   attr :rows, :any, required: true, doc: "the `@streams` entry of the log entries"
@@ -230,18 +328,29 @@ defmodule VoyagerWeb.Components.TracingComponents do
         id="log-footer"
         class="border-base-200 min-h-11 flex flex-none items-center justify-between gap-3 border-t px-5 py-1.5"
       >
-        <p class="text-base-content/70 text-xs">
+        <p class="text-base-content/70 min-w-0 truncate text-xs">
           {footer(@search, @trace_session, @trace_rows, @oldest_seq)}
         </p>
-        <button
-          :if={older?(@search, @oldest_seq)}
-          type="button"
-          id="log-older"
-          phx-click={@on_older}
-          class="btn btn-sm"
-        >
-          <.icon name="icon-move-down" class="size-3.5" /> Load older
-        </button>
+        <div class="flex shrink-0 items-center gap-4">
+          <span id="log-legend" class="text-base-content/70 flex items-center gap-3 text-xs">
+            <span
+              :for={type <- if(@durations?, do: [:call, :return, :exception], else: [:call])}
+              class="flex items-center gap-1"
+            >
+              <.icon name={glyph(type)} class={["size-3.5", glyph_class(type)]} />
+              {type_label(type)}
+            </span>
+          </span>
+          <button
+            :if={older?(@search, @oldest_seq)}
+            type="button"
+            id="log-older"
+            phx-click={@on_older}
+            class="btn btn-sm"
+          >
+            <.icon name="icon-move-down" class="size-3.5" /> Load older
+          </button>
+        </div>
       </div>
     </div>
     """
@@ -265,9 +374,12 @@ defmodule VoyagerWeb.Components.TracingComponents do
           row_id={@id}
           href={@pid_href.(@entry.pid)}
         />
-        <span :if={!@pid_href} class="font-mono text-primary block truncate text-sm">
-          {Formatters.pid(@entry.pid)}
-        </span>
+        <DataTableComponents.value_cell
+          :if={!@pid_href}
+          id={"#{@id}-pid"}
+          value={Formatters.pid(@entry.pid)}
+          class="text-primary"
+        />
       </td>
       <td class="py-2">
         <div class="flex items-center gap-2">
@@ -275,25 +387,85 @@ defmodule VoyagerWeb.Components.TracingComponents do
             name={glyph(@entry.type)}
             class={["size-3.5 shrink-0", glyph_class(@entry.type)]}
             role="img"
-            aria-label={@entry.type}
+            aria-label={type_label(@entry.type)}
           />
-          <span class="font-mono block min-w-0 truncate text-sm">
-            <span :if={@wildcard? and @entry.type != :call} class="text-base-content/50 mr-1">
-              {fun_arity(@entry.mfa)}
+          <.tooltip
+            id={"#{@id}-term"}
+            interactive
+            pinnable={false}
+            class="min-w-0"
+            tip_class="font-mono max-w-xl!"
+          >
+            <span tabindex="0" class="font-mono block min-w-0 truncate text-sm">
+              <span :if={@wildcard? and @entry.type != :call} class="text-base-content/50 mr-1">
+                {fun_arity(@entry.mfa)}
+              </span>
+              <span class={term_class(@entry.type)}>
+                {highlight(term_text(@entry, @wildcard?, :row), @query)}
+              </span>
             </span>
-            <span class={term_class(@entry.type)}>{highlight(term_text(@entry, @wildcard?), @query)}</span>
-          </span>
-          <.icon
-            :if={@entry[:truncated]}
-            name="icon-circle-alert"
-            class="text-warning size-3.5 shrink-0"
-            role="img"
-            aria-label="Truncated on the remote node"
-          />
+            <:content>
+              <div class="flex items-start gap-1">
+                <span
+                  id={"#{@id}-term-text"}
+                  class="max-h-80 overflow-auto whitespace-pre-wrap break-all"
+                >{term_text(@entry, @wildcard?, :tip)}</span>
+                <.copy_button
+                  id={"#{@id}-term-copy"}
+                  target={"##{@id}-term-text"}
+                  label="Copy value"
+                  icon_only
+                  size={:sm}
+                  class="text-base-content/60 shrink-0 hover:text-primary"
+                />
+              </div>
+            </:content>
+          </.tooltip>
+          <.tooltip :if={@entry[:truncated]} id={"#{@id}-truncated"} class="shrink-0">
+            <.icon
+              name="icon-circle-alert"
+              class="text-warning size-3.5"
+              role="img"
+              aria-label="Truncated on the remote node"
+            />
+            <:content>Truncated on the remote node to fit the capture budget</:content>
+          </.tooltip>
         </div>
       </td>
       <td :if={@durations?} class="font-mono truncate py-2 text-right text-sm">
         {format_duration(@entry[:duration_us])}
+      </td>
+    </tr>
+    """
+  end
+
+  defp log_row(%{entry: %{kind: :configured} = entry} = assigns) do
+    detail =
+      [by(entry.origin), config_changes(entry[:previous], entry.config)]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.join(" · ")
+
+    assigns = assign(assigns, :detail, detail)
+
+    ~H"""
+    <tr id={@id} class="bg-base-200 h-11">
+      <td colspan={if @durations?, do: 4, else: 3} class="py-2">
+        <div class="flex items-center gap-2">
+          <.icon name="icon-settings" class="text-base-content/70 size-4 shrink-0" />
+          <span class="text-sm font-medium">Configured</span>
+          <.tooltip id={"#{@id}-config"} position="bottom" class="min-w-0">
+            <span
+              id={"#{@id}-changes"}
+              tabindex="0"
+              class="font-mono text-base-content/70 block truncate text-xs"
+            >
+              {@detail}
+            </span>
+            <:content>
+              <.config_table config={@entry.config} previous={@entry[:previous]} />
+            </:content>
+          </.tooltip>
+        </div>
       </td>
     </tr>
     """
@@ -325,9 +497,6 @@ defmodule VoyagerWeb.Components.TracingComponents do
     </tr>
     """
   end
-
-  defp control(%{kind: :configured, origin: origin}),
-    do: {"icon-settings", "text-base-content/70", "bg-base-200", "Configured", by(origin)}
 
   defp control(%{kind: :started, origin: origin}),
     do: {"icon-play", "text-success", "bg-base-200", "Started", by(origin)}
@@ -369,29 +538,38 @@ defmodule VoyagerWeb.Components.TracingComponents do
   defp term_class(:return), do: "text-code-atom"
   defp term_class(:exception), do: "text-error"
 
-  defp term_text(%{type: :call, args: args, mfa: {_module, function, _arity}}, wildcard?)
+  defp term_text(%{type: :call, args: args, mfa: {_module, function, _arity}}, wildcard?, size)
        when is_list(args) do
     name = if wildcard?, do: Atom.to_string(function), else: ""
-    cap(name <> "(" <> Enum.map_join(args, ", ", &format_term/1) <> ")")
+    cap(name <> "(" <> Enum.map_join(args, ", ", &format_term(&1, size)) <> ")", size)
   end
 
-  defp term_text(%{type: :call, mfa: mfa}, _wildcard?), do: fun_arity(mfa)
+  defp term_text(%{type: :call, mfa: mfa}, _wildcard?, _size), do: fun_arity(mfa)
 
-  defp term_text(%{type: :exception, value: {class, reason}}, _wildcard?),
-    do: cap(format_term(class) <> ", " <> format_term(reason))
+  defp term_text(%{type: :exception, value: {class, reason}}, _wildcard?, size),
+    do: cap(format_term(class, size) <> ", " <> format_term(reason, size), size)
 
-  defp term_text(%{value: value}, _wildcard?), do: cap(format_term(value))
+  defp term_text(%{value: value}, _wildcard?, size), do: cap(format_term(value, size), size)
 
   defp fun_arity({_module, function, arity}), do: "#{function}/#{arity}"
 
-  defp format_term(term),
-    do: Formatters.format_term(term, limit: 20, printable_limit: @term_cap)
+  defp format_term(term, :row),
+    do: Formatters.format_term(term, limit: 20, printable_limit: @row_cap)
 
-  defp cap(text) do
-    if String.length(text) > @term_cap,
-      do: String.slice(text, 0, @term_cap) <> "…",
+  defp format_term(term, :tip),
+    do: Formatters.format_term(term, limit: :infinity, printable_limit: @tip_cap)
+
+  defp cap(text, size) do
+    cap = if size == :row, do: @row_cap, else: @tip_cap
+
+    if String.length(text) > cap,
+      do: String.slice(text, 0, cap) <> "…",
       else: text
   end
+
+  defp type_label(:call), do: "Call"
+  defp type_label(:return), do: "Return"
+  defp type_label(:exception), do: "Exception"
 
   defp highlight(text, nil), do: text
 

@@ -91,7 +91,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#session-start[disabled]")
     assert has_element?(view, "#session-empty")
     assert has_element?(view, "#session-set-parameters[disabled]")
-    assert has_element?(view, "#session-chip-storage", "Not saved")
+    assert has_element?(view, "#session-summary", "Not saved")
     refute has_element?(view, "#session-edit")
   end
 
@@ -111,7 +111,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#session-stop")
   end
 
-  test "summarizes the config in chips", %{conn: conn} do
+  test "summarizes the config and shows what each reconfigure changed", %{conn: conn} do
     %{id: id} = create!()
 
     {:ok, _session} =
@@ -128,15 +128,28 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     view = open(conn, id)
 
     assert has_element?(view, "#session-mfa", "Date.leap_year?/1")
-    assert has_element?(view, "#session-chip-where", "All processes · global")
-    assert has_element?(view, "#session-chip-capture", "Args ≤ 5,000 + returns")
-    assert has_element?(view, "#session-chip-stop_after", "10,000 · 1,000/s · 5 min")
+
+    assert has_element?(
+             view,
+             "#session-summary",
+             "All processes · global · Args ≤ 5,000 + returns · stop at 10,000 events, 1,000/s, 5 min"
+           )
+
+    assert has_element?(view, "#entry-0-changes", "by UI · Date.leap_year?/1")
 
     {:ok, _session} = configure(%{scope: :local, max_events: nil, max_time_ms: 90_000})
 
-    assert has_element?(view, "#session-chip-where", "1 pids · local")
-    assert has_element?(view, "#session-chip-capture", "Arity")
-    assert has_element?(view, "#session-chip-stop_after", "90 s")
+    assert has_element?(view, "#session-summary", "1 pid · local · Arity · stop at 90 s")
+
+    assert has_element?(
+             view,
+             "#entry-1-changes",
+             "Processes All processes → " <> Voyager.Pid.format(self(), :distribution)
+           )
+
+    assert has_element?(view, "#entry-1-changes", "Scope Global → Local")
+    assert has_element?(view, "#entry-1-changes", "Max events 10,000 → None")
+    assert has_element?(view, "#entry-1-config-portal")
   end
 
   test "loads a saved session into the tracer", %{conn: conn} do
@@ -282,7 +295,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     flush_log(view)
 
     assert row_ids(view) == ["entry-3", "entry-2", "entry-1", "entry-0"]
-    assert has_element?(view, "#entry-2 [role=img][aria-label=call]")
+    assert has_element?(view, "#entry-2 [role=img][aria-label=Call]")
     assert has_element?(view, "#entry-2", "(~D[2024-01-01])")
     assert has_element?(view, "#entry-2 a[href*='/processes/']")
     assert has_element?(view, "#log-footer", "All 2 traces shown")
@@ -370,7 +383,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     view = open(conn, id)
 
     assert has_element?(view, "#log-duration")
-    assert has_element?(view, "#entry-3 [aria-label=return]")
+    assert has_element?(view, "#entry-3 [aria-label=Return]")
     assert has_element?(view, "#entry-3 td:last-child", ~r/^\s*\d+\.\d{2} ms\s*$/)
   end
 
