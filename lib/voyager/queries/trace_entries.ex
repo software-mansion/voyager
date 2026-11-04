@@ -28,14 +28,6 @@ defmodule Voyager.Queries.TraceEntries do
     |> window(session_id, [])
   end
 
-  @doc "The newest `limit` trace and dropped entries, newest first."
-  @spec traces(integer(), pos_integer()) :: [map()]
-  def traces(session_id, limit) do
-    opts = [limit: limit]
-    dropped = TraceSessionEvent |> where(kind: :dropped) |> window(session_id, opts)
-    merge(dropped, window(TraceEvent, session_id, opts), opts)
-  end
-
   @doc "The `seq` after the session's last entry."
   @spec next_seq(integer()) :: non_neg_integer()
   def next_seq(session_id) do

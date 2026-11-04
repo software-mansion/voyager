@@ -223,4 +223,28 @@ defmodule Voyager.PidTest do
       assert Pid.resolve(:demo@localhost, "not-a-pid") == {:error, :invalid_pid}
     end
   end
+
+  describe "resolve_all/2" do
+    test "resolves every <0.X.Y> string in one call and the rest locally" do
+      pid = self()
+
+      expect(Voyager.ErpcMock, :call, fn :demo@localhost,
+                                         :lists,
+                                         :map,
+                                         [_fun, [~c"<0.45.6>", ~c"<0.45.7>"]],
+                                         _timeout ->
+        [pid, pid]
+      end)
+
+      assert Pid.resolve_all(:demo@localhost, ["<0.45.6>", "#PID<0.45.7>"]) == {:ok, [pid, pid]}
+    end
+
+    test "makes no call without <0.X.Y> strings" do
+      assert Pid.resolve_all(:demo@localhost, []) == {:ok, []}
+    end
+
+    test "fails on the first invalid string" do
+      assert Pid.resolve_all(:demo@localhost, ["<0.45.6>", "not-a-pid"]) == {:error, :invalid_pid}
+    end
+  end
 end

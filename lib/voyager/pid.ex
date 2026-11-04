@@ -40,6 +40,18 @@ defmodule Voyager.Pid do
     end
   end
 
+  @doc "Resolves every string like `resolve/2`, with a single call to `node` for all `<0.X.Y>` strings."
+  @spec resolve_all(node(), [String.t()]) :: {:ok, [pid()]} | {:error, term()}
+  def resolve_all(node, pid_strings) do
+    parsed = Enum.map(pid_strings, &parse_locally(node, String.trim_leading(&1, "#PID")))
+
+    with nil <- Enum.find(parsed, &match?({:error, _reason}, &1)),
+         {:ok, remote_pids} <- resolve_on_node(node, Enum.filter(parsed, &is_binary/1)) do
+      {pids, []} = Enum.map_reduce(parsed, remote_pids, &fill_remote/2)
+      {:ok, pids}
+    end
+  end
+
   @doc "The `N` of the connected node's `<N.X.Y>` pids, cached by `put_node/1`."
   @spec cached_node_id() :: String.t() | nil
   def cached_node_id, do: :persistent_term.get(@node_id_key, nil)
@@ -94,6 +106,26 @@ defmodule Voyager.Pid do
       _error ->
         nil
     end
+  end
+
+  # Leaves a `<0.X.Y>` string in place for `resolve_on_node/2`.
+  defp parse_locally(_node, "<0." <> _rest = node_local), do: node_local
+
+  defp parse_locally(node, pid_string) do
+    case resolve(node, pid_string) do
+      {:ok, pid} -> pid
+      error -> error
+    end
+  end
+
+  defp fill_remote(pid, remote_pids) when is_pid(pid), do: {pid, remote_pids}
+  defp fill_remote(_node_local, [pid | remote_pids]), do: {pid, remote_pids}
+
+  defp resolve_on_node(_node, []), do: {:ok, []}
+
+  defp resolve_on_node(node, pid_strings) do
+    charlists = Enum.map(pid_strings, &String.to_charlist/1)
+    Erpc.safe_call(node, :lists, :map, [&:erlang.list_to_pid/1, charlists])
   end
 
   defp pid_to_string(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()
