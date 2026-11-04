@@ -22,6 +22,10 @@ defmodule VoyagerWeb.ConnectLive.SshConfigImport do
     |> attach_hook(:ssh_config_import, :handle_event, &handle_event/3)
   end
 
+  @spec config_path(String.t()) :: Path.t()
+  def config_path(""), do: "~/.ssh/config"
+  def config_path(path), do: path
+
   @spec selected_host([Config.host()] | nil, Form.t()) :: Config.host() | nil
   def selected_host(hosts, form) do
     current =
@@ -87,7 +91,7 @@ defmodule VoyagerWeb.ConnectLive.SshConfigImport do
   defp handle_event(_event, _params, socket), do: {:cont, socket}
 
   defp load(socket, path) do
-    case read(path) do
+    case path |> config_path() |> Config.read() do
       {:ok, %{hosts: hosts, unsupported: unsupported}} ->
         Settings.put(:ssh_config_path, path)
 
@@ -107,9 +111,6 @@ defmodule VoyagerWeb.ConnectLive.SshConfigImport do
         |> assign(:ssh_config_hosts, nil)
     end
   end
-
-  defp read(""), do: Config.read()
-  defp read(path), do: Config.read(path)
 
   defp advanced_value?(host), do: host.port not in [nil, 22] or is_binary(host.identity_agent)
 
