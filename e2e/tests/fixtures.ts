@@ -36,6 +36,20 @@ export const sel = {
   sshAuthPassword: '#ssh-auth-password',
   sshPasswordInput: '#ssh_password',
   sshRecentConnections: '#ssh-recent-connections',
+  sshAuthKey: '#ssh-auth-key',
+  sshPortInput: '#ssh_ssh_port',
+  sshKeyPathInput: '#ssh_key_path',
+  sshAgentSocketInput: '#ssh_agent_socket_path',
+  sshConfigOpen: '#ssh-config-open',
+  sshConfigFilledFrom: '#ssh-config-filled-from',
+  sshConfigModal: '#ssh-config-modal',
+  sshConfigForm: '#ssh-config-modal-form',
+  sshConfigPathInput: '#ssh_config_path',
+  sshConfigBrowse: '#ssh_config_path-browse',
+  sshConfigImport: '#ssh-config-modal-import',
+  sshConfigReload: '#ssh-config-modal-reload',
+  sshConfigHosts: '#ssh-config-modal-hosts',
+  sshConfigNotice: '#ssh-config-notice',
 };
 
 export function fillRecentBtn(page: Page) {
