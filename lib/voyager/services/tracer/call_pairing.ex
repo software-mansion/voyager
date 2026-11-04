@@ -1,5 +1,7 @@
 defmodule Voyager.Services.Tracer.CallPairing do
-  @moduledoc false
+  @moduledoc """
+  Matches return and exception trace events to their calls to time them.
+  """
 
   # Returns that never come would grow the open calls forever, so they reset past this.
   @max_open_calls 10_000

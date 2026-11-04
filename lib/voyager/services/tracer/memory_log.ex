@@ -1,5 +1,7 @@
 defmodule Voyager.Services.Tracer.MemoryLog do
-  @moduledoc false
+  @moduledoc """
+  An unsaved session's log, kept in memory with only its newest traces.
+  """
 
   alias Voyager.Services.Tracer.Entry
 

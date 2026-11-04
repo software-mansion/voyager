@@ -1,5 +1,8 @@
 defmodule Voyager.Services.Tracer.Entry do
-  @moduledoc false
+  @moduledoc """
+  Builds the entries of a session log: configured, started and stopped controls,
+  drop counts and trace events.
+  """
 
   alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Config
