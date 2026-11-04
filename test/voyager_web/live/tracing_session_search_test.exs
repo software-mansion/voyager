@@ -56,6 +56,7 @@ defmodule VoyagerWeb.TracingSessionSearchTest do
     search(view, "2023")
 
     assert has_element?(view, "#log-footer", "Newest 100 of 150 matches in 150 traces")
+    assert has_element?(view, "#log-matches", "150 matches")
 
     call_traced!(List.duplicate(~D[2023-05-05], 20), 170)
     view |> element("#log-older") |> render_click()

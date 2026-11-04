@@ -106,6 +106,8 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#session-edit[disabled]")
     assert view |> element("#session-edit-tip-portal") |> render() =~ "not available yet"
     refute has_element?(view, "#session-empty")
+    assert has_element?(view, "#log-footer", "No traces yet")
+    assert has_element?(view, "#log-search[disabled]")
 
     view |> element("#session-start:not([disabled])") |> render_click()
     settle(view)
@@ -153,6 +155,15 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#entry-1-changes", "Scope Global → Local")
     assert has_element?(view, "#entry-1-changes", "Max events 10,000 → None")
     assert has_element?(view, "#entry-1-config-portal")
+  end
+
+  test "names the term column for a wildcard function", %{conn: conn} do
+    %{id: id} = create!()
+    {:ok, _session} = configure(%{function: "_", arity: nil})
+
+    view = open(conn, id)
+
+    assert has_element?(view, "#session-log th", "Call / result")
   end
 
   test "loads a saved session into the tracer", %{conn: conn} do
@@ -295,6 +306,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
 
     assert has_element?(view, "#log-live")
     refute has_element?(view, "#log-duration")
+    assert has_element?(view, "#session-log th", "Arguments / result")
 
     call_traced!(2, 2)
     flush_log(view)
@@ -342,7 +354,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
 
     refute has_element?(view, "#log-live")
     refute has_element?(view, "#entry-2")
-    assert has_element?(view, "#log-new-count", "2 new events")
+    assert has_element?(view, "#log-resume #log-new-count", "2 new")
 
     view |> element("#log-resume") |> render_click()
     render_async(view)

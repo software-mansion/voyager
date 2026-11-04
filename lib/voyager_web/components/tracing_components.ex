@@ -241,25 +241,27 @@ defmodule VoyagerWeb.Components.TracingComponents do
           <span
             :if={@live? and not @paused? and is_nil(@search)}
             id="log-live"
-            class="badge badge-sm badge-soft badge-success font-mono"
+            class="badge badge-sm badge-soft badge-success gap-1.5 font-medium"
           >
-            live
+            <span class="size-1.5 relative flex">
+              <span class="bg-success size-full absolute inline-flex animate-ping rounded-full opacity-75"></span>
+              <span class="bg-success size-1.5 relative inline-flex rounded-full"></span>
+            </span>
+            Live
           </span>
           <span
             :if={@paused? and is_nil(@search)}
             id="log-paused"
-            class="badge badge-sm badge-ghost font-mono"
+            class="badge badge-sm badge-soft badge-warning gap-1 font-medium"
           >
-            paused
+            <.icon name="icon-pause" class="size-3" /> Paused
           </span>
           <span
-            :if={@paused? and is_nil(@search)}
-            id="log-new-count"
-            class="text-base-content/70 text-xs"
+            :if={@search && @search.total}
+            id="log-matches"
+            class="badge badge-sm badge-soft badge-primary font-mono font-medium"
           >
-            {Formatters.format_integer(@new_count)} new {if @new_count == 1,
-              do: "event",
-              else: "events"}
+            {count(@search.total, "match", "matches")}
           </span>
         </div>
         <div class="flex items-center gap-2">
@@ -269,7 +271,11 @@ defmodule VoyagerWeb.Components.TracingComponents do
             phx-change={@on_search}
             phx-submit={@on_search}
           >
-            <label class="input input-sm w-80">
+            <label
+              id="log-search-field"
+              phx-hook=".SearchShortcut"
+              class="input input-sm w-80 transition-shadow focus-within:shadow-sm"
+            >
               <.icon name="icon-search" class="text-base-content/60 size-4" />
               <input
                 id="log-search"
@@ -277,10 +283,33 @@ defmodule VoyagerWeb.Components.TracingComponents do
                 name={@search_form[:query].name}
                 value={@search_form[:query].value}
                 phx-debounce="300"
+                disabled={@trace_session.traces == 0 and is_nil(@search)}
                 placeholder={search_placeholder(@trace_session)}
                 aria-label="Search traces"
+                class="peer"
               />
+              <kbd
+                :if={@trace_session.traces > 0}
+                class="bg-base-content/10 text-base-content/70 min-w-5 font-sans hidden h-5 items-center justify-center rounded-sm px-1 text-xs peer-placeholder-shown:inline-flex"
+              >
+                /
+              </kbd>
             </label>
+            <script :type={Phoenix.LiveView.ColocatedHook} name=".SearchShortcut">
+              export default {
+                mounted() {
+                  this.onKey = (e) => {
+                    if (e.key !== "/" || e.target.closest("input, textarea, select, [contenteditable]")) return
+                    e.preventDefault()
+                    this.el.querySelector("input").focus()
+                  }
+                  window.addEventListener("keydown", this.onKey)
+                },
+                destroyed() {
+                  window.removeEventListener("keydown", this.onKey)
+                }
+              }
+            </script>
           </.form>
           <button
             :if={@live? and not @paused? and is_nil(@search)}
@@ -299,6 +328,13 @@ defmodule VoyagerWeb.Components.TracingComponents do
             class="btn btn-sm btn-primary"
           >
             <.icon name="icon-play" class="size-3.5" /> Resume view
+            <span
+              :if={@new_count > 0}
+              id="log-new-count"
+              class="badge badge-xs bg-primary-content/20 text-primary-content font-mono border-0"
+            >
+              {Formatters.format_integer(@new_count)} new
+            </span>
           </button>
         </div>
       </div>
@@ -308,7 +344,9 @@ defmodule VoyagerWeb.Components.TracingComponents do
             <tr class="font-mono tracking-label text-base-content/70 text-xs font-semibold uppercase">
               <th class="bg-base-100 w-36 py-3">Time</th>
               <th class="bg-base-100 w-38 py-3">PID</th>
-              <th class="bg-base-100 py-3">Arguments / result</th>
+              <th class="bg-base-100 py-3">
+                {if @wildcard?, do: "Call / result", else: "Arguments / result"}
+              </th>
               <th :if={@durations?} id="log-duration" class="bg-base-100 w-28 py-3 text-right">
                 Duration
               </th>
@@ -602,6 +640,8 @@ defmodule VoyagerWeb.Components.TracingComponents do
 
   defp escape(text), do: text |> html_escape() |> elem(1)
 
+  defp search_placeholder(%Session{traces: 0}), do: "No traces to search yet"
+
   defp search_placeholder(%Session{id: id, traces: traces}) when id > 0,
     do: "Search all #{Formatters.format_integer(traces)} traces"
 
@@ -640,6 +680,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
   defp footer(%{total: total} = search, session, _trace_rows, _oldest_seq),
     do: "#{count(total, "match", "matches")} in #{search_scope(session, search)}"
 
+  defp footer(nil, %Session{traces: 0}, _trace_rows, _oldest_seq), do: "No traces yet"
   defp footer(nil, session, trace_rows, oldest_seq), do: footer(session, trace_rows, oldest_seq)
 
   defp footer(session, trace_rows, oldest_seq) when oldest_seq > 0,
