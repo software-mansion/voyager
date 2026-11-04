@@ -35,8 +35,14 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
   def format_mfa({mod, fun, arity}), do: "#{atom(mod)}:#{atom(fun)}/#{arity}"
 
   @impl true
-  def format_mfa_pattern(mod, :_, arity), do: "#{atom(mod)}:_/#{arity}"
-  def format_mfa_pattern(mod, fun, arity), do: "#{atom(mod)}:#{atom(fun)}/#{arity}"
+  def format_mfa_pattern(mod, fun, arity),
+    do: "#{pattern_atom(mod)}:#{pattern_atom(fun)}/#{arity}"
+
+  defp pattern_atom(:_), do: "_"
+  defp pattern_atom(name) when is_atom(name), do: atom(name)
+  # Quotes are always valid around an atom, and a name we cannot classify may need them.
+  defp pattern_atom(name),
+    do: name |> String.to_charlist() |> :io_lib.write_string(?') |> IO.chardata_to_string()
 
   @spec atom(atom()) :: String.t()
   def atom(atom), do: atom |> :io_lib.write_atom() |> IO.chardata_to_string()

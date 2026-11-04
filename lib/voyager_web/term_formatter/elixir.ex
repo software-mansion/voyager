@@ -35,7 +35,14 @@ defmodule VoyagerWeb.TermFormatter.Elixir do
 
   @impl true
   def format_mfa_pattern(mod, fun, arity),
-    do: "#{Macro.inspect_atom(:literal, mod)}.#{Macro.inspect_atom(:remote_call, fun)}/#{arity}"
+    do: "#{module_name(mod)}.#{function_name(fun)}/#{arity}"
+
+  defp module_name(mod) when is_atom(mod), do: Macro.inspect_atom(:literal, mod)
+  defp module_name("Elixir." <> alias), do: alias
+  defp module_name(mod), do: ":" <> mod
+
+  defp function_name(fun) when is_atom(fun), do: Macro.inspect_atom(:remote_call, fun)
+  defp function_name(fun), do: fun
 
   @impl true
   def printable_list?(list, opts \\ []),
