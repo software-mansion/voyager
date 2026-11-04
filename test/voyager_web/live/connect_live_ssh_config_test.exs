@@ -372,7 +372,6 @@ defmodule VoyagerWeb.ConnectLiveSshConfigTest do
       assert value?(view, "ssh_config_path", path)
       assert has_element?(view, "input#ssh_config_path.input-error")
     end
-
   end
 
   describe "config_path/1" do
