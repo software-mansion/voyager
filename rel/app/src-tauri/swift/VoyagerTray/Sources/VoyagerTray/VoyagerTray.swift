@@ -5,7 +5,7 @@ import SwiftUI
 public typealias ActionCallback = @convention(c) (UnsafePointer<CChar>) -> Void
 
 /// A missing `connection` means disconnected, a missing `mcp` means the server is stopped.
-/// `mcp.agents` names the agents that called the server recently.
+/// `mcp.active` names the agents calling a tool now, `mcp.recent` those that did in the last five minutes.
 struct TrayStatus: Decodable {
     let connection: Connection?
     let mcp: Mcp?
@@ -21,7 +21,10 @@ struct TrayStatus: Decodable {
 
     struct Mcp: Decodable {
         let url: String
-        let agents: [String]
+        let active: [String]
+        let recent: [String]
+
+        var idle: Bool { active.isEmpty && recent.isEmpty }
     }
 
     struct LastConnection: Decodable {
@@ -239,34 +242,45 @@ struct TrayView: View {
             .disabled(model.status == nil)
         } footer: {
             if let mcp {
-                agentsRow(mcp.agents)
+                agentsRow(mcp)
             }
         }
     }
 
-    private func agentsRow(_ agents: [String]) -> some View {
+    private func agentsRow(_ mcp: TrayStatus.Mcp) -> some View {
         HStack(spacing: 8) {
             Group {
-                if agents.isEmpty {
-                    Text("No agent connected yet").foregroundColor(Theme.muted)
+                if mcp.idle {
+                    Text("No agent in use").foregroundColor(Theme.muted)
                 } else {
-                    Text(agents.joined(separator: ", ")) + Text(" connected").foregroundColor(Theme.muted)
+                    agentsText(mcp)
                 }
             }
             .lineLimit(1)
             .truncationMode(.tail)
             Spacer(minLength: 6)
-            Button(agents.isEmpty ? "Set up in Settings ↗" : "Manage ↗") {
+            Button(mcp.idle ? "Set up in Settings ↗" : "Manage ↗") {
                 model.perform(.mcpSettings)
             }
             .buttonStyle(.plain)
             .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(agents.isEmpty ? Theme.accent : Theme.muted)
+            .foregroundStyle(mcp.idle ? Theme.accent : Theme.muted)
             .pointingHandCursor()
         }
         .font(.system(size: 11))
         .padding(.top, 8)
         .overlay(alignment: .top) { Rectangle().fill(Theme.border).frame(height: 1) }
+    }
+
+    private func agentsText(_ mcp: TrayStatus.Mcp) -> Text {
+        var text = Text("")
+        var separator = ""
+        for (names, suffix) in [(mcp.active, " in use"), (mcp.recent, " recently used")] where !names.isEmpty {
+            text = text + Text(separator).foregroundColor(Theme.muted)
+                + Text(names.joined(separator: ", ")) + Text(suffix).foregroundColor(Theme.muted)
+            separator = " · "
+        }
+        return text
     }
 
     private func connectedSubtitle(_ connection: TrayStatus.Connection) -> Text {

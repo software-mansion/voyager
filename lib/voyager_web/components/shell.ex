@@ -165,14 +165,17 @@ defmodule VoyagerWeb.Components.Shell do
         >
           MCP off
         </span>
-        <span :if={@agents.state == :on} class="sidebar-badge badge badge-primary badge-soft badge-xs">
+        <span
+          :if={@agents.state == :on and not Enum.any?(@agents.agents, & &1.added?)}
+          class="sidebar-badge badge badge-primary badge-soft badge-xs"
+        >
           Set up
         </span>
         <span
-          :if={@agents.state == :connected}
+          :if={@agents.state == :in_use}
           class="sidebar-badge font-mono text-base-content/70 truncate text-xs"
         >
-          {connected_hint(@agents.connected)}
+          {in_use_hint(@agents.in_use)}
         </span>
       </button>
       <:content>
@@ -186,8 +189,8 @@ defmodule VoyagerWeb.Components.Shell do
     """
   end
 
-  defp connected_hint([agent]), do: agent.name
-  defp connected_hint([agent | rest]), do: "#{agent.name} +#{length(rest)}"
+  defp in_use_hint([agent]), do: agent.name
+  defp in_use_hint([agent | rest]), do: "#{agent.name} +#{length(rest)}"
 
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true

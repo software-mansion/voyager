@@ -1,31 +1,30 @@
 defmodule Voyager.Services.McpClients do
   @moduledoc """
-  The AI clients Voyager knows, whether each is installed, and how to point each at Voyager's MCP endpoint.
+  The AI clients Voyager knows, whether each is found on this machine, and how to point each at Voyager's MCP endpoint.
   Client configs are only ever read, never written.
   """
 
-  @type id :: :claude_code | :codex | :gemini | :cursor
+  @type id :: :claude_code | :codex | :cursor
   @type client :: %{
           id: id(),
           name: String.t(),
           command: String.t() | nil,
           link: String.t() | nil,
           config_path: String.t(),
-          installed?: boolean(),
+          found?: boolean(),
           added?: boolean()
         }
 
-  @ids [:claude_code, :codex, :gemini, :cursor]
+  @ids [:claude_code, :codex, :cursor]
 
-  @doc "Every client in display order. `config :voyager, :mcp_clients_installed, [id]` overrides detection."
+  @doc "Every client in display order. `config :voyager, :mcp_clients_found, [id]` overrides detection."
   @spec all(String.t()) :: [client()]
   def all(url) do
-    installed =
-      Application.get_env(:voyager, :mcp_clients_installed) || Enum.filter(@ids, &detect?/1)
+    found = Application.get_env(:voyager, :mcp_clients_found) || Enum.filter(@ids, &detect?/1)
 
     Enum.map(@ids, fn id ->
       client(id, url)
-      |> Map.put(:installed?, id in installed)
+      |> Map.put(:found?, id in found)
       |> Map.put(:added?, added?(id, url))
     end)
   end
@@ -38,7 +37,6 @@ defmodule Voyager.Services.McpClients do
     cond do
       String.starts_with?(name, "claude-code") -> :claude_code
       String.contains?(name, "codex") -> :codex
-      String.contains?(name, "gemini") -> :gemini
       String.contains?(name, "cursor") -> :cursor
       true -> nil
     end
@@ -70,16 +68,6 @@ defmodule Voyager.Services.McpClients do
     }
   end
 
-  defp client(:gemini, url) do
-    %{
-      id: :gemini,
-      name: "Gemini CLI",
-      config_path: "~/.gemini/settings.json",
-      command: "gemini mcp add --transport http voyager #{url}",
-      link: nil
-    }
-  end
-
   defp client(:cursor, url) do
     config = Base.encode64(JSON.encode!(%{url: url}))
 
@@ -98,8 +86,6 @@ defmodule Voyager.Services.McpClients do
 
   defp detect?(:codex),
     do: File.dir?("/Applications/Codex.app") or executable_or_dir?("codex", ".codex")
-
-  defp detect?(:gemini), do: executable_or_dir?("gemini", ".gemini")
 
   defp detect?(:cursor),
     do: File.dir?("/Applications/Cursor.app") or executable_or_dir?("cursor", ".cursor")
@@ -127,9 +113,6 @@ defmodule Voyager.Services.McpClients do
   defp added?(:cursor, url),
     do: servers_with_url?(read_json(".cursor/mcp.json")["mcpServers"], url)
 
-  defp added?(:gemini, url),
-    do: servers_with_url?(read_json(".gemini/settings.json")["mcpServers"], url)
-
   defp added?(:codex, url) do
     case File.read(home_path(".codex/config.toml")) do
       {:ok, toml} -> String.contains?(toml, ~s|url = "#{url}"|)
@@ -139,7 +122,7 @@ defmodule Voyager.Services.McpClients do
 
   defp servers_with_url?(servers, url) when is_map(servers) do
     Enum.any?(Map.values(servers), fn server ->
-      is_map(server) and url in [server["url"], server["httpUrl"], server["serverUrl"]]
+      is_map(server) and server["url"] == url
     end)
   end
 

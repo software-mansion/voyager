@@ -20,10 +20,7 @@ defmodule VoyagerWeb.McpComponents do
   def agent_logo(assigns) do
     ~H"""
     <span class={["size-5.5 flex shrink-0 items-center justify-center rounded-md", logo_tile(@id)]}>
-      <.icon
-        name={logo_icon(@id)}
-        class={["size-3.5", @id == :gemini && "bg-linear-135 from-brand-gemini to-brand-gemini-end"]}
-      />
+      <.icon name={logo_icon(@id)} class="size-3.5" />
     </span>
     """
   end
@@ -36,8 +33,33 @@ defmodule VoyagerWeb.McpComponents do
       "size-1.5 inline-flex shrink-0 rounded-full",
       @state == :off && "bg-error",
       @state == :on && "bg-warning",
-      @state == :connected && "bg-success ring-success/30 ring-3"
+      @state == :in_use && "bg-success ring-success/30 ring-3"
     ]}></span>
+    """
+  end
+
+  attr :activity, :map, required: true, doc: "a `Voyager.Services.McpAgents.activity()`"
+
+  def activity_status(assigns) do
+    ~H"""
+    <span class={[
+      "flex items-center gap-1 text-xs font-medium",
+      if(@activity.status == :active, do: "text-success", else: "text-base-content/70")
+    ]}>
+      <span class={[
+        "size-1.5 rounded-full",
+        if(@activity.status == :active, do: "bg-success animate-pulse", else: "bg-base-content/40")
+      ]}></span>
+      {if @activity.status == :active, do: "Active", else: "Recently used"}
+    </span>
+    """
+  end
+
+  attr :agent, :map, required: true
+
+  def found_badge(assigns) do
+    ~H"""
+    <span :if={@agent.found? and not @agent.added?} class="badge badge-ghost badge-xs">Found</span>
     """
   end
 
@@ -94,7 +116,7 @@ defmodule VoyagerWeb.McpComponents do
         <div class="flex items-center justify-between gap-2">
           <span class="flex items-center gap-2 text-sm font-semibold">
             <.status_dot state={@agents.state} />
-            {headline(@agents.connected)}
+            {headline(@agents.in_use)}
           </span>
           <span class="flex items-center gap-0.5">
             <span class="font-mono text-base-content/70">{short_url(@agents.url)}</span>
@@ -102,10 +124,10 @@ defmodule VoyagerWeb.McpComponents do
           </span>
         </div>
 
-        <ul :if={@agents.connected != []} id="mcp-panel-connected" class="flex flex-col gap-2">
+        <ul :if={@agents.in_use != []} id="mcp-panel-in-use" class="flex flex-col gap-2">
           <li
-            :for={agent <- @agents.connected}
-            id={"mcp-panel-connected-#{agent_key(agent)}"}
+            :for={agent <- @agents.in_use}
+            id={"mcp-panel-in-use-#{agent_key(agent)}"}
             class="flex items-center gap-2.5"
           >
             <.agent_logo id={agent.id} />
@@ -113,18 +135,16 @@ defmodule VoyagerWeb.McpComponents do
               <div class="truncate text-sm font-medium">
                 {agent.name}
                 <span class="font-mono text-base-content/70 font-normal">
-                  {client_label(agent.connection)}
+                  {client_label(agent.activity)}
                 </span>
               </div>
-              <div class="font-mono text-base-content/70">{last_call(agent.connection)}</div>
+              <.activity_status activity={agent.activity} />
             </div>
           </li>
         </ul>
 
-        <div :if={@agents.connected == []} class="flex flex-col gap-2">
-          <p class="text-base-content/70">
-            No agent has connected yet.{if @agents.agents != [], do: " Found on this machine:"}
-          </p>
+        <div :if={@agents.in_use == []} class="flex flex-col gap-2">
+          <p class="text-base-content/70">No agent is using Voyager right now.</p>
           <ul id="mcp-panel-agents" class="flex flex-col">
             <li
               :for={agent <- @agents.agents}
@@ -132,7 +152,10 @@ defmodule VoyagerWeb.McpComponents do
               class="flex items-center gap-2.5 py-1"
             >
               <.agent_logo id={agent.id} />
-              <span class="flex-1 truncate text-sm">{agent.name}</span>
+              <span class="flex min-w-0 flex-1 items-center gap-1.5 text-sm">
+                <span class="truncate">{agent.name}</span>
+                <.found_badge agent={agent} />
+              </span>
               <span :if={agent.added?} class="badge badge-ghost badge-sm">Added</span>
               <a
                 :if={not agent.added? and agent.link}
@@ -184,21 +207,21 @@ defmodule VoyagerWeb.McpComponents do
   def agent_key(%{id: nil, name: name}), do: :erlang.phash2(name)
   def agent_key(%{id: id}), do: id
 
-  @spec client_label(McpAgents.connection()) :: String.t()
+  @spec client_label(McpAgents.activity()) :: String.t()
   def client_label(%{client: client, version: nil}), do: client
   def client_label(%{client: client, version: version}), do: "#{client} #{version}"
 
-  @spec last_call(McpAgents.connection()) :: String.t()
-  def last_call(%{last_seen: last_seen}) do
-    case DateTime.diff(DateTime.utc_now(), last_seen) do
-      seconds when seconds < 60 -> "last call just now"
-      seconds -> "last call #{div(seconds, 60)} min ago"
+  defp headline([]), do: "MCP server running"
+
+  defp headline(in_use) do
+    case Enum.count(in_use, &(&1.activity.status == :active)) do
+      0 -> "#{agents_count(length(in_use))} used recently"
+      active -> "#{agents_count(active)} active"
     end
   end
 
-  defp headline([]), do: "MCP server running"
-  defp headline([_agent]), do: "1 agent connected"
-  defp headline(connected), do: "#{length(connected)} agents connected"
+  defp agents_count(1), do: "1 agent"
+  defp agents_count(count), do: "#{count} agents"
 
   defp short_url(url) do
     uri = URI.parse(url)
@@ -207,12 +230,10 @@ defmodule VoyagerWeb.McpComponents do
 
   defp logo_tile(:claude_code), do: "bg-brand-claude text-white"
   defp logo_tile(id) when id in [:codex, :cursor], do: "bg-base-content text-base-100"
-  defp logo_tile(:gemini), do: "bg-base-100 border-base-300 border"
   defp logo_tile(_id), do: "bg-base-300 text-base-content"
 
   defp logo_icon(:claude_code), do: "icon-brand-claude"
   defp logo_icon(:codex), do: "icon-brand-openai"
-  defp logo_icon(:gemini), do: "icon-brand-gemini"
   defp logo_icon(:cursor), do: "icon-brand-cursor"
   defp logo_icon(_id), do: "icon-bot"
 end

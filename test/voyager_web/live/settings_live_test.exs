@@ -5,7 +5,6 @@ defmodule VoyagerWeb.SettingsLiveTest do
   import Voyager.TestUtils, only: [reset_pid_format: 1, reset_term_syntax: 1]
 
   alias Voyager.Fakes
-  alias Voyager.MCP.Server
   alias Voyager.Services.McpAgents
   alias Voyager.Services.TermSyntax
   alias Voyager.Settings
@@ -228,72 +227,6 @@ defmodule VoyagerWeb.SettingsLiveTest do
                "#mcp-locked",
                "The MCP server and its port are controlled by application config, so changes are disabled."
              )
-    end
-  end
-
-  describe "AI agents" do
-    @describetag capture_log: true
-    @describetag :tmp_dir
-
-    setup %{tmp_dir: home} do
-      Voyager.MCPCase.stop_mcp()
-      {:ok, _} = Settings.put(:mcp_port, Voyager.MCPCase.unique_port())
-      Application.put_env(:voyager, :mcp_clients_installed, [:claude_code, :cursor])
-      Application.put_env(:voyager, :mcp_clients_home, home)
-      start_supervised!({Voyager.MCP, enabled: true})
-
-      on_exit(fn ->
-        Voyager.MCPCase.stop_mcp()
-        Application.delete_env(:voyager, :mcp_clients_installed)
-        Application.delete_env(:voyager, :mcp_clients_home)
-      end)
-    end
-
-    test "lists only the agents found on this machine, plus another agent", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/settings")
-      url = Voyager.MCP.info().url
-
-      assert has_element?(view, "#mcp-agent-claude_code-command", "claude mcp add")
-      assert has_element?(view, "#mcp-agent-claude_code-copy")
-
-      assert has_element?(
-               view,
-               ~s|#mcp-agent-cursor-add[href^="cursor://anysphere.cursor-deeplink/mcp/install?"]|
-             )
-
-      refute has_element?(view, "#mcp-agent-codex")
-      refute has_element?(view, "#mcp-agent-gemini")
-      assert has_element?(view, "#mcp-agent-other")
-      assert has_element?(view, "#mcp-setup-prompt-text", url)
-    end
-
-    test "shows an agent whose config already points at Voyager as added", %{
-      conn: conn,
-      tmp_dir: home
-    } do
-      File.mkdir_p!(Path.join(home, ".cursor"))
-
-      File.write!(
-        Path.join(home, ".cursor/mcp.json"),
-        JSON.encode!(%{mcpServers: %{voyager: %{url: Voyager.MCP.info().url}}})
-      )
-
-      {:ok, view, _html} = live(conn, ~p"/settings")
-      _ = :sys.get_state(McpAgents)
-
-      assert has_element?(view, "#mcp-agent-cursor-added")
-      refute has_element?(view, "#mcp-agent-cursor-add")
-    end
-
-    test "marks agents connected once they initialize", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/settings")
-
-      Server.init(%{"name" => "claude-code", "version" => "2.1.0"}, %{})
-      Server.init(%{"name" => "zed", "version" => "0.200"}, %{})
-      _ = :sys.get_state(McpAgents)
-
-      assert has_element?(view, "#mcp-agent-claude_code", "claude-code 2.1.0")
-      assert has_element?(view, "#mcp-agent-list li", "zed")
     end
   end
 

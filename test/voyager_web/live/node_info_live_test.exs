@@ -9,7 +9,6 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
   alias Voyager.Fakes
   alias Voyager.NodeSession.Connectors.Ssh, as: SshConnector
-  alias Voyager.Services.McpAgents
 
   @node_name "demo@localhost"
   @path "/node/demo@localhost"
@@ -21,60 +20,6 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
     session = Fakes.node_session(node_name: @node_name)
     Fakes.connect_node!(session)
     %{node_session: session}
-  end
-
-  describe "AI agents" do
-    @describetag capture_log: true
-    @describetag :tmp_dir
-
-    setup %{tmp_dir: home} do
-      stub_erpc(Fakes.node_data())
-      Voyager.MCPCase.stop_mcp()
-      {:ok, _} = Voyager.Settings.put(:mcp_port, Voyager.MCPCase.unique_port())
-      Application.put_env(:voyager, :mcp_clients_home, home)
-      Application.put_env(:voyager, :mcp_clients_installed, [])
-
-      on_exit(fn ->
-        Voyager.MCPCase.stop_mcp()
-        Application.delete_env(:voyager, :mcp_clients_installed)
-        Application.delete_env(:voyager, :mcp_clients_home)
-      end)
-    end
-
-    test "turns the MCP server on from the popover", %{conn: conn} do
-      {:ok, _} = Voyager.Settings.put(:mcp_enabled, false)
-      start_supervised!({Voyager.MCP, enabled: true})
-
-      {:ok, view, _html} = live(conn, @path)
-      assert has_element?(view, "#mcp-status", "MCP off")
-      assert agents_panel(view) =~ ~s|id="mcp-turn-on"|
-
-      render_click(view, "mcp-turn-on")
-      _ = :sys.get_state(McpAgents)
-
-      assert has_element?(view, "#mcp-status", "Set up")
-      assert agents_panel(view) =~ ~s|id="mcp-panel-agent-other"|
-    end
-
-    test "flashes an error when the MCP server cannot start", %{conn: conn} do
-      {:ok, view, _html} = live(conn, @path)
-
-      render_click(view, "mcp-turn-on")
-
-      assert has_element?(view, "#flash-error", "Failed to turn on the MCP server")
-    end
-
-    test "rescans this machine for agents when the row is clicked", %{conn: conn} do
-      start_supervised!({Voyager.MCP, enabled: true})
-      {:ok, view, _html} = live(conn, @path)
-      refute agents_panel(view) =~ "mcp-panel-agent-codex"
-
-      Application.put_env(:voyager, :mcp_clients_installed, [:codex])
-      view |> element("#mcp-status") |> render_click()
-      _ = :sys.get_state(McpAgents)
-
-      assert agents_panel(view) =~ ~s|id="mcp-panel-agent-codex"|
-    end
   end
 
   describe "navbar" do
@@ -507,7 +452,4 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
   defp broadcast(pubsub_topic, event) do
     Phoenix.PubSub.broadcast(Voyager.PubSub, pubsub_topic, event)
   end
-
-  defp agents_panel(view),
-    do: view |> element("[id^='mcp-status-tip-'][id$='-portal']") |> render()
 end

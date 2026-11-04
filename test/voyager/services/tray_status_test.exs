@@ -100,18 +100,21 @@ defmodule Voyager.Services.TrayStatusTest do
     assert %{"mcp" => nil, "error" => nil} = receive_status()
   end
 
-  test "follows the MCP server and its connected agents" do
+  test "follows the MCP server and the agents in use" do
     broadcast(McpAgents.topic(), {:mcp_agents, %McpAgents{state: :on, url: @mcp_url}})
-    assert %{"mcp" => %{"url" => @mcp_url, "agents" => []}} = receive_status()
+    assert %{"mcp" => %{"url" => @mcp_url, "active" => [], "recent" => []}} = receive_status()
 
-    connected = %McpAgents{
-      state: :connected,
+    in_use = %McpAgents{
+      state: :in_use,
       url: @mcp_url,
-      connected: [%{name: "Claude Code"}, %{name: "zed"}]
+      in_use: [
+        %{name: "Claude Code", activity: %{status: :active}},
+        %{name: "zed", activity: %{status: :recent}}
+      ]
     }
 
-    broadcast(McpAgents.topic(), {:mcp_agents, connected})
-    assert %{"mcp" => %{"agents" => ["Claude Code", "zed"]}} = receive_status()
+    broadcast(McpAgents.topic(), {:mcp_agents, in_use})
+    assert %{"mcp" => %{"active" => ["Claude Code"], "recent" => ["zed"]}} = receive_status()
 
     broadcast(McpAgents.topic(), {:mcp_agents, %McpAgents{state: :off, url: @mcp_url}})
     assert %{"mcp" => nil} = receive_status()

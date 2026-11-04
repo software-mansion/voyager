@@ -18,13 +18,13 @@ defmodule Voyager.MCP.Server do
   component(Voyager.MCP.Tools.EtsReadTableChunk)
   component(Voyager.MCP.Tools.EtsSearchTable)
 
-  alias Voyager.Services.McpAgents
+  require Logger
 
-  @before_compile {McpAgents, :track_requests}
+  @before_compile {Voyager.Services.McpAgents, :track_tool_calls}
 
   @impl true
   def init(client_info, frame) do
-    McpAgents.seen(client_info)
+    Logger.info("MCP client initialized: #{client_info["name"]} #{client_info["version"]}")
     {:ok, frame}
   end
 end

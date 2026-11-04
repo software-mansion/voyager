@@ -5,7 +5,7 @@ defmodule Voyager.Services.TrayStatus do
   Sends `%{connection, mcp, last_connection, connecting, error}` as JSON whenever
   the node session or `McpAgents` changes; a `nil` `connection` means disconnected
   and a `nil` `mcp` means stopped, otherwise `mcp` carries the URL and the names of
-  connected agents. Runs the `"connect"`,
+  `active` and `recent` agents. Runs the `"connect"`,
   `"disconnect"`, `"mcp_on"`, `"mcp_off"`, `"refresh"` and `"dismiss_error"`
   actions.
   """
@@ -148,8 +148,10 @@ defmodule Voyager.Services.TrayStatus do
 
   defp mcp_info(%McpAgents{state: :off}), do: nil
 
-  defp mcp_info(%McpAgents{url: url, connected: connected}),
-    do: %{url: url, agents: Enum.map(connected, & &1.name)}
+  defp mcp_info(%McpAgents{url: url, in_use: in_use}) do
+    {active, recent} = Enum.split_with(in_use, &(&1.activity.status == :active))
+    %{url: url, active: Enum.map(active, & &1.name), recent: Enum.map(recent, & &1.name)}
+  end
 
   defp last_connection do
     [ConnectionQueries.last(), SshConnectionQueries.last()]

@@ -38,7 +38,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
     ~H"""
     <div
       id={@id}
-      class="card bg-base-100 border-base-200 scroll-mt-6 border shadow-sm target:outline-primary target:outline-2 target:outline-offset-4"
+      class="card bg-base-100 border-base-200 scroll-mt-6 border shadow-sm"
     >
       <div class="card-body gap-5 p-5">
         <div class="flex items-start justify-between gap-4">
@@ -93,7 +93,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
 
         <section id="mcp-agents" class="flex flex-col gap-2">
           <span class="font-mono tracking-label text-base-content/70 text-xs font-semibold uppercase">
-            Agents on this machine
+            Agents
           </span>
           <div class="border-base-300 divide-base-content/10 flex flex-col divide-y rounded-lg border px-3">
             <ul
@@ -119,8 +119,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
               </span>
             </div>
           </div>
-          <div class="flex items-center justify-between gap-4 text-xs">
-            <span class="text-base-content/70">Only agents found on this machine are listed.</span>
+          <div class="flex justify-end text-xs">
             <a
               id="mcp-docs"
               href={McpComponents.docs_url()}
@@ -235,31 +234,26 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
     ~H"""
     <li id={@id} class="grid-cols-[auto_1fr_auto] grid items-center gap-x-2.5 gap-y-1.5 py-2">
       <McpComponents.agent_logo id={@agent.id} />
-      <span class="min-w-0 truncate text-sm">
-        {@agent.name}
-        <span :if={@agent.connection} class="font-mono text-base-content/70 text-xs">
-          {McpComponents.client_label(@agent.connection)}
+      <span class="flex min-w-0 items-center gap-1.5 text-sm">
+        <span class="truncate">{@agent.name}</span>
+        <span :if={@agent.activity} class="font-mono text-base-content/70 truncate text-xs">
+          {McpComponents.client_label(@agent.activity)}
         </span>
+        <McpComponents.found_badge agent={@agent} />
       </span>
       <%= cond do %>
-        <% @agent.connection -> %>
-          <span class="text-success flex items-center gap-1 text-xs font-medium">
-            <span class="bg-success size-1.5 rounded-full"></span> Connected
-          </span>
-          <span class="font-mono text-base-content/70 col-span-2 col-start-2 text-xs">
-            {McpComponents.last_call(@agent.connection)}
-          </span>
+        <% @agent.activity -> %>
+          <McpComponents.activity_status activity={@agent.activity} />
         <% @agent.added? -> %>
           <span id={"#{@id}-added"} class="badge badge-ghost badge-sm">Added</span>
           <span class="font-mono text-base-content/70 col-span-2 col-start-2 text-xs">
-            in {@agent.config_path} · no call yet
+            in {@agent.config_path}
           </span>
         <% @agent.link -> %>
           <a id={"#{@id}-add"} href={@agent.link} class="btn btn-primary btn-xs">
             Add to {@agent.name}
           </a>
         <% true -> %>
-          <span class="text-base-content/70 text-xs">detected</span>
           <div class="border-base-300 bg-base-200 col-span-2 col-start-2 flex min-w-0 items-center gap-1 rounded-md border py-0.5 pr-0.5 pl-2">
             <code
               id={"#{@id}-command"}

@@ -1,8 +1,8 @@
 defmodule Voyager.Services.McpAgents do
   @moduledoc """
   The one place the sidebar, settings and tray ask about AI agents: whether the MCP
-  server runs, which agents this machine has, and which called the server in the last
-  ten minutes. Broadcasts `{:mcp_agents, t()}` on `topic/0` whenever that changes.
+  server runs, which agents Voyager supports, and which are calling its tools.
+  Broadcasts `{:mcp_agents, t()}` on `topic/0` whenever that changes.
 
   Agent detection reads the filesystem, so it only reruns on `refresh/0` or a URL change.
   """
@@ -12,35 +12,36 @@ defmodule Voyager.Services.McpAgents do
   alias Voyager.MCP
   alias Voyager.Services.McpClients
 
-  require Logger
+  defstruct state: :off, url: nil, agents: [], in_use: []
 
-  defstruct state: :off, url: nil, agents: [], connected: []
-
-  @type connection :: %{client: String.t(), version: String.t() | nil, last_seen: DateTime.t()}
+  @type activity :: %{
+          client: String.t(),
+          version: String.t() | nil,
+          status: :active | :recent
+        }
   @type agent :: %{
           id: McpClients.id() | nil,
           name: String.t(),
           command: String.t() | nil,
           link: String.t() | nil,
           config_path: String.t() | nil,
-          installed?: boolean(),
+          found?: boolean(),
           added?: boolean(),
-          connection: connection() | nil
+          activity: activity() | nil
         }
   @typedoc """
-  `agents` are the ones found on this machine or connected, in display order;
-  `connected` is the subset with a connection, most recent call first.
+  `agents` are every supported agent, then unsupported ones in use, in display order;
+  `in_use` is the subset with activity, active ones first.
   """
   @type t :: %__MODULE__{
-          state: :off | :on | :connected,
+          state: :off | :on | :in_use,
           url: String.t() | nil,
           agents: [agent()],
-          connected: [agent()]
+          in_use: [agent()]
         }
 
   @topic "mcp_agents"
-  @ttl_seconds 600
-  @prune_interval_ms 30_000
+  @recent_ms :timer.minutes(5)
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(_opts), do: GenServer.start_link(__MODULE__, [], name: __MODULE__)
@@ -59,32 +60,37 @@ defmodule Voyager.Services.McpAgents do
   @spec refresh() :: :ok
   def refresh, do: GenServer.cast(__MODULE__, :refresh)
 
-  @spec seen(map() | nil) :: :ok
+  @doc """
+  Marks the agent active until the calling process exits, then recently used for five
+  minutes. Anubis runs every request in its own task, so call it from that task.
+  """
+  @spec tool_call_started(map() | nil) :: :ok
   # Anubis reports a session it restored after a server restart under this placeholder name.
-  def seen(%{"name" => "auto-recovered"}), do: :ok
+  def tool_call_started(%{"name" => "auto-recovered"}), do: :ok
 
-  def seen(%{"name" => name} = client_info) when is_binary(name) do
-    GenServer.cast(__MODULE__, {:seen, name, client_info["version"]})
+  def tool_call_started(%{"name" => name} = client_info) when is_binary(name) do
+    GenServer.cast(__MODULE__, {:call_started, name, client_info["version"], self()})
   end
 
-  def seen(_client_info), do: :ok
+  def tool_call_started(_client_info), do: :ok
 
   @doc false
   # Anubis defines `handle_request/2` in its own `__before_compile__`, so wrapping it needs a later hook.
-  defmacro track_requests(_env) do
+  defmacro track_tool_calls(_env) do
     quote do
-      def handle_request(request, frame) do
-        unquote(__MODULE__).seen(frame.context.client_info)
+      def handle_request(%{"method" => "tools/call"} = request, frame) do
+        unquote(__MODULE__).tool_call_started(frame.context.client_info)
         super(request, frame)
       end
+
+      def handle_request(request, frame), do: super(request, frame)
     end
   end
 
   @impl true
   def init(_opts) do
     Phoenix.PubSub.subscribe(Voyager.PubSub, MCP.topic())
-    schedule_prune()
-    state = %{server: MCP.info(), clients: [], connections: %{}, snapshot: nil}
+    state = %{server: MCP.info(), clients: [], calls: %{}, activity: %{}, snapshot: nil}
     {:ok, state, {:continue, :detect}}
   end
 
@@ -97,15 +103,38 @@ defmodule Voyager.Services.McpAgents do
   @impl true
   def handle_cast(:refresh, state), do: {:noreply, detect(state)}
 
-  def handle_cast({:seen, name, version}, state) do
-    if not Map.has_key?(state.connections, name),
-      do: Logger.info("MCP client connected: #{name} #{version}")
+  def handle_cast({:call_started, name, version, pid}, state) do
+    ref = Process.monitor(pid)
+    in_flight = get_in(state.activity, [name, :in_flight]) || 0
+    entry = %{client: name, version: version, in_flight: in_flight + 1, ended_at: nil}
 
-    connection = %{client: name, version: version, last_seen: DateTime.utc_now()}
-    {:noreply, publish(put_in(state.connections[name], connection))}
+    state = %{
+      state
+      | calls: Map.put(state.calls, ref, name),
+        activity: Map.put(state.activity, name, entry)
+    }
+
+    {:noreply, publish(state)}
   end
 
   @impl true
+  def handle_info({:DOWN, ref, :process, _pid, _reason}, state) do
+    {name, calls} = Map.pop(state.calls, ref)
+    ended_at = System.monotonic_time(:millisecond)
+    Process.send_after(self(), {:expire, name}, @recent_ms)
+
+    activity =
+      Map.update!(state.activity, name, &%{&1 | in_flight: &1.in_flight - 1, ended_at: ended_at})
+
+    {:noreply, publish(%{state | calls: calls, activity: activity})}
+  end
+
+  def handle_info({:expire, name}, state) do
+    if expired?(state.activity[name]),
+      do: {:noreply, publish(%{state | activity: Map.delete(state.activity, name)})},
+      else: {:noreply, state}
+  end
+
   def handle_info({:mcp_status, server}, state) do
     state = %{state | server: server}
 
@@ -115,14 +144,12 @@ defmodule Voyager.Services.McpAgents do
       else: {:noreply, detect(state)}
   end
 
-  def handle_info(:prune, state) do
-    schedule_prune()
-    cutoff = DateTime.add(DateTime.utc_now(), -@ttl_seconds)
-    fresh = Map.filter(state.connections, fn {_, c} -> DateTime.after?(c.last_seen, cutoff) end)
-    {:noreply, publish(%{state | connections: fresh})}
-  end
-
   def handle_info(_message, state), do: {:noreply, state}
+
+  defp expired?(%{in_flight: 0, ended_at: ended_at}),
+    do: System.monotonic_time(:millisecond) - ended_at >= @recent_ms
+
+  defp expired?(_entry), do: false
 
   defp detect(state), do: publish(%{state | clients: McpClients.all(state.server.url)})
 
@@ -135,13 +162,14 @@ defmodule Voyager.Services.McpAgents do
     %{state | snapshot: snapshot}
   end
 
-  defp snapshot(%{server: server, clients: clients, connections: connections}) do
-    by_id = connections |> Map.values() |> Enum.group_by(&McpClients.match(&1.client))
+  defp snapshot(%{server: server, clients: clients, activity: activity}) do
+    by_id =
+      activity
+      |> Map.values()
+      |> Enum.map(&to_activity/1)
+      |> Enum.group_by(&McpClients.match(&1.client))
 
-    known =
-      clients
-      |> Enum.map(&Map.put(&1, :connection, latest(Map.get(by_id, &1.id, []))))
-      |> Enum.filter(&(&1.installed? or &1.added? or &1.connection != nil))
+    known = Enum.map(clients, &Map.put(&1, :activity, busiest(Map.get(by_id, &1.id, []))))
 
     unknown =
       by_id
@@ -151,37 +179,39 @@ defmodule Voyager.Services.McpAgents do
 
     agents = known ++ unknown
 
-    connected =
+    in_use =
       agents
-      |> Enum.filter(& &1.connection)
-      |> Enum.sort_by(& &1.connection.last_seen, {:desc, DateTime})
+      |> Enum.filter(& &1.activity)
+      |> Enum.sort_by(&(&1.activity.status != :active))
 
     %__MODULE__{
-      state: state(server.alive?, connected),
+      state: state(server.alive?, in_use),
       url: server.url,
       agents: agents,
-      connected: connected
+      in_use: in_use
     }
   end
 
-  defp state(false, _connected), do: :off
-  defp state(true, []), do: :on
-  defp state(true, _connected), do: :connected
+  defp to_activity(%{client: client, version: version, in_flight: in_flight}) do
+    %{client: client, version: version, status: if(in_flight > 0, do: :active, else: :recent)}
+  end
 
-  defp unknown_agent(connection) do
+  defp busiest(activities), do: Enum.min_by(activities, &(&1.status != :active), fn -> nil end)
+
+  defp state(false, _in_use), do: :off
+  defp state(true, []), do: :on
+  defp state(true, _in_use), do: :in_use
+
+  defp unknown_agent(activity) do
     %{
       id: nil,
-      name: connection.client,
+      name: activity.client,
       command: nil,
       link: nil,
       config_path: nil,
-      installed?: false,
+      found?: false,
       added?: false,
-      connection: connection
+      activity: activity
     }
   end
-
-  defp latest(connections), do: Enum.max_by(connections, & &1.last_seen, DateTime, fn -> nil end)
-
-  defp schedule_prune, do: Process.send_after(self(), :prune, @prune_interval_ms)
 end
