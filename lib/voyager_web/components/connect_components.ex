@@ -384,7 +384,8 @@ defmodule VoyagerWeb.ConnectComponents do
           Unknown host key
         </h2>
         <p class="text-base-content/70 mt-1 text-sm">
-          Voyager has not connected to <span class="font-mono text-base-content">{@host}</span>
+          Voyager has not connected to
+          <span class="font-mono text-base-content break-words">{@host}</span>
           before. Check that its key fingerprint matches the server's before trusting it.
         </p>
 
@@ -470,7 +471,7 @@ defmodule VoyagerWeb.ConnectComponents do
 
         <p class="text-base-content/70 mt-4 text-sm">
           The fingerprint for the {@mismatch.key_type} key sent by
-          <span class="font-mono text-base-content">{@host}</span>
+          <span class="font-mono text-base-content break-words">{@host}</span>
           is
         </p>
         <.copy_field
@@ -481,7 +482,7 @@ defmodule VoyagerWeb.ConnectComponents do
 
         <p class="text-base-content/70 mt-4 text-sm">
           Offending {@mismatch.key_type} key in
-          <span id={"#{@id}-location"} class="font-mono text-base-content wrap-break-word">
+          <span id={"#{@id}-location"} class="font-mono text-base-content break-words">
             {@mismatch.file}:{@mismatch.line}
           </span>
         </p>
@@ -532,7 +533,7 @@ defmodule VoyagerWeb.ConnectComponents do
   defp copy_field(assigns) do
     ~H"""
     <div class="bg-base-200 mt-4 flex w-full items-center gap-2 rounded-md py-1 pr-1 pl-3">
-      <code id={@id} class="font-mono text-base-content wrap-break-word min-w-0 flex-1 text-xs">{@value}</code>
+      <code id={@id} class="font-mono text-base-content min-w-0 flex-1 break-words text-xs">{@value}</code>
       <.copy_button
         id={"#{@id}-copy"}
         target={"##{@id}"}
