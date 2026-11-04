@@ -3,8 +3,8 @@ defmodule VoyagerWeb.ProcessInfoLive.QueryIntegrationTest do
   # whole VM; sync modules run after the async ones that assert on nonode.
   use ExUnit.Case, async: false
 
+  alias Voyager.Pid
   alias VoyagerWeb.Formatters
-  alias VoyagerWeb.ProcessInfoLive.Query
 
   @moduletag :integration
 
@@ -32,7 +32,16 @@ defmodule VoyagerWeb.ProcessInfoLive.QueryIntegrationTest do
 
     # The mock is still the configured erpc impl and has no expectations, so
     # a remote round trip here would fail the test.
-    assert Query.resolve_pid(peer_node, pid_string) == {:ok, pid}
-    assert Query.resolve_pid(:other@nohost, pid_string) == {:error, :invalid_pid}
+    assert Pid.resolve(peer_node, pid_string) == {:ok, pid}
+    assert Pid.resolve(:other@nohost, pid_string) == {:error, :invalid_pid}
+
+    [first, second] = for _n <- 1..2, do: spawn(fn -> :ok end)
+
+    Mox.expect(Voyager.ErpcMock, :call, fn ^peer_node, :lists, :map, _args, _timeout ->
+      [first, second]
+    end)
+
+    assert Pid.resolve_all(peer_node, ["<0.45.6>", pid_string, "<0.45.7>"]) ==
+             {:ok, [first, pid, second]}
   end
 end

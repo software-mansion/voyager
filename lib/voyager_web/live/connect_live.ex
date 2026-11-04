@@ -5,6 +5,8 @@ defmodule VoyagerWeb.ConnectLive do
   alias Voyager.NodeSession.ConnectError
   alias VoyagerWeb.ConnectComponents
 
+  @prefill_keys ~w(connection node_name name_type ssh_user ssh_host ssh_port epmd_port auth_method key_path agent_socket_path)
+
   @impl true
   def mount(_params, _session, socket) do
     socket
@@ -21,6 +23,7 @@ defmodule VoyagerWeb.ConnectLive do
 
     socket
     |> assign(:mode, mode)
+    |> assign(:prefill, prefill(params))
     |> maybe_sync_mode_url(mode, params)
     |> noreply()
   end
@@ -39,7 +42,7 @@ defmodule VoyagerWeb.ConnectLive do
               <div class="text-base-content text-lg font-semibold tracking-tight">Voyager</div>
               <.link
                 id="open-settings"
-                href={~p"/settings?#{[return_to: @current_url]}"}
+                href={~p"/settings"}
                 title="Settings"
                 class="btn btn-ghost btn-square toolbar-btn text-base-content/60 ml-auto hover:text-base-content"
               >
@@ -101,12 +104,25 @@ defmodule VoyagerWeb.ConnectLive do
               </p>
             </div>
 
+            <div
+              :if={@prefill && is_nil(@connected_session)}
+              id="mcp-connect-request"
+              role="note"
+              class="alert alert-info mb-4 text-xs"
+            >
+              <.icon name="icon-info" class="text-info size-4 shrink-0" />
+              <span>
+                An AI agent asked to connect to this node. Enter the secrets here, they never reach the agent.
+              </span>
+            </div>
+
             <div class={@mode != :direct && "hidden"}>
               <.live_component
                 module={VoyagerWeb.ConnectLive.DirectConnect}
                 id="direct-connect"
                 disabled?={not is_nil(@connected_session) or @connecting?}
                 connecting?={@connecting?}
+                prefill={if(@mode == :direct, do: @prefill)}
               />
             </div>
             <div class={(@mode != :ssh or !@proxy_epmd_active?) && "hidden"}>
@@ -115,6 +131,7 @@ defmodule VoyagerWeb.ConnectLive do
                 id="ssh-connect"
                 disabled?={not is_nil(@connected_session) or @connecting?}
                 connecting?={@connecting?}
+                prefill={if(@mode == :ssh, do: @prefill)}
               />
             </div>
           </div>
@@ -200,6 +217,13 @@ defmodule VoyagerWeb.ConnectLive do
       push_patch(socket, to: connect_path(mode), replace: true)
     else
       socket
+    end
+  end
+
+  defp prefill(params) do
+    case Map.take(params, @prefill_keys) do
+      prefill when map_size(prefill) == 0 -> nil
+      prefill -> prefill
     end
   end
 

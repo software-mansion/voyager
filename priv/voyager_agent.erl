@@ -9,6 +9,7 @@
 -export([proc_dictionary/3, proc_messages/3, proc_label/2, proc_state/3]).
 -export([ets_select_chunk/4, ets_lookup/5, ets_select_spec/5]).
 -export([trace_start/3, trace_stop/1, trace_sessions/0]).
+-export([trace_modules/0, trace_functions/1]).
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
@@ -658,17 +659,6 @@ bound_records([Record | Rest], Budget, Truncated, Acc) ->
         [module, function, arity, processes, capture, scope, return_trace, match_spec]).
 -define(TRACE_LIMITS, [max_events, max_rate, max_time_ms]).
 -define(TRACE_PROCESS_SETS, [all, existing, new]).
--define(TRACE_ALWAYS_REFUSED, [?MODULE, trace]).
-%% Called from nearly every process: an all-process call trace on them floods the tracer.
--define(TRACE_HOT,
-        [erlang, lists, maps, ets, gen, gen_server, gen_statem, gen_event, proc_lib, io, io_lib,
-         logger, timer, code, erl_eval, 'Elixir.Enum', 'Elixir.Map', 'Elixir.Kernel',
-         'Elixir.String', 'Elixir.GenServer', erpc, rpc, gen_tcp, inet, ssl, net_kernel,
-         dist_util, proplists, persistent_term, unicode, binary, telemetry, 'Elixir.Keyword',
-         'Elixir.Access', 'Elixir.Enumerable', 'Elixir.List']).
--define(TRACE_REFUSED_ACTIONS,
-        [trace, enable_trace, disable_trace, silent, set_seq_token, process_dump, display,
-         current_stacktrace, caller_line, set_tcw, return_trace, exception_trace]).
 
 -record(tracer,
         {session,
@@ -842,19 +832,53 @@ traceable(Module, Processes) ->
             ok
     end.
 
+%% The refusal macros come from `Voyager.Services.Tracer.Refusals.agent_macros/0'.
 refused(Module, Pids) when is_list(Pids) ->
-    lists:member(Module, ?TRACE_ALWAYS_REFUSED);
+    Module =:= ?MODULE orelse lists:member(Module, ?TRACE_ALWAYS_REFUSED);
 refused(Module, _ProcessSet) ->
     refused(Module, [])
     orelse lists:member(Module, ?TRACE_HOT)
-    orelse hot_prefix(atom_to_binary(Module)).
+    orelse lists:any(fun(Prefix) -> lists:prefix(Prefix, atom_to_list(Module)) end,
+                     ?TRACE_HOT_PREFIXES).
 
-hot_prefix(<<"prim_", _/binary>>) ->
-    true;
-hot_prefix(<<"erts_", _/binary>>) ->
-    true;
-hot_prefix(_Module) ->
-    false.
+%% `hot' modules are refused on `all' / `existing' / `new' and allowed on a pid list.
+-spec trace_modules() -> [{module(), ok | hot | refused}].
+trace_modules() ->
+    [{Module, traceability(Module)} || {Module, _} <- code:all_loaded()].
+
+traceability(Module) ->
+    case {refused(Module, []), refused(Module, all)} of
+        {true, _} ->
+            refused;
+        {false, true} ->
+            hot;
+        {false, false} ->
+            ok
+    end.
+
+%% `erlang:get_module_info/2' never autoloads, unlike `Module:module_info/1' on an unloaded module.
+-spec trace_functions(module()) ->
+                         {ok, [{atom(), arity(), boolean()}]} | {error, not_loaded}.
+trace_functions(Module) when is_atom(Module) ->
+    try
+        Exported = maps:from_keys(erlang:get_module_info(Module, exports), true),
+        {ok,
+         [{Name, Arity, is_map_key({Name, Arity}, Exported)}
+          || {Name, Arity} <- erlang:get_module_info(Module, functions),
+             not generated_function(Name)]}
+    catch
+        error:badarg ->
+            {error, not_loaded}
+    end.
+
+%% Funs and inlined helpers compile to names like `-handle_call/3-fun-0-'.
+generated_function(Name) ->
+    case atom_to_binary(Name) of
+        <<"-", _/binary>> ->
+            true;
+        _ ->
+            false
+    end.
 
 %% Atoms in a match spec are created on the remote when the dist message is decoded.
 trace_match_spec(undefined, ReturnTrace) ->
@@ -1013,7 +1037,7 @@ trace_processes(Session, ProcessSet, Flags) ->
 tracer_loop(T) ->
     case erlang:process_info(self(), message_queue_len) of
         {message_queue_len, Len} when Len > ?TRACE_MAX_MAILBOX ->
-            tracer_stop(T, mailbox_limit);
+            tracer_stop(T#tracer{dropped = T#tracer.dropped + Len}, mailbox_limit);
         _ ->
             tracer_receive(T)
     end.

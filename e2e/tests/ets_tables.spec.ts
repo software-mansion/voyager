@@ -1,11 +1,12 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { NODE_NAME, ensureConnected, waitForLiveView } from './fixtures';
 
-// Tables owned by mock_ets_owner on the target node (see e2e/mock_app).
-const CACHE = ':mock_ets_cache';
-const EVENTS = ':mock_ets_events';
-const SECRETS = ':mock_ets_secrets';
-const UNNAMED = ':mock_ets_unnamed';
+// Tables owned by mock_ets_owner on the target node (see e2e/mock_app). The node runs
+// without Elixir, so the auto term syntax shows them as Erlang atoms.
+const CACHE = 'mock_ets_cache';
+const EVENTS = 'mock_ets_events';
+const SECRETS = 'mock_ets_secrets';
+const UNNAMED = 'mock_ets_unnamed';
 
 const listUrl = `/node/${NODE_NAME}/ets-tables`;
 
@@ -60,7 +61,7 @@ test.describe('EtsTablesLive', () => {
     // System tables of any BEAM node, fetched for real over :erpc.
     await filterToMockTables(page);
     await page.locator(sel.search).fill('ac_tab');
-    await expect(row(page, ':ac_tab')).toHaveCount(1);
+    await expect(row(page, 'ac_tab')).toHaveCount(1);
   });
 
   test('search narrows the rows and the summary reports it', async ({
@@ -235,5 +236,20 @@ test.describe('EtsTableLive', () => {
     const rowStyle = await style(key.locator('..'));
     expect(keyStyle.color).not.toBe(rowStyle.color);
     expect(keyStyle.fontWeight).toBeGreaterThan(rowStyle.fontWeight);
+  });
+});
+
+test.describe('EtsTableLive on a plain Erlang node', () => {
+  test('shows the table name and records in Erlang syntax', async ({
+    page,
+  }) => {
+    await ensureConnected(page);
+    await page.goto(`${listUrl}/${encodeURIComponent(`:${EVENTS}`)}`);
+    await waitForLiveView(page);
+    await page.locator('#ets-peek-fetch').click();
+
+    await expect(page.locator('#ets-table-name')).toHaveText(EVENTS);
+    await expect(page.locator('#ets-records-0')).toContainText('{event, ');
+    await expect(page.locator('#ets-records-0')).not.toContainText(':event');
   });
 });

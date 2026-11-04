@@ -1,5 +1,5 @@
 import { OVERLAY_DEBOUNCE_MS, OVERLAY_MIN_ZOOM } from './constants';
-import { formatName, overlayButtonIntersectsExtent } from './elements';
+import { overlayButtonIntersectsExtent } from './elements';
 import { toggleIcon } from './styles';
 
 /**
@@ -98,7 +98,7 @@ export const overlayMethods = {
 
     // Keep icon and attributes in sync with the node's state.
     const collapsed = this.isCollapsed(node);
-    const name = formatName(node.data('name'), this.el.dataset.nodeId);
+    const name = node.data('display').name;
     if (entry.collapsed !== collapsed || entry.name !== name) {
       this.decorateOverlay(entry.dom, node);
       entry.collapsed = collapsed;
@@ -109,7 +109,7 @@ export const overlayMethods = {
   // Sets the icon plus the a11y/testability attributes from the node's state.
   decorateOverlay(dom, node) {
     const collapsed = this.isCollapsed(node);
-    const name = formatName(node.data('name'), this.el.dataset.nodeId);
+    const name = node.data('display').name;
     dom.innerHTML = toggleIcon(collapsed);
     dom.dataset.name = node.data('name');
     dom.dataset.collapsed = String(collapsed);

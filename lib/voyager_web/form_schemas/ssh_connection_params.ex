@@ -16,6 +16,7 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParams do
     field :password, :string
     field :key_path, :string
     field :passphrase, :string
+    field :agent_socket_path, :string
     field :epmd_port, :integer, default: 4369
     field :remember_cookie, :boolean, default: false
     field :remember_password, :boolean, default: false
@@ -32,6 +33,7 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParams do
           password: String.t() | nil,
           key_path: String.t() | nil,
           passphrase: String.t() | nil,
+          agent_socket_path: String.t() | nil,
           epmd_port: integer(),
           remember_cookie: boolean(),
           remember_password: boolean()
@@ -50,6 +52,7 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParams do
       :auth_method,
       :password,
       :key_path,
+      :agent_socket_path,
       :epmd_port,
       :remember_cookie,
       :remember_password
@@ -61,13 +64,14 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParams do
     |> validate_length(:node_name, max: 255)
     |> validate_length(:cookie, max: 255)
     |> validate_length(:key_path, max: 4096)
+    |> validate_length(:agent_socket_path, max: 4096)
     |> validate_number(:ssh_port, greater_than_or_equal_to: 1, less_than_or_equal_to: 65_535)
     |> validate_number(:epmd_port, greater_than_or_equal_to: 1, less_than_or_equal_to: 65_535)
     |> validate_auth_fields()
   end
 
   @spec to_auth(t()) :: SSH.auth()
-  def to_auth(%__MODULE__{auth_method: :agent}), do: :agent
+  def to_auth(%__MODULE__{auth_method: :agent, agent_socket_path: path}), do: {:agent, path}
 
   def to_auth(%__MODULE__{auth_method: :password, password: pw}) when is_binary(pw),
     do: {:password, pw}

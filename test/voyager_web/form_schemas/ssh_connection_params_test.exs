@@ -137,12 +137,22 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParamsTest do
   end
 
   describe "to_auth/1" do
-    test "returns :agent for agent auth_method" do
+    test "returns {:agent, nil} for agent auth_method" do
       {:ok, params} =
         SshConnectionParams.changeset(valid_attrs())
         |> Ecto.Changeset.apply_action(:insert)
 
-      assert SshConnectionParams.to_auth(params) == :agent
+      assert SshConnectionParams.to_auth(params) == {:agent, nil}
+    end
+
+    test "returns {:agent, socket_path} when an agent socket is set" do
+      attrs = Map.put(valid_attrs(), "agent_socket_path", "~/.1password/agent.sock")
+
+      {:ok, params} =
+        SshConnectionParams.changeset(attrs)
+        |> Ecto.Changeset.apply_action(:insert)
+
+      assert SshConnectionParams.to_auth(params) == {:agent, "~/.1password/agent.sock"}
     end
 
     test "returns {:password, pw} for password auth_method" do

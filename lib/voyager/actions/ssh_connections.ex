@@ -11,6 +11,7 @@ defmodule Voyager.Actions.SshConnections do
           auth_method: :agent | :password | :key,
           password: String.t() | nil,
           key_path: String.t() | nil,
+          agent_socket_path: String.t() | nil,
           epmd_port: integer()
         ]
 
@@ -27,6 +28,7 @@ defmodule Voyager.Actions.SshConnections do
     cookie = Keyword.get(opts, :cookie)
     password = Keyword.get(opts, :password)
     key_path = Keyword.get(opts, :key_path)
+    agent_socket_path = Keyword.get(opts, :agent_socket_path)
     name_type = Keyword.get(opts, :name_type) || :longnames
     auth_method = Keyword.get(opts, :auth_method) || :agent
     epmd_port = Keyword.get(opts, :epmd_port) || 4369
@@ -37,6 +39,9 @@ defmodule Voyager.Actions.SshConnections do
         is_nil(value)
       end)
 
+    agent_values =
+      if auth_method == :agent, do: [agent_socket_path: agent_socket_path], else: []
+
     on_conflict_set =
       [
         last_connected_at: now,
@@ -44,7 +49,7 @@ defmodule Voyager.Actions.SshConnections do
         name_type: name_type,
         auth_method: auth_method,
         epmd_port: epmd_port
-      ] ++ saved_values
+      ] ++ saved_values ++ agent_values
 
     %SshConnection{}
     |> SshConnection.changeset(%{
@@ -57,6 +62,7 @@ defmodule Voyager.Actions.SshConnections do
       auth_method: auth_method,
       password: password,
       key_path: key_path,
+      agent_socket_path: agent_socket_path,
       epmd_port: epmd_port,
       last_connected_at: now
     })
