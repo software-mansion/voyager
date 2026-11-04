@@ -43,14 +43,12 @@ defmodule Voyager.Pid do
   @doc "Resolves every string like `resolve/2`, with a single call to `node` for all `<0.X.Y>` strings."
   @spec resolve_all(node(), [String.t()]) :: {:ok, [pid()]} | {:error, term()}
   def resolve_all(node, pid_strings) do
-    {node_local, normal} =
-      pid_strings
-      |> Enum.map(&String.trim_leading(&1, "#PID"))
-      |> Enum.split_with(&String.starts_with?(&1, "<0."))
+    parsed = Enum.map(pid_strings, &parse_locally(node, String.trim_leading(&1, "#PID")))
 
-    with {:ok, pids} <- resolve_each(node, normal),
-         {:ok, remote_pids} <- resolve_on_node(node, node_local) do
-      {:ok, pids ++ remote_pids}
+    with nil <- Enum.find(parsed, &match?({:error, _reason}, &1)),
+         {:ok, remote_pids} <- resolve_on_node(node, Enum.filter(parsed, &is_binary/1)) do
+      {pids, []} = Enum.map_reduce(parsed, remote_pids, &fill_remote/2)
+      {:ok, pids}
     end
   end
 
@@ -110,14 +108,18 @@ defmodule Voyager.Pid do
     end
   end
 
-  defp resolve_each(node, pid_strings) do
-    Enum.reduce_while(pid_strings, {:ok, []}, fn pid_string, {:ok, pids} ->
-      case resolve(node, pid_string) do
-        {:ok, pid} -> {:cont, {:ok, [pid | pids]}}
-        {:error, reason} -> {:halt, {:error, reason}}
-      end
-    end)
+  # Leaves a `<0.X.Y>` string in place for `resolve_on_node/2`.
+  defp parse_locally(_node, "<0." <> _rest = node_local), do: node_local
+
+  defp parse_locally(node, pid_string) do
+    case resolve(node, pid_string) do
+      {:ok, pid} -> pid
+      error -> error
+    end
   end
+
+  defp fill_remote(pid, remote_pids) when is_pid(pid), do: {pid, remote_pids}
+  defp fill_remote(_node_local, [pid | remote_pids]), do: {pid, remote_pids}
 
   defp resolve_on_node(_node, []), do: {:ok, []}
 
