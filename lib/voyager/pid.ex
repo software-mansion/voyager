@@ -40,6 +40,20 @@ defmodule Voyager.Pid do
     end
   end
 
+  @doc "Resolves every string like `resolve/2`, with a single call to `node` for all `<0.X.Y>` strings."
+  @spec resolve_all(node(), [String.t()]) :: {:ok, [pid()]} | {:error, term()}
+  def resolve_all(node, pid_strings) do
+    {node_local, normal} =
+      pid_strings
+      |> Enum.map(&String.trim_leading(&1, "#PID"))
+      |> Enum.split_with(&String.starts_with?(&1, "<0."))
+
+    with {:ok, pids} <- resolve_each(node, normal),
+         {:ok, remote_pids} <- resolve_on_node(node, node_local) do
+      {:ok, pids ++ remote_pids}
+    end
+  end
+
   @doc "The `N` of the connected node's `<N.X.Y>` pids, cached by `put_node/1`."
   @spec cached_node_id() :: String.t() | nil
   def cached_node_id, do: :persistent_term.get(@node_id_key, nil)
@@ -94,6 +108,22 @@ defmodule Voyager.Pid do
       _error ->
         nil
     end
+  end
+
+  defp resolve_each(node, pid_strings) do
+    Enum.reduce_while(pid_strings, {:ok, []}, fn pid_string, {:ok, pids} ->
+      case resolve(node, pid_string) do
+        {:ok, pid} -> {:cont, {:ok, [pid | pids]}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp resolve_on_node(_node, []), do: {:ok, []}
+
+  defp resolve_on_node(node, pid_strings) do
+    charlists = Enum.map(pid_strings, &String.to_charlist/1)
+    Erpc.safe_call(node, :lists, :map, [&:erlang.list_to_pid/1, charlists])
   end
 
   defp pid_to_string(pid) when is_pid(pid), do: pid |> :erlang.pid_to_list() |> List.to_string()

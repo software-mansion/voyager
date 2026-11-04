@@ -331,14 +331,7 @@ defmodule Voyager.Services.Tracer do
 
   defp resolve_pids(_node, %Config{processes: processes}) when processes != :pids, do: {:ok, []}
 
-  defp resolve_pids(node, config) do
-    Enum.reduce_while(config.pids, {:ok, []}, fn pid_string, {:ok, pids} ->
-      case Voyager.Pid.resolve(node, pid_string) do
-        {:ok, pid} -> {:cont, {:ok, [pid | pids]}}
-        {:error, reason} -> {:halt, {:error, reason}}
-      end
-    end)
-  end
+  defp resolve_pids(node, config), do: Voyager.Pid.resolve_all(node, config.pids)
 
   defp start_failed(reason, origin) do
     Voyager.Telemetry.dispatch!("voyager.trace.start_failed",
