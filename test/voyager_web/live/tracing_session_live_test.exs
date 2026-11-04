@@ -3,9 +3,11 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
   use VoyagerWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
+  import Voyager.TestUtils, only: [reset_term_syntax: 1]
 
   alias Voyager.Fakes
   alias Voyager.Queries.TraceSessions, as: TraceSessionQueries
+  alias Voyager.Services.TermSyntax
   alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Writer
   alias Voyager.Test.VoyagerAgentFixture
@@ -432,6 +434,17 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#entry-1 td[title]")
     assert has_element?(view, "#entry-2", "Stopped")
     assert has_element?(view, "#entry-2", "by UI")
+  end
+
+  test "colours bare atoms in Erlang syntax", %{conn: conn} do
+    reset_term_syntax(%{})
+    {:ok, :erlang} = TermSyntax.save_setting(:erlang)
+    %{id: id} = start!(%{capture: :args, budget: 1_000})
+    call_traced!(1, 1)
+
+    view = open(conn, id)
+
+    assert has_element?(view, "#entry-2 .text-code-atom", "calendar")
   end
 
   test "does not link pids of another node's session", %{conn: conn} do

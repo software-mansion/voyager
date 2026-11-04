@@ -3,6 +3,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
 
   use VoyagerWeb, :component
 
+  alias Voyager.Services.TermSyntax
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Session
   alias VoyagerWeb.Components.DataTableComponents
@@ -243,6 +244,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
       assigns
       |> assign(:durations?, config.return_trace)
       |> assign(:wildcard?, config.function == "_")
+      |> assign(:syntax, TermSyntax.current())
 
     ~H"""
     <div
@@ -373,6 +375,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
               entry={entry}
               durations?={@durations?}
               wildcard?={@wildcard?}
+              syntax={@syntax}
               pid_href={@pid_href}
               query={@search && @search.query}
             />
@@ -422,6 +425,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
   attr :entry, :map, required: true
   attr :durations?, :boolean, required: true
   attr :wildcard?, :boolean, required: true
+  attr :syntax, :atom, required: true
   attr :pid_href, :any, required: true
   attr :query, :string, default: nil
 
@@ -480,7 +484,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
                 {fun_arity(@entry.mfa)}
               </span>
               <span class={term_class(@entry.type)}>
-                {term_html(term_text(@entry, @wildcard?, :row), plain?(@entry), @query)}
+                {term_html(term_text(@entry, @wildcard?, :row), plain?(@entry), @query, @syntax)}
               </span>
             </span>
             <:content>
@@ -696,22 +700,23 @@ defmodule VoyagerWeb.Components.TracingComponents do
   defp plain?(%{type: :call, args: args}) when is_list(args), do: false
   defp plain?(%{type: type}), do: type != :return
 
-  defp term_html(text, plain?, query) do
+  defp term_html(text, plain?, query, syntax) do
     marks =
       if query,
         do: :binary.matches(String.downcase(text, :ascii), String.downcase(query, :ascii)),
         else: []
 
-    segments = if plain?, do: [{nil, 0, byte_size(text)}], else: segments(text)
+    segments = if plain?, do: [{nil, 0, byte_size(text)}], else: segments(text, syntax)
     {:safe, Enum.map(segments, &segment_html(text, &1, marks))}
   end
 
   # A regex over the inspected text, since the row shows the formatter's output, not a term tree.
-  defp segments(text) do
+  defp segments(text, syntax) do
     kinds = [:string, :other, :special, :atom, :number]
 
     {segments, from} =
-      ~r/("(?:[^"\\]|\\.)*")|(~[a-zA-Z]+\[[^\]]*\]|#[A-Z][\w.]*<[^>]*>|<\d+\.\d+\.\d+>)|(\b(?:nil|true|false)\b)|(:"(?:[^"\\]|\\.)*"|:[a-zA-Z_][\w@]*[?!]?|\b[a-z_][\w@]*[?!]?:(?=\s)|\b[A-Z]\w*(?:\.[A-Z]\w*)*)|(-?\b\d[\d_]*(?:\.\d+)?(?:e[+-]?\d+)?\b)/
+      syntax
+      |> token_regex()
       |> Regex.scan(text, return: :index)
       |> Enum.flat_map_reduce(0, fn [{at, length} | groups], from ->
         kind =
@@ -724,6 +729,15 @@ defmodule VoyagerWeb.Components.TracingComponents do
       from == to
     end)
   end
+
+  # Erlang terms spell atoms bare or in single quotes.
+  defp token_regex(:erlang),
+    do:
+      ~r/("(?:[^"\\]|\\.)*")|(~[a-zA-Z]+\[[^\]]*\]|#[A-Z][\w.]*<[^>]*>|<\d+\.\d+\.\d+>)|(\b(?:nil|true|false)\b)|(:"(?:[^"\\]|\\.)*"|:[a-zA-Z_][\w@]*[?!]?|\b[a-z_][\w@]*[?!]?:(?=\s)|\b[A-Z]\w*(?:\.[A-Z]\w*)*|'(?:[^'\\]|\\.)*'|\b[a-z][\w@]*)|(-?\b\d[\d_]*(?:\.\d+)?(?:e[+-]?\d+)?\b)/
+
+  defp token_regex(_syntax),
+    do:
+      ~r/("(?:[^"\\]|\\.)*")|(~[a-zA-Z]+\[[^\]]*\]|#[A-Z][\w.]*<[^>]*>|<\d+\.\d+\.\d+>)|(\b(?:nil|true|false)\b)|(:"(?:[^"\\]|\\.)*"|:[a-zA-Z_][\w@]*[?!]?|\b[a-z_][\w@]*[?!]?:(?=\s)|\b[A-Z]\w*(?:\.[A-Z]\w*)*)|(-?\b\d[\d_]*(?:\.\d+)?(?:e[+-]?\d+)?\b)/
 
   defp segment_html(text, {kind, from, to}, marks) do
     edges =
