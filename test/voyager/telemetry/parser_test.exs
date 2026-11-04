@@ -290,6 +290,29 @@ defmodule Voyager.Telemetry.ParserTest do
     end
   end
 
+  describe "voyager.ssh_config.import" do
+    @event [:voyager, :ssh_config, :import]
+
+    test "keeps the counts in measurements" do
+      assert Parser.parse_measurements(@event, %{hosts: 3, unsupported: 2, path: "/secret"}) ==
+               %{hosts: 3, unsupported: 2}
+    end
+
+    test "keeps a listed keyword" do
+      assert Parser.parse_metadata(@event, %{keywords: ["proxyjump"]}) ==
+               %{keywords: ["proxyjump"]}
+    end
+
+    test "replaces free text with other, once" do
+      assert Parser.parse_metadata(@event, %{keywords: ["hunter2", "db.internal", "match"]}) ==
+               %{keywords: ["other", "match"]}
+    end
+
+    test "drops every other metadata key" do
+      assert Parser.parse_metadata(@event, %{keywords: [], path: "/secret"}) == %{keywords: []}
+    end
+  end
+
   test "parse_metadata/2 for unknown events returns empty map" do
     assert %{} == Parser.parse_metadata([:phoenix, :endpoint, :stop], %{foo: "bar"})
   end
