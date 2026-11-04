@@ -123,6 +123,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> noreply()
   end
 
+  def handle_async(:resolve_name, {:exit, {:shutdown, :cancel}}, socket), do: {:noreply, socket}
+
   def handle_async(:resolve_name, result, socket) do
     Logger.warning("Failed to resolve a monitored name: #{inspect(result)}")
     {:noreply, socket}
@@ -162,7 +164,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
               target={@myself}
             />
             <.refresh_button
-              :if={is_pid(@node.pid)}
+              :if={is_pid(@node.pid) and is_nil(off_node(@node, @remote_node))}
               panel_id={@id}
               on_refresh="refresh-node-info"
               target={@myself}
@@ -212,6 +214,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     history = if keep_history?, do: socket.assigns.selection_history, else: []
     showing? = socket.assigns.open? and same_process?(socket.assigns.node, node)
     expanded = if showing?, do: socket.assigns.expanded_relations, else: MapSet.new()
+    socket = if showing?, do: socket, else: cancel_async(socket, :resolve_name)
 
     socket
     |> assign(open?: true, node: node, selection_history: history, expanded_relations: expanded)
@@ -233,9 +236,11 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   defp push_history(socket), do: socket
 
-  defp fetch_details(%{assigns: %{node: %TreeNode{pid: pid}}} = socket, reset?)
-       when is_pid(pid) do
-    remote_node = socket.assigns.remote_node
+  defp fetch_details(
+         %{assigns: %{node: %TreeNode{pid: pid}, remote_node: remote_node}} = socket,
+         reset?
+       )
+       when is_pid(pid) and node(pid) == remote_node do
     timeout = Query.default_timeout()
 
     socket
@@ -251,8 +256,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     )
   end
 
-  # Nothing to fetch for apps, ports and references: settle the async assigns so
-  # the body never shows a load state it will not leave.
+  # Nothing to fetch for apps, ports, references and pids of other nodes: settle the
+  # async assigns so the body never shows a load state it will not leave.
   defp fetch_details(socket, _reset?) do
     assign(socket, node_info: AsyncResult.ok(nil), relations: AsyncResult.ok(nil))
   end

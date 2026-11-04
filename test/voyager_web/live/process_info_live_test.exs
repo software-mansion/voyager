@@ -5,6 +5,7 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
 
   import Phoenix.LiveViewTest
 
+  alias Voyager.Erpc.Impl, as: ErpcImpl
   alias Voyager.Fakes
   alias Voyager.Test.VoyagerAgentFixture
   alias VoyagerWeb.Formatters
@@ -15,7 +16,7 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
 
   setup do
     prev_erpc = Application.get_env(:voyager, :erpc)
-    Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
+    Application.put_env(:voyager, :erpc, ErpcImpl)
     on_exit(fn -> Application.put_env(:voyager, :erpc, prev_erpc) end)
 
     Fakes.connect_node!(Fakes.node_session(node: Node.self(), node_name: @node_name))
@@ -125,6 +126,34 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
 
   defp with_referer(conn, key) do
     put_connect_params(conn, %{key => "http://#{conn.host}" <> ~p"/node/#{@node_name}/processes"})
+  end
+
+  describe "relations" do
+    test "a failed relation shows its error and keeps the others", %{conn: conn} do
+      agent = Voyager.Agent.module()
+      Application.put_env(:voyager, :erpc, Voyager.ErpcMock)
+      Mox.set_mox_global()
+      Mox.stub(Voyager.ErpcMock, :call, &ErpcImpl.call/4)
+
+      Mox.stub(Voyager.ErpcMock, :call, fn
+        _node, ^agent, :proc_links, _args, _timeout -> {:error, :dead}
+        node, mod, fun, args, timeout -> ErpcImpl.call(node, mod, fun, args, timeout)
+      end)
+
+      pid = spawn(fn -> Process.sleep(:infinity) end)
+      on_exit(fn -> Process.exit(pid, :kill) end)
+
+      {:ok, view, _html} =
+        live(conn, ~p"/node/#{@node_name}/processes/#{Formatters.format_pid(pid)}")
+
+      render_hook(view, "restore_settings", %{})
+      render_async(view)
+      view |> element("#process-tab-relations") |> render_click()
+
+      assert has_element?(view, "#process-links-error")
+      assert has_element?(view, "#process-monitors")
+      refute has_element?(view, "#process-monitors-error")
+    end
   end
 
   describe "dictionary" do
