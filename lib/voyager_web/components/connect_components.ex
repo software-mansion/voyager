@@ -450,7 +450,7 @@ defmodule VoyagerWeb.ConnectComponents do
       <.focus_wrap
         id={"#{@id}-box"}
         phx-mounted={JS.focus(to: "##{@id}-dismiss")}
-        class="modal-box border-error/40 max-w-xl border shadow-2xl"
+        class="modal-box max-w-xl shadow-2xl"
       >
         <h2
           id={"#{@id}-title"}
