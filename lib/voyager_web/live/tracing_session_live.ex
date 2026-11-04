@@ -90,7 +90,29 @@ defmodule VoyagerWeb.TracingSessionLive do
             <:content>Back to sessions</:content>
           </.tooltip>
           <div class="min-w-0 flex-1">
-            <div class="flex min-w-0 items-center gap-3">
+            <span
+              id="session-status"
+              data-tone={TracingComponents.tone(@trace_session)}
+              class="flex items-center gap-1.5"
+            >
+              <span class="relative flex h-2 w-2 shrink-0">
+                <span
+                  :if={@trace_session.status == :running}
+                  class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
+                ></span>
+                <span class={[
+                  "relative inline-flex h-2 w-2 rounded-full",
+                  TracingComponents.tone_class(TracingComponents.tone(@trace_session), :dot)
+                ]}></span>
+              </span>
+              <span class={[
+                "text-xs font-semibold",
+                TracingComponents.tone_class(TracingComponents.tone(@trace_session), :label)
+              ]}>
+                {String.capitalize(TracingComponents.state(@trace_session))}
+              </span>
+            </span>
+            <div class="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
               <.tooltip id="session-mfa-tip" position="bottom" class="min-w-0" tip_class="font-mono">
                 <span
                   id="session-mfa"
@@ -102,56 +124,16 @@ defmodule VoyagerWeb.TracingSessionLive do
                 <:content>{title(@trace_session)}</:content>
               </.tooltip>
               <span
-                id="session-status"
-                data-tone={TracingComponents.tone(@trace_session)}
-                class="flex shrink-0 items-center gap-1.5"
+                :for={{key, label, value} <- chips(@trace_session)}
+                id={"session-chip-#{key}"}
+                class="bg-primary/10 flex min-w-0 max-w-full items-center gap-1.5 rounded-lg px-2 py-1"
               >
-                <span class="relative flex h-2 w-2 shrink-0">
-                  <span
-                    :if={@trace_session.status == :running}
-                    class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
-                  ></span>
-                  <span class={[
-                    "relative inline-flex h-2 w-2 rounded-full",
-                    TracingComponents.tone_class(TracingComponents.tone(@trace_session), :dot)
-                  ]}></span>
+                <span class="font-mono tracking-label text-primary shrink-0 text-xs font-semibold uppercase">
+                  {label}
                 </span>
-                <span class={[
-                  "text-xs font-semibold",
-                  TracingComponents.tone_class(TracingComponents.tone(@trace_session), :label)
-                ]}>
-                  {String.capitalize(TracingComponents.state(@trace_session))}
-                </span>
-                <span id="session-elapsed" class="font-mono text-base-content/70 text-xs">
-                  {elapsed(@trace_session, @now)}
-                </span>
+                <span class="font-mono truncate text-xs">{value}</span>
               </span>
             </div>
-            <.tooltip
-              :if={@trace_session.config}
-              id="session-config"
-              position="bottom"
-              class="mt-0.5 max-w-full"
-              tip_class="max-w-md!"
-            >
-              <span
-                id="session-summary"
-                tabindex="0"
-                class="font-mono text-base-content/70 block truncate text-xs"
-              >
-                {TracingComponents.config_summary(@trace_session.config)}
-              </span>
-              <:content>
-                <TracingComponents.config_table config={@trace_session.config} />
-              </:content>
-            </.tooltip>
-            <p
-              :if={!@trace_session.config}
-              id="session-summary"
-              class="font-mono text-base-content/70 mt-0.5 text-xs"
-            >
-              {if @trace_session.save, do: "Saved", else: "Not saved"}
-            </p>
           </div>
           <div class="flex shrink-0 items-center gap-2">
             <button
@@ -717,14 +699,10 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> push_navigate(to: path)
   end
 
-  defp elapsed(%Session{status: :running, run_started_at: %DateTime{} = started}, now),
-    do: TracingComponents.format_elapsed(DateTime.diff(now, started))
+  defp chips(%Session{config: nil, save: save}),
+    do: [{:storage, "Storage", if(save, do: "Saved", else: "Not saved")}]
 
-  defp elapsed(%Session{status: :stopped, run_started_at: %DateTime{} = started} = session, _now)
-       when not is_nil(session.stopped_at),
-       do: TracingComponents.format_elapsed(DateTime.diff(session.stopped_at, started))
-
-  defp elapsed(_session, _now), do: nil
+  defp chips(%Session{config: config}), do: TracingComponents.config_chips(config)
 
   defp title(%Session{config: nil}), do: "New session"
   defp title(%Session{config: config}), do: TracingComponents.traced_mfa(config)

@@ -91,7 +91,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#session-start[disabled]")
     assert has_element?(view, "#session-empty")
     assert has_element?(view, "#session-set-parameters[disabled]")
-    assert has_element?(view, "#session-summary", "Not saved")
+    assert has_element?(view, "#session-chip-storage", "Not saved")
     refute has_element?(view, "#session-edit")
   end
 
@@ -129,17 +129,17 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
 
     assert has_element?(view, "#session-mfa", "Date.leap_year?/1")
 
-    assert has_element?(
-             view,
-             "#session-summary",
-             "All processes · global · Args ≤ 5,000 + returns · stop at 10,000 events, 1,000/s, 5 min"
-           )
+    assert has_element?(view, "#session-chip-where", "All processes · global")
+    assert has_element?(view, "#session-chip-capture", "Args ≤ 5,000 + returns")
+    assert has_element?(view, "#session-chip-stop_after", "10,000 · 1,000/s · 5 min")
 
     assert has_element?(view, "#entry-0-changes", "by UI · Date.leap_year?/1")
 
     {:ok, _session} = configure(%{scope: :local, max_events: nil, max_time_ms: 90_000})
 
-    assert has_element?(view, "#session-summary", "1 pid · local · Arity · stop at 90 s")
+    assert has_element?(view, "#session-chip-where", "1 pid · local")
+    assert has_element?(view, "#session-chip-capture", "Arity")
+    assert has_element?(view, "#session-chip-stop_after", "90 s")
 
     assert has_element?(
              view,

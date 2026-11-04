@@ -93,25 +93,28 @@ defmodule VoyagerWeb.Components.TracingComponents do
   defp format_module("Elixir." <> module), do: module
   defp format_module(module), do: ":" <> module
 
-  @spec config_summary(Config.t()) :: String.t()
-  def config_summary(%Config{} = config) do
-    limits =
-      [
-        config.max_events && count(config.max_events, "event", "events"),
-        config.max_rate && "#{Formatters.format_integer(config.max_rate)}/s",
-        config.max_time_ms && format_time_limit(config.max_time_ms)
-      ]
-      |> Enum.reject(&is_nil/1)
-      |> Enum.join(", ")
-
+  @spec config_chips(Config.t()) :: [{atom(), String.t(), String.t()}]
+  def config_chips(%Config{} = config) do
     processes =
       if config.processes == :pids,
         do: count(length(config.pids), "pid", "pids"),
         else: processes(config)
 
-    capture = if config.return_trace, do: capture(config) <> " + returns", else: capture(config)
+    limits =
+      [
+        config.max_events && Formatters.format_integer(config.max_events),
+        config.max_rate && "#{Formatters.format_integer(config.max_rate)}/s",
+        config.max_time_ms && format_time_limit(config.max_time_ms)
+      ]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.join(" · ")
 
-    Enum.join([processes, config.scope, capture, "stop at " <> limits], " · ")
+    [
+      {:where, "Where", "#{processes} · #{config.scope}"},
+      {:capture, "Capture",
+       if(config.return_trace, do: capture(config) <> " + returns", else: capture(config))},
+      {:stop_after, "Stop after", limits}
+    ]
   end
 
   @doc "Every parameter of `config`, the ones that differ from `previous` highlighted with their old value."
