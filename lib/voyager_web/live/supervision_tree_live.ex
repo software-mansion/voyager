@@ -9,6 +9,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
   alias VoyagerWeb.Components.SupervisionTreeComponents
   alias VoyagerWeb.FormSchemas.SupervisionTreeControls
   alias VoyagerWeb.SupervisionTreeLive.Diff
+  alias VoyagerWeb.SupervisionTreeLive.Display
   alias VoyagerWeb.SupervisionTreeLive.Selection
 
   @default_element_limit 2_000
@@ -64,6 +65,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
           status={@status}
           last_updated={@last_updated}
           refresh_interval={@refresh_interval}
+          show_back_arrow={@can_go_back?}
         />
         <.async_result :let={available_apps} assign={@available_apps}>
           <:loading>
@@ -103,7 +105,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         revealing?={not is_nil(@pending_reveal)}
         remote_node={@session.node}
         node_name={@session.node_name}
-        current_url={@current_url}
       />
     </div>
     """
@@ -259,6 +260,12 @@ defmodule VoyagerWeb.SupervisionTreeLive do
     {:noreply, socket}
   end
 
+  defp put_patch_display(updated, flat) do
+    Map.new(updated, fn {key, patch} ->
+      {key, Map.put(patch, :display, Display.build(Map.fetch!(flat, key)))}
+    end)
+  end
+
   defp render_tree(socket, status, result, errors) do
     new_flat = result.nodes
     new_edges = result.edges
@@ -271,7 +278,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
           %{
             kind: "full",
             request_type: socket.private.request_type,
-            nodes: new_flat,
+            nodes: Display.put_all(new_flat),
             edges: new_edges
           }
 
@@ -280,6 +287,8 @@ defmodule VoyagerWeb.SupervisionTreeLive do
           edge_diff = Diff.diff_relations(prev_edges, new_edges)
 
           node_diff
+          |> Map.update!(:added, &Display.put_all/1)
+          |> Map.update!(:updated, &put_patch_display(&1, new_flat))
           |> Map.merge(edge_diff)
           |> Map.merge(%{kind: "delta", request_type: socket.private.request_type})
       end

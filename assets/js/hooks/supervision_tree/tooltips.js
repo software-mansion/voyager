@@ -4,7 +4,6 @@ import {
   TOOLTIP_GAP,
   VIEWPORT_MARGIN,
 } from './constants';
-import { formatName, formatPid } from './elements';
 
 /**
  * Hover tooltip showing the details of the node under the cursor.
@@ -96,21 +95,16 @@ export const tooltipMethods = {
       return;
     }
 
-    const { name, type, pid, info, app } = node.data();
-
-    const pidNodeId = this.el.dataset.nodeId;
-    const displayName =
-      formatName(info?.registered_name, pidNodeId) ||
-      formatName(name, pidNodeId);
+    const { type, display } = node.data();
 
     this.tooltip.innerHTML = `
           <ul class="flex font-mono flex-col gap-1 break-all">
             <li class="${typeColorClass(type)}">${escapeHtml(type)}</li>
-            <li class="font-semibold my-1">${escapeHtml(displayName)}</li>
-            ${app ? `<li>app: <span class="font-semibold">${escapeHtml(app)}</span></li>` : ''}
-            ${parseMfa(info?.initial_call, 'initial_call:')}
-            ${parseMfa(info?.current_function, 'current_function:')}
-            ${pid ? `<li>PID: <span class="font-semibold">${escapeHtml(formatPid(pid, pidNodeId))}</span></li>` : ''}
+            <li class="font-semibold my-1">${escapeHtml(display.name)}</li>
+            ${infoItem('app:', display.app)}
+            ${infoItem('initial_call:', display.initial_call)}
+            ${infoItem('current_function:', display.current_function)}
+            ${infoItem('PID:', display.pid)}
           </ul>
         `;
   },
@@ -191,11 +185,10 @@ function typeColorClass(type) {
 }
 
 /**
- * @param {[string, string, number] | undefined} mfa
- * @param {string} [label]
+ * @param {string} label
+ * @param {string | null} value
  */
-function parseMfa(mfa, label = '') {
-  if (!Array.isArray(mfa) || mfa.length !== 3) return '';
-  const [m, f, a] = mfa;
-  return `<li>${escapeHtml(label)} <span class="text-primary">${escapeHtml(m)}.${escapeHtml(f)}/${escapeHtml(a)}</span></li>`;
+function infoItem(label, value) {
+  if (!value) return '';
+  return `<li><span class="text-base-content/70">${escapeHtml(label)}</span> ${escapeHtml(value)}</li>`;
 }

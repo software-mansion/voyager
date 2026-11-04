@@ -12,6 +12,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
 
   use VoyagerWeb, :live_component
 
+  alias Voyager.FuzzySearch
   alias VoyagerWeb.FormSchemas.SupervisionTreeControls
   alias VoyagerWeb.Utils.URL
 
@@ -104,7 +105,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
        %SupervisionTreeControls{apps: apps, depth: depth, include_relations?: include_relations?}} ->
         socket
         |> assign(:apps_form, to_form(params, as: :tree_controls))
-        |> push_patch(to: controls_path(socket, apps, depth, include_relations?))
+        |> push_patch(to: controls_path(socket, apps, depth, include_relations?), replace: true)
 
       {:error, changeset} ->
         assign(socket, :apps_form, to_form(changeset, as: :tree_controls))
@@ -122,7 +123,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
   def handle_event("clear_all_apps", _params, socket) do
     socket
     |> push_patch(
-      to: controls_path(socket, [], socket.assigns.depth, socket.assigns.include_relations?)
+      to: controls_path(socket, [], socket.assigns.depth, socket.assigns.include_relations?),
+      replace: true
     )
     |> noreply()
   end
@@ -146,14 +148,14 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
 
     visible =
       Enum.filter(socket.assigns.available_apps, fn {app, _vsn} ->
-        MapSet.member?(selected, app) or fuzzy_match?(to_string(app), search)
+        MapSet.member?(selected, app) or FuzzySearch.matches?(to_string(app), search)
       end)
 
     assign(socket, :visible_apps, visible)
   end
 
   # Rewrites only the params this component owns (depth, relations, apps) on top
-  # of the current URL, so unrelated params (e.g. the sidebar width) are kept.
+  # of the current URL, so unrelated params (e.g. `nav`) are kept.
   defp controls_path(socket, apps, depth, include_relations?) do
     socket.assigns.current_url
     |> URL.put_query_params(%{
@@ -168,20 +170,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.Controls do
   defp put_apps(url, apps) do
     URL.put_query_param(url, "apps", Enum.map_join(apps, ",", &to_string/1))
   end
-
-  defp fuzzy_match?(_str, search) when search in [nil, ""], do: true
-
-  defp fuzzy_match?(str, search) do
-    subsequence?(String.downcase(str), String.downcase(search))
-  end
-
-  defp subsequence?(_str, ""), do: true
-  defp subsequence?("", _search), do: false
-
-  defp subsequence?(<<c::utf8, str::binary>>, <<c::utf8, search::binary>>),
-    do: subsequence?(str, search)
-
-  defp subsequence?(<<_c::utf8, str::binary>>, search), do: subsequence?(str, search)
 
   attr :selected_apps_count, :integer, required: true
 

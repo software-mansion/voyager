@@ -2,8 +2,10 @@ defmodule VoyagerWeb.SettingsLiveTest do
   use VoyagerWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
+  import Voyager.TestUtils, only: [reset_pid_format: 1, reset_term_syntax: 1]
 
   alias Voyager.Fakes
+  alias Voyager.Services.TermSyntax
   alias Voyager.Settings
 
   setup do
@@ -19,29 +21,29 @@ defmodule VoyagerWeb.SettingsLiveTest do
   end
 
   describe "layout" do
-    test "renders no sidebar and a back link to the default return path", %{conn: conn} do
+    test "renders no sidebar and a back link to the connect page", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/settings")
 
       refute has_element?(view, "aside")
-      assert has_element?(view, ~s|a[href="/"]|)
+      assert has_element?(view, ~s|a#settings-back[href="/"]|)
     end
 
-    test "back link honors the return_to param", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/settings?return_to=/node/demo@localhost")
+    test "goes back in history when opened from inside the app", %{conn: conn} do
+      {:ok, view, _html} =
+        conn
+        |> put_req_header("referer", "http://#{conn.host}/")
+        |> live(~p"/settings")
 
-      assert has_element?(view, ~s|a[href="/node/demo@localhost"]|)
+      assert has_element?(view, "button#settings-back")
     end
 
-    test "ignores an unsafe return_to and falls back to /", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/settings?return_to=https://evil.example")
+    test "ignores a referer from another origin", %{conn: conn} do
+      {:ok, view, _html} =
+        conn
+        |> put_req_header("referer", "https://evil.example/")
+        |> live(~p"/settings")
 
-      assert has_element?(view, ~s|a[href="/"]|)
-    end
-
-    test "ignores a protocol-relative return_to and falls back to /", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/settings?return_to=//evil.example")
-
-      assert has_element?(view, ~s|a[href="/"]|)
+      assert has_element?(view, ~s|a#settings-back[href="/"]|)
     end
   end
 
@@ -258,11 +260,7 @@ defmodule VoyagerWeb.SettingsLiveTest do
   end
 
   describe "pid format settings" do
-    setup do
-      format = Voyager.Pid.cached_format()
-      on_exit(fn -> Voyager.Pid.put_format(format) end)
-      :ok
-    end
+    setup :reset_pid_format
 
     test "saves the chosen format and caches it for formatting", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/settings")
@@ -273,25 +271,57 @@ defmodule VoyagerWeb.SettingsLiveTest do
 
       assert has_element?(view, ~s|#pid-format-local[aria-pressed="true"]|)
       assert Settings.get(:pid_format) == :local
-      assert Voyager.Pid.cached_format() == :local
+      assert Voyager.Pid.get_setting() == :local
 
       view |> element("#pid-format-distribution") |> render_click()
 
       assert has_element?(view, ~s|#pid-format-distribution[aria-pressed="true"]|)
       assert Settings.get(:pid_format) == :distribution
-      assert Voyager.Pid.cached_format() == :distribution
+      assert Voyager.Pid.get_setting() == :distribution
     end
 
     test "disables the buttons when locked by application config", %{conn: conn} do
       Application.put_env(:voyager, :pid_format, :local)
       on_exit(fn -> Application.delete_env(:voyager, :pid_format) end)
-      Voyager.Pid.load_format()
 
       {:ok, view, _html} = live(conn, ~p"/settings")
 
       assert has_element?(view, "#pid-format-locked")
       assert has_element?(view, ~s|#pid-format-local[aria-pressed="true"][disabled]|)
       assert has_element?(view, ~s|#pid-format-distribution[disabled]|)
+    end
+  end
+
+  describe "term syntax settings" do
+    setup :reset_term_syntax
+
+    test "saves the chosen syntax and caches it for formatting", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      assert has_element?(view, ~s|#term-syntax-auto[aria-pressed="true"]|)
+
+      view |> element("#term-syntax-erlang") |> render_click()
+
+      assert has_element?(view, ~s|#term-syntax-erlang[aria-pressed="true"]|)
+      assert Settings.get(:term_syntax) == :erlang
+      assert TermSyntax.current() == :erlang
+
+      view |> element("#term-syntax-elixir") |> render_click()
+
+      assert has_element?(view, ~s|#term-syntax-elixir[aria-pressed="true"]|)
+      assert Settings.get(:term_syntax) == :elixir
+      assert TermSyntax.current() == :elixir
+    end
+
+    test "disables the buttons when locked by application config", %{conn: conn} do
+      Application.put_env(:voyager, :term_syntax, :erlang)
+      on_exit(fn -> Application.delete_env(:voyager, :term_syntax) end)
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      assert has_element?(view, "#term-syntax-locked")
+      assert has_element?(view, ~s|#term-syntax-erlang[aria-pressed="true"][disabled]|)
+      assert has_element?(view, ~s|#term-syntax-auto[disabled]|)
     end
   end
 end

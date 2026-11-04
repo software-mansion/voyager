@@ -20,16 +20,6 @@ defmodule VoyagerWeb.Utils.URL do
   end
 
   @doc """
-  Returns the value of a query param, or `nil` when it is absent.
-  """
-  @spec get_query_param(String.t(), String.t()) :: String.t() | nil
-  def get_query_param(url, key) when is_binary(url) and is_binary(key) do
-    (URI.parse(url).query || "")
-    |> URI.decode_query()
-    |> Map.get(key)
-  end
-
-  @doc """
   Inserts or updates a single query param, preserving all others.
   """
   @spec put_query_param(String.t(), String.t(), String.t()) :: String.t()

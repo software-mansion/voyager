@@ -9,6 +9,7 @@
 -export([proc_dictionary/3, proc_messages/3, proc_label/2, proc_state/3]).
 -export([ets_select_chunk/4, ets_lookup/5, ets_select_spec/5]).
 -export([trace_start/3, trace_stop/1, trace_sessions/0]).
+-export([trace_modules/0, trace_functions/1]).
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2,
          code_change/3]).
@@ -839,6 +840,45 @@ refused(Module, _ProcessSet) ->
     orelse lists:member(Module, ?TRACE_HOT)
     orelse lists:any(fun(Prefix) -> lists:prefix(Prefix, atom_to_list(Module)) end,
                      ?TRACE_HOT_PREFIXES).
+
+%% `hot' modules are refused on `all' / `existing' / `new' and allowed on a pid list.
+-spec trace_modules() -> [{module(), ok | hot | refused}].
+trace_modules() ->
+    [{Module, traceability(Module)} || {Module, _} <- code:all_loaded()].
+
+traceability(Module) ->
+    case {refused(Module, []), refused(Module, all)} of
+        {true, _} ->
+            refused;
+        {false, true} ->
+            hot;
+        {false, false} ->
+            ok
+    end.
+
+%% `erlang:get_module_info/2' never autoloads, unlike `Module:module_info/1' on an unloaded module.
+-spec trace_functions(module()) ->
+                         {ok, [{atom(), arity(), boolean()}]} | {error, not_loaded}.
+trace_functions(Module) when is_atom(Module) ->
+    try
+        Exported = maps:from_keys(erlang:get_module_info(Module, exports), true),
+        {ok,
+         [{Name, Arity, is_map_key({Name, Arity}, Exported)}
+          || {Name, Arity} <- erlang:get_module_info(Module, functions),
+             not generated_function(Name)]}
+    catch
+        error:badarg ->
+            {error, not_loaded}
+    end.
+
+%% Funs and inlined helpers compile to names like `-handle_call/3-fun-0-'.
+generated_function(Name) ->
+    case atom_to_binary(Name) of
+        <<"-", _/binary>> ->
+            true;
+        _ ->
+            false
+    end.
 
 %% Atoms in a match spec are created on the remote when the dist message is decoded.
 trace_match_spec(undefined, ReturnTrace) ->

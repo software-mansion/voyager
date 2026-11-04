@@ -5,7 +5,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
 
   use VoyagerWeb, :component
 
-  alias Voyager.Pid
+  alias VoyagerWeb.Formatters
 
   @interval_options [
     {"Off", "off"},
@@ -123,6 +123,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
   attr :status, :atom, required: true
   attr :last_updated, :any, required: true
   attr :refresh_interval, :integer, default: nil
+  attr :show_back_arrow, :boolean, default: false
 
   def header(assigns) do
     ~H"""
@@ -131,6 +132,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
         node_name={@node_name}
         last_updated={@last_updated}
         waiting_message="waiting for first fetch…"
+        show_back_arrow={@show_back_arrow}
       >
         <:actions>
           <span
@@ -163,7 +165,7 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
           <p class="font-semibold">Errors encountered</p>
           <ul class="max-h-[10vh] mt-1 w-full list-inside list-disc overflow-auto text-sm">
             <%= for err <- @errors do %>
-              <li>{inspect(err)}</li>
+              <li>{Formatters.format_term(err)}</li>
             <% end %>
           </ul>
         </div>
@@ -225,7 +227,6 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
             id="supervision-tree-body"
             phx-hook="SupervisionTree"
             phx-update="ignore"
-            data-node-id={Pid.cached_format() == :local && Pid.cached_node_id()}
             class="bg-base-100 relative h-full overflow-hidden rounded-lg"
           >
             <.portal id="supervision-tree-node-snippet-portal" target="#tooltip-portal-root">

@@ -8,8 +8,6 @@ defmodule VoyagerWeb.Components.ProcessComponents do
 
   use VoyagerWeb, :component
 
-  import VoyagerWeb.Helpers, only: [keep_sidebar: 2]
-
   alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.ProcessListControls
@@ -286,8 +284,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
 
   defp process_href(pid, current_url) do
     ["", "node", node_name | _rest] = String.split(URI.parse(current_url).path, "/")
-    path = ~p"/node/#{URI.decode(node_name)}/processes/#{Formatters.format_pid(pid)}"
-    keep_sidebar(path, current_url)
+    ~p"/node/#{URI.decode(node_name)}/processes/#{Formatters.format_pid(pid)}"
   end
 
   @doc """
@@ -342,21 +339,17 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   registered one as a bare atom.
   """
   @spec format_name(term()) :: String.t()
-  def format_name(name) when is_atom(name) and not is_nil(name), do: inspect(name)
-  def format_name([name | _rest]), do: inspect(name)
+  def format_name(name) when is_atom(name) and not is_nil(name), do: Formatters.format_term(name)
+  def format_name([name | _rest]), do: Formatters.format_term(name)
   def format_name(_name), do: @placeholder
 
-  @doc """
-  Formats an MFA tuple as `Module.function/arity`.
-  """
   @spec format_mfa(term()) :: String.t()
-  def format_mfa({mod, fun, arity}), do: "#{inspect(mod)}.#{fun}/#{arity}"
   def format_mfa(nil), do: @placeholder
-  def format_mfa(other), do: inspect(other)
+  def format_mfa(mfa), do: Formatters.format_mfa(mfa)
 
   defp format_atom(nil), do: @placeholder
   defp format_atom(value) when is_atom(value), do: to_string(value)
-  defp format_atom(value), do: inspect(value)
+  defp format_atom(value), do: Formatters.format_term(value)
 
   defp format_number(n) when is_integer(n), do: Formatters.format_integer(n)
   defp format_number(_n), do: @placeholder

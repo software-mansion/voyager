@@ -25,7 +25,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
   alias VoyagerWeb.FormSchemas.ProcessInfoControls
   alias VoyagerWeb.Hooks.TermTreeHook
   alias VoyagerWeb.ProcessInfoLive.Query
-  alias VoyagerWeb.TermTree
+  alias VoyagerWeb.TermFormatter
 
   require Logger
 
@@ -64,7 +64,12 @@ defmodule VoyagerWeb.ProcessInfoLive do
       data-settings-key="process-info"
       class="mx-auto flex h-full w-full max-w-screen-2xl flex-col gap-4 overflow-hidden p-6 sm:p-8"
     >
-      <.node_header node_name={@session.node_name} waiting_message={nil} class="mb-0">
+      <.node_header
+        node_name={@session.node_name}
+        waiting_message={nil}
+        class="mb-0"
+        show_back_arrow={@can_go_back?}
+      >
         <:actions>
           <div class="flex flex-col items-end gap-0.5">
             <.tooltip id="process-info-pid-tip" position="bottom" interactive tip_class="font-mono">
@@ -114,14 +119,6 @@ defmodule VoyagerWeb.ProcessInfoLive do
           </div>
         </:actions>
       </.node_header>
-
-      <.link
-        id="back-to-processes"
-        navigate={keep_sidebar(~p"/node/#{@session.node_name}/processes", @current_url)}
-        class="btn btn-ghost btn-sm w-max gap-2"
-      >
-        <.icon name="icon-arrow-left" class="size-4" /> All processes
-      </.link>
 
       <div class="flex min-h-0 flex-1 flex-col">
         <div id="process-info-tabs" role="tablist" class="tabs tabs-lift">
@@ -322,7 +319,6 @@ defmodule VoyagerWeb.ProcessInfoLive do
                     total={bounded.total}
                     node_name={@session.node_name}
                     remote_node={@session.node}
-                    current_url={@current_url}
                   />
                 </.section>
               </div>
@@ -338,7 +334,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
   def handle_event("set-tab", %{"tab" => tab}, socket) do
     case Enum.find(@tabs, &(to_string(&1) == tab)) do
       nil -> noreply(socket)
-      tab -> socket |> push_patch(to: tab_path(socket, tab)) |> noreply()
+      tab -> socket |> push_patch(to: tab_path(socket, tab), replace: true) |> noreply()
     end
   end
 
@@ -467,7 +463,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
     socket
     |> put_flash(:error, error_message(reason))
-    |> push_navigate(to: keep_sidebar(path, socket.assigns[:current_url]))
+    |> push_navigate(to: path)
   end
 
   defp resolve_pid(socket, pid_string) do
@@ -545,9 +541,8 @@ defmodule VoyagerWeb.ProcessInfoLive do
   end
 
   defp tab_path(socket, tab) do
-    %{session: session, pid_string: pid_string, current_url: current_url} = socket.assigns
-    path = ~p"/node/#{session.node_name}/processes/#{pid_string}?tab=#{tab}"
-    keep_sidebar(path, current_url)
+    %{session: session, pid_string: pid_string} = socket.assigns
+    ~p"/node/#{session.node_name}/processes/#{pid_string}?tab=#{tab}"
   end
 
   # Opening a gated tab for the first time fetches it; data that is already
@@ -569,7 +564,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
   defp registered_name(%AsyncResult{ok?: true, result: %{registered_name: name}})
        when not is_nil(name),
-       do: inspect(name)
+       do: Formatters.format_term(name)
 
   defp registered_name(_info), do: nil
 
@@ -636,7 +631,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
   defp put_term(socket, id, term) do
     socket
     |> TermTreeHook.put_term(id, term)
-    |> update(:copy_texts, &Map.put(&1, id, TermTree.copy_string(term)))
+    |> update(:copy_texts, &Map.put(&1, id, TermFormatter.copy_string(term)))
   end
 
   defp seed_term_list(socket, prefix, items) do
