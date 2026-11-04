@@ -388,7 +388,7 @@ defmodule VoyagerWeb.ConnectComponents do
       <.icon name="icon-check" class="text-success size-3.5 shrink-0" />
       <span class="font-mono text-base-content/90 min-w-0 truncate text-xs">{@selected.alias}</span>
       <span class="font-mono text-base-content/50 min-w-0 truncate text-xs">
-        from {ssh_config_path_label(@config_path)}
+        from {@config_path}
       </span>
       <button
         type="button"
@@ -406,6 +406,7 @@ defmodule VoyagerWeb.ConnectComponents do
 
   attr :id, :string, required: true
   attr :form, Phoenix.HTML.Form, required: true
+  attr :config_path, :string, required: true
   attr :hosts, :list, default: nil, doc: "`nil` until a file has been read"
   attr :unsupported, :list, default: []
   attr :selected, :map, default: nil
@@ -456,7 +457,7 @@ defmodule VoyagerWeb.ConnectComponents do
 
         <div :if={@hosts} id={"#{@id}-source"} class="flex min-w-0 items-center gap-1">
           <span class="font-mono text-base-content/70 min-w-0 truncate text-xs">
-            {ssh_config_path_label(@form[:path].value)}
+            {@config_path}
           </span>
           <span class="font-mono text-base-content/50 shrink-0 text-xs">
             · {length(@hosts)} {if length(@hosts) == 1, do: "host", else: "hosts"}
@@ -606,9 +607,6 @@ defmodule VoyagerWeb.ConnectComponents do
     port = if host.port, do: ":#{host.port}"
     "#{user}#{host.host_name || host.alias}#{port}"
   end
-
-  defp ssh_config_path_label(""), do: "~/.ssh/config"
-  defp ssh_config_path_label(path), do: path
 
   @doc "Segmented radio group for a set of mutually exclusive options."
   attr :name, :string, required: true

@@ -1,6 +1,7 @@
 defmodule VoyagerWeb.ConnectLiveSshConfigTest do
   use VoyagerWeb.ConnCase, async: false
 
+  import ExUnit.CaptureLog
   import Phoenix.LiveViewTest
 
   alias Voyager.Fakes
@@ -107,7 +108,11 @@ defmodule VoyagerWeb.ConnectLiveSshConfigTest do
 
   defp value?(view, id, value), do: has_element?(view, ~s|##{id}[value="#{value}"]|)
 
-  describe "selected_host/2" do
+  defp send_stale(view, event, host_alias) do
+    view |> with_target("#ssh-connect") |> render_click(event, %{"alias" => host_alias})
+  end
+
+  describe "selected_host/3" do
     test "finds the host a fill produced" do
       for host <- [@prod, @bare] do
         form = form(SshConnectionParams.params_from_host(host))
@@ -136,6 +141,20 @@ defmodule VoyagerWeb.ConnectLiveSshConfigTest do
 
     test "returns nil before an import" do
       assert SshConfigImport.selected_host(nil, form(%{})) == nil
+    end
+
+    test "prefers the picked alias among hosts with the same server fields" do
+      twin = %{@prod | alias: "twin"}
+      form = form(SshConnectionParams.params_from_host(@prod))
+
+      assert SshConfigImport.selected_host([@prod, twin], form, "twin") == twin
+      assert SshConfigImport.selected_host([@prod, twin], form, "gone") == @prod
+    end
+
+    test "does not select a picked alias whose server fields were edited" do
+      params = @prod |> SshConnectionParams.params_from_host() |> Map.put("ssh_port", "22")
+
+      assert SshConfigImport.selected_host([@prod], form(params), "prod") == nil
     end
   end
 
@@ -227,6 +246,13 @@ defmodule VoyagerWeb.ConnectLiveSshConfigTest do
 
       refute has_element?(view, "#ssh-config-modal")
       assert has_element?(view, "#ssh-config-filled-from", "prod")
+    end
+
+    test "ignores a host that is no longer listed", %{view: view} do
+      send_stale(view, "fill_ssh_host", "gone")
+
+      assert has_element?(view, "#ssh-config-modal")
+      refute has_element?(view, "#ssh-config-filled-from")
     end
 
     test "Change reopens the modal with the list and the selected host", %{view: view} do
@@ -338,6 +364,50 @@ defmodule VoyagerWeb.ConnectLiveSshConfigTest do
     end
   end
 
+  describe "without a host list" do
+    setup %{conn: conn} do
+      view = open_page(conn)
+      open_modal(view)
+      %{view: view}
+    end
+
+    test "ignores a fill", %{view: view} do
+      send_stale(view, "fill_ssh_host", "prod")
+
+      assert has_element?(view, "#ssh-config-modal-form")
+    end
+
+    test "ignores a remove and keeps the path form", %{view: view} do
+      send_stale(view, "remove_ssh_host", "prod")
+
+      assert has_element?(view, "#ssh-config-modal-form")
+      refute has_element?(view, "#ssh-config-modal-empty")
+    end
+  end
+
+  describe "hosts with the same server fields" do
+    test "shows the alias that was picked", %{conn: conn, tmp_dir: dir} do
+      path =
+        write_config!(dir, """
+        Host work
+          HostName git.example.com
+          IdentityFile /k/work
+
+        Host personal
+          HostName git.example.com
+          IdentityFile /k/personal
+        """)
+
+      view = open_page(conn)
+      import_config(view, path)
+      pick(view, "personal")
+
+      assert has_element?(view, "#ssh-config-filled-from", "personal")
+      assert has_element?(view, "#ssh-config-filled-from", path)
+      assert value?(view, "ssh_key_path", "/k/personal")
+    end
+  end
+
   describe "saved path" do
     test "is read when the modal opens on a new page", %{conn: conn, tmp_dir: dir} do
       path = write_config!(dir)
@@ -371,6 +441,59 @@ defmodule VoyagerWeb.ConnectLiveSshConfigTest do
 
       assert value?(view, "ssh_config_path", path)
       assert has_element?(view, "input#ssh_config_path.input-error")
+    end
+
+    test "keeps a typed path when the modal reopens", %{conn: conn, tmp_dir: dir} do
+      view = open_page(conn)
+      import_config(view, write_config!(dir))
+      view |> element("#ssh-config-modal-edit-path") |> render_click()
+
+      view
+      |> element("#ssh-config-modal-form")
+      |> render_change(%{"ssh_config" => %{"path" => "/typed/path"}})
+
+      view |> element("#ssh-config-modal-close") |> render_click()
+      open_modal(view)
+
+      assert value?(view, "ssh_config_path", "/typed/path")
+      refute has_element?(view, "#ssh-config-modal-hosts")
+    end
+
+    test "brings the list back when the path was not edited", %{conn: conn, tmp_dir: dir} do
+      view = open_page(conn)
+      import_config(view, write_config!(dir))
+      view |> element("#ssh-config-modal-edit-path") |> render_click()
+      view |> element("#ssh-config-modal-close") |> render_click()
+      open_modal(view)
+
+      assert listed?(view, "prod")
+    end
+
+    test "logs a path it cannot save and keeps the imported list", %{conn: conn, tmp_dir: dir} do
+      previous_env = Application.fetch_env(:voyager, :ssh_config_path)
+      previous_level = Logger.level()
+      Application.put_env(:voyager, :ssh_config_path, write_config!(dir))
+      Logger.configure(level: :warning)
+
+      on_exit(fn ->
+        Logger.configure(level: previous_level)
+
+        case previous_env do
+          {:ok, value} -> Application.put_env(:voyager, :ssh_config_path, value)
+          :error -> Application.delete_env(:voyager, :ssh_config_path)
+        end
+      end)
+
+      other = Path.join(dir, "other")
+      File.write!(other, "Host other\n")
+      view = open_page(conn)
+      open_modal(view)
+      view |> element("#ssh-config-modal-edit-path") |> render_click()
+
+      log = capture_log(fn -> submit_path(view, other) end)
+
+      assert log =~ "Failed to persist ssh_config_path"
+      assert listed?(view, "other")
     end
   end
 

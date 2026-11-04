@@ -68,7 +68,7 @@ defmodule VoyagerWeb.ConnectComponentsTest do
   defp opener(attrs) do
     render_component(
       &ConnectComponents.ssh_config_opener/1,
-      Keyword.merge([config_path: "", on_open: "open"], attrs)
+      Keyword.merge([config_path: "/k/config", on_open: "open"], attrs)
     )
   end
 
@@ -86,6 +86,7 @@ defmodule VoyagerWeb.ConnectComponentsTest do
         [
           id: "modal",
           form: to_form(%{"path" => ""}, as: :ssh_config),
+          config_path: "/k/config",
           on_close: "close",
           on_change_path: "change",
           on_edit_path: "edit",
@@ -107,11 +108,11 @@ defmodule VoyagerWeb.ConnectComponentsTest do
       assert count(html, "#ssh-config-filled-from") == 0
     end
 
-    test "shows the selected host and the default path for a blank one" do
+    test "shows the selected host and its config path" do
       html = opener(selected: ssh_host())
 
       assert text(html, "#ssh-config-filled-from") =~ "prod"
-      assert text(html, "#ssh-config-filled-from") =~ "~/.ssh/config"
+      assert text(html, "#ssh-config-filled-from") =~ "/k/config"
       assert count(html, "#ssh-config-filled-from button#ssh-config-open") == 1
     end
 
@@ -137,6 +138,7 @@ defmodule VoyagerWeb.ConnectComponentsTest do
 
       assert count(html, "#modal-form") == 0
       assert count(html, "#modal-source") == 1
+      assert text(html, "#modal-source") =~ "/k/config"
       assert count(html, "#modal-hosts [data-testid=fill-ssh-host-btn]") == 2
     end
 
