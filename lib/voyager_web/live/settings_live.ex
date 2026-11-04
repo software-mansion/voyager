@@ -51,11 +51,10 @@ defmodule VoyagerWeb.SettingsLive do
       <div>
         <h1 class="text-base-content text-2xl font-semibold tracking-tight">Settings</h1>
         <p class="text-base-content/70 mt-1 text-sm">
-          Configure Voyager's AI agents, appearance and distribution.
+          Configure Voyager's appearance, AI agents and distribution.
         </p>
       </div>
 
-      <.live_component module={McpSettings} id="mcp" agents={@mcp_agents} />
       <AppearanceSettings.appearance_settings />
       <SettingsComponents.choice_setting
         id="pid-format"
@@ -75,6 +74,7 @@ defmodule VoyagerWeb.SettingsLive do
         locked?={TermSyntax.setting_locked?()}
         on_select="select-term-syntax"
       />
+      <.live_component module={McpSettings} id="mcp-server" agents={@mcp_agents} />
       <.live_component
         module={DistributionSettings}
         id="distribution-settings"

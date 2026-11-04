@@ -471,19 +471,16 @@ defmodule VoyagerWeb.CoreComponents do
     values: [:md, :sm],
     doc: "`:sm` for dense contexts such as table cells"
 
+  attr :variant, :atom,
+    default: :ghost,
+    values: [:ghost, :soft],
+    doc: "`:soft` is a full-size labeled button, matching the settings choice buttons"
+
   attr :class, :any, default: nil
   attr :rest, :global
 
   def copy_button(assigns) do
-    assigns =
-      assign(
-        assigns,
-        :button_class,
-        if(assigns.icon_only,
-          do: ["btn-square", if(assigns.size == :sm, do: "toolbar-btn-sm", else: "toolbar-btn")],
-          else: "btn-sm gap-2"
-        )
-      )
+    assigns = assign(assigns, :button_class, copy_button_class(assigns))
 
     ~H"""
     <button
@@ -496,7 +493,7 @@ defmodule VoyagerWeb.CoreComponents do
       data-copy-copied-label={@copied_label}
       title={@label}
       aria-label={@label}
-      class={["btn btn-ghost", @button_class, @class]}
+      class={["btn", @button_class, @class]}
       {@rest}
     >
       <.icon
@@ -722,6 +719,13 @@ defmodule VoyagerWeb.CoreComponents do
     </div>
     """
   end
+
+  defp copy_button_class(%{variant: :soft}), do: "btn-soft gap-1.5"
+
+  defp copy_button_class(%{icon_only: true, size: size}),
+    do: ["btn-ghost btn-square", if(size == :sm, do: "toolbar-btn-sm", else: "toolbar-btn")]
+
+  defp copy_button_class(_assigns), do: "btn-ghost btn-sm gap-2"
 
   defp copy_icon_class(true, :sm), do: "toolbar-icon-sm"
   defp copy_icon_class(true, _size), do: "toolbar-icon"

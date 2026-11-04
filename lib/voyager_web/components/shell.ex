@@ -251,7 +251,7 @@ defmodule VoyagerWeb.Components.Shell do
           agents={@mcp_agents}
           settings_path={
             ~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_url)]}" <>
-              "#mcp"
+              "#mcp-server"
           }
           on_refresh="mcp-refresh"
           on_turn_on="mcp-turn-on"

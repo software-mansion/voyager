@@ -68,7 +68,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
           </span>
         </div>
 
-        <div class="text-base-content/70 font-mono -mt-2 flex items-center gap-1.5 text-xs">
+        <div class="text-base-content/70 font-mono -mt-2 flex items-center gap-1.5 text-sm">
           <span class="size-1.5 relative flex">
             <span
               :if={@running?}
@@ -95,7 +95,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
           <span class="font-mono tracking-label text-base-content/70 text-xs font-semibold uppercase">
             Agents
           </span>
-          <div class="border-base-300 divide-base-content/10 flex flex-col divide-y rounded-lg border px-3">
+          <div class="border-base-300 divide-base-content/10 flex flex-col divide-y rounded-lg border px-4">
             <ul
               id="mcp-agent-list"
               phx-update="stream"
@@ -105,30 +105,20 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
             </ul>
             <div
               id="mcp-agent-other"
-              class="grid-cols-[auto_1fr_auto] grid items-center gap-x-2.5 gap-y-1 py-2"
+              class="grid-cols-[auto_1fr_auto] grid items-center gap-x-3 gap-y-1 py-3"
             >
-              <McpComponents.agent_logo />
-              <span class="text-sm">Another agent</span>
+              <McpComponents.agent_logo size={:md} />
+              <span class="text-sm font-medium">Another agent</span>
               <McpComponents.copy_text
                 id="mcp-setup-prompt"
                 text={McpClients.setup_prompt(@agents.url)}
                 label="Copy setup prompt"
+                variant={:soft}
               />
-              <span class="text-base-content/70 col-span-2 col-start-2 text-xs">
+              <span class="text-base-content/70 col-span-2 col-start-2 text-sm">
                 Paste it into any agent and it adds Voyager itself.
               </span>
             </div>
-          </div>
-          <div class="flex justify-end text-xs">
-            <a
-              id="mcp-docs"
-              href={McpComponents.docs_url()}
-              target="_blank"
-              rel="noopener noreferrer"
-              class="text-base-content/70 hover:text-base-content"
-            >
-              What can agents do?
-            </a>
           </div>
         </section>
 
@@ -232,11 +222,14 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
 
   defp agent_row(assigns) do
     ~H"""
-    <li id={@id} class="grid-cols-[auto_1fr_auto] grid items-center gap-x-2.5 gap-y-1.5 py-2">
-      <McpComponents.agent_logo id={@agent.id} />
-      <span class="flex min-w-0 items-center gap-1.5 text-sm">
+    <li id={@id} class="grid-cols-[auto_1fr_auto] grid items-center gap-x-3 gap-y-2 py-3">
+      <McpComponents.agent_logo id={@agent.id} size={:md} />
+      <span class="flex min-w-0 items-center gap-2 text-sm font-medium">
         <span class="truncate">{@agent.name}</span>
-        <span :if={@agent.activity} class="font-mono text-base-content/70 truncate text-xs">
+        <span
+          :if={@agent.activity}
+          class="font-mono text-base-content/70 truncate text-xs font-normal"
+        >
           {McpComponents.client_label(@agent.activity)}
         </span>
         <McpComponents.found_badge agent={@agent} />
@@ -245,27 +238,26 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
         <% @agent.activity -> %>
           <McpComponents.activity_status activity={@agent.activity} />
         <% @agent.added? -> %>
-          <span id={"#{@id}-added"} class="badge badge-ghost badge-sm">Added</span>
+          <span id={"#{@id}-added"} class="badge badge-ghost">Added</span>
           <span class="font-mono text-base-content/70 col-span-2 col-start-2 text-xs">
             in {@agent.config_path}
           </span>
         <% @agent.link -> %>
-          <a id={"#{@id}-add"} href={@agent.link} class="btn btn-primary btn-xs">
+          <a id={"#{@id}-add"} href={@agent.link} class="btn btn-primary">
             Add to {@agent.name}
           </a>
         <% true -> %>
-          <div class="border-base-300 bg-base-200 col-span-2 col-start-2 flex min-w-0 items-center gap-1 rounded-md border py-0.5 pr-0.5 pl-2">
+          <div class="border-base-300 bg-base-200 col-span-2 col-start-2 flex min-w-0 items-center gap-1 rounded-lg border py-1 pr-1 pl-3">
             <code
               id={"#{@id}-command"}
               title={@agent.command}
-              class="font-mono text-base-content/80 min-w-0 flex-1 truncate text-xs"
+              class="font-mono text-base-content/80 min-w-0 flex-1 truncate text-sm"
             >{@agent.command}</code>
             <.copy_button
               id={"#{@id}-copy"}
               target={"##{@id}-command"}
               icon_only
               label="Copy command"
-              size={:sm}
             />
           </div>
       <% end %>

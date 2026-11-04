@@ -8,19 +8,20 @@ defmodule VoyagerWeb.McpComponents do
   alias Voyager.Services.McpAgents
   alias Voyager.Services.McpClients
 
-  @docs_url "https://github.com/software-mansion/voyager#mcp-server"
-
-  @spec docs_url() :: String.t()
-  def docs_url, do: @docs_url
-
   attr :id, :atom,
     default: nil,
     doc: "a `Voyager.Services.McpClients.id()`, nil for any other agent"
 
+  attr :size, :atom, default: :sm, values: [:sm, :md]
+
   def agent_logo(assigns) do
     ~H"""
-    <span class={["size-5.5 flex shrink-0 items-center justify-center rounded-md", logo_tile(@id)]}>
-      <.icon name={logo_icon(@id)} class="size-3.5" />
+    <span class={[
+      "flex shrink-0 items-center justify-center",
+      if(@size == :md, do: "size-8 rounded-lg", else: "size-5.5 rounded-md"),
+      logo_tile(@id)
+    ]}>
+      <.icon name={logo_icon(@id)} class={if @size == :md, do: "size-4.5", else: "size-3.5"} />
     </span>
     """
   end
@@ -67,6 +68,7 @@ defmodule VoyagerWeb.McpComponents do
   attr :text, :string, required: true
   attr :label, :string, required: true
   attr :icon_only, :boolean, default: false
+  attr :variant, :atom, default: :ghost
 
   def copy_text(assigns) do
     ~H"""
@@ -77,6 +79,7 @@ defmodule VoyagerWeb.McpComponents do
       label={@label}
       icon_only={@icon_only}
       size={:sm}
+      variant={@variant}
       class="text-base-content/70 shrink-0 hover:text-base-content"
     />
     """
@@ -185,19 +188,9 @@ defmodule VoyagerWeb.McpComponents do
         </div>
 
         <div class="border-base-content/10 border-t"></div>
-        <div class="flex items-center justify-between">
-          <a
-            href={docs_url()}
-            target="_blank"
-            rel="noopener noreferrer"
-            class="text-primary hover:underline"
-          >
-            What can agents do?
-          </a>
-          <.link href={@settings_path} class="text-base-content/70 hover:text-base-content">
-            MCP settings
-          </.link>
-        </div>
+        <.link href={@settings_path} class="text-primary hover:underline">
+          MCP settings
+        </.link>
       </div>
     </div>
     """
