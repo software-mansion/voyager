@@ -153,6 +153,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
            )
 
     assert has_element?(view, "#entry-1-changes", "Scope Global → Local")
+    assert has_element?(view, "#entry-1-changes .line-through", "Global")
     assert has_element?(view, "#entry-1-changes", "Max events 10,000 → None")
     assert has_element?(view, "#entry-1-config-portal")
   end
@@ -331,6 +332,17 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     refute has_element?(view, "#entry-1", "by MCP")
   end
 
+  test "counts a single dropped event in the singular", %{conn: conn} do
+    %{id: id} = start!()
+    view = open(conn, id)
+    dropped = %{seq: 2, kind: :dropped, origin: nil, count: 1, at: 0}
+
+    send(view.pid, {:session_entries, Tracer.active(), [dropped]})
+    flush_log(view)
+
+    assert has_element?(view, "#entry-2", "1 event dropped")
+  end
+
   test "keeps only the newest 200 rows", %{conn: conn} do
     %{id: id} = start!()
     view = open(conn, id)
@@ -417,6 +429,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#entry-0", "Configured")
     assert has_element?(view, "#entry-0", "by UI")
     assert has_element?(view, "#entry-1", "Started")
+    assert has_element?(view, "#entry-1 td[title]")
     assert has_element?(view, "#entry-2", "Stopped")
     assert has_element?(view, "#entry-2", "by UI")
   end
