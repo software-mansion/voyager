@@ -47,17 +47,26 @@ defmodule VoyagerWeb.ProcessInfoLive.Query do
     end)
   end
 
-  @doc "Each relation succeeds or fails on its own; only a rate-limit refusal fails the whole call."
+  @doc """
+  Each relation succeeds or fails on its own. A rate-limit refusal, or a timeout or
+  lost connection on the first fetch, fails the whole call.
+  """
   @spec relations(node(), pid(), non_neg_integer(), timeout()) ::
           {:ok, relations(), non_neg_integer()} | {:error, term()}
   def relations(node, pid, limit, timeout) do
     rate_limited(fn ->
-      {:ok,
-       %{
-         links: ProcessInfo.fetch_links(node, pid, limit, timeout),
-         monitors: ProcessInfo.fetch_monitors(node, pid, limit, timeout),
-         monitored_by: ProcessInfo.fetch_monitored_by(node, pid, limit, timeout)
-       }}
+      case ProcessInfo.fetch_links(node, pid, limit, timeout) do
+        {:error, reason} when reason in [:timeout, :noconnection] ->
+          {:error, reason}
+
+        links ->
+          {:ok,
+           %{
+             links: links,
+             monitors: ProcessInfo.fetch_monitors(node, pid, limit, timeout),
+             monitored_by: ProcessInfo.fetch_monitored_by(node, pid, limit, timeout)
+           }}
+      end
     end)
   end
 

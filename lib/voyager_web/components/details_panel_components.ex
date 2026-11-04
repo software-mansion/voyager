@@ -9,6 +9,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   alias Phoenix.LiveView.AsyncResult
   alias Voyager.Services.SupervisionTree.TreeNode
   alias VoyagerWeb.Components.ProcessComponents
+  alias VoyagerWeb.Components.ProcessInfoComponents
   alias VoyagerWeb.Components.SupervisionTreeComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.ProcessInfoHelp
@@ -240,13 +241,15 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :on_select, :string, required: true
   attr :on_toggle_relation, :string, required: true
   attr :target, :any, required: true
-  attr :remote_node, :atom, default: nil, doc: "forwarded to `overview/1`"
+  attr :remote_node, :atom, default: nil, doc: "pids on any other node get no process sections"
   attr :chips_disabled?, :boolean, default: false
 
   def body(assigns) do
+    pid = assigns.node.pid
+
     assigns =
       assigns
-      |> assign(:process?, is_pid(assigns.node.pid))
+      |> assign(:process?, is_pid(pid) and node(pid) == assigns.remote_node)
       |> assign(:info, failed_over_stale(assigns.info))
       |> assign(:relations_info, failed_over_stale(assigns.relations_info))
 
@@ -273,8 +276,11 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         />
         <.memory_and_garbage_collection info={@info} />
       <% else %>
-        <div class="alert alert-info">
-          <p>
+        <div id={"#{@panel_id}-no-process-info"} class="alert alert-info">
+          <p :if={is_pid(@node.pid)}>
+            This process runs on {node(@node.pid)}. Connect to that node to inspect it.
+          </p>
+          <p :if={not is_pid(@node.pid)}>
             This is not a process node, so no process information is available.
           </p>
         </div>
@@ -871,12 +877,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   defp failed_over_stale(result), do: result
 
-  defp relation_count(%AsyncResult{ok?: true, result: %{} = relations}, key) do
-    case Map.fetch!(relations, key) do
-      {:ok, %{total: total}} -> "(#{Formatters.format_integer(total)})"
-      {:error, _reason} -> nil
-    end
-  end
+  defp relation_count(%AsyncResult{ok?: true, result: %{} = relations}, key),
+    do: relations |> Map.fetch!(key) |> ProcessInfoComponents.bounded_count()
 
   defp relation_count(_, _), do: nil
 end
