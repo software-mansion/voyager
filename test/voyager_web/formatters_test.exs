@@ -94,6 +94,12 @@ defmodule VoyagerWeb.FormattersTest do
       assert Formatters.format_count_short(3_450_000) == "3.5M"
       assert Formatters.format_count_short(2_500_000_000) == "2.5B"
     end
+
+    test "moves up a unit when rounding reaches the next one" do
+      assert Formatters.format_count_short(999_949) == "999.9K"
+      assert Formatters.format_count_short(999_950) == "1.0M"
+      assert Formatters.format_count_short(999_950_000) == "1.0B"
+    end
   end
 
   describe "format_integer/1" do

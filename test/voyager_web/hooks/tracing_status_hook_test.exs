@@ -88,6 +88,17 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
 
       assert has_element?(view, "#tracing-indicator-mfa", "lists:_/_")
     end
+
+    test "quotes atoms that need it", %{conn: conn} do
+      {:ok, :erlang} = TermSyntax.save_setting(:erlang)
+      config = %Config{module: "Elixir.Date", function: "leap_year?", arity: 1}
+      :sys.replace_state(Tracer, fn _ -> %Tracer{session: %{session() | config: config}} end)
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+      render_async(view)
+
+      assert has_element?(view, "#tracing-indicator-mfa", "'Elixir.Date':'leap_year?'/1")
+    end
   end
 
   test "shows the indicator in the app topbar", %{conn: conn} do
