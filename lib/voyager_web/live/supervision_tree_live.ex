@@ -65,6 +65,7 @@ defmodule VoyagerWeb.SupervisionTreeLive do
           status={@status}
           last_updated={@last_updated}
           refresh_interval={@refresh_interval}
+          show_back_arrow={@can_go_back?}
         />
         <.async_result :let={available_apps} assign={@available_apps}>
           <:loading>
@@ -104,7 +105,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         revealing?={not is_nil(@pending_reveal)}
         remote_node={@session.node}
         node_name={@session.node_name}
-        current_url={@current_url}
       />
     </div>
     """

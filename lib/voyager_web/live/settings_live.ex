@@ -26,13 +26,12 @@ defmodule VoyagerWeb.SettingsLive do
   ]
 
   @impl true
-  def mount(params, _session, socket) do
+  def mount(_params, _session, socket) do
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
     end
 
     socket
-    |> assign(:return_to, safe_return_to(params["return_to"]))
     |> assign(:connected?, not is_nil(NodeSession.current()))
     |> assign(:terms_of_service_url, Application.get_env(:voyager, :terms_of_service_url))
     |> assign(:pid_format, Pid.get_setting())
@@ -46,11 +45,9 @@ defmodule VoyagerWeb.SettingsLive do
 
     ~H"""
     <div class="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-10">
-      <div>
+      <div class="flex items-center gap-2">
+        <.back_arrow id="settings-back" href={if(!@can_go_back?, do: ~p"/")} />
         <h1 class="text-base-content text-2xl font-semibold tracking-tight">Settings</h1>
-        <p class="text-base-content/70 mt-1 text-sm">
-          Configure Voyager's appearance and distribution.
-        </p>
       </div>
 
       <AppearanceSettings.appearance_settings />
@@ -129,20 +126,4 @@ defmodule VoyagerWeb.SettingsLive do
         {:noreply, socket}
     end
   end
-
-  defp safe_return_to(path) when is_binary(path) do
-    case URI.parse(path) do
-      %URI{scheme: nil, host: nil, path: "/" <> _ = route_path} ->
-        if Phoenix.Router.route_info(VoyagerWeb.Router, "GET", route_path, "") == :error do
-          "/"
-        else
-          path
-        end
-
-      _ ->
-        "/"
-    end
-  end
-
-  defp safe_return_to(_), do: "/"
 end
