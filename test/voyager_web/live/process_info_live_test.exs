@@ -92,6 +92,18 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
       refute has_element?(view, "#node-header-back")
     end
 
+    test "is present after a live navigation from a tab with one history entry", %{conn: conn} do
+      {:ok, view, _html} =
+        conn
+        |> put_connect_params(%{
+          "_live_referer" => "http://#{conn.host}" <> ~p"/node/#{@node_name}/processes",
+          "_history_length" => 1
+        })
+        |> live(process_path())
+
+      assert has_element?(view, "#node-header-back")
+    end
+
     test "ignores a referer from another origin", %{conn: conn} do
       {:ok, view, _html} =
         conn
