@@ -7,7 +7,9 @@ defmodule VoyagerWeb.Components.TracingComponents do
   alias Voyager.Services.Tracer.Session
   alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Components.ProcessComponents
+  alias VoyagerWeb.Components.TermComponents
   alias VoyagerWeb.Formatters
+  alias VoyagerWeb.TermTree.Segment
 
   @row_cap 200
   # The tooltip renders for every row, so its text is capped too.
@@ -412,9 +414,27 @@ defmodule VoyagerWeb.Components.TracingComponents do
   attr :query, :string, default: nil
 
   defp log_row(%{entry: %{kind: :trace}} = assigns) do
+    {clock, millis} = assigns.entry.at |> format_at() |> String.split_at(8)
+    assigns = assign(assigns, clock: clock, millis: millis)
+
     ~H"""
-    <tr id={@id} class="h-11 hover:bg-base-content/3">
-      <td class="font-mono text-base-content/70 truncate py-2 text-sm">{format_at(@entry.at)}</td>
+    <tr
+      id={@id}
+      phx-mounted={
+        @entry[:live] &&
+          JS.transition({"transition-colors duration-1000", "bg-success/10", ""}, time: 1000)
+      }
+      class={[
+        "h-11",
+        if(@entry.type == :exception,
+          do: "bg-error/5 hover:bg-error/10",
+          else: "hover:bg-base-content/3"
+        )
+      ]}
+    >
+      <td class="font-mono truncate py-2 text-sm tabular-nums" title={full_at(@entry.at)}>
+        <span class="text-base-content/50">{@clock}</span><span class="text-base-content">{@millis}</span>
+      </td>
       <td class="py-2">
         <ProcessComponents.pid_cell
           :if={@pid_href}
@@ -441,38 +461,47 @@ defmodule VoyagerWeb.Components.TracingComponents do
             id={"#{@id}-term"}
             interactive
             pinnable={false}
-            class="min-w-0"
-            tip_class="font-mono max-w-xl!"
+            class="min-w-0 flex-1"
+            tip_class="max-w-xl!"
           >
             <span tabindex="0" class="font-mono block min-w-0 truncate text-sm">
               <span :if={@wildcard? and @entry.type != :call} class="text-base-content/50 mr-1">
                 {fun_arity(@entry.mfa)}
               </span>
               <span class={term_class(@entry.type)}>
-                {highlight(term_text(@entry, @wildcard?, :row), @query)}
+                {term_html(term_text(@entry, @wildcard?, :row), plain?(@entry), @query)}
               </span>
             </span>
             <:content>
-              <div class="flex items-start gap-1">
-                <span
-                  id={"#{@id}-term-text"}
-                  class="max-h-80 overflow-auto whitespace-pre-wrap break-all"
-                >{term_text(@entry, @wildcard?, :tip)}</span>
+              <div class="border-base-200 mb-2 flex items-center gap-2 border-b pb-2">
+                <.icon
+                  name={glyph(@entry.type)}
+                  class={["size-3.5 shrink-0", glyph_class(@entry.type)]}
+                />
+                <span class="font-mono font-semibold">{fun_arity(@entry.mfa)}</span>
+                <span class="text-base-content/60 min-w-0 truncate">{tip_meta(@entry)}</span>
                 <.copy_button
                   id={"#{@id}-term-copy"}
                   target={"##{@id}-term-text"}
                   label="Copy value"
                   icon_only
                   size={:sm}
-                  class="text-base-content/60 shrink-0 hover:text-primary"
+                  class="text-base-content/60 ml-auto shrink-0 hover:text-primary"
                 />
               </div>
+              <span
+                id={"#{@id}-term-text"}
+                class={[
+                  "font-mono block max-h-80 overflow-auto whitespace-pre-wrap break-words",
+                  @entry.type == :exception && "text-error"
+                ]}
+              >{term_text(@entry, @wildcard?, :tip)}</span>
             </:content>
           </.tooltip>
           <.tooltip :if={@entry[:truncated]} id={"#{@id}-truncated"} class="shrink-0">
             <.icon
               name="icon-circle-alert"
-              class="text-warning size-3.5"
+              class="text-base-content/40 size-3.5 transition-colors hover:text-warning"
               role="img"
               aria-label="Truncated on the remote node"
             />
@@ -480,7 +509,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
           </.tooltip>
         </div>
       </td>
-      <td :if={@durations?} class="font-mono truncate py-2 text-right text-sm">
+      <td :if={@durations?} class="font-mono truncate py-2 text-right text-sm tabular-nums">
         {format_duration(@entry[:duration_us])}
       </td>
     </tr>
@@ -582,9 +611,8 @@ defmodule VoyagerWeb.Components.TracingComponents do
   defp glyph_class(:return), do: "text-success"
   defp glyph_class(:exception), do: "text-error"
 
-  defp term_class(:call), do: "text-base-content"
-  defp term_class(:return), do: "text-code-atom"
   defp term_class(:exception), do: "text-error"
+  defp term_class(_type), do: "text-base-content"
 
   defp term_text(%{type: :call, args: args, mfa: {_module, function, _arity}}, wildcard?, size)
        when is_list(args) do
@@ -605,7 +633,13 @@ defmodule VoyagerWeb.Components.TracingComponents do
     do: Formatters.format_term(term, limit: 20, printable_limit: @row_cap)
 
   defp format_term(term, :tip),
-    do: Formatters.format_term(term, limit: :infinity, printable_limit: @tip_cap)
+    do:
+      Formatters.format_term(term,
+        limit: :infinity,
+        printable_limit: @tip_cap,
+        pretty: true,
+        width: 80
+      )
 
   defp cap(text, size) do
     cap = if size == :row, do: @row_cap, else: @tip_cap
@@ -619,23 +653,64 @@ defmodule VoyagerWeb.Components.TracingComponents do
   defp type_label(:return), do: "Return"
   defp type_label(:exception), do: "Exception"
 
-  defp highlight(text, nil), do: text
+  defp plain?(%{type: :call, args: args}) when is_list(args), do: false
+  defp plain?(%{type: type}), do: type != :return
 
-  defp highlight(text, query) do
-    {parts, from} =
-      text
-      |> String.downcase(:ascii)
-      |> :binary.matches(String.downcase(query, :ascii))
-      |> Enum.map_reduce(0, fn {at, length}, from ->
-        {[
-           escape(binary_part(text, from, at - from)),
-           ~s(<mark class="bg-warning/30 rounded-sm text-inherit">),
-           escape(binary_part(text, at, length)),
-           "</mark>"
-         ], at + length}
+  defp term_html(text, plain?, query) do
+    marks =
+      if query,
+        do: :binary.matches(String.downcase(text, :ascii), String.downcase(query, :ascii)),
+        else: []
+
+    segments = if plain?, do: [{nil, 0, byte_size(text)}], else: segments(text)
+    {:safe, Enum.map(segments, &segment_html(text, &1, marks))}
+  end
+
+  # A regex over the inspected text, since the row shows the formatter's output, not a term tree.
+  defp segments(text) do
+    kinds = [:string, :other, :special, :atom, :number]
+
+    {segments, from} =
+      ~r/("(?:[^"\\]|\\.)*")|(~[a-zA-Z]+\[[^\]]*\]|#[A-Z][\w.]*<[^>]*>|<\d+\.\d+\.\d+>)|(\b(?:nil|true|false)\b)|(:"(?:[^"\\]|\\.)*"|:[a-zA-Z_][\w@]*[?!]?|\b[a-z_][\w@]*[?!]?:(?=\s)|\b[A-Z]\w*(?:\.[A-Z]\w*)*)|(-?\b\d[\d_]*(?:\.\d+)?(?:e[+-]?\d+)?\b)/
+      |> Regex.scan(text, return: :index)
+      |> Enum.flat_map_reduce(0, fn [{at, length} | groups], from ->
+        kind =
+          Enum.at(kinds, Enum.find_index(groups, fn {group_at, _length} -> group_at >= 0 end))
+
+        {[{:punctuation, from, at}, {kind, at, at + length}], at + length}
       end)
 
-    {:safe, [parts, escape(binary_part(text, from, byte_size(text) - from))]}
+    Enum.reject(segments ++ [{:punctuation, from, byte_size(text)}], fn {_kind, from, to} ->
+      from == to
+    end)
+  end
+
+  defp segment_html(text, {kind, from, to}, marks) do
+    edges =
+      for {at, length} <- marks, edge <- [at, at + length], edge > from and edge < to, do: edge
+
+    parts =
+      [from | Enum.sort(edges)]
+      |> Enum.zip(Enum.sort(edges) ++ [to])
+      |> Enum.map(&part_html(text, &1, marks))
+
+    if kind,
+      do: [
+        ~s(<span class="),
+        TermComponents.segment_class(%Segment{kind: kind}),
+        ~s(">),
+        parts,
+        "</span>"
+      ],
+      else: parts
+  end
+
+  defp part_html(text, {from, to}, marks) do
+    part = escape(binary_part(text, from, to - from))
+
+    if Enum.any?(marks, fn {at, length} -> from >= at and from < at + length end),
+      do: [~s(<mark class="bg-warning/30 rounded-sm text-inherit">), part, "</mark>"],
+      else: part
   end
 
   defp escape(text), do: text |> html_escape() |> elem(1)
@@ -647,14 +722,20 @@ defmodule VoyagerWeb.Components.TracingComponents do
 
   defp search_placeholder(_session), do: "Search newest 500 events"
 
-  defp format_at(at) do
-    at
-    |> DateTime.from_unix!(:microsecond)
-    |> DateTime.truncate(:millisecond)
-    |> Calendar.strftime("%H:%M:%S.%f")
+  defp format_at(at), do: at |> datetime() |> Calendar.strftime("%H:%M:%S.%f")
+  defp full_at(at), do: at |> datetime() |> Calendar.strftime("%a %-d %b %Y, %H:%M:%S.%f UTC")
+
+  defp datetime(at),
+    do: at |> DateTime.from_unix!(:microsecond) |> DateTime.truncate(:millisecond)
+
+  defp tip_meta(entry) do
+    [type_label(entry.type), format_at(entry.at), format_duration(entry[:duration_us])]
+    |> Enum.reject(&is_nil/1)
+    |> Enum.join(" · ")
   end
 
   defp format_duration(nil), do: nil
+  defp format_duration(us) when us < 1_000, do: "#{us} µs"
 
   defp format_duration(us) when us < 10_000,
     do: :erlang.float_to_binary(us / 1_000, decimals: 2) <> " ms"

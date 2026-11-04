@@ -671,7 +671,7 @@ defmodule VoyagerWeb.TracingSessionLive do
         newest_seq = List.last(rows).seq
 
         socket
-        |> stream(:entries, rows, at: 0, limit: @row_limit)
+        |> stream(:entries, Enum.map(rows, &Map.put(&1, :live, true)), at: 0, limit: @row_limit)
         |> assign(:buffer, [])
         |> assign(:newest_seq, newest_seq)
         |> update(:held_kinds, &Enum.take(Enum.reverse(kinds(rows)) ++ &1, @row_limit))

@@ -180,13 +180,14 @@ defmodule VoyagerWeb.Components.TermComponents do
     end)
   end
 
-  defp segment_class(%Segment{kind: :atom}), do: "text-code-atom"
-  defp segment_class(%Segment{kind: :module}), do: "text-code-atom"
-  defp segment_class(%Segment{kind: :number}), do: "text-code-number"
-  defp segment_class(%Segment{kind: :string}), do: "text-code-string"
-  defp segment_class(%Segment{kind: :special}), do: "text-code-special"
-  defp segment_class(%Segment{kind: :muted}), do: "text-code-punct opacity-70"
-  defp segment_class(%Segment{}), do: "text-code-punct"
+  @doc false
+  def segment_class(%Segment{kind: :atom}), do: "text-code-atom"
+  def segment_class(%Segment{kind: :module}), do: "text-code-atom"
+  def segment_class(%Segment{kind: :number}), do: "text-code-number"
+  def segment_class(%Segment{kind: :string}), do: "text-code-string"
+  def segment_class(%Segment{kind: :special}), do: "text-code-special"
+  def segment_class(%Segment{kind: :muted}), do: "text-code-punct opacity-70"
+  def segment_class(%Segment{}), do: "text-code-punct"
 
   defp dom_id(id, []), do: "#{id}-root"
   defp dom_id(id, path), do: "#{id}-#{Enum.join(path, "-")}"

@@ -315,6 +315,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#entry-2 [role=img][aria-label=Call]")
     assert has_element?(view, "#entry-2", "(~D[2024-01-01])")
     assert has_element?(view, "#entry-2 a[href*='/processes/']")
+    assert has_element?(view, "#entry-2[phx-mounted]")
     assert has_element?(view, "#log-footer", "All 2 traces shown")
   end
 
@@ -401,7 +402,9 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
 
     assert has_element?(view, "#log-duration")
     assert has_element?(view, "#entry-3 [aria-label=Return]")
-    assert has_element?(view, "#entry-3 td:last-child", ~r/^\s*\d+\.\d{2} ms\s*$/)
+    assert has_element?(view, "#entry-3 td:last-child", ~r/^\s*(\d+ µs|\d+\.\d{2} ms)\s*$/)
+    assert has_element?(view, "#entry-3 .text-code-special", "true")
+    refute has_element?(view, "#entry-3[phx-mounted]")
   end
 
   test "shows the configured, started and stopped entries", %{conn: conn} do
