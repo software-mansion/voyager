@@ -91,6 +91,11 @@ defmodule VoyagerWeb.ConnectLive.SshConfigImport do
       {:ok, %{hosts: hosts, unsupported: unsupported}} ->
         Settings.put(:ssh_config_path, path)
 
+        Voyager.Telemetry.dispatch!("voyager.ssh_config.import",
+          measurements: %{hosts: length(hosts), unsupported: length(unsupported)},
+          metadata: %{keywords: Enum.map(unsupported, & &1.keyword)}
+        )
+
         socket
         |> assign(:ssh_config_form, path_form(path))
         |> assign(:ssh_config_hosts, hosts)
