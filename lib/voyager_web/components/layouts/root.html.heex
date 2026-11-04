@@ -162,6 +162,7 @@
         }
       })();
     </script>
+    <%!-- Inline, not in app.js: deferred app.js runs after first paint, so the sidebar width would flash. --%>
     <script>
       try {
         const mode = localStorage.getItem("voyager:sidebar");
