@@ -87,6 +87,15 @@ defmodule VoyagerWeb.FormattersTest do
     end
   end
 
+  describe "format_count_short/1" do
+    test "abbreviates from thousands up with one decimal" do
+      assert Formatters.format_count_short(999) == "999"
+      assert Formatters.format_count_short(2_149) == "2.1K"
+      assert Formatters.format_count_short(3_450_000) == "3.5M"
+      assert Formatters.format_count_short(2_500_000_000) == "2.5B"
+    end
+  end
+
   describe "format_integer/1" do
     test "leaves values below 1000 untouched" do
       assert Formatters.format_integer(0) == "0"

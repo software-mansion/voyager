@@ -59,7 +59,11 @@ defmodule VoyagerWeb.Components.Shell do
       <.brand />
       <div class="@container/nav-status flex min-w-0 items-center gap-3">
         <.node_indicator session={@session} />
-        <.tracing_indicator session={@tracing_session} connected_node={@session.node} />
+        <.tracing_indicator
+          session={@tracing_session}
+          connected_node={@session.node}
+          sidebar_mode={sidebar_mode(@current_url)}
+        />
       </div>
       <.link
         href={~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_url)]}"}
@@ -102,6 +106,7 @@ defmodule VoyagerWeb.Components.Shell do
 
   attr :session, Tracer.Session, default: nil
   attr :connected_node, :atom, default: nil
+  attr :sidebar_mode, :string, default: nil
 
   defp tracing_indicator(%{session: nil} = assigns), do: ~H""
 
@@ -115,7 +120,7 @@ defmodule VoyagerWeb.Components.Shell do
     ~H"""
     <.tooltip id="tracing-indicator-tip" position="bottom" class="shrink-0">
       <.link
-        navigate={tracing_session_path(@session)}
+        navigate={nav_path(tracing_session_path(@session), @sidebar_mode)}
         id="tracing-indicator"
         data-tone={@tone}
         aria-label={"Open the #{@state} tracing session, #{Formatters.format_integer(@session.traces)} traces captured"}
@@ -150,7 +155,7 @@ defmodule VoyagerWeb.Components.Shell do
             tone_class(@tone, :badge)
           ]}
         >
-          {Formatters.format_count_compact(@session.traces)}
+          {Formatters.format_count_short(@session.traces)}
         </span>
       </.link>
       <:content>
@@ -232,7 +237,7 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp tone_class(:failed, :dot), do: "bg-warning"
   defp tone_class(:failed, :label), do: "text-warning"
-  defp tone_class(:failed, :badge), do: "badge-warning"
+  defp tone_class(:failed, :badge), do: "badge-warning dark:text-neutral"
 
   defp tone_class(:other_node, :chip),
     do:
@@ -240,7 +245,7 @@ defmodule VoyagerWeb.Components.Shell do
 
   defp tone_class(:other_node, :dot), do: "bg-info"
   defp tone_class(:other_node, :label), do: "text-info"
-  defp tone_class(:other_node, :badge), do: "badge-info"
+  defp tone_class(:other_node, :badge), do: "badge-info dark:text-neutral"
 
   defp tone_class(:open, :chip),
     do:

@@ -40,7 +40,7 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     assert has_element?(view, ~s|#tracing-indicator[href="/node/demo%40localhost/tracing"]|)
     assert has_element?(view, "#tracing-indicator[data-tone=running]")
     assert has_element?(view, "#tracing-indicator-mfa", "Date.leap_year?/1")
-    assert has_element?(view, "#tracing-indicator-count", "1,234")
+    assert has_element?(view, "#tracing-indicator-count", "1.2K")
     assert has_element?(view, "#tracing-indicator-tip[phx-hook=Tooltip]")
   end
 
@@ -51,10 +51,10 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     refute has_element?(view, "#tracing-indicator")
 
     broadcast({:session_updated, session()})
-    assert has_element?(view, "#tracing-indicator-count", "1,234")
+    assert has_element?(view, "#tracing-indicator-count", "1.2K")
 
     broadcast({:session_updated, %{session() | traces: 2_000}})
-    assert has_element?(view, "#tracing-indicator-count", "2,000")
+    assert has_element?(view, "#tracing-indicator-count", "2.0K")
 
     broadcast({:session_updated, %{session() | status: :stopped, stop_reason: :stopped}})
     assert has_element?(view, "#tracing-indicator[data-tone=open]")
@@ -99,6 +99,17 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     render_async(view)
 
     assert has_element?(view, "#tracing-indicator")
+  end
+
+  test "keeps the sidebar mode on the indicator link", %{conn: conn} do
+    Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
+    stub_erpc(Fakes.node_data())
+    :sys.replace_state(Tracer, fn _ -> %Tracer{session: session()} end)
+
+    {:ok, view, _html} = live(conn, ~p"/node/demo@localhost?sidebar=compact")
+    render_async(view)
+
+    assert has_element?(view, ~s|#tracing-indicator[href*="sidebar=compact"]|)
   end
 
   test "warns when the run failed", %{conn: conn} do
