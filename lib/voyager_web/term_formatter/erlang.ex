@@ -34,6 +34,10 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
   @impl true
   def format_mfa({mod, fun, arity}), do: "#{atom(mod)}:#{atom(fun)}/#{arity}"
 
+  @impl true
+  def format_mfa_pattern(mod, :_, arity), do: "#{atom(mod)}:_/#{arity}"
+  def format_mfa_pattern(mod, fun, arity), do: "#{atom(mod)}:#{atom(fun)}/#{arity}"
+
   @spec atom(atom()) :: String.t()
   def atom(atom), do: atom |> :io_lib.write_atom() |> IO.chardata_to_string()
 

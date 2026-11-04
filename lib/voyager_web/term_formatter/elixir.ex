@@ -34,6 +34,10 @@ defmodule VoyagerWeb.TermFormatter.Elixir do
   def format_mfa({mod, fun, arity}), do: Exception.format_mfa(mod, fun, arity)
 
   @impl true
+  def format_mfa_pattern(mod, fun, arity),
+    do: "#{Macro.inspect_atom(:literal, mod)}.#{Macro.inspect_atom(:remote_call, fun)}/#{arity}"
+
+  @impl true
   def printable_list?(list, opts \\ []),
     do: List.ascii_printable?(list, Inspect.Opts.new(opts).printable_limit)
 

@@ -6,10 +6,10 @@ defmodule VoyagerWeb.Components.Shell do
   use VoyagerWeb, :html
 
   alias Voyager.NodeSession.Session
-  alias Voyager.Services.TermSyntax
   alias Voyager.Services.Tracer
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.Hooks.UrlHook
+  alias VoyagerWeb.TermFormatter
 
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
@@ -243,28 +243,8 @@ defmodule VoyagerWeb.Components.Shell do
   defp stop_reason_label(:node_down), do: "Node went down"
   defp stop_reason_label({:tracer_down, _reason}), do: "Remote tracer crashed"
 
-  defp format_traced_mfa(%Tracer.Config{module: module, function: function, arity: arity}) do
-    case TermSyntax.current() do
-      :erlang -> "#{erlang_atom(module)}:#{erlang_atom(function)}/#{arity || "_"}"
-      :elixir -> "#{format_module(module)}.#{function}/#{arity || "_"}"
-    end
-  end
-
-  defp erlang_atom(name) do
-    if name == "_" or (name =~ ~r/^[a-z][a-zA-Z0-9_@]*$/ and not reserved_word?(name)),
-      do: name,
-      else: name |> String.to_charlist() |> :io_lib.write_string(?') |> to_string()
-  end
-
-  # Every reserved word is an existing atom, so a name that is not one cannot be reserved.
-  defp reserved_word?(name) do
-    :erl_scan.reserved_word(String.to_existing_atom(name))
-  rescue
-    ArgumentError -> false
-  end
-
-  defp format_module("Elixir." <> module), do: module
-  defp format_module(module), do: ":" <> module
+  defp format_traced_mfa(%Tracer.Config{module: module, function: function, arity: arity}),
+    do: TermFormatter.format_mfa_pattern(module, function, arity)
 
   defp brand(assigns) do
     assigns = assign(assigns, :version, Voyager.version())

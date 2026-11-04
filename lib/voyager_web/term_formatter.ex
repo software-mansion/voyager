@@ -14,6 +14,7 @@ defmodule VoyagerWeb.TermFormatter do
   @callback inspect(term(), keyword()) :: String.t()
   @callback copy_string(term(), keyword()) :: String.t()
   @callback format_mfa({module(), atom(), arity()}) :: String.t()
+  @callback format_mfa_pattern(module(), atom(), arity() | :_) :: String.t()
   @callback printable_list?(list(), keyword()) :: boolean()
 
   @doc """
@@ -57,6 +58,19 @@ defmodule VoyagerWeb.TermFormatter do
   end
 
   def format_mfa(other, opts), do: __MODULE__.inspect(other, opts)
+
+  @doc ~S"""
+  Renders a trace pattern from its config strings, where `"_"` and a `nil` arity
+  are wildcards, e.g. `"Enum._/_"` or `"lists:map/_"`.
+  """
+  @spec format_mfa_pattern(String.t(), String.t(), arity() | nil, keyword()) :: String.t()
+  def format_mfa_pattern(module, function, arity, opts \\ [])
+      when is_binary(module) and is_binary(function) do
+    {formatter, _opts} = pop_formatter(opts)
+    # Not to_existing_atom: names this VM hasn't seen yet would lose their quotes
+    # ('Elixir.MyApp':f/1). The trace's own events intern these same atoms anyway.
+    formatter.format_mfa_pattern(String.to_atom(module), String.to_atom(function), arity || :_)
+  end
 
   @doc """
   The `erlang` BIF and argument that rebuild `id` in a shell on any node. The

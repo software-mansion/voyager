@@ -272,4 +272,33 @@ defmodule VoyagerWeb.TermFormatterTest do
       assert TermFormatter.format_mfa(nil, syntax: :elixir) == "nil"
     end
   end
+
+  describe "format_mfa_pattern/4" do
+    test "renders a concrete pattern like format_mfa/2" do
+      assert TermFormatter.format_mfa_pattern("Elixir.Enum", "map", 2, syntax: :elixir) ==
+               "Enum.map/2"
+
+      assert TermFormatter.format_mfa_pattern("Elixir.Enum", "map", 2, syntax: :erlang) ==
+               "'Elixir.Enum':map/2"
+    end
+
+    test "renders wildcards unquoted" do
+      assert TermFormatter.format_mfa_pattern("lists", "_", nil, syntax: :elixir) == ":lists._/_"
+      assert TermFormatter.format_mfa_pattern("lists", "_", nil, syntax: :erlang) == "lists:_/_"
+
+      assert TermFormatter.format_mfa_pattern("lists", "map", nil, syntax: :erlang) ==
+               "lists:map/_"
+    end
+
+    test "quotes names that need it in either syntax" do
+      assert TermFormatter.format_mfa_pattern("Elixir.Date", "leap_year?", 1, syntax: :erlang) ==
+               "'Elixir.Date':'leap_year?'/1"
+
+      assert TermFormatter.format_mfa_pattern("my mod", "do it", 0, syntax: :elixir) ==
+               ~s|:"my mod"."do it"/0|
+
+      assert TermFormatter.format_mfa_pattern("lists", "receive", 0, syntax: :erlang) ==
+               "lists:'receive'/0"
+    end
+  end
 end
