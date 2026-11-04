@@ -112,17 +112,6 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     assert has_element?(view, "#tracing-indicator")
   end
 
-  test "keeps the sidebar mode on the indicator link", %{conn: conn} do
-    Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
-    stub_erpc(Fakes.node_data())
-    :sys.replace_state(Tracer, fn _ -> %Tracer{session: session()} end)
-
-    {:ok, view, _html} = live(conn, ~p"/node/demo@localhost?sidebar=compact")
-    render_async(view)
-
-    assert has_element?(view, ~s|#tracing-indicator[href*="sidebar=compact"]|)
-  end
-
   test "warns when the run failed", %{conn: conn} do
     stopped = %{session() | status: :stopped, stop_reason: :node_down}
     :sys.replace_state(Tracer, fn _ -> %Tracer{session: stopped} end)

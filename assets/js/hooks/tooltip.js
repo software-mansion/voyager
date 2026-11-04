@@ -1,3 +1,5 @@
+import { isSidebarCompact } from '../sidebar';
+
 // Positions a portaled tooltip element relative to its trigger.
 //
 // The tooltip content is teleported (via `<.portal>`) to a global target in
@@ -18,16 +20,6 @@ const HOVER_DELAY_MS = 120;
 const CLOSE_DELAY_MS = 120;
 const GAP = 8;
 const VIEWPORT_MARGIN = 8;
-
-// Mirrors assets/css/styles/sidebar.css: explicit mode-* classes win; otherwise
-// the rail is compact below the lg breakpoint and full from lg up.
-function isSidebarCompact() {
-  const el = document.getElementById('app-sidebar');
-  if (!el) return false;
-  if (el.classList.contains('mode-full')) return false;
-  if (el.classList.contains('mode-compact')) return true;
-  return window.matchMedia('(max-width: 1023.98px)').matches;
-}
 
 function positionTooltip(tipEl, trigger) {
   const position = trigger.dataset.tooltipPosition || 'top';

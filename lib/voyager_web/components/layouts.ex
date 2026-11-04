@@ -53,7 +53,6 @@ defmodule VoyagerWeb.Layouts do
       session={@session}
       mcp_status={assigns[:mcp_status]}
       tracing_session={assigns[:tracing_session]}
-      current_url={assigns[:current_url]}
     >
       {@inner_content}
     </VoyagerWeb.Components.Shell.shell>
@@ -64,7 +63,7 @@ defmodule VoyagerWeb.Layouts do
 
   @doc """
   Renders the settings layout - a bare page with a topbar that
-  shows a back arrow to the previous page. Used by the settings screen,
+  shows the brand mark. Used by the settings screen,
   reachable from both the connect panel and the app navbar.
   """
   attr :flash, :map, required: true, doc: "the map of flash messages"
@@ -73,10 +72,7 @@ defmodule VoyagerWeb.Layouts do
     ~H"""
     <.flash_group flash={@flash} />
     <div class="bg-base-200 flex h-full flex-col overflow-hidden">
-      <VoyagerWeb.Components.Shell.settings_topbar
-        return_to={assigns[:return_to]}
-        tracing_session={assigns[:tracing_session]}
-      />
+      <VoyagerWeb.Components.Shell.settings_topbar tracing_session={assigns[:tracing_session]} />
       <main class="flex-1 overflow-y-auto">
         {@inner_content}
       </main>
