@@ -38,6 +38,30 @@ defmodule Voyager.Services.SSH.ConfigTest do
 
       assert Config.parse(contents).unsupported == []
     end
+
+    test "reports an empty quoted argument as a bad value" do
+      contents = """
+      IdentityFile ""
+      Host ""
+      """
+
+      result = Config.parse(contents)
+
+      assert result.hosts == []
+
+      assert result.unsupported == [
+               %{keyword: "identityfile", type: :value},
+               %{keyword: "host", type: :value}
+             ]
+    end
+
+    test "replaces invalid UTF-8 in values" do
+      assert [%{alias: host_alias, user: user}] =
+               Config.parse("Host caf\xE9\n  User caf\xE9\n").hosts
+
+      assert String.valid?(host_alias)
+      assert String.valid?(user)
+    end
   end
 
   describe "parse/1 hosts" do
@@ -243,6 +267,30 @@ defmodule Voyager.Services.SSH.ConfigTest do
       assert [%{identity_files: [], user: nil, host_name: "prod.example.com"}] = result.hosts
     end
 
+    test "reports extra arguments to a supported keyword" do
+      for {line, keyword} <- [
+            {"Port 22 33", "port"},
+            {"HostName one two", "hostname"},
+            {"User one two", "user"},
+            {"IdentityFile ~/My Keys/id", "identityfile"},
+            {"IdentityAgent none extra", "identityagent"}
+          ] do
+        result = Config.parse("Host prod\n  #{line}\n")
+
+        assert result.unsupported == [%{keyword: keyword, type: :value}], line
+
+        assert [%{port: nil, host_name: nil, user: nil, identity_files: [], identity_agent: nil}] =
+                 result.hosts
+      end
+    end
+
+    test "reports IdentityFile none without a key path" do
+      result = Config.parse("Host prod\n  IdentityFile none\n")
+
+      assert result.unsupported == [%{keyword: "identityfile", type: :value}]
+      assert [%{identity_files: []}] = result.hosts
+    end
+
     test "does not apply the settings under a Host without patterns" do
       contents = """
       Host prod
@@ -279,6 +327,12 @@ defmodule Voyager.Services.SSH.ConfigTest do
              ]
 
       assert [%{alias: "prod", host_name: "10.0.0.5"}, %{alias: "staging"}] = result.hosts
+    end
+
+    test "keeps several arguments to an unsupported keyword reported as a keyword" do
+      assert Config.parse("SendEnv LANG LC_ALL\n").unsupported == [
+               %{keyword: "sendenv", type: :keyword}
+             ]
     end
 
     test "reports a keyword once per type" do
@@ -323,6 +377,13 @@ defmodule Voyager.Services.SSH.ConfigTest do
                %{keyword: "user", type: :value},
                %{keyword: "port", type: :value}
              ]
+    end
+
+    test "starts each included file in the caller's scope", %{tmp_dir: tmp_dir} do
+      first = write!(tmp_dir, "first", "Host first\n")
+      second = write!(tmp_dir, "second", "User deploy\nHost second\n")
+
+      assert host(~s(Include "#{first}" "#{second}"\n), "second").user == "deploy"
     end
 
     test "ignores a pattern that matches nothing", %{tmp_dir: tmp_dir} do

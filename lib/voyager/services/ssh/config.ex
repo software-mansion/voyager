@@ -16,13 +16,6 @@ defmodule Voyager.Services.SSH.Config do
 
   @type result :: %{hosts: [host()], unsupported: [unsupported()]}
 
-  @typep header :: {:header, patterns :: [String.t()]}
-  @typep problem :: {:problem, keyword :: String.t(), type :: :keyword | :block | :value}
-  @typep directive :: {:directive, keyword :: String.t(), args :: [String.t(), ...]}
-  @typep setting :: {:setting, field :: atom(), value :: term()}
-  @typep line_item :: header() | problem() | directive()
-  @typep item :: header() | problem() | setting()
-
   @max_include_depth 16
   @bad_include {:problem, "include", :value}
   @every_host_header {:header, ["*"]}
@@ -59,10 +52,10 @@ defmodule Voyager.Services.SSH.Config do
 
   defp apply_top_level_to_every_host(items), do: [@every_host_header | items]
 
-  @spec parse_contents(String.t(), non_neg_integer()) :: [line_item()]
   defp parse_contents(contents, depth) do
     {top_level, blocks} =
       contents
+      |> String.replace_invalid()
       |> String.split("\n")
       |> Enum.flat_map(&parse_line/1)
       |> Enum.split_while(&(not match?({:header, _patterns}, &1)))
@@ -86,8 +79,10 @@ defmodule Voyager.Services.SSH.Config do
   end
 
   defp parse_args(keyword, raw_args) do
-    case split_args(raw_args, []) do
-      {:ok, [_ | _] = args} -> line_items(keyword, args)
+    with {:ok, [_ | _] = args} <- split_args(raw_args, []),
+         false <- "" in args do
+      line_items(keyword, args)
+    else
       _no_args -> bad_value(keyword)
     end
   end
@@ -122,20 +117,21 @@ defmodule Voyager.Services.SSH.Config do
 
   defp include_file(path, depth) do
     case File.read(path) do
-      {:ok, contents} -> parse_contents(contents, depth)
+      {:ok, contents} -> [@every_host_header | parse_contents(contents, depth)]
       {:error, _reason} -> [@bad_include]
     end
   end
 
-  @spec to_setting(line_item()) :: item()
-  defp to_setting({:directive, "identityagent", ["none" | _rest]}),
+  defp to_setting({:directive, "identityfile", ["none"]}), do: {:problem, "identityfile", :value}
+
+  defp to_setting({:directive, "identityagent", ["none"]}),
     do: {:setting, :identity_agent, :none}
 
-  defp to_setting({:directive, "identityagent", [agent | _rest]})
+  defp to_setting({:directive, "identityagent", [agent]})
        when agent in @env_agent_values,
        do: {:setting, :identity_agent, nil}
 
-  defp to_setting({:directive, keyword, [arg | _rest]})
+  defp to_setting({:directive, keyword, [arg]})
        when is_map_key(@field_by_keyword, keyword) do
     if String.contains?(arg, ["%", "$"]) do
       {:problem, keyword, :value}
@@ -143,6 +139,10 @@ defmodule Voyager.Services.SSH.Config do
       parse_field(keyword, arg)
     end
   end
+
+  defp to_setting({:directive, keyword, _args})
+       when is_map_key(@field_by_keyword, keyword),
+       do: {:problem, keyword, :value}
 
   defp to_setting({:directive, keyword, _args}), do: {:problem, keyword, :keyword}
   defp to_setting(item), do: item
@@ -183,7 +183,6 @@ defmodule Voyager.Services.SSH.Config do
     )
   end
 
-  @spec settings_for([item()], String.t()) :: [setting()]
   defp settings_for(items, host_alias) do
     {settings, _active?} =
       Enum.flat_map_reduce(items, false, fn
