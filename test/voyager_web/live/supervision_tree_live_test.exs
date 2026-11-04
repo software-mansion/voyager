@@ -6,6 +6,7 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
 
   import Phoenix.LiveViewTest
   import Mox
+  import Voyager.TestUtils, only: [await_element: 2]
 
   alias Voyager.Fakes
 
@@ -322,8 +323,8 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
     test "skips the graph and explains how to shrink the fetch", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path <> "?apps=demo_app")
       render_async(view)
+      await_element(view, "#supervision-tree-too-large")
 
-      assert has_element?(view, "#supervision-tree-too-large")
       refute has_element?(view, "#supervision-tree-body")
     end
   end

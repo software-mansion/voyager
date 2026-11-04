@@ -43,6 +43,28 @@ defmodule Voyager.TestUtils do
 
   def reset_pid_format(_context), do: reset_cached_setting({Voyager.Pid, :format})
 
+  @doc """
+  Polls `view` until `selector` renders, for results that reach the LiveView as plain
+  messages `render_async/1` cannot await. Flunks after about a second.
+  """
+  def await_element(view, selector, text_filter \\ nil, attempts \\ 50)
+
+  def await_element(_view, selector, _text_filter, 0),
+    do: ExUnit.Assertions.flunk("timed out waiting for #{selector}")
+
+  def await_element(view, selector, text_filter, attempts) do
+    if Phoenix.LiveViewTest.has_element?(view, selector, text_filter) do
+      :ok
+    else
+      receive do
+      after
+        20 -> :ok
+      end
+
+      await_element(view, selector, text_filter, attempts - 1)
+    end
+  end
+
   @doc "Evaluates `source` as one Erlang expression, the trailing dot added, and returns its value."
   def erl_eval(source) do
     {:ok, tokens, _end} = :erl_scan.string(String.to_charlist(source <> "."))
