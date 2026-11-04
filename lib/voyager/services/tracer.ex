@@ -86,6 +86,23 @@ defmodule Voyager.Services.Tracer do
     do: GenServer.call(__MODULE__, {:create, origin, Keyword.get(opts, :save, false)})
 
   @doc """
+  Replaces the active session with a new, unsaved one tracing `node` with `attrs`, started.
+  On any failure the previous session stays active. Returns `{:error, :busy}` while one runs.
+  """
+  @spec create_and_start(node(), map(), origin()) ::
+          {:ok, Session.t()} | {:error, :busy | Ecto.Changeset.t() | term()}
+  def create_and_start(node, attrs, origin) when origin in [:ui, :mcp] do
+    with {:ok, config} <- attrs |> Config.changeset() |> Ecto.Changeset.apply_action(:validate),
+         {:ok, pids} <- resolve_pids(node, config) do
+      args = Config.to_agent(config, pids)
+      GenServer.call(__MODULE__, {:create_and_start, origin, node, config, args}, @call_timeout)
+    else
+      {:error, %Ecto.Changeset{}} = error -> error
+      {:error, reason} -> start_failed(reason, origin)
+    end
+  end
+
+  @doc """
   Makes saved session `id` active, with its config, counts and newest entries.
   Returns `{:error, :busy}` while the active session runs.
   """
@@ -203,28 +220,32 @@ defmodule Voyager.Services.Tracer do
   @impl true
   def handle_call(request, _from, %{session: %Session{status: :running}} = state)
       when request == :close or
-             (is_tuple(request) and elem(request, 0) in [:create, :load, :configure, :start]),
+             (is_tuple(request) and
+                elem(request, 0) in [:create, :create_and_start, :load, :configure, :start]),
       do: {:reply, {:error, :busy}, state}
 
   def handle_call({:create, origin, save}, _from, _state) do
-    id =
-      if save do
-        {:ok, row} = TraceSessionActions.create(%{origin: origin, status: :idle})
-        row.id
-      else
-        -System.unique_integer([:positive])
-      end
-
-    session = %Session{
-      id: id,
-      origin: origin,
-      save: save,
-      created_at: DateTime.utc_now(),
-      storage_limit: storage_limit(id)
-    }
-
+    session = new_session(origin, save)
     broadcast({:session_activated, session})
     {:reply, {:ok, session}, %__MODULE__{session: session}}
+  end
+
+  def handle_call({:create_and_start, origin, node, config, args}, _from, state) do
+    case trace_start(node, args) do
+      {:ok, tracer} ->
+        session = %{new_session(origin, false) | node: node, config: config}
+        broadcast({:session_activated, session})
+
+        state =
+          %__MODULE__{session: session}
+          |> append([entry(:configured, origin, node: node, config: config)])
+          |> started(tracer, origin)
+
+        {:reply, {:ok, state.session}, state}
+
+      {:error, reason} ->
+        {:reply, start_failed(reason, origin), state}
+    end
   end
 
   def handle_call({:load, id}, _from, state) do
@@ -271,46 +292,14 @@ defmodule Voyager.Services.Tracer do
   end
 
   def handle_call(
-        {:start, origin, node, config, {spec, limits}},
+        {:start, origin, node, config, args},
         _from,
-        %{session: %Session{node: node, config: config} = session} = state
+        %{session: %Session{node: node, config: config}} = state
       ) do
-    case Agent.call(session.node, :trace_start, [self(), spec, limits], Agent.default_timeout()) do
-      {:ok, {:ok, tracer}} ->
-        Process.monitor(tracer)
-
-        session = %{
-          session
-          | tracer: tracer,
-            status: :running,
-            stop_reason: nil,
-            started_at: session.started_at || DateTime.utc_now(),
-            stopped_at: nil,
-            storage_limit: storage_limit(session.id)
-        }
-
-        Voyager.Telemetry.dispatch!("voyager.trace.start",
-          metadata:
-            session.config
-            |> Map.take([:capture, :scope, :return_trace, :processes])
-            |> Map.put(:origin, origin)
-        )
-
-        run = %Run{
-          origin: origin,
-          traces_before: session.traces,
-          dropped_before: session.dropped,
-          dropped_logged: session.dropped,
-          started_ms: System.monotonic_time(:millisecond)
-        }
-
-        state =
-          append(%{state | session: session, run: run}, [entry(:started, origin)])
-
+    case trace_start(node, args) do
+      {:ok, tracer} ->
+        state = started(state, tracer, origin)
         {:reply, {:ok, state.session}, state}
-
-      {:ok, {:error, reason}} ->
-        {:reply, start_failed(reason, origin), state}
 
       {:error, reason} ->
         {:reply, start_failed(reason, origin), state}
@@ -556,6 +545,63 @@ defmodule Voyager.Services.Tracer do
     if TraceSessionQueries.get(id),
       do: {:ok, %{entries: TraceEntryQueries.page(id, opts), truncated?: false}},
       else: {:error, :not_found}
+  end
+
+  defp new_session(origin, save) do
+    id =
+      if save do
+        {:ok, row} = TraceSessionActions.create(%{origin: origin, status: :idle})
+        row.id
+      else
+        -System.unique_integer([:positive])
+      end
+
+    %Session{
+      id: id,
+      origin: origin,
+      save: save,
+      created_at: DateTime.utc_now(),
+      storage_limit: storage_limit(id)
+    }
+  end
+
+  defp trace_start(node, {spec, limits}) do
+    case Agent.call(node, :trace_start, [self(), spec, limits], Agent.default_timeout()) do
+      {:ok, {:ok, tracer}} -> {:ok, tracer}
+      {:ok, {:error, reason}} -> {:error, reason}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp started(%{session: session} = state, tracer, origin) do
+    Process.monitor(tracer)
+
+    session = %{
+      session
+      | tracer: tracer,
+        status: :running,
+        stop_reason: nil,
+        started_at: session.started_at || DateTime.utc_now(),
+        stopped_at: nil,
+        storage_limit: storage_limit(session.id)
+    }
+
+    Voyager.Telemetry.dispatch!("voyager.trace.start",
+      metadata:
+        session.config
+        |> Map.take([:capture, :scope, :return_trace, :processes])
+        |> Map.put(:origin, origin)
+    )
+
+    run = %Run{
+      origin: origin,
+      traces_before: session.traces,
+      dropped_before: session.dropped,
+      dropped_logged: session.dropped,
+      started_ms: System.monotonic_time(:millisecond)
+    }
+
+    append(%{state | session: session, run: run}, [entry(:started, origin)])
   end
 
   defp start_failed(reason, origin) do

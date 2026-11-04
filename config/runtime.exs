@@ -8,6 +8,9 @@ config :voyager,
 
 config :voyager, :env, config_env()
 
+# Signs MCP form state; a fresh one per boot only invalidates forms left open across a restart.
+config :anubis_mcp, request_state_secret: :crypto.strong_rand_bytes(32)
+
 if config_env() == :dev do
   config :voyager,
          :telemetry_handler,
