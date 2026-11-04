@@ -427,11 +427,15 @@ defmodule VoyagerWeb.Components.TracingComponents do
 
   defp log_row(%{entry: %{kind: :trace}} = assigns) do
     ~H"""
+    <%!-- A blocking fade holds back every patch, and rows stream in faster than it ends. --%>
     <tr
       id={@id}
       phx-mounted={
         @entry[:live] &&
-          JS.transition({"transition-colors duration-1000", "bg-success/10", ""}, time: 1000)
+          JS.transition({"transition-colors duration-1000", "bg-success/10", ""},
+            time: 1000,
+            blocking: false
+          )
       }
       class={[
         "h-11",
