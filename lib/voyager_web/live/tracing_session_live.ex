@@ -7,6 +7,7 @@ defmodule VoyagerWeb.TracingSessionLive do
   use VoyagerWeb, :live_view
 
   alias Voyager.Services.Tracer
+  alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Session
   alias VoyagerWeb.Components.TracingComponents
   alias VoyagerWeb.Formatters
@@ -90,71 +91,88 @@ defmodule VoyagerWeb.TracingSessionLive do
             <:content>Back to sessions</:content>
           </.tooltip>
           <div class="min-w-0 flex-1">
-            <span
-              id="session-status"
-              data-tone={TracingComponents.tone(@trace_session)}
-              class="flex items-center gap-1.5"
-            >
-              <span class="relative flex h-2 w-2 shrink-0">
-                <span
-                  :if={@trace_session.status == :running}
-                  class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
-                ></span>
-                <span class={[
-                  "relative inline-flex h-2 w-2 rounded-full",
-                  TracingComponents.tone_class(TracingComponents.tone(@trace_session), :dot)
-                ]}></span>
-              </span>
-              <span class={[
-                "text-xs font-semibold",
-                TracingComponents.tone_class(TracingComponents.tone(@trace_session), :label)
-              ]}>
+            <div class="flex min-w-0 items-center gap-2 text-xs">
+              <span
+                id="session-status"
+                data-tone={TracingComponents.tone(@trace_session)}
+                class={["badge badge-sm shrink-0 gap-1.5 font-semibold", status_class(@trace_session)]}
+              >
+                <span class="size-1.5 relative flex">
+                  <span
+                    :if={@trace_session.status == :running}
+                    class="bg-success size-full absolute inline-flex animate-ping rounded-full opacity-75"
+                  ></span>
+                  <span class={[
+                    "size-1.5 relative inline-flex rounded-full",
+                    TracingComponents.tone_class(TracingComponents.tone(@trace_session), :dot)
+                  ]}></span>
+                </span>
                 {String.capitalize(TracingComponents.state(@trace_session))}
               </span>
-            </span>
-            <div class="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5">
-              <.tooltip id="session-mfa-tip" position="bottom" class="min-w-0" tip_class="font-mono">
-                <span
-                  id="session-mfa"
-                  tabindex="0"
-                  class="font-mono text-base-content block truncate text-sm font-semibold"
-                >
-                  {title(@trace_session)}
-                </span>
-                <:content>{title(@trace_session)}</:content>
-              </.tooltip>
+              <span
+                :if={@mode == :saved}
+                id="session-saved"
+                class="badge badge-sm badge-outline border-base-300 text-base-content/70 shrink-0 font-medium"
+              >
+                Saved
+              </span>
+              <span id="session-meta" class="text-base-content/60 truncate">
+                {meta(@trace_session, @mode)}
+              </span>
+            </div>
+            <div
+              id="session-params"
+              phx-hook="Tooltip"
+              data-tooltip-target="#session-params-tip"
+              data-tooltip-position="bottom"
+              data-tooltip-interactive="false"
+              data-tooltip-pinnable="true"
+              class="mt-1.5 flex w-fit min-w-0 max-w-full flex-wrap items-center gap-x-3 gap-y-1.5"
+            >
+              <.session_title config={@trace_session.config} />
               <span
                 :for={{key, label, value} <- chips(@trace_session)}
                 id={"session-chip-#{key}"}
-                class="bg-primary/10 flex min-w-0 max-w-full items-center gap-1.5 rounded-lg px-2 py-1"
+                class="border-base-300 bg-base-200 flex min-w-0 max-w-full items-center gap-1.5 rounded-lg border px-2 py-0.5"
               >
-                <span class="font-mono tracking-label text-primary shrink-0 text-xs font-semibold uppercase">
+                <span class="font-mono tracking-label text-base-content/50 shrink-0 text-xs font-semibold uppercase">
                   {label}
                 </span>
-                <span class="font-mono truncate text-xs">{value}</span>
+                <span class="font-mono text-base-content/90 truncate text-xs">{value}</span>
               </span>
             </div>
+            <.tooltip_portal id="session-params" tip_class="max-w-sm">
+              <TracingComponents.config_table
+                :if={@trace_session.config}
+                config={@trace_session.config}
+              />
+              <span :if={!@trace_session.config}>No parameters yet</span>
+            </.tooltip_portal>
           </div>
           <div class="flex shrink-0 items-center gap-2">
-            <button
+            <.tooltip
               :if={@mode == :active and @trace_session.config}
-              type="button"
-              id="session-edit"
-              disabled
-              title={if @trace_session.status == :running, do: "Stop the session to edit"}
-              class="btn btn-sm"
+              id="session-edit-tip"
+              position="bottom"
             >
-              <.icon name="icon-pencil" class="size-3.5" /> Edit
-            </button>
+              <button type="button" id="session-edit" disabled class="btn btn-sm">
+                <.icon name="icon-pencil" class="size-3.5" /> Edit
+              </button>
+              <:content>
+                {if @trace_session.status == :running,
+                  do: "Stop the session to edit its parameters",
+                  else: "Editing parameters is not available yet"}
+              </:content>
+            </.tooltip>
             <button
               :if={@mode == :active and @trace_session.status == :running}
               type="button"
               id="session-stop"
               phx-click="stop"
               disabled={@pending != nil}
-              class="btn btn-sm bg-error/10 border-error/30 text-error shadow-none"
+              class="btn btn-sm btn-soft btn-error"
             >
-              <.icon name="icon-square" class="size-3.5" /> Stop
+              <.icon name="icon-square-filled" class="size-3.5" /> Stop
             </button>
             <button
               :if={@mode == :active and @trace_session.status == :stopped}
@@ -193,7 +211,7 @@ defmodule VoyagerWeb.TracingSessionLive do
                 phx-click="delete"
                 disabled={@pending != nil}
                 aria-label="Delete session"
-                class="btn btn-sm btn-square text-error"
+                class="btn btn-sm btn-square btn-ghost text-base-content/60 hover:bg-error/10 hover:text-error"
               >
                 <.icon name="icon-trash" class="size-3.5" />
               </button>
@@ -704,8 +722,60 @@ defmodule VoyagerWeb.TracingSessionLive do
 
   defp chips(%Session{config: config}), do: TracingComponents.config_chips(config)
 
-  defp title(%Session{config: nil}), do: "New session"
-  defp title(%Session{config: config}), do: TracingComponents.traced_mfa(config)
+  defp status_class(session) do
+    case TracingComponents.tone(session) do
+      :running -> "badge-soft badge-success"
+      :failed -> "badge-soft badge-warning"
+      :open -> "badge-ghost"
+    end
+  end
+
+  defp meta(session, :saved), do: recorded(session.started_at, session.stopped_at)
+  defp meta(%Session{config: nil}, _mode), do: "Active in tracer · no parameters yet"
+  defp meta(%Session{status: :idle}, _mode), do: "Active in tracer · not started"
+
+  defp meta(%Session{status: :running, run_started_at: at}, _mode),
+    do: "Active in tracer · run started #{Formatters.format_time(at)}"
+
+  defp meta(%Session{stopped_at: %DateTime{} = at}, _mode),
+    do: "Active in tracer · stopped #{Formatters.format_time(at)}"
+
+  defp meta(_session, _mode), do: "Active in tracer · stopped"
+
+  defp recorded(%DateTime{} = from, %DateTime{} = to) do
+    if DateTime.to_date(from) == DateTime.to_date(to),
+      do: "Recorded #{day(from)} · #{clock(from)}–#{clock(to)}",
+      else: "Recorded #{day(from)} #{clock(from)} – #{day(to)} #{clock(to)}"
+  end
+
+  defp recorded(%DateTime{} = from, nil), do: "Recorded #{day(from)} · #{clock(from)}"
+  defp recorded(nil, _to), do: "Never run"
+
+  defp day(at), do: Calendar.strftime(at, "%a %-d %b")
+  defp clock(at), do: Calendar.strftime(at, "%H:%M")
+
+  attr :config, Config, default: nil
+
+  defp session_title(%{config: nil} = assigns) do
+    ~H"""
+    <h1 id="session-mfa" class="text-base-content text-base font-semibold">New session</h1>
+    """
+  end
+
+  defp session_title(assigns) do
+    {module, function} = TracingComponents.traced_mfa_parts(assigns.config)
+    assigns = assign(assigns, module: module, function: function)
+
+    ~H"""
+    <h1
+      id="session-mfa"
+      tabindex="0"
+      class="font-mono text-base-content min-w-0 truncate text-base font-semibold"
+    >
+      <span class="text-base-content/50 font-medium">{@module}</span>{@function}
+    </h1>
+    """
+  end
 
   attr :cell, :map, required: true
 

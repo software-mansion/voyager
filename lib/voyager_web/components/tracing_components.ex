@@ -87,8 +87,15 @@ defmodule VoyagerWeb.Components.TracingComponents do
       "#{div(seconds, 60)}:#{seconds |> rem(60) |> Integer.to_string() |> String.pad_leading(2, "0")}"
 
   @spec traced_mfa(Config.t()) :: String.t()
-  def traced_mfa(%Config{module: module, function: function, arity: arity}),
-    do: "#{format_module(module)}.#{function}/#{arity || "_"}"
+  def traced_mfa(config) do
+    {module, function} = traced_mfa_parts(config)
+    module <> function
+  end
+
+  @doc "`traced_mfa/1` split into the module with its dot and the `function/arity`."
+  @spec traced_mfa_parts(Config.t()) :: {String.t(), String.t()}
+  def traced_mfa_parts(%Config{module: module, function: function, arity: arity}),
+    do: {format_module(module) <> ".", "#{function}/#{arity || "_"}"}
 
   defp format_module("Elixir." <> module), do: module
   defp format_module(module), do: ":" <> module
@@ -102,7 +109,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
 
     limits =
       [
-        config.max_events && Formatters.format_integer(config.max_events),
+        config.max_events && count(config.max_events, "event", "events"),
         config.max_rate && "#{Formatters.format_integer(config.max_rate)}/s",
         config.max_time_ms && format_time_limit(config.max_time_ms)
       ]

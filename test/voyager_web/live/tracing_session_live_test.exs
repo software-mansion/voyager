@@ -55,7 +55,9 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     view = open(conn, id)
 
     assert has_element?(view, "#session-status[data-tone=running]")
-    assert has_element?(view, "#session-edit[disabled][title]")
+    assert has_element?(view, "#session-meta", "run started")
+    assert has_element?(view, "#session-edit[disabled]")
+    assert view |> element("#session-edit-tip-portal") |> render() =~ "Stop the session"
     refute has_element?(view, "#session-resume")
 
     view |> element("#session-stop") |> render_click()
@@ -102,7 +104,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     view = open(conn, id)
 
     assert has_element?(view, "#session-edit[disabled]")
-    refute has_element?(view, "#session-edit[title]")
+    assert view |> element("#session-edit-tip-portal") |> render() =~ "not available yet"
     refute has_element?(view, "#session-empty")
 
     view |> element("#session-start:not([disabled])") |> render_click()
@@ -131,7 +133,8 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
 
     assert has_element?(view, "#session-chip-where", "All processes · global")
     assert has_element?(view, "#session-chip-capture", "Args ≤ 5,000 + returns")
-    assert has_element?(view, "#session-chip-stop_after", "10,000 · 1,000/s · 5 min")
+    assert has_element?(view, "#session-chip-stop_after", "10,000 events · 1,000/s · 5 min")
+    assert view |> element("#session-params-portal") |> render() =~ "Max rate"
 
     assert has_element?(view, "#entry-0-changes", "by UI · Date.leap_year?/1")
 
@@ -157,6 +160,8 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
 
     view = open(conn, id)
     refute has_element?(view, "#session-start")
+    assert has_element?(view, "#session-saved")
+    assert has_element?(view, "#session-meta", "Never run")
 
     view |> element("#session-load") |> render_click()
     settle(view)
