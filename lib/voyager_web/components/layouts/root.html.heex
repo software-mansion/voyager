@@ -162,6 +162,12 @@
         }
       })();
     </script>
+    <script>
+      try {
+        const mode = localStorage.getItem("voyager:sidebar");
+        if (mode === "compact" || mode === "full") document.documentElement.dataset.sidebar = mode;
+      } catch (_error) {}
+    </script>
   </head>
   <body>
     <div class="flex h-full flex-col">

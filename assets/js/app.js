@@ -26,6 +26,7 @@ import { hooks as colocatedHooks } from 'phoenix-colocated/voyager';
 import topbar from '../vendor/topbar';
 import SupervisionTree from './hooks/supervision_tree';
 import Tooltip from './hooks/tooltip';
+import { toggleSidebar } from './sidebar';
 import NumberStepper from './hooks/number_stepper';
 import DetailsPanelResize from './hooks/details_panel_resize';
 import TableSettings from './hooks/table_settings';
@@ -97,17 +98,12 @@ document.documentElement.classList.toggle('is-mac', isMac);
 
 window.addEventListener('keydown', (e) => {
   if (e.repeat || e.code !== 'KeyB' || !(isMac ? e.metaKey : e.ctrlKey)) return;
+  if (!document.getElementById('app-sidebar')) return;
 
-  for (const toggle of document.querySelectorAll(
-    '#sidebar-compact-toggle, #sidebar-compact-toggle-wide'
-  )) {
-    if (toggle instanceof HTMLElement && toggle.offsetParent) {
-      e.preventDefault();
-      toggle.click();
-      return;
-    }
-  }
+  e.preventDefault();
+  toggleSidebar();
 });
+window.addEventListener('phx:toggle-sidebar', toggleSidebar);
 
 // Show progress bar on live navigation and form submits
 topbar.config({ barColors: { 0: '#29d' }, shadowColor: 'rgba(0, 0, 0, .3)' });

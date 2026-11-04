@@ -105,7 +105,6 @@ defmodule VoyagerWeb.SupervisionTreeLive do
         revealing?={not is_nil(@pending_reveal)}
         remote_node={@session.node}
         node_name={@session.node_name}
-        current_url={@current_url}
       />
     </div>
     """

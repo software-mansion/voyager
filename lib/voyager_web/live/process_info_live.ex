@@ -319,7 +319,6 @@ defmodule VoyagerWeb.ProcessInfoLive do
                     total={bounded.total}
                     node_name={@session.node_name}
                     remote_node={@session.node}
-                    current_url={@current_url}
                   />
                 </.section>
               </div>
@@ -464,7 +463,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
     socket
     |> put_flash(:error, error_message(reason))
-    |> push_navigate(to: keep_sidebar(path, socket.assigns[:current_url]))
+    |> push_navigate(to: path)
   end
 
   defp resolve_pid(socket, pid_string) do
@@ -542,9 +541,8 @@ defmodule VoyagerWeb.ProcessInfoLive do
   end
 
   defp tab_path(socket, tab) do
-    %{session: session, pid_string: pid_string, current_url: current_url} = socket.assigns
-    path = ~p"/node/#{session.node_name}/processes/#{pid_string}?tab=#{tab}"
-    keep_sidebar(path, current_url)
+    %{session: session, pid_string: pid_string} = socket.assigns
+    ~p"/node/#{session.node_name}/processes/#{pid_string}?tab=#{tab}"
   end
 
   # Opening a gated tab for the first time fetches it; data that is already
