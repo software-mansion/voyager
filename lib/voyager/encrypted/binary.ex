@@ -27,12 +27,12 @@ defmodule Voyager.Encrypted.Binary do
 
   def load(<<@header::binary, iv::binary-16, tag::binary-16, ciphertext::binary>>) do
     case :crypto.crypto_one_time_aead(:aes_256_gcm, key(), iv, ciphertext, @aad, tag, false) do
-      :error -> :error
+      :error -> {:ok, nil}
       plaintext -> {:ok, plaintext}
     end
   end
 
-  def load(_), do: :error
+  def load(_), do: {:ok, nil}
 
   defp key, do: Application.fetch_env!(:voyager, :vault_key)
 end

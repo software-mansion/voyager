@@ -160,6 +160,43 @@ defmodule VoyagerWeb.ConnectLiveTest do
     end
   end
 
+  describe "unreadable secrets" do
+    test "warns about an unreadable cookie until its connection is deleted", %{conn: conn} do
+      {:ok, saved} = ConnectionActions.upsert_connected("corrupt@127.0.0.1", cookie: "secret")
+      corrupt_secret!(saved, :cookie)
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, "#unreadable-secrets")
+
+      view |> element(~s|#direct-recent-connections button[title="Remove"]|) |> render_click()
+
+      refute has_element?(view, "#unreadable-secrets")
+    end
+
+    test "warns about an unreadable SSH password", %{conn: conn} do
+      {:ok, saved} =
+        SshConnectionActions.upsert_connected("deploy", "gw", 22, "corrupt@127.0.0.1",
+          password: "pass",
+          auth_method: :password
+        )
+
+      corrupt_secret!(saved, :password)
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, "#unreadable-secrets")
+    end
+
+    test "shows no warning when saved secrets decrypt", %{conn: conn} do
+      {:ok, _} = ConnectionActions.upsert_connected("saved@127.0.0.1", cookie: "secret")
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      refute has_element?(view, "#unreadable-secrets")
+    end
+  end
+
   describe "fill_recent while connected" do
     test "does not fill the form when a session is active", %{conn: conn} do
       {:ok, recent} =
