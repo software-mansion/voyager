@@ -229,7 +229,7 @@ defmodule VoyagerWeb.TracingSessionLive do
             id={"stat-#{cell.key}"}
             class="bg-base-100 min-w-0 px-5 py-3 last:col-span-2 lg:last:col-span-1"
           >
-            <div class="font-mono tracking-label text-base-content/70 mb-1 text-xs font-semibold uppercase">
+            <div class="font-mono tracking-label text-base-content/60 mb-1 text-xs font-semibold uppercase">
               {cell.label}
             </div>
             <.tooltip :if={cell[:tip]} id={"stat-#{cell.key}-tip"} position="bottom" class="w-full">
@@ -781,28 +781,37 @@ defmodule VoyagerWeb.TracingSessionLive do
 
   defp stat_value(assigns) do
     ~H"""
-    <div class="min-h-5 flex w-full items-center gap-2">
-      <span class={["font-mono truncate text-base font-semibold", @cell[:tone]]}>
-        {@cell.value}
-      </span>
-      <span class="font-mono text-base-content/70 shrink-0 text-xs">{@cell[:unit]}</span>
-      <span
-        :if={@cell[:bar]}
-        class="bg-base-content/10 min-w-8 flex h-1 flex-1 overflow-hidden rounded-full"
-      >
+    <div class="w-full">
+      <div class="min-h-6 flex items-baseline gap-1.5">
+        <span class={[
+          "truncate text-base font-semibold",
+          !@cell[:prose] && "font-mono tabular-nums",
+          @cell[:tone]
+        ]}>
+          {@cell.value}
+        </span>
+        <span :if={@cell[:unit]} class="font-mono text-base-content/60 shrink-0 text-xs">
+          {@cell.unit}
+        </span>
+        <span
+          :if={@cell[:spark]}
+          aria-hidden="true"
+          class="ml-auto flex h-5 items-end gap-0.5 self-center"
+        >
+          <span
+            :for={height <- @cell.spark}
+            class="bg-primary w-0.75 rounded-xs opacity-55 last:opacity-100"
+            style={"height: #{height}%"}
+          ></span>
+        </span>
+      </div>
+      <div :if={@cell[:bar]} class="bg-base-content/10 mt-2 flex h-1 overflow-hidden rounded-full">
         <span
           :for={{fill, width} <- @cell.bar}
-          class={["block h-full", fill]}
+          class={["block h-full transition-all duration-700", fill]}
           style={"width: #{width}%"}
         ></span>
-      </span>
-      <span :if={@cell[:spark]} aria-hidden="true" class="ml-auto flex h-5 items-end gap-0.5">
-        <span
-          :for={height <- @cell.spark}
-          class="bg-primary w-0.75 rounded-xs opacity-55 last:opacity-100"
-          style={"height: #{height}%"}
-        ></span>
-      </span>
+      </div>
     </div>
     """
   end

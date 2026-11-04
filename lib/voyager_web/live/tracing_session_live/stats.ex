@@ -19,7 +19,7 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
 
   defp events(%Session{traces: traces, run_traces_before: before, config: config}) do
     count = traces - before
-    cell = %{key: :events, label: "Events", value: Formatters.format_integer(count)}
+    cell = %{key: :events, label: "Events this run", value: Formatters.format_integer(count)}
 
     case config.max_events do
       nil ->
@@ -52,6 +52,7 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
       label: "Stop reason",
       value: TracingComponents.stop_reason_label(session.stop_reason),
       tip: TracingComponents.stop_reason_label(session.stop_reason),
+      prose: true,
       tone: if(TracingComponents.tone(session) == :failed, do: "text-warning")
     }
   end
@@ -80,12 +81,19 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
 
   defp time(%Session{config: config} = session, now) do
     ended_at = if session.status == :running, do: now, else: session.stopped_at
-    elapsed = TracingComponents.format_elapsed(DateTime.diff(ended_at, session.run_started_at))
+    elapsed_ms = DateTime.diff(ended_at, session.run_started_at, :millisecond)
+    elapsed = TracingComponents.format_elapsed(div(elapsed_ms, 1_000))
     cell = %{key: :run_time, label: "Run time", value: elapsed}
 
     case config.max_time_ms do
-      nil -> cell
-      max_ms -> Map.put(cell, :unit, "of #{TracingComponents.format_elapsed(div(max_ms, 1_000))}")
+      nil ->
+        cell
+
+      max_ms ->
+        Map.merge(cell, %{
+          unit: "of #{TracingComponents.format_elapsed(div(max_ms, 1_000))}",
+          bar: [{"bg-base-content/40", percent(elapsed_ms, max_ms)}]
+        })
     end
   end
 
@@ -117,6 +125,7 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
       label: "Storage",
       value: "Not saved",
       unit: "newest 500",
+      prose: true,
       tip: "Unsaved sessions keep only their newest 500 events, in memory"
     }
   end

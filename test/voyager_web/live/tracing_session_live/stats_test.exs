@@ -13,7 +13,7 @@ defmodule VoyagerWeb.TracingSessionLive.StatsTest do
     assert [events, rate, dropped, run_time, storage] =
              Stats.cells(session, [4, 38], at(108), 100)
 
-    assert events == %{key: :events, label: "Events", value: "3,214"}
+    assert events == %{key: :events, label: "Events this run", value: "3,214"}
     assert %{key: :rate, value: "38", unit: "/s", spark: [10, 100]} = rate
     assert dropped == %{key: :dropped, label: "Dropped", value: "0", tone: nil}
     assert run_time == %{key: :run_time, label: "Run time", value: "1:48"}
@@ -51,11 +51,12 @@ defmodule VoyagerWeb.TracingSessionLive.StatsTest do
              key: :stop_reason,
              value: "Node went down",
              tip: "Node went down",
+             prose: true,
              tone: "text-warning"
            } = reason
 
     assert %{value: "412", tone: "text-warning"} = dropped
-    assert %{key: :run_time, value: "0:38", unit: "of 5:00"} = run_time
+    assert %{key: :run_time, value: "0:38", unit: "of 5:00", bar: [{_fill, 12}]} = run_time
   end
 
   test "keeps a stop on request untoned" do
