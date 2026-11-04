@@ -74,8 +74,16 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       |> assign(:current_auth_method, to_string(assigns.ssh_form[:auth_method].value || "agent"))
       |> assign(:current_name_type, to_string(assigns.ssh_form[:name_type].value || "longnames"))
       |> assign(
+        :ssh_config_path,
+        SshConfigImport.config_path(assigns.ssh_config_form[:path].value)
+      )
+      |> assign(
         :ssh_config_selected,
-        SshConfigImport.selected_host(assigns.ssh_config_hosts, assigns.ssh_form)
+        SshConfigImport.selected_host(
+          assigns.ssh_config_hosts,
+          assigns.ssh_form,
+          assigns.ssh_config_picked_alias
+        )
       )
 
     ~H"""
@@ -90,7 +98,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       >
         <ConnectComponents.ssh_config_opener
           selected={@ssh_config_selected}
-          config_path={@ssh_config_form[:path].value}
+          config_path={@ssh_config_path}
           disabled={@disabled?}
           target={@myself}
           on_open="open_ssh_config"
@@ -266,6 +274,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         :if={@ssh_config_modal?}
         id={"#{@id_prefix}config-modal"}
         form={@ssh_config_form}
+        config_path={@ssh_config_path}
         hosts={@ssh_config_hosts}
         unsupported={@ssh_config_unsupported}
         selected={@ssh_config_selected}
