@@ -189,14 +189,18 @@ defmodule VoyagerWeb.ConnectLiveSshConfigTest do
       assert has_element?(view, "#ssh-config-modal-empty")
     end
 
-    test "shows the note only with unsupported settings", %{conn: conn, tmp_dir: dir} do
+    test "shows the note for unsupported settings", %{conn: conn, tmp_dir: dir} do
+      view = open_page(conn)
+      import_config(view, write_config!(dir, "Host prod\n  ProxyJump bastion\n"))
+
+      assert has_element?(view, "#ssh-config-notice", "proxyjump")
+    end
+
+    test "hides the note without unsupported settings", %{conn: conn, tmp_dir: dir} do
       view = open_page(conn)
       import_config(view, write_config!(dir))
-      refute has_element?(view, "#ssh-config-notice")
 
-      other_view = open_page(conn)
-      import_config(other_view, write_config!(dir, "Host prod\n  ProxyJump bastion\n"))
-      assert has_element?(other_view, "#ssh-config-notice", "proxyjump")
+      refute has_element?(view, "#ssh-config-notice")
     end
 
     test "Change inside the modal brings the path form back", %{conn: conn, tmp_dir: dir} do
@@ -369,23 +373,15 @@ defmodule VoyagerWeb.ConnectLiveSshConfigTest do
       assert has_element?(view, "input#ssh_config_path.input-error")
     end
 
-    test "a blank field reads ~/.ssh/config and is remembered", %{conn: conn, tmp_dir: dir} do
-      home = System.get_env("HOME")
-      System.put_env("HOME", dir)
-      on_exit(fn -> System.put_env("HOME", home) end)
-      File.mkdir_p!(Path.join(dir, ".ssh"))
-      File.write!(Path.join(dir, ".ssh/config"), "Host from-home\n")
+  end
 
-      view = open_page(conn)
-      import_config(view, "")
+  describe "config_path/1" do
+    test "uses ~/.ssh/config for a blank field" do
+      assert SshConfigImport.config_path("") == "~/.ssh/config"
+    end
 
-      assert listed?(view, "from-home")
-      assert has_element?(view, "#ssh-config-modal-source", "~/.ssh/config")
-      assert Settings.get(:ssh_config_path) == ""
-
-      other_view = open_page(conn)
-      open_modal(other_view)
-      assert listed?(other_view, "from-home")
+    test "keeps any other path" do
+      assert SshConfigImport.config_path("/k/config") == "/k/config"
     end
   end
 

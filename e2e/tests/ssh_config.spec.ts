@@ -50,11 +50,12 @@ test.describe('ConnectLive › SSH config import', () => {
 
     // Playwright cannot drive the OS file dialog, so only the dialog's answer is stubbed.
     await page.addInitScript((path) => {
-      (window as unknown as { __TAURI_INTERNALS__: unknown }).__TAURI_INTERNALS__ =
-        {
-          invoke: async (command: string) =>
-            command === 'plugin:dialog|open' ? path : null,
-        };
+      (
+        window as unknown as { __TAURI_INTERNALS__: unknown }
+      ).__TAURI_INTERNALS__ = {
+        invoke: async (command: string) =>
+          command === 'plugin:dialog|open' ? path : null,
+      };
     }, configPath);
 
     await ensureDisconnected(page);
