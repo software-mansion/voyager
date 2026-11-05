@@ -52,6 +52,7 @@ defmodule VoyagerWeb.Layouts do
       active_nav={assigns[:active_nav]}
       session={@session}
       mcp_status={assigns[:mcp_status]}
+      tracing_session={assigns[:tracing_session]}
     >
       {@inner_content}
     </VoyagerWeb.Components.Shell.shell>
@@ -71,7 +72,7 @@ defmodule VoyagerWeb.Layouts do
     ~H"""
     <.flash_group flash={@flash} />
     <div class="bg-base-200 flex h-full flex-col overflow-hidden">
-      <VoyagerWeb.Components.Shell.settings_topbar />
+      <VoyagerWeb.Components.Shell.settings_topbar tracing_session={assigns[:tracing_session]} />
       <main class="flex-1 overflow-y-auto">
         {@inner_content}
       </main>

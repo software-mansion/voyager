@@ -14,6 +14,7 @@ defmodule Voyager.Services.Tracer do
   saved sessions are read from the database. Broadcasts on `topic/0` are
   `{:session_activated, session}`, `{:session_closed, id}` and
   `{:session_entries, session, entries}` with the entries just appended, oldest first.
+  `session_topic/0` carries only `{:session_updated, session | nil}` alongside each of those.
 
   A session created with `save: true` gets a `Voyager.Schemas.TraceSession` row and
   every entry is handed to `Writer` as it is appended; `load/1` makes it active again later.
@@ -37,6 +38,7 @@ defmodule Voyager.Services.Tracer do
   alias Voyager.Settings
 
   @topic "tracing"
+  @session_topic "tracing:session"
   @max_mailbox 1_000
   @call_timeout Agent.default_timeout() + 1_000
   @default_storage_limit_mb 100
@@ -74,6 +76,9 @@ defmodule Voyager.Services.Tracer do
 
   @spec topic() :: String.t()
   def topic, do: @topic
+
+  @spec session_topic() :: String.t()
+  def session_topic, do: @session_topic
 
   @doc "Replaces the active session with a new, unconfigured one. Returns `{:error, :busy}` while it runs."
   @spec create(origin(), save: boolean()) :: {:ok, Session.t()} | {:error, :busy}
@@ -182,6 +187,7 @@ defmodule Voyager.Services.Tracer do
   def handle_continue(:interrupt_running, state) do
     Writer.flush()
     TraceSessionActions.interrupt_running()
+    broadcast_session(nil)
     {:noreply, state}
   end
 
@@ -217,6 +223,7 @@ defmodule Voyager.Services.Tracer do
   def handle_call({:delete, id}, _from, %{session: %{id: id, save: true}}) do
     Writer.flush()
     broadcast({:session_closed, id})
+    broadcast_session(nil)
     {:reply, TraceSessionActions.delete(id), %__MODULE__{}}
   end
 
@@ -229,6 +236,7 @@ defmodule Voyager.Services.Tracer do
 
   def handle_call(:close, _from, %{session: session}) do
     broadcast({:session_closed, session.id})
+    broadcast_session(nil)
     {:reply, :ok, %__MODULE__{}}
   end
 
@@ -390,6 +398,7 @@ defmodule Voyager.Services.Tracer do
 
   defp activate(session) do
     broadcast({:session_activated, session})
+    broadcast_session(session)
     {:reply, {:ok, session}, %__MODULE__{session: session}}
   end
 
@@ -483,9 +492,13 @@ defmodule Voyager.Services.Tracer do
 
     if session.save, do: Writer.append(session, entries)
     broadcast({:session_entries, session, entries})
+    broadcast_session(session)
 
     %{state | session: session, log: log}
   end
 
   defp broadcast(message), do: Phoenix.PubSub.broadcast(Voyager.PubSub, @topic, message)
+
+  defp broadcast_session(session),
+    do: Phoenix.PubSub.broadcast(Voyager.PubSub, @session_topic, {:session_updated, session})
 end

@@ -85,6 +85,15 @@ defmodule VoyagerWeb.Formatters do
   end
 
   @doc """
+  Abbreviates a count from thousands up with one decimal, e.g. `"2.1K"`, `"3.4M"` or `"999"`.
+  """
+  @spec format_count_short(non_neg_integer()) :: String.t()
+  def format_count_short(n) when n >= 999_950_000, do: "#{Float.round(n / 1_000_000_000, 1)}B"
+  def format_count_short(n) when n >= 999_950, do: "#{Float.round(n / 1_000_000, 1)}M"
+  def format_count_short(n) when n >= 1_000, do: "#{Float.round(n / 1_000, 1)}K"
+  def format_count_short(n), do: Integer.to_string(n)
+
+  @doc """
   Formats an integer with thousands separators, e.g. `"1,234,567"`.
   """
   @spec format_integer(integer()) :: String.t()
