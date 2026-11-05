@@ -10,6 +10,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   alias Voyager.NodeSession.Connectors.Ssh, as: SshConnector
   alias Voyager.Queries.SshConnections, as: SshConnectionQueries
   alias Voyager.Schemas.SshConnection
+  alias Voyager.Services.SSH.Config, as: SshConfig
   alias VoyagerWeb.ConnectComponents
   alias VoyagerWeb.ConnectLive.KeyAuth
   alias VoyagerWeb.ConnectLive.RecentConnections
@@ -72,7 +73,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       |> assign(:current_name_type, to_string(assigns.ssh_form[:name_type].value || "longnames"))
       |> assign(
         :ssh_config_path,
-        SshConfigImport.config_path(assigns.ssh_config_form[:path].value)
+        SshConfig.config_path(assigns.ssh_config_form[:path].value)
       )
       |> assign(
         :ssh_config_selected,

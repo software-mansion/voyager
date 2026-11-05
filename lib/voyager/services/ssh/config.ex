@@ -31,6 +31,10 @@ defmodule Voyager.Services.SSH.Config do
 
   @env_agent_values ["SSH_AUTH_SOCK", "$SSH_AUTH_SOCK", "${SSH_AUTH_SOCK}"]
 
+  @spec config_path(String.t() | nil) :: Path.t()
+  def config_path(path) when path in [nil, ""], do: "~/.ssh/config"
+  def config_path(path), do: path
+
   @spec read(Path.t()) :: {:ok, result()} | {:error, {:read_failed, {Path.t(), File.posix()}}}
   def read(path \\ "~/.ssh/config") do
     with {:ok, contents} <- LocalFiles.read(path), do: {:ok, parse(contents)}
