@@ -41,6 +41,8 @@ defmodule Voyager.Services.RemoteNodeConnector do
       tunnel to discover the target node's distribution port. Defaults to `4369`.
     * `:name_type` — `:longnames` or `:shortnames`; how local distribution is
       started. Defaults to `:longnames`.
+    * `:host_key` — SHA256 fingerprint the user accepted for an unknown SSH host key;
+      see `Voyager.Services.SSH.connect/5`.
   """
 
   import Voyager.ProxyEpmd.Guard
@@ -82,7 +84,8 @@ defmodule Voyager.Services.RemoteNodeConnector do
            {:ok, node_name, node_host} <- Distribution.split_node_name(full_node_name),
            :ok <- Validate.host(node_host),
            :ok <- Validate.host(ssh_host),
-           {:ok, conn_ref} <- SSH.connect(ssh_host, ssh_port, ssh_user, auth) do
+           {:ok, conn_ref} <-
+             SSH.connect(ssh_host, ssh_port, ssh_user, auth, Keyword.take(opts, [:host_key])) do
         establish(conn_ref, full_node_name, node_name, node_host, name_type, cookie, epmd_port)
       end
     end
