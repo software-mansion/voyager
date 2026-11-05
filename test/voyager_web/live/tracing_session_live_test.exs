@@ -333,4 +333,46 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     render_async(view)
     assert has_element?(view, "#session-start")
   end
+
+  test "shows the stats of a running session", %{conn: conn} do
+    %{id: id} = start!()
+    view = open(conn, id)
+
+    assert has_element?(view, "#session-stats")
+    assert has_element?(view, "#stat-events", "/ 1,000")
+    assert has_element?(view, "#stat-storage", "Not saved")
+  end
+
+  test "updates the rate on each tick", %{conn: conn} do
+    %{id: id} = start!()
+    view = open(conn, id)
+    assert has_element?(view, "#stat-rate", "0")
+
+    call_traced!(3, 3)
+    _ = :sys.get_state(Tracer)
+    send(view.pid, :tick)
+
+    assert has_element?(view, "#stat-rate", "3")
+  end
+
+  test "replaces the rate with the stop reason once stopped", %{conn: conn} do
+    %{id: id} = start!()
+    view = open(conn, id)
+
+    :ok = Tracer.stop(:ui)
+    settle(view)
+
+    assert has_element?(view, "#stat-stop_reason", "Stopped on request")
+    refute has_element?(view, "#stat-rate")
+  end
+
+  test "shows no stats before the first run", %{conn: conn} do
+    %{id: id} = create!()
+    {:ok, _session} = configure()
+
+    view = open(conn, id)
+
+    assert has_element?(view, "#session-start")
+    refute has_element?(view, "#session-stats")
+  end
 end
