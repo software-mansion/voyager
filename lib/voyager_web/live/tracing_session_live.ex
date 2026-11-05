@@ -77,9 +77,12 @@ defmodule VoyagerWeb.TracingSessionLive do
           trace_rows={Log.trace_rows(assigns)}
           oldest_seq={@oldest_seq}
           node_name={pid_node_name(trace_session, @session)}
+          search={@search}
+          search_form={@search_form}
           on_pause="pause-log"
           on_resume="resume-log"
           on_older="load-older"
+          on_search="search-log"
         />
       </.async_result>
 
@@ -182,6 +185,12 @@ defmodule VoyagerWeb.TracingSessionLive do
   def handle_event("load-older", _params, socket) do
     socket
     |> Log.older()
+    |> noreply()
+  end
+
+  def handle_event("search-log", %{"search" => params}, socket) do
+    socket
+    |> Log.search(params)
     |> noreply()
   end
 

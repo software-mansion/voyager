@@ -1,7 +1,8 @@
 defmodule VoyagerWeb.Components.TraceLogComponents do
   @moduledoc """
   The tracing session page's Events card: the streamed table of a session's log
-  entries, newest first, with its live/paused controls and its footer.
+  entries, newest first, with its live/paused controls, its search form and its
+  footer.
   """
 
   use VoyagerWeb, :component
@@ -36,9 +37,16 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
     default: nil,
     doc: "the node whose process pages the pids link to; nil for plain pids"
 
+  attr :search, :map,
+    default: nil,
+    doc:
+      "the shown search: `query`, `total`, `shown`, `oldest_seq` and the `traces` it covered; nil for the live list"
+
+  attr :search_form, Phoenix.HTML.Form, required: true
   attr :on_pause, :string, required: true
   attr :on_resume, :string, required: true
   attr :on_older, :string, required: true
+  attr :on_search, :string, required: true
 
   def log(assigns) do
     config = assigns.trace_session.config
@@ -58,7 +66,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
         <div class="flex items-center gap-2">
           <h2 class="text-sm font-semibold">Events</h2>
           <span
-            :if={@live? and not @paused?}
+            :if={@live? and not @paused? and is_nil(@search)}
             id="log-live"
             class="badge badge-sm badge-soft badge-success gap-1.5 font-medium"
           >
@@ -69,16 +77,69 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
             Live
           </span>
           <span
-            :if={@paused?}
+            :if={@paused? and is_nil(@search)}
             id="log-paused"
             class="badge badge-sm badge-soft badge-warning gap-1 font-medium"
           >
             <.icon name="icon-pause" class="size-3" /> Paused
           </span>
+          <span
+            :if={@search && @search.total}
+            id="log-matches"
+            class="badge badge-sm badge-soft badge-primary font-mono font-medium"
+          >
+            {count(@search.total, "match", "matches")}
+          </span>
         </div>
         <div class="flex items-center gap-2">
+          <.form
+            for={@search_form}
+            id="log-search-form"
+            phx-change={@on_search}
+            phx-submit={@on_search}
+          >
+            <label
+              id="log-search-field"
+              phx-hook=".SearchShortcut"
+              class="input input-sm w-80 transition-shadow focus-within:shadow-sm"
+            >
+              <.icon name="icon-search" class="text-base-content/60 size-4" />
+              <input
+                id="log-search"
+                type="search"
+                name={@search_form[:query].name}
+                value={@search_form[:query].value}
+                phx-debounce="300"
+                disabled={@trace_session.traces == 0 and is_nil(@search)}
+                placeholder={search_placeholder(@trace_session)}
+                aria-label="Search traces"
+                class="peer"
+              />
+              <kbd
+                :if={@trace_session.traces > 0}
+                class="bg-base-content/10 text-base-content/70 min-w-5 font-sans hidden h-5 items-center justify-center rounded-sm px-1 text-xs peer-placeholder-shown:inline-flex"
+              >
+                /
+              </kbd>
+            </label>
+            <script :type={Phoenix.LiveView.ColocatedHook} name=".SearchShortcut">
+              export default {
+                mounted() {
+                  this.onKey = (e) => {
+                    if (e.key !== "/" || e.target.closest("input, textarea, select, [contenteditable]")) return
+                    e.preventDefault()
+                    this.el.querySelector("input").focus()
+                  }
+                  window.addEventListener("keydown", this.onKey)
+                },
+                destroyed() {
+                  window.removeEventListener("keydown", this.onKey)
+                }
+              }
+            </script>
+          </.form>
           <button
-            :if={@live? and not @paused?}
+            :if={@live? and not @paused? and is_nil(@search)}
             type="button"
             id="log-pause"
             phx-click={@on_pause}
@@ -87,7 +148,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
             <.icon name="icon-pause" class="size-3.5" /> Pause view
           </button>
           <button
-            :if={@paused?}
+            :if={@paused? and is_nil(@search)}
             type="button"
             id="log-resume"
             phx-click={@on_resume}
@@ -127,16 +188,24 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
               wildcard?={@wildcard?}
               syntax={@syntax}
               node_name={@node_name}
+              query={@search && @search.query}
             />
           </tbody>
         </table>
+        <p
+          :if={@search && @search.total == 0}
+          id="log-no-matches"
+          class="text-base-content/70 py-6 text-center text-sm"
+        >
+          No traces match the search.
+        </p>
       </div>
       <div
         id="log-footer"
         class="border-base-200 min-h-11 flex flex-none items-center justify-between gap-3 border-t px-5 py-1.5"
       >
         <p class="text-base-content/70 min-w-0 truncate text-xs">
-          {footer(@trace_session, @trace_rows, @oldest_seq)}
+          {footer(@search, @trace_session, @trace_rows, @oldest_seq)}
         </p>
         <div class="flex shrink-0 items-center gap-4">
           <span id="log-legend" class="text-base-content/70 flex items-center gap-3 text-xs">
@@ -149,7 +218,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
             </span>
           </span>
           <button
-            :if={@oldest_seq > 0}
+            :if={older?(@search, @oldest_seq)}
             type="button"
             id="log-older"
             phx-click={@on_older}
@@ -169,6 +238,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
   attr :wildcard?, :boolean, required: true
   attr :syntax, :atom, required: true
   attr :node_name, :string, required: true
+  attr :query, :string, default: nil
 
   defp log_row(%{entry: %{kind: :trace}} = assigns) do
     ~H"""
@@ -228,6 +298,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
                 <.highlighted
                   text={term_text(@entry, @wildcard?, :row)}
                   syntax={if plain?(@entry), do: nil, else: @syntax}
+                  query={@query}
                 />
               </span>
             </span>
@@ -455,6 +526,13 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
   defp plain?(%{type: :call, args: args}) when is_list(args), do: false
   defp plain?(%{type: type}), do: type != :return
 
+  defp search_placeholder(%Session{traces: 0}), do: "No traces to search yet"
+
+  defp search_placeholder(%Session{id: id, traces: traces}) when id > 0,
+    do: "Search all #{Formatters.format_integer(traces)} traces"
+
+  defp search_placeholder(_session), do: "Search newest #{@kept_traces} events"
+
   defp format_at(at) do
     at
     |> datetime()
@@ -490,7 +568,24 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
 
   defp format_duration(us), do: Formatters.format_integer(round(us / 1_000)) <> " ms"
 
-  defp footer(%Session{traces: 0}, _trace_rows, _oldest_seq), do: "No traces yet"
+  defp older?(nil, oldest_seq), do: oldest_seq > 0
+  defp older?(%{total: total, shown: shown}, _oldest_seq), do: is_integer(total) and shown < total
+
+  defp footer(%{total: nil}, _session, _trace_rows, _oldest_seq), do: "Searching…"
+
+  defp footer(%{total: 0} = search, session, _trace_rows, _oldest_seq),
+    do: "No matches in #{search_scope(session, search)}"
+
+  defp footer(%{total: total, shown: shown} = search, session, _trace_rows, _oldest_seq)
+       when shown < total,
+       do:
+         "Newest #{Formatters.format_integer(shown)} of #{Formatters.format_integer(total)} matches in #{search_scope(session, search)}"
+
+  defp footer(%{total: total} = search, session, _trace_rows, _oldest_seq),
+    do: "#{count(total, "match", "matches")} in #{search_scope(session, search)}"
+
+  defp footer(nil, %Session{traces: 0}, _trace_rows, _oldest_seq), do: "No traces yet"
+  defp footer(nil, session, trace_rows, oldest_seq), do: footer(session, trace_rows, oldest_seq)
 
   defp footer(session, trace_rows, oldest_seq) when oldest_seq > 0,
     do:
@@ -503,6 +598,15 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
 
   defp footer(session, _trace_rows, _oldest_seq),
     do: "All #{count(session.traces, "trace", "traces")} shown"
+
+  defp search_scope(%Session{id: id}, %{traces: traces}) when id > 0,
+    do: count(traces, "trace", "traces")
+
+  defp search_scope(_session, %{traces: traces}) when traces > @kept_traces,
+    do:
+      "the newest #{@kept_traces} events · #{Formatters.format_integer(traces - @kept_traces)} older traces are no longer in memory"
+
+  defp search_scope(_session, _search), do: "the newest #{@kept_traces} events"
 
   defp count(1, singular, _plural), do: "1 #{singular}"
   defp count(n, _singular, plural), do: "#{Formatters.format_integer(n)} #{plural}"
