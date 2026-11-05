@@ -37,7 +37,7 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     {:ok, view, _html} = live(conn, ~p"/settings")
     render_async(view)
 
-    assert has_element?(view, ~s|#tracing-indicator[href="/node/demo%40localhost/tracing"]|)
+    assert has_element?(view, ~s|#tracing-indicator[href="/node/demo%40localhost/tracing/7"]|)
     assert has_element?(view, "#tracing-indicator[data-tone=running]")
     assert has_element?(view, "#tracing-indicator-mfa", "Date.leap_year?/1")
     assert has_element?(view, "#tracing-indicator-count", "1.2K")
@@ -158,7 +158,7 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     {:ok, view, _html} = live(conn, ~p"/node/demo@localhost")
     render_async(view)
 
-    assert has_element?(view, ~s|#tracing-indicator[href="/node/other%40localhost/tracing"]|)
+    assert has_element?(view, ~s|#tracing-indicator[href="/node/other%40localhost/tracing/7"]|)
     assert has_element?(view, "#tracing-indicator[data-tone=other_node]")
 
     assert view |> element("#tracing-indicator-tip-portal") |> render() =~
