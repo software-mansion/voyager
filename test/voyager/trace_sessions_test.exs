@@ -9,6 +9,8 @@ defmodule Voyager.TraceSessionsTest do
   alias Voyager.Schemas.TraceEvent
   alias Voyager.Schemas.TraceSession
   alias Voyager.Services.Tracer.Config
+  alias Voyager.Services.Tracer.Search
+  alias Voyager.Services.Tracer.Session
 
   test "interrupt_running/0 stops running sessions" do
     %{id: running} = session!(:running)
@@ -46,7 +48,15 @@ defmodule Voyager.TraceSessionsTest do
     config = %Config{module: "Elixir.Date", pids: ["<0.1.0>"], capture: :args, max_events: 5}
 
     entries = [
-      %{seq: 0, kind: :configured, at: 1, origin: :mcp, node: :app@host, config: config},
+      %{
+        seq: 0,
+        kind: :configured,
+        at: 1,
+        origin: :mcp,
+        node: :app@host,
+        config: config,
+        previous: nil
+      },
       %{seq: 1, kind: :started, at: 2, origin: :ui},
       %{seq: 2, kind: :dropped, at: 3, origin: nil, count: 4},
       %{
@@ -155,7 +165,78 @@ defmodule Voyager.TraceSessionsTest do
     assert bytes < :erlang.external_size(args)
   end
 
+  test "from_row/4 reads a never started session" do
+    assert %Session{id: 1, save: true, node: nil, run_started_at: nil, run_traces_before: 0} =
+             Session.from_row(row(), [], 0, 0)
+  end
+
+  test "from_row/4 takes the newest config and the last run" do
+    first = %Config{module: "Elixir.Date"}
+    second = %Config{module: "Elixir.Time"}
+
+    log = [
+      %{seq: 7, kind: :stopped, at: 7, traces: 9},
+      %{seq: 6, kind: :started, at: 6},
+      %{seq: 5, kind: :configured, at: 5, node: :b@host, config: second},
+      %{seq: 4, kind: :stopped, at: 4, traces: 3},
+      %{seq: 3, kind: :started, at: 3},
+      %{seq: 2, kind: :stopped, at: 2, traces: 2},
+      %{seq: 1, kind: :started, at: 1},
+      %{seq: 0, kind: :configured, at: 0, node: :a@host, config: first}
+    ]
+
+    assert %Session{node: :b@host, config: ^second, run_traces_before: 5, run_started_at: at} =
+             Session.from_row(%{row() | traces: 14}, log, 0, 0)
+
+    assert at == DateTime.from_unix!(6, :microsecond)
+  end
+
+  test "from_row/4 counts an earlier run interrupted without a stopped entry" do
+    log = [
+      %{seq: 3, kind: :stopped, at: 4, traces: 3},
+      %{seq: 2, kind: :started, at: 3},
+      %{seq: 1, kind: :started, at: 1},
+      %{seq: 0, kind: :configured, at: 0, node: :a@host, config: %Config{}}
+    ]
+
+    assert %Session{run_traces_before: 5} = Session.from_row(%{row() | traces: 8}, log, 0, 0)
+  end
+
+  test "from_row/4 counts the runs before one interrupted without a stopped entry" do
+    log = [
+      %{seq: 2, kind: :started, at: 3},
+      %{seq: 1, kind: :stopped, at: 2, traces: 4},
+      %{seq: 0, kind: :started, at: 1}
+    ]
+
+    assert %Session{run_traces_before: 4, run_started_at: at} = Session.from_row(row(), log, 0, 0)
+    assert at == DateTime.from_unix!(3, :microsecond)
+  end
+
+  test "search/3 matches Search.text/1, one session and trace rows only" do
+    %{id: id} = session!(:stopped)
+    %{id: other} = session!(:stopped)
+    needle = trace(1, %{args: ["needle"]})
+
+    TraceEntryActions.insert_all(id, [
+      %{seq: 0, kind: :started, at: 1, origin: :ui},
+      needle,
+      trace(2, %{args: ["other"]})
+    ])
+
+    TraceEntryActions.insert_all(other, [trace(0, %{args: ["needle"]})])
+
+    assert %{entries: [%{seq: 1}], total: 1} =
+             TraceEntryQueries.search(id, Search.text(needle), limit: 10)
+
+    assert %{entries: [], total: 0} = TraceEntryQueries.search(id, "started", limit: 10)
+  end
+
   defp seqs(entries), do: Enum.map(entries, & &1.seq)
+
+  defp row do
+    %TraceSession{id: 1, origin: :ui, status: :stopped, inserted_at: ~N[2026-01-01 00:00:00]}
+  end
 
   defp session!(status, bytes \\ 0) do
     Repo.insert!(%TraceSession{origin: :ui, status: status, bytes: bytes})
