@@ -177,7 +177,8 @@ defmodule VoyagerWeb.Components.Shell do
     """
   end
 
-  defp tracing_session_path(%Tracer.Session{node: node}), do: ~p"/node/#{node}/tracing"
+  defp tracing_session_path(%Tracer.Session{node: node, id: id}),
+    do: ~p"/node/#{node}/tracing/#{id}"
 
   defp tracing_label(%Tracer.Session{status: :running}), do: "Tracing"
   defp tracing_label(%Tracer.Session{status: :stopped}), do: "Stopped"
