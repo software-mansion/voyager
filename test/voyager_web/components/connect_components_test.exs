@@ -173,7 +173,7 @@ defmodule VoyagerWeb.ConnectComponentsTest do
           ]
         )
 
-      assert text(html, "#ssh-config-notice .font-mono") == "port, match"
+      assert html |> text("#ssh-config-notice .font-mono") |> String.trim() == "port, match"
     end
   end
 

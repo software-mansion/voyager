@@ -13,7 +13,7 @@ defmodule VoyagerWeb.ConnectComponents do
     ~H"""
     <span
       title={@title}
-      class="font-mono text-base-content/70 border-base-400/50 shrink-0 rounded border px-1 text-xs"
+      class="font-mono text-base-content/70 border-base-content/20 shrink-0 rounded border px-1 text-xs"
     >
       {@label}
     </span>
@@ -197,7 +197,7 @@ defmodule VoyagerWeb.ConnectComponents do
             data-default-path={Path.expand("~/.ssh")}
             data-locked={@disabled}
             disabled
-            class="btn btn-soft btn-xs font-mono gap-1.5 text-xs"
+            class="btn btn-soft btn-xs gap-1.5 text-xs"
           >
             <.icon name="icon-folder-open" class="size-3.5" /> Browse
           </button>
@@ -322,7 +322,7 @@ defmodule VoyagerWeb.ConnectComponents do
       <.focus_wrap
         id={"#{@id}-box"}
         phx-mounted={JS.focus_first()}
-        class="modal-box border-base-300 max-w-md border shadow-2xl"
+        class="modal-box border-base-content/20 max-w-md border shadow-2xl"
       >
         <h2 id={"#{@id}-title"} class="text-base-content text-lg font-semibold tracking-tight">
           Key passphrase
@@ -383,11 +383,13 @@ defmodule VoyagerWeb.ConnectComponents do
     ~H"""
     <div
       id="ssh-config-filled-from"
-      class="border-base-300 flex min-w-0 items-center gap-2 rounded-lg border px-3 py-2"
+      class="border-base-content/20 flex min-w-0 items-center gap-2 rounded-lg border px-3 py-2"
     >
       <.icon name="icon-check" class="text-success size-3.5 shrink-0" />
-      <span class="font-mono text-base-content/90 min-w-0 truncate text-xs">{@selected.alias}</span>
-      <span class="font-mono text-base-content/50 min-w-0 truncate text-xs">
+      <span class="font-mono text-base-content/90 max-w-1/2 shrink-0 truncate text-xs">
+        {@selected.alias}
+      </span>
+      <span class="font-mono text-base-content/70 min-w-0 truncate text-xs">
         from {@config_path}
       </span>
       <button
@@ -396,7 +398,7 @@ defmodule VoyagerWeb.ConnectComponents do
         phx-target={@target}
         phx-click={@on_open}
         disabled={@disabled}
-        class="btn btn-ghost btn-xs font-mono ml-auto shrink-0 text-xs"
+        class="btn btn-soft btn-xs ml-auto shrink-0 text-xs"
       >
         Change
       </button>
@@ -431,13 +433,13 @@ defmodule VoyagerWeb.ConnectComponents do
       <.focus_wrap
         id={"#{@id}-box"}
         phx-mounted={JS.focus_first()}
-        class="modal-box border-base-300 flex max-w-md flex-col gap-3 border shadow-2xl"
+        class="modal-box border-base-content/20 flex max-w-md flex-col gap-3 border shadow-2xl"
       >
         <div>
           <h2 id={"#{@id}-title"} class="text-base-content text-lg font-semibold tracking-tight">
             Import from SSH config
           </h2>
-          <p class="font-mono text-base-content/70 mt-1 text-xs">Pick a host to fill in the form.</p>
+          <p class="text-base-content/70 mt-1 text-xs">Pick a host to fill in the form.</p>
         </div>
 
         <.form
@@ -450,7 +452,7 @@ defmodule VoyagerWeb.ConnectComponents do
           class="flex flex-col gap-2"
         >
           <.path_field field={@form[:path]} label="Config file" placeholder="~/.ssh/config" />
-          <button type="submit" id={"#{@id}-import"} class="btn btn-soft btn-sm w-full gap-2">
+          <button type="submit" id={"#{@id}-import"} class="btn btn-primary w-full gap-2">
             <.icon name="icon-download" class="size-4" /> Import config
           </button>
         </.form>
@@ -459,7 +461,7 @@ defmodule VoyagerWeb.ConnectComponents do
           <span class="font-mono text-base-content/70 min-w-0 truncate text-xs">
             {@config_path}
           </span>
-          <span class="font-mono text-base-content/50 shrink-0 text-xs">
+          <span class="font-mono text-base-content/70 shrink-0 text-xs">
             · {length(@hosts)} {if length(@hosts) == 1, do: "host", else: "hosts"}
           </span>
           <button
@@ -478,7 +480,7 @@ defmodule VoyagerWeb.ConnectComponents do
             id={"#{@id}-edit-path"}
             phx-target={@target}
             phx-click={@on_edit_path}
-            class="btn btn-ghost btn-xs font-mono shrink-0 text-xs"
+            class="btn btn-soft btn-xs shrink-0 text-xs"
           >
             Change
           </button>
@@ -489,7 +491,7 @@ defmodule VoyagerWeb.ConnectComponents do
         <p
           :if={@hosts == []}
           id={"#{@id}-empty"}
-          class="text-base-content/70 border-base-300 rounded-lg border border-dashed p-4 text-center text-xs"
+          class="text-base-content/70 border-base-content/20 rounded-lg border border-dashed p-4 text-center text-xs"
         >
           No hosts in this file.
         </p>
@@ -497,7 +499,7 @@ defmodule VoyagerWeb.ConnectComponents do
         <ul
           :if={@hosts not in [nil, []]}
           id={"#{@id}-hosts"}
-          class="flex max-h-72 flex-col gap-0.5 overflow-y-auto"
+          class="flex max-h-72 flex-col gap-0.5 overflow-y-auto pr-3"
         >
           <li :for={host <- @hosts} class="list-none">
             <.ssh_host_row
@@ -516,7 +518,7 @@ defmodule VoyagerWeb.ConnectComponents do
             id={"#{@id}-close"}
             phx-target={@target}
             phx-click={@on_close}
-            class="btn btn-ghost"
+            class="btn btn-soft btn-sm"
           >
             Close
           </button>
@@ -533,10 +535,23 @@ defmodule VoyagerWeb.ConnectComponents do
       assign(assigns, :keywords, assigns.unsupported |> Enum.map(& &1.keyword) |> Enum.uniq())
 
     ~H"""
-    <div id="ssh-config-notice" role="note" class="alert alert-warning text-xs">
-      <.icon name="icon-circle-alert" class="text-warning size-4 shrink-0" />
-      <span>Not supported: <span class="font-mono">{Enum.join(@keywords, ", ")}</span></span>
-    </div>
+    <details
+      id="ssh-config-notice"
+      phx-mounted={JS.ignore_attributes("open")}
+      class="group text-base-content/70 text-xs"
+    >
+      <summary class="summary-plain flex cursor-pointer items-center gap-1.5 transition-colors hover:text-base-content">
+        <.icon name="icon-circle-alert" class="text-warning size-3.5 shrink-0" />
+        {length(@keywords)} {if length(@keywords) == 1, do: "setting", else: "settings"} ignored
+        <.icon
+          name="icon-chevron-right"
+          class="size-3.5 shrink-0 transition-transform group-open:rotate-90"
+        />
+      </summary>
+      <p class="font-mono bg-base-200 border-base-content/20 mt-1.5 break-words rounded-md border p-2">
+        {Enum.join(@keywords, ", ")}
+      </p>
+    </details>
     """
   end
 
@@ -557,14 +572,14 @@ defmodule VoyagerWeb.ConnectComponents do
         data-testid="fill-ssh-host-btn"
         class={[
           "font-mono text-base-content/90 flex min-w-0 flex-1 cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-xs transition-colors hover:bg-base-200 hover:text-base-content",
-          @selected && "bg-base-200"
+          @selected && "bg-primary/10"
         ]}
       >
         <.icon name="icon-network" class="size-3.5 text-base-content/60 shrink-0 self-center" />
         <div class="flex min-w-0 flex-1 flex-col gap-1">
           <span class="truncate text-left">{@host.alias}</span>
           <div class="flex flex-wrap items-center gap-1">
-            <span class="font-mono text-base-content/70 border-base-400/50 rounded border px-1 text-xs">
+            <span class="font-mono text-base-content/70 border-base-content/20 rounded border px-1 text-xs">
               {ssh_host_address(@host)}
             </span>
             <.saved_badge
