@@ -92,7 +92,12 @@ defmodule Voyager.Telemetry.ParserTest do
         {{:net_kernel, {:some, "internal", "detail"}}, "net_kernel"},
         {{:connector_crashed, %RuntimeError{message: "s3cret-cookie"}}, "connector_crashed"},
         {{:node_unreachable, :econnrefused}, "node_unreachable"},
-        {{:epmd_error, :nxdomain}, "epmd_error"}
+        {{:epmd_error, :nxdomain}, "epmd_error"},
+        {{:unknown_host_key, "SHA256:abc123"}, "unknown_host_key"},
+        {{:host_key_mismatch, "/Users/alice/.ssh/known_hosts"}, "host_key_mismatch"},
+        {{:host_key_revoked, "/Users/alice/.ssh/known_hosts"}, "host_key_revoked"},
+        {{:known_hosts_unreadable, "/Users/alice/.ssh/known_hosts"}, "known_hosts_unreadable"},
+        {{:known_hosts_unwritable, "/Users/alice/voyager/known_hosts"}, "known_hosts_unwritable"}
       ]
 
       for {reason, expected} <- sensitive do

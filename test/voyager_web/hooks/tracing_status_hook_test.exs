@@ -1,0 +1,185 @@
+defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
+  # async: false because these tests replace the state of the app's Tracer and NodeSession.
+  use VoyagerWeb.ConnCase, async: false
+
+  import Phoenix.LiveViewTest
+  import Mox
+  import Voyager.Fakes, only: [stub_erpc: 1]
+  import Voyager.TestUtils, only: [reset_term_syntax: 1]
+
+  alias Voyager.Fakes
+  alias Voyager.Services.TermSyntax
+  alias Voyager.Services.Tracer
+  alias Voyager.Services.Tracer.Config
+  alias Voyager.Services.Tracer.Session
+
+  setup :set_mox_global
+
+  setup do
+    previous_state = :sys.get_state(Tracer)
+    :sys.replace_state(Tracer, fn _ -> %Tracer{} end)
+    on_exit(fn -> :sys.replace_state(Tracer, fn _ -> previous_state end) end)
+  end
+
+  test "shows nothing while the session is not configured", %{conn: conn} do
+    unconfigured = %{session() | status: :idle, node: nil, config: nil, traces: 0}
+    :sys.replace_state(Tracer, fn _ -> %Tracer{session: unconfigured} end)
+
+    {:ok, view, _html} = live(conn, ~p"/settings")
+    render_async(view)
+
+    refute has_element?(view, "#tracing-indicator")
+  end
+
+  test "shows the session running at mount with a link to it", %{conn: conn} do
+    :sys.replace_state(Tracer, fn _ -> %Tracer{session: session()} end)
+
+    {:ok, view, _html} = live(conn, ~p"/settings")
+    render_async(view)
+
+    assert has_element?(view, ~s|#tracing-indicator[href="/node/demo%40localhost/tracing"]|)
+    assert has_element?(view, "#tracing-indicator[data-tone=running]")
+    assert has_element?(view, "#tracing-indicator-mfa", "Date.leap_year?/1")
+    assert has_element?(view, "#tracing-indicator-count", "1.2K")
+    assert has_element?(view, "#tracing-indicator-tip[phx-hook=Tooltip]")
+  end
+
+  test "follows the session through its broadcasts", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/settings")
+    render_async(view)
+
+    refute has_element?(view, "#tracing-indicator")
+
+    broadcast({:session_updated, session()})
+    assert has_element?(view, "#tracing-indicator-count", "1.2K")
+
+    broadcast({:session_updated, %{session() | traces: 2_000}})
+    assert has_element?(view, "#tracing-indicator-count", "2.0K")
+
+    broadcast({:session_updated, %{session() | status: :stopped, stop_reason: :stopped}})
+    assert has_element?(view, "#tracing-indicator[data-tone=open]")
+    assert has_element?(view, "#tracing-indicator-label", "Stopped")
+
+    broadcast({:session_updated, session()})
+    broadcast({:session_updated, nil})
+    refute has_element?(view, "#tracing-indicator")
+  end
+
+  test "formats erlang modules and wildcards", %{conn: conn} do
+    config = %Config{module: "lists", function: "_", arity: nil}
+    :sys.replace_state(Tracer, fn _ -> %Tracer{session: %{session() | config: config}} end)
+
+    {:ok, view, _html} = live(conn, ~p"/settings")
+    render_async(view)
+
+    assert has_element?(view, "#tracing-indicator-mfa", ":lists._/_")
+  end
+
+  describe "with the Erlang term syntax" do
+    setup :reset_term_syntax
+
+    test "formats the traced function in Erlang syntax", %{conn: conn} do
+      {:ok, :erlang} = TermSyntax.save_setting(:erlang)
+      config = %Config{module: "lists", function: "_", arity: nil}
+      :sys.replace_state(Tracer, fn _ -> %Tracer{session: %{session() | config: config}} end)
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+      render_async(view)
+
+      assert has_element?(view, "#tracing-indicator-mfa", "lists:_/_")
+    end
+
+    test "quotes atoms that need it", %{conn: conn} do
+      {:ok, :erlang} = TermSyntax.save_setting(:erlang)
+      config = %Config{module: "Elixir.Date", function: "leap_year?", arity: 1}
+      :sys.replace_state(Tracer, fn _ -> %Tracer{session: %{session() | config: config}} end)
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+      render_async(view)
+
+      assert has_element?(view, "#tracing-indicator-mfa", "'Elixir.Date':'leap_year?'/1")
+    end
+  end
+
+  test "shows the indicator in the app topbar", %{conn: conn} do
+    Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
+    stub_erpc(Fakes.node_data())
+    :sys.replace_state(Tracer, fn _ -> %Tracer{session: session()} end)
+
+    {:ok, view, _html} = live(conn, ~p"/node/demo@localhost")
+    render_async(view)
+
+    assert has_element?(view, "#tracing-indicator")
+  end
+
+  test "warns when the run failed", %{conn: conn} do
+    stopped = %{session() | status: :stopped, stop_reason: :node_down}
+    :sys.replace_state(Tracer, fn _ -> %Tracer{session: stopped} end)
+
+    {:ok, view, _html} = live(conn, ~p"/settings")
+    render_async(view)
+
+    assert has_element?(view, "#tracing-indicator[data-tone=failed]")
+    assert view |> element("#tracing-indicator-tip-portal") |> render() =~ "Node went down"
+  end
+
+  test "shows a hit limit as a plain stop with its reason", %{conn: conn} do
+    stopped = %{session() | status: :stopped, stop_reason: :storage_limit}
+    :sys.replace_state(Tracer, fn _ -> %Tracer{session: stopped} end)
+
+    {:ok, view, _html} = live(conn, ~p"/settings")
+    render_async(view)
+
+    assert has_element?(view, "#tracing-indicator[data-tone=open]")
+    assert view |> element("#tracing-indicator-tip-portal") |> render() =~ "Storage limit reached"
+  end
+
+  test "consumes an activated session's broadcast on an app page", %{conn: conn} do
+    Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
+    stub_erpc(Fakes.node_data())
+
+    {:ok, view, _html} = live(conn, ~p"/node/demo@localhost")
+    render_async(view)
+
+    {:ok, _session} = Tracer.create(:ui)
+    refute has_element?(view, "#tracing-indicator")
+
+    broadcast({:session_updated, %{session() | status: :idle, traces: 0}})
+    assert has_element?(view, "#tracing-indicator-label", "Ready")
+    assert has_element?(view, "#tracing-indicator[data-tone=open]")
+  end
+
+  test "marks a session from another node and links to that node's tracing page", %{conn: conn} do
+    stopped = %{session() | node: :other@localhost, status: :stopped, stop_reason: :disconnected}
+    :sys.replace_state(Tracer, fn _ -> %Tracer{session: stopped} end)
+    Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
+    stub_erpc(Fakes.node_data())
+
+    {:ok, view, _html} = live(conn, ~p"/node/demo@localhost")
+    render_async(view)
+
+    assert has_element?(view, ~s|#tracing-indicator[href="/node/other%40localhost/tracing"]|)
+    assert has_element?(view, "#tracing-indicator[data-tone=other_node]")
+
+    assert view |> element("#tracing-indicator-tip-portal") |> render() =~
+             "tracing-indicator-other-node"
+
+    assert view |> element("#tracing-indicator-tip-portal") |> render() =~ "other@localhost"
+  end
+
+  defp session do
+    %Session{
+      id: 7,
+      origin: :ui,
+      created_at: DateTime.utc_now(),
+      node: :demo@localhost,
+      config: %Config{module: "Elixir.Date", function: "leap_year?", arity: 1},
+      status: :running,
+      traces: 1_234
+    }
+  end
+
+  defp broadcast(message) do
+    Phoenix.PubSub.broadcast(Voyager.PubSub, Tracer.session_topic(), message)
+  end
+end

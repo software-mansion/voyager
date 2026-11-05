@@ -1,8 +1,6 @@
 defmodule Voyager.Services.SSH.KeyFile do
   @moduledoc false
 
-  @behaviour :ssh_client_key_api
-
   alias Voyager.Services.LocalFiles
   alias Voyager.Services.SSH.OpensshKey
 
@@ -32,18 +30,11 @@ defmodule Voyager.Services.SSH.KeyFile do
     end
   end
 
-  @impl true
+  @spec user_key(atom(), keyword()) :: {:ok, :public_key.private_key()} | {:error, term()}
   def user_key(algorithm, opts) do
     key = opts[:key_cb_private][:key]
     if algorithm in algorithms(key), do: {:ok, key}, else: {:error, :no_key_found}
   end
-
-  @impl true
-  def is_host_key(key, host, port, algorithm, opts),
-    do: :ssh_file.is_host_key(key, host, port, algorithm, opts)
-
-  @impl true
-  def add_host_key(host, port, key, opts), do: :ssh_file.add_host_key(host, port, key, opts)
 
   defp decode_pem(pem, passphrase) when OpensshKey.is_openssh_pem(pem) do
     case :ssh_file.decode(pem, :openssh_key_v1) do
