@@ -108,7 +108,7 @@ The SSH Tunnel option is disabled when Voyager was not started with its `proxy_e
 - **Click a host** to fill in SSH User, SSH Host, SSH Port, the identity file and the agent socket. Fields the host does not set stay empty or at their defaults. A host with several `IdentityFile` entries uses the first one. Node Name and Cookie are not in an SSH config, so you still enter those, and you still choose the **Authentication** method.
 - **×** removes a host from the list, for example `github.com`, which has no node to connect to. Your config file is not changed, and reloading brings the host back.
 
-Voyager reads only `Host`, `HostName`, `User`, `Port`, `IdentityFile` and `IdentityAgent`, follows a top-level `Include`, and lists anything else in the file as not supported. Patterns such as `*.internal` are not listed as hosts, but their settings still apply to the hosts they match.
+Voyager reads only `Host`, `HostName`, `User`, `Port`, `IdentityFile` and `IdentityAgent`, follows a top-level `Include`, and lists anything else in the file as ignored settings. Patterns such as `*.internal` are not listed as hosts, but their settings still apply to the hosts they match.
 
 ## Voyager's own node and saved connections
 

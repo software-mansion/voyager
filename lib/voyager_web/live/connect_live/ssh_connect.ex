@@ -198,15 +198,19 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
             type="button"
             phx-target={@myself}
             phx-click="toggle_ssh_advanced"
-            class="font-mono tracking-label text-base-content/70 cursor-pointer select-none text-xs uppercase transition-colors hover:text-base-content/90"
+            class="font-mono tracking-label text-base-content/70 inline-flex cursor-pointer select-none items-center gap-1 text-xs uppercase transition-colors hover:text-base-content/90"
           >
-            Advanced {if @show_ssh_advanced, do: "▾", else: "▸"}
+            Advanced
+            <.icon
+              name="icon-chevron-right"
+              class={["size-3.5 transition-transform", @show_ssh_advanced && "rotate-90"]}
+            />
           </button>
 
           <div
             id="ssh-advanced"
             class={[
-              "border-base-300 mt-3 flex flex-col gap-3 rounded-lg border p-4",
+              "border-base-content/20 mt-3 flex flex-col gap-3 rounded-lg border p-4",
               not @show_ssh_advanced && "hidden"
             ]}
           >
@@ -333,9 +337,9 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       >
         <.icon name="icon-network" class="size-3.5 text-base-content/60 shrink-0 self-center" />
         <div class="flex min-w-0 flex-1 flex-col gap-1">
-          <span class="ml-2 truncate text-left">{@conn.node_name}</span>
-          <div class="ml-2 flex flex-wrap items-center gap-1">
-            <span class="font-mono text-base-content/70 border-base-400/50 rounded border px-1 text-xs">
+          <span class="truncate text-left">{@conn.node_name}</span>
+          <div class="flex flex-wrap items-center gap-1">
+            <span class="font-mono text-base-content/70 border-base-content/20 rounded border px-1 text-xs">
               {@conn.ssh_user}@{@conn.ssh_host}
             </span>
             <ConnectComponents.saved_badge :if={@conn.cookie} label="cookie" title="Cookie saved" />

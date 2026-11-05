@@ -141,7 +141,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
       >
         <.icon name="icon-network" class="size-3.5 text-base-content/60 shrink-0" />
         <div class="flex min-w-0 items-center gap-1.5">
-          <span class="ml-2 truncate">{@conn.node_name}</span>
+          <span class="truncate">{@conn.node_name}</span>
           <ConnectComponents.saved_badge :if={@conn.cookie} label="cookie" title="Cookie saved" />
         </div>
         <span class="font-mono text-base-content/70 ml-auto shrink-0 text-xs">
