@@ -9,9 +9,11 @@ defmodule VoyagerWeb.TracingSessionLive do
   alias Phoenix.LiveView.AsyncResult
   alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Session
+  alias VoyagerWeb.Components.TraceLogComponents
   alias VoyagerWeb.Components.TracingComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.Hooks.TracingStatusHook
+  alias VoyagerWeb.TracingSessionLive.Log
   alias VoyagerWeb.TracingSessionLive.Stats
 
   @actions [:stop, :start, :load, :unload, :delete]
@@ -29,6 +31,7 @@ defmodule VoyagerWeb.TracingSessionLive do
         |> assign(:confirm, nil)
         |> assign(:queued_session, nil)
         |> assign(:session_flush_scheduled?, false)
+        |> Log.init()
         |> Stats.init()
         |> subscribe_and_load()
         |> ok()
@@ -68,6 +71,20 @@ defmodule VoyagerWeb.TracingSessionLive do
           on_delete="delete"
         />
         <TracingComponents.empty_state :if={@mode == :active and is_nil(trace_session.config)} />
+        <TraceLogComponents.log
+          :if={trace_session.config}
+          rows={@streams.entries}
+          trace_session={trace_session}
+          live?={@mode == :active and trace_session.status == :running}
+          paused?={@paused?}
+          new_count={@new_count}
+          trace_rows={Log.trace_rows(@held_kinds)}
+          oldest_seq={@oldest_seq}
+          node_name={pid_node_name(trace_session, @session)}
+          on_pause="pause-log"
+          on_resume="resume-log"
+          on_older="load-older"
+        />
       </.async_result>
 
       <TracingComponents.confirm_modal
@@ -178,6 +195,24 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> noreply()
   end
 
+  def handle_event("pause-log", _params, socket) do
+    socket
+    |> Log.pause()
+    |> noreply()
+  end
+
+  def handle_event("resume-log", _params, socket) do
+    socket
+    |> Log.load()
+    |> noreply()
+  end
+
+  def handle_event("load-older", _params, socket) do
+    socket
+    |> Log.older()
+    |> noreply()
+  end
+
   @impl true
   # A broadcast for our id already ended the load, and is newer than its result.
   def handle_async(
@@ -249,6 +284,7 @@ defmodule VoyagerWeb.TracingSessionLive do
       ) do
     socket
     |> queue_session(session)
+    |> Log.absorb(entries)
     |> Stats.absorb(entries)
     |> noreply()
   end
@@ -307,7 +343,12 @@ defmodule VoyagerWeb.TracingSessionLive do
   defp gone(socket), do: load(socket)
 
   defp put_session(socket, session, mode) do
-    shown = socket.assigns.trace_session.result
+    %{mode: shown_mode, trace_session: %AsyncResult{result: shown}} = socket.assigns
+
+    socket =
+      if shown_mode == mode and shown.config == session.config,
+        do: socket,
+        else: Log.load(socket)
 
     socket
     |> assign(:trace_session, AsyncResult.ok(session))
@@ -356,6 +397,9 @@ defmodule VoyagerWeb.TracingSessionLive do
   defp confirm_label(:delete), do: "Delete"
   defp confirm_label(:unload), do: "Unload"
   defp confirm_label(:load), do: "Load"
+
+  defp pid_node_name(%Session{node: node}, %{node: node, node_name: node_name}), do: node_name
+  defp pid_node_name(_trace_session, _node_session), do: nil
 
   defp stats(%Session{run_started_at: nil}, _rates, _now, _limit_mb), do: []
   defp stats(session, rates, now, limit_mb), do: Stats.cells(session, rates, now, limit_mb)

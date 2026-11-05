@@ -26,8 +26,10 @@ defmodule VoyagerWeb.Components.TracingComponents do
 
   def tone(_session, _connected_node), do: :open
 
-  defp failure?({:tracer_down, _reason}), do: true
-  defp failure?(reason), do: reason in [:node_down, :write_failed]
+  @doc "Whether a stop reason means the run ended on an error rather than a limit or a request."
+  @spec failure?(Voyager.Services.Tracer.stop_reason()) :: boolean()
+  def failure?({:tracer_down, _reason}), do: true
+  def failure?(reason), do: reason in [:node_down, :write_failed]
 
   @spec tone_class(:running | :other_node | :failed | :open, :chip | :dot | :label | :badge) ::
           String.t()

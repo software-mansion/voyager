@@ -106,6 +106,61 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     refute has_element?(view, "#session-edit")
   end
 
+  test "summarizes the config and shows what each reconfigure changed", %{conn: conn} do
+    %{id: id} = create!()
+
+    {:ok, _session} =
+      configure(%{
+        processes: :all,
+        capture: :args,
+        budget: 5_000,
+        return_trace: true,
+        max_rate: 1_000,
+        max_events: 10_000,
+        max_time_ms: 300_000
+      })
+
+    view = open(conn, id)
+
+    assert has_element?(view, "#session-mfa", "Date.leap_year?/1")
+
+    assert has_element?(view, "#session-chip-where", "All processes · global")
+    assert has_element?(view, "#session-chip-capture", "Args ≤ 5,000 + returns")
+    assert has_element?(view, "#session-chip-stop_after", "10,000 events · 1,000/s · 5 min")
+
+    assert view
+           |> element("#session-params-portal")
+           |> render() =~ "Max rate"
+
+    assert has_element?(view, "#entry-0-changes", "by UI · Date.leap_year?/1")
+
+    {:ok, _session} = configure(%{scope: :local, max_events: nil, max_time_ms: 90_000})
+
+    assert has_element?(view, "#session-chip-where", "1 pid · local")
+    assert has_element?(view, "#session-chip-capture", "Arity")
+    assert has_element?(view, "#session-chip-stop_after", "90 s")
+
+    assert has_element?(
+             view,
+             "#entry-1-changes",
+             "Processes All processes → " <> Voyager.Pid.format(self(), :distribution)
+           )
+
+    assert has_element?(view, "#entry-1-changes", "Scope Global → Local")
+    assert has_element?(view, "#entry-1-changes .line-through", "Global")
+    assert has_element?(view, "#entry-1-changes", "Max events 10,000 → None")
+    assert has_element?(view, "#entry-1-config-portal")
+  end
+
+  test "names the term column for a wildcard function", %{conn: conn} do
+    %{id: id} = create!()
+    {:ok, _session} = configure(%{function: "_", arity: nil})
+
+    view = open(conn, id)
+
+    assert has_element?(view, "#session-log th", "Call / result")
+  end
+
   test "loads a saved session into the tracer", %{conn: conn} do
     %{id: id} = saved_inactive!()
 
