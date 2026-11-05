@@ -31,16 +31,23 @@ defmodule VoyagerWeb.Router do
 
     live_session :settings,
       layout: {VoyagerWeb.Layouts, :settings},
-      on_mount: [VoyagerWeb.Hooks.McpStatusHook, VoyagerWeb.Hooks.AppUpdateHook] do
+      session: {VoyagerWeb.Hooks.UrlHook, :referer_session, []},
+      on_mount: [
+        VoyagerWeb.Hooks.McpStatusHook,
+        VoyagerWeb.Hooks.TracingStatusHook,
+        VoyagerWeb.Hooks.AppUpdateHook
+      ] do
       live "/settings", SettingsLive, :index
     end
 
     live_session :app,
       layout: {VoyagerWeb.Layouts, :app},
+      session: {VoyagerWeb.Hooks.UrlHook, :referer_session, []},
       on_mount: [
         {VoyagerWeb.Hooks.NodeSessionHook, :require_connected_node},
         VoyagerWeb.Hooks.OnboardingHook,
         VoyagerWeb.Hooks.McpStatusHook,
+        VoyagerWeb.Hooks.TracingStatusHook,
         VoyagerWeb.Hooks.AppUpdateHook
       ] do
       live "/node/:node", NodeInfoLive, :index

@@ -37,7 +37,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
           tree_node: tree_node,
           remote_node: remote_node,
           node_name: node_name,
-          current_url: current_url,
           keep_history?: keep_history?,
           revealing?: revealing?
         },
@@ -47,7 +46,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(:id, id)
     |> assign(:remote_node, remote_node)
     |> assign(:node_name, node_name)
-    |> assign(:current_url, current_url)
     |> assign(:revealing?, revealing?)
     |> maybe_assign_node(tree_node, keep_history?)
     |> ok()
@@ -158,7 +156,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
         />
         <.show_more_button
           panel_id={@id}
-          href={process_href(@node.pid, @remote_node, @node_name, @current_url)}
+          href={process_href(@node.pid, @remote_node, @node_name)}
         />
       <% end %>
     </aside>
@@ -166,12 +164,12 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   end
 
   # Only pids living on the inspected node have a process page.
-  defp process_href(pid, remote_node, node_name, current_url)
+  defp process_href(pid, remote_node, node_name)
        when is_pid(pid) and node(pid) == remote_node and is_binary(node_name) do
-    keep_sidebar(~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}", current_url)
+    ~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}"
   end
 
-  defp process_href(_pid, _remote_node, _node_name, _current_url), do: nil
+  defp process_href(_pid, _remote_node, _node_name), do: nil
 
   defp maybe_assign_node(socket, nil, _keep_history?) do
     socket

@@ -294,7 +294,6 @@ defmodule VoyagerWeb.NodeInfoComponents do
   attr :visible_count, :integer, required: true
   attr :load_more_event, :string, required: true
   attr :node_name, :string, required: true, doc: "used to link a row to its supervision tree"
-  attr :current_url, :string, default: nil
   attr :help, :map, default: nil, doc: "optional help entry for the card title (see NodeInfoHelp)"
 
   def applications_card(assigns) do
@@ -363,7 +362,7 @@ defmodule VoyagerWeb.NodeInfoComponents do
                     position="left"
                   >
                     <.link
-                      navigate={application_href(@node_name, app.name, @current_url)}
+                      navigate={application_href(@node_name, app.name)}
                       aria-label={"View #{app.name} supervision tree"}
                       class="btn btn-ghost btn-square toolbar-btn-sm text-base-content/70 hover:text-primary"
                     >
@@ -488,18 +487,11 @@ defmodule VoyagerWeb.NodeInfoComponents do
     """
   end
 
-  defp application_href(node_name, app_name, current_url) do
-    path = "/node/#{URI.encode(node_name)}/supervision-tree"
-    params = %{"apps" => to_string(app_name)}
-
-    params =
-      case current_url && URL.get_query_param(current_url, "sidebar") do
-        mode when mode in ["compact", "full"] -> Map.put(params, "sidebar", mode)
-        _ -> params
-      end
-
-    URL.put_query_params(path, params)
-  end
+  defp application_href(node_name, app_name),
+    do:
+      URL.put_query_params("/node/#{URI.encode(node_name)}/supervision-tree", %{
+        "apps" => to_string(app_name)
+      })
 
   defp limit_rows(limits) do
     [

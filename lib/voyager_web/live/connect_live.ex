@@ -33,7 +33,7 @@ defmodule VoyagerWeb.ConnectLive do
     assigns = assign(assigns, :mode_disabled_reason, mode_disabled_reason(assigns))
 
     ~H"""
-    <div class="bg-base-200 h-full overflow-y-auto">
+    <div class="bg-base-200 scrollbar-gutter-both h-full overflow-y-auto">
       <div class="min-w-96 flex min-h-full items-center justify-center p-4">
         <div class="card bg-base-100 w-full max-w-lg shadow-xl">
           <div class="card-body group gap-0 p-10">
@@ -42,7 +42,7 @@ defmodule VoyagerWeb.ConnectLive do
               <div class="text-base-content text-lg font-semibold tracking-tight">Voyager</div>
               <.link
                 id="open-settings"
-                href={~p"/settings?#{[return_to: @current_url]}"}
+                href={~p"/settings"}
                 title="Settings"
                 class="btn btn-ghost btn-square toolbar-btn text-base-content/60 ml-auto hover:text-base-content"
               >
@@ -157,6 +157,10 @@ defmodule VoyagerWeb.ConnectLive do
   @impl true
   def handle_info({:node_connecting, _node_name}, socket) do
     {:noreply, assign(socket, :connecting?, true)}
+  end
+
+  def handle_info({:node_connect_failed, _node_name, {:unknown_host_key, _fp}}, socket) do
+    {:noreply, assign(socket, :connecting?, false)}
   end
 
   def handle_info({:node_connect_failed, _node_name, reason}, socket) do
