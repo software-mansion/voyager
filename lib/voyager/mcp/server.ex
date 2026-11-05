@@ -9,6 +9,7 @@ defmodule Voyager.MCP.Server do
     capabilities: [:tools]
 
   component(Voyager.MCP.Tools.ListConnections)
+  component(Voyager.MCP.Tools.ListSshConfigHosts)
   component(Voyager.MCP.Tools.Connect)
   component(Voyager.MCP.Tools.Disconnect)
   component(Voyager.MCP.Tools.NodeInfo)

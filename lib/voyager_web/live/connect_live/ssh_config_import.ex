@@ -25,10 +25,6 @@ defmodule VoyagerWeb.ConnectLive.SshConfigImport do
     |> attach_hook(:ssh_config_import, :handle_event, &handle_event/3)
   end
 
-  @spec config_path(String.t()) :: Path.t()
-  def config_path(""), do: "~/.ssh/config"
-  def config_path(path), do: path
-
   @spec selected_host([Config.host()] | nil, Form.t(), String.t() | nil) :: Config.host() | nil
   def selected_host(hosts, form, picked_alias \\ nil) do
     current =
@@ -111,7 +107,7 @@ defmodule VoyagerWeb.ConnectLive.SshConfigImport do
   end
 
   defp load(socket, path) do
-    case path |> config_path() |> Config.read() do
+    case path |> Config.config_path() |> Config.read() do
       {:ok, %{hosts: hosts, unsupported: unsupported}} ->
         remember_path(path)
 

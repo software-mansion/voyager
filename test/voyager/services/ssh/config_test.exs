@@ -5,6 +5,17 @@ defmodule Voyager.Services.SSH.ConfigTest do
 
   @moduletag :tmp_dir
 
+  describe "config_path/1" do
+    test "uses ~/.ssh/config when no path is set" do
+      assert Config.config_path(nil) == "~/.ssh/config"
+      assert Config.config_path("") == "~/.ssh/config"
+    end
+
+    test "keeps any other path" do
+      assert Config.config_path("/k/config") == "/k/config"
+    end
+  end
+
   describe "parse/1" do
     test "skips blank lines and comments" do
       assert Config.parse("\n   \n# Host commented\n\t# indented\n") == %{

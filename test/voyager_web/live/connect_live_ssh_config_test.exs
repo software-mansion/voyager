@@ -497,16 +497,6 @@ defmodule VoyagerWeb.ConnectLiveSshConfigTest do
     end
   end
 
-  describe "config_path/1" do
-    test "uses ~/.ssh/config for a blank field" do
-      assert SshConfigImport.config_path("") == "~/.ssh/config"
-    end
-
-    test "keeps any other path" do
-      assert SshConfigImport.config_path("/k/config") == "/k/config"
-    end
-  end
-
   describe "telemetry" do
     setup do
       ref = :telemetry_test.attach_event_handlers(self(), [@telemetry_event])

@@ -32,8 +32,8 @@ defmodule Voyager.MCP.Tools.ConnectTest do
       %{} |> execute() |> assert_error()
     end
 
-    test "needs both SSH user and host" do
-      %{"node_name" => "app@10.0.0.5", "ssh_host" => "gw"} |> execute() |> assert_error()
+    test "needs an SSH host for an SSH user" do
+      %{"node_name" => "app@10.0.0.5", "ssh_user" => "u"} |> execute() |> assert_error()
     end
 
     test "refuses SSH without the proxy epmd module" do
@@ -210,6 +210,38 @@ defmodule Voyager.MCP.Tools.ConnectTest do
 
       assert_received {:"$gen_cast", {:broadcast, "messages", path}}
       assert path == "open:/?mode=ssh&connection=#{conn.id}"
+    end
+
+    test "opens the SSH form without the SSH user for the user to fill in" do
+      enable_proxy_epmd(%{})
+      Process.register(self(), ElixirKit.PubSub)
+
+      assert %{"status" => "awaiting_user", "message" => message} =
+               %{"node_name" => "app@10.0.0.5", "ssh_host" => "gw"} |> execute() |> run()
+
+      assert message =~ "list_connections"
+      assert_received {:"$gen_cast", {:broadcast, "messages", "open:" <> path}}
+
+      query = path |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
+      assert %{"mode" => "ssh", "node_name" => "app@10.0.0.5", "ssh_host" => "gw"} = query
+      refute Map.has_key?(query, "ssh_user")
+    end
+
+    test "opens the SSH form without the node name for the user to fill in" do
+      enable_proxy_epmd(%{})
+      insert!(%SshConnection{ssh_user: "deploy", ssh_host: "gw", node_name: "app@10.0.0.5"})
+      Process.register(self(), ElixirKit.PubSub)
+
+      assert %{"status" => "awaiting_user", "message" => message} =
+               %{"ssh_user" => "deploy", "ssh_host" => "gw"} |> execute() |> run()
+
+      assert message =~ "gw"
+      assert_received {:"$gen_cast", {:broadcast, "messages", "open:" <> path}}
+
+      query = path |> URI.parse() |> Map.fetch!(:query) |> URI.decode_query()
+      assert %{"mode" => "ssh", "ssh_user" => "deploy", "ssh_host" => "gw"} = query
+      refute Map.has_key?(query, "node_name")
+      refute Map.has_key?(query, "connection")
     end
 
     test "returns a URL to open when no desktop shell is attached" do
