@@ -52,7 +52,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   @max_links 12
   # Public so DetailsPanel can cap its remote fetch at what this panel renders.
-  @max_expanded_relations 200
+  @max_expanded_relations 60
   def max_expanded_relations, do: @max_expanded_relations
 
   attr :panel_id, :string, required: true

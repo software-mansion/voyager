@@ -9,6 +9,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
   alias Voyager.Fakes
   alias Voyager.Services.RateLimiter
   alias Voyager.Services.SupervisionTree.TreeNode
+  alias VoyagerWeb.Components.DetailsPanelComponents
 
   @agent_module Voyager.Agent.module()
 
@@ -216,9 +217,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       port: port,
       sup_key: sup_key
     } do
-      # 205 links: expanding renders the first 200 and reports the rest as
-      # overflow rather than emitting a chip per link.
-      link_pids = for n <- 1..205, do: :erlang.list_to_pid(~c"<0.#{200 + n}.0>")
+      link_count = DetailsPanelComponents.max_expanded_relations() + 5
+      link_pids = for n <- 1..link_count, do: :erlang.list_to_pid(~c"<0.#{200 + n}.0>")
       last_link = link_pids |> List.last() |> TreeNode.key()
 
       expect_supervision_erpc(13, sup_pid, [port], link_pids)
