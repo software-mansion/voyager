@@ -75,3 +75,10 @@
     height: 4px;
   }
 }
+
+@utility summary-plain {
+  list-style: none;
+  &::-webkit-details-marker {
+    display: none;
+  }
+}

@@ -738,7 +738,12 @@ defmodule VoyagerWeb.CoreComponents do
           <.icon name="icon-plus" class="toolbar-icon" />
         </button>
       </div>
-      <p :for={error <- @errors} class="font-mono text-error text-pretty mt-1.5 text-xs">{error}</p>
+      <p
+        :for={error <- @errors}
+        class="font-mono text-error text-pretty mt-1.5 text-xs first-letter:uppercase"
+      >
+        {error}
+      </p>
     </div>
     """
   end
@@ -759,7 +764,9 @@ defmodule VoyagerWeb.CoreComponents do
         ]}
         {@rest}
       />
-      <p :for={error <- @errors} class="font-mono text-error mt-1.5 text-xs">{error}</p>
+      <p :for={error <- @errors} class="font-mono text-error mt-1.5 text-xs first-letter:uppercase">
+        {error}
+      </p>
     </div>
     """
   end
