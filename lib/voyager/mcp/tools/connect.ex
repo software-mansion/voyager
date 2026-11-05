@@ -2,13 +2,16 @@ defmodule Voyager.MCP.Tools.Connect do
   @moduledoc """
   Connects Voyager to a node so the other tools can inspect it. Pass a saved
   `connection_id` from `list_connections`, or describe a node that is not saved
-  with `node_name` (plus `ssh_user` and `ssh_host` to tunnel through SSH).
+  with `node_name` (plus `ssh_user` and `ssh_host` to tunnel through SSH). The
+  SSH fields can come from `list_ssh_config_hosts`.
 
   Secrets never pass through this tool, so never ask the user to paste a cookie or
   password into the chat. A saved connection with its secrets stored connects
   right away. Otherwise Voyager opens its connect form pre-filled and the result
   is `awaiting_user`: ask the user to finish in Voyager, then call `connect` again
-  with the same arguments once they confirm. Calling it for the node Voyager is
+  with the same arguments once they confirm. With `ssh_host` but no `ssh_user` or
+  `node_name`, the user fills those in the form too, so call `list_connections`
+  instead of `connect` once they confirm. Calling it for the node Voyager is
   already connected to returns `connected`. Only one node can be connected at a
   time: call `disconnect` first to switch.
   """
@@ -27,6 +30,7 @@ defmodule Voyager.MCP.Tools.Connect do
 
   @name_types %{"longnames" => :longnames, "shortnames" => :shortnames}
   @auth_methods %{"agent" => :agent, "password" => :password, "key" => :key}
+  @find_in_list "call `list_connections` to find the node once they confirm"
 
   schema do
     field :connection_id, :string,
@@ -92,20 +96,15 @@ defmodule Voyager.MCP.Tools.Connect do
     end
   end
 
-  defp target(%{node_name: node_name} = params) when is_binary(node_name) do
-    case {Map.get(params, :ssh_user), Map.get(params, :ssh_host)} do
-      {nil, nil} ->
-        {:ok, direct_target(node_name, params)}
+  defp target(%{ssh_host: host} = params) when is_binary(host), do: {:ok, ssh_target(params)}
 
-      {user, host} when is_binary(user) and is_binary(host) ->
-        {:ok, ssh_target(node_name, user, host, params)}
+  defp target(%{ssh_user: user}) when is_binary(user),
+    do: {:error, "Pass `ssh_host` with `ssh_user` to tunnel through SSH"}
 
-      _ ->
-        {:error, "Pass both `ssh_user` and `ssh_host` to tunnel through SSH"}
-    end
-  end
+  defp target(%{node_name: node_name} = params) when is_binary(node_name),
+    do: {:ok, direct_target(node_name, params)}
 
-  defp target(_params), do: {:error, "Pass `connection_id` or `node_name`"}
+  defp target(_params), do: {:error, "Pass `connection_id`, `node_name` or `ssh_host`"}
 
   defp check_route(%SshConnection{}) do
     if ProxyEpmd.active?(),
@@ -131,8 +130,12 @@ defmodule Voyager.MCP.Tools.Connect do
       %Connection{node_name: node_name, name_type: Map.fetch!(@name_types, params.name_type)}
   end
 
-  defp ssh_target(node_name, user, host, %{epmd_port: epmd_port} = params) do
-    case SshConnectionQueries.get_by_profile(user, host, params.ssh_port, node_name) do
+  defp ssh_target(%{ssh_host: host, epmd_port: epmd_port} = params) do
+    user = Map.get(params, :ssh_user)
+    node_name = Map.get(params, :node_name)
+
+    case user && node_name &&
+           SshConnectionQueries.get_by_profile(user, host, params.ssh_port, node_name) do
       %SshConnection{epmd_port: ^epmd_port} = saved ->
         saved
 
@@ -194,8 +197,9 @@ defmodule Voyager.MCP.Tools.Connect do
           %{
             status: "awaiting_user",
             message:
-              "Voyager opened its connect form for #{target.node_name}. " <>
-                "Ask the user to enter the secrets there, then call `connect` again."
+              "Voyager opened its connect form for #{form_label(target)}. " <>
+                "Ask the user to fill in the secrets and any missing fields there, " <>
+                "then #{next_step(target)}."
           }
 
         :no_shell ->
@@ -205,13 +209,21 @@ defmodule Voyager.MCP.Tools.Connect do
             status: "awaiting_user",
             url: url,
             message:
-              "Ask the user to open #{url}, enter the secrets there and connect, " <>
-                "then call `connect` again."
+              "Ask the user to open #{url}, fill in the secrets and any missing fields " <>
+                "there and connect, then #{next_step(target)}."
           }
       end
 
     Response.json(Response.tool(), payload)
   end
+
+  defp form_label(%SshConnection{node_name: nil, ssh_host: host}), do: host
+  defp form_label(target), do: target.node_name
+
+  # A repeat `connect` without these fields can't match the session the user opens in the form.
+  defp next_step(%SshConnection{node_name: nil}), do: @find_in_list
+  defp next_step(%SshConnection{ssh_user: nil}), do: @find_in_list
+  defp next_step(_target), do: "call `connect` again"
 
   defp form_params(%Connection{id: nil} = c), do: [node_name: c.node_name, name_type: c.name_type]
   defp form_params(%Connection{id: id}), do: [connection: id]
