@@ -447,8 +447,13 @@ defmodule Voyager.Services.Tracer do
   end
 
   defp saved_session(row) do
-    controls = TraceEntryQueries.controls(row.id)
-    Session.from_row(row, controls, TraceEntryQueries.next_seq(row.id), storage_limit(row.id))
+    Session.from_row(
+      row,
+      TraceEntryQueries.controls(row.id),
+      TraceEntryQueries.traces_before_last_run(row.id),
+      TraceEntryQueries.next_seq(row.id),
+      storage_limit(row.id)
+    )
   end
 
   defp activate(session) do

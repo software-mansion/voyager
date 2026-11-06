@@ -1,8 +1,9 @@
 defmodule Voyager.Services.Tracer.Search do
   @moduledoc """
   The text a trace is matched on, in both stores: `text/1` is what a saved trace's
-  `search_text` column holds and what an unsaved one is filtered on. Pids are in the
-  traced node's local `<0.X.Y>` form, so `query/1` folds a query's pids the same way.
+  `search_text` column holds and what an unsaved one is filtered on. Pids are written
+  `<0.X.Y>` whatever their node, as a node's index differs per Voyager run and connection,
+  and `query/1` folds a query's pids the same way.
   Case folds ASCII only, so the in-memory filter and SQLite's `LIKE` agree.
   """
 
@@ -23,8 +24,7 @@ defmodule Voyager.Services.Tracer.Search do
   end
 
   @spec query(String.t()) :: String.t()
-  def query(query),
-    do: Regex.replace(~r/<\d+\.\d+\.\d+>/, query, &Voyager.Pid.format(&1, :local))
+  def query(query), do: zero_node(query)
 
   @doc """
   The trace entries containing `query`, ignoring ASCII case, with `seq` below `:before`,
@@ -55,6 +55,8 @@ defmodule Voyager.Services.Tracer.Search do
   defp inspect_term(term),
     do: inspect(term, limit: :infinity, printable_limit: :infinity, inspect_fun: &inspect_pid/2)
 
-  defp inspect_pid(pid, _opts) when is_pid(pid), do: "#PID" <> Voyager.Pid.format(pid, :local)
+  defp inspect_pid(pid, _opts) when is_pid(pid), do: zero_node(inspect(pid))
   defp inspect_pid(term, opts), do: Inspect.inspect(term, opts)
+
+  defp zero_node(text), do: Regex.replace(~r/<\d+\.(?=\d+\.\d+>)/, text, "<0.")
 end

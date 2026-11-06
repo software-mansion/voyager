@@ -58,6 +58,19 @@ defmodule Voyager.Queries.TraceEntries do
     %{entries: window(matches, session_id, opts), total: Repo.aggregate(matches, :count)}
   end
 
+  @doc "How many traces were saved before the session's last `:started` entry; 0 if it never started."
+  @spec traces_before_last_run(integer()) :: non_neg_integer()
+  def traces_before_last_run(session_id) do
+    last_start =
+      from s in TraceSessionEvent,
+        where: s.session_id == ^session_id and s.kind == :started,
+        select: max(s.seq)
+
+    # A session never started has a NULL `max`, which no `seq` is below.
+    from(e in TraceEvent, where: e.session_id == ^session_id and e.seq < subquery(last_start))
+    |> Repo.aggregate(:count)
+  end
+
   @doc "The `seq` after the session's last entry."
   @spec next_seq(integer()) :: non_neg_integer()
   def next_seq(session_id) do

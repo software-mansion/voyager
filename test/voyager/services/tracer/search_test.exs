@@ -1,6 +1,5 @@
 defmodule Voyager.Services.Tracer.SearchTest do
-  # async: false because the pid test sets the global cached node id.
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   alias Voyager.Services.Tracer.Search
 
@@ -17,13 +16,10 @@ defmodule Voyager.Services.Tracer.SearchTest do
                "#PID<0.1.0> :my_server Date.leap_year?/1 true"
     end
 
-    test "shows pids in the traced node's local form, however deep" do
-      on_exit(fn -> Voyager.Pid.put_node(nil) end)
-      pid = remote_pid(1)
-      [_prefix, node_id] = Regex.run(~r/^<(\d+)\./, Voyager.Pid.format(pid, :distribution))
-      :persistent_term.put({Voyager.Pid, :node_id}, node_id)
+    test "writes every pid as <0.X.Y> whatever its node, however deep" do
+      text =
+        Search.text(%{@entry | pid: remote_pid(1)} |> Map.put(:args, [%{from: remote_pid(2)}]))
 
-      text = Search.text(%{@entry | pid: pid} |> Map.put(:args, [%{from: remote_pid(2)}]))
       assert text == "#PID<0.1.0> nil Date.leap_year?/1 [%{from: #PID<0.2.0>}]"
     end
 
@@ -33,12 +29,9 @@ defmodule Voyager.Services.Tracer.SearchTest do
   end
 
   describe "query/1" do
-    test "folds the pids a user may paste to the local form" do
-      on_exit(fn -> Voyager.Pid.put_node(nil) end)
-      :persistent_term.put({Voyager.Pid, :node_id}, "7")
-
-      assert Search.query("from #PID<7.1.0> to <7.2.0>, not <8.3.0>") ==
-               "from #PID<0.1.0> to <0.2.0>, not <8.3.0>"
+    test "folds the pids a user may paste to <0.X.Y> whatever their node" do
+      assert Search.query("from #PID<7.1.0> to <8.2.0>, not <7.3") ==
+               "from #PID<0.1.0> to <0.2.0>, not <7.3"
     end
 
     test "leaves other text alone" do

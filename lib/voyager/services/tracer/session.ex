@@ -84,11 +84,20 @@ defmodule Voyager.Services.Tracer.Session do
     }
   end
 
-  @doc "The session saved as `row`, from its newest-first control entries."
-  @spec from_row(TraceSession.t(), [Entry.t()], non_neg_integer(), non_neg_integer()) :: t()
-  def from_row(row, controls, seq, storage_limit) do
+  @doc """
+  The session saved as `row`, from its newest-first control entries and the count of traces
+  saved before its last run.
+  """
+  @spec from_row(
+          TraceSession.t(),
+          [Entry.t()],
+          non_neg_integer(),
+          non_neg_integer(),
+          non_neg_integer()
+        ) :: t()
+  def from_row(row, controls, run_traces_before, seq, storage_limit) do
     configured = Enum.find(controls, &(&1.kind == :configured)) || %{node: nil, config: nil}
-    {run_started_at, run_traces_before} = last_run(row, controls)
+    started = Enum.find(controls, &(&1.kind == :started))
 
     %__MODULE__{
       id: row.id,
@@ -107,25 +116,7 @@ defmodule Voyager.Services.Tracer.Session do
       seq: seq,
       started_at: row.started_at,
       stopped_at: row.stopped_at,
-      run_started_at: run_started_at
+      run_started_at: started && DateTime.from_unix!(started.at, :microsecond)
     }
-  end
-
-  defp last_run(row, controls) do
-    case Enum.split_while(controls, &(&1.kind != :started)) do
-      {_, []} ->
-        {nil, 0}
-
-      {newer, [started | older]} ->
-        {DateTime.from_unix!(started.at, :microsecond), traces_before(row, newer, older)}
-    end
-  end
-
-  # An interrupted run writes no :stopped entry, so only the last run's own count is exact.
-  defp traces_before(row, newer, older) do
-    case Enum.find(newer, &(&1.kind == :stopped)) do
-      %{traces: traces} -> row.traces - traces
-      nil -> Enum.sum(for %{kind: :stopped, traces: traces} <- older, do: traces)
-    end
   end
 end

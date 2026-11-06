@@ -50,7 +50,7 @@ defmodule Voyager.Services.Tracer.SessionTest do
     end
   end
 
-  describe "from_row/4" do
+  describe "from_row/5" do
     @row %TraceSession{
       id: 7,
       origin: :mcp,
@@ -68,7 +68,13 @@ defmodule Voyager.Services.Tracer.SessionTest do
       config = %Config{module: "Elixir.Date"}
 
       session =
-        Session.from_row(@row, [%{kind: :configured, node: :a@host, config: config}], 20, 5_000)
+        Session.from_row(
+          @row,
+          [%{kind: :configured, node: :a@host, config: config}],
+          4,
+          20,
+          5_000
+        )
 
       assert %Session{
                id: 7,
@@ -79,6 +85,7 @@ defmodule Voyager.Services.Tracer.SessionTest do
                status: :stopped,
                stop_reason: :time_limit,
                traces: 12,
+               run_traces_before: 4,
                dropped: 3,
                bytes: 456,
                storage_limit: 5_000,

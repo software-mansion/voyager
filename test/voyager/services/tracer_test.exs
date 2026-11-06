@@ -411,16 +411,14 @@ defmodule Voyager.Services.TracerTest do
         assert {:ok, %{total: 4}} = Tracer.search(id, "")
       end
 
-      test "finds a pid however it is shown", %{save: save} do
-        on_exit(fn -> Voyager.Pid.put_node(nil) end)
-        :persistent_term.put({Voyager.Pid, :node_id}, "7")
+      test "finds a pid shown under any node index", %{save: save} do
         "<0." <> rest = Voyager.Pid.format(self(), :distribution)
         {id, [entry]} = searchable(save, ["pid"])
 
         assert {:ok, %{entries: [^entry]}} = Tracer.search(id, "<0." <> rest)
         assert {:ok, %{entries: [^entry]}} = Tracer.search(id, "<7." <> rest)
-        assert {:ok, %{entries: [^entry]}} = Tracer.search(id, "#PID<7." <> rest)
-        assert {:ok, %{entries: []}} = Tracer.search(id, "<8." <> rest)
+        assert {:ok, %{entries: [^entry]}} = Tracer.search(id, "#PID<12." <> rest)
+        assert {:ok, %{entries: []}} = Tracer.search(id, "<7.0.0>")
       end
     end
   end
