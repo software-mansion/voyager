@@ -6,7 +6,8 @@
 #   dev/mock_nodes/relations.sh
 #
 # Then in Voyager connect to relations@127.0.0.1 with cookie "demo" and open the
-# relations_demo app in the supervision tree.
+# relations_demo app in the supervision tree. `RelationsDemo.stall(8_000)` in this
+# shell makes every Voyager fetch from the node time out for 8 seconds.
 
 defmodule RelationsDemo do
   @peer_node :"peer@127.0.0.1"
@@ -14,6 +15,22 @@ defmodule RelationsDemo do
   def idle, do: Process.sleep(:infinity)
   def cat_port, do: Port.open({:spawn, "cat"}, [:binary])
   def peer_node, do: @peer_node
+
+  # process_info answers even suspended or dirty-NIF processes; only starving the erpc worker stalls it.
+  def stall(ms) do
+    deadline = System.monotonic_time(:millisecond) + ms
+
+    for _ <- 1..System.schedulers_online() do
+      spawn(fn ->
+        Process.flag(:priority, :high)
+        spin(deadline)
+      end)
+    end
+
+    :ok
+  end
+
+  defp spin(deadline), do: if(System.monotonic_time(:millisecond) < deadline, do: spin(deadline))
 
   # The peer loads RelationsDemo.Remote from its compiled binary: this script is not on its code path.
   def start_peer(remote_beam) do
