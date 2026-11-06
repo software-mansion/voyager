@@ -9,6 +9,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   alias Phoenix.LiveView.AsyncResult
   alias Voyager.Services.SupervisionTree.TreeNode
   alias VoyagerWeb.Components.ProcessComponents
+  alias VoyagerWeb.Components.ProcessInfoComponents
   alias VoyagerWeb.Components.SupervisionTreeComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.ProcessInfoHelp
@@ -83,6 +84,10 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :node_type, :atom, required: true
   attr :off_tree?, :boolean, default: false
 
+  attr :off_node, :atom,
+    default: nil,
+    doc: "the node a pid lives on when it is not the inspected one"
+
   def node_type_label(assigns) do
     icons = SupervisionTreeComponents.node_icons()
 
@@ -103,6 +108,12 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       >
         Not in tree
       </span>
+      <.tooltip :if={@off_node} id={"#{@panel_id}-off-node"}>
+        <span tabindex="0" class="alert alert-warning cursor-help px-2 py-1 text-xs">
+          Not on node
+        </span>
+        <:content>node: {@off_node}</:content>
+      </.tooltip>
     </div>
     """
   end
@@ -230,13 +241,15 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :on_select, :string, required: true
   attr :on_toggle_relation, :string, required: true
   attr :target, :any, required: true
-  attr :remote_node, :atom, default: nil, doc: "forwarded to `overview/1`"
+  attr :remote_node, :atom, default: nil, doc: "pids on any other node get no process sections"
   attr :chips_disabled?, :boolean, default: false
 
   def body(assigns) do
+    pid = assigns.node.pid
+
     assigns =
       assigns
-      |> assign(:process?, is_pid(assigns.node.pid))
+      |> assign(:process?, is_pid(pid) and node(pid) == assigns.remote_node)
       |> assign(:info, failed_over_stale(assigns.info))
       |> assign(:relations_info, failed_over_stale(assigns.relations_info))
 
@@ -258,12 +271,16 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           on_select={@on_select}
           on_toggle_relation={@on_toggle_relation}
           target={@target}
+          remote_node={@remote_node}
           chips_disabled?={@chips_disabled?}
         />
         <.memory_and_garbage_collection info={@info} />
       <% else %>
-        <div class="alert alert-info">
-          <p>
+        <div id={"#{@panel_id}-no-process-info"} class="alert alert-info">
+          <p :if={is_pid(@node.pid)}>
+            This process runs on {node(@node.pid)}. Connect to that node to inspect it.
+          </p>
+          <p :if={not is_pid(@node.pid)}>
             This is not a process node, so no process information is available.
           </p>
         </div>
@@ -346,6 +363,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :on_select, :string, required: true
   attr :on_toggle_relation, :string, required: true
   attr :target, :any, required: true
+  attr :remote_node, :atom, default: nil, doc: "names registered here can be selected"
   attr :chips_disabled?, :boolean, default: false
 
   def relations(assigns) do
@@ -369,18 +387,24 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         <:failed :let={failure}>
           <.load_error failure={failure} />
         </:failed>
-        <.relation_list
-          id_prefix={"#{@panel_id}-#{slug}"}
-          toggle_id={"#{@panel_id}-toggle-#{slug}"}
-          relation={key}
-          items={Map.fetch!(relations, key).items}
-          total={Map.fetch!(relations, key).total}
-          expanded?={MapSet.member?(@expanded_relations, key)}
-          on_select={@on_select}
-          on_toggle={@on_toggle_relation}
-          target={@target}
-          chips_disabled?={@chips_disabled?}
-        />
+        <%= case Map.fetch!(relations, key) do %>
+          <% {:ok, bounded} -> %>
+            <.relation_list
+              id_prefix={"#{@panel_id}-#{slug}"}
+              toggle_id={"#{@panel_id}-toggle-#{slug}"}
+              relation={key}
+              items={bounded.items}
+              total={bounded.total}
+              expanded?={MapSet.member?(@expanded_relations, key)}
+              on_select={@on_select}
+              on_toggle={@on_toggle_relation}
+              target={@target}
+              remote_node={@remote_node}
+              chips_disabled?={@chips_disabled?}
+            />
+          <% {:error, reason} -> %>
+            <.load_error id={"#{@panel_id}-#{slug}-error"} failure={reason} />
+        <% end %>
       </.async_result>
     </.section>
     """
@@ -506,6 +530,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :on_select, :string, required: true
   attr :target, :any, required: true
   attr :disabled, :boolean, default: false
+  attr :kind, :atom, default: :pid, values: [:pid, :port, :reference]
 
   def chip(assigns) do
     ~H"""
@@ -520,17 +545,20 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       aria-label={"Select #{@label}"}
       class="border-base-content/70 bg-base-200 text-base-content inline-flex cursor-pointer rounded-md border px-2.5 py-1 text-xs transition-colors enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-wait disabled:opacity-50"
     >
-      <.display_pid pid={@label} />
+      <.display_pid :if={@kind == :pid} pid={@label} />
+      <.display_port :if={@kind == :port} port={@label} />
+      <.display_ref :if={@kind == :reference} ref={@label} />
     </button>
     """
   end
 
+  attr :id, :string, default: nil
   attr :failure, :any, default: nil
 
   @spec load_error(any()) :: Phoenix.LiveView.Rendered.t()
   def load_error(assigns) do
     ~H"""
-    <div class="alert alert-error border px-3 py-2.5 text-xs">
+    <div id={@id} class="alert alert-error border px-3 py-2.5 text-xs">
       <.icon name="icon-circle-alert" class="text-error size-4 shrink-0" />
       {load_error_message(@failure)}
     </div>
@@ -630,6 +658,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :on_select, :string, required: true
   attr :on_toggle, :string, required: true
   attr :target, :any, required: true
+  attr :remote_node, :atom, default: nil
   attr :chips_disabled?, :boolean, default: false
 
   defp relation_list(assigns) do
@@ -650,6 +679,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           :for={{item, index} <- Enum.with_index(@visible_items)}
           id={"#{@id_prefix}-#{index}"}
           item={item}
+          remote_node={@remote_node}
           on_select={@on_select}
           target={@target}
           disabled={@chips_disabled?}
@@ -678,33 +708,50 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :id, :string, required: true
   attr :item, :any, required: true
+  attr :remote_node, :atom, default: nil
   attr :on_select, :string, required: true
   attr :target, :any, required: true
   attr :disabled, :boolean, default: false
 
   defp relation_entry(assigns) do
-    if selectable_relation?(assigns.item) do
+    if selectable_relation?(assigns.item, assigns.remote_node) do
       ~H"""
       <.chip
         id={@id}
         label={format_identifier(@item)}
-        node_key={TreeNode.key(@item)}
+        kind={identifier_kind(@item)}
+        node_key={relation_key(@item)}
         on_select={@on_select}
         target={@target}
         disabled={@disabled}
       />
       """
     else
+      assigns =
+        assign(
+          assigns,
+          :entry,
+          SupervisionTreeComponents.monitor_entry(assigns.item, assigns.remote_node)
+        )
+
       ~H"""
-      <span
-        id={@id}
-        class="border-base-content/30 text-base-content/70 font-mono inline-flex rounded-md border px-2.5 py-1 text-xs"
-      >
-        {format_identifier(@item)}
-      </span>
+      <.link_tooltip id={@id} entry={@entry}>
+        <span
+          tabindex="0"
+          class="border-base-content/30 text-base-content/70 font-mono inline-flex cursor-help rounded-md border px-2.5 py-1 text-xs"
+        >
+          {@entry.label}
+        </span>
+        <:content>{@entry.text}</:content>
+      </.link_tooltip>
       """
     end
   end
+
+  defp identifier_kind(port) when is_port(port), do: :port
+  defp identifier_kind(ref) when is_reference(ref), do: :reference
+  defp identifier_kind({:port, _name}), do: :port
+  defp identifier_kind(_pid_or_name), do: :pid
 
   @doc """
   A single line of text with a copy button that appears on hover.
@@ -742,9 +789,17 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   def linkable_pid(_key, _info, _remote_node), do: nil
 
-  @doc "False for a monitor held by registered name (`{name, node}`), which has no tree node."
-  @spec selectable_relation?(term()) :: boolean()
-  def selectable_relation?(item), do: is_pid(item) or is_port(item) or is_reference(item)
+  @doc "A monitor by registered name is selectable only when the name lives on the tree's node."
+  @spec selectable_relation?(term(), node() | nil) :: boolean()
+  def selectable_relation?({_kind, {name, node}}, remote_node) when is_atom(name),
+    do: node == remote_node
+
+  def selectable_relation?(item, _remote_node),
+    do: is_pid(item) or is_port(item) or is_reference(item)
+
+  @spec relation_key(term()) :: String.t()
+  def relation_key({_kind, {_name, _node}} = monitor), do: inspect(monitor)
+  def relation_key(item), do: TreeNode.key(item)
 
   defp overview_value(:initial_call, info), do: Formatters.format_mfa(info.initial_call)
   defp overview_value(:current_function, info), do: Formatters.format_mfa(info.current_function)
@@ -808,8 +863,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp format_identifier(port) when is_port(port),
     do: port |> :erlang.port_to_list() |> List.to_string()
 
-  defp format_identifier({name, node}) when is_atom(name) and is_atom(node),
-    do: "#{Formatters.format_term(name)} on #{node}"
+  defp format_identifier({_kind, _target} = monitor),
+    do: SupervisionTreeComponents.monitor_label(monitor)
 
   defp format_identifier(other), do: Formatters.format_term(other)
 
@@ -823,7 +878,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp failed_over_stale(result), do: result
 
   defp relation_count(%AsyncResult{ok?: true, result: %{} = relations}, key),
-    do: "(#{Formatters.format_integer(Map.fetch!(relations, key).total)})"
+    do: relations |> Map.fetch!(key) |> ProcessInfoComponents.bounded_count()
 
   defp relation_count(_, _), do: nil
 end

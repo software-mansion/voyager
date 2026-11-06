@@ -437,9 +437,36 @@ defmodule VoyagerWeb.CoreComponents do
 
   def display_pid(assigns) do
     ~H"""
+    <.dotted dot_class="bg-primary">{Formatters.pid(@pid)}</.dotted>
+    """
+  end
+
+  @doc "A port's string form, marked with a port-coloured dot."
+  attr :port, :string, required: true
+
+  def display_port(assigns) do
+    ~H"""
+    <.dotted dot_class="bg-port">{@port}</.dotted>
+    """
+  end
+
+  @doc "A reference's string form, marked with a success dot."
+  attr :ref, :string, required: true
+
+  def display_ref(assigns) do
+    ~H"""
+    <.dotted dot_class="bg-success">{@ref}</.dotted>
+    """
+  end
+
+  attr :dot_class, :string, required: true
+  slot :inner_block, required: true
+
+  defp dotted(assigns) do
+    ~H"""
     <span class="font-mono inline-flex items-center gap-1.5">
-      <span class="bg-primary h-1.5 w-1.5 shrink-0 rounded-full" />
-      {Formatters.pid(@pid)}
+      <span class={["h-1.5 w-1.5 shrink-0 rounded-full", @dot_class]} />
+      {render_slot(@inner_block)}
     </span>
     """
   end
