@@ -11,6 +11,7 @@ defmodule VoyagerWeb.TracingSessionLive do
   alias Voyager.Services.Tracer.Session
   alias VoyagerWeb.Components.TracingComponents
   alias VoyagerWeb.Formatters
+  alias VoyagerWeb.TracingSessionLive.Stats
 
   @actions [:stop, :start, :load, :unload, :delete]
 
@@ -25,6 +26,7 @@ defmodule VoyagerWeb.TracingSessionLive do
         |> assign(:trace_session, AsyncResult.loading())
         |> assign(:pending, nil)
         |> assign(:confirm, nil)
+        |> Stats.init()
         |> subscribe_and_load()
         |> ok()
 
@@ -54,6 +56,7 @@ defmodule VoyagerWeb.TracingSessionLive do
           mode={@mode}
           pending?={@pending != nil}
           sessions_path={sessions_path(@session)}
+          stats={stats(trace_session, assigns)}
           on_stop="stop"
           on_start="start"
           on_load="load"
@@ -261,9 +264,12 @@ defmodule VoyagerWeb.TracingSessionLive do
   defp gone(socket), do: load(socket)
 
   defp put_session(socket, session, mode) do
+    shown = socket.assigns.trace_session.result
+
     socket
     |> assign(:trace_session, AsyncResult.ok(session))
     |> assign(:mode, mode)
+    |> Stats.track(shown, session)
   end
 
   defp run(socket, name, fun) do
@@ -279,6 +285,11 @@ defmodule VoyagerWeb.TracingSessionLive do
   end
 
   defp sessions_path(%{node_name: node_name}), do: ~p"/node/#{node_name}/tracing"
+
+  defp stats(%Session{run_started_at: nil}, _assigns), do: []
+
+  defp stats(session, %{rates: rates, now: now, storage_limit_mb: limit_mb}),
+    do: Stats.cells(session, rates, now, limit_mb)
 
   defp format_error(:busy), do: "A tracing session is running. Stop it first."
   defp format_error(:not_found), do: "No such tracing session."

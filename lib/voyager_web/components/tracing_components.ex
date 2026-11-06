@@ -180,6 +180,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
   attr :mode, :atom, required: true
   attr :pending?, :boolean, required: true
   attr :sessions_path, :string, required: true
+  attr :stats, :list, default: []
   attr :on_stop, :string, required: true
   attr :on_start, :string, required: true
   attr :on_load, :string, required: true
@@ -339,6 +340,73 @@ defmodule VoyagerWeb.Components.TracingComponents do
             <:content>Delete session</:content>
           </.tooltip>
         </div>
+      </div>
+      <div
+        :if={@stats != []}
+        id="session-stats"
+        class="bg-base-200 border-base-200 rounded-b-box grid grid-cols-2 gap-px overflow-hidden border-t lg:grid-cols-5"
+      >
+        <div
+          :for={cell <- @stats}
+          id={"stat-#{cell.key}"}
+          class="bg-base-100 min-w-0 px-5 py-3 last:col-span-2 lg:last:col-span-1"
+        >
+          <div class="font-mono tracking-label text-base-content/60 mb-1 text-xs font-semibold uppercase">
+            {cell.label}
+          </div>
+          <.tooltip :if={cell[:tip]} id={"stat-#{cell.key}-tip"} position="bottom" class="w-full">
+            <.stat_value cell={cell} />
+            <:content>
+              <span :if={is_binary(cell.tip)}>{cell.tip}</span>
+              <table :if={is_list(cell.tip)} class="font-mono">
+                <tr :for={{label, value} <- cell.tip}>
+                  <td class="text-base-content/60 py-0.5 pr-4">{label}</td>
+                  <td class="py-0.5 text-right">{value}</td>
+                </tr>
+              </table>
+            </:content>
+          </.tooltip>
+          <.stat_value :if={!cell[:tip]} cell={cell} />
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  attr :cell, :map, required: true
+
+  defp stat_value(assigns) do
+    ~H"""
+    <div class="w-full">
+      <div class="min-h-6 flex items-baseline gap-1.5">
+        <span class={[
+          "truncate text-base font-semibold",
+          !@cell[:prose] && "font-mono tabular-nums",
+          @cell[:tone]
+        ]}>
+          {@cell.value}
+        </span>
+        <span :if={@cell[:unit]} class="font-mono text-base-content/60 shrink-0 text-xs">
+          {@cell.unit}
+        </span>
+        <span
+          :if={@cell[:spark]}
+          aria-hidden="true"
+          class="ml-auto flex h-5 items-end gap-0.5 self-center"
+        >
+          <span
+            :for={height <- @cell.spark}
+            class="bg-primary w-0.75 rounded-xs opacity-55 last:opacity-100"
+            style={"height: #{height}%"}
+          ></span>
+        </span>
+      </div>
+      <div :if={@cell[:bar]} class="bg-base-content/10 mt-2 flex h-1 overflow-hidden rounded-full">
+        <span
+          :for={{fill, width} <- @cell.bar}
+          class={["block h-full transition-all duration-700", fill]}
+          style={"width: #{width}%"}
+        ></span>
       </div>
     </div>
     """
