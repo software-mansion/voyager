@@ -397,17 +397,17 @@ defmodule Voyager.Services.TracerTest do
         assert {:ok, %{entries: [^polish], total: 1}} = Tracer.search(id, "ŻÓŁw")
       end
 
-      test "pages newest first with a stable total, over trace rows only", %{save: save} do
+      test "pages newest first, over trace rows only, counting on the first page", %{save: save} do
         {id, [a, b, c, _other]} = searchable(save, ["needle a", "needle b", "needle c", "other"])
         assert :ok = Tracer.stop(:ui)
         assert_receive {:session_entries, _session, [%{kind: :stopped}]}
 
         assert {:ok, %{entries: [^c, ^b], total: 3}} = Tracer.search(id, "needle", limit: 2)
 
-        assert {:ok, %{entries: [^a], total: 3}} =
+        assert {:ok, %{entries: [^a], total: nil}} =
                  Tracer.search(id, "needle", before: b.seq, limit: 2)
 
-        assert {:ok, %{entries: [], total: 3}} = Tracer.search(id, "needle", before: a.seq)
+        assert {:ok, %{entries: [], total: nil}} = Tracer.search(id, "needle", before: a.seq)
         assert {:ok, %{total: 4}} = Tracer.search(id, "")
       end
 

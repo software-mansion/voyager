@@ -164,7 +164,7 @@ defmodule Voyager.Services.Tracer do
   def session(id) when is_integer(id) do
     case active() do
       %Session{id: ^id} = session -> {:ok, session, :active}
-      _other -> saved(id)
+      _other -> with_saved(id, &{:ok, saved_session(&1), :saved})
     end
   end
 
@@ -194,8 +194,13 @@ defmodule Voyager.Services.Tracer do
     Enum.each(opts, fn {key, value} -> validate_entries_opt!(key, value) end)
 
     case GenServer.call(__MODULE__, {:entries, id, opts}) do
-      :saved -> saved_entries(id, opts)
-      reply -> reply
+      :saved ->
+        with_saved(id, fn _row ->
+          {:ok, %{entries: TraceEntryQueries.page(id, opts), truncated?: false}}
+        end)
+
+      reply ->
+        reply
     end
   end
 
@@ -203,17 +208,17 @@ defmodule Voyager.Services.Tracer do
   Up to `:limit` (default 100) trace entries of session `id` containing `query`, ignoring ASCII
   case, with `seq` below `:before`, newest first. Runs in the caller. A saved session searches
   all its traces, an unsaved one its newest #{@kept_traces} entries. `total` counts every match,
-  whatever `:before` is. Raises `ArgumentError` on an unknown option or a bad value.
+  and is nil once `:before` is given. Raises `ArgumentError` on an unknown option or a bad value.
   """
   @spec search(integer(), String.t(), before: non_neg_integer(), limit: pos_integer()) ::
-          {:ok, %{entries: [Entry.t()], total: non_neg_integer()}} | {:error, :not_found}
+          {:ok, %{entries: [Entry.t()], total: non_neg_integer() | nil}} | {:error, :not_found}
   def search(id, query, opts \\ []) do
     opts = Keyword.validate!(opts, [:before, limit: 100])
     Enum.each(opts, fn {key, value} -> validate_entries_opt!(key, value) end)
     query = Search.query(query)
 
     if id > 0 do
-      search_saved(id, query, opts)
+      with_saved(id, fn _row -> {:ok, TraceEntryQueries.search(id, query, opts)} end)
     else
       with {:ok, %{entries: entries}} <- entries(id, limit: @kept_traces),
            do: {:ok, Search.filter(entries, query, opts)}
@@ -381,14 +386,6 @@ defmodule Voyager.Services.Tracer do
 
   defp resolve_pids(node, config), do: Voyager.Pid.resolve_all(node, config.pids)
 
-  defp search_saved(id, query, opts) do
-    Writer.flush()
-
-    if TraceSessionQueries.get(id),
-      do: {:ok, TraceEntryQueries.search(id, query, opts)},
-      else: {:error, :not_found}
-  end
-
   defp start_failed(reason, origin) do
     Voyager.Telemetry.dispatch!("voyager.trace.start_failed",
       metadata: %{origin: origin, reason: reason}
@@ -410,14 +407,6 @@ defmodule Voyager.Services.Tracer do
   defp validate_entries_opt!(key, value),
     do: raise(ArgumentError, "invalid #{inspect(key)} option: #{inspect(value)}")
 
-  defp saved_entries(id, opts) do
-    Writer.flush()
-
-    if TraceSessionQueries.get(id),
-      do: {:ok, %{entries: TraceEntryQueries.page(id, opts), truncated?: false}},
-      else: {:error, :not_found}
-  end
-
   defp new_session(origin, save) do
     id = new_session_id(origin, save)
 
@@ -437,12 +426,12 @@ defmodule Voyager.Services.Tracer do
 
   defp new_session_id(_origin, false), do: -System.unique_integer([:positive])
 
-  defp saved(id) do
+  defp with_saved(id, fun) do
     Writer.flush()
 
     case TraceSessionQueries.get(id) do
       nil -> {:error, :not_found}
-      row -> {:ok, saved_session(row), :saved}
+      row -> fun.(row)
     end
   end
 

@@ -28,10 +28,10 @@ defmodule Voyager.Services.Tracer.Search do
 
   @doc """
   The trace entries containing `query`, ignoring ASCII case, with `seq` below `:before`,
-  up to `:limit` of them; `total` counts every match whatever `:before` is.
+  up to `:limit` of them; `total` counts every match, and is nil once `:before` is given.
   """
   @spec filter([Entry.t()], String.t(), before: non_neg_integer(), limit: pos_integer()) ::
-          %{entries: [Entry.t()], total: non_neg_integer()}
+          %{entries: [Entry.t()], total: non_neg_integer() | nil}
   def filter(entries, query, opts) do
     query = String.downcase(query, :ascii)
 
@@ -49,7 +49,7 @@ defmodule Voyager.Services.Tracer.Search do
       |> Enum.drop_while(&(opts[:before] && &1.seq >= opts[:before]))
       |> Enum.take(opts[:limit])
 
-    %{entries: page, total: length(matches)}
+    %{entries: page, total: if(opts[:before], do: nil, else: length(matches))}
   end
 
   defp inspect_term(term),

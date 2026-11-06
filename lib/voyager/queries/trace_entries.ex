@@ -43,9 +43,10 @@ defmodule Voyager.Queries.TraceEntries do
 
   @doc """
   Up to `:limit` trace entries containing `query`, ignoring ASCII case, with `seq` below `:before`,
-  newest first, and the `total` of matches in the session whatever `:before` is.
+  newest first, and the `total` of matches in the session, nil once `:before` is given.
   """
-  @spec search(integer(), String.t(), keyword()) :: %{entries: [map()], total: non_neg_integer()}
+  @spec search(integer(), String.t(), keyword()) ::
+          %{entries: [map()], total: non_neg_integer() | nil}
   def search(session_id, query, opts) do
     pattern = "%" <> String.replace(query, ["\\", "%", "_"], &("\\" <> &1)) <> "%"
 
@@ -55,7 +56,8 @@ defmodule Voyager.Queries.TraceEntries do
           e.session_id == ^session_id and
             fragment("? LIKE ? ESCAPE '\\'", e.search_text, ^pattern)
 
-    %{entries: window(matches, session_id, opts), total: Repo.aggregate(matches, :count)}
+    total = if opts[:before], do: nil, else: Repo.aggregate(matches, :count)
+    %{entries: window(matches, session_id, opts), total: total}
   end
 
   @doc "How many traces were saved before the session's last `:started` entry; 0 if it never started."

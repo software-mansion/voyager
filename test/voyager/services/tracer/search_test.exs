@@ -59,14 +59,14 @@ defmodule Voyager.Services.Tracer.SearchTest do
       assert %{entries: [%{seq: 3}], total: 1} = Search.filter(entries, "LO C", limit: 10)
     end
 
-    test "pages below :before with the total of every match", %{entries: entries} do
+    test "pages below :before, counting every match on the first page", %{entries: entries} do
       assert %{entries: [%{seq: 3}, %{seq: 1}], total: 3} =
                Search.filter(entries, "hello", limit: 2)
 
-      assert %{entries: [%{seq: 1}, %{seq: 0}], total: 3} =
+      assert %{entries: [%{seq: 1}, %{seq: 0}], total: nil} =
                Search.filter(entries, "hello", before: 3, limit: 2)
 
-      assert %{entries: [], total: 3} = Search.filter(entries, "hello", before: 0, limit: 2)
+      assert %{entries: [], total: nil} = Search.filter(entries, "hello", before: 0, limit: 2)
     end
   end
 
