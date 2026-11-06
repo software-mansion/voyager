@@ -18,6 +18,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   # No point fetching more relations than the panel can ever render.
   @relations_limit max_expanded_relations()
   @relation_names ~w(links monitors monitored_by)
+  @fetch_keys [:node_info, :relations]
 
   # A fetch resolving in a few ms flashes the skeleton for a frame; hold it. Zeroed in test.
   @min_fetch_ms Application.compile_env(:voyager, :min_fetch_ms, 300)
@@ -32,6 +33,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(:selection_history, [])
     |> assign(:node_info, AsyncResult.loading())
     |> assign(:relations, AsyncResult.loading())
+    |> assign(:fetched_at, nil)
     |> ok()
   end
 
@@ -112,7 +114,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   def handle_event("refresh-node-info", _params, socket) do
     socket
-    |> fetch_details(true)
+    |> fetch_details()
     |> noreply()
   end
 
@@ -128,6 +130,12 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   def handle_async(:resolve_name, result, socket) do
     Logger.warning("Failed to resolve a monitored name: #{inspect(result)}")
     {:noreply, socket}
+  end
+
+  def handle_async(key, result, socket) when key in @fetch_keys do
+    socket
+    |> settle_fetch(key, Map.fetch!(socket.assigns, key), result)
+    |> noreply()
   end
 
   @impl true
@@ -157,6 +165,14 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
             <.node_label panel_id={@id} node={@node} />
           </div>
           <div class="flex shrink-0 items-center gap-1.5">
+            <span
+              :if={@fetched_at}
+              id={"#{@id}-fetched-at"}
+              title={"Last fetched at #{Formatters.format_time(@fetched_at)} UTC"}
+              class="font-mono text-base-content/70 text-xs"
+            >
+              {Formatters.format_time(@fetched_at)}
+            </span>
             <.back_button
               :if={@selection_history != []}
               panel_id={@id}
@@ -209,16 +225,26 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(:selection_history, [])
   end
 
-  # A tree refresh of the shown process keeps its data on screen until the refetch lands.
+  # Tree refreshes re-send the shown process; only the refresh button refetches it.
   defp maybe_assign_node(socket, node, keep_history?) do
     history = if keep_history?, do: socket.assigns.selection_history, else: []
-    showing? = socket.assigns.open? and same_process?(socket.assigns.node, node)
-    expanded = if showing?, do: socket.assigns.expanded_relations, else: MapSet.new()
-    socket = if showing?, do: socket, else: cancel_async(socket, :resolve_name)
 
-    socket
-    |> assign(open?: true, node: node, selection_history: history, expanded_relations: expanded)
-    |> fetch_details(not showing?)
+    if socket.assigns.open? and same_process?(socket.assigns.node, node) do
+      assign(socket, node: node, selection_history: history)
+    else
+      socket
+      |> cancel_async(:resolve_name)
+      |> assign(
+        open?: true,
+        node: node,
+        selection_history: history,
+        expanded_relations: MapSet.new(),
+        node_info: AsyncResult.loading(),
+        relations: AsyncResult.loading(),
+        fetched_at: nil
+      )
+      |> fetch_details()
+    end
   end
 
   defp off_node(%TreeNode{pid: pid}, remote_node) when is_pid(pid) and node(pid) != remote_node,
@@ -236,31 +262,44 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   defp push_history(socket), do: socket
 
-  defp fetch_details(
-         %{assigns: %{node: %TreeNode{pid: pid}, remote_node: remote_node}} = socket,
-         reset?
-       )
+  defp fetch_details(%{assigns: %{node: %TreeNode{pid: pid}, remote_node: remote_node}} = socket)
        when is_pid(pid) and node(pid) == remote_node do
     timeout = Query.default_timeout()
 
     socket
-    |> assign_async(
-      :node_info,
-      fn -> hold_min_duration(fn -> fetch_node_info(remote_node, pid, timeout) end) end,
-      reset: reset?
-    )
-    |> assign_async(
-      :relations,
-      fn -> hold_min_duration(fn -> fetch_relations(remote_node, pid, timeout) end) end,
-      reset: reset?
-    )
+    |> assign(:node_info, AsyncResult.loading(socket.assigns.node_info))
+    |> assign(:relations, AsyncResult.loading(socket.assigns.relations))
+    |> start_async(:node_info, fn ->
+      hold_min_duration(fn -> fetch_node_info(remote_node, pid, timeout) end)
+    end)
+    |> start_async(:relations, fn ->
+      hold_min_duration(fn -> fetch_relations(remote_node, pid, timeout) end)
+    end)
   end
 
   # Nothing to fetch for apps, ports, references and pids of other nodes: settle the
   # async assigns so the body never shows a load state it will not leave.
-  defp fetch_details(socket, _reset?) do
+  defp fetch_details(socket) do
     assign(socket, node_info: AsyncResult.ok(nil), relations: AsyncResult.ok(nil))
   end
+
+  # A result for a fetch no longer loading belongs to a process the panel has moved off.
+  defp settle_fetch(socket, _key, %AsyncResult{loading: nil}, _result), do: socket
+
+  defp settle_fetch(socket, key, current, {:ok, {:ok, value}}),
+    do: assign(socket, [{key, AsyncResult.ok(current, value)}, fetched_at: DateTime.utc_now()])
+
+  # A failed refetch keeps the shown data, so only the flash reports it.
+  defp settle_fetch(socket, key, current, failure) do
+    socket = assign(socket, key, AsyncResult.failed(current, fetch_failure(failure)))
+
+    if current.ok?,
+      do: push_flash(socket, :error, "Could not refetch process details."),
+      else: socket
+  end
+
+  defp fetch_failure({:ok, error}), do: error
+  defp fetch_failure(exit), do: exit
 
   defp hold_min_duration(fetch) do
     started = System.monotonic_time(:millisecond)
@@ -275,14 +314,14 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   defp fetch_node_info(remote_node, pid, timeout) do
     with {:ok, info, _elapsed_ms} <- Query.overview(remote_node, pid, timeout) do
-      {:ok, %{node_info: info}}
+      {:ok, info}
     end
   end
 
   defp fetch_relations(remote_node, pid, timeout) do
     with {:ok, relations, _elapsed_ms} <-
            Query.relations(remote_node, pid, @relations_limit, timeout) do
-      {:ok, %{relations: Map.update!(relations, :monitors, &monitor_targets/1)}}
+      {:ok, Map.update!(relations, :monitors, &monitor_targets/1)}
     end
   end
 

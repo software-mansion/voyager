@@ -247,11 +247,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   def body(assigns) do
     pid = assigns.node.pid
 
-    assigns =
-      assigns
-      |> assign(:process?, is_pid(pid) and node(pid) == assigns.remote_node)
-      |> assign(:info, failed_over_stale(assigns.info))
-      |> assign(:relations_info, failed_over_stale(assigns.relations_info))
+    assigns = assign(assigns, :process?, is_pid(pid) and node(pid) == assigns.remote_node)
 
     ~H"""
     <div class="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
@@ -568,7 +564,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp load_error_message({:error, reason}), do: load_error_message(reason)
   defp load_error_message(:rate_limited), do: "Too many requests. Wait a moment and refresh."
 
-  defp load_error_message(_failure), do: "Failed to load node details."
+  defp load_error_message(_failure), do: "Could not fetch process details."
 
   attr :label, :string, required: true
   attr :help, :map, default: nil
@@ -870,12 +866,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   defp node_pid_string(%TreeNode{pid: pid}) when is_pid(pid), do: format_identifier(pid)
   defp node_pid_string(_), do: nil
-
-  # A failed non-reset assign_async keeps ok?: true, which hides the <:failed> slot.
-  defp failed_over_stale(%AsyncResult{failed: failed} = result) when not is_nil(failed),
-    do: %{result | ok?: false}
-
-  defp failed_over_stale(result), do: result
 
   defp relation_count(%AsyncResult{ok?: true, result: %{} = relations}, key),
     do: relations |> Map.fetch!(key) |> ProcessInfoComponents.bounded_count()
