@@ -5,7 +5,6 @@ defmodule Voyager.Services.SSH.OpensshKey do
 
   @begin "-----BEGIN OPENSSH PRIVATE KEY-----"
   @end_marker "-----END OPENSSH PRIVATE KEY-----"
-  # rounds is a uint32 in the key file; 0xFFFFFFFF keeps the decode task in bcrypt for hours.
   @max_rounds 1_000
 
   defguard is_openssh_pem(pem)
