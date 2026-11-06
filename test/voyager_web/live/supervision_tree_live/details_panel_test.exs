@@ -682,6 +682,38 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       refute has_element?(view, "#details-panel-links-0")
     end
 
+    test "a failed tree refresh refetch replaces the shown details with the error", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      link_pids: link_pids,
+      sup_key: sup_key
+    } do
+      linked = start_supervised!({Agent, fn -> [port] end})
+
+      stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args, _timeout ->
+        supervision_reply(mod, fun, args, sup_pid, Agent.get(linked, & &1), link_pids)
+      end)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      assert has_element?(view, "#details-panel", "1,234")
+
+      start_supervised!({RateLimiter, name: EmptyBucket, config: %{high_capacity: 0}})
+      Application.put_env(:voyager, :rate_limiter, EmptyBucket)
+      on_exit(fn -> Application.delete_env(:voyager, :rate_limiter) end)
+
+      Agent.update(linked, fn _ -> [] end)
+      view |> element("#refresh-interval-refresh-now-button") |> render_click()
+      await_tree_ok(view)
+      render_async(view)
+
+      assert has_element?(view, "#details-panel", "Too many requests.")
+      refute has_element?(view, "#details-panel", "1,234")
+    end
+
     test "closes the details panel when the selected node disappears on refresh", %{
       conn: conn,
       sup_pid: sup_pid,

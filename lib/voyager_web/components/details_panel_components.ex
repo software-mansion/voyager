@@ -234,7 +234,11 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :chips_disabled?, :boolean, default: false
 
   def body(assigns) do
-    assigns = assign(assigns, :process?, is_pid(assigns.node.pid))
+    assigns =
+      assigns
+      |> assign(:process?, is_pid(assigns.node.pid))
+      |> assign(:info, failed_over_stale(assigns.info))
+      |> assign(:relations_info, failed_over_stale(assigns.relations_info))
 
     ~H"""
     <div class="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-4">
@@ -811,6 +815,12 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   defp node_pid_string(%TreeNode{pid: pid}) when is_pid(pid), do: format_identifier(pid)
   defp node_pid_string(_), do: nil
+
+  # A failed non-reset assign_async keeps ok?: true, which hides the <:failed> slot.
+  defp failed_over_stale(%AsyncResult{failed: failed} = result) when not is_nil(failed),
+    do: %{result | ok?: false}
+
+  defp failed_over_stale(result), do: result
 
   defp relation_count(%AsyncResult{ok?: true, result: %{} = relations}, key),
     do: "(#{Formatters.format_integer(Map.fetch!(relations, key).total)})"
