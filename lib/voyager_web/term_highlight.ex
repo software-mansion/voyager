@@ -13,14 +13,14 @@ defmodule VoyagerWeb.TermHighlight do
 
   A `nil` syntax skips the tokeniser and kinds every part `nil`. Marks are the
   ASCII-case-insensitive occurrences of `query`; a mark crossing a token's edge is split so
-  each part keeps one kind. No query marks nothing.
+  each part keeps one kind. A `nil` or empty query marks nothing.
   """
   @spec parts(String.t(), :elixir | :erlang | nil, String.t() | nil) :: [part()]
   def parts(text, syntax, query \\ nil) do
     marks =
-      if query,
-        do: :binary.matches(String.downcase(text, :ascii), String.downcase(query, :ascii)),
-        else: []
+      if query in [nil, ""],
+        do: [],
+        else: :binary.matches(String.downcase(text, :ascii), String.downcase(query, :ascii))
 
     segments = if syntax, do: segments(text, syntax), else: [{nil, 0, byte_size(text)}]
     Enum.flat_map(segments, &segment_parts(text, &1, marks))

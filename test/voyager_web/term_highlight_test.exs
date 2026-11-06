@@ -57,6 +57,7 @@ defmodule VoyagerWeb.TermHighlightTest do
 
     refute Enum.any?(parts, fn {_kind, marked?, _text} -> marked? end)
     assert Enum.map_join(parts, &elem(&1, 2)) == ~s({:ok, "ok"})
+    assert TermHighlight.parts(~s({:ok, "ok"}), :elixir, "") == parts
   end
 
   test "keeps the text whole and unkinded without a syntax" do

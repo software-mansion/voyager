@@ -10,6 +10,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Session
   alias VoyagerWeb.Formatters
+  alias VoyagerWeb.TermFormatter
 
   @spec tone(Session.t(), node() | nil) :: :running | :other_node | :failed | :open
   def tone(session, connected_node \\ nil)
@@ -91,18 +92,13 @@ defmodule VoyagerWeb.Components.TracingComponents do
   end
 
   @spec traced_mfa(Config.t()) :: String.t()
-  def traced_mfa(config) do
-    {module, function} = traced_mfa_parts(config)
-    module <> function
-  end
+  def traced_mfa(%Config{module: module, function: function, arity: arity}),
+    do: TermFormatter.format_mfa_pattern(module, function, arity)
 
-  @doc "`traced_mfa/1` split into the module with its dot and the `function/arity`."
+  @doc "`traced_mfa/1` split into the module with its separator and the `function/arity`."
   @spec traced_mfa_parts(Config.t()) :: {String.t(), String.t()}
   def traced_mfa_parts(%Config{module: module, function: function, arity: arity}),
-    do: {format_module(module) <> ".", "#{function}/#{arity || "_"}"}
-
-  defp format_module("Elixir." <> module), do: module
-  defp format_module(module), do: ":" <> module
+    do: TermFormatter.mfa_pattern_parts(module, function, arity)
 
   @spec config_chips(Config.t()) :: [{atom(), String.t(), String.t()}]
   def config_chips(%Config{} = config) do
