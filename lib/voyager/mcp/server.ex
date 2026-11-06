@@ -20,6 +20,7 @@ defmodule Voyager.MCP.Server do
   component(Voyager.MCP.Tools.TraceHistory)
   component(Voyager.MCP.Tools.TraceStart)
   component(Voyager.MCP.Tools.TraceStop)
+  component(Voyager.MCP.Tools.TraceWatch)
 
   @impl true
   def init(_client_info, frame), do: {:ok, frame}
