@@ -16,6 +16,14 @@ defmodule Voyager.Services.SSH.Config do
 
   @type result :: %{hosts: [host()], unsupported: [unsupported()]}
 
+  @type connect_fields :: %{
+          ssh_host: String.t(),
+          ssh_user: String.t() | nil,
+          ssh_port: :inet.port_number(),
+          key_path: Path.t() | nil,
+          agent_socket_path: Path.t() | nil
+        }
+
   @max_include_depth 16
   @bad_include {:problem, "include", :value}
   @every_host_header {:header, ["*"]}
@@ -34,6 +42,17 @@ defmodule Voyager.Services.SSH.Config do
   @spec config_path(String.t() | nil) :: Path.t()
   def config_path(path) when path in [nil, ""], do: "~/.ssh/config"
   def config_path(path), do: path
+
+  @spec connect_fields(host()) :: connect_fields()
+  def connect_fields(host) do
+    %{
+      ssh_host: host.host_name || host.alias,
+      ssh_user: host.user,
+      ssh_port: host.port || 22,
+      key_path: List.first(host.identity_files),
+      agent_socket_path: if(is_binary(host.identity_agent), do: host.identity_agent)
+    }
+  end
 
   @spec read(Path.t()) :: {:ok, result()} | {:error, {:read_failed, {Path.t(), File.posix()}}}
   def read(path \\ "~/.ssh/config") do

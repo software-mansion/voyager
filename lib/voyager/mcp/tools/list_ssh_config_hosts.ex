@@ -42,17 +42,5 @@ defmodule Voyager.MCP.Tools.ListSshConfigHosts do
     {:reply, response, frame}
   end
 
-  defp row(host) do
-    %{
-      alias: host.alias,
-      ssh_host: host.host_name || host.alias,
-      ssh_user: host.user,
-      ssh_port: host.port || 22,
-      key_path: List.first(host.identity_files),
-      agent_socket_path: agent_socket_path(host.identity_agent)
-    }
-  end
-
-  defp agent_socket_path(:none), do: nil
-  defp agent_socket_path(path), do: path
+  defp row(host), do: Map.put(Config.connect_fields(host), :alias, host.alias)
 end
