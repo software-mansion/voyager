@@ -434,6 +434,7 @@ defmodule VoyagerWeb.ConnectComponents do
   attr :id, :string, required: true
   attr :host, :string, required: true, doc: "`user@host:port` being connected to"
   attr :mismatch, :map, required: true, doc: "A `t:Voyager.Services.SSH.KnownHosts.mismatch/0`"
+  attr :remove_error, :string, default: nil
   attr :target, :any, default: nil
   attr :on_remove, :string, required: true
   attr :on_dismiss, :string, required: true
@@ -499,6 +500,16 @@ defmodule VoyagerWeb.ConnectComponents do
           value={"ssh-keygen -f #{shell_quote(@mismatch.file)} -R #{shell_quote(@mismatch.host)}"}
           label="Copy command"
         />
+
+        <div
+          :if={@remove_error}
+          id={"#{@id}-remove-error"}
+          role="alert"
+          class="alert alert-error mt-4 text-sm"
+        >
+          <.icon name="icon-circle-alert" class="size-4 shrink-0" />
+          <span>{@remove_error}</span>
+        </div>
 
         <div class="modal-action">
           <button

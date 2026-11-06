@@ -133,6 +133,62 @@ defmodule VoyagerWeb.ConnectLiveSshHostKeyTest do
     assert view |> element("#ssh-host-key-modal-fingerprint") |> render() =~ server.fingerprint
   end
 
+  test "keeps the dialog open when the old key can't be removed", %{
+    conn: conn,
+    server: server,
+    known_hosts: known_hosts
+  } do
+    write_other_key!(known_hosts, server)
+    File.chmod!(known_hosts, 0o400)
+    on_exit(fn -> File.chmod(known_hosts, 0o600) end)
+    before = File.read!(known_hosts)
+
+    {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
+    submit_connect(view, server)
+
+    view |> element("#ssh-host-key-changed-modal-remove") |> render_click()
+
+    assert has_element?(view, "#ssh-host-key-changed-modal-remove")
+
+    assert text(view, "#ssh-host-key-changed-modal-remove-error") ==
+             "Couldn't remove the old key from #{known_hosts} — check its permissions"
+
+    html = render(view)
+    assert html =~ "SSH host key changed"
+    refute html =~ "Can't save the host key"
+    assert File.read!(known_hosts) == before
+
+    view |> element("#ssh-host-key-changed-modal-dismiss") |> render_click()
+    refute has_element?(view, "#ssh-host-key-changed-modal")
+
+    submit_connect(view, server)
+    assert has_element?(view, "#ssh-host-key-changed-modal-remove")
+    refute has_element?(view, "#ssh-host-key-changed-modal-remove-error")
+  end
+
+  test "keeps the dialog open when the old key can't be read", %{
+    conn: conn,
+    server: server,
+    known_hosts: known_hosts
+  } do
+    write_other_key!(known_hosts, server)
+    on_exit(fn -> File.chmod(known_hosts, 0o600) end)
+
+    {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
+    submit_connect(view, server)
+    File.chmod!(known_hosts, 0o000)
+
+    view |> element("#ssh-host-key-changed-modal-remove") |> render_click()
+
+    assert has_element?(view, "#ssh-host-key-changed-modal-remove")
+
+    assert text(view, "#ssh-host-key-changed-modal-remove-error") ==
+             "Couldn't remove the old key — can't read #{known_hosts}"
+
+    refute render(view) =~ "Can't save the host key"
+    assert File.exists?(known_hosts)
+  end
+
   test "shows the ssh-keygen command for a changed key in another file", %{
     conn: conn,
     server: server,

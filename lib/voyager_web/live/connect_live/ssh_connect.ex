@@ -35,6 +35,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     |> assign(:connect_params, nil)
     |> assign(:host_key_prompt, nil)
     |> assign(:host_key_mismatch, nil)
+    |> assign(:host_key_remove_error, nil)
     |> ok()
   end
 
@@ -280,6 +281,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         id={"#{@id_prefix}host-key-changed-modal"}
         host={"#{@connect_params.ssh_user}@#{host_with_port(@connect_params)}"}
         mismatch={@host_key_mismatch}
+        remove_error={@host_key_remove_error}
         target={@myself}
         on_remove="remove_host_key"
         on_dismiss="dismiss_host_key_mismatch"
@@ -400,24 +402,24 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         _params,
         %{assigns: %{host_key_mismatch: %{removable: true} = mismatch}} = socket
       ) do
-    socket = assign(socket, :host_key_mismatch, nil)
-
     case KnownHosts.forget(mismatch.host) do
       :ok ->
         socket
+        |> assign(:host_key_mismatch, nil)
+        |> assign(:host_key_remove_error, nil)
         |> assign(:ssh_form, KeyAuth.checked_form(form_changeset(socket)))
         |> start_connect(socket.assigns.connect_params)
         |> noreply()
 
       {:error, reason} ->
-        {:noreply, put_connect_error(socket, reason)}
+        {:noreply, assign(socket, :host_key_remove_error, remove_error(reason))}
     end
   end
 
   def handle_event("remove_host_key", _params, socket), do: {:noreply, socket}
 
   def handle_event("dismiss_host_key_mismatch", _params, socket) do
-    {:noreply, assign(socket, :host_key_mismatch, nil)}
+    {:noreply, assign(socket, host_key_mismatch: nil, host_key_remove_error: nil)}
   end
 
   def handle_event("fill_ssh_recent", _params, %{assigns: %{disabled?: true}} = socket) do
@@ -444,6 +446,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     socket
     |> put_connect_error(reason)
     |> assign(:host_key_mismatch, mismatch)
+    |> assign(:host_key_remove_error, nil)
     |> noreply()
   end
 
@@ -554,6 +557,12 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   defp prefill_form(nil), do: empty_ssh_form()
 
   defp form_changeset(socket), do: SshConnectionParams.changeset(socket.assigns.ssh_form.params)
+
+  defp remove_error({:known_hosts_unwritable, file}),
+    do: "Couldn't remove the old key from #{file} — check its permissions"
+
+  defp remove_error({:known_hosts_unreadable, file}),
+    do: "Couldn't remove the old key — can't read #{file}"
 
   defp put_connect_error(socket, reason) do
     form =
