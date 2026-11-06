@@ -3,9 +3,10 @@
 %% Every function returns the atom ok; erl_call prints it and the tests assert on it.
 -module(mock_app_ctl).
 
--export([add_child/2, remove_child/2, reset/0]).
+-export([add_child/2, remove_child/2, reset/0, trace_session/1, trace_close/0]).
 
 -define(BASELINE, #{mock_dyn_sup_a => [], mock_dyn_sup_b => [mock_dyn_worker_b1]}).
+-define(TRACER, 'Elixir.Voyager.Services.Tracer').
 
 add_child(Sup, Name) ->
     {ok, _} =
@@ -29,3 +30,45 @@ reset() ->
                  end,
                  ?BASELINE),
     ok.
+
+%% Starts a session in the connected Voyager tracing mock_tracee:lookup/1, which a loop keeps calling.
+%% Prints the session id, which the session page's URL needs.
+trace_session(Save) ->
+    ok = trace_close(),
+    {module, _} = code:ensure_loaded(mock_tracee),
+    Voyager = voyager_node(),
+    {ok, #{id := Id}} = rpc:call(Voyager, ?TRACER, create, [ui, [{save, Save}]]),
+    Config =
+        #{module => <<"mock_tracee">>,
+          function => <<"lookup">>,
+          arity => 1,
+          processes => all,
+          capture => args,
+          return_trace => true,
+          max_events => 10000,
+          max_time_ms => 300000},
+    {ok, _} = rpc:call(Voyager, ?TRACER, configure, [node(), Config, ui]),
+    {ok, _} = rpc:call(Voyager, ?TRACER, start, [ui]),
+    case whereis(mock_tracee_traffic) of
+        undefined -> register(mock_tracee_traffic, spawn(mock_tracee, loop, [1]));
+        _Pid -> true
+    end,
+    Id.
+
+%% Stops and closes the active session; the stop lands asynchronously, so close is retried.
+trace_close() ->
+    Voyager = voyager_node(),
+    ok = rpc:call(Voyager, ?TRACER, stop, [ui]),
+    close(Voyager, 50).
+
+close(_Voyager, 0) -> {error, busy};
+close(Voyager, Tries) ->
+    case rpc:call(Voyager, ?TRACER, close, []) of
+        ok -> ok;
+        {error, busy} -> timer:sleep(100), close(Voyager, Tries - 1)
+    end.
+
+voyager_node() ->
+    [Voyager | _] =
+        [N || N <- nodes(connected), {file, _} <- [rpc:call(N, code, is_loaded, [?TRACER])]],
+    Voyager.
