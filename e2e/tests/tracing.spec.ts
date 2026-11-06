@@ -21,7 +21,7 @@ test.describe('TracingSessionLive', () => {
 
   test('opens a running session and streams its rows', async ({ page }) => {
     const id = rpc('mock_app_ctl trace_session [false]');
-    const sessionUrl = `/node/${NODE_NAME}/tracing/${id}`;
+    const sessionUrl = `/node/${encodeURIComponent(NODE_NAME)}/tracing/${id}`;
 
     await page.goto(sessionUrl);
     await waitForLiveView(page);
