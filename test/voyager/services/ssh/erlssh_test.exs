@@ -96,7 +96,9 @@ defmodule Voyager.Services.SSH.ErlsshTest do
       write_known_host!(ctx.known_hosts, "[127.0.0.1]:#{port}", other_key)
 
       known_hosts = ctx.known_hosts
-      assert {:error, {:host_key_mismatch, ^known_hosts}} = connect(port)
+
+      assert {:error, {:host_key_mismatch, %{file: ^known_hosts, removable: true}}} =
+               connect(port)
     end
 
     test "fails when the accepted key can't be pinned", ctx do

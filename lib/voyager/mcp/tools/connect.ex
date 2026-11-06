@@ -9,8 +9,8 @@ defmodule Voyager.MCP.Tools.Connect do
   right away. Otherwise Voyager opens its connect form pre-filled and the result
   is `awaiting_user`: ask the user to finish in Voyager, then call `connect` again
   with the same arguments once they confirm. An SSH host whose key Voyager has
-  not verified is handed off the same way, so the user can check its fingerprint
-  in Voyager. Calling it for the node Voyager is
+  not verified, or whose key changed, is handed off the same way, so the user can
+  check its fingerprint in Voyager. Calling it for the node Voyager is
   already connected to returns `connected`. Only one node can be connected at a
   time: call `disconnect` first to switch.
   """
@@ -179,6 +179,9 @@ defmodule Voyager.MCP.Tools.Connect do
 
       {:error, {:unknown_host_key, _fingerprint}} ->
         hand_off(target, "check and trust the SSH host key")
+
+      {:error, {:host_key_mismatch, _mismatch}} ->
+        hand_off(target, "review the changed SSH host key")
 
       {:error, reason} ->
         message = "Could not connect to #{target.node_name}: #{ConnectError.message(reason)}"

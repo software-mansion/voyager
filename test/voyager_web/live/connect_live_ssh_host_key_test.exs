@@ -107,22 +107,74 @@ defmodule VoyagerWeb.ConnectLiveSshHostKeyTest do
     refute File.exists?(known_hosts)
   end
 
-  test "marks the host when its key changed", %{
+  test "warns about a changed key and removes the old one from Voyager's file", %{
     conn: conn,
     server: server,
     known_hosts: known_hosts
   } do
-    other_key =
-      :public_key.generate_key({:namedCurve, :ed25519}) |> :ssh_file.extract_public_key()
-
-    host = String.to_charlist("[127.0.0.1]:#{server.port}")
-    File.write!(known_hosts, :ssh_file.encode([{other_key, [hostnames: [host]]}], :known_hosts))
+    write_other_key!(known_hosts, server)
 
     {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
     submit_connect(view, server)
 
-    refute has_element?(view, "#ssh-host-key-modal")
+    assert text(view, "#ssh-host-key-changed-modal-fingerprint") == server.fingerprint
+    assert text(view, "#ssh-host-key-changed-modal-location") == "#{known_hosts}:1"
+
+    refute has_element?(view, "#ssh-host-key-changed-modal-command")
     assert has_element?(view, "#ssh_ssh_host.input-error")
+    refute has_element?(view, "#flash-error")
+
+    view |> element("#ssh-host-key-changed-modal-remove") |> render_click()
+    render_async(view, 2_000)
+
+    refute has_element?(view, "#ssh-host-key-changed-modal")
+    refute has_element?(view, "#ssh_ssh_host.input-error")
+    assert File.read!(known_hosts) == ""
+    assert view |> element("#ssh-host-key-modal-fingerprint") |> render() =~ server.fingerprint
+  end
+
+  test "shows the ssh-keygen command for a changed key in another file", %{
+    conn: conn,
+    server: server,
+    tmp_dir: tmp_dir
+  } do
+    home = System.get_env("HOME")
+    System.put_env("HOME", tmp_dir)
+    on_exit(fn -> System.put_env("HOME", home) end)
+    system_known_hosts = Path.join([tmp_dir, ".ssh", "known_hosts"])
+    write_other_key!(system_known_hosts, server)
+
+    {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
+    submit_connect(view, server)
+
+    assert text(view, "#ssh-host-key-changed-modal-command") ==
+             "ssh-keygen -f '#{system_known_hosts}' -R '[127.0.0.1]:#{server.port}'"
+
+    refute has_element?(view, "#ssh-host-key-changed-modal-remove")
+
+    view |> element("#ssh-host-key-changed-modal-dismiss") |> render_click()
+
+    refute has_element?(view, "#ssh-host-key-changed-modal")
+    assert has_element?(view, "#ssh_ssh_host.input-error")
+    assert File.exists?(system_known_hosts)
+  end
+
+  defp text(view, selector) do
+    view
+    |> element(selector)
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.text()
+    |> String.trim()
+  end
+
+  defp write_other_key!(path, server) do
+    other_key =
+      :public_key.generate_key({:namedCurve, :ed25519}) |> :ssh_file.extract_public_key()
+
+    host = String.to_charlist("[127.0.0.1]:#{server.port}")
+    File.mkdir_p!(Path.dirname(path))
+    File.write!(path, :ssh_file.encode([{other_key, [hostnames: [host]]}], :known_hosts))
   end
 
   test "marks the host when the trusted key can't be saved", %{
