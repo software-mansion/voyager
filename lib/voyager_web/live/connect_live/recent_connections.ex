@@ -38,6 +38,7 @@ defmodule VoyagerWeb.ConnectLive.RecentConnections do
   defp handle_event("delete_connection", %{"id" => id}, socket) do
     connection_id = String.to_integer(id)
     socket.assigns.recents.actions.delete(connection_id)
+    send(self(), :saved_connection_deleted)
     {:halt, reset(socket)}
   end
 

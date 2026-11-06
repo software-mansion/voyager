@@ -3,6 +3,7 @@ defmodule Voyager.TestUtils do
   Shared test helpers.
   """
 
+  import Ecto.Query, only: [from: 2]
   import ExUnit.Callbacks, only: [on_exit: 1]
 
   @doc """
@@ -21,6 +22,11 @@ defmodule Voyager.TestUtils do
     :persistent_term.put(:voyager_epmd_module, Voyager.ProxyEpmd)
     on_exit(fn -> :persistent_term.put(:voyager_epmd_module, previous_epmd_module) end)
     :ok
+  end
+
+  def corrupt_secret!(%schema{id: id}, secret) do
+    table = schema.__schema__(:source)
+    Voyager.Repo.update_all(from(r in table, where: r.id == ^id), set: [{secret, "corrupt"}])
   end
 
   @doc """
