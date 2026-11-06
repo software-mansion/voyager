@@ -306,6 +306,39 @@ defmodule Voyager.Services.TracerTest do
     assert_raise ArgumentError, fn -> Tracer.entries(1, sort: :asc) end
   end
 
+  test "summarizes a session the same from memory and from the database" do
+    summaries =
+      for save <- [false, true] do
+        assert {:ok, %{id: id}} = Tracer.create(:ui, save: save)
+        assert {:ok, _session} = configure(%{return_trace: true, max_events: 2})
+        # Renamed between runs, as the agent caches a name per run; the latest sorts first.
+        run_named(id, :z_name, ~D[2024-01-01])
+        run_named(id, :a_name, ~D[2023-01-01])
+
+        assert {:ok, summary} = Tracer.summary(id)
+        %{summary | slowest: Enum.map(summary.slowest, &Map.take(&1, [:type, :mfa, :pid]))}
+      end
+
+    assert [unsaved, saved] = summaries
+    assert unsaved == saved
+
+    assert %{calls: 2, returns: 2, exceptions: 0, functions: %{{Date, :leap_year?, 1} => 2}} =
+             saved
+
+    assert %{slowest: [_, _]} = saved
+    assert [{pid, {:a_name, 2}}] = Map.to_list(saved.processes)
+    assert pid == self()
+    assert {:error, :not_found} = Tracer.summary(-1)
+  end
+
+  defp run_named(id, name, date) do
+    Process.register(self(), name)
+    assert {:ok, _session} = Tracer.start(:ui)
+    Date.leap_year?(date)
+    assert_receive {:session_entries, %{id: ^id}, [%{kind: :stopped}]}
+    Process.unregister(name)
+  end
+
   test "puts the call's duration on its return" do
     assert {:ok, %{id: id}} = configure(%{return_trace: true, max_events: 4})
     assert {:ok, _session} = Tracer.start(:ui)

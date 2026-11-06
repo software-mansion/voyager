@@ -83,6 +83,7 @@ http://127.0.0.1:4040/mcp
 - `node_info` — system, memory, runtime, limits and scheduler snapshot
 - `process_list` / `process_info` — rank processes by an attribute, then read one process's details
 - `ets_list` / `ets_read_table_chunk` / `ets_search_table` — list ETS tables, page through one, or query it with a match spec
+- `trace_start` / `trace_watch` / `trace_stop` / `trace_history` — run the tracing session set up in Voyager, wait for it with live progress, stop it, or list sessions and page through one
 
 ## Feedback and contributing
 
