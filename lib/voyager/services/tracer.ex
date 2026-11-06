@@ -207,8 +207,9 @@ defmodule Voyager.Services.Tracer do
   @doc """
   Up to `:limit` (default 100) trace entries of session `id` containing `query`, ignoring ASCII
   case, with `seq` below `:before`, newest first. Runs in the caller. A saved session searches
-  all its traces, an unsaved one its newest #{@kept_traces} entries. `total` counts every match,
-  and is nil once `:before` is given. Raises `ArgumentError` on an unknown option or a bad value.
+  all its traces, an unsaved one the at most #{@kept_traces} still in memory. `total` counts
+  every match, and is nil once `:before` is given. Raises `ArgumentError` on an unknown option
+  or a bad value.
   """
   @spec search(integer(), String.t(), before: non_neg_integer(), limit: pos_integer()) ::
           {:ok, %{entries: [Entry.t()], total: non_neg_integer() | nil}} | {:error, :not_found}
@@ -220,8 +221,8 @@ defmodule Voyager.Services.Tracer do
     if id > 0 do
       with_saved(id, fn _row -> {:ok, TraceEntryQueries.search(id, query, opts)} end)
     else
-      with {:ok, %{entries: entries}} <- entries(id, limit: @kept_traces),
-           do: {:ok, Search.filter(entries, query, opts)}
+      with {:ok, traces} <- GenServer.call(__MODULE__, {:kept_traces, id}),
+           do: {:ok, Search.filter(traces, query, opts)}
     end
   end
 
@@ -336,6 +337,11 @@ defmodule Voyager.Services.Tracer do
   end
 
   def handle_call({:entries, _id, _opts}, _from, state), do: {:reply, :saved, state}
+
+  def handle_call({:kept_traces, id}, _from, %{session: %{id: id, save: false}} = state),
+    do: {:reply, {:ok, state.log.traces}, state}
+
+  def handle_call({:kept_traces, _id}, _from, state), do: {:reply, {:error, :not_found}, state}
 
   @impl true
   def handle_cast(:disconnecting, %{session: %{status: :running}} = state),

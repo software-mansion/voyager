@@ -423,6 +423,16 @@ defmodule Voyager.Services.TracerTest do
     end
   end
 
+  test "searches every trace an unsaved session keeps, whatever controls follow them" do
+    kept = Tracer.kept_traces()
+    {id, [oldest | _]} = searchable(false, Enum.map(1..kept, &"trace #{&1}"))
+    assert :ok = Tracer.stop(:ui)
+    assert_receive {:session_entries, _session, [%{kind: :stopped}]}
+
+    assert {:ok, %{entries: [^oldest], total: 1}} = Tracer.search(id, ~s("trace 1"))
+    assert {:ok, %{total: ^kept}} = Tracer.search(id, "")
+  end
+
   test "searches a saved session that is not active" do
     {id, [entry]} = searchable(true, ["needle"])
     assert :ok = Tracer.stop(:ui)
