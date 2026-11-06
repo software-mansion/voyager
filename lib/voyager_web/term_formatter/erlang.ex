@@ -35,8 +35,8 @@ defmodule VoyagerWeb.TermFormatter.Erlang do
   def format_mfa({mod, fun, arity}), do: "#{atom(mod)}:#{atom(fun)}/#{arity}"
 
   @impl true
-  def format_mfa_pattern(mod, fun, arity),
-    do: "#{pattern_atom(mod)}:#{pattern_atom(fun)}/#{arity}"
+  def mfa_pattern_parts(mod, fun, arity),
+    do: {pattern_atom(mod) <> ":", "#{pattern_atom(fun)}/#{arity}"}
 
   defp pattern_atom(:_), do: "_"
   defp pattern_atom(name) when is_atom(name), do: atom(name)

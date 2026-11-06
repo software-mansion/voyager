@@ -14,8 +14,8 @@ defmodule VoyagerWeb.TermFormatter do
   @callback inspect(term(), keyword()) :: String.t()
   @callback copy_string(term(), keyword()) :: String.t()
   @callback format_mfa({module(), atom(), arity()}) :: String.t()
-  @callback format_mfa_pattern(atom() | String.t(), atom() | String.t(), arity() | :_) ::
-              String.t()
+  @callback mfa_pattern_parts(atom() | String.t(), atom() | String.t(), arity() | :_) ::
+              {String.t(), String.t()}
   @callback printable_list?(list(), keyword()) :: boolean()
 
   @doc """
@@ -66,10 +66,18 @@ defmodule VoyagerWeb.TermFormatter do
   on this VM yet is shown as given, always quoted in Erlang syntax.
   """
   @spec format_mfa_pattern(String.t(), String.t(), arity() | nil, keyword()) :: String.t()
-  def format_mfa_pattern(module, function, arity, opts \\ [])
+  def format_mfa_pattern(module, function, arity, opts \\ []) do
+    {module, function} = mfa_pattern_parts(module, function, arity, opts)
+    module <> function
+  end
+
+  @doc ~S|`format_mfa_pattern/4` split into the module with its separator and the `function/arity`, e.g. `{"lists:", "map/_"}`.|
+  @spec mfa_pattern_parts(String.t(), String.t(), arity() | nil, keyword()) ::
+          {String.t(), String.t()}
+  def mfa_pattern_parts(module, function, arity, opts \\ [])
       when is_binary(module) and is_binary(function) do
     {formatter, _opts} = pop_formatter(opts)
-    formatter.format_mfa_pattern(existing_atom(module), existing_atom(function), arity || :_)
+    formatter.mfa_pattern_parts(existing_atom(module), existing_atom(function), arity || :_)
   end
 
   # Config names come from the UI and MCP, so they are never interned here.
