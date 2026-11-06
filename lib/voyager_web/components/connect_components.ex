@@ -496,7 +496,7 @@ defmodule VoyagerWeb.ConnectComponents do
         <.copy_field
           :if={not @mismatch.removable}
           id={"#{@id}-command"}
-          value={"ssh-keygen -f '#{@mismatch.file}' -R '#{@mismatch.host}'"}
+          value={"ssh-keygen -f #{shell_quote(@mismatch.file)} -R #{shell_quote(@mismatch.host)}"}
           label="Copy command"
         />
 
@@ -525,6 +525,9 @@ defmodule VoyagerWeb.ConnectComponents do
     </div>
     """
   end
+
+  # A ' ends a single-quoted shell word; '\'' puts one back.
+  defp shell_quote(value), do: "'" <> String.replace(value, "'", "'\\''") <> "'"
 
   attr :id, :string, required: true
   attr :value, :string, required: true
