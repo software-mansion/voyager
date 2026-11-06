@@ -82,7 +82,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       # appear in the graph legend, so bare `html =~` checks would be vacuous.
       assert has_element?(view, "#details-panel.translate-x-0")
       assert has_element?(view, "#details-panel-refresh")
-      assert has_element?(view, "#details-panel-fetched-at")
       assert has_element?(view, "#details-panel", "Supervisor")
       assert has_element?(view, "#details-panel", "demo_supervisor")
       assert has_element?(view, "#details-panel", "Overview")
@@ -253,7 +252,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       assert has_element?(view, "#details-panel div", ~r/^\s*waiting\s*$/)
       refute has_element?(view, "#details-panel", "9,999")
       refute has_element?(view, "#details-panel div", ~r/^\s*running\s*$/)
-      refute has_element?(view, "#details-panel .alert-error")
+      refute has_element?(view, "#details-panel", "Failed to load node details.")
 
       # The refresh fetches run as concurrent async tasks, so dispatch on mod/fun.
       expect(Voyager.ErpcMock, :call, 6, fn
@@ -284,11 +283,10 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       assert has_element?(view, "#details-panel div", ~r/^\s*running\s*$/)
       refute has_element?(view, "#details-panel", "1,234")
       refute has_element?(view, "#details-panel div", ~r/^\s*waiting\s*$/)
-      refute has_element?(view, "#details-panel .alert-error")
-      refute has_element?(view, "#flash-error")
+      refute has_element?(view, "#details-panel", "Failed to load node details.")
     end
 
-    test "a failed refresh keeps the shown details and flashes the error", %{
+    test "a failed refresh replaces the shown details with the error", %{
       conn: conn,
       sup_pid: sup_pid,
       port: port,
@@ -310,9 +308,8 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       view |> element("#details-panel-refresh") |> render_click()
       render_async(view)
 
-      assert has_element?(view, "#flash-error", "Could not refetch process details.")
-      assert has_element?(view, "#details-panel", "1,234")
-      refute has_element?(view, "#details-panel .alert-error")
+      assert has_element?(view, "#details-panel", "Too many requests.")
+      refute has_element?(view, "#details-panel", "1,234")
     end
 
     test "refresh re-fetches links", %{
@@ -610,8 +607,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
 
       assert has_element?(view, "#details-panel", "Too many requests.")
       refute has_element?(view, "#details-panel", "1,234")
-      refute has_element?(view, "#details-panel-fetched-at")
-      refute has_element?(view, "#flash-error")
     end
 
     test "refresh button is hidden for non-process nodes", %{
@@ -827,7 +822,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       refute has_element?(view, "#details-panel-type", "Process")
     end
 
-    test "a tree refresh does not refetch the selected node's details", %{
+    test "a tree refresh refetches the selected node's details without blanking them", %{
       conn: conn,
       sup_pid: sup_pid,
       port: port,
@@ -838,23 +833,64 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       linked = start_supervised!({Agent, fn -> [port] end})
 
       stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args, _timeout ->
-        if fun == :proc_links, do: send(test_pid, :links_fetched)
+        links = Agent.get(linked, & &1)
+        refreshed? = links == []
+
+        if fun == :proc_links do
+          send(test_pid, {:links_fetched, self()})
+          if refreshed?, do: receive(do: (:release -> :ok))
+        end
+
+        supervision_reply(mod, fun, args, sup_pid, links, if(refreshed?, do: [], else: link_pids))
+      end)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+      assert_received {:links_fetched, _}
+
+      Agent.update(linked, fn _ -> [] end)
+      view |> element("#refresh-interval-refresh-now-button") |> render_click()
+      await_tree_ok(view)
+
+      assert_receive {:links_fetched, fetcher}
+      assert has_element?(view, "#details-panel-links-0")
+
+      send(fetcher, :release)
+      render_async(view)
+      refute has_element?(view, "#details-panel-links-0")
+    end
+
+    test "a failed tree refresh refetch replaces the shown details with the error", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      link_pids: link_pids,
+      sup_key: sup_key
+    } do
+      linked = start_supervised!({Agent, fn -> [port] end})
+
+      stub(Voyager.ErpcMock, :call, fn _node, mod, fun, args, _timeout ->
         supervision_reply(mod, fun, args, sup_pid, Agent.get(linked, & &1), link_pids)
       end)
 
       view = open_tree!(conn)
       render_hook(view, "select-node", %{"key" => sup_key})
       render_async(view)
-      assert_received :links_fetched
+
+      assert has_element?(view, "#details-panel", "1,234")
+
+      start_supervised!({RateLimiter, name: EmptyBucket, config: %{high_capacity: 0}})
+      Application.put_env(:voyager, :rate_limiter, EmptyBucket)
+      on_exit(fn -> Application.delete_env(:voyager, :rate_limiter) end)
 
       Agent.update(linked, fn _ -> [] end)
       view |> element("#refresh-interval-refresh-now-button") |> render_click()
       await_tree_ok(view)
       render_async(view)
 
-      refute_received :links_fetched
-      assert has_element?(view, "#details-panel-links-0")
-      assert has_element?(view, "#details-panel-fetched-at")
+      assert has_element?(view, "#details-panel", "Too many requests.")
+      refute has_element?(view, "#details-panel", "1,234")
     end
 
     test "closes the details panel when the selected node disappears on refresh", %{
