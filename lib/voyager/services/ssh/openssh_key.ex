@@ -5,6 +5,8 @@ defmodule Voyager.Services.SSH.OpensshKey do
 
   @begin "-----BEGIN OPENSSH PRIVATE KEY-----"
   @end_marker "-----END OPENSSH PRIVATE KEY-----"
+  # rounds is a uint32 in the key file; 0xFFFFFFFF keeps the decode task in bcrypt for hours.
+  @max_rounds 1_000
 
   defguard is_openssh_pem(pem)
            when is_binary(pem) and byte_size(pem) >= byte_size(@begin) and
@@ -15,12 +17,14 @@ defmodule Voyager.Services.SSH.OpensshKey do
           | :key_bad_passphrase
           | :key_unsupported_cipher
           | :key_unreadable
+          | :key_unreachable
 
   @spec decrypt(binary(), String.t() | nil) ::
           {:ok, :public_key.private_key()} | {:error, reason()}
   def decrypt(pem, passphrase) do
     with {:ok, container} <- parse(pem),
          :ok <- check_cipher(container.cipher),
+         :ok <- check_rounds(container.rounds),
          :ok <- require_passphrase(passphrase),
          {:ok, plain} <- decrypt_private(container, passphrase) do
       decode(container, plain)
@@ -62,16 +66,15 @@ defmodule Voyager.Services.SSH.OpensshKey do
 
   defp decode(container, plain) do
     body =
-      [
+      IO.iodata_to_binary([
         "openssh-key-v1\0",
         string("none"),
         string("none"),
         string(""),
-        <<length(container.public_keys)::32>>
-      ]
-      |> Enum.concat(Enum.map(container.public_keys, &string/1))
-      |> Enum.concat([string(plain)])
-      |> IO.iodata_to_binary()
+        <<length(container.public_keys)::32>>,
+        Enum.map(container.public_keys, &string/1),
+        string(plain)
+      ])
 
     case :ssh_file.decode(
            Enum.join([@begin, Base.encode64(body), @end_marker], "\n"),
@@ -94,4 +97,7 @@ defmodule Voyager.Services.SSH.OpensshKey do
 
   defp check_cipher("aes256-ctr"), do: :ok
   defp check_cipher(_cipher), do: {:error, :key_unsupported_cipher}
+
+  defp check_rounds(rounds) when rounds <= @max_rounds, do: :ok
+  defp check_rounds(_rounds), do: {:error, :key_unreachable}
 end

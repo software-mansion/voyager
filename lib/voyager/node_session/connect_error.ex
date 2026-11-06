@@ -86,6 +86,9 @@ defmodule Voyager.NodeSession.ConnectError do
   def message(:key_unsupported_cipher),
     do: "This key's cipher isn't supported — use SSH Agent or Password"
 
+  def message(:key_unreachable),
+    do: "This key takes too long to unlock — use SSH Agent or Password"
+
   def message(:key_unreadable), do: "Not a private key Voyager can read"
   def message({:read_failed, _}), do: "Can't read this file"
   def message(_reason), do: "Could not connect to node"

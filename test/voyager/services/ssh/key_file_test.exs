@@ -10,6 +10,33 @@ defmodule Voyager.Services.SSH.KeyFileTest do
 
   defp ec_key, do: :public_key.generate_key({:namedCurve, :secp256r1})
 
+  defp write_openssh_key(dir, name, rounds) do
+    salt = <<0::16*8>>
+    kdf_options = <<byte_size(salt)::32, salt::binary, rounds::32>>
+
+    body =
+      IO.iodata_to_binary([
+        "openssh-key-v1\0",
+        ssh_string("aes256-ctr"),
+        ssh_string("bcrypt"),
+        ssh_string(kdf_options),
+        <<0::32>>,
+        ssh_string(<<0::64>>)
+      ])
+
+    path = Path.join(dir, name)
+
+    File.write!(path, """
+    -----BEGIN OPENSSH PRIVATE KEY-----
+    #{Base.encode64(body)}
+    -----END OPENSSH PRIVATE KEY-----
+    """)
+
+    path
+  end
+
+  defp ssh_string(value), do: <<byte_size(value)::32, value::binary>>
+
   defp assert_decrypts(path, public_key) do
     assert KeyFile.decode(path, nil) == {:error, :key_passphrase_required}
     assert KeyFile.decode(path, "wrong-passphrase") == {:error, :key_bad_passphrase}
@@ -37,6 +64,20 @@ defmodule Voyager.Services.SSH.KeyFileTest do
         SshKeys.ssh_keygen!(dir, "id", ~w(-t ed25519 -a 1 -Z aes128-ctr -N #{@passphrase}))
 
       assert KeyFile.decode(path, nil) == {:error, :key_unsupported_cipher}
+    end
+
+    @tag timeout: 5_000
+    test "rejects an OpenSSH key whose bcrypt rounds exceed the cap", %{tmp_dir: dir} do
+      path = write_openssh_key(dir, "id_huge_rounds", 0xFFFFFFFF)
+
+      assert KeyFile.decode(path, nil) == {:error, :key_unreachable}
+      assert KeyFile.decode(path, @passphrase) == {:error, :key_unreachable}
+    end
+
+    test "asks for a passphrase when bcrypt rounds are at the cap", %{tmp_dir: dir} do
+      path = write_openssh_key(dir, "id_max_rounds", 1_000)
+
+      assert KeyFile.decode(path, nil) == {:error, :key_passphrase_required}
     end
 
     test "accepts an unencrypted PEM key", %{tmp_dir: dir} do
