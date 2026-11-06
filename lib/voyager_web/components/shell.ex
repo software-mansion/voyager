@@ -10,7 +10,6 @@ defmodule VoyagerWeb.Components.Shell do
   alias VoyagerWeb.Components.TracingComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.Hooks.UrlHook
-  alias VoyagerWeb.TermFormatter
 
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
@@ -129,7 +128,7 @@ defmodule VoyagerWeb.Components.Shell do
           id="tracing-indicator-mfa"
           class="font-mono text-base-content/70 max-w-56 truncate px-1 text-xs @max-lg/nav-status:hidden"
         >
-          {format_traced_mfa(@session.config)}
+          {TracingComponents.traced_mfa(@session.config)}
         </span>
         <span
           id="tracing-indicator-count"
@@ -157,7 +156,7 @@ defmodule VoyagerWeb.Components.Shell do
               <span>Session associated with a different node.</span>
             </dd>
             <dt class="text-base-content/60">Function</dt>
-            <dd class="font-mono">{format_traced_mfa(@session.config)}</dd>
+            <dd class="font-mono">{TracingComponents.traced_mfa(@session.config)}</dd>
             <dt class="text-base-content/60">Traces</dt>
             <dd class="font-mono">{Formatters.format_integer(@session.traces)}</dd>
             <dt :if={@session.stop_reason} class="text-base-content/60">Reason</dt>
@@ -183,9 +182,6 @@ defmodule VoyagerWeb.Components.Shell do
   defp tracing_label(%Tracer.Session{status: :running}), do: "Tracing"
   defp tracing_label(%Tracer.Session{status: :stopped}), do: "Stopped"
   defp tracing_label(%Tracer.Session{status: :idle}), do: "Ready"
-
-  defp format_traced_mfa(%Tracer.Config{module: module, function: function, arity: arity}),
-    do: TermFormatter.format_mfa_pattern(module, function, arity)
 
   defp brand(assigns) do
     assigns = assign(assigns, :version, Voyager.version())
