@@ -4,7 +4,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Selection do
   alias Voyager.Services.SupervisionTree.TreeNode
 
   @type flat_tree :: %{String.t() => TreeNode.t()} | nil
-  @type link_identifier :: pid() | port()
+  @type relation_identifier :: pid() | port() | reference()
 
   @type jump :: {:select, TreeNode.t()} | {:expand_and_reveal, TreeNode.t(), TreeNode.t()}
 
@@ -16,7 +16,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.Selection do
   @spec path_to_root(%{String.t() => TreeNode.t()}, String.t()) :: [String.t()]
   def path_to_root(flat, key), do: path_to_root(flat, key, [])
 
-  @spec resolve_jump(flat_tree(), link_identifier(), TreeNode.t() | nil, MapSet.t(pid())) ::
+  @spec resolve_jump(flat_tree(), relation_identifier(), TreeNode.t() | nil, MapSet.t(pid())) ::
           jump()
   def resolve_jump(flat, identifier, from, expanded_pids) do
     in_tree = lookup(flat, TreeNode.key(identifier))
@@ -79,6 +79,10 @@ defmodule VoyagerWeb.SupervisionTreeLive.Selection do
 
   defp placeholder(port) when is_port(port) do
     %TreeNode{key: TreeNode.key(port), name: port, type: :port, placeholder?: true}
+  end
+
+  defp placeholder(ref) when is_reference(ref) do
+    %TreeNode{key: TreeNode.key(ref), name: ref, type: :reference, placeholder?: true}
   end
 
   defp find_by_pid_key(flat, key) do
