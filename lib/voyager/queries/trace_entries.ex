@@ -80,9 +80,10 @@ defmodule Voyager.Queries.TraceEntries do
     |> group_by([e], e.pid)
     |> order_by([e], desc: count(e.id))
     |> limit(^Summary.max_keys())
-    |> select([e], {e.pid, max(e.process), count(e.id)})
+    # SQLite takes a bare column from the row holding the max, so this is the latest call's name.
+    |> select([e], {e.pid, e.process, max(e.seq), count(e.id)})
     |> Repo.all()
-    |> Map.new(fn {pid, process, calls} ->
+    |> Map.new(fn {pid, process, _seq, calls} ->
       {StoredTerm.decode(pid), {StoredTerm.decode(process), calls}}
     end)
   end
