@@ -84,7 +84,7 @@ defmodule Voyager.Services.SSH.Erlssh do
        socket_path: socket_path |> Path.expand() |> String.to_charlist(), timeout: @agent_timeout}
 
   defp key_cb({:password, _pass}), do: {:ssh_file, []}
-  defp key_cb({:key, path, passphrase}), do: {KeyFile, path: path, passphrase: passphrase}
+  defp key_cb({:key, key}), do: {KeyFile, key: key}
 
   defp password_opts({:password, pass}), do: [password: String.to_charlist(pass)]
   defp password_opts(_auth), do: []
