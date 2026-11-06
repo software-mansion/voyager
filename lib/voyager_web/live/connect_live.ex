@@ -120,7 +120,10 @@ defmodule VoyagerWeb.ConnectLive do
             </div>
 
             <div
-              :if={@unreadable_secrets? && is_nil(@connected_session)}
+              :if={
+                is_nil(@connected_session) and
+                  if(@mode == :ssh, do: @unreadable_ssh_secrets?, else: @unreadable_direct_secrets?)
+              }
               id="unreadable-secrets"
               role="alert"
               class="alert alert-warning mb-4 text-xs"
@@ -205,11 +208,9 @@ defmodule VoyagerWeb.ConnectLive do
   def handle_info(_, socket), do: {:noreply, socket}
 
   defp assign_unreadable_secrets(socket) do
-    assign(
-      socket,
-      :unreadable_secrets?,
-      ConnectionQueries.unreadable_secrets?() or SshConnectionQueries.unreadable_secrets?()
-    )
+    socket
+    |> assign(:unreadable_direct_secrets?, ConnectionQueries.unreadable_secrets?())
+    |> assign(:unreadable_ssh_secrets?, SshConnectionQueries.unreadable_secrets?())
   end
 
   defp mode_disabled_reason(assigns) do

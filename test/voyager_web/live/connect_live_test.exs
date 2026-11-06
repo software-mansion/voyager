@@ -174,7 +174,9 @@ defmodule VoyagerWeb.ConnectLiveTest do
       refute has_element?(view, "#unreadable-secrets")
     end
 
-    test "warns about an unreadable SSH password", %{conn: conn} do
+    test "warns about an unreadable SSH password only in SSH mode", %{conn: conn} do
+      enable_proxy_epmd(%{})
+
       {:ok, saved} =
         SshConnectionActions.upsert_connected("deploy", "gw", 22, "corrupt@127.0.0.1",
           password: "pass",
@@ -183,9 +185,13 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
       corrupt_secret!(saved, :password)
 
-      {:ok, view, _html} = live(conn, ~p"/")
+      {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
 
       assert has_element?(view, "#unreadable-secrets")
+
+      view |> element("#mode-toggle") |> render_change(%{"mode" => "direct"})
+
+      refute has_element?(view, "#unreadable-secrets")
     end
 
     test "shows no warning when saved secrets decrypt", %{conn: conn} do

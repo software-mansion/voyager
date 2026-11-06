@@ -4,6 +4,7 @@ defmodule Voyager.Encrypted.Binary do
 
   @header <<1, 10, "AES.GCM.V1">>
   @aad "AES256GCM"
+  @tag_length 16
 
   def type, do: :binary
 
@@ -16,7 +17,7 @@ defmodule Voyager.Encrypted.Binary do
     iv = :crypto.strong_rand_bytes(16)
 
     {ciphertext, tag} =
-      :crypto.crypto_one_time_aead(:aes_256_gcm, key(), iv, plaintext, @aad, true)
+      :crypto.crypto_one_time_aead(:aes_256_gcm, key(), iv, plaintext, @aad, @tag_length, true)
 
     {:ok, @header <> iv <> tag <> ciphertext}
   end
@@ -25,7 +26,7 @@ defmodule Voyager.Encrypted.Binary do
 
   def load(nil), do: {:ok, nil}
 
-  def load(<<@header::binary, iv::binary-16, tag::binary-16, ciphertext::binary>>) do
+  def load(<<@header::binary, iv::binary-16, tag::binary-size(@tag_length), ciphertext::binary>>) do
     case :crypto.crypto_one_time_aead(:aes_256_gcm, key(), iv, ciphertext, @aad, tag, false) do
       :error -> {:ok, nil}
       plaintext -> {:ok, plaintext}
