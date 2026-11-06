@@ -9,7 +9,8 @@ defmodule Voyager.Services.Tracer do
 
   A session is a log of entries numbered by `seq`: `:configured`, `:started`,
   `:stopped`, `:trace` (a trace event) and `:dropped` (how many events were lost
-  since the previous entry). The configured, started and stopped entries and the
+  since the previous entry). A `:configured` entry's `previous` is the config it
+  replaced, nil for the first. The configured, started and stopped entries and the
   newest trace and dropped entries are kept in memory while a session is unsaved;
   saved sessions are read from the database. Broadcasts on `topic/0` are
   `{:session_activated, session}`, `{:session_closed, id}` and
@@ -33,6 +34,7 @@ defmodule Voyager.Services.Tracer do
   alias Voyager.Services.Tracer.Entry
   alias Voyager.Services.Tracer.MemoryLog
   alias Voyager.Services.Tracer.Run
+  alias Voyager.Services.Tracer.Search
   alias Voyager.Services.Tracer.Session
   alias Voyager.Services.Tracer.Writer
   alias Voyager.Settings
@@ -42,6 +44,7 @@ defmodule Voyager.Services.Tracer do
   @max_mailbox 1_000
   @call_timeout Agent.default_timeout() + 1_000
   @default_storage_limit_mb 100
+  @kept_traces MemoryLog.kept_traces()
 
   @type origin :: :ui | :mcp
 
@@ -156,6 +159,22 @@ defmodule Voyager.Services.Tracer do
   @spec active() :: Session.t() | nil
   def active, do: GenServer.call(__MODULE__, :active)
 
+  @doc "Session `id`, and whether it is the `:active` one or only `:saved`. The database is read in the caller."
+  @spec session(integer()) :: {:ok, Session.t(), :active | :saved} | {:error, :not_found}
+  def session(id) when is_integer(id) do
+    case active() do
+      %Session{id: ^id} = session -> {:ok, session, :active}
+      _other -> with_saved(id, &{:ok, saved_session(&1), :saved})
+    end
+  end
+
+  @doc "The total budget in MB that saved sessions share."
+  @spec storage_limit_mb() :: non_neg_integer()
+  def storage_limit_mb, do: Settings.get(:trace_storage_limit_mb, @default_storage_limit_mb)
+
+  @spec kept_traces() :: pos_integer()
+  defdelegate kept_traces, to: MemoryLog
+
   @doc """
   A page of up to `:limit` (default 100, at least 1) entries of session `id` with `seq` in
   `[:since, :before)` (integers >= 0). `:order` is `:desc` (default) for the newest entries of the
@@ -175,8 +194,35 @@ defmodule Voyager.Services.Tracer do
     Enum.each(opts, fn {key, value} -> validate_entries_opt!(key, value) end)
 
     case GenServer.call(__MODULE__, {:entries, id, opts}) do
-      :saved -> saved_entries(id, opts)
-      reply -> reply
+      :saved ->
+        with_saved(id, fn _row ->
+          {:ok, %{entries: TraceEntryQueries.page(id, opts), truncated?: false}}
+        end)
+
+      reply ->
+        reply
+    end
+  end
+
+  @doc """
+  Up to `:limit` (default 100) trace entries of session `id` containing `query`, ignoring ASCII
+  case, with `seq` below `:before`, newest first. Runs in the caller. A saved session searches
+  all its traces, an unsaved one the at most #{@kept_traces} still in memory. `total` counts
+  every match, and is nil once `:before` is given. Raises `ArgumentError` on an unknown option
+  or a bad value.
+  """
+  @spec search(integer(), String.t(), before: non_neg_integer(), limit: pos_integer()) ::
+          {:ok, %{entries: [Entry.t()], total: non_neg_integer() | nil}} | {:error, :not_found}
+  def search(id, query, opts \\ []) do
+    opts = Keyword.validate!(opts, [:before, limit: 100])
+    Enum.each(opts, fn {key, value} -> validate_entries_opt!(key, value) end)
+    query = Search.query(query)
+
+    if id > 0 do
+      with_saved(id, fn _row -> {:ok, TraceEntryQueries.search(id, query, opts)} end)
+    else
+      with {:ok, traces} <- GenServer.call(__MODULE__, {:kept_traces, id}),
+           do: {:ok, Search.filter(traces, query, opts)}
     end
   end
 
@@ -246,7 +292,7 @@ defmodule Voyager.Services.Tracer do
   def handle_call({:configure, node, config, origin}, _from, state) do
     state =
       %{state | session: %{state.session | node: node, config: config}}
-      |> append([Entry.configured(origin, node, config)])
+      |> append([Entry.configured(origin, node, config, state.session.config)])
 
     {:reply, {:ok, state.session}, state}
   end
@@ -291,6 +337,11 @@ defmodule Voyager.Services.Tracer do
   end
 
   def handle_call({:entries, _id, _opts}, _from, state), do: {:reply, :saved, state}
+
+  def handle_call({:kept_traces, id}, _from, %{session: %{id: id, save: false}} = state),
+    do: {:reply, {:ok, state.log.traces}, state}
+
+  def handle_call({:kept_traces, _id}, _from, state), do: {:reply, {:error, :not_found}, state}
 
   @impl true
   def handle_cast(:disconnecting, %{session: %{status: :running}} = state),
@@ -362,14 +413,6 @@ defmodule Voyager.Services.Tracer do
   defp validate_entries_opt!(key, value),
     do: raise(ArgumentError, "invalid #{inspect(key)} option: #{inspect(value)}")
 
-  defp saved_entries(id, opts) do
-    Writer.flush()
-
-    if TraceSessionQueries.get(id),
-      do: {:ok, %{entries: TraceEntryQueries.page(id, opts), truncated?: false}},
-      else: {:error, :not_found}
-  end
-
   defp new_session(origin, save) do
     id = new_session_id(origin, save)
 
@@ -389,11 +432,23 @@ defmodule Voyager.Services.Tracer do
 
   defp new_session_id(_origin, false), do: -System.unique_integer([:positive])
 
-  defp saved_session(row) do
-    controls = TraceEntryQueries.controls(row.id)
-    configured = Enum.find(controls, &(&1.kind == :configured)) || %{node: nil, config: nil}
+  defp with_saved(id, fun) do
+    Writer.flush()
 
-    Session.from_row(row, configured, TraceEntryQueries.next_seq(row.id), storage_limit(row.id))
+    case TraceSessionQueries.get(id) do
+      nil -> {:error, :not_found}
+      row -> fun.(row)
+    end
+  end
+
+  defp saved_session(row) do
+    Session.from_row(
+      row,
+      TraceEntryQueries.controls(row.id),
+      TraceEntryQueries.traces_before_last_run(row.id),
+      TraceEntryQueries.next_seq(row.id),
+      storage_limit(row.id)
+    )
   end
 
   defp activate(session) do
@@ -420,7 +475,7 @@ defmodule Voyager.Services.Tracer do
   defp end_run(%{run: run} = state, reason, dropped) do
     {reason, origin} = run.stop_request || {reason, nil}
     session = Session.stopped(state.session, reason, dropped)
-    run_traces = session.traces - run.traces_before
+    run_traces = session.traces - session.run_traces_before
     run_dropped = session.dropped - run.dropped_before
     emit_stopped(run, reason, run_traces, run_dropped)
 
@@ -470,8 +525,7 @@ defmodule Voyager.Services.Tracer do
     do: %{state | run: %{run | stop_request: {reason, origin}}}
 
   defp storage_limit(id) do
-    limit = Settings.get(:trace_storage_limit_mb, @default_storage_limit_mb) * 1_000_000
-    max(limit - TraceSessionQueries.bytes_except(id), 0)
+    max(storage_limit_mb() * 1_000_000 - TraceSessionQueries.bytes_except(id), 0)
   end
 
   defp down_reason(:noconnection), do: :node_down
