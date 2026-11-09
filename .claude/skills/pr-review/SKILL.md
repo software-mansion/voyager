@@ -47,8 +47,8 @@ refusal is silent in effect: you lose the existing comments and start re-raising
 ## Process
 
 1. Read the diff (`gh pr diff`) and open the changed files for context — a diff hunk alone hides the caller.
-2. Read `CLAUDE.md`, then walk the defect checklist below for the file types that changed. Skip
-   sections that do not apply.
+2. Read `CLAUDE.md` and the rule files that apply, as described in Conventions below, and check
+   the changed lines against them.
 3. Verify every finding against the actual file, then score your confidence that it is a real
    defect from 0 to 100. **Drop everything below the confidence threshold** — the one the
    prompt that invoked you gives (`@claude review confidence 60` in CI), 60 when it gives none.
@@ -88,7 +88,7 @@ Skip it only when the prompt that invoked you says to (in CI the workflow adds t
 Its findings go through the same filter as the defects: only lines this PR touched, verified
 against the file, at or above the confidence threshold, nothing already raised in an existing thread. Its own
 boundaries hold too — a correctness, security or performance point belongs to the defect review,
-not here. A finding that contradicts a `CLAUDE.md` rule loses to the rule.
+not here. A finding that contradicts a rule in `CLAUDE.md` or `.claude/rules/` loses to the rule.
 
 Post each one inline with 🦐 in place of a severity label, in ponytail's line format minus the
 location the inline comment already carries. In the summary they get their own block below the
@@ -140,120 +140,17 @@ not clear the confidence bar in step 3.
 
 ## Conventions
 
-`CLAUDE.md` (symlinked as `AGENTS.md`) is the source of truth for this repo's conventions:
-module layout, Elixir and Ecto rules, HEEx syntax, LiveView streams and forms, Tailwind and
-DaisyUI usage, and test guidelines. Read it and treat a break of a rule stated there as
-🟡 should-fix, or 🔴 blocking when it crashes or is a documented **never**.
+The repo's rules live in two places; review against both:
 
-Do not re-derive those rules here. Two places the repo's own guidance is thin or wrong:
+- `CLAUDE.md` (symlinked as `AGENTS.md`): architecture and cross-cutting code rules.
+- `.claude/rules/*.md`: area rules. Each file's `paths:` frontmatter lists the globs it covers.
+  Glob `.claude/rules/*.md` and read every file whose `paths` match at least one changed file.
+  They do not load on their own here, because the diff comes from `gh pr diff`.
 
-- `CLAUDE.md:350` shows `String.to_integer(message_id)` on a LiveView param. Reviewers reject
-  that pattern (see below) — flag it anyway.
-- `CLAUDE.md` says nothing about accessibility, async LiveView state, or JS cleanup.
+Severity of a rule break:
 
-## Defect checklist
+- 🔴 when the rule says **Never**, or the break crashes, loses data or leaks a secret
+- 🟡 any other rule break
+- 🟢 a break of the comment rules in `.claude/rules/comments.md`
 
-These are the problems this repo's reviewers actually catch, drawn from its PR history.
-They are not in `CLAUDE.md`.
-
-### Crashes from untrusted input
-
-- 🔴 `String.to_integer/1` on a LiveView param. A tampered `id` raises and kills the LiveView.
-  Use `Integer.parse/1` or pattern match, and ignore invalid values.
-- 🔴 `String.to_existing_atom/1` on persisted or stale input (DB setting keys, query params,
-  submitted app names). Raises when the atom is not interned in a fresh VM. Filter against a
-  known list first.
-- 🔴 Raising calls (`System.cmd/3`, `Map.fetch!/2`, `String.trim/1` on `nil`, `hd/1`) on a path
-  reachable from a supervised process or from params.
-- 🔴 `String.to_atom/1` reachable from user input which are NOT cookies, node names and the settings-driven distribution suffix. If the code can work without changing String to Atom then don't change it.
-
-### OTP and error handling
-
-- 🔴 An `init/1` callback in a module that `use GenServer` (or declares `@behaviour GenServer`)
-  returning anything outside `{:ok, state} | {:ok, state, timeout} | {:ok, state, :hibernate} |
-  {:ok, state, {:continue, term}} | :ignore | {:stop, reason}`. `{:continue, term}` is the normal
-  way to do post-init work without blocking `start_link/1` — it is correct, not a finding. Check
-  the module's behaviour before flagging: a bare `init/1` is just as often `Supervisor.init/2`
-  in a supervisor module or an `on_mount`/hook module's own `init/1`, and neither is bound by
-  this list.
-- 🟡 Write results ignored (`Settings.put/2`, `:telemetry.attach_many/4`, `Repo` calls) OR use the data passed to them if they are not changed by these functions.
-- 🟡 `Task` children are `restart: :temporary`, so a crashing startup task is never retried.
-- 🟡 Pipe/comparison precedence: `a == b |> f()` parses as `a == f(b)`. Parenthesise.
-- 🟡 `@type`/`@spec` that does not match reality (`DateTime.t()` vs `NaiveDateTime`, `atom()` for
-  a value that can be a tuple, an arity in a `@moduledoc` example that no longer exists).
-- 🟡 A module attribute (port, timeout, prefix) duplicated across files — one place, behind a
-  function.
-- 🟡 Deeply nested `with` — extract private functions.
-- 🟡 A function used only inside its module that is not `defp`. Low-level helpers go at the
-  bottom of the file.
-- 🟢 Comments that restate the code (``Calls `:application.which_applications/0` via `:erpc`.``).
-
-### LiveView state
-
-- 🟡 Same topic subscribed twice in one process (an `on_mount` hook plus `mount/3`).
-- 🟡 `update/2` reassigning a form from persisted state on every parent render — it wipes
-  in-progress edits. `assign_new/3` for a value derived from runtime config never refreshes.
-- 🟡 A value read from a changeset that failed validation — `get_field/2` still returns it.
-- 🟡 `AsyncResult` left `:loading`/`:ok` on the failure branch; `handle_async` exits must set the
-  error state. Check the exit reason actually matches the `format_error/1` clause.
-- 🟡 A component in `core_components.ex` with a hardcoded DOM id — reusable means `id={@id}`.
-- 🟡 `attr` declared `required: true` for a value that can be `nil`, or typed `:any` where a
-  struct or `:string` exists.
-- 🟡 `push_navigate` across a `live_session` boundary — warns and full-reloads. Use `href`.
-
-### Security
-
-- 🔴 Path built by interpolating a user-supplied segment. Node names contain `/` and `@`; `~p`
-  encodes, raw interpolation does not.
-- 🔴 A `return_to`-style redirect validated with `"/" <> _` — `//evil.example` is
-  protocol-relative and leaves the app.
-- 🔴 Secrets in logs — `inspect(config)` on a struct holding `api_key`.
-- 🔴 User-supplied host or option strings passed to `ssh`/`System.cmd` unvalidated (a value
-  starting with `-` becomes `-oProxyCommand`).
-- 🔴 `innerHTML` built from server-provided process metadata without escaping.
-- 🟡 An ETS table created `:public` where `:protected` is enough.
-
-### JS and CSS
-
-- 🟡 Timers and global listeners (`setTimeout`, `scroll`, `resize`, Tauri `onThemeChanged`) not
-  cleared in `destroyed()` or not unlistened. Every timer gets a named field and a
-  `clearTimeout`.
-- 🟡 Hook state on the module object instead of per-instance — build it in `mounted()`, or it
-  leaks between hook instances.
-- 🟡 `<.icon>` colored with `bg-*`. Icons are CSS masks using `currentColor`, so they take
-  `text-*`.
-- 🟡 `<.icon name="icon-foo">` with no `assets/css/icons/foo.svg` — renders as an empty span.
-- 🟢 JSDoc that does not match the payload: Erlang tuples arrive as JSON arrays,
-  `registered_name` is `[]` when unregistered, `pid` is `null` for ghost nodes.
-- 🟢 Leftover `console.log`, unused variable, shadowed import, unused icon file.
-
-### Accessibility
-
-- 🟡 Icon-only button without `type="button"` plus `title`/`aria-label`. Without `type` it
-  defaults to submit inside a form.
-- 🟡 A `<label>` with no `for`, or a nav item whose only label is hidden by CSS in compact mode.
-- 🟡 A tooltip trigger on a non-focusable `<div>`, or a control removed from the tab order with
-  `tabindex="-1"` and no keyboard handler.
-
-### Tests
-
-- 🔴 `async: true` in a module that calls `Application.put_env/3` or stops `:net_kernel` — app
-  env and distribution are VM-global.
-- 🟡 Env restored to a hardcoded default in `on_exit` instead of the captured previous value.
-- 🟡 Async LiveView assertions without `render_async/1` — timing-dependent.
-- 🟡 Asserting on `hd(changeset.errors)` or on query-param order — neither is ordered.
-- 🟡 A new event, route or branch with no test covering it.
-- 🟡 Spawned processes, ports and temp dirs left running.
-
-### Config, CI, scripts
-
-- 🟡 Action versions inconsistent with the other workflows in `.github/workflows/`.
-- 🟡 A long inline `run:` block — extract to `.github/scripts/*.sh`.
-- 🟡 A duplicate step in the `precommit` / `format` aliases in `mix.exs`.
-- 🟡 A version that must match another file (`rel/app/src-tauri/tauri.conf.json` vs `mix.exs`)
-  changed on one side only.
-- 🟡 A bash script with `set -u` and a variable left unset on an unmatched `case` branch, or
-  `shift 2` on a flag with no value.
-- 🟡 `config :voyager, :key, value` in `config.exs` for a setting the UI must change at runtime —
-  it locks the setting.
-- 🟢 Docs duplicating `.tool-versions` or another file that will drift.
+Do not re-derive the rules here.

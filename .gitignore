@@ -63,4 +63,6 @@ npm-debug.log
 /.elixir_ls/
 /.lexical/
 /.vscode/
-/.claude/
+/.claude/*
+!/.claude/skills/
+!/.claude/rules/
