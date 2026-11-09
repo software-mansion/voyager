@@ -28,39 +28,45 @@ defmodule VoyagerWeb.TermHighlight do
 
   # A regex over the inspected text, since the row shows the formatter's output, not a term tree.
   defp segments(text, syntax) do
-    kinds = [:string, :other, :special, :atom, :number]
+    kinds = kinds(syntax)
 
     {segments, from} =
-      syntax
-      |> token_regex()
+      token_regex()
       |> Regex.scan(text, return: :index)
-      |> Enum.flat_map_reduce(0, fn [{at, length} | groups], from ->
-        kind =
-          Enum.at(kinds, Enum.find_index(groups, fn {group_at, _length} -> group_at >= 0 end))
-
-        {[{:punctuation, from, at}, {kind, at, at + length}], at + length}
-      end)
+      |> Enum.flat_map_reduce(0, &match_segments(&1, &2, kinds))
 
     Enum.reject(segments ++ [{:punctuation, from, byte_size(text)}], fn {_kind, from, to} ->
       from == to
     end)
   end
 
-  # Erlang terms spell atoms bare or in single quotes.
-  defp token_regex(:erlang),
-    do:
-      ~r/("(?:[^"\\]|\\.)*")|(~[a-zA-Z]+\[[^\]]*\]|#[A-Z][\w.]*<[^>]*>|<\d+\.\d+\.\d+>)|(\b(?:nil|true|false)\b)|(:"(?:[^"\\]|\\.)*"|:[a-zA-Z_][\w@]*[?!]?|\b[a-z_][\w@]*[?!]?:(?=\s)|\b[A-Z]\w*(?:\.[A-Z]\w*)*|'(?:[^'\\]|\\.)*'|\b[a-z][\w@]*)|(-?\b\d[\d_]*(?:\.\d+)?(?:e[+-]?\d+)?\b)/
+  defp match_segments([{at, length} | groups], from, kinds) do
+    case Enum.at(kinds, Enum.find_index(groups, fn {group_at, _length} -> group_at >= 0 end)) do
+      nil -> {[], from}
+      kind -> {[{:punctuation, from, at}, {kind, at, at + length}], at + length}
+    end
+  end
 
-  defp token_regex(_syntax),
-    do:
-      ~r/("(?:[^"\\]|\\.)*")|(~[a-zA-Z]+\[[^\]]*\]|#[A-Z][\w.]*<[^>]*>|<\d+\.\d+\.\d+>)|(\b(?:nil|true|false)\b)|(:"(?:[^"\\]|\\.)*"|:[a-zA-Z_][\w@]*[?!]?|\b[a-z_][\w@]*[?!]?:(?=\s)|\b[A-Z]\w*(?:\.[A-Z]\w*)*)|(-?\b\d[\d_]*(?:\.\d+)?(?:e[+-]?\d+)?\b)/
+  # The last group is Erlang's bare and single-quoted atoms; Elixir leaves it as punctuation.
+  defp kinds(:erlang), do: [:string, :other, :special, :atom, :number, :atom]
+  defp kinds(_syntax), do: [:string, :other, :special, :atom, :number, nil]
 
+  # A string may run to the end of the text, since rows cut long terms before the closing quote.
+  defp token_regex,
+    do:
+      ~r/("(?:[^"\\]|\\.)*(?:"|$))|(~[a-zA-Z]+\[[^\]]*\]|#[A-Z][\w.]*<[^>]*>|<\d+\.\d+\.\d+>)|(\b(?:nil|true|false)\b)|(:"(?:[^"\\]|\\.)*"|:[a-zA-Z_][\w@]*[?!]?|\b[a-z_][\w@]*[?!]?:(?=\s)|\b[A-Z]\w*(?:\.[A-Z]\w*)*)|(-?\b\d[\d_]*(?:\.\d+)?(?:e[+-]?\d+)?\b)|('(?:[^'\\]|\\.)*'|\b[a-z][\w@]*)/
+
+  # Marks arrive in order and never overlap, so their edges are already sorted.
   defp segment_parts(text, {kind, from, to}, marks) do
     edges =
-      for {at, length} <- marks, edge <- [at, at + length], edge > from and edge < to, do: edge
+      for {at, length} <- marks,
+          edge <- [at, at + length],
+          edge > from and edge < to,
+          uniq: true,
+          do: edge
 
-    [from | Enum.sort(edges)]
-    |> Enum.zip(Enum.sort(edges) ++ [to])
+    [from | edges]
+    |> Enum.zip(edges ++ [to])
     |> Enum.map(fn {from, to} ->
       marked? = Enum.any?(marks, fn {at, length} -> from >= at and from < at + length end)
       {kind, marked?, binary_part(text, from, to - from)}

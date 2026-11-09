@@ -44,6 +44,22 @@ defmodule VoyagerWeb.TermHighlightTest do
            ]
   end
 
+  test "kinds a string cut off before its closing quote as a string" do
+    for syntax <- [:elixir, :erlang] do
+      assert TermHighlight.parts(~s({ok, "User Alice: 42…), syntax) |> List.last() ==
+               {:string, false, ~s("User Alice: 42…)}
+    end
+  end
+
+  test "splits touching marks without empty parts" do
+    assert TermHighlight.parts("1000", :elixir, "0") == [
+             {:number, false, "1"},
+             {:number, true, "0"},
+             {:number, true, "0"},
+             {:number, true, "0"}
+           ]
+  end
+
   test "marks case-insensitively" do
     assert TermHighlight.parts(~s("Hello"), :elixir, "hello") == [
              {:string, false, ~s(")},
