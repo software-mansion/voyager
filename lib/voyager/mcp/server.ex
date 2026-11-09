@@ -17,6 +17,7 @@ defmodule Voyager.MCP.Server do
   component(Voyager.MCP.Tools.EtsList)
   component(Voyager.MCP.Tools.EtsReadTableChunk)
   component(Voyager.MCP.Tools.EtsSearchTable)
+  component(Voyager.MCP.Tools.ModuleList)
 
   @impl true
   def init(_client_info, frame), do: {:ok, frame}

@@ -27,6 +27,10 @@ defmodule Voyager.MCP.Tools.RemoteTest do
       assert error(fn _node -> {:error, :dead} end) == "fetch failed: :dead"
     end
 
+    test "passes a message reason through as is" do
+      assert error(fn _node -> {:error, "Pick another module."} end) == "Pick another module."
+    end
+
     test "returns an error when no node is connected" do
       Fakes.put_session(nil)
 
