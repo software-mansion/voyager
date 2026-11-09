@@ -53,7 +53,6 @@ defmodule VoyagerWeb.TracingSessionLive do
           trace_session={trace_session}
           mode={@mode}
           pending?={@pending != nil}
-          sessions_path={sessions_path(@session)}
           on_stop="stop"
           on_start="start"
           on_load="load"
