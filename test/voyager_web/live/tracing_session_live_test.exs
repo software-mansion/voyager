@@ -355,6 +355,27 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#stat-rate", "3")
   end
 
+  test "times the rate by the traces' own timestamps", %{conn: conn} do
+    %{id: id} = start!()
+    view = open(conn, id)
+
+    Date.leap_year?(~D[2024-01-01])
+    assert_receive {:session_entries, session, [trace]}, 2_000
+    _ = :sys.get_state(Tracer)
+    send(view.pid, :tick)
+
+    spaced = for n <- 1..3, do: %{trace | seq: trace.seq + n, at: trace.at + n * 100_000}
+    send(view.pid, {:session_entries, session, spaced})
+    send(view.pid, :tick)
+    assert has_element?(view, "#stat-rate", "10")
+
+    send(view.pid, :tick)
+    burst = for n <- 4..5, do: %{trace | seq: trace.seq + n, at: trace.at + 60_000_000 + n}
+    send(view.pid, {:session_entries, session, burst})
+    send(view.pid, :tick)
+    assert has_element?(view, "#stat-rate", "2")
+  end
+
   test "replaces the rate with the stop reason once stopped", %{conn: conn} do
     %{id: id} = start!()
     view = open(conn, id)

@@ -241,11 +241,12 @@ defmodule VoyagerWeb.TracingSessionLive do
   end
 
   def handle_info(
-        {:session_entries, %Session{id: id} = session, _entries},
+        {:session_entries, %Session{id: id} = session, entries},
         %{assigns: %{id: id}} = socket
       ) do
     socket
     |> put_session(session, :active)
+    |> Stats.absorb(entries)
     |> noreply()
   end
 

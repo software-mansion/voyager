@@ -2,7 +2,8 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
   @moduledoc """
   Owns the session bar's stats: the per-tick rate samples, the clock the run
   time is measured against, and the assigns they are rendered from (`now`,
-  `rates`, `previous_traces`, `tick_scheduled?`, `storage_limit_mb`).
+  `rates`, `window_traces`, `last_trace_at`, `previous_trace_at`, `tick_scheduled?`,
+  `storage_limit_mb`).
 
   Reads `mode` and `trace_session` from the socket.
   """
@@ -14,6 +15,7 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
   alias Phoenix.LiveView.AsyncResult
   alias Phoenix.LiveView.Socket
   alias Voyager.Services.Tracer
+  alias Voyager.Services.Tracer.Entry
   alias Voyager.Services.Tracer.Session
   alias VoyagerWeb.Components.TracingComponents
   alias VoyagerWeb.Formatters
@@ -27,7 +29,9 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
     socket
     |> assign(:now, nil)
     |> assign(:rates, [])
-    |> assign(:previous_traces, 0)
+    |> assign(:window_traces, 0)
+    |> assign(:last_trace_at, nil)
+    |> assign(:previous_trace_at, nil)
     |> assign(:tick_scheduled?, false)
     |> assign(:storage_limit_mb, Tracer.storage_limit_mb())
     |> attach_hook(:stats_tick, :handle_info, &handle_tick/2)
@@ -42,7 +46,21 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
     |> tick()
   end
 
-  @doc "`rates` holds the newest per-tick trace deltas, oldest first."
+  @doc "Counts the traces among a broadcast's `entries` towards the next rate sample."
+  @spec absorb(Socket.t(), [Entry.t()]) :: Socket.t()
+  def absorb(socket, entries) do
+    case for(%{kind: :trace, at: at} <- entries, do: at) do
+      [] ->
+        socket
+
+      ats ->
+        socket
+        |> update(:window_traces, &(&1 + length(ats)))
+        |> assign(:last_trace_at, Enum.max(ats))
+    end
+  end
+
+  @doc "`rates` holds the newest per-tick trace rates, oldest first."
   @spec cells(Session.t(), [non_neg_integer()], DateTime.t(), non_neg_integer()) :: [map()]
   def cells(%Session{} = session, rates, now, storage_limit_mb) do
     [
@@ -185,27 +203,37 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
   end
 
   defp handle_tick(:tick, socket) do
-    %{trace_session: %AsyncResult{result: %Session{traces: traces}}, previous_traces: previous} =
+    %{window_traces: count, last_trace_at: last_at, previous_trace_at: previous_at} =
       socket.assigns
 
     socket
     |> assign(:tick_scheduled?, false)
     |> assign(:now, DateTime.utc_now())
-    |> update(:rates, &Enum.take(&1 ++ [traces - previous], -@rate_history))
-    |> assign(:previous_traces, traces)
+    |> update(:rates, &Enum.take(&1 ++ [rate(count, last_at, previous_at)], -@rate_history))
+    |> assign(:window_traces, 0)
+    |> assign(:previous_trace_at, if(count > 0, do: last_at))
     |> tick()
     |> halt()
   end
 
   defp handle_tick(_message, socket), do: cont(socket)
 
+  # Timed by the traces' own timestamps, so batching and tick drift do not jitter an even rate.
+  defp rate(0, _last_at, _previous_at), do: 0
+
+  defp rate(count, last_at, previous_at) when is_integer(previous_at) and last_at > previous_at,
+    do: max(round(count * 1_000_000 / (last_at - previous_at)), 1)
+
+  defp rate(count, _last_at, _previous_at), do: count
+
   defp reset_rates(socket, %Session{run_started_at: run}, %Session{run_started_at: run}),
     do: socket
 
-  defp reset_rates(socket, _shown, session) do
+  defp reset_rates(socket, _shown, _session) do
     socket
     |> assign(:rates, [])
-    |> assign(:previous_traces, session.traces)
+    |> assign(:window_traces, 0)
+    |> assign(:previous_trace_at, nil)
   end
 
   defp tick(
