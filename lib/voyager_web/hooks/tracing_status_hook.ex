@@ -11,10 +11,13 @@ defmodule VoyagerWeb.Hooks.TracingStatusHook do
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Session
 
+  @throttle_ms 250
+
   def on_mount(:default, _params, _session, socket) do
     socket =
       socket
       |> assign(:tracing_session, nil)
+      |> assign(:queued_tracing_session, nil)
       |> attach_hook(:tracing_status, :handle_info, &handle_tracing_status/2)
       |> attach_hook(:tracing_status_load, :handle_async, &handle_tracing_load/3)
 
@@ -30,8 +33,28 @@ defmodule VoyagerWeb.Hooks.TracingStatusHook do
     {:cont, socket}
   end
 
+  # Every trace batch broadcasts the session, and every render re-patches the whole page.
+  defp handle_tracing_status(
+         {:session_updated, %Session{id: id, status: status, config: config} = session},
+         %{assigns: %{tracing_session: %Session{id: id, status: status, config: config}}} = socket
+       ) do
+    if is_nil(socket.assigns.queued_tracing_session),
+      do: Process.send_after(self(), :put_tracing_session, @throttle_ms)
+
+    {:halt, assign(socket, :queued_tracing_session, session)}
+  end
+
   defp handle_tracing_status({:session_updated, session}, socket),
     do: {:halt, put_session(socket, session)}
+
+  defp handle_tracing_status(
+         :put_tracing_session,
+         %{assigns: %{queued_tracing_session: nil}} = socket
+       ),
+       do: {:halt, socket}
+
+  defp handle_tracing_status(:put_tracing_session, socket),
+    do: {:halt, put_session(socket, socket.assigns.queued_tracing_session)}
 
   defp handle_tracing_status(_event, socket), do: {:cont, socket}
 
@@ -47,6 +70,7 @@ defmodule VoyagerWeb.Hooks.TracingStatusHook do
     socket
     |> cancel_async(:tracing_session)
     |> assign(:tracing_session, shown(session))
+    |> assign(:queued_tracing_session, nil)
   end
 
   defp shown(%Session{config: %Config{}} = session), do: session

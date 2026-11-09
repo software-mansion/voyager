@@ -355,6 +355,18 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#stat-rate", "3")
   end
 
+  test "holds count-only updates until the throttle flushes them", %{conn: conn} do
+    %{id: id} = start!()
+    view = open(conn, id)
+
+    call_traced!(3, 3)
+    _ = :sys.get_state(Tracer)
+    assert has_element?(view, "#stat-events .tabular-nums", "0")
+
+    put_queued(view)
+    assert has_element?(view, "#stat-events .tabular-nums", "3")
+  end
+
   test "times the rate by the traces' own timestamps", %{conn: conn} do
     %{id: id} = start!()
     view = open(conn, id)

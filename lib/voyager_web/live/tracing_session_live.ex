@@ -14,6 +14,7 @@ defmodule VoyagerWeb.TracingSessionLive do
   alias VoyagerWeb.TracingSessionLive.Stats
 
   @actions [:stop, :start, :load, :unload, :delete]
+  @session_throttle_ms 250
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -26,6 +27,7 @@ defmodule VoyagerWeb.TracingSessionLive do
         |> assign(:trace_session, AsyncResult.loading())
         |> assign(:pending, nil)
         |> assign(:confirm, nil)
+        |> assign(:queued_session, nil)
         |> Stats.init()
         |> subscribe_and_load()
         |> ok()
@@ -57,7 +59,7 @@ defmodule VoyagerWeb.TracingSessionLive do
           pending?={@pending != nil}
           show_back_arrow={@can_go_back?}
           connected_node={@session.node}
-          stats={stats(trace_session, assigns)}
+          stats={stats(trace_session, @rates, @now, @storage_limit_mb)}
           on_stop="stop"
           on_start="start"
           on_load="load"
@@ -245,8 +247,17 @@ defmodule VoyagerWeb.TracingSessionLive do
         %{assigns: %{id: id}} = socket
       ) do
     socket
-    |> put_session(session, :active)
+    |> queue_session(session)
     |> Stats.absorb(entries)
+    |> noreply()
+  end
+
+  def handle_info(
+        :put_queued_session,
+        %{assigns: %{queued_session: %Session{} = session}} = socket
+      ) do
+    socket
+    |> put_session(session, :active)
     |> noreply()
   end
 
@@ -279,6 +290,7 @@ defmodule VoyagerWeb.TracingSessionLive do
 
     socket
     |> assign(:trace_session, AsyncResult.loading(socket.assigns.trace_session))
+    |> assign(:queued_session, nil)
     |> assign(:mode, nil)
     |> cancel_async(:session)
     |> start_async(:session, fn -> Tracer.session(id) end)
@@ -294,9 +306,28 @@ defmodule VoyagerWeb.TracingSessionLive do
 
     socket
     |> assign(:trace_session, AsyncResult.ok(session))
+    |> assign(:queued_session, nil)
     |> assign(:mode, mode)
     |> Stats.track(shown, session)
   end
+
+  # Every trace batch carries the session; rendering each one swamps a slow client.
+  defp queue_session(
+         %{
+           assigns: %{
+             mode: :active,
+             trace_session: %AsyncResult{result: %Session{status: status, config: config}}
+           }
+         } = socket,
+         %Session{status: status, config: config} = session
+       ) do
+    if is_nil(socket.assigns.queued_session),
+      do: Process.send_after(self(), :put_queued_session, @session_throttle_ms)
+
+    assign(socket, :queued_session, session)
+  end
+
+  defp queue_session(socket, session), do: put_session(socket, session, :active)
 
   defp run(socket, name, fun) do
     socket
@@ -320,10 +351,8 @@ defmodule VoyagerWeb.TracingSessionLive do
   defp confirm_label(:unload), do: "Unload"
   defp confirm_label(:load), do: "Load"
 
-  defp stats(%Session{run_started_at: nil}, _assigns), do: []
-
-  defp stats(session, %{rates: rates, now: now, storage_limit_mb: limit_mb}),
-    do: Stats.cells(session, rates, now, limit_mb)
+  defp stats(%Session{run_started_at: nil}, _rates, _now, _limit_mb), do: []
+  defp stats(session, rates, now, limit_mb), do: Stats.cells(session, rates, now, limit_mb)
 
   defp format_error(:busy), do: "A tracing session is running. Stop it first."
   defp format_error(:not_found), do: "No such tracing session."
