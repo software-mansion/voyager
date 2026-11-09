@@ -192,17 +192,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
       class="card bg-base-100 border-base-200 text-base-content flex-none border shadow-sm"
     >
       <div class="flex items-center gap-3 px-4 py-3">
-        <.tooltip id="session-back-tip" position="bottom" class="shrink-0">
-          <.link
-            navigate={@sessions_path}
-            id="session-back"
-            aria-label="Back to sessions"
-            class="btn btn-ghost btn-square toolbar-btn-sm text-base-content"
-          >
-            <.icon name="icon-arrow-left" class="toolbar-icon-sm" />
-          </.link>
-          <:content>Back to sessions</:content>
-        </.tooltip>
+        <.back_arrow id="session-header-back" class="translate-y-0.5" />
         <div class="min-w-0 flex-1">
           <div class="flex min-w-0 items-center gap-2 text-xs">
             <span
