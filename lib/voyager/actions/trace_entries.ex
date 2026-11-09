@@ -7,6 +7,7 @@ defmodule Voyager.Actions.TraceEntries do
   alias Voyager.Repo
   alias Voyager.Schemas.TraceEvent
   alias Voyager.Schemas.TraceSessionEvent
+  alias Voyager.Services.Tracer.Search
   alias Voyager.StoredTerm
 
   # Measured on SQLite: id, session_id, seq, `at` as ISO text, kind, flags and the seq index.
@@ -87,31 +88,12 @@ defmodule Voyager.Actions.TraceEntries do
       value: if(Map.has_key?(entry, :value), do: StoredTerm.encode(entry.value)),
       truncated: entry[:truncated],
       duration_us: entry[:duration_us],
-      search_text: search_text(entry)
+      search_text: Search.text(entry)
     })
-  end
-
-  defp search_text(%{mfa: {m, f, a}} = entry) do
-    terms = for key <- [:args, :value], Map.has_key?(entry, key), do: inspect_term(entry[key])
-
-    Enum.join(
-      [
-        inspect_term(entry.pid),
-        inspect_term(entry.process),
-        Exception.format_mfa(m, f, a) | terms
-      ],
-      " "
-    )
   end
 
   defp base(session_id, entry),
     do: %{session_id: session_id, seq: entry.seq, at: DateTime.from_unix!(entry.at, :microsecond)}
-
-  defp inspect_term(term),
-    do: inspect(term, limit: :infinity, printable_limit: :infinity, inspect_fun: &inspect_pid/2)
-
-  defp inspect_pid(pid, _opts) when is_pid(pid), do: "#PID" <> Voyager.Pid.format(pid, :local)
-  defp inspect_pid(term, opts), do: Inspect.inspect(term, opts)
 
   defp row_bytes(row) do
     row
