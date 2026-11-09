@@ -125,17 +125,11 @@ defmodule Voyager.Services.SSH.KnownHosts do
       host: name,
       file: file,
       line: line,
-      key_type: key_type(type),
+      key_type: type,
       fingerprint: to_string(:ssh.hostkey_fingerprint(:sha256, key)),
       removable: file == path()
     }
   end
-
-  defp key_type("ssh-ed25519"), do: "ED25519"
-  defp key_type("ssh-ed448"), do: "ED448"
-  defp key_type("ssh-rsa"), do: "RSA"
-  defp key_type("ecdsa-sha2-" <> _curve), do: "ECDSA"
-  defp key_type(type), do: type
 
   defp entries(name, type) do
     files = [global_path(), system_path(), path()]

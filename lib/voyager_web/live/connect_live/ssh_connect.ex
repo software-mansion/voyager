@@ -446,7 +446,6 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     socket
     |> put_connect_error(reason)
     |> assign(:host_key_mismatch, mismatch)
-    |> assign(:host_key_remove_error, nil)
     |> noreply()
   end
 

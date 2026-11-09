@@ -153,9 +153,8 @@ defmodule VoyagerWeb.ConnectLiveSshHostKeyTest do
     assert text(view, "#ssh-host-key-changed-modal-remove-error") ==
              "Couldn't remove the old key from #{known_hosts} — check its permissions"
 
-    html = render(view)
-    assert html =~ "SSH host key changed"
-    refute html =~ "Can't save the host key"
+    assert has_element?(view, "#ssh-connect-form", "SSH host key changed")
+    refute has_element?(view, "#ssh-connect-form", "Can't save the host key")
     assert File.read!(known_hosts) == before
 
     view |> element("#ssh-host-key-changed-modal-dismiss") |> render_click()
@@ -185,7 +184,7 @@ defmodule VoyagerWeb.ConnectLiveSshHostKeyTest do
     assert text(view, "#ssh-host-key-changed-modal-remove-error") ==
              "Couldn't remove the old key — can't read #{known_hosts}"
 
-    refute render(view) =~ "Can't save the host key"
+    refute has_element?(view, "#ssh-connect-form", "Can't save the host key")
     assert File.exists?(known_hosts)
   end
 

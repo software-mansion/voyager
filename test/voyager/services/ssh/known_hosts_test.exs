@@ -111,7 +111,7 @@ defmodule Voyager.Services.SSH.KnownHostsTest do
                  host: "[gw]:2222",
                  file: voyager,
                  line: 2,
-                 key_type: "ED25519",
+                 key_type: "ssh-ed25519",
                  fingerprint: fingerprint,
                  removable: true
                }}}
