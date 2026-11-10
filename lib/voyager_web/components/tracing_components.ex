@@ -118,8 +118,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
 
     [
       {:where, "Where", "#{processes} · #{config.scope}"},
-      {:capture, "Capture",
-       if(config.return_trace, do: capture(config) <> " + returns", else: capture(config))},
+      {:capture, "Capture", capture_chip(config)},
       {:stop_after, "Stop after", limits}
     ]
   end
@@ -195,7 +194,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
       {"Processes", processes(config)},
       {"Scope", scope},
       {"Capture", capture(config)},
-      {"Returns", if(config.return_trace, do: "Traced", else: "Not traced")},
+      {"Returns", returns(config)},
       {"Max events", config.max_events && Formatters.format_integer(config.max_events)},
       {"Max rate", config.max_rate && "#{Formatters.format_integer(config.max_rate)}/s"},
       {"Max time", config.max_time_ms && format_time_limit(config.max_time_ms)}
@@ -208,10 +207,17 @@ defmodule VoyagerWeb.Components.TracingComponents do
   defp processes(%Config{processes: :new}), do: "New processes"
   defp processes(%Config{processes: :pids, pids: pids}), do: Enum.join(pids, ", ")
 
-  defp capture(%Config{capture: :args, budget: budget}),
-    do: "Args ≤ #{Formatters.format_integer(budget)}"
-
+  defp capture(%Config{capture: :args} = config), do: "Args " <> budget_cap(config)
   defp capture(_config), do: "Arity"
+
+  defp returns(%Config{return_trace: true} = config), do: "Traced " <> budget_cap(config)
+  defp returns(_config), do: "Not traced"
+
+  defp capture_chip(%Config{return_trace: false} = config), do: capture(config)
+  defp capture_chip(%Config{capture: :args} = config), do: capture(config) <> " + returns"
+  defp capture_chip(config), do: "Arity + returns " <> budget_cap(config)
+
+  defp budget_cap(%Config{budget: budget}), do: "≤ #{Formatters.format_integer(budget)}"
 
   defp format_time_limit(ms) when rem(ms, 1_000) != 0, do: "#{Formatters.format_integer(ms)} ms"
   defp format_time_limit(ms) when rem(ms, 60_000) != 0, do: "#{div(ms, 1_000)} s"

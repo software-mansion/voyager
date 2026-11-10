@@ -54,6 +54,12 @@ defmodule VoyagerWeb.Components.TracingComponentsTest do
 
     assert [{:where, "Where", "All processes · global"}, {:capture, "Capture", "Arity"}, _limits] =
              TracingComponents.config_chips(%{@config | processes: :all})
+
+    assert {:capture, "Capture", "Arity + returns ≤ 2,000"} in TracingComponents.config_chips(%{
+             @config
+             | return_trace: true,
+               budget: 2_000
+           })
   end
 
   defp changes(assigns) do
@@ -68,6 +74,13 @@ defmodule VoyagerWeb.Components.TracingComponentsTest do
   test "config_changes/1 lists each changed parameter with its old value" do
     assert changes(config: %{@config | scope: :local, max_events: nil}, previous: @config) ==
              "Scope Global → Local · Max events 1,000 → None"
+  end
+
+  test "config_changes/1 lists a budget change that only bounds the traced returns" do
+    previous = %{@config | return_trace: true, budget: 1_000}
+
+    assert changes(config: %{previous | budget: 2_000}, previous: previous) ==
+             "Returns Traced ≤ 1,000 → Traced ≤ 2,000"
   end
 
   test "config_changes/1 reports no changes for an identical previous config" do
