@@ -410,7 +410,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         |> assign(:host_key_mismatch, nil)
         |> assign(:host_key_remove_error, nil)
         |> assign(:ssh_form, KeyAuth.checked_form(form_changeset(socket)))
-        |> start_connect(socket.assigns.connect_params)
+        |> start_connect(socket.assigns.connect_params, socket.assigns.connect_auth)
         |> noreply()
 
       {:error, reason} ->
