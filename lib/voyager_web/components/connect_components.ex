@@ -482,11 +482,9 @@ defmodule VoyagerWeb.ConnectComponents do
         />
 
         <p class="text-base-content/70 mt-4 text-sm">
-          Offending {@mismatch.key_type} key in
-          <span id={"#{@id}-location"} class="font-mono text-base-content break-words">
-            {@mismatch.file}:{@mismatch.line}
-          </span>
+          Offending {@mismatch.key_type} key on line {@mismatch.line} of
         </p>
+        <.copy_field id={"#{@id}-location"} value={@mismatch.file} label="Copy path" />
 
         <p class="text-base-content/70 mt-4 text-sm">
           If you expected this change, confirm the new fingerprint with the server's

@@ -118,7 +118,7 @@ defmodule VoyagerWeb.ConnectLiveSshHostKeyTest do
     submit_connect(view, server)
 
     assert text(view, "#ssh-host-key-changed-modal-fingerprint") == server.fingerprint
-    assert text(view, "#ssh-host-key-changed-modal-location") == "#{known_hosts}:1"
+    assert text(view, "#ssh-host-key-changed-modal-location") == known_hosts
 
     refute has_element?(view, "#ssh-host-key-changed-modal-command")
     assert has_element?(view, "#ssh_ssh_host.input-error")
