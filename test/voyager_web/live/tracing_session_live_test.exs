@@ -112,7 +112,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
 
     view = open(conn, id)
 
-    assert has_element?(view, "#session-edit[disabled]")
+    assert has_element?(view, "#session-edit[aria-disabled]")
 
     assert view
            |> element("#session-edit-tip-portal")
