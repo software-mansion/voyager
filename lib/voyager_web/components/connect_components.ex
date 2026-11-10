@@ -305,6 +305,7 @@ defmodule VoyagerWeb.ConnectComponents do
   attr :id, :string, required: true
   attr :form, Phoenix.HTML.Form, required: true
   attr :key_path, :string, required: true
+  attr :checking, :boolean, default: false
   attr :target, :any, default: nil
   attr :on_change, :string, required: true
   attr :on_submit, :string, required: true
@@ -348,8 +349,14 @@ defmodule VoyagerWeb.ConnectComponents do
             >
               Cancel
             </button>
-            <button type="submit" id={"#{@id}-submit"} class="btn btn-primary">
-              Connect
+            <button
+              type="submit"
+              id={"#{@id}-submit"}
+              disabled={@checking}
+              class="btn btn-primary gap-2"
+            >
+              <span :if={@checking} class="loading loading-spinner loading-sm"></span>
+              {if @checking, do: "Checking passphrase…", else: "Connect"}
             </button>
           </div>
         </.form>

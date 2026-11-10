@@ -6,11 +6,14 @@ defmodule Voyager.Services.Tracer.Session do
     so the two never collide
   - `seq` numbers the next log entry
   - `started_at` is the first run's start and `stopped_at` the last run's end
+  - `run_started_at` is the last run's start and `run_traces_before` the traces of the runs before it
   - `bytes` estimates the saved rows' size, and a run stops once it passes `storage_limit`
   """
 
+  alias Voyager.Schemas.TraceSession
   alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Config
+  alias Voyager.Services.Tracer.Entry
 
   @enforce_keys [:id, :origin, :created_at]
   defstruct [
@@ -23,9 +26,11 @@ defmodule Voyager.Services.Tracer.Session do
     :stop_reason,
     :started_at,
     :stopped_at,
+    :run_started_at,
     save: false,
     status: :idle,
     traces: 0,
+    run_traces_before: 0,
     dropped: 0,
     bytes: 0,
     storage_limit: 0,
@@ -43,12 +48,14 @@ defmodule Voyager.Services.Tracer.Session do
           status: :idle | :running | :stopped,
           stop_reason: Tracer.stop_reason() | nil,
           traces: non_neg_integer(),
+          run_traces_before: non_neg_integer(),
           dropped: non_neg_integer(),
           bytes: non_neg_integer(),
           storage_limit: non_neg_integer(),
           seq: non_neg_integer(),
           started_at: DateTime.t() | nil,
-          stopped_at: DateTime.t() | nil
+          stopped_at: DateTime.t() | nil,
+          run_started_at: DateTime.t() | nil
         }
 
   @spec running(t(), pid(), non_neg_integer()) :: t()
@@ -60,6 +67,8 @@ defmodule Voyager.Services.Tracer.Session do
         stop_reason: nil,
         started_at: session.started_at || DateTime.utc_now(),
         stopped_at: nil,
+        run_started_at: DateTime.utc_now(),
+        run_traces_before: session.traces,
         storage_limit: storage_limit
     }
   end
@@ -75,14 +84,21 @@ defmodule Voyager.Services.Tracer.Session do
     }
   end
 
-  @doc "A saved session as it was left in `row`; `configured` is its `:configured` entry, or a map with a nil `node` and `config`."
+  @doc """
+  The session saved as `row`, from its newest-first control entries and the count of traces
+  saved before its last run.
+  """
   @spec from_row(
-          Voyager.Schemas.TraceSession.t(),
-          %{node: node() | nil, config: Config.t() | nil},
+          TraceSession.t(),
+          [Entry.t()],
+          non_neg_integer(),
           non_neg_integer(),
           non_neg_integer()
         ) :: t()
-  def from_row(row, configured, seq, storage_limit) do
+  def from_row(row, controls, run_traces_before, seq, storage_limit) do
+    configured = Enum.find(controls, &(&1.kind == :configured)) || %{node: nil, config: nil}
+    started = Enum.find(controls, &(&1.kind == :started))
+
     %__MODULE__{
       id: row.id,
       origin: row.origin,
@@ -93,12 +109,14 @@ defmodule Voyager.Services.Tracer.Session do
       status: row.status,
       stop_reason: row.stop_reason,
       traces: row.traces,
+      run_traces_before: run_traces_before,
       dropped: row.dropped,
       bytes: row.bytes,
       storage_limit: storage_limit,
       seq: seq,
       started_at: row.started_at,
-      stopped_at: row.stopped_at
+      stopped_at: row.stopped_at,
+      run_started_at: started && DateTime.from_unix!(started.at, :microsecond)
     }
   end
 end

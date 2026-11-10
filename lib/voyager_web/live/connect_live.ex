@@ -3,6 +3,8 @@ defmodule VoyagerWeb.ConnectLive do
 
   alias Voyager.NodeSession
   alias Voyager.NodeSession.ConnectError
+  alias Voyager.Queries.Connections, as: ConnectionQueries
+  alias Voyager.Queries.SshConnections, as: SshConnectionQueries
   alias VoyagerWeb.ConnectComponents
 
   @prefill_keys ~w(connection node_name name_type ssh_user ssh_host ssh_port epmd_port auth_method key_path agent_socket_path)
@@ -13,6 +15,7 @@ defmodule VoyagerWeb.ConnectLive do
     |> assign(:proxy_epmd_active?, Voyager.ProxyEpmd.active?())
     |> assign(:connected_session, NodeSession.current())
     |> assign(:connecting?, false)
+    |> assign_unreadable_secrets()
     |> ok()
   end
 
@@ -116,6 +119,21 @@ defmodule VoyagerWeb.ConnectLive do
               </span>
             </div>
 
+            <div
+              :if={
+                is_nil(@connected_session) and
+                  if(@mode == :ssh, do: @unreadable_ssh_secrets?, else: @unreadable_direct_secrets?)
+              }
+              id="unreadable-secrets"
+              role="alert"
+              class="alert alert-warning mb-4 text-xs"
+            >
+              <.icon name="icon-circle-alert" class="text-warning size-4 shrink-0" />
+              <span>
+                Some saved secrets can't be decrypted, the encryption key probably changed. Enter them again or delete those connections.
+              </span>
+            </div>
+
             <div class={@mode != :direct && "hidden"}>
               <.live_component
                 module={VoyagerWeb.ConnectLive.DirectConnect}
@@ -186,7 +204,19 @@ defmodule VoyagerWeb.ConnectLive do
     {:noreply, assign(socket, :connected_session, nil)}
   end
 
+  def handle_info(:saved_connection_deleted, socket) do
+    socket
+    |> assign_unreadable_secrets()
+    |> noreply()
+  end
+
   def handle_info(_, socket), do: {:noreply, socket}
+
+  defp assign_unreadable_secrets(socket) do
+    socket
+    |> assign(:unreadable_direct_secrets?, ConnectionQueries.unreadable_secrets?())
+    |> assign(:unreadable_ssh_secrets?, SshConnectionQueries.unreadable_secrets?())
+  end
 
   defp mode_disabled_reason(assigns) do
     cond do

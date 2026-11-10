@@ -82,8 +82,11 @@ defmodule Voyager.NodeSession.ConnectError do
 
   def message({:agent_install_failed, _}), do: "Could not load the Voyager agent on the node"
 
-  def message(:key_encrypted_openssh),
-    do: "Passphrase-protected OpenSSH keys aren't supported — use SSH Agent or Password"
+  def message(:key_unsupported_cipher),
+    do: "This key's cipher isn't supported — use SSH Agent or Password"
+
+  def message(:key_unreachable),
+    do: "This key takes too long to unlock — use SSH Agent or Password"
 
   def message(:key_unreadable), do: "Not a private key Voyager can read"
   def message({:read_failed, _}), do: "Can't read this file"

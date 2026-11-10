@@ -43,11 +43,19 @@ export default defineConfig({
     },
 
     {
+      name: 'unreadable-secrets',
+      use: { ...devices['Desktop Chrome'] },
+      workers: 1,
+      testMatch: '**/unreadable_secrets.spec.ts',
+      dependencies: ['connect'],
+    },
+
+    {
       name: 'recent-connections chromium',
       use: { ...devices['Desktop Chrome'] },
       workers: 1,
       testMatch: '**/recent_connections.spec.ts',
-      dependencies: ['connect'],
+      dependencies: ['unreadable-secrets'],
     },
     {
       name: 'recent-connections firefox',

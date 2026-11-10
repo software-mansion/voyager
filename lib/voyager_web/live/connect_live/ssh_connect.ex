@@ -33,6 +33,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     socket
     |> assign(:id_prefix, @id_prefix)
     |> assign(:connect_params, nil)
+    |> assign(:connect_auth, nil)
     |> assign(:host_key_prompt, nil)
     |> assign(:host_key_mismatch, nil)
     |> assign(:host_key_remove_error, nil)
@@ -259,6 +260,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         id={"#{@id_prefix}passphrase-modal"}
         form={@passphrase_form}
         key_path={@ssh_form[:key_path].value}
+        checking={@checking_passphrase?}
         target={@myself}
         on_change="change_passphrase"
         on_submit="submit_passphrase"
@@ -357,7 +359,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       {:ok, %SshConnectionParams{} = p} ->
         socket
         |> assign(:ssh_form, to_form(changeset, as: :ssh))
-        |> KeyAuth.connect(p, &start_connect/2)
+        |> KeyAuth.connect(p, &start_connect/3)
         |> noreply()
 
       {:error, changeset} ->
@@ -373,7 +375,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     case Ecto.Changeset.apply_action(socket.assigns.ssh_form.source, :insert) do
       {:ok, %SshConnectionParams{} = p} ->
         socket
-        |> KeyAuth.connect(%{p | passphrase: passphrase}, &start_connect/2)
+        |> KeyAuth.connect(%{p | passphrase: passphrase}, &start_connect/3)
         |> noreply()
 
       {:error, _changeset} ->
@@ -387,7 +389,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       when is_binary(fp) do
     socket
     |> assign(:host_key_prompt, nil)
-    |> start_connect(socket.assigns.connect_params, fp)
+    |> start_connect(socket.assigns.connect_params, socket.assigns.connect_auth, fp)
     |> noreply()
   end
 
@@ -438,6 +440,10 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   end
 
   @impl true
+  def handle_async(:key_decode, result, socket) do
+    {:noreply, KeyAuth.handle_decode(socket, result, &start_connect/3)}
+  end
+
   def handle_async(:ssh_connect, {:ok, {:error, {:unknown_host_key, fp}}}, socket) do
     {:noreply, assign(socket, :host_key_prompt, fp)}
   end
@@ -461,17 +467,18 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     {:noreply, redirect(socket, to: ~p"/open")}
   end
 
-  defp start_connect(socket, %SshConnectionParams{} = p, host_key \\ nil) do
+  defp start_connect(socket, %SshConnectionParams{} = p, auth, host_key \\ nil) do
     socket
     |> assign(:connect_params, p)
-    |> start_async(:ssh_connect, fn -> connect(p, host_key) end)
+    |> assign(:connect_auth, auth)
+    |> start_async(:ssh_connect, fn -> connect(p, auth, host_key) end)
   end
 
-  defp connect(%SshConnectionParams{} = p, host_key) do
+  defp connect(%SshConnectionParams{} = p, auth, host_key) do
     opts = [
       ssh_user: p.ssh_user,
       ssh_host: p.ssh_host,
-      auth: SshConnectionParams.to_auth(p),
+      auth: auth,
       ssh_port: p.ssh_port,
       epmd_port: p.epmd_port,
       name_type: p.name_type,
