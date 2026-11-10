@@ -54,6 +54,7 @@ defmodule VoyagerWeb.TracingSessionLive do
           mode={@mode}
           pending?={@pending != nil}
           show_back_arrow={@can_go_back?}
+          connected_node={@session.node}
           on_stop="stop"
           on_start="start"
           on_load="load"

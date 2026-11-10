@@ -179,6 +179,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
   attr :mode, :atom, required: true
   attr :pending?, :boolean, required: true
   attr :show_back_arrow, :boolean, required: true
+  attr :connected_node, :atom, required: true
   attr :on_stop, :string, required: true
   attr :on_start, :string, required: true
   attr :on_load, :string, required: true
@@ -201,6 +202,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
           trace_session={@trace_session}
           mode={@mode}
           pending?={@pending?}
+          other_node?={tone(@trace_session, @connected_node) == :other_node}
           on_stop={@on_stop}
           on_start={@on_start}
           on_load={@on_load}
@@ -340,6 +342,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
   attr :trace_session, Session, required: true
   attr :mode, :atom, required: true
   attr :pending?, :boolean, required: true
+  attr :other_node?, :boolean, required: true
   attr :on_stop, :string, required: true
   attr :on_start, :string, required: true
   attr :on_load, :string, required: true
@@ -383,8 +386,27 @@ defmodule VoyagerWeb.Components.TracingComponents do
       >
         <.icon name="icon-square-filled" class="size-3.5" /> Stop
       </button>
+      <.tooltip
+        :if={@mode == :active and @trace_session.status != :running and @other_node?}
+        id="session-run-tip"
+        position="bottom"
+      >
+        <button
+          type="button"
+          id={if @trace_session.status == :stopped, do: "session-resume", else: "session-start"}
+          disabled
+          class="btn btn-sm btn-primary"
+        >
+          <.icon name="icon-play" class="size-3.5" />
+          {if @trace_session.status == :stopped, do: "Resume", else: "Start"}
+        </button>
+        <:content>
+          Traced on <span class="font-mono">{@trace_session.node}</span>.
+          Connect to that node to run this session.
+        </:content>
+      </.tooltip>
       <button
-        :if={@mode == :active and @trace_session.status == :stopped}
+        :if={@mode == :active and @trace_session.status == :stopped and not @other_node?}
         type="button"
         id="session-resume"
         phx-click={@on_start}
@@ -394,7 +416,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
         <.icon name="icon-play" class="size-3.5" /> Resume
       </button>
       <button
-        :if={@mode == :active and @trace_session.status == :idle}
+        :if={@mode == :active and @trace_session.status == :idle and not @other_node?}
         type="button"
         id="session-start"
         phx-click={@on_start}

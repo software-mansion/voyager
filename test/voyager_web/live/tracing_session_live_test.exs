@@ -75,6 +75,24 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     refute has_element?(view, "#session-resume")
   end
 
+  test "disables running a session traced on another node", %{conn: conn} do
+    %{id: id} = create!()
+    {:ok, _session} = configure()
+
+    :sys.replace_state(Tracer, fn state ->
+      %{state | session: %{state.session | node: :other@localhost, status: :stopped}}
+    end)
+
+    view = open(conn, id)
+
+    assert has_element?(view, "#session-resume[disabled]")
+    assert has_element?(view, "#session-unload:not([disabled])")
+
+    assert view
+           |> element("#session-run-tip-portal")
+           |> render() =~ "other@localhost"
+  end
+
   test "shows the empty state for an unconfigured session", %{conn: conn} do
     %{id: id} = create!()
 
