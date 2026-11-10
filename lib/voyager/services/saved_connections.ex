@@ -27,7 +27,7 @@ defmodule Voyager.Services.SavedConnections do
   def ready?(%SshConnection{auth_method: :key, key_path: nil}), do: false
 
   def ready?(%SshConnection{auth_method: :key, key_path: path}),
-    do: KeyFile.check(path, nil) == :ok
+    do: match?({:ok, _key}, KeyFile.decode(path, nil))
 
   def ready?(%SshConnection{}), do: true
 
@@ -64,7 +64,7 @@ defmodule Voyager.Services.SavedConnections do
   defp ssh_auth(%{auth_method: :password, password: password}), do: {:ok, {:password, password}}
 
   defp ssh_auth(%{auth_method: :key, key_path: path}) do
-    with :ok <- KeyFile.check(path, nil), do: {:ok, {:key, path, nil}}
+    with {:ok, key} <- KeyFile.decode(path, nil), do: {:ok, {:key, key}}
   end
 
   defp connect_ssh(c, auth) do
