@@ -376,16 +376,48 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     _ = :sys.get_state(Tracer)
     send(view.pid, :tick)
 
-    spaced = for n <- 1..3, do: %{trace | seq: trace.seq + n, at: trace.at + n * 100_000}
+    spaced = for n <- 1..9, do: %{trace | seq: trace.seq + n, at: trace.at + n * 100_000}
     send(view.pid, {:session_entries, session, spaced})
     send(view.pid, :tick)
     assert has_element?(view, "#stat-rate", "10")
 
     send(view.pid, :tick)
-    burst = for n <- 4..5, do: %{trace | seq: trace.seq + n, at: trace.at + 60_000_000 + n}
+    burst = for n <- 10..11, do: %{trace | seq: trace.seq + n, at: trace.at + 60_000_000 + n}
     send(view.pid, {:session_entries, session, burst})
     send(view.pid, :tick)
     assert has_element?(view, "#stat-rate", "2")
+  end
+
+  test "does not read the rest of a burst split across ticks as a faster rate", %{conn: conn} do
+    %{id: id} = start!()
+    view = open(conn, id)
+
+    Date.leap_year?(~D[2024-01-01])
+    assert_receive {:session_entries, session, [trace]}, 2_000
+    _ = :sys.get_state(Tracer)
+    send(view.pid, :tick)
+
+    rest = for n <- 1..20, do: %{trace | seq: trace.seq + n, at: trace.at + n * 1_000}
+    send(view.pid, {:session_entries, session, rest})
+    send(view.pid, :tick)
+    assert has_element?(view, "#stat-rate .tabular-nums", "22")
+  end
+
+  test "restarts the rate samples with a new run", %{conn: conn} do
+    %{id: id} = start!()
+    view = open(conn, id)
+
+    call_traced!(3, 3)
+    _ = :sys.get_state(Tracer)
+    send(view.pid, :tick)
+    assert has_element?(view, "#stat-rate .tabular-nums", "3")
+
+    :ok = Tracer.stop(:ui)
+    settle(view)
+    {:ok, _session} = Tracer.start(:ui)
+    settle(view)
+
+    assert has_element?(view, "#stat-rate .tabular-nums", "0")
   end
 
   test "replaces the rate with the stop reason once stopped", %{conn: conn} do

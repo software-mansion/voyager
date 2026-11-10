@@ -21,6 +21,8 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
   alias VoyagerWeb.Formatters
 
   @tick_ms 1_000
+  # An even rate spans a tick, give or take one 100 ms agent batch; a shorter span is a burst.
+  @min_span_us (@tick_ms - 100) * 1_000
   @rate_history 10
   @kept_traces Tracer.kept_traces()
 
@@ -222,7 +224,7 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
   defp rate(0, _last_at, _previous_at), do: 0
 
   defp rate(count, last_at, previous_at) when is_integer(previous_at) and last_at > previous_at,
-    do: max(round(count * 1_000_000 / (last_at - previous_at)), 1)
+    do: max(round(count * 1_000_000 / max(last_at - previous_at, @min_span_us)), 1)
 
   defp rate(count, _last_at, _previous_at), do: count
 

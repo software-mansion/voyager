@@ -14,7 +14,8 @@ defmodule Voyager.Services.Tracer do
   newest trace and dropped entries are kept in memory while a session is unsaved;
   saved sessions are read from the database. Broadcasts on `topic/0` are
   `{:session_activated, session}`, `{:session_closed, id}` and
-  `{:session_entries, session, entries}` with the entries just appended, oldest first.
+  `{:session_entries, session, entries}` with the entries just appended, oldest first, or
+  none when only a stopped or idle saved session's `bytes` changed.
   `session_topic/0` carries only `{:session_updated, session | nil}` alongside each of those.
 
   A session created with `save: true` gets a `Voyager.Schemas.TraceSession` row and
@@ -411,8 +412,12 @@ defmodule Voyager.Services.Tracer do
     {:noreply, end_run(state, down_reason(reason), session.dropped)}
   end
 
-  def handle_info({:trace_written, id, bytes}, %{session: %{id: id} = session} = state),
-    do: {:noreply, stop_over_limit(%{state | session: %{session | bytes: bytes}})}
+  def handle_info({:trace_written, id, bytes}, %{session: %{id: id} = session} = state) do
+    session = %{session | bytes: bytes}
+    # A running session's next batch carries its size; once stopped, nothing else would.
+    if session.status != :running, do: broadcast_entries(session, [])
+    {:noreply, stop_over_limit(%{state | session: session})}
+  end
 
   def handle_info({:trace_write_failed, id, _reason}, %{session: %{id: id}} = state),
     do: {:noreply, request_stop(state, :write_failed)}
@@ -581,10 +586,14 @@ defmodule Voyager.Services.Tracer do
     session = %{session | seq: session.seq + length(entries)}
 
     if session.save, do: Writer.append(session, entries)
-    broadcast({:session_entries, session, entries})
-    broadcast_session(session)
+    broadcast_entries(session, entries)
 
     %{state | session: session, log: log}
+  end
+
+  defp broadcast_entries(session, entries) do
+    broadcast({:session_entries, session, entries})
+    broadcast_session(session)
   end
 
   defp broadcast(message), do: Phoenix.PubSub.broadcast(Voyager.PubSub, @topic, message)
