@@ -53,6 +53,7 @@ defmodule VoyagerWeb.TracingSessionLive do
           trace_session={trace_session}
           mode={@mode}
           pending?={@pending != nil}
+          show_back_arrow={@can_go_back?}
           on_stop="stop"
           on_start="start"
           on_load="load"

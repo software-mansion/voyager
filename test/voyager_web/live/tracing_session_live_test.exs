@@ -132,7 +132,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     |> render_click()
 
     view
-    |> element("#delete-session-cancel")
+    |> element("#delete-session-modal-cancel")
     |> render_click()
 
     refute has_element?(view, "#delete-session-modal")
@@ -143,7 +143,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     |> render_click()
 
     view
-    |> element("#delete-session-modal #delete-session-confirm")
+    |> element("#delete-session-modal-confirm")
     |> render_click()
 
     assert %{"info" => _} = assert_redirect(view, ~p"/node/#{@node_name}/tracing", 2_000)
@@ -175,8 +175,8 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     |> render_click()
 
     view
-    |> element("#unload-session-cancel")
-    |> render_click()
+    |> element("#unload-session-modal")
+    |> render_keydown(%{"key" => "Escape"})
 
     refute has_element?(view, "#unload-session-modal")
     assert has_element?(view, "#session-start")
@@ -186,7 +186,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     |> render_click()
 
     view
-    |> element("#unload-session-modal #unload-session-confirm")
+    |> element("#unload-session-modal-confirm")
     |> render_click()
 
     assert %{"info" => _} = assert_redirect(view, ~p"/node/#{@node_name}/tracing", 2_000)

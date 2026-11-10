@@ -178,6 +178,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
   attr :trace_session, Session, required: true
   attr :mode, :atom, required: true
   attr :pending?, :boolean, required: true
+  attr :show_back_arrow, :boolean, required: true
   attr :on_stop, :string, required: true
   attr :on_start, :string, required: true
   attr :on_load, :string, required: true
@@ -191,7 +192,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
       class="card bg-base-100 border-base-200 text-base-content flex-none border shadow-sm"
     >
       <div class="flex items-center gap-3 px-4 py-3">
-        <.back_arrow id="session-header-back" />
+        <.back_arrow :if={@show_back_arrow} id="session-header-back" />
         <div class="min-w-0 flex-1">
           <.session_status trace_session={@trace_session} mode={@mode} />
           <.session_params trace_session={@trace_session} />
@@ -229,20 +230,20 @@ defmodule VoyagerWeb.Components.TracingComponents do
   defp meta(%Session{status: :idle}, _mode), do: "Active in tracer · not started"
 
   defp meta(%Session{status: :running, run_started_at: at}, _mode),
-    do: "Active in tracer · run started #{Formatters.format_time(at)}"
+    do: "Active in tracer · run started #{Formatters.format_time(at)} UTC"
 
   defp meta(%Session{stopped_at: %DateTime{} = at}, _mode),
-    do: "Active in tracer · stopped #{Formatters.format_time(at)}"
+    do: "Active in tracer · stopped #{Formatters.format_time(at)} UTC"
 
   defp meta(_session, _mode), do: "Active in tracer · stopped"
 
   defp recorded(%DateTime{} = from, %DateTime{} = to) do
     if DateTime.to_date(from) == DateTime.to_date(to),
-      do: "Recorded #{day(from)} · #{clock(from)}–#{clock(to)}",
-      else: "Recorded #{day(from)} #{clock(from)} – #{day(to)} #{clock(to)}"
+      do: "Recorded #{day(from)} · #{clock(from)}–#{clock(to)} UTC",
+      else: "Recorded #{day(from)} #{clock(from)} – #{day(to)} #{clock(to)} UTC"
   end
 
-  defp recorded(%DateTime{} = from, nil), do: "Recorded #{day(from)} · #{clock(from)}"
+  defp recorded(%DateTime{} = from, nil), do: "Recorded #{day(from)} · #{clock(from)} UTC"
   defp recorded(nil, _to), do: "Never run"
 
   defp day(at), do: Calendar.strftime(at, "%a %-d %b")
@@ -449,7 +450,6 @@ defmodule VoyagerWeb.Components.TracingComponents do
     """
   end
 
-  @doc "The button ids drop the `-modal` suffix of `id`: `delete-session-modal` confirms with `#delete-session-confirm`."
   attr :id, :string, required: true
   attr :title, :string, required: true
   attr :confirm_label, :string, required: true
@@ -458,14 +458,14 @@ defmodule VoyagerWeb.Components.TracingComponents do
   slot :inner_block, required: true
 
   def confirm_modal(assigns) do
-    assigns = assign(assigns, :stem, String.replace_suffix(assigns.id, "-modal", ""))
-
     ~H"""
     <div
       id={@id}
       role="dialog"
       aria-modal="true"
       aria-labelledby={"#{@id}-title"}
+      phx-window-keydown={@on_cancel}
+      phx-key="Escape"
       class="modal modal-open"
     >
       <.focus_wrap
@@ -478,10 +478,10 @@ defmodule VoyagerWeb.Components.TracingComponents do
         </h2>
         {render_slot(@inner_block)}
         <div class="modal-action">
-          <button type="button" id={"#{@stem}-cancel"} phx-click={@on_cancel} class="btn btn-ghost">
+          <button type="button" id={"#{@id}-cancel"} phx-click={@on_cancel} class="btn btn-ghost">
             Cancel
           </button>
-          <button type="button" id={"#{@stem}-confirm"} phx-click={@on_confirm} class="btn btn-error">
+          <button type="button" id={"#{@id}-confirm"} phx-click={@on_confirm} class="btn btn-error">
             {@confirm_label}
           </button>
         </div>
