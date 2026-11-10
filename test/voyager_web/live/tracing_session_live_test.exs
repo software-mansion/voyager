@@ -34,7 +34,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
 
     assert has_element?(view, "#session-status[data-tone=running]")
     assert has_element?(view, "#session-meta", "run started")
-    assert has_element?(view, "#session-edit[disabled]")
+    assert has_element?(view, "#session-edit[aria-disabled]")
 
     assert view
            |> element("#session-edit-tip-portal")
@@ -51,7 +51,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
 
     assert has_element?(view, "#session-resume:not([disabled])")
     assert has_element?(view, "#session-unload:not([disabled])")
-    assert has_element?(view, "#session-edit[disabled]")
+    assert has_element?(view, "#session-edit[aria-disabled]")
     refute has_element?(view, "#session-stop")
   end
 
@@ -85,7 +85,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
 
     view = open(conn, id)
 
-    assert has_element?(view, "#session-resume[disabled]")
+    assert has_element?(view, "#session-resume[aria-disabled]")
     assert has_element?(view, "#session-unload:not([disabled])")
 
     assert view
@@ -99,6 +99,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     view = open(conn, id)
 
     assert has_element?(view, "#session-start[disabled]")
+    refute has_element?(view, "#session-run-tip")
     assert has_element?(view, "#session-empty")
     assert has_element?(view, "#session-set-parameters[disabled]")
     assert has_element?(view, "#session-chip-storage", "Not saved")
@@ -115,6 +116,36 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
 
     view
     |> element("#session-load")
+    |> render_click()
+
+    settle(view)
+
+    assert has_element?(view, "#session-start")
+    refute has_element?(view, "#session-load")
+  end
+
+  test "replaces an unsaved session in the tracer only once confirmed", %{conn: conn} do
+    %{id: id} = saved_inactive!()
+    {:ok, _session} = configure()
+    view = open(conn, id)
+
+    view
+    |> element("#session-load")
+    |> render_click()
+
+    view
+    |> element("#load-session-modal-cancel")
+    |> render_click()
+
+    refute has_element?(view, "#load-session-modal")
+    assert has_element?(view, "#session-load")
+
+    view
+    |> element("#session-load")
+    |> render_click()
+
+    view
+    |> element("#load-session-modal-confirm")
     |> render_click()
 
     settle(view)

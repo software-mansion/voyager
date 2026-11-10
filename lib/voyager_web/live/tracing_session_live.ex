@@ -67,8 +67,8 @@ defmodule VoyagerWeb.TracingSessionLive do
       <TracingComponents.confirm_modal
         :if={@confirm}
         id={"#{@confirm}-session-modal"}
-        title={if @confirm == :delete, do: "Delete session", else: "Unload session"}
-        confirm_label={if @confirm == :delete, do: "Delete", else: "Unload"}
+        title={confirm_title(@confirm)}
+        confirm_label={confirm_label(@confirm)}
         on_confirm={"confirm-#{@confirm}"}
         on_cancel="cancel-confirm"
       >
@@ -77,6 +77,9 @@ defmodule VoyagerWeb.TracingSessionLive do
         </p>
         <p :if={@confirm == :unload} class="text-base-content/70 mt-1 text-sm">
           It is not saved, so its parameters and traces are discarded. This cannot be undone.
+        </p>
+        <p :if={@confirm == :load} class="text-base-content/70 mt-1 text-sm">
+          The session in the tracer is not saved, so its parameters and traces are discarded. This cannot be undone.
         </p>
       </TracingComponents.confirm_modal>
     </div>
@@ -96,10 +99,31 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> noreply()
   end
 
+  # A running session refuses the load as busy, so there is nothing to confirm.
+  def handle_event(
+        "load",
+        _params,
+        %{assigns: %{tracing_session: %Session{save: false, status: status}}} = socket
+      )
+      when status != :running do
+    socket
+    |> assign(:confirm, :load)
+    |> noreply()
+  end
+
   def handle_event("load", _params, socket) do
     id = socket.assigns.id
 
     socket
+    |> run(:load, fn -> Tracer.load(id) end)
+    |> noreply()
+  end
+
+  def handle_event("confirm-load", _params, socket) do
+    id = socket.assigns.id
+
+    socket
+    |> assign(:confirm, nil)
     |> run(:load, fn -> Tracer.load(id) end)
     |> noreply()
   end
@@ -280,6 +304,14 @@ defmodule VoyagerWeb.TracingSessionLive do
   end
 
   defp sessions_path(%{node_name: node_name}), do: ~p"/node/#{node_name}/tracing"
+
+  defp confirm_title(:delete), do: "Delete session"
+  defp confirm_title(:unload), do: "Unload session"
+  defp confirm_title(:load), do: "Replace unsaved session"
+
+  defp confirm_label(:delete), do: "Delete"
+  defp confirm_label(:unload), do: "Unload"
+  defp confirm_label(:load), do: "Load"
 
   defp format_error(:busy), do: "A tracing session is running. Stop it first."
   defp format_error(:not_found), do: "No such tracing session."

@@ -18,7 +18,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
   def tone(%Session{status: :running}, _connected_node), do: :running
 
   def tone(%Session{node: node}, connected_node)
-      when not is_nil(connected_node) and node != connected_node,
+      when not is_nil(node) and not is_nil(connected_node) and node != connected_node,
       do: :other_node
 
   def tone(%Session{status: :stopped, stop_reason: reason}, _connected_node),
@@ -357,7 +357,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
         id="session-edit-tip"
         position="bottom"
       >
-        <button type="button" id="session-edit" disabled class="btn btn-sm">
+        <button type="button" id="session-edit" aria-disabled="true" class="btn btn-sm">
           <.icon name="icon-pencil" class="size-3.5" /> Edit
         </button>
         <:content>
@@ -394,7 +394,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
         <button
           type="button"
           id={if @trace_session.status == :stopped, do: "session-resume", else: "session-start"}
-          disabled
+          aria-disabled="true"
           class="btn btn-sm btn-primary"
         >
           <.icon name="icon-play" class="size-3.5" />

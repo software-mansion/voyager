@@ -33,6 +33,7 @@ defmodule Voyager.Test.TracerFixture do
     on_exit(fn -> :sys.replace_state(Tracer, fn _ -> previous_state end) end)
 
     on_exit(fn ->
+      :sys.resume(Tracer)
       Tracer.stop(:ui)
       _ = :sys.get_state(Tracer)
       Writer.flush()
