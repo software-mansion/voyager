@@ -3,6 +3,7 @@ paths:
   - "lib/voyager/schemas/**"
   - "lib/voyager/queries/**"
   - "lib/voyager/actions/**"
+  - "lib/voyager_web/form_schemas/**"
   - "priv/repo/**"
 ---
 

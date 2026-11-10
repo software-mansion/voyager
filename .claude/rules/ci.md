@@ -4,6 +4,7 @@ paths:
   - "mix.exs"
   - "rel/**"
   - "dev/**"
+  - "config/**"
 ---
 
 # CI, scripts and release

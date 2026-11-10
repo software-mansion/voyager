@@ -39,10 +39,16 @@ matching files.
 - One module per file; no new dependencies unless asked; HTTP through `Req`
 - `String.to_atom/1` only on cookies, node names and the settings-driven distribution suffix,
   never on other user input
+- **Never** `String.to_existing_atom/1` on params, stored settings or other stale input: it raises
+  when the atom is not loaded in a fresh VM. Match against a known list first
+- No raising calls (`System.cmd/3`, `Map.fetch!/2`, `hd/1`, `String.trim/1` on `nil`) on a path
+  reachable from params or from a supervised process
+- ETS tables are `:protected` unless another process has to write to them
 - **Never** put secrets in logs or `inspect` output (structs holding `api_key`, cookies,
   passwords)
 - Check the result of writes (`Voyager.Settings.put/2`, `Repo` calls,
   `:telemetry.attach_many/4`)
+- New events, routes and branches get a test
 - New modules in `lib/` get `@moduledoc false` (Credo's `ModuleDoc` check requires the
   attribute); no `@moduledoc` / `@doc` text unless asked. Test modules get no `@moduledoc`
 

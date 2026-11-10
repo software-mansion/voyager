@@ -19,6 +19,7 @@ paths:
 - A LiveComponent initializes its own assigns (form, lock flags, counters) in `mount/1`, not with
   `assign_new/3` in `update/2`. `update/2` assigns only what the parent passes; re-assigning a
   form from persisted state there wipes in-progress edits on every parent render
+- `assign_new/3` never refreshes: don't use it for a value derived from runtime config
 - Components in `core_components.ex` take `id={@id}`, no hardcoded DOM ids
 - `attr`: no `required: true` for a value that can be `nil`, no `:any` where a struct or
   `:string` fits
@@ -45,11 +46,8 @@ Params from events, URLs and hooks can be tampered with.
 
 - **Never** `String.to_integer/1` on a param: a bad value raises and kills the LiveView. Use
   `Integer.parse/1` or pattern matching and ignore invalid values
-- **Never** `String.to_existing_atom/1` on params, stored settings or other stale input: it raises
-  when the atom is not loaded in a fresh VM. Match against a known list first
 - Validate intervals, page sizes and options against the allowed set; `"-5"` reaching
   `Process.send_after/3` raises
-- No raising calls (`Map.fetch!/2`, `hd/1`, `String.trim/1` on `nil`) on a path a param reaches
 - **Never** interpolate a user-supplied segment into a path; use `~p` (node names contain `/`
   and `@`)
 - **Never** accept a `return_to` because it starts with `"/"`: `//evil.example` leaves the app
@@ -58,6 +56,8 @@ Params from events, URLs and hooks can be tampered with.
 
 - Every `handle_async` failure branch sets the error state; never leave an `AsyncResult`
   `:loading` or `:ok`
+- The reason a `handle_async` failure passes on has a clause in that view's `format_error/1`;
+  otherwise the user gets the catch-all message
 - One result per independently loaded section; don't fold several remote calls into one
   `:ok` / `:error` assign
 - `assign_async(..., reset: false)` keeps `ok?: true` on a failed refresh; surface the failure
@@ -84,4 +84,3 @@ assigns are fine for small, bounded lists.
   `ConnectionParams.changeset(params) |> to_form(as: :conn)`
 - Template: `<.form for={@form} id="conn-form">` with `<.input field={@form[:field]}>`
 - Never pass a changeset to the template, never `<.form let={f}>`
-- Every form has a unique DOM id

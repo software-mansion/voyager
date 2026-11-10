@@ -149,7 +149,7 @@ The repo's rules live in two places; review against both:
 
 Severity of a rule break:
 
-- 🔴 when the rule says **Never**, or the break crashes, loses data or leaks a secret
+- 🔴 when the rule is marked **Never** in bold, or the break crashes, loses data or leaks a secret
 - 🟡 any other rule break
 - 🟢 a break of the comment rules in `.claude/rules/comments.md`
 

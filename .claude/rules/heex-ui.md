@@ -40,7 +40,6 @@ paths:
 - Class lists use `[...]`:
   `class={["px-2", @active && "font-bold", if(@muted, do: "opacity-60", else: "opacity-100")]}`
 - Literal `{` / `}` inside `<pre>` / `<code>` need `phx-no-curly-interpolation` on the parent
-- Never a raw inline `<script>`; use a colocated hook
 
 ## Accessibility
 

@@ -23,7 +23,6 @@ paths:
 - Assert the exact value that proves the behaviour (the field, status or error), so the defect
   cannot pass; check state before and after a transition
 - Don't assert on `hd(changeset.errors)` or query-param order; neither is ordered
-- New events, routes and branches get a test
 - Pull pure logic into a module and unit-test it directly instead of only through a LiveView
 
 ## LiveView tests

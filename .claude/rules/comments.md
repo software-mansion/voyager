@@ -1,8 +1,6 @@
 ---
 paths:
-  - "lib/**"
-  - "test/**"
-  - "assets/js/**"
+  - "**/*.{ex,exs,heex,erl,js,mjs,ts,rs,sh}"
 ---
 
 # Comments
