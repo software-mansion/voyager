@@ -72,7 +72,7 @@ defmodule Voyager.Services.Tracer do
   defguardp is_session_change(request)
             when request == :close or
                    (is_tuple(request) and
-                      elem(request, 0) in [:create, :load, :configure, :start])
+                      elem(request, 0) in [:create, :create_and_start, :load, :configure, :start])
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(_opts), do: GenServer.start_link(__MODULE__, nil, name: __MODULE__)
@@ -87,6 +87,23 @@ defmodule Voyager.Services.Tracer do
   @spec create(origin(), save: boolean()) :: {:ok, Session.t()} | {:error, :busy}
   def create(origin, opts \\ []) when origin in [:ui, :mcp],
     do: GenServer.call(__MODULE__, {:create, origin, Keyword.get(opts, :save, false)})
+
+  @doc """
+  Replaces the active session with a new, unsaved one tracing `node` with `attrs`, started.
+  On any failure the previous session stays active. Returns `{:error, :busy}` while one runs.
+  """
+  @spec create_and_start(node(), map(), origin()) ::
+          {:ok, Session.t()} | {:error, :busy | Ecto.Changeset.t() | term()}
+  def create_and_start(node, attrs, origin) when origin in [:ui, :mcp] do
+    with {:ok, config} <- attrs |> Config.changeset() |> Ecto.Changeset.apply_action(:validate),
+         {:ok, pids} <- resolve_pids(node, config) do
+      args = Config.to_agent(config, pids)
+      GenServer.call(__MODULE__, {:create_and_start, origin, node, config, args}, @call_timeout)
+    else
+      {:error, %Ecto.Changeset{}} = error -> error
+      {:error, reason} -> start_failed(reason, origin)
+    end
+  end
 
   @doc """
   Makes saved session `id` active, with its config and counts.
@@ -246,6 +263,25 @@ defmodule Voyager.Services.Tracer do
     origin
     |> new_session(save)
     |> activate()
+  end
+
+  def handle_call({:create_and_start, origin, node, config, {spec, limits}}, _from, state) do
+    session = %{new_session(origin, false) | node: node, config: config}
+
+    case start_tracer(session, spec, limits) do
+      {:ok, tracer} ->
+        broadcast({:session_activated, session})
+
+        state =
+          %__MODULE__{session: session}
+          |> append([Entry.configured(origin, node, config, nil)])
+          |> begin_run(tracer, origin)
+
+        {:reply, {:ok, state.session}, state}
+
+      {:error, reason} ->
+        {:reply, start_failed(reason, origin), state}
+    end
   end
 
   def handle_call({:load, id}, _from, state) do

@@ -751,6 +751,30 @@ defmodule Voyager.Services.TracerTest do
     refute_receive {:session_entries, %{status: :running}, _entries}
   end
 
+  test "creates and starts a session at once", %{session: %{id: old_id}} do
+    attrs = %{module: "Elixir.Date", processes: "all", max_events: 1_000}
+
+    assert {:ok, %{id: id, origin: :mcp, status: :running}} =
+             Tracer.create_and_start(Node.self(), attrs, :mcp)
+
+    refute id == old_id
+    assert_receive {:session_activated, %{id: ^id, status: :idle}}
+    assert_receive {:session_entries, %{id: ^id}, [%{seq: 0, kind: :configured, origin: :mcp}]}
+    assert_receive {:session_entries, %{id: ^id}, [%{seq: 1, kind: :started, origin: :mcp}]}
+    assert {:error, :busy} = Tracer.create_and_start(Node.self(), attrs, :mcp)
+  end
+
+  test "keeps the previous session when creating and starting one fails", %{session: %{id: id}} do
+    attrs = %{module: "Elixir.Voyager.NoSuchModule", processes: "all", max_events: 1_000}
+    assert {:error, :unknown_function} = Tracer.create_and_start(Node.self(), attrs, :mcp)
+
+    attrs = %{module: "Elixir.Date", pids: ["<0.45.6>"], max_events: 1}
+    assert {:error, :noconnection} = Tracer.create_and_start(:other@nohost, attrs, :mcp)
+
+    assert {:error, %Ecto.Changeset{}} = Tracer.create_and_start(Node.self(), %{}, :mcp)
+    assert %{id: ^id} = Tracer.active()
+  end
+
   test "emits telemetry without the traced function" do
     events = [
       [:voyager, :trace, :start],
