@@ -503,7 +503,12 @@ defmodule VoyagerWeb.Components.TracingComponents do
           <button type="button" id={"#{@id}-cancel"} phx-click={@on_cancel} class="btn btn-ghost">
             Cancel
           </button>
-          <button type="button" id={"#{@id}-confirm"} phx-click={@on_confirm} class="btn btn-error">
+          <button
+            type="button"
+            id={"#{@id}-confirm"}
+            phx-click={@on_confirm}
+            class="btn btn-error dark:text-base-100"
+          >
             {@confirm_label}
           </button>
         </div>
