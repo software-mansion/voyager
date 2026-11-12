@@ -29,6 +29,10 @@ defmodule VoyagerWeb.ProcessesLive.Fetcher do
 
   @refetch_debounce_ms 1_500
 
+  # A scan resolving in a few ms flashes the loading state for a frame; hold it
+  # so the transition reads as intentional. Zeroed in test.
+  @min_fetch_ms Application.compile_env(:voyager, :min_fetch_ms, 300)
+
   @interval_options [
     {"Off", "off"},
     {"1s", "1000"},
@@ -199,10 +203,9 @@ defmodule VoyagerWeb.ProcessesLive.Fetcher do
   end
 
   defp run(priority, node, controls, sort) do
-    result =
-      VoyagerWeb.Helpers.hold_min_duration(fn ->
-        RateLimiter.run(priority, fn -> Query.page(node, controls, sort) end)
-      end)
+    started = System.monotonic_time(:millisecond)
+    result = RateLimiter.run(priority, fn -> Query.page(node, controls, sort) end)
+    hold_min_duration(started)
 
     case result do
       {:ok, {:ok, page}, elapsed_us} ->
@@ -219,6 +222,11 @@ defmodule VoyagerWeb.ProcessesLive.Fetcher do
       {:error, :rate_limited, retry_after_ms} ->
         {:rate_limited, retry_after_ms}
     end
+  end
+
+  defp hold_min_duration(started) do
+    elapsed = System.monotonic_time(:millisecond) - started
+    if elapsed < @min_fetch_ms, do: Process.sleep(@min_fetch_ms - elapsed)
   end
 
   defp restart_refresh_timer(socket) do

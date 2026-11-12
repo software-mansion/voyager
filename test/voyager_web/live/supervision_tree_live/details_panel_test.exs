@@ -372,9 +372,11 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
 
       assert has_element?(
                view,
-               "button#details-panel-monitors-1",
+               "span#details-panel-monitors-1",
                ":demo_registry on #{Node.self()}"
              )
+
+      assert has_element?(view, "#details-panel-monitors-1-portal", "Monitor by registered name")
 
       assert has_element?(view, "button#details-panel-monitors-2 .bg-port")
       assert has_element?(view, "#details-panel h4", ~r/Monitors\s+\(5\)/)
@@ -390,8 +392,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
                "span#details-panel-monitors-4",
                ":other_registry on other@localhost"
              )
-
-      assert has_element?(view, "#details-panel-monitors-4-portal", "on another node")
 
       assert has_element?(view, "button#details-panel-monitored-by-0", TreeNode.key(monitor))
       assert has_element?(view, "button#details-panel-monitored-by-0 .bg-primary")
@@ -435,119 +435,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       refute has_element?(view, "#details-panel-monitors-error")
       refute has_element?(view, "#details-panel-monitored-by-error")
       assert has_element?(view, "button#details-panel-monitored-by-0", TreeNode.key(monitor))
-    end
-
-    test "selecting a monitor by registered name jumps to the process holding it", %{
-      conn: conn,
-      sup_pid: sup_pid,
-      port: port,
-      sup_key: sup_key
-    } do
-      holder = :erlang.list_to_pid(~c"<0.410.0>")
-
-      expect(Voyager.ErpcMock, :call, 13, fn
-        _node, @agent_module, :proc_monitors, [_pid, _limit], _timeout ->
-          items = [{:process, {:demo_registry, Node.self()}}]
-          {:ok, %{total: 1, truncated: false, items: items}}
-
-        _node, mod, fun, args, _timeout ->
-          supervision_reply(mod, fun, args, sup_pid, [port], [])
-      end)
-
-      view = open_tree!(conn)
-      render_hook(view, "select-node", %{"key" => sup_key})
-      render_async(view)
-
-      expect(Voyager.ErpcMock, :call, fn _node, :erlang, :whereis, [:demo_registry], _timeout ->
-        holder
-      end)
-
-      expect_process_info_fetch(holder, [])
-
-      view |> element("#details-panel-monitors-0") |> render_click()
-      render_async(view)
-      flush(view)
-      render_async(view)
-
-      assert has_element?(view, "#details-panel-pid", TreeNode.key(holder))
-      assert has_element?(view, "#details-panel-back")
-    end
-
-    test "a name lookup still running when another node is picked does not jump", %{
-      conn: conn,
-      sup_pid: sup_pid,
-      port: port,
-      sup_key: sup_key,
-      port_key: port_key
-    } do
-      holder = :erlang.list_to_pid(~c"<0.410.0>")
-      test_pid = self()
-
-      expect(Voyager.ErpcMock, :call, 13, fn
-        _node, @agent_module, :proc_monitors, [_pid, _limit], _timeout ->
-          items = [{:process, {:demo_registry, Node.self()}}]
-          {:ok, %{total: 1, truncated: false, items: items}}
-
-        _node, mod, fun, args, _timeout ->
-          supervision_reply(mod, fun, args, sup_pid, [port], [])
-      end)
-
-      view = open_tree!(conn)
-      render_hook(view, "select-node", %{"key" => sup_key})
-      render_async(view)
-
-      stub(Voyager.ErpcMock, :call, fn _node, :erlang, :whereis, [:demo_registry], _timeout ->
-        send(test_pid, {:whereis_started, self()})
-        Process.sleep(:infinity)
-      end)
-
-      view |> element("#details-panel-monitors-0") |> render_click()
-      assert_receive {:whereis_started, lookup}
-      ref = Process.monitor(lookup)
-
-      render_hook(view, "select-node", %{"key" => port_key})
-      assert_receive {:DOWN, ^ref, :process, ^lookup, {:shutdown, :cancel}}
-      flush(view)
-
-      assert has_element?(view, "#details-panel-type", "Port")
-      refute has_element?(view, "#details-panel-pid", TreeNode.key(holder))
-    end
-
-    test "a name lookup still running when the panel is closed does not reopen it", %{
-      conn: conn,
-      sup_pid: sup_pid,
-      port: port,
-      sup_key: sup_key
-    } do
-      test_pid = self()
-
-      expect(Voyager.ErpcMock, :call, 13, fn
-        _node, @agent_module, :proc_monitors, [_pid, _limit], _timeout ->
-          items = [{:process, {:demo_registry, Node.self()}}]
-          {:ok, %{total: 1, truncated: false, items: items}}
-
-        _node, mod, fun, args, _timeout ->
-          supervision_reply(mod, fun, args, sup_pid, [port], [])
-      end)
-
-      view = open_tree!(conn)
-      render_hook(view, "select-node", %{"key" => sup_key})
-      render_async(view)
-
-      stub(Voyager.ErpcMock, :call, fn _node, :erlang, :whereis, [:demo_registry], _timeout ->
-        send(test_pid, {:whereis_started, self()})
-        Process.sleep(:infinity)
-      end)
-
-      view |> element("#details-panel-monitors-0") |> render_click()
-      assert_receive {:whereis_started, lookup}
-      ref = Process.monitor(lookup)
-
-      view |> element("#details-panel-close") |> render_click()
-      assert_receive {:DOWN, ^ref, :process, ^lookup, {:shutdown, :cancel}}
-      flush(view)
-
-      assert has_element?(view, "#details-panel[inert]")
     end
 
     test "a pid on another node shows where it runs and fetches nothing", %{

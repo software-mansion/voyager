@@ -17,19 +17,6 @@ defmodule VoyagerWeb.Helpers do
   @spec halt(term()) :: {:halt, term()}
   def halt(state), do: {:halt, state}
 
-  # A fetch resolving in a few ms flashes the loading state for a frame; hold it. Zeroed in test.
-  @min_fetch_ms Application.compile_env(:voyager, :min_fetch_ms, 300)
-
-  @doc "Runs `fetch`, returning its result no sooner than the minimum fetch time."
-  @spec hold_min_duration((-> result)) :: result when result: term()
-  def hold_min_duration(fetch) do
-    started = System.monotonic_time(:millisecond)
-    result = fetch.()
-    elapsed = System.monotonic_time(:millisecond) - started
-    if elapsed < @min_fetch_ms, do: Process.sleep(@min_fetch_ms - elapsed)
-    result
-  end
-
   @doc """
   UI connect mode for a session, connector name, or UI atom.
 

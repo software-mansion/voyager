@@ -273,7 +273,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           on_select={@on_select}
           on_toggle_relation={@on_toggle_relation}
           target={@target}
-          remote_node={@remote_node}
           chips_disabled?={@chips_disabled?}
         />
         <.memory_and_garbage_collection info={@info} />
@@ -365,7 +364,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :on_select, :string, required: true
   attr :on_toggle_relation, :string, required: true
   attr :target, :any, required: true
-  attr :remote_node, :atom, default: nil, doc: "names registered here can be selected"
   attr :chips_disabled?, :boolean, default: false
 
   def relations(assigns) do
@@ -401,7 +399,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
               on_select={@on_select}
               on_toggle={@on_toggle_relation}
               target={@target}
-              remote_node={@remote_node}
               chips_disabled?={@chips_disabled?}
             />
           <% {:error, reason} -> %>
@@ -661,7 +658,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :on_select, :string, required: true
   attr :on_toggle, :string, required: true
   attr :target, :any, required: true
-  attr :remote_node, :atom, default: nil
   attr :chips_disabled?, :boolean, default: false
 
   defp relation_list(assigns) do
@@ -682,7 +678,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
           :for={{item, index} <- Enum.with_index(@visible_items)}
           id={"#{@id_prefix}-#{index}"}
           item={item}
-          remote_node={@remote_node}
           on_select={@on_select}
           target={@target}
           disabled={@chips_disabled?}
@@ -711,31 +706,25 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   attr :id, :string, required: true
   attr :item, :any, required: true
-  attr :remote_node, :atom, default: nil
   attr :on_select, :string, required: true
   attr :target, :any, required: true
   attr :disabled, :boolean, default: false
 
   defp relation_entry(assigns) do
-    if selectable_relation?(assigns.item, assigns.remote_node) do
+    if selectable_relation?(assigns.item) do
       ~H"""
       <.chip
         id={@id}
         label={format_identifier(@item)}
         kind={identifier_kind(@item)}
-        node_key={relation_key(@item)}
+        node_key={TreeNode.key(@item)}
         on_select={@on_select}
         target={@target}
         disabled={@disabled}
       />
       """
     else
-      assigns =
-        assign(
-          assigns,
-          :entry,
-          SupervisionTreeComponents.monitor_entry(assigns.item, assigns.remote_node)
-        )
+      assigns = assign(assigns, :entry, SupervisionTreeComponents.monitor_entry(assigns.item))
 
       ~H"""
       <.link_tooltip id={@id} entry={@entry}>
@@ -753,8 +742,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   defp identifier_kind(port) when is_port(port), do: :port
   defp identifier_kind(ref) when is_reference(ref), do: :reference
-  defp identifier_kind({:port, _name}), do: :port
-  defp identifier_kind(_pid_or_name), do: :pid
+  defp identifier_kind(pid) when is_pid(pid), do: :pid
 
   @doc """
   A single line of text with a copy button that appears on hover.
@@ -792,17 +780,9 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   def linkable_pid(_key, _info, _remote_node), do: nil
 
-  @doc "A monitor by registered name is selectable only when the name lives on the tree's node."
-  @spec selectable_relation?(term(), node() | nil) :: boolean()
-  def selectable_relation?({_kind, {name, node}}, remote_node) when is_atom(name),
-    do: node == remote_node
-
-  def selectable_relation?(item, _remote_node),
-    do: is_pid(item) or is_port(item) or is_reference(item)
-
-  @spec relation_key(term()) :: String.t()
-  def relation_key({_kind, {_name, _node}} = monitor), do: inspect(monitor)
-  def relation_key(item), do: TreeNode.key(item)
+  @doc "False for a monitor by registered name or time offset, which has no tree node."
+  @spec selectable_relation?(term()) :: boolean()
+  def selectable_relation?(item), do: is_pid(item) or is_port(item) or is_reference(item)
 
   defp overview_value(:initial_call, info), do: Formatters.format_mfa(info.initial_call)
   defp overview_value(:current_function, info), do: Formatters.format_mfa(info.current_function)
@@ -865,9 +845,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
   defp format_identifier(port) when is_port(port),
     do: port |> :erlang.port_to_list() |> List.to_string()
-
-  defp format_identifier({_kind, _target} = monitor),
-    do: SupervisionTreeComponents.monitor_label(monitor)
 
   defp format_identifier(other), do: Formatters.format_term(other)
 

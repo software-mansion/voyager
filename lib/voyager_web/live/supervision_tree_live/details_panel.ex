@@ -13,11 +13,12 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.ProcessInfoLive.Query
 
-  require Logger
-
   # No point fetching more relations than the panel can ever render.
   @relations_limit max_expanded_relations()
   @relation_names ~w(links monitors monitored_by)
+
+  # A fetch resolving in a few ms flashes the skeleton for a frame; hold it. Zeroed in test.
+  @min_fetch_ms Application.compile_env(:voyager, :min_fetch_ms, 300)
 
   @impl true
   def mount(socket) do
@@ -72,23 +73,15 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   def handle_event("toggle-relation", _, socket), do: noreply(socket)
 
   def handle_event("select-relation", %{"key" => key}, socket) do
-    remote_node = socket.assigns.remote_node
-
-    case relation_by_key(socket.assigns.relations, key, remote_node) ||
-           info_pid_by_key(socket, key) do
+    case relation_by_key(socket.assigns.relations, key) || info_pid_by_key(socket, key) do
       nil ->
         noreply(socket)
 
-      {_kind, {name, _node}} ->
-        socket
-        |> start_async(:resolve_name, fn ->
-          Query.whereis(remote_node, name, Query.default_timeout())
-        end)
-        |> noreply()
-
       identifier ->
+        send(self(), {:select_link, identifier})
+
         socket
-        |> select_link(identifier)
+        |> push_history()
         |> noreply()
     end
   end
@@ -111,20 +104,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     socket
     |> fetch_details(true)
     |> noreply()
-  end
-
-  @impl true
-  def handle_async(:resolve_name, {:ok, {:ok, target, _elapsed_ms}}, socket) do
-    socket
-    |> select_link(target)
-    |> noreply()
-  end
-
-  def handle_async(:resolve_name, {:exit, {:shutdown, :cancel}}, socket), do: {:noreply, socket}
-
-  def handle_async(:resolve_name, result, socket) do
-    Logger.warning("Failed to resolve a monitored name: #{inspect(result)}")
-    {:noreply, socket}
   end
 
   @impl true
@@ -202,7 +181,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   defp maybe_assign_node(socket, nil, _keep_history?) do
     socket
-    |> cancel_async(:resolve_name)
     |> assign(:open?, false)
     |> assign(:selection_history, [])
   end
@@ -212,7 +190,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     history = if keep_history?, do: socket.assigns.selection_history, else: []
     showing? = socket.assigns.open? and same_process?(socket.assigns.node, node)
     expanded = if showing?, do: socket.assigns.expanded_relations, else: MapSet.new()
-    socket = if showing?, do: socket, else: cancel_async(socket, :resolve_name)
 
     socket
     |> assign(open?: true, node: node, selection_history: history, expanded_relations: expanded)
@@ -223,11 +200,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     do: node(pid)
 
   defp off_node(_node, _remote_node), do: nil
-
-  defp select_link(socket, identifier) do
-    send(self(), {:select_link, identifier})
-    push_history(socket)
-  end
 
   defp push_history(%{assigns: %{node: %TreeNode{} = node}} = socket),
     do: assign(socket, :selection_history, [node | socket.assigns.selection_history])
@@ -260,6 +232,14 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     assign(socket, node_info: AsyncResult.ok(nil), relations: AsyncResult.ok(nil))
   end
 
+  defp hold_min_duration(fetch) do
+    started = System.monotonic_time(:millisecond)
+    result = fetch.()
+    elapsed = System.monotonic_time(:millisecond) - started
+    if elapsed < @min_fetch_ms, do: Process.sleep(@min_fetch_ms - elapsed)
+    result
+  end
+
   defp same_process?(%TreeNode{pid: pid}, %TreeNode{pid: pid}) when is_pid(pid), do: true
   defp same_process?(_previous, _node), do: false
 
@@ -284,18 +264,17 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   defp monitor_target({_kind, target}) when is_pid(target) or is_port(target), do: target
   defp monitor_target(monitor), do: monitor
 
-  defp relation_by_key(%AsyncResult{ok?: true, result: relations}, key, remote_node)
-       when is_map(relations) do
+  defp relation_by_key(%AsyncResult{ok?: true, result: relations}, key) when is_map(relations) do
     relations
     |> Map.values()
     |> Enum.flat_map(fn
       {:ok, bounded} -> bounded.items
       {:error, _reason} -> []
     end)
-    |> Enum.find(&(selectable_relation?(&1, remote_node) and relation_key(&1) == key))
+    |> Enum.find(&(selectable_relation?(&1) and TreeNode.key(&1) == key))
   end
 
-  defp relation_by_key(_, _, _), do: nil
+  defp relation_by_key(_, _), do: nil
 
   defp info_pid_by_key(
          %{assigns: %{node_info: %AsyncResult{ok?: true, result: info}}} = socket,

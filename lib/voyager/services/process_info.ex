@@ -169,16 +169,6 @@ defmodule Voyager.Services.ProcessInfo do
 
   def fetch_monitored_by(_node, _pid, _limit, _timeout), do: {:error, :not_a_pid}
 
-  @doc "Returns `{:error, :not_registered}` when nothing holds `name`."
-  @spec whereis(node(), atom(), timeout()) ::
-          {:ok, pid() | port()} | {:error, :not_registered | term()}
-  def whereis(node, name, timeout \\ @timeout) when is_atom(name) do
-    case Erpc.safe_call(node, :erlang, :whereis, [name], timeout) do
-      {:ok, :undefined} -> {:error, :not_registered}
-      result -> result
-    end
-  end
-
   @doc """
   Fetches the process dictionary of `pid` on `node`, truncated on the remote to
   at most `limit` entries and `budget` visited terms.

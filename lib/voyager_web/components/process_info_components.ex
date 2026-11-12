@@ -432,8 +432,8 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   defp identifier_entry({_kind, target}, remote_node) when is_pid(target) or is_port(target),
     do: identifier_entry(target, remote_node)
 
-  defp identifier_entry({_kind, _target} = monitor, remote_node) do
-    entry = SupervisionTreeComponents.monitor_entry(monitor, remote_node)
+  defp identifier_entry({_kind, _target} = monitor, _remote_node) do
+    entry = SupervisionTreeComponents.monitor_entry(monitor)
     %{pid?: false, text: entry.label, entry: entry}
   end
 

@@ -16,8 +16,7 @@ defmodule Voyager.Services.SupervisionTree.TreeNode do
 
   `child_count` is the *direct* child count on the remote.
 
-  `pid_node` is the node a relationship-only pid lives on when that is not the
-  inspected node, otherwise `nil`.
+  `pid_node` is the node pid lives on when that is not inspected node, otherwise `nil`.
   """
 
   @derive Jason.Encoder
