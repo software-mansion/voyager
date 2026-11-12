@@ -62,6 +62,10 @@ final class TrayController: NSObject, NSWindowDelegate {
     private static let gap: CGFloat = 4
     private static let cornerRadius: CGFloat = 10
     private static let escapeKeyCode: UInt16 = 53
+    private static let openDuration: TimeInterval = 0.2
+    private static let closeDuration: TimeInterval = 0.15
+    private static let openSlide: CGFloat = 6
+    private static let openScale: CGFloat = 0.97
 
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let panel: TrayPanel
@@ -69,6 +73,7 @@ final class TrayController: NSObject, NSWindowDelegate {
     private var sizeObservation: NSKeyValueObservation?
     private var monitors: [Any] = []
     private var previousApp: NSRunningApplication?
+    private var isHiding = false
     let model: TrayModel
 
     init(icon: NSImage, version: String, onAction: @escaping ActionCallback) {
@@ -76,12 +81,14 @@ final class TrayController: NSObject, NSWindowDelegate {
             contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered,
             defer: true)
         self.panel = panel
+        weak var owner: TrayController?
         model = TrayModel(version: version) { action in
-            if action == .open || action == .quit { panel.close() }
+            if action == .open || action == .quit { owner?.hide() }
             action.rawValue.withCString(onAction)
         }
         hosting = NSHostingController(rootView: TrayView(model: model, logo: icon))
         super.init()
+        owner = self
 
         icon.isTemplate = true
         icon.size = NSSize(width: 18, height: 18)
@@ -111,40 +118,85 @@ final class TrayController: NSObject, NSWindowDelegate {
     }
 
     func windowDidResignKey(_ notification: Notification) {
-        panel.close()
+        hide()
     }
 
     func windowWillClose(_ notification: Notification) {
-        monitors.forEach(NSEvent.removeMonitor)
-        monitors = []
+        removeMonitors()
         if model.status?.error != nil { model.perform(.dismissError) }
     }
 
     @objc private func toggle(_ sender: NSStatusBarButton) {
-        if panel.isVisible {
+        if panel.isVisible && !isHiding {
             dismiss()
             return
         }
         let front = NSWorkspace.shared.frontmostApplication
         previousApp = front?.processIdentifier == ProcessInfo.processInfo.processIdentifier ? nil : front
-        position()
+        show()
+        model.perform(.refresh)
+    }
+
+    private func show() {
+        guard let frame = targetFrame() else { return }
+        isHiding = false
+        let reduceMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        panel.alphaValue = 0
+        panel.setFrame(reduceMotion ? frame : frame.offsetBy(dx: 0, dy: Self.openSlide), display: true)
         panel.orderFrontRegardless()
         panel.makeKey()
         // Otherwise AppKit focuses the first button, drawing its focus ring on every open.
         panel.makeFirstResponder(nil)
         installMonitors()
-        model.perform(.refresh)
+        if !reduceMotion { growContent() }
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = Self.openDuration
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().alphaValue = 1
+            panel.animator().setFrame(frame, display: true)
+        }
+    }
+
+    private func growContent() {
+        guard let layer = hosting.view.layer else { return }
+        let bounds = hosting.view.bounds
+        var start = CATransform3DMakeTranslation(bounds.midX, bounds.midY, 0)
+        start = CATransform3DScale(start, Self.openScale, Self.openScale, 1)
+        start = CATransform3DTranslate(start, -bounds.midX, -bounds.midY, 0)
+        let grow = CABasicAnimation(keyPath: "transform")
+        grow.fromValue = start
+        grow.toValue = CATransform3DIdentity
+        grow.duration = Self.openDuration
+        grow.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        layer.add(grow, forKey: "grow")
+    }
+
+    private func hide() {
+        guard panel.isVisible, !isHiding else { return }
+        isHiding = true
+        removeMonitors()
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = Self.closeDuration
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            panel.animator().alphaValue = 0
+        } completionHandler: { [weak self] in
+            guard let self, self.isHiding else { return }
+            self.isHiding = false
+            self.panel.close()
+        }
     }
 
     private func dismiss() {
-        panel.close()
+        hide()
         if let previousApp, !previousApp.isTerminated { previousApp.activate(options: []) }
     }
 
     /// Global monitors only see events sent to other apps, so a click on the status item still toggles.
     private func installMonitors() {
+        removeMonitors()
         let outsideClick = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) {
-            [weak self] _ in self?.panel.close()
+            [weak self] _ in self?.hide()
         }
         let escape = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, event.keyCode == Self.escapeKeyCode else { return event }
@@ -154,14 +206,27 @@ final class TrayController: NSObject, NSWindowDelegate {
         monitors = [outsideClick, escape].compactMap { $0 }
     }
 
+    private func removeMonitors() {
+        monitors.forEach(NSEvent.removeMonitor)
+        monitors = []
+    }
+
     private func position() {
-        guard let button = statusItem.button, let buttonWindow = button.window else { return }
-        let anchor = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
-        let size = hosting.view.fittingSize
-        let visible = (buttonWindow.screen ?? NSScreen.main)?.visibleFrame ?? anchor
-        let x = min(max(anchor.midX - size.width / 2, visible.minX), visible.maxX - size.width)
-        let frame = NSRect(x: x, y: anchor.minY - Self.gap - size.height, width: size.width, height: size.height)
+        guard !isHiding, let frame = targetFrame(), frame.size != panel.frame.size else { return }
         panel.setFrame(frame, display: true)
+    }
+
+    private func statusItemFrame() -> NSRect? {
+        guard let button = statusItem.button, let buttonWindow = button.window else { return nil }
+        return buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
+    }
+
+    private func targetFrame() -> NSRect? {
+        guard let anchor = statusItemFrame() else { return nil }
+        let size = hosting.view.fittingSize
+        let visible = (statusItem.button?.window?.screen ?? NSScreen.main)?.visibleFrame ?? anchor
+        let x = min(max(anchor.midX - size.width / 2, visible.minX), visible.maxX - size.width)
+        return NSRect(x: x, y: anchor.minY - Self.gap - size.height, width: size.width, height: size.height)
     }
 }
 
