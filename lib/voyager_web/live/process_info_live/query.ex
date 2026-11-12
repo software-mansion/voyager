@@ -48,15 +48,15 @@ defmodule VoyagerWeb.ProcessInfoLive.Query do
   end
 
   @doc """
-  Each relation succeeds or fails on its own. A rate-limit refusal, or a timeout or
-  lost connection on the first fetch, fails the whole call.
+  Each relation succeeds or fails on its own. A rate-limit refusal, or a dead process,
+  timeout or lost connection on the first fetch, fails the whole call.
   """
   @spec relations(node(), pid(), non_neg_integer(), timeout()) ::
           {:ok, relations(), non_neg_integer()} | {:error, term()}
   def relations(node, pid, limit, timeout) do
     rate_limited(fn ->
       case ProcessInfo.fetch_links(node, pid, limit, timeout) do
-        {:error, reason} when reason in [:timeout, :noconnection] ->
+        {:error, reason} when reason in [:dead, :timeout, :noconnection] ->
           {:error, reason}
 
         links ->

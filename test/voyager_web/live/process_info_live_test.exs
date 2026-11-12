@@ -130,23 +130,7 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
 
   describe "relations" do
     test "a failed relation shows its error and keeps the others", %{conn: conn} do
-      agent = Voyager.Agent.module()
-      Application.put_env(:voyager, :erpc, Voyager.ErpcMock)
-      Mox.set_mox_global()
-      Mox.stub(Voyager.ErpcMock, :call, &ErpcImpl.call/4)
-
-      Mox.stub(Voyager.ErpcMock, :call, fn
-        _node, ^agent, :proc_links, _args, _timeout -> {:error, :dead}
-        node, mod, fun, args, timeout -> ErpcImpl.call(node, mod, fun, args, timeout)
-      end)
-
-      pid = spawn(fn -> Process.sleep(:infinity) end)
-      on_exit(fn -> Process.exit(pid, :kill) end)
-
-      {:ok, view, _html} =
-        live(conn, ~p"/node/#{@node_name}/processes/#{Formatters.format_pid(pid)}")
-
-      render_hook(view, "restore_settings", %{})
+      view = open_with_failing_links!(conn, {:remote_exception, :undef})
       render_async(view)
       view |> element("#process-tab-relations") |> render_click()
 
@@ -154,6 +138,34 @@ defmodule VoyagerWeb.ProcessInfoLiveTest do
       assert has_element?(view, "#process-monitors")
       refute has_element?(view, "#process-monitors-error")
     end
+
+    test "a process found dead by the relations fetch redirects to the list", %{conn: conn} do
+      view = open_with_failing_links!(conn, :dead)
+
+      flash = assert_redirect(view, ~p"/node/#{@node_name}/processes", 2_000)
+      assert %{"error" => "The process is not alive."} = flash
+    end
+  end
+
+  defp open_with_failing_links!(conn, reason) do
+    agent = Voyager.Agent.module()
+    Application.put_env(:voyager, :erpc, Voyager.ErpcMock)
+    Mox.set_mox_global()
+    Mox.stub(Voyager.ErpcMock, :call, &ErpcImpl.call/4)
+
+    Mox.stub(Voyager.ErpcMock, :call, fn
+      _node, ^agent, :proc_links, _args, _timeout -> {:error, reason}
+      node, mod, fun, args, timeout -> ErpcImpl.call(node, mod, fun, args, timeout)
+    end)
+
+    pid = spawn(fn -> Process.sleep(:infinity) end)
+    on_exit(fn -> Process.exit(pid, :kill) end)
+
+    {:ok, view, _html} =
+      live(conn, ~p"/node/#{@node_name}/processes/#{Formatters.format_pid(pid)}")
+
+    render_hook(view, "restore_settings", %{})
+    view
   end
 
   describe "dictionary" do

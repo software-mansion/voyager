@@ -418,7 +418,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
 
       expect(Voyager.ErpcMock, :call, 13, fn
         _node, @agent_module, :proc_links, [_pid, _limit], _timeout ->
-          {:error, :dead}
+          {:error, {:remote_exception, :undef}}
 
         _node, @agent_module, :proc_monitored_by, [_pid, _limit], _timeout ->
           {:ok, %{total: 1, truncated: false, items: [monitor]}}
