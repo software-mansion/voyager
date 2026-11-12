@@ -45,6 +45,16 @@ defmodule Voyager.Telemetry.Parser do
   # Option keys are a bounded, non-sensitive set — safe to keep alongside the tag.
   @safe_option_keys ~w(ssh_user ssh_host)a
 
+  # The parser takes the first word of any config line as a keyword, so it can be free text.
+  @ssh_config_keywords ~w(
+    proxyjump proxycommand match include certificatefile
+    stricthostkeychecking userknownhostsfile hostkeyalias
+    connecttimeout serveraliveinterval serveralivecountmax
+    ciphers macs kexalgorithms hostkeyalgorithms pubkeyacceptedalgorithms
+    addressfamily bindaddress preferredauthentications identitiesonly
+    identityfile hostname
+  )
+
   @doc "Converts an event atom list into a dotted string, e.g. `[:voyager, :vm, :memory]` → `\"voyager.vm.memory\"`."
   @spec parse_event(Events.event()) :: String.t()
   def parse_event(event) do
@@ -76,6 +86,10 @@ defmodule Voyager.Telemetry.Parser do
 
   def parse_measurements([:voyager, :trace, :stop], m) do
     Map.take(m, [:events, :dropped, :duration_ms])
+  end
+
+  def parse_measurements([:voyager, :ssh_config, :import], m) do
+    Map.take(m, [:hosts, :unsupported])
   end
 
   def parse_measurements([:anubis_mcp, :server, :tool_call, :start], _m), do: %{}
@@ -136,6 +150,10 @@ defmodule Voyager.Telemetry.Parser do
     %{origin: meta[:origin], reason: trace_reason(meta[:reason])}
   end
 
+  def parse_metadata([:voyager, :ssh_config, :import], meta) do
+    %{keywords: meta[:keywords] |> Enum.map(&ssh_config_keyword/1) |> Enum.uniq()}
+  end
+
   def parse_metadata([:anubis_mcp, :server, :tool_call, :start], meta) do
     %{tool: meta[:tool]}
   end
@@ -178,4 +196,7 @@ defmodule Voyager.Telemetry.Parser do
     do: reason |> elem(0) |> Atom.to_string()
 
   defp trace_reason(_reason), do: "unknown"
+
+  defp ssh_config_keyword(keyword) when keyword in @ssh_config_keywords, do: keyword
+  defp ssh_config_keyword(_keyword), do: "other"
 end

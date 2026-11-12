@@ -49,6 +49,9 @@ defmodule Voyager.Telemetry.Metrics do
         tags: [:origin],
         measurement: fn _measurements, _metadata -> 1 end
       ),
+      counter("voyager.ssh_config.import.count",
+        measurement: fn _measurements, _metadata -> 1 end
+      ),
 
       # Voyager MCP server counters
       counter("voyager.mcp.start.count",

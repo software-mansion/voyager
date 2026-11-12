@@ -14,6 +14,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   alias VoyagerWeb.ConnectLive.KeyAuth
   alias VoyagerWeb.ConnectLive.RecentConnections
   alias VoyagerWeb.ConnectLive.SecretVisibility
+  alias VoyagerWeb.ConnectLive.SshConfigImport
   alias VoyagerWeb.FormSchemas.SshConnectionParams
 
   @id_prefix "ssh-"
@@ -48,6 +49,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     |> assign(:ssh_form, form)
     |> SecretVisibility.init()
     |> KeyAuth.init()
+    |> SshConfigImport.init()
     |> assign(:show_ssh_advanced, agent_socket_set?(form))
     |> RecentConnections.init(
       queries: SshConnectionQueries,
@@ -71,6 +73,18 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       assigns
       |> assign(:current_auth_method, to_string(assigns.ssh_form[:auth_method].value || "agent"))
       |> assign(:current_name_type, to_string(assigns.ssh_form[:name_type].value || "longnames"))
+      |> assign(
+        :ssh_config_path,
+        SshConfigImport.config_path(assigns.ssh_config_form[:path].value)
+      )
+      |> assign(
+        :ssh_config_selected,
+        SshConfigImport.selected_host(
+          assigns.ssh_config_hosts,
+          assigns.ssh_form,
+          assigns.ssh_config_picked_alias
+        )
+      )
 
     ~H"""
     <div id={@id}>
@@ -82,6 +96,14 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         phx-submit="connect_ssh"
         class={["flex flex-col gap-4", @disabled? && "pointer-events-none"]}
       >
+        <ConnectComponents.ssh_config_opener
+          selected={@ssh_config_selected}
+          config_path={@ssh_config_path}
+          disabled={@disabled?}
+          target={@myself}
+          on_open="open_ssh_config"
+        />
+
         <div class="flex gap-3">
           <div class="min-w-0 flex-1">
             <ConnectComponents.form_field
@@ -176,15 +198,19 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
             type="button"
             phx-target={@myself}
             phx-click="toggle_ssh_advanced"
-            class="font-mono tracking-label text-base-content/70 cursor-pointer select-none text-xs uppercase transition-colors hover:text-base-content/90"
+            class="font-mono tracking-label text-base-content/70 inline-flex cursor-pointer select-none items-center gap-1 text-xs uppercase transition-colors hover:text-base-content/90"
           >
-            Advanced {if @show_ssh_advanced, do: "▾", else: "▸"}
+            Advanced
+            <.icon
+              name="icon-chevron-right"
+              class={["size-3.5 transition-transform", @show_ssh_advanced && "rotate-90"]}
+            />
           </button>
 
           <div
             id="ssh-advanced"
             class={[
-              "border-base-300 mt-3 flex flex-col gap-3 rounded-lg border p-4",
+              "border-base-content/20 mt-3 flex flex-col gap-3 rounded-lg border p-4",
               not @show_ssh_advanced && "hidden"
             ]}
           >
@@ -248,9 +274,23 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         </:row>
       </RecentConnections.render>
 
-      <p class="font-mono tracking-snug text-base-content/70 mt-6 text-center text-xs">
-        Remote nodes via SSH
-      </p>
+      <ConnectComponents.ssh_config_modal
+        :if={@ssh_config_modal?}
+        id={"#{@id_prefix}config-modal"}
+        form={@ssh_config_form}
+        config_path={@ssh_config_path}
+        hosts={@ssh_config_hosts}
+        unsupported={@ssh_config_unsupported}
+        selected={@ssh_config_selected}
+        target={@myself}
+        on_close="close_ssh_config"
+        on_change_path="change_ssh_config_path"
+        on_edit_path="edit_ssh_config_path"
+        on_import="import_ssh_config"
+        on_reload="reload_ssh_config"
+        on_fill="fill_ssh_host"
+        on_remove="remove_ssh_host"
+      />
 
       <ConnectComponents.passphrase_modal
         :if={@passphrase_form}
@@ -297,9 +337,9 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       >
         <.icon name="icon-network" class="size-3.5 text-base-content/60 shrink-0 self-center" />
         <div class="flex min-w-0 flex-1 flex-col gap-1">
-          <span class="ml-2 truncate text-left">{@conn.node_name}</span>
-          <div class="ml-2 flex flex-wrap items-center gap-1">
-            <span class="font-mono text-base-content/70 border-base-400/50 rounded border px-1 text-xs">
+          <span class="truncate text-left">{@conn.node_name}</span>
+          <div class="flex flex-wrap items-center gap-1">
+            <span class="font-mono text-base-content/70 border-base-content/20 rounded border px-1 text-xs">
               {@conn.ssh_user}@{@conn.ssh_host}
             </span>
             <ConnectComponents.saved_badge :if={@conn.cookie} label="cookie" title="Cookie saved" />
