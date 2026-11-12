@@ -47,14 +47,18 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
       assert properties["capture_args"]["default"] == false
       refute Map.has_key?(properties["pids"], "default")
       assert params["message"] =~ Atom.to_string(node())
-      assert input.request_state == {:set, {:create_trace_session, node()}}
+      assert {:set, {:create_trace_session, node, _id}} = input.request_state
+      assert node == node()
     end
 
     test "asks again for a form accepted for another node" do
       frame =
-        frame(%{"session" => accept(%{"function" => "Date"})}, {:create_trace_session, :a@b})
+        frame(
+          %{"session" => accept(%{"function" => "Date"})},
+          {:create_trace_session, :a@b, System.unique_integer()}
+        )
 
-      assert {:reply, %InputRequired{request_state: {:set, {_, node}}}, _frame} =
+      assert {:reply, %InputRequired{request_state: {:set, {_, node, _id}}}, _frame} =
                execute(%{}, frame)
 
       assert node == node()
@@ -132,6 +136,31 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
       assert %{max_time_ms: 60_000} = Tracer.active().config
     end
 
+    test "asks again for a form state already answered", %{pid: pid} do
+      frame = answered(accept(%{"function" => "Date", "pids" => pid}))
+      %{"status" => "started", "session_id" => id} = %{} |> execute(frame) |> run()
+
+      Tracer.stop(:ui)
+      _ = :sys.get_state(Tracer)
+
+      assert {:reply, %InputRequired{}, _frame} = execute(%{}, frame)
+      assert %{id: ^id} = Tracer.active()
+    end
+
+    test "asks again for an accept sent with a declined form state", %{pid: pid} do
+      declined = answered(%{"action" => "decline"})
+      %{"status" => "declined"} = %{} |> execute(declined) |> run()
+
+      accepted =
+        put_in(
+          declined.context.input_responses,
+          %{"session" => accept(%{"function" => "Date", "pids" => pid})}
+        )
+
+      assert {:reply, %InputRequired{}, _frame} = execute(%{}, accepted)
+      refute match?(%{status: :running}, Tracer.active())
+    end
+
     test "keeps the previous session when the start fails" do
       {:ok, %{id: id}} = Tracer.create(:ui)
       {pid, ref} = spawn_monitor(fn -> :ok end)
@@ -191,7 +220,8 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
     }
   end
 
-  defp answered(answer), do: frame(%{"session" => answer}, {:create_trace_session, node()})
+  defp answered(answer),
+    do: frame(%{"session" => answer}, {:create_trace_session, node(), System.unique_integer()})
 
   defp accept(content),
     do: %{

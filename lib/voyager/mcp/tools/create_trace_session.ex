@@ -34,6 +34,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
   alias Voyager.NodeSession
   alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Config
+  alias Voyager.Services.UsedRequestStates
 
   @max_events 10_000
   @max_seconds 3_600
@@ -65,11 +66,8 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
       with {:ok, node} <- check_ready(frame),
            :ok <- check_function(params[:function]) do
         case {Frame.request_state(frame), Frame.input_response(frame, @form)} do
-          {{@form_state, ^node}, %{"action" => "accept", "content" => content}} ->
-            start(node, content)
-
-          {{@form_state, _node}, %{"action" => action}} when action != "accept" ->
-            Response.json(Response.tool(), %{status: "declined"})
+          {{@form_state, ^node, id}, %{"action" => _action} = response} ->
+            answer(UsedRequestStates.consume(id), response, params, node)
 
           _unanswered_or_other_node ->
             ask(params, node)
@@ -80,6 +78,14 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
 
     {:reply, reply, frame}
   end
+
+  defp answer(:used, _response, params, node), do: ask(params, node)
+
+  defp answer(:ok, %{"action" => "accept"} = response, _params, node),
+    do: start(node, response["content"])
+
+  defp answer(:ok, _declined, _params, _node),
+    do: Response.json(Response.tool(), %{status: "declined"})
 
   defp check_ready(frame) do
     session = NodeSession.current()
@@ -116,7 +122,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
   defp ask(params, node) do
     InputRequired.new()
     |> InputRequired.elicit(@form, "Start this tracing session on #{node}?", form_schema(params))
-    |> InputRequired.state({@form_state, node})
+    |> InputRequired.state({@form_state, node, System.unique_integer()})
   end
 
   defp form_schema(params) do
