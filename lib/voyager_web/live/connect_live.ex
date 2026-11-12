@@ -3,6 +3,8 @@ defmodule VoyagerWeb.ConnectLive do
 
   alias Voyager.NodeSession
   alias Voyager.NodeSession.ConnectError
+  alias Voyager.Queries.Connections, as: ConnectionQueries
+  alias Voyager.Queries.SshConnections, as: SshConnectionQueries
   alias VoyagerWeb.ConnectComponents
 
   @prefill_keys ~w(connection node_name name_type ssh_user ssh_host ssh_port epmd_port auth_method key_path agent_socket_path)
@@ -13,6 +15,7 @@ defmodule VoyagerWeb.ConnectLive do
     |> assign(:proxy_epmd_active?, Voyager.ProxyEpmd.active?())
     |> assign(:connected_session, NodeSession.current())
     |> assign(:connecting?, false)
+    |> assign_unreadable_secrets()
     |> ok()
   end
 
@@ -33,7 +36,7 @@ defmodule VoyagerWeb.ConnectLive do
     assigns = assign(assigns, :mode_disabled_reason, mode_disabled_reason(assigns))
 
     ~H"""
-    <div class="bg-base-200 h-full overflow-y-auto">
+    <div class="bg-base-200 scrollbar-gutter-both h-full overflow-y-auto">
       <div class="min-w-96 flex min-h-full items-center justify-center p-4">
         <div class="card bg-base-100 w-full max-w-lg shadow-xl">
           <div class="card-body group gap-0 p-10">
@@ -116,6 +119,21 @@ defmodule VoyagerWeb.ConnectLive do
               </span>
             </div>
 
+            <div
+              :if={
+                is_nil(@connected_session) and
+                  if(@mode == :ssh, do: @unreadable_ssh_secrets?, else: @unreadable_direct_secrets?)
+              }
+              id="unreadable-secrets"
+              role="alert"
+              class="alert alert-warning mb-4 text-xs"
+            >
+              <.icon name="icon-circle-alert" class="text-warning size-4 shrink-0" />
+              <span>
+                Some saved secrets can't be decrypted, the encryption key probably changed. Enter them again or delete those connections.
+              </span>
+            </div>
+
             <div class={@mode != :direct && "hidden"}>
               <.live_component
                 module={VoyagerWeb.ConnectLive.DirectConnect}
@@ -159,6 +177,10 @@ defmodule VoyagerWeb.ConnectLive do
     {:noreply, assign(socket, :connecting?, true)}
   end
 
+  def handle_info({:node_connect_failed, _node_name, {:unknown_host_key, _fp}}, socket) do
+    {:noreply, assign(socket, :connecting?, false)}
+  end
+
   def handle_info({:node_connect_failed, _node_name, reason}, socket) do
     socket
     |> assign(:connecting?, false)
@@ -181,7 +203,19 @@ defmodule VoyagerWeb.ConnectLive do
     {:noreply, assign(socket, :connected_session, nil)}
   end
 
+  def handle_info(:saved_connection_deleted, socket) do
+    socket
+    |> assign_unreadable_secrets()
+    |> noreply()
+  end
+
   def handle_info(_, socket), do: {:noreply, socket}
+
+  defp assign_unreadable_secrets(socket) do
+    socket
+    |> assign(:unreadable_direct_secrets?, ConnectionQueries.unreadable_secrets?())
+    |> assign(:unreadable_ssh_secrets?, SshConnectionQueries.unreadable_secrets?())
+  end
 
   defp mode_disabled_reason(assigns) do
     cond do

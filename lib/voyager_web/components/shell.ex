@@ -6,18 +6,22 @@ defmodule VoyagerWeb.Components.Shell do
   use VoyagerWeb, :html
 
   alias Voyager.NodeSession.Session
+  alias Voyager.Services.Tracer
+  alias VoyagerWeb.Components.TracingComponents
+  alias VoyagerWeb.Formatters
   alias VoyagerWeb.Hooks.UrlHook
 
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
   attr :mcp_status, :map, default: %{alive?: false, url: nil}
+  attr :tracing_session, Tracer.Session, default: nil
   slot :inner_block, required: true
 
   def shell(assigns) do
     ~H"""
     <div class="bg-base-200 flex h-full flex-col overflow-x-auto overflow-y-hidden">
-      <div class="min-w-sm flex min-h-0 flex-1 flex-col">
-        <.topbar session={@session} mcp_status={@mcp_status} />
+      <div class="min-w-lg flex min-h-0 flex-1 flex-col">
+        <.topbar session={@session} mcp_status={@mcp_status} tracing_session={@tracing_session} />
 
         <div class="relative flex flex-1 overflow-y-hidden">
           <.sidebar
@@ -37,13 +41,15 @@ defmodule VoyagerWeb.Components.Shell do
 
   attr :session, Session, required: true
   attr :mcp_status, :map, default: %{alive?: false, url: nil}
+  attr :tracing_session, Tracer.Session, default: nil
 
   defp topbar(assigns) do
     ~H"""
     <div class="bg-base-100 border-base-300 min-h-14 grid-cols-[auto_1fr_auto] z-10 grid flex-none items-center gap-4 border-b px-4">
       <.brand />
-      <div class="@container/nav-status flex min-w-0">
+      <div class="@container/nav-status flex min-w-0 items-center gap-3">
         <.node_indicator session={@session} />
+        <.tracing_indicator session={@tracing_session} connected_node={@session.node} />
       </div>
       <.link
         href={~p"/settings"}
@@ -60,15 +66,122 @@ defmodule VoyagerWeb.Components.Shell do
   @doc """
   Renders the topbar used by the settings page, showing the brand mark.
   """
+  attr :tracing_session, Tracer.Session, default: nil
+
   def settings_topbar(assigns) do
     ~H"""
     <div class="navbar bg-base-100 border-base-300 min-h-14 z-10 flex-none gap-3 border-b px-4">
       <div class="navbar-start gap-3">
         <.brand />
       </div>
+      <div class="navbar-end @container/nav-status min-w-0">
+        <.tracing_indicator session={@tracing_session} />
+      </div>
     </div>
     """
   end
+
+  attr :session, Tracer.Session, default: nil
+  attr :connected_node, :atom, default: nil
+
+  defp tracing_indicator(%{session: nil} = assigns), do: ~H""
+
+  defp tracing_indicator(assigns) do
+    assigns =
+      assign(assigns,
+        tone: TracingComponents.tone(assigns.session, assigns.connected_node),
+        state: TracingComponents.state(assigns.session)
+      )
+
+    ~H"""
+    <.tooltip id="tracing-indicator-tip" position="bottom" class="shrink-0">
+      <.link
+        navigate={tracing_session_path(@session)}
+        id="tracing-indicator"
+        data-tone={@tone}
+        aria-label={"Open the #{@state} tracing session, #{Formatters.format_integer(@session.traces)} traces captured"}
+        class={[
+          "flex items-center gap-2 rounded-lg border py-1 pr-1 pl-2.5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2",
+          TracingComponents.tone_class(@tone, :chip)
+        ]}
+      >
+        <span class="relative flex h-1.5 w-1.5 shrink-0">
+          <span
+            :if={@tone == :running}
+            class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
+          ></span>
+          <span class={[
+            "relative inline-flex h-1.5 w-1.5 rounded-full",
+            TracingComponents.tone_class(@tone, :dot)
+          ]}></span>
+        </span>
+        <span
+          id="tracing-indicator-label"
+          class={[
+            "text-xs font-medium @max-sm/nav-status:hidden",
+            TracingComponents.tone_class(@tone, :label)
+          ]}
+        >
+          {tracing_label(@session)}
+        </span>
+        <span
+          id="tracing-indicator-mfa"
+          class="font-mono text-base-content/70 max-w-56 truncate px-1 text-xs @max-lg/nav-status:hidden"
+        >
+          {TracingComponents.traced_mfa(@session.config)}
+        </span>
+        <span
+          id="tracing-indicator-count"
+          class={[
+            "badge badge-sm font-mono h-(--toolbar-btn-size-sm) shrink-0",
+            TracingComponents.tone_class(@tone, :badge)
+          ]}
+        >
+          {Formatters.format_count_short(@session.traces)}
+        </span>
+      </.link>
+      <:content>
+        <div class="flex flex-col gap-1.5">
+          <span class="font-medium">Tracing session {@state}</span>
+          <dl class="grid-cols-[auto_1fr] grid gap-x-3 gap-y-0.5">
+            <dt class="text-base-content/60">Node</dt>
+            <dd id="tracing-indicator-node" class="font-mono">{@session.node}</dd>
+            <dd
+              :if={@tone == :other_node}
+              id="tracing-indicator-other-node"
+              role="note"
+              class="alert alert-info col-span-2 my-1 gap-1.5 px-2 py-1.5 text-xs"
+            >
+              <.icon name="icon-info" class="text-info size-3.5 shrink-0" />
+              <span>Session associated with a different node.</span>
+            </dd>
+            <dt class="text-base-content/60">Function</dt>
+            <dd class="font-mono">{TracingComponents.traced_mfa(@session.config)}</dd>
+            <dt class="text-base-content/60">Traces</dt>
+            <dd class="font-mono">{Formatters.format_integer(@session.traces)}</dd>
+            <dt :if={@session.stop_reason} class="text-base-content/60">Reason</dt>
+            <dd
+              :if={@session.stop_reason}
+              id="tracing-indicator-reason"
+              class={if @tone == :failed, do: "text-warning", else: nil}
+            >
+              {TracingComponents.stop_reason_label(@session.stop_reason)}
+            </dd>
+          </dl>
+          <span class="border-base-300 text-base-content/70 border-t pt-1.5">
+            Click to open the session.
+          </span>
+        </div>
+      </:content>
+    </.tooltip>
+    """
+  end
+
+  defp tracing_session_path(%Tracer.Session{node: node}), do: ~p"/node/#{node}/tracing"
+
+  defp tracing_label(%Tracer.Session{status: :running}), do: "Tracing"
+  defp tracing_label(%Tracer.Session{status: :stopped}), do: "Stopped"
+  defp tracing_label(%Tracer.Session{status: :idle}), do: "Ready"
 
   defp brand(assigns) do
     assigns = assign(assigns, :version, Voyager.version())

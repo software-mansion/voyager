@@ -45,6 +45,18 @@ defmodule Voyager.NodeSession.ConnectError do
   def message(reason) when is_list(reason),
     do: "SSH authentication failed — check your credentials or ensure the SSH agent is running"
 
+  def message({:unknown_host_key, _fingerprint}), do: "Unverified SSH host key"
+
+  def message({:host_key_mismatch, file}),
+    do:
+      "SSH host key changed — this could be a man-in-the-middle attack. If the change is expected, remove the old key for this host from #{file}"
+
+  def message({:host_key_revoked, file}), do: "This SSH host key is revoked in #{file}"
+  def message({:known_hosts_unreadable, file}), do: "Can't read #{file}"
+
+  def message({:known_hosts_unwritable, file}),
+    do: "Can't save the host key to #{file} — check its permissions"
+
   def message(:etimedout), do: "Connection timed out — check the SSH host and port"
   def message(:econnrefused), do: "Connection refused — check the SSH host and port"
   def message(:nxdomain), do: "Host not found — check the SSH hostname"
@@ -71,8 +83,11 @@ defmodule Voyager.NodeSession.ConnectError do
 
   def message({:agent_install_failed, _}), do: "Could not load the Voyager agent on the node"
 
-  def message(:key_encrypted_openssh),
-    do: "Passphrase-protected OpenSSH keys aren't supported — use SSH Agent or Password"
+  def message(:key_unsupported_cipher),
+    do: "This key's cipher isn't supported — use SSH Agent or Password"
+
+  def message(:key_unreachable),
+    do: "This key takes too long to unlock — use SSH Agent or Password"
 
   def message(:key_unreadable), do: "Not a private key Voyager can read"
   def message({:read_failed, _}), do: "Can't read this file"

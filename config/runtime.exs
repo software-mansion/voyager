@@ -28,10 +28,7 @@ if config_env() != :e2e do
 end
 
 if config_env() not in [:test, :e2e] do
-  config :voyager, Voyager.Vault,
-    ciphers: [
-      default: {Cloak.Ciphers.AES.GCM, tag: "AES.GCM.V1", key: Voyager.VaultKey.resolve!()}
-    ]
+  config :voyager, :vault_key, Voyager.VaultKey.resolve!()
 end
 
 if config_env() == :prod do

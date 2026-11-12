@@ -6,6 +6,7 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
 
   import Phoenix.LiveViewTest
   import Mox
+  import Voyager.TestUtils, only: [await_element: 2]
 
   alias Voyager.Fakes
 
@@ -113,11 +114,8 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
         |> form("#supervision-tree-controls", %{"tree_controls" => %{"apps" => ["demo_app"]}})
         |> render_change()
 
-      # The fetch starts immediately, so the status flips to loading and the
-      # graph container replaces the empty state. Asserting on the loading
-      # state keeps this deterministic regardless of when the async task lands.
       assert html =~ "loading"
-      assert has_element?(view, "#supervision-tree-body")
+      await_element(view, "#supervision-tree-body")
       refute render(view) =~ "No applications selected"
     end
   end
@@ -159,7 +157,7 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
       |> form("#supervision-tree-controls", %{"tree_controls" => %{"apps" => ["demo_app"]}})
       |> render_change()
 
-      assert has_element?(view, "#supervision-tree-body")
+      await_element(view, "#supervision-tree-body")
 
       view |> element("#supervision-tree-clear-apps") |> render_click()
 
@@ -331,8 +329,8 @@ defmodule VoyagerWeb.SupervisionTreeLiveTest do
     test "skips the graph and explains how to shrink the fetch", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path <> "?apps=demo_app")
       render_async(view)
+      await_element(view, "#supervision-tree-too-large")
 
-      assert has_element?(view, "#supervision-tree-too-large")
       refute has_element?(view, "#supervision-tree-body")
     end
   end
