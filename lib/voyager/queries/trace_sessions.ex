@@ -12,6 +12,14 @@ defmodule Voyager.Queries.TraceSessions do
     |> Repo.all()
   end
 
+  @spec newest(pos_integer()) :: [TraceSession.t()]
+  def newest(limit) do
+    TraceSession
+    |> order_by([s], desc: s.id)
+    |> limit(^limit)
+    |> Repo.all()
+  end
+
   @spec get(integer()) :: TraceSession.t() | nil
   def get(id), do: Repo.get(TraceSession, id)
 
