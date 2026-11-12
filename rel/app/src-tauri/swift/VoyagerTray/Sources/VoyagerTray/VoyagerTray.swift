@@ -51,19 +51,36 @@ final class TrayModel: ObservableObject {
     }
 }
 
+/// Takes clicks and keys without activating Voyager, which would bring its main window forward.
 @available(macOS 13, *)
-final class TrayController: NSObject, NSPopoverDelegate {
+final class TrayPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+}
+
+@available(macOS 13, *)
+final class TrayController: NSObject, NSWindowDelegate {
+    private static let gap: CGFloat = 4
+    private static let cornerRadius: CGFloat = 10
+    private static let escapeKeyCode: UInt16 = 53
+
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    private let popover: NSPopover
+    private let panel: TrayPanel
+    private let hosting: NSHostingController<TrayView>
+    private var sizeObservation: NSKeyValueObservation?
+    private var monitors: [Any] = []
+    private var previousApp: NSRunningApplication?
     let model: TrayModel
 
     init(icon: NSImage, version: String, onAction: @escaping ActionCallback) {
-        let popover = NSPopover()
-        self.popover = popover
+        let panel = TrayPanel(
+            contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered,
+            defer: true)
+        self.panel = panel
         model = TrayModel(version: version) { action in
-            if action == .open || action == .quit { popover.performClose(nil) }
+            if action == .open || action == .quit { panel.close() }
             action.rawValue.withCString(onAction)
         }
+        hosting = NSHostingController(rootView: TrayView(model: model, logo: icon))
         super.init()
 
         icon.isTemplate = true
@@ -74,33 +91,77 @@ final class TrayController: NSObject, NSPopoverDelegate {
             button.action = #selector(toggle(_:))
         }
 
-        let hosting = NSHostingController(rootView: TrayView(model: model, logo: icon))
         hosting.sizingOptions = .preferredContentSize
-        popover.contentViewController = hosting
-        if #available(macOS 14.0, *) {
-            popover.hasFullSizeContent = true
+        hosting.view.wantsLayer = true
+        hosting.view.layer?.cornerRadius = Self.cornerRadius
+        hosting.view.layer?.masksToBounds = true
+        panel.contentViewController = hosting
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.level = .popUpMenu
+        panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
+        panel.isReleasedWhenClosed = false
+        // Voyager stays inactive while the panel is open, so the NSPanel default would hide it at once.
+        panel.hidesOnDeactivate = false
+        panel.delegate = self
+        sizeObservation = hosting.observe(\.preferredContentSize) { [weak self] _, _ in
+            self?.position()
         }
-        popover.behavior = .transient
-        popover.delegate = self
     }
 
-    func popoverDidClose(_ notification: Notification) {
+    func windowDidResignKey(_ notification: Notification) {
+        panel.close()
+    }
+
+    func windowWillClose(_ notification: Notification) {
+        monitors.forEach(NSEvent.removeMonitor)
+        monitors = []
         if model.status?.error != nil { model.perform(.dismissError) }
     }
 
     @objc private func toggle(_ sender: NSStatusBarButton) {
-        if popover.isShown {
-            popover.performClose(sender)
+        if panel.isVisible {
+            dismiss()
             return
         }
-        // A transient popover only closes on outside clicks while the app is active.
-        NSApp.activate(ignoringOtherApps: true)
-        popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
-        let window = popover.contentViewController?.view.window
-        window?.makeKey()
+        let front = NSWorkspace.shared.frontmostApplication
+        previousApp = front?.processIdentifier == ProcessInfo.processInfo.processIdentifier ? nil : front
+        position()
+        panel.orderFrontRegardless()
+        panel.makeKey()
         // Otherwise AppKit focuses the first button, drawing its focus ring on every open.
-        window?.makeFirstResponder(nil)
+        panel.makeFirstResponder(nil)
+        installMonitors()
         model.perform(.refresh)
+    }
+
+    private func dismiss() {
+        panel.close()
+        if let previousApp, !previousApp.isTerminated { previousApp.activate(options: []) }
+    }
+
+    /// Global monitors only see events sent to other apps, so a click on the status item still toggles.
+    private func installMonitors() {
+        let outsideClick = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) {
+            [weak self] _ in self?.panel.close()
+        }
+        let escape = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, event.keyCode == Self.escapeKeyCode else { return event }
+            self.dismiss()
+            return nil
+        }
+        monitors = [outsideClick, escape].compactMap { $0 }
+    }
+
+    private func position() {
+        guard let button = statusItem.button, let buttonWindow = button.window else { return }
+        let anchor = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
+        let size = hosting.view.fittingSize
+        let visible = (buttonWindow.screen ?? NSScreen.main)?.visibleFrame ?? anchor
+        let x = min(max(anchor.midX - size.width / 2, visible.minX), visible.maxX - size.width)
+        let frame = NSRect(x: x, y: anchor.minY - Self.gap - size.height, width: size.width, height: size.height)
+        panel.setFrame(frame, display: true)
     }
 }
 
