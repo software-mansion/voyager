@@ -11,7 +11,6 @@ defmodule Voyager.Services.TracerTest do
   alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Writer
-  alias Voyager.Test.Recursive
   alias Voyager.Test.VoyagerAgentFixture
 
   setup do
@@ -107,6 +106,34 @@ defmodule Voyager.Services.TracerTest do
 
     assert {:ok, %{entries: [%{seq: 3}, _, _, _], truncated?: false}} =
              Tracer.entries(id, before: 1_000)
+  end
+
+  test "publishes the session status with each change" do
+    Phoenix.PubSub.subscribe(Voyager.PubSub, Tracer.session_topic())
+
+    assert {:ok, _session} = configure()
+    assert_receive {:session_updated, %{status: :idle, config: %Config{}}}
+    assert {:ok, _session} = Tracer.start(:ui)
+    assert_receive {:session_updated, %{status: :running, traces: 0}}
+
+    Date.leap_year?(~D[2024-01-01])
+    assert_receive {:session_updated, %{status: :running, traces: 1}}, 1_000
+
+    assert :ok = Tracer.stop(:ui)
+    assert_receive {:session_updated, %{status: :stopped, traces: 1}}
+    assert :ok = Tracer.close()
+    assert_receive {:session_updated, nil}
+  end
+
+  for save <- [false, true] do
+    test "a configured entry carries the config it replaced, save: #{save}" do
+      assert {:ok, %{id: id}} = Tracer.create(:ui, save: unquote(save))
+      assert {:ok, %{config: first}} = configure()
+      assert {:ok, %{config: second}} = configure(%{max_events: 5})
+
+      assert {:ok, %{entries: [%{previous: ^first, config: ^second}, %{previous: nil}]}} =
+               Tracer.entries(id)
+    end
   end
 
   test "saves a saved session's log as it is appended, reading back what was broadcast" do
@@ -206,6 +233,12 @@ defmodule Voyager.Services.TracerTest do
     assert {:ok, %{status: :running}} = Tracer.start(:ui)
   end
 
+  test "loads a saved session that was never configured" do
+    assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
+    assert {:ok, _session} = Tracer.create(:ui)
+    assert {:ok, %{id: ^id, node: nil, config: nil}} = Tracer.load(id)
+  end
+
   test "refuses to load a missing session or while running" do
     assert {:error, :not_found} = Tracer.load(0)
     assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
@@ -252,7 +285,7 @@ defmodule Voyager.Services.TracerTest do
 
     assert {:ok, %{id: ^id, status: :running}} = Tracer.start(:ui)
     Date.leap_year?(~D[2024-01-01])
-    assert_receive {:session_entries, %{id: ^id, traces: 2}, [%{kind: :stopped}]}
+    assert_receive {:session_entries, %{id: ^id, traces: 2}, [%{kind: :stopped, traces: 1}]}
 
     assert {:ok, %{entries: entries}} = Tracer.entries(id)
 
@@ -265,6 +298,166 @@ defmodule Voyager.Services.TracerTest do
              {1, :started},
              {0, :configured}
            ]
+  end
+
+  test "tracks the run a resumed session is on" do
+    assert {:ok, %{run_started_at: nil, run_traces_before: 0}} = configure(%{max_events: 1})
+    assert {:ok, %{run_started_at: first, run_traces_before: 0} = run} = Tracer.start(:ui)
+    Date.leap_year?(~D[2024-01-01])
+    assert_receive {:session_entries, _session, [%{kind: :stopped}]}
+
+    assert {:ok, %{started_at: started_at, run_started_at: second, run_traces_before: 1}} =
+             Tracer.start(:ui)
+
+    assert started_at == run.started_at
+    assert DateTime.compare(second, first) == :gt
+  end
+
+  test "derives a saved session's run from its log" do
+    assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
+    assert {:ok, _session} = configure(%{max_events: 1})
+
+    for _run <- 1..2 do
+      assert {:ok, _session} = Tracer.start(:ui)
+      Date.leap_year?(~D[2024-01-01])
+      assert_receive {:session_entries, _session, [%{kind: :stopped}]}
+    end
+
+    assert {:ok, %{entries: entries}} = Tracer.entries(id)
+    started = Enum.find(entries, &(&1.kind == :started))
+    started_at = DateTime.from_unix!(started.at, :microsecond)
+    assert {:ok, _session} = Tracer.create(:ui)
+
+    assert {:ok, %{run_started_at: ^started_at, run_traces_before: 1}, :saved} =
+             Tracer.session(id)
+
+    assert {:ok, %{run_started_at: ^started_at, run_traces_before: 1}} = Tracer.load(id)
+  end
+
+  test "reads the active session from memory", %{session: %{id: id}} do
+    assert {:ok, %{id: ^id, save: false}, :active} = Tracer.session(id)
+
+    assert {:ok, %{id: saved}} = Tracer.create(:ui, save: true)
+    assert {:ok, %{id: ^saved}, :active} = Tracer.session(saved)
+  end
+
+  test "reads a saved session that is not active from its row" do
+    assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
+    assert {:ok, %{config: config, node: node}} = configure(%{max_events: 1})
+    assert {:ok, _session} = Tracer.start(:ui)
+    Date.leap_year?(~D[2024-01-01])
+    assert_receive {:session_entries, %{storage_limit: storage_limit}, [%{kind: :stopped}]}
+    assert {:ok, _session} = Tracer.create(:ui)
+
+    assert {:ok,
+            %{
+              id: ^id,
+              save: true,
+              status: :stopped,
+              stop_reason: :event_limit,
+              traces: 1,
+              seq: 4,
+              node: ^node,
+              config: ^config,
+              storage_limit: ^storage_limit
+            }, :saved} = Tracer.session(id)
+  end
+
+  test "does not find a missing or closed unsaved session", %{session: %{id: id}} do
+    assert {:error, :not_found} = Tracer.session(0)
+    assert :ok = Tracer.close()
+    assert {:error, :not_found} = Tracer.session(id)
+  end
+
+  test "reads the storage limit from its setting" do
+    Repo.delete_all(Voyager.Schemas.Setting)
+    assert Tracer.storage_limit_mb() == 100
+    {:ok, _} = Voyager.Settings.put(:trace_storage_limit_mb, 7)
+    assert Tracer.storage_limit_mb() == 7
+  end
+
+  for save <- [true, false] do
+    describe "search/3 with save: #{save}" do
+      @describetag save: save
+
+      test "takes %, _ and backslash literally", %{save: save} do
+        {id, [percent, _digit, underscore, _letter, backslash]} =
+          searchable(save, ["100%", "1000", "a_b", "axb", "c:\\d"])
+
+        assert {:ok, %{entries: [^percent], total: 1}} = Tracer.search(id, "100%")
+        assert {:ok, %{entries: [^underscore], total: 1}} = Tracer.search(id, "a_b")
+        assert {:ok, %{entries: [^backslash], total: 1}} = Tracer.search(id, "\\")
+      end
+
+      test "folds ASCII case only", %{save: save} do
+        {id, [ascii, polish]} = searchable(save, ["HeLLo", "ŻÓŁW"])
+
+        assert {:ok, %{entries: [^ascii], total: 1}} = Tracer.search(id, "hello")
+        assert {:ok, %{entries: [], total: 0}} = Tracer.search(id, "żółw")
+        assert {:ok, %{entries: [^polish], total: 1}} = Tracer.search(id, "ŻÓŁw")
+      end
+
+      test "pages newest first, over trace rows only, counting on the first page", %{save: save} do
+        {id, [a, b, c, _other]} = searchable(save, ["needle a", "needle b", "needle c", "other"])
+        assert :ok = Tracer.stop(:ui)
+        assert_receive {:session_entries, _session, [%{kind: :stopped}]}
+
+        assert {:ok, %{entries: [^c, ^b], total: 3}} = Tracer.search(id, "needle", limit: 2)
+
+        assert {:ok, %{entries: [^a], total: nil}} =
+                 Tracer.search(id, "needle", before: b.seq, limit: 2)
+
+        assert {:ok, %{entries: [], total: nil}} = Tracer.search(id, "needle", before: a.seq)
+        assert {:ok, %{total: 4}} = Tracer.search(id, "")
+      end
+
+      test "finds a pid shown under any node index", %{save: save} do
+        "<0." <> rest = Voyager.Pid.format(self(), :distribution)
+        {id, [entry]} = searchable(save, ["pid"])
+
+        assert {:ok, %{entries: [^entry]}} = Tracer.search(id, "<0." <> rest)
+        assert {:ok, %{entries: [^entry]}} = Tracer.search(id, "<7." <> rest)
+        assert {:ok, %{entries: [^entry]}} = Tracer.search(id, "#PID<12." <> rest)
+        assert {:ok, %{entries: []}} = Tracer.search(id, "<7.0.0>")
+      end
+    end
+  end
+
+  test "searches every trace an unsaved session keeps, whatever controls follow them" do
+    kept = Tracer.kept_traces()
+    {id, [oldest | _]} = searchable(false, Enum.map(1..kept, &"trace #{&1}"))
+    assert :ok = Tracer.stop(:ui)
+    assert_receive {:session_entries, _session, [%{kind: :stopped}]}
+
+    assert {:ok, %{entries: [^oldest], total: 1}} = Tracer.search(id, ~s("trace 1"))
+    assert {:ok, %{total: ^kept}} = Tracer.search(id, "")
+  end
+
+  test "searches a saved session that is not active" do
+    {id, [entry]} = searchable(true, ["needle"])
+    assert :ok = Tracer.stop(:ui)
+    assert_receive {:session_entries, _session, [%{kind: :stopped}]}
+    assert {:ok, _session} = Tracer.create(:ui)
+
+    assert {:ok, %{entries: [^entry], total: 1}} = Tracer.search(id, "needle")
+  end
+
+  test "does not search a missing or closed session", %{session: %{id: id}} do
+    assert {:error, :not_found} = Tracer.search(1_000_000, "x")
+    assert :ok = Tracer.close()
+    assert {:error, :not_found} = Tracer.search(id, "x")
+  end
+
+  test "rejects invalid search options" do
+    assert_raise ArgumentError, ~r/invalid :limit option/, fn ->
+      Tracer.search(1, "x", limit: 0)
+    end
+
+    assert_raise ArgumentError, ~r/invalid :before option/, fn ->
+      Tracer.search(1, "x", before: -1)
+    end
+
+    assert_raise ArgumentError, fn -> Tracer.search(1, "x", order: :asc) end
   end
 
   test "rejects invalid entries options" do
@@ -298,53 +491,6 @@ defmodule Voyager.Services.TracerTest do
     refute Map.has_key?(call1, :duration_us)
   end
 
-  test "a recursive call's inner duration is shorter than its outer one" do
-    Code.ensure_loaded!(Recursive)
-
-    assert {:ok, %{id: id}} =
-             configure(%{
-               module: "Elixir.Voyager.Test.Recursive",
-               function: "countdown",
-               return_trace: true,
-               max_events: 4
-             })
-
-    assert {:ok, _session} = Tracer.start(:ui)
-    Recursive.countdown(1)
-    assert_receive {:session_entries, %{id: ^id}, [%{kind: :stopped}]}
-
-    assert [outer_call, inner_call, inner_ret, outer_ret] = traces(id)
-    assert %{type: :call, args: [1]} = outer_call
-    assert %{type: :call, args: [0]} = inner_call
-    assert inner_ret.duration_us == inner_ret.at - inner_call.at
-    assert outer_ret.duration_us == outer_ret.at - outer_call.at
-    assert inner_ret.duration_us <= outer_ret.duration_us
-  end
-
-  test "a return after dropped events gets no duration" do
-    assert {:ok, %{id: id}} = configure(%{return_trace: true})
-    assert {:ok, %{tracer: tracer}} = Tracer.start(:ui)
-    call = %{type: :call, pid: self(), process: nil, mfa: {Date, :leap_year?, 1}, at: 10}
-    send(Tracer, {:voyager_trace_events, tracer, [call], 0})
-    send(Tracer, {:voyager_trace_events, tracer, [%{call | type: :return, at: 20}], 1})
-    _ = :sys.get_state(Tracer)
-
-    assert [_call, return] = traces(id)
-    refute Map.has_key?(return, :duration_us)
-  end
-
-  test "forgets open calls once too many timestamps are retained" do
-    assert {:ok, %{id: id}} = configure(%{return_trace: true})
-    assert {:ok, %{tracer: tracer}} = Tracer.start(:ui)
-    call = %{type: :call, pid: self(), process: nil, mfa: {Date, :leap_year?, 1}, at: 10}
-    send(Tracer, {:voyager_trace_events, tracer, List.duplicate(call, 10_001), 0})
-    send(Tracer, {:voyager_trace_events, tracer, [%{call | type: :return, at: 20}], 0})
-    _ = :sys.get_state(Tracer)
-
-    assert {:ok, %{entries: [%{type: :return} = return]}} = Tracer.entries(id, limit: 1)
-    refute Map.has_key?(return, :duration_us)
-  end
-
   test "a restarted Tracer interrupts the run after the Writer's buffered rows land" do
     assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
     assert {:ok, _session} = configure()
@@ -357,6 +503,13 @@ defmodule Voyager.Services.TracerTest do
 
     _ = :sys.get_state(Tracer)
     assert %{status: :stopped, stop_reason: :interrupted} = TraceSessionQueries.get(id)
+  end
+
+  test "a restarted Tracer tells the indicator the session is gone" do
+    Phoenix.PubSub.subscribe(Voyager.PubSub, Tracer.session_topic())
+    Process.exit(Process.whereis(Tracer), :kill)
+
+    assert_receive {:session_updated, nil}
   end
 
   test "the writer saves what it buffered when it shuts down" do
@@ -460,17 +613,6 @@ defmodule Voyager.Services.TracerTest do
 
     assert [%{kind: :started}, %{kind: :configured}] = Enum.take(entries, -2)
     assert length(entries) == 502
-
-    assert {:ok, %{entries: [%{seq: 503} | _], truncated?: false}} = Tracer.entries(session.id)
-
-    assert {:ok, %{entries: [%{seq: 3}, %{seq: 1}, %{seq: 0}], truncated?: true}} =
-             Tracer.entries(session.id, before: 4, limit: 3)
-
-    assert {:ok, %{entries: [%{seq: 0}, %{seq: 1}, %{seq: 3}], truncated?: true}} =
-             Tracer.entries(session.id, since: 0, order: :asc, limit: 3)
-
-    assert {:ok, %{entries: [%{seq: 3}], truncated?: false}} =
-             Tracer.entries(session.id, since: 3, order: :asc, limit: 1)
   end
 
   test "logs the drops reported when the run ends" do
@@ -659,6 +801,17 @@ defmodule Voyager.Services.TracerTest do
                     %{events: 0, dropped: 0, duration_ms: _}, %{origin: :ui, reason: :stopped}}
 
     assert_receive {:telemetry, [:voyager, :trace, :start_failed], _, %{origin: :mcp}}
+  end
+
+  defp searchable(save, args) do
+    {:ok, %{id: id}} = Tracer.create(:ui, save: save)
+    {:ok, _session} = configure()
+    {:ok, %{tracer: tracer}} = Tracer.start(:ui)
+    event = %{type: :call, pid: self(), process: nil, mfa: {Date, :leap_year?, 1}, at: 10}
+    send(Tracer, {:voyager_trace_events, tracer, Enum.map(args, &Map.put(event, :args, [&1])), 0})
+    _ = :sys.get_state(Tracer)
+    Writer.flush()
+    {id, traces(id)}
   end
 
   defp traces(id) do

@@ -6,7 +6,7 @@ const processesUrl = `/node/${NODE_NAME}/processes`;
 const sel = {
   pidLinks: '#processes-table tbody tr[id] td[data-column="pid"] a',
   openSettings: '#open-settings',
-  back: 'a[title="Back"]',
+  back: '#settings-back',
 };
 
 async function setPidFormat(page: Page, format: 'distribution' | 'local') {

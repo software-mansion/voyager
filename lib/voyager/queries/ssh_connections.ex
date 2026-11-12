@@ -33,4 +33,17 @@ defmodule Voyager.Queries.SshConnections do
     |> limit(1)
     |> Repo.one()
   end
+
+  @spec unreadable_secrets?() :: boolean()
+  def unreadable_secrets? do
+    unreadable?(:cookie) or unreadable?(:password)
+  end
+
+  defp unreadable?(secret) do
+    SshConnection
+    |> where([c], not is_nil(field(c, ^secret)))
+    |> select([c], field(c, ^secret))
+    |> Repo.all()
+    |> Enum.any?(&is_nil/1)
+  end
 end

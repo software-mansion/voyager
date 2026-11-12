@@ -8,10 +8,7 @@ config :voyager, VoyagerWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4001],
   secret_key_base: "e2e00000000000000000000000000000000000000000000000000000000000000000"
 
-config :voyager, Voyager.Vault,
-  ciphers: [
-    default: {Cloak.Ciphers.AES.GCM, tag: "AES.GCM.V1", key: <<0::256>>}
-  ]
+config :voyager, :vault_key, <<0::256>>
 
 config :voyager, :distribution_suffix, "_e2e"
 

@@ -41,6 +41,8 @@ defmodule VoyagerWeb.ConnectLiveSshKeyTest do
     view
     |> element("#ssh-passphrase-modal-form")
     |> render_submit(%{"passphrase" => %{"passphrase" => passphrase}})
+
+    render_async(view, 5_000)
   end
 
   defp encrypted_pem!(dir) do
@@ -63,18 +65,55 @@ defmodule VoyagerWeb.ConnectLiveSshKeyTest do
     assert has_element?(view, ~s|#ssh_key_path[value="#{path}"]|)
   end
 
-  test "marks only the identity file for a passphrase-protected OpenSSH key", %{
-    conn: conn,
-    tmp_dir: dir
-  } do
+  test "connects with a passphrase-protected OpenSSH key", %{conn: conn, tmp_dir: dir} do
     {path, _public_key} =
       SshKeys.ssh_keygen!(dir, "id_ed25519", ~w(-t ed25519 -a 1 -N #{@passphrase}))
 
     {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
     pick_key(view, path)
+    refute has_element?(view, "#ssh_key_path.input-error")
 
-    assert has_element?(view, "#ssh_key_path.input-error")
-    refute has_element?(view, "#ssh_node_name.input-error")
+    submit_connect(view, path)
+    submit_passphrase(view, "wrong-passphrase")
+    assert has_element?(view, "#passphrase_passphrase.input-error")
+
+    submit_passphrase(view, @passphrase)
+    refute has_element?(view, "#ssh-passphrase-modal")
+
+    render_async(view)
+    assert has_element?(view, "#ssh_node_name.input-error")
+  end
+
+  test "shows the passphrase check in progress", %{conn: conn, tmp_dir: dir} do
+    {path, _public_key} =
+      SshKeys.ssh_keygen!(dir, "id_ed25519", ~w(-t ed25519 -a 16 -N #{@passphrase}))
+
+    {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
+    submit_connect(view, path)
+
+    view
+    |> element("#ssh-passphrase-modal-form")
+    |> render_submit(%{"passphrase" => %{"passphrase" => @passphrase}})
+
+    assert has_element?(view, "#ssh-passphrase-modal-submit[disabled]")
+  end
+
+  test "cancelling the passphrase check shows no error", %{conn: conn, tmp_dir: dir} do
+    {path, _public_key} =
+      SshKeys.ssh_keygen!(dir, "id_ed25519", ~w(-t ed25519 -a 16 -N #{@passphrase}))
+
+    {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
+    submit_connect(view, path)
+
+    view
+    |> element("#ssh-passphrase-modal-form")
+    |> render_submit(%{"passphrase" => %{"passphrase" => @passphrase}})
+
+    view |> element("#ssh-passphrase-modal-cancel") |> render_click()
+    render_async(view)
+
+    refute has_element?(view, "#ssh-passphrase-modal")
+    refute has_element?(view, "#ssh_key_path.input-error")
   end
 
   test "marks the identity file for a missing file", %{conn: conn, tmp_dir: dir} do

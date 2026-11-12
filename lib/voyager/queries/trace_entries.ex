@@ -14,26 +14,63 @@ defmodule Voyager.Queries.TraceEntries do
 
   @doc """
   Up to `:limit` entries with `seq` in `[:since, :before)`, `:order` (default `:desc`) by `seq`.
+  A `:configured` entry carries the config it replaced as `previous`, nil for the first.
   """
   @spec page(integer(), keyword()) :: [map()]
   def page(session_id, opts) do
-    merge(window(TraceSessionEvent, session_id, opts), window(TraceEvent, session_id, opts), opts)
+    entries =
+      merge(
+        window(TraceSessionEvent, session_id, opts),
+        window(TraceEvent, session_id, opts),
+        opts
+      )
+
+    if Enum.any?(entries, &(&1.kind == :configured)),
+      do: put_previous(entries, configured(session_id)),
+      else: entries
   end
 
   @doc "Every configured, started and stopped entry, newest first."
   @spec controls(integer()) :: [map()]
   def controls(session_id) do
-    TraceSessionEvent
-    |> where([e], e.kind != :dropped)
-    |> window(session_id, [])
+    controls =
+      TraceSessionEvent
+      |> where([e], e.kind != :dropped)
+      |> window(session_id, [])
+
+    put_previous(controls, Enum.filter(controls, &(&1.kind == :configured)))
   end
 
-  @doc "The newest `limit` trace and dropped entries, newest first."
-  @spec traces(integer(), pos_integer()) :: [map()]
-  def traces(session_id, limit) do
-    opts = [limit: limit]
-    dropped = TraceSessionEvent |> where(kind: :dropped) |> window(session_id, opts)
-    merge(dropped, window(TraceEvent, session_id, opts), opts)
+  @doc """
+  Up to `:limit` trace entries containing `query`, ignoring ASCII case, with `seq` below `:before`,
+  newest first, and the `total` of matches in the session, nil once `:before` is given.
+  """
+  @spec search(integer(), String.t(), keyword()) ::
+          %{entries: [map()], total: non_neg_integer() | nil}
+  def search(session_id, query, opts) do
+    pattern = "%" <> String.replace(query, ["\\", "%", "_"], &("\\" <> &1)) <> "%"
+
+    matches =
+      from e in TraceEvent,
+        where:
+          e.session_id == ^session_id and
+            fragment("? LIKE ? ESCAPE '\\'", e.search_text, ^pattern)
+
+    total = if opts[:before], do: nil, else: Repo.aggregate(matches, :count)
+    %{entries: window(matches, session_id, opts), total: total}
+  end
+
+  @doc "How many traces were saved before the session's last `:started` entry; 0 if it never started."
+  @spec traces_before_last_run(integer()) :: non_neg_integer()
+  def traces_before_last_run(session_id) do
+    last_start =
+      from s in TraceSessionEvent,
+        where: s.session_id == ^session_id and s.kind == :started,
+        select: max(s.seq)
+
+    # A session never started has a NULL `max`, which no `seq` is below.
+    from(e in TraceEvent, where: e.session_id == ^session_id and e.seq < subquery(last_start))
+    |> Repo.aggregate(:count)
   end
 
   @doc "The `seq` after the session's last entry."
@@ -61,6 +98,23 @@ defmodule Voyager.Queries.TraceEntries do
     (session_events ++ events)
     |> Enum.sort_by(& &1.seq, order(opts))
     |> Enum.take(Keyword.fetch!(opts, :limit))
+  end
+
+  defp configured(session_id) do
+    TraceSessionEvent
+    |> where(kind: :configured)
+    |> window(session_id, [])
+  end
+
+  defp put_previous(entries, newest_first) do
+    Enum.map(entries, fn
+      %{kind: :configured, seq: seq} = entry ->
+        previous = Enum.find(newest_first, &(&1.seq < seq))
+        Map.put(entry, :previous, previous && previous.config)
+
+      entry ->
+        entry
+    end)
   end
 
   defp order(opts), do: Keyword.get(opts, :order, :desc)

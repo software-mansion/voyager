@@ -9,42 +9,42 @@
 }
 
 @media (min-width: 1024px) {
-  #app-sidebar:not(.mode-compact) {
+  html:not([data-sidebar='compact']) #app-sidebar {
     width: var(--sidebar-full-w);
   }
 
-  #app-sidebar:not(.mode-compact) .menu {
+  html:not([data-sidebar='compact']) #app-sidebar .menu {
     padding: var(--sidebar-full-pad);
   }
 }
 
-#app-sidebar.mode-compact {
+html[data-sidebar='compact'] #app-sidebar {
   width: var(--sidebar-compact-w);
 }
 
-#app-sidebar.mode-compact .menu {
+html[data-sidebar='compact'] #app-sidebar .menu {
   padding: var(--sidebar-compact-pad);
 }
 
-#app-sidebar.mode-full {
+html[data-sidebar='full'] #app-sidebar {
   width: var(--sidebar-full-w);
 }
 
-#app-sidebar.mode-full .menu {
+html[data-sidebar='full'] #app-sidebar .menu {
   padding: var(--sidebar-full-pad);
 }
 
-#app-sidebar.mode-compact .sidebar-label,
-#app-sidebar.mode-compact .sidebar-badge,
-#app-sidebar.mode-compact .menu-title {
+html[data-sidebar='compact'] #app-sidebar .sidebar-label,
+html[data-sidebar='compact'] #app-sidebar .sidebar-badge,
+html[data-sidebar='compact'] #app-sidebar .menu-title {
   display: none;
 }
 
-#app-sidebar.mode-compact .sidebar-toggle-row {
+html[data-sidebar='compact'] #app-sidebar .sidebar-toggle-row {
   justify-content: center;
 }
 
-#app-sidebar.mode-compact .sidebar-nav-row {
+html[data-sidebar='compact'] #app-sidebar .sidebar-nav-row {
   width: var(--toolbar-btn-size);
   height: var(--toolbar-btn-size);
   padding: 0;
@@ -54,27 +54,27 @@
   justify-content: center;
 }
 
-#app-sidebar.mode-full #mcp-status,
-#app-sidebar.mode-full #sidebar-feedback {
+html[data-sidebar='full'] #app-sidebar #mcp-status,
+html[data-sidebar='full'] #app-sidebar #sidebar-feedback {
   margin-left: 0.5rem;
 }
 
 @media (max-width: 1023.98px) {
-  #app-sidebar:not(.mode-full) .sidebar-label,
-  #app-sidebar:not(.mode-full) .sidebar-badge,
-  #app-sidebar:not(.mode-full) .menu-title {
+  html:not([data-sidebar='full']) #app-sidebar .sidebar-label,
+  html:not([data-sidebar='full']) #app-sidebar .sidebar-badge,
+  html:not([data-sidebar='full']) #app-sidebar .menu-title {
     display: none;
   }
 
-  #app-sidebar:not(.mode-full) .menu {
+  html:not([data-sidebar='full']) #app-sidebar .menu {
     padding: var(--sidebar-compact-pad);
   }
 
-  #app-sidebar:not(.mode-full) .sidebar-toggle-row {
+  html:not([data-sidebar='full']) #app-sidebar .sidebar-toggle-row {
     justify-content: center;
   }
 
-  #app-sidebar:not(.mode-full) .sidebar-nav-row {
+  html:not([data-sidebar='full']) #app-sidebar .sidebar-nav-row {
     width: var(--toolbar-btn-size);
     height: var(--toolbar-btn-size);
     padding: 0;
@@ -84,7 +84,7 @@
     justify-content: center;
   }
 
-  #app-sidebar:not(.mode-full) .sidebar-nav-row > * {
+  html:not([data-sidebar='full']) #app-sidebar .sidebar-nav-row > * {
     justify-content: center;
   }
 }

@@ -6,31 +6,28 @@ defmodule VoyagerWeb.Components.Shell do
   use VoyagerWeb, :html
 
   alias Voyager.NodeSession.Session
-  alias VoyagerWeb.Utils.URL
+  alias Voyager.Services.Tracer
+  alias VoyagerWeb.Formatters
+  alias VoyagerWeb.Hooks.UrlHook
+  alias VoyagerWeb.TermFormatter
 
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
   attr :mcp_status, :map, default: %{alive?: false, url: nil}
-  attr :current_url, :string, default: nil
+  attr :tracing_session, Tracer.Session, default: nil
   slot :inner_block, required: true
 
   def shell(assigns) do
     ~H"""
     <div class="bg-base-200 flex h-full flex-col overflow-x-auto overflow-y-hidden">
-      <div class="min-w-sm flex min-h-0 flex-1 flex-col">
-        <.topbar
-          active_nav={@active_nav}
-          session={@session}
-          mcp_status={@mcp_status}
-          current_url={@current_url}
-        />
+      <div class="min-w-lg flex min-h-0 flex-1 flex-col">
+        <.topbar session={@session} mcp_status={@mcp_status} tracing_session={@tracing_session} />
 
         <div class="relative flex flex-1 overflow-y-hidden">
           <.sidebar
             active_nav={@active_nav}
             session={@session}
             mcp_status={@mcp_status}
-            current_url={@current_url}
           />
 
           <main class="min-w-lg relative flex-1 overflow-y-auto">
@@ -42,20 +39,20 @@ defmodule VoyagerWeb.Components.Shell do
     """
   end
 
-  attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
   attr :mcp_status, :map, default: %{alive?: false, url: nil}
-  attr :current_url, :string, default: nil
+  attr :tracing_session, Tracer.Session, default: nil
 
   defp topbar(assigns) do
     ~H"""
     <div class="bg-base-100 border-base-300 min-h-14 grid-cols-[auto_1fr_auto] z-10 grid flex-none items-center gap-4 border-b px-4">
       <.brand />
-      <div class="@container/nav-status flex min-w-0">
+      <div class="@container/nav-status flex min-w-0 items-center gap-3">
         <.node_indicator session={@session} />
+        <.tracing_indicator session={@tracing_session} connected_node={@session.node} />
       </div>
       <.link
-        href={~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_url)]}"}
+        href={~p"/settings"}
         id="open-settings"
         title="Settings"
         class="btn btn-ghost btn-square toolbar-btn text-base-content/70 hover:text-base-content"
@@ -67,27 +64,187 @@ defmodule VoyagerWeb.Components.Shell do
   end
 
   @doc """
-  Renders the topbar used by the settings page — a back arrow to `return_to`
-  (defaults to the connect page) followed by the brand mark.
+  Renders the topbar used by the settings page, showing the brand mark.
   """
-  attr :return_to, :string, default: nil
+  attr :tracing_session, Tracer.Session, default: nil
 
   def settings_topbar(assigns) do
     ~H"""
     <div class="navbar bg-base-100 border-base-300 min-h-14 z-10 flex-none gap-3 border-b px-4">
       <div class="navbar-start gap-3">
-        <.link
-          href={@return_to || ~p"/"}
-          title="Back"
-          class="btn btn-ghost btn-square toolbar-btn text-base-content"
-        >
-          <.icon name="icon-arrow-left" class="toolbar-icon" />
-        </.link>
         <.brand />
+      </div>
+      <div class="navbar-end @container/nav-status min-w-0">
+        <.tracing_indicator session={@tracing_session} />
       </div>
     </div>
     """
   end
+
+  attr :session, Tracer.Session, default: nil
+  attr :connected_node, :atom, default: nil
+
+  defp tracing_indicator(%{session: nil} = assigns), do: ~H""
+
+  defp tracing_indicator(assigns) do
+    assigns =
+      assign(assigns,
+        tone: tracing_tone(assigns.session, assigns.connected_node),
+        state: tracing_state(assigns.session)
+      )
+
+    ~H"""
+    <.tooltip id="tracing-indicator-tip" position="bottom" class="shrink-0">
+      <.link
+        navigate={tracing_session_path(@session)}
+        id="tracing-indicator"
+        data-tone={@tone}
+        aria-label={"Open the #{@state} tracing session, #{Formatters.format_integer(@session.traces)} traces captured"}
+        class={[
+          "flex items-center gap-2 rounded-lg border py-1 pr-1 pl-2.5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2",
+          tone_class(@tone, :chip)
+        ]}
+      >
+        <span class="relative flex h-1.5 w-1.5 shrink-0">
+          <span
+            :if={@tone == :running}
+            class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
+          ></span>
+          <span class={["relative inline-flex h-1.5 w-1.5 rounded-full", tone_class(@tone, :dot)]}></span>
+        </span>
+        <span
+          id="tracing-indicator-label"
+          class={["text-xs font-medium @max-sm/nav-status:hidden", tone_class(@tone, :label)]}
+        >
+          {tracing_label(@session)}
+        </span>
+        <span
+          id="tracing-indicator-mfa"
+          class="font-mono text-base-content/70 max-w-56 truncate px-1 text-xs @max-lg/nav-status:hidden"
+        >
+          {format_traced_mfa(@session.config)}
+        </span>
+        <span
+          id="tracing-indicator-count"
+          class={[
+            "badge badge-sm font-mono h-(--toolbar-btn-size-sm) shrink-0",
+            tone_class(@tone, :badge)
+          ]}
+        >
+          {Formatters.format_count_short(@session.traces)}
+        </span>
+      </.link>
+      <:content>
+        <div class="flex flex-col gap-1.5">
+          <span class="font-medium">Tracing session {@state}</span>
+          <dl class="grid-cols-[auto_1fr] grid gap-x-3 gap-y-0.5">
+            <dt class="text-base-content/60">Node</dt>
+            <dd id="tracing-indicator-node" class="font-mono">{@session.node}</dd>
+            <dd
+              :if={@tone == :other_node}
+              id="tracing-indicator-other-node"
+              role="note"
+              class="alert alert-info col-span-2 my-1 gap-1.5 px-2 py-1.5 text-xs"
+            >
+              <.icon name="icon-info" class="text-info size-3.5 shrink-0" />
+              <span>Session associated with a different node.</span>
+            </dd>
+            <dt class="text-base-content/60">Function</dt>
+            <dd class="font-mono">{format_traced_mfa(@session.config)}</dd>
+            <dt class="text-base-content/60">Traces</dt>
+            <dd class="font-mono">{Formatters.format_integer(@session.traces)}</dd>
+            <dt :if={@session.stop_reason} class="text-base-content/60">Reason</dt>
+            <dd
+              :if={@session.stop_reason}
+              id="tracing-indicator-reason"
+              class={if @tone == :failed, do: "text-warning", else: nil}
+            >
+              {stop_reason_label(@session.stop_reason)}
+            </dd>
+          </dl>
+          <span class="border-base-300 text-base-content/70 border-t pt-1.5">
+            Click to open the session.
+          </span>
+        </div>
+      </:content>
+    </.tooltip>
+    """
+  end
+
+  defp tracing_session_path(%Tracer.Session{node: node}), do: ~p"/node/#{node}/tracing"
+
+  defp tracing_tone(%Tracer.Session{status: :running}, _connected_node), do: :running
+
+  defp tracing_tone(%Tracer.Session{node: node}, connected_node)
+       when not is_nil(connected_node) and node != connected_node,
+       do: :other_node
+
+  defp tracing_tone(%Tracer.Session{status: :stopped, stop_reason: reason}, _connected_node)
+       when reason in [:node_down, :write_failed],
+       do: :failed
+
+  defp tracing_tone(
+         %Tracer.Session{status: :stopped, stop_reason: {:tracer_down, _reason}},
+         _connected_node
+       ),
+       do: :failed
+
+  defp tracing_tone(_session, _connected_node), do: :open
+
+  defp tracing_state(%Tracer.Session{status: :running}), do: "running"
+  defp tracing_state(%Tracer.Session{status: :stopped}), do: "stopped"
+  defp tracing_state(%Tracer.Session{status: :idle}), do: "ready"
+
+  defp tracing_label(%Tracer.Session{status: :running}), do: "Tracing"
+  defp tracing_label(%Tracer.Session{status: :stopped}), do: "Stopped"
+  defp tracing_label(%Tracer.Session{status: :idle}), do: "Ready"
+
+  defp tone_class(:running, :chip),
+    do:
+      "border-success/30 bg-success/10 hover:bg-success/20 hover:border-success/50 focus-visible:outline-success"
+
+  defp tone_class(:running, :dot), do: "bg-success"
+  defp tone_class(:running, :label), do: "text-success"
+  defp tone_class(:running, :badge), do: "badge-success dark:text-neutral"
+
+  defp tone_class(:failed, :chip),
+    do:
+      "border-warning/30 bg-warning/10 hover:bg-warning/20 hover:border-warning/50 focus-visible:outline-warning"
+
+  defp tone_class(:failed, :dot), do: "bg-warning"
+  defp tone_class(:failed, :label), do: "text-warning"
+  defp tone_class(:failed, :badge), do: "badge-warning dark:text-neutral"
+
+  defp tone_class(:other_node, :chip),
+    do:
+      "border-info/30 bg-info/10 hover:bg-info/20 hover:border-info/50 focus-visible:outline-info"
+
+  defp tone_class(:other_node, :dot), do: "bg-info"
+  defp tone_class(:other_node, :label), do: "text-info"
+  defp tone_class(:other_node, :badge), do: "badge-info dark:text-neutral"
+
+  defp tone_class(:open, :chip),
+    do:
+      "border-base-300 bg-base-100 hover:bg-base-200 hover:border-base-content/20 focus-visible:outline-base-content"
+
+  defp tone_class(:open, :dot), do: "bg-base-content/40"
+  defp tone_class(:open, :label), do: "text-base-content/70"
+  defp tone_class(:open, :badge), do: "badge-ghost"
+
+  defp stop_reason_label(:stopped), do: "Stopped on request"
+  defp stop_reason_label(:disconnected), do: "Node disconnected"
+  defp stop_reason_label(:interrupted), do: "Voyager restarted during the run"
+  defp stop_reason_label(:event_limit), do: "Event limit reached"
+  defp stop_reason_label(:rate_limit), do: "Rate limit exceeded"
+  defp stop_reason_label(:time_limit), do: "Time limit reached"
+  defp stop_reason_label(:mailbox_limit), do: "Tracer mailbox limit reached"
+  defp stop_reason_label(:storage_limit), do: "Storage limit reached"
+  defp stop_reason_label(:write_failed), do: "Saving traces failed"
+  defp stop_reason_label(:node_down), do: "Node went down"
+  defp stop_reason_label({:tracer_down, _reason}), do: "Remote tracer crashed"
+
+  defp format_traced_mfa(%Tracer.Config{module: module, function: function, arity: arity}),
+    do: TermFormatter.format_mfa_pattern(module, function, arity)
 
   defp brand(assigns) do
     assigns = assign(assigns, :version, Voyager.version())
@@ -125,9 +282,6 @@ defmodule VoyagerWeb.Components.Shell do
   end
 
   attr :status, :map, required: true
-  attr :active_nav, :atom, default: nil
-  attr :session, Session, required: true
-  attr :current_url, :string, default: nil
 
   defp mcp_status_indicator(assigns) do
     ~H"""
@@ -177,9 +331,7 @@ defmodule VoyagerWeb.Components.Shell do
         <% else %>
           MCP server is not active. It can be enabled and configured in Settings.
           <.link
-            href={
-              ~p"/settings?#{[return_to: settings_return_to(@active_nav, @session, @current_url)]}"
-            }
+            href={~p"/settings"}
             class="text-primary mt-2 flex w-fit items-center gap-1 font-medium underline-offset-2 hover:underline"
           >
             Open Settings
@@ -193,27 +345,20 @@ defmodule VoyagerWeb.Components.Shell do
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
   attr :mcp_status, :map, default: %{alive?: false, url: nil}
-  attr :current_url, :string, default: nil
 
   defp sidebar(assigns) do
-    assigns = assign(assigns, :sidebar_mode, sidebar_mode(assigns.current_url))
-
     ~H"""
     <aside
       id="app-sidebar"
-      class={[
-        "bg-base-100 border-base-300 flex h-full flex-none flex-col overflow-y-auto overflow-x-hidden border-r transition-all duration-200 ease-out",
-        @sidebar_mode == "compact" && "mode-compact",
-        @sidebar_mode == "full" && "mode-full"
-      ]}
+      class="bg-base-100 border-base-300 flex h-full flex-none flex-col overflow-y-auto overflow-x-hidden border-r transition-all duration-200 ease-out"
     >
       <ul class="menu font-sans gap-1.75 w-full flex-1">
-        <.sidebar_toggle current_url={@current_url} sidebar_mode={@sidebar_mode} />
+        <.sidebar_toggle />
         <.nav_item
           :for={page <- inspect_pages()}
           id={"sidebar-nav-#{page.feature}"}
           active={@active_nav == page.feature}
-          navigate={nav_path(node_path(@session, page.path), @sidebar_mode)}
+          navigate={UrlHook.without_back_arrow(node_path(@session, page.path))}
           label={page.label}
         >
           <:icon>
@@ -230,7 +375,7 @@ defmodule VoyagerWeb.Components.Shell do
           :for={page <- coming_soon_pages()}
           id={"sidebar-nav-#{page.feature}"}
           active={@active_nav == page.feature}
-          navigate={nav_path(node_path(@session, page.path), @sidebar_mode)}
+          navigate={UrlHook.without_back_arrow(node_path(@session, page.path))}
           label={page.label}
           coming_soon
         >
@@ -245,54 +390,33 @@ defmodule VoyagerWeb.Components.Shell do
       <div class="border-base-content/10 border-t mx-[length:var(--sidebar-compact-pad)]"></div>
 
       <div class="flex flex-none flex-col gap-1 p-3">
-        <.mcp_status_indicator
-          status={@mcp_status}
-          active_nav={@active_nav}
-          session={@session}
-          current_url={@current_url}
-        />
+        <.mcp_status_indicator status={@mcp_status} />
       </div>
     </aside>
     """
   end
 
-  attr :current_url, :string, default: nil
-  attr :sidebar_mode, :string, default: nil
-
   defp sidebar_toggle(assigns) do
-    # Without an explicit mode the width is decided by CSS: compact below `lg`,
-    # full from `lg` up. The server cannot know the viewport, so one toggle per
-    # breakpoint is rendered and CSS reveals the one matching the current width.
-    variants = [
-      {"sidebar-compact-toggle", "lg:hidden", assigns.sidebar_mode || "compact"},
-      {"sidebar-compact-toggle-wide", "max-lg:hidden", assigns.sidebar_mode || "full"}
-    ]
-
-    assigns = assign(assigns, :variants, variants)
-
     ~H"""
     <li class="sidebar-toggle-row mb-3 flex flex-row items-center justify-between">
       <span class="menu-title text-base-content/70 sidebar-label tracking-label p-0 text-xs uppercase">
         Inspect
       </span>
-      <.link
-        :for={{id, visibility, mode} <- @variants}
-        id={id}
-        patch={toggle_sidebar_path(@current_url, mode)}
+      <button
+        type="button"
+        id="sidebar-compact-toggle"
+        phx-click={JS.dispatch("phx:toggle-sidebar")}
         aria-label="Toggle sidebar width"
-        class={[
-          "btn btn-ghost btn-square toolbar-btn text-base-content/70 hover:text-base-content",
-          visibility
-        ]}
+        class="btn btn-ghost btn-square toolbar-btn text-base-content/70 hover:text-base-content"
         phx-hook="Tooltip"
-        data-tooltip-target={"##{id}-tip"}
+        data-tooltip-target="#sidebar-compact-toggle-tip"
         data-tooltip-position="right"
         data-tooltip-interactive="false"
       >
         <.icon name="icon-panel-left" class="toolbar-icon" />
-      </.link>
+      </button>
     </li>
-    <.tooltip_portal :for={{id, _visibility, _mode} <- @variants} id={id}>
+    <.tooltip_portal id="sidebar-compact-toggle">
       <span class="flex items-center gap-3 whitespace-nowrap">
         Toggle sidebar
         <span class="flex items-center gap-1">
@@ -374,41 +498,10 @@ defmodule VoyagerWeb.Components.Shell do
     """
   end
 
-  defp node_path(session, path \\ nil)
   defp node_path(%Session{node_name: node_name}, nil), do: ~p"/node/#{node_name}"
 
   defp node_path(%Session{node_name: node_name}, path),
     do: "/node/#{URI.encode(node_name)}/#{path}"
-
-  defp sidebar_mode(url) when is_binary(url) do
-    case URL.get_query_param(url, "sidebar") do
-      mode when mode in ["compact", "full"] -> mode
-      _ -> nil
-    end
-  end
-
-  defp sidebar_mode(_url), do: nil
-
-  # Carries the current sidebar mode onto a nav link so the choice survives
-  # navigation to another page.
-  defp nav_path(path, mode) when mode in ["compact", "full"],
-    do: URL.put_query_param(path, "sidebar", mode)
-
-  defp nav_path(path, _mode), do: path
-
-  defp toggle_sidebar_path(current_url, sidebar_mode) do
-    next_mode = if sidebar_mode == "compact", do: "full", else: "compact"
-    URL.put_query_param(current_url || "/", "sidebar", next_mode)
-  end
-
-  defp settings_return_to(active_nav, session, current_url) do
-    current_url || settings_return_to_fallback(active_nav, session)
-  end
-
-  defp settings_return_to_fallback(:supervision_tree, session),
-    do: node_path(session, "supervision-tree")
-
-  defp settings_return_to_fallback(_active_nav, session), do: node_path(session)
 
   attr :session, Session, required: true
 

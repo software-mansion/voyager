@@ -9,15 +9,13 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   import VoyagerWeb.Components.DetailsPanelComponents
 
   alias Phoenix.LiveView.AsyncResult
-  alias Voyager.Services.ProcessInfo
-  alias Voyager.Services.RateLimiter
   alias Voyager.Services.SupervisionTree.TreeNode
   alias VoyagerWeb.Formatters
+  alias VoyagerWeb.ProcessInfoLive.Query
 
-  require Logger
-
-  # No point fetching more links than the panel can ever render.
-  @links_limit max_expanded_links()
+  # No point fetching more relations than the panel can ever render.
+  @relations_limit max_expanded_relations()
+  @relation_names ~w(links monitors monitored_by)
 
   @impl true
   def mount(socket) do
@@ -25,10 +23,10 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(:node, nil)
     |> assign(:remote_node, nil)
     |> assign(:open?, false)
-    |> assign(:links_expanded?, false)
+    |> assign(:expanded_relations, MapSet.new())
     |> assign(:selection_history, [])
     |> assign(:node_info, AsyncResult.loading())
-    |> assign(:links, AsyncResult.loading())
+    |> assign(:relations, AsyncResult.loading())
     |> ok()
   end
 
@@ -39,7 +37,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
           tree_node: tree_node,
           remote_node: remote_node,
           node_name: node_name,
-          current_url: current_url,
           keep_history?: keep_history?,
           revealing?: revealing?
         },
@@ -49,21 +46,31 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(:id, id)
     |> assign(:remote_node, remote_node)
     |> assign(:node_name, node_name)
-    |> assign(:current_url, current_url)
     |> assign(:revealing?, revealing?)
     |> maybe_assign_node(tree_node, keep_history?)
     |> ok()
   end
 
   @impl true
-  def handle_event("toggle-links", _params, socket) do
+  def handle_event("toggle-relation", %{"relation" => relation}, socket)
+      when relation in @relation_names do
+    relation = String.to_existing_atom(relation)
+    expanded = socket.assigns.expanded_relations
+
+    expanded =
+      if MapSet.member?(expanded, relation),
+        do: MapSet.delete(expanded, relation),
+        else: MapSet.put(expanded, relation)
+
     socket
-    |> assign(:links_expanded?, not socket.assigns.links_expanded?)
+    |> assign(:expanded_relations, expanded)
     |> noreply()
   end
 
-  def handle_event("select-link", %{"key" => key}, socket) do
-    case link_by_key(socket.assigns.links, key) || info_pid_by_key(socket, key) do
+  def handle_event("toggle-relation", _, socket), do: noreply(socket)
+
+  def handle_event("select-relation", %{"key" => key}, socket) do
+    case relation_by_key(socket.assigns.relations, key) || info_pid_by_key(socket, key) do
       nil ->
         noreply(socket)
 
@@ -92,8 +99,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   def handle_event("refresh-node-info", _params, socket) do
     socket
-    |> maybe_fetch_node_info(socket.assigns.node)
-    |> maybe_fetch_links(socket.assigns.node)
+    |> fetch_details(true)
     |> noreply()
   end
 
@@ -139,18 +145,18 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
         <.body
           panel_id={@id}
           info={@node_info}
-          links_info={@links}
+          relations_info={@relations}
           node={@node}
-          links_expanded?={@links_expanded?}
-          on_select="select-link"
-          on_toggle_links="toggle-links"
+          expanded_relations={@expanded_relations}
+          on_select="select-relation"
+          on_toggle_relation="toggle-relation"
           target={@myself}
           remote_node={@remote_node}
-          links_disabled?={@revealing?}
+          chips_disabled?={@revealing?}
         />
         <.show_more_button
           panel_id={@id}
-          href={process_href(@node.pid, @remote_node, @node_name, @current_url)}
+          href={process_href(@node.pid, @remote_node, @node_name)}
         />
       <% end %>
     </aside>
@@ -158,12 +164,12 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   end
 
   # Only pids living on the inspected node have a process page.
-  defp process_href(pid, remote_node, node_name, current_url)
+  defp process_href(pid, remote_node, node_name)
        when is_pid(pid) and node(pid) == remote_node and is_binary(node_name) do
-    keep_sidebar(~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}", current_url)
+    ~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}"
   end
 
-  defp process_href(_pid, _remote_node, _node_name, _current_url), do: nil
+  defp process_href(_pid, _remote_node, _node_name), do: nil
 
   defp maybe_assign_node(socket, nil, _keep_history?) do
     socket
@@ -171,14 +177,15 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(:selection_history, [])
   end
 
+  # A tree refresh of the shown process keeps its data on screen until the refetch lands.
   defp maybe_assign_node(socket, node, keep_history?) do
     history = if keep_history?, do: socket.assigns.selection_history, else: []
-    expanded? = socket.assigns.links_expanded? and not node_changed?(socket, node)
+    showing? = socket.assigns.open? and same_process?(socket.assigns.node, node)
+    expanded = if showing?, do: socket.assigns.expanded_relations, else: MapSet.new()
 
     socket
-    |> assign(open?: true, node: node, selection_history: history, links_expanded?: expanded?)
-    |> maybe_fetch_node_info(node)
-    |> maybe_fetch_links(node)
+    |> assign(open?: true, node: node, selection_history: history, expanded_relations: expanded)
+    |> fetch_details(not showing?)
   end
 
   defp push_history(%{assigns: %{node: %TreeNode{} = node}} = socket),
@@ -186,103 +193,51 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   defp push_history(socket), do: socket
 
-  defp maybe_fetch_node_info(socket, %TreeNode{pid: pid}) when is_pid(pid) do
+  defp fetch_details(%{assigns: %{node: %TreeNode{pid: pid}}} = socket, reset?)
+       when is_pid(pid) do
     remote_node = socket.assigns.remote_node
+    timeout = Query.default_timeout()
 
     socket
-    |> assign(:node_info, AsyncResult.loading())
-    |> assign_async(:node_info, fn -> fetch_node_info(remote_node, pid) end)
+    |> assign_async(:node_info, fn -> fetch_node_info(remote_node, pid, timeout) end,
+      reset: reset?
+    )
+    |> assign_async(:relations, fn -> fetch_relations(remote_node, pid, timeout) end,
+      reset: reset?
+    )
   end
 
-  # Nothing to fetch for apps, ports and references: settle the async assign so
+  # Nothing to fetch for apps, ports and references: settle the async assigns so
   # the body never shows a load state it will not leave.
-  defp maybe_fetch_node_info(socket, _node) do
-    assign(socket, :node_info, AsyncResult.ok(nil))
+  defp fetch_details(socket, _reset?) do
+    assign(socket, node_info: AsyncResult.ok(nil), relations: AsyncResult.ok(nil))
   end
 
-  defp maybe_fetch_links(socket, %TreeNode{pid: pid}) when is_pid(pid) do
-    remote_node = socket.assigns.remote_node
+  defp same_process?(%TreeNode{pid: pid}, %TreeNode{pid: pid}) when is_pid(pid), do: true
+  defp same_process?(_previous, _node), do: false
 
-    socket
-    |> assign(:links, AsyncResult.loading())
-    |> assign_async(:links, fn -> fetch_links_result(remote_node, pid) end)
-  end
-
-  defp maybe_fetch_links(socket, _node) do
-    assign(socket, :links, AsyncResult.ok(nil))
-  end
-
-  defp node_changed?(socket, node) do
-    case socket.assigns[:node] do
-      %TreeNode{key: key} -> key != node.key
-      _ -> true
+  defp fetch_node_info(remote_node, pid, timeout) do
+    with {:ok, info, _elapsed_ms} <- Query.overview(remote_node, pid, timeout) do
+      {:ok, %{node_info: info}}
     end
   end
 
-  defp fetch_node_info(remote_node, pid) do
-    result =
-      rate_limited(fn ->
-        with {:ok, info} <- ProcessInfo.fetch(remote_node, pid) do
-          {:ok, Map.put(info, :label, fetch_label(remote_node, pid))}
-        end
-      end)
-
-    case result do
-      {:ok, info} ->
-        {:ok, %{node_info: info}}
-
-      {:error, reason} ->
-        Logger.warning(
-          "Failed to load node info for #{inspect(remote_node)}/#{inspect(pid)}: #{inspect(reason)}"
-        )
-
-        {:error, reason}
+  defp fetch_relations(remote_node, pid, timeout) do
+    with {:ok, relations, _elapsed_ms} <-
+           Query.relations(remote_node, pid, @relations_limit, timeout) do
+      monitors = Enum.map(relations.monitors.items, fn {_kind, target} -> target end)
+      {:ok, %{relations: put_in(relations.monitors.items, monitors)}}
     end
   end
 
-  # The label is an arbitrary term, so it needs the agent's remote truncation and
-  # cannot ride along in the cheap `fetch/2` payload. A node without the agent
-  # loaded simply has no label to show -- it must not fail the whole overview.
-  defp fetch_label(remote_node, pid) do
-    case ProcessInfo.fetch_label(remote_node, pid) do
-      {:ok, %{term: term}} ->
-        term
-
-      {:error, reason} ->
-        Logger.warning(
-          "Failed to load label for #{inspect(remote_node)}/#{inspect(pid)}: #{inspect(reason)}"
-        )
-
-        nil
-    end
+  defp relation_by_key(%AsyncResult{ok?: true, result: relations}, key) when is_map(relations) do
+    relations
+    |> Map.values()
+    |> Enum.flat_map(& &1.items)
+    |> Enum.find(&(selectable_relation?(&1) and TreeNode.key(&1) == key))
   end
 
-  defp fetch_links_result(remote_node, pid) do
-    case rate_limited(fn -> ProcessInfo.fetch_links(remote_node, pid, @links_limit) end) do
-      {:ok, bounded} ->
-        {:ok, %{links: bounded}}
-
-      {:error, reason} ->
-        Logger.warning(
-          "Failed to load links for #{inspect(remote_node)}/#{inspect(pid)}: #{inspect(reason)}"
-        )
-
-        {:error, reason}
-    end
-  end
-
-  defp rate_limited(fun) do
-    case RateLimiter.run(:high, fun) do
-      {:ok, result, _elapsed_us} -> result
-      {:error, :rate_limited, _retry_after_ms} -> {:error, :rate_limited}
-    end
-  end
-
-  defp link_by_key(%AsyncResult{ok?: true, result: %{items: links}}, key) when is_list(links) do
-    Enum.find(links, &(TreeNode.key(&1) == key))
-  end
-
-  defp link_by_key(_, _), do: nil
+  defp relation_by_key(_, _), do: nil
 
   defp info_pid_by_key(
          %{assigns: %{node_info: %AsyncResult{ok?: true, result: info}}} = socket,

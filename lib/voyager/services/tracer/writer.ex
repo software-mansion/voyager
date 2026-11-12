@@ -13,6 +13,7 @@ defmodule Voyager.Services.Tracer.Writer do
   alias Voyager.Actions.TraceSessions, as: TraceSessionActions
   alias Voyager.Repo
   alias Voyager.Services.Tracer
+  alias Voyager.Services.Tracer.Entry
   alias Voyager.Services.Tracer.Session
 
   require Logger
@@ -30,7 +31,7 @@ defmodule Voyager.Services.Tracer.Writer do
   def start_link(_opts), do: GenServer.start_link(__MODULE__, nil, name: __MODULE__)
 
   @doc "Queues numbered `entries`; `session` is its state after them."
-  @spec append(Session.t(), [Tracer.entry()]) :: :ok
+  @spec append(Session.t(), [Entry.t()]) :: :ok
   def append(session, entries) do
     :counters.add(:persistent_term.get(@pending_key), 1, length(entries))
     GenServer.cast(__MODULE__, {:append, session, entries})

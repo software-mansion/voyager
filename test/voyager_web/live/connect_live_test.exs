@@ -160,6 +160,49 @@ defmodule VoyagerWeb.ConnectLiveTest do
     end
   end
 
+  describe "unreadable secrets" do
+    test "warns about an unreadable cookie until its connection is deleted", %{conn: conn} do
+      {:ok, saved} = ConnectionActions.upsert_connected("corrupt@127.0.0.1", cookie: "secret")
+      corrupt_secret!(saved, :cookie)
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, "#unreadable-secrets")
+
+      view |> element(~s|#direct-recent-connections button[title="Remove"]|) |> render_click()
+
+      refute has_element?(view, "#unreadable-secrets")
+    end
+
+    test "warns about an unreadable SSH password only in SSH mode", %{conn: conn} do
+      enable_proxy_epmd(%{})
+
+      {:ok, saved} =
+        SshConnectionActions.upsert_connected("deploy", "gw", 22, "corrupt@127.0.0.1",
+          password: "pass",
+          auth_method: :password
+        )
+
+      corrupt_secret!(saved, :password)
+
+      {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
+
+      assert has_element?(view, "#unreadable-secrets")
+
+      view |> element("#mode-toggle") |> render_change(%{"mode" => "direct"})
+
+      refute has_element?(view, "#unreadable-secrets")
+    end
+
+    test "shows no warning when saved secrets decrypt", %{conn: conn} do
+      {:ok, _} = ConnectionActions.upsert_connected("saved@127.0.0.1", cookie: "secret")
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      refute has_element?(view, "#unreadable-secrets")
+    end
+  end
+
   describe "fill_recent while connected" do
     test "does not fill the form when a session is active", %{conn: conn} do
       {:ok, recent} =
@@ -178,21 +221,21 @@ defmodule VoyagerWeb.ConnectLiveTest do
     test "links to the settings page", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 
-      assert has_element?(view, ~s|a#open-settings[href="/settings?return_to=%2F"]|)
+      assert has_element?(view, ~s|a#open-settings[href="/settings"]|)
     end
 
-    test "drops SSH mode from settings return_to when proxy_epmd is inactive", %{conn: conn} do
+    test "falls back to Direct mode when proxy_epmd is inactive", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
 
       assert has_element?(view, "input#mode-direct[checked]")
-      assert has_element?(view, ~s|a#open-settings[href="/settings?return_to=%2F"]|)
+      assert has_element?(view, ~s|a#open-settings[href="/settings"]|)
     end
 
-    test "drops an unknown mode query param from settings return_to", %{conn: conn} do
+    test "falls back to Direct mode on an unknown mode query param", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/?mode=garbage")
 
       assert has_element?(view, "input#mode-direct[checked]")
-      assert has_element?(view, ~s|a#open-settings[href="/settings?return_to=%2F"]|)
+      assert has_element?(view, ~s|a#open-settings[href="/settings"]|)
     end
 
     test "links to the connection tutorial", %{conn: conn} do
@@ -283,7 +326,7 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
       assert has_element?(
                view,
-               ~s|a#open-settings[href="/settings?return_to=%2F%3Fmode%3Dssh"]|
+               ~s|a#open-settings[href="/settings"]|
              )
 
       assert has_element?(view, "input#mode-ssh[checked]")
@@ -383,7 +426,7 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
       assert has_element?(
                view,
-               ~s|a#open-settings[href="/settings?return_to=%2F%3Fmode%3Dssh"]|
+               ~s|a#open-settings[href="/settings"]|
              )
     end
 

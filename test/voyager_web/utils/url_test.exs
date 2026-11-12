@@ -18,20 +18,6 @@ defmodule VoyagerWeb.Utils.URLTest do
     end
   end
 
-  describe "get_query_param/2" do
-    test "returns the value of an existing parameter" do
-      assert URL.get_query_param("http://example.com/foo?key=value", "key") == "value"
-    end
-
-    test "returns nil when the parameter is absent" do
-      assert URL.get_query_param("http://example.com/foo?key=value", "nonexistent") == nil
-    end
-
-    test "returns nil when the URL has no query string" do
-      assert URL.get_query_param("http://example.com/foo", "key") == nil
-    end
-  end
-
   describe "put_query_param/3" do
     test "adds a query parameter in a URL" do
       assert URL.put_query_param("http://example.com/foo", "key", "value") ==

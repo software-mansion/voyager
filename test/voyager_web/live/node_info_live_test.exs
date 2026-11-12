@@ -54,6 +54,19 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
              )
     end
 
+    test "toggles the sidebar width on the client without patching the url", %{conn: conn} do
+      stub_erpc(Fakes.node_data())
+
+      {:ok, view, _html} = live(conn, @path)
+
+      assert has_element?(
+               view,
+               ~s(button#sidebar-compact-toggle[phx-click*="phx:toggle-sidebar"])
+             )
+
+      refute has_element?(view, ~s(#app-sidebar a[href*="sidebar="]))
+    end
+
     test "renders compact-mode label tooltips for sidebar nav tabs", %{conn: conn} do
       stub_erpc(Fakes.node_data())
 
@@ -242,18 +255,6 @@ defmodule VoyagerWeb.NodeInfoLiveTest do
 
       html = render(view)
       assert html =~ "/node/#{@node_name}/supervision-tree?apps=kernel"
-    end
-
-    test "supervision tree links preserve the current sidebar mode", %{conn: conn} do
-      stub_erpc(Fakes.node_data())
-
-      {:ok, view, _html} = live(conn, "#{@path}?sidebar=compact")
-      render_async(view)
-
-      assert has_element?(
-               view,
-               ~s(a[href*="/node/#{@node_name}/supervision-tree"][href*="apps=kernel"][href*="sidebar=compact"])
-             )
     end
 
     test "an application without a supervision tree is not clickable", %{conn: conn} do
