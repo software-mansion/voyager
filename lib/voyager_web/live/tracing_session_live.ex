@@ -84,6 +84,7 @@ defmodule VoyagerWeb.TracingSessionLive do
           on_pause="pause-log"
           on_resume="resume-log"
           on_older="load-older"
+          on_ack="log-ack"
         />
       </.async_result>
 
@@ -210,6 +211,12 @@ defmodule VoyagerWeb.TracingSessionLive do
   def handle_event("load-older", _params, socket) do
     socket
     |> Log.older()
+    |> noreply()
+  end
+
+  def handle_event("log-ack", _params, socket) do
+    socket
+    |> Log.ack()
     |> noreply()
   end
 

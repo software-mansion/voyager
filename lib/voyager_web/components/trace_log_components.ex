@@ -40,6 +40,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
   attr :on_pause, :string, required: true
   attr :on_resume, :string, required: true
   attr :on_older, :string, required: true
+  attr :on_ack, :string, required: true, doc: "pushed once the browser applied a live flush"
 
   def log(assigns) do
     config = assigns.trace_session.config
@@ -55,6 +56,15 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
       id="session-log"
       class="card bg-base-100 border-base-200 text-base-content flex min-h-0 flex-1 flex-col border shadow-sm"
     >
+      <%!-- A hook push locks its element until the reply, so an empty one keeps the rows out of it. --%>
+      <span id="session-log-ack" phx-hook=".LogAck" data-ack-event={@on_ack} hidden></span>
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".LogAck">
+        export default {
+          mounted() {
+            this.handleEvent("log-flushed", () => this.pushEvent(this.el.dataset.ackEvent, {}))
+          }
+        }
+      </script>
       <div class="border-base-200 flex flex-none items-center justify-between gap-3 border-b px-5 py-2.5">
         <div class="flex items-center gap-2">
           <h2 class="text-sm font-semibold">Events</h2>

@@ -89,6 +89,7 @@ defmodule Voyager.Test.TracerFixture do
 
   def flush_log(view) do
     put_queued(view)
+    render_hook(view, "log-ack", %{})
     send(view.pid, :flush_log)
     render(view)
   end
