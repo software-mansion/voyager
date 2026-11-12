@@ -63,14 +63,14 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
   @impl true
   def execute(params, frame) do
     reply =
-      with {:ok, node} <- check_ready(frame),
+      with {:ok, %{node: node, connected_at: connected_at} = session} <- check_ready(frame),
            :ok <- check_function(params[:function]) do
         case {Frame.request_state(frame), Frame.input_response(frame, @form)} do
-          {{@form_state, ^node, id}, %{"action" => _action} = response} ->
-            answer(UsedRequestStates.consume(id), response, params, node)
+          {{@form_state, ^node, ^connected_at, id}, %{"action" => _action} = response} ->
+            answer(UsedRequestStates.consume(id), response, params, session)
 
-          _unanswered_or_other_node ->
-            ask(params, node)
+          _unanswered_or_other_connection ->
+            ask(params, session)
         end
       else
         {:error, message} -> Response.error(Response.tool(), message)
@@ -79,12 +79,12 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
     {:reply, reply, frame}
   end
 
-  defp answer(:used, _response, params, node), do: ask(params, node)
+  defp answer(:used, _response, params, session), do: ask(params, session)
 
-  defp answer(:ok, %{"action" => "accept"} = response, _params, node),
-    do: start(node, response["content"])
+  defp answer(:ok, %{"action" => "accept"} = response, _params, session),
+    do: start(session.node, response["content"])
 
-  defp answer(:ok, _declined, _params, _node),
+  defp answer(:ok, _declined, _params, _session),
     do: Response.json(Response.tool(), %{status: "declined"})
 
   defp check_ready(frame) do
@@ -102,7 +102,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
          "This MCP client does not support forms (elicitation), so it cannot start a session"}
 
       true ->
-        {:ok, session.node}
+        {:ok, session}
     end
   end
 
@@ -119,10 +119,10 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
   defp check_function(function),
     do: if(parse_function(function), do: :ok, else: {:error, @function_format})
 
-  defp ask(params, node) do
+  defp ask(params, %{node: node, connected_at: connected_at}) do
     InputRequired.new()
     |> InputRequired.elicit(@form, "Start this tracing session on #{node}?", form_schema(params))
-    |> InputRequired.state({@form_state, node, System.unique_integer()})
+    |> InputRequired.state({@form_state, node, connected_at, System.unique_integer()})
   end
 
   defp form_schema(params) do

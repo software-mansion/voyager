@@ -8,6 +8,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
   alias Anubis.Server.Response
   alias Voyager.Fakes
   alias Voyager.MCP.Tools.CreateTraceSession
+  alias Voyager.NodeSession
   alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Writer
   alias Voyager.Test.VoyagerAgentFixture
@@ -47,21 +48,31 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
       assert properties["capture_args"]["default"] == false
       refute Map.has_key?(properties["pids"], "default")
       assert params["message"] =~ Atom.to_string(node())
-      assert {:set, {:create_trace_session, node, _id}} = input.request_state
+      assert {:set, {:create_trace_session, node, connected_at, _id}} = input.request_state
       assert node == node()
+      assert connected_at == NodeSession.current().connected_at
     end
 
     test "asks again for a form accepted for another node" do
       frame =
         frame(
           %{"session" => accept(%{"function" => "Date"})},
-          {:create_trace_session, :a@b, System.unique_integer()}
+          {:create_trace_session, :a@b, NodeSession.current().connected_at,
+           System.unique_integer()}
         )
 
-      assert {:reply, %InputRequired{request_state: {:set, {_, node, _id}}}, _frame} =
+      assert {:reply, %InputRequired{request_state: {:set, {_, node, _, _id}}}, _frame} =
                execute(%{}, frame)
 
       assert node == node()
+      refute match?(%{status: :running}, Tracer.active())
+    end
+
+    test "asks again for a form opened before the node reconnected", %{pid: pid} do
+      frame = answered(accept(%{"function" => "Date", "pids" => pid}))
+      Fakes.put_session(%{NodeSession.current() | connected_at: DateTime.utc_now()})
+
+      assert {:reply, %InputRequired{}, _frame} = execute(%{}, frame)
       refute match?(%{status: :running}, Tracer.active())
     end
 
@@ -221,7 +232,12 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
   end
 
   defp answered(answer),
-    do: frame(%{"session" => answer}, {:create_trace_session, node(), System.unique_integer()})
+    do:
+      frame(
+        %{"session" => answer},
+        {:create_trace_session, node(), NodeSession.current().connected_at,
+         System.unique_integer()}
+      )
 
   defp accept(content),
     do: %{
