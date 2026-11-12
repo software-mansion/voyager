@@ -56,6 +56,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   @max_expanded_relations 60
   def max_expanded_relations, do: @max_expanded_relations
 
+  defguard is_local_pid(pid, remote_node) when is_pid(pid) and node(pid) == remote_node
+
   attr :panel_id, :string, required: true
   attr :open?, :boolean, required: true
 
@@ -249,7 +251,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
 
     assigns =
       assigns
-      |> assign(:process?, is_pid(pid) and node(pid) == assigns.remote_node)
+      |> assign(:process?, is_local_pid(pid, assigns.remote_node))
       |> assign(:info, failed_over_stale(assigns.info))
       |> assign(:relations_info, failed_over_stale(assigns.relations_info))
 
@@ -785,7 +787,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   @spec linkable_pid(atom(), map(), node() | nil) :: pid() | nil
   def linkable_pid(key, info, remote_node) when key in [:parent, :group_leader] do
     pid = Map.fetch!(info, key)
-    if is_pid(pid) and node(pid) == remote_node, do: pid
+    if is_local_pid(pid, remote_node), do: pid
   end
 
   def linkable_pid(_key, _info, _remote_node), do: nil

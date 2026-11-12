@@ -161,7 +161,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
               target={@myself}
             />
             <.refresh_button
-              :if={is_pid(@node.pid) and is_nil(off_node(@node, @remote_node))}
+              :if={is_local_pid(@node.pid, @remote_node)}
               panel_id={@id}
               on_refresh="refresh-node-info"
               target={@myself}
@@ -194,7 +194,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   # Only pids living on the inspected node have a process page.
   defp process_href(pid, remote_node, node_name)
-       when is_pid(pid) and node(pid) == remote_node and is_binary(node_name) do
+       when is_local_pid(pid, remote_node) and is_binary(node_name) do
     ~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}"
   end
 
@@ -238,7 +238,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
          %{assigns: %{node: %TreeNode{pid: pid}, remote_node: remote_node}} = socket,
          reset?
        )
-       when is_pid(pid) and node(pid) == remote_node do
+       when is_local_pid(pid, remote_node) do
     timeout = Query.default_timeout()
 
     socket

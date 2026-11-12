@@ -169,7 +169,7 @@ defmodule Voyager.Services.ProcessInfo do
 
   def fetch_monitored_by(_node, _pid, _limit, _timeout), do: {:error, :not_a_pid}
 
-  @doc "Looks up the pid or port registered as `name` on `node`."
+  @doc "Returns `{:error, :not_registered}` when nothing holds `name`."
   @spec whereis(node(), atom(), timeout()) ::
           {:ok, pid() | port()} | {:error, :not_registered | term()}
   def whereis(node, name, timeout \\ @timeout) when is_atom(name) do
