@@ -95,13 +95,13 @@ defmodule VoyagerWeb.ConnectLive do
               </ConnectComponents.mode_toggle>
               <p
                 :if={@mode == :direct}
-                class="text-base-content/70 text-xs"
+                class="text-base-content/70 text-sm"
               >
                 Inspect node on your machine.
               </p>
               <p
                 :if={@mode == :ssh}
-                class="text-base-content/70 text-xs"
+                class="text-base-content/70 text-sm"
               >
                 Tunnel into a remote machine to reach its node.
               </p>

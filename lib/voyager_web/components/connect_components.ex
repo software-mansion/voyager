@@ -323,7 +323,7 @@ defmodule VoyagerWeb.ConnectComponents do
       <.focus_wrap
         id={"#{@id}-box"}
         phx-mounted={JS.focus_first()}
-        class="modal-box border-base-content/20 max-w-md border shadow-2xl"
+        class="modal-box border-base-300 max-w-md border shadow-2xl"
       >
         <h2 id={"#{@id}-title"} class="text-base-content text-lg font-semibold tracking-tight">
           Key passphrase
@@ -520,7 +520,7 @@ defmodule VoyagerWeb.ConnectComponents do
       <.focus_wrap
         id={"#{@id}-box"}
         phx-mounted={JS.focus_first()}
-        class="modal-box border-base-content/20 flex max-w-md flex-col gap-3 border shadow-2xl"
+        class="modal-box border-base-300 flex max-w-md flex-col gap-3 border shadow-2xl"
       >
         <div>
           <h2 id={"#{@id}-title"} class="text-base-content text-lg font-semibold tracking-tight">
@@ -605,7 +605,7 @@ defmodule VoyagerWeb.ConnectComponents do
             id={"#{@id}-close"}
             phx-target={@target}
             phx-click={@on_close}
-            class="btn btn-soft btn-sm"
+            class="btn btn-ghost btn-sm"
           >
             Close
           </button>
