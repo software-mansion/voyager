@@ -33,6 +33,23 @@ defmodule VoyagerWeb.TracingSessionLogTest do
     assert has_element?(view, "#log-footer", "All 2 traces shown")
   end
 
+  test "holds live rows until the browser acks the last flush", %{conn: conn} do
+    %{id: id} = start!()
+    view = open(conn, id)
+
+    call_traced!(1, 1)
+    flush_log(view)
+    assert_push_event(view, "log-flushed", %{})
+
+    call_traced!(1, 2)
+    send(view.pid, :flush_log)
+    refute has_element?(view, "#entry-3")
+
+    render_hook(view, "log-ack", %{})
+    send(view.pid, :flush_log)
+    assert has_element?(view, "#entry-3")
+  end
+
   test "skips a live entry the first page already holds", %{conn: conn} do
     %{id: id} = start!()
     view = open(conn, id)

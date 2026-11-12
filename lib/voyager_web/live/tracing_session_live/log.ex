@@ -3,7 +3,10 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
   Owns the Events card's rows, newest first: the first page, older pages, the
   live buffer and its flush, and pause/resume, with the assigns they are
   rendered from (`paused?`, `new_count`, `buffer`, `flush_scheduled?`,
-  `newest_seq`, `oldest_seq`, `held_kinds`).
+  `awaiting_ack?`, `newest_seq`, `oldest_seq`, `held_kinds`).
+
+  A flush that streams rows pushes `"log-flushed"` and the next one waits for
+  `ack/1`, so a browser that falls behind gets fewer flushes, not a growing socket queue.
 
   Reads `id`, `mode` and `trace_session` from the socket.
   """
@@ -26,6 +29,7 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
     |> assign(:new_count, 0)
     |> assign(:buffer, [])
     |> assign(:flush_scheduled?, false)
+    |> assign(:awaiting_ack?, false)
     |> assign(:newest_seq, nil)
     |> assign(:oldest_seq, 0)
     |> assign(:held_kinds, [])
@@ -44,6 +48,8 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
     |> assign(:newest_seq, nil)
     |> assign(:paused?, false)
     |> assign(:new_count, 0)
+    # An ack lost with an unmounted card would otherwise hold the log forever.
+    |> assign(:awaiting_ack?, false)
     |> start_async(:page, fn -> Tracer.entries(id) end)
   end
 
@@ -73,14 +79,16 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
     do: update(socket, :new_count, &(&1 + count_traces(entries)))
 
   def absorb(socket, entries) do
-    socket = update(socket, :buffer, &Enum.take(&1 ++ entries, -@row_limit))
+    socket
+    |> update(:buffer, &Enum.take(&1 ++ entries, -@row_limit))
+    |> schedule_flush()
+  end
 
-    if socket.assigns.flush_scheduled? do
-      socket
-    else
-      Process.send_after(self(), :flush_log, @flush_ms)
-      assign(socket, :flush_scheduled?, true)
-    end
+  @doc "The browser applied the last flush; what arrived meanwhile goes out with the next tick."
+  @spec ack(Socket.t()) :: Socket.t()
+  def ack(socket) do
+    socket = assign(socket, :awaiting_ack?, false)
+    if socket.assigns.buffer == [], do: socket, else: schedule_flush(socket)
   end
 
   @spec trace_rows([atom()]) :: non_neg_integer()
@@ -169,7 +177,7 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
   end
 
   # Until the first page lands, the buffer cannot tell which entries that page already holds.
-  defp flush(%{assigns: %{paused?: false, newest_seq: newest_seq}} = socket)
+  defp flush(%{assigns: %{paused?: false, awaiting_ack?: false, newest_seq: newest_seq}} = socket)
        when is_integer(newest_seq) do
     case Enum.filter(socket.assigns.buffer, &(&1.seq > newest_seq)) do
       [] ->
@@ -184,10 +192,19 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
         |> assign(:newest_seq, newest_seq)
         |> update(:held_kinds, &Enum.take(Enum.reverse(kinds(rows)) ++ &1, @row_limit))
         |> update(:oldest_seq, &max(&1, newest_seq - @row_limit + 1))
+        |> push_event("log-flushed", %{})
+        |> assign(:awaiting_ack?, true)
     end
   end
 
   defp flush(socket), do: socket
+
+  defp schedule_flush(%{assigns: %{flush_scheduled?: true}} = socket), do: socket
+
+  defp schedule_flush(socket) do
+    Process.send_after(self(), :flush_log, @flush_ms)
+    assign(socket, :flush_scheduled?, true)
+  end
 
   defp pause_running(
          %{
