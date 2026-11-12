@@ -81,7 +81,8 @@ defmodule VoyagerWeb.TracingSessionLive do
           new_count={@new_count}
           trace_rows={Log.trace_rows(@held)}
           oldest_seq={@oldest_seq}
-          node_name={pid_node_name(trace_session, @session)}
+          node={@session.node}
+          node_name={@session.node_name}
           on_pause="pause-log"
           on_resume="resume-log"
           on_older="load-older"
@@ -421,9 +422,6 @@ defmodule VoyagerWeb.TracingSessionLive do
   defp confirm_label(:delete), do: "Delete"
   defp confirm_label(:unload), do: "Unload"
   defp confirm_label(:load), do: "Load"
-
-  defp pid_node_name(%Session{node: node}, %{node: node, node_name: node_name}), do: node_name
-  defp pid_node_name(_trace_session, _node_session), do: nil
 
   defp stats(%Session{run_started_at: nil}, _rates, _now, _limit_mb), do: []
   defp stats(session, rates, now, limit_mb), do: Stats.cells(session, rates, now, limit_mb)

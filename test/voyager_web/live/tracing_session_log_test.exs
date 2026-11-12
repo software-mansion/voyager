@@ -112,6 +112,7 @@ defmodule VoyagerWeb.TracingSessionLogTest do
     refute has_element?(view, "#log-live")
     refute has_element?(view, "#entry-2")
     assert has_element?(view, "#log-resume #log-new-count", "2 new")
+    assert has_element?(view, "#log-footer", "0 of 2 traces shown")
 
     view
     |> element("#log-resume")
@@ -178,6 +179,48 @@ defmodule VoyagerWeb.TracingSessionLogTest do
 
     assert Enum.take(row_ids(view), -4) == ["entry-3", "entry-evicted-2", "entry-1", "entry-0"]
     assert has_element?(view, "#log-footer", "All 500 kept events shown · 501 traced")
+  end
+
+  test "marks every gap the eviction left between runs", %{conn: conn} do
+    %{id: id} = start!(%{max_events: 501})
+    call_traced!(2, 2)
+    :ok = Tracer.stop(:ui)
+    assert_receive {:session_entries, _session, [%{kind: :stopped}]}, 2_000
+
+    {:ok, _session} = Tracer.start(:ui)
+    for _ <- 1..501, do: Date.leap_year?(~D[2024-01-01])
+    assert_receive {:session_entries, _session, [%{kind: :stopped}]}, 2_000
+
+    view = open(conn, id)
+    load_all_older(view)
+
+    assert Enum.take(row_ids(view), -7) ==
+             ~w(entry-7 entry-evicted-6 entry-5 entry-4 entry-evicted-2 entry-1 entry-0)
+  end
+
+  test "ignores a pause while a reload replaces the rows", %{conn: conn} do
+    %{id: id} = start!()
+    view = open(conn, id)
+
+    view
+    |> element("#log-pause")
+    |> render_click()
+
+    :sys.suspend(Tracer)
+
+    view
+    |> element("#log-resume")
+    |> render_click()
+
+    view
+    |> element("#log-pause")
+    |> render_click()
+
+    :sys.resume(Tracer)
+    render_async(view)
+
+    assert has_element?(view, "#log-live")
+    refute has_element?(view, "#log-paused")
   end
 
   test "shows a duration for returns", %{conn: conn} do
@@ -256,6 +299,30 @@ defmodule VoyagerWeb.TracingSessionLogTest do
 
     assert has_element?(view, "#entry-2", Formatters.pid(self()))
     refute has_element?(view, "#entry-2 a")
+  end
+
+  test "links the pids a session traced before it moved to another node", %{conn: conn} do
+    %{id: id} = start!()
+    call_traced!(1, 1)
+    :ok = Tracer.stop(:ui)
+    assert_receive {:session_entries, _session, [%{kind: :stopped}]}, 2_000
+
+    {:ok, _session} =
+      Tracer.configure(
+        :other@nohost,
+        %{
+          module: "Elixir.Date",
+          function: "leap_year?",
+          arity: 1,
+          processes: :all,
+          max_events: 1_000
+        },
+        :ui
+      )
+
+    view = open(conn, id)
+
+    assert has_element?(view, "#entry-2 a[href*='/processes/']")
   end
 
   test "shows a call whose arguments the budget truncated whole", %{conn: conn} do
