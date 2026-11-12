@@ -8,7 +8,7 @@ defmodule Voyager.Services.SSH.KeyFile do
 
   @type reason ::
           OpensshKey.reason()
-          | {:read_failed, {Path.t(), File.posix()}}
+          | {:read_failed, {Path.t(), LocalFiles.read_error()}}
 
   @rsa_algorithms [:"rsa-sha2-256", :"rsa-sha2-512", :"ssh-rsa"]
 
@@ -24,7 +24,7 @@ defmodule Voyager.Services.SSH.KeyFile do
   @spec decode(Path.t(), String.t() | nil) ::
           {:ok, :public_key.private_key()} | {:error, reason()}
   def decode(path, passphrase) do
-    with {:ok, pem} <- LocalFiles.read(path),
+    with {:ok, pem} <- LocalFiles.read_key(path),
          {:ok, key} <- decode_pem(pem, passphrase) do
       if algorithms(key) == [], do: {:error, :key_unreadable}, else: {:ok, key}
     end

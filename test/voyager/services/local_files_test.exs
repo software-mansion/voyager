@@ -5,7 +5,7 @@ defmodule Voyager.Services.LocalFilesTest do
 
   @moduletag :tmp_dir
 
-  @max_config_bytes 1_048_576
+  @max_bytes 1_048_576
 
   describe "read_config/1" do
     test "returns the contents of a regular file", %{tmp_dir: tmp_dir} do
@@ -36,11 +36,11 @@ defmodule Voyager.Services.LocalFilesTest do
     test "accepts a file at the size cap and refuses one byte more", %{tmp_dir: tmp_dir} do
       path = Path.join(tmp_dir, "config")
 
-      File.write!(path, :binary.copy("#", @max_config_bytes))
+      File.write!(path, :binary.copy("#", @max_bytes))
       assert {:ok, contents} = LocalFiles.read_config(path)
-      assert byte_size(contents) == @max_config_bytes
+      assert byte_size(contents) == @max_bytes
 
-      File.write!(path, :binary.copy("#", @max_config_bytes + 1))
+      File.write!(path, :binary.copy("#", @max_bytes + 1))
       assert LocalFiles.read_config(path) == {:error, {:read_failed, {path, :too_large}}}
     end
 

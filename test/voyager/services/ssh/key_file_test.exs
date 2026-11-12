@@ -128,6 +128,17 @@ defmodule Voyager.Services.SSH.KeyFileTest do
 
       assert KeyFile.decode(path, nil) == {:error, {:read_failed, {path, :enoent}}}
     end
+
+    test "refuses a path that is not a regular file", %{tmp_dir: dir} do
+      assert KeyFile.decode(dir, nil) == {:error, {:read_failed, {dir, :not_regular_file}}}
+    end
+
+    test "refuses a file too large to be a key", %{tmp_dir: dir} do
+      path = Path.join(dir, "huge")
+      File.write!(path, :binary.copy("#", 1_048_577))
+
+      assert KeyFile.decode(path, nil) == {:error, {:read_failed, {path, :too_large}}}
+    end
   end
 
   describe "user_key/2" do

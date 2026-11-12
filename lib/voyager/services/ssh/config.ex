@@ -33,7 +33,7 @@ defmodule Voyager.Services.SSH.Config do
 
   @spec read(Path.t()) ::
           {:ok, result()}
-          | {:error, {:read_failed, {Path.t(), LocalFiles.config_read_error()}}}
+          | {:error, {:read_failed, {Path.t(), LocalFiles.read_error()}}}
   def read(path \\ "~/.ssh/config") do
     with {:ok, contents} <- LocalFiles.read_config(path), do: {:ok, parse(contents)}
   end
