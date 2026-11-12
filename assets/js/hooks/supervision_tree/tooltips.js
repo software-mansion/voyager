@@ -95,7 +95,7 @@ export const tooltipMethods = {
       return;
     }
 
-    const { type, display, pid_node } = node.data();
+    const { type, display } = node.data();
 
     this.tooltip.innerHTML = `
           <ul class="flex font-mono flex-col gap-1 break-all">
@@ -105,7 +105,6 @@ export const tooltipMethods = {
             ${infoItem('initial_call:', display.initial_call)}
             ${infoItem('current_function:', display.current_function)}
             ${infoItem('PID:', display.pid)}
-            ${infoItem('node:', pid_node)}
           </ul>
         `;
   },

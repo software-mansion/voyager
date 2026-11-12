@@ -86,10 +86,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :node_type, :atom, required: true
   attr :off_tree?, :boolean, default: false
 
-  attr :off_node, :atom,
-    default: nil,
-    doc: "the node a pid lives on when it is not the inspected one"
-
   def node_type_label(assigns) do
     icons = SupervisionTreeComponents.node_icons()
 
@@ -110,12 +106,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       >
         Not in tree
       </span>
-      <.tooltip :if={@off_node} id={"#{@panel_id}-off-node"}>
-        <span tabindex="0" class="alert alert-warning cursor-help px-2 py-1 text-xs">
-          Not on node
-        </span>
-        <:content>node: {@off_node}</:content>
-      </.tooltip>
     </div>
     """
   end

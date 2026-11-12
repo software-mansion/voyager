@@ -545,7 +545,7 @@ defmodule Voyager.Services.SupervisionTree.Walker do
 
     {info_map, pinfo_errors} = fetch_external_info(node, external_pids)
 
-    nodes = Enum.reduce(external, nodes, &put_rel_node(&2, &1, info_map, node))
+    nodes = Enum.reduce(external, nodes, &put_rel_node(&2, &1, info_map))
 
     edges = Map.new(deduped, fn {from, to, kind} -> build_edge(from, to, kind) end)
 
@@ -635,18 +635,16 @@ defmodule Voyager.Services.SupervisionTree.Walker do
 
   # Relationship-only nodes are parentless leaves. `put_new` ensures a target
   # that also exists in the supervision tree keeps its richer tree entry.
-  defp put_rel_node(nodes, id, info_map, node) when is_pid(id) do
+  defp put_rel_node(nodes, id, info_map) when is_pid(id) do
     info = Map.get(info_map, id)
-    rel = rel_node(id, id, pid_label(id, info), :worker, info)
-    pid_node = if node(id) != node, do: node(id)
-    Map.put_new(nodes, TreeNode.key(id), %{rel | pid_node: pid_node})
+    Map.put_new(nodes, TreeNode.key(id), rel_node(id, id, pid_label(id, info), :worker, info))
   end
 
-  defp put_rel_node(nodes, id, _info_map, _node) when is_port(id) do
+  defp put_rel_node(nodes, id, _info_map) when is_port(id) do
     Map.put_new(nodes, TreeNode.key(id), rel_node(id, nil, id, :port, nil))
   end
 
-  defp put_rel_node(nodes, id, _info_map, _node) when is_reference(id) do
+  defp put_rel_node(nodes, id, _info_map) when is_reference(id) do
     Map.put_new(nodes, TreeNode.key(id), rel_node(id, nil, id, :reference, nil))
   end
 

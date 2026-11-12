@@ -15,8 +15,6 @@ defmodule Voyager.Services.SupervisionTree.TreeNode do
   supervisor child-spec id.
 
   `child_count` is the *direct* child count on the remote.
-
-  `pid_node` is the node pid lives on when that is not inspected node, otherwise `nil`.
   """
 
   @derive Jason.Encoder
@@ -27,7 +25,6 @@ defmodule Voyager.Services.SupervisionTree.TreeNode do
     :type,
     parent_key: nil,
     pid: nil,
-    pid_node: nil,
     name: nil,
     child_count: 0,
     info: nil,
@@ -42,7 +39,6 @@ defmodule Voyager.Services.SupervisionTree.TreeNode do
           key: String.t(),
           parent_key: String.t() | nil,
           pid: pid() | nil,
-          pid_node: node() | nil,
           # :name is mostly process's :registered_name if present or it's pid,
           # but if none present it default to child_id from supervision tree
           name: term(),

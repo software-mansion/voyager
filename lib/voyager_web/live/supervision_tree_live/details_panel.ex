@@ -124,12 +124,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
         <%!-- Header --%>
         <div class="border-base-200 flex items-start gap-3 border-b px-5 py-4">
           <div class="flex min-w-0 flex-1 flex-col gap-1.5">
-            <.node_type_label
-              panel_id={@id}
-              node_type={@node.type}
-              off_tree?={@node.placeholder?}
-              off_node={off_node(@node, @remote_node)}
-            />
+            <.node_type_label panel_id={@id} node_type={@node.type} off_tree?={@node.placeholder?} />
             <.node_label panel_id={@id} node={@node} />
           </div>
           <div class="flex shrink-0 items-center gap-1.5">
@@ -195,11 +190,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
     |> assign(open?: true, node: node, selection_history: history, expanded_relations: expanded)
     |> fetch_details(not showing?)
   end
-
-  defp off_node(%TreeNode{pid: pid}, remote_node) when is_pid(pid) and node(pid) != remote_node,
-    do: node(pid)
-
-  defp off_node(_node, _remote_node), do: nil
 
   defp push_history(%{assigns: %{node: %TreeNode{} = node}} = socket),
     do: assign(socket, :selection_history, [node | socket.assigns.selection_history])

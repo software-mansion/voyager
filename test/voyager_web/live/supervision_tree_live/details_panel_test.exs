@@ -461,7 +461,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       flush(view)
       render_async(view)
 
-      assert has_element?(view, "#details-panel-off-node")
       assert has_element?(view, "#details-panel-no-process-info", "other@localhost")
       refute has_element?(view, "#details-panel-refresh")
       refute has_element?(view, "#details-panel .alert-error")

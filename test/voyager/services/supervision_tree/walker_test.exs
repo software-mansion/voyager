@@ -217,8 +217,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
              end)
     end
 
-    test "a link to a pid on another node sets pid_node and keeps the external batch",
-         %{node: node} do
+    test "a link to a pid on another node keeps the external batch", %{node: node} do
       {_mid_a, [w1 | _]} = midsup_a_workers(node)
       foreign = Voyager.TestUtils.foreign_pid()
 
@@ -242,7 +241,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
 
       assert errors == []
       assert Enum.any?(Map.values(edges), &(&1.source == w1 and &1.target == foreign))
-      assert nodes[key(foreign)].pid_node == :other@localhost
+      assert Map.has_key?(nodes, key(foreign))
     end
 
     test "supervisor pid-links are not emitted as relationship edges", %{node: node} do
