@@ -34,8 +34,8 @@ defmodule VoyagerWeb.TermFormatter.Elixir do
   def format_mfa({mod, fun, arity}), do: Exception.format_mfa(mod, fun, arity)
 
   @impl true
-  def format_mfa_pattern(mod, fun, arity),
-    do: "#{module_name(mod)}.#{function_name(fun)}/#{arity}"
+  def mfa_pattern_parts(mod, fun, arity),
+    do: {module_name(mod) <> ".", "#{function_name(fun)}/#{arity}"}
 
   defp module_name(mod) when is_atom(mod), do: Macro.inspect_atom(:literal, mod)
   defp module_name("Elixir." <> alias), do: alias

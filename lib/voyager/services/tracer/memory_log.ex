@@ -14,6 +14,9 @@ defmodule Voyager.Services.Tracer.MemoryLog do
 
   @type t :: %__MODULE__{controls: [Entry.t()], traces: [Entry.t()], summary: Summary.t()}
 
+  @spec kept_traces() :: pos_integer()
+  def kept_traces, do: @kept_traces
+
   @doc "Numbers `entries` from `seq` and keeps them. Returns the numbered entries."
   @spec append(t(), [Entry.unnumbered()], non_neg_integer()) :: {[Entry.t()], t()}
   def append(%__MODULE__{} = log, entries, seq) do

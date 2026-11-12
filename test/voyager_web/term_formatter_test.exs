@@ -290,6 +290,14 @@ defmodule VoyagerWeb.TermFormatterTest do
                "lists:map/_"
     end
 
+    test "mfa_pattern_parts/4 splits off the module with its separator" do
+      assert TermFormatter.mfa_pattern_parts("Elixir.Enum", "map", 2, syntax: :elixir) ==
+               {"Enum.", "map/2"}
+
+      assert TermFormatter.mfa_pattern_parts("lists", "map", nil, syntax: :erlang) ==
+               {"lists:", "map/_"}
+    end
+
     test "quotes Erlang names that need it" do
       assert TermFormatter.format_mfa_pattern("Elixir.Date", "leap_year?", 1, syntax: :erlang) ==
                "'Elixir.Date':'leap_year?'/1"

@@ -1,6 +1,6 @@
 defmodule Voyager.VaultKey do
   @moduledoc """
-  Loads or generates the local 32-byte AES key used by `Voyager.Vault`.
+  Loads or generates the local 32-byte AES key used by `Voyager.Encrypted.Binary`.
 
   Resolution order:
     1. `VOYAGER_VAULT_KEY` env var (base64-encoded 32 bytes)
