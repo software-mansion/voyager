@@ -1,6 +1,7 @@
 %% Entry points invoked from Playwright tests via erl_call, e.g.:
 %%   erl_call -name test@127.0.0.1 -c e2e_cookie -a 'mock_app_ctl add_child [mock_dyn_sup_a, tmp_a1]'
-%% Every function returns the atom ok; erl_call prints it and the tests assert on it.
+%% Every function but trace_session/1, which returns the session id, returns the atom ok;
+%% erl_call prints it and the tests assert on it.
 -module(mock_app_ctl).
 
 -export([add_child/2, remove_child/2, reset/0, trace_session/1, trace_close/0]).
@@ -49,17 +50,26 @@ trace_session(Save) ->
           max_time_ms => 300000},
     {ok, _} = rpc:call(Voyager, ?TRACER, configure, [node(), Config, ui]),
     {ok, _} = rpc:call(Voyager, ?TRACER, start, [ui]),
-    case whereis(mock_tracee_traffic) of
-        undefined -> register(mock_tracee_traffic, spawn(mock_tracee, loop, [1]));
-        _Pid -> true
-    end,
+    true = register(mock_tracee_traffic, spawn(mock_tracee, loop, [1])),
     Id.
 
 %% Stops and closes the active session; the stop lands asynchronously, so close is retried.
 trace_close() ->
+    ok = stop_traffic(),
     Voyager = voyager_node(),
     ok = rpc:call(Voyager, ?TRACER, stop, [ui]),
     close(Voyager, 50).
+
+%% Waits for the exit, as the name stays registered until then and trace_session/1 reuses it.
+stop_traffic() ->
+    case whereis(mock_tracee_traffic) of
+        undefined ->
+            ok;
+        Pid ->
+            Ref = monitor(process, Pid),
+            exit(Pid, kill),
+            receive {'DOWN', Ref, process, Pid, _} -> ok end
+    end.
 
 close(_Voyager, 0) -> {error, busy};
 close(Voyager, Tries) ->

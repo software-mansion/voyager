@@ -64,8 +64,12 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
     |> start_async(:older, fn -> Tracer.entries(id, before: before) end)
   end
 
+  @doc "Freezes the rows; ignored while a reload is replacing them, as its page would unfreeze them."
   @spec pause(Socket.t()) :: Socket.t()
-  def pause(socket) do
+  def pause(%{assigns: %{newest_seq: nil}} = socket), do: socket
+  def pause(socket), do: freeze(socket)
+
+  defp freeze(socket) do
     socket
     |> assign(:paused?, true)
     |> assign(:new_count, count_traces(socket.assigns.buffer))
@@ -135,10 +139,12 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
 
   defp handle_result(:page, _failed, socket) do
     socket
-    |> pause()
+    |> freeze()
     |> put_flash(:error, "Could not load the events.")
     |> halt()
   end
+
+  defp handle_result(:older, {:exit, {:shutdown, :cancel}}, socket), do: halt(socket)
 
   defp handle_result(:older, _failed, socket) do
     socket
@@ -181,10 +187,7 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
     {rows, _acc} =
       Enum.flat_map_reduce(entries, newer_seq, fn
         entry, newer when is_integer(newer) and newer - entry.seq > 1 ->
-          {[%{kind: :evicted, seq: entry.seq + 1}, entry], :marked}
-
-        entry, :marked ->
-          {[entry], :marked}
+          {[%{kind: :evicted, seq: entry.seq + 1}, entry], entry.seq}
 
         entry, _newer ->
           {[entry], entry.seq}

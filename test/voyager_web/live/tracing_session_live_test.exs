@@ -135,6 +135,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#entry-0-changes", "by UI · Date.leap_year?/1")
 
     {:ok, _session} = configure(%{scope: :local, max_events: nil, max_time_ms: 90_000})
+    render_async(view)
 
     assert has_element?(view, "#session-chip-where", "1 pid · local")
     assert has_element?(view, "#session-chip-capture", "Arity")

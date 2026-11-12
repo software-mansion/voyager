@@ -35,8 +35,9 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
 
   attr :node_name, :string,
     default: nil,
-    doc: "the node whose process pages the pids link to; nil for plain pids"
+    doc: "the connected node's name, whose process pages its pids link to; nil for plain pids"
 
+  attr :node, :atom, default: nil, doc: "the connected node"
   attr :on_pause, :string, required: true
   attr :on_resume, :string, required: true
   attr :on_older, :string, required: true
@@ -145,6 +146,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
               durations?={@durations?}
               wildcard?={@wildcard?}
               syntax={@syntax}
+              node={@node}
               node_name={@node_name}
             />
           </tbody>
@@ -155,7 +157,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
         class="border-base-200 min-h-11 flex flex-none items-center justify-between gap-3 border-t px-5 py-1.5"
       >
         <p class="text-base-content/70 min-w-0 truncate text-xs">
-          {footer(@trace_session, @trace_rows, @oldest_seq)}
+          {footer(@trace_session, @trace_rows, @oldest_seq, @new_count)}
         </p>
         <div class="flex shrink-0 items-center gap-4">
           <span id="log-legend" class="text-base-content/70 flex items-center gap-3 text-xs">
@@ -187,10 +189,15 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
   attr :durations?, :boolean, required: true
   attr :wildcard?, :boolean, required: true
   attr :syntax, :atom, required: true
-  attr :node_name, :string, required: true
+  attr :node, :atom, default: nil
+  attr :node_name, :string, default: nil
 
   defp log_row(%{entry: %{kind: :trace}} = assigns) do
-    assigns = assign(assigns, :process, process_label(assigns.entry[:process]))
+    assigns =
+      assigns
+      |> assign(:process, process_label(assigns.entry[:process]))
+      # A reconfigure can move a session to another node, so each pid links only to its own.
+      |> assign(:link?, assigns.node_name && node(assigns.entry.pid) == assigns.node)
 
     ~H"""
     <%!-- A blocking fade holds back every patch, and rows stream in faster than it ends. --%>
@@ -214,14 +221,14 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
       <.time_cell at={@entry.at} />
       <td class="py-2">
         <ProcessComponents.pid_cell
-          :if={@node_name}
+          :if={@link?}
           pid={@entry.pid}
           row_id={@id}
           href={~p"/node/#{@node_name}/processes/#{Formatters.format_pid(@entry.pid)}"}
           tip="#log-pid-tip"
         />
         <DataTableComponents.value_cell
-          :if={!@node_name}
+          :if={!@link?}
           id={"#{@id}-pid"}
           value={Formatters.pid(@entry.pid)}
           class="text-primary"
@@ -300,6 +307,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
             <.icon
               name="icon-circle-alert"
               class="text-base-content/40 size-3.5 transition-colors hover:text-warning"
+              tabindex="0"
               role="img"
               aria-label="Truncated on the remote node"
             />
@@ -371,12 +379,11 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
 
   attr :text, :string, required: true
   attr :syntax, :atom, required: true, doc: "nil renders the text unkinded"
-  attr :query, :string, default: nil
 
   defp highlighted(assigns) do
     ~H"""
     <span
-      :for={{kind, marked?, text} <- TermHighlight.parts(@text, @syntax, @query)}
+      :for={{kind, marked?, text} <- TermHighlight.parts(@text, @syntax)}
       class={kind && TermComponents.segment_class(%Segment{kind: kind})}
     ><mark :if={marked?} class="bg-warning/30 rounded-sm text-inherit">{text}</mark>{if !marked?,
       do: text}</span>
@@ -548,17 +555,21 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
 
   defp format_duration(us), do: Formatters.format_integer(round(us / 1_000)) <> " ms"
 
-  defp footer(%Session{traces: 0}, _trace_rows, _oldest_seq), do: "No traces yet"
+  defp footer(%Session{traces: 0}, _trace_rows, _oldest_seq, _new_count), do: "No traces yet"
 
-  defp footer(session, trace_rows, oldest_seq) when oldest_seq > 0,
+  defp footer(session, trace_rows, _oldest_seq, new_count) when new_count > 0,
+    do:
+      "#{Formatters.format_integer(trace_rows)} of #{Formatters.format_integer(session.traces)} traces shown"
+
+  defp footer(session, trace_rows, oldest_seq, _new_count) when oldest_seq > 0,
     do:
       "Newest #{Formatters.format_integer(trace_rows)} of #{Formatters.format_integer(session.traces)} traces"
 
-  defp footer(%Session{save: false, traces: traces}, trace_rows, _oldest_seq)
+  defp footer(%Session{save: false, traces: traces}, trace_rows, _oldest_seq, _new_count)
        when trace_rows < traces,
        do:
          "All #{Formatters.format_integer(trace_rows)} kept events shown · #{Formatters.format_integer(traces)} traced"
 
-  defp footer(session, _trace_rows, _oldest_seq),
+  defp footer(session, _trace_rows, _oldest_seq, _new_count),
     do: "All #{TracingComponents.count(session.traces, "trace", "traces")} shown"
 end
