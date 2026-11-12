@@ -39,6 +39,22 @@ defmodule Voyager.Services.Tracer.MemoryLogTest do
       assert length(log.traces) == 500
     end
 
+    test "summarizes the traces it evicts too" do
+      call = %{
+        kind: :trace,
+        type: :call,
+        at: 0,
+        pid: self(),
+        process: nil,
+        mfa: {Date, :leap_year?, 1}
+      }
+
+      {_entries, log} = MemoryLog.append(%MemoryLog{}, List.duplicate(call, 600), 0)
+
+      assert length(log.traces) == 500
+      assert log.summary.calls == 600
+    end
+
     test "continues numbering across calls" do
       {first, log} = MemoryLog.append(%MemoryLog{}, entries([:trace, :trace]), 0)
       {second, log} = MemoryLog.append(log, entries([:trace]), length(first))
