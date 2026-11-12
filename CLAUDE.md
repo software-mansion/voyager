@@ -49,8 +49,9 @@ matching files.
 - Check the result of writes (`Voyager.Settings.put/2`, `Repo` calls,
   `:telemetry.attach_many/4`)
 - New events, routes and branches get a test
-- New modules in `lib/` get `@moduledoc false` (Credo's `ModuleDoc` check requires the
-  attribute); no `@moduledoc` / `@doc` text unless asked. Test modules get no `@moduledoc`
+- `@doc` / `@moduledoc` text only when it adds contract the name and `@spec` do not carry:
+  return shape, side effects, when *not* to call it. Internal modules get `@moduledoc false`;
+  test modules get no `@moduledoc`
 
 ## Comments
 
