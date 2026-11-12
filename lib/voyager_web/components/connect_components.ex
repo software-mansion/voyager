@@ -532,7 +532,7 @@ defmodule VoyagerWeb.ConnectComponents do
             id={"#{@id}-remove"}
             phx-target={@target}
             phx-click={@on_remove}
-            class="btn btn-error"
+            class="btn btn-error dark:text-base-100"
           >
             Remove old key
           </button>
