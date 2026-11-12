@@ -30,7 +30,8 @@ defmodule VoyagerWeb.TracingSessionLive do
         |> assign(:pending, nil)
         |> assign(:confirm, nil)
         |> assign(:queued_session, nil)
-        |> assign(:session_flush_scheduled?, false)
+        |> assign(:flush_scheduled?, false)
+        |> TracingStatusHook.defer_puts()
         |> Log.init()
         |> Stats.init()
         |> subscribe_and_load()
@@ -78,7 +79,7 @@ defmodule VoyagerWeb.TracingSessionLive do
           live?={@mode == :active and trace_session.status == :running}
           paused?={@paused?}
           new_count={@new_count}
-          trace_rows={Log.trace_rows(@held_kinds)}
+          trace_rows={Log.trace_rows(@held)}
           oldest_seq={@oldest_seq}
           node_name={pid_node_name(trace_session, @session)}
           on_pause="pause-log"
@@ -217,6 +218,7 @@ defmodule VoyagerWeb.TracingSessionLive do
   def handle_event("log-ack", _params, socket) do
     socket
     |> Log.ack()
+    |> schedule_flush()
     |> noreply()
   end
 
@@ -293,19 +295,30 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> queue_session(session)
     |> Log.absorb(entries)
     |> Stats.absorb(entries)
+    |> schedule_flush()
     |> noreply()
   end
 
-  def handle_info(:put_queued_session, %{assigns: %{queued_session: nil}} = socket) do
+  # The indicator's queued update for another session waits for this view's flush too.
+  def handle_info({:session_entries, _session, _entries}, socket) do
     socket
-    |> assign(:session_flush_scheduled?, false)
+    |> schedule_flush()
     |> noreply()
   end
 
-  def handle_info(:put_queued_session, socket) do
+  # The ack schedules the next flush, so the session bar and indicator wait with the rows.
+  def handle_info(:flush, %{assigns: %{awaiting_ack?: true}} = socket) do
     socket
-    |> assign(:session_flush_scheduled?, false)
-    |> put_session(socket.assigns.queued_session, :active)
+    |> assign(:flush_scheduled?, false)
+    |> noreply()
+  end
+
+  def handle_info(:flush, socket) do
+    socket
+    |> assign(:flush_scheduled?, false)
+    |> put_queued_session()
+    |> Log.flush()
+    |> TracingStatusHook.put_queued()
     |> noreply()
   end
 
@@ -372,16 +385,20 @@ defmodule VoyagerWeb.TracingSessionLive do
            }
          } = socket,
          %Session{status: status, config: config} = session
-       ) do
-    if !socket.assigns.session_flush_scheduled?,
-      do: Process.send_after(self(), :put_queued_session, TracingStatusHook.throttle_ms())
-
-    socket
-    |> assign(:queued_session, session)
-    |> assign(:session_flush_scheduled?, true)
-  end
+       ),
+       do: assign(socket, :queued_session, session)
 
   defp queue_session(socket, session), do: put_session(socket, session, :active)
+
+  defp put_queued_session(%{assigns: %{queued_session: nil}} = socket), do: socket
+  defp put_queued_session(socket), do: put_session(socket, socket.assigns.queued_session, :active)
+
+  defp schedule_flush(%{assigns: %{flush_scheduled?: true}} = socket), do: socket
+
+  defp schedule_flush(socket) do
+    Process.send_after(self(), :flush, TracingStatusHook.throttle_ms())
+    assign(socket, :flush_scheduled?, true)
+  end
 
   defp run(socket, name, fun) do
     socket

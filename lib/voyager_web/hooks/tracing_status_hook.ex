@@ -7,6 +7,7 @@ defmodule VoyagerWeb.Hooks.TracingStatusHook do
   import Phoenix.LiveView
   import Phoenix.Component
 
+  alias Phoenix.LiveView.Socket
   alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Session
@@ -26,6 +27,7 @@ defmodule VoyagerWeb.Hooks.TracingStatusHook do
       |> assign(:tracing_session, nil)
       |> assign(:queued_tracing_session, nil)
       |> assign(:tracing_flush_scheduled?, false)
+      |> assign(:tracing_puts_deferred?, false)
       |> attach_hook(:tracing_status, :handle_info, &handle_tracing_status/2)
       |> attach_hook(:tracing_status_load, :handle_async, &handle_tracing_load/3)
 
@@ -41,11 +43,24 @@ defmodule VoyagerWeb.Hooks.TracingStatusHook do
     {:cont, socket}
   end
 
+  @doc """
+  Leaves the throttle to the view, which calls `put_queued/1` on its own tick so the
+  indicator lands in the view's render. The view ticks on `Tracer.topic/0`'s
+  `:session_entries`; any other update the hook throttles queues an unchanged session.
+  """
+  @spec defer_puts(Socket.t()) :: Socket.t()
+  def defer_puts(socket), do: assign(socket, :tracing_puts_deferred?, true)
+
+  @doc "Puts the session the last throttled broadcast queued, if any."
+  @spec put_queued(Socket.t()) :: Socket.t()
+  def put_queued(%{assigns: %{queued_tracing_session: nil}} = socket), do: socket
+  def put_queued(socket), do: put_session(socket, socket.assigns.queued_tracing_session)
+
   defp handle_tracing_status(
          {:session_updated, %Session{id: id, status: status, config: config} = session},
          %{assigns: %{tracing_session: %Session{id: id, status: status, config: config}}} = socket
        ) do
-    if !socket.assigns.tracing_flush_scheduled?,
+    if !socket.assigns.tracing_flush_scheduled? and !socket.assigns.tracing_puts_deferred?,
       do: Process.send_after(self(), :put_tracing_session, @throttle_ms)
 
     socket =
@@ -60,12 +75,12 @@ defmodule VoyagerWeb.Hooks.TracingStatusHook do
     do: {:halt, put_session(socket, session)}
 
   defp handle_tracing_status(:put_tracing_session, socket) do
-    socket = assign(socket, :tracing_flush_scheduled?, false)
+    socket =
+      socket
+      |> assign(:tracing_flush_scheduled?, false)
+      |> put_queued()
 
-    case socket.assigns.queued_tracing_session do
-      nil -> {:halt, socket}
-      session -> {:halt, put_session(socket, session)}
-    end
+    {:halt, socket}
   end
 
   defp handle_tracing_status(_event, socket), do: {:cont, socket}
