@@ -167,6 +167,33 @@ defmodule VoyagerWeb.TracingSessionLogTest do
     assert has_element?(view, "#entry-2 .text-code-atom", "calendar")
   end
 
+  test "cuts a large term in the tooltip and names the process", %{conn: conn} do
+    %{id: id} = start!(%{return_trace: true})
+    view = open(conn, id)
+
+    returned = %{
+      seq: 2,
+      kind: :trace,
+      type: :return,
+      at: 0,
+      pid: self(),
+      process: :my_server,
+      mfa: {Date, :leap_year?, 1},
+      value: Map.new(1..100, &{&1, String.duplicate("x", 80)})
+    }
+
+    send(view.pid, {:session_entries, Tracer.active(), [returned]})
+    flush_log(view)
+
+    tip = view |> element("#entry-2-term-portal") |> render()
+    strings = tip |> String.split("text-code-string") |> length()
+
+    assert tip =~ "Date"
+    assert tip =~ "my_server"
+    assert tip =~ "…"
+    assert strings in 2..17
+  end
+
   test "does not link pids of another node's session", %{conn: conn} do
     %{id: id} = start!()
     call_traced!(1, 1)
