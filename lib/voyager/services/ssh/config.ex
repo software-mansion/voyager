@@ -31,9 +31,11 @@ defmodule Voyager.Services.SSH.Config do
 
   @env_agent_values ["SSH_AUTH_SOCK", "$SSH_AUTH_SOCK", "${SSH_AUTH_SOCK}"]
 
-  @spec read(Path.t()) :: {:ok, result()} | {:error, {:read_failed, {Path.t(), File.posix()}}}
+  @spec read(Path.t()) ::
+          {:ok, result()}
+          | {:error, {:read_failed, {Path.t(), LocalFiles.config_read_error()}}}
   def read(path \\ "~/.ssh/config") do
-    with {:ok, contents} <- LocalFiles.read(path), do: {:ok, parse(contents)}
+    with {:ok, contents} <- LocalFiles.read_config(path), do: {:ok, parse(contents)}
   end
 
   @spec parse(String.t()) :: result()
@@ -105,7 +107,7 @@ defmodule Voyager.Services.SSH.Config do
   defp reject_include(item), do: item
 
   defp include_pattern(pattern, depth) do
-    if depth == @max_include_depth or String.contains?(pattern, ["%", "${"]) do
+    if depth == @max_include_depth or String.contains?(pattern, ["%", "{", "**", <<0>>]) do
       [@bad_include]
     else
       pattern
@@ -116,7 +118,7 @@ defmodule Voyager.Services.SSH.Config do
   end
 
   defp include_file(path, depth) do
-    case File.read(path) do
+    case LocalFiles.read_config(path) do
       {:ok, contents} -> [@every_host_header | parse_contents(contents, depth)]
       {:error, _reason} -> [@bad_include]
     end
