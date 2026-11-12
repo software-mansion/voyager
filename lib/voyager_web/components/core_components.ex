@@ -991,6 +991,11 @@ defmodule VoyagerWeb.CoreComponents do
     doc:
       "restricts when the tip opens: sidebar-compact while the app sidebar is in compact (icon-only) mode, browser outside the desktop app"
 
+  attr :tip, :string,
+    default: nil,
+    doc:
+      "selector of a `tooltip_portal/1` shared by many triggers, e.g. table rows: the content waits in a `<template>` and fills the tip's `data-tooltip-slot` on show"
+
   slot :inner_block, required: true, doc: "the hover/focus target"
   slot :content, required: true, doc: "tooltip content"
 
@@ -1000,15 +1005,16 @@ defmodule VoyagerWeb.CoreComponents do
       id={@id}
       class={["inline-flex align-middle leading-none", @class]}
       phx-hook="Tooltip"
-      data-tooltip-target={"##{@id}-tip"}
+      data-tooltip-target={@tip || "##{@id}-tip"}
       data-tooltip-position={@position}
       data-tooltip-interactive={to_string(@interactive)}
       data-tooltip-pinnable={to_string(@pinnable)}
       data-tooltip-show-when={@show_when}
     >
       {render_slot(@inner_block)}
+      <template :if={@tip} id={"#{@id}-content"} data-tooltip-content>{render_slot(@content)}</template>
     </span>
-    <.tooltip_portal id={@id} interactive={@interactive} tip_class={@tip_class}>
+    <.tooltip_portal :if={!@tip} id={@id} interactive={@interactive} tip_class={@tip_class}>
       {render_slot(@content)}
     </.tooltip_portal>
     """

@@ -294,6 +294,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
   attr :pid, :any, required: true
   attr :row_id, :string, required: true
   attr :href, :string, required: true
+  attr :tip, :string, default: nil, doc: "a `pid_tip/1`'s tip to share, as `tooltip/1`'s `tip`"
 
   def pid_cell(assigns) do
     assigns = assign(assigns, :pid_string, Formatters.pid(assigns.pid))
@@ -305,6 +306,7 @@ defmodule VoyagerWeb.Components.ProcessComponents do
       pinnable={false}
       class="min-w-0 max-w-full"
       tip_class="font-mono"
+      tip={@tip}
     >
       <%!-- Only the pid navigates, so it carries the affordances of a link. A
            full load (href, not navigate) because the process info page's
@@ -315,20 +317,42 @@ defmodule VoyagerWeb.Components.ProcessComponents do
       >
         {@pid_string}
       </.link>
-      <:content>
-        <div class="flex items-center gap-1">
-          <span id={"#{@row_id}-pid-copy-text"}>{@pid_string}</span>
-          <.copy_button
-            id={"#{@row_id}-pid-copy"}
-            target={"##{@row_id}-pid-copy-text"}
-            label="Copy PID"
-            icon_only
-            size={:sm}
-            class="text-base-content/60 shrink-0 hover:text-primary"
-          />
-        </div>
+      <:content :if={@tip}>{@pid_string}</:content>
+      <:content :if={!@tip}>
+        <.pid_copy id={"#{@row_id}-pid-copy"}>{@pid_string}</.pid_copy>
       </:content>
     </.tooltip>
+    """
+  end
+
+  @doc "One tip for every `pid_cell/1` whose `tip` is this one's `#<id>-tip`, so a long table holds one copy button."
+  attr :id, :string, required: true
+
+  def pid_tip(assigns) do
+    ~H"""
+    <.tooltip_portal id={@id} interactive tip_class="font-mono">
+      <.pid_copy id={"#{@id}-copy"} phx-update="ignore" data-tooltip-slot />
+    </.tooltip_portal>
+    """
+  end
+
+  attr :id, :string, required: true, doc: "the copy button's; the copied text's is `<id>-text`"
+  attr :rest, :global
+  slot :inner_block
+
+  defp pid_copy(assigns) do
+    ~H"""
+    <div class="flex items-center gap-1">
+      <span id={"#{@id}-text"} {@rest}>{render_slot(@inner_block)}</span>
+      <.copy_button
+        id={@id}
+        target={"##{@id}-text"}
+        label="Copy PID"
+        icon_only
+        size={:sm}
+        class="text-base-content/60 shrink-0 hover:text-primary"
+      />
+    </div>
     """
   end
 

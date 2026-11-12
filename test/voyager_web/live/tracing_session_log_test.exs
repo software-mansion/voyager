@@ -33,7 +33,9 @@ defmodule VoyagerWeb.TracingSessionLogTest do
     assert has_element?(view, "#log-footer", "All 2 traces shown")
   end
 
-  test "holds live rows until the browser acks the last flush", %{conn: conn} do
+  test "holds live rows and the session's counts until the browser acks the last flush", %{
+    conn: conn
+  } do
     %{id: id} = start!()
     view = open(conn, id)
 
@@ -42,12 +44,16 @@ defmodule VoyagerWeb.TracingSessionLogTest do
     assert_push_event(view, "log-flushed", %{})
 
     call_traced!(1, 2)
-    send(view.pid, :flush_log)
+    _ = :sys.get_state(Tracer)
+    send(view.pid, :flush)
     refute has_element?(view, "#entry-3")
+    assert has_element?(view, "#stat-events .tabular-nums", ~r/^\s*1\s*$/)
+    assert has_element?(view, "#tracing-indicator-count", ~r/^\s*1\s*$/)
 
-    render_hook(view, "log-ack", %{})
-    send(view.pid, :flush_log)
+    flush_log(view)
     assert has_element?(view, "#entry-3")
+    assert has_element?(view, "#stat-events .tabular-nums", ~r/^\s*2\s*$/)
+    assert has_element?(view, "#tracing-indicator-count", ~r/^\s*2\s*$/)
   end
 
   test "skips a live entry the first page already holds", %{conn: conn} do
@@ -77,8 +83,10 @@ defmodule VoyagerWeb.TracingSessionLogTest do
     %{id: id} = start!()
     view = open(conn, id)
 
-    call_traced!(250, 250)
-    flush_log(view)
+    for n <- 1..5 do
+      call_traced!(50, 50 * n)
+      flush_log(view)
+    end
 
     assert length(row_ids(view)) == 200
     assert has_element?(view, "#entry-251")
@@ -96,6 +104,9 @@ defmodule VoyagerWeb.TracingSessionLogTest do
     |> render_click()
 
     call_traced!(2, 2)
+    _ = :sys.get_state(Tracer)
+    refute has_element?(view, "#log-new-count")
+
     flush_log(view)
 
     refute has_element?(view, "#log-live")
@@ -111,6 +122,30 @@ defmodule VoyagerWeb.TracingSessionLogTest do
     assert has_element?(view, "#entry-3")
     assert has_element?(view, "#log-live")
     refute has_element?(view, "#log-paused")
+  end
+
+  test "streams the newest 50 entries a flush holds, and loads older below the oldest row kept",
+       %{conn: conn} do
+    %{id: id} = start!()
+    view = open(conn, id)
+
+    for n <- 1..5 do
+      call_traced!(80, 80 * n)
+      flush_log(view)
+    end
+
+    assert has_element?(view, "#entry-352")
+    refute has_element?(view, "#entry-351")
+
+    view
+    |> element("#log-older")
+    |> render_click()
+
+    render_async(view)
+
+    seqs = Enum.map(row_ids(view), &(&1 |> String.trim_leading("entry-") |> String.to_integer()))
+    assert seqs == Enum.sort(seqs, :desc)
+    assert List.last(seqs) == 12
   end
 
   test "loads older entries and pauses a running view", %{conn: conn} do
@@ -202,7 +237,7 @@ defmodule VoyagerWeb.TracingSessionLogTest do
     send(view.pid, {:session_entries, Tracer.active(), [returned]})
     flush_log(view)
 
-    tip = view |> element("#entry-2-term-portal") |> render()
+    tip = view |> element("#entry-2-term-content") |> render()
     strings = tip |> String.split("text-code-string") |> length()
 
     assert tip =~ "Date"
@@ -253,9 +288,12 @@ defmodule VoyagerWeb.TracingSessionLogTest do
     view = open(conn, id)
     :ok = Tracer.stop(:ui)
     {:ok, _session} = Tracer.start(:ui)
-
-    call_traced!(150, 250)
     flush_log(view)
+
+    for traces <- [150, 200, 250] do
+      call_traced!(50, traces)
+      flush_log(view)
+    end
 
     assert has_element?(view, "#log-footer", "Newest 198 of 250 traces")
   end

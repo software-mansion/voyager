@@ -17,7 +17,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
   alias VoyagerWeb.TermHighlight
   alias VoyagerWeb.TermTree.Segment
 
-  @row_cap 200
+  @row_cap 100
   @muted_glyph "bg-base-content/10 text-base-content/70"
   # The tooltip renders for every row and cannot scroll, so its terms share a line budget.
   @tip_lines 16
@@ -65,6 +65,14 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
           }
         }
       </script>
+      <%!-- One tip for all rows: a hidden tip still takes part in layout, and each patch walks it. --%>
+      <.tooltip_portal id="log-term" interactive tip_class="max-w-3xl!">
+        <div id="log-term-slot" phx-update="ignore" data-tooltip-slot></div>
+      </.tooltip_portal>
+      <ProcessComponents.pid_tip :if={@node_name} id="log-pid" />
+      <.tooltip_portal id="log-truncated">
+        <span id="log-truncated-slot" phx-update="ignore" data-tooltip-slot></span>
+      </.tooltip_portal>
       <div class="border-base-200 flex flex-none items-center justify-between gap-3 border-b px-5 py-2.5">
         <div class="flex items-center gap-2">
           <h2 class="text-sm font-semibold">Events</h2>
@@ -210,6 +218,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
           pid={@entry.pid}
           row_id={@id}
           href={~p"/node/#{@node_name}/processes/#{Formatters.format_pid(@entry.pid)}"}
+          tip="#log-pid-tip"
         />
         <DataTableComponents.value_cell
           :if={!@node_name}
@@ -231,7 +240,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
             interactive
             pinnable={false}
             class="min-w-0 flex-1"
-            tip_class="max-w-3xl!"
+            tip="#log-term-tip"
           >
             <span tabindex="0" class="font-mono block min-w-0 truncate text-sm">
               <span :if={@wildcard? and @entry.type != :call} class="text-base-content/50 mr-1">
@@ -282,7 +291,12 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
               </div>
             </:content>
           </.tooltip>
-          <.tooltip :if={@entry[:truncated]} id={"#{@id}-truncated"} class="shrink-0">
+          <.tooltip
+            :if={@entry[:truncated]}
+            id={"#{@id}-truncated"}
+            class="shrink-0"
+            tip="#log-truncated-tip"
+          >
             <.icon
               name="icon-circle-alert"
               class="text-base-content/40 size-3.5 transition-colors hover:text-warning"
