@@ -35,7 +35,8 @@ defmodule Voyager.MCP.Tools.TraceStart do
     with {:ok, session} <- startable(session, NodeSession.current()), do: run(session)
   end
 
-  defp startable(nil, _node_session), do: {:error, "There is no tracing session"}
+  defp startable(nil, _node_session),
+    do: {:error, "There is no tracing session, call `create_trace_session`"}
 
   defp startable(%{config: nil}, _node_session),
     do: {:error, "The tracing session has no function to trace yet"}
