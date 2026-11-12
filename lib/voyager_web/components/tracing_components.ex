@@ -656,6 +656,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
   defp format_time_limit(ms) when ms < 3_600_000, do: "#{div(ms, 60_000)} min"
   defp format_time_limit(ms), do: "#{div(ms, 3_600_000)} h"
 
-  defp count(1, singular, _plural), do: "1 #{singular}"
-  defp count(n, _singular, plural), do: "#{Formatters.format_integer(n)} #{plural}"
+  @spec count(non_neg_integer(), String.t(), String.t()) :: String.t()
+  def count(1, singular, _plural), do: "1 #{singular}"
+  def count(n, _singular, plural), do: "#{Formatters.format_integer(n)} #{plural}"
 end
