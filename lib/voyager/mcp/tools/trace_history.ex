@@ -51,7 +51,7 @@ defmodule Voyager.MCP.Tools.TraceHistory do
     Writer.flush()
 
     saved =
-      TraceSessionQueries.all()
+      TraceSessionQueries.newest(@listed + 1)
       |> Enum.reject(&(active && &1.id == active.id))
       |> Enum.take(@listed)
       |> Enum.map(&loaded/1)

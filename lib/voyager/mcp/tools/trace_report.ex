@@ -30,6 +30,8 @@ defmodule Voyager.MCP.Tools.TraceReport do
   def report(session, entries_opts \\ [limit: @sample]) do
     with {:ok, summary} <- Tracer.summary(session.id),
          {:ok, page} <- Tracer.entries(session.id, entries_opts) do
+      session = latest(session)
+
       events = page.entries |> Enum.sort_by(& &1.seq) |> Enum.map(&entry(&1, session))
 
       report =
@@ -58,6 +60,14 @@ defmodule Voyager.MCP.Tools.TraceReport do
       stopped_at: session.stopped_at
     }
     |> Map.merge(config(session.config))
+  end
+
+  # Read after the summary and entries, so a run that ended meanwhile is not reported as running.
+  defp latest(%{id: id} = session) do
+    case Tracer.active() do
+      %Session{id: ^id} = active -> active
+      _other -> session
+    end
   end
 
   defp entry(%{kind: :trace} = entry, session) do

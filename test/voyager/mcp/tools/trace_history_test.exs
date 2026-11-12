@@ -16,6 +16,14 @@ defmodule Voyager.MCP.Tools.TraceHistoryTest do
     assert %{"target" => "Date.leap_year?/1", "capture" => "args", "total_events" => 0} = listed
   end
 
+  test "lists 20 saved sessions besides the active one" do
+    for _ <- 1..21, do: {:ok, _session} = Tracer.create(:ui, save: true)
+
+    assert %{"sessions" => [%{"session_id" => active} | saved]} = history(%{})
+    assert length(saved) == 20
+    refute active in Enum.map(saved, & &1["session_id"])
+  end
+
   test "reads a running session page by page" do
     %{id: id} = configure()
     {:ok, _session} = Tracer.start(:ui)
