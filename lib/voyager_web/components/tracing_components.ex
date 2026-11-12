@@ -225,7 +225,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
             {cell.label}
           </div>
           <.tooltip :if={cell[:tip]} id={"stat-#{cell.key}-tip"} position="bottom" class="w-full">
-            <.stat_value cell={cell} />
+            <.stat_value cell={cell} tip_id={"stat-#{cell.key}-tip-tip"} />
             <:content>
               <span :if={is_binary(cell.tip)}>{cell.tip}</span>
               <table :if={is_list(cell.tip)} class="font-mono">
@@ -244,10 +244,11 @@ defmodule VoyagerWeb.Components.TracingComponents do
   end
 
   attr :cell, :map, required: true
+  attr :tip_id, :string, default: nil
 
   defp stat_value(assigns) do
     ~H"""
-    <div class="w-full">
+    <div class="w-full" tabindex={@tip_id && "0"} aria-describedby={@tip_id}>
       <div class="min-h-6 flex items-baseline gap-1.5">
         <span class={[
           "truncate text-base font-semibold",

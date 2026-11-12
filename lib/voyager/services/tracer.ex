@@ -15,7 +15,7 @@ defmodule Voyager.Services.Tracer do
   saved sessions are read from the database. Broadcasts on `topic/0` are
   `{:session_activated, session}`, `{:session_closed, id}` and
   `{:session_entries, session, entries}` with the entries just appended, oldest first, or
-  none when only a stopped or idle saved session's `bytes` changed.
+  none when only a saved session's `bytes` changed.
   `session_topic/0` carries only `{:session_updated, session | nil}` alongside each of those.
 
   A session created with `save: true` gets a `Voyager.Schemas.TraceSession` row and
@@ -414,8 +414,7 @@ defmodule Voyager.Services.Tracer do
 
   def handle_info({:trace_written, id, bytes}, %{session: %{id: id} = session} = state) do
     session = %{session | bytes: bytes}
-    # A running session's next batch carries its size; once stopped, nothing else would.
-    if session.status != :running, do: broadcast_entries(session, [])
+    broadcast_entries(session, [])
     {:noreply, stop_over_limit(%{state | session: session})}
   end
 

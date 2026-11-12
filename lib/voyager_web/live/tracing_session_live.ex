@@ -11,10 +11,10 @@ defmodule VoyagerWeb.TracingSessionLive do
   alias Voyager.Services.Tracer.Session
   alias VoyagerWeb.Components.TracingComponents
   alias VoyagerWeb.Formatters
+  alias VoyagerWeb.Hooks.TracingStatusHook
   alias VoyagerWeb.TracingSessionLive.Stats
 
   @actions [:stop, :start, :load, :unload, :delete]
-  @session_throttle_ms 250
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -28,6 +28,7 @@ defmodule VoyagerWeb.TracingSessionLive do
         |> assign(:pending, nil)
         |> assign(:confirm, nil)
         |> assign(:queued_session, nil)
+        |> assign(:session_flush_scheduled?, false)
         |> Stats.init()
         |> subscribe_and_load()
         |> ok()
@@ -252,12 +253,16 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> noreply()
   end
 
-  def handle_info(
-        :put_queued_session,
-        %{assigns: %{queued_session: %Session{} = session}} = socket
-      ) do
+  def handle_info(:put_queued_session, %{assigns: %{queued_session: nil}} = socket) do
     socket
-    |> put_session(session, :active)
+    |> assign(:session_flush_scheduled?, false)
+    |> noreply()
+  end
+
+  def handle_info(:put_queued_session, socket) do
+    socket
+    |> assign(:session_flush_scheduled?, false)
+    |> put_session(socket.assigns.queued_session, :active)
     |> noreply()
   end
 
@@ -311,7 +316,6 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> Stats.track(shown, session)
   end
 
-  # Every trace batch carries the session; rendering each one swamps a slow client.
   defp queue_session(
          %{
            assigns: %{
@@ -321,10 +325,12 @@ defmodule VoyagerWeb.TracingSessionLive do
          } = socket,
          %Session{status: status, config: config} = session
        ) do
-    if is_nil(socket.assigns.queued_session),
-      do: Process.send_after(self(), :put_queued_session, @session_throttle_ms)
+    if !socket.assigns.session_flush_scheduled?,
+      do: Process.send_after(self(), :put_queued_session, TracingStatusHook.throttle_ms())
 
-    assign(socket, :queued_session, session)
+    socket
+    |> assign(:queued_session, session)
+    |> assign(:session_flush_scheduled?, true)
   end
 
   defp queue_session(socket, session), do: put_session(socket, session, :active)

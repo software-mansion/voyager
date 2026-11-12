@@ -341,6 +341,13 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#session-stats")
     assert has_element?(view, "#stat-events", "/ 1,000")
     assert has_element?(view, "#stat-storage", "Not saved")
+
+    assert has_element?(
+             view,
+             "#stat-storage [tabindex='0'][aria-describedby='stat-storage-tip-tip']"
+           )
+
+    refute has_element?(view, "#stat-events [tabindex]")
   end
 
   test "updates the rate on each tick", %{conn: conn} do
