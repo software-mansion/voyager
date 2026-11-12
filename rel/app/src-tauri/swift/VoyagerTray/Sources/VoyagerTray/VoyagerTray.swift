@@ -192,11 +192,13 @@ final class TrayController: NSObject, NSWindowDelegate {
         if let previousApp, !previousApp.isTerminated { previousApp.activate(options: []) }
     }
 
-    /// Global monitors only see events sent to other apps, so a click on the status item still toggles.
     private func installMonitors() {
         removeMonitors()
         let outsideClick = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) {
-            [weak self] _ in self?.hide()
+            [weak self] _ in
+            // Status item clicks reach this monitor too; hiding here would make toggle(_:) reopen the panel.
+            guard let self, self.statusItemFrame()?.contains(NSEvent.mouseLocation) != true else { return }
+            self.hide()
         }
         let escape = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, event.keyCode == Self.escapeKeyCode else { return event }
