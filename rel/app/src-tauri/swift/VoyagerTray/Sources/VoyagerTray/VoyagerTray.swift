@@ -63,7 +63,7 @@ final class TrayController: NSObject, NSWindowDelegate {
     private static let cornerRadius: CGFloat = 10
     private static let escapeKeyCode: UInt16 = 53
     private static let openDuration: TimeInterval = 0.2
-    private static let closeDuration: TimeInterval = 0.15
+    private static let closeDuration: TimeInterval = 0.075
     private static let openSlide: CGFloat = 6
     private static let openScale: CGFloat = 0.97
 
