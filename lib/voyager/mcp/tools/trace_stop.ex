@@ -26,7 +26,9 @@ defmodule Voyager.MCP.Tools.TraceStop do
     {:reply, reply, frame}
   end
 
-  defp stop(nil), do: Response.error(Response.tool(), "There is no tracing session")
+  defp stop(nil),
+    do:
+      Response.error(Response.tool(), "There is no tracing session, call `create_trace_session`")
 
   defp stop(%{status: :idle}),
     do: Response.error(Response.tool(), "The tracing session has not started, call `trace_start`")
