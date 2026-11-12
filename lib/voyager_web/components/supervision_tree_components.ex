@@ -381,34 +381,28 @@ defmodule VoyagerWeb.Components.SupervisionTreeComponents do
           doc_href: String.t(),
           doc_label: String.t()
         }
-  def monitor_entry({kind, {name, node}} = monitor, remote_node)
-      when is_atom(name) and is_atom(node) do
+  def monitor_entry({kind, target} = monitor, remote_node) do
+    kind_label = kind |> to_string() |> String.replace("_", " ")
+
     text =
-      if node == remote_node,
-        do: "Monitor by registered name: it follows whichever #{kind} holds the name.",
-        else: "Monitor by registered name on another node, so there is nothing to jump to here."
+      case target do
+        {name, ^remote_node} when is_atom(name) ->
+          "Monitor by registered name: it follows whichever #{kind} holds the name."
+
+        {name, node} when is_atom(name) and is_atom(node) ->
+          "Monitor by registered name on another node, so there is nothing to jump to here."
+
+        _target ->
+          "#{String.capitalize(kind_label)} monitor. Its target is not a process, so there is nothing to jump to."
+      end
 
     %{
       label: monitor_label(monitor),
       text: text,
-      doc_href: monitor_doc_href(kind),
-      doc_label: "See #{kind} monitors"
-    }
-  end
-
-  def monitor_entry({kind, _target} = monitor, _remote_node) do
-    kind_label = kind |> to_string() |> String.replace("_", " ")
-
-    %{
-      label: monitor_label(monitor),
-      text:
-        "#{String.capitalize(kind_label)} monitor. Its target is not a process, so there is nothing to jump to.",
-      doc_href: monitor_doc_href(kind),
+      doc_href: "#{@erts}#monitor_#{kind}",
       doc_label: "See #{kind_label} monitors"
     }
   end
-
-  defp monitor_doc_href(kind), do: "#{@erts}#monitor_#{kind}"
 
   defp legend_entry_id(%{name: name}) do
     "#{name |> String.downcase() |> String.replace(" ", "-")}-legend-entry"

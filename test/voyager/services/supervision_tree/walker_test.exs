@@ -43,12 +43,6 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
     {mid_a, pids}
   end
 
-  defp foreign_pid do
-    :erlang.binary_to_term(
-      <<131, 88, 119, byte_size("other@localhost"), "other@localhost", 45::32, 6::32, 1::32>>
-    )
-  end
-
   defp with_link(pinfo_list, pids, from, to) do
     Enum.zip_with(pids, pinfo_list, fn
       ^from, [_ | _] = info -> Keyword.replace_lazy(info, :links, &[to | &1])
@@ -226,7 +220,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
     test "a link to a pid on another node sets pid_node and keeps the external batch",
          %{node: node} do
       {_mid_a, [w1 | _]} = midsup_a_workers(node)
-      foreign = foreign_pid()
+      foreign = Voyager.TestUtils.foreign_pid()
 
       Application.put_env(:voyager, :erpc, Voyager.ErpcMock)
       on_exit(fn -> Application.put_env(:voyager, :erpc, ErpcImpl) end)

@@ -546,8 +546,9 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       class="border-base-content/70 bg-base-200 text-base-content inline-flex cursor-pointer rounded-md border px-2.5 py-1 text-xs transition-colors enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-wait disabled:opacity-50"
     >
       <.display_pid :if={@kind == :pid} pid={@label} />
-      <.display_port :if={@kind == :port} port={@label} />
-      <.display_ref :if={@kind == :reference} ref={@label} />
+      <.dotted :if={@kind != :pid} dot_class={if(@kind == :port, do: "bg-port", else: "bg-success")}>
+        {@label}
+      </.dotted>
     </button>
     """
   end

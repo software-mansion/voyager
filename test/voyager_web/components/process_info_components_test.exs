@@ -16,12 +16,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
   defp text(html, selector), do: html |> query(selector) |> LazyHTML.text()
   defp attr(html, selector, name), do: html |> query(selector) |> LazyHTML.attribute(name)
 
-  defp remote_pid do
-    # NEW_PID_EXT for <45.6> decoded as if it came from the inspected node.
-    :erlang.binary_to_term(
-      <<131, 88, 119, byte_size("demo@127.0.0.1"), "demo@127.0.0.1", 45::32, 6::32, 1::32>>
-    )
-  end
+  defp remote_pid, do: Voyager.TestUtils.foreign_pid("demo@127.0.0.1")
 
   defp chips(attrs) do
     defaults = [

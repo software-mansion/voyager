@@ -519,7 +519,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       port: port,
       sup_key: sup_key
     } do
-      foreign = foreign_pid()
+      foreign = Voyager.TestUtils.foreign_pid()
 
       expect(Voyager.ErpcMock, :call, 13, fn
         _node, @agent_module, :proc_links, [_pid, _limit], _timeout ->
@@ -1000,12 +1000,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
   # `select-relation` / `back-details-node` notify the parent LiveView via send/2;
   # drain that message before asserting on the updated selection.
   defp flush(view), do: _ = :sys.get_state(view.pid)
-
-  defp foreign_pid do
-    :erlang.binary_to_term(
-      <<131, 88, 119, byte_size("other@localhost"), "other@localhost", 45::32, 6::32, 1::32>>
-    )
-  end
 
   defp supervision_reply(:application, :which_applications, [], _sup, _linked, _links),
     do: @apps

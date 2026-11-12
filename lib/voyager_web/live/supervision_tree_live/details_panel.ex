@@ -19,9 +19,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   @relations_limit max_expanded_relations()
   @relation_names ~w(links monitors monitored_by)
 
-  # A fetch resolving in a few ms flashes the skeleton for a frame; hold it. Zeroed in test.
-  @min_fetch_ms Application.compile_env(:voyager, :min_fetch_ms, 300)
-
   @impl true
   def mount(socket) do
     socket
@@ -260,14 +257,6 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   # async assigns so the body never shows a load state it will not leave.
   defp fetch_details(socket, _reset?) do
     assign(socket, node_info: AsyncResult.ok(nil), relations: AsyncResult.ok(nil))
-  end
-
-  defp hold_min_duration(fetch) do
-    started = System.monotonic_time(:millisecond)
-    result = fetch.()
-    elapsed = System.monotonic_time(:millisecond) - started
-    if elapsed < @min_fetch_ms, do: Process.sleep(@min_fetch_ms - elapsed)
-    result
   end
 
   defp same_process?(%TreeNode{pid: pid}, %TreeNode{pid: pid}) when is_pid(pid), do: true

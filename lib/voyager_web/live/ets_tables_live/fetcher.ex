@@ -24,10 +24,6 @@ defmodule VoyagerWeb.EtsTablesLive.Fetcher do
 
   @refetch_debounce_ms 1_500
 
-  # A fetch resolving in a few ms flashes the loading state for a frame; hold
-  # it so the transition reads as intentional. Zeroed in test.
-  @min_fetch_ms Application.compile_env(:voyager, :min_fetch_ms, 300)
-
   # Slower floor than the process list's: every refresh carries the whole
   # table list over the wire.
   @interval_options [
@@ -189,9 +185,10 @@ defmodule VoyagerWeb.EtsTablesLive.Fetcher do
   end
 
   defp run(priority, node, timeout) do
-    started = System.monotonic_time(:millisecond)
-    result = RateLimiter.run(priority, fn -> Query.all(node, timeout) end)
-    hold_min_duration(started)
+    result =
+      VoyagerWeb.Helpers.hold_min_duration(fn ->
+        RateLimiter.run(priority, fn -> Query.all(node, timeout) end)
+      end)
 
     case result do
       {:ok, {:ok, page}, elapsed_us} ->
@@ -208,11 +205,6 @@ defmodule VoyagerWeb.EtsTablesLive.Fetcher do
       {:error, :rate_limited, retry_after_ms} ->
         {:rate_limited, retry_after_ms}
     end
-  end
-
-  defp hold_min_duration(started) do
-    elapsed = System.monotonic_time(:millisecond) - started
-    if elapsed < @min_fetch_ms, do: Process.sleep(@min_fetch_ms - elapsed)
   end
 
   defp restart_refresh_timer(socket) do
