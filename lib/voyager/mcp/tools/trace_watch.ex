@@ -40,7 +40,9 @@ defmodule Voyager.MCP.Tools.TraceWatch do
     {:reply, reply, frame}
   end
 
-  defp watch(nil, _frame), do: Response.error(Response.tool(), "There is no tracing session")
+  defp watch(nil, _frame),
+    do:
+      Response.error(Response.tool(), "There is no tracing session, call `create_trace_session`")
 
   defp watch(%{status: :idle} = session, frame) do
     case TraceStart.start(session) do
