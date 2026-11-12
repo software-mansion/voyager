@@ -19,8 +19,9 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
 
   @row_cap 200
   @muted_glyph "bg-base-content/10 text-base-content/70"
-  # The tooltip renders for every row, so its text is capped too.
-  @tip_cap 4_000
+  # The tooltip renders for every row and cannot scroll, so its terms share a line budget.
+  @tip_lines 16
+  @tip_width 90
   @kept_traces Tracer.kept_traces()
 
   @doc "The session's Events card: a streamed table of its log entries, newest first."
@@ -171,6 +172,8 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
   attr :node_name, :string, required: true
 
   defp log_row(%{entry: %{kind: :trace}} = assigns) do
+    assigns = assign(assigns, :process, process_label(assigns.entry[:process]))
+
     ~H"""
     <%!-- A blocking fade holds back every patch, and rows stream in faster than it ends. --%>
     <tr
@@ -218,7 +221,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
             interactive
             pinnable={false}
             class="min-w-0 flex-1"
-            tip_class="max-w-xl!"
+            tip_class="max-w-3xl!"
           >
             <span tabindex="0" class="font-mono block min-w-0 truncate text-sm">
               <span :if={@wildcard? and @entry.type != :call} class="text-base-content/50 mr-1">
@@ -226,35 +229,47 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
               </span>
               <span class={term_class(@entry.type)}>
                 <.highlighted
-                  text={term_text(@entry, @wildcard?, :row)}
+                  text={term_text(@entry, @wildcard?)}
                   syntax={if plain?(@entry), do: nil, else: @syntax}
                 />
               </span>
             </span>
             <:content>
-              <div class="border-base-200 mb-2 flex items-center gap-2 border-b pb-2">
-                <.icon
-                  name={glyph(@entry.type)}
-                  class={["size-3.5 shrink-0", glyph_class(@entry.type)]}
-                />
-                <span class="font-mono font-semibold">{fun_arity(@entry.mfa)}</span>
-                <span class="text-base-content/60 min-w-0 truncate">{tip_meta(@entry)}</span>
-                <.copy_button
-                  id={"#{@id}-term-copy"}
-                  target={"##{@id}-term-text"}
-                  label="Copy value"
-                  icon_only
-                  size={:sm}
-                  class="text-base-content/60 ml-auto shrink-0 hover:text-primary"
-                />
+              <div class="border-base-200 font-mono mb-2 flex flex-col gap-1 border-b pb-2">
+                <div class="flex items-center gap-2">
+                  <.icon
+                    name={glyph(@entry.type)}
+                    class={["size-3.5 shrink-0", glyph_class(@entry.type)]}
+                  />
+                  <span class="min-w-0 truncate font-semibold">
+                    <.highlighted text={Formatters.format_mfa(@entry.mfa)} syntax={@syntax} />
+                  </span>
+                  <span class="text-base-content/60 font-sans ml-auto shrink-0">
+                    {tip_meta(@entry)}
+                  </span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-primary shrink-0">{Formatters.pid(@entry.pid)}</span>
+                  <span :if={@process} class="min-w-0 truncate">
+                    <.highlighted text={@process} syntax={@syntax} />
+                  </span>
+                  <span class="text-base-content/60 font-sans ml-auto shrink-0">
+                    {full_at(@entry.at)}
+                  </span>
+                </div>
               </div>
-              <span
-                id={"#{@id}-term-text"}
-                class={[
-                  "font-mono block max-h-80 overflow-auto whitespace-pre-wrap break-words",
-                  @entry.type == :exception && "text-error"
-                ]}
-              >{term_text(@entry, @wildcard?, :tip)}</span>
+              <div
+                :for={{label, text, cut?} <- tip_terms(@entry)}
+                class="font-mono flex gap-3"
+              >
+                <span :if={label} class="text-base-content/50 min-w-5 shrink-0 text-right">
+                  {label}
+                </span>
+                <span class="min-w-0 flex-1 whitespace-pre-wrap break-all"><.highlighted
+                  text={text}
+                  syntax={@syntax}
+                /><span :if={cut?} class="text-base-content/50">…</span></span>
+              </div>
             </:content>
           </.tooltip>
           <.tooltip :if={@entry[:truncated]} id={"#{@id}-truncated"} class="shrink-0">
@@ -413,40 +428,59 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
   defp term_class(:exception), do: "text-error"
   defp term_class(_type), do: "text-base-content"
 
-  defp term_text(%{type: :call, args: args, mfa: {_module, function, _arity}}, wildcard?, size)
+  defp term_text(%{type: :call, args: args, mfa: {_module, function, _arity}}, wildcard?)
        when is_list(args) do
     name = if wildcard?, do: Atom.to_string(function), else: ""
-    cap(name <> "(" <> Enum.map_join(args, ", ", &format_term(&1, size)) <> ")", size)
+    cap(name <> "(" <> Enum.map_join(args, ", ", &format_term/1) <> ")")
   end
 
-  defp term_text(%{type: :call, mfa: mfa}, _wildcard?, _size), do: fun_arity(mfa)
+  defp term_text(%{type: :call, mfa: mfa}, _wildcard?), do: fun_arity(mfa)
 
-  defp term_text(%{type: :exception, value: {class, reason}}, _wildcard?, size),
-    do: cap(format_term(class, size) <> ", " <> format_term(reason, size), size)
+  defp term_text(%{type: :exception, value: {class, reason}}, _wildcard?),
+    do: cap(format_term(class) <> ", " <> format_term(reason))
 
-  defp term_text(%{value: value}, _wildcard?, size), do: cap(format_term(value, size), size)
+  defp term_text(%{value: value}, _wildcard?), do: cap(format_term(value))
 
   defp fun_arity({_module, function, arity}), do: "#{function}/#{arity}"
 
-  defp format_term(term, :row),
-    do: Formatters.format_term(term, limit: 20, printable_limit: @row_cap)
+  defp format_term(term), do: Formatters.format_term(term, limit: 20, printable_limit: @row_cap)
 
-  defp format_term(term, :tip),
-    do:
-      Formatters.format_term(term,
-        limit: :infinity,
-        printable_limit: @tip_cap,
-        pretty: true,
-        width: 80
-      )
-
-  defp cap(text, size) do
-    cap = if size == :row, do: @row_cap, else: @tip_cap
-
-    if String.length(text) > cap,
-      do: String.slice(text, 0, cap) <> "…",
+  defp cap(text) do
+    if String.length(text) > @row_cap,
+      do: String.slice(text, 0, @row_cap) <> "…",
       else: text
   end
+
+  defp tip_terms(entry) do
+    terms = labelled_terms(entry)
+    max_lines = max(2, div(@tip_lines, max(length(terms), 1)))
+    Enum.map(terms, fn {label, term} -> tip_term(label, term, max_lines) end)
+  end
+
+  defp labelled_terms(%{type: :call, args: args}) when is_list(args),
+    do: Enum.with_index(args, fn arg, index -> {Integer.to_string(index + 1), arg} end)
+
+  defp labelled_terms(%{type: :call}), do: []
+
+  defp labelled_terms(%{type: :exception, value: {class, reason}}),
+    do: [{Formatters.format_term(class), reason}]
+
+  defp labelled_terms(%{value: value}), do: [{nil, value}]
+
+  defp tip_term(label, term, max_lines) do
+    lines =
+      term
+      |> Formatters.format_term(limit: 50, printable_limit: 256, pretty: true, width: @tip_width)
+      |> String.split("\n")
+
+    {label, lines |> Enum.take(max_lines) |> Enum.join("\n"), length(lines) > max_lines}
+  end
+
+  defp process_label(name) when is_atom(name) and name not in [nil, :undefined],
+    do: Formatters.format_term(name)
+
+  defp process_label({_module, _function, _arity} = mfa), do: Formatters.format_mfa(mfa)
+  defp process_label(_label), do: nil
 
   defp type_label(:call), do: "Call"
   defp type_label(:return), do: "Return"
@@ -474,7 +508,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
   end
 
   defp tip_meta(entry) do
-    [type_label(entry.type), format_at(entry.at), format_duration(entry[:duration_us])]
+    [type_label(entry.type), format_duration(entry[:duration_us])]
     |> Enum.reject(&is_nil/1)
     |> Enum.join(" · ")
   end
