@@ -406,7 +406,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
   defp control(%{kind: :dropped, count: count}),
     do:
       {"icon-circle-alert", "bg-warning/20 text-warning", "bg-warning/10",
-       count(count, "event", "events") <> " dropped", nil}
+       TracingComponents.count(count, "event", "events") <> " dropped", nil}
 
   defp control(%{kind: :evicted}),
     do:
@@ -536,8 +536,5 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
          "All #{Formatters.format_integer(trace_rows)} kept events shown · #{Formatters.format_integer(traces)} traced"
 
   defp footer(session, _trace_rows, _oldest_seq),
-    do: "All #{count(session.traces, "trace", "traces")} shown"
-
-  defp count(1, singular, _plural), do: "1 #{singular}"
-  defp count(n, _singular, plural), do: "#{Formatters.format_integer(n)} #{plural}"
+    do: "All #{TracingComponents.count(session.traces, "trace", "traces")} shown"
 end

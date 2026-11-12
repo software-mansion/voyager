@@ -255,6 +255,23 @@ defmodule VoyagerWeb.TracingSessionLogTest do
     assert has_element?(view, "#log-resume")
   end
 
+  test "flashes when older entries fail to load", %{conn: conn} do
+    %{id: id} = start!(%{}, save: true)
+    call_traced!(150, 150)
+    :ok = Tracer.stop(:ui)
+    _ = :sys.get_state(Tracer)
+    view = open(conn, id)
+    {:ok, _row} = TraceSessionActions.delete(id)
+
+    view
+    |> element("#log-older")
+    |> render_click()
+
+    render_async(view)
+
+    assert has_element?(view, "#flash-error", "Could not load older events.")
+  end
+
   defp load_all_older(view) do
     if has_element?(view, "#log-older") do
       view

@@ -115,7 +115,12 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
     |> halt()
   end
 
-  defp handle_result(:older, _failed, socket), do: halt(socket)
+  defp handle_result(:older, _failed, socket) do
+    socket
+    |> put_flash(:error, "Could not load older events.")
+    |> halt()
+  end
+
   defp handle_result(_name, _result, socket), do: cont(socket)
 
   defp put_page(socket, %{entries: entries, truncated?: truncated?}) do
