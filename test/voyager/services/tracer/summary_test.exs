@@ -37,14 +37,13 @@ defmodule Voyager.Services.Tracer.SummaryTest do
     assert Enum.map(summary.slowest, & &1.duration_us) == [900, 600, 500, 400, 300]
   end
 
-  test "keeps the busiest half of a full map and still takes new processes" do
+  test "stops taking new processes past the cap but keeps counting calls" do
     max = Summary.max_keys()
-    summary = Summary.add(%Summary{}, [call(:busy) | Enum.map(1..(max - 1), &call/1)])
-    summary = Summary.add(summary, [call(:busy), call(:late), call(:late)])
+    summary = Summary.add(%Summary{}, Enum.map(0..max, &call(&1)))
+    summary = Summary.add(summary, [call(0)])
 
-    assert summary.calls == max + 3
-    assert map_size(summary.processes) == div(max, 2) + 1
-    assert summary.processes[:busy] == {:worker, 2}
-    assert summary.processes[:late] == {:worker, 2}
+    assert summary.calls == max + 2
+    assert map_size(summary.processes) == max
+    assert summary.processes[0] == {:worker, 2}
   end
 end

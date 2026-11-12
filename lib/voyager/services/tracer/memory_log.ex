@@ -1,7 +1,6 @@
 defmodule Voyager.Services.Tracer.MemoryLog do
   @moduledoc """
-  An unsaved session's log, kept in memory with only its newest traces, a summary of all of them
-  and one of its last run's.
+  An unsaved session's log, kept in memory with only its newest traces and a summary of all of them.
   """
 
   alias Voyager.Services.Tracer.Entry
@@ -11,14 +10,9 @@ defmodule Voyager.Services.Tracer.MemoryLog do
 
   # `controls` keeps every configured/started/stopped entry, `traces` the newest
   # trace and dropped entries; both newest first.
-  defstruct controls: [], traces: [], summary: %Summary{}, last_run_summary: %Summary{}
+  defstruct controls: [], traces: [], summary: %Summary{}
 
-  @type t :: %__MODULE__{
-          controls: [Entry.t()],
-          traces: [Entry.t()],
-          summary: Summary.t(),
-          last_run_summary: Summary.t()
-        }
+  @type t :: %__MODULE__{controls: [Entry.t()], traces: [Entry.t()], summary: Summary.t()}
 
   @spec kept_traces() :: pos_integer()
   def kept_traces, do: @kept_traces
@@ -37,8 +31,7 @@ defmodule Voyager.Services.Tracer.MemoryLog do
        log
        | controls: Enum.reverse(controls) ++ log.controls,
          traces: kept,
-         summary: Summary.add(log.summary, traces),
-         last_run_summary: summarize_last_run(log.last_run_summary, entries)
+         summary: Summary.add(log.summary, traces)
      }}
   end
 

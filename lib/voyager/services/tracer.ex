@@ -257,24 +257,11 @@ defmodule Voyager.Services.Tracer do
     end
   end
 
-  @doc """
-  The `Summary` of every trace event of session `id`, including those evicted from memory,
-  and of those since its last start.
-  """
-  @spec summary(integer()) ::
-          {:ok, %{session: Summary.t(), last_run: Summary.t()}} | {:error, :not_found}
+  @doc "The `Summary` of every trace event of session `id`, including those evicted from memory."
+  @spec summary(integer()) :: {:ok, Summary.t()} | {:error, :not_found}
   def summary(id) do
     case GenServer.call(__MODULE__, {:summary, id}) do
-      :saved -> with_saved(id, &{:ok, TraceEntryQueries.summaries(&1.id)})
-      reply -> reply
-    end
-  end
-
-  @doc "The runs of session `id`, oldest first. Runs in the caller for saved sessions."
-  @spec runs(integer()) :: {:ok, [Overview.run()]} | {:error, :not_found}
-  def runs(id) do
-    case GenServer.call(__MODULE__, {:runs, id}) do
-      {:saved, active} -> with_saved(id, &{:ok, saved_runs(&1, active)})
+      :saved -> with_saved(id, fn _row -> {:ok, TraceEntryQueries.summary(id)} end)
       reply -> reply
     end
   end
@@ -418,18 +405,9 @@ defmodule Voyager.Services.Tracer do
   def handle_call({:entries, _id, _opts}, _from, state), do: {:reply, :saved, state}
 
   def handle_call({:summary, id}, _from, %{session: %{id: id, save: false}} = state),
-    do:
-      {:reply, {:ok, %{session: state.log.summary, last_run: state.log.last_run_summary}}, state}
+    do: {:reply, {:ok, state.log.summary}, state}
 
   def handle_call({:summary, _id}, _from, state), do: {:reply, :saved, state}
-
-  def handle_call({:runs, id}, _from, %{session: %{id: id, save: false} = session} = state),
-    do: {:reply, {:ok, Overview.runs(state.log.controls, session)}, state}
-
-  def handle_call({:runs, id}, _from, %{session: %{id: id} = session} = state),
-    do: {:reply, {:saved, session}, state}
-
-  def handle_call({:runs, _id}, _from, state), do: {:reply, {:saved, nil}, state}
 
   def handle_call({:kept_traces, id}, _from, %{session: %{id: id, save: false}} = state),
     do: {:reply, {:ok, state.log.traces}, state}

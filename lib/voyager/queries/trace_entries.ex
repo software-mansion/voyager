@@ -11,7 +11,6 @@ defmodule Voyager.Queries.TraceEntries do
   alias Voyager.Schemas.TraceSessionEvent
   alias Voyager.Services.TermSyntax
   alias Voyager.Services.Tracer.Config
-  alias Voyager.Services.Tracer.Overview
   alias Voyager.Services.Tracer.Summary
   alias Voyager.StoredTerm
 
@@ -86,53 +85,11 @@ defmodule Voyager.Queries.TraceEntries do
     |> Kernel.+(1)
   end
 
-  @doc """
-  The `Summary` of the whole session and of its traces since the last `:started` entry
-  (empty if it never started), read in one transaction so concurrent writes cannot skew them.
-  """
-  @spec summaries(integer()) :: %{session: Summary.t(), last_run: Summary.t()}
-  def summaries(session_id) do
-    {:ok, summaries} =
-      Repo.transact(fn ->
-        events = where(TraceEvent, [e], e.session_id == ^session_id)
-        session = summarize(events)
-        last_run = last_run(events, session, Repo.one(last_start(session_id)))
-        {:ok, %{session: session, last_run: last_run}}
-      end)
+  @doc "The `Voyager.Services.Tracer.Summary` of the session's trace events."
+  @spec summary(integer()) :: Summary.t()
+  def summary(session_id) do
+    events = where(TraceEvent, [e], e.session_id == ^session_id)
 
-    summaries
-  end
-
-  defp last_run(_events, _session, nil), do: %Summary{}
-
-  defp last_run(events, session, last_start) do
-    if Repo.exists?(where(events, [e], e.seq < ^last_start)),
-      do: events |> where([e], e.seq >= ^last_start) |> summarize(),
-      else: session
-  end
-
-  @doc "The trace count and latest `at` of a run that has no stop entry."
-  @spec open_run_extent(integer(), Overview.run()) :: {non_neg_integer(), DateTime.t() | nil}
-  def open_run_extent(session_id, run) do
-    TraceEvent
-    |> where([e], e.session_id == ^session_id)
-    |> where(^in_run_seq(run))
-    |> select([e], {count(e.id), max(e.at)})
-    |> Repo.one()
-  end
-
-  defp in_run_seq(%{seq: seq, next_seq: nil}), do: dynamic([e], e.seq > ^seq)
-
-  defp in_run_seq(%{seq: seq, next_seq: next_seq}),
-    do: dynamic([e], e.seq > ^seq and e.seq < ^next_seq)
-
-  defp last_start(session_id) do
-    from s in TraceSessionEvent,
-      where: s.session_id == ^session_id and s.kind == :started,
-      select: max(s.seq)
-  end
-
-  defp summarize(events) do
     counts =
       events
       |> group_by([e], e.type)
