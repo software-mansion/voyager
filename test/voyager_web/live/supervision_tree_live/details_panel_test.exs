@@ -513,6 +513,43 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanelTest do
       refute has_element?(view, "#details-panel-pid", TreeNode.key(holder))
     end
 
+    test "a name lookup still running when the panel is closed does not reopen it", %{
+      conn: conn,
+      sup_pid: sup_pid,
+      port: port,
+      sup_key: sup_key
+    } do
+      test_pid = self()
+
+      expect(Voyager.ErpcMock, :call, 13, fn
+        _node, @agent_module, :proc_monitors, [_pid, _limit], _timeout ->
+          items = [{:process, {:demo_registry, Node.self()}}]
+          {:ok, %{total: 1, truncated: false, items: items}}
+
+        _node, mod, fun, args, _timeout ->
+          supervision_reply(mod, fun, args, sup_pid, [port], [])
+      end)
+
+      view = open_tree!(conn)
+      render_hook(view, "select-node", %{"key" => sup_key})
+      render_async(view)
+
+      stub(Voyager.ErpcMock, :call, fn _node, :erlang, :whereis, [:demo_registry], _timeout ->
+        send(test_pid, {:whereis_started, self()})
+        Process.sleep(:infinity)
+      end)
+
+      view |> element("#details-panel-monitors-0") |> render_click()
+      assert_receive {:whereis_started, lookup}
+      ref = Process.monitor(lookup)
+
+      view |> element("#details-panel-close") |> render_click()
+      assert_receive {:DOWN, ^ref, :process, ^lookup, {:shutdown, :cancel}}
+      flush(view)
+
+      assert has_element?(view, "#details-panel[inert]")
+    end
+
     test "a pid on another node shows where it runs and fetches nothing", %{
       conn: conn,
       sup_pid: sup_pid,

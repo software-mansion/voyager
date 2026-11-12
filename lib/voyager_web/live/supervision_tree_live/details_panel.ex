@@ -202,6 +202,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   defp maybe_assign_node(socket, nil, _keep_history?) do
     socket
+    |> cancel_async(:resolve_name)
     |> assign(:open?, false)
     |> assign(:selection_history, [])
   end
