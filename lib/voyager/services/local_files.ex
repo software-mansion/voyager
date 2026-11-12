@@ -16,8 +16,8 @@ defmodule Voyager.Services.LocalFiles do
   end
 
   @doc """
-  Reads a config file, refusing what ssh refuses (owned by someone other than root or the
-  user, or group- or world-writable), plus non-regular files and anything over 1 MiB.
+  Reads a config file, refusing group- or world-writable files as ssh does, plus
+  non-regular files and anything over 1 MiB. ssh's owner check is skipped: the BEAM has no getuid.
 
   Permission rule: https://github.com/openssh/openssh-portable/blob/V_10_6_P2/readconf.c#L2647-L2655
   """
@@ -41,17 +41,8 @@ defmodule Voyager.Services.LocalFiles do
     end
   end
 
-  defp config_permissions(%File.Stat{uid: uid, mode: mode}) do
-    if uid in [0, current_uid()] and Bitwise.band(mode, 0o022) == 0,
-      do: :ok,
-      else: {:error, :bad_permissions}
-  end
-
-  defp current_uid do
-    case File.stat(System.user_home() || "") do
-      {:ok, %File.Stat{uid: uid}} -> uid
-      {:error, _reason} -> nil
-    end
+  defp config_permissions(%File.Stat{mode: mode}) do
+    if Bitwise.band(mode, 0o022) == 0, do: :ok, else: {:error, :bad_permissions}
   end
 
   defp read_at_most(path, max_bytes) do
