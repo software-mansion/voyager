@@ -183,14 +183,15 @@ defmodule Voyager.Services.SSH.ConfigTest do
     test "matches * and ? wildcards" do
       contents = """
       Host db1 api.internal db10
+        Port 2222
 
       Host db? *.internal
         User ops
       """
 
-      assert host(contents, "db1").user == "ops"
-      assert host(contents, "api.internal").user == "ops"
-      assert host(contents, "db10").user == nil
+      assert %{port: 2222, user: "ops"} = host(contents, "db1")
+      assert %{port: 2222, user: "ops"} = host(contents, "api.internal")
+      assert %{port: 2222, user: nil} = host(contents, "db10")
     end
 
     test "skips a block whose negated pattern matches" do
@@ -408,6 +409,25 @@ defmodule Voyager.Services.SSH.ConfigTest do
       assert Config.parse("Include ~/.ssh/%h.conf\n").unsupported == [
                %{keyword: "include", type: :value}
              ]
+    end
+
+    test "reports an include path that is not a valid glob" do
+      for path <- ["~/.ssh/conf{", "~/.ssh/{a,{b,c}", "~/.ssh/conf\0", "/usr/**"] do
+        assert Config.parse("Include #{path}\n").unsupported == [
+                 %{keyword: "include", type: :value}
+               ],
+               path
+      end
+    end
+
+    test "reports a world-writable include without reading it", %{tmp_dir: tmp_dir} do
+      path = write!(tmp_dir, "extra", "Host extra\n")
+      File.chmod!(path, 0o666)
+
+      assert Config.parse(~s(Include "#{path}"\n)) == %{
+               hosts: [],
+               unsupported: [%{keyword: "include", type: :value}]
+             }
     end
 
     test "stops a self-include at the depth limit", %{tmp_dir: tmp_dir} do
