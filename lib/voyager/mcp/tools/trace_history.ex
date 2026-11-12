@@ -8,7 +8,8 @@ defmodule Voyager.MCP.Tools.TraceHistory do
   the settings that differ from the session's current ones), its summary (and, after
   several runs, `last_run_summary`) and a page of its events, oldest first, from `since`
   (a `seq`, 0 by default). Pass the returned `next_since` to read the next page; `more`
-  says the page was full. This works on a running session too, to follow it in batches.
+  says the page was full. This works on a running session too, to follow it in batches
+  and `trace_stop` it early.
   An unsaved session keeps only its newest events, and `truncated` marks a page missing
   evicted ones; its summary still counts every event.
 
