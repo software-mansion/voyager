@@ -5,10 +5,10 @@ defmodule Voyager.MCP.Tools.TraceWatch do
   calls) and a sample of the newest events. Joins a running session, starts one
   that was set up but never run, and returns a stopped session's report at once.
 
-  While it waits the user sees live progress. Cancelling the call only stops
-  watching: the session keeps running. After 59 minutes it
-  stops waiting and returns the report with `status` `running`; call it again or
-  `trace_stop`.
+  While it waits the user sees live progress, and other Voyager tool calls wait
+  for it to return. Cancelling the call only stops watching: the session keeps
+  running. After 10 minutes it stops waiting and returns the report with
+  `status` `running`; call it again or `trace_stop`.
   """
 
   use Anubis.Server.Component, type: :tool
@@ -20,7 +20,7 @@ defmodule Voyager.MCP.Tools.TraceWatch do
   alias Voyager.MCP.Tools.TraceStart
   alias Voyager.Services.Tracer
 
-  @max_wait to_timeout(minute: 59)
+  @max_wait to_timeout(minute: 10)
   @progress_interval 1_000
 
   schema do
@@ -94,7 +94,7 @@ defmodule Voyager.MCP.Tools.TraceWatch do
   # Progress must increase with each notification, so an idle second sends none.
   defp report_progress(%{traces: traces} = session, frame, %{reported: reported} = watch)
        when traces > reported do
-    seconds = DateTime.diff(DateTime.utc_now(), session.started_at)
+    seconds = DateTime.diff(DateTime.utc_now(), session.run_started_at)
     message = "#{traces} events, #{session.dropped} dropped, #{seconds}s"
     Notifier.progress(frame, Frame.progress_token(frame), traces, message: message)
     %{watch | reported: traces}

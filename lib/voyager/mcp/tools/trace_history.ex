@@ -35,7 +35,7 @@ defmodule Voyager.MCP.Tools.TraceHistory do
   @impl true
   def execute(%{session_id: id} = params, frame) when is_integer(id) do
     reply =
-      with {:ok, session} <- session(id),
+      with {:ok, session, _where} <- Tracer.session(id),
            {:ok, report} <-
              TraceReport.report(session, since: params.since, order: :asc, limit: params.limit) do
         Response.json(Response.tool(), page(report, params))
@@ -58,17 +58,6 @@ defmodule Voyager.MCP.Tools.TraceHistory do
 
     sessions = Enum.map(List.wrap(active) ++ saved, &TraceReport.header/1)
     {:reply, Response.json(Response.tool(), %{sessions: sessions}), frame}
-  end
-
-  defp session(id) do
-    case Tracer.active() do
-      %{id: ^id} = session ->
-        {:ok, session}
-
-      _other ->
-        Writer.flush()
-        if row = TraceSessionQueries.get(id), do: {:ok, loaded(row)}, else: {:error, :not_found}
-    end
   end
 
   defp loaded(row),

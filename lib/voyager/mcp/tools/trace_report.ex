@@ -37,10 +37,9 @@ defmodule Voyager.MCP.Tools.TraceReport do
         |> header()
         |> Map.merge(%{summary: summary(summary), events: events})
         |> put_present(:truncated, page.truncated?)
+        |> put_present(:untrusted, captures_args?(session) && @untrusted)
 
-      if captures_args?(session),
-        do: {:ok, Map.put(report, :untrusted, @untrusted)},
-        else: {:ok, report}
+      {:ok, report}
     end
   end
 
