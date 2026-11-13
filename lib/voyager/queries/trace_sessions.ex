@@ -2,6 +2,7 @@ defmodule Voyager.Queries.TraceSessions do
   @moduledoc "Read queries for tracing sessions."
 
   import Ecto.Query
+
   alias Voyager.Repo
   alias Voyager.Schemas.TraceSession
   alias Voyager.Schemas.TraceSessionEvent
@@ -68,6 +69,26 @@ defmodule Voyager.Queries.TraceSessions do
       rows: Enum.map(rows, &to_listed(&1, Map.get(run_counts, &1.id, 0))),
       has_more?: length(fetched) > limit
     }
+  end
+
+  @doc "Saved session counts keyed by `node` (configured rows only), omitting `exclude_id`."
+  @spec counts_by_node(integer() | nil) :: %{String.t() => non_neg_integer()}
+  def counts_by_node(exclude_id \\ nil) do
+    TraceSession
+    |> where([s], not is_nil(s.node))
+    |> filter_exclude(exclude_id)
+    |> group_by([s], s.node)
+    |> select([s], {s.node, count(s.id)})
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @doc "Total saved sessions, omitting `exclude_id`."
+  @spec total_count(integer() | nil) :: non_neg_integer()
+  def total_count(exclude_id \\ nil) do
+    TraceSession
+    |> filter_exclude(exclude_id)
+    |> Repo.aggregate(:count)
   end
 
   defp filter_node(query, nil), do: query
