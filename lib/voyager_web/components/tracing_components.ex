@@ -193,7 +193,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
       id="session-bar"
       class="card bg-base-100 border-base-200 text-base-content flex-none border shadow-sm"
     >
-      <div class="flex items-center gap-3 px-4 py-3">
+      <div class="flex items-start gap-3 px-4 py-3">
         <.back_arrow :if={@show_back_arrow} id="session-header-back" />
         <div class="min-w-0 flex-1">
           <.session_status trace_session={@trace_session} mode={@mode} />
@@ -420,14 +420,36 @@ defmodule VoyagerWeb.Components.TracingComponents do
 
   defp action_buttons(assigns) do
     ~H"""
-    <div class="flex shrink-0 items-center gap-2">
+    <div class="flex shrink-0 flex-col-reverse items-end gap-2 lg:flex-row lg:items-center">
+      <.action_button
+        :if={@mode == :active and @trace_session.status != :running}
+        id="session-unload"
+        icon="icon-log-out"
+        label="Unload from tracer"
+        phx-click={@on_unload}
+        disabled={@pending?}
+      />
+      <.action_button
+        :if={@mode == :saved}
+        id="session-load"
+        icon="icon-log-in"
+        label="Load into tracer"
+        phx-click={@on_load}
+        disabled={@pending?}
+      />
       <.tooltip
         :if={@mode == :active and @trace_session.config}
         id="session-edit-tip"
         position="bottom"
       >
-        <button type="button" id="session-edit" aria-disabled="true" class="btn btn-sm">
-          <.icon name="icon-pencil" class="size-3.5" /> Edit
+        <button
+          type="button"
+          id="session-edit"
+          aria-disabled="true"
+          class="btn btn-sm max-md:btn-square"
+        >
+          <.icon name="icon-pencil" class="size-3.5" />
+          <span class="sr-only md:not-sr-only">Edit</span>
         </button>
         <:content>
           {if @trace_session.status == :running,
@@ -435,26 +457,15 @@ defmodule VoyagerWeb.Components.TracingComponents do
             else: "Editing parameters is not available yet"}
         </:content>
       </.tooltip>
-      <button
-        :if={@mode == :active and @trace_session.status != :running}
-        type="button"
-        id="session-unload"
-        phx-click={@on_unload}
-        disabled={@pending?}
-        class="btn btn-sm"
-      >
-        <.icon name="icon-log-out" class="size-3.5" /> Unload from tracer
-      </button>
-      <button
+      <.action_button
         :if={@mode == :active and @trace_session.status == :running}
-        type="button"
         id="session-stop"
+        icon="icon-square-filled"
+        label="Stop"
         phx-click={@on_stop}
         disabled={@pending?}
-        class="btn btn-sm btn-soft btn-error"
-      >
-        <.icon name="icon-square-filled" class="size-3.5" /> Stop
-      </button>
+        class="btn-soft btn-error"
+      />
       <.tooltip
         :if={@mode == :active and @trace_session.status != :running and @other_node?}
         id="session-run-tip"
@@ -464,46 +475,36 @@ defmodule VoyagerWeb.Components.TracingComponents do
           type="button"
           id={if @trace_session.status == :stopped, do: "session-resume", else: "session-start"}
           aria-disabled="true"
-          class="btn btn-sm btn-primary"
+          class="btn btn-sm btn-primary max-md:btn-square"
         >
           <.icon name="icon-play" class="size-3.5" />
-          {if @trace_session.status == :stopped, do: "Resume", else: "Start"}
+          <span class="sr-only md:not-sr-only">{if @trace_session.status == :stopped,
+            do: "Resume",
+            else: "Start"}</span>
         </button>
         <:content>
           Traced on <span class="font-mono">{@trace_session.node}</span>.
           Connect to that node to run this session.
         </:content>
       </.tooltip>
-      <button
+      <.action_button
         :if={@mode == :active and @trace_session.status == :stopped and not @other_node?}
-        type="button"
         id="session-resume"
+        icon="icon-play"
+        label="Resume"
         phx-click={@on_start}
         disabled={@pending?}
-        class="btn btn-sm btn-primary"
-      >
-        <.icon name="icon-play" class="size-3.5" /> Resume
-      </button>
-      <button
+        class="btn-primary"
+      />
+      <.action_button
         :if={@mode == :active and @trace_session.status == :idle and not @other_node?}
-        type="button"
         id="session-start"
+        icon="icon-play"
+        label="Start"
         phx-click={@on_start}
         disabled={@pending? or is_nil(@trace_session.config)}
-        class="btn btn-sm btn-primary"
-      >
-        <.icon name="icon-play" class="size-3.5" /> Start
-      </button>
-      <button
-        :if={@mode == :saved}
-        type="button"
-        id="session-load"
-        phx-click={@on_load}
-        disabled={@pending?}
-        class="btn btn-sm"
-      >
-        <.icon name="icon-log-in" class="size-3.5" /> Load into tracer
-      </button>
+        class="btn-primary"
+      />
       <.tooltip :if={@mode == :saved} id="session-delete-tip" position="bottom">
         <button
           type="button"
@@ -518,6 +519,23 @@ defmodule VoyagerWeb.Components.TracingComponents do
         <:content>Delete session</:content>
       </.tooltip>
     </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :icon, :string, required: true
+  attr :label, :string, required: true
+  attr :class, :any, default: nil
+  attr :rest, :global, include: ~w(disabled)
+
+  defp action_button(assigns) do
+    ~H"""
+    <.tooltip id={"#{@id}-label"} position="bottom" tip_class="md:hidden">
+      <button type="button" id={@id} class={["btn btn-sm max-md:btn-square", @class]} {@rest}>
+        <.icon name={@icon} class="size-3.5" /> <span class="sr-only md:not-sr-only">{@label}</span>
+      </button>
+      <:content>{@label}</:content>
+    </.tooltip>
     """
   end
 
