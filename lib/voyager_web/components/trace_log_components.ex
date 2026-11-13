@@ -328,10 +328,14 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
     ~H"""
     <tr id={@id} class="bg-base-200 h-9">
       <.time_cell at={@entry.at} />
-      <td colspan={if @durations?, do: 3, else: 2} class="py-2">
+      <td class="py-2">
         <div class="flex items-center gap-2">
           <.control_glyph icon="icon-settings" class="bg-base-content/10 text-base-content/70" />
           <span class="text-sm font-medium">Configured</span>
+        </div>
+      </td>
+      <td colspan={if @durations?, do: 2, else: 1} class="py-2">
+        <div class="flex items-center gap-2">
           <.tooltip id={"#{@id}-config"} position="bottom" class="min-w-0">
             <span
               id={"#{@id}-changes"}
@@ -366,10 +370,14 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
     ~H"""
     <tr id={@id} class={["h-9", @row_class]}>
       <.time_cell at={@entry[:at]} />
-      <td colspan={if @durations?, do: 3, else: 2} class="py-2">
+      <td class="py-2">
         <div class="flex items-center gap-2">
           <.control_glyph icon={@icon} class={@glyph_class} />
           <span class="text-sm font-medium">{@title}</span>
+        </div>
+      </td>
+      <td colspan={if @durations?, do: 2, else: 1} class="py-2">
+        <div class="flex items-center gap-2">
           <span :if={@detail} class="font-mono text-base-content/70 min-w-0 truncate text-xs">
             {@detail}
           </span>
@@ -447,7 +455,6 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
       {"icon-info", "bg-info/15 text-info", "bg-info/10", "Older events evicted",
        "only the newest #{@kept_traces} stay in memory"}
 
-  defp by(:ui), do: "by UI"
   defp by(:mcp), do: "by MCP"
   defp by(_origin), do: nil
 
