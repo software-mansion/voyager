@@ -6,6 +6,7 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
   import Voyager.Test.TracerFixture
 
   alias Voyager.Actions.TraceEntries, as: TraceEntryActions
+  alias Voyager.Queries.TraceSessions, as: TraceSessionQueries
   alias Voyager.Repo
   alias Voyager.Schemas.TraceSession
   alias Voyager.Services.Tracer
@@ -114,5 +115,160 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
 
     assert has_element?(view, "#history-tiles #history-#{oldest.id}")
     refute has_element?(view, "#show-older")
+  end
+
+  test "creates a session with the Save toggle and warns before replacing an unsaved one", %{
+    conn: conn
+  } do
+    create!()
+    {:ok, _session} = configure()
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing")
+
+    view
+    |> element("#save-new-session")
+    |> render_click()
+
+    view
+    |> element("#create-session")
+    |> render_click()
+
+    assert has_element?(view, "#create-session-modal")
+
+    view
+    |> element("#create-session-modal-confirm")
+    |> render_click()
+
+    {path, _flash} = assert_redirect(view)
+    active = Tracer.active()
+    assert active.save
+    assert path == ~p"/node/#{@node_name}/tracing/#{active.id}"
+  end
+
+  test "stops a running session after confirmation and unloads it", %{conn: conn} do
+    active = create!(save: true)
+    {:ok, _session} = configure()
+    {:ok, _session} = Tracer.start(:ui)
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing")
+
+    assert has_element?(view, "#overview-status[data-tone=running]")
+    refute has_element?(view, "#delete-session")
+
+    view
+    |> element("#stop-session")
+    |> render_click()
+
+    assert has_element?(view, "#stop-session-modal")
+
+    view
+    |> element("#stop-session-modal-confirm")
+    |> render_click()
+
+    settle(view)
+
+    assert has_element?(view, "#overview-status[data-tone=open]")
+    assert has_element?(view, "#unload-session")
+
+    view
+    |> element("#unload-session")
+    |> render_click()
+
+    settle(view)
+
+    refute has_element?(view, "#active-session-tile")
+    assert has_element?(view, "#history-tiles #history-#{active.id}")
+    assert has_element?(view, "#load-session")
+  end
+
+  test "loads a saved session from this node and deletes one after confirmation", %{conn: conn} do
+    first = insert_saved!(%{dropped: 5})
+    second = insert_saved!()
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing?session=#{first.id}")
+
+    assert has_element?(view, "#total-dropped", "5")
+
+    view
+    |> element("#delete-session")
+    |> render_click()
+
+    assert has_element?(view, "#delete-session-modal")
+
+    view
+    |> element("#delete-session-modal-confirm")
+    |> render_click()
+
+    settle(view)
+
+    refute TraceSessionQueries.get(first.id)
+    refute has_element?(view, "#history-tiles #history-#{first.id}")
+    assert has_element?(view, "#session-card[data-session-id='#{second.id}']")
+
+    view
+    |> element("#load-session")
+    |> render_click()
+
+    settle(view)
+
+    assert has_element?(view, "#active-session-tile")
+    assert Tracer.active().id == second.id
+  end
+
+  test "shows other-node note for active session and Trace on this node for foreign saved rows",
+       %{
+         conn: conn
+       } do
+    foreign =
+      insert_saved!(%{
+        node: "worker@127.0.0.1",
+        config: %Config{
+          module: "Elixir.Date",
+          function: "leap_year?",
+          arity: 1,
+          processes: :all,
+          max_events: 50
+        }
+      })
+
+    create!(save: true)
+    {:ok, _session} = configure()
+
+    :sys.replace_state(Tracer, fn state ->
+      %{
+        state
+        | session: %{
+            state.session
+            | node: :"worker@127.0.0.1",
+              status: :stopped,
+              stop_reason: :disconnected
+          }
+      }
+    end)
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing")
+
+    assert has_element?(view, "#other-node-note", "worker@127.0.0.1")
+
+    view
+    |> element("#node-filter-clear")
+    |> render_click()
+
+    view
+    |> element("#history-tiles #history-#{foreign.id}")
+    |> render_click()
+
+    refute has_element?(view, "#load-session")
+    assert has_element?(view, "#trace-here")
+
+    view
+    |> element("#trace-here")
+    |> render_click()
+
+    {path, _flash} = assert_redirect(view)
+    active = Tracer.active()
+    assert active.node == Node.self()
+    assert active.config.module == "Elixir.Date"
+    assert path == ~p"/node/#{@node_name}/tracing/#{active.id}"
   end
 end
