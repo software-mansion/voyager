@@ -91,6 +91,14 @@ export default defineConfig({
       dependencies: ['recent-connections firefox'],
     },
 
+    // The Tracer holds one active session per Voyager, so a single browser runs these.
+    {
+      name: 'tracing chromium',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: '**/tracing.spec.ts',
+      dependencies: ['recent-connections firefox'],
+    },
+
     {
       name: 'sidebar chromium',
       use: { ...devices['Desktop Chrome'] },
@@ -133,6 +141,7 @@ export default defineConfig({
         'sidebar chromium',
         'sidebar firefox',
         'supervision-tree firefox',
+        'tracing chromium',
       ],
     },
     {

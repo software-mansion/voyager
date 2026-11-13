@@ -26,8 +26,10 @@ defmodule VoyagerWeb.Components.TracingComponents do
 
   def tone(_session, _connected_node), do: :open
 
-  defp failure?({:tracer_down, _reason}), do: true
-  defp failure?(reason), do: reason in [:node_down, :write_failed]
+  @doc "Whether a stop reason means the run ended on an error rather than a limit or a request."
+  @spec failure?(Voyager.Services.Tracer.stop_reason()) :: boolean()
+  def failure?({:tracer_down, _reason}), do: true
+  def failure?(reason), do: reason in [:node_down, :write_failed]
 
   @spec tone_class(:running | :other_node | :failed | :open, :chip | :dot | :label | :badge) ::
           String.t()
@@ -654,6 +656,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
   defp format_time_limit(ms) when ms < 3_600_000, do: "#{div(ms, 60_000)} min"
   defp format_time_limit(ms), do: "#{div(ms, 3_600_000)} h"
 
-  defp count(1, singular, _plural), do: "1 #{singular}"
-  defp count(n, _singular, plural), do: "#{Formatters.format_integer(n)} #{plural}"
+  @spec count(non_neg_integer(), String.t(), String.t()) :: String.t()
+  def count(1, singular, _plural), do: "1 #{singular}"
+  def count(n, _singular, plural), do: "#{Formatters.format_integer(n)} #{plural}"
 end
