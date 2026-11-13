@@ -300,7 +300,7 @@ defmodule VoyagerWeb.ProcessInfoLive do
             <div class="grid grid-cols-1 gap-y-6 md:divide-base-300 md:grid-cols-3 md:divide-x">
               <div
                 :for={
-                  {title, legend, id, bounded} <- [
+                  {title, legend, id, result} <- [
                     {"Links", "Link", "process-links", relations.links},
                     {"Monitors", "Monitor", "process-monitors", relations.monitors},
                     {"Monitored by", "Monitored by", "process-monitored-by", relations.monitored_by}
@@ -310,16 +310,21 @@ defmodule VoyagerWeb.ProcessInfoLive do
               >
                 <.section
                   title={title}
-                  muted={bounded_count(bounded)}
+                  muted={bounded_count(result)}
                   help={SupervisionTreeComponents.edge_legend(legend)}
                 >
-                  <.identifier_chips
-                    id={id}
-                    items={bounded.items}
-                    total={bounded.total}
-                    node_name={@session.node_name}
-                    remote_node={@session.node}
-                  />
+                  <%= case result do %>
+                    <% {:ok, bounded} -> %>
+                      <.identifier_chips
+                        id={id}
+                        items={bounded.items}
+                        total={bounded.total}
+                        node_name={@session.node_name}
+                        remote_node={@session.node}
+                      />
+                    <% {:error, reason} -> %>
+                      <.fetch_alert id={"#{id}-error"} message={error_message(reason)} />
+                  <% end %>
                 </.section>
               </div>
             </div>

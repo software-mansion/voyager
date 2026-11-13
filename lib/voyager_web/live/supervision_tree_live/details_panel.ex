@@ -17,6 +17,9 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   @relations_limit max_expanded_relations()
   @relation_names ~w(links monitors monitored_by)
 
+  # A fetch resolving in a few ms flashes the skeleton for a frame; hold it. Zeroed in test.
+  @min_fetch_ms Application.compile_env(:voyager, :min_fetch_ms, 300)
+
   @impl true
   def mount(socket) do
     socket
@@ -132,7 +135,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
               target={@myself}
             />
             <.refresh_button
-              :if={is_pid(@node.pid)}
+              :if={is_local_pid(@node.pid, @remote_node)}
               panel_id={@id}
               on_refresh="refresh-node-info"
               target={@myself}
@@ -165,7 +168,7 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   # Only pids living on the inspected node have a process page.
   defp process_href(pid, remote_node, node_name)
-       when is_pid(pid) and node(pid) == remote_node and is_binary(node_name) do
+       when is_local_pid(pid, remote_node) and is_binary(node_name) do
     ~p"/node/#{node_name}/processes/#{Formatters.format_pid(pid)}"
   end
 
@@ -193,24 +196,38 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
 
   defp push_history(socket), do: socket
 
-  defp fetch_details(%{assigns: %{node: %TreeNode{pid: pid}}} = socket, reset?)
-       when is_pid(pid) do
-    remote_node = socket.assigns.remote_node
+  defp fetch_details(
+         %{assigns: %{node: %TreeNode{pid: pid}, remote_node: remote_node}} = socket,
+         reset?
+       )
+       when is_local_pid(pid, remote_node) do
     timeout = Query.default_timeout()
 
     socket
-    |> assign_async(:node_info, fn -> fetch_node_info(remote_node, pid, timeout) end,
+    |> assign_async(
+      :node_info,
+      fn -> hold_min_duration(fn -> fetch_node_info(remote_node, pid, timeout) end) end,
       reset: reset?
     )
-    |> assign_async(:relations, fn -> fetch_relations(remote_node, pid, timeout) end,
+    |> assign_async(
+      :relations,
+      fn -> hold_min_duration(fn -> fetch_relations(remote_node, pid, timeout) end) end,
       reset: reset?
     )
   end
 
-  # Nothing to fetch for apps, ports and references: settle the async assigns so
-  # the body never shows a load state it will not leave.
+  # Nothing to fetch for apps, ports, references and pids of other nodes: settle the
+  # async assigns so the body never shows a load state it will not leave.
   defp fetch_details(socket, _reset?) do
     assign(socket, node_info: AsyncResult.ok(nil), relations: AsyncResult.ok(nil))
+  end
+
+  defp hold_min_duration(fetch) do
+    started = System.monotonic_time(:millisecond)
+    result = fetch.()
+    elapsed = System.monotonic_time(:millisecond) - started
+    if elapsed < @min_fetch_ms, do: Process.sleep(@min_fetch_ms - elapsed)
+    result
   end
 
   defp same_process?(%TreeNode{pid: pid}, %TreeNode{pid: pid}) when is_pid(pid), do: true
@@ -225,15 +242,25 @@ defmodule VoyagerWeb.SupervisionTreeLive.DetailsPanel do
   defp fetch_relations(remote_node, pid, timeout) do
     with {:ok, relations, _elapsed_ms} <-
            Query.relations(remote_node, pid, @relations_limit, timeout) do
-      monitors = Enum.map(relations.monitors.items, fn {_kind, target} -> target end)
-      {:ok, %{relations: put_in(relations.monitors.items, monitors)}}
+      {:ok, %{relations: Map.update!(relations, :monitors, &monitor_targets/1)}}
     end
   end
+
+  defp monitor_targets({:ok, bounded}),
+    do: {:ok, %{bounded | items: Enum.map(bounded.items, &monitor_target/1)}}
+
+  defp monitor_targets(error), do: error
+
+  defp monitor_target({_kind, target}) when is_pid(target) or is_port(target), do: target
+  defp monitor_target(monitor), do: monitor
 
   defp relation_by_key(%AsyncResult{ok?: true, result: relations}, key) when is_map(relations) do
     relations
     |> Map.values()
-    |> Enum.flat_map(& &1.items)
+    |> Enum.flat_map(fn
+      {:ok, bounded} -> bounded.items
+      {:error, _reason} -> []
+    end)
     |> Enum.find(&(selectable_relation?(&1) and TreeNode.key(&1) == key))
   end
 
