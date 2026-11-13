@@ -102,14 +102,10 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
         assign(socket, :buffer, [])
 
       rows ->
-        held = Enum.take(Enum.reverse(held(rows)) ++ socket.assigns.held, @row_limit)
-
         socket
-        |> stream(:entries, Enum.map(rows, &Map.put(&1, :live, true)), at: 0, limit: @row_limit)
+        |> put_live(rows, hd(rows).seq > newest_seq + 1)
         |> assign(:buffer, [])
         |> assign(:newest_seq, List.last(rows).seq)
-        |> assign(:held, held)
-        |> trim_oldest_seq(held)
         |> push_event("log-flushed", %{})
         |> assign(:awaiting_ack?, true)
     end
@@ -196,7 +192,26 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
     rows
   end
 
-  # Skipped live entries leave gaps, so a full stream's oldest row is looked up, not counted back.
+  # absorb/2 dropped the entries before `rows`; Load older can only fetch them below the oldest row.
+  defp put_live(socket, rows, true = _gap?) do
+    socket
+    |> cancel_async(:older)
+    |> stream(:entries, live(rows), at: 0, reset: true)
+    |> assign(:held, Enum.reverse(held(rows)))
+    |> assign(:oldest_seq, hd(rows).seq)
+  end
+
+  defp put_live(socket, rows, false) do
+    held = Enum.take(Enum.reverse(held(rows)) ++ socket.assigns.held, @row_limit)
+
+    socket
+    |> stream(:entries, live(rows), at: 0, limit: @row_limit)
+    |> assign(:held, held)
+    |> trim_oldest_seq(held)
+  end
+
+  defp live(rows), do: Enum.map(rows, &Map.put(&1, :live, true))
+
   defp trim_oldest_seq(socket, held) when length(held) == @row_limit,
     do: assign(socket, :oldest_seq, held |> List.last() |> elem(0))
 

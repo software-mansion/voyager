@@ -125,7 +125,7 @@ defmodule VoyagerWeb.TracingSessionLogTest do
     refute has_element?(view, "#log-paused")
   end
 
-  test "streams the newest 50 entries a flush holds, and loads older below the oldest row kept",
+  test "streams the newest 50 entries a flush holds, and loads the ones it dropped older",
        %{conn: conn} do
     %{id: id} = start!()
     view = open(conn, id)
@@ -135,8 +135,8 @@ defmodule VoyagerWeb.TracingSessionLogTest do
       flush_log(view)
     end
 
-    assert has_element?(view, "#entry-352")
-    refute has_element?(view, "#entry-351")
+    assert row_ids(view) == entry_ids(401..352//-1)
+    assert has_element?(view, "#log-footer", "Newest 50 of 400 traces")
 
     view
     |> element("#log-older")
@@ -144,9 +144,24 @@ defmodule VoyagerWeb.TracingSessionLogTest do
 
     render_async(view)
 
-    seqs = Enum.map(row_ids(view), &(&1 |> String.trim_leading("entry-") |> String.to_integer()))
-    assert seqs == Enum.sort(seqs, :desc)
-    assert List.last(seqs) == 12
+    assert row_ids(view) == entry_ids(401..252//-1)
+  end
+
+  test "offers the traces a burst on a fresh session dropped as older", %{conn: conn} do
+    %{id: id} = start!()
+    view = open(conn, id)
+
+    call_traced!(120, 120)
+    flush_log(view)
+
+    assert row_ids(view) == entry_ids(121..72//-1)
+    assert has_element?(view, "#log-footer", "Newest 50 of 120 traces")
+
+    load_all_older(view)
+
+    assert row_ids(view) == entry_ids(121..0//-1)
+    refute has_element?(view, "#log-older")
+    assert has_element?(view, "#log-footer", "All 120 traces shown")
   end
 
   test "loads older entries and pauses a running view", %{conn: conn} do
@@ -393,6 +408,8 @@ defmodule VoyagerWeb.TracingSessionLogTest do
 
     assert has_element?(view, "#flash-error", "Could not load older events.")
   end
+
+  defp entry_ids(seqs), do: Enum.map(seqs, &"entry-#{&1}")
 
   defp load_all_older(view) do
     if has_element?(view, "#log-older") do
