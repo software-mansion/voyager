@@ -13,10 +13,8 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
   alias VoyagerWeb.Formatters
 
   attr :count, :integer, required: true
-  attr :save?, :boolean, required: true
   attr :busy?, :boolean, required: true
   attr :pending?, :boolean, required: true
-  attr :on_toggle_save, :string, required: true
   attr :on_create, :string, required: true
 
   def list_header(assigns) do
@@ -29,16 +27,6 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
         </span>
       </div>
       <div class="flex items-center gap-2">
-        <label class="text-base-content/70 flex cursor-pointer select-none items-center gap-1.5 text-xs">
-          <input
-            type="checkbox"
-            id="save-new-session"
-            checked={@save?}
-            phx-click={@on_toggle_save}
-            class="toggle toggle-xs toggle-primary"
-          />
-          <span>Save</span>
-        </label>
         <.tooltip :if={@busy?} id="create-session-tip" position="bottom">
           <button
             type="button"
