@@ -32,6 +32,7 @@ defmodule Voyager.Services.Tracer.Session do
     traces: 0,
     run_traces_before: 0,
     dropped: 0,
+    runs: 0,
     bytes: 0,
     storage_limit: 0,
     seq: 0
@@ -50,6 +51,7 @@ defmodule Voyager.Services.Tracer.Session do
           traces: non_neg_integer(),
           run_traces_before: non_neg_integer(),
           dropped: non_neg_integer(),
+          runs: non_neg_integer(),
           bytes: non_neg_integer(),
           storage_limit: non_neg_integer(),
           seq: non_neg_integer(),
@@ -69,6 +71,7 @@ defmodule Voyager.Services.Tracer.Session do
         stopped_at: nil,
         run_started_at: DateTime.utc_now(),
         run_traces_before: session.traces,
+        runs: session.runs + 1,
         storage_limit: storage_limit
     }
   end
@@ -111,6 +114,7 @@ defmodule Voyager.Services.Tracer.Session do
       traces: row.traces,
       run_traces_before: run_traces_before,
       dropped: row.dropped,
+      runs: Enum.count(controls, &(&1.kind == :started)),
       bytes: row.bytes,
       storage_limit: storage_limit,
       seq: seq,
