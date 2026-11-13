@@ -659,6 +659,16 @@ defmodule VoyagerWeb.Components.TracingComponents do
   def count(1, singular, _plural), do: "1 #{singular}"
   def count(n, _singular, plural), do: "#{Formatters.format_integer(n)} #{plural}"
 
+  @spec format_storage_bytes(non_neg_integer()) :: String.t()
+  def format_storage_bytes(bytes) when bytes < 1_000_000,
+    do: "#{Formatters.format_integer(div(bytes + 999, 1_000))} KB"
+
+  def format_storage_bytes(bytes) when bytes < 100_000_000,
+    do: :erlang.float_to_binary(bytes / 1_000_000, decimals: 1) <> " MB"
+
+  def format_storage_bytes(bytes),
+    do: "#{Formatters.format_integer(div(bytes, 1_000_000))} MB"
+
   @spec reason_tone(Voyager.Services.Tracer.stop_reason() | nil) :: tone()
   def reason_tone({:tracer_down, _reason}), do: :error
   def reason_tone(reason) when reason in [:interrupted, :write_failed], do: :error
