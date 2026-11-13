@@ -129,11 +129,10 @@ defmodule VoyagerWeb.TracingSessionsLive do
             />
           </div>
           <button
-            :if={!@history_empty?}
+            :if={@has_more?}
             type="button"
             id="show-older"
             phx-click="show-older"
-            disabled={!@has_more?}
             class="btn btn-ghost btn-sm text-base-content/70 mt-1 w-full"
           >
             Show older
