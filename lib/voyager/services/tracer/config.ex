@@ -8,6 +8,7 @@ defmodule Voyager.Services.Tracer.Config do
 
   import Ecto.Changeset
 
+  alias Voyager.Services.Tracer.MatchSpec
   alias Voyager.Services.Tracer.Refusals
 
   @limits [:max_events, :max_rate, :max_time_ms]
@@ -29,6 +30,7 @@ defmodule Voyager.Services.Tracer.Config do
     field :max_events, :integer
     field :max_rate, :integer
     field :max_time_ms, :integer
+    field :match_spec, :string
   end
 
   @type t :: %__MODULE__{}
@@ -50,6 +52,7 @@ defmodule Voyager.Services.Tracer.Config do
     |> validate_limits()
     |> validate_pids()
     |> validate_module_allowed()
+    |> validate_match_spec()
   end
 
   @doc "The `{spec, limits}` pair `trace_start` takes on the agent; `pids` are the resolved `:pids`."
@@ -63,7 +66,7 @@ defmodule Voyager.Services.Tracer.Config do
       capture: config.capture,
       scope: config.scope,
       return_trace: config.return_trace,
-      match_spec: :undefined
+      match_spec: agent_match_spec(config)
     }
 
     limits =
@@ -131,6 +134,22 @@ defmodule Voyager.Services.Tracer.Config do
       true ->
         changeset
     end
+  end
+
+  defp validate_match_spec(changeset) do
+    with source when is_binary(source) <- get_field(changeset, :match_spec),
+         {:error, message} <- MatchSpec.parse(source, get_field(changeset, :arity)) do
+      add_error(changeset, :match_spec, message)
+    else
+      _valid_or_unset -> changeset
+    end
+  end
+
+  defp agent_match_spec(%__MODULE__{match_spec: nil}), do: :undefined
+
+  defp agent_match_spec(%__MODULE__{match_spec: source, arity: arity}) do
+    {:ok, spec} = MatchSpec.parse(source, arity)
+    spec
   end
 
   defp pid_string?(pid), do: is_binary(pid) and Voyager.Pid.parse(pid) != nil

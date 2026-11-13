@@ -70,6 +70,19 @@ defmodule Voyager.Services.Tracer.ConfigTest do
     assert %{module: [_]} = errors(%{@valid | module: Atom.to_string(Voyager.Agent.module())})
   end
 
+  test "sends a translated match spec to the agent" do
+    attrs = Map.put(@valid, :match_spec, "fn [y] when y > 2000 -> true end")
+    assert {:ok, config} = apply_attrs(attrs)
+
+    assert {%{match_spec: [{[:"$1"], [{:>, :"$1", 2000}], []}]}, _limits} =
+             Config.to_agent(config, [self()])
+  end
+
+  test "rejects a match spec that does not translate for the arity" do
+    assert %{match_spec: [_]} = errors(Map.put(@valid, :match_spec, "fn [a, b] -> true end"))
+    assert %{match_spec: [_]} = errors(Map.put(@valid, :match_spec, "fn [a] -> false end"))
+  end
+
   defp apply_attrs(attrs),
     do: attrs |> Config.changeset() |> Ecto.Changeset.apply_action(:validate)
 

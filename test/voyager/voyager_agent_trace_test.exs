@@ -3,6 +3,7 @@ defmodule VoyagerAgentTraceTest do
 
   @compile {:no_warn_undefined, Voyager.Agent.module()}
 
+  alias Voyager.Services.Tracer.MatchSpec
   alias Voyager.Test.VoyagerAgentFixture
 
   @agent_module Voyager.Agent.module()
@@ -204,6 +205,41 @@ defmodule VoyagerAgentTraceTest do
           {[{:_, [], [{:return_trace}]}], :return_trace}
         ] do
       assert {:error, {:refused_action, ^action}} = start(spec(match_spec: match_spec), @limits)
+    end
+  end
+
+  test "resolves encoded atoms against the atoms on the node" do
+    {:ok, match_spec} = MatchSpec.parse("fn [%Date{year: 2024}] -> true end", 1)
+
+    {:ok, tracer} =
+      start(spec(@leap_year ++ [match_spec: match_spec]), %{@limits | max_events: 1})
+
+    Date.leap_year?(~D[2023-01-01])
+    Date.leap_year?(~D[2024-01-01])
+
+    assert {[%{type: :call, args: [%Date{year: 2024}]}], :event_limit, _stats} = collect(tracer)
+  end
+
+  test "refuses encoded atoms that are unknown or read as variables" do
+    for {name, error} <- [
+          {"voyager_no_such_atom_x7", {:unknown_atom, "voyager_no_such_atom_x7"}},
+          {"$1", {:invalid_atom, "$1"}},
+          {"_", {:invalid_atom, "_"}}
+        ] do
+      match_spec = [{[{:"$voyager_atom", name}, :_], [], []}]
+      assert {:error, ^error} = start(spec(match_spec: match_spec), @limits)
+    end
+  end
+
+  test "refuses bignum arithmetic in guards" do
+    products = Enum.reduce(1..17, :"$1", fn _, acc -> {:*, acc, 2} end)
+
+    assert {:error, {:refused_action, :bsl}} =
+             start(spec(match_spec: [{[:"$1", :_], [{:>, {:bsl, :"$1", 64}, 0}], []}]), @limits)
+
+    for guard <- [{:>, products, 0}, {:>, :"$1", 0x8000000000000000}] do
+      assert {:error, :costly_match_spec} =
+               start(spec(match_spec: [{[:"$1", :_], [guard], []}]), @limits)
     end
   end
 
