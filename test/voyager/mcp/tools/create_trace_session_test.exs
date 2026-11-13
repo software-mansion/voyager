@@ -92,9 +92,10 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
     test "starts the accepted session and returns its id", %{pid: pid} do
       content = %{"function" => "Date.leap_year?/1", "pids" => pid, "capture_args" => true}
 
-      %{"status" => "started", "session_id" => id} =
+      %{"status" => "started", "session_id" => id, "next" => next} =
         %{} |> execute(answered(accept(content))) |> run()
 
+      assert next =~ "trace_watch"
       assert %{id: ^id, origin: :mcp, status: :running, config: config} = Tracer.active()
 
       assert %{module: "Elixir.Date", function: "leap_year?", arity: 1, capture: :args} = config

@@ -95,7 +95,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
         {:error, "Not connected to any node, call `list_connections` then `connect`"}
 
       match?(%{status: :running}, Tracer.active()) ->
-        {:error, "A tracing session is already running, the user must stop it in Voyager first"}
+        {:error, "A tracing session is already running, call `trace_watch` or `trace_stop` first"}
 
       not forms?(frame) ->
         {:error,
@@ -173,13 +173,21 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
     with {:ok, attrs} <- config_attrs(content),
          {:ok, _config} <- validate(attrs),
          {:ok, session} <- Tracer.create_and_start(node, attrs, :mcp) do
-      Response.json(Response.tool(), %{status: "started", session_id: session.id, node: node})
+      Response.json(Response.tool(), %{
+        status: "started",
+        session_id: session.id,
+        node: node,
+        next: "Call `trace_watch` to wait for the session to end and read its report"
+      })
     else
       {:error, %Ecto.Changeset{} = changeset} ->
         Response.error(Response.tool(), "Invalid session: #{format_errors(changeset)}")
 
       {:error, :busy} ->
-        Response.error(Response.tool(), "A tracing session is already running")
+        Response.error(
+          Response.tool(),
+          "A tracing session is already running, call `trace_stop` first"
+        )
 
       {:error, message} when is_binary(message) ->
         Response.error(Response.tool(), message)

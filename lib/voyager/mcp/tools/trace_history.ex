@@ -5,7 +5,8 @@ defmodule Voyager.MCP.Tools.TraceHistory do
   With `session_id`, returns that session's status and summary and a page of its
   events, oldest first, from `since` (a `seq`, 0 by default). Pass the returned
   `next_since` to read the next page; `more` says the page was full. This works
-  on a running session too, to follow it in batches. An unsaved session keeps only its newest events, and `truncated` marks a page
+  on a running session too, to follow it in batches and `trace_stop` it early.
+  An unsaved session keeps only its newest events, and `truncated` marks a page
   missing evicted ones; its summary still counts every event.
   """
 
