@@ -592,18 +592,23 @@ defmodule VoyagerWeb.Components.TracingComponents do
   attr :id, :string, required: true
   attr :title, :string, required: true
   attr :confirm_label, :string, required: true
-  attr :on_confirm, :string, required: true
-  attr :on_cancel, :string, required: true
+  attr :on_confirm, :any, required: true
+  attr :on_cancel, :any, required: true
+  attr :on_dismiss, :any, default: nil, doc: "Escape and backdrop click; defaults to `on_cancel`"
+  attr :cancel_label, :string, default: "Cancel"
+  attr :confirm_class, :string, default: "btn-error dark:text-base-100"
   slot :inner_block, required: true
 
   def confirm_modal(assigns) do
+    assigns = assign(assigns, :on_dismiss, assigns.on_dismiss || assigns.on_cancel)
+
     ~H"""
     <div
       id={@id}
       role="dialog"
       aria-modal="true"
       aria-labelledby={"#{@id}-title"}
-      phx-window-keydown={@on_cancel}
+      phx-window-keydown={@on_dismiss}
       phx-key="Escape"
       class="modal modal-open"
     >
@@ -618,18 +623,19 @@ defmodule VoyagerWeb.Components.TracingComponents do
         {render_slot(@inner_block)}
         <div class="modal-action">
           <button type="button" id={"#{@id}-cancel"} phx-click={@on_cancel} class="btn btn-ghost">
-            Cancel
+            {@cancel_label}
           </button>
           <button
             type="button"
             id={"#{@id}-confirm"}
             phx-click={@on_confirm}
-            class="btn btn-error dark:text-base-100"
+            class={["btn", @confirm_class]}
           >
             {@confirm_label}
           </button>
         </div>
       </.focus_wrap>
+      <div id={"#{@id}-backdrop"} class="modal-backdrop" phx-click={@on_dismiss}></div>
     </div>
     """
   end

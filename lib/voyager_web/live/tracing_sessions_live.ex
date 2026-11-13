@@ -27,7 +27,6 @@ defmodule VoyagerWeb.TracingSessionsLive do
     socket =
       socket
       |> assign(:active_nav, :tracing)
-      |> assign(:save_new?, false)
       |> assign(:pending, nil)
       |> assign(:confirm, nil)
       |> assign(:active_session, nil)
@@ -112,10 +111,8 @@ defmodule VoyagerWeb.TracingSessionsLive do
         <div class="border-base-200 flex flex-col gap-3 border-b px-5 py-4">
           <TracingBrowserComponents.list_header
             count={@displayed_count}
-            save?={@save_new?}
             busy?={@busy?}
             pending?={@pending != nil}
-            on_toggle_save="toggle-save"
             on_create="create-session"
           />
           <TracingBrowserComponents.node_filter_bar
@@ -215,7 +212,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
 
   defp browser_confirm_modal(assigns) do
     kind = confirm_kind(assigns.confirm)
-    assigns = assign(assigns, :kind, kind)
+    assigns = assign(assigns, kind: kind, save_choice?: kind in [:create, :copy])
 
     ~H"""
     <TracingComponents.confirm_modal
@@ -223,8 +220,18 @@ defmodule VoyagerWeb.TracingSessionsLive do
       title={confirm_title(@kind)}
       confirm_label={confirm_label(@kind)}
       confirm_class={confirm_class(@kind)}
-      on_confirm="confirm-action"
-      on_cancel="cancel-confirm"
+      cancel_label={if @save_choice?, do: "No", else: "Cancel"}
+      on_confirm={
+        if @save_choice?,
+          do: JS.push("confirm-action", value: %{save: true}),
+          else: "confirm-action"
+      }
+      on_cancel={
+        if @save_choice?,
+          do: JS.push("confirm-action", value: %{save: false}),
+          else: "cancel-confirm"
+      }
+      on_dismiss="cancel-confirm"
     >
       <p :if={@kind == :stop and @active_session != nil} class="text-base-content/70 mt-1 text-sm">
         Tracing <span class="font-mono">{TracingComponents.traced_mfa(@active_session.config)}</span>
@@ -246,7 +253,14 @@ defmodule VoyagerWeb.TracingSessionsLive do
       <p :if={@kind == :load} class="text-base-content/70 mt-1 text-sm">
         Loading discards the unsaved active session.
       </p>
-      <p :if={@kind in [:create, :copy]} class="text-base-content/70 mt-1 text-sm">
+      <p :if={@save_choice?} class="text-base-content/70 mt-1 text-sm">
+        A saved session is stored on disk with all its traces and stays in History. An unsaved one keeps only the newest 500 traces in memory and is gone once unloaded.
+      </p>
+      <p
+        :if={@save_choice? and unsaved_active?(@active_session)}
+        id="replace-unsaved-warning"
+        class="text-warning mt-2 text-sm"
+      >
         The active session is not saved. Creating a new one discards it.
       </p>
     </TracingComponents.confirm_modal>
@@ -254,12 +268,6 @@ defmodule VoyagerWeb.TracingSessionsLive do
   end
 
   @impl true
-  def handle_event("toggle-save", _params, socket) do
-    socket
-    |> update(:save_new?, &(not &1))
-    |> noreply()
-  end
-
   def handle_event("filter-node", %{"node" => node}, socket) do
     connected = socket.assigns.session.node_name
 
@@ -312,7 +320,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
 
   def handle_event("create-session", _params, socket) do
     socket
-    |> confirm_or_run(:create, &start_create/1)
+    |> assign(:confirm, :create)
     |> noreply()
   end
 
@@ -344,7 +352,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
     case selected_item(socket.assigns) do
       %{config: config} = item when not is_struct(item, Session) ->
         socket
-        |> confirm_or_run({:copy, config}, &start_copy(&1, config))
+        |> assign(:confirm, {:copy, config})
         |> noreply()
 
       _other ->
@@ -370,12 +378,12 @@ defmodule VoyagerWeb.TracingSessionsLive do
     |> noreply()
   end
 
-  def handle_event("confirm-action", _params, socket) do
+  def handle_event("confirm-action", params, socket) do
     confirm = socket.assigns.confirm
     socket = assign(socket, :confirm, nil)
 
     socket
-    |> execute_confirmed(confirm)
+    |> execute_confirmed(confirm, params["save"] == true)
     |> noreply()
   end
 
@@ -460,19 +468,24 @@ defmodule VoyagerWeb.TracingSessionsLive do
 
   def handle_info(_message, socket), do: noreply(socket)
 
-  defp execute_confirmed(socket, :create), do: start_create(socket)
-  defp execute_confirmed(socket, :stop), do: run_action(socket, :stop, fn -> Tracer.stop(:ui) end)
-  defp execute_confirmed(socket, :unload), do: run_action(socket, :unload, &Tracer.close/0)
+  defp execute_confirmed(socket, :create, save?),
+    do: run_action(socket, :create, fn -> Tracer.create(:ui, save: save?) end)
 
-  defp execute_confirmed(socket, {:load, id}),
+  defp execute_confirmed(socket, {:copy, config}, save?), do: start_copy(socket, config, save?)
+
+  defp execute_confirmed(socket, :stop, _save?),
+    do: run_action(socket, :stop, fn -> Tracer.stop(:ui) end)
+
+  defp execute_confirmed(socket, :unload, _save?),
+    do: run_action(socket, :unload, &Tracer.close/0)
+
+  defp execute_confirmed(socket, {:load, id}, _save?),
     do: run_action(socket, :load, fn -> Tracer.load(id) end)
 
-  defp execute_confirmed(socket, {:copy, config}), do: start_copy(socket, config)
-
-  defp execute_confirmed(socket, {:delete, id}),
+  defp execute_confirmed(socket, {:delete, id}, _save?),
     do: run_action(socket, :delete, fn -> Tracer.delete(id) end)
 
-  defp execute_confirmed(socket, _nil), do: socket
+  defp execute_confirmed(socket, _nil, _save?), do: socket
 
   defp confirm_or_run(socket, confirm, fun) do
     if unsaved_active?(socket.assigns.active_session),
@@ -480,13 +493,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
       else: fun.(socket)
   end
 
-  defp start_create(socket) do
-    save? = socket.assigns.save_new?
-    run_action(socket, :create, fn -> Tracer.create(:ui, save: save?) end)
-  end
-
-  defp start_copy(socket, config) do
-    save? = socket.assigns.save_new?
+  defp start_copy(socket, config, save?) do
     node = socket.assigns.session.node
 
     run_action(socket, :copy, fn ->
@@ -751,13 +758,13 @@ defmodule VoyagerWeb.TracingSessionsLive do
   defp confirm_title(:delete), do: "Delete session"
   defp confirm_title(:unload), do: "Unload session"
   defp confirm_title(:load), do: "Load session"
-  defp confirm_title(kind) when kind in [:create, :copy], do: "Replace session"
+  defp confirm_title(kind) when kind in [:create, :copy], do: "Save the new session?"
 
   defp confirm_label(:stop), do: "Stop"
   defp confirm_label(:delete), do: "Delete"
   defp confirm_label(:unload), do: "Unload"
   defp confirm_label(:load), do: "Load anyway"
-  defp confirm_label(kind) when kind in [:create, :copy], do: "Create anyway"
+  defp confirm_label(kind) when kind in [:create, :copy], do: "Yes"
 
   defp confirm_class(kind) when kind in [:load, :create, :copy], do: "btn-primary"
   defp confirm_class(_kind), do: "btn-error dark:text-base-100"
