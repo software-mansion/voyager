@@ -673,15 +673,14 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
     assigns =
       assign(assigns,
         saved?: saved?,
-        activity_aside:
-          if(saved?, do: "traces over all runs", else: "newest #{Tracer.kept_traces()}"),
+        activity_aside: activity_aside(assigns.overview.activity, saved?),
         functions: functions
       )
 
     ~H"""
     <.overview_runs_card :if={@overview.runs != []} runs={@overview.runs} />
     <div class="grid flex-none gap-4 xl:grid-cols-2">
-      <.overview_activity_card buckets={@overview.activity} aside={@activity_aside} />
+      <.overview_activity_card activity={@overview.activity} aside={@activity_aside} />
       <.overview_outcome_card item={@item} summary={@overview.summary} />
     </div>
     <.overview_functions_card
@@ -749,41 +748,84 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
     """
   end
 
-  attr :buckets, :list, required: true
+  attr :activity, :map, required: true
   attr :aside, :string, required: true
 
-  defp overview_activity_card(assigns) do
-    max_val =
-      assigns.buckets
-      |> Enum.reject(&is_nil/1)
-      |> Enum.max(fn -> 0 end)
-      |> max(1)
+  defp overview_activity_card(%{activity: nil} = assigns) do
+    ~H"""
+    <.chart_card id="overview-activity" title="Activity" aside={@aside}>
+      <p class="font-mono text-base-content/50 py-6 text-center text-xs">No traces captured</p>
+    </.chart_card>
+    """
+  end
 
-    assigns = assign(assigns, :max_val, max_val)
+  defp overview_activity_card(assigns) do
+    %{bucket_ms: bucket_ms, segments: segments} = assigns.activity
+    max_count = segments |> Enum.flat_map(& &1.counts) |> Enum.max(fn -> 0 end)
+    {unit_ms, unit} = rate_unit(max_count, bucket_ms)
+    top = nice_ceil(max(max_count * unit_ms / bucket_ms, 1))
+
+    assigns =
+      assign(assigns,
+        bars: activity_bars(assigns.activity, unit_ms, top),
+        top_label: "#{Formatters.format_integer(top)}#{unit}"
+      )
 
     ~H"""
     <.chart_card id="overview-activity" title="Activity" aside={@aside}>
-      <%= if @buckets == [] do %>
-        <p class="font-mono text-base-content/50 py-6 text-center text-xs">No traces captured</p>
-      <% else %>
-        <div class="flex h-28 items-end gap-0.5" aria-hidden="true">
-          <%= for bucket <- @buckets do %>
-            <%= if is_nil(bucket) do %>
-              <span class="border-base-content/20 mx-1 h-full border-l border-dashed"></span>
-            <% else %>
+      <div class="mt-3 flex gap-2">
+        <div class="font-mono text-base-content/60 flex h-28 w-10 shrink-0 flex-col justify-between text-right text-xs tabular-nums">
+          <span id="activity-scale">{@top_label}</span>
+          <span>0</span>
+        </div>
+        <div class="min-w-0 flex-1">
+          <div
+            class="border-base-content/10 relative flex h-28 items-end gap-px border-y border-dashed"
+            aria-hidden="true"
+          >
+            <%= for bar <- @bars do %>
               <span
-                class="bg-primary rounded-xs opacity-55 flex-1 transition-opacity hover:opacity-100"
-                style={"height: #{if bucket == 0, do: 2, else: max(div(bucket * 100, @max_val), 4)}%"}
-                title={TracingComponents.count(bucket, "trace", "traces")}
-              ></span>
+                :if={bar.gap}
+                class="relative flex h-full w-8 shrink-0 justify-center"
+                title={"#{bar.gap} without a run"}
+              >
+                <span class="border-base-content/30 h-full border-l border-dashed"></span>
+                <span class="font-mono bg-base-100 text-base-content/50 absolute top-0 text-xs">
+                  +{bar.gap}
+                </span>
+              </span>
+              <span
+                :if={!bar.gap}
+                class="group relative flex h-full flex-1 items-end hover:bg-base-content/5"
+              >
+                <span
+                  class="bg-primary rounded-t-xs opacity-55 block w-full transition-opacity group-hover:opacity-100"
+                  style={"height: #{bar.height}%"}
+                ></span>
+                <span class={[
+                  "border-base-300 bg-base-100 text-base-content font-mono pointer-events-none absolute -top-8 z-20 hidden whitespace-nowrap rounded-md border px-2 py-0.5 text-xs tabular-nums shadow-sm group-hover:block",
+                  bar.tip_align == :left && "left-0",
+                  bar.tip_align == :center && "left-1/2 -translate-x-1/2",
+                  bar.tip_align == :right && "right-0"
+                ]}>
+                  {bar.tip}
+                </span>
+              </span>
             <% end %>
-          <% end %>
+          </div>
+          <div class="font-mono text-base-content/60 mt-1.5 flex gap-px text-xs tabular-nums">
+            <%= for bar <- @bars do %>
+              <span :if={bar.gap} class="w-8 shrink-0"></span>
+              <span :if={!bar.gap} class="relative h-4 flex-1">
+                <span :if={bar.label} class="absolute left-0 whitespace-nowrap">{bar.label}</span>
+                <span :if={bar.end_label} class="absolute right-0 whitespace-nowrap">
+                  {bar.end_label}
+                </span>
+              </span>
+            <% end %>
+          </div>
         </div>
-        <div class="font-mono text-base-content/60 flex justify-between text-xs">
-          <span>first trace</span>
-          <span>last trace</span>
-        </div>
-      <% end %>
+      </div>
     </.chart_card>
     """
   end
@@ -1082,6 +1124,92 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
 
     "#{reason} · recorded #{recorded}"
   end
+
+  defp activity_aside(nil, true), do: "traces over all runs"
+  defp activity_aside(nil, false), do: "newest #{Tracer.kept_traces()}"
+
+  defp activity_aside(%{live?: true, bucket_ms: bucket_ms, segments: [segment]}, _saved?),
+    do: "last #{span_label(length(segment.counts) * bucket_ms)} · #{span_label(bucket_ms)} slices"
+
+  defp activity_aside(%{bucket_ms: bucket_ms}, saved?),
+    do: "#{activity_aside(nil, saved?)} · #{span_label(bucket_ms)} slices"
+
+  defp span_label(ms) when rem(ms, 3_600_000) == 0, do: "#{div(ms, 3_600_000)}h"
+  defp span_label(ms) when rem(ms, 60_000) == 0, do: "#{div(ms, 60_000)}m"
+  defp span_label(ms), do: "#{div(ms, 1_000)}s"
+
+  defp rate_unit(max_count, bucket_ms) when max_count * 1_000 < bucket_ms, do: {60_000, "/min"}
+  defp rate_unit(_max_count, _bucket_ms), do: {1_000, "/s"}
+
+  defp nice_ceil(value) do
+    base = :math.pow(10, Float.floor(:math.log10(value)))
+
+    step =
+      case value / base do
+        m when m <= 1 -> 1
+        m when m <= 2 -> 2
+        m when m <= 5 -> 5
+        _m -> 10
+      end
+
+    round(step * base)
+  end
+
+  defp activity_bars(%{segments: segments, bucket_ms: bucket_ms} = activity, unit_ms, top) do
+    last_segment = length(segments) - 1
+    total_bars = segments |> Enum.map(&length(&1.counts)) |> Enum.sum()
+
+    end_label =
+      if activity.live?,
+        do: "now",
+        else: activity.end_us |> DateTime.from_unix!(:microsecond) |> Formatters.format_time()
+
+    {rows, _offset} =
+      segments
+      |> Enum.with_index()
+      |> Enum.map_reduce(0, fn {segment, seg_idx}, offset ->
+        gap =
+          if segment.gap_before_ms,
+            do: [%{gap: Formatters.format_uptime(segment.gap_before_ms)}],
+            else: []
+
+        last_bucket = length(segment.counts) - 1
+
+        bars =
+          segment.counts
+          |> Enum.with_index()
+          |> Enum.map(fn {count, idx} ->
+            start_us = segment.start_us + idx * bucket_ms * 1_000
+            at = DateTime.from_unix!(start_us, :microsecond)
+
+            %{
+              gap: nil,
+              height: count * unit_ms / bucket_ms * 100 / top,
+              tip: activity_tip(at, bucket_ms, count),
+              tip_align: tip_align(offset + idx, total_bars),
+              label: seg_idx == 0 and idx == 0 and Formatters.format_time(at),
+              end_label: seg_idx == last_segment and idx == last_bucket and end_label
+            }
+          end)
+
+        {gap ++ bars, offset + length(segment.counts)}
+      end)
+
+    List.flatten(rows)
+  end
+
+  defp activity_tip(at, 1_000, count),
+    do: "#{Formatters.format_time(at)} · #{TracingComponents.count(count, "trace", "traces")}"
+
+  defp activity_tip(at, bucket_ms, count) do
+    stop_at = DateTime.add(at, bucket_ms, :millisecond)
+
+    "#{Formatters.format_time(at)}–#{Formatters.format_time(stop_at)} · #{TracingComponents.count(count, "trace", "traces")}"
+  end
+
+  defp tip_align(pos, total) when total <= 1 or pos * 4 < total, do: :left
+  defp tip_align(pos, total) when pos * 4 >= total * 3, do: :right
+  defp tip_align(_pos, _total), do: :center
 
   defp run_tone(:running), do: :running
   defp run_tone(reason), do: TracingComponents.reason_tone(reason)
