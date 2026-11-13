@@ -64,7 +64,7 @@ defmodule VoyagerWeb.TracingSessionLogTest do
     send(view.pid, {:session_entries, Tracer.active(), [started]})
     flush_log(view)
 
-    assert has_element?(view, "#entry-1", "by UI")
+    assert has_element?(view, "#entry-1", "Started")
     refute has_element?(view, "#entry-1", "by MCP")
   end
 
@@ -253,17 +253,17 @@ defmodule VoyagerWeb.TracingSessionLogTest do
 
   test "shows the configured, started and stopped entries", %{conn: conn} do
     %{id: id} = start!()
-    :ok = Tracer.stop(:ui)
+    :ok = Tracer.stop(:mcp)
     _ = :sys.get_state(Tracer)
 
     view = open(conn, id)
 
     assert has_element?(view, "#entry-0", "Configured")
-    assert has_element?(view, "#entry-0", "by UI")
+    refute has_element?(view, "#entry-0", "by UI")
     assert has_element?(view, "#entry-1", "Started")
     assert has_element?(view, "#entry-1 td[title]")
     assert has_element?(view, "#entry-2", "Stopped")
-    assert has_element?(view, "#entry-2", "by UI")
+    assert has_element?(view, "#entry-2", "by MCP")
   end
 
   test "colours bare atoms in Erlang syntax", %{conn: conn} do

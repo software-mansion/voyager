@@ -132,7 +132,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
            |> element("#session-params-portal")
            |> render() =~ "Max rate"
 
-    assert has_element?(view, "#entry-0-changes", "by UI · Date.leap_year?/1")
+    assert has_element?(view, "#entry-0-changes", ~r/^\s*Date\.leap_year\?\/1\s*$/)
 
     {:ok, _session} = configure(%{scope: :local, max_events: nil, max_time_ms: 90_000})
     render_async(view)
