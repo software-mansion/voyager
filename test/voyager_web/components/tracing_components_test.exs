@@ -4,6 +4,7 @@ defmodule VoyagerWeb.Components.TracingComponentsTest do
   import Phoenix.LiveViewTest
 
   alias Voyager.Services.Tracer.Config
+  alias Voyager.Services.Tracer.Session
   alias VoyagerWeb.Components.TracingComponents
 
   @config %Config{module: "Elixir.Date", function: "leap_year?", arity: 1, max_events: 1_000}
@@ -89,5 +90,48 @@ defmodule VoyagerWeb.Components.TracingComponentsTest do
 
   test "config_changes/1 shows the traced function without a previous config" do
     assert changes(config: @config) == "Date.leap_year?/1"
+  end
+
+  test "tone/1 and reason_tone/1 group stop reasons by outcome" do
+    base = %Session{id: 1, origin: :ui, created_at: ~U[2026-01-01 00:00:00Z]}
+
+    assert TracingComponents.tone(%{base | status: :running}) == :running
+    assert TracingComponents.tone(%{base | status: :idle}) == :open
+
+    for reason <- [:stopped, :disconnected] do
+      assert TracingComponents.tone(%{base | status: :stopped, stop_reason: reason}) == :open
+    end
+
+    for reason <- [
+          :node_down,
+          :event_limit,
+          :rate_limit,
+          :time_limit,
+          :mailbox_limit,
+          :storage_limit
+        ] do
+      assert TracingComponents.tone(%{base | status: :stopped, stop_reason: reason}) == :warning
+    end
+
+    for reason <- [:interrupted, :write_failed, {:tracer_down, :killed}] do
+      assert TracingComponents.tone(%{base | status: :stopped, stop_reason: reason}) == :error
+    end
+  end
+
+  test "other_node?/2 marks configured sessions from a different node without overriding tone" do
+    session = %Session{
+      id: 1,
+      origin: :ui,
+      created_at: ~U[2026-01-01 00:00:00Z],
+      node: :other@localhost,
+      status: :stopped,
+      stop_reason: :interrupted
+    }
+
+    assert TracingComponents.tone(session) == :error
+    assert TracingComponents.other_node?(session, :demo@localhost)
+    refute TracingComponents.other_node?(session, :other@localhost)
+    refute TracingComponents.other_node?(session, nil)
+    refute TracingComponents.other_node?(%{session | node: nil}, :demo@localhost)
   end
 end

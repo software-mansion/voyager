@@ -13,24 +13,43 @@ defmodule VoyagerWeb.Components.TracingComponents do
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.TermFormatter
 
-  @spec tone(Session.t(), node() | nil) :: :running | :other_node | :failed | :open
-  def tone(session, connected_node \\ nil)
-  def tone(%Session{status: :running}, _connected_node), do: :running
+  @type tone :: :running | :warning | :error | :open
 
-  def tone(%Session{node: node}, connected_node)
-      when not is_nil(node) and not is_nil(connected_node) and node != connected_node,
-      do: :other_node
+  @spec tone(Session.t()) :: tone()
+  def tone(%Session{status: :running}), do: :running
+  def tone(%Session{status: :stopped, stop_reason: reason}), do: reason_tone(reason)
+  def tone(_session), do: :open
 
-  def tone(%Session{status: :stopped, stop_reason: reason}, _connected_node),
-    do: if(failure?(reason), do: :failed, else: :open)
+  @doc "A limit or a lost node warns; a fault on Voyager's side is an error; a requested stop is plain."
+  @spec reason_tone(Voyager.Services.Tracer.stop_reason() | nil) :: tone()
+  def reason_tone({:tracer_down, _reason}), do: :error
+  def reason_tone(reason) when reason in [:interrupted, :write_failed], do: :error
 
-  def tone(_session, _connected_node), do: :open
+  def reason_tone(reason)
+      when reason in [
+             :node_down,
+             :event_limit,
+             :rate_limit,
+             :time_limit,
+             :mailbox_limit,
+             :storage_limit
+           ],
+      do: :warning
 
-  defp failure?({:tracer_down, _reason}), do: true
-  defp failure?(reason), do: reason in [:node_down, :write_failed]
+  def reason_tone(_reason), do: :open
 
-  @spec tone_class(:running | :other_node | :failed | :open, :chip | :dot | :label | :badge) ::
-          String.t()
+  @doc "Whether `session` traced a node other than `connected_node`; marks the node, never the status."
+  @spec other_node?(Session.t(), node() | nil) :: boolean()
+  def other_node?(%Session{node: node}, connected_node)
+      when not is_nil(node) and not is_nil(connected_node),
+      do: node != connected_node
+
+  def other_node?(_session, _connected_node), do: false
+
+  @spec tone_class(
+          tone() | :other_node,
+          :chip | :dot | :label | :badge | :status_badge
+        ) :: String.t()
   def tone_class(:running, :chip),
     do:
       "border-success/30 bg-success/10 hover:bg-success/20 hover:border-success/50 focus-visible:outline-success"
@@ -38,22 +57,31 @@ defmodule VoyagerWeb.Components.TracingComponents do
   def tone_class(:running, :dot), do: "bg-success"
   def tone_class(:running, :label), do: "text-success"
   def tone_class(:running, :badge), do: "badge-success dark:text-neutral"
+  def tone_class(:running, :status_badge), do: "badge-soft badge-success"
 
-  def tone_class(:failed, :chip),
+  def tone_class(:warning, :chip),
     do:
       "border-warning/30 bg-warning/10 hover:bg-warning/20 hover:border-warning/50 focus-visible:outline-warning"
 
-  def tone_class(:failed, :dot), do: "bg-warning"
-  def tone_class(:failed, :label), do: "text-warning"
-  def tone_class(:failed, :badge), do: "badge-warning dark:text-neutral"
+  def tone_class(:warning, :dot), do: "bg-warning"
+  def tone_class(:warning, :label), do: "text-warning"
+  def tone_class(:warning, :badge), do: "badge-warning dark:text-neutral"
+  def tone_class(:warning, :status_badge), do: "badge-soft badge-warning"
+
+  def tone_class(:error, :chip),
+    do:
+      "border-error/30 bg-error/10 hover:bg-error/20 hover:border-error/50 focus-visible:outline-error"
+
+  def tone_class(:error, :dot), do: "bg-error"
+  def tone_class(:error, :label), do: "text-error"
+  def tone_class(:error, :badge), do: "badge-error dark:text-neutral"
+  def tone_class(:error, :status_badge), do: "badge-soft badge-error"
 
   def tone_class(:other_node, :chip),
     do:
       "border-info/30 bg-info/10 hover:bg-info/20 hover:border-info/50 focus-visible:outline-info"
 
-  def tone_class(:other_node, :dot), do: "bg-info"
   def tone_class(:other_node, :label), do: "text-info"
-  def tone_class(:other_node, :badge), do: "badge-info dark:text-neutral"
 
   def tone_class(:open, :chip),
     do:
@@ -62,6 +90,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
   def tone_class(:open, :dot), do: "bg-base-content/40"
   def tone_class(:open, :label), do: "text-base-content/70"
   def tone_class(:open, :badge), do: "badge-ghost"
+  def tone_class(:open, :status_badge), do: "badge-ghost"
 
   @spec state(Session.t()) :: String.t()
   def state(%Session{status: :running}), do: "running"
@@ -202,7 +231,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
           trace_session={@trace_session}
           mode={@mode}
           pending?={@pending?}
-          other_node?={tone(@trace_session, @connected_node) == :other_node}
+          other_node?={other_node?(@trace_session, @connected_node)}
           on_stop={@on_stop}
           on_start={@on_start}
           on_load={@on_load}
@@ -218,14 +247,6 @@ defmodule VoyagerWeb.Components.TracingComponents do
     do: [{:storage, "Storage", if(save, do: "Saved", else: "Not saved")}]
 
   defp chips(%Session{config: config}), do: config_chips(config)
-
-  defp status_class(session) do
-    case tone(session) do
-      :running -> "badge-soft badge-success"
-      :failed -> "badge-soft badge-warning"
-      :open -> "badge-ghost"
-    end
-  end
 
   defp meta(session, :saved), do: recorded(session.started_at, session.stopped_at)
   defp meta(%Session{config: nil}, _mode), do: "Active in tracer · no parameters yet"
@@ -260,7 +281,10 @@ defmodule VoyagerWeb.Components.TracingComponents do
       <span
         id="session-status"
         data-tone={tone(@trace_session)}
-        class={["badge badge-sm shrink-0 gap-1.5 font-semibold", status_class(@trace_session)]}
+        class={[
+          "badge badge-sm shrink-0 gap-1.5 font-semibold",
+          tone_class(tone(@trace_session), :status_badge)
+        ]}
       >
         <span class="size-1.5 relative flex">
           <span
@@ -477,6 +501,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
   attr :confirm_label, :string, required: true
   attr :on_confirm, :string, required: true
   attr :on_cancel, :string, required: true
+  attr :confirm_class, :string, default: "btn-error dark:text-base-100"
   slot :inner_block, required: true
 
   def confirm_modal(assigns) do
@@ -507,7 +532,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
             type="button"
             id={"#{@id}-confirm"}
             phx-click={@on_confirm}
-            class="btn btn-error dark:text-base-100"
+            class={["btn", @confirm_class]}
           >
             {@confirm_label}
           </button>
