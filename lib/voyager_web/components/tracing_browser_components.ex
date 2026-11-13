@@ -332,6 +332,365 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
     """
   end
 
+  def idle_overview_state(assigns) do
+    ~H"""
+    <div
+      id="overview-idle"
+      class="card bg-base-100 border-base-200 flex min-h-0 flex-1 flex-col items-center justify-center gap-3 border p-10 shadow-sm"
+    >
+      <.icon name="icon-binoculars" class="text-base-content/60 size-8" />
+      <div class="text-center">
+        <p class="text-base-content font-semibold">Nothing to show yet</p>
+        <p class="text-base-content/70 mt-0.5 text-sm">
+          Open the session to set its parameters and start it.
+        </p>
+      </div>
+    </div>
+    """
+  end
+
+  attr :item, :map, required: true
+  attr :active?, :boolean, required: true
+  attr :busy?, :boolean, required: true
+  attr :pending?, :boolean, required: true
+  attr :connected_node, :string, required: true
+  attr :runtime_seconds, :integer, default: 0
+  attr :storage_limit_mb, :integer, required: true
+  attr :open_href, :string, required: true
+  attr :on_stop, :string, required: true
+  attr :on_unload, :string, required: true
+  attr :on_load, :string, required: true
+  attr :on_copy, :string, required: true
+  attr :on_delete, :string, required: true
+
+  def overview_session_card(assigns) do
+    tone = item_tone(assigns.item)
+    other_node? = item_other_node?(assigns.item, assigns.connected_node)
+    {module, function} = item_mfa_parts(assigns.item.config)
+
+    assigns =
+      assign(assigns,
+        tone: tone,
+        other_node?: other_node?,
+        node_label: item_node(assigns.item),
+        module: module,
+        function: function,
+        saved?: item_saved?(assigns.item),
+        ran?: assigns.item.status != :idle,
+        chips:
+          if(assigns.item.config,
+            do: TracingComponents.config_chips(assigns.item.config),
+            else: []
+          )
+      )
+
+    ~H"""
+    <div
+      id="session-card"
+      data-session-id={@item.id}
+      class="card bg-base-100 border-base-200 text-base-content flex-none border shadow-sm"
+    >
+      <div class="flex items-start gap-4 px-5 py-4">
+        <div class="min-w-0 flex-1">
+          <div class="flex min-w-0 items-center gap-2 text-xs">
+            <span
+              id="overview-status"
+              data-tone={@tone}
+              class={[
+                "badge badge-sm shrink-0 gap-1.5 font-semibold",
+                TracingComponents.tone_class(@tone, :status_badge)
+              ]}
+            >
+              <span class="size-1.5 relative flex">
+                <span
+                  :if={@item.status == :running}
+                  class="bg-success size-full absolute inline-flex animate-ping rounded-full opacity-75"
+                ></span>
+                <span class={[
+                  "size-1.5 relative inline-flex rounded-full",
+                  TracingComponents.tone_class(@tone, :dot)
+                ]}></span>
+              </span>
+              {overview_state_label(@item)}
+            </span>
+            <span
+              :if={@saved?}
+              id="overview-saved"
+              class="badge badge-sm badge-outline border-base-300 text-base-content/70 shrink-0 font-medium"
+            >
+              Saved
+            </span>
+            <span id="overview-meta" class="text-base-content/60 truncate">
+              {overview_meta_lead(@item, @active?)}
+              <span :if={@other_node?}>
+                · on <span class="font-mono text-info">{@node_label}</span>
+              </span>
+              <span :if={!@active?}> · {origin_label(@item.origin)}</span>
+            </span>
+          </div>
+
+          <.tooltip
+            id={"overview-params-#{@item.id}"}
+            position="bottom"
+            class="mt-2 flex w-fit min-w-0 max-w-full flex-col items-start gap-2.5"
+          >
+            <h2
+              id="overview-mfa"
+              tabindex="0"
+              class={[
+                "text-base-content max-w-full truncate text-lg font-semibold",
+                @item.config && "font-mono"
+              ]}
+            >
+              <span :if={@module != ""} class="text-base-content/50 font-medium">{@module}</span>{@function}
+            </h2>
+            <div :if={@chips != []} class="flex flex-wrap gap-1.5">
+              <span
+                :for={{key, label, value} <- @chips}
+                id={"overview-chip-#{key}"}
+                class="border-base-300 bg-base-200 flex min-w-0 max-w-full items-center gap-1.5 rounded-lg border px-2 py-1"
+              >
+                <span class="font-mono tracking-label text-base-content/50 shrink-0 text-xs font-semibold uppercase">
+                  {label}
+                </span>
+                <span class="font-mono text-base-content/90 truncate text-xs">{value}</span>
+              </span>
+            </div>
+            <:content>
+              <TracingComponents.config_table :if={@item.config} config={@item.config} />
+              <span :if={!@item.config}>No parameters yet</span>
+            </:content>
+          </.tooltip>
+        </div>
+
+        <.overview_actions
+          item={@item}
+          active?={@active?}
+          other_node?={@other_node?}
+          busy?={@busy?}
+          pending?={@pending?}
+          connected_node={@connected_node}
+          open_href={@open_href}
+          on_stop={@on_stop}
+          on_unload={@on_unload}
+          on_load={@on_load}
+          on_copy={@on_copy}
+          on_delete={@on_delete}
+        />
+      </div>
+
+      <div
+        :if={@active? and @other_node?}
+        id="other-node-note"
+        role="note"
+        class="bg-info/10 border-info/30 text-base-content/80 mx-5 mb-4 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"
+      >
+        <.icon name="icon-info" class="text-info size-4 shrink-0" />
+        <span>
+          This session traced <span class="font-mono">{@node_label}</span>. Unload it to start tracing {@connected_node}.
+        </span>
+      </div>
+
+      <.overview_totals
+        :if={@ran?}
+        item={@item}
+        saved?={@saved?}
+        runtime_seconds={@runtime_seconds}
+        storage_limit_mb={@storage_limit_mb}
+      />
+    </div>
+    """
+  end
+
+  attr :item, :map, required: true
+  attr :active?, :boolean, required: true
+  attr :other_node?, :boolean, required: true
+  attr :busy?, :boolean, required: true
+  attr :pending?, :boolean, required: true
+  attr :connected_node, :string, required: true
+  attr :open_href, :string, required: true
+  attr :on_stop, :string, required: true
+  attr :on_unload, :string, required: true
+  attr :on_load, :string, required: true
+  attr :on_copy, :string, required: true
+  attr :on_delete, :string, required: true
+
+  defp overview_actions(assigns) do
+    ~H"""
+    <div class="flex shrink-0 items-center gap-2">
+      <button
+        :if={@active? and @item.status == :running}
+        type="button"
+        id="stop-session"
+        phx-click={@on_stop}
+        disabled={@pending?}
+        class="btn btn-sm btn-soft btn-error"
+      >
+        <.icon name="icon-square-filled" class="size-3.5" /> Stop
+      </button>
+
+      <button
+        :if={@active? and @item.status != :running}
+        type="button"
+        id="unload-session"
+        phx-click={@on_unload}
+        disabled={@pending?}
+        class="btn btn-sm"
+      >
+        <.icon name="icon-log-out" class="size-3.5" /> Unload from tracer
+      </button>
+
+      <.tooltip :if={!@active? and !@other_node? and @busy?} id="load-busy-tip" position="bottom">
+        <button type="button" id="load-session" aria-disabled="true" class="btn btn-sm">
+          <.icon name="icon-log-in" class="size-3.5" /> Load into tracer
+        </button>
+        <:content>Stop the running session first</:content>
+      </.tooltip>
+
+      <button
+        :if={!@active? and !@other_node? and !@busy?}
+        type="button"
+        id="load-session"
+        phx-click={@on_load}
+        disabled={@pending?}
+        class="btn btn-sm"
+      >
+        <.icon name="icon-log-in" class="size-3.5" /> Load into tracer
+      </button>
+
+      <.tooltip :if={!@active? and @other_node? and @busy?} id="copy-busy-tip" position="bottom">
+        <button type="button" id="trace-here" aria-disabled="true" class="btn btn-sm">
+          <.icon name="icon-copy" class="size-3.5" /> Trace on this node
+        </button>
+        <:content>Stop the running session first</:content>
+      </.tooltip>
+
+      <.tooltip
+        :if={!@active? and @other_node? and !@busy?}
+        id="trace-here-tip"
+        position="bottom"
+      >
+        <button
+          type="button"
+          id="trace-here"
+          phx-click={@on_copy}
+          disabled={@pending?}
+          class="btn btn-sm"
+        >
+          <.icon name="icon-copy" class="size-3.5" /> Trace on this node
+        </button>
+        <:content>New session on {@connected_node} with these parameters</:content>
+      </.tooltip>
+
+      <.tooltip :if={!@active?} id="delete-session-tip" position="bottom">
+        <button
+          type="button"
+          id="delete-session"
+          phx-click={@on_delete}
+          disabled={@pending?}
+          aria-label="Delete session"
+          class="btn btn-sm btn-square btn-ghost text-base-content/60 hover:bg-error/10 hover:text-error"
+        >
+          <.icon name="icon-trash" class="size-3.5" />
+        </button>
+        <:content>Delete session</:content>
+      </.tooltip>
+
+      <.link navigate={@open_href} id="open-session" class="btn btn-sm btn-primary">
+        Open session <.icon name="icon-arrow-right" class="size-3.5" />
+      </.link>
+    </div>
+    """
+  end
+
+  attr :item, :map, required: true
+  attr :saved?, :boolean, required: true
+  attr :runtime_seconds, :integer, required: true
+  attr :storage_limit_mb, :integer, required: true
+
+  defp overview_totals(assigns) do
+    limit_bytes = assigns.storage_limit_mb * 1_000_000
+
+    assigns =
+      assign(assigns,
+        limit_bytes: limit_bytes,
+        storage_pct: storage_percent(assigns.item.bytes, limit_bytes)
+      )
+
+    ~H"""
+    <div
+      id="overview-totals"
+      class="bg-base-200 border-base-200 rounded-b-box grid grid-cols-2 gap-px overflow-hidden border-t lg:grid-cols-4"
+    >
+      <.total_cell
+        id="total-traces"
+        label="Traces"
+        value={Formatters.format_integer(@item.traces)}
+        unit="all runs"
+      />
+      <.total_cell
+        id="total-dropped"
+        label="Dropped"
+        value={Formatters.format_integer(@item.dropped)}
+        value_class={@item.dropped > 0 && "text-warning"}
+      />
+      <.total_cell
+        id="total-runs"
+        label="Runs"
+        value={Formatters.format_integer(max(@item.runs, 1))}
+        unit={"#{TracingComponents.format_elapsed(@runtime_seconds)} run time"}
+      />
+      <.total_cell
+        :if={@saved?}
+        id="total-storage"
+        label="Storage"
+        value={TracingComponents.format_storage_bytes(@item.bytes)}
+        unit={"of #{TracingComponents.format_storage_bytes(@limit_bytes)}"}
+        bar={@storage_pct}
+      />
+      <.total_cell
+        :if={!@saved?}
+        id="total-storage"
+        label="Storage"
+        value="Not saved"
+        unit={"newest #{Voyager.Services.Tracer.kept_traces()}"}
+        prose
+      />
+    </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :label, :string, required: true
+  attr :value, :string, required: true
+  attr :unit, :string, default: nil
+  attr :bar, :integer, default: nil
+  attr :value_class, :any, default: nil
+  attr :prose, :boolean, default: false
+
+  defp total_cell(assigns) do
+    ~H"""
+    <div id={@id} class="bg-base-100 min-w-0 px-5 py-4">
+      <div class="font-mono tracking-label text-base-content/60 mb-1.5 text-xs font-semibold uppercase">
+        {@label}
+      </div>
+      <div class="min-h-7 flex items-baseline gap-1.5">
+        <span class={[
+          "truncate text-lg font-semibold",
+          !@prose && "font-mono tabular-nums",
+          @value_class
+        ]}>
+          {@value}
+        </span>
+        <span :if={@unit} class="font-mono text-base-content/60 shrink-0 text-xs">{@unit}</span>
+      </div>
+      <div :if={@bar != nil} class="bg-base-content/10 mt-2 flex h-1.5 overflow-hidden rounded-full">
+        <span class="bg-primary block h-full transition-all" style={"width: #{@bar}%"}></span>
+      </div>
+    </div>
+    """
+  end
+
   @spec item_node(Session.t() | map()) :: String.t() | nil
   def item_node(%Session{node: nil}), do: nil
   def item_node(%Session{node: node}), do: Atom.to_string(node)
@@ -427,4 +786,43 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
   defp empty_title("all", _connected_node), do: "No saved sessions yet"
   defp empty_title(node, node), do: "No sessions on this node yet"
   defp empty_title(node, _connected_node), do: "No sessions on #{node} yet"
+
+  defp item_saved?(%Session{save: save}), do: save
+  defp item_saved?(_listed), do: true
+
+  defp overview_state_label(%{status: :running}), do: "Running"
+  defp overview_state_label(%{status: :idle}), do: "Ready"
+  defp overview_state_label(_item), do: "Stopped"
+
+  defp overview_meta_lead(%Session{status: :running, run_started_at: %DateTime{} = at}, true),
+    do: "Active in tracer · started #{Formatters.format_time(at)} UTC"
+
+  defp overview_meta_lead(%Session{config: nil}, true),
+    do: "Active in tracer · no parameters yet"
+
+  defp overview_meta_lead(%Session{status: :idle}, true),
+    do: "Active in tracer · not started"
+
+  defp overview_meta_lead(%Session{save: false}, true),
+    do: "Active in tracer · not saved"
+
+  defp overview_meta_lead(%Session{stop_reason: reason}, true) when not is_nil(reason),
+    do: "Active in tracer · #{String.downcase(TracingComponents.stop_reason_label(reason))}"
+
+  defp overview_meta_lead(%Session{}, true), do: "Active in tracer · stopped"
+
+  defp overview_meta_lead(item, false) do
+    reason =
+      if item.stop_reason,
+        do: TracingComponents.stop_reason_label(item.stop_reason),
+        else: "Stopped"
+
+    recorded =
+      case item.started_at || item.created_at do
+        %DateTime{} = at -> Calendar.strftime(at, "%-d %b %H:%M UTC")
+        _ -> ""
+      end
+
+    "#{reason} · recorded #{recorded}"
+  end
 end
