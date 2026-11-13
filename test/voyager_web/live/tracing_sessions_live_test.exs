@@ -117,7 +117,7 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     refute has_element?(view, "#show-older")
   end
 
-  test "creates a session with the Save toggle and warns before replacing an unsaved one", %{
+  test "asks whether to save a new session and warns before replacing an unsaved one", %{
     conn: conn
   } do
     create!()
@@ -126,14 +126,10 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing")
 
     view
-    |> element("#save-new-session")
-    |> render_click()
-
-    view
     |> element("#create-session")
     |> render_click()
 
-    assert has_element?(view, "#create-session-modal")
+    assert has_element?(view, "#create-session-modal #replace-unsaved-warning")
 
     view
     |> element("#create-session-modal-confirm")
@@ -143,6 +139,34 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     active = Tracer.active()
     assert active.save
     assert path == ~p"/node/#{@node_name}/tracing/#{active.id}"
+  end
+
+  test "answering No creates an unsaved session and dismissing creates nothing", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing")
+
+    view
+    |> element("#create-session")
+    |> render_click()
+
+    refute has_element?(view, "#replace-unsaved-warning")
+
+    view
+    |> element("#create-session-modal-backdrop")
+    |> render_click()
+
+    refute has_element?(view, "#create-session-modal")
+    assert Tracer.active() == nil
+
+    view
+    |> element("#create-session")
+    |> render_click()
+
+    view
+    |> element("#create-session-modal-cancel")
+    |> render_click()
+
+    assert_redirect(view)
+    refute Tracer.active().save
   end
 
   test "stops a running session after confirmation and unloads it", %{conn: conn} do
@@ -265,8 +289,13 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     |> element("#trace-here")
     |> render_click()
 
+    view
+    |> element("#copy-session-modal-cancel")
+    |> render_click()
+
     {path, _flash} = assert_redirect(view)
     active = Tracer.active()
+    refute active.save
     assert active.node == Node.self()
     assert active.config.module == "Elixir.Date"
     assert path == ~p"/node/#{@node_name}/tracing/#{active.id}"
