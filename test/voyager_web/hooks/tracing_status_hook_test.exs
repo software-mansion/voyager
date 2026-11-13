@@ -54,6 +54,9 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     assert has_element?(view, "#tracing-indicator-count", "1.2K")
 
     broadcast({:session_updated, %{session() | traces: 2_000}})
+    assert has_element?(view, "#tracing-indicator-count", "1.2K")
+
+    send(view.pid, :put_tracing_session)
     assert has_element?(view, "#tracing-indicator-count", "2.0K")
 
     broadcast({:session_updated, %{session() | status: :stopped, stop_reason: :stopped}})
