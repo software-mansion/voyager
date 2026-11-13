@@ -437,26 +437,20 @@ defmodule VoyagerWeb.Components.TracingComponents do
         phx-click={@on_load}
         disabled={@pending?}
       />
-      <.tooltip
+      <.action_button
         :if={@mode == :active and @trace_session.config}
-        id="session-edit-tip"
-        position="bottom"
+        id="session-edit"
+        icon="icon-pencil"
+        label="Edit"
+        aria-disabled="true"
+        class="md:min-w-24"
       >
-        <button
-          type="button"
-          id="session-edit"
-          aria-disabled="true"
-          class="btn btn-sm max-md:btn-square"
-        >
-          <.icon name="icon-pencil" class="size-3.5" />
-          <span class="sr-only md:not-sr-only">Edit</span>
-        </button>
-        <:content>
+        <:tip>
           {if @trace_session.status == :running,
             do: "Stop the session to edit its parameters",
             else: "Editing parameters is not available yet"}
-        </:content>
-      </.tooltip>
+        </:tip>
+      </.action_button>
       <.action_button
         :if={@mode == :active and @trace_session.status == :running}
         id="session-stop"
@@ -464,29 +458,22 @@ defmodule VoyagerWeb.Components.TracingComponents do
         label="Stop"
         phx-click={@on_stop}
         disabled={@pending?}
-        class="btn-soft btn-error"
+        class="btn-soft btn-error md:min-w-24"
       />
-      <.tooltip
+      <.action_button
         :if={@mode == :active and @trace_session.status != :running and @other_node?}
-        id="session-run-tip"
-        position="bottom"
+        id={if @trace_session.status == :stopped, do: "session-resume", else: "session-start"}
+        tip_id="session-run-tip"
+        icon="icon-play"
+        label={if @trace_session.status == :stopped, do: "Resume", else: "Start"}
+        aria-disabled="true"
+        class="btn-primary md:min-w-24"
       >
-        <button
-          type="button"
-          id={if @trace_session.status == :stopped, do: "session-resume", else: "session-start"}
-          aria-disabled="true"
-          class="btn btn-sm btn-primary max-md:btn-square"
-        >
-          <.icon name="icon-play" class="size-3.5" />
-          <span class="sr-only md:not-sr-only">{if @trace_session.status == :stopped,
-            do: "Resume",
-            else: "Start"}</span>
-        </button>
-        <:content>
+        <:tip>
           Traced on <span class="font-mono">{@trace_session.node}</span>.
           Connect to that node to run this session.
-        </:content>
-      </.tooltip>
+        </:tip>
+      </.action_button>
       <.action_button
         :if={@mode == :active and @trace_session.status == :stopped and not @other_node?}
         id="session-resume"
@@ -494,7 +481,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
         label="Resume"
         phx-click={@on_start}
         disabled={@pending?}
-        class="btn-primary"
+        class="btn-primary md:min-w-24"
       />
       <.action_button
         :if={@mode == :active and @trace_session.status == :idle and not @other_node?}
@@ -503,38 +490,51 @@ defmodule VoyagerWeb.Components.TracingComponents do
         label="Start"
         phx-click={@on_start}
         disabled={@pending? or is_nil(@trace_session.config)}
-        class="btn-primary"
+        class="btn-primary md:min-w-24"
       />
-      <.tooltip :if={@mode == :saved} id="session-delete-tip" position="bottom">
-        <button
-          type="button"
-          id="session-delete"
-          phx-click={@on_delete}
-          disabled={@pending?}
-          aria-label="Delete session"
-          class="btn btn-sm btn-square btn-ghost text-base-content/60 hover:bg-error/10 hover:text-error"
-        >
-          <.icon name="icon-trash" class="size-3.5" />
-        </button>
-        <:content>Delete session</:content>
-      </.tooltip>
+      <.action_button
+        :if={@mode == :saved}
+        id="session-delete"
+        icon="icon-trash"
+        label="Delete session"
+        icon_only
+        phx-click={@on_delete}
+        disabled={@pending?}
+        class="btn-ghost text-base-content/60 hover:bg-error/10 hover:text-error"
+      />
     </div>
     """
   end
 
   attr :id, :string, required: true
+  attr :tip_id, :string, default: nil, doc: "the tooltip's id; defaults to `<id>-tip`"
   attr :icon, :string, required: true
   attr :label, :string, required: true
+  attr :icon_only, :boolean, default: false, doc: "keeps the label in the tooltip at every width"
   attr :class, :any, default: nil
   attr :rest, :global, include: ~w(disabled)
 
+  slot :tip, doc: "shown at every width in place of the label"
+
   defp action_button(assigns) do
+    assigns = assign(assigns, :tip_id, assigns.tip_id || "#{assigns.id}-tip")
+
     ~H"""
-    <.tooltip id={"#{@id}-label"} position="bottom" tip_class="md:hidden">
-      <button type="button" id={@id} class={["btn btn-sm max-md:btn-square", @class]} {@rest}>
-        <.icon name={@icon} class="size-3.5" /> <span class="sr-only md:not-sr-only">{@label}</span>
+    <.tooltip
+      id={@tip_id}
+      position="bottom"
+      tip_class={if(@tip == [] and not @icon_only, do: "md:hidden")}
+    >
+      <button
+        type="button"
+        id={@id}
+        class={["btn btn-sm", if(@icon_only, do: "btn-square", else: "max-md:btn-square"), @class]}
+        {@rest}
+      >
+        <.icon name={@icon} class="size-3.5" />
+        <span class={if @icon_only, do: "sr-only", else: "sr-only md:not-sr-only"}>{@label}</span>
       </button>
-      <:content>{@label}</:content>
+      <:content>{if @tip == [], do: @label, else: render_slot(@tip)}</:content>
     </.tooltip>
     """
   end
