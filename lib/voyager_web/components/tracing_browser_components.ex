@@ -38,7 +38,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
             id="save-new-session"
             checked={@save?}
             phx-click={@on_toggle_save}
-            class="toggle toggle-xs toggle-primary"
+            class="toggle toggle-sm toggle-primary"
           />
           <span>Save</span>
         </label>
