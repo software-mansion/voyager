@@ -91,6 +91,20 @@ defmodule Voyager.Queries.TraceSessions do
     |> Repo.aggregate(:count)
   end
 
+  @spec find_listed(pos_integer(), String.t()) :: listed() | nil
+  def find_listed(id, node_filter) when is_integer(id) and id > 0 do
+    case get(id) do
+      nil ->
+        nil
+
+      row ->
+        if node_filter == "all" or row.node == node_filter do
+          runs = Map.get(run_counts([id]), id, 0)
+          to_listed(row, runs)
+        end
+    end
+  end
+
   defp filter_node(query, nil), do: query
   defp filter_node(query, node), do: where(query, [s], s.node == ^node)
 
