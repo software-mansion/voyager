@@ -702,6 +702,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
       id="overview-runs"
       title="Runs"
       aside={TracingComponents.count(length(@runs), "run", "runs")}
+      class="@container/runs"
     >
       <%= for run <- @runs do %>
         <div
@@ -709,39 +710,48 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
           class="font-mono text-base-content/60 flex items-center gap-1.5 pl-16 text-xs"
         >
           <.icon name="icon-pencil" class="size-3 shrink-0" />
-          <span>
+          <span class="min-w-0">
             <TracingComponents.config_changes config={run.config} previous={run.previous_config} />
           </span>
         </div>
-        <div id={"overview-run-#{run.index}"} class="flex items-center gap-3 text-sm">
-          <span class="font-mono text-base-content/60 w-13 shrink-0">Run {run.index}</span>
-          <div class="bg-base-content/10 h-2.5 min-w-0 flex-1 overflow-hidden rounded-full">
-            <span
-              class={[
-                "block h-full rounded-full",
-                run_fill_class(run_tone(run.reason)),
-                run.reason == :running && "animate-pulse"
-              ]}
-              style={"width: #{max(div(max(run.duration_ms, 1) * 100, @max_ms), 3)}%"}
-            ></span>
+        <div
+          id={"overview-run-#{run.index}"}
+          class="flex flex-col gap-1 text-sm runs-full:flex-row runs-full:items-center runs-full:gap-3"
+        >
+          <div class="flex min-w-0 items-center gap-3 runs-full:contents">
+            <span class="font-mono text-base-content/60 w-13 shrink-0">Run {run.index}</span>
+            <div class="bg-base-content/10 min-w-12 h-2.5 flex-1 overflow-hidden rounded-full">
+              <span
+                class={[
+                  "block h-full rounded-full",
+                  run_fill_class(run_tone(run.reason)),
+                  run.reason == :running && "animate-pulse"
+                ]}
+                style={"width: #{max(div(max(run.duration_ms, 1) * 100, @max_ms), 3)}%"}
+              ></span>
+            </div>
+            <.icon
+              name={origin_icon(run.origin)}
+              title={"Started from #{origin_label(run.origin)}"}
+              class="text-base-content/40 size-4 shrink-0 runs-full:order-last"
+            />
           </div>
-          <span class="font-mono text-base-content w-20 shrink-0 text-right tabular-nums">
-            {Formatters.format_integer(run.traces)}
-          </span>
-          <span class="font-mono text-base-content/60 w-12 shrink-0 text-right tabular-nums">
-            {TracingComponents.format_elapsed(div(run.duration_ms, 1_000))}
-          </span>
-          <span class={[
-            "w-44 shrink-0 truncate",
-            TracingComponents.tone_class(run_tone(run.reason), :label)
-          ]}>
-            {run_reason_label(run.reason)}
-          </span>
-          <.icon
-            name={origin_icon(run.origin)}
-            title={"Started from #{origin_label(run.origin)}"}
-            class="text-base-content/40 size-4 shrink-0"
-          />
+          <div class="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 pl-16 runs-full:contents">
+            <span class={[
+              "min-w-0 truncate runs-full:max-w-44 runs-full:order-4 runs-full:flex-1",
+              TracingComponents.tone_class(run_tone(run.reason), :label)
+            ]}>
+              {run_reason_label(run.reason)}
+            </span>
+            <span class="font-mono flex shrink-0 items-baseline gap-2.5 tabular-nums runs-full:contents">
+              <span class="text-base-content runs-full:order-2 runs-full:w-14 runs-full:shrink-0 runs-full:text-right">
+                {Formatters.format_integer(run.traces)}<span class="text-base-content/60 runs-full:hidden"> traces</span>
+              </span>
+              <span class="text-base-content/60 runs-full:order-3 runs-full:w-12 runs-full:shrink-0 runs-full:text-right">
+                {TracingComponents.format_elapsed(div(run.duration_ms, 1_000))}
+              </span>
+            </span>
+          </div>
         </div>
       <% end %>
     </.chart_card>
@@ -943,11 +953,12 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
   attr :id, :string, required: true
   attr :title, :string, required: true
   attr :aside, :string, default: nil
+  attr :class, :any, default: nil
   slot :inner_block, required: true
 
   defp chart_card(assigns) do
     ~H"""
-    <div id={@id} class="card bg-base-100 border-base-200 flex-none border shadow-sm">
+    <div id={@id} class={["card bg-base-100 border-base-200 flex-none border shadow-sm", @class]}>
       <div class="flex items-baseline justify-between gap-3 px-5 pt-4 pb-3">
         <h3 class="text-base-content text-base font-semibold">{@title}</h3>
         <span :if={@aside} class="font-mono text-base-content/60 text-xs">{@aside}</span>
