@@ -87,6 +87,11 @@ defmodule Voyager.Test.TracerFixture do
     assert_receive {:session_entries, %{traces: ^traces}, _entries}, 2_000
   end
 
+  def trace_dates!(dates, traces) do
+    Enum.each(dates, &Date.leap_year?/1)
+    assert_receive {:session_entries, %{traces: ^traces}, _entries}, 2_000
+  end
+
   def flush_log(view) do
     put_queued(view)
     render(view)

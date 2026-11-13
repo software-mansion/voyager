@@ -106,6 +106,31 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     refute has_element?(view, "#session-edit")
   end
 
+  test "starts a configured session", %{conn: conn} do
+    %{id: id} = create!()
+    {:ok, _session} = configure()
+
+    view = open(conn, id)
+
+    assert has_element?(view, "#session-edit[aria-disabled]")
+
+    assert view
+           |> element("#session-edit-tip-portal")
+           |> render() =~ "not available yet"
+
+    refute has_element?(view, "#session-empty")
+    assert has_element?(view, "#log-footer", "No traces yet")
+    assert has_element?(view, "#log-search[disabled]")
+
+    view
+    |> element("#session-start:not([disabled])")
+    |> render_click()
+
+    settle(view)
+
+    assert has_element?(view, "#session-stop")
+  end
+
   test "summarizes the config and shows what each reconfigure changed", %{conn: conn} do
     %{id: id} = create!()
 
