@@ -274,7 +274,7 @@ defmodule Voyager.Services.Tracer do
           {:ok,
            %{
              runs: [Overview.run()],
-             activity: [non_neg_integer() | nil],
+             activity: Overview.activity() | nil,
              summary: Summary.t()
            }}
           | {:error, :not_found}
