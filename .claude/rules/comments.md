@@ -1,6 +1,6 @@
 ---
 paths:
-  - "**/*.{ex,exs,heex,erl,js,mjs,ts,rs,sh}"
+  - "**/*.{ex,exs,heex,erl,js,mjs,ts,rs,sh,css,swift}"
 ---
 
 # Comments
