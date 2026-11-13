@@ -106,13 +106,13 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
 
     assert has_element?(view, "#create-session[aria-disabled]")
     refute has_element?(view, "#history-tiles #history-#{oldest.id}")
-    assert has_element?(view, "#show-older:not([disabled])")
+    assert has_element?(view, "#show-older")
 
     view
     |> element("#show-older")
     |> render_click()
 
     assert has_element?(view, "#history-tiles #history-#{oldest.id}")
-    assert has_element?(view, "#show-older[disabled]")
+    refute has_element?(view, "#show-older")
   end
 end
