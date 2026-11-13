@@ -138,3 +138,20 @@
 
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 @custom-variant mac (&:where(.is-mac *));
+@custom-variant runs-full {
+  @container runs (width >= 36rem) {
+    @slot;
+  }
+  &:where(html[data-sidebar='full'] *) {
+    @container runs (width >= 28rem) {
+      @slot;
+    }
+  }
+  @media (min-width: 1024px) {
+    &:where(html:not([data-sidebar='compact']) *) {
+      @container runs (width >= 28rem) {
+        @slot;
+      }
+    }
+  }
+}

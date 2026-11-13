@@ -7,6 +7,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
 
   use VoyagerWeb, :live_view
 
+  alias Phoenix.LiveView.AsyncResult
   alias Voyager.Queries.TraceSessions, as: TraceSessionQueries
   alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Config
@@ -44,6 +45,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
       |> assign(:history_by_id, %{})
       |> assign(:selected_id, nil)
       |> assign(:selected_param, nil)
+      |> assign(:overview, AsyncResult.ok(nil))
       |> assign(:used_bytes, 0)
       |> assign(:storage_limit_mb, Tracer.storage_limit_mb())
       |> assign(:now, DateTime.utc_now())
@@ -92,7 +94,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
         busy?: match?(%Session{status: :running}, assigns.active_session),
         displayed_count: displayed_count(assigns),
         hidden_count: hidden_count(assigns),
-        runtime_seconds: item_runtime_seconds(selected, assigns.now)
+        runtime_seconds: item_runtime_seconds(selected, assigns.overview.result, assigns.now)
       )
 
     ~H"""
@@ -192,6 +194,23 @@ defmodule VoyagerWeb.TracingSessionsLive do
         <TracingBrowserComponents.idle_overview_state :if={
           @selected_item != nil and @selected_item.status == :idle
         } />
+        <.async_result
+          :let={overview}
+          :if={@selected_item != nil and @selected_item.status != :idle}
+          assign={@overview}
+        >
+          <:loading>
+            <.loading_state id="overview-loading" message="Loading session overview…" />
+          </:loading>
+          <:failed>
+            <.error_state id="overview-error" message="Could not load session overview." />
+          </:failed>
+          <TracingBrowserComponents.overview_charts
+            :if={overview}
+            item={@selected_item}
+            overview={overview}
+          />
+        </.async_result>
       </section>
 
       <.browser_confirm_modal
@@ -375,6 +394,32 @@ defmodule VoyagerWeb.TracingSessionsLive do
   end
 
   @impl true
+  def handle_async(:overview, {:ok, {id, {:ok, data}}}, socket) do
+    if socket.assigns.selected_id == id do
+      socket
+      |> assign(:overview, AsyncResult.ok(data))
+      |> noreply()
+    else
+      noreply(socket)
+    end
+  end
+
+  def handle_async(:overview, {:ok, {id, {:error, :not_found}}}, socket) do
+    if socket.assigns.selected_id == id do
+      socket
+      |> assign(:overview, AsyncResult.ok(nil))
+      |> noreply()
+    else
+      noreply(socket)
+    end
+  end
+
+  def handle_async(:overview, {:exit, reason}, socket) do
+    socket
+    |> assign(:overview, AsyncResult.failed(%AsyncResult{}, reason))
+    |> noreply()
+  end
+
   def handle_async(name, {:ok, {:ok, %Session{id: id}}}, socket) when name in [:create, :copy] do
     socket
     |> assign(:pending, nil)
@@ -449,6 +494,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
     socket
     |> assign(:tick_scheduled?, false)
     |> assign(:now, DateTime.utc_now())
+    |> refresh_running_overview()
     |> schedule_tick()
     |> noreply()
   end
@@ -554,12 +600,17 @@ defmodule VoyagerWeb.TracingSessionsLive do
   end
 
   defp queue_or_put_active(socket, %Session{} = session) do
-    socket
-    |> assign(:active_session, session)
-    |> assign(:queued_active, nil)
-    |> assign(:used_bytes, TraceSessionQueries.bytes_except(0))
-    |> drop_stale_confirm(session)
-    |> schedule_tick()
+    socket =
+      socket
+      |> assign(:active_session, session)
+      |> assign(:queued_active, nil)
+      |> assign(:used_bytes, TraceSessionQueries.bytes_except(0))
+      |> drop_stale_confirm(session)
+      |> schedule_tick()
+
+    if socket.assigns.selected_id == session.id,
+      do: fetch_overview(socket),
+      else: socket
   end
 
   defp put_queued_active(%{assigns: %{queued_active: nil}} = socket), do: socket
@@ -700,10 +751,55 @@ defmodule VoyagerWeb.TracingSessionsLive do
         do: stream_insert(socket, :history, by_id[prev_id]),
         else: socket
 
-    if prev_id != next_id and Map.has_key?(by_id, next_id),
-      do: stream_insert(socket, :history, by_id[next_id]),
-      else: socket
+    socket =
+      if prev_id != next_id and Map.has_key?(by_id, next_id),
+        do: stream_insert(socket, :history, by_id[next_id]),
+        else: socket
+
+    if prev_id != next_id or (socket.assigns.overview.result == nil and not is_nil(next_id)) do
+      socket
+      |> assign(:overview, AsyncResult.ok(nil))
+      |> fetch_overview()
+    else
+      socket
+    end
   end
+
+  defp fetch_overview(socket) do
+    case selected_item(socket.assigns) do
+      %{status: status, id: id} when status != :idle ->
+        start_overview_async(socket, id)
+
+      _none_or_idle ->
+        socket
+        |> cancel_async(:overview)
+        |> assign(:overview, AsyncResult.ok(nil))
+    end
+  end
+
+  defp start_overview_async(socket, id) do
+    if connected?(socket) do
+      socket
+      |> cancel_async(:overview)
+      |> assign(:overview, loading_overview(socket.assigns.overview))
+      |> start_async(:overview, fn -> {id, Tracer.overview(id)} end)
+    else
+      socket
+    end
+  end
+
+  defp loading_overview(%AsyncResult{result: %{} = data}),
+    do: AsyncResult.loading(AsyncResult.ok(data))
+
+  defp loading_overview(_overview), do: AsyncResult.loading()
+
+  defp refresh_running_overview(
+         %{assigns: %{selected_id: id, active_session: %Session{id: id, status: :running}}} =
+           socket
+       ),
+       do: fetch_overview(socket)
+
+  defp refresh_running_overview(socket), do: socket
 
   defp default_selected_id(%Session{id: id}, _by_id), do: id
 
@@ -717,19 +813,39 @@ defmodule VoyagerWeb.TracingSessionsLive do
   defp selected_item(%{selected_id: id, active_session: %Session{id: id} = active}), do: active
   defp selected_item(%{selected_id: id, history_by_id: by_id}), do: Map.get(by_id, id)
 
-  defp item_runtime_seconds(nil, _now), do: 0
-  defp item_runtime_seconds(%{started_at: nil}, _now), do: 0
+  defp item_runtime_seconds(nil, _overview, _now), do: 0
 
-  defp item_runtime_seconds(%Session{status: :running, run_started_at: %DateTime{} = at}, now),
-    do: max(DateTime.diff(now, at, :second), 0)
+  defp item_runtime_seconds(item, %{runs: [_ | _] = runs}, now) do
+    total_ms =
+      Enum.reduce(runs, 0, fn run, acc ->
+        ms =
+          if run.reason == :running and match?(%Session{status: :running}, item),
+            do: max(DateTime.diff(now, run.started_at, :millisecond), 0),
+            else: run.duration_ms
+
+        acc + ms
+      end)
+
+    div(total_ms, 1_000)
+  end
+
+  defp item_runtime_seconds(%{started_at: nil}, _overview, _now), do: 0
+
+  defp item_runtime_seconds(
+         %Session{status: :running, run_started_at: %DateTime{} = at},
+         _overview,
+         now
+       ),
+       do: max(DateTime.diff(now, at, :second), 0)
 
   defp item_runtime_seconds(
          %{started_at: %DateTime{} = from, stopped_at: %DateTime{} = to},
+         _overview,
          _now
        ),
        do: max(DateTime.diff(to, from, :second), 0)
 
-  defp item_runtime_seconds(_item, _now), do: 0
+  defp item_runtime_seconds(_item, _overview, _now), do: 0
 
   defp displayed_count(assigns) do
     active_count =
