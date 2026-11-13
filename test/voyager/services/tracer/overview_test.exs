@@ -109,7 +109,7 @@ defmodule Voyager.Services.Tracer.OverviewTest do
     assert interrupted.stopped_at == stopped_at
   end
 
-  test "activity/3 allocates buckets across runs with nil dividers between them" do
+  test "activity/3 slices each run into fixed-width buckets with the gap between runs" do
     controls = [
       %{
         seq: 6,
@@ -142,10 +142,48 @@ defmodule Voyager.Services.Tracer.OverviewTest do
     ]
 
     timestamps = Overview.trace_timestamps(runs, entries)
-    buckets = Overview.activity(runs, timestamps, 10)
 
-    assert Enum.count(buckets, &is_nil/1) == 1
-    assert buckets |> Enum.reject(&is_nil/1) |> length() == 10
-    assert buckets |> Enum.reject(&is_nil/1) |> Enum.sum() == 3
+    assert %{bucket_ms: 1_000, live?: false, end_us: 30_000_000, segments: [first, second]} =
+             Overview.activity(runs, timestamps)
+
+    assert first == %{start_us: 1_000_000, counts: [0, 1, 0, 0, 0], gap_before_ms: nil}
+    assert second.start_us == 10_000_000
+    assert second.gap_before_ms == 4_000
+    assert length(second.counts) == 20
+    assert Enum.at(second.counts, 2) == 1
+    assert Enum.at(second.counts, 18) == 1
+  end
+
+  test "activity/3 keeps a trace in its slice as later traces arrive" do
+    controls = [%{seq: 0, kind: :started, at: 0, origin: :ui}]
+    runs = Overview.runs(controls, session(status: :stopped, stop_reason: :stopped))
+
+    early = Overview.activity(runs, [{1, 1_500_000}, {1, 2_200_000}])
+    later = Overview.activity(runs, [{1, 1_500_000}, {1, 2_200_000}, {1, 9_100_000}])
+
+    assert [%{counts: [0, 1, 1]}] = early.segments
+    assert [%{counts: [0, 1, 1, 0, 0, 0, 0, 0, 0, 1]}] = later.segments
+  end
+
+  test "activity/3 shows the last minute up to now while a run is going" do
+    controls = [%{seq: 0, kind: :started, at: 10_000_000, origin: :ui}]
+    runs = Overview.runs(controls, session(status: :running))
+    now = DateTime.from_unix!(100_500_000, :microsecond)
+
+    assert %{bucket_ms: 1_000, live?: true, end_us: 101_000_000, segments: [segment]} =
+             Overview.activity(runs, [{1, 30_000_000}, {1, 99_200_000}, {1, 99_800_000}], now)
+
+    assert segment.start_us == 41_000_000
+    assert length(segment.counts) == 60
+    assert Enum.at(segment.counts, 58) == 2
+    assert Enum.sum(segment.counts) == 2
+  end
+
+  test "activity/3 is nil without runs or, once stopped, without traces" do
+    controls = [%{seq: 0, kind: :started, at: 0, origin: :ui}]
+    runs = Overview.runs(controls, session(status: :stopped, stop_reason: :stopped))
+
+    assert Overview.activity([], []) == nil
+    assert Overview.activity(runs, []) == nil
   end
 end
