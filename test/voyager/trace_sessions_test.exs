@@ -231,6 +231,44 @@ defmodule Voyager.TraceSessionsTest do
     assert %{entries: [], total: 0} = TraceEntryQueries.search(id, "started", limit: 10)
   end
 
+  test "page/1 paginates by id, filters by node, excludes active id and counts runs" do
+    config = %Config{module: "Elixir.Date", function: "leap_year?", arity: 1, max_events: 10}
+
+    s1 =
+      Repo.insert!(%TraceSession{
+        origin: :ui,
+        status: :stopped,
+        node: "a@host",
+        config: Map.from_struct(config)
+      })
+
+    s2 = Repo.insert!(%TraceSession{origin: :mcp, status: :stopped, node: "b@host"})
+    s3 = Repo.insert!(%TraceSession{origin: :ui, status: :stopped, node: "a@host"})
+
+    TraceEntryActions.insert_all(s1.id, [
+      %{seq: 0, kind: :started, at: 1, origin: :ui},
+      %{seq: 1, kind: :started, at: 2, origin: :ui}
+    ])
+
+    assert %{rows: [first, second], has_more?: true} = TraceSessionQueries.page(limit: 2)
+    assert [first.id, second.id] == [s3.id, s2.id]
+
+    assert %{rows: [oldest], has_more?: false} =
+             TraceSessionQueries.page(before_id: second.id, limit: 2)
+
+    assert oldest.id == s1.id
+    assert oldest.runs == 2
+    assert %Config{module: "Elixir.Date"} = oldest.config
+
+    assert %{rows: [only_a], has_more?: false} =
+             TraceSessionQueries.page(node: "a@host", exclude_id: s3.id)
+
+    assert only_a.id == s1.id
+    assert TraceSessionQueries.counts_by_node() == %{"a@host" => 2, "b@host" => 1}
+    assert TraceSessionQueries.counts_by_node(s3.id) == %{"a@host" => 1, "b@host" => 1}
+    assert TraceSessionQueries.total_count(s3.id) == 2
+  end
+
   defp seqs(entries), do: Enum.map(entries, & &1.seq)
 
   defp row do

@@ -10,6 +10,7 @@ defmodule Voyager.Queries.TraceEntries do
   alias Voyager.Schemas.TraceEvent
   alias Voyager.Schemas.TraceSessionEvent
   alias Voyager.Services.Tracer.Config
+  alias Voyager.Services.Tracer.Overview
   alias Voyager.Services.Tracer.Summary
   alias Voyager.StoredTerm
 
@@ -104,6 +105,43 @@ defmodule Voyager.Queries.TraceEntries do
       processes: process_calls(events),
       slowest: slowest(events)
     }
+  end
+
+  @doc "Pairs every trace row of `session_id` with its run `index` and microsecond timestamp."
+  @spec trace_timestamps(integer(), [Overview.run()]) :: [{pos_integer(), integer()}]
+  def trace_timestamps(_session_id, []), do: []
+
+  def trace_timestamps(session_id, runs) do
+    rows =
+      from(e in TraceEvent,
+        where: e.session_id == ^session_id,
+        order_by: [asc: e.seq],
+        select: {e.seq, e.at}
+      )
+      |> Repo.all()
+
+    pair_runs(rows, runs, [])
+  end
+
+  defp pair_runs([], _runs, acc), do: Enum.reverse(acc)
+  defp pair_runs(_rows, [], acc), do: Enum.reverse(acc)
+
+  defp pair_runs([{seq, _at} | rest], [%{seq: start_seq} | _] = runs, acc)
+       when seq <= start_seq do
+    pair_runs(rest, runs, acc)
+  end
+
+  defp pair_runs(
+         [{seq, _at} | _] = rows,
+         [%{next_seq: next_seq} | rest_runs],
+         acc
+       )
+       when not is_nil(next_seq) and seq >= next_seq do
+    pair_runs(rows, rest_runs, acc)
+  end
+
+  defp pair_runs([{_seq, at} | rest], [run | _] = runs, acc) do
+    pair_runs(rest, runs, [{run.index, DateTime.to_unix(at, :microsecond)} | acc])
   end
 
   defp function_calls(events) do

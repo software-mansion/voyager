@@ -34,6 +34,7 @@ defmodule Voyager.Services.Tracer do
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Entry
   alias Voyager.Services.Tracer.MemoryLog
+  alias Voyager.Services.Tracer.Overview
   alias Voyager.Services.Tracer.Run
   alias Voyager.Services.Tracer.Search
   alias Voyager.Services.Tracer.Session
@@ -255,6 +256,28 @@ defmodule Voyager.Services.Tracer do
     end
   end
 
+  @doc """
+  The runs, activity histogram and event `Summary` of session `id`. Runs in the caller for
+  saved sessions; unsaved sessions read their in-memory controls, kept traces and summary.
+  """
+  @spec overview(integer()) ::
+          {:ok,
+           %{
+             runs: [Overview.run()],
+             activity: [non_neg_integer() | nil],
+             summary: Summary.t()
+           }}
+          | {:error, :not_found}
+  def overview(id) when is_integer(id) do
+    case GenServer.call(__MODULE__, {:overview, id}) do
+      {:saved, active_session} ->
+        with_saved(id, fn row -> {:ok, saved_overview(row, active_session)} end)
+
+      reply ->
+        reply
+    end
+  end
+
   @impl true
   def init(nil), do: {:ok, %__MODULE__{}, {:continue, :interrupt_running}}
 
@@ -390,6 +413,22 @@ defmodule Voyager.Services.Tracer do
 
   def handle_call({:summary, _id}, _from, state), do: {:reply, :saved, state}
 
+  def handle_call(
+        {:overview, id},
+        _from,
+        %{session: %{id: id, save: false} = session} = state
+      ) do
+    runs = Overview.runs(state.log.controls, session)
+    timestamps = Overview.trace_timestamps(runs, state.log.traces)
+    activity = Overview.activity(runs, timestamps)
+    {:reply, {:ok, %{runs: runs, activity: activity, summary: state.log.summary}}, state}
+  end
+
+  def handle_call({:overview, id}, _from, %{session: %{id: id} = session} = state),
+    do: {:reply, {:saved, session}, state}
+
+  def handle_call({:overview, _id}, _from, state), do: {:reply, {:saved, nil}, state}
+
   def handle_call({:kept_traces, id}, _from, %{session: %{id: id, save: false}} = state),
     do: {:reply, {:ok, state.log.traces}, state}
 
@@ -504,6 +543,29 @@ defmodule Voyager.Services.Tracer do
       TraceEntryQueries.next_seq(row.id),
       storage_limit(row.id)
     )
+  end
+
+  defp saved_overview(row, active_session) do
+    controls = TraceEntryQueries.controls(row.id)
+
+    session =
+      active_session ||
+        Session.from_row(
+          row,
+          controls,
+          TraceEntryQueries.traces_before_last_run(row.id),
+          0,
+          0
+        )
+
+    runs = Overview.runs(controls, session)
+    timestamps = TraceEntryQueries.trace_timestamps(row.id, runs)
+
+    %{
+      runs: runs,
+      activity: Overview.activity(runs, timestamps),
+      summary: TraceEntryQueries.summary(row.id)
+    }
   end
 
   defp activate(session) do
