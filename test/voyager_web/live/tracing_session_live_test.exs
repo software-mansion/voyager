@@ -47,12 +47,45 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     |> element("#session-stop")
     |> render_click()
 
+    view
+    |> element("#stop-session-modal-cancel")
+    |> render_click()
+
+    refute has_element?(view, "#stop-session-modal")
+    assert has_element?(view, "#session-status[data-tone=running]")
+
+    view
+    |> element("#session-stop")
+    |> render_click()
+
+    view
+    |> element("#stop-session-modal-confirm")
+    |> render_click()
+
     settle(view)
 
     assert has_element?(view, "#session-resume:not([disabled])")
     assert has_element?(view, "#session-unload:not([disabled])")
     assert has_element?(view, "#session-edit[aria-disabled]")
     refute has_element?(view, "#session-stop")
+  end
+
+  test "closes the stop confirmation once the run ends on its own", %{conn: conn} do
+    %{id: id} = create!()
+    {:ok, _session} = configure()
+    {:ok, _session} = Tracer.start(:ui)
+    view = open(conn, id)
+
+    view
+    |> element("#session-stop")
+    |> render_click()
+
+    assert has_element?(view, "#stop-session-modal")
+
+    :ok = Tracer.stop(:ui)
+    render_async(view)
+
+    refute has_element?(view, "#stop-session-modal")
   end
 
   test "resumes a stopped session", %{conn: conn} do

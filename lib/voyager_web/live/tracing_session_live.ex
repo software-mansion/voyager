@@ -98,6 +98,12 @@ defmodule VoyagerWeb.TracingSessionLive do
         on_confirm={"confirm-#{@confirm}"}
         on_cancel="cancel-confirm"
       >
+        <p :if={@confirm == :stop} class="text-base-content/70 mt-1 text-sm">
+          Tracing
+          <span class="font-mono">{TracingComponents.traced_mfa(@trace_session.result.config)}</span>
+          on <span class="font-mono">{@trace_session.result.node}</span>
+          stops. Its {Formatters.format_integer(@trace_session.result.traces)} traces are kept, and you can resume it later.
+        </p>
         <p :if={@confirm == :delete} class="text-base-content/70 mt-1 text-sm">
           Its {Formatters.format_integer(@trace_session.result.traces)} traces are deleted too. This cannot be undone.
         </p>
@@ -115,6 +121,13 @@ defmodule VoyagerWeb.TracingSessionLive do
   @impl true
   def handle_event("stop", _params, socket) do
     socket
+    |> assign(:confirm, :stop)
+    |> noreply()
+  end
+
+  def handle_event("confirm-stop", _params, socket) do
+    socket
+    |> assign(:confirm, nil)
     |> run(:stop, fn -> Tracer.stop(:ui) end)
     |> noreply()
   end
@@ -376,6 +389,7 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> assign(:queued_session, nil)
     |> assign(:mode, mode)
     |> Stats.track(shown, session)
+    |> drop_stale_stop_confirm(session)
   end
 
   defp queue_session(
@@ -401,6 +415,12 @@ defmodule VoyagerWeb.TracingSessionLive do
     assign(socket, :flush_scheduled?, true)
   end
 
+  defp drop_stale_stop_confirm(%{assigns: %{confirm: :stop}} = socket, %Session{status: status})
+       when status != :running,
+       do: assign(socket, :confirm, nil)
+
+  defp drop_stale_stop_confirm(socket, _session), do: socket
+
   defp run(socket, name, fun) do
     socket
     |> assign(:pending, name)
@@ -415,10 +435,12 @@ defmodule VoyagerWeb.TracingSessionLive do
 
   defp sessions_path(%{node_name: node_name}), do: ~p"/node/#{node_name}/tracing"
 
+  defp confirm_title(:stop), do: "Stop tracing"
   defp confirm_title(:delete), do: "Delete session"
   defp confirm_title(:unload), do: "Unload session"
   defp confirm_title(:load), do: "Replace unsaved session"
 
+  defp confirm_label(:stop), do: "Stop"
   defp confirm_label(:delete), do: "Delete"
   defp confirm_label(:unload), do: "Unload"
   defp confirm_label(:load), do: "Load"
