@@ -36,6 +36,7 @@ defmodule Voyager.Services.Tracer do
   alias Voyager.Services.Tracer.Run
   alias Voyager.Services.Tracer.Search
   alias Voyager.Services.Tracer.Session
+  alias Voyager.Services.Tracer.Summary
   alias Voyager.Services.Tracer.Writer
   alias Voyager.Settings
 
@@ -243,6 +244,15 @@ defmodule Voyager.Services.Tracer do
     end
   end
 
+  @doc "The `Summary` of every trace event of session `id`, including those evicted from memory."
+  @spec summary(integer()) :: {:ok, Summary.t()} | {:error, :not_found}
+  def summary(id) do
+    case GenServer.call(__MODULE__, {:summary, id}) do
+      :saved -> with_saved(id, fn _row -> {:ok, TraceEntryQueries.summary(id)} end)
+      reply -> reply
+    end
+  end
+
   @impl true
   def init(nil), do: {:ok, %__MODULE__{}, {:continue, :interrupt_running}}
 
@@ -373,6 +383,11 @@ defmodule Voyager.Services.Tracer do
   end
 
   def handle_call({:entries, _id, _opts}, _from, state), do: {:reply, :saved, state}
+
+  def handle_call({:summary, id}, _from, %{session: %{id: id, save: false}} = state),
+    do: {:reply, {:ok, state.log.summary}, state}
+
+  def handle_call({:summary, _id}, _from, state), do: {:reply, :saved, state}
 
   def handle_call({:kept_traces, id}, _from, %{session: %{id: id, save: false}} = state),
     do: {:reply, {:ok, state.log.traces}, state}
