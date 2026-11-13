@@ -7,6 +7,11 @@ defmodule VoyagerWeb.ConnectComponentsTest do
   alias VoyagerWeb.ConnectComponents
 
   defp query(html, selector), do: html |> LazyHTML.from_fragment() |> LazyHTML.query(selector)
+
+  defp text(html, selector) do
+    html |> query(selector) |> LazyHTML.text() |> String.trim()
+  end
+
   defp count(html, selector), do: html |> query(selector) |> Enum.count()
   defp attr(html, selector, name), do: html |> query(selector) |> LazyHTML.attribute(name)
 
@@ -17,6 +22,32 @@ defmodule VoyagerWeb.ConnectComponentsTest do
       &ConnectComponents.path_field/1,
       Keyword.merge([field: form[:key_path], label: "Identity file"], attrs)
     )
+  end
+
+  test "escapes apostrophes in the copied ssh-keygen command" do
+    html =
+      render_component(&ConnectComponents.host_key_changed_modal/1,
+        id: "changed",
+        host: "user@host",
+        on_remove: "remove",
+        on_dismiss: "dismiss",
+        mismatch: %{
+          host: "x'; id #",
+          file: "/Users/O'Brien/.ssh/known_hosts",
+          line: 1,
+          key_type: "ED25519",
+          fingerprint: "SHA256:abc",
+          removable: false
+        }
+      )
+
+    command = text(html, "#changed-command")
+    args = String.replace_prefix(command, "ssh-keygen ", "")
+
+    {out, 0} =
+      System.cmd("sh", ["-c", "set -- #{args}; printf '%s\\n' \"$2\" \"$4\""])
+
+    assert out == "/Users/O'Brien/.ssh/known_hosts\nx'; id #\n"
   end
 
   describe "path_field/1" do

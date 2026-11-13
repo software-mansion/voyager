@@ -10,6 +10,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   alias Voyager.NodeSession.Connectors.Ssh, as: SshConnector
   alias Voyager.Queries.SshConnections, as: SshConnectionQueries
   alias Voyager.Schemas.SshConnection
+  alias Voyager.Services.SSH.KnownHosts
   alias VoyagerWeb.ConnectComponents
   alias VoyagerWeb.ConnectLive.KeyAuth
   alias VoyagerWeb.ConnectLive.RecentConnections
@@ -34,6 +35,8 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     |> assign(:connect_params, nil)
     |> assign(:connect_auth, nil)
     |> assign(:host_key_prompt, nil)
+    |> assign(:host_key_mismatch, nil)
+    |> assign(:host_key_remove_error, nil)
     |> ok()
   end
 
@@ -274,6 +277,17 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         on_accept="accept_host_key"
         on_reject="reject_host_key"
       />
+
+      <ConnectComponents.host_key_changed_modal
+        :if={@host_key_mismatch}
+        id={"#{@id_prefix}host-key-changed-modal"}
+        host={"#{@connect_params.ssh_user}@#{host_with_port(@connect_params)}"}
+        mismatch={@host_key_mismatch}
+        remove_error={@host_key_remove_error}
+        target={@myself}
+        on_remove="remove_host_key"
+        on_dismiss="dismiss_host_key_mismatch"
+      />
     </div>
     """
   end
@@ -385,6 +399,31 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     {:noreply, assign(socket, :host_key_prompt, nil)}
   end
 
+  def handle_event(
+        "remove_host_key",
+        _params,
+        %{assigns: %{host_key_mismatch: %{removable: true} = mismatch}} = socket
+      ) do
+    case KnownHosts.forget(mismatch.host) do
+      :ok ->
+        socket
+        |> assign(:host_key_mismatch, nil)
+        |> assign(:host_key_remove_error, nil)
+        |> assign(:ssh_form, KeyAuth.checked_form(form_changeset(socket)))
+        |> start_connect(socket.assigns.connect_params, socket.assigns.connect_auth)
+        |> noreply()
+
+      {:error, reason} ->
+        {:noreply, assign(socket, :host_key_remove_error, remove_error(reason))}
+    end
+  end
+
+  def handle_event("remove_host_key", _params, socket), do: {:noreply, socket}
+
+  def handle_event("dismiss_host_key_mismatch", _params, socket) do
+    {:noreply, assign(socket, host_key_mismatch: nil, host_key_remove_error: nil)}
+  end
+
   def handle_event("fill_ssh_recent", _params, %{assigns: %{disabled?: true}} = socket) do
     {:noreply, socket}
   end
@@ -407,6 +446,13 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
 
   def handle_async(:ssh_connect, {:ok, {:error, {:unknown_host_key, fp}}}, socket) do
     {:noreply, assign(socket, :host_key_prompt, fp)}
+  end
+
+  def handle_async(:ssh_connect, {:ok, {:error, {:host_key_mismatch, mismatch} = reason}}, socket) do
+    socket
+    |> put_connect_error(reason)
+    |> assign(:host_key_mismatch, mismatch)
+    |> noreply()
   end
 
   def handle_async(:ssh_connect, {:ok, {:error, reason}}, socket) do
@@ -516,10 +562,18 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
 
   defp prefill_form(nil), do: empty_ssh_form()
 
+  defp form_changeset(socket), do: SshConnectionParams.changeset(socket.assigns.ssh_form.params)
+
+  defp remove_error({:known_hosts_unwritable, file}),
+    do: "Couldn't remove the old key from #{file} — check its permissions"
+
+  defp remove_error({:known_hosts_unreadable, file}),
+    do: "Couldn't remove the old key — can't read #{file}"
+
   defp put_connect_error(socket, reason) do
     form =
-      socket.assigns.ssh_form.params
-      |> SshConnectionParams.changeset()
+      socket
+      |> form_changeset()
       |> Ecto.Changeset.add_error(error_field(reason), ConnectError.message(reason))
       |> Map.put(:action, :insert)
       |> to_form(as: :ssh)

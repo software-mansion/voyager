@@ -72,7 +72,9 @@ defmodule Voyager.Services.SSH.KnownHostsTest do
     File.write!(global, line(key, "gw") <> line(ed25519(), "db"))
 
     assert host_key?(key, "gw")
-    assert host_key?(key, "db") == {:error, {:host_key_mismatch, global}}
+
+    assert {:error, {:host_key_mismatch, %{file: ^global, line: 2, removable: false}}} =
+             host_key?(key, "db")
   end
 
   test "matches a hashed entry", %{system: system, key: key} do
@@ -95,13 +97,53 @@ defmodule Voyager.Services.SSH.KnownHostsTest do
     assert host_key?(key, "gw") == {:error, {:host_key_revoked, system}}
   end
 
-  test "names the file holding a different key of the same type", %{
+  test "describes a different key of the same type the way OpenSSH does", %{
     voyager: voyager,
     key: key
   } do
-    File.write!(voyager, line(ed25519(), "gw"))
+    File.write!(voyager, line(ed25519(), "other") <> line(ed25519(), "[gw]:2222"))
+    fingerprint = to_string(:ssh.hostkey_fingerprint(:sha256, key))
 
-    assert host_key?(key, "gw") == {:error, {:host_key_mismatch, voyager}}
+    assert host_key?(key, "GW", 2222) ==
+             {:error,
+              {:host_key_mismatch,
+               %{
+                 host: "[gw]:2222",
+                 file: voyager,
+                 line: 2,
+                 key_type: "ssh-ed25519",
+                 fingerprint: fingerprint,
+                 removable: true
+               }}}
+  end
+
+  test "forget removes the host's entries from Voyager's file only", %{
+    system: system,
+    voyager: voyager,
+    key: key
+  } do
+    other = line(ed25519(), "db")
+    revoked = "@revoked " <> line(ed25519(), "gw")
+    File.write!(voyager, line(ed25519(), "gw") <> other <> revoked)
+    File.write!(system, line(key, "gw"))
+
+    assert KnownHosts.forget("gw") == :ok
+
+    assert File.read!(voyager) == other <> revoked
+    assert File.read!(system) == line(key, "gw")
+  end
+
+  test "forget succeeds when Voyager's file does not exist", %{voyager: voyager} do
+    assert KnownHosts.forget("gw") == :ok
+    refute File.exists?(voyager)
+  end
+
+  test "forget fails when Voyager's file can't be written", %{voyager: voyager} do
+    File.write!(voyager, line(ed25519(), "gw"))
+    File.chmod!(voyager, 0o400)
+    on_exit(fn -> File.chmod(voyager, 0o600) end)
+
+    assert KnownHosts.forget("gw") == {:error, {:known_hosts_unwritable, voyager}}
   end
 
   test "fails when a known_hosts file can't be read", %{system: system, key: key} do

@@ -47,9 +47,8 @@ defmodule Voyager.NodeSession.ConnectError do
 
   def message({:unknown_host_key, _fingerprint}), do: "Unverified SSH host key"
 
-  def message({:host_key_mismatch, file}),
-    do:
-      "SSH host key changed — this could be a man-in-the-middle attack. If the change is expected, remove the old key for this host from #{file}"
+  def message({:host_key_mismatch, _mismatch}),
+    do: "SSH host key changed — possible man-in-the-middle attack"
 
   def message({:host_key_revoked, file}), do: "This SSH host key is revoked in #{file}"
   def message({:known_hosts_unreadable, file}), do: "Can't read #{file}"
