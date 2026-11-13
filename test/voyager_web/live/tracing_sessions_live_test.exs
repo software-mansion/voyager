@@ -763,61 +763,153 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     refute has_element?(view, "#show-older")
   end
 
-  test "keeps an active unconfigured saved session loaded and deletes it when unloaded", %{
-    conn: conn
-  } do
-    {:ok, %{id: id}} = Tracer.create(:ui, save: true)
+  test "renders overview Runs, Activity, Outcome and Top functions cards", %{conn: conn} do
+    first_cfg = %Config{
+      module: "Elixir.Date",
+      function: "_",
+      arity: nil,
+      return_trace: true,
+      max_events: 100
+    }
 
-    view = open_sessions(conn)
+    second_cfg = %{first_cfg | scope: :local}
 
-    assert has_element?(view, "#active-session-tile")
-    assert has_element?(view, "#session-card[data-session-id='#{id}']")
+    saved =
+      insert_saved!(%{
+        config: second_cfg,
+        runs: 0,
+        traces: 8,
+        stop_reason: :event_limit
+      })
 
-    view
-    |> element("#unload-session")
-    |> render_click()
+    pid_a = self()
+    pid_b = spawn(fn -> :ok end)
 
-    settle(view)
+    TraceEntryActions.insert_all(saved.id, [
+      %{
+        seq: 0,
+        kind: :configured,
+        at: 1_000_000,
+        origin: :ui,
+        node: Node.self(),
+        config: first_cfg
+      },
+      %{seq: 1, kind: :started, at: 2_000_000, origin: :ui},
+      %{
+        seq: 2,
+        kind: :trace,
+        type: :call,
+        pid: pid_a,
+        process: :worker_a,
+        mfa: {Date, :f1, 1},
+        at: 3_000_000
+      },
+      %{
+        seq: 3,
+        kind: :trace,
+        type: :return,
+        pid: pid_a,
+        process: :worker_a,
+        mfa: {Date, :f1, 1},
+        value: :ok,
+        duration_us: 10,
+        at: 4_000_000
+      },
+      %{
+        seq: 4,
+        kind: :stopped,
+        at: 6_000_000,
+        origin: :ui,
+        reason: :stopped,
+        traces: 2,
+        dropped: 0
+      },
+      %{
+        seq: 5,
+        kind: :configured,
+        at: 7_000_000,
+        origin: :ui,
+        node: Node.self(),
+        config: second_cfg
+      },
+      %{seq: 6, kind: :started, at: 8_000_000, origin: :mcp},
+      %{
+        seq: 7,
+        kind: :trace,
+        type: :call,
+        pid: pid_b,
+        process: :worker_b,
+        mfa: {Date, :f2, 1},
+        at: 9_000_000
+      },
+      %{
+        seq: 8,
+        kind: :trace,
+        type: :call,
+        pid: pid_b,
+        process: :worker_b,
+        mfa: {Date, :f3, 1},
+        at: 9_100_000
+      },
+      %{
+        seq: 9,
+        kind: :trace,
+        type: :call,
+        pid: pid_b,
+        process: :worker_b,
+        mfa: {Date, :f4, 1},
+        at: 9_200_000
+      },
+      %{
+        seq: 10,
+        kind: :trace,
+        type: :call,
+        pid: pid_b,
+        process: :worker_b,
+        mfa: {Date, :f5, 1},
+        at: 9_300_000
+      },
+      %{
+        seq: 11,
+        kind: :trace,
+        type: :call,
+        pid: pid_b,
+        process: :worker_b,
+        mfa: {Date, :f6, 1},
+        at: 9_400_000
+      },
+      %{
+        seq: 12,
+        kind: :trace,
+        type: :exception,
+        pid: pid_b,
+        process: :worker_b,
+        mfa: {Date, :f6, 1},
+        value: :boom,
+        duration_us: 20,
+        at: 9_500_000
+      },
+      %{
+        seq: 13,
+        kind: :stopped,
+        at: 12_000_000,
+        origin: :mcp,
+        reason: :event_limit,
+        traces: 6,
+        dropped: 0
+      }
+    ])
 
-    refute has_element?(view, "#active-session-tile")
-    refute has_element?(view, "#history-tiles #history-#{id}")
-    assert has_element?(view, "#overview-empty")
-    assert nil == TraceSessionQueries.get(id)
-  end
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing")
+    render_async(view)
 
-  test "deletes a non-running active saved session after confirmation", %{conn: conn} do
-    history = insert_saved!()
-    {:ok, %{id: id}} = Tracer.create(:ui, save: true)
-
-    view = open_sessions(conn)
-
-    assert has_element?(view, "#active-session-tile")
-    assert has_element?(view, "#delete-session")
-
-    view
-    |> element("#delete-session")
-    |> render_click()
-
-    assert has_element?(view, "#delete-session-modal", "This session")
-
-    view
-    |> element("#delete-session-modal-confirm")
-    |> render_click()
-
-    settle(view)
-
-    refute has_element?(view, "#active-session-tile")
-    assert has_element?(view, "#session-card[data-session-id='#{history.id}']")
-    assert nil == Tracer.active()
-    assert nil == TraceSessionQueries.get(id)
-  end
-
-  test "hides the delete button for an unsaved active session", %{conn: conn} do
-    {:ok, _session} = Tracer.create(:ui, save: false)
-
-    view = open_sessions(conn)
-
-    assert has_element?(view, "#active-session-tile")
-    refute has_element?(view, "#delete-session")
+    assert has_element?(view, "#overview-runs", "2 runs")
+    assert has_element?(view, "#overview-runs", "Scope")
+    assert has_element?(view, "#overview-run-1", "Stopped on request")
+    assert has_element?(view, "#overview-run-2", "Event limit reached")
+    assert has_element?(view, "#overview-activity", "traces over all runs")
+    assert has_element?(view, "#overview-outcome", "Exceptions")
+    assert has_element?(view, "#outcome-processes", "2")
+    assert has_element?(view, "#overview-functions", "others (1)")
   end
 end
