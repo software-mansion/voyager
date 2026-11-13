@@ -502,7 +502,7 @@ defmodule Voyager.Services.TracerTest do
     assert {:error, :not_found} = Tracer.summary(-1)
   end
 
-  test "overview/1 returns runs, activity buckets and summary for unsaved and saved sessions" do
+  test "overview/1 returns runs, activity slices and summary for unsaved and saved sessions" do
     for save <- [false, true] do
       assert {:ok, %{id: id}} = Tracer.create(:ui, save: save)
       assert {:ok, _session} = configure(%{return_trace: true, max_events: 2})
@@ -514,8 +514,9 @@ defmodule Voyager.Services.TracerTest do
 
       assert run1.traces == 2
       assert run2.traces == 2
-      assert Enum.count(activity, &is_nil/1) == 1
-      assert activity |> Enum.reject(&is_nil/1) |> Enum.sum() == 4
+      assert %{live?: false, segments: [_first, %{gap_before_ms: gap}] = segments} = activity
+      assert is_integer(gap)
+      assert segments |> Enum.flat_map(& &1.counts) |> Enum.sum() == 4
       assert summary.calls == 2
       assert summary.returns == 2
     end
