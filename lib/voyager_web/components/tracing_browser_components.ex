@@ -78,7 +78,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
     assigns = assign(assigns, :nodes, sorted_nodes(assigns.node_counts, assigns.connected_node))
 
     ~H"""
-    <div id="node-filter" class="min-h-7 flex items-center">
+    <div id="node-filter" class="flex h-8 items-center">
       <%= if @node_filter == "all" do %>
         <details
           id="node-picker"
@@ -140,7 +140,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
       <% else %>
         <span
           id="node-filter-chip"
-          class="border-base-300 bg-base-200 flex min-w-0 max-w-full items-center gap-1.5 rounded-lg border py-0.5 pr-0.5 pl-2"
+          class="border-base-300 bg-base-200 flex h-8 min-w-0 max-w-full items-center gap-1.5 rounded-lg border pr-0.5 pl-2"
         >
           <span class="font-mono tracking-label text-base-content/50 shrink-0 text-xs font-semibold uppercase">
             Node
