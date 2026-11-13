@@ -7,10 +7,13 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
 
   use VoyagerWeb, :component
 
+  alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Session
+  alias Voyager.Services.Tracer.Summary
   alias VoyagerWeb.Components.TracingComponents
   alias VoyagerWeb.Formatters
+  alias VoyagerWeb.TermFormatter
 
   attr :count, :integer, required: true
   attr :save?, :boolean, required: true
@@ -653,9 +656,263 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
         id="total-storage"
         label="Storage"
         value="Not saved"
-        unit={"newest #{Voyager.Services.Tracer.kept_traces()}"}
+        unit={"newest #{Tracer.kept_traces()}"}
         prose
       />
+    </div>
+    """
+  end
+
+  attr :item, :map, required: true
+  attr :overview, :map, required: true
+
+  def overview_charts(assigns) do
+    saved? = item_saved?(assigns.item)
+    functions = top_function_rows(assigns.item.config, assigns.overview.summary)
+
+    assigns =
+      assign(assigns,
+        saved?: saved?,
+        activity_aside:
+          if(saved?, do: "traces over all runs", else: "newest #{Tracer.kept_traces()}"),
+        functions: functions
+      )
+
+    ~H"""
+    <.overview_runs_card :if={@overview.runs != []} runs={@overview.runs} />
+    <div class="grid flex-none gap-4 xl:grid-cols-2">
+      <.overview_activity_card buckets={@overview.activity} aside={@activity_aside} />
+      <.overview_outcome_card item={@item} summary={@overview.summary} />
+    </div>
+    <.overview_functions_card
+      :if={@functions != []}
+      functions={@functions}
+      total_calls={@overview.summary.calls}
+    />
+    """
+  end
+
+  attr :runs, :list, required: true
+
+  defp overview_runs_card(assigns) do
+    max_ms = assigns.runs |> Enum.map(&max(&1.duration_ms, 1)) |> Enum.max(fn -> 1 end)
+    assigns = assign(assigns, :max_ms, max_ms)
+
+    ~H"""
+    <.chart_card
+      id="overview-runs"
+      title="Runs"
+      aside={TracingComponents.count(length(@runs), "run", "runs")}
+    >
+      <%= for run <- @runs do %>
+        <div
+          :if={run.previous_config}
+          class="font-mono text-base-content/60 flex items-center gap-1.5 pl-16 text-xs"
+        >
+          <.icon name="icon-pencil" class="size-3 shrink-0" />
+          <span>
+            <TracingComponents.config_changes config={run.config} previous={run.previous_config} />
+          </span>
+        </div>
+        <div id={"overview-run-#{run.index}"} class="flex items-center gap-3 text-sm">
+          <span class="font-mono text-base-content/60 w-13 shrink-0">Run {run.index}</span>
+          <div class="bg-base-content/10 h-2.5 min-w-0 flex-1 overflow-hidden rounded-full">
+            <span
+              class={[
+                "block h-full rounded-full",
+                run_fill_class(run_tone(run.reason)),
+                run.reason == :running && "animate-pulse"
+              ]}
+              style={"width: #{max(div(max(run.duration_ms, 1) * 100, @max_ms), 3)}%"}
+            ></span>
+          </div>
+          <span class="font-mono text-base-content w-20 shrink-0 text-right tabular-nums">
+            {Formatters.format_integer(run.traces)}
+          </span>
+          <span class="font-mono text-base-content/60 w-12 shrink-0 text-right tabular-nums">
+            {TracingComponents.format_elapsed(div(run.duration_ms, 1_000))}
+          </span>
+          <span class={[
+            "w-44 shrink-0 truncate",
+            TracingComponents.tone_class(run_tone(run.reason), :label)
+          ]}>
+            {run_reason_label(run.reason)}
+          </span>
+          <.icon
+            name={origin_icon(run.origin)}
+            title={"Started from #{origin_label(run.origin)}"}
+            class="text-base-content/40 size-4 shrink-0"
+          />
+        </div>
+      <% end %>
+    </.chart_card>
+    """
+  end
+
+  attr :buckets, :list, required: true
+  attr :aside, :string, required: true
+
+  defp overview_activity_card(assigns) do
+    max_val =
+      assigns.buckets
+      |> Enum.reject(&is_nil/1)
+      |> Enum.max(fn -> 0 end)
+      |> max(1)
+
+    assigns = assign(assigns, :max_val, max_val)
+
+    ~H"""
+    <.chart_card id="overview-activity" title="Activity" aside={@aside}>
+      <%= if @buckets == [] do %>
+        <p class="font-mono text-base-content/50 py-6 text-center text-xs">No traces captured</p>
+      <% else %>
+        <div class="flex h-28 items-end gap-0.5" aria-hidden="true">
+          <%= for bucket <- @buckets do %>
+            <%= if is_nil(bucket) do %>
+              <span class="border-base-content/20 mx-1 h-full border-l border-dashed"></span>
+            <% else %>
+              <span
+                class="bg-primary rounded-xs opacity-55 flex-1 transition-opacity hover:opacity-100"
+                style={"height: #{if bucket == 0, do: 2, else: max(div(bucket * 100, @max_val), 4)}%"}
+                title={TracingComponents.count(bucket, "trace", "traces")}
+              ></span>
+            <% end %>
+          <% end %>
+        </div>
+        <div class="font-mono text-base-content/60 flex justify-between text-xs">
+          <span>first trace</span>
+          <span>last trace</span>
+        </div>
+      <% end %>
+    </.chart_card>
+    """
+  end
+
+  attr :item, :map, required: true
+  attr :summary, Summary, required: true
+
+  defp overview_outcome_card(assigns) do
+    total = max(assigns.summary.calls + assigns.summary.returns + assigns.summary.exceptions, 1)
+
+    returns_traced? =
+      (assigns.item.config != nil and assigns.item.config.return_trace) or
+        assigns.summary.returns > 0 or assigns.summary.exceptions > 0
+
+    assigns =
+      assign(assigns,
+        total: total,
+        returns_traced?: returns_traced?,
+        process_count: map_size(assigns.summary.processes)
+      )
+
+    ~H"""
+    <.chart_card id="overview-outcome" title="Outcome">
+      <div class="bg-base-content/10 flex h-3 gap-px overflow-hidden rounded-full">
+        <span
+          :if={@summary.calls > 0}
+          class="bg-primary opacity-55 block h-full"
+          style={"width: #{@summary.calls * 100 / @total}%"}
+        ></span>
+        <span
+          :if={@summary.returns > 0}
+          class="bg-success block h-full opacity-70"
+          style={"width: #{@summary.returns * 100 / @total}%"}
+        ></span>
+        <span
+          :if={@summary.exceptions > 0}
+          class="bg-error block h-full"
+          style={"width: #{@summary.exceptions * 100 / @total}%"}
+        ></span>
+      </div>
+
+      <div class="font-mono text-base-content/60 flex flex-wrap gap-x-5 gap-y-1 text-sm">
+        <.outcome_legend label="Calls" count={@summary.calls} dot_class="bg-primary opacity-55" />
+        <%= if @returns_traced? do %>
+          <.outcome_legend
+            label="Returns"
+            count={@summary.returns}
+            dot_class="bg-success opacity-70"
+          />
+          <.outcome_legend label="Exceptions" count={@summary.exceptions} dot_class="bg-error" />
+        <% else %>
+          <span>Returns not traced</span>
+        <% end %>
+      </div>
+
+      <div class="border-base-200 font-mono flex items-baseline justify-between border-t pt-3 text-sm">
+        <span class="text-base-content/60">Processes</span>
+        <span id="outcome-processes" class="text-base-content tabular-nums">
+          {Formatters.format_integer(@process_count)}
+        </span>
+      </div>
+    </.chart_card>
+    """
+  end
+
+  attr :label, :string, required: true
+  attr :count, :integer, required: true
+  attr :dot_class, :string, required: true
+
+  defp outcome_legend(assigns) do
+    ~H"""
+    <span class="flex items-center gap-1.5">
+      <span class={["size-2.5 rounded-full", @dot_class]}></span>
+      {@label}
+      <span class="text-base-content tabular-nums">{Formatters.format_integer(@count)}</span>
+    </span>
+    """
+  end
+
+  attr :functions, :list, required: true
+  attr :total_calls, :integer, required: true
+
+  defp overview_functions_card(assigns) do
+    {_, max_count, _} = List.first(assigns.functions)
+    assigns = assign(assigns, :max_count, max(max_count, 1))
+
+    ~H"""
+    <.chart_card
+      id="overview-functions"
+      title="Top functions"
+      aside={"of #{TracingComponents.count(@total_calls, "call", "calls")}"}
+    >
+      <div
+        :for={{label, count, other?} <- @functions}
+        class="grid-cols-[11rem_1fr_5rem] grid items-center gap-3 text-sm"
+      >
+        <span class="font-mono text-base-content truncate" title={label}>{label}</span>
+        <div class="bg-base-content/10 h-2 overflow-hidden rounded-full">
+          <span
+            class={[
+              "block h-full rounded-full",
+              if(other?, do: "bg-base-content/30", else: "bg-primary opacity-55")
+            ]}
+            style={"width: #{max(div(count * 100, @max_count), 2)}%"}
+          ></span>
+        </div>
+        <span class="font-mono text-base-content/70 text-right tabular-nums">
+          {Formatters.format_integer(count)}
+        </span>
+      </div>
+    </.chart_card>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :title, :string, required: true
+  attr :aside, :string, default: nil
+  slot :inner_block, required: true
+
+  defp chart_card(assigns) do
+    ~H"""
+    <div id={@id} class="card bg-base-100 border-base-200 flex-none border shadow-sm">
+      <div class="flex items-baseline justify-between gap-3 px-5 pt-4 pb-3">
+        <h3 class="text-base-content text-base font-semibold">{@title}</h3>
+        <span :if={@aside} class="font-mono text-base-content/60 text-xs">{@aside}</span>
+      </div>
+      <div class="flex flex-col gap-3 px-5 pb-5">
+        {render_slot(@inner_block)}
+      </div>
     </div>
     """
   end
@@ -825,4 +1082,59 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
 
     "#{reason} · recorded #{recorded}"
   end
+
+  defp run_tone(:running), do: :running
+  defp run_tone(reason), do: TracingComponents.reason_tone(reason)
+
+  defp run_reason_label(:running), do: "Running"
+  defp run_reason_label(reason), do: TracingComponents.stop_reason_label(reason)
+
+  defp run_fill_class(:running), do: "bg-success opacity-70"
+  defp run_fill_class(:warning), do: "bg-warning opacity-70"
+  defp run_fill_class(:error), do: "bg-error opacity-70"
+  defp run_fill_class(:open), do: "bg-primary opacity-55"
+
+  @top_functions_limit 5
+
+  defp top_function_rows(config, %Summary{functions: functions}) do
+    wildcard? = match?(%Config{function: "_"}, config) or match?(%Config{arity: nil}, config)
+
+    if map_size(functions) == 0 or (not wildcard? and map_size(functions) <= 1) do
+      []
+    else
+      sorted = Enum.sort_by(functions, fn {_mfa, calls} -> -calls end)
+      {top, rest} = Enum.split(sorted, @top_functions_limit)
+      same_mod? = single_module?(sorted)
+
+      rows =
+        Enum.map(top, fn {mfa, calls} ->
+          {format_top_mfa(mfa, same_mod?), calls, false}
+        end)
+
+      case rest do
+        [] ->
+          rows
+
+        others ->
+          other_calls = others |> Enum.map(&elem(&1, 1)) |> Enum.sum()
+          rows ++ [{"others (#{length(others)})", other_calls, true}]
+      end
+    end
+  end
+
+  defp single_module?(entries) do
+    entries
+    |> Enum.map(fn {{mod, _fun, _arity}, _calls} -> mod end)
+    |> Enum.uniq()
+    |> length() == 1
+  end
+
+  defp format_top_mfa({mod, fun, arity}, true) do
+    {_mod_part, fun_part} =
+      TermFormatter.mfa_pattern_parts(Atom.to_string(mod), Atom.to_string(fun), arity)
+
+    fun_part
+  end
+
+  defp format_top_mfa(mfa, false), do: TermFormatter.format_mfa(mfa)
 end
