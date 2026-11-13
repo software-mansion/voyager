@@ -205,7 +205,9 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
       id={@id}
       phx-mounted={
         @entry[:live] &&
-          JS.transition({"transition-colors duration-1000", "bg-success/10", ""},
+          JS.transition(
+            {"transition-colors duration-1000",
+             if(@entry.type == :exception, do: "bg-error/15", else: "bg-success/10"), ""},
             time: 1000,
             blocking: false
           )
@@ -430,8 +432,9 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
     label = TracingComponents.stop_reason_label(reason)
 
     if TracingComponents.failure?(reason),
-      do: {"icon-square-filled", "bg-warning/20 text-warning", "bg-warning/10", "Stopped", label},
-      else: {"icon-square-filled", @muted_glyph, "bg-base-200", "Stopped", label}
+      do: {"icon-square-filled", "bg-error/15 text-error", "bg-error/10", "Stopped", label},
+      else:
+        {"icon-square-filled", "bg-warning/20 text-warning", "bg-warning/10", "Stopped", label}
   end
 
   defp control(%{kind: :dropped, count: count}),
