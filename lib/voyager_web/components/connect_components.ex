@@ -391,24 +391,12 @@ defmodule VoyagerWeb.ConnectComponents do
           Unknown host key
         </h2>
         <p class="text-base-content/70 mt-1 text-sm">
-          Voyager has not connected to <span class="font-mono text-base-content">{@host}</span>
+          Voyager has not connected to
+          <span class="font-mono text-base-content break-words">{@host}</span>
           before. Check that its key fingerprint matches the server's before trusting it.
         </p>
 
-        <div class="bg-base-200 mt-4 flex w-full items-center gap-2 rounded-md py-1 pr-1 pl-3">
-          <code
-            id={"#{@id}-fingerprint"}
-            class="font-mono text-base-content min-w-0 flex-1 whitespace-nowrap text-xs"
-          >{@fingerprint}</code>
-          <.copy_button
-            id={"#{@id}-fingerprint-copy"}
-            target={"##{@id}-fingerprint"}
-            icon_only
-            size={:sm}
-            label="Copy fingerprint"
-            class="shrink-0"
-          />
-        </div>
+        <.copy_field id={"#{@id}-fingerprint"} value={@fingerprint} label="Copy fingerprint" />
 
         <div
           :if={@password_auth}
@@ -441,6 +429,138 @@ defmodule VoyagerWeb.ConnectComponents do
           </button>
         </div>
       </.focus_wrap>
+    </div>
+    """
+  end
+
+  @doc """
+  Warns that a host's key differs from the one pinned for it. Offers to remove
+  a key pinned in Voyager's own `known_hosts`, otherwise shows the `ssh-keygen`
+  command that does it.
+  """
+  attr :id, :string, required: true
+  attr :host, :string, required: true, doc: "`user@host:port` being connected to"
+  attr :mismatch, :map, required: true, doc: "A `t:Voyager.Services.SSH.KnownHosts.mismatch/0`"
+  attr :remove_error, :string, default: nil
+  attr :target, :any, default: nil
+  attr :on_remove, :string, required: true
+  attr :on_dismiss, :string, required: true
+
+  def host_key_changed_modal(assigns) do
+    ~H"""
+    <div
+      id={@id}
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby={"#{@id}-title"}
+      aria-describedby={"#{@id}-warning"}
+      class="modal modal-open"
+    >
+      <.focus_wrap
+        id={"#{@id}-box"}
+        phx-mounted={JS.focus(to: "##{@id}-dismiss")}
+        class="modal-box max-w-xl shadow-2xl"
+      >
+        <h2
+          id={"#{@id}-title"}
+          class="text-error flex items-center gap-2 text-lg font-semibold tracking-tight"
+        >
+          <.icon name="icon-triangle-alert" class="size-5 shrink-0" />
+          Remote host identification has changed
+        </h2>
+
+        <div id={"#{@id}-warning"} role="alert" class="alert alert-error mt-4 text-sm">
+          <.icon name="icon-circle-alert" class="size-4 shrink-0" />
+          <span>
+            Someone could be eavesdropping on you right now (man-in-the-middle attack).
+            It is also possible that the host key has just been changed.
+          </span>
+        </div>
+
+        <p class="text-base-content/70 mt-4 text-sm">
+          The fingerprint for the {@mismatch.key_type} key sent by
+          <span class="font-mono text-base-content break-words">{@host}</span>
+          is
+        </p>
+        <.copy_field
+          id={"#{@id}-fingerprint"}
+          value={@mismatch.fingerprint}
+          label="Copy fingerprint"
+        />
+
+        <p class="text-base-content/70 mt-4 text-sm">
+          Offending {@mismatch.key_type} key on line {@mismatch.line} of
+        </p>
+        <.copy_field id={"#{@id}-location"} value={@mismatch.file} label="Copy path" />
+
+        <p class="text-base-content/70 mt-4 text-sm">
+          If you expected this change, confirm the new fingerprint with the server's
+          administrator, then remove the old key. {if @mismatch.removable,
+            do: "Voyager will ask you to trust the new one.",
+            else: "Voyager only edits its own known_hosts, so run:"}
+        </p>
+        <.copy_field
+          :if={not @mismatch.removable}
+          id={"#{@id}-command"}
+          value={"ssh-keygen -f #{shell_quote(@mismatch.file)} -R #{shell_quote(@mismatch.host)}"}
+          label="Copy command"
+        />
+
+        <div
+          :if={@remove_error}
+          id={"#{@id}-remove-error"}
+          role="alert"
+          class="alert alert-error mt-4 text-sm"
+        >
+          <.icon name="icon-circle-alert" class="size-4 shrink-0" />
+          <span>{@remove_error}</span>
+        </div>
+
+        <div class="modal-action">
+          <button
+            type="button"
+            id={"#{@id}-dismiss"}
+            phx-target={@target}
+            phx-click={@on_dismiss}
+            class="btn btn-ghost"
+          >
+            {if @mismatch.removable, do: "Cancel", else: "Close"}
+          </button>
+          <button
+            :if={@mismatch.removable}
+            type="button"
+            id={"#{@id}-remove"}
+            phx-target={@target}
+            phx-click={@on_remove}
+            class="btn btn-error dark:text-base-100"
+          >
+            Remove old key
+          </button>
+        </div>
+      </.focus_wrap>
+    </div>
+    """
+  end
+
+  # A ' ends a single-quoted shell word; '\'' puts one back.
+  defp shell_quote(value), do: "'" <> String.replace(value, "'", "'\\''") <> "'"
+
+  attr :id, :string, required: true
+  attr :value, :string, required: true
+  attr :label, :string, required: true
+
+  defp copy_field(assigns) do
+    ~H"""
+    <div class="bg-base-200 mt-4 flex w-full items-center gap-2 rounded-md py-1 pr-1 pl-3">
+      <code id={@id} class="font-mono text-base-content min-w-0 flex-1 break-words text-xs">{@value}</code>
+      <.copy_button
+        id={"#{@id}-copy"}
+        target={"##{@id}"}
+        icon_only
+        size={:sm}
+        label={@label}
+        class="shrink-0"
+      />
     </div>
     """
   end

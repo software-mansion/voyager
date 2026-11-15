@@ -15,6 +15,50 @@ defmodule Voyager.Services.SSH.KnownHosts do
   alias Voyager.Repo
   alias Voyager.Services.LocalFiles
 
+  @type mismatch :: %{
+          host: String.t(),
+          file: Path.t(),
+          line: pos_integer(),
+          key_type: String.t(),
+          fingerprint: String.t(),
+          removable: boolean()
+        }
+
+  @doc """
+  Removes the entries for `host`, written as in `t:mismatch/0`, from Voyager's
+  own `known_hosts`. Revoked entries are kept.
+  """
+  @spec forget(String.t()) ::
+          :ok | {:error, {:known_hosts_unreadable | :known_hosts_unwritable, Path.t()}}
+  def forget(host) do
+    path = path()
+
+    case LocalFiles.read(path) do
+      {:ok, contents} ->
+        kept =
+          contents
+          |> String.split("\n")
+          |> Enum.reject(&pins?(&1, host))
+          |> Enum.join("\n")
+
+        with {:error, _reason} <- LocalFiles.write(path, kept),
+             do: {:error, {:known_hosts_unwritable, path}}
+
+      {:error, {:read_failed, {_path, :enoent}}} ->
+        :ok
+
+      {:error, _reason} ->
+        {:error, {:known_hosts_unreadable, path}}
+    end
+  end
+
+  defp pins?(line, host) do
+    case marker(String.split(line)) do
+      {nil, [patterns, _type, _key | _]} -> listed?(patterns, host)
+      _ -> false
+    end
+  end
+
   @impl true
   def is_host_key(key, _hosts, port, _algorithm, opts) do
     case lookup(name(port, opts), key) do
@@ -64,16 +108,27 @@ defmodule Voyager.Services.SSH.KnownHosts do
     [type, blob | _] = String.split(:ssh_file.encode([{key, []}], :openssh_key))
 
     with {:ok, entries} <- entries(name, type) do
-      revoked = for {file, "revoked", ^blob} <- entries, do: file
-      plain = for {file, nil, stored} <- entries, do: {file, stored}
+      revoked = for {file, _line, "revoked", ^blob} <- entries, do: file
+      plain = for {file, line, nil, stored} <- entries, do: {file, line, stored}
 
       cond do
         revoked != [] -> {:error, {:host_key_revoked, hd(revoked)}}
-        Enum.any?(plain, &match?({_file, ^blob}, &1)) -> :known
+        Enum.any?(plain, &match?({_file, _line, ^blob}, &1)) -> :known
         plain == [] -> :unknown
-        true -> {:error, {:host_key_mismatch, plain |> hd() |> elem(0)}}
+        true -> {:error, {:host_key_mismatch, mismatch(name, hd(plain), type, key)}}
       end
     end
+  end
+
+  defp mismatch(name, {file, line, _stored}, type, key) do
+    %{
+      host: name,
+      file: file,
+      line: line,
+      key_type: type,
+      fingerprint: to_string(:ssh.hostkey_fingerprint(:sha256, key)),
+      removable: file == path()
+    }
   end
 
   defp entries(name, type) do
@@ -89,10 +144,10 @@ defmodule Voyager.Services.SSH.KnownHosts do
   end
 
   defp parse(file, contents, name, type) do
-    for line <- String.split(contents, "\n"),
+    for {line, number} <- Enum.with_index(String.split(contents, "\n"), 1),
         {marker, [patterns, ^type, stored | _]} <- [marker(String.split(line))],
         listed?(patterns, name),
-        do: {file, marker, stored}
+        do: {file, number, marker, stored}
   end
 
   defp marker(["@" <> marker | fields]), do: {marker, fields}
