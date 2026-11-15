@@ -78,7 +78,9 @@ test.describe('ConnectLive › SSH config import', () => {
     await hostButton(page, 'fill-ssh-host-btn', 'prod')
       .locator('[data-testid="ssh-host-problems"]')
       .hover();
-    const problemsTip = page.getByRole('tooltip').filter({ hasText: 'proxyjump' });
+    const problemsTip = page
+      .getByRole('tooltip')
+      .filter({ hasText: 'proxyjump' });
     await expect(problemsTip).toBeVisible();
     await expect(problemsTip).toContainText('Not supported');
     await hostButton(page, 'fill-ssh-host-btn', 'prod').click();
