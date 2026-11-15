@@ -228,5 +228,19 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParamsTest do
       assert %{"key_path" => "/k/a", "agent_socket_path" => "/a/agent.sock"} = params
       refute Map.has_key?(params, "auth_method")
     end
+
+    test "picks key auth for identity_agent none with an identity file" do
+      params =
+        SshConnectionParams.params_from_host(
+          host(%{identity_agent: :none, identity_files: ["/k/a"]})
+        )
+
+      assert params["auth_method"] == "key"
+    end
+
+    test "picks password auth for identity_agent none without an identity file" do
+      params = SshConnectionParams.params_from_host(host(%{identity_agent: :none}))
+      assert params["auth_method"] == "password"
+    end
   end
 end

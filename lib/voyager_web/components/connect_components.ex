@@ -497,7 +497,7 @@ defmodule VoyagerWeb.ConnectComponents do
   attr :form, Phoenix.HTML.Form, required: true
   attr :config_path, :string, required: true
   attr :hosts, :list, default: nil, doc: "`nil` until a file has been read"
-  attr :unsupported, :list, default: []
+  attr :shared, :list, default: []
   attr :selected, :map, default: nil
   attr :target, :any, default: nil
   attr :on_close, :string, required: true
@@ -573,7 +573,7 @@ defmodule VoyagerWeb.ConnectComponents do
           </button>
         </div>
 
-        <.ssh_config_notice :if={@hosts && @unsupported != []} unsupported={@unsupported} />
+        <.ssh_config_notice :if={@hosts && @shared != []} unsupported={@shared} />
 
         <p
           :if={@hosts == []}
@@ -618,8 +618,7 @@ defmodule VoyagerWeb.ConnectComponents do
   attr :unsupported, :list, required: true
 
   def ssh_config_notice(assigns) do
-    assigns =
-      assign(assigns, :keywords, assigns.unsupported |> Enum.map(& &1.keyword) |> Enum.uniq())
+    assigns = assign(assigns, :count, length(assigns.unsupported))
 
     ~H"""
     <details
@@ -629,16 +628,37 @@ defmodule VoyagerWeb.ConnectComponents do
     >
       <summary class="summary-plain flex cursor-pointer items-center gap-1.5 transition-colors hover:text-base-content">
         <.icon name="icon-circle-alert" class="text-warning size-3.5 shrink-0" />
-        {length(@keywords)} {if length(@keywords) == 1, do: "setting", else: "settings"} ignored
+        {@count} {if @count == 1, do: "setting", else: "settings"} ignored
         <.icon
           name="icon-chevron-right"
           class="size-3.5 shrink-0 transition-transform group-open:rotate-90"
         />
       </summary>
-      <p class="font-mono bg-base-200 border-base-content/20 mt-1.5 break-words rounded-md border p-2">
-        {Enum.join(@keywords, ", ")}
-      </p>
+      <.unsupported_list
+        id="ssh-config-notice-reasons"
+        unsupported={@unsupported}
+        class="bg-base-200 border-base-content/20 mt-1.5 rounded-md border p-2"
+      />
     </details>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :unsupported, :list, required: true
+  attr :class, :any, default: nil
+
+  defp unsupported_list(assigns) do
+    ~H"""
+    <dl id={@id} class={["grid-cols-[auto_1fr] grid gap-x-3 gap-y-1", @class]}>
+      <div
+        :for={{type, label, keywords} <- unsupported_rows(@unsupported)}
+        id={"#{@id}-#{type}"}
+        class="contents"
+      >
+        <dt class="text-base-content/50 whitespace-nowrap">{label}</dt>
+        <dd class="font-mono min-w-0 break-words">{Enum.join(keywords, ", ")}</dd>
+      </div>
+    </dl>
     """
   end
 
@@ -649,6 +669,9 @@ defmodule VoyagerWeb.ConnectComponents do
   attr :on_remove, :string, required: true
 
   def ssh_host_row(assigns) do
+    assigns =
+      assign(assigns, :problems_id, "ssh-host-problems-#{:erlang.phash2(assigns.host.alias)}")
+
     ~H"""
     <div class="flex w-full items-center gap-1">
       <button
@@ -679,6 +702,25 @@ defmodule VoyagerWeb.ConnectComponents do
               label="agent"
               title={@host.identity_agent}
             />
+            <.tooltip
+              :if={@host.problems != []}
+              id={@problems_id}
+              pinnable={false}
+              class="shrink-0"
+            >
+              <span
+                data-testid="ssh-host-problems"
+                class="badge badge-warning badge-soft badge-xs font-mono gap-0.5"
+              >
+                <.icon name="icon-circle-alert" class="size-3" />{length(@host.problems)}
+              </span>
+              <:content>
+                <.unsupported_list
+                  id={"#{@problems_id}-reasons"}
+                  unsupported={@host.problems}
+                />
+              </:content>
+            </.tooltip>
           </div>
         </div>
         <.icon
@@ -702,6 +744,18 @@ defmodule VoyagerWeb.ConnectComponents do
       </button>
     </div>
     """
+  end
+
+  defp unsupported_rows(unsupported) do
+    groups = Enum.group_by(unsupported, & &1.type, & &1.keyword)
+
+    for {type, label} <- [
+          keyword: "Not supported",
+          value: "Unsupported value",
+          block: "Skipped block"
+        ],
+        Map.has_key?(groups, type),
+        do: {type, label, groups[type]}
   end
 
   defp ssh_host_address(host) do

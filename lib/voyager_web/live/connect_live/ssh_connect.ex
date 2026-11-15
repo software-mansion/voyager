@@ -280,7 +280,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         form={@ssh_config_form}
         config_path={@ssh_config_path}
         hosts={@ssh_config_hosts}
-        unsupported={@ssh_config_unsupported}
+        shared={@ssh_config_shared}
         selected={@ssh_config_selected}
         target={@myself}
         on_close="close_ssh_config"

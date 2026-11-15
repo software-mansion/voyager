@@ -20,7 +20,7 @@ defmodule VoyagerWeb.ConnectLive.SshConfigImport do
     |> assign(:ssh_config_modal?, false)
     |> assign(:ssh_config_form, path_form(""))
     |> assign(:ssh_config_hosts, nil)
-    |> assign(:ssh_config_unsupported, [])
+    |> assign(:ssh_config_shared, [])
     |> assign(:ssh_config_picked_alias, nil)
     |> attach_hook(:ssh_config_import, :handle_event, &handle_event/3)
   end
@@ -112,7 +112,7 @@ defmodule VoyagerWeb.ConnectLive.SshConfigImport do
 
   defp load(socket, path) do
     case path |> config_path() |> Config.read() do
-      {:ok, %{hosts: hosts, unsupported: unsupported}} ->
+      {:ok, %{hosts: hosts, unsupported: unsupported, shared: shared}} ->
         remember_path(path)
 
         Voyager.Telemetry.dispatch!("voyager.ssh_config.import",
@@ -123,7 +123,7 @@ defmodule VoyagerWeb.ConnectLive.SshConfigImport do
         socket
         |> assign(:ssh_config_form, path_form(path))
         |> assign(:ssh_config_hosts, hosts)
-        |> assign(:ssh_config_unsupported, unsupported)
+        |> assign(:ssh_config_shared, shared)
 
       {:error, reason} ->
         socket

@@ -85,10 +85,17 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParams do
       "key_path" => List.first(host.identity_files, ""),
       "agent_socket_path" => agent_socket_path(host.identity_agent)
     }
+    |> Map.merge(auth_method(host))
   end
 
   defp agent_socket_path(path) when is_binary(path), do: path
   defp agent_socket_path(_none_or_nil), do: ""
+
+  defp auth_method(%{identity_agent: :none, identity_files: [_ | _]}),
+    do: %{"auth_method" => "key"}
+
+  defp auth_method(%{identity_agent: :none}), do: %{"auth_method" => "password"}
+  defp auth_method(_host), do: %{}
 
   defp validate_auth_fields(changeset) do
     case get_field(changeset, :auth_method) do
