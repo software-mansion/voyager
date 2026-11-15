@@ -72,9 +72,13 @@ test.describe('ConnectLive › SSH config import', () => {
 
     await importPickedFile(page, configPath);
 
-    await expect(page.locator(sel.sshConfigNotice)).toContainText('forwardagent');
+    await expect(page.locator(sel.sshConfigNotice)).toContainText(
+      'forwardagent'
+    );
     await expect(
-      hostButton(page, 'fill-ssh-host-btn', 'prod').locator('[data-testid="ssh-host-problems"]')
+      hostButton(page, 'fill-ssh-host-btn', 'prod').locator(
+        '[data-testid="ssh-host-problems"]'
+      )
     ).toHaveAttribute('title', 'Not supported: proxyjump');
     await hostButton(page, 'fill-ssh-host-btn', 'prod').click();
 

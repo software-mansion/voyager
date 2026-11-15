@@ -95,8 +95,6 @@ defmodule VoyagerWeb.ConnectComponentsTest do
     )
   end
 
-  defp text(html, selector), do: html |> query(selector) |> LazyHTML.text()
-
   defp opener(attrs) do
     render_component(
       &ConnectComponents.ssh_config_opener/1,
@@ -227,6 +225,7 @@ defmodule VoyagerWeb.ConnectComponentsTest do
       assert attr(html, "#ssh-config-notice-reasons > div", "id") == [
                "ssh-config-notice-reasons-value"
              ]
+
       assert text(html, "#ssh-config-notice summary") =~ "1 setting ignored"
     end
   end
@@ -266,7 +265,9 @@ defmodule VoyagerWeb.ConnectComponentsTest do
     test "gives each host its own tooltip id" do
       ids =
         for host_alias <- ["prod", "my host"] do
-          html = host_row(ssh_host(%{alias: host_alias, problems: [%{keyword: "x", type: :keyword}]}))
+          html =
+            host_row(ssh_host(%{alias: host_alias, problems: [%{keyword: "x", type: :keyword}]}))
+
           attr(html, "[phx-hook=Tooltip]", "id")
         end
 
