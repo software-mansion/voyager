@@ -231,7 +231,9 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
         class="border-base-200 min-h-11 flex flex-none items-center justify-between gap-3 border-t px-5 py-1.5"
       >
         <p class="text-base-content/70 min-w-0 truncate text-xs">
-          {footer(@search, @trace_session, @trace_rows, @oldest_seq, @new_count)}
+          {if @search,
+            do: search_footer(@search, @trace_session),
+            else: footer(@trace_session, @trace_rows, @oldest_seq, @new_count)}
         </p>
         <div class="flex shrink-0 items-center gap-4">
           <span id="log-legend" class="text-base-content/70 flex items-center gap-3 text-xs">
@@ -656,28 +658,18 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
   defp older?(nil, oldest_seq), do: oldest_seq > 0
   defp older?(%{total: total, shown: shown}, _oldest_seq), do: is_integer(total) and shown < total
 
-  defp footer(%{total: nil}, _session, _trace_rows, _oldest_seq, _new_count), do: "Searching…"
+  defp search_footer(%{total: nil}, _session), do: "Searching…"
 
-  defp footer(%{total: 0} = search, session, _trace_rows, _oldest_seq, _new_count),
+  defp search_footer(%{total: 0} = search, session),
     do: "No matches in #{search_scope(session, search)}"
 
-  defp footer(
-         %{total: total, shown: shown} = search,
-         session,
-         _trace_rows,
-         _oldest_seq,
-         _new_count
-       )
-       when shown < total,
-       do:
-         "Newest #{Formatters.format_integer(shown)} of #{Formatters.format_integer(total)} matches in #{search_scope(session, search)}"
+  defp search_footer(%{total: total, shown: shown} = search, session) when shown < total,
+    do:
+      "Newest #{Formatters.format_integer(shown)} of #{Formatters.format_integer(total)} matches in #{search_scope(session, search)}"
 
-  defp footer(%{total: total} = search, session, _trace_rows, _oldest_seq, _new_count),
+  defp search_footer(%{total: total} = search, session),
     do:
       "#{TracingComponents.count(total, "match", "matches")} in #{search_scope(session, search)}"
-
-  defp footer(nil, session, trace_rows, oldest_seq, new_count),
-    do: footer(session, trace_rows, oldest_seq, new_count)
 
   defp footer(%Session{traces: 0}, _trace_rows, _oldest_seq, _new_count), do: "No traces yet"
 

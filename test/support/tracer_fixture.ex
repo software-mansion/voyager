@@ -82,10 +82,8 @@ defmodule Voyager.Test.TracerFixture do
     session
   end
 
-  def call_traced!(calls, traces) do
-    for _ <- 1..calls, do: Date.leap_year?(~D[2024-01-01])
-    assert_receive {:session_entries, %{traces: ^traces}, _entries}, 2_000
-  end
+  def call_traced!(calls, traces),
+    do: trace_dates!(List.duplicate(~D[2024-01-01], calls), traces)
 
   def trace_dates!(dates, traces) do
     Enum.each(dates, &Date.leap_year?/1)

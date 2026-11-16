@@ -21,7 +21,7 @@ defmodule VoyagerWeb.Components.Shell do
     ~H"""
     <div class="bg-base-200 flex h-full flex-col overflow-x-auto overflow-y-hidden">
       <div class="min-w-lg flex min-h-0 flex-1 flex-col">
-        <.topbar session={@session} mcp_status={@mcp_status} tracing_session={@tracing_session} />
+        <.topbar session={@session} tracing_session={@tracing_session} />
 
         <div class="relative flex flex-1 overflow-y-hidden">
           <.sidebar
@@ -40,7 +40,6 @@ defmodule VoyagerWeb.Components.Shell do
   end
 
   attr :session, Session, default: nil
-  attr :mcp_status, :map, default: %{alive?: false, url: nil}
   attr :tracing_session, Tracer.Session, default: nil
   attr :settings_link?, :boolean, default: true
 
