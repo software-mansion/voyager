@@ -119,11 +119,17 @@ defmodule VoyagerWeb.TracingSessionLive do
   end
 
   @impl true
-  def handle_event("stop", _params, socket) do
+  def handle_event(
+        "stop",
+        _params,
+        %{assigns: %{trace_session: %AsyncResult{result: %Session{status: :running}}}} = socket
+      ) do
     socket
     |> assign(:confirm, :stop)
     |> noreply()
   end
+
+  def handle_event("stop", _params, socket), do: noreply(socket)
 
   def handle_event("confirm-stop", _params, socket) do
     socket

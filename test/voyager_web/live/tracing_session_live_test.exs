@@ -88,6 +88,33 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     refute has_element?(view, "#stop-session-modal")
   end
 
+  test "ignores a stop that arrives after the run has ended", %{conn: conn} do
+    %{id: id} = create!()
+    {:ok, _session} = configure()
+    {:ok, _session} = Tracer.start(:ui)
+    view = open(conn, id)
+
+    :ok = Tracer.stop(:ui)
+    settle(view)
+
+    render_click(view, "stop", %{})
+
+    refute has_element?(view, "#stop-session-modal")
+  end
+
+  test "ignores a stop pushed before the session has loaded", %{conn: conn} do
+    session = create!()
+    {:ok, _session} = configure()
+    {:ok, _session} = Tracer.start(:ui)
+    :ok = :sys.suspend(Tracer)
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing/#{session.id}")
+
+    render_click(view, "stop", %{})
+
+    refute has_element?(view, "#stop-session-modal")
+    :ok = :sys.resume(Tracer)
+  end
+
   test "resumes a stopped session", %{conn: conn} do
     %{id: id} = create!()
     {:ok, _session} = configure()
