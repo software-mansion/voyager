@@ -9,6 +9,7 @@ defmodule Voyager.TraceSessionsTest do
   alias Voyager.Schemas.TraceEvent
   alias Voyager.Schemas.TraceSession
   alias Voyager.Services.Tracer.Config
+  alias Voyager.Services.Tracer.Overview
   alias Voyager.Services.Tracer.Session
 
   test "interrupt_running/0 stops running sessions" do
@@ -272,6 +273,60 @@ defmodule Voyager.TraceSessionsTest do
     assert TraceSessionQueries.counts_by_node() == %{"a@host" => 2, "b@host" => 1}
     assert TraceSessionQueries.counts_by_node(s3.id) == %{"a@host" => 1, "b@host" => 1}
     assert TraceSessionQueries.total_count(s3.id) == 2
+  end
+
+  test "activity/3 buckets saved trace rows in SQLite to match Overview.activity/3" do
+    %{id: id} = session!(:stopped)
+
+    controls = [
+      %{seq: 0, kind: :started, at: 1_000_000, origin: :ui},
+      %{
+        seq: 2,
+        kind: :stopped,
+        at: 6_000_000,
+        origin: :ui,
+        reason: :stopped,
+        traces: 1,
+        dropped: 0
+      },
+      %{seq: 3, kind: :started, at: 10_000_000, origin: :ui},
+      %{
+        seq: 6,
+        kind: :stopped,
+        at: 30_000_000,
+        origin: :ui,
+        reason: :stopped,
+        traces: 2,
+        dropped: 0
+      }
+    ]
+
+    traces = [
+      trace(1, %{at: 2_000_000}),
+      trace(4, %{at: 12_123_456}),
+      trace(5, %{at: 28_999_999})
+    ]
+
+    TraceEntryActions.insert_all(id, controls ++ traces)
+
+    stopped_controls = TraceEntryQueries.controls(id)
+    stopped_session = Session.from_row(row(), stopped_controls, 0, 0, 0)
+    stopped_runs = Overview.runs(stopped_controls, stopped_session)
+
+    expected_stopped =
+      Overview.activity(stopped_runs, Overview.trace_timestamps(stopped_runs, traces))
+
+    assert TraceEntryQueries.activity(id, stopped_runs) == expected_stopped
+
+    now = DateTime.from_unix!(40_500_000, :microsecond)
+    running_controls = Enum.reject(stopped_controls, &(&1.seq == 6))
+    running_session = %{stopped_session | status: :running, stop_reason: nil, stopped_at: nil}
+    running_runs = Overview.runs(running_controls, running_session, now)
+
+    expected_running =
+      Overview.activity(running_runs, Overview.trace_timestamps(running_runs, traces), now)
+
+    assert TraceEntryQueries.activity(id, running_runs, now) == expected_running
   end
 
   defp seqs(entries), do: Enum.map(entries, & &1.seq)
