@@ -283,10 +283,15 @@ defmodule Voyager.Services.Tracer.Overview do
   defp build_run(index, start, next_seq, stop, config, prev_config, session, now) do
     started_at = DateTime.from_unix!(start.at, :microsecond)
 
-    {stopped_at, reason, traces, dropped} =
-      run_outcome(stop, is_nil(next_seq), started_at, session)
+    {stopped_at, reason, traces, dropped} = run_outcome(stop, is_nil(next_seq), session)
 
-    duration_ms = max(DateTime.diff(stopped_at || now, started_at, :millisecond), 0)
+    duration_ms =
+      case stopped_at do
+        %DateTime{} = at -> DateTime.diff(at, started_at, :millisecond)
+        nil when reason == :running -> DateTime.diff(now, started_at, :millisecond)
+        nil -> 0
+      end
+      |> max(0)
 
     %{
       index: index,
@@ -304,18 +309,19 @@ defmodule Voyager.Services.Tracer.Overview do
     }
   end
 
-  defp run_outcome(%{} = stop, _last?, _started_at, _session) do
+  defp run_outcome(%{} = stop, _last?, _session) do
     {DateTime.from_unix!(stop.at, :microsecond), stop.reason, stop.traces, stop.dropped}
   end
 
-  defp run_outcome(nil, true, _started_at, %Session{status: :running} = session) do
+  defp run_outcome(nil, true, %Session{status: :running} = session) do
     {nil, :running, max(session.traces - session.run_traces_before, 0), session.dropped}
   end
 
-  defp run_outcome(nil, true, _started_at, %Session{} = session) do
+  defp run_outcome(nil, true, %Session{} = session) do
     {session.stopped_at, session.stop_reason || :interrupted,
      max(session.traces - session.run_traces_before, 0), session.dropped}
   end
 
-  defp run_outcome(nil, false, started_at, _session), do: {started_at, :interrupted, 0, 0}
+  # A nil stop stays nil; stamping `started_at` clamps that run's traces into one bucket.
+  defp run_outcome(nil, false, _session), do: {nil, :interrupted, 0, 0}
 end

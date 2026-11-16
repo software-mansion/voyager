@@ -257,15 +257,6 @@ defmodule Voyager.Services.Tracer do
     end
   end
 
-  @doc "The `Summary` of every trace event of session `id`, including those evicted from memory."
-  @spec summary(integer()) :: {:ok, Summary.t()} | {:error, :not_found}
-  def summary(id) do
-    case GenServer.call(__MODULE__, {:summary, id}) do
-      :saved -> with_saved(id, fn _row -> {:ok, TraceEntryQueries.summary(id)} end)
-      reply -> reply
-    end
-  end
-
   @doc """
   The runs, activity histogram and event `Summary` of session `id`. Runs in the caller for
   saved sessions; unsaved sessions read their in-memory controls, kept traces and summary.
@@ -426,11 +417,6 @@ defmodule Voyager.Services.Tracer do
 
   def handle_call({:entries, _id, _opts}, _from, state), do: {:reply, :saved, state}
 
-  def handle_call({:summary, id}, _from, %{session: %{id: id, save: false}} = state),
-    do: {:reply, {:ok, state.log.summary}, state}
-
-  def handle_call({:summary, _id}, _from, state), do: {:reply, :saved, state}
-
   def handle_call(
         {:overview, id},
         _from,
@@ -588,6 +574,20 @@ defmodule Voyager.Services.Tracer do
     )
   end
 
+  defp fill_interrupted_run(session_id, %{stopped_at: nil, reason: :interrupted} = run) do
+    {traces, max_at} = TraceEntryQueries.open_run_extent(session_id, run)
+
+    duration_ms =
+      case max_at do
+        %DateTime{} = at -> max(DateTime.diff(at, run.started_at, :millisecond), 0)
+        nil -> 0
+      end
+
+    %{run | traces: traces, duration_ms: duration_ms}
+  end
+
+  defp fill_interrupted_run(_session_id, run), do: run
+
   defp saved_overview(row, active_session) do
     controls = TraceEntryQueries.controls(row.id)
 
@@ -601,7 +601,10 @@ defmodule Voyager.Services.Tracer do
           0
         )
 
-    runs = Overview.runs(controls, session)
+    runs =
+      controls
+      |> Overview.runs(session)
+      |> Enum.map(&fill_interrupted_run(row.id, &1))
 
     %{
       runs: runs,

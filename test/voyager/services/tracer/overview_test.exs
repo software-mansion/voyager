@@ -109,6 +109,46 @@ defmodule Voyager.Services.Tracer.OverviewTest do
     assert interrupted.stopped_at == stopped_at
   end
 
+  test "activity/3 keeps a crashed run's traces out of the next run's gap" do
+    controls = [
+      %{
+        seq: 5,
+        kind: :stopped,
+        at: 30_000_000,
+        origin: :ui,
+        reason: :stopped,
+        traces: 1,
+        dropped: 0
+      },
+      %{seq: 3, kind: :started, at: 20_000_000, origin: :ui},
+      %{seq: 0, kind: :started, at: 1_000_000, origin: :ui}
+    ]
+
+    runs =
+      Overview.runs(
+        controls,
+        session(
+          status: :stopped,
+          stop_reason: :stopped,
+          stopped_at: DateTime.from_unix!(30_000_000, :microsecond)
+        )
+      )
+
+    [crashed, later] = runs
+    assert crashed.stopped_at == nil
+    assert crashed.reason == :interrupted
+    assert crashed.traces == 0
+    assert crashed.duration_ms == 0
+    assert later.traces == 1
+
+    assert %{segments: [first, second]} =
+             Overview.activity(runs, [{1, 2_000_000}, {1, 8_000_000}, {2, 22_000_000}])
+
+    assert length(first.counts) > 1
+    assert Enum.sum(first.counts) == 2
+    assert second.gap_before_ms == 12_000
+  end
+
   test "activity/3 slices each run into fixed-width buckets with the gap between runs" do
     controls = [
       %{
