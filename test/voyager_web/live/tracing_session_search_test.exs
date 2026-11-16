@@ -74,6 +74,18 @@ defmodule VoyagerWeb.TracingSessionSearchTest do
     refute has_element?(view, "#entry-2 mark", "2023")
   end
 
+  test "highlights a match on the traced function or a term in the tooltip", %{conn: conn} do
+    %{id: id} = start!(@config)
+    trace_dates!([~D[2023-05-05]], 1)
+    view = open(conn, id)
+
+    search(view, "leap")
+    assert view |> element("#entry-2-term-content") |> render() =~ ~r{<mark[^>]*>leap</mark>}
+
+    search(view, "2023")
+    assert view |> element("#entry-2-term-content") |> render() =~ ~r{<mark[^>]*>2023</mark>}
+  end
+
   test "returns to the live list once the search is cleared", %{conn: conn} do
     %{id: id} = start!(@config)
     trace_dates!([~D[2023-05-05]], 1)

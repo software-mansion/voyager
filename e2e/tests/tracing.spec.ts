@@ -66,4 +66,25 @@ test.describe('TracingSessionLive', () => {
     const tipBox = await tip.boundingBox();
     expect(tipBox!.x).toBeCloseTo(column!.x, 0);
   });
+
+  test('marks a search match in a shown row’s tooltip', async ({ page }) => {
+    const id = rpc('mock_app_ctl trace_session [false]');
+    await page.goto(`/node/${encodeURIComponent(NODE_NAME)}/tracing/${id}`);
+    await waitForLiveView(page);
+
+    const terms = page.locator(`${sel.rows} [id$="-term"]`);
+    await expect(async () => {
+      expect(await terms.count()).toBeGreaterThan(2);
+    }).toPass();
+    await page.locator(sel.stop).click();
+    await expect(page.locator(sel.resume)).toBeVisible();
+
+    await page.locator('#log-search').fill('lookup');
+    await expect(page.locator('#log-footer')).toContainText('matches in');
+    await terms.first().hover();
+
+    await expect(page.locator('#log-term-tip mark').first()).toHaveText(
+      'lookup'
+    );
+  });
 });

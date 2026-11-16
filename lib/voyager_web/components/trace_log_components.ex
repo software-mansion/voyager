@@ -347,7 +347,11 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
                     class={["size-3.5 shrink-0", glyph_class(@entry.type)]}
                   />
                   <span class="min-w-0 truncate font-semibold">
-                    <.highlighted text={Formatters.format_mfa(@entry.mfa)} syntax={@syntax} />
+                    <.highlighted
+                      text={Formatters.format_mfa(@entry.mfa)}
+                      syntax={@syntax}
+                      query={@query}
+                    />
                   </span>
                   <span class="text-base-content/60 font-sans ml-auto shrink-0">
                     {tip_meta(@entry)}
@@ -356,7 +360,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
                 <div class="flex items-center gap-2">
                   <span class="text-primary shrink-0">{Formatters.pid(@entry.pid)}</span>
                   <span :if={@process} class="min-w-0 truncate">
-                    <.highlighted text={@process} syntax={@syntax} />
+                    <.highlighted text={@process} syntax={@syntax} query={@query} />
                   </span>
                   <span class="text-base-content/60 font-sans ml-auto shrink-0">
                     {full_at(@entry.at)}
@@ -373,6 +377,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
                 <span class="min-w-0 flex-1 whitespace-pre-wrap break-all"><.highlighted
                   text={text}
                   syntax={@syntax}
+                  query={@query}
                 /><span :if={cut?} class="text-base-content/50">…</span></span>
               </div>
             </:content>
