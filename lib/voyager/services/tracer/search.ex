@@ -8,17 +8,20 @@ defmodule Voyager.Services.Tracer.Search do
   """
 
   alias Voyager.Services.Tracer.Entry
+  alias Voyager.TermFormatter.Erlang, as: ErlangFormatter
 
+  @doc "One line in Elixir syntax and one in Erlang, as rows follow the term syntax setting."
   @spec text(Entry.t()) :: String.t()
-  def text(%{mfa: {m, f, a}} = entry) do
-    terms = for key <- [:args, :value], Map.has_key?(entry, key), do: inspect_term(entry[key])
+  def text(entry) do
+    line(entry, &inspect_term/1, fn {m, f, a} -> Exception.format_mfa(m, f, a) end) <>
+      "\n" <> line(entry, &erlang_term/1, &ErlangFormatter.format_mfa/1)
+  end
+
+  defp line(%{mfa: mfa} = entry, format_term, format_mfa) do
+    terms = for key <- [:args, :value], Map.has_key?(entry, key), do: format_term.(entry[key])
 
     Enum.join(
-      [
-        inspect_term(entry.pid),
-        inspect_term(entry.process),
-        Exception.format_mfa(m, f, a) | terms
-      ],
+      [format_term.(entry.pid), format_term.(entry.process), format_mfa.(mfa) | terms],
       " "
     )
   end
@@ -63,6 +66,10 @@ defmodule Voyager.Services.Tracer.Search do
 
   defp inspect_pid(pid, _opts) when is_pid(pid), do: zero_node(inspect(pid))
   defp inspect_pid(term, opts), do: Inspect.inspect(term, opts)
+
+  defp erlang_term(term),
+    do:
+      term |> ErlangFormatter.inspect(limit: :infinity, printable_limit: :infinity) |> zero_node()
 
   defp zero_node(text), do: Regex.replace(~r/<\d+\.(?=\d+\.\d+>)/, text, "<0.")
 end

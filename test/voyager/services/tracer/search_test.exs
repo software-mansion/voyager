@@ -6,14 +6,22 @@ defmodule Voyager.Services.Tracer.SearchTest do
   @entry %{kind: :trace, seq: 0, pid: nil, process: nil, mfa: {Date, :leap_year?, 1}}
 
   describe "text/1" do
-    test "joins the pid, process, mfa, args and value" do
+    test "joins the pid, process, mfa, args and value in Elixir and Erlang syntax" do
       entry = %{@entry | pid: :c.pid(0, 1, 0), process: :my_server}
 
       assert Search.text(Map.put(entry, :args, [2024])) ==
-               "#PID<0.1.0> :my_server Date.leap_year?/1 [2024]"
+               "#PID<0.1.0> :my_server Date.leap_year?/1 [2024]\n" <>
+                 "<0.1.0> my_server 'Elixir.Date':'leap_year?'/1 [2024]"
 
       assert Search.text(Map.put(entry, :value, true)) ==
-               "#PID<0.1.0> :my_server Date.leap_year?/1 true"
+               "#PID<0.1.0> :my_server Date.leap_year?/1 true\n" <>
+                 "<0.1.0> my_server 'Elixir.Date':'leap_year?'/1 true"
+    end
+
+    test "matches a term copied from a row in Erlang syntax" do
+      text = Search.text(Map.put(@entry, :args, [{:ok, "voyager", %{a: 1}}]))
+
+      assert text =~ ~S({ok, <<"voyager">>, #{a => 1}})
     end
 
     test "writes structs as maps, so fields their Inspect hides still match" do
@@ -28,7 +36,9 @@ defmodule Voyager.Services.Tracer.SearchTest do
       text =
         Search.text(%{@entry | pid: remote_pid(1)} |> Map.put(:args, [%{from: remote_pid(2)}]))
 
-      assert text == "#PID<0.1.0> nil Date.leap_year?/1 [%{from: #PID<0.2.0>}]"
+      assert text ==
+               "#PID<0.1.0> nil Date.leap_year?/1 [%{from: #PID<0.2.0>}]\n" <>
+                 ~S"<0.1.0> nil 'Elixir.Date':'leap_year?'/1 [#{from => <0.2.0>}]"
     end
 
     test "does not truncate long terms" do

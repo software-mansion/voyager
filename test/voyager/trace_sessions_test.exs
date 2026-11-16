@@ -136,7 +136,8 @@ defmodule Voyager.TraceSessionsTest do
     assert %{search_text: text} = Repo.get_by!(TraceEvent, session_id: id)
 
     assert text ==
-             ~s(#PID#{pid_string} :my_server Date.leap_year?/1 [#PID#{pid_string}, "bin"])
+             ~s(#PID#{pid_string} :my_server Date.leap_year?/1 [#PID#{pid_string}, "bin"]\n) <>
+               ~s(#{pid_string} my_server 'Elixir.Date':'leap_year?'/1 [#{pid_string}, <<"bin">>])
 
     terms = [pid, :my_server, call.args] |> Enum.map(&:erlang.external_size/1) |> Enum.sum()
 
@@ -160,9 +161,9 @@ defmodule Voyager.TraceSessionsTest do
     bytes = TraceEntryActions.insert_all(id, [trace(0, %{args: args, truncated: false})])
 
     assert [%{args: ^args}] = TraceEntryQueries.page(id, limit: 1)
-    assert %{args: stored} = Repo.get_by!(TraceEvent, session_id: id)
+    assert %{args: stored, search_text: text} = Repo.get_by!(TraceEvent, session_id: id)
     assert byte_size(stored) < :erlang.external_size(args) / 10
-    assert bytes < :erlang.external_size(args)
+    assert bytes - byte_size(text) < :erlang.external_size(args)
   end
 
   test "from_row/5 reads a never started session" do
