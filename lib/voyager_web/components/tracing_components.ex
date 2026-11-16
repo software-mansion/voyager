@@ -10,8 +10,8 @@ defmodule VoyagerWeb.Components.TracingComponents do
 
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Session
+  alias Voyager.TermFormatter
   alias VoyagerWeb.Formatters
-  alias VoyagerWeb.TermFormatter
 
   @spec tone(Session.t(), node() | nil) :: :running | :other_node | :failed | :open
   def tone(session, connected_node \\ nil)

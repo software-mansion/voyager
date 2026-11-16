@@ -1,4 +1,4 @@
-defmodule VoyagerWeb.TermFormatterLocalTermTest do
+defmodule Voyager.TermFormatterLocalTermTest do
   # async: false because the connected node's id and the PID format are cached for the whole VM.
   use Voyager.DataCase, async: false
 
@@ -6,7 +6,7 @@ defmodule VoyagerWeb.TermFormatterLocalTermTest do
   import Voyager.TestUtils, only: [erl_eval: 1, reset_pid_format: 1]
 
   alias Voyager.Pid
-  alias VoyagerWeb.TermFormatter
+  alias Voyager.TermFormatter
 
   @node :"peer@127.0.0.1"
   @other_node :"other@127.0.0.1"
