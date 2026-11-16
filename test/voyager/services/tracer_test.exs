@@ -4,6 +4,8 @@ defmodule Voyager.Services.TracerTest do
 
   import ExUnit.CaptureLog
 
+  alias Voyager.Actions.TraceEntries, as: TraceEntryActions
+  alias Voyager.Actions.TraceSessions, as: TraceSessionActions
   alias Voyager.Queries.TraceSessions, as: TraceSessionQueries
   alias Voyager.Repo
   alias Voyager.Schemas.TraceEvent
@@ -517,7 +519,7 @@ defmodule Voyager.Services.TracerTest do
         run_named(id, :z_name, ~D[2024-01-01])
         run_named(id, :a_name, ~D[2023-01-01])
 
-        assert {:ok, summary} = Tracer.summary(id)
+        assert {:ok, %{summary: summary}} = Tracer.overview(id)
         %{summary | slowest: Enum.map(summary.slowest, &Map.take(&1, [:type, :mfa, :pid]))}
       end
 
@@ -530,7 +532,6 @@ defmodule Voyager.Services.TracerTest do
     assert %{slowest: [_, _]} = saved
     assert [{pid, {:a_name, 2}}] = Map.to_list(saved.processes)
     assert pid == self()
-    assert {:error, :not_found} = Tracer.summary(-1)
   end
 
   test "overview/1 returns runs, activity slices and summary for unsaved and saved sessions" do
@@ -553,6 +554,51 @@ defmodule Voyager.Services.TracerTest do
     end
 
     assert {:error, :not_found} = Tracer.overview(-999)
+  end
+
+  test "overview/1 counts a saved run that crashed before its stop entry was written" do
+    assert {:ok, %{id: id}} = TraceSessionActions.create(%{origin: :ui, status: :stopped})
+
+    TraceEntryActions.insert_all(id, [
+      %{seq: 0, kind: :started, at: 1_000_000, origin: :ui},
+      trace_row(1, 2_000_000),
+      trace_row(2, 8_000_000),
+      %{seq: 3, kind: :started, at: 20_000_000, origin: :ui},
+      trace_row(4, 22_000_000),
+      %{
+        seq: 5,
+        kind: :stopped,
+        at: 30_000_000,
+        origin: :ui,
+        reason: :stopped,
+        traces: 1,
+        dropped: 0
+      }
+    ])
+
+    assert {:ok, %{runs: [crashed, later], activity: %{segments: [first, second]}}} =
+             Tracer.overview(id)
+
+    assert crashed.stopped_at == nil
+    assert crashed.reason == :interrupted
+    assert crashed.traces == 2
+    assert crashed.duration_ms == 7_000
+    assert later.traces == 1
+    assert length(first.counts) > 1
+    assert Enum.sum(first.counts) == 2
+    assert second.gap_before_ms == 12_000
+  end
+
+  defp trace_row(seq, at) do
+    %{
+      seq: seq,
+      kind: :trace,
+      type: :call,
+      pid: self(),
+      process: :my_server,
+      mfa: {Date, :leap_year?, 1},
+      at: at
+    }
   end
 
   defp run_named(id, name, date) do

@@ -122,6 +122,15 @@ defmodule Voyager.Queries.TraceEntries do
       else: full_activity(session_id, runs)
   end
 
+  @doc "The trace count and latest `at` of a run that has no stop entry."
+  @spec open_run_extent(integer(), Overview.run()) :: {non_neg_integer(), DateTime.t() | nil}
+  def open_run_extent(session_id, run) do
+    session_id
+    |> run_events(run)
+    |> select([e], {count(e.id), max(e.at)})
+    |> Repo.one()
+  end
+
   defp live_activity(session_id, runs, now) do
     bucket_us = Overview.live_bucket_ms() * 1_000
     {first, last} = Overview.live_window(now)
