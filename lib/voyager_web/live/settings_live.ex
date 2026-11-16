@@ -3,6 +3,7 @@ defmodule VoyagerWeb.SettingsLive do
 
   alias Voyager.NodeSession
   alias Voyager.Pid
+  alias Voyager.Services.McpAgents
   alias Voyager.Services.TermSyntax
   alias VoyagerWeb.SettingsComponents
   alias VoyagerWeb.SettingsLive.AppearanceSettings
@@ -29,6 +30,7 @@ defmodule VoyagerWeb.SettingsLive do
   def mount(_params, _session, socket) do
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
+      McpAgents.refresh()
     end
 
     socket
@@ -74,7 +76,7 @@ defmodule VoyagerWeb.SettingsLive do
         id="distribution-settings"
         connected?={@connected?}
       />
-      <.live_component module={McpSettings} id="mcp-settings" status={@mcp_status} />
+      <.live_component module={McpSettings} id="mcp-server" agents={@mcp_agents} />
       <.live_component
         module={TelemetrySettings}
         id="telemetry-settings"
