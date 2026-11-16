@@ -559,11 +559,10 @@ defmodule Voyager.Services.Tracer do
         )
 
     runs = Overview.runs(controls, session)
-    timestamps = TraceEntryQueries.trace_timestamps(row.id, runs)
 
     %{
       runs: runs,
-      activity: Overview.activity(runs, timestamps),
+      activity: TraceEntryQueries.activity(row.id, runs),
       summary: TraceEntryQueries.summary(row.id)
     }
   end
