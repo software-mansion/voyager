@@ -77,7 +77,7 @@ defmodule VoyagerWeb.Components.Shell do
       )
 
     ~H"""
-    <.tooltip id="tracing-indicator-tip" position="bottom" class="shrink-0">
+    <.tooltip id="tracing-indicator-tip" position="bottom" class="shrink-0" tip_class="!max-w-lg">
       <.link
         navigate={tracing_session_path(@session, @connected_node)}
         id="tracing-indicator"
