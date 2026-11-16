@@ -4,7 +4,7 @@ set -euo pipefail
 
 open_pr=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
 
-if git diff --quiet; then
+if git diff --quiet HEAD; then
   echo "Already up to date"
   [[ -z $open_pr ]] || gh pr close "$open_pr" --comment "$BASE already has these changes."
   exit 0
