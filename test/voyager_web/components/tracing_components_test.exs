@@ -92,7 +92,7 @@ defmodule VoyagerWeb.Components.TracingComponentsTest do
     assert changes(config: @config) == "Date.leap_year?/1"
   end
 
-  test "tone/1 and reason_tone/1 group stop reasons by outcome" do
+  test "tone/1 groups stop reasons by outcome" do
     base = %Session{id: 1, origin: :ui, created_at: ~U[2026-01-01 00:00:00Z]}
 
     assert TracingComponents.tone(%{base | status: :running}) == :running

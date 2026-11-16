@@ -20,24 +20,6 @@ defmodule VoyagerWeb.Components.TracingComponents do
   def tone(%Session{status: :stopped, stop_reason: reason}), do: reason_tone(reason)
   def tone(_session), do: :open
 
-  @doc "A limit or a lost node warns; a fault on Voyager's side is an error; a requested stop is plain."
-  @spec reason_tone(Voyager.Services.Tracer.stop_reason() | nil) :: tone()
-  def reason_tone({:tracer_down, _reason}), do: :error
-  def reason_tone(reason) when reason in [:interrupted, :write_failed], do: :error
-
-  def reason_tone(reason)
-      when reason in [
-             :node_down,
-             :event_limit,
-             :rate_limit,
-             :time_limit,
-             :mailbox_limit,
-             :storage_limit
-           ],
-      do: :warning
-
-  def reason_tone(_reason), do: :open
-
   @doc "Whether `session` traced a node other than `connected_node`; marks the node, never the status."
   @spec other_node?(Session.t(), node() | nil) :: boolean()
   def other_node?(%Session{node: node}, connected_node)
@@ -80,8 +62,6 @@ defmodule VoyagerWeb.Components.TracingComponents do
   def tone_class(:other_node, :chip),
     do:
       "border-info/30 bg-info/10 hover:bg-info/20 hover:border-info/50 focus-visible:outline-info"
-
-  def tone_class(:other_node, :label), do: "text-info"
 
   def tone_class(:open, :chip),
     do:
@@ -588,7 +568,6 @@ defmodule VoyagerWeb.Components.TracingComponents do
   attr :confirm_label, :string, required: true
   attr :on_confirm, :string, required: true
   attr :on_cancel, :string, required: true
-  attr :confirm_class, :string, default: "btn-error dark:text-base-100"
   slot :inner_block, required: true
 
   def confirm_modal(assigns) do
@@ -619,7 +598,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
             type="button"
             id={"#{@id}-confirm"}
             phx-click={@on_confirm}
-            class={["btn", @confirm_class]}
+            class="btn btn-error dark:text-base-100"
           >
             {@confirm_label}
           </button>
@@ -682,4 +661,21 @@ defmodule VoyagerWeb.Components.TracingComponents do
   @spec count(non_neg_integer(), String.t(), String.t()) :: String.t()
   def count(1, singular, _plural), do: "1 #{singular}"
   def count(n, _singular, plural), do: "#{Formatters.format_integer(n)} #{plural}"
+
+  @spec reason_tone(Voyager.Services.Tracer.stop_reason() | nil) :: tone()
+  def reason_tone({:tracer_down, _reason}), do: :error
+  def reason_tone(reason) when reason in [:interrupted, :write_failed], do: :error
+
+  def reason_tone(reason)
+      when reason in [
+             :node_down,
+             :event_limit,
+             :rate_limit,
+             :time_limit,
+             :mailbox_limit,
+             :storage_limit
+           ],
+      do: :warning
+
+  def reason_tone(_reason), do: :open
 end
