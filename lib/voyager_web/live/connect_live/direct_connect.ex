@@ -6,6 +6,7 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   alias Voyager.NodeSession.ConnectError
   alias Voyager.Queries.Connections, as: ConnectionQueries
   alias Voyager.Schemas.Connection
+  alias Voyager.Services.DemoNode
   alias VoyagerWeb.ConnectComponents
   alias VoyagerWeb.ConnectLive.RecentConnections
   alias VoyagerWeb.ConnectLive.SecretVisibility
@@ -21,6 +22,18 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
   end
 
   @impl true
+  def update(%{demo: params}, socket) do
+    form =
+      %{"node_name" => params.node_name, "cookie" => params.cookie, "name_type" => "longnames"}
+      |> ConnectionParams.changeset()
+      |> to_form(as: :conn)
+
+    socket
+    |> assign(:form, form)
+    |> SecretVisibility.reset()
+    |> ok()
+  end
+
   def update(assigns, socket) when not is_map_key(socket.assigns, :initialized) do
     socket
     |> assign(:id, assigns.id)
@@ -220,10 +233,12 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
 
   defp connect(%ConnectionParams{} = p) do
     with :ok <- NodeSession.connect(p.node_name, p.cookie, name_type: p.name_type) do
-      ConnectionActions.upsert_connected(p.node_name,
-        cookie: if(p.remember_cookie, do: p.cookie),
-        name_type: p.name_type
-      )
+      if p.node_name != DemoNode.node_name() do
+        ConnectionActions.upsert_connected(p.node_name,
+          cookie: if(p.remember_cookie, do: p.cookie),
+          name_type: p.name_type
+        )
+      end
 
       :ok
     end

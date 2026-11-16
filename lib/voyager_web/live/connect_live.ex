@@ -53,6 +53,13 @@ defmodule VoyagerWeb.ConnectLive do
               </.link>
             </div>
             <ConnectComponents.connected_indicator session={@connected_session} />
+            <.live_component
+              :if={is_nil(@connected_session)}
+              module={VoyagerWeb.ConnectLive.DemoBanner}
+              id="demo-banner"
+              connect_id="direct-connect"
+              disabled?={@connecting?}
+            />
 
             <div class="mb-6">
               <h1 class="text-base-content mb-1 text-2xl font-semibold tracking-tight">
