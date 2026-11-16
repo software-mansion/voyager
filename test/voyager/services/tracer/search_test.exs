@@ -9,11 +9,19 @@ defmodule Voyager.Services.Tracer.SearchTest do
     test "joins the pid, process, mfa, args and value" do
       entry = %{@entry | pid: :c.pid(0, 1, 0), process: :my_server}
 
-      assert Search.text(Map.put(entry, :args, [~D[2024-01-01]])) ==
-               "#PID<0.1.0> :my_server Date.leap_year?/1 [~D[2024-01-01]]"
+      assert Search.text(Map.put(entry, :args, [2024])) ==
+               "#PID<0.1.0> :my_server Date.leap_year?/1 [2024]"
 
       assert Search.text(Map.put(entry, :value, true)) ==
                "#PID<0.1.0> :my_server Date.leap_year?/1 true"
+    end
+
+    test "writes structs as maps, so fields their Inspect hides still match" do
+      text = Search.text(Map.put(@entry, :args, [~D[2024-01-01]]))
+
+      assert text =~ "__struct__: Date"
+      assert text =~ "year: 2024"
+      refute text =~ "~D["
     end
 
     test "writes every pid as <0.X.Y> whatever its node, however deep" do

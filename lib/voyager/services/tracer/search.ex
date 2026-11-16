@@ -53,7 +53,13 @@ defmodule Voyager.Services.Tracer.Search do
   end
 
   defp inspect_term(term),
-    do: inspect(term, limit: :infinity, printable_limit: :infinity, inspect_fun: &inspect_pid/2)
+    do:
+      inspect(term,
+        structs: false,
+        limit: :infinity,
+        printable_limit: :infinity,
+        inspect_fun: &inspect_pid/2
+      )
 
   defp inspect_pid(pid, _opts) when is_pid(pid), do: zero_node(inspect(pid))
   defp inspect_pid(term, opts), do: Inspect.inspect(term, opts)

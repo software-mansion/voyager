@@ -68,10 +68,10 @@ defmodule VoyagerWeb.TracingSessionSearchTest do
     trace_dates!([~D[2023-05-05]], 1)
     view = open(conn, id)
 
-    search(view, "d[2023")
+    search(view, "d")
 
-    assert has_element?(view, "#entry-2 mark", "D[2023")
-    refute has_element?(view, "#entry-2 mark", "-05")
+    assert has_element?(view, "#entry-2 mark", "D")
+    refute has_element?(view, "#entry-2 mark", "2023")
   end
 
   test "returns to the live list once the search is cleared", %{conn: conn} do
