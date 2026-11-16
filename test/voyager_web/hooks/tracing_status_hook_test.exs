@@ -19,6 +19,18 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     previous_state = :sys.get_state(Tracer)
     :sys.replace_state(Tracer, fn _ -> %Tracer{} end)
     on_exit(fn -> :sys.replace_state(Tracer, fn _ -> previous_state end) end)
+    Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
+    :ok
+  end
+
+  test "shows nothing while no node is connected", %{conn: conn} do
+    Fakes.put_session(nil)
+    :sys.replace_state(Tracer, fn _ -> %Tracer{session: session()} end)
+
+    {:ok, view, _html} = live(conn, ~p"/settings")
+    render_async(view)
+
+    refute has_element?(view, "#tracing-indicator")
   end
 
   test "shows nothing while the session is not configured", %{conn: conn} do
@@ -105,7 +117,6 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
   end
 
   test "shows the indicator in the app topbar", %{conn: conn} do
-    Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
     stub_erpc(Fakes.node_data())
     :sys.replace_state(Tracer, fn _ -> %Tracer{session: session()} end)
 
@@ -138,7 +149,6 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
   end
 
   test "consumes an activated session's broadcast on an app page", %{conn: conn} do
-    Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
     stub_erpc(Fakes.node_data())
 
     {:ok, view, _html} = live(conn, ~p"/node/demo@localhost")
@@ -155,7 +165,6 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
   test "marks a session from another node and links to it on the connected node", %{conn: conn} do
     stopped = %{session() | node: :other@localhost, status: :stopped, stop_reason: :disconnected}
     :sys.replace_state(Tracer, fn _ -> %Tracer{session: stopped} end)
-    Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
     stub_erpc(Fakes.node_data())
 
     {:ok, view, _html} = live(conn, ~p"/node/demo@localhost")

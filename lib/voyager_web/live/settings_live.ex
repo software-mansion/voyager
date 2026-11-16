@@ -27,12 +27,8 @@ defmodule VoyagerWeb.SettingsLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket) do
-      Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
-    end
-
     socket
-    |> assign(:connected?, not is_nil(NodeSession.current()))
+    |> assign(:session, NodeSession.current())
     |> assign(:terms_of_service_url, Application.get_env(:voyager, :terms_of_service_url))
     |> assign(:pid_format, Pid.get_setting())
     |> assign(:term_syntax, TermSyntax.get_setting())
@@ -72,7 +68,7 @@ defmodule VoyagerWeb.SettingsLive do
       <.live_component
         module={DistributionSettings}
         id="distribution-settings"
-        connected?={@connected?}
+        connected?={@session != nil}
       />
       <.live_component module={McpSettings} id="mcp-settings" status={@mcp_status} />
       <.live_component
@@ -97,14 +93,14 @@ defmodule VoyagerWeb.SettingsLive do
   @impl true
   def handle_info({:node_connected, _node}, socket) do
     socket
-    |> assign(:connected?, not is_nil(NodeSession.current()))
+    |> assign(:session, NodeSession.current())
     |> noreply()
   end
 
   def handle_info({event, _node, _reason}, socket)
       when event in [:node_disconnected, :nodedown] do
     socket
-    |> assign(:connected?, false)
+    |> assign(:session, nil)
     |> noreply()
   end
 
