@@ -1,0 +1,127 @@
+defmodule Voyager.Services.DemoNodeTest do
+  # async: false because the test swaps out the app's registered DemoNode.
+  use ExUnit.Case, async: false
+
+  import Voyager.TestUtils
+
+  alias Voyager.NodeSession
+  alias Voyager.Services.DemoNode
+
+  @node :"voyager_demo@127.0.0.1"
+
+  test "is not offered and refuses to start outside a release" do
+    start_demo_node!(exec: nil)
+
+    refute DemoNode.offered?()
+    assert DemoNode.start() == {:error, :unavailable}
+  end
+
+  test "is no longer offered once dismissed" do
+    start_demo_node!()
+    assert DemoNode.offered?()
+
+    :ok = DemoNode.dismiss()
+
+    refute DemoNode.offered?()
+  end
+
+  test "boots a loopback-only demo node with the given cookie and the demo tree" do
+    start_demo_node!()
+
+    assert {:ok, %{node_name: "voyager_demo@127.0.0.1", cookie: cookie}} = DemoNode.start()
+    assert cookie =~ ~r/^[A-Z2-7]{52}$/
+
+    peer = demo_peer()
+    assert :peer.call(peer, :erlang, :node, []) == @node
+    assert :peer.call(peer, :erlang, :get_cookie, []) == String.to_atom(cookie)
+
+    assert :peer.call(peer, :application, :get_env, [:kernel, :inet_dist_use_interface]) ==
+             {:ok, {127, 0, 0, 1}}
+
+    assert is_pid(:peer.call(peer, Process, :whereis, [VoyagerDemo.Supervisor]))
+  end
+
+  test "a second start replaces the running node with a new cookie" do
+    start_demo_node!()
+    {:ok, %{cookie: first_cookie}} = DemoNode.start()
+    first_ref = Process.monitor(demo_peer())
+
+    {:ok, %{cookie: second_cookie}} = DemoNode.start()
+
+    assert_receive {:DOWN, ^first_ref, :process, _pid, _reason}
+    assert second_cookie != first_cookie
+    assert is_pid(demo_peer())
+  end
+
+  for event <- [:node_disconnected, :nodedown] do
+    test "stops on #{event} of the demo node" do
+      start_demo_node!()
+      {:ok, _params} = DemoNode.start()
+      ref = Process.monitor(demo_peer())
+
+      broadcast({unquote(event), @node, nil})
+
+      assert_receive {:DOWN, ^ref, :process, _pid, _reason}
+      assert demo_peer() == nil
+    end
+  end
+
+  test "keeps running when another node disconnects" do
+    start_demo_node!()
+    {:ok, _params} = DemoNode.start()
+    peer = demo_peer()
+
+    broadcast({:node_disconnected, :"other@127.0.0.1", nil})
+
+    assert demo_peer() == peer
+  end
+
+  test "stops when the user connects to another node" do
+    start_demo_node!()
+    {:ok, _params} = DemoNode.start()
+    ref = Process.monitor(demo_peer())
+
+    broadcast({:node_connected, :"other@127.0.0.1"})
+
+    assert_receive {:DOWN, ^ref, :process, _pid, _reason}
+    assert demo_peer() == nil
+  end
+
+  test "stops when nobody connects within the idle timeout" do
+    start_demo_node!(idle_timeout: 0)
+    {:ok, _params} = DemoNode.start()
+    ref = Process.monitor(demo_peer())
+
+    assert_receive {:DOWN, ^ref, :process, _pid, _reason}
+    assert demo_peer() == nil
+  end
+
+  test "connecting to the demo node cancels the idle timeout" do
+    start_demo_node!()
+    {:ok, _params} = DemoNode.start()
+    assert is_reference(:sys.get_state(DemoNode).timer)
+
+    broadcast({:node_connected, @node})
+
+    assert %{timer: nil, peer: peer} = :sys.get_state(DemoNode)
+    assert is_pid(peer)
+  end
+
+  test "clears its state when the demo node halts" do
+    start_demo_node!()
+    {:ok, _params} = DemoNode.start()
+    peer = demo_peer()
+    ref = Process.monitor(peer)
+
+    :peer.cast(peer, :erlang, :halt, [])
+
+    assert_receive {:DOWN, ^ref, :process, ^peer, _reason}
+    assert demo_peer() == nil
+  end
+
+  defp demo_peer, do: :sys.get_state(DemoNode).peer
+
+  defp broadcast(event) do
+    Phoenix.PubSub.broadcast(Voyager.PubSub, NodeSession.topic(), event)
+  end
+end

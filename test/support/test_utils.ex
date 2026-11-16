@@ -4,7 +4,9 @@ defmodule Voyager.TestUtils do
   """
 
   import Ecto.Query, only: [from: 2]
-  import ExUnit.Callbacks, only: [on_exit: 1]
+  import ExUnit.Callbacks, only: [on_exit: 1, start_supervised!: 1]
+
+  alias Voyager.Services.DemoNode
 
   @doc """
   Converts changeset errors into a map of translated messages.
@@ -69,6 +71,20 @@ defmodule Voyager.TestUtils do
 
       await_element(view, selector, text_filter, attempts - 1)
     end
+  end
+
+  @doc """
+  Replaces the app's `DemoNode`, which is unavailable outside a release, with one booting the
+  test VM's `erl` with Elixir on the code path. Restores the app's instance on exit.
+  """
+  def start_demo_node!(opts \\ []) do
+    :ok = Supervisor.terminate_child(Voyager.Supervisor, DemoNode)
+    on_exit(fn -> {:ok, _pid} = Supervisor.restart_child(Voyager.Supervisor, DemoNode) end)
+
+    elixir_ebin = Path.join(:code.lib_dir(:elixir), "ebin")
+    erl = String.to_charlist(Path.join(System.get_env("BINDIR"), "erl"))
+    exec = {erl, [~c"-pa", String.to_charlist(elixir_ebin)]}
+    start_supervised!({DemoNode, Keyword.put_new(opts, :exec, exec)})
   end
 
   @doc "Evaluates `source` as one Erlang expression, the trailing dot added, and returns its value."
