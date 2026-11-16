@@ -108,42 +108,102 @@ defmodule Voyager.Queries.TraceEntries do
     }
   end
 
-  @doc "Pairs every trace row of `session_id` with its run `index` and microsecond timestamp."
-  @spec trace_timestamps(integer(), [Overview.run()]) :: [{pos_integer(), integer()}]
-  def trace_timestamps(_session_id, []), do: []
+  @doc "Buckets a saved session's trace timestamps in SQLite into its `Overview.activity`."
+  @spec activity(integer(), [Overview.run()], DateTime.t()) :: Overview.activity() | nil
+  def activity(session_id, runs, now \\ DateTime.utc_now())
+  def activity(_session_id, [], _now), do: nil
 
-  def trace_timestamps(session_id, runs) do
-    rows =
-      from(e in TraceEvent,
-        where: e.session_id == ^session_id,
-        order_by: [asc: e.seq],
-        select: {e.seq, e.at}
+  def activity(session_id, runs, now) do
+    if List.last(runs).reason == :running,
+      do: live_activity(session_id, runs, now),
+      else: full_activity(session_id, runs)
+  end
+
+  defp live_activity(session_id, runs, now) do
+    bucket_us = Overview.live_bucket_ms() * 1_000
+    {first, last} = Overview.live_window(now)
+    first_dt = DateTime.from_unix!(first * bucket_us, :microsecond)
+    end_dt = DateTime.from_unix!((last + 1) * bucket_us, :microsecond)
+
+    in_any_run =
+      Enum.reduce(runs, dynamic(false), fn run, acc ->
+        dynamic([e], ^acc or ^in_run_seq(run))
+      end)
+
+    counts =
+      TraceEvent
+      |> where([e], e.session_id == ^session_id and e.at >= ^first_dt and e.at < ^end_dt)
+      |> where(^in_any_run)
+      |> query_buckets(0, bucket_us)
+
+    Overview.live_activity(first, last, counts)
+  end
+
+  defp full_activity(session_id, runs) do
+    max_ats =
+      for %{stopped_at: nil} = run <- runs,
+          max_at = max_run_at(session_id, run),
+          not is_nil(max_at),
+          into: %{},
+          do: {run.index, DateTime.to_unix(max_at, :microsecond)}
+
+    {spans, bucket_ms} = Overview.plan_segments(runs, max_ats)
+    bucket_us = bucket_ms * 1_000
+
+    run_buckets =
+      for {run, {start_us, _end_us}} <- Enum.zip(runs, spans),
+          buckets = run_events(session_id, run) |> query_buckets(start_us, bucket_us),
+          map_size(buckets) > 0,
+          into: %{},
+          do: {run.index, buckets}
+
+    Overview.build_segments(runs, spans, bucket_ms, run_buckets)
+  end
+
+  defp max_run_at(session_id, run) do
+    session_id
+    |> run_events(run)
+    |> select([e], max(e.at))
+    |> Repo.one()
+  end
+
+  defp run_events(session_id, run) do
+    TraceEvent
+    |> where([e], e.session_id == ^session_id)
+    |> where(^in_run_seq(run))
+  end
+
+  # `ecto_sqlite3` dumps `:utc_datetime_usec` as `YYYY-MM-DDTHH:MM:SS.ffffffZ`; `substr(..., 21, 6)` is `ffffff`.
+  defp query_buckets(query, start_us, bucket_us) do
+    query
+    |> group_by(
+      [e],
+      fragment(
+        "max((CAST(unixepoch(?) AS INTEGER) * 1000000 + CAST(substr(?, 21, 6) AS INTEGER)) - ?, 0) / ?",
+        e.at,
+        e.at,
+        ^start_us,
+        ^bucket_us
       )
-      |> Repo.all()
-
-    pair_runs(rows, runs, [])
+    )
+    |> select([e], {
+      fragment(
+        "max((CAST(unixepoch(?) AS INTEGER) * 1000000 + CAST(substr(?, 21, 6) AS INTEGER)) - ?, 0) / ?",
+        e.at,
+        e.at,
+        ^start_us,
+        ^bucket_us
+      ),
+      count(e.id)
+    })
+    |> Repo.all()
+    |> Map.new()
   end
 
-  defp pair_runs([], _runs, acc), do: Enum.reverse(acc)
-  defp pair_runs(_rows, [], acc), do: Enum.reverse(acc)
+  defp in_run_seq(%{seq: seq, next_seq: nil}), do: dynamic([e], e.seq > ^seq)
 
-  defp pair_runs([{seq, _at} | rest], [%{seq: start_seq} | _] = runs, acc)
-       when seq <= start_seq do
-    pair_runs(rest, runs, acc)
-  end
-
-  defp pair_runs(
-         [{seq, _at} | _] = rows,
-         [%{next_seq: next_seq} | rest_runs],
-         acc
-       )
-       when not is_nil(next_seq) and seq >= next_seq do
-    pair_runs(rows, rest_runs, acc)
-  end
-
-  defp pair_runs([{_seq, at} | rest], [run | _] = runs, acc) do
-    pair_runs(rest, runs, [{run.index, DateTime.to_unix(at, :microsecond)} | acc])
-  end
+  defp in_run_seq(%{seq: seq, next_seq: next_seq}),
+    do: dynamic([e], e.seq > ^seq and e.seq < ^next_seq)
 
   defp function_calls(events) do
     events

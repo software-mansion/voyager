@@ -781,6 +781,7 @@ defmodule Voyager.Services.TracerTest do
   end
 
   test "keeps a saved session's bytes in step with its saved rows" do
+    Phoenix.PubSub.subscribe(Voyager.PubSub, Tracer.session_topic())
     assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
     assert {:ok, _session} = configure(%{max_events: 3})
     assert {:ok, _session} = Tracer.start(:ui)
@@ -792,6 +793,8 @@ defmodule Voyager.Services.TracerTest do
     assert %{bytes: bytes} = TraceSessionQueries.get(id)
     assert bytes > 0
     assert %{bytes: ^bytes} = Tracer.active()
+    assert_receive {:session_entries, %{id: ^id, bytes: ^bytes}, []}
+    assert_receive {:session_updated, %{id: ^id, bytes: ^bytes}}
   end
 
   test "the writer saves a full queue without waiting for its timer" do

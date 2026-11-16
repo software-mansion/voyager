@@ -59,6 +59,9 @@ defmodule Voyager.Services.Tracer.Overview do
           previous_config: Config.t() | nil
         }
 
+  @spec live_bucket_ms() :: pos_integer()
+  def live_bucket_ms, do: @live_bucket_ms
+
   @doc """
   Builds the chronological list of runs from newest-first control `entries` and the
   current `session`. `now` bounds the elapsed duration of a still-running run.
@@ -94,20 +97,36 @@ defmodule Voyager.Services.Tracer.Overview do
 
   def activity(runs, run_timestamps, now) do
     if List.last(runs).reason == :running,
-      do: live_activity(run_timestamps, now),
+      do: live_activity_from_timestamps(run_timestamps, now),
       else: full_activity(runs, run_timestamps)
   end
 
-  defp live_activity(run_timestamps, now) do
+  defp live_activity_from_timestamps(run_timestamps, now) do
     bucket_us = @live_bucket_ms * 1_000
-    last = div(DateTime.to_unix(now, :microsecond), bucket_us)
-    first = last - @max_buckets + 1
+    {first, last} = live_window(now)
 
     counts =
       Enum.reduce(run_timestamps, %{}, fn {_run, at}, acc ->
         idx = div(at, bucket_us)
         if idx >= first and idx <= last, do: Map.update(acc, idx, 1, &(&1 + 1)), else: acc
       end)
+
+    live_activity(first, last, counts)
+  end
+
+  @doc "The `{first_bucket, last_bucket}` 1-second indices of a running session's live window."
+  @spec live_window(DateTime.t()) :: {integer(), integer()}
+  def live_window(now) do
+    bucket_us = @live_bucket_ms * 1_000
+    last = div(DateTime.to_unix(now, :microsecond), bucket_us)
+    {last - @max_buckets + 1, last}
+  end
+
+  @doc "Builds a live `activity` from `{first_bucket, last_bucket}` and a `%{bucket_idx => count}` map."
+  @spec live_activity(integer(), integer(), %{optional(integer()) => non_neg_integer()}) ::
+          activity()
+  def live_activity(first, last, counts) do
+    bucket_us = @live_bucket_ms * 1_000
 
     %{
       bucket_ms: @live_bucket_ms,
@@ -123,20 +142,52 @@ defmodule Voyager.Services.Tracer.Overview do
     }
   end
 
-  defp full_activity(_runs, []), do: nil
+  @doc "The `{start_us, end_us}` span of each run and the chosen slice width `bucket_ms`."
+  @spec plan_segments([run()], %{optional(pos_integer()) => integer()}) ::
+          {[{integer(), integer()}], pos_integer()}
+  def plan_segments(runs, max_ats \\ %{}) do
+    spans =
+      Enum.map(runs, fn run ->
+        start_us = DateTime.to_unix(run.started_at, :microsecond)
 
-  defp full_activity(runs, run_timestamps) do
-    grouped = Enum.group_by(run_timestamps, &elem(&1, 0), &elem(&1, 1))
-    spans = Enum.map(runs, &run_span(&1, Map.get(grouped, &1.index, [])))
-    bucket_ms = bucket_ms(spans)
+        end_us =
+          case run.stopped_at do
+            %DateTime{} = at -> DateTime.to_unix(at, :microsecond)
+            nil -> Map.get(max_ats, run.index, start_us)
+          end
+
+        {start_us, max(end_us, start_us)}
+      end)
+
+    {spans, bucket_ms(spans)}
+  end
+
+  @doc """
+  Builds a stopped session's `activity` from `runs`, `spans`, `bucket_ms` and
+  `%{run_index => %{bucket_idx => count}}`, or `nil` when every run is empty.
+  """
+  @spec build_segments(
+          [run()],
+          [{integer(), integer()}],
+          pos_integer(),
+          %{optional(pos_integer()) => %{optional(non_neg_integer()) => non_neg_integer()}}
+        ) :: activity() | nil
+  def build_segments(_runs, _spans, _bucket_ms, run_buckets) when map_size(run_buckets) == 0,
+    do: nil
+
+  def build_segments(runs, spans, bucket_ms, run_buckets) do
+    bucket_us = bucket_ms * 1_000
 
     {segments, _prev_end} =
       runs
       |> Enum.zip(spans)
       |> Enum.map_reduce(nil, fn {run, {start_us, end_us}}, prev_end ->
+        count = max(div(end_us - start_us + bucket_us - 1, bucket_us), 1)
+        counts = clamp_buckets(Map.get(run_buckets, run.index, %{}), count)
+
         segment = %{
           start_us: start_us,
-          counts: bucket_counts(Map.get(grouped, run.index, []), start_us, end_us, bucket_ms),
+          counts: counts,
           gap_before_ms: prev_end && max(div(start_us - prev_end, 1_000), 0)
         }
 
@@ -149,20 +200,46 @@ defmodule Voyager.Services.Tracer.Overview do
       bucket_ms: bucket_ms,
       live?: false,
       segments: segments,
-      end_us: last.start_us + length(last.counts) * bucket_ms * 1_000
+      end_us: last.start_us + length(last.counts) * bucket_us
     }
   end
 
-  defp run_span(run, ats) do
-    start_us = DateTime.to_unix(run.started_at, :microsecond)
+  defp full_activity(_runs, []), do: nil
 
-    end_us =
-      case run.stopped_at do
-        %DateTime{} = at -> DateTime.to_unix(at, :microsecond)
-        nil -> Enum.max(ats, fn -> start_us end)
+  defp full_activity(runs, run_timestamps) do
+    grouped = Enum.group_by(run_timestamps, &elem(&1, 0), &elem(&1, 1))
+
+    max_ats =
+      for {idx, ats} <- grouped, ats != [], into: %{}, do: {idx, Enum.max(ats)}
+
+    {spans, bucket_ms} = plan_segments(runs, max_ats)
+    bucket_us = bucket_ms * 1_000
+
+    run_buckets =
+      for {run, {start_us, _end_us}} <- Enum.zip(runs, spans),
+          ats = Map.get(grouped, run.index, []),
+          ats != [],
+          into: %{} do
+        buckets =
+          Enum.reduce(ats, %{}, fn at, acc ->
+            idx = max(div(at - start_us, bucket_us), 0)
+            Map.update(acc, idx, 1, &(&1 + 1))
+          end)
+
+        {run.index, buckets}
       end
 
-    {start_us, max(end_us, start_us)}
+    build_segments(runs, spans, bucket_ms, run_buckets)
+  end
+
+  defp clamp_buckets(buckets, count) do
+    clamped =
+      Enum.reduce(buckets, %{}, fn {idx, n}, acc ->
+        target = idx |> max(0) |> min(count - 1)
+        Map.update(acc, target, n, &(&1 + n))
+      end)
+
+    for idx <- 0..(count - 1), do: Map.get(clamped, idx, 0)
   end
 
   defp bucket_ms(spans) do
@@ -171,19 +248,6 @@ defmodule Voyager.Services.Tracer.Overview do
     Enum.find(@bucket_ladder_ms, List.last(@bucket_ladder_ms), fn bucket_ms ->
       div(total_ms + bucket_ms - 1, bucket_ms) + length(spans) <= @max_buckets
     end)
-  end
-
-  defp bucket_counts(ats, start_us, end_us, bucket_ms) do
-    bucket_us = bucket_ms * 1_000
-    count = max(div(end_us - start_us + bucket_us - 1, bucket_us), 1)
-
-    counts =
-      Enum.reduce(ats, %{}, fn at, acc ->
-        idx = (at - start_us) |> div(bucket_us) |> max(0) |> min(count - 1)
-        Map.update(acc, idx, 1, &(&1 + 1))
-      end)
-
-    for idx <- 0..(count - 1), do: Map.get(counts, idx, 0)
   end
 
   @doc "Pairs each `:trace` entry with the `index` of the run its `seq` falls into."
@@ -202,12 +266,11 @@ defmodule Voyager.Services.Tracer.Overview do
   defp in_run?(%{seq: seq, next_seq: next_seq}, entry_seq),
     do: entry_seq > seq and entry_seq < next_seq
 
-  defp find_stop(ordered, start_seq, nil) do
-    Enum.find(ordered, &(&1.kind == :stopped and &1.seq > start_seq))
-  end
-
   defp find_stop(ordered, start_seq, next_seq) do
-    Enum.find(ordered, &(&1.kind == :stopped and &1.seq > start_seq and &1.seq < next_seq))
+    Enum.find(
+      ordered,
+      &(&1.kind == :stopped and &1.seq > start_seq and (is_nil(next_seq) or &1.seq < next_seq))
+    )
   end
 
   defp config_at(ordered, start_seq) do
