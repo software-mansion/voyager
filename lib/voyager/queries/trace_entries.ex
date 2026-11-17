@@ -115,7 +115,7 @@ defmodule Voyager.Queries.TraceEntries do
 
   def activity(session_id, runs, now) do
     if List.last(runs).reason == :running,
-      do: live_activity(session_id, runs, now),
+      do: live_activity(session_id, now),
       else: full_activity(session_id, runs)
   end
 
@@ -128,21 +128,15 @@ defmodule Voyager.Queries.TraceEntries do
     |> Repo.one()
   end
 
-  defp live_activity(session_id, runs, now) do
+  defp live_activity(session_id, now) do
     bucket_us = Overview.live_bucket_ms() * 1_000
     {first, last} = Overview.live_window(now)
     first_dt = DateTime.from_unix!(first * bucket_us, :microsecond)
     end_dt = DateTime.from_unix!((last + 1) * bucket_us, :microsecond)
 
-    in_any_run =
-      Enum.reduce(runs, dynamic(false), fn run, acc ->
-        dynamic([e], ^acc or ^in_run_seq(run))
-      end)
-
     counts =
       TraceEvent
       |> where([e], e.session_id == ^session_id and e.at >= ^first_dt and e.at < ^end_dt)
-      |> where(^in_any_run)
       |> query_buckets(0, bucket_us)
 
     Overview.live_activity(first, last, counts)
