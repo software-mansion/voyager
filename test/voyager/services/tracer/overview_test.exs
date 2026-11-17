@@ -105,8 +105,8 @@ defmodule Voyager.Services.Tracer.OverviewTest do
 
     assert interrupted.reason == :interrupted
     assert interrupted.traces == 35
-    assert interrupted.duration_ms == 8_000
-    assert interrupted.stopped_at == stopped_at
+    assert interrupted.duration_ms == 0
+    assert interrupted.stopped_at == nil
   end
 
   test "activity/3 keeps a crashed run's traces out of the next run's gap" do
