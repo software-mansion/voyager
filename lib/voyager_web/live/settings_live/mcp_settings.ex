@@ -20,8 +20,6 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
     |> assign(:enabled_locked?, Settings.locked?(:mcp_enabled))
     |> assign(:toggle_revision, 0)
     |> assign(:form, mcp_port_form())
-    |> stream_configure(:agents, dom_id: &"mcp-agent-#{&1.id}")
-    |> stream_configure(:more_agents, dom_id: &"mcp-agent-#{&1.id}")
     |> ok()
   end
 
@@ -36,9 +34,8 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
 
     socket
     |> assign(assigns)
-    |> assign(:more_count, length(more))
-    |> stream(:agents, shown, reset: true)
-    |> stream(:more_agents, more, reset: true)
+    |> assign(:shown_agents, shown)
+    |> assign(:more_agents, more)
     |> ok()
   end
 
@@ -105,16 +102,16 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
             Agents
           </span>
           <div class="border-base-300 divide-base-content/10 flex flex-col divide-y rounded-lg border px-4">
-            <ul id="mcp-agent-list" phx-update="stream" class="divide-base-content/10 divide-y">
+            <ul id="mcp-agent-list" class="divide-base-content/10 divide-y">
               <.agent_row
-                :for={{dom_id, agent} <- @streams.agents}
-                id={dom_id}
+                :for={agent <- @shown_agents}
+                id={"mcp-agent-#{agent.id}"}
                 agent={agent}
                 target={@myself}
               />
             </ul>
             <details
-              :if={@more_count > 0}
+              :if={@more_agents != []}
               id="mcp-more-agents"
               phx-mounted={JS.ignore_attributes(["open"])}
               class="group py-3"
@@ -123,16 +120,15 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
                 <.icon
                   name="icon-chevron-right"
                   class="size-4 transition-transform group-open:rotate-90"
-                /> Show {@more_count} more {if @more_count == 1, do: "agent", else: "agents"}
+                />
+                Show {length(@more_agents)} more {if length(@more_agents) == 1,
+                  do: "agent",
+                  else: "agents"}
               </summary>
-              <ul
-                id="mcp-more-agent-list"
-                phx-update="stream"
-                class="divide-base-content/10 mt-1 divide-y"
-              >
+              <ul id="mcp-more-agent-list" class="divide-base-content/10 mt-1 divide-y">
                 <.agent_row
-                  :for={{dom_id, agent} <- @streams.more_agents}
-                  id={dom_id}
+                  :for={agent <- @more_agents}
+                  id={"mcp-agent-#{agent.id}"}
                   agent={agent}
                   target={@myself}
                 />
