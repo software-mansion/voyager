@@ -125,6 +125,32 @@ defmodule VoyagerWeb.TracingSessionLogTest do
     refute has_element?(view, "#log-paused")
   end
 
+  test "offers the newest rows instead of a paused view once the session stops", %{conn: conn} do
+    %{id: id} = start!()
+    view = open(conn, id)
+
+    view
+    |> element("#log-pause")
+    |> render_click()
+
+    assert has_element?(view, "#log-paused")
+    assert has_element?(view, "#log-resume", "Resume view")
+
+    :ok = Tracer.stop(:ui)
+    flush_log(view)
+
+    refute has_element?(view, "#log-paused")
+    assert has_element?(view, "#log-resume", "Load newest")
+
+    view
+    |> element("#log-resume")
+    |> render_click()
+
+    render_async(view)
+
+    refute has_element?(view, "#log-resume")
+  end
+
   test "streams the newest 50 entries a flush holds, and loads the ones it dropped older",
        %{conn: conn} do
     %{id: id} = start!()

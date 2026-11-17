@@ -89,7 +89,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
             Live
           </span>
           <span
-            :if={@paused?}
+            :if={@live? and @paused?}
             id="log-paused"
             class="badge badge-sm badge-soft badge-warning gap-1 font-medium"
           >
@@ -113,7 +113,11 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
             phx-click={@on_resume}
             class="btn btn-sm btn-primary"
           >
-            <.icon name="icon-play" class="size-3.5" /> Resume view
+            <%= if @live? do %>
+              <.icon name="icon-play" class="size-3.5" /> Resume view
+            <% else %>
+              <.icon name="icon-rotate-cw" class="size-3.5" /> Load newest
+            <% end %>
             <span
               :if={@new_count > 0}
               id="log-new-count"
