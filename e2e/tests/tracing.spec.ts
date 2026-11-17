@@ -47,4 +47,23 @@ test.describe('TracingSessionLive', () => {
     await expect(page.locator(sel.resume)).toBeVisible();
     await expect(page.locator(sel.liveBadge)).toBeHidden();
   });
+
+  test('aligns a row tooltip to the call / result column', async ({ page }) => {
+    const id = rpc('mock_app_ctl trace_session [false]');
+    await page.goto(`/node/${encodeURIComponent(NODE_NAME)}/tracing/${id}`);
+    await waitForLiveView(page);
+
+    const term = page.locator(`${sel.rows} [id$="-term"]`).first();
+    await expect(term).toBeVisible();
+    await page.locator(sel.stop).click();
+    await expect(page.locator(sel.resume)).toBeVisible();
+
+    await term.hover();
+    const tip = page.locator('#log-term-tip');
+    await expect(tip).toHaveClass(/is-open/);
+
+    const column = await term.locator('xpath=ancestor::td').boundingBox();
+    const tipBox = await tip.boundingBox();
+    expect(tipBox!.x).toBeCloseTo(column!.x, 0);
+  });
 });

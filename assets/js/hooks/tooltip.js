@@ -55,6 +55,13 @@ function positionTooltip(tipEl, trigger) {
       left = rect.left + rect.width / 2 - tip.width / 2;
   }
 
+  const alignTo =
+    trigger.dataset.tooltipAlignTo &&
+    trigger.closest(trigger.dataset.tooltipAlignTo);
+  if (alignTo && (position === 'top' || position === 'bottom')) {
+    left = alignTo.getBoundingClientRect().left;
+  }
+
   // Clamp into the viewport so the tooltip is never cut off.
   left = Math.max(
     VIEWPORT_MARGIN,

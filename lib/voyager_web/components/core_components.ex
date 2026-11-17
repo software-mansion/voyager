@@ -980,6 +980,10 @@ defmodule VoyagerWeb.CoreComponents do
     values: ~w(top bottom left right),
     doc: "preferred side to place the tooltip"
 
+  attr :align_to, :string,
+    default: nil,
+    doc: "selector of an ancestor whose left edge a top or bottom tip aligns to, e.g. `td`"
+
   attr :class, :any, default: nil, doc: "extra classes for the trigger wrapper"
   attr :tip_class, :any, default: nil, doc: "extra classes for the tip"
 
@@ -1014,6 +1018,7 @@ defmodule VoyagerWeb.CoreComponents do
       phx-hook="Tooltip"
       data-tooltip-target={@tip || "##{@id}-tip"}
       data-tooltip-position={@position}
+      data-tooltip-align-to={@align_to}
       data-tooltip-interactive={to_string(@interactive)}
       data-tooltip-pinnable={to_string(@pinnable)}
       data-tooltip-show-when={@show_when}

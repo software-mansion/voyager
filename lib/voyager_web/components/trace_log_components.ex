@@ -252,6 +252,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
             id={"#{@id}-term"}
             interactive
             pinnable={false}
+            align_to="td"
             class="min-w-0 flex-1"
             tip="#log-term-tip"
           >
