@@ -91,6 +91,20 @@ defmodule Voyager.Services.CodingAgentsTest do
     assert JSON.decode!(zed.snippet) == %{"context_servers" => %{"voyager" => %{"url" => @url}}}
   end
 
+  test "a disabled opencode entry is outdated so it can be re-enabled", %{tmp_dir: home} do
+    File.mkdir_p!(Path.join(home, ".config/opencode"))
+
+    File.write!(
+      Path.join(home, ".config/opencode/opencode.json"),
+      ~s({"mcp": {"voyager": {"type": "remote", "url": "#{@url}", "enabled": false}}})
+    )
+
+    assert agent(CodingAgents.scan(@url), :opencode).status == :outdated
+
+    :ok = CodingAgents.install(:opencode, @url)
+    assert agent(CodingAgents.scan(@url), :opencode).status == :added
+  end
+
   test "opencode prefers an existing opencode.jsonc", %{tmp_dir: home} do
     File.mkdir_p!(Path.join(home, ".config/opencode"))
     File.write!(Path.join(home, ".config/opencode/opencode.jsonc"), "{}")

@@ -186,7 +186,7 @@ defmodule Voyager.Services.CodingAgents do
 
         status =
           cond do
-            Enum.any?(servers, fn {_name, entry} -> url in Map.values(entry) end) -> :added
+            Enum.any?(servers, fn {_name, entry} -> active_at?(entry, url) end) -> :added
             named? -> :outdated
             true -> :not_added
           end
@@ -197,6 +197,8 @@ defmodule Voyager.Services.CodingAgents do
         {:manual, false}
     end
   end
+
+  defp active_at?(entry, url), do: entry["enabled"] != false and url in Map.values(entry)
 
   defp snippet(%{format: :json} = agent, url) do
     agent.key
