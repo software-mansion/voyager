@@ -136,6 +136,19 @@ defmodule Voyager.Services.TracerTest do
     end
   end
 
+  test "broadcasts a saved session's size once its entries are saved, without a next batch" do
+    assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
+    assert {:ok, _session} = configure()
+    assert {:ok, _session} = Tracer.start(:ui)
+    Date.leap_year?(~D[2024-01-01])
+    assert_receive {:session_entries, %{traces: 1}, [%{kind: :trace}]}, 1_000
+    Writer.flush()
+    _ = :sys.get_state(Tracer)
+
+    assert %{bytes: bytes} = TraceSessionQueries.get(id)
+    assert_receive {:session_entries, %{id: ^id, status: :running, bytes: ^bytes}, []}
+  end
+
   test "saves a saved session's log as it is appended, reading back what was broadcast" do
     assert {:ok, %{id: id}} = Tracer.create(:mcp, save: true)
     assert id > 0

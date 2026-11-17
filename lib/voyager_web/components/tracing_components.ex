@@ -180,6 +180,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
   attr :pending?, :boolean, required: true
   attr :show_back_arrow, :boolean, required: true
   attr :connected_node, :atom, required: true
+  attr :stats, :list, default: []
   attr :on_stop, :string, required: true
   attr :on_start, :string, required: true
   attr :on_load, :string, required: true
@@ -192,7 +193,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
       id="session-bar"
       class="card bg-base-100 border-base-200 text-base-content flex-none border shadow-sm"
     >
-      <div class="flex items-center gap-3 px-4 py-3">
+      <div class="flex items-start gap-3 px-4 py-3">
         <.back_arrow :if={@show_back_arrow} id="session-header-back" />
         <div class="min-w-0 flex-1">
           <.session_status trace_session={@trace_session} mode={@mode} />
@@ -209,6 +210,74 @@ defmodule VoyagerWeb.Components.TracingComponents do
           on_unload={@on_unload}
           on_delete={@on_delete}
         />
+      </div>
+      <div
+        :if={@stats != []}
+        id="session-stats"
+        class="bg-base-200 border-base-200 rounded-b-box grid grid-cols-2 gap-px overflow-hidden border-t lg:grid-cols-5"
+      >
+        <div
+          :for={cell <- @stats}
+          id={"stat-#{cell.key}"}
+          class="bg-base-100 min-w-0 px-5 py-3 last:col-span-2 lg:last:col-span-1"
+        >
+          <div class="font-mono tracking-label text-base-content/60 mb-1 text-xs font-semibold uppercase">
+            {cell.label}
+          </div>
+          <.tooltip :if={cell[:tip]} id={"stat-#{cell.key}-tip"} position="bottom" class="w-full">
+            <.stat_value cell={cell} tip_id={"stat-#{cell.key}-tip-tip"} />
+            <:content>
+              <span :if={is_binary(cell.tip)}>{cell.tip}</span>
+              <table :if={is_list(cell.tip)} class="font-mono">
+                <tr :for={{label, value} <- cell.tip}>
+                  <td class="text-base-content/60 py-0.5 pr-4">{label}</td>
+                  <td class="py-0.5 text-right">{value}</td>
+                </tr>
+              </table>
+            </:content>
+          </.tooltip>
+          <.stat_value :if={!cell[:tip]} cell={cell} />
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  attr :cell, :map, required: true
+  attr :tip_id, :string, default: nil
+
+  defp stat_value(assigns) do
+    ~H"""
+    <div class="w-full" tabindex={@tip_id && "0"} aria-describedby={@tip_id}>
+      <div class="min-h-6 flex items-baseline gap-1.5">
+        <span class={[
+          "truncate text-base font-semibold",
+          !@cell[:prose] && "font-mono tabular-nums",
+          @cell[:tone]
+        ]}>
+          {@cell.value}
+        </span>
+        <span :if={@cell[:unit]} class="font-mono text-base-content/60 shrink-0 text-xs">
+          {@cell.unit}
+        </span>
+        <span
+          :if={@cell[:spark]}
+          aria-hidden="true"
+          class="ml-auto flex h-5 items-end gap-0.5 self-center"
+        >
+          <span
+            :for={height <- @cell.spark}
+            class="bg-primary w-0.75 rounded-xs opacity-55 last:opacity-100"
+            style={"height: #{height}%"}
+          ></span>
+        </span>
+      </div>
+      <div :if={@cell[:bar]} class="bg-base-content/10 mt-2 flex h-1 overflow-hidden rounded-full">
+        <span
+          :for={{fill, width} <- @cell.bar}
+          class={["block h-full transition-all duration-700", fill]}
+          style={"width: #{width}%"}
+        ></span>
       </div>
     </div>
     """
@@ -351,104 +420,122 @@ defmodule VoyagerWeb.Components.TracingComponents do
 
   defp action_buttons(assigns) do
     ~H"""
-    <div class="flex shrink-0 items-center gap-2">
-      <.tooltip
+    <div class="flex shrink-0 flex-col-reverse items-end gap-2 lg:flex-row lg:items-center">
+      <.action_button
+        :if={@mode == :active and @trace_session.status != :running}
+        id="session-unload"
+        icon="icon-log-out"
+        label="Unload from tracer"
+        phx-click={@on_unload}
+        disabled={@pending?}
+      />
+      <.action_button
+        :if={@mode == :saved}
+        id="session-load"
+        icon="icon-log-in"
+        label="Load into tracer"
+        phx-click={@on_load}
+        disabled={@pending?}
+      />
+      <.action_button
         :if={@mode == :active and @trace_session.config}
-        id="session-edit-tip"
-        position="bottom"
+        id="session-edit"
+        icon="icon-pencil"
+        label="Edit"
+        aria-disabled="true"
+        class="md:min-w-24"
       >
-        <button type="button" id="session-edit" aria-disabled="true" class="btn btn-sm">
-          <.icon name="icon-pencil" class="size-3.5" /> Edit
-        </button>
-        <:content>
+        <:tip>
           {if @trace_session.status == :running,
             do: "Stop the session to edit its parameters",
             else: "Editing parameters is not available yet"}
-        </:content>
-      </.tooltip>
-      <button
-        :if={@mode == :active and @trace_session.status != :running}
-        type="button"
-        id="session-unload"
-        phx-click={@on_unload}
-        disabled={@pending?}
-        class="btn btn-sm"
-      >
-        <.icon name="icon-log-out" class="size-3.5" /> Unload from tracer
-      </button>
-      <button
+        </:tip>
+      </.action_button>
+      <.action_button
         :if={@mode == :active and @trace_session.status == :running}
-        type="button"
         id="session-stop"
+        icon="icon-square-filled"
+        label="Stop"
         phx-click={@on_stop}
         disabled={@pending?}
-        class="btn btn-sm btn-soft btn-error"
-      >
-        <.icon name="icon-square-filled" class="size-3.5" /> Stop
-      </button>
-      <.tooltip
+        class="btn-soft btn-error md:min-w-24"
+      />
+      <.action_button
         :if={@mode == :active and @trace_session.status != :running and @other_node?}
-        id="session-run-tip"
-        position="bottom"
+        id={if @trace_session.status == :stopped, do: "session-resume", else: "session-start"}
+        tip_id="session-run-tip"
+        icon="icon-play"
+        label={if @trace_session.status == :stopped, do: "Resume", else: "Start"}
+        aria-disabled="true"
+        class="btn-primary md:min-w-24"
       >
-        <button
-          type="button"
-          id={if @trace_session.status == :stopped, do: "session-resume", else: "session-start"}
-          aria-disabled="true"
-          class="btn btn-sm btn-primary"
-        >
-          <.icon name="icon-play" class="size-3.5" />
-          {if @trace_session.status == :stopped, do: "Resume", else: "Start"}
-        </button>
-        <:content>
+        <:tip>
           Traced on <span class="font-mono">{@trace_session.node}</span>.
           Connect to that node to run this session.
-        </:content>
-      </.tooltip>
-      <button
+        </:tip>
+      </.action_button>
+      <.action_button
         :if={@mode == :active and @trace_session.status == :stopped and not @other_node?}
-        type="button"
         id="session-resume"
+        icon="icon-play"
+        label="Resume"
         phx-click={@on_start}
         disabled={@pending?}
-        class="btn btn-sm btn-primary"
-      >
-        <.icon name="icon-play" class="size-3.5" /> Resume
-      </button>
-      <button
+        class="btn-primary md:min-w-24"
+      />
+      <.action_button
         :if={@mode == :active and @trace_session.status == :idle and not @other_node?}
-        type="button"
         id="session-start"
+        icon="icon-play"
+        label="Start"
         phx-click={@on_start}
         disabled={@pending? or is_nil(@trace_session.config)}
-        class="btn btn-sm btn-primary"
-      >
-        <.icon name="icon-play" class="size-3.5" /> Start
-      </button>
-      <button
+        class="btn-primary md:min-w-24"
+      />
+      <.action_button
         :if={@mode == :saved}
-        type="button"
-        id="session-load"
-        phx-click={@on_load}
+        id="session-delete"
+        icon="icon-trash"
+        label="Delete session"
+        icon_only
+        phx-click={@on_delete}
         disabled={@pending?}
-        class="btn btn-sm"
-      >
-        <.icon name="icon-log-in" class="size-3.5" /> Load into tracer
-      </button>
-      <.tooltip :if={@mode == :saved} id="session-delete-tip" position="bottom">
-        <button
-          type="button"
-          id="session-delete"
-          phx-click={@on_delete}
-          disabled={@pending?}
-          aria-label="Delete session"
-          class="btn btn-sm btn-square btn-ghost text-base-content/60 hover:bg-error/10 hover:text-error"
-        >
-          <.icon name="icon-trash" class="size-3.5" />
-        </button>
-        <:content>Delete session</:content>
-      </.tooltip>
+        class="btn-ghost text-base-content/60 hover:bg-error/10 hover:text-error"
+      />
     </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :tip_id, :string, default: nil, doc: "the tooltip's id; defaults to `<id>-tip`"
+  attr :icon, :string, required: true
+  attr :label, :string, required: true
+  attr :icon_only, :boolean, default: false, doc: "keeps the label in the tooltip at every width"
+  attr :class, :any, default: nil
+  attr :rest, :global, include: ~w(disabled)
+
+  slot :tip, doc: "shown at every width in place of the label"
+
+  defp action_button(assigns) do
+    assigns = assign(assigns, :tip_id, assigns.tip_id || "#{assigns.id}-tip")
+
+    ~H"""
+    <.tooltip
+      id={@tip_id}
+      position="bottom"
+      tip_class={if(@tip == [] and not @icon_only, do: "md:hidden")}
+    >
+      <button
+        type="button"
+        id={@id}
+        class={["btn btn-sm", if(@icon_only, do: "btn-square", else: "max-md:btn-square"), @class]}
+        {@rest}
+      >
+        <.icon name={@icon} class="size-3.5" />
+        <span class={if @icon_only, do: "sr-only", else: "sr-only md:not-sr-only"}>{@label}</span>
+      </button>
+      <:content>{if @tip == [], do: @label, else: render_slot(@tip)}</:content>
+    </.tooltip>
     """
   end
 
