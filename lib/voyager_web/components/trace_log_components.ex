@@ -375,14 +375,12 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
     ~H"""
     <tr id={@id} class={["h-9", @row_class]}>
       <.time_cell at={@entry[:at]} />
-      <td class="py-2">
-        <div class="flex items-center gap-2">
-          <.control_glyph icon={@icon} class={@glyph_class} />
-          <span class="text-sm font-medium">{@title}</span>
-        </div>
-      </td>
-      <td colspan={if @durations?, do: 2, else: 1} class="py-2">
-        <div class="flex items-center gap-2">
+      <td colspan={if @durations?, do: 3, else: 2} class="py-2">
+        <div class="flex items-center">
+          <div class="min-w-38 flex shrink-0 items-center gap-2 pr-4">
+            <.control_glyph icon={@icon} class={@glyph_class} />
+            <span class="whitespace-nowrap text-sm font-medium">{@title}</span>
+          </div>
           <span :if={@detail} class="font-mono text-base-content/70 min-w-0 truncate text-xs">
             {@detail}
           </span>
