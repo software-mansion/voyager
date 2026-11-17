@@ -26,6 +26,43 @@ defmodule VoyagerWeb.TermHighlight do
     Enum.flat_map(segments, &segment_parts(text, &1, marks))
   end
 
+  @doc """
+  At most `length` graphemes of `parts`, starting `lead` graphemes ahead of the first mark
+  when it lies further in, so a cut text still shows it; `…` stands in for each cut end.
+  """
+  @spec clip([part()], non_neg_integer(), pos_integer()) :: [part()]
+  def clip(parts, lead, length) do
+    start = max(mark_offset(parts) - lead, 0)
+    {_cut, parts} = split(parts, start)
+    {shown, rest} = split(parts, length)
+    ellipsis(start > 0) ++ shown ++ ellipsis(rest != [])
+  end
+
+  defp mark_offset(parts) do
+    case Enum.split_while(parts, fn {_kind, marked?, _text} -> not marked? end) do
+      {_unmarked, []} -> 0
+      {unmarked, _from_mark} -> unmarked |> Enum.map(&String.length(elem(&1, 2))) |> Enum.sum()
+    end
+  end
+
+  defp split(parts, 0), do: {[], parts}
+  defp split([], _at), do: {[], []}
+
+  defp split([{kind, marked?, text} = part | parts], at) do
+    case String.length(text) do
+      length when length <= at ->
+        {head, tail} = split(parts, at - length)
+        {[part | head], tail}
+
+      _length ->
+        {head, tail} = String.split_at(text, at)
+        {[{kind, marked?, head}], [{kind, marked?, tail} | parts]}
+    end
+  end
+
+  defp ellipsis(true), do: [{:punctuation, false, "…"}]
+  defp ellipsis(false), do: []
+
   # A regex over the inspected text, since the row shows the formatter's output, not a term tree.
   defp segments(text, syntax) do
     kinds = kinds(syntax)
@@ -51,7 +88,7 @@ defmodule VoyagerWeb.TermHighlight do
   defp kinds(:erlang), do: [:string, :other, :special, :atom, :number, :atom]
   defp kinds(_syntax), do: [:string, :other, :special, :atom, :number, nil]
 
-  # A string may run to the end of the text, since rows cut long terms before the closing quote.
+  # A string may run to the end of the text, since tips cut long terms before the closing quote.
   defp token_regex,
     do:
       ~r/("(?:[^"\\]|\\.)*(?:"|$))|(~[a-zA-Z]+\[[^\]]*\]|#[A-Z][\w.]*<[^>]*>|<\d+\.\d+\.\d+>)|(\b(?:nil|true|false)\b)|(:"(?:[^"\\]|\\.)*"|:[a-zA-Z_][\w@]*[?!]?|\b[a-z_][\w@]*[?!]?:(?=\s)|\b[A-Z]\w*(?:\.[A-Z]\w*)*)|(-?\b\d[\d_]*(?:\.\d+)?(?:e[+-]?\d+)?\b)|('(?:[^'\\]|\\.)*'|\b[a-z][\w@]*)/

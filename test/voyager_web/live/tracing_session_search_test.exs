@@ -74,6 +74,17 @@ defmodule VoyagerWeb.TracingSessionSearchTest do
     refute has_element?(view, "#entry-2 mark", "2023")
   end
 
+  test "starts a long row just ahead of its match", %{conn: conn} do
+    %{id: id} = start!(@config)
+    date = %{calendar: Calendar.ISO, year: 2023, padding: String.duplicate("x", 120), zz: :needle}
+    trace_dates!([date], 1)
+    view = open(conn, id)
+
+    search(view, "needle")
+
+    assert has_element?(view, "#entry-2 mark", "needle")
+  end
+
   test "highlights a match on the traced function or a term in the tooltip", %{conn: conn} do
     %{id: id} = start!(@config)
     trace_dates!([~D[2023-05-05]], 1)

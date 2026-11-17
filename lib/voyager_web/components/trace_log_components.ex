@@ -19,6 +19,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
   alias VoyagerWeb.TermTree.Segment
 
   @row_cap 100
+  @mark_lead 16
   @muted_glyph "bg-base-content/10 text-base-content/70"
   # The tooltip renders for every row and cannot scroll, so its terms share a line budget.
   @tip_lines 16
@@ -338,6 +339,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
                   text={term_text(@entry, @wildcard?)}
                   syntax={if plain?(@entry), do: nil, else: @syntax}
                   query={@query}
+                  clip?
                 />
               </span>
             </span>
@@ -472,16 +474,22 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
   attr :text, :string, required: true
   attr :syntax, :atom, required: true, doc: "nil renders the text unkinded"
   attr :query, :string, default: nil
+  attr :clip?, :boolean, default: false, doc: "cuts the text to a row's length around its mark"
 
   defp highlighted(assigns) do
     ~H"""
     <span
-      :for={{kind, marked?, text} <- TermHighlight.parts(@text, @syntax, @query)}
+      :for={{kind, marked?, text} <- highlight_parts(@text, @syntax, @query, @clip?)}
       class={kind && TermComponents.segment_class(%Segment{kind: kind})}
     ><mark :if={marked?} class="bg-warning/30 rounded-sm text-inherit">{text}</mark>{if !marked?,
       do: text}</span>
     """
   end
+
+  defp highlight_parts(text, syntax, query, false), do: TermHighlight.parts(text, syntax, query)
+
+  defp highlight_parts(text, syntax, query, true),
+    do: text |> TermHighlight.parts(syntax, query) |> TermHighlight.clip(@mark_lead, @row_cap)
 
   attr :at, :integer, default: nil
 
@@ -555,25 +563,19 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
   defp term_text(%{type: :call, args: args, mfa: {_module, function, _arity}}, wildcard?)
        when is_list(args) do
     name = if wildcard?, do: Atom.to_string(function), else: ""
-    cap(name <> "(" <> Enum.map_join(args, ", ", &format_term/1) <> ")")
+    name <> "(" <> Enum.map_join(args, ", ", &format_term/1) <> ")"
   end
 
   defp term_text(%{type: :call, mfa: mfa}, _wildcard?), do: fun_arity(mfa)
 
   defp term_text(%{type: :exception, value: {class, reason}}, _wildcard?),
-    do: cap(format_term(class) <> ", " <> format_term(reason))
+    do: format_term(class) <> ", " <> format_term(reason)
 
-  defp term_text(%{value: value}, _wildcard?), do: cap(format_term(value))
+  defp term_text(%{value: value}, _wildcard?), do: format_term(value)
 
   defp fun_arity({_module, function, arity}), do: "#{function}/#{arity}"
 
   defp format_term(term), do: Formatters.format_term(term, limit: 20, printable_limit: @row_cap)
-
-  defp cap(text) do
-    if String.length(text) > @row_cap,
-      do: String.slice(text, 0, @row_cap) <> "…",
-      else: text
-  end
 
   defp tip_terms(entry) do
     terms = labelled_terms(entry)

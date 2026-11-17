@@ -83,4 +83,28 @@ defmodule VoyagerWeb.TermHighlightTest do
              {nil, false, "?/1"}
            ]
   end
+
+  test "clip/3 cuts the end of a text without a mark" do
+    assert "Date.leap_year?/1" |> TermHighlight.parts(nil) |> TermHighlight.clip(2, 4) == [
+             {nil, false, "Date"},
+             {:punctuation, false, "…"}
+           ]
+  end
+
+  test "clip/3 starts a lead ahead of a mark further in, keeping the kinds" do
+    parts = TermHighlight.parts(~s({:ok, "user5@shop.test"}), :elixir, "shop")
+
+    assert TermHighlight.clip(parts, 3, 8) == [
+             {:punctuation, false, "…"},
+             {:string, false, "r5@"},
+             {:string, true, "shop"},
+             {:string, false, "."},
+             {:punctuation, false, "…"}
+           ]
+  end
+
+  test "clip/3 keeps a short text with an early mark whole" do
+    parts = TermHighlight.parts("{:ok, 1}", :elixir, "ok")
+    assert TermHighlight.clip(parts, 3, 100) == parts
+  end
 end
