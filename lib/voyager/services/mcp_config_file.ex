@@ -138,12 +138,16 @@ defmodule Voyager.Services.McpConfigFile do
   defp toml_servers(text, table) do
     {servers, _current} =
       text
-      |> String.split("\n")
-      |> Enum.reduce({%{}, nil}, fn line, {servers, current} ->
-        case Regex.run(@header, line) do
-          [_, header | _] -> enter_toml_table(servers, header, table)
-          nil -> {put_toml_url(servers, current, line), current}
-        end
+      |> toml_lines()
+      |> Enum.reduce({%{}, nil}, fn
+        {_line, {:header, header}}, {servers, _current} ->
+          enter_toml_table(servers, header, table)
+
+        {line, :line}, {servers, current} ->
+          {put_toml_url(servers, current, line), current}
+
+        {_line, :string}, acc ->
+          acc
       end)
 
     servers
@@ -177,12 +181,12 @@ defmodule Voyager.Services.McpConfigFile do
 
     {lines, _skipping?} =
       text
-      |> String.split("\n")
-      |> Enum.reduce({[], false}, fn line, {kept, skipping?} ->
+      |> toml_lines()
+      |> Enum.reduce({[], false}, fn {line, kind}, {kept, skipping?} ->
         skip? =
-          case Regex.run(@header, line) do
-            [_, header | _] -> header in names or (with_subtables? and subtable?(header, names))
-            nil -> skipping?
+          case kind do
+            {:header, header} -> header in names or (with_subtables? and subtable?(header, names))
+            _other -> skipping?
           end
 
         if skip?, do: {kept, true}, else: {[line | kept], false}
@@ -192,6 +196,33 @@ defmodule Voyager.Services.McpConfigFile do
   end
 
   defp subtable?(header, names), do: Enum.any?(names, &String.starts_with?(header, &1 <> "."))
+
+  defp toml_lines(text) do
+    {lines, _delimiter} =
+      text
+      |> String.split("\n")
+      |> Enum.map_reduce(nil, fn line, delimiter ->
+        {{line, toml_kind(line, delimiter)}, string_delimiter(line, delimiter)}
+      end)
+
+    lines
+  end
+
+  defp toml_kind(line, nil) do
+    case Regex.run(@header, line) do
+      [_, header | _] -> {:header, header}
+      nil -> :line
+    end
+  end
+
+  defp toml_kind(_line, _delimiter), do: :string
+
+  defp string_delimiter(line, nil), do: Enum.find([~s("""), "'''"], &odd_count?(line, &1))
+
+  defp string_delimiter(line, delimiter),
+    do: if(odd_count?(line, delimiter), do: nil, else: delimiter)
+
+  defp odd_count?(line, delimiter), do: line |> String.split(delimiter) |> length() |> rem(2) == 0
 
   defp write_json(path, doc), do: write(path, Jason.encode!(doc, pretty: true) <> "\n")
 

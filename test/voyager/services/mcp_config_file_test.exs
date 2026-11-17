@@ -210,6 +210,29 @@ defmodule Voyager.Services.McpConfigFileTest do
       assert File.read!(path) == contents
     end
 
+    test "ignores headers inside multiline strings", %{tmp_dir: dir} do
+      path = Path.join(dir, "config.toml")
+
+      instructions = """
+      instructions = \"\"\"
+      Example:
+      [mcp_servers.voyager]
+      url = "http://example.com"
+      \"\"\"
+      """
+
+      File.write!(path, instructions)
+
+      assert {:ok, servers} = McpConfigFile.servers(path, :toml, ["mcp_servers"])
+      assert servers == %{}
+
+      assert :ok = McpConfigFile.put_server(path, :toml, ["mcp_servers"], %{"url" => @url})
+      assert File.read!(path) == instructions <> "\n[mcp_servers.voyager]\nurl = \"#{@url}\"\n"
+
+      assert :ok = McpConfigFile.delete_server(path, :toml, ["mcp_servers"])
+      assert File.read!(path) == instructions
+    end
+
     test "creates a missing file", %{tmp_dir: dir} do
       path = Path.join([dir, ".codex", "config.toml"])
 
