@@ -24,12 +24,11 @@ defmodule Voyager.Services.Tracer.SearchTest do
       assert text =~ ~S({ok, <<"voyager">>, #{a => 1}})
     end
 
-    test "writes structs as maps, so fields their Inspect hides still match" do
+    test "writes a struct as its row shows it, and as a map in Erlang syntax" do
       text = Search.text(Map.put(@entry, :args, [~D[2024-01-01]]))
 
-      assert text =~ "__struct__: Date"
-      assert text =~ "year: 2024"
-      refute text =~ "~D["
+      assert text =~ "[~D[2024-01-01]]"
+      assert text =~ "year => 2024"
     end
 
     test "writes every pid as <0.X.Y> whatever its node, however deep" do

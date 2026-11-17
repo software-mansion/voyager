@@ -58,7 +58,6 @@ defmodule Voyager.Services.Tracer.Search do
   defp inspect_term(term),
     do:
       inspect(term,
-        structs: false,
         limit: :infinity,
         printable_limit: :infinity,
         inspect_fun: &inspect_pid/2
