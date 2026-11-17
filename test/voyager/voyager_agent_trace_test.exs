@@ -207,6 +207,34 @@ defmodule VoyagerAgentTraceTest do
     end
   end
 
+  test "resolves encoded atoms against the atoms on the node" do
+    date = %{
+      {:"$voyager_atom", "__struct__"} => {:"$voyager_atom", "Elixir.Date"},
+      {:"$voyager_atom", "year"} => 2024
+    }
+
+    match_spec = [{[date], [], []}]
+
+    {:ok, tracer} =
+      start(spec(@leap_year ++ [match_spec: match_spec]), %{@limits | max_events: 1})
+
+    Date.leap_year?(~D[2023-01-01])
+    Date.leap_year?(~D[2024-01-01])
+
+    assert {[%{type: :call, args: [%Date{year: 2024}]}], :event_limit, _stats} = collect(tracer)
+  end
+
+  test "refuses encoded atoms that are unknown or read as variables" do
+    for {name, error} <- [
+          {"voyager_no_such_atom_x7", {:unknown_atom, "voyager_no_such_atom_x7"}},
+          {"$1", {:invalid_atom, "$1"}},
+          {"_", {:invalid_atom, "_"}}
+        ] do
+      match_spec = [{[{:"$voyager_atom", name}, :_], [], []}]
+      assert {:error, ^error} = start(spec(match_spec: match_spec), @limits)
+    end
+  end
+
   test "refuses any message action when return trace is on" do
     for body <- [[{:message, false}], [{:message, {:const, false}}]] do
       assert {:error, {:refused_action, :message}} =

@@ -880,11 +880,11 @@ generated_function(Name) ->
             false
     end.
 
-%% Atoms in a match spec are created on the remote when the dist message is decoded.
 trace_match_spec(undefined, ReturnTrace) ->
     {ok, [{'_', [], return_body(ReturnTrace)}]};
-trace_match_spec(MatchSpec, ReturnTrace) ->
+trace_match_spec(Encoded, ReturnTrace) ->
     maybe
+        {ok, MatchSpec} ?= decode_atoms(Encoded),
         false ?= refused_action([{Guards, Body} || {_Head, Guards, Body} <- MatchSpec],
                                 refused_actions(ReturnTrace)),
         %% `match_spec_test' runs the body here (`enable_trace' segfaults); `false' keeps it compile-only.
@@ -895,8 +895,43 @@ trace_match_spec(MatchSpec, ReturnTrace) ->
     else
         {value, Action} ->
             {error, {refused_action, Action}};
-        {error, Errors} ->
-            {error, {invalid_match_spec, Errors}}
+        {error, Errors} when is_list(Errors) ->
+            {error, {invalid_match_spec, Errors}};
+        {error, _} = Error ->
+            Error
+    end.
+
+%% Voyager sends atoms as `{'$voyager_atom', Name}': decoding a real one from dist creates it here.
+decode_atoms(MatchSpec) ->
+    try
+        {ok, decode_atom(MatchSpec)}
+    catch
+        throw:{voyager_atom, Reason} ->
+            {error, Reason}
+    end.
+
+decode_atom({'$voyager_atom', Name}) when is_binary(Name) ->
+    existing_atom(Name);
+decode_atom([Head | Tail]) ->
+    [decode_atom(Head) | decode_atom(Tail)];
+decode_atom(Tuple) when is_tuple(Tuple) ->
+    list_to_tuple(decode_atom(tuple_to_list(Tuple)));
+decode_atom(Map) when is_map(Map) ->
+    #{decode_atom(Key) => decode_atom(Value) || Key := Value <- Map};
+decode_atom(Term) ->
+    Term.
+
+%% Decoded, `'$1'' or `'_'' would be a match spec variable rather than a constant.
+existing_atom(<<"$", _/binary>> = Name) ->
+    throw({voyager_atom, {invalid_atom, Name}});
+existing_atom(<<"_">> = Name) ->
+    throw({voyager_atom, {invalid_atom, Name}});
+existing_atom(Name) ->
+    try
+        binary_to_existing_atom(Name)
+    catch
+        error:badarg ->
+            throw({voyager_atom, {unknown_atom, Name}})
     end.
 
 %% `exception_trace' also closes a frame on a raise, so a call never stays open in Voyager.
