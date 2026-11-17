@@ -198,10 +198,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
         {:noreply, socket}
 
       {:error, reason} ->
-        # The browser already flipped the checkbox, and `@status` is unchanged,
-        # so without a diff the component is never patched and the toggle stays
-        # out of sync. Bumping the revision forces a patch, which makes
-        # LiveView re-apply the server-rendered `checked` state.
+        # The browser already flipped the checkbox; bumping the revision forces a patch that resets it.
         socket
         |> push_flash(:error, "Failed to toggle MCP server: #{inspect(reason)}")
         |> assign(:toggle_revision, socket.assigns.toggle_revision + 1)
