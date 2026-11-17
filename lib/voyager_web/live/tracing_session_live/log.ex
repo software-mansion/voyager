@@ -23,6 +23,7 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
   @row_limit 200
   @flush_limit 50
   @search_limit 100
+  @search_failed "Could not search the events."
 
   @spec init(Socket.t()) :: Socket.t()
   def init(socket) do
@@ -167,15 +168,16 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
     |> halt()
   end
 
-  defp handle_result(:search, {:ok, {:error, reason}}, %{assigns: %{search: %{}}} = socket) do
+  defp handle_result(:search, _failed, %{assigns: %{search: %{total: nil}}} = socket) do
     socket
-    |> fail_search(reason)
+    |> load()
+    |> put_flash(:error, @search_failed)
     |> halt()
   end
 
-  defp handle_result(:search, {:exit, _reason}, %{assigns: %{search: %{}}} = socket) do
+  defp handle_result(:search, _failed, %{assigns: %{search: %{}}} = socket) do
     socket
-    |> fail_search(:exit)
+    |> put_flash(:error, @search_failed)
     |> halt()
   end
 
@@ -242,15 +244,8 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
 
   defp put_matches(%{assigns: %{search: search}} = socket, %{entries: entries, total: total}) do
     first? = is_nil(search.total)
-    shown = if(first?, do: 0, else: search.shown) + length(entries)
-
-    # Later pages recount matches newer than the first page, which paging by `before` never reaches.
-    total =
-      cond do
-        length(entries) < @search_limit -> shown
-        first? -> total
-        true -> search.total
-      end
+    shown = search.shown + length(entries)
+    total = if length(entries) < @search_limit, do: shown, else: search.total || total
 
     socket
     |> stream(:entries, entries, if(first?, do: [reset: true], else: [at: -1]))
@@ -262,18 +257,6 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
         traces: search.traces || socket.assigns.trace_session.result.traces
     })
   end
-
-  defp fail_search(%{assigns: %{search: %{total: nil}}} = socket, reason) do
-    socket
-    |> load()
-    |> put_flash(:error, search_error(reason))
-  end
-
-  defp fail_search(socket, reason), do: put_flash(socket, :error, search_error(reason))
-
-  defp search_error(:not_found), do: "No such tracing session."
-  defp search_error(:exit), do: "The tracer did not respond. Try again."
-  defp search_error(reason), do: "Tracing failed: #{inspect(reason)}"
 
   defp newest_seq([]), do: -1
   defp newest_seq([%{seq: seq} | _older]), do: seq
