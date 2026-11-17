@@ -700,8 +700,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
     do: TracingComponents.count(traces, "trace", "traces")
 
   defp search_scope(_session, %{traces: traces}) when traces > @kept_traces,
-    do:
-      "the newest #{@kept_traces} events · #{Formatters.format_integer(traces - @kept_traces)} older traces are no longer in memory"
+    do: "the newest #{@kept_traces} events · older traces are no longer in memory"
 
   defp search_scope(_session, _search), do: "the newest #{@kept_traces} events"
 end
