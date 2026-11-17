@@ -317,11 +317,12 @@ defmodule Voyager.Services.Tracer.Overview do
     {nil, :running, max(session.traces - session.run_traces_before, 0), session.dropped}
   end
 
+  # A nil stop stays nil: the session's `stopped_at` is the boot that interrupted it, and
+  # stamping `started_at` would clamp the run's traces into one bucket.
   defp run_outcome(nil, true, %Session{} = session) do
-    {session.stopped_at, session.stop_reason || :interrupted,
-     max(session.traces - session.run_traces_before, 0), session.dropped}
+    {nil, session.stop_reason || :interrupted, max(session.traces - session.run_traces_before, 0),
+     session.dropped}
   end
 
-  # A nil stop stays nil; stamping `started_at` clamps that run's traces into one bucket.
   defp run_outcome(nil, false, _session), do: {nil, :interrupted, 0, 0}
 end
