@@ -75,8 +75,10 @@ test.describe('ConnectLive › SSH config import', () => {
     await expect(page.locator(sel.sshConfigNotice)).toContainText(
       'forwardagent'
     );
-    await hostButton(page, 'fill-ssh-host-btn', 'prod')
-      .locator('[data-testid="ssh-host-problems"]')
+    await page
+      .locator(
+        `${sel.sshConfigHosts} [data-alias="prod"] [data-testid="ssh-host-problems"]`
+      )
       .hover();
     const problemsTip = page
       .getByRole('tooltip')
