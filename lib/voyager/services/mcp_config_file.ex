@@ -199,7 +199,12 @@ defmodule Voyager.Services.McpConfigFile do
     path = resolve_symlink(path)
     tmp = path <> ".voyager.tmp"
 
+    File.rm(tmp)
+
+    # Owner-only before any contents land, so a 0600 config never sits in a umask-wide temp file.
     with :ok <- File.mkdir_p(Path.dirname(path)),
+         :ok <- File.write(tmp, "", [:exclusive]),
+         :ok <- File.chmod(tmp, 0o600),
          :ok <- File.write(tmp, contents),
          :ok <- copy_mode(path, tmp),
          :ok <- File.rename(tmp, path) do
