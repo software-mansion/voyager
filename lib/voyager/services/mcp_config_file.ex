@@ -3,7 +3,8 @@ defmodule Voyager.Services.McpConfigFile do
   Reads the MCP servers a coding agent's config file defines and adds Voyager's entry to it.
 
   JSON keeps the user's key order but cannot keep comments, so a file that only parses as
-  JSONC is reported as unreadable and never written. TOML is edited as text, keeping comments.
+  JSONC is reported as unreadable and never written. TOML is edited as text, keeping comments;
+  a file that defines the servers table or the `voyager` server with inline or dotted keys is refused.
   """
 
   alias Jason.OrderedObject
@@ -29,7 +30,7 @@ defmodule Voyager.Services.McpConfigFile do
   end
 
   def servers(path, :toml, [table]) do
-    with {:ok, text} <- read(path), do: {:ok, toml_servers(text, table)}
+    with {:ok, text} <- read_toml(path, table), do: {:ok, toml_servers(text, table)}
   end
 
   @doc "Adds or replaces the `voyager` server under `key` in `path`, creating the file if needed."
@@ -42,7 +43,7 @@ defmodule Voyager.Services.McpConfigFile do
   end
 
   def put_server(path, :toml, [table], entry) do
-    with {:ok, text} <- read(path) do
+    with {:ok, text} <- read_toml(path, table) do
       kept =
         text
         |> remove_toml_table("#{table}.#{@server_name}", false)
@@ -66,7 +67,7 @@ defmodule Voyager.Services.McpConfigFile do
   end
 
   def delete_server(path, :toml, [table]) do
-    with {:ok, text} <- read(path) do
+    with {:ok, text} <- read_toml(path, table) do
       case remove_toml_table(text, "#{table}.#{@server_name}", true) do
         ^text -> :ok
         kept -> write(path, String.trim_trailing(kept) <> "\n")
@@ -155,7 +156,7 @@ defmodule Voyager.Services.McpConfigFile do
 
   defp enter_toml_table(servers, header, table) do
     case String.split(header, ".", parts: 2) do
-      [^table, name] -> enter_named_table(servers, String.trim(name, "\""))
+      [^table, name] -> enter_named_table(servers, unquote_key(name))
       _other -> {servers, nil}
     end
   end
@@ -177,7 +178,7 @@ defmodule Voyager.Services.McpConfigFile do
 
   defp remove_toml_table(text, name, with_subtables?) do
     [table, server] = String.split(name, ".", parts: 2)
-    names = [name, ~s(#{table}."#{server}")]
+    names = [name, ~s(#{table}."#{server}"), "#{table}.'#{server}'"]
 
     {lines, _skipping?} =
       text
@@ -196,6 +197,23 @@ defmodule Voyager.Services.McpConfigFile do
   end
 
   defp subtable?(header, names), do: Enum.any?(names, &String.starts_with?(header, &1 <> "."))
+
+  defp read_toml(path, table) do
+    with {:ok, text} <- read(path) do
+      if Enum.any?(toml_lines(text), &inline_server?(&1, table)),
+        do: {:error, :unsupported_toml},
+        else: {:ok, text}
+    end
+  end
+
+  defp inline_server?({line, :line}, table) do
+    [key | _] = line |> String.trim_leading() |> String.split(~r/\s*[.=]/, parts: 2)
+    unquote_key(key) in [table, @server_name]
+  end
+
+  defp inline_server?(_line, _table), do: false
+
+  defp unquote_key(key), do: key |> String.trim("\"") |> String.trim("'")
 
   defp toml_lines(text) do
     {lines, _delimiter} =

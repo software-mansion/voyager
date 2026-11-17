@@ -353,6 +353,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
 
   defp format_config_error(:invalid_json), do: "the config file is not valid JSON"
   defp format_config_error(:unexpected_shape), do: "the config file has an unexpected shape"
+  defp format_config_error(:unsupported_toml), do: "the config file defines MCP servers inline"
 
   defp format_config_error(reason) when is_atom(reason),
     do: to_string(:file.format_error(reason))

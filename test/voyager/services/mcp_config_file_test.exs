@@ -210,6 +210,41 @@ defmodule Voyager.Services.McpConfigFileTest do
       assert File.read!(path) == contents
     end
 
+    test "delete removes a single-quoted voyager table", %{tmp_dir: dir} do
+      path = Path.join(dir, "config.toml")
+      File.write!(path, "model = \"gpt-5\"\n\n[mcp_servers.'voyager']\nurl = \"#{@url}\"\n")
+
+      assert {:ok, %{"voyager" => %{"url" => @url}}} =
+               McpConfigFile.servers(path, :toml, ["mcp_servers"])
+
+      assert :ok = McpConfigFile.delete_server(path, :toml, ["mcp_servers"])
+      assert File.read!(path) == "model = \"gpt-5\"\n"
+    end
+
+    test "refuses inline or dotted voyager definitions and leaves the file untouched", %{
+      tmp_dir: dir
+    } do
+      path = Path.join(dir, "config.toml")
+
+      for contents <- [
+            ~s(mcp_servers = { voyager = { url = "#{@url}" } }\n),
+            ~s([mcp_servers]\nvoyager = { url = "#{@url}" }\n),
+            ~s(mcp_servers.voyager.url = "#{@url}"\n)
+          ] do
+        File.write!(path, contents)
+
+        assert {:error, :unsupported_toml} = McpConfigFile.servers(path, :toml, ["mcp_servers"])
+
+        assert {:error, :unsupported_toml} =
+                 McpConfigFile.put_server(path, :toml, ["mcp_servers"], %{"url" => @url})
+
+        assert {:error, :unsupported_toml} =
+                 McpConfigFile.delete_server(path, :toml, ["mcp_servers"])
+
+        assert File.read!(path) == contents
+      end
+    end
+
     test "ignores headers inside multiline strings", %{tmp_dir: dir} do
       path = Path.join(dir, "config.toml")
 
