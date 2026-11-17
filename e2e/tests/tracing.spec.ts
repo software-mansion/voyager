@@ -8,6 +8,7 @@ const sel = {
   rows: '#session-log-rows tr[id^="entry-"]',
   liveBadge: '#session-log .badge-success',
   indicator: '#tracing-indicator',
+  search: '#log-search',
 };
 
 test.describe('TracingSessionLive', () => {
@@ -79,12 +80,28 @@ test.describe('TracingSessionLive', () => {
     await page.locator(sel.stop).click();
     await expect(page.locator(sel.resume)).toBeVisible();
 
-    await page.locator('#log-search').fill('lookup');
+    await page.locator(sel.search).fill('lookup');
     await expect(page.locator('#log-footer')).toContainText('matches in');
     await terms.first().hover();
 
     await expect(page.locator('#log-term-tip mark').first()).toHaveText(
       'lookup'
     );
+  });
+
+  test('focuses the search on / and keeps a / typed into it', async ({
+    page,
+  }) => {
+    const id = rpc('mock_app_ctl trace_session [false]');
+    await page.goto(`/node/${encodeURIComponent(NODE_NAME)}/tracing/${id}`);
+    await waitForLiveView(page);
+    await expect(page.locator(sel.rows).first()).toBeVisible();
+    await expect(page.locator(sel.search)).toBeEnabled();
+
+    await page.keyboard.press('/');
+    await expect(page.locator(sel.search)).toBeFocused();
+
+    await page.keyboard.press('/');
+    await expect(page.locator(sel.search)).toHaveValue('/');
   });
 });
