@@ -431,12 +431,15 @@ defmodule VoyagerWeb.Components.Shell do
         data-tooltip-interactive="false"
         data-tooltip-show-when="sidebar-compact"
       >
-        {render_slot(@icon)}
-        <span class="sidebar-label flex-1 truncate">{@label}</span>
-        <span :if={@live_dot} id={"#{@id}-live"} class="sidebar-badge size-2 relative flex">
-          <span class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"></span>
-          <span class="bg-success size-2 relative inline-flex rounded-full"></span>
+        <span class="relative inline-flex">
+          {render_slot(@icon)}
+          <span :if={@live_dot} id={"#{@id}-live"} class="size-2 absolute -top-0.5 -right-0.5 flex">
+            <span class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"></span>
+            <span class="bg-success size-2 relative inline-flex rounded-full"></span>
+            <span class="sr-only">Running</span>
+          </span>
         </span>
+        <span class="sidebar-label flex-1 truncate">{@label}</span>
         <span :if={@coming_soon} class="sidebar-badge badge badge-primary badge-soft badge-xs">
           Soon
         </span>

@@ -115,7 +115,7 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     assert has_element?(view, "#tracing-indicator")
     assert has_element?(view, "#sidebar-nav-tracing")
     refute has_element?(view, "#sidebar-nav-tracing .badge", "Soon")
-    assert has_element?(view, "#sidebar-nav-tracing-live")
+    assert has_element?(view, "#sidebar-nav-tracing-live .sr-only", "Running")
 
     broadcast({:session_updated, %{session() | status: :stopped, stop_reason: :stopped}})
     refute has_element?(view, "#sidebar-nav-tracing-live")
