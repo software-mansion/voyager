@@ -188,28 +188,23 @@ defmodule Voyager.Queries.TraceEntries do
   # `ecto_sqlite3` dumps `:utc_datetime_usec` as `YYYY-MM-DDTHH:MM:SS.ffffffZ`; `substr(..., 21, 6)` is `ffffff`.
   defp query_buckets(query, start_us, bucket_us) do
     query
-    |> group_by(
-      [e],
-      fragment(
-        "max((CAST(unixepoch(?) AS INTEGER) * 1000000 + CAST(substr(?, 21, 6) AS INTEGER)) - ?, 0) / ?",
-        e.at,
-        e.at,
-        ^start_us,
-        ^bucket_us
-      )
-    )
-    |> select([e], {
-      fragment(
-        "max((CAST(unixepoch(?) AS INTEGER) * 1000000 + CAST(substr(?, 21, 6) AS INTEGER)) - ?, 0) / ?",
-        e.at,
-        e.at,
-        ^start_us,
-        ^bucket_us
-      ),
-      count(e.id)
+    |> select([e], %{
+      bucket:
+        selected_as(
+          fragment(
+            "max((CAST(unixepoch(?) AS INTEGER) * 1000000 + CAST(substr(?, 21, 6) AS INTEGER)) - ?, 0) / ?",
+            e.at,
+            e.at,
+            ^start_us,
+            ^bucket_us
+          ),
+          :bucket
+        ),
+      count: count(e.id)
     })
+    |> group_by(selected_as(:bucket))
     |> Repo.all()
-    |> Map.new()
+    |> Map.new(&{&1.bucket, &1.count})
   end
 
   defp in_run_seq(%{seq: seq, next_seq: nil}), do: dynamic([e], e.seq > ^seq)
