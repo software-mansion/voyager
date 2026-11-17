@@ -539,7 +539,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
   defp full_at(at) do
     at
     |> datetime()
-    |> Calendar.strftime("%a %-d %b %Y, %H:%M:%S.%f UTC")
+    |> Calendar.strftime("%a %-d %b %Y, %H:%M:%S UTC")
   end
 
   defp datetime(at) do
