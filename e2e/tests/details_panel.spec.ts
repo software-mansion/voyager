@@ -75,7 +75,7 @@ test.describe('SupervisionTreeLive › DetailsPanel', () => {
     const panel = page.locator('#details-panel');
     await expect(panel).toHaveClass(/translate-x-0/);
 
-    const chip = panel.locator('button[id^="details-panel-link-"]').first();
+    const chip = panel.locator('button[id^="details-panel-links-"]').first();
     await expect(chip).toBeEnabled();
 
     const label = (await chip.innerText()).trim();

@@ -3,6 +3,7 @@ defmodule Voyager.SshConnectionsTest do
   use Voyager.DataCase, async: false
 
   import Ecto.Query
+  import Voyager.TestUtils
 
   alias Voyager.Actions.SshConnections, as: SshConnectionActions
   alias Voyager.Queries.SshConnections, as: SshConnectionQueries
@@ -336,6 +337,36 @@ defmodule Voyager.SshConnectionsTest do
 
     test "returns nil without profiles" do
       assert SshConnectionQueries.last() == nil
+    end
+  end
+
+  describe "unreadable_secrets?/0" do
+    test "is false when saved secrets decrypt or none were saved" do
+      {:ok, _} =
+        SshConnectionActions.upsert_connected("deploy", "gw", 22, "saved@127.0.0.1",
+          cookie: "secret",
+          password: "pass",
+          auth_method: :password
+        )
+
+      {:ok, _} = SshConnectionActions.upsert_connected("deploy", "gw", 22, "bare@127.0.0.1")
+
+      refute SshConnectionQueries.unreadable_secrets?()
+    end
+
+    for secret <- [:cookie, :password] do
+      test "is true when a saved #{secret} cannot be decrypted" do
+        {:ok, saved} =
+          SshConnectionActions.upsert_connected("deploy", "gw", 22, "corrupt@127.0.0.1",
+            cookie: "secret",
+            password: "pass",
+            auth_method: :password
+          )
+
+        corrupt_secret!(saved, unquote(secret))
+
+        assert SshConnectionQueries.unreadable_secrets?()
+      end
     end
   end
 end

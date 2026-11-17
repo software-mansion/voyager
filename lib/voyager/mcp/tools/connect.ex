@@ -11,7 +11,9 @@ defmodule Voyager.MCP.Tools.Connect do
   is `awaiting_user`: ask the user to finish in Voyager, then call `connect` again
   with the same arguments once they confirm. With `ssh_host` but no `ssh_user` or
   `node_name`, the user fills those in the form too, so call `list_connections`
-  instead of `connect` once they confirm. Calling it for the node Voyager is
+  instead of `connect` once they confirm. An SSH host whose key Voyager has
+  not verified, or whose key changed, is handed off the same way, so the user can
+  check its fingerprint in Voyager. Calling it for the node Voyager is
   already connected to returns `connected`. Only one node can be connected at a
   time: call `disconnect` first to switch.
   """
@@ -169,7 +171,7 @@ defmodule Voyager.MCP.Tools.Connect do
         connect_now(target)
 
       true ->
-        hand_off(target)
+        hand_off(target, "fill in the secrets and any missing fields")
     end
   end
 
@@ -177,6 +179,12 @@ defmodule Voyager.MCP.Tools.Connect do
     case SavedConnections.connect(target) do
       :ok ->
         connected(target)
+
+      {:error, {:unknown_host_key, _fingerprint}} ->
+        hand_off(target, "check and trust the SSH host key")
+
+      {:error, {:host_key_mismatch, _mismatch}} ->
+        hand_off(target, "review the changed SSH host key")
 
       {:error, reason} ->
         message = "Could not connect to #{target.node_name}: #{ConnectError.message(reason)}"
@@ -188,7 +196,7 @@ defmodule Voyager.MCP.Tools.Connect do
     Response.json(Response.tool(), %{status: "connected", node: target.node_name})
   end
 
-  defp hand_off(target) do
+  defp hand_off(target, task) do
     path = "/?" <> URI.encode_query(form_params(target))
 
     payload =
@@ -198,8 +206,7 @@ defmodule Voyager.MCP.Tools.Connect do
             status: "awaiting_user",
             message:
               "Voyager opened its connect form for #{form_label(target)}. " <>
-                "Ask the user to fill in the secrets and any missing fields there, " <>
-                "then #{next_step(target)}."
+                "Ask the user to #{task} there and connect, then #{next_step(target)}."
           }
 
         :no_shell ->
@@ -209,8 +216,8 @@ defmodule Voyager.MCP.Tools.Connect do
             status: "awaiting_user",
             url: url,
             message:
-              "Ask the user to open #{url}, fill in the secrets and any missing fields " <>
-                "there and connect, then #{next_step(target)}."
+              "Ask the user to open #{url}, #{task} there and connect, " <>
+                "then #{next_step(target)}."
           }
       end
 

@@ -9,12 +9,14 @@ defmodule Voyager.Services.SSH.Config do
           user: String.t() | nil,
           port: :inet.port_number() | nil,
           identity_files: [Path.t()],
-          identity_agent: Path.t() | :none | nil
+          identity_agent: Path.t() | :none | nil,
+          problems: [unsupported()]
         }
 
   @type unsupported :: %{keyword: String.t(), type: :keyword | :block | :value}
 
-  @type result :: %{hosts: [host()], unsupported: [unsupported()]}
+  @typedoc "`shared` holds the problems from any block that can match more than its exact aliases."
+  @type result :: %{hosts: [host()], unsupported: [unsupported()], shared: [unsupported()]}
 
   @type connect_fields :: %{
           ssh_host: String.t(),
@@ -54,9 +56,11 @@ defmodule Voyager.Services.SSH.Config do
     }
   end
 
-  @spec read(Path.t()) :: {:ok, result()} | {:error, {:read_failed, {Path.t(), File.posix()}}}
+  @spec read(Path.t()) ::
+          {:ok, result()}
+          | {:error, {:read_failed, {Path.t(), LocalFiles.read_error()}}}
   def read(path \\ "~/.ssh/config") do
-    with {:ok, contents} <- LocalFiles.read(path), do: {:ok, parse(contents)}
+    with {:ok, contents} <- LocalFiles.read_config(path), do: {:ok, parse(contents)}
   end
 
   @spec parse(String.t()) :: result()
@@ -67,9 +71,12 @@ defmodule Voyager.Services.SSH.Config do
       |> apply_top_level_to_every_host()
       |> Enum.map(&to_setting/1)
 
+    owned = owned_problems(items)
+
     %{
-      hosts: items |> aliases() |> Enum.map(&resolve_host(&1, items)),
-      unsupported: unsupported(items)
+      hosts: items |> aliases() |> Enum.map(&resolve_host(&1, items, owned)),
+      unsupported: unsupported(items),
+      shared: for({owners, problem} <- owned, :shared in owners, uniq: true, do: problem)
     }
   end
 
@@ -128,7 +135,7 @@ defmodule Voyager.Services.SSH.Config do
   defp reject_include(item), do: item
 
   defp include_pattern(pattern, depth) do
-    if depth == @max_include_depth or String.contains?(pattern, ["%", "${"]) do
+    if depth == @max_include_depth or String.contains?(pattern, ["%", "{", "**", <<0>>]) do
       [@bad_include]
     else
       pattern
@@ -139,7 +146,7 @@ defmodule Voyager.Services.SSH.Config do
   end
 
   defp include_file(path, depth) do
-    case File.read(path) do
+    case LocalFiles.read_config(path) do
       {:ok, contents} -> [@every_host_header | parse_contents(contents, depth)]
       {:error, _reason} -> [@bad_include]
     end
@@ -186,22 +193,49 @@ defmodule Voyager.Services.SSH.Config do
     for {:problem, keyword, type} <- items, uniq: true, do: %{keyword: keyword, type: type}
   end
 
+  defp owned_problems(items) do
+    {problems, _owners} =
+      Enum.flat_map_reduce(items, [], fn
+        {:header, patterns}, _owners -> {[], owners(patterns)}
+        {:problem, keyword, type}, owners -> {[{owners, %{keyword: keyword, type: type}}], owners}
+        _item, owners -> {[], owners}
+      end)
+
+    problems
+  end
+
+  defp owners(patterns) do
+    literals = Enum.filter(patterns, &literal?/1)
+    if literals != [] and literals == patterns, do: literals, else: [:shared | literals]
+  end
+
   defp aliases(items) do
     for {:header, patterns} <- items,
         pattern <- patterns,
-        not String.contains?(pattern, ["*", "?", "!"]),
+        literal?(pattern),
         uniq: true,
         do: pattern
   end
 
-  defp resolve_host(host_alias, items) do
+  defp literal?(pattern), do: not String.contains?(pattern, ["*", "?", "!"])
+
+  defp resolve_host(host_alias, items, owned) do
     resolved =
       items
       |> settings_for(host_alias)
       |> Enum.reduce(%{alias: host_alias}, &merge_setting/2)
 
+    problems = for {owners, problem} <- owned, host_alias in owners, uniq: true, do: problem
+
     Map.merge(
-      %{host_name: nil, user: nil, port: nil, identity_files: [], identity_agent: nil},
+      %{
+        host_name: nil,
+        user: nil,
+        port: nil,
+        identity_files: [],
+        identity_agent: nil,
+        problems: problems
+      },
       resolved
     )
   end

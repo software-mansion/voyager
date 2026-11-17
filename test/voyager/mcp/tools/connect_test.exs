@@ -13,6 +13,7 @@ defmodule Voyager.MCP.Tools.ConnectTest do
   alias Voyager.Schemas.Connection
   alias Voyager.Schemas.SshConnection
   alias Voyager.Test.SshKeys
+  alias Voyager.Test.SshServer
 
   @ssh_meta %{ssh_user: "deploy", ssh_host: "gw", ssh_port: 22, epmd_port: 4369}
 
@@ -108,6 +109,38 @@ defmodule Voyager.MCP.Tools.ConnectTest do
       %{"connection_id" => "direct:#{conn.id}"} |> execute() |> assert_error()
 
       refute_received {:"$gen_cast", {:broadcast, "messages", _}}
+    end
+
+    @tag :tmp_dir
+    test "opens the Voyager connect form for an SSH host it has not verified", %{tmp_dir: dir} do
+      conn = saved_ssh_connection!(dir)
+
+      assert %{"status" => "awaiting_user"} =
+               %{"connection_id" => "ssh:#{conn.id}"} |> execute() |> run()
+
+      assert_received {:"$gen_cast", {:broadcast, "messages", path}}
+      assert path == "open:/?mode=ssh&connection=#{conn.id}"
+    end
+
+    @tag :tmp_dir
+    test "opens the Voyager connect form for an SSH host whose key changed", %{tmp_dir: dir} do
+      conn = saved_ssh_connection!(dir)
+
+      other_key =
+        :public_key.generate_key({:namedCurve, :ed25519}) |> :ssh_file.extract_public_key()
+
+      host = String.to_charlist("[127.0.0.1]:#{conn.ssh_port}")
+
+      File.write!(
+        Path.join(dir, "known_hosts"),
+        :ssh_file.encode([{other_key, [hostnames: [host]]}], :known_hosts)
+      )
+
+      assert %{"status" => "awaiting_user", "message" => message} =
+               %{"connection_id" => "ssh:#{conn.id}"} |> execute() |> run()
+
+      assert message =~ "changed SSH host key"
+      assert_received {:"$gen_cast", {:broadcast, "messages", _path}}
     end
   end
 
@@ -250,6 +283,24 @@ defmodule Voyager.MCP.Tools.ConnectTest do
 
       assert url =~ "/?node_name=app%40host&name_type=longnames"
     end
+  end
+
+  defp saved_ssh_connection!(dir) do
+    Application.put_env(:voyager, :known_hosts_path, Path.join(dir, "known_hosts"))
+    on_exit(fn -> Application.delete_env(:voyager, :known_hosts_path) end)
+    enable_proxy_epmd(%{})
+    %{port: port} = SshServer.start!({127, 0, 0, 1})
+    Process.register(self(), ElixirKit.PubSub)
+
+    insert!(%SshConnection{
+      ssh_user: SshServer.user(),
+      ssh_host: "127.0.0.1",
+      ssh_port: port,
+      node_name: "app@127.0.0.1",
+      cookie: "secret",
+      auth_method: :password,
+      password: SshServer.password()
+    })
   end
 
   defp insert!(connection) do

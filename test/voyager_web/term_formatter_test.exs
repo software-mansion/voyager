@@ -272,4 +272,70 @@ defmodule VoyagerWeb.TermFormatterTest do
       assert TermFormatter.format_mfa(nil, syntax: :elixir) == "nil"
     end
   end
+
+  describe "format_mfa_pattern/4" do
+    test "renders a concrete pattern like format_mfa/2" do
+      assert TermFormatter.format_mfa_pattern("Elixir.Enum", "map", 2, syntax: :elixir) ==
+               "Enum.map/2"
+
+      assert TermFormatter.format_mfa_pattern("Elixir.Enum", "map", 2, syntax: :erlang) ==
+               "'Elixir.Enum':map/2"
+    end
+
+    test "renders wildcards unquoted" do
+      assert TermFormatter.format_mfa_pattern("lists", "_", nil, syntax: :elixir) == ":lists._/_"
+      assert TermFormatter.format_mfa_pattern("lists", "_", nil, syntax: :erlang) == "lists:_/_"
+
+      assert TermFormatter.format_mfa_pattern("lists", "map", nil, syntax: :erlang) ==
+               "lists:map/_"
+    end
+
+    test "mfa_pattern_parts/4 splits off the module with its separator" do
+      assert TermFormatter.mfa_pattern_parts("Elixir.Enum", "map", 2, syntax: :elixir) ==
+               {"Enum.", "map/2"}
+
+      assert TermFormatter.mfa_pattern_parts("lists", "map", nil, syntax: :erlang) ==
+               {"lists:", "map/_"}
+    end
+
+    test "quotes Erlang names that need it" do
+      assert TermFormatter.format_mfa_pattern("Elixir.Date", "leap_year?", 1, syntax: :erlang) ==
+               "'Elixir.Date':'leap_year?'/1"
+
+      assert TermFormatter.format_mfa_pattern("lists", "receive", 0, syntax: :erlang) ==
+               "lists:'receive'/0"
+    end
+
+    test "renders names that are not atoms yet without interning them" do
+      assert TermFormatter.format_mfa_pattern(
+               "Elixir.VoyagerNeverInterned.Worker",
+               "voyager_never_interned?",
+               1,
+               syntax: :erlang
+             ) == "'Elixir.VoyagerNeverInterned.Worker':'voyager_never_interned?'/1"
+
+      assert TermFormatter.format_mfa_pattern(
+               "voyager_never_interned_mod",
+               "voyager_never_interned_fun",
+               nil,
+               syntax: :erlang
+             ) == "'voyager_never_interned_mod':'voyager_never_interned_fun'/_"
+
+      assert TermFormatter.format_mfa_pattern(
+               "Elixir.VoyagerNeverInterned.Worker",
+               "voyager_never_interned?",
+               1,
+               syntax: :elixir
+             ) == "VoyagerNeverInterned.Worker.voyager_never_interned?/1"
+
+      assert TermFormatter.format_mfa_pattern(
+               "voyager_never_interned_mod",
+               "voyager_never_interned_fun",
+               nil,
+               syntax: :elixir
+             ) == ":voyager_never_interned_mod.voyager_never_interned_fun/_"
+
+      assert_raise ArgumentError, fn -> String.to_existing_atom("voyager_never_interned_mod") end
+    end
+  end
 end

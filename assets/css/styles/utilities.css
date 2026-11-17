@@ -68,6 +68,10 @@
   --depth: 0;
 }
 
+@utility scrollbar-gutter-both {
+  scrollbar-gutter: stable both-edges;
+}
+
 @utility scrollbar-thin {
   scrollbar-width: thin;
   &::-webkit-scrollbar {

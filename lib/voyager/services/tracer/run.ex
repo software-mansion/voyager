@@ -6,12 +6,11 @@ defmodule Voyager.Services.Tracer.Run do
   alias Voyager.Services.Tracer.Entry
   alias Voyager.Services.Tracer.Session
 
-  # `*_before` are the session's counts when the run began, `shed` the events dropped here
+  # `dropped_before` is the session's count when the run began, `shed` the events dropped here
   # rather than by the agent, and `dropped_logged` the session total covered by `:dropped` entries.
-  @enforce_keys [:origin, :traces_before, :dropped_before, :dropped_logged, :started_ms]
+  @enforce_keys [:origin, :dropped_before, :dropped_logged, :started_ms]
   defstruct [
     :origin,
-    :traces_before,
     :dropped_before,
     :dropped_logged,
     :started_ms,
@@ -22,7 +21,6 @@ defmodule Voyager.Services.Tracer.Run do
 
   @type t :: %__MODULE__{
           origin: Tracer.origin(),
-          traces_before: non_neg_integer(),
           dropped_before: non_neg_integer(),
           dropped_logged: non_neg_integer(),
           started_ms: integer(),
@@ -35,7 +33,6 @@ defmodule Voyager.Services.Tracer.Run do
   def new(%Session{} = session, origin) do
     %__MODULE__{
       origin: origin,
-      traces_before: session.traces,
       dropped_before: session.dropped,
       dropped_logged: session.dropped,
       started_ms: System.monotonic_time(:millisecond)

@@ -1,6 +1,9 @@
 # The directory Mix will write compiled artifacts to.
 /_build/
 
+# SwiftPM build directory, left behind by `mix tauri.build`.
+/.build/
+
 # If you run "mix test --cover", coverage assets end up here.
 /cover/
 
@@ -54,6 +57,7 @@ npm-debug.log
 # Database files
 *.db
 *.db-*
+/priv/db/known_hosts
 
 *.beam
 .DS_Store
@@ -62,4 +66,6 @@ npm-debug.log
 /.elixir_ls/
 /.lexical/
 /.vscode/
-/.claude/
+/.claude/*
+!/.claude/skills/
+!/.claude/rules/

@@ -27,4 +27,13 @@ defmodule Voyager.Queries.Connections do
     |> limit(1)
     |> Repo.one()
   end
+
+  @spec unreadable_secrets?() :: boolean()
+  def unreadable_secrets? do
+    Connection
+    |> where([c], not is_nil(c.cookie))
+    |> select([c], c.cookie)
+    |> Repo.all()
+    |> Enum.any?(&is_nil/1)
+  end
 end

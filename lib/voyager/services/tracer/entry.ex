@@ -20,8 +20,9 @@ defmodule Voyager.Services.Tracer.Entry do
           optional(atom()) => term()
         }
 
-  @spec configured(Tracer.origin(), node(), Config.t()) :: unnumbered()
-  def configured(origin, node, config), do: build(:configured, origin, node: node, config: config)
+  @spec configured(Tracer.origin(), node(), Config.t(), Config.t() | nil) :: unnumbered()
+  def configured(origin, node, config, previous),
+    do: build(:configured, origin, node: node, config: config, previous: previous)
 
   @spec started(Tracer.origin()) :: unnumbered()
   def started(origin), do: build(:started, origin)

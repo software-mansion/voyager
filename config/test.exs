@@ -3,10 +3,7 @@ import Config
 # Disable node info auto-refresh in tests so LiveViews don't schedule timers.
 config :voyager, :node_info_refresh_interval_ms, nil
 
-config :voyager, Voyager.Vault,
-  ciphers: [
-    default: {Cloak.Ciphers.AES.GCM, tag: "AES.GCM.V1", key: <<0::256>>}
-  ]
+config :voyager, :vault_key, <<0::256>>
 
 config :voyager, Voyager.Repo,
   database: Path.expand("../priv/db/voyager_test.db", __DIR__),
@@ -14,6 +11,8 @@ config :voyager, Voyager.Repo,
   pool: Ecto.Adapters.SQL.Sandbox
 
 config :voyager, Voyager.MCP, enabled: false
+
+config :voyager, :global_known_hosts_path, Path.expand("../tmp/ssh_known_hosts", __DIR__)
 
 config :voyager, VoyagerWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],

@@ -32,7 +32,11 @@ defmodule VoyagerWeb.Router do
     live_session :settings,
       layout: {VoyagerWeb.Layouts, :settings},
       session: {VoyagerWeb.Hooks.UrlHook, :referer_session, []},
-      on_mount: [VoyagerWeb.Hooks.McpStatusHook, VoyagerWeb.Hooks.AppUpdateHook] do
+      on_mount: [
+        VoyagerWeb.Hooks.McpStatusHook,
+        VoyagerWeb.Hooks.TracingStatusHook,
+        VoyagerWeb.Hooks.AppUpdateHook
+      ] do
       live "/settings", SettingsLive, :index
     end
 
@@ -43,6 +47,7 @@ defmodule VoyagerWeb.Router do
         {VoyagerWeb.Hooks.NodeSessionHook, :require_connected_node},
         VoyagerWeb.Hooks.OnboardingHook,
         VoyagerWeb.Hooks.McpStatusHook,
+        VoyagerWeb.Hooks.TracingStatusHook,
         VoyagerWeb.Hooks.AppUpdateHook
       ] do
       live "/node/:node", NodeInfoLive, :index
@@ -53,6 +58,7 @@ defmodule VoyagerWeb.Router do
       live "/node/:node/ets-tables", EtsTablesLive, :index
       live "/node/:node/ets-tables/:table", EtsTableLive, :show
       live "/node/:node/tracing", ComingSoon.TracingLive, :index
+      live "/node/:node/tracing/:id", TracingSessionLive, :show
       live "/node/:node/sockets", ComingSoon.SocketsLive, :index
       live "/node/:node/ports", ComingSoon.PortsLive, :index
       live "/node/:node/charts", ComingSoon.ChartsLive, :index

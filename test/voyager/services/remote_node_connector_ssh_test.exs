@@ -18,6 +18,7 @@ defmodule Voyager.Services.RemoteNodeConnectorSshTest do
 
   @moduletag :ssh
   @moduletag capture_log: true
+  @moduletag :tmp_dir
 
   @cookie "ssh_test_cookie"
 
@@ -52,10 +53,12 @@ defmodule Voyager.Services.RemoteNodeConnectorSshTest do
   end
 
   setup ctx do
+    Application.put_env(:voyager, :known_hosts_path, Path.join(ctx.tmp_dir, "known_hosts"))
+    on_exit(fn -> Application.delete_env(:voyager, :known_hosts_path) end)
     {:ok, ssh_address} = :inet.parse_address(String.to_charlist(ctx.ssh_host))
-    %{port: ssh_port, daemon: daemon} = SshServer.start!(ssh_address)
+    %{port: ssh_port, daemon: daemon, fingerprint: fingerprint} = SshServer.start!(ssh_address)
     on_exit(fn -> :net_kernel.stop() end)
-    %{ssh_port: ssh_port, daemon: daemon}
+    %{ssh_port: ssh_port, daemon: daemon, fingerprint: fingerprint}
   end
 
   defp listen_args(:ipv4), do: []
@@ -73,7 +76,8 @@ defmodule Voyager.Services.RemoteNodeConnectorSshTest do
       Keyword.get(overrides, :node_name, Atom.to_string(ctx.peer_node)),
       Keyword.get(overrides, :cookie, @cookie),
       {:password, SshServer.password()},
-      ssh_port: ctx.ssh_port
+      ssh_port: ctx.ssh_port,
+      host_key: ctx.fingerprint
     )
   end
 

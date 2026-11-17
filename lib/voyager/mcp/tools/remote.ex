@@ -26,6 +26,9 @@ defmodule Voyager.MCP.Tools.Remote do
       {:ok, {:ok, payload}, _elapsed_us} ->
         Response.json(Response.tool(), jsonable(payload))
 
+      {:ok, {:error, message}, _elapsed_us} when is_binary(message) ->
+        Response.error(Response.tool(), message)
+
       {:ok, {:error, reason}, _elapsed_us} ->
         Response.error(Response.tool(), "fetch failed: #{inspect(reason)}")
 

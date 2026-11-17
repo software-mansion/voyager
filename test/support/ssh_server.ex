@@ -23,7 +23,8 @@ defmodule Voyager.Test.SshServer do
   @spec start!(:inet.ip_address(), authorized_keys: [:public_key.public_key()]) :: %{
           port: :inet.port_number(),
           daemon: :ssh.daemon_ref(),
-          host_key: :public_key.public_key()
+          host_key: :public_key.public_key(),
+          fingerprint: String.t()
         }
   def start!(address, opts \\ []) do
     host_key = :public_key.generate_key({:namedCurve, :ed25519})
@@ -48,11 +49,13 @@ defmodule Voyager.Test.SshServer do
     end)
 
     {:ok, info} = :ssh.daemon_info(daemon)
+    public_host_key = :ssh_file.extract_public_key(host_key)
 
     %{
       port: Keyword.fetch!(info, :port),
       daemon: daemon,
-      host_key: :ssh_file.extract_public_key(host_key)
+      host_key: public_host_key,
+      fingerprint: to_string(:ssh.hostkey_fingerprint(:sha256, public_host_key))
     }
   end
 

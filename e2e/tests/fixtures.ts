@@ -36,6 +36,7 @@ export const sel = {
   sshAuthPassword: '#ssh-auth-password',
   sshPasswordInput: '#ssh_password',
   sshRecentConnections: '#ssh-recent-connections',
+  unreadableSecrets: '#unreadable-secrets',
   sshAuthKey: '#ssh-auth-key',
   sshPortInput: '#ssh_ssh_port',
   sshKeyPathInput: '#ssh_key_path',

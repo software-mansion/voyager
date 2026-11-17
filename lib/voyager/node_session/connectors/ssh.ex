@@ -17,7 +17,7 @@ defmodule Voyager.NodeSession.Connectors.Ssh do
     with {:ok, ssh_user} <- fetch_required(opts, :ssh_user),
          {:ok, ssh_host} <- fetch_required(opts, :ssh_host) do
       auth = Keyword.get(opts, :auth, {:agent, nil})
-      rc_opts = Keyword.take(opts, [:ssh_port, :epmd_port, :name_type])
+      rc_opts = Keyword.take(opts, [:ssh_port, :epmd_port, :name_type, :host_key])
 
       case RemoteNodeConnector.connect(ssh_user, ssh_host, node_name, cookie, auth, rc_opts) do
         {:ok, node, conn_ref, local_port} ->

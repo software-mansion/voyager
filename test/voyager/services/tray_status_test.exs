@@ -43,6 +43,15 @@ defmodule Voyager.Services.TrayStatusTest do
     assert %{"connection" => nil} = receive_status()
   end
 
+  test "keeps running when the last connection's cookie cannot be decrypted" do
+    saved = insert!(%Connection{node_name: "corrupt@127.0.0.1", cookie: "secret"}, 0)
+    corrupt_secret!(saved, :cookie)
+
+    broadcast(NodeSession.topic(), {:nodedown, @node, :connection_closed})
+
+    assert %{"last_connection" => %{"node" => "corrupt@127.0.0.1"}} = receive_status()
+  end
+
   test "reconnects the last connection and reports the error when it fails" do
     started_here? = not Node.alive?()
     on_exit(fn -> if started_here? and Node.alive?(), do: :net_kernel.stop() end)

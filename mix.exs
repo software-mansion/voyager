@@ -38,8 +38,6 @@ defmodule Voyager.MixProject do
     [
       {:anubis_mcp, "~> 2.0"},
       {:bandit, "~> 1.12"},
-      {:cloak, "~> 1.1"},
-      {:cloak_ecto, "~> 1.3"},
       {:ecto_sql, "~> 3.13"},
       {:ecto_sqlite3, ">= 0.0.0"},
       {:elixirkit, github: "livebook-dev/elixirkit"},

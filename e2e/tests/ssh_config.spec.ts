@@ -72,7 +72,19 @@ test.describe('ConnectLive › SSH config import', () => {
 
     await importPickedFile(page, configPath);
 
-    await expect(page.locator(sel.sshConfigNotice)).toContainText('proxyjump');
+    await expect(page.locator(sel.sshConfigNotice)).toContainText(
+      'forwardagent'
+    );
+    await page
+      .locator(
+        `${sel.sshConfigHosts} [data-alias="prod"] [data-testid="ssh-host-problems"]`
+      )
+      .hover();
+    const problemsTip = page
+      .getByRole('tooltip')
+      .filter({ hasText: 'proxyjump' });
+    await expect(problemsTip).toBeVisible();
+    await expect(problemsTip).toContainText('Not supported');
     await hostButton(page, 'fill-ssh-host-btn', 'prod').click();
 
     await expect(page.locator(sel.sshConfigModal)).toBeHidden();

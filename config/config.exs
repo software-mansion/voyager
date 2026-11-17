@@ -45,4 +45,6 @@ config :phoenix, :json_library, Jason
 
 config :phoenix, :filter_parameters, ["password", "passphrase", "cookie"]
 
+config :anubis_mcp, request_state_ttl: to_timeout(minute: 10)
+
 import_config "#{config_env()}.exs"

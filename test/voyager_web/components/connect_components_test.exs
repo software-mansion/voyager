@@ -7,6 +7,11 @@ defmodule VoyagerWeb.ConnectComponentsTest do
   alias VoyagerWeb.ConnectComponents
 
   defp query(html, selector), do: html |> LazyHTML.from_fragment() |> LazyHTML.query(selector)
+
+  defp text(html, selector) do
+    html |> query(selector) |> LazyHTML.text() |> String.trim()
+  end
+
   defp count(html, selector), do: html |> query(selector) |> Enum.count()
   defp attr(html, selector, name), do: html |> query(selector) |> LazyHTML.attribute(name)
 
@@ -17,6 +22,32 @@ defmodule VoyagerWeb.ConnectComponentsTest do
       &ConnectComponents.path_field/1,
       Keyword.merge([field: form[:key_path], label: "Identity file"], attrs)
     )
+  end
+
+  test "escapes apostrophes in the copied ssh-keygen command" do
+    html =
+      render_component(&ConnectComponents.host_key_changed_modal/1,
+        id: "changed",
+        host: "user@host",
+        on_remove: "remove",
+        on_dismiss: "dismiss",
+        mismatch: %{
+          host: "x'; id #",
+          file: "/Users/O'Brien/.ssh/known_hosts",
+          line: 1,
+          key_type: "ED25519",
+          fingerprint: "SHA256:abc",
+          removable: false
+        }
+      )
+
+    command = text(html, "#changed-command")
+    args = String.replace_prefix(command, "ssh-keygen ", "")
+
+    {out, 0} =
+      System.cmd("sh", ["-c", "set -- #{args}; printf '%s\\n' \"$2\" \"$4\""])
+
+    assert out == "/Users/O'Brien/.ssh/known_hosts\nx'; id #\n"
   end
 
   describe "path_field/1" do
@@ -57,13 +88,12 @@ defmodule VoyagerWeb.ConnectComponentsTest do
         user: nil,
         port: nil,
         identity_files: [],
-        identity_agent: nil
+        identity_agent: nil,
+        problems: []
       },
       attrs
     )
   end
-
-  defp text(html, selector), do: html |> query(selector) |> LazyHTML.text()
 
   defp opener(attrs) do
     render_component(
@@ -154,26 +184,49 @@ defmodule VoyagerWeb.ConnectComponentsTest do
       assert count(html, "#modal-hosts .icon-check") == 1
     end
 
-    test "shows the notice only with unsupported settings" do
-      unsupported = [%{keyword: "proxyjump", type: :keyword}]
+    test "shows the notice only with shared problems" do
+      shared = [%{keyword: "proxyjump", type: :keyword}]
 
-      assert count(modal(hosts: [], unsupported: unsupported), "#ssh-config-notice") == 1
-      assert count(modal(hosts: [], unsupported: []), "#ssh-config-notice") == 0
+      assert count(modal(hosts: [], shared: shared), "#ssh-config-notice") == 1
+      assert count(modal(hosts: [], shared: []), "#ssh-config-notice") == 0
     end
   end
 
   describe "ssh_config_notice/1" do
-    test "lists a keyword reported under two types once" do
+    test "groups keywords by reason and lists a keyword under each of its reasons" do
       html =
         render_component(&ConnectComponents.ssh_config_notice/1,
           unsupported: [
+            %{keyword: "include", type: :block},
             %{keyword: "port", type: :value},
-            %{keyword: "port", type: :keyword},
-            %{keyword: "match", type: :block}
+            %{keyword: "include", type: :value},
+            %{keyword: "proxyjump", type: :keyword}
           ]
         )
 
-      assert html |> text("#ssh-config-notice .font-mono") |> String.trim() == "port, match"
+      assert attr(html, "#ssh-config-notice-reasons > div", "id") == [
+               "ssh-config-notice-reasons-keyword",
+               "ssh-config-notice-reasons-value",
+               "ssh-config-notice-reasons-block"
+             ]
+
+      assert text(html, "#ssh-config-notice-reasons-keyword dd") == "proxyjump"
+      assert text(html, "#ssh-config-notice-reasons-value dd") == "port, include"
+      assert text(html, "#ssh-config-notice-reasons-block dd") == "include"
+      assert text(html, "#ssh-config-notice summary") =~ "4 settings ignored"
+    end
+
+    test "skips reasons without keywords" do
+      html =
+        render_component(&ConnectComponents.ssh_config_notice/1,
+          unsupported: [%{keyword: "port", type: :value}]
+        )
+
+      assert attr(html, "#ssh-config-notice-reasons > div", "id") == [
+               "ssh-config-notice-reasons-value"
+             ]
+
+      assert text(html, "#ssh-config-notice summary") =~ "1 setting ignored"
     end
   end
 
@@ -192,6 +245,43 @@ defmodule VoyagerWeb.ConnectComponentsTest do
       assert text(host_row(ssh_host(%{identity_files: ["/k/a"]})), "button") =~ "key"
       assert text(host_row(ssh_host(%{identity_agent: "/a.sock"})), "button") =~ "agent"
       refute text(host_row(ssh_host(%{identity_agent: :none})), "button") =~ "agent"
+    end
+
+    test "marks a host with problems and names them by reason" do
+      problems = [
+        %{keyword: "port", type: :value},
+        %{keyword: "proxyjump", type: :keyword},
+        %{keyword: "hostname", type: :value}
+      ]
+
+      html = host_row(ssh_host(%{problems: problems}))
+
+      assert text(html, "[data-testid=ssh-host-problems]") =~ "3"
+      assert count(html, "[phx-hook=Tooltip] button[data-testid=ssh-host-problems]") == 1
+      assert count(html, "[data-testid=fill-ssh-host-btn] [data-testid=ssh-host-problems]") == 0
+      assert html =~ "proxyjump"
+      assert html =~ "port, hostname"
+    end
+
+    test "gives each host its own tooltip id" do
+      ids =
+        for host_alias <- ["prod", "my host"] do
+          html =
+            host_row(ssh_host(%{alias: host_alias, problems: [%{keyword: "x", type: :keyword}]}))
+
+          attr(html, "[phx-hook=Tooltip]", "id")
+        end
+
+      assert [[prod_id], [spaced_id]] = ids
+      assert prod_id != spaced_id
+      refute spaced_id =~ " "
+    end
+
+    test "does not mark a host without problems" do
+      html = host_row(ssh_host())
+
+      assert count(html, "[data-testid=ssh-host-problems]") == 0
+      assert count(html, "[phx-hook=Tooltip]") == 0
     end
 
     test "passes the alias to both events" do

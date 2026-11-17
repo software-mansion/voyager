@@ -25,8 +25,11 @@ defmodule Voyager.Services.RemoteNodeConnectorTest do
       assert match?({:error, _}, result)
     end
 
-    test "returns the SSH auth error for a wrong password" do
-      %{port: port} = SshServer.start!({127, 0, 0, 1})
+    @tag :tmp_dir
+    test "returns the SSH auth error for a wrong password", %{tmp_dir: tmp_dir} do
+      Application.put_env(:voyager, :known_hosts_path, Path.join(tmp_dir, "known_hosts"))
+      on_exit(fn -> Application.delete_env(:voyager, :known_hosts_path) end)
+      %{port: port, fingerprint: fingerprint} = SshServer.start!({127, 0, 0, 1})
 
       assert {:error, ~c"Unable to connect using the available authentication methods"} =
                RemoteNodeConnector.connect(
@@ -35,7 +38,8 @@ defmodule Voyager.Services.RemoteNodeConnectorTest do
                  "node@127.0.0.1",
                  "cookie",
                  {:password, "wrong"},
-                 ssh_port: port
+                 ssh_port: port,
+                 host_key: fingerprint
                )
     end
 

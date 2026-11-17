@@ -111,7 +111,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponentsTest do
         info: AsyncResult.ok(info),
         remote_node: node(),
         panel_id: "panel",
-        on_select: "select-link"
+        on_select: "select-relation"
       ]
 
       render_component(&DetailsPanelComponents.overview/1, Keyword.merge(defaults, attrs))
@@ -120,22 +120,22 @@ defmodule VoyagerWeb.Components.DetailsPanelComponentsTest do
     test "linkable pids jump in the tree" do
       html = render_overview([])
 
-      assert count(html, "button#panel-parent[phx-click=select-link]") == 1
-      assert count(html, "button#panel-group_leader[phx-click=select-link]") == 1
+      assert count(html, "button#panel-parent[phx-click=select-relation]") == 1
+      assert count(html, "button#panel-group_leader[phx-click=select-relation]") == 1
       assert count(html, "a") == 0
     end
 
     test "pids on another node are plain text" do
       html = render_overview(remote_node: :other@host)
 
-      assert count(html, "[phx-click=select-link]") == 0
+      assert count(html, "[phx-click=select-relation]") == 0
       assert count(html, "a") == 0
     end
 
     test "linkable pids are plain process links with current_url" do
       html = render_overview(current_url: "http://localhost/node/demo%40127.0.0.1/processes/x")
 
-      assert count(html, "[phx-click=select-link]") == 0
+      assert count(html, "[phx-click=select-relation]") == 0
       assert count(html, "a.text-primary") == 2
     end
   end

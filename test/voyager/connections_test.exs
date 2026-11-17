@@ -2,6 +2,8 @@ defmodule Voyager.ConnectionsTest do
   @moduledoc false
   use Voyager.DataCase, async: false
 
+  import Voyager.TestUtils
+
   alias Voyager.Actions.Connections, as: ConnectionActions
   alias Voyager.Queries.Connections, as: ConnectionQueries
   alias Voyager.Schemas.Connection
@@ -155,6 +157,23 @@ defmodule Voyager.ConnectionsTest do
 
     test "returns nil without connections" do
       assert ConnectionQueries.last() == nil
+    end
+  end
+
+  describe "unreadable_secrets?/0" do
+    test "is false when saved cookies decrypt or none were saved" do
+      insert_connection("saved@h", "secret", ~U[2020-01-01 00:00:00Z])
+      insert_connection("nocookie@h", nil, ~U[2020-01-02 00:00:00Z])
+
+      refute ConnectionQueries.unreadable_secrets?()
+    end
+
+    test "is true when a saved cookie cannot be decrypted, and it loads as nil" do
+      saved = insert_connection("corrupt@h", "secret", ~U[2020-01-01 00:00:00Z])
+      corrupt_secret!(saved, :cookie)
+
+      assert ConnectionQueries.unreadable_secrets?()
+      assert ConnectionQueries.get(saved.id).cookie == nil
     end
   end
 

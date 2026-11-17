@@ -20,7 +20,8 @@ defmodule Voyager.Services.SSH.ConfigTest do
     test "skips blank lines and comments" do
       assert Config.parse("\n   \n# Host commented\n\t# indented\n") == %{
                hosts: [],
-               unsupported: []
+               unsupported: [],
+               shared: []
              }
     end
 
@@ -84,7 +85,8 @@ defmodule Voyager.Services.SSH.ConfigTest do
                  user: nil,
                  port: nil,
                  identity_files: [],
-                 identity_agent: nil
+                 identity_agent: nil,
+                 problems: []
                }
              ]
     end
@@ -133,7 +135,8 @@ defmodule Voyager.Services.SSH.ConfigTest do
                  user: "deploy",
                  port: 2222,
                  identity_files: [Path.expand("~/.ssh/id_prod")],
-                 identity_agent: Path.expand("~/My Agent/agent.sock")
+                 identity_agent: Path.expand("~/My Agent/agent.sock"),
+                 problems: []
                }
              ]
     end
@@ -194,14 +197,15 @@ defmodule Voyager.Services.SSH.ConfigTest do
     test "matches * and ? wildcards" do
       contents = """
       Host db1 api.internal db10
+        Port 2222
 
       Host db? *.internal
         User ops
       """
 
-      assert host(contents, "db1").user == "ops"
-      assert host(contents, "api.internal").user == "ops"
-      assert host(contents, "db10").user == nil
+      assert %{port: 2222, user: "ops"} = host(contents, "db1")
+      assert %{port: 2222, user: "ops"} = host(contents, "api.internal")
+      assert %{port: 2222, user: nil} = host(contents, "db10")
     end
 
     test "skips a block whose negated pattern matches" do
@@ -362,6 +366,110 @@ defmodule Voyager.Services.SSH.ConfigTest do
     end
   end
 
+  describe "parse/1 problems" do
+    test "puts a problem on every host its block names" do
+      contents = """
+      Host prod staging
+        ProxyJump bastion
+        Port abc
+
+      Host dev
+      """
+
+      result = Config.parse(contents)
+      problems = [%{keyword: "proxyjump", type: :keyword}, %{keyword: "port", type: :value}]
+
+      assert host(contents, "prod").problems == problems
+      assert host(contents, "staging").problems == problems
+      assert host(contents, "dev").problems == []
+      assert result.shared == []
+    end
+
+    test "keeps problems from top-level lines and wildcard blocks shared" do
+      contents = """
+      AddKeysToAgent yes
+
+      Host *
+        ForwardAgent no
+
+      Host *.internal !legacy
+        Port abc
+
+      Host prod
+      """
+
+      result = Config.parse(contents)
+
+      assert host(contents, "prod").problems == []
+
+      assert result.shared == [
+               %{keyword: "addkeystoagent", type: :keyword},
+               %{keyword: "forwardagent", type: :keyword},
+               %{keyword: "port", type: :value}
+             ]
+    end
+
+    test "puts a problem from a mixed literal and wildcard header on the alias and shared" do
+      contents = """
+      Host prod *
+        ProxyJump bastion
+      Host staging
+      """
+
+      result = Config.parse(contents)
+      problem = %{keyword: "proxyjump", type: :keyword}
+
+      assert host(contents, "prod").problems == [problem]
+      assert result.shared == [problem]
+    end
+
+    test "keeps Match blocks and an empty Host shared" do
+      contents = """
+      Host prod
+      Match host *.corp
+        Port abc
+      Host
+        User a b
+      """
+
+      result = Config.parse(contents)
+
+      assert host(contents, "prod").problems == []
+
+      assert result.shared == [
+               %{keyword: "match", type: :block},
+               %{keyword: "port", type: :value},
+               %{keyword: "host", type: :value},
+               %{keyword: "user", type: :value}
+             ]
+    end
+
+    test "puts an include inside a block on that host", %{tmp_dir: tmp_dir} do
+      path = write!(tmp_dir, "extra", "USER\n")
+      contents = ~s(Host prod\n  Include "#{path}"\n)
+
+      assert host(contents, "prod").problems == [%{keyword: "include", type: :block}]
+      assert Config.parse(contents).shared == []
+    end
+
+    test "lists a problem once per host and keeps the full list unsupported" do
+      contents = """
+      Host prod
+        Port abc
+      Host prod
+        Port 0
+      Host *
+        Port xyz
+      """
+
+      result = Config.parse(contents)
+
+      assert host(contents, "prod").problems == [%{keyword: "port", type: :value}]
+      assert result.shared == [%{keyword: "port", type: :value}]
+      assert result.unsupported == [%{keyword: "port", type: :value}]
+    end
+  end
+
   describe "parse/1 with Include" do
     test "lists hosts from an included file", %{tmp_dir: tmp_dir} do
       path = write!(tmp_dir, "extra", "Host extra\n")
@@ -421,6 +529,26 @@ defmodule Voyager.Services.SSH.ConfigTest do
              ]
     end
 
+    test "reports an include path that is not a valid glob" do
+      for path <- ["~/.ssh/conf{", "~/.ssh/{a,{b,c}", "~/.ssh/conf\0", "/usr/**"] do
+        assert Config.parse("Include #{path}\n").unsupported == [
+                 %{keyword: "include", type: :value}
+               ],
+               path
+      end
+    end
+
+    test "reports a world-writable include without reading it", %{tmp_dir: tmp_dir} do
+      path = write!(tmp_dir, "extra", "Host extra\n")
+      File.chmod!(path, 0o666)
+
+      assert Config.parse(~s(Include "#{path}"\n)) == %{
+               hosts: [],
+               unsupported: [%{keyword: "include", type: :value}],
+               shared: [%{keyword: "include", type: :value}]
+             }
+    end
+
     test "stops a self-include at the depth limit", %{tmp_dir: tmp_dir} do
       path = Path.join(tmp_dir, "config")
       File.write!(path, ~s(Include "#{path}"\n))
@@ -434,7 +562,7 @@ defmodule Voyager.Services.SSH.ConfigTest do
       path = Path.join(tmp_dir, "config")
       File.write!(path, "")
 
-      assert Config.read(path) == {:ok, %{hosts: [], unsupported: []}}
+      assert Config.read(path) == {:ok, %{hosts: [], unsupported: [], shared: []}}
     end
 
     test "passes a read failure through", %{tmp_dir: tmp_dir} do

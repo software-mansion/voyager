@@ -10,7 +10,6 @@ defmodule Voyager.Application do
     elixirkit_pubsub = System.get_env("ELIXIRKIT_PUBSUB")
 
     children = [
-      Voyager.Vault,
       Voyager.Repo,
       {Ecto.Migrator,
        repos: Application.fetch_env!(:voyager, :ecto_repos), skip: skip_migrations?()},
@@ -26,6 +25,7 @@ defmodule Voyager.Application do
        config: Application.get_env(:voyager, :rate_limiter_config, %{})},
       {Voyager.Services.AppUpdater, native?: elixirkit_pubsub != nil},
       VoyagerWeb.Endpoint,
+      Voyager.Services.UsedRequestStates,
       Voyager.MCP,
       {Voyager.Services.TrayStatus, native?: elixirkit_pubsub != nil},
       {Task, fn -> if elixirkit_pubsub, do: ElixirKit.PubSub.broadcast("messages", "ready") end}

@@ -35,6 +35,11 @@ defmodule Voyager.Telemetry.Parser do
     agent_install_failed
     node_unreachable
     epmd_error
+    unknown_host_key
+    host_key_mismatch
+    host_key_revoked
+    known_hosts_unreadable
+    known_hosts_unwritable
   )a
 
   # Option keys are a bounded, non-sensitive set — safe to keep alongside the tag.

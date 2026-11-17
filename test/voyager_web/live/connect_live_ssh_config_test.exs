@@ -41,7 +41,8 @@ defmodule VoyagerWeb.ConnectLiveSshConfigTest do
     user: "deploy",
     port: 2222,
     identity_files: [],
-    identity_agent: nil
+    identity_agent: nil,
+    problems: []
   }
   @bare %{
     alias: "bare",
@@ -49,7 +50,8 @@ defmodule VoyagerWeb.ConnectLiveSshConfigTest do
     user: nil,
     port: nil,
     identity_files: [],
-    identity_agent: nil
+    identity_agent: nil,
+    problems: []
   }
 
   setup do
@@ -208,11 +210,21 @@ defmodule VoyagerWeb.ConnectLiveSshConfigTest do
       assert has_element?(view, "#ssh-config-modal-empty")
     end
 
-    test "shows the note for unsupported settings", %{conn: conn, tmp_dir: dir} do
+    test "shows the note for shared unsupported settings", %{conn: conn, tmp_dir: dir} do
       view = open_page(conn)
-      import_config(view, write_config!(dir, "Host prod\n  ProxyJump bastion\n"))
+      import_config(view, write_config!(dir, "Host *\n  ForwardAgent no\nHost prod\n"))
 
-      assert has_element?(view, "#ssh-config-notice", "proxyjump")
+      assert has_element?(view, "#ssh-config-notice", "forwardagent")
+      refute has_element?(view, "[data-testid=ssh-host-problems]")
+    end
+
+    test "marks the host for its own unsupported settings", %{conn: conn, tmp_dir: dir} do
+      view = open_page(conn)
+      import_config(view, write_config!(dir, "Host prod\n  ProxyJump bastion\nHost dev\n"))
+
+      assert has_element?(view, ~s|[data-alias="prod"] [data-testid=ssh-host-problems]|)
+      refute has_element?(view, ~s|[data-alias="dev"] [data-testid=ssh-host-problems]|)
+      refute has_element?(view, "#ssh-config-notice")
     end
 
     test "hides the note without unsupported settings", %{conn: conn, tmp_dir: dir} do
@@ -337,6 +349,45 @@ defmodule VoyagerWeb.ConnectLiveSshConfigTest do
       open_modal(view)
       pick(view, "bare")
       assert has_element?(view, "#ssh-advanced.hidden")
+    end
+  end
+
+  describe "picking an IdentityAgent none host" do
+    setup %{conn: conn, tmp_dir: dir} do
+      config = """
+      Host no-agent
+        IdentityAgent none
+
+      Host no-agent-key
+        IdentityFile /k/first
+        IdentityAgent none
+
+      Host bare
+      """
+
+      view = open_page(conn)
+      import_config(view, write_config!(dir, config))
+      %{view: view}
+    end
+
+    test "selects password auth without an identity file", %{view: view} do
+      pick(view, "no-agent")
+
+      assert has_element?(view, "#ssh-auth-password[checked]")
+    end
+
+    test "selects key auth with an identity file", %{view: view} do
+      pick(view, "no-agent-key")
+
+      assert has_element?(view, "#ssh-auth-key[checked]")
+    end
+
+    test "keeps that auth method for the next host", %{view: view} do
+      pick(view, "no-agent")
+      open_modal(view)
+      pick(view, "bare")
+
+      assert has_element?(view, "#ssh-auth-password[checked]")
     end
   end
 

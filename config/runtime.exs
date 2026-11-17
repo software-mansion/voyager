@@ -8,6 +8,9 @@ config :voyager,
 
 config :voyager, :env, config_env()
 
+# Signs MCP form state; a fresh one per boot only invalidates forms left open across a restart.
+config :anubis_mcp, request_state_secret: :crypto.strong_rand_bytes(32)
+
 if config_env() == :dev do
   config :voyager,
          :telemetry_handler,
@@ -28,10 +31,7 @@ if config_env() != :e2e do
 end
 
 if config_env() not in [:test, :e2e] do
-  config :voyager, Voyager.Vault,
-    ciphers: [
-      default: {Cloak.Ciphers.AES.GCM, tag: "AES.GCM.V1", key: Voyager.VaultKey.resolve!()}
-    ]
+  config :voyager, :vault_key, Voyager.VaultKey.resolve!()
 end
 
 if config_env() == :prod do

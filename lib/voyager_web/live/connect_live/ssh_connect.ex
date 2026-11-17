@@ -11,6 +11,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   alias Voyager.Queries.SshConnections, as: SshConnectionQueries
   alias Voyager.Schemas.SshConnection
   alias Voyager.Services.SSH.Config, as: SshConfig
+  alias Voyager.Services.SSH.KnownHosts
   alias VoyagerWeb.ConnectComponents
   alias VoyagerWeb.ConnectLive.KeyAuth
   alias VoyagerWeb.ConnectLive.RecentConnections
@@ -33,6 +34,11 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   def mount(socket) do
     socket
     |> assign(:id_prefix, @id_prefix)
+    |> assign(:connect_params, nil)
+    |> assign(:connect_auth, nil)
+    |> assign(:host_key_prompt, nil)
+    |> assign(:host_key_mismatch, nil)
+    |> assign(:host_key_remove_error, nil)
     |> ok()
   end
 
@@ -278,7 +284,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         form={@ssh_config_form}
         config_path={@ssh_config_path}
         hosts={@ssh_config_hosts}
-        unsupported={@ssh_config_unsupported}
+        shared={@ssh_config_shared}
         selected={@ssh_config_selected}
         target={@myself}
         on_close="close_ssh_config"
@@ -295,10 +301,33 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         id={"#{@id_prefix}passphrase-modal"}
         form={@passphrase_form}
         key_path={@ssh_form[:key_path].value}
+        checking={@checking_passphrase?}
         target={@myself}
         on_change="change_passphrase"
         on_submit="submit_passphrase"
         on_cancel="cancel_passphrase"
+      />
+
+      <ConnectComponents.host_key_modal
+        :if={@host_key_prompt}
+        id={"#{@id_prefix}host-key-modal"}
+        host={"#{@connect_params.ssh_user}@#{host_with_port(@connect_params)}"}
+        fingerprint={@host_key_prompt}
+        password_auth={@connect_params.auth_method == :password}
+        target={@myself}
+        on_accept="accept_host_key"
+        on_reject="reject_host_key"
+      />
+
+      <ConnectComponents.host_key_changed_modal
+        :if={@host_key_mismatch}
+        id={"#{@id_prefix}host-key-changed-modal"}
+        host={"#{@connect_params.ssh_user}@#{host_with_port(@connect_params)}"}
+        mismatch={@host_key_mismatch}
+        remove_error={@host_key_remove_error}
+        target={@myself}
+        on_remove="remove_host_key"
+        on_dismiss="dismiss_host_key_mismatch"
       />
     </div>
     """
@@ -371,7 +400,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
       {:ok, %SshConnectionParams{} = p} ->
         socket
         |> assign(:ssh_form, to_form(changeset, as: :ssh))
-        |> KeyAuth.connect(p, &start_connect/2)
+        |> KeyAuth.connect(p, &start_connect/3)
         |> noreply()
 
       {:error, changeset} ->
@@ -387,7 +416,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     case Ecto.Changeset.apply_action(socket.assigns.ssh_form.source, :insert) do
       {:ok, %SshConnectionParams{} = p} ->
         socket
-        |> KeyAuth.connect(%{p | passphrase: passphrase}, &start_connect/2)
+        |> KeyAuth.connect(%{p | passphrase: passphrase}, &start_connect/3)
         |> noreply()
 
       {:error, _changeset} ->
@@ -396,6 +425,45 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   end
 
   def handle_event("submit_passphrase", _params, socket), do: {:noreply, socket}
+
+  def handle_event("accept_host_key", _params, %{assigns: %{host_key_prompt: fp}} = socket)
+      when is_binary(fp) do
+    socket
+    |> assign(:host_key_prompt, nil)
+    |> start_connect(socket.assigns.connect_params, socket.assigns.connect_auth, fp)
+    |> noreply()
+  end
+
+  def handle_event("accept_host_key", _params, socket), do: {:noreply, socket}
+
+  def handle_event("reject_host_key", _params, socket) do
+    {:noreply, assign(socket, :host_key_prompt, nil)}
+  end
+
+  def handle_event(
+        "remove_host_key",
+        _params,
+        %{assigns: %{host_key_mismatch: %{removable: true} = mismatch}} = socket
+      ) do
+    case KnownHosts.forget(mismatch.host) do
+      :ok ->
+        socket
+        |> assign(:host_key_mismatch, nil)
+        |> assign(:host_key_remove_error, nil)
+        |> assign(:ssh_form, KeyAuth.checked_form(form_changeset(socket)))
+        |> start_connect(socket.assigns.connect_params, socket.assigns.connect_auth)
+        |> noreply()
+
+      {:error, reason} ->
+        {:noreply, assign(socket, :host_key_remove_error, remove_error(reason))}
+    end
+  end
+
+  def handle_event("remove_host_key", _params, socket), do: {:noreply, socket}
+
+  def handle_event("dismiss_host_key_mismatch", _params, socket) do
+    {:noreply, assign(socket, host_key_mismatch: nil, host_key_remove_error: nil)}
+  end
 
   def handle_event("fill_ssh_recent", _params, %{assigns: %{disabled?: true}} = socket) do
     {:noreply, socket}
@@ -413,6 +481,21 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
   end
 
   @impl true
+  def handle_async(:key_decode, result, socket) do
+    {:noreply, KeyAuth.handle_decode(socket, result, &start_connect/3)}
+  end
+
+  def handle_async(:ssh_connect, {:ok, {:error, {:unknown_host_key, fp}}}, socket) do
+    {:noreply, assign(socket, :host_key_prompt, fp)}
+  end
+
+  def handle_async(:ssh_connect, {:ok, {:error, {:host_key_mismatch, mismatch} = reason}}, socket) do
+    socket
+    |> put_connect_error(reason)
+    |> assign(:host_key_mismatch, mismatch)
+    |> noreply()
+  end
+
   def handle_async(:ssh_connect, {:ok, {:error, reason}}, socket) do
     {:noreply, put_connect_error(socket, reason)}
   end
@@ -425,17 +508,22 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     {:noreply, redirect(socket, to: ~p"/open")}
   end
 
-  defp start_connect(socket, %SshConnectionParams{} = p),
-    do: start_async(socket, :ssh_connect, fn -> connect(p) end)
+  defp start_connect(socket, %SshConnectionParams{} = p, auth, host_key \\ nil) do
+    socket
+    |> assign(:connect_params, p)
+    |> assign(:connect_auth, auth)
+    |> start_async(:ssh_connect, fn -> connect(p, auth, host_key) end)
+  end
 
-  defp connect(%SshConnectionParams{} = p) do
+  defp connect(%SshConnectionParams{} = p, auth, host_key) do
     opts = [
       ssh_user: p.ssh_user,
       ssh_host: p.ssh_host,
-      auth: SshConnectionParams.to_auth(p),
+      auth: auth,
       ssh_port: p.ssh_port,
       epmd_port: p.epmd_port,
-      name_type: p.name_type
+      name_type: p.name_type,
+      host_key: host_key
     ]
 
     with :ok <- NodeSession.connect_via(SshConnector, p.node_name, p.cookie, opts) do
@@ -515,10 +603,18 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
 
   defp prefill_form(nil), do: empty_ssh_form()
 
+  defp form_changeset(socket), do: SshConnectionParams.changeset(socket.assigns.ssh_form.params)
+
+  defp remove_error({:known_hosts_unwritable, file}),
+    do: "Couldn't remove the old key from #{file} — check its permissions"
+
+  defp remove_error({:known_hosts_unreadable, file}),
+    do: "Couldn't remove the old key — can't read #{file}"
+
   defp put_connect_error(socket, reason) do
     form =
-      socket.assigns.ssh_form.params
-      |> SshConnectionParams.changeset()
+      socket
+      |> form_changeset()
       |> Ecto.Changeset.add_error(error_field(reason), ConnectError.message(reason))
       |> Map.put(:action, :insert)
       |> to_form(as: :ssh)
@@ -526,7 +622,21 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
     assign(socket, :ssh_form, form)
   end
 
+  defp host_with_port(%SshConnectionParams{ssh_host: host, ssh_port: port}) do
+    if String.contains?(host, ":"), do: "[#{host}]:#{port}", else: "#{host}:#{port}"
+  end
+
   defp error_field({:invalid_host, _}), do: :ssh_host
+
+  defp error_field({reason, _file})
+       when reason in [
+              :host_key_mismatch,
+              :host_key_revoked,
+              :known_hosts_unreadable,
+              :known_hosts_unwritable
+            ],
+       do: :ssh_host
+
   defp error_field(reason) when is_list(reason), do: :ssh_user
 
   defp error_field(reason) when reason in @ssh_host_errors, do: :ssh_host

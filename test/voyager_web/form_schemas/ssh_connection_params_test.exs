@@ -178,19 +178,6 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParamsTest do
 
       assert SshConnectionParams.to_auth(params) == {:password, "s3cr3t"}
     end
-
-    test "returns {:key, path, passphrase} for key auth_method" do
-      attrs = Map.merge(valid_attrs(), %{"auth_method" => "key", "key_path" => "~/.ssh/id_rsa"})
-
-      {:ok, params} =
-        SshConnectionParams.changeset(attrs)
-        |> Ecto.Changeset.apply_action(:insert)
-
-      assert SshConnectionParams.to_auth(params) == {:key, "~/.ssh/id_rsa", nil}
-
-      assert SshConnectionParams.to_auth(%{params | passphrase: "pw"}) ==
-               {:key, "~/.ssh/id_rsa", "pw"}
-    end
   end
 
   describe "params_from_host/1" do
@@ -240,6 +227,20 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParamsTest do
 
       assert %{"key_path" => "/k/a", "agent_socket_path" => "/a/agent.sock"} = params
       refute Map.has_key?(params, "auth_method")
+    end
+
+    test "picks key auth for identity_agent none with an identity file" do
+      params =
+        SshConnectionParams.params_from_host(
+          host(%{identity_agent: :none, identity_files: ["/k/a"]})
+        )
+
+      assert params["auth_method"] == "key"
+    end
+
+    test "picks password auth for identity_agent none without an identity file" do
+      params = SshConnectionParams.params_from_host(host(%{identity_agent: :none}))
+      assert params["auth_method"] == "password"
     end
   end
 end

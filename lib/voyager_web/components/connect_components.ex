@@ -305,6 +305,7 @@ defmodule VoyagerWeb.ConnectComponents do
   attr :id, :string, required: true
   attr :form, Phoenix.HTML.Form, required: true
   attr :key_path, :string, required: true
+  attr :checking, :boolean, default: false
   attr :target, :any, default: nil
   attr :on_change, :string, required: true
   attr :on_submit, :string, required: true
@@ -322,7 +323,7 @@ defmodule VoyagerWeb.ConnectComponents do
       <.focus_wrap
         id={"#{@id}-box"}
         phx-mounted={JS.focus_first()}
-        class="modal-box border-base-content/20 max-w-md border shadow-2xl"
+        class="modal-box border-base-300 max-w-md border shadow-2xl"
       >
         <h2 id={"#{@id}-title"} class="text-base-content text-lg font-semibold tracking-tight">
           Key passphrase
@@ -348,12 +349,218 @@ defmodule VoyagerWeb.ConnectComponents do
             >
               Cancel
             </button>
-            <button type="submit" id={"#{@id}-submit"} class="btn btn-primary">
-              Connect
+            <button
+              type="submit"
+              id={"#{@id}-submit"}
+              disabled={@checking}
+              class="btn btn-primary gap-2"
+            >
+              <span :if={@checking} class="loading loading-spinner loading-sm"></span>
+              {if @checking, do: "Checking passphrase…", else: "Connect"}
             </button>
           </div>
         </.form>
       </.focus_wrap>
+    </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :host, :string, required: true, doc: "`user@host:port` being verified"
+  attr :fingerprint, :string, required: true
+  attr :password_auth, :boolean, default: false
+  attr :target, :any, default: nil
+  attr :on_accept, :string, required: true
+  attr :on_reject, :string, required: true
+
+  def host_key_modal(assigns) do
+    ~H"""
+    <div
+      id={@id}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={"#{@id}-title"}
+      class="modal modal-open"
+    >
+      <.focus_wrap
+        id={"#{@id}-box"}
+        phx-mounted={JS.focus_first()}
+        class="modal-box border-base-300 max-w-xl border shadow-2xl"
+      >
+        <h2 id={"#{@id}-title"} class="text-base-content text-lg font-semibold tracking-tight">
+          Unknown host key
+        </h2>
+        <p class="text-base-content/70 mt-1 text-sm">
+          Voyager has not connected to
+          <span class="font-mono text-base-content break-words">{@host}</span>
+          before. Check that its key fingerprint matches the server's before trusting it.
+        </p>
+
+        <.copy_field id={"#{@id}-fingerprint"} value={@fingerprint} label="Copy fingerprint" />
+
+        <div
+          :if={@password_auth}
+          id={"#{@id}-password-warning"}
+          role="alert"
+          class="alert alert-warning mt-4 text-sm"
+        >
+          <.icon name="icon-circle-alert" class="size-4 shrink-0" />
+          <span>Your SSH password will be sent to this host once you trust it.</span>
+        </div>
+
+        <div class="modal-action">
+          <button
+            type="button"
+            id={"#{@id}-reject"}
+            phx-target={@target}
+            phx-click={@on_reject}
+            class="btn btn-ghost"
+          >
+            Reject
+          </button>
+          <button
+            type="button"
+            id={"#{@id}-accept"}
+            phx-target={@target}
+            phx-click={@on_accept}
+            class="btn btn-primary"
+          >
+            Trust and connect
+          </button>
+        </div>
+      </.focus_wrap>
+    </div>
+    """
+  end
+
+  @doc """
+  Warns that a host's key differs from the one pinned for it. Offers to remove
+  a key pinned in Voyager's own `known_hosts`, otherwise shows the `ssh-keygen`
+  command that does it.
+  """
+  attr :id, :string, required: true
+  attr :host, :string, required: true, doc: "`user@host:port` being connected to"
+  attr :mismatch, :map, required: true, doc: "A `t:Voyager.Services.SSH.KnownHosts.mismatch/0`"
+  attr :remove_error, :string, default: nil
+  attr :target, :any, default: nil
+  attr :on_remove, :string, required: true
+  attr :on_dismiss, :string, required: true
+
+  def host_key_changed_modal(assigns) do
+    ~H"""
+    <div
+      id={@id}
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby={"#{@id}-title"}
+      aria-describedby={"#{@id}-warning"}
+      class="modal modal-open"
+    >
+      <.focus_wrap
+        id={"#{@id}-box"}
+        phx-mounted={JS.focus(to: "##{@id}-dismiss")}
+        class="modal-box max-w-xl shadow-2xl"
+      >
+        <h2
+          id={"#{@id}-title"}
+          class="text-error flex items-center gap-2 text-lg font-semibold tracking-tight"
+        >
+          <.icon name="icon-triangle-alert" class="size-5 shrink-0" />
+          Remote host identification has changed
+        </h2>
+
+        <div id={"#{@id}-warning"} role="alert" class="alert alert-error mt-4 text-sm">
+          <.icon name="icon-circle-alert" class="size-4 shrink-0" />
+          <span>
+            Someone could be eavesdropping on you right now (man-in-the-middle attack).
+            It is also possible that the host key has just been changed.
+          </span>
+        </div>
+
+        <p class="text-base-content/70 mt-4 text-sm">
+          The fingerprint for the {@mismatch.key_type} key sent by
+          <span class="font-mono text-base-content break-words">{@host}</span>
+          is
+        </p>
+        <.copy_field
+          id={"#{@id}-fingerprint"}
+          value={@mismatch.fingerprint}
+          label="Copy fingerprint"
+        />
+
+        <p class="text-base-content/70 mt-4 text-sm">
+          Offending {@mismatch.key_type} key on line {@mismatch.line} of
+        </p>
+        <.copy_field id={"#{@id}-location"} value={@mismatch.file} label="Copy path" />
+
+        <p class="text-base-content/70 mt-4 text-sm">
+          If you expected this change, confirm the new fingerprint with the server's
+          administrator, then remove the old key. {if @mismatch.removable,
+            do: "Voyager will ask you to trust the new one.",
+            else: "Voyager only edits its own known_hosts, so run:"}
+        </p>
+        <.copy_field
+          :if={not @mismatch.removable}
+          id={"#{@id}-command"}
+          value={"ssh-keygen -f #{shell_quote(@mismatch.file)} -R #{shell_quote(@mismatch.host)}"}
+          label="Copy command"
+        />
+
+        <div
+          :if={@remove_error}
+          id={"#{@id}-remove-error"}
+          role="alert"
+          class="alert alert-error mt-4 text-sm"
+        >
+          <.icon name="icon-circle-alert" class="size-4 shrink-0" />
+          <span>{@remove_error}</span>
+        </div>
+
+        <div class="modal-action">
+          <button
+            type="button"
+            id={"#{@id}-dismiss"}
+            phx-target={@target}
+            phx-click={@on_dismiss}
+            class="btn btn-ghost"
+          >
+            {if @mismatch.removable, do: "Cancel", else: "Close"}
+          </button>
+          <button
+            :if={@mismatch.removable}
+            type="button"
+            id={"#{@id}-remove"}
+            phx-target={@target}
+            phx-click={@on_remove}
+            class="btn btn-error dark:text-base-100"
+          >
+            Remove old key
+          </button>
+        </div>
+      </.focus_wrap>
+    </div>
+    """
+  end
+
+  # A ' ends a single-quoted shell word; '\'' puts one back.
+  defp shell_quote(value), do: "'" <> String.replace(value, "'", "'\\''") <> "'"
+
+  attr :id, :string, required: true
+  attr :value, :string, required: true
+  attr :label, :string, required: true
+
+  defp copy_field(assigns) do
+    ~H"""
+    <div class="bg-base-200 mt-4 flex w-full items-center gap-2 rounded-md py-1 pr-1 pl-3">
+      <code id={@id} class="font-mono text-base-content min-w-0 flex-1 break-words text-xs">{@value}</code>
+      <.copy_button
+        id={"#{@id}-copy"}
+        target={"##{@id}"}
+        icon_only
+        size={:sm}
+        label={@label}
+        class="shrink-0"
+      />
     </div>
     """
   end
@@ -410,7 +617,7 @@ defmodule VoyagerWeb.ConnectComponents do
   attr :form, Phoenix.HTML.Form, required: true
   attr :config_path, :string, required: true
   attr :hosts, :list, default: nil, doc: "`nil` until a file has been read"
-  attr :unsupported, :list, default: []
+  attr :shared, :list, default: []
   attr :selected, :map, default: nil
   attr :target, :any, default: nil
   attr :on_close, :string, required: true
@@ -433,14 +640,12 @@ defmodule VoyagerWeb.ConnectComponents do
       <.focus_wrap
         id={"#{@id}-box"}
         phx-mounted={JS.focus_first()}
-        class="modal-box border-base-content/20 flex max-w-md flex-col gap-3 border shadow-2xl"
+        class="modal-box border-base-300 max-w-md border shadow-2xl"
       >
-        <div>
-          <h2 id={"#{@id}-title"} class="text-base-content text-lg font-semibold tracking-tight">
-            Import from SSH config
-          </h2>
-          <p class="text-base-content/70 mt-1 text-xs">Pick a host to fill in the form.</p>
-        </div>
+        <h2 id={"#{@id}-title"} class="text-base-content text-lg font-semibold tracking-tight">
+          Import from SSH config
+        </h2>
+        <p class="text-base-content/70 mt-1 text-sm">Pick a host to fill in the form.</p>
 
         <.form
           :if={is_nil(@hosts)}
@@ -449,15 +654,26 @@ defmodule VoyagerWeb.ConnectComponents do
           phx-target={@target}
           phx-change={@on_change_path}
           phx-submit={@on_import}
-          class="flex flex-col gap-2"
+          class="mt-3"
         >
           <.path_field field={@form[:path]} label="Config file" placeholder="~/.ssh/config" />
-          <button type="submit" id={"#{@id}-import"} class="btn btn-primary w-full gap-2">
-            <.icon name="icon-download" class="size-4" /> Import config
-          </button>
+          <div class="modal-action mt-4">
+            <button
+              type="button"
+              id={"#{@id}-close"}
+              phx-target={@target}
+              phx-click={@on_close}
+              class="btn btn-ghost"
+            >
+              Close
+            </button>
+            <button type="submit" id={"#{@id}-import"} class="btn btn-primary gap-2">
+              <.icon name="icon-download" class="size-4" /> Import config
+            </button>
+          </div>
         </.form>
 
-        <div :if={@hosts} id={"#{@id}-source"} class="flex min-w-0 items-center gap-1">
+        <div :if={@hosts} id={"#{@id}-source"} class="mt-3 flex min-w-0 items-center gap-2">
           <span class="font-mono text-base-content/70 min-w-0 truncate text-xs">
             {@config_path}
           </span>
@@ -486,12 +702,12 @@ defmodule VoyagerWeb.ConnectComponents do
           </button>
         </div>
 
-        <.ssh_config_notice :if={@hosts && @unsupported != []} unsupported={@unsupported} />
+        <.ssh_config_notice :if={@hosts && @shared != []} unsupported={@shared} />
 
         <p
           :if={@hosts == []}
           id={"#{@id}-empty"}
-          class="text-base-content/70 border-base-content/20 rounded-lg border border-dashed p-4 text-center text-xs"
+          class="text-base-content/70 border-base-content/20 mt-3 rounded-lg border border-dashed p-4 text-center text-sm"
         >
           No hosts in this file.
         </p>
@@ -499,7 +715,7 @@ defmodule VoyagerWeb.ConnectComponents do
         <ul
           :if={@hosts not in [nil, []]}
           id={"#{@id}-hosts"}
-          class="flex max-h-72 flex-col gap-0.5 overflow-y-auto pr-3"
+          class="mt-2 flex max-h-72 flex-col gap-0.5 overflow-y-auto pr-3"
         >
           <li :for={host <- @hosts} class="list-none">
             <.ssh_host_row
@@ -512,13 +728,13 @@ defmodule VoyagerWeb.ConnectComponents do
           </li>
         </ul>
 
-        <div class="modal-action mt-2">
+        <div :if={@hosts} class="modal-action mt-4">
           <button
             type="button"
             id={"#{@id}-close"}
             phx-target={@target}
             phx-click={@on_close}
-            class="btn btn-soft btn-sm"
+            class="btn btn-ghost"
           >
             Close
           </button>
@@ -531,27 +747,47 @@ defmodule VoyagerWeb.ConnectComponents do
   attr :unsupported, :list, required: true
 
   def ssh_config_notice(assigns) do
-    assigns =
-      assign(assigns, :keywords, assigns.unsupported |> Enum.map(& &1.keyword) |> Enum.uniq())
+    assigns = assign(assigns, :count, length(assigns.unsupported))
 
     ~H"""
     <details
       id="ssh-config-notice"
       phx-mounted={JS.ignore_attributes("open")}
-      class="group text-base-content/70 text-xs"
+      class="group text-base-content/70 mt-3 text-sm"
     >
-      <summary class="summary-plain flex cursor-pointer items-center gap-1.5 transition-colors hover:text-base-content">
-        <.icon name="icon-circle-alert" class="text-warning size-3.5 shrink-0" />
-        {length(@keywords)} {if length(@keywords) == 1, do: "setting", else: "settings"} ignored
+      <summary class="summary-plain flex cursor-pointer items-center gap-2 transition-colors hover:text-base-content">
+        <.icon name="icon-circle-alert" class="text-warning size-4 shrink-0" />
+        {@count} {if @count == 1, do: "setting", else: "settings"} ignored
         <.icon
           name="icon-chevron-right"
-          class="size-3.5 shrink-0 transition-transform group-open:rotate-90"
+          class="size-4 shrink-0 transition-transform group-open:rotate-90"
         />
       </summary>
-      <p class="font-mono bg-base-200 border-base-content/20 mt-1.5 break-words rounded-md border p-2">
-        {Enum.join(@keywords, ", ")}
-      </p>
+      <.unsupported_list
+        id="ssh-config-notice-reasons"
+        unsupported={@unsupported}
+        class="bg-base-200 border-base-content/20 mt-2 rounded-md border p-3"
+      />
     </details>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :unsupported, :list, required: true
+  attr :class, :any, default: nil
+
+  defp unsupported_list(assigns) do
+    ~H"""
+    <dl id={@id} class={["grid-cols-[auto_1fr] grid gap-x-3 gap-y-1", @class]}>
+      <div
+        :for={{type, label, keywords} <- unsupported_rows(@unsupported)}
+        id={"#{@id}-#{type}"}
+        class="contents"
+      >
+        <dt class="text-base-content/50 whitespace-nowrap">{label}</dt>
+        <dd class="font-mono min-w-0 break-words">{Enum.join(keywords, ", ")}</dd>
+      </div>
+    </dl>
     """
   end
 
@@ -562,8 +798,11 @@ defmodule VoyagerWeb.ConnectComponents do
   attr :on_remove, :string, required: true
 
   def ssh_host_row(assigns) do
+    assigns =
+      assign(assigns, :problems_id, "ssh-host-problems-#{:erlang.phash2(assigns.host.alias)}")
+
     ~H"""
-    <div class="flex w-full items-center gap-1">
+    <div data-alias={@host.alias} class="flex w-full items-center gap-1">
       <button
         type="button"
         phx-target={@target}
@@ -601,6 +840,20 @@ defmodule VoyagerWeb.ConnectComponents do
         />
       </button>
 
+      <.tooltip :if={@host.problems != []} id={@problems_id} pinnable={false} class="shrink-0">
+        <button
+          type="button"
+          data-testid="ssh-host-problems"
+          aria-label={"#{length(@host.problems)} ignored settings for #{@host.alias}"}
+          class="badge badge-warning badge-soft badge-xs font-mono cursor-default gap-0.5"
+        >
+          <.icon name="icon-circle-alert" class="size-3" />{length(@host.problems)}
+        </button>
+        <:content>
+          <.unsupported_list id={"#{@problems_id}-reasons"} unsupported={@host.problems} />
+        </:content>
+      </.tooltip>
+
       <button
         type="button"
         phx-target={@target}
@@ -615,6 +868,18 @@ defmodule VoyagerWeb.ConnectComponents do
       </button>
     </div>
     """
+  end
+
+  defp unsupported_rows(unsupported) do
+    groups = Enum.group_by(unsupported, & &1.type, & &1.keyword)
+
+    for {type, label} <- [
+          keyword: "Not supported",
+          value: "Unsupported value",
+          block: "Skipped block"
+        ],
+        Map.has_key?(groups, type),
+        do: {type, label, groups[type]}
   end
 
   defp ssh_host_address(host) do

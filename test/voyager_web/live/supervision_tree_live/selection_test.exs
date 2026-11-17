@@ -113,5 +113,12 @@ defmodule VoyagerWeb.SupervisionTreeLive.SelectionTest do
       assert {:select, %TreeNode{type: :port, placeholder?: true}} =
                Selection.resolve_jump(tree([from]), port, from, MapSet.new())
     end
+
+    test "selects a placeholder for a reference outside the tree" do
+      from = node!("<0.60.0>", type: :supervisor, pid: pid("<0.60.0>"), child_count: 1)
+
+      assert {:select, %TreeNode{type: :reference, placeholder?: true}} =
+               Selection.resolve_jump(tree([from]), make_ref(), from, MapSet.new())
+    end
   end
 end
