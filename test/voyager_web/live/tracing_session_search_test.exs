@@ -142,6 +142,18 @@ defmodule VoyagerWeb.TracingSessionSearchTest do
     refute has_element?(view, "#log-no-matches")
   end
 
+  test "ignores a malformed search", %{conn: conn} do
+    %{id: id} = start!(@config)
+    view = open(conn, id)
+
+    for params <- [%{"search" => %{"query" => nil}}, %{"search" => "2023"}, %{}] do
+      render_hook(view, "search-log", params)
+    end
+
+    assert has_element?(view, "#entry-0", "Configured")
+    refute has_element?(view, "#log-footer", "Searching")
+  end
+
   test "returns to the live list when the search fails", %{conn: conn} do
     %{id: id} = start!(@config, save: true)
     trace_dates!([~D[2023-05-05]], 1)

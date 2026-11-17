@@ -226,11 +226,14 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> noreply()
   end
 
-  def handle_event("search-log", %{"search" => params}, socket) do
+  def handle_event("search-log", %{"search" => %{"query" => query} = params}, socket)
+      when is_binary(query) do
     socket
     |> Log.search(params)
     |> noreply()
   end
+
+  def handle_event("search-log", _params, socket), do: {:noreply, socket}
 
   @impl true
   # A broadcast for our id already ended the load, and is newer than its result.
