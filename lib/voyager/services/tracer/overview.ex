@@ -145,7 +145,7 @@ defmodule Voyager.Services.Tracer.Overview do
   @doc "The `{start_us, end_us}` span of each run and the chosen slice width `bucket_ms`."
   @spec plan_segments([run()], %{optional(pos_integer()) => integer()}) ::
           {[{integer(), integer()}], pos_integer()}
-  def plan_segments(runs, max_ats \\ %{}) do
+  def plan_segments(runs, max_ats) do
     spans =
       Enum.map(runs, fn run ->
         start_us = DateTime.to_unix(run.started_at, :microsecond)
