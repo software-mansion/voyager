@@ -85,9 +85,8 @@ defmodule Voyager.Services.McpConfigFile do
 
   defp read(path) do
     case File.read(path) do
-      {:ok, text} -> {:ok, text}
       {:error, :enoent} -> {:ok, ""}
-      {:error, reason} -> {:error, reason}
+      other -> other
     end
   end
 
