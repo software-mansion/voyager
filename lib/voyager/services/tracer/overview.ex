@@ -59,8 +59,7 @@ defmodule Voyager.Services.Tracer.Overview do
           previous_config: Config.t() | nil
         }
 
-  @spec live_bucket_ms() :: pos_integer()
-  def live_bucket_ms, do: @live_bucket_ms
+  @type live_counts :: %{optional(integer()) => pos_integer()}
 
   @doc """
   Builds the chronological list of runs from newest-first control `entries` and the
@@ -85,48 +84,40 @@ defmodule Voyager.Services.Tracer.Overview do
   end
 
   @doc """
-  Counts per-run `{run_index, at_us}` timestamps in fixed-width time slices. A running
-  session shows the last `@max_buckets` seconds up to `now`; otherwise each run gets its
-  own segment, with the time skipped since the previous run in `gap_before_ms`.
-  Slices are aligned to the clock or the run start, so a trace never moves to another
+  Counts per-run `{run_index, at_us}` timestamps of a stopped session in fixed-width time
+  slices: each run gets its own segment, with the time skipped since the previous run in
+  `gap_before_ms`. Slices are aligned to the run start, so a trace never moves to another
   slice as more arrive. Returns `nil` when there is nothing to draw.
   """
-  @spec activity([run()], [{pos_integer(), integer()}], DateTime.t()) :: activity() | nil
-  def activity(runs, run_timestamps, now \\ DateTime.utc_now())
-  def activity([], _run_timestamps, _now), do: nil
+  @spec activity([run()], [{pos_integer(), integer()}]) :: activity() | nil
+  def activity([], _run_timestamps), do: nil
+  def activity(runs, run_timestamps), do: full_activity(runs, run_timestamps)
 
-  def activity(runs, run_timestamps, now) do
-    if List.last(runs).reason == :running,
-      do: live_activity_from_timestamps(run_timestamps, now),
-      else: full_activity(runs, run_timestamps)
-  end
-
-  defp live_activity_from_timestamps(run_timestamps, now) do
+  @doc """
+  Adds the `:trace` entries of `entries` to the per-second `live` counts, keeping only the
+  `@max_buckets` seconds up to the newest one.
+  """
+  @spec count_live(live_counts(), [Entry.t()]) :: live_counts()
+  def count_live(live, entries) do
     bucket_us = @live_bucket_ms * 1_000
-    {first, last} = live_window(now)
 
-    counts =
-      Enum.reduce(run_timestamps, %{}, fn {_run, at}, acc ->
-        idx = div(at, bucket_us)
-        if idx >= first and idx <= last, do: Map.update(acc, idx, 1, &(&1 + 1)), else: acc
-      end)
+    case for(%{kind: :trace, at: at} <- entries, do: div(at, bucket_us)) do
+      [] ->
+        live
 
-    live_activity(first, last, counts)
+      idxs ->
+        live = Enum.reduce(idxs, live, fn idx, acc -> Map.update(acc, idx, 1, &(&1 + 1)) end)
+        oldest = Enum.max(Map.keys(live)) - @max_buckets
+        Map.reject(live, fn {idx, _count} -> idx <= oldest end)
+    end
   end
 
-  @doc "The `{first_bucket, last_bucket}` 1-second indices of a running session's live window."
-  @spec live_window(DateTime.t()) :: {integer(), integer()}
-  def live_window(now) do
+  @doc "A running session's `activity`: the last `@max_buckets` seconds of `live` counts up to `now`."
+  @spec live_activity(live_counts(), DateTime.t()) :: activity()
+  def live_activity(live, now \\ DateTime.utc_now()) do
     bucket_us = @live_bucket_ms * 1_000
     last = div(DateTime.to_unix(now, :microsecond), bucket_us)
-    {last - @max_buckets + 1, last}
-  end
-
-  @doc "Builds a live `activity` from `{first_bucket, last_bucket}` and a `%{bucket_idx => count}` map."
-  @spec live_activity(integer(), integer(), %{optional(integer()) => non_neg_integer()}) ::
-          activity()
-  def live_activity(first, last, counts) do
-    bucket_us = @live_bucket_ms * 1_000
+    first = last - @max_buckets + 1
 
     %{
       bucket_ms: @live_bucket_ms,
@@ -134,7 +125,7 @@ defmodule Voyager.Services.Tracer.Overview do
       segments: [
         %{
           start_us: first * bucket_us,
-          counts: for(idx <- first..last, do: Map.get(counts, idx, 0)),
+          counts: for(idx <- first..last, do: Map.get(live, idx, 0)),
           gap_before_ms: nil
         }
       ],

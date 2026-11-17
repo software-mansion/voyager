@@ -109,7 +109,7 @@ defmodule Voyager.Services.Tracer.OverviewTest do
     assert interrupted.stopped_at == nil
   end
 
-  test "activity/3 keeps a crashed run's traces out of the next run's gap" do
+  test "activity/2 keeps a crashed run's traces out of the next run's gap" do
     controls = [
       %{
         seq: 5,
@@ -149,7 +149,7 @@ defmodule Voyager.Services.Tracer.OverviewTest do
     assert second.gap_before_ms == 12_000
   end
 
-  test "activity/3 slices each run into fixed-width buckets with the gap between runs" do
+  test "activity/2 slices each run into fixed-width buckets with the gap between runs" do
     controls = [
       %{
         seq: 6,
@@ -194,7 +194,7 @@ defmodule Voyager.Services.Tracer.OverviewTest do
     assert Enum.at(second.counts, 18) == 1
   end
 
-  test "activity/3 keeps a trace in its slice as later traces arrive" do
+  test "activity/2 keeps a trace in its slice as later traces arrive" do
     controls = [%{seq: 0, kind: :started, at: 0, origin: :ui}]
     runs = Overview.runs(controls, session(status: :stopped, stop_reason: :stopped))
 
@@ -205,13 +205,19 @@ defmodule Voyager.Services.Tracer.OverviewTest do
     assert [%{counts: [0, 1, 1, 0, 0, 0, 0, 0, 0, 1]}] = later.segments
   end
 
-  test "activity/3 shows the last minute up to now while a run is going" do
-    controls = [%{seq: 0, kind: :started, at: 10_000_000, origin: :ui}]
-    runs = Overview.runs(controls, session(status: :running))
+  test "live_activity/2 shows the last minute of live counts up to now" do
+    live =
+      Overview.count_live(%{}, [
+        %{kind: :trace, at: 30_000_000},
+        %{kind: :started, at: 99_000_000},
+        %{kind: :trace, at: 99_200_000},
+        %{kind: :trace, at: 99_800_000}
+      ])
+
     now = DateTime.from_unix!(100_500_000, :microsecond)
 
     assert %{bucket_ms: 1_000, live?: true, end_us: 101_000_000, segments: [segment]} =
-             Overview.activity(runs, [{1, 30_000_000}, {1, 99_200_000}, {1, 99_800_000}], now)
+             Overview.live_activity(live, now)
 
     assert segment.start_us == 41_000_000
     assert length(segment.counts) == 60
@@ -219,7 +225,17 @@ defmodule Voyager.Services.Tracer.OverviewTest do
     assert Enum.sum(segment.counts) == 2
   end
 
-  test "activity/3 is nil without runs or, once stopped, without traces" do
+  test "count_live/2 keeps only the minute up to the newest trace" do
+    live = Overview.count_live(%{}, [%{kind: :trace, at: 1_000_000}])
+    assert Overview.count_live(live, []) == live
+
+    live = Overview.count_live(live, [%{kind: :trace, at: 60_500_000}])
+    assert live == %{1 => 1, 60 => 1}
+
+    assert Overview.count_live(live, [%{kind: :trace, at: 61_000_000}]) == %{60 => 1, 61 => 1}
+  end
+
+  test "activity/2 is nil without runs or without traces" do
     controls = [%{seq: 0, kind: :started, at: 0, origin: :ui}]
     runs = Overview.runs(controls, session(status: :stopped, stop_reason: :stopped))
 
