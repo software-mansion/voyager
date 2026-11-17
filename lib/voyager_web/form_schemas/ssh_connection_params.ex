@@ -76,6 +76,27 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParams do
   def to_auth(%__MODULE__{auth_method: :password, password: pw}) when is_binary(pw),
     do: {:password, pw}
 
+  @spec params_from_host(SSH.Config.host()) :: %{String.t() => String.t()}
+  def params_from_host(host) do
+    %{
+      "ssh_host" => host.host_name || host.alias,
+      "ssh_user" => host.user || "",
+      "ssh_port" => to_string(host.port || 22),
+      "key_path" => List.first(host.identity_files, ""),
+      "agent_socket_path" => agent_socket_path(host.identity_agent)
+    }
+    |> Map.merge(auth_method(host))
+  end
+
+  defp agent_socket_path(path) when is_binary(path), do: path
+  defp agent_socket_path(_none_or_nil), do: ""
+
+  defp auth_method(%{identity_agent: :none, identity_files: [_ | _]}),
+    do: %{"auth_method" => "key"}
+
+  defp auth_method(%{identity_agent: :none}), do: %{"auth_method" => "password"}
+  defp auth_method(_host), do: %{}
+
   defp validate_auth_fields(changeset) do
     case get_field(changeset, :auth_method) do
       :password -> validate_required(changeset, [:password])
