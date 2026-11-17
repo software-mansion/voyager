@@ -114,11 +114,16 @@ defmodule Voyager.Services.CodingAgents do
     }
   ]
 
-  @doc "Every agent with whether it is detected and whether its config already points at `url`."
+  @doc """
+  Every agent with whether it is detected and whether its config already points at `url`.
+  Empty when there is no home directory.
+  """
   @spec scan(String.t()) :: [agent()]
-  def scan(url) do
-    home = home()
+  def scan(url), do: scan(url, home())
 
+  defp scan(_url, nil), do: []
+
+  defp scan(url, home) do
     Enum.map(@agents, fn agent ->
       path = config_path(agent, home)
       {status, removable?} = config_state(agent, path, url)
@@ -140,19 +145,24 @@ defmodule Voyager.Services.CodingAgents do
   def install(id, url) do
     agent = Enum.find(@agents, &(&1.id == id))
 
-    McpConfigFile.put_server(
-      config_path(agent, home()),
-      agent.format,
-      agent.key,
-      entry(agent, url)
-    )
+    with {:ok, home} <- fetch_home() do
+      McpConfigFile.put_server(
+        config_path(agent, home),
+        agent.format,
+        agent.key,
+        entry(agent, url)
+      )
+    end
   end
 
   @doc "Removes the `voyager` entry from the agent's global config."
   @spec remove(id()) :: :ok | {:error, term()}
   def remove(id) do
     agent = Enum.find(@agents, &(&1.id == id))
-    McpConfigFile.delete_server(config_path(agent, home()), agent.format, agent.key)
+
+    with {:ok, home} <- fetch_home() do
+      McpConfigFile.delete_server(config_path(agent, home), agent.format, agent.key)
+    end
   end
 
   @spec fetch(String.t()) :: {:ok, id()} | :error
@@ -223,5 +233,12 @@ defmodule Voyager.Services.CodingAgents do
     Enum.find(paths, List.last(paths), &File.exists?/1)
   end
 
-  defp home, do: Application.get_env(:voyager, :coding_agents_home) || System.user_home!()
+  defp fetch_home do
+    case home() do
+      nil -> {:error, :no_home}
+      home -> {:ok, home}
+    end
+  end
+
+  defp home, do: Application.get_env(:voyager, :coding_agents_home) || System.user_home()
 end
