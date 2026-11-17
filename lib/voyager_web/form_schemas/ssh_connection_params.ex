@@ -78,18 +78,11 @@ defmodule VoyagerWeb.FormSchemas.SshConnectionParams do
 
   @spec params_from_host(SSH.Config.host()) :: %{String.t() => String.t()}
   def params_from_host(host) do
-    %{
-      "ssh_host" => host.host_name || host.alias,
-      "ssh_user" => host.user || "",
-      "ssh_port" => to_string(host.port || 22),
-      "key_path" => List.first(host.identity_files, ""),
-      "agent_socket_path" => agent_socket_path(host.identity_agent)
-    }
+    host
+    |> SSH.Config.connect_fields()
+    |> Map.new(fn {key, value} -> {Atom.to_string(key), to_string(value)} end)
     |> Map.merge(auth_method(host))
   end
-
-  defp agent_socket_path(path) when is_binary(path), do: path
-  defp agent_socket_path(_none_or_nil), do: ""
 
   defp auth_method(%{identity_agent: :none, identity_files: [_ | _]}),
     do: %{"auth_method" => "key"}

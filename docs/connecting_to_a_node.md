@@ -110,6 +110,8 @@ The SSH Tunnel option is disabled when Voyager was not started with its `proxy_e
 
 Voyager reads only `Host`, `HostName`, `User`, `Port`, `IdentityFile` and `IdentityAgent`, follows a top-level `Include`, and skips everything else. A host whose own `Host` block has a skipped setting gets a warning badge; hover it to see which settings and why: not supported, a value Voyager cannot use (such as `%h` tokens or `$VARS`), or a skipped block. Skipped settings from top-level lines, `Host *` and other wildcard blocks, and `Match` blocks are listed above the hosts instead. Patterns such as `*.internal` are not listed as hosts, but their settings still apply to the hosts they match.
 
+MCP clients can list the same hosts with the `list_ssh_config_hosts` tool, from the imported file or from `~/.ssh/config` when none is imported. This includes hostnames, users and key paths, but never the keys themselves.
+
 ## Voyager's own node and saved connections
 
 - Voyager starts its own distributed node named `voyager<suffix>`, with host `127.0.0.1` for long names and `localhost` for short names. Set the suffix under **Settings → Distribution** to run several Voyager instances side by side.
