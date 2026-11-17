@@ -222,8 +222,8 @@ defmodule VoyagerWeb.ConnectLiveSshConfigTest do
       view = open_page(conn)
       import_config(view, write_config!(dir, "Host prod\n  ProxyJump bastion\nHost dev\n"))
 
-      assert has_element?(view, ~s|[phx-value-alias="prod"] [data-testid=ssh-host-problems]|)
-      refute has_element?(view, ~s|[phx-value-alias="dev"] [data-testid=ssh-host-problems]|)
+      assert has_element?(view, ~s|[data-alias="prod"] [data-testid=ssh-host-problems]|)
+      refute has_element?(view, ~s|[data-alias="dev"] [data-testid=ssh-host-problems]|)
       refute has_element?(view, "#ssh-config-notice")
     end
 

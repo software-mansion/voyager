@@ -640,14 +640,12 @@ defmodule VoyagerWeb.ConnectComponents do
       <.focus_wrap
         id={"#{@id}-box"}
         phx-mounted={JS.focus_first()}
-        class="modal-box border-base-300 flex max-w-md flex-col gap-3 border shadow-2xl"
+        class="modal-box border-base-300 max-w-md border shadow-2xl"
       >
-        <div>
-          <h2 id={"#{@id}-title"} class="text-base-content text-lg font-semibold tracking-tight">
-            Import from SSH config
-          </h2>
-          <p class="text-base-content/70 mt-1 text-xs">Pick a host to fill in the form.</p>
-        </div>
+        <h2 id={"#{@id}-title"} class="text-base-content text-lg font-semibold tracking-tight">
+          Import from SSH config
+        </h2>
+        <p class="text-base-content/70 mt-1 text-sm">Pick a host to fill in the form.</p>
 
         <.form
           :if={is_nil(@hosts)}
@@ -656,15 +654,26 @@ defmodule VoyagerWeb.ConnectComponents do
           phx-target={@target}
           phx-change={@on_change_path}
           phx-submit={@on_import}
-          class="flex flex-col gap-2"
+          class="mt-3"
         >
           <.path_field field={@form[:path]} label="Config file" placeholder="~/.ssh/config" />
-          <button type="submit" id={"#{@id}-import"} class="btn btn-primary w-full gap-2">
-            <.icon name="icon-download" class="size-4" /> Import config
-          </button>
+          <div class="modal-action mt-4">
+            <button
+              type="button"
+              id={"#{@id}-close"}
+              phx-target={@target}
+              phx-click={@on_close}
+              class="btn btn-ghost"
+            >
+              Close
+            </button>
+            <button type="submit" id={"#{@id}-import"} class="btn btn-primary gap-2">
+              <.icon name="icon-download" class="size-4" /> Import config
+            </button>
+          </div>
         </.form>
 
-        <div :if={@hosts} id={"#{@id}-source"} class="flex min-w-0 items-center gap-1">
+        <div :if={@hosts} id={"#{@id}-source"} class="mt-3 flex min-w-0 items-center gap-2">
           <span class="font-mono text-base-content/70 min-w-0 truncate text-xs">
             {@config_path}
           </span>
@@ -698,7 +707,7 @@ defmodule VoyagerWeb.ConnectComponents do
         <p
           :if={@hosts == []}
           id={"#{@id}-empty"}
-          class="text-base-content/70 border-base-content/20 rounded-lg border border-dashed p-4 text-center text-xs"
+          class="text-base-content/70 border-base-content/20 mt-3 rounded-lg border border-dashed p-4 text-center text-sm"
         >
           No hosts in this file.
         </p>
@@ -706,7 +715,7 @@ defmodule VoyagerWeb.ConnectComponents do
         <ul
           :if={@hosts not in [nil, []]}
           id={"#{@id}-hosts"}
-          class="flex max-h-72 flex-col gap-0.5 overflow-y-auto pr-3"
+          class="mt-2 flex max-h-72 flex-col gap-0.5 overflow-y-auto pr-3"
         >
           <li :for={host <- @hosts} class="list-none">
             <.ssh_host_row
@@ -719,13 +728,13 @@ defmodule VoyagerWeb.ConnectComponents do
           </li>
         </ul>
 
-        <div class="modal-action mt-2">
+        <div :if={@hosts} class="modal-action mt-4">
           <button
             type="button"
             id={"#{@id}-close"}
             phx-target={@target}
             phx-click={@on_close}
-            class="btn btn-ghost btn-sm"
+            class="btn btn-ghost"
           >
             Close
           </button>
@@ -744,20 +753,20 @@ defmodule VoyagerWeb.ConnectComponents do
     <details
       id="ssh-config-notice"
       phx-mounted={JS.ignore_attributes("open")}
-      class="group text-base-content/70 text-xs"
+      class="group text-base-content/70 mt-3 text-sm"
     >
-      <summary class="summary-plain flex cursor-pointer items-center gap-1.5 transition-colors hover:text-base-content">
-        <.icon name="icon-circle-alert" class="text-warning size-3.5 shrink-0" />
+      <summary class="summary-plain flex cursor-pointer items-center gap-2 transition-colors hover:text-base-content">
+        <.icon name="icon-circle-alert" class="text-warning size-4 shrink-0" />
         {@count} {if @count == 1, do: "setting", else: "settings"} ignored
         <.icon
           name="icon-chevron-right"
-          class="size-3.5 shrink-0 transition-transform group-open:rotate-90"
+          class="size-4 shrink-0 transition-transform group-open:rotate-90"
         />
       </summary>
       <.unsupported_list
         id="ssh-config-notice-reasons"
         unsupported={@unsupported}
-        class="bg-base-200 border-base-content/20 mt-1.5 rounded-md border p-2"
+        class="bg-base-200 border-base-content/20 mt-2 rounded-md border p-3"
       />
     </details>
     """
@@ -793,7 +802,7 @@ defmodule VoyagerWeb.ConnectComponents do
       assign(assigns, :problems_id, "ssh-host-problems-#{:erlang.phash2(assigns.host.alias)}")
 
     ~H"""
-    <div class="flex w-full items-center gap-1">
+    <div data-alias={@host.alias} class="flex w-full items-center gap-1">
       <button
         type="button"
         phx-target={@target}
@@ -822,25 +831,6 @@ defmodule VoyagerWeb.ConnectComponents do
               label="agent"
               title={@host.identity_agent}
             />
-            <.tooltip
-              :if={@host.problems != []}
-              id={@problems_id}
-              pinnable={false}
-              class="shrink-0"
-            >
-              <span
-                data-testid="ssh-host-problems"
-                class="badge badge-warning badge-soft badge-xs font-mono gap-0.5"
-              >
-                <.icon name="icon-circle-alert" class="size-3" />{length(@host.problems)}
-              </span>
-              <:content>
-                <.unsupported_list
-                  id={"#{@problems_id}-reasons"}
-                  unsupported={@host.problems}
-                />
-              </:content>
-            </.tooltip>
           </div>
         </div>
         <.icon
@@ -849,6 +839,20 @@ defmodule VoyagerWeb.ConnectComponents do
           class="size-3.5 text-success shrink-0 self-center"
         />
       </button>
+
+      <.tooltip :if={@host.problems != []} id={@problems_id} pinnable={false} class="shrink-0">
+        <button
+          type="button"
+          data-testid="ssh-host-problems"
+          aria-label={"#{length(@host.problems)} ignored settings for #{@host.alias}"}
+          class="badge badge-warning badge-soft badge-xs font-mono cursor-default gap-0.5"
+        >
+          <.icon name="icon-circle-alert" class="size-3" />{length(@host.problems)}
+        </button>
+        <:content>
+          <.unsupported_list id={"#{@problems_id}-reasons"} unsupported={@host.problems} />
+        </:content>
+      </.tooltip>
 
       <button
         type="button"

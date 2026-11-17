@@ -398,6 +398,20 @@ defmodule Voyager.Services.SSH.ConfigTest do
              ]
     end
 
+    test "puts a problem from a mixed literal and wildcard header on the alias and shared" do
+      contents = """
+      Host prod *
+        ProxyJump bastion
+      Host staging
+      """
+
+      result = Config.parse(contents)
+      problem = %{keyword: "proxyjump", type: :keyword}
+
+      assert host(contents, "prod").problems == [problem]
+      assert result.shared == [problem]
+    end
+
     test "keeps Match blocks and an empty Host shared" do
       contents = """
       Host prod

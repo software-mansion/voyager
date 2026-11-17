@@ -257,7 +257,8 @@ defmodule VoyagerWeb.ConnectComponentsTest do
       html = host_row(ssh_host(%{problems: problems}))
 
       assert text(html, "[data-testid=ssh-host-problems]") =~ "3"
-      assert count(html, "[phx-hook=Tooltip] [data-testid=ssh-host-problems]") == 1
+      assert count(html, "[phx-hook=Tooltip] button[data-testid=ssh-host-problems]") == 1
+      assert count(html, "[data-testid=fill-ssh-host-btn] [data-testid=ssh-host-problems]") == 0
       assert html =~ "proxyjump"
       assert html =~ "port, hostname"
     end

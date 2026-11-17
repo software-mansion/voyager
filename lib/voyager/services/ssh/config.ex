@@ -15,7 +15,7 @@ defmodule Voyager.Services.SSH.Config do
 
   @type unsupported :: %{keyword: String.t(), type: :keyword | :block | :value}
 
-  @typedoc "`shared` holds the problems outside any block that names a host alias exactly."
+  @typedoc "`shared` holds the problems from any block that can match more than its exact aliases."
   @type result :: %{hosts: [host()], unsupported: [unsupported()], shared: [unsupported()]}
 
   @max_include_depth 16
@@ -53,7 +53,7 @@ defmodule Voyager.Services.SSH.Config do
     %{
       hosts: items |> aliases() |> Enum.map(&resolve_host(&1, items, owned)),
       unsupported: unsupported(items),
-      shared: for({[], problem} <- owned, uniq: true, do: problem)
+      shared: for({owners, problem} <- owned, :shared in owners, uniq: true, do: problem)
     }
   end
 
@@ -173,12 +173,17 @@ defmodule Voyager.Services.SSH.Config do
   defp owned_problems(items) do
     {problems, _owners} =
       Enum.flat_map_reduce(items, [], fn
-        {:header, patterns}, _owners -> {[], Enum.filter(patterns, &literal?/1)}
+        {:header, patterns}, _owners -> {[], owners(patterns)}
         {:problem, keyword, type}, owners -> {[{owners, %{keyword: keyword, type: type}}], owners}
         _item, owners -> {[], owners}
       end)
 
     problems
+  end
+
+  defp owners(patterns) do
+    literals = Enum.filter(patterns, &literal?/1)
+    if literals != [] and literals == patterns, do: literals, else: [:shared | literals]
   end
 
   defp aliases(items) do
