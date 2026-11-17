@@ -51,6 +51,23 @@ defmodule VoyagerWeb.TracingSessionSearchTest do
     refute has_element?(view, "#log-older")
   end
 
+  test "loads an unsaved session's older matches after its buffer moved on", %{conn: conn} do
+    %{id: id} = start!(@config)
+    trace_dates!(List.duplicate(~D[2023-05-05], 150), 150)
+    view = open(conn, id)
+
+    search(view, "2023")
+    trace_dates!(List.duplicate(~D[2024-01-01], 500), 650)
+
+    view
+    |> element("#log-older")
+    |> render_click()
+
+    assert has_element?(view, "#entry-2")
+    assert has_element?(view, "#log-footer", "150 matches in the newest 500 events")
+    refute has_element?(view, "#log-older")
+  end
+
   test "shows the empty state when nothing matches", %{conn: conn} do
     %{id: id} = start!(@config)
     trace_dates!([~D[2024-01-01]], 1)

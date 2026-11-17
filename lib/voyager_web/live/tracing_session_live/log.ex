@@ -63,6 +63,9 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
 
   @doc "Appends the page below `oldest_seq`, pausing a running view first; the next match page while searching."
   @spec older(Socket.t()) :: Socket.t()
+  def older(%{assigns: %{search: %{rest: [_ | _] = rest}}} = socket),
+    do: put_matches(socket, %{entries: rest, total: nil})
+
   def older(%{assigns: %{search: %{}}} = socket), do: start_search(socket)
 
   def older(socket) do
@@ -87,7 +90,14 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
 
       query ->
         socket
-        |> assign(:search, %{query: query, total: nil, shown: 0, oldest_seq: nil, traces: nil})
+        |> assign(:search, %{
+          query: query,
+          total: nil,
+          shown: 0,
+          oldest_seq: nil,
+          traces: nil,
+          rest: []
+        })
         |> start_search()
     end
   end
@@ -235,14 +245,19 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
   end
 
   defp start_search(%{assigns: %{id: id, search: %{query: query, oldest_seq: before}}} = socket) do
-    opts = [limit: @search_limit] ++ if(before, do: [before: before], else: [])
+    opts = [limit: search_limit(id)] ++ if(before, do: [before: before], else: [])
 
     socket
     |> cancel_async(:search)
     |> start_async(:search, fn -> Tracer.search(id, query, opts) end)
   end
 
+  # An unsaved session's buffer keeps evicting, so its one search takes every match to page from.
+  defp search_limit(id) when id > 0, do: @search_limit
+  defp search_limit(_id), do: Tracer.kept_traces()
+
   defp put_matches(%{assigns: %{search: search}} = socket, %{entries: entries, total: total}) do
+    {entries, rest} = Enum.split(entries, @search_limit)
     first? = is_nil(search.total)
     shown = search.shown + length(entries)
     total = if length(entries) < @search_limit, do: shown, else: search.total || total
@@ -254,7 +269,8 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
       | total: total,
         shown: shown,
         oldest_seq: List.last(entries, %{seq: search.oldest_seq}).seq,
-        traces: search.traces || socket.assigns.trace_session.result.traces
+        traces: search.traces || socket.assigns.trace_session.result.traces,
+        rest: rest
     })
   end
 
