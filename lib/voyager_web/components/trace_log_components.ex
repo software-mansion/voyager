@@ -336,7 +336,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
               </span>
               <span class={term_class(@entry.type)}>
                 <.highlighted
-                  text={term_text(@entry, @wildcard?)}
+                  text={term_text(@entry, @wildcard?, @query)}
                   syntax={if plain?(@entry), do: nil, else: @syntax}
                   query={@query}
                   clip?
@@ -560,22 +560,27 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
   defp term_class(:exception), do: "text-error"
   defp term_class(_type), do: "text-base-content"
 
-  defp term_text(%{type: :call, args: args, mfa: {_module, function, _arity}}, wildcard?)
+  defp term_text(%{type: :call, args: args, mfa: {_module, function, _arity}}, wildcard?, query)
        when is_list(args) do
     name = if wildcard?, do: Atom.to_string(function), else: ""
-    name <> "(" <> Enum.map_join(args, ", ", &format_term/1) <> ")"
+    name <> "(" <> Enum.map_join(args, ", ", &format_term(&1, query)) <> ")"
   end
 
-  defp term_text(%{type: :call, mfa: mfa}, _wildcard?), do: fun_arity(mfa)
+  defp term_text(%{type: :call, mfa: mfa}, _wildcard?, _query), do: fun_arity(mfa)
 
-  defp term_text(%{type: :exception, value: {class, reason}}, _wildcard?),
-    do: format_term(class) <> ", " <> format_term(reason)
+  defp term_text(%{type: :exception, value: {class, reason}}, _wildcard?, query),
+    do: format_term(class, query) <> ", " <> format_term(reason, query)
 
-  defp term_text(%{value: value}, _wildcard?), do: format_term(value)
+  defp term_text(%{value: value}, _wildcard?, query), do: format_term(value, query)
 
   defp fun_arity({_module, function, arity}), do: "#{function}/#{arity}"
 
-  defp format_term(term), do: Formatters.format_term(term, limit: 20, printable_limit: @row_cap)
+  defp format_term(term, nil),
+    do: Formatters.format_term(term, limit: 20, printable_limit: @row_cap)
+
+  # The search text is uncut, so a match can lie past the row's limits; clip/3 shortens the row.
+  defp format_term(term, _query),
+    do: Formatters.format_term(term, limit: :infinity, printable_limit: :infinity)
 
   defp tip_terms(entry) do
     terms = labelled_terms(entry)
