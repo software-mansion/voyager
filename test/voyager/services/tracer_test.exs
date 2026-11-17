@@ -589,6 +589,28 @@ defmodule Voyager.Services.TracerTest do
     assert second.gap_before_ms == 12_000
   end
 
+  test "overview/1 spans a last run interrupted at boot by its traces, not the boot time" do
+    assert {:ok, %{id: id}} = TraceSessionActions.create(%{origin: :ui, status: :running})
+    day_ago = System.os_time(:microsecond) - 86_400_000_000
+
+    TraceEntryActions.insert_all(id, [
+      %{seq: 0, kind: :started, at: day_ago, origin: :ui},
+      trace_row(1, day_ago + 1_000_000),
+      trace_row(2, day_ago + 7_000_000)
+    ])
+
+    TraceSessionActions.interrupt_running()
+
+    assert {:ok, %{runs: [run], activity: %{bucket_ms: 1_000, segments: [segment]}}} =
+             Tracer.overview(id)
+
+    assert run.stopped_at == nil
+    assert run.reason == :interrupted
+    assert run.traces == 2
+    assert run.duration_ms == 7_000
+    assert segment.counts == [0, 1, 0, 0, 0, 0, 1]
+  end
+
   defp trace_row(seq, at) do
     %{
       seq: seq,
