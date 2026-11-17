@@ -23,7 +23,8 @@ defmodule VoyagerWeb.TermHighlight do
         else: :binary.matches(String.downcase(text, :ascii), String.downcase(query, :ascii))
 
     segments = if syntax, do: segments(text, syntax), else: [{nil, 0, byte_size(text)}]
-    Enum.flat_map(segments, &segment_parts(text, &1, marks))
+    {parts, _marks} = Enum.flat_map_reduce(segments, marks, &segment_parts(text, &1, &2))
+    parts
   end
 
   @doc """
@@ -93,20 +94,21 @@ defmodule VoyagerWeb.TermHighlight do
     do:
       ~r/("(?:[^"\\]|\\.)*(?:"|$))|(~[a-zA-Z]+\[[^\]]*\]|#[A-Z][\w.]*<[^>]*>|<\d+\.\d+\.\d+>)|(\b(?:nil|true|false)\b)|(:"(?:[^"\\]|\\.)*"|:[a-zA-Z_][\w@]*[?!]?|\b[a-z_][\w@]*[?!]?:(?=\s)|\b[A-Z]\w*(?:\.[A-Z]\w*)*)|(-?\b\d[\d_]*(?:\.\d+)?(?:e[+-]?\d+)?\b)|('(?:[^'\\]|\\.)*'|\b[a-z][\w@]*)/
 
-  # Marks arrive in order and never overlap, so their edges are already sorted.
+  # Segments tile the text in order and marks never overlap, so one walk splits them all.
   defp segment_parts(text, {kind, from, to}, marks) do
-    edges =
-      for {at, length} <- marks,
-          edge <- [at, at + length],
-          edge > from and edge < to,
-          uniq: true,
-          do: edge
+    {ranges, last} =
+      marks
+      |> Enum.take_while(fn {at, _length} -> at < to end)
+      |> Enum.flat_map_reduce(from, fn {at, length}, at_least ->
+        mark_end = min(at + length, to)
+        {[{false, at_least, at}, {true, max(at, at_least), mark_end}], mark_end}
+      end)
 
-    [from | edges]
-    |> Enum.zip(edges ++ [to])
-    |> Enum.map(fn {from, to} ->
-      marked? = Enum.any?(marks, fn {at, length} -> from >= at and from < at + length end)
-      {kind, marked?, binary_part(text, from, to - from)}
-    end)
+    parts =
+      for {marked?, from, to} <- ranges ++ [{false, last, to}],
+          from < to,
+          do: {kind, marked?, binary_part(text, from, to - from)}
+
+    {parts, Enum.drop_while(marks, fn {at, length} -> at + length <= to end)}
   end
 end
