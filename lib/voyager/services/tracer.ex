@@ -252,7 +252,8 @@ defmodule Voyager.Services.Tracer do
 
   @doc """
   The runs, activity histogram and event `Summary` of session `id`. Runs in the caller for
-  saved sessions; unsaved sessions read their in-memory controls, kept traces and summary.
+  saved sessions. The active session's summary and, while it runs, its activity come from
+  memory, so polling a running session does not read its traces from the database.
   """
   @spec overview(integer()) ::
           {:ok,
@@ -264,8 +265,8 @@ defmodule Voyager.Services.Tracer do
           | {:error, :not_found}
   def overview(id) when is_integer(id) do
     case GenServer.call(__MODULE__, {:overview, id}) do
-      {:saved, active_session} ->
-        with_saved(id, fn row -> {:ok, saved_overview(row, active_session)} end)
+      {:saved, active} ->
+        with_saved(id, fn row -> {:ok, saved_overview(row, active)} end)
 
       reply ->
         reply
@@ -324,7 +325,7 @@ defmodule Voyager.Services.Tracer do
       row ->
         row
         |> saved_session()
-        |> activate()
+        |> activate(%MemoryLog{summary: TraceEntryQueries.summary(id)})
     end
   end
 
@@ -408,13 +409,18 @@ defmodule Voyager.Services.Tracer do
         %{session: %{id: id, save: false} = session} = state
       ) do
     runs = Overview.runs(state.log.controls, session)
-    timestamps = Overview.trace_timestamps(runs, state.log.traces)
-    activity = Overview.activity(runs, timestamps)
+
+    activity =
+      live_activity(state) ||
+        Overview.activity(runs, Overview.trace_timestamps(runs, state.log.traces))
+
     {:reply, {:ok, %{runs: runs, activity: activity, summary: state.log.summary}}, state}
   end
 
-  def handle_call({:overview, id}, _from, %{session: %{id: id} = session} = state),
-    do: {:reply, {:saved, session}, state}
+  def handle_call({:overview, id}, _from, %{session: %{id: id} = session} = state) do
+    active = %{session: session, summary: state.log.summary, live: live_activity(state)}
+    {:reply, {:saved, active}, state}
+  end
 
   def handle_call({:overview, _id}, _from, state), do: {:reply, {:saved, nil}, state}
 
@@ -548,23 +554,10 @@ defmodule Voyager.Services.Tracer do
 
   defp fill_interrupted_run(_session_id, run), do: run
 
-  defp saved_overview(row, active_session) do
+  defp saved_overview(row, nil) do
     controls = TraceEntryQueries.controls(row.id)
-
-    session =
-      active_session ||
-        Session.from_row(
-          row,
-          controls,
-          TraceEntryQueries.traces_before_last_run(row.id),
-          0,
-          0
-        )
-
-    runs =
-      controls
-      |> Overview.runs(session)
-      |> Enum.map(&fill_interrupted_run(row.id, &1))
+    traces_before = TraceEntryQueries.traces_before_last_run(row.id)
+    runs = saved_runs(row.id, controls, Session.from_row(row, controls, traces_before, 0, 0))
 
     %{
       runs: runs,
@@ -573,10 +566,27 @@ defmodule Voyager.Services.Tracer do
     }
   end
 
-  defp activate(session) do
+  defp saved_overview(row, %{session: session, summary: summary, live: live}) do
+    runs = saved_runs(row.id, TraceEntryQueries.controls(row.id), session)
+    %{runs: runs, activity: live || TraceEntryQueries.activity(row.id, runs), summary: summary}
+  end
+
+  # ponytail: interrupted runs are range-scanned on every poll; cache them at load if that gets slow.
+  defp saved_runs(session_id, controls, session) do
+    controls
+    |> Overview.runs(session)
+    |> Enum.map(&fill_interrupted_run(session_id, &1))
+  end
+
+  defp live_activity(%{session: %{status: :running}, log: log}),
+    do: Overview.live_activity(log.live)
+
+  defp live_activity(_state), do: nil
+
+  defp activate(session, log \\ %MemoryLog{}) do
     broadcast({:session_activated, session})
     broadcast_session(session)
-    {:reply, {:ok, session}, %__MODULE__{session: session}}
+    {:reply, {:ok, session}, %__MODULE__{session: session, log: log}}
   end
 
   defp start_tracer(session, spec, limits) do

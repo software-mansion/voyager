@@ -520,7 +520,14 @@ defmodule Voyager.Services.TracerTest do
         run_named(id, :a_name, ~D[2023-01-01])
 
         assert {:ok, %{summary: summary}} = Tracer.overview(id)
-        %{summary | slowest: Enum.map(summary.slowest, &Map.take(&1, [:type, :mfa, :pid]))}
+        assert {:ok, _session} = Tracer.create(:ui)
+
+        if save do
+          assert {:ok, %{summary: from_db}} = Tracer.overview(id)
+          assert comparable(from_db) == comparable(summary)
+        end
+
+        comparable(summary)
       end
 
     assert [unsaved, saved] = summaries
@@ -610,6 +617,41 @@ defmodule Voyager.Services.TracerTest do
     assert run.duration_ms == 7_000
     assert segment.counts == [0, 1, 0, 0, 0, 0, 1]
   end
+
+  test "overview/1 keeps a loaded session's earlier totals once it resumes" do
+    assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
+    assert {:ok, _session} = configure(%{max_events: 1})
+    run_named(id, :first_run, ~D[2024-01-01])
+    assert {:ok, _session} = Tracer.create(:ui)
+    assert {:ok, _session} = Tracer.load(id)
+
+    run_named(id, :second_run, ~D[2023-01-01])
+
+    assert {:ok, %{summary: %{calls: 2, functions: %{{Date, :leap_year?, 1} => 2}}}} =
+             Tracer.overview(id)
+  end
+
+  for save <- [true, false] do
+    test "overview/1 draws a running session's last minute from memory with save: #{save}" do
+      assert {:ok, %{id: id}} = Tracer.create(:ui, save: unquote(save))
+      assert {:ok, _session} = configure()
+      assert {:ok, %{tracer: tracer}} = Tracer.start(:ui)
+      at = System.os_time(:microsecond)
+      event = %{type: :call, pid: self(), process: nil, mfa: {Date, :leap_year?, 1}, at: at}
+      send(Tracer, {:voyager_trace_events, tracer, List.duplicate(event, 3), 0})
+      _ = :sys.get_state(Tracer)
+      Writer.flush()
+      Repo.delete_all(TraceEvent)
+
+      assert {:ok, %{activity: %{live?: true, segments: [segment]}, summary: %{calls: 3}}} =
+               Tracer.overview(id)
+
+      assert Enum.sum(segment.counts) == 3
+    end
+  end
+
+  defp comparable(summary),
+    do: %{summary | slowest: Enum.map(summary.slowest, &Map.take(&1, [:type, :mfa, :pid]))}
 
   defp trace_row(seq, at) do
     %{

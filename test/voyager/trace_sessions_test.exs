@@ -275,7 +275,7 @@ defmodule Voyager.TraceSessionsTest do
     assert TraceSessionQueries.total_count(s3.id) == 2
   end
 
-  test "activity/3 buckets saved trace rows in SQLite to match Overview.activity/3" do
+  test "activity/2 buckets saved trace rows in SQLite to match Overview.activity/2" do
     %{id: id} = session!(:stopped)
 
     controls = [
@@ -317,16 +317,6 @@ defmodule Voyager.TraceSessionsTest do
       Overview.activity(stopped_runs, Overview.trace_timestamps(stopped_runs, traces))
 
     assert TraceEntryQueries.activity(id, stopped_runs) == expected_stopped
-
-    now = DateTime.from_unix!(40_500_000, :microsecond)
-    running_controls = Enum.reject(stopped_controls, &(&1.seq == 6))
-    running_session = %{stopped_session | status: :running, stop_reason: nil, stopped_at: nil}
-    running_runs = Overview.runs(running_controls, running_session, now)
-
-    expected_running =
-      Overview.activity(running_runs, Overview.trace_timestamps(running_runs, traces), now)
-
-    assert TraceEntryQueries.activity(id, running_runs, now) == expected_running
   end
 
   defp seqs(entries), do: Enum.map(entries, & &1.seq)

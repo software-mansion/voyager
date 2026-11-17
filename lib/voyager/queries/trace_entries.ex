@@ -111,16 +111,13 @@ defmodule Voyager.Queries.TraceEntries do
     }
   end
 
-  @doc "Buckets a saved session's trace timestamps in SQLite into its `Overview.activity`."
-  @spec activity(integer(), [Overview.run()], DateTime.t()) :: Overview.activity() | nil
-  def activity(session_id, runs, now \\ DateTime.utc_now())
-  def activity(_session_id, [], _now), do: nil
-
-  def activity(session_id, runs, now) do
-    if List.last(runs).reason == :running,
-      do: live_activity(session_id, now),
-      else: full_activity(session_id, runs)
-  end
+  @doc """
+  Buckets a stopped saved session's trace timestamps in SQLite into its `Overview.activity`.
+  A running session's live window comes from `Voyager.Services.Tracer.MemoryLog` instead.
+  """
+  @spec activity(integer(), [Overview.run()]) :: Overview.activity() | nil
+  def activity(_session_id, []), do: nil
+  def activity(session_id, runs), do: full_activity(session_id, runs)
 
   @doc "The trace count and latest `at` of a run that has no stop entry."
   @spec open_run_extent(integer(), Overview.run()) :: {non_neg_integer(), DateTime.t() | nil}
@@ -129,20 +126,6 @@ defmodule Voyager.Queries.TraceEntries do
     |> run_events(run)
     |> select([e], {count(e.id), max(e.at)})
     |> Repo.one()
-  end
-
-  defp live_activity(session_id, now) do
-    bucket_us = Overview.live_bucket_ms() * 1_000
-    {first, last} = Overview.live_window(now)
-    first_dt = DateTime.from_unix!(first * bucket_us, :microsecond)
-    end_dt = DateTime.from_unix!((last + 1) * bucket_us, :microsecond)
-
-    counts =
-      TraceEvent
-      |> where([e], e.session_id == ^session_id and e.at >= ^first_dt and e.at < ^end_dt)
-      |> query_buckets(0, bucket_us)
-
-    Overview.live_activity(first, last, counts)
   end
 
   defp full_activity(session_id, runs) do
