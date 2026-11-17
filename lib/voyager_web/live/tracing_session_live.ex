@@ -431,6 +431,10 @@ defmodule VoyagerWeb.TracingSessionLive do
   defp format_error(:no_session), do: "This session is no longer active."
   defp format_error(:not_configured), do: "Set the session's parameters first."
   defp format_error(:changed), do: "The session was reconfigured meanwhile. Try again."
+
+  defp format_error(:storage_limit),
+    do: "Saved sessions use all their storage. Delete a saved session to resume."
+
   defp format_error({:refused, module}), do: "#{inspect(module)} cannot be traced."
   defp format_error({:not_loaded, module}), do: "#{inspect(module)} is not loaded on the node."
   defp format_error(:timeout), do: "The node did not respond in time."

@@ -137,8 +137,9 @@ defmodule Voyager.Services.Tracer do
 
   @doc """
   Starts or resumes the configured session, resolving its pids on the node again in the caller.
-  The agent's refusals come back as `{:error, reason}`, and `{:error, :changed}` means the
-  session was reconfigured meanwhile.
+  The agent's refusals come back as `{:error, reason}`, `{:error, :changed}` means the
+  session was reconfigured meanwhile, and `{:error, :storage_limit}` that a saved session
+  has no storage left.
   """
   @spec start(origin()) :: {:ok, Session.t()} | {:error, term()}
   def start(origin) when origin in [:ui, :mcp] do
@@ -343,13 +344,12 @@ defmodule Voyager.Services.Tracer do
         _from,
         %{session: %Session{node: node, config: config} = session} = state
       ) do
-    case start_tracer(session, spec, limits) do
-      {:ok, tracer} ->
-        state = begin_run(state, tracer, origin)
-        {:reply, {:ok, state.session}, state}
-
-      {:error, reason} ->
-        {:reply, start_failed(reason, origin), state}
+    with :ok <- check_storage(session),
+         {:ok, tracer} <- start_tracer(session, spec, limits) do
+      state = begin_run(state, tracer, origin)
+      {:reply, {:ok, state.session}, state}
+    else
+      {:error, reason} -> {:reply, start_failed(reason, origin), state}
     end
   end
 
@@ -550,6 +550,13 @@ defmodule Voyager.Services.Tracer do
     do: request_stop(state, :storage_limit)
 
   defp stop_over_limit(state), do: state
+
+  # A run is only stopped after a write passes the limit, so each start on a full session grows it.
+  defp check_storage(%Session{save: true, id: id, bytes: bytes}) do
+    if bytes >= storage_limit(id), do: {:error, :storage_limit}, else: :ok
+  end
+
+  defp check_storage(_session), do: :ok
 
   defp request_stop(%{session: session, run: %Run{stop_request: nil}} = state, reason) do
     Task.Supervisor.start_child(Voyager.TaskSupervisor, fn ->

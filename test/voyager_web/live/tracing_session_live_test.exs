@@ -353,6 +353,24 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#flash-error", "No loaded function matches")
   end
 
+  test "flashes the storage limit instead of starting a saved session with no storage left",
+       %{conn: conn} do
+    {:ok, _} = Voyager.Settings.put(:trace_storage_limit_mb, 0)
+    %{id: id} = create!(save: true)
+    {:ok, _session} = configure()
+
+    view = open(conn, id)
+
+    view
+    |> element("#session-start")
+    |> render_click()
+
+    settle(view)
+
+    assert has_element?(view, "#flash-error", "Saved sessions use all their storage")
+    assert has_element?(view, "#session-start")
+  end
+
   test "shows a broadcast for its session while the load waits on the Tracer", %{conn: conn} do
     session = create!()
     :ok = :sys.suspend(Tracer)
