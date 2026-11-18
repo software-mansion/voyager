@@ -55,6 +55,13 @@ function positionTooltip(tipEl, trigger) {
       left = rect.left + rect.width / 2 - tip.width / 2;
   }
 
+  const alignTo =
+    trigger.dataset.tooltipAlignTo &&
+    trigger.closest(trigger.dataset.tooltipAlignTo);
+  if (alignTo && (position === 'top' || position === 'bottom')) {
+    left = alignTo.getBoundingClientRect().left;
+  }
+
   // Clamp into the viewport so the tooltip is never cut off.
   left = Math.max(
     VIEWPORT_MARGIN,
@@ -140,6 +147,16 @@ const Tooltip = {
       if (showWhen === 'browser' && window.__TAURI_INTERNALS__) return;
       const tipEl = this.getTip();
       if (!tipEl) return;
+      // A tip shared by many triggers shows the content of the one that opened it last.
+      const content = this.el.querySelector(
+        ':scope > template[data-tooltip-content]'
+      );
+      if (content) {
+        tipEl
+          .querySelector('[data-tooltip-slot]')
+          .replaceChildren(content.content.cloneNode(true));
+      }
+      tipEl._tooltipOwner = this;
       if (this._interactive) this.bindTip(tipEl);
       // Position before revealing so getBoundingClientRect is accurate and the
       // tooltip doesn't flash at a stale spot for one frame.
@@ -153,7 +170,7 @@ const Tooltip = {
       clearTimeout(this._closeTimeout);
       this._pinned = false;
       const tipEl = this.getTip();
-      if (tipEl) {
+      if (tipEl && tipEl._tooltipOwner === this) {
         tipEl.classList.remove('is-open', 'is-pinned');
         tipEl.style.top = '';
         tipEl.style.left = '';

@@ -87,18 +87,31 @@ defmodule Voyager.Test.TracerFixture do
     assert_receive {:session_entries, %{traces: ^traces}, _entries}, 2_000
   end
 
+  def flush_log(view) do
+    put_queued(view)
+    render(view)
+  end
+
   # A stop lands as a broadcast once the remote tracer's done message reaches the Tracer.
   def settle(view) do
     render_async(view)
     put_queued(view)
   end
 
-  @doc "Applies the session broadcasts the view throttles, without waiting for their timers."
+  @doc "Acks the last log flush and applies what the view throttles, without waiting for its timer."
   def put_queued(view) do
     # The broadcast reaches the view before the Tracer handles its next message.
     _ = :sys.get_state(Tracer)
-    send(view.pid, :put_queued_session)
-    send(view.pid, :put_tracing_session)
+    render_hook(view, "log-ack", %{})
+    send(view.pid, :flush)
+  end
+
+  def row_ids(view) do
+    view
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query("#session-log-rows > tr")
+    |> LazyHTML.attribute("id")
   end
 
   def open(conn, id) do
