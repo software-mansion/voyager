@@ -96,8 +96,8 @@ defmodule Voyager.Services.Tracer do
           {:ok, Session.t()} | {:error, :busy | Ecto.Changeset.t() | term()}
   def create_and_start(node, attrs, origin) when origin in [:ui, :mcp] do
     with {:ok, config} <- attrs |> Config.changeset() |> Ecto.Changeset.apply_action(:validate),
-         {:ok, pids} <- resolve_pids(node, config) do
-      args = Config.to_agent(config, pids)
+         {:ok, pids} <- resolve_pids(node, config),
+         {:ok, args} <- Config.to_agent(config, pids) do
       GenServer.call(__MODULE__, {:create_and_start, origin, node, config, args}, @call_timeout)
     else
       {:error, %Ecto.Changeset{}} = error -> error
@@ -142,13 +142,11 @@ defmodule Voyager.Services.Tracer do
   @spec start(origin()) :: {:ok, Session.t()} | {:error, term()}
   def start(origin) when origin in [:ui, :mcp] do
     with {:ok, %{node: node, config: config}} <- startable(active()) do
-      case resolve_pids(node, config) do
-        {:ok, pids} ->
-          args = Config.to_agent(config, pids)
-          GenServer.call(__MODULE__, {:start, origin, node, config, args}, @call_timeout)
-
-        {:error, reason} ->
-          start_failed(reason, origin)
+      with {:ok, pids} <- resolve_pids(node, config),
+           {:ok, args} <- Config.to_agent(config, pids) do
+        GenServer.call(__MODULE__, {:start, origin, node, config, args}, @call_timeout)
+      else
+        {:error, reason} -> start_failed(reason, origin)
       end
     end
   end

@@ -8,6 +8,7 @@ defmodule Voyager.Services.Tracer.Config do
 
   import Ecto.Changeset
 
+  alias Voyager.Services.Tracer.MatchSpec
   alias Voyager.Services.Tracer.Refusals
 
   @limits [:max_events, :max_rate, :max_time_ms]
@@ -29,6 +30,7 @@ defmodule Voyager.Services.Tracer.Config do
     field :max_events, :integer
     field :max_rate, :integer
     field :max_time_ms, :integer
+    field :match_spec, :string
   end
 
   @type t :: %__MODULE__{}
@@ -50,28 +52,35 @@ defmodule Voyager.Services.Tracer.Config do
     |> validate_limits()
     |> validate_pids()
     |> validate_module_allowed()
+    |> validate_match_spec()
   end
 
-  @doc "The `{spec, limits}` pair `trace_start` takes on the agent; `pids` are the resolved `:pids`."
-  @spec to_agent(t(), [pid()]) :: {map(), map()}
+  @doc """
+  The `{spec, limits}` pair `trace_start` takes on the agent; `pids` are the resolved `:pids`.
+  Saved configs are loaded without validation, so a stored match spec may no longer translate.
+  """
+  @spec to_agent(t(), [pid()]) ::
+          {:ok, {map(), map()}} | {:error, {:invalid_match_spec, String.t()}}
   def to_agent(%__MODULE__{} = config, pids) do
-    spec = %{
-      module: config.module,
-      function: if(config.function == "_", do: :_, else: config.function),
-      arity: config.arity || :_,
-      processes: if(config.processes == :pids, do: pids, else: config.processes),
-      capture: config.capture,
-      scope: config.scope,
-      return_trace: config.return_trace,
-      match_spec: :undefined
-    }
+    with {:ok, match_spec} <- agent_match_spec(config) do
+      spec = %{
+        module: config.module,
+        function: if(config.function == "_", do: :_, else: config.function),
+        arity: config.arity || :_,
+        processes: if(config.processes == :pids, do: pids, else: config.processes),
+        capture: config.capture,
+        scope: config.scope,
+        return_trace: config.return_trace,
+        match_spec: match_spec
+      }
 
-    limits =
-      config
-      |> Map.take([:budget | @limits])
-      |> Map.reject(fn {_key, value} -> is_nil(value) end)
+      limits =
+        config
+        |> Map.take([:budget | @limits])
+        |> Map.reject(fn {_key, value} -> is_nil(value) end)
 
-    {spec, limits}
+      {:ok, {spec, limits}}
+    end
   end
 
   # `trace:function/4` takes '_' only in the rightmost fields.
@@ -130,6 +139,24 @@ defmodule Voyager.Services.Tracer.Config do
 
       true ->
         changeset
+    end
+  end
+
+  defp validate_match_spec(changeset) do
+    with source when is_binary(source) <- get_field(changeset, :match_spec),
+         {:error, message} <- MatchSpec.parse(source, get_field(changeset, :arity)) do
+      add_error(changeset, :match_spec, message)
+    else
+      _valid_or_unset -> changeset
+    end
+  end
+
+  defp agent_match_spec(%__MODULE__{match_spec: nil}), do: {:ok, :undefined}
+
+  defp agent_match_spec(%__MODULE__{match_spec: source, arity: arity}) do
+    case MatchSpec.parse(source, arity) do
+      {:ok, match_spec} -> {:ok, MatchSpec.encode(match_spec)}
+      {:error, message} -> {:error, {:invalid_match_spec, message}}
     end
   end
 

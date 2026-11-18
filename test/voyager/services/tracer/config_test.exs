@@ -16,16 +16,17 @@ defmodule Voyager.Services.Tracer.ConfigTest do
   test "builds the agent's spec and limits" do
     assert {:ok, config} = apply_attrs(@valid)
 
-    assert {%{
-              module: "Elixir.Date",
-              function: "leap_year?",
-              arity: 1,
-              processes: [pid],
-              capture: :arity,
-              scope: :global,
-              return_trace: false,
-              match_spec: :undefined
-            }, %{budget: 5_000, max_events: 10} = limits} = Config.to_agent(config, [self()])
+    assert {:ok,
+            {%{
+               module: "Elixir.Date",
+               function: "leap_year?",
+               arity: 1,
+               processes: [pid],
+               capture: :arity,
+               scope: :global,
+               return_trace: false,
+               match_spec: :undefined
+             }, %{budget: 5_000, max_events: 10} = limits}} = Config.to_agent(config, [self()])
 
     assert pid == self()
     refute Map.has_key?(limits, :max_rate)
@@ -33,7 +34,7 @@ defmodule Voyager.Services.Tracer.ConfigTest do
 
   test "turns empty function and arity into agent wildcards" do
     assert {:ok, config} = apply_attrs(%{@valid | function: "_", arity: nil})
-    assert {%{function: :_, arity: :_}, _limits} = Config.to_agent(config, [self()])
+    assert {:ok, {%{function: :_, arity: :_}, _limits}} = Config.to_agent(config, [self()])
   end
 
   test "requires an empty arity with a wildcard function" do
@@ -68,6 +69,29 @@ defmodule Voyager.Services.Tracer.ConfigTest do
   test "always refuses the trace and agent modules" do
     assert %{module: [_]} = errors(%{@valid | module: "trace"})
     assert %{module: [_]} = errors(%{@valid | module: Atom.to_string(Voyager.Agent.module())})
+  end
+
+  test "sends a translated match spec to the agent" do
+    attrs = Map.put(@valid, :match_spec, "fn [y] when y > 2000 -> true end")
+    assert {:ok, config} = apply_attrs(attrs)
+
+    assert {:ok, {%{match_spec: [{[:"$1"], [{{:"$voyager_atom", ">"}, :"$1", 2000}], []}]}, _}} =
+             Config.to_agent(config, [self()])
+  end
+
+  test "returns an error for a stored match spec that no longer translates" do
+    assert {:ok, config} = apply_attrs(@valid)
+
+    assert {:error, {:invalid_match_spec, _message}} =
+             Config.to_agent(%{config | match_spec: "fn [a] -> false end"}, [self()])
+  end
+
+  test "rejects a match spec for another arity" do
+    assert %{match_spec: [_]} = errors(Map.put(@valid, :match_spec, "fn [a, b] -> true end"))
+  end
+
+  test "rejects a match spec whose body is not true" do
+    assert %{match_spec: [_]} = errors(Map.put(@valid, :match_spec, "fn [a] -> false end"))
   end
 
   defp apply_attrs(attrs),

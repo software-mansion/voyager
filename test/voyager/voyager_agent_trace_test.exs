@@ -3,6 +3,7 @@ defmodule VoyagerAgentTraceTest do
 
   @compile {:no_warn_undefined, Voyager.Agent.module()}
 
+  alias Voyager.Services.Tracer.MatchSpec
   alias Voyager.Test.VoyagerAgentFixture
 
   @agent_module Voyager.Agent.module()
@@ -222,6 +223,24 @@ defmodule VoyagerAgentTraceTest do
     Date.leap_year?(~D[2024-01-01])
 
     assert {[%{type: :call, args: [%Date{year: 2024}]}], :event_limit, _stats} = collect(tracer)
+  end
+
+  test "selects calls with a parsed and encoded match spec" do
+    for source <- [
+          "fn [d] when is_struct(d, Date) and map_get(d, :year) in [2024] -> true end",
+          "fun([D]) when is_map_key(year, D), map_get(year, D) =:= 2024 -> true end"
+        ] do
+      {:ok, match_spec} = MatchSpec.parse(source, 1)
+      match_spec = MatchSpec.encode(match_spec)
+
+      {:ok, tracer} =
+        start(spec(@leap_year ++ [match_spec: match_spec]), %{@limits | max_events: 1})
+
+      Date.leap_year?(~D[2023-01-01])
+      Date.leap_year?(~D[2024-01-01])
+
+      assert {[%{type: :call, args: [%Date{year: 2024}]}], :event_limit, _stats} = collect(tracer)
+    end
   end
 
   test "refuses encoded atoms that are unknown or read as variables" do
