@@ -254,6 +254,18 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     assert has_element?(view, "#load-session")
   end
 
+  test "a session with no traces is removed without a zero count", %{conn: conn} do
+    session = insert_saved!(%{traces: 0})
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing?session=#{session.id}")
+
+    view
+    |> element("#delete-session")
+    |> render_click()
+
+    assert has_element?(view, "#delete-session-modal", "will be removed from history.")
+    refute has_element?(view, "#delete-session-modal", "0 traces")
+  end
+
   test "loads a saved session from this node and deletes one after confirmation", %{conn: conn} do
     first = insert_saved!(%{dropped: 5})
     second = insert_saved!()
