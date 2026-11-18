@@ -98,8 +98,16 @@ defmodule VoyagerWeb.TracingSessionLive do
         on_confirm={"confirm-#{@confirm}"}
         on_cancel="cancel-confirm"
       >
+        <p :if={@confirm == :stop} class="text-base-content/70 mt-1 text-sm">
+          Tracing
+          <span class="font-mono text-base-content">{TracingComponents.traced_mfa(
+            @trace_session.result.config
+          )}</span>
+          on <span class="font-mono text-base-content">{@trace_session.result.node}</span>
+          stops. {kept_copy(@trace_session.result.traces)}, and you can resume it later.
+        </p>
         <p :if={@confirm == :delete} class="text-base-content/70 mt-1 text-sm">
-          Its {Formatters.format_integer(@trace_session.result.traces)} traces are deleted too. This cannot be undone.
+          {deleted_copy(@trace_session.result.traces)} This cannot be undone.
         </p>
         <p :if={@confirm == :unload} class="text-base-content/70 mt-1 text-sm">
           It is not saved, so its parameters and traces are discarded. This cannot be undone.
@@ -113,8 +121,21 @@ defmodule VoyagerWeb.TracingSessionLive do
   end
 
   @impl true
-  def handle_event("stop", _params, socket) do
+  def handle_event(
+        "stop",
+        _params,
+        %{assigns: %{trace_session: %AsyncResult{result: %Session{status: :running}}}} = socket
+      ) do
     socket
+    |> assign(:confirm, :stop)
+    |> noreply()
+  end
+
+  def handle_event("stop", _params, socket), do: noreply(socket)
+
+  def handle_event("confirm-stop", _params, socket) do
+    socket
+    |> assign(:confirm, nil)
     |> run(:stop, fn -> Tracer.stop(:ui) end)
     |> noreply()
   end
@@ -376,6 +397,7 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> assign(:queued_session, nil)
     |> assign(:mode, mode)
     |> Stats.track(shown, session)
+    |> drop_stale_stop_confirm(session)
   end
 
   defp queue_session(
@@ -401,6 +423,12 @@ defmodule VoyagerWeb.TracingSessionLive do
     assign(socket, :flush_scheduled?, true)
   end
 
+  defp drop_stale_stop_confirm(%{assigns: %{confirm: :stop}} = socket, %Session{status: status})
+       when status != :running,
+       do: assign(socket, :confirm, nil)
+
+  defp drop_stale_stop_confirm(socket, _session), do: socket
+
   defp run(socket, name, fun) do
     socket
     |> assign(:pending, name)
@@ -415,10 +443,22 @@ defmodule VoyagerWeb.TracingSessionLive do
 
   defp sessions_path(%{node_name: node_name}), do: ~p"/node/#{node_name}/tracing"
 
+  defp kept_copy(0), do: "No traces are kept"
+  defp kept_copy(1), do: "Its 1 trace is kept"
+  defp kept_copy(traces), do: "Its #{Formatters.format_integer(traces)} traces are kept"
+
+  defp deleted_copy(0), do: "No traces are deleted."
+  defp deleted_copy(1), do: "Its 1 trace is deleted too."
+
+  defp deleted_copy(traces),
+    do: "Its #{Formatters.format_integer(traces)} traces are deleted too."
+
+  defp confirm_title(:stop), do: "Stop tracing"
   defp confirm_title(:delete), do: "Delete session"
   defp confirm_title(:unload), do: "Unload session"
   defp confirm_title(:load), do: "Replace unsaved session"
 
+  defp confirm_label(:stop), do: "Stop"
   defp confirm_label(:delete), do: "Delete"
   defp confirm_label(:unload), do: "Unload"
   defp confirm_label(:load), do: "Load"

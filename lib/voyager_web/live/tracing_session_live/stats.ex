@@ -110,9 +110,14 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
       value: TracingComponents.stop_reason_label(session.stop_reason),
       tip: TracingComponents.stop_reason_label(session.stop_reason),
       prose: true,
-      tone: if(TracingComponents.tone(session) == :failed, do: "text-warning")
+      tone: stop_reason_tone(TracingComponents.tone(session))
     }
   end
+
+  defp stop_reason_tone(tone) when tone in [:warning, :error],
+    do: TracingComponents.tone_class(tone, :label)
+
+  defp stop_reason_tone(_tone), do: nil
 
   defp dropped(%Session{dropped: dropped}) do
     %{

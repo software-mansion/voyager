@@ -442,7 +442,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
   defp control(%{kind: :stopped, reason: reason}) do
     label = TracingComponents.stop_reason_label(reason)
 
-    if TracingComponents.failure?(reason),
+    if TracingComponents.reason_tone(reason) == :error,
       do: {"icon-square-filled", "bg-error/15 text-error", "bg-error/10", "Stopped", label},
       else:
         {"icon-square-filled", "bg-warning/20 text-warning", "bg-warning/10", "Stopped", label}
