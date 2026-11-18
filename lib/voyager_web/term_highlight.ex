@@ -29,11 +29,12 @@ defmodule VoyagerWeb.TermHighlight do
 
   @doc """
   At most `length` graphemes of `parts`, starting `lead` graphemes ahead of the first mark
-  when it lies further in, so a cut text still shows it; `…` stands in for each cut end.
+  when it lies further in, but never past the last `length`, so a text that fits stays whole
+  and a cut one still shows its mark; `…` stands in for each cut end.
   """
   @spec clip([part()], non_neg_integer(), pos_integer()) :: [part()]
   def clip(parts, lead, length) do
-    start = max(mark_offset(parts) - lead, 0)
+    start = max(min(mark_offset(parts) - lead, text_length(parts) - length), 0)
     {_cut, parts} = split(parts, start)
     {shown, rest} = split(parts, length)
     ellipsis(start > 0) ++ shown ++ ellipsis(rest != [])
@@ -42,9 +43,11 @@ defmodule VoyagerWeb.TermHighlight do
   defp mark_offset(parts) do
     case Enum.split_while(parts, fn {_kind, marked?, _text} -> not marked? end) do
       {_unmarked, []} -> 0
-      {unmarked, _from_mark} -> unmarked |> Enum.map(&String.length(elem(&1, 2))) |> Enum.sum()
+      {unmarked, _from_mark} -> text_length(unmarked)
     end
   end
+
+  defp text_length(parts), do: parts |> Enum.map(&String.length(elem(&1, 2))) |> Enum.sum()
 
   defp split(parts, 0), do: {[], parts}
   defp split([], _at), do: {[], []}
