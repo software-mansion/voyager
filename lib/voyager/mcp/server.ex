@@ -19,6 +19,7 @@ defmodule Voyager.MCP.Server do
   component(Voyager.MCP.Tools.EtsReadTableChunk)
   component(Voyager.MCP.Tools.EtsSearchTable)
   component(Voyager.MCP.Tools.CreateTraceSession)
+  component(Voyager.MCP.Tools.TraceConfigure)
   component(Voyager.MCP.Tools.ModuleList)
   component(Voyager.MCP.Tools.TraceHistory)
   component(Voyager.MCP.Tools.TraceStart)

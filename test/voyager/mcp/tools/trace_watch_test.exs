@@ -67,14 +67,34 @@ defmodule Voyager.MCP.Tools.TraceWatchTest do
     assert %{status: :running} = Tracer.active()
   end
 
-  test "fails once the session is closed under it" do
+  test "fails once the session is gone, after a Tracer restart" do
     configure()
     {:ok, _session} = Tracer.start(:ui)
     %Task{pid: pid} = watch = watch()
 
-    send(pid, {:session_updated, nil})
+    _awaiting =
+      Stream.repeatedly(fn -> Process.info(pid, :current_function) end)
+      |> Enum.find(&(is_nil(&1) or match?({_key, {TraceWatch, :await, 3}}, &1)))
+
+    Process.exit(Process.whereis(Tracer), :kill)
 
     assert error!(Task.await(watch)) =~ "closed"
+  end
+
+  test "keeps waiting through updates queued before the watched run" do
+    %{id: id} = configure(%{max_events: 2})
+    {:ok, running} = Tracer.start(:ui)
+    %Task{pid: pid} = watch = watch()
+
+    send(pid, {:session_updated, %{running | status: :stopped, seq: 0}})
+    send(pid, {:session_updated, %{running | status: :idle}})
+    send(pid, {:session_updated, nil})
+    refute Task.yield(watch, 100)
+
+    trace_calls(1)
+
+    assert %{"session_id" => ^id, "status" => "stopped", "stop_reason" => "event_limit"} =
+             json!(Task.await(watch))
   end
 
   test "returns a stopped session's report at once" do
