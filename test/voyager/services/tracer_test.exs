@@ -517,21 +517,28 @@ defmodule Voyager.Services.TracerTest do
         run_named(id, :z_name, ~D[2024-01-01])
         run_named(id, :a_name, ~D[2023-01-01])
 
-        assert {:ok, summary} = Tracer.summary(id)
-        %{summary | slowest: Enum.map(summary.slowest, &Map.take(&1, [:type, :mfa, :pid]))}
+        assert {:ok, summaries} = Tracer.summary(id)
+        Map.new(summaries, fn {key, summary} -> {key, comparable(summary)} end)
       end
 
     assert [unsaved, saved] = summaries
     assert unsaved == saved
 
     assert %{calls: 2, returns: 2, exceptions: 0, functions: %{{Date, :leap_year?, 1} => 2}} =
-             saved
+             saved.session
 
-    assert %{slowest: [_, _]} = saved
-    assert [{pid, {:a_name, 2}}] = Map.to_list(saved.processes)
+    assert %{slowest: [_, _]} = saved.session
+    assert [{pid, {:a_name, 2}}] = Map.to_list(saved.session.processes)
     assert pid == self()
+
+    assert %{calls: 1, returns: 1, slowest: [_], processes: %{^pid => {:a_name, 1}}} =
+             saved.last_run
+
     assert {:error, :not_found} = Tracer.summary(-1)
   end
+
+  defp comparable(summary),
+    do: %{summary | slowest: Enum.map(summary.slowest, &Map.take(&1, [:type, :mfa, :pid]))}
 
   defp run_named(id, name, date) do
     Process.register(self(), name)

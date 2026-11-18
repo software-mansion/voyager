@@ -249,11 +249,15 @@ defmodule Voyager.Services.Tracer do
     end
   end
 
-  @doc "The `Summary` of every trace event of session `id`, including those evicted from memory."
-  @spec summary(integer()) :: {:ok, Summary.t()} | {:error, :not_found}
+  @doc """
+  The `Summary` of every trace event of session `id`, including those evicted from memory,
+  and of those since its last start.
+  """
+  @spec summary(integer()) ::
+          {:ok, %{session: Summary.t(), last_run: Summary.t()}} | {:error, :not_found}
   def summary(id) do
     case GenServer.call(__MODULE__, {:summary, id}) do
-      :saved -> with_saved(id, fn _row -> {:ok, TraceEntryQueries.summary(id)} end)
+      :saved -> with_saved(id, &{:ok, saved_summary(&1.id)})
       reply -> reply
     end
   end
@@ -389,7 +393,8 @@ defmodule Voyager.Services.Tracer do
   def handle_call({:entries, _id, _opts}, _from, state), do: {:reply, :saved, state}
 
   def handle_call({:summary, id}, _from, %{session: %{id: id, save: false}} = state),
-    do: {:reply, {:ok, state.log.summary}, state}
+    do:
+      {:reply, {:ok, %{session: state.log.summary, last_run: state.log.last_run_summary}}, state}
 
   def handle_call({:summary, _id}, _from, state), do: {:reply, :saved, state}
 
@@ -497,6 +502,12 @@ defmodule Voyager.Services.Tracer do
       nil -> {:error, :not_found}
       row -> fun.(row)
     end
+  end
+
+  # The last run is read first, so a running session's run never counts more than the session.
+  defp saved_summary(id) do
+    last_run = TraceEntryQueries.last_run_summary(id)
+    %{session: TraceEntryQueries.summary(id), last_run: last_run}
   end
 
   defp saved_session(row) do

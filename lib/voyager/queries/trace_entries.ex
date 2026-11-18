@@ -68,13 +68,10 @@ defmodule Voyager.Queries.TraceEntries do
   @doc "How many traces were saved before the session's last `:started` entry; 0 if it never started."
   @spec traces_before_last_run(integer()) :: non_neg_integer()
   def traces_before_last_run(session_id) do
-    last_start =
-      from s in TraceSessionEvent,
-        where: s.session_id == ^session_id and s.kind == :started,
-        select: max(s.seq)
-
     # A session never started has a NULL `max`, which no `seq` is below.
-    from(e in TraceEvent, where: e.session_id == ^session_id and e.seq < subquery(last_start))
+    from(e in TraceEvent,
+      where: e.session_id == ^session_id and e.seq < subquery(last_start(session_id))
+    )
     |> Repo.aggregate(:count)
   end
 
@@ -88,11 +85,24 @@ defmodule Voyager.Queries.TraceEntries do
     |> Kernel.+(1)
   end
 
-  @doc "The `Voyager.Services.Tracer.Summary` of the session's trace events."
   @spec summary(integer()) :: Summary.t()
-  def summary(session_id) do
-    events = where(TraceEvent, [e], e.session_id == ^session_id)
+  def summary(session_id), do: summarize(where(TraceEvent, [e], e.session_id == ^session_id))
 
+  @doc "The `Summary` of the traces since the session's last `:started` entry; empty if it never started."
+  @spec last_run_summary(integer()) :: Summary.t()
+  def last_run_summary(session_id) do
+    TraceEvent
+    |> where([e], e.session_id == ^session_id and e.seq >= subquery(last_start(session_id)))
+    |> summarize()
+  end
+
+  defp last_start(session_id) do
+    from s in TraceSessionEvent,
+      where: s.session_id == ^session_id and s.kind == :started,
+      select: max(s.seq)
+  end
+
+  defp summarize(events) do
     counts =
       events
       |> group_by([e], e.type)
