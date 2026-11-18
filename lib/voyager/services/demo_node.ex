@@ -17,6 +17,7 @@ defmodule Voyager.Services.DemoNode do
   require Logger
 
   @dismissed_key :demo_dismissed
+  @available_key {__MODULE__, :available?}
   @name ~c"voyager_demo"
   @host ~c"127.0.0.1"
   @node_name "#{@name}@#{@host}"
@@ -33,7 +34,7 @@ defmodule Voyager.Services.DemoNode do
 
   @doc "Whether the demo can run: true only in a release."
   @spec available?() :: boolean()
-  def available?, do: GenServer.call(__MODULE__, :available?)
+  def available?, do: :persistent_term.get(@available_key, false)
 
   @doc """
   How to offer the demo: `:sticky` while there are no saved connections, whether dismissed or
@@ -68,11 +69,12 @@ defmodule Voyager.Services.DemoNode do
   def init(opts) do
     Process.flag(:trap_exit, true)
     Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
+    exec = Keyword.get_lazy(opts, :exec, &release_exec/0)
+    :persistent_term.put(@available_key, exec != nil)
 
     {:ok,
      %{
-       exec: Keyword.get_lazy(opts, :exec, &release_exec/0),
-       idle_timeout: Keyword.get(opts, :idle_timeout, @idle_timeout),
+       exec: exec,
        peer: nil,
        node: nil,
        timer: nil
@@ -80,10 +82,6 @@ defmodule Voyager.Services.DemoNode do
   end
 
   @impl GenServer
-  def handle_call(:available?, _from, state) do
-    {:reply, state.exec != nil, state}
-  end
-
   def handle_call(:start, _from, %{exec: nil} = state) do
     {:reply, {:error, :unavailable}, state}
   end
@@ -94,7 +92,7 @@ defmodule Voyager.Services.DemoNode do
 
     case start_peer(state.exec, cookie) do
       {:ok, peer, node} ->
-        timer = Process.send_after(self(), {:idle_timeout, peer}, state.idle_timeout)
+        timer = Process.send_after(self(), {:idle_timeout, peer}, @idle_timeout)
         state = %{state | peer: peer, node: node, timer: timer}
         {:reply, {:ok, %{node_name: @node_name, cookie: cookie}}, state}
 

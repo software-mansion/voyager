@@ -90,21 +90,38 @@ defmodule VoyagerDemo.Tables do
   end
 end
 
-defmodule VoyagerDemo do
-  def start do
+defmodule VoyagerDemo.Application do
+  use Application
+
+  @impl true
+  def start(_type, _args) do
     workers =
       for name <- [:demo_worker_1, :demo_worker_2, :demo_worker_3] do
         Supervisor.child_spec({VoyagerDemo.Worker, name}, id: name)
       end
 
-    {:ok, sup} =
-      Supervisor.start_link([VoyagerDemo.Tables | workers],
-        strategy: :one_for_one,
-        name: VoyagerDemo.Supervisor
-      )
+    Supervisor.start_link([VoyagerDemo.Tables | workers],
+      strategy: :one_for_one,
+      name: VoyagerDemo.Supervisor
+    )
+  end
+end
 
-    # :peer.call/4 runs in a process that exits after the reply, taking linked children with it.
-    Process.unlink(sup)
+defmodule VoyagerDemo do
+  def start do
+    spec =
+      {:application, :voyager_demo,
+       [
+         description: ~c"Voyager demo node",
+         vsn: ~c"0.1.0",
+         modules: [VoyagerDemo.Application, VoyagerDemo.Tables, VoyagerDemo.Worker],
+         registered: [VoyagerDemo.Supervisor, VoyagerDemo.Tables],
+         applications: [:kernel, :stdlib, :elixir],
+         mod: {VoyagerDemo.Application, []}
+       ]}
+
+    :ok = :application.load(spec)
+    {:ok, _started} = :application.ensure_all_started(:voyager_demo)
     :ok
   end
 end

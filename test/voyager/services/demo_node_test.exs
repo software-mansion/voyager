@@ -74,6 +74,8 @@ defmodule Voyager.Services.DemoNodeTest do
     assert :peer.call(peer, :application, :get_env, [:kernel, :inet_dist_use_interface]) ==
              {:ok, {127, 0, 0, 1}}
 
+    apps = :peer.call(peer, :application, :which_applications, [])
+    assert List.keymember?(apps, :voyager_demo, 0)
     assert is_pid(:peer.call(peer, Process, :whereis, [VoyagerDemo.Supervisor]))
   end
 
@@ -124,11 +126,15 @@ defmodule Voyager.Services.DemoNodeTest do
   end
 
   test "stops when nobody connects within the idle timeout" do
-    start_demo_node!(idle_timeout: 0)
+    start_demo_node!()
     {:ok, _params} = DemoNode.start()
-    ref = Process.monitor(demo_peer())
+    peer = demo_peer()
+    assert is_pid(peer)
+    ref = Process.monitor(peer)
 
-    assert_receive {:DOWN, ^ref, :process, _pid, _reason}
+    send(DemoNode, {:idle_timeout, peer})
+
+    assert_receive {:DOWN, ^ref, :process, ^peer, _reason}
     assert demo_peer() == nil
   end
 
