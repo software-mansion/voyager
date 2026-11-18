@@ -10,8 +10,8 @@ defmodule Voyager.Services.Tracer.SearchTest do
       entry = %{@entry | pid: :c.pid(0, 1, 0), process: :my_server}
 
       assert Search.text(Map.put(entry, :args, [2024])) ==
-               "#PID<0.1.0> :my_server Date.leap_year?/1 [2024]\n" <>
-                 "<0.1.0> my_server 'Elixir.Date':'leap_year?'/1 [2024]"
+               "#PID<0.1.0> :my_server Date.leap_year?/1 (2024)\n" <>
+                 "<0.1.0> my_server 'Elixir.Date':'leap_year?'/1 (2024)"
 
       assert Search.text(Map.put(entry, :value, true)) ==
                "#PID<0.1.0> :my_server Date.leap_year?/1 true\n" <>
@@ -27,8 +27,22 @@ defmodule Voyager.Services.Tracer.SearchTest do
     test "writes a struct as its row shows it, and as a map in Erlang syntax" do
       text = Search.text(Map.put(@entry, :args, [~D[2024-01-01]]))
 
-      assert text =~ "[~D[2024-01-01]]"
+      assert text =~ "(~D[2024-01-01])"
       assert text =~ "year => 2024"
+    end
+
+    test "writes a call's arguments one by one, as its row does" do
+      text = Search.text(Map.put(@entry, :args, [65, ~c"hi"]))
+
+      assert text =~ ~S|(65, ~c"hi")|
+      assert text =~ ~S|(65, "hi")|
+      refute text =~ ~S|~c"A|
+    end
+
+    test "keeps each syntax on one line, whatever newlines the terms hold" do
+      text = Search.text(Map.put(@entry, :args, ["a\nb", ~c"c\nd", :"e\nf"]))
+
+      assert [_elixir, _erlang] = String.split(text, "\n")
     end
 
     test "writes every pid as <0.X.Y> whatever its node, however deep" do
@@ -36,8 +50,8 @@ defmodule Voyager.Services.Tracer.SearchTest do
         Search.text(%{@entry | pid: remote_pid(1)} |> Map.put(:args, [%{from: remote_pid(2)}]))
 
       assert text ==
-               "#PID<0.1.0> nil Date.leap_year?/1 [%{from: #PID<0.2.0>}]\n" <>
-                 ~S"<0.1.0> nil 'Elixir.Date':'leap_year?'/1 [#{from => <0.2.0>}]"
+               "#PID<0.1.0> nil Date.leap_year?/1 (%{from: #PID<0.2.0>})\n" <>
+                 ~S"<0.1.0> nil 'Elixir.Date':'leap_year?'/1 (#{from => <0.2.0>})"
     end
 
     test "does not truncate long terms" do
@@ -56,7 +70,7 @@ defmodule Voyager.Services.Tracer.SearchTest do
     end
   end
 
-  describe "filter/3" do
+  describe "filter/4" do
     setup do
       entries =
         for {args, seq} <- Enum.with_index(["HeLLo c", "other", "hello b", "hello a"]) do
@@ -70,20 +84,29 @@ defmodule Voyager.Services.Tracer.SearchTest do
 
     test "folds ASCII case only and skips non-trace entries", %{entries: entries} do
       assert %{entries: [%{seq: 3}, %{seq: 1}, %{seq: 0}], total: 3} =
-               Search.filter(entries, "hello", limit: 10)
+               Search.filter(entries, "hello", :elixir, limit: 10)
 
-      assert %{entries: [], total: 0} = Search.filter(entries, "started", limit: 10)
-      assert %{entries: [%{seq: 3}], total: 1} = Search.filter(entries, "LO C", limit: 10)
+      assert %{entries: [], total: 0} = Search.filter(entries, "started", :elixir, limit: 10)
+
+      assert %{entries: [%{seq: 3}], total: 1} =
+               Search.filter(entries, "LO C", :elixir, limit: 10)
+    end
+
+    test "matches only the line in the given syntax", %{entries: entries} do
+      assert %{total: 0} = Search.filter(entries, ~S|(<<"hello|, :elixir, limit: 10)
+      assert %{total: 3} = Search.filter(entries, ~S|(<<"hello|, :erlang, limit: 10)
+      assert %{total: 0} = Search.filter(entries, "Elixir.Date", :elixir, limit: 10)
     end
 
     test "pages below :before, counting every match on the first page", %{entries: entries} do
       assert %{entries: [%{seq: 3}, %{seq: 1}], total: 3} =
-               Search.filter(entries, "hello", limit: 2)
+               Search.filter(entries, "hello", :elixir, limit: 2)
 
       assert %{entries: [%{seq: 1}, %{seq: 0}], total: nil} =
-               Search.filter(entries, "hello", before: 3, limit: 2)
+               Search.filter(entries, "hello", :elixir, before: 3, limit: 2)
 
-      assert %{entries: [], total: nil} = Search.filter(entries, "hello", before: 0, limit: 2)
+      assert %{entries: [], total: nil} =
+               Search.filter(entries, "hello", :elixir, before: 0, limit: 2)
     end
   end
 

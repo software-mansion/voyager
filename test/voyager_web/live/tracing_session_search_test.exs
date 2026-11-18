@@ -4,7 +4,9 @@ defmodule VoyagerWeb.TracingSessionSearchTest do
 
   import Phoenix.LiveViewTest
   import Voyager.Test.TracerFixture
+  import Voyager.TestUtils, only: [reset_term_syntax: 1]
 
+  alias Voyager.Services.TermSyntax
   alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Writer
 
@@ -135,6 +137,25 @@ defmodule VoyagerWeb.TracingSessionSearchTest do
 
     search(view, "2023")
     assert view |> element("#entry-2-term-content") |> render() =~ ~r{<mark[^>]*>2023</mark>}
+  end
+
+  describe "with the term syntax switched" do
+    setup :reset_term_syntax
+
+    test "matches and marks only text in the syntax rows are shown in", %{conn: conn} do
+      %{id: id} = start!(@config)
+      trace_dates!([~D[2023-05-05]], 1)
+      view = open(conn, id)
+
+      search(view, "Elixir.Date")
+      assert has_element?(view, "#log-no-matches")
+
+      {:ok, :erlang} = TermSyntax.save_setting(:erlang)
+      search(view, "Elixir.Date")
+
+      assert view |> element("#entry-2-term-content") |> render() =~
+               ~r{<mark[^>]*>Elixir.Date</mark>}
+    end
   end
 
   test "returns to the live list once the search is cleared", %{conn: conn} do
