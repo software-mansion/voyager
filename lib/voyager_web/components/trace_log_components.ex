@@ -239,7 +239,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
         <div class="flex shrink-0 items-center gap-4">
           <span id="log-legend" class="text-base-content/70 flex items-center gap-3 text-xs">
             <span
-              :for={type <- if(@durations?, do: [:call, :return, :exception], else: [:call])}
+              :for={type <- [:call, :return, :exception]}
               class="flex items-center gap-1"
             >
               <.icon name={glyph(type)} class={["size-3.5", glyph_class(type)]} />
