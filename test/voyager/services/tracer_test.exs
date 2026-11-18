@@ -4,6 +4,8 @@ defmodule Voyager.Services.TracerTest do
 
   import ExUnit.CaptureLog
 
+  alias Voyager.Actions.TraceEntries, as: TraceEntryActions
+  alias Voyager.Actions.TraceSessions, as: TraceSessionActions
   alias Voyager.Queries.TraceSessions, as: TraceSessionQueries
   alias Voyager.Repo
   alias Voyager.Schemas.TraceEvent
@@ -535,6 +537,67 @@ defmodule Voyager.Services.TracerTest do
              saved.last_run
 
     assert {:error, :not_found} = Tracer.summary(-1)
+  end
+
+  test "lists a session's runs the same from memory and from the database" do
+    runs =
+      for save <- [false, true] do
+        assert {:ok, %{id: id}} = Tracer.create(:ui, save: save)
+        assert {:ok, _session} = configure(%{return_trace: true, max_events: 2})
+        run_named(id, :first_run, ~D[2024-01-01])
+        assert {:ok, _session} = configure(%{capture: :arity, return_trace: true, max_events: 2})
+        run_named(id, :second_run, ~D[2023-01-01])
+
+        assert {:ok, runs} = Tracer.runs(id)
+        Enum.map(runs, &Map.take(&1, [:index, :reason, :traces, :dropped, :config]))
+      end
+
+    assert [unsaved, saved] = runs
+    assert unsaved == saved
+
+    assert [
+             %{index: 1, reason: :event_limit, traces: 2, config: %{capture: :args}},
+             %{index: 2, reason: :event_limit, traces: 2, config: %{capture: :arity}}
+           ] = saved
+
+    assert {:error, :not_found} = Tracer.runs(-1)
+  end
+
+  test "counts a saved run that crashed before its stop entry was written" do
+    assert {:ok, %{id: id}} = TraceSessionActions.create(%{origin: :ui, status: :stopped})
+
+    TraceEntryActions.insert_all(id, [
+      %{seq: 0, kind: :started, at: 1_000_000, origin: :ui},
+      trace_row(1, 2_000_000),
+      trace_row(2, 8_000_000),
+      %{seq: 3, kind: :started, at: 20_000_000, origin: :ui},
+      trace_row(4, 22_000_000),
+      %{
+        seq: 5,
+        kind: :stopped,
+        at: 30_000_000,
+        origin: :ui,
+        reason: :stopped,
+        traces: 1,
+        dropped: 0
+      }
+    ])
+
+    assert {:ok, [crashed, later]} = Tracer.runs(id)
+    assert %{stopped_at: nil, reason: :interrupted, traces: 2, duration_ms: 7_000} = crashed
+    assert %{reason: :stopped, traces: 1} = later
+  end
+
+  defp trace_row(seq, at) do
+    %{
+      seq: seq,
+      kind: :trace,
+      type: :call,
+      pid: self(),
+      process: :my_server,
+      mfa: {Date, :leap_year?, 1},
+      at: at
+    }
   end
 
   defp comparable(summary),
