@@ -91,7 +91,33 @@ defmodule Voyager.Services.Tracer.Overview do
   """
   @spec activity([run()], [{pos_integer(), integer()}]) :: activity() | nil
   def activity([], _run_timestamps), do: nil
-  def activity(runs, run_timestamps), do: full_activity(runs, run_timestamps)
+  def activity(_runs, []), do: nil
+
+  def activity(runs, run_timestamps) do
+    grouped = Enum.group_by(run_timestamps, &elem(&1, 0), &elem(&1, 1))
+
+    max_ats =
+      for {idx, ats} <- grouped, ats != [], into: %{}, do: {idx, Enum.max(ats)}
+
+    {spans, bucket_ms} = plan_segments(runs, max_ats)
+    bucket_us = bucket_ms * 1_000
+
+    run_buckets =
+      for {run, {start_us, _end_us}} <- Enum.zip(runs, spans),
+          ats = Map.get(grouped, run.index, []),
+          ats != [],
+          into: %{} do
+        buckets =
+          Enum.reduce(ats, %{}, fn at, acc ->
+            idx = max(div(at - start_us, bucket_us), 0)
+            Map.update(acc, idx, 1, &(&1 + 1))
+          end)
+
+        {run.index, buckets}
+      end
+
+    build_segments(runs, spans, bucket_ms, run_buckets)
+  end
 
   @doc """
   Adds the `:trace` entries of `entries` to the per-second `live` counts, keeping only the
@@ -193,34 +219,6 @@ defmodule Voyager.Services.Tracer.Overview do
       segments: segments,
       end_us: last.start_us + length(last.counts) * bucket_us
     }
-  end
-
-  defp full_activity(_runs, []), do: nil
-
-  defp full_activity(runs, run_timestamps) do
-    grouped = Enum.group_by(run_timestamps, &elem(&1, 0), &elem(&1, 1))
-
-    max_ats =
-      for {idx, ats} <- grouped, ats != [], into: %{}, do: {idx, Enum.max(ats)}
-
-    {spans, bucket_ms} = plan_segments(runs, max_ats)
-    bucket_us = bucket_ms * 1_000
-
-    run_buckets =
-      for {run, {start_us, _end_us}} <- Enum.zip(runs, spans),
-          ats = Map.get(grouped, run.index, []),
-          ats != [],
-          into: %{} do
-        buckets =
-          Enum.reduce(ats, %{}, fn at, acc ->
-            idx = max(div(at - start_us, bucket_us), 0)
-            Map.update(acc, idx, 1, &(&1 + 1))
-          end)
-
-        {run.index, buckets}
-      end
-
-    build_segments(runs, spans, bucket_ms, run_buckets)
   end
 
   defp clamp_buckets(buckets, count) do
