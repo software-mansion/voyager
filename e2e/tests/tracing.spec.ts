@@ -4,6 +4,7 @@ import { rpc, rpcOk } from './supervision_tree_helpers';
 
 const sel = {
   stop: '#session-stop',
+  confirmStop: '#stop-session-modal-confirm',
   resume: '#session-resume',
   rows: '#session-log-rows tr[id^="entry-"]',
   liveBadge: '#session-log .badge-success',
@@ -11,6 +12,9 @@ const sel = {
 };
 
 test.describe('TracingSessionLive', () => {
+  // The Tracer holds one active session, so parallel tests replace each other's.
+  test.describe.configure({ mode: 'default' });
+
   test.beforeEach(async ({ page }) => {
     await ensureConnected(page);
   });
@@ -44,6 +48,7 @@ test.describe('TracingSessionLive', () => {
     }).toPass();
 
     await page.locator(sel.stop).click();
+    await page.locator(sel.confirmStop).click();
     await expect(page.locator(sel.resume)).toBeVisible();
     await expect(page.locator(sel.liveBadge)).toBeHidden();
   });
@@ -56,7 +61,10 @@ test.describe('TracingSessionLive', () => {
     const term = page.locator(`${sel.rows} [id$="-term"]`).first();
     await expect(term).toBeVisible();
     await page.locator(sel.stop).click();
+    await page.locator(sel.confirmStop).click();
     await expect(page.locator(sel.resume)).toBeVisible();
+    // The stop row lands in a later log flush and shifts the rows under the pointer.
+    await expect(page.locator(sel.rows, { hasText: 'Stopped' })).toBeVisible();
 
     await term.hover();
     const tip = page.locator('#log-term-tip');
