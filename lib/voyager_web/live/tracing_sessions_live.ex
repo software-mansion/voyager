@@ -236,8 +236,12 @@ defmodule VoyagerWeb.TracingSessionsLive do
           else: "are kept"}, and you can resume it from the session page.
       </p>
       <p :if={@kind == :delete and @selected_item != nil} class="text-base-content/70 mt-1 text-sm">
-        <span :if={@selected_item.config} class="font-mono">
-          {TracingComponents.traced_mfa(@selected_item.config)}
+        <span :if={@selected_item.config}>
+          The
+          <span class="text-base-content font-mono">
+            {TracingComponents.traced_mfa(@selected_item.config)}
+          </span>
+          session
         </span>
         <span :if={!@selected_item.config}>This session</span>
         {removed_copy(@selected_item.traces)}

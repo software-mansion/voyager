@@ -213,7 +213,13 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     |> element("#delete-session")
     |> render_click()
 
-    assert has_element?(view, "#delete-session-modal", "will be removed from history.")
+    assert has_element?(
+             view,
+             "#delete-session-modal span.font-mono.text-base-content",
+             "Date.leap_year?/1"
+           )
+
+    assert has_element?(view, "#delete-session-modal", "session will be removed from history.")
     refute has_element?(view, "#delete-session-modal", "0 traces")
   end
 
