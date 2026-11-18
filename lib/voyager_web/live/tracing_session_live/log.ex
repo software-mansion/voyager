@@ -261,6 +261,8 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
     first? = is_nil(search.total)
     shown = search.shown + length(entries)
     total = if length(entries) < @search_limit, do: shown, else: search.total || total
+    # The view applies the session's trace count on its flush timer, so it can trail the matches.
+    traces = search.traces || max(socket.assigns.trace_session.result.traces, total)
 
     socket
     |> stream(:entries, entries, if(first?, do: [reset: true], else: [at: -1]))
@@ -269,7 +271,7 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
       | total: total,
         shown: shown,
         oldest_seq: List.last(entries, %{seq: search.oldest_seq}).seq,
-        traces: search.traces || socket.assigns.trace_session.result.traces,
+        traces: traces,
         rest: rest
     })
   end

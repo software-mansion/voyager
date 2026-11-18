@@ -51,6 +51,18 @@ defmodule VoyagerWeb.TracingSessionSearchTest do
     refute has_element?(view, "#log-older")
   end
 
+  test "counts no more matches than traces while the view's trace count trails", %{conn: conn} do
+    %{id: id} = start!(@config, save: true)
+    trace_dates!([~D[2023-05-05]], 1)
+    view = open(conn, id)
+
+    trace_dates!([~D[2023-05-05]], 2)
+    Writer.flush()
+    search(view, "2023")
+
+    assert has_element?(view, "#log-footer", "2 matches in 2 traces")
+  end
+
   test "loads an unsaved session's older matches after its buffer moved on", %{conn: conn} do
     %{id: id} = start!(@config)
     trace_dates!(List.duplicate(~D[2023-05-05], 150), 150)
