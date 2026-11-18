@@ -39,7 +39,7 @@ defmodule VoyagerWeb.ConnectLive.DemoBanner do
         :if={@offer != :hidden}
         id="demo-tab"
         role="note"
-        class="border-primary/30 bg-primary/5 rounded-t-box -top-9.5 absolute left-10 flex items-center gap-2 whitespace-nowrap border-2 pt-1.5 pr-1.5 pb-4.5 pl-3 text-xs"
+        class="border-primary/30 bg-primary/5 rounded-t-box -top-9.5 pb-4.5 absolute left-10 flex items-center gap-2 whitespace-nowrap border-2 pt-1.5 pr-1.5 pl-3 text-xs"
       >
         <.icon :if={not @starting?} name="icon-binoculars" class="text-primary size-4 shrink-0" />
         <span :if={@starting?} class="loading loading-spinner loading-xs text-primary"></span>
