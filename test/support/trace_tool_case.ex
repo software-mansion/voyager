@@ -42,37 +42,49 @@ defmodule Voyager.TraceToolCase do
 
   # Other test modules leave their sessions active, and a running one cannot close.
   defp reset_tracer do
-    Tracer.stop(:ui)
-
-    _stopped =
-      Stream.repeatedly(&Tracer.active/0) |> Enum.find(&(not match?(%{status: :running}, &1)))
-
+    Task.await(Task.async(&stop_running/0))
     Writer.flush()
     :ok = Tracer.close()
+  end
+
+  # In a task, so the session updates it subscribes to stay out of the test's mailbox.
+  defp stop_running do
+    Phoenix.PubSub.subscribe(Voyager.PubSub, Tracer.session_topic())
+
+    if match?(%{status: :running}, Tracer.active()) do
+      Tracer.stop(:ui)
+
+      receive do
+        {:session_updated, %{status: :stopped}} -> :ok
+      after
+        1_000 -> raise "the running tracing session did not stop"
+      end
+    end
   end
 
   @doc "Creates and configures a session tracing `Date.leap_year?/1` in the calling process."
   @spec configure(map(), keyword()) :: Tracer.Session.t()
   def configure(overrides \\ %{}, opts \\ []) do
     {:ok, _session} = Tracer.create(:ui, opts)
-
-    attrs =
-      Map.merge(
-        %{
-          module: "Elixir.Date",
-          function: "leap_year?",
-          arity: 1,
-          pids: [Voyager.Pid.format(self(), :distribution)],
-          capture: :args,
-          return_trace: true,
-          max_events: 1_000,
-          max_time_ms: 5_000
-        },
-        overrides
-      )
-
-    {:ok, session} = Tracer.configure(node(), attrs, :ui)
+    {:ok, session} = Tracer.configure(node(), config_attrs(overrides), :ui)
     session
+  end
+
+  @spec config_attrs(map()) :: map()
+  def config_attrs(overrides \\ %{}) do
+    Map.merge(
+      %{
+        module: "Elixir.Date",
+        function: "leap_year?",
+        arity: 1,
+        pids: [Voyager.Pid.format(self(), :distribution)],
+        capture: :args,
+        return_trace: true,
+        max_events: 1_000,
+        max_time_ms: 5_000
+      },
+      overrides
+    )
   end
 
   @doc "Calls `Date.leap_year?/1` `count` times and waits until the session logged them."
