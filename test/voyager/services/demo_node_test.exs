@@ -19,6 +19,14 @@ defmodule Voyager.Services.DemoNodeTest do
     assert DemoNode.start() == {:error, :unavailable}
   end
 
+  @tag :capture_log
+  test "returns an error without restarting when the demo node fails to boot" do
+    pid = start_demo_node!(exec: {~c"/usr/bin/false", []})
+
+    assert {:error, _reason} = DemoNode.start()
+    assert Process.whereis(DemoNode) == pid
+  end
+
   test "stays offered without saved connections, even once dismissed" do
     start_demo_node!()
     assert DemoNode.offer() == :sticky
@@ -76,6 +84,7 @@ defmodule Voyager.Services.DemoNodeTest do
 
     apps = :peer.call(peer, :application, :which_applications, [])
     assert List.keymember?(apps, :voyager_demo, 0)
+    assert List.keymember?(apps, :relations_demo, 0)
     assert is_pid(:peer.call(peer, Process, :whereis, [VoyagerDemo.Supervisor]))
   end
 
@@ -132,7 +141,7 @@ defmodule Voyager.Services.DemoNodeTest do
     assert is_pid(peer)
     ref = Process.monitor(peer)
 
-    send(DemoNode, {:idle_timeout, peer})
+    send(DemoNode, {:timeout, :sys.get_state(DemoNode).timer, :idle_timeout})
 
     assert_receive {:DOWN, ^ref, :process, ^peer, _reason}
     assert demo_peer() == nil
@@ -141,11 +150,13 @@ defmodule Voyager.Services.DemoNodeTest do
   test "connecting to the demo node cancels the idle timeout" do
     start_demo_node!()
     {:ok, _params} = DemoNode.start()
-    assert is_reference(:sys.get_state(DemoNode).timer)
+    %{timer: timer, peer: peer} = :sys.get_state(DemoNode)
+    assert is_reference(timer)
 
     broadcast({:node_connected, @node})
+    send(DemoNode, {:timeout, timer, :idle_timeout})
 
-    assert %{timer: nil, peer: peer} = :sys.get_state(DemoNode)
+    assert %{timer: nil, peer: ^peer} = :sys.get_state(DemoNode)
     assert is_pid(peer)
   end
 
