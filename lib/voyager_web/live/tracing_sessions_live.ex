@@ -245,7 +245,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
           {TracingComponents.traced_mfa(@selected_item.config)}
         </span>
         <span :if={!@selected_item.config}>This session</span>
-        and its {Formatters.format_integer(@selected_item.traces)} traces will be removed from history.
+        {removed_copy(@selected_item.traces)}
       </p>
       <p :if={@kind == :unload} class="text-base-content/70 mt-1 text-sm">
         This session is not saved, so its traces are lost.
@@ -753,6 +753,12 @@ defmodule VoyagerWeb.TracingSessionsLive do
 
   defp confirm_kind({kind, _payload}), do: kind
   defp confirm_kind(kind), do: kind
+
+  defp removed_copy(0), do: "will be removed from history."
+  defp removed_copy(1), do: "and its 1 trace will be removed from history."
+
+  defp removed_copy(traces),
+    do: "and its #{Formatters.format_integer(traces)} traces will be removed from history."
 
   defp confirm_title(:stop), do: "Stop session"
   defp confirm_title(:delete), do: "Delete session"
