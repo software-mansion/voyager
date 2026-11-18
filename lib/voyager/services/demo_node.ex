@@ -92,7 +92,7 @@ defmodule Voyager.Services.DemoNode do
 
     case start_peer(state.exec, cookie) do
       {:ok, peer, node} ->
-        timer = Process.send_after(self(), {:idle_timeout, peer}, @idle_timeout)
+        timer = :erlang.start_timer(@idle_timeout, self(), :idle_timeout)
         state = %{state | peer: peer, node: node, timer: timer}
         {:reply, {:ok, %{node_name: @node_name, cookie: cookie}}, state}
 
@@ -118,7 +118,7 @@ defmodule Voyager.Services.DemoNode do
     {:noreply, stop_demo(state)}
   end
 
-  def handle_info({:idle_timeout, peer}, %{peer: peer} = state) do
+  def handle_info({:timeout, timer, :idle_timeout}, %{timer: timer} = state) do
     {:noreply, stop_demo(state)}
   end
 
@@ -174,6 +174,9 @@ defmodule Voyager.Services.DemoNode do
           error
       end
     end
+  catch
+    # :peer.start_link/1 exits instead of returning an error when the node fails to boot.
+    :exit, reason -> {:error, reason}
   end
 
   defp load_demo(peer) do

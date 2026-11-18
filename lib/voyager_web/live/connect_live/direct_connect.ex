@@ -23,13 +23,15 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
 
   @impl true
   def update(%{demo: params}, socket) do
-    form =
-      %{"node_name" => params.node_name, "cookie" => params.cookie, "name_type" => "longnames"}
-      |> ConnectionParams.changeset()
-      |> to_form(as: :conn)
-
     socket
-    |> assign(:form, form)
+    |> assign(
+      :form,
+      prefill_form(%{
+        "node_name" => params.node_name,
+        "cookie" => params.cookie,
+        "name_type" => "longnames"
+      })
+    )
     |> SecretVisibility.reset()
     |> ok()
   end
