@@ -16,12 +16,30 @@ defmodule Voyager.MCP.Tools.TraceHistoryTest do
     assert %{"target" => "Date.leap_year?/1", "capture" => "args", "total_events" => 0} = listed
   end
 
-  test "lists 20 saved sessions besides the active one" do
-    for _ <- 1..21, do: {:ok, _session} = Tracer.create(:ui, save: true)
+  test "lists 20 saved sessions besides the active one, then older ones past the cursor" do
+    for _ <- 1..22, do: {:ok, _session} = Tracer.create(:ui, save: true)
 
-    assert %{"sessions" => [%{"session_id" => active} | saved]} = history(%{})
+    assert %{"sessions" => [%{"session_id" => active} | saved], "next_before_id" => before_id} =
+             history(%{})
+
     assert length(saved) == 20
     refute active in Enum.map(saved, & &1["session_id"])
+
+    assert %{"sessions" => [%{"session_id" => older}]} =
+             page = history(%{"before_id" => before_id})
+
+    assert older < before_id
+    refute Map.has_key?(page, "next_before_id")
+  end
+
+  test "lists only the sessions on the given node" do
+    %{id: on_node} = configure(%{}, save: true)
+    {:ok, _session} = Tracer.create(:ui, save: true)
+
+    assert %{"sessions" => [%{"session_id" => ^on_node}]} =
+             history(%{"node" => Atom.to_string(node())})
+
+    assert %{"sessions" => []} = history(%{"node" => "other@host"})
   end
 
   test "reads a running session page by page" do
@@ -56,7 +74,7 @@ defmodule Voyager.MCP.Tools.TraceHistoryTest do
     assert seq > 2
   end
 
-  test "reads a saved session that is no longer active" do
+  test "reads a saved session that is no longer active, with return values but no arguments" do
     %{id: id} = configure(%{capture: :arity}, save: true)
     {:ok, _session} = Tracer.start(:ui)
     trace_calls(1)
@@ -67,16 +85,66 @@ defmodule Voyager.MCP.Tools.TraceHistoryTest do
     report = history(%{"session_id" => id})
 
     assert %{"status" => "stopped", "summary" => %{"calls" => 1}, "events" => events} = report
+    assert %{"untrusted" => _, "runs" => [%{"run" => 1, "reason" => "stopped"}]} = report
+    refute Map.has_key?(report, "last_run_summary")
 
-    assert Enum.map(events, & &1["kind"]) == [
-             "configured",
-             "started",
-             "call",
-             "return",
-             "stopped"
-           ]
+    assert [
+             %{"kind" => "configured"},
+             %{"kind" => "started"},
+             %{"kind" => "call"} = call,
+             %{"kind" => "return", "value" => "false"},
+             %{"kind" => "stopped"}
+           ] = events
 
-    refute Map.has_key?(report, "untrusted")
+    refute Map.has_key?(call, "args")
+  end
+
+  test "reports each run, with its config changes, and the last run's summary" do
+    %{id: id} = configure(%{max_events: 2})
+    {:ok, _session} = Tracer.start(:ui)
+    trace_calls(1)
+    assert_receive {:session_entries, %{status: :stopped}, _entries}
+
+    {:ok, _session} =
+      Tracer.configure(node(), config_attrs(%{capture: :arity, max_events: 2}), :ui)
+
+    {:ok, _session} = Tracer.start(:ui)
+    trace_calls(1)
+    assert_receive {:session_entries, %{status: :stopped, traces: 4}, _entries}
+
+    assert %{"runs" => [first, second], "summary" => %{"calls" => 2}} =
+             report = history(%{"session_id" => id})
+
+    assert %{"run" => 1, "events" => 2, "reason" => "event_limit", "config" => config} = first
+    assert config == %{"capture" => "args"}
+    assert %{"run" => 2, "events" => 2} = second
+    refute Map.has_key?(second, "config")
+    assert %{"last_run_summary" => %{"calls" => 1}} = report
+  end
+
+  test "searches a session's events, newest first, past the cursor" do
+    %{id: id} = configure()
+    {:ok, _session} = Tracer.start(:ui)
+    trace_calls(3)
+
+    assert %{"events" => [%{"kind" => "call", "args" => args}], "total_matches" => 1} =
+             report = history(%{"session_id" => id, "query" => "2002"})
+
+    assert args =~ "2002"
+    assert %{"searched" => _, "more" => false} = report
+
+    assert %{"events" => [newest], "next_before" => before, "more" => true} =
+             history(%{"session_id" => id, "query" => "leap_year", "limit" => 1})
+
+    assert %{"events" => [older], "more" => true} =
+             history(%{
+               "session_id" => id,
+               "query" => "leap_year",
+               "before" => before,
+               "limit" => 1
+             })
+
+    assert older["seq"] < newest["seq"]
   end
 
   test "refuses an unknown session" do

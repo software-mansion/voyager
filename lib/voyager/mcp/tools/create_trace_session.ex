@@ -10,8 +10,8 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
   (every function), with Erlang modules as `:mod.fun/arity` or `mod:fun/arity`.
   Examples: "MyApp.Repo.insert/2", "MyApp.Orders.place", ":gen_tcp.send/2".
 
-  The user chooses whether call arguments are captured; captured arguments are
-  sent to the AI. Set at least one limit: `max_events` (1 to 10000),
+  The user chooses whether call arguments are captured; captured arguments, and
+  return values with `return_trace`, are sent to the AI. Set at least one limit: `max_events` (1 to 10000),
   `max_seconds` (1 to 3600) or `max_rate` (events per second, 1 to
   1000); the session stops at the first one reached. Calls, returns and
   exceptions each count as one event, so with `return_trace` a call takes
@@ -140,7 +140,10 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
             "description" => "Call arguments are sent to the AI"
           }),
         "return_trace" =>
-          property("boolean", params[:return_trace], %{"title" => "Trace return values"}),
+          property("boolean", params[:return_trace], %{
+            "title" => "Trace return values",
+            "description" => "Return values are sent to the AI"
+          }),
         "max_events" =>
           limit(
             params[:max_events],
