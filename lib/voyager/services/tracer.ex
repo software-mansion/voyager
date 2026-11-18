@@ -110,11 +110,14 @@ defmodule Voyager.Services.Tracer do
   end
 
   @doc """
-  Makes saved session `id` active, with its config and counts.
-  Returns `{:error, :busy}` while the active session runs.
+  Makes saved session `id` active, with its config and counts. Its trace summary is read in
+  the caller. Returns `{:error, :busy}` while the active session runs.
   """
   @spec load(pos_integer()) :: {:ok, Session.t()} | {:error, :busy | :not_found}
-  def load(id) when is_integer(id), do: GenServer.call(__MODULE__, {:load, id})
+  def load(id) when is_integer(id) do
+    Writer.flush()
+    GenServer.call(__MODULE__, {:load, id, TraceEntryQueries.summary(id)})
+  end
 
   @doc "Deletes saved session `id` and its entries, unloading it if active; the running one is refused."
   @spec delete(pos_integer()) ::
@@ -321,7 +324,7 @@ defmodule Voyager.Services.Tracer do
     end
   end
 
-  def handle_call({:load, id}, _from, state) do
+  def handle_call({:load, id, summary}, _from, state) do
     Writer.flush()
     TraceSessionActions.interrupt_running()
 
@@ -332,7 +335,7 @@ defmodule Voyager.Services.Tracer do
       row ->
         row
         |> saved_session()
-        |> activate(%MemoryLog{summary: TraceEntryQueries.summary(id)})
+        |> activate(%MemoryLog{summary: summary})
     end
   end
 

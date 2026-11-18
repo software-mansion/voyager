@@ -114,21 +114,11 @@ defmodule Voyager.Queries.TraceEntries do
   """
   @spec activity(integer(), [Overview.run()]) :: Overview.activity() | nil
   def activity(_session_id, []), do: nil
-  def activity(session_id, runs), do: full_activity(session_id, runs)
 
-  @doc "The trace count and latest `at` of a run that has no stop entry."
-  @spec open_run_extent(integer(), Overview.run()) :: {non_neg_integer(), DateTime.t() | nil}
-  def open_run_extent(session_id, run) do
-    session_id
-    |> run_events(run)
-    |> select([e], {count(e.id), max(e.at)})
-    |> Repo.one()
-  end
-
-  defp full_activity(session_id, runs) do
+  def activity(session_id, runs) do
     max_ats =
       for %{stopped_at: nil} = run <- runs,
-          max_at = max_run_at(session_id, run),
+          {_count, max_at} = open_run_extent(session_id, run),
           not is_nil(max_at),
           into: %{},
           do: {run.index, DateTime.to_unix(max_at, :microsecond)}
@@ -146,10 +136,12 @@ defmodule Voyager.Queries.TraceEntries do
     Overview.build_segments(runs, spans, bucket_ms, run_buckets)
   end
 
-  defp max_run_at(session_id, run) do
+  @doc "The trace count and latest `at` of a run that has no stop entry."
+  @spec open_run_extent(integer(), Overview.run()) :: {non_neg_integer(), DateTime.t() | nil}
+  def open_run_extent(session_id, run) do
     session_id
     |> run_events(run)
-    |> select([e], max(e.at))
+    |> select([e], {count(e.id), max(e.at)})
     |> Repo.one()
   end
 
