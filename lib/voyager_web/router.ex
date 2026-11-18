@@ -33,7 +33,7 @@ defmodule VoyagerWeb.Router do
       layout: {VoyagerWeb.Layouts, :settings},
       session: {VoyagerWeb.Hooks.UrlHook, :referer_session, []},
       on_mount: [
-        VoyagerWeb.Hooks.McpStatusHook,
+        VoyagerWeb.Hooks.McpAgentsHook,
         VoyagerWeb.Hooks.TracingStatusHook,
         VoyagerWeb.Hooks.AppUpdateHook
       ] do
@@ -46,7 +46,7 @@ defmodule VoyagerWeb.Router do
       on_mount: [
         {VoyagerWeb.Hooks.NodeSessionHook, :require_connected_node},
         VoyagerWeb.Hooks.OnboardingHook,
-        VoyagerWeb.Hooks.McpStatusHook,
+        VoyagerWeb.Hooks.McpAgentsHook,
         VoyagerWeb.Hooks.TracingStatusHook,
         VoyagerWeb.Hooks.AppUpdateHook
       ] do
