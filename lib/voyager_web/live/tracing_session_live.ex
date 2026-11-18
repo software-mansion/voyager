@@ -107,7 +107,7 @@ defmodule VoyagerWeb.TracingSessionLive do
           stops. {kept_copy(@trace_session.result.traces)}, and you can resume it later.
         </p>
         <p :if={@confirm == :delete} class="text-base-content/70 mt-1 text-sm">
-          Its {Formatters.format_integer(@trace_session.result.traces)} traces are deleted too. This cannot be undone.
+          {deleted_copy(@trace_session.result.traces)} This cannot be undone.
         </p>
         <p :if={@confirm == :unload} class="text-base-content/70 mt-1 text-sm">
           It is not saved, so its parameters and traces are discarded. This cannot be undone.
@@ -446,6 +446,12 @@ defmodule VoyagerWeb.TracingSessionLive do
   defp kept_copy(0), do: "No traces are kept"
   defp kept_copy(1), do: "Its 1 trace is kept"
   defp kept_copy(traces), do: "Its #{Formatters.format_integer(traces)} traces are kept"
+
+  defp deleted_copy(0), do: "No traces are deleted."
+  defp deleted_copy(1), do: "Its 1 trace is deleted too."
+
+  defp deleted_copy(traces),
+    do: "Its #{Formatters.format_integer(traces)} traces are deleted too."
 
   defp confirm_title(:stop), do: "Stop tracing"
   defp confirm_title(:delete), do: "Delete session"

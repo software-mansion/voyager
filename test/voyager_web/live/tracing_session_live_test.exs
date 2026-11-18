@@ -318,6 +318,8 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     |> element("#session-delete")
     |> render_click()
 
+    assert has_element?(view, "#delete-session-modal", "No traces are deleted.")
+
     view
     |> element("#delete-session-modal-cancel")
     |> render_click()
