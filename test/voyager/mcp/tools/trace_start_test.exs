@@ -25,6 +25,30 @@ defmodule Voyager.MCP.Tools.TraceStartTest do
              json!(TraceStart.execute(%{}, %Frame{}))
   end
 
+  test "loads a saved session by id and runs it again, saying what it discarded" do
+    %{id: saved} = configure(%{max_events: 2}, save: true)
+    {:ok, _session} = Tracer.start(:ui)
+    trace_calls(1)
+    assert_receive {:session_entries, %{status: :stopped}, _entries}
+
+    %{id: unsaved} = configure()
+    {:ok, _session} = Tracer.start(:ui)
+    trace_calls(1)
+    Tracer.stop(:ui)
+    assert_receive {:session_entries, %{id: ^unsaved, status: :stopped}, _entries}
+
+    assert %{"session_id" => ^saved, "status" => "running", "discarded" => discarded} =
+             report = json!(TraceStart.execute(%{session_id: saved}, %Frame{}))
+
+    assert discarded =~ "#{unsaved}"
+    assert %{"runs" => [_, %{"reason" => "running"}]} = report
+  end
+
+  test "refuses an unknown session id" do
+    configure()
+    assert error!(TraceStart.execute(%{session_id: 424_242}, %Frame{})) =~ "No tracing session"
+  end
+
   test "refuses without a configured session" do
     assert error!(TraceStart.execute(%{}, %Frame{})) =~ "no tracing session"
 
@@ -50,9 +74,9 @@ defmodule Voyager.MCP.Tools.TraceStartTest do
     assert %{status: :idle} = Tracer.active()
   end
 
-  test "returns the agent's refusal" do
+  test "explains the agent's refusal" do
     configure(%{module: "Elixir.Voyager.Missing", function: "_", arity: nil})
 
-    assert error!(TraceStart.execute(%{}, %Frame{})) =~ "Could not start tracing"
+    assert error!(TraceStart.execute(%{}, %Frame{})) =~ "module_list"
   end
 end

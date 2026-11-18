@@ -8,6 +8,9 @@ defmodule Voyager.MCP.Tools.Remote do
 
   @not_connected "Not connected to any node, call `list_connections` then `connect`"
 
+  @spec not_connected() :: String.t()
+  def not_connected, do: @not_connected
+
   @spec reply((node() -> {:ok, term()} | {:error, term()}), Frame.t()) ::
           {:reply, Response.t(), Frame.t()}
   def reply(fun, frame) when is_function(fun, 1) do

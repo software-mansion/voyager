@@ -26,7 +26,6 @@ defmodule Voyager.MCP.Tools.TraceWatch do
   schema do
   end
 
-  @doc "How long a call waits for the session to end."
   @spec max_wait() :: pos_integer()
   def max_wait, do: @max_wait
 
@@ -40,13 +39,11 @@ defmodule Voyager.MCP.Tools.TraceWatch do
     {:reply, reply, frame}
   end
 
-  defp watch(nil, _frame),
-    do:
-      Response.error(Response.tool(), "There is no tracing session, call `create_trace_session`")
+  defp watch(nil, _frame), do: Response.error(Response.tool(), TraceReport.no_session())
 
   defp watch(%{status: :idle} = session, frame) do
-    case TraceStart.start(session) do
-      {:ok, session} -> await(session, frame)
+    case TraceStart.start(session.id) do
+      {:ok, session, _notes} -> await(session, frame)
       {:error, message} -> Response.error(Response.tool(), message)
     end
   end
@@ -59,7 +56,7 @@ defmodule Voyager.MCP.Tools.TraceWatch do
     if Frame.progress_token(frame), do: send(self(), :progress)
     deadline = System.monotonic_time(:millisecond) + @max_wait
 
-    case await(session, frame, %{deadline: deadline, reported: -1}) do
+    case await(session, frame, %{deadline: deadline, reported: -1, seq: session.seq}) do
       {:ended, session} ->
         TraceReport.reply(session)
 
@@ -70,20 +67,24 @@ defmodule Voyager.MCP.Tools.TraceWatch do
         })
 
       :closed ->
-        Response.error(Response.tool(), "The tracing session was closed")
+        Response.error(Response.tool(), TraceReport.closed())
     end
   end
 
+  # Updates queued before the watched run started (a configure, the previous run's stop) are older.
   defp await(%{id: id} = session, frame, watch) do
     receive do
+      {:session_updated, %{id: ^id, status: :stopped, seq: seq} = stopped} when seq > watch.seq ->
+        {:ended, stopped}
+
       {:session_updated, %{id: ^id, status: :running} = session} ->
         await(session, frame, watch)
 
-      {:session_updated, %{id: ^id} = session} ->
-        {:ended, session}
+      {:session_updated, %{id: ^id}} ->
+        await(session, frame, watch)
 
       {:session_updated, _closed_or_replaced} ->
-        :closed
+        if match?(%{id: ^id}, Tracer.active()), do: await(session, frame, watch), else: :closed
 
       :progress ->
         Process.send_after(self(), :progress, @progress_interval)

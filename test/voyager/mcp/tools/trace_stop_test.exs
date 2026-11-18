@@ -33,6 +33,14 @@ defmodule Voyager.MCP.Tools.TraceStopTest do
     assert %{status: :stopped} = Tracer.active()
   end
 
+  test "refuses to stop a session that is no longer the given one" do
+    %{id: id} = configure()
+    {:ok, _session} = Tracer.start(:ui)
+
+    assert error!(TraceStop.execute(%{session_id: id + 1}, %Frame{})) =~ "is not active"
+    assert %{"status" => "stopped"} = json!(TraceStop.execute(%{session_id: id}, %Frame{}))
+  end
+
   test "returns a stopped session's report unchanged" do
     configure()
     {:ok, _session} = Tracer.start(:ui)
@@ -43,7 +51,7 @@ defmodule Voyager.MCP.Tools.TraceStopTest do
   end
 
   test "leaves arguments and return values out unless the session captured them" do
-    configure(%{capture: :arity})
+    configure(%{capture: :arity, return_trace: false})
     {:ok, _session} = Tracer.start(:ui)
     trace_calls(1)
 
