@@ -83,9 +83,9 @@ defmodule Voyager.Services.DemoNodeTest do
              {:ok, {127, 0, 0, 1}}
 
     apps = :peer.call(peer, :application, :which_applications, [])
-    assert List.keymember?(apps, :voyager_demo, 0)
-    assert List.keymember?(apps, :relations_demo, 0)
-    assert is_pid(:peer.call(peer, Process, :whereis, [VoyagerDemo.Supervisor]))
+    assert List.keymember?(apps, :supervision_tree_demo, 0)
+    assert is_pid(:peer.call(peer, Process, :whereis, [SupervisionTreeDemo.Supervisor]))
+    assert is_reference(:peer.call(peer, :ets, :whereis, [:kv_set]))
   end
 
   test "a second start replaces the running node with a new cookie" do
