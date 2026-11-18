@@ -105,7 +105,7 @@ defmodule Voyager.Test.TracerFixture do
   def put_queued(view) do
     # The broadcast reaches the view before the Tracer handles its next message.
     _ = :sys.get_state(Tracer)
-    render_hook(view, "log-ack", %{})
+    if has_element?(view, "#session-log-ack"), do: render_hook(view, "log-ack", %{})
     send(view.pid, :flush)
   end
 
