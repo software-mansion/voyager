@@ -78,6 +78,20 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     refute has_element?(view, "#session-stop")
   end
 
+  test "says one trace is kept when stopping a single trace", %{conn: conn} do
+    %{id: id} = start!()
+    view = open(conn, id)
+
+    call_traced!(1, 1)
+    put_queued(view)
+
+    view
+    |> element("#session-stop")
+    |> render_click()
+
+    assert has_element?(view, "#stop-session-modal", "Its 1 trace is kept")
+  end
+
   test "closes the stop confirmation once the run ends on its own", %{conn: conn} do
     %{id: id} = create!()
     {:ok, _session} = configure()

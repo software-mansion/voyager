@@ -444,6 +444,7 @@ defmodule VoyagerWeb.TracingSessionLive do
   defp sessions_path(%{node_name: node_name}), do: ~p"/node/#{node_name}/tracing"
 
   defp kept_copy(0), do: "No traces are kept"
+  defp kept_copy(1), do: "Its 1 trace is kept"
   defp kept_copy(traces), do: "Its #{Formatters.format_integer(traces)} traces are kept"
 
   defp confirm_title(:stop), do: "Stop tracing"
