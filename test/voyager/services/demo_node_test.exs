@@ -1,28 +1,64 @@
 defmodule Voyager.Services.DemoNodeTest do
   # async: false because the test swaps out the app's registered DemoNode.
-  use ExUnit.Case, async: false
+  use Voyager.DataCase, async: false
 
   import Voyager.TestUtils
 
+  alias Voyager.Actions.Connections, as: ConnectionActions
+  alias Voyager.Actions.SshConnections, as: SshConnectionActions
   alias Voyager.NodeSession
   alias Voyager.Services.DemoNode
 
   @node :"voyager_demo@127.0.0.1"
 
-  test "is not offered and refuses to start outside a release" do
+  test "is hidden and refuses to start outside a release" do
     start_demo_node!(exec: nil)
 
-    refute DemoNode.offered?()
+    refute DemoNode.available?()
+    assert DemoNode.offer() == :hidden
     assert DemoNode.start() == {:error, :unavailable}
   end
 
-  test "is no longer offered once dismissed" do
+  test "stays offered without saved connections, even once dismissed" do
     start_demo_node!()
-    assert DemoNode.offered?()
+    assert DemoNode.offer() == :sticky
 
     :ok = DemoNode.dismiss()
 
-    refute DemoNode.offered?()
+    assert DemoNode.offer() == :sticky
+  end
+
+  test "is dismissible with a saved direct connection and hidden once dismissed" do
+    start_demo_node!()
+    {:ok, _connection} = ConnectionActions.upsert_connected("app@127.0.0.1")
+    assert DemoNode.offer() == :dismissible
+
+    :ok = DemoNode.dismiss()
+
+    assert DemoNode.offer() == :hidden
+  end
+
+  test "is dismissible with only a saved SSH connection" do
+    start_demo_node!()
+    {:ok, _connection} = SshConnectionActions.upsert_connected("deploy", "gw", 22, "app@gw")
+
+    assert DemoNode.offer() == :dismissible
+  end
+
+  test "does not dismiss when the setting is locked" do
+    previous = Application.fetch_env(:voyager, :demo_dismissed)
+
+    on_exit(fn ->
+      case previous do
+        {:ok, value} -> Application.put_env(:voyager, :demo_dismissed, value)
+        :error -> Application.delete_env(:voyager, :demo_dismissed)
+      end
+    end)
+
+    start_demo_node!()
+    Application.put_env(:voyager, :demo_dismissed, false)
+
+    assert DemoNode.dismiss() == {:error, :locked}
   end
 
   test "boots a loopback-only demo node with the given cookie and the demo tree" do

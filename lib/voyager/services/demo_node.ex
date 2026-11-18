@@ -10,9 +10,13 @@ defmodule Voyager.Services.DemoNode do
   use GenServer
 
   alias Voyager.NodeSession
+  alias Voyager.Queries.Connections, as: ConnectionQueries
+  alias Voyager.Queries.SshConnections, as: SshConnectionQueries
+  alias Voyager.Settings
 
   require Logger
 
+  @dismissed_key :demo_dismissed
   @name ~c"voyager_demo"
   @host ~c"127.0.0.1"
   @node_name "#{@name}@#{@host}"
@@ -20,18 +24,35 @@ defmodule Voyager.Services.DemoNode do
   @load_timeout :timer.seconds(30)
 
   @type params :: %{node_name: String.t(), cookie: String.t()}
+  @type offer :: :hidden | :sticky | :dismissible
 
   @spec start_link(keyword()) :: GenServer.on_start()
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
-  @doc "Whether to offer the demo: running from a release and not dismissed since boot."
-  @spec offered?() :: boolean()
-  def offered?, do: GenServer.call(__MODULE__, :offered?)
+  @doc "Whether the demo can run: true only in a release."
+  @spec available?() :: boolean()
+  def available?, do: GenServer.call(__MODULE__, :available?)
 
-  @spec dismiss() :: :ok
-  def dismiss, do: GenServer.call(__MODULE__, :dismiss)
+  @doc """
+  How to offer the demo: `:sticky` while there are no saved connections, whether dismissed or
+  not; `:dismissible` once there are some, until dismissed.
+  """
+  @spec offer() :: offer()
+  def offer do
+    cond do
+      not available?() -> :hidden
+      not saved_connections?() -> :sticky
+      Settings.get(@dismissed_key) == true -> :hidden
+      true -> :dismissible
+    end
+  end
+
+  @spec dismiss() :: :ok | {:error, term()}
+  def dismiss do
+    with {:ok, _setting} <- Settings.put(@dismissed_key, true), do: :ok
+  end
 
   @doc """
   Boots a fresh demo node, replacing one already running, and returns its connect params.
@@ -52,7 +73,6 @@ defmodule Voyager.Services.DemoNode do
      %{
        exec: Keyword.get_lazy(opts, :exec, &release_exec/0),
        idle_timeout: Keyword.get(opts, :idle_timeout, @idle_timeout),
-       dismissed?: false,
        peer: nil,
        node: nil,
        timer: nil
@@ -60,12 +80,8 @@ defmodule Voyager.Services.DemoNode do
   end
 
   @impl GenServer
-  def handle_call(:offered?, _from, state) do
-    {:reply, state.exec != nil and not state.dismissed?, state}
-  end
-
-  def handle_call(:dismiss, _from, state) do
-    {:reply, :ok, %{state | dismissed?: true}}
+  def handle_call(:available?, _from, state) do
+    {:reply, state.exec != nil, state}
   end
 
   def handle_call(:start, _from, %{exec: nil} = state) do
@@ -113,6 +129,8 @@ defmodule Voyager.Services.DemoNode do
   end
 
   def handle_info(_msg, state), do: {:noreply, state}
+
+  defp saved_connections?, do: ConnectionQueries.any?() or SshConnectionQueries.any?()
 
   defp release_exec do
     with root when is_binary(root) <- System.get_env("RELEASE_ROOT"),

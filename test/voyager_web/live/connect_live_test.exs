@@ -120,7 +120,7 @@ defmodule VoyagerWeb.ConnectLiveTest do
   end
 
   describe "demo node" do
-    test "has no banner outside a release", %{conn: conn} do
+    test "has no demo tab outside a release", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 
       refute has_element?(view, "#start-demo-btn")
@@ -151,7 +151,7 @@ defmodule VoyagerWeb.ConnectLiveTest do
       assert has_element?(view, ~s|#start-demo-btn:not([disabled])|)
     end
 
-    test "hides the banner while connected", %{conn: conn} do
+    test "hides the demo tab while connected", %{conn: conn} do
       start_demo_node!()
       Fakes.connect_node!(Fakes.node_session())
 
@@ -169,7 +169,16 @@ defmodule VoyagerWeb.ConnectLiveTest do
       assert has_element?(view, ~s|#start-demo-btn[disabled]|)
     end
 
+    test "has no dismiss button while no connection is saved", %{conn: conn} do
+      start_demo_node!()
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, "#start-demo-btn")
+      refute has_element?(view, "#dismiss-demo-btn")
+    end
+
     test "stays dismissed after a remount", %{conn: conn} do
+      {:ok, _connection} = ConnectionActions.upsert_connected("recent@127.0.0.1")
       start_demo_node!()
       {:ok, view, _html} = live(conn, ~p"/")
 
@@ -178,6 +187,36 @@ defmodule VoyagerWeb.ConnectLiveTest do
       refute has_element?(view, "#start-demo-btn")
       {:ok, view, _html} = live(conn, ~p"/")
       refute has_element?(view, "#start-demo-btn")
+    end
+
+    test "comes back once the last saved connection is deleted", %{conn: conn} do
+      {:ok, _connection} = ConnectionActions.upsert_connected("recent@127.0.0.1")
+      start_demo_node!()
+      {:ok, view, _html} = live(conn, ~p"/")
+      view |> element("#dismiss-demo-btn") |> render_click()
+
+      view |> element(~s|#direct-recent-connections button[title="Remove"]|) |> render_click()
+
+      assert has_element?(view, "#start-demo-btn")
+      refute has_element?(view, "#dismiss-demo-btn")
+    end
+
+    test "starts from the demo param", %{conn: conn} do
+      start_demo_node!()
+      {:ok, view, _html} = live(conn, ~p"/?demo=start")
+
+      render_async(view, 15_000)
+
+      assert has_element?(view, ~s|#conn_node_name[value="voyager_demo@127.0.0.1"]|)
+    end
+
+    test "ignores the demo param while connected", %{conn: conn} do
+      start_demo_node!()
+      Fakes.connect_node!(Fakes.node_session())
+
+      {:ok, _view, _html} = live(conn, ~p"/?demo=start")
+
+      assert :sys.get_state(DemoNode).peer == nil
     end
 
     test "switches from SSH to Direct to show the filled form", %{conn: conn} do
