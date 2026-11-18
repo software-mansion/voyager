@@ -100,9 +100,11 @@ defmodule VoyagerWeb.TracingSessionLive do
       >
         <p :if={@confirm == :stop} class="text-base-content/70 mt-1 text-sm">
           Tracing
-          <span class="font-mono">{TracingComponents.traced_mfa(@trace_session.result.config)}</span>
-          on <span class="font-mono">{@trace_session.result.node}</span>
-          stops. Its {Formatters.format_integer(@trace_session.result.traces)} traces are kept, and you can resume it later.
+          <span class="font-mono text-base-content">{TracingComponents.traced_mfa(
+            @trace_session.result.config
+          )}</span>
+          on <span class="font-mono text-base-content">{@trace_session.result.node}</span>
+          stops. {kept_copy(@trace_session.result.traces)}, and you can resume it later.
         </p>
         <p :if={@confirm == :delete} class="text-base-content/70 mt-1 text-sm">
           Its {Formatters.format_integer(@trace_session.result.traces)} traces are deleted too. This cannot be undone.
@@ -440,6 +442,9 @@ defmodule VoyagerWeb.TracingSessionLive do
   end
 
   defp sessions_path(%{node_name: node_name}), do: ~p"/node/#{node_name}/tracing"
+
+  defp kept_copy(0), do: "No traces are kept"
+  defp kept_copy(traces), do: "Its #{Formatters.format_integer(traces)} traces are kept"
 
   defp confirm_title(:stop), do: "Stop tracing"
   defp confirm_title(:delete), do: "Delete session"

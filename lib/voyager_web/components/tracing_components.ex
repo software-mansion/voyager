@@ -20,7 +20,6 @@ defmodule VoyagerWeb.Components.TracingComponents do
   def tone(%Session{status: :stopped, stop_reason: reason}), do: reason_tone(reason)
   def tone(_session), do: :open
 
-  @doc "Whether `session` traced a node other than `connected_node`; marks the node, never the status."
   @spec other_node?(Session.t(), node() | nil) :: boolean()
   def other_node?(%Session{node: node}, connected_node)
       when not is_nil(node) and not is_nil(connected_node),
@@ -28,10 +27,8 @@ defmodule VoyagerWeb.Components.TracingComponents do
 
   def other_node?(_session, _connected_node), do: false
 
-  @spec tone_class(
-          tone() | :other_node,
-          :chip | :dot | :label | :badge | :status_badge
-        ) :: String.t()
+  @spec tone_class(tone(), :chip | :dot | :label | :badge | :status_badge) :: String.t()
+  @spec tone_class(:other_node, :chip) :: String.t()
   def tone_class(:running, :chip),
     do:
       "border-success/30 bg-success/10 hover:bg-success/20 hover:border-success/50 focus-visible:outline-success"

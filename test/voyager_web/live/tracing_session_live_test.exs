@@ -47,6 +47,14 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     |> element("#session-stop")
     |> render_click()
 
+    assert has_element?(
+             view,
+             "#stop-session-modal span.font-mono.text-base-content",
+             "Date.leap_year?/1"
+           )
+
+    assert has_element?(view, "#stop-session-modal", "No traces are kept")
+
     view
     |> element("#stop-session-modal-cancel")
     |> render_click()
