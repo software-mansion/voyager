@@ -571,7 +571,7 @@ defmodule Voyager.Services.Tracer do
     %{runs: runs, activity: live || TraceEntryQueries.activity(row.id, runs), summary: summary}
   end
 
-  # ponytail: interrupted runs are range-scanned on every poll; cache them at load if that gets slow.
+  # An interrupted run's traces are range-scanned on every overview poll.
   defp saved_runs(session_id, controls, session) do
     controls
     |> Overview.runs(session)
