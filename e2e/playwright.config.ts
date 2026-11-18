@@ -34,12 +34,30 @@ export default defineConfig({
       testMatch: '**/connect_form.spec.ts',
     },
 
+    // The saved config path is global, and a session started by `connect` disables the form.
+    {
+      name: 'ssh-config chromium',
+      use: { ...devices['Desktop Chrome'] },
+      fullyParallel: false,
+      workers: 1,
+      testMatch: '**/ssh_config.spec.ts',
+      dependencies: ['connect-form chromium', 'connect-form firefox'],
+    },
+    {
+      name: 'ssh-config firefox',
+      use: { ...devices['Desktop Firefox'] },
+      fullyParallel: false,
+      workers: 1,
+      testMatch: '**/ssh_config.spec.ts',
+      dependencies: ['ssh-config chromium'],
+    },
+
     {
       name: 'connect',
       use: { ...devices['Desktop Chrome'] },
       workers: 1,
       testMatch: '**/connect.spec.ts',
-      dependencies: ['connect-form chromium', 'connect-form firefox'],
+      dependencies: ['ssh-config firefox'],
     },
 
     {
@@ -91,6 +109,14 @@ export default defineConfig({
       dependencies: ['recent-connections firefox'],
     },
 
+    // The Tracer holds one active session per Voyager, so a single browser runs these.
+    {
+      name: 'tracing chromium',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: '**/tracing.spec.ts',
+      dependencies: ['recent-connections firefox'],
+    },
+
     {
       name: 'sidebar chromium',
       use: { ...devices['Desktop Chrome'] },
@@ -133,6 +159,7 @@ export default defineConfig({
         'sidebar chromium',
         'sidebar firefox',
         'supervision-tree firefox',
+        'tracing chromium',
       ],
     },
     {

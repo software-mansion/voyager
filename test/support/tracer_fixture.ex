@@ -7,6 +7,7 @@ defmodule Voyager.Test.TracerFixture do
 
   use VoyagerWeb, :verified_routes
 
+  import ExUnit.Assertions
   import ExUnit.Callbacks, only: [on_exit: 1]
   import Phoenix.ConnTest
   import Phoenix.LiveViewTest
@@ -64,6 +65,15 @@ defmodule Voyager.Test.TracerFixture do
     Tracer.configure(Node.self(), attrs, :ui)
   end
 
+  @doc "Creates, configures and starts a session, subscribing the caller to its broadcasts."
+  def start!(overrides \\ %{}, opts \\ []) do
+    session = create!(opts)
+    {:ok, _session} = configure(overrides)
+    {:ok, _session} = Tracer.start(:ui)
+    Phoenix.PubSub.subscribe(Voyager.PubSub, Tracer.topic())
+    session
+  end
+
   @doc "A configured saved session that a newer unsaved one has replaced in the tracer."
   def saved_inactive! do
     session = create!(save: true)
@@ -72,10 +82,36 @@ defmodule Voyager.Test.TracerFixture do
     session
   end
 
+  def call_traced!(calls, traces) do
+    for _ <- 1..calls, do: Date.leap_year?(~D[2024-01-01])
+    assert_receive {:session_entries, %{traces: ^traces}, _entries}, 2_000
+  end
+
+  def flush_log(view) do
+    put_queued(view)
+    render(view)
+  end
+
   # A stop lands as a broadcast once the remote tracer's done message reaches the Tracer.
   def settle(view) do
     render_async(view)
+    put_queued(view)
+  end
+
+  @doc "Acks the last log flush and applies what the view throttles, without waiting for its timer."
+  def put_queued(view) do
+    # The broadcast reaches the view before the Tracer handles its next message.
     _ = :sys.get_state(Tracer)
+    render_hook(view, "log-ack", %{})
+    send(view.pid, :flush)
+  end
+
+  def row_ids(view) do
+    view
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query("#session-log-rows > tr")
+    |> LazyHTML.attribute("id")
   end
 
   def open(conn, id) do

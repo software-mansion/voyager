@@ -9,8 +9,12 @@ defmodule VoyagerWeb.TracingSessionLive do
   alias Phoenix.LiveView.AsyncResult
   alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Session
+  alias VoyagerWeb.Components.TraceLogComponents
   alias VoyagerWeb.Components.TracingComponents
   alias VoyagerWeb.Formatters
+  alias VoyagerWeb.Hooks.TracingStatusHook
+  alias VoyagerWeb.TracingSessionLive.Log
+  alias VoyagerWeb.TracingSessionLive.Stats
 
   @actions [:stop, :start, :load, :unload, :delete]
 
@@ -25,6 +29,11 @@ defmodule VoyagerWeb.TracingSessionLive do
         |> assign(:trace_session, AsyncResult.loading())
         |> assign(:pending, nil)
         |> assign(:confirm, nil)
+        |> assign(:queued_session, nil)
+        |> assign(:flush_scheduled?, false)
+        |> TracingStatusHook.defer_puts()
+        |> Log.init()
+        |> Stats.init()
         |> subscribe_and_load()
         |> ok()
 
@@ -55,6 +64,7 @@ defmodule VoyagerWeb.TracingSessionLive do
           pending?={@pending != nil}
           show_back_arrow={@can_go_back?}
           connected_node={@session.node}
+          stats={stats(trace_session, @rates, @now, @storage_limit_mb)}
           on_stop="stop"
           on_start="start"
           on_load="load"
@@ -62,6 +72,22 @@ defmodule VoyagerWeb.TracingSessionLive do
           on_delete="delete"
         />
         <TracingComponents.empty_state :if={@mode == :active and is_nil(trace_session.config)} />
+        <TraceLogComponents.log
+          :if={trace_session.config}
+          rows={@streams.entries}
+          trace_session={trace_session}
+          live?={@mode == :active and trace_session.status == :running}
+          paused?={@paused?}
+          new_count={@new_count}
+          trace_rows={Log.trace_rows(@held)}
+          oldest_seq={@oldest_seq}
+          node={@session.node}
+          node_name={@session.node_name}
+          on_pause="pause-log"
+          on_resume="resume-log"
+          on_older="load-older"
+          on_ack="log-ack"
+        />
       </.async_result>
 
       <TracingComponents.confirm_modal
@@ -172,6 +198,31 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> noreply()
   end
 
+  def handle_event("pause-log", _params, socket) do
+    socket
+    |> Log.pause()
+    |> noreply()
+  end
+
+  def handle_event("resume-log", _params, socket) do
+    socket
+    |> Log.load()
+    |> noreply()
+  end
+
+  def handle_event("load-older", _params, socket) do
+    socket
+    |> Log.older()
+    |> noreply()
+  end
+
+  def handle_event("log-ack", _params, socket) do
+    socket
+    |> Log.ack()
+    |> schedule_flush()
+    |> noreply()
+  end
+
   @impl true
   # A broadcast for our id already ended the load, and is newer than its result.
   def handle_async(
@@ -238,11 +289,37 @@ defmodule VoyagerWeb.TracingSessionLive do
   end
 
   def handle_info(
-        {:session_entries, %Session{id: id} = session, _entries},
+        {:session_entries, %Session{id: id} = session, entries},
         %{assigns: %{id: id}} = socket
       ) do
     socket
-    |> put_session(session, :active)
+    |> queue_session(session)
+    |> Log.absorb(entries)
+    |> Stats.absorb(entries)
+    |> schedule_flush()
+    |> noreply()
+  end
+
+  # The indicator's queued update for another session waits for this view's flush too.
+  def handle_info({:session_entries, _session, _entries}, socket) do
+    socket
+    |> schedule_flush()
+    |> noreply()
+  end
+
+  # The ack schedules the next flush, so the session bar and indicator wait with the rows.
+  def handle_info(:flush, %{assigns: %{awaiting_ack?: true}} = socket) do
+    socket
+    |> assign(:flush_scheduled?, false)
+    |> noreply()
+  end
+
+  def handle_info(:flush, socket) do
+    socket
+    |> assign(:flush_scheduled?, false)
+    |> put_queued_session()
+    |> Log.flush()
+    |> TracingStatusHook.put_queued()
     |> noreply()
   end
 
@@ -275,6 +352,7 @@ defmodule VoyagerWeb.TracingSessionLive do
 
     socket
     |> assign(:trace_session, AsyncResult.loading(socket.assigns.trace_session))
+    |> assign(:queued_session, nil)
     |> assign(:mode, nil)
     |> cancel_async(:session)
     |> start_async(:session, fn -> Tracer.session(id) end)
@@ -286,9 +364,41 @@ defmodule VoyagerWeb.TracingSessionLive do
   defp gone(socket), do: load(socket)
 
   defp put_session(socket, session, mode) do
+    %{mode: shown_mode, trace_session: %AsyncResult{result: shown}} = socket.assigns
+
+    socket =
+      if shown_mode == mode and shown.config == session.config,
+        do: socket,
+        else: Log.load(socket)
+
     socket
     |> assign(:trace_session, AsyncResult.ok(session))
+    |> assign(:queued_session, nil)
     |> assign(:mode, mode)
+    |> Stats.track(shown, session)
+  end
+
+  defp queue_session(
+         %{
+           assigns: %{
+             mode: :active,
+             trace_session: %AsyncResult{result: %Session{status: status, config: config}}
+           }
+         } = socket,
+         %Session{status: status, config: config} = session
+       ),
+       do: assign(socket, :queued_session, session)
+
+  defp queue_session(socket, session), do: put_session(socket, session, :active)
+
+  defp put_queued_session(%{assigns: %{queued_session: nil}} = socket), do: socket
+  defp put_queued_session(socket), do: put_session(socket, socket.assigns.queued_session, :active)
+
+  defp schedule_flush(%{assigns: %{flush_scheduled?: true}} = socket), do: socket
+
+  defp schedule_flush(socket) do
+    Process.send_after(self(), :flush, TracingStatusHook.throttle_ms())
+    assign(socket, :flush_scheduled?, true)
   end
 
   defp run(socket, name, fun) do
@@ -313,11 +423,18 @@ defmodule VoyagerWeb.TracingSessionLive do
   defp confirm_label(:unload), do: "Unload"
   defp confirm_label(:load), do: "Load"
 
+  defp stats(%Session{run_started_at: nil}, _rates, _now, _limit_mb), do: []
+  defp stats(session, rates, now, limit_mb), do: Stats.cells(session, rates, now, limit_mb)
+
   defp format_error(:busy), do: "A tracing session is running. Stop it first."
   defp format_error(:not_found), do: "No such tracing session."
   defp format_error(:no_session), do: "This session is no longer active."
   defp format_error(:not_configured), do: "Set the session's parameters first."
   defp format_error(:changed), do: "The session was reconfigured meanwhile. Try again."
+
+  defp format_error(:storage_limit),
+    do: "Saved sessions use all their storage. Delete a saved session to resume."
+
   defp format_error({:refused, module}), do: "#{inspect(module)} cannot be traced."
   defp format_error({:not_loaded, module}), do: "#{inspect(module)} is not loaded on the node."
   defp format_error(:timeout), do: "The node did not respond in time."

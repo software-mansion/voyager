@@ -738,7 +738,12 @@ defmodule VoyagerWeb.CoreComponents do
           <.icon name="icon-plus" class="toolbar-icon" />
         </button>
       </div>
-      <p :for={error <- @errors} class="font-mono text-error text-pretty mt-1.5 text-xs">{error}</p>
+      <p
+        :for={error <- @errors}
+        class="font-mono text-error text-pretty mt-1.5 text-xs first-letter:uppercase"
+      >
+        {error}
+      </p>
     </div>
     """
   end
@@ -759,7 +764,9 @@ defmodule VoyagerWeb.CoreComponents do
         ]}
         {@rest}
       />
-      <p :for={error <- @errors} class="font-mono text-error mt-1.5 text-xs">{error}</p>
+      <p :for={error <- @errors} class="font-mono text-error mt-1.5 text-xs first-letter:uppercase">
+        {error}
+      </p>
     </div>
     """
   end
@@ -973,6 +980,10 @@ defmodule VoyagerWeb.CoreComponents do
     values: ~w(top bottom left right),
     doc: "preferred side to place the tooltip"
 
+  attr :align_to, :string,
+    default: nil,
+    doc: "selector of an ancestor whose left edge a top or bottom tip aligns to, e.g. `td`"
+
   attr :class, :any, default: nil, doc: "extra classes for the trigger wrapper"
   attr :tip_class, :any, default: nil, doc: "extra classes for the tip"
 
@@ -991,6 +1002,11 @@ defmodule VoyagerWeb.CoreComponents do
     doc:
       "restricts when the tip opens: sidebar-compact while the app sidebar is in compact (icon-only) mode, browser outside the desktop app"
 
+  attr :tip, :string,
+    default: nil,
+    doc:
+      "selector of a `tooltip_portal/1` shared by many triggers, e.g. table rows: the content waits in a `<template>` and fills the tip's `data-tooltip-slot` on show"
+
   slot :inner_block, required: true, doc: "the hover/focus target"
   slot :content, required: true, doc: "tooltip content"
 
@@ -1000,15 +1016,17 @@ defmodule VoyagerWeb.CoreComponents do
       id={@id}
       class={["inline-flex align-middle leading-none", @class]}
       phx-hook="Tooltip"
-      data-tooltip-target={"##{@id}-tip"}
+      data-tooltip-target={@tip || "##{@id}-tip"}
       data-tooltip-position={@position}
+      data-tooltip-align-to={@align_to}
       data-tooltip-interactive={to_string(@interactive)}
       data-tooltip-pinnable={to_string(@pinnable)}
       data-tooltip-show-when={@show_when}
     >
       {render_slot(@inner_block)}
+      <template :if={@tip} id={"#{@id}-content"} data-tooltip-content>{render_slot(@content)}</template>
     </span>
-    <.tooltip_portal id={@id} interactive={@interactive} tip_class={@tip_class}>
+    <.tooltip_portal :if={!@tip} id={@id} interactive={@interactive} tip_class={@tip_class}>
       {render_slot(@content)}
     </.tooltip_portal>
     """

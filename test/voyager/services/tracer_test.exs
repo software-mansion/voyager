@@ -136,6 +136,19 @@ defmodule Voyager.Services.TracerTest do
     end
   end
 
+  test "broadcasts a saved session's size once its entries are saved, without a next batch" do
+    assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
+    assert {:ok, _session} = configure()
+    assert {:ok, _session} = Tracer.start(:ui)
+    Date.leap_year?(~D[2024-01-01])
+    assert_receive {:session_entries, %{traces: 1}, [%{kind: :trace}]}, 1_000
+    Writer.flush()
+    _ = :sys.get_state(Tracer)
+
+    assert %{bytes: bytes} = TraceSessionQueries.get(id)
+    assert_receive {:session_entries, %{id: ^id, status: :running, bytes: ^bytes}, []}
+  end
+
   test "saves a saved session's log as it is appended, reading back what was broadcast" do
     assert {:ok, %{id: id}} = Tracer.create(:mcp, save: true)
     assert id > 0
@@ -170,10 +183,15 @@ defmodule Voyager.Services.TracerTest do
     assert {:ok, %{entries: [%{seq: 1}]}} = Tracer.entries(id, before: 2, limit: 1)
   end
 
-  test "stops a saved run once its entries pass the storage limit" do
-    {:ok, _} = Voyager.Settings.put(:trace_storage_limit_mb, 0)
+  test "stops a saved run once its entries pass the storage limit, and refuses to resume it" do
     assert {:ok, %{id: id}} = Tracer.create(:mcp, save: true)
     assert {:ok, _session} = configure()
+    Writer.flush()
+    _ = :sys.get_state(Tracer)
+    %{bytes: configured} = Tracer.active()
+    others = Tracer.storage_limit_mb() * 1_000_000 - configured - 1
+    Repo.insert!(%TraceSession{origin: :ui, status: :stopped, bytes: others})
+
     assert {:ok, _session} = Tracer.start(:ui)
 
     Date.leap_year?(~D[2024-01-01])
@@ -182,7 +200,20 @@ defmodule Voyager.Services.TracerTest do
                    1_000
 
     Writer.flush()
-    assert %{status: :stopped, stop_reason: :storage_limit} = TraceSessionQueries.get(id)
+    _ = :sys.get_state(Tracer)
+
+    assert %{status: :stopped, stop_reason: :storage_limit, bytes: full} =
+             TraceSessionQueries.get(id)
+
+    assert {:error, :storage_limit} = Tracer.start(:ui)
+    Writer.flush()
+    assert %{bytes: ^full} = TraceSessionQueries.get(id)
+  end
+
+  test "starts an unsaved session while saved ones use all the storage" do
+    {:ok, _} = Voyager.Settings.put(:trace_storage_limit_mb, 0)
+    assert {:ok, _session} = configure()
+    assert {:ok, %{status: :running}} = Tracer.start(:ui)
   end
 
   test "keeps an unsaved session out of the database" do
