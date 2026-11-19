@@ -858,6 +858,15 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
 
     assert has_element?(view, "#stat-storage", "of 100 MB")
 
+    assert has_element?(
+             view,
+             "#stat-storage-settings[href='/settings?focus=trace_storage_limit_mb#tracing-settings']"
+           )
+
+    assert view
+           |> element("#stat-storage-settings-tip-portal")
+           |> render() =~ "Change the storage limit in Settings"
+
     :ok = Tracer.put_storage_limit_mb(250)
     settle(view)
 
@@ -926,6 +935,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#session-stats")
     assert has_element?(view, "#stat-events", "/ 1,000")
     assert has_element?(view, "#stat-storage", "Not saved")
+    refute has_element?(view, "#stat-storage-settings")
 
     assert has_element?(
              view,

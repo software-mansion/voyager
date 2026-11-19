@@ -50,6 +50,7 @@ defmodule VoyagerWeb.SettingsLive.TracingSettings do
               type="number"
               min="1"
               disabled={@locked?}
+              phx-mounted={@focus? && JS.focus()}
               class="font-mono flex-1 text-sm"
             />
           </div>

@@ -8,6 +8,8 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
   Reads `mode` and `trace_session` from the socket.
   """
 
+  use VoyagerWeb, :verified_routes
+
   import Phoenix.Component
   import Phoenix.LiveView
   import VoyagerWeb.Helpers, only: [cont: 1, halt: 1]
@@ -178,7 +180,11 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
         {"This session", format_size(bytes)},
         {"Other saved sessions", format_size(others)},
         {"Free", format_size(max(left - bytes, 0))}
-      ]
+      ],
+      link: %{
+        href: ~p"/settings?focus=trace_storage_limit_mb#tracing-settings",
+        tip: "Change the storage limit in Settings"
+      }
     }
   end
 
