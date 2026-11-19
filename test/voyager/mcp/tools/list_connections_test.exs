@@ -2,6 +2,8 @@ defmodule Voyager.MCP.Tools.ListConnectionsTest do
   # async: false because the tool reads the global `Voyager.NodeSession`.
   use Voyager.DataCase, async: false
 
+  import Voyager.TestUtils
+
   alias Anubis.Server.Frame
   alias Anubis.Server.Response
   alias Voyager.Fakes
@@ -84,6 +86,35 @@ defmodule Voyager.MCP.Tools.ListConnectionsTest do
 
     assert [%{"connected" => true, "ssh" => %{"host" => "a"}}, %{"connected" => false}] =
              run()["connections"]
+  end
+
+  describe "demo hint" do
+    test "suggests start_demo when nothing is saved" do
+      start_demo_node!()
+
+      assert %{"connections" => [], "hint" => hint} = run()
+      assert hint =~ "`start_demo`"
+    end
+
+    test "is left out once a connection is saved" do
+      start_demo_node!()
+      insert!(%Connection{node_name: "shop@10.0.4.12"}, 0)
+
+      refute Map.has_key?(run(), "hint")
+    end
+
+    test "is left out while connected to a node" do
+      start_demo_node!()
+      Fakes.put_session(Fakes.node_session(node_name: "voyager_demo@127.0.0.1"))
+
+      assert run() == %{"connections" => []}
+    end
+
+    test "is left out outside a release" do
+      start_demo_node!(exec: nil)
+
+      assert run() == %{"connections" => []}
+    end
   end
 
   defp insert!(connection, hours_ago) do
