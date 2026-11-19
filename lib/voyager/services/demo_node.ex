@@ -53,7 +53,8 @@ defmodule Voyager.Services.DemoNode do
 
   @spec dismiss() :: :ok | {:error, term()}
   def dismiss do
-    with {:ok, _setting} <- Settings.put(@dismissed_key, true), do: :ok
+    with {:ok, _setting} <- Settings.put(@dismissed_key, true),
+         do: Voyager.Telemetry.dispatch!("voyager.demo.dismiss")
   end
 
   @doc """
@@ -78,7 +79,8 @@ defmodule Voyager.Services.DemoNode do
        exec: exec,
        peer: nil,
        node: nil,
-       timer: nil
+       timer: nil,
+       started_ms: nil
      }}
   end
 
@@ -88,18 +90,37 @@ defmodule Voyager.Services.DemoNode do
   end
 
   def handle_call(:start, _from, state) do
-    state = stop_demo(state)
+    state = stop_demo(state, :restarted)
     cookie = :crypto.strong_rand_bytes(32) |> Base.encode32(padding: false)
+    boot_ms = System.monotonic_time(:millisecond)
 
     case start_peer(state.exec, cookie) do
       {:ok, peer, node} ->
         timer = :erlang.start_timer(@idle_timeout, self(), :idle_timeout)
-        state = %{state | peer: peer, node: node, timer: timer}
+
+        Voyager.Telemetry.dispatch!("voyager.demo.start",
+          measurements: %{duration_ms: since(boot_ms)}
+        )
+
+        state = %{
+          state
+          | peer: peer,
+            node: node,
+            timer: timer,
+            started_ms: System.monotonic_time(:millisecond)
+        }
+
         {:reply, {:ok, %{node_name: @node_name, cookie: cookie}}, state}
 
-      {:error, _reason} = error ->
+      {:error, reason} = error ->
         # :peer failure reasons embed the open_port env, which holds the cookie.
         Logger.error("Demo node failed to start")
+
+        Voyager.Telemetry.dispatch!("voyager.demo.start_failed",
+          measurements: %{duration_ms: since(boot_ms)},
+          metadata: %{reason: failure(reason)}
+        )
+
         {:reply, error, state}
     end
   end
@@ -107,24 +128,29 @@ defmodule Voyager.Services.DemoNode do
   @impl GenServer
   def handle_info({:node_connected, node}, %{node: node} = state) do
     cancel_timer(state.timer)
+
+    Voyager.Telemetry.dispatch!("voyager.demo.connect",
+      measurements: %{time_to_connect_ms: since(state.started_ms)}
+    )
+
     {:noreply, %{state | timer: nil}}
   end
 
   def handle_info({:node_connected, _other}, state) do
-    {:noreply, stop_demo(state)}
+    {:noreply, stop_demo(state, :other_node)}
   end
 
   def handle_info({event, node, _reason}, %{node: node} = state)
       when event in [:node_disconnected, :nodedown] do
-    {:noreply, stop_demo(state)}
+    {:noreply, stop_demo(state, event)}
   end
 
   def handle_info({:timeout, timer, :idle_timeout}, %{timer: timer} = state) do
-    {:noreply, stop_demo(state)}
+    {:noreply, stop_demo(state, :idle_timeout)}
   end
 
   def handle_info({:EXIT, peer, _reason}, %{peer: peer} = state) do
-    {:noreply, clear(state)}
+    {:noreply, clear(state, :halted)}
   end
 
   def handle_info(_msg, state), do: {:noreply, state}
@@ -189,11 +215,14 @@ defmodule Voyager.Services.DemoNode do
     kind, reason -> {:error, {:demo_load_failed, {kind, reason}}}
   end
 
-  defp stop_demo(%{peer: nil} = state), do: state
+  defp failure({:demo_load_failed, _reason}), do: :demo_load_failed
+  defp failure(_reason), do: :boot_failed
 
-  defp stop_demo(state) do
+  defp stop_demo(%{peer: nil} = state, _reason), do: state
+
+  defp stop_demo(state, reason) do
     stop_peer(state.peer)
-    clear(state)
+    clear(state, reason)
   end
 
   defp stop_peer(peer) do
@@ -203,10 +232,18 @@ defmodule Voyager.Services.DemoNode do
     :exit, _reason -> :ok
   end
 
-  defp clear(state) do
+  defp clear(state, reason) do
     cancel_timer(state.timer)
-    %{state | peer: nil, node: nil, timer: nil}
+
+    Voyager.Telemetry.dispatch!("voyager.demo.stop",
+      measurements: %{duration_ms: since(state.started_ms)},
+      metadata: %{reason: reason}
+    )
+
+    %{state | peer: nil, node: nil, timer: nil, started_ms: nil}
   end
+
+  defp since(ms), do: System.monotonic_time(:millisecond) - ms
 
   defp cancel_timer(nil), do: :ok
   defp cancel_timer(timer), do: Process.cancel_timer(timer)
