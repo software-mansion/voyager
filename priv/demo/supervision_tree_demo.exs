@@ -71,6 +71,48 @@ defmodule SupervisionTreeDemo.Hub do
   def handle_info(_message, state), do: {:noreply, state}
 end
 
+defmodule SupervisionTreeDemo.LargeState do
+  use GenServer
+
+  def start_link(_arg), do: GenServer.start_link(__MODULE__, nil, name: __MODULE__)
+
+  @impl true
+  def init(nil) do
+    Process.put(:request_id, "req-42")
+    Process.put(:retries, 3)
+
+    {:ok,
+     %{
+       users:
+         Map.new(1..500, &{&1, %{name: "user_#{&1}", roles: [:reader], active?: rem(&1, 3) != 0}}),
+       history: Enum.to_list(1..1_000),
+       blob: :binary.copy("voyager ", 20_000),
+       owner: self(),
+       ref: make_ref(),
+       formatter: &String.upcase/1,
+       misc: {:ok, ~c"charlist", 3.14}
+     }}
+  end
+end
+
+defmodule SupervisionTreeDemo.StuckMailbox do
+  use GenServer
+
+  def start_link(_arg), do: GenServer.start_link(__MODULE__, nil, name: __MODULE__)
+
+  @impl true
+  def init(nil) do
+    for i <- 1..200, do: send(self(), {:order, i, %{total: i * 10}})
+    {:ok, nil, {:continue, :stall}}
+  end
+
+  @impl true
+  def handle_continue(:stall, state) do
+    Process.sleep(:infinity)
+    {:noreply, state}
+  end
+end
+
 defmodule SupervisionTreeDemo.Application do
   use Application
 
@@ -97,6 +139,8 @@ defmodule SupervisionTreeDemo.Application do
         worker(:ignored, ignore: true),
         worker(:stopped, [])
       ]),
+      SupervisionTreeDemo.LargeState,
+      SupervisionTreeDemo.StuckMailbox,
       SupervisionTreeDemo.Hub
     ]
 
