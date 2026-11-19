@@ -243,8 +243,6 @@ defmodule Voyager.Services.Tracer.Overview do
 
   @doc "Pairs each `:trace` entry with the `index` of the run its `seq` falls into."
   @spec trace_timestamps([run()], [Entry.t()]) :: [{pos_integer(), integer()}]
-  def trace_timestamps([], _entries), do: []
-
   def trace_timestamps(runs, entries) do
     for %{kind: :trace, seq: seq, at: at} <- entries,
         run = Enum.find(runs, &in_run?(&1, seq)),
