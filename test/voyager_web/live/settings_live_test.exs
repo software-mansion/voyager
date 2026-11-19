@@ -420,6 +420,14 @@ defmodule VoyagerWeb.SettingsLiveTest do
       assert render(view) =~ "Storage limit saved"
     end
 
+    test "focuses the storage limit only when the link asks for it", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings?focus=trace_storage_limit_mb")
+      assert has_element?(view, "#trace_storage_limit_mb[phx-mounted]")
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+      refute has_element?(view, "#trace_storage_limit_mb[phx-mounted]")
+    end
+
     test "keeps a limit under 1 MB on the field instead of saving it", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/settings")
 
