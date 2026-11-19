@@ -209,12 +209,14 @@ defmodule Voyager.Services.Tracer do
   def storage_limit_mb, do: Settings.get(:trace_storage_limit_mb, @default_storage_limit_mb)
 
   @doc """
-  Saves the storage limit. It applies from the next start and deletes nothing when lowered.
-  Returns `{:error, :locked}` when application config sets it.
+  Saves the storage limit and gives the active session its new share, stopping its run once
+  the share is used up. Lowering it deletes nothing. Returns `{:error, :locked}` when
+  application config sets it.
   """
   @spec put_storage_limit_mb(pos_integer()) :: :ok | {:error, :locked | Ecto.Changeset.t()}
   def put_storage_limit_mb(mb) when is_integer(mb) and mb > 0 do
-    with {:ok, _setting} <- Settings.put(:trace_storage_limit_mb, mb), do: :ok
+    with {:ok, _setting} <- Settings.put(:trace_storage_limit_mb, mb),
+         do: GenServer.call(__MODULE__, :refresh_storage_limit)
   end
 
   @spec storage_limit_locked?() :: boolean()
@@ -428,6 +430,15 @@ defmodule Voyager.Services.Tracer do
       |> append([Entry.configured(origin, node, config, state.session.config)])
 
     {:reply, {:ok, state.session}, state}
+  end
+
+  def handle_call(:refresh_storage_limit, _from, %{session: nil} = state),
+    do: {:reply, :ok, state}
+
+  def handle_call(:refresh_storage_limit, _from, %{session: session} = state) do
+    session = %{session | storage_limit: storage_limit(session.id)}
+    broadcast_entries(session, [])
+    {:reply, :ok, stop_over_limit(%{state | session: session})}
   end
 
   def handle_call({:start, _origin, _id, _node, _config, _args}, _from, %{session: nil} = state),
