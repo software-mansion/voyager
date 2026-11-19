@@ -62,7 +62,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
         socket
       end
 
-    ok(socket)
+    {:ok, socket}
   end
 
   @impl true
@@ -291,19 +291,18 @@ defmodule VoyagerWeb.TracingSessionsLive do
 
   def handle_event("select-session", %{"id" => raw_id}, socket) do
     case Integer.parse(raw_id) do
-      {id, ""} ->
+      {_id, ""} ->
         socket
-        |> update_selected_tile(id)
         |> push_patch(to: URL.put_query_param(socket.assigns.current_url, "session", raw_id))
         |> noreply()
 
       _invalid ->
-        noreply(socket)
+        {:noreply, socket}
     end
   end
 
   def handle_event("show-older", _params, %{assigns: %{has_more?: false}} = socket),
-    do: noreply(socket)
+    do: {:noreply, socket}
 
   def handle_event("show-older", _params, socket) do
     %{node_filter: node_filter, active_session: active, oldest_id: oldest_id} = socket.assigns
@@ -346,13 +345,13 @@ defmodule VoyagerWeb.TracingSessionsLive do
 
   def handle_event("load-session", _params, socket) do
     case selected_item(socket.assigns) do
-      %{id: id} when id > 0 ->
+      %{id: id} = item when not is_struct(item, Session) and id > 0 ->
         socket
         |> confirm_or_run({:load, id})
         |> noreply()
 
       _other ->
-        noreply(socket)
+        {:noreply, socket}
     end
   end
 
@@ -364,7 +363,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
         |> noreply()
 
       _other ->
-        noreply(socket)
+        {:noreply, socket}
     end
   end
 
@@ -376,7 +375,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
         |> noreply()
 
       _other ->
-        noreply(socket)
+        {:noreply, socket}
     end
   end
 
@@ -442,7 +441,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
         |> noreply()
 
       {:ok, _ok} ->
-        noreply(socket)
+        {:noreply, socket}
     end
   end
 
@@ -482,7 +481,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
     |> noreply()
   end
 
-  def handle_info(_message, socket), do: noreply(socket)
+  def handle_info(_message, socket), do: {:noreply, socket}
 
   defp execute_confirmed(socket, :create, save?),
     do: run_action(socket, :create, fn -> Tracer.create(:ui, save: save?) end)
@@ -557,7 +556,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
   defp adjust_selection_after_active_change(socket, %Session{id: prev_id}, nil)
        when socket.assigns.selected_id == prev_id do
     if Map.has_key?(socket.assigns.history_by_id, prev_id),
-      do: update_selected_tile(socket, prev_id),
+      do: socket,
       else: resolve_selection(socket)
   end
 
@@ -622,7 +621,6 @@ defmodule VoyagerWeb.TracingSessionsLive do
     if socket.assigns.selected_id == id do
       socket
       |> assign(:selected_param, nil)
-      |> assign(:selected_id, nil)
       |> resolve_selection()
     else
       socket
