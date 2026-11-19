@@ -186,7 +186,7 @@ defmodule Voyager.Services.Tracer do
   def disconnecting, do: GenServer.cast(__MODULE__, :disconnecting)
 
   @spec active() :: Session.t() | nil
-  def active, do: GenServer.call(__MODULE__, :active)
+  def active, do: GenServer.call(__MODULE__, :active, @call_timeout)
 
   @doc "Session `id`, and whether it is the `:active` one or only `:saved`. The database is read in the caller."
   @spec session(integer()) :: {:ok, Session.t(), :active | :saved} | {:error, :not_found}

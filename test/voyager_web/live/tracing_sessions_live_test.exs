@@ -11,10 +11,17 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
   alias Voyager.Schemas.TraceSession
   alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Config
+  alias Voyager.Services.Tracer.Writer
 
   @node_name node_name()
 
   setup :setup_tracer
+
+  defp open_sessions(conn, path \\ ~p"/node/#{@node_name}/tracing") do
+    {:ok, view, _html} = live(conn, path)
+    render_async(view)
+    view
+  end
 
   defp insert_saved!(overrides \\ %{}) do
     config =
@@ -56,7 +63,7 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
   test "renders empty state with other-node count and switches to all nodes", %{conn: conn} do
     other = insert_saved!(%{node: "worker@127.0.0.1", stop_reason: :interrupted})
 
-    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing")
+    view = open_sessions(conn)
 
     assert has_element?(view, "#session-count", "0")
     assert has_element?(view, "#node-filter-chip", @node_name)
@@ -80,7 +87,7 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     active = create!(save: true)
     {:ok, _session} = configure()
 
-    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing")
+    view = open_sessions(conn)
 
     assert has_element?(view, "#active-session-tile[data-selected]", "Active")
     refute has_element?(view, "#history-tiles #history-#{active.id}")
@@ -103,7 +110,7 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     {:ok, _session} = configure()
     {:ok, _session} = Tracer.start(:ui)
 
-    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing")
+    view = open_sessions(conn)
 
     assert has_element?(view, "#create-session[aria-disabled]")
     refute has_element?(view, "#history-tiles #history-#{oldest.id}")
@@ -122,7 +129,7 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     oldest = List.first(rows)
     second_oldest = Enum.at(rows, 1)
 
-    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing?session=#{oldest.id}")
+    view = open_sessions(conn, ~p"/node/#{@node_name}/tracing?session=#{oldest.id}")
 
     assert has_element?(view, "#session-card[data-session-id='#{oldest.id}']")
     refute has_element?(view, "#history-tiles #history-#{oldest.id}")
@@ -149,10 +156,10 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     local = insert_saved!()
     foreign = insert_saved!(%{node: "worker@127.0.0.1"})
 
-    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing?session=#{foreign.id}")
+    view = open_sessions(conn, ~p"/node/#{@node_name}/tracing?session=#{foreign.id}")
     assert has_element?(view, "#session-card[data-session-id='#{local.id}']")
 
-    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing?session=#{foreign.id + 999}")
+    view = open_sessions(conn, ~p"/node/#{@node_name}/tracing?session=#{foreign.id + 999}")
     assert has_element?(view, "#session-card[data-session-id='#{local.id}']")
   end
 
@@ -160,7 +167,7 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     create!()
     {:ok, _session} = configure()
 
-    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing?node=worker@127.0.0.1")
+    view = open_sessions(conn, ~p"/node/#{@node_name}/tracing?node=worker@127.0.0.1")
 
     assert has_element?(view, "#active-session-tile")
     assert has_element?(view, "#session-count", "1")
@@ -172,7 +179,7 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     create!()
     {:ok, _session} = configure()
 
-    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing")
+    view = open_sessions(conn)
 
     view
     |> element("#create-session")
@@ -191,7 +198,7 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
   end
 
   test "answering No creates an unsaved session and dismissing creates nothing", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing")
+    view = open_sessions(conn)
 
     view
     |> element("#create-session")
@@ -223,7 +230,7 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     {:ok, _session} = configure()
     {:ok, _session} = Tracer.start(:ui)
 
-    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing")
+    view = open_sessions(conn)
 
     assert has_element?(view, "#overview-status[data-tone=running]")
     refute has_element?(view, "#delete-session")
@@ -256,7 +263,7 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
 
   test "a session with no traces is removed without a zero count", %{conn: conn} do
     session = insert_saved!(%{traces: 0})
-    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing?session=#{session.id}")
+    view = open_sessions(conn, ~p"/node/#{@node_name}/tracing?session=#{session.id}")
 
     view
     |> element("#delete-session")
@@ -276,7 +283,7 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     first = insert_saved!(%{dropped: 5})
     second = insert_saved!()
 
-    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing?session=#{first.id}")
+    view = open_sessions(conn, ~p"/node/#{@node_name}/tracing?session=#{first.id}")
 
     assert has_element?(view, "#total-dropped", "5")
 
@@ -337,7 +344,7 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
       }
     end)
 
-    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing")
+    view = open_sessions(conn)
 
     assert has_element?(view, "#other-node-note", "worker@127.0.0.1")
 
@@ -373,7 +380,7 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     unsaved = create!(save: false)
     {:ok, _session} = configure()
 
-    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing")
+    view = open_sessions(conn)
 
     view
     |> element("#unload-session")
@@ -394,7 +401,7 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     unsaved = create!(save: false)
     {:ok, _session} = configure()
 
-    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing?session=#{saved.id}")
+    view = open_sessions(conn, ~p"/node/#{@node_name}/tracing?session=#{saved.id}")
 
     view
     |> element("#load-session")
@@ -426,8 +433,8 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
         }
       })
 
-    {:ok, view, _html} =
-      live(conn, ~p"/node/#{@node_name}/tracing?node=all&session=#{foreign.id}")
+    view =
+      open_sessions(conn, ~p"/node/#{@node_name}/tracing?node=all&session=#{foreign.id}")
 
     view
     |> element("#trace-here")
@@ -447,7 +454,7 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
   test "flashes and re-enables actions when an async action fails", %{conn: conn} do
     saved = insert_saved!()
 
-    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing?session=#{saved.id}")
+    view = open_sessions(conn, ~p"/node/#{@node_name}/tracing?session=#{saved.id}")
 
     {:ok, _deleted} = Tracer.delete(saved.id)
 
@@ -465,7 +472,7 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
   test "updates the running session totals on live PubSub broadcasts and ticks", %{conn: conn} do
     start!()
 
-    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing")
+    view = open_sessions(conn)
 
     assert has_element?(view, "#overview-status[data-tone=running]")
     assert has_element?(view, "#total-traces", "0")
@@ -481,10 +488,84 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
   test "describes an unloaded saved idle session as not started", %{conn: conn} do
     idle = insert_saved!(%{status: :idle, stop_reason: nil, runs: 0, traces: 0})
 
-    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing?session=#{idle.id}")
+    view = open_sessions(conn, ~p"/node/#{@node_name}/tracing?session=#{idle.id}")
 
     assert has_element?(view, "#overview-status", "Ready")
     assert has_element?(view, "#overview-meta", "Not started · created")
     refute has_element?(view, "#overview-meta", "Stopped")
+  end
+
+  test "mounts immediately while Tracer is blocked, ignores premature events, and loads on resume",
+       %{conn: conn} do
+    saved = insert_saved!()
+    active = create!()
+    {:ok, _session} = configure()
+
+    :ok = :sys.suspend(Tracer)
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing")
+
+    assert has_element?(view, "#sessions-loading")
+    refute has_element?(view, "#sessions-list-card")
+
+    render_click(view, "create-session", %{})
+    refute has_element?(view, "#create-session-modal")
+
+    :ok = :sys.resume(Tracer)
+    render_async(view)
+
+    refute has_element?(view, "#sessions-loading")
+    assert has_element?(view, "#active-session-tile[data-selected]")
+    assert has_element?(view, "#history-tiles #history-#{saved.id}")
+    assert has_element?(view, "#session-card[data-session-id='#{active.id}']")
+  end
+
+  test "mounts immediately while Writer is blocked and loads once it resumes", %{conn: conn} do
+    saved = insert_saved!()
+
+    :ok = :sys.suspend(Writer)
+    on_exit(fn -> :sys.resume(Writer) end)
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing")
+
+    assert has_element?(view, "#sessions-loading")
+
+    :ok = :sys.resume(Writer)
+    render_async(view)
+
+    assert has_element?(view, "#history-tiles #history-#{saved.id}")
+  end
+
+  test "applies a broadcast arriving during initial load and honors ?session", %{conn: conn} do
+    saved = insert_saved!()
+    active = create!()
+    {:ok, _session} = configure()
+
+    :ok = :sys.suspend(Tracer)
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing?session=#{saved.id}")
+
+    send(view.pid, {:session_entries, active, []})
+
+    assert has_element?(view, "#active-session-tile")
+    assert has_element?(view, "#session-card[data-session-id='#{saved.id}']")
+
+    :ok = :sys.resume(Tracer)
+    render_async(view)
+
+    assert has_element?(view, "#active-session-tile")
+    assert has_element?(view, "#session-card[data-session-id='#{saved.id}']")
+  end
+
+  @tag capture_log: true
+  test "renders saved history and flashes an error if initial load exits", %{conn: conn} do
+    saved = insert_saved!()
+
+    :ok = Supervisor.terminate_child(Voyager.Services.Tracer.Supervisor, Tracer)
+    on_exit(fn -> Supervisor.restart_child(Voyager.Services.Tracer.Supervisor, Tracer) end)
+
+    view = open_sessions(conn)
+
+    assert has_element?(view, "#flash-error", "The tracer did not respond. Try again.")
+    assert has_element?(view, "#history-tiles #history-#{saved.id}")
+    assert has_element?(view, "#session-card[data-session-id='#{saved.id}']")
   end
 end
