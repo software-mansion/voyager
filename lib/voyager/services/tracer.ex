@@ -267,7 +267,9 @@ defmodule Voyager.Services.Tracer do
   @doc """
   The runs, activity histogram and event `Summary` of session `id`. Runs in the caller for
   saved sessions. The active session's summary and, while it runs, its activity come from
-  memory, so polling a running session does not read its traces from the database.
+  memory, so polling a running session does not read its traces from the database. Once
+  stopped, an unsaved session's activity covers only the at most #{@kept_traces} traces kept
+  in memory.
   """
   @spec overview(integer()) ::
           {:ok,
