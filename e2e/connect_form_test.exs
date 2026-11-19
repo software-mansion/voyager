@@ -44,7 +44,8 @@ defmodule Voyager.E2E.ConnectFormTest do
 
   describe "ConnectLive › SSH mode" do
     setup %{page: page} do
-      # Not a plain `goto("/")`: the order of modules is undefined, so a session may be connected.
+      # Not a plain `goto("/")`: modules run in no defined order,
+      # so a session may be connected.
       ensure_disconnected(page)
       :ok
     end
