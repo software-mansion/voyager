@@ -451,6 +451,37 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     assert path == ~p"/node/#{@node_name}/tracing/#{active.id}"
   end
 
+  test "flashes when Trace on this node drops a pid-scoped session's parameters", %{conn: conn} do
+    foreign =
+      insert_saved!(%{
+        node: "worker@127.0.0.1",
+        config: %Config{
+          module: "Elixir.Date",
+          function: "leap_year?",
+          arity: 1,
+          processes: :pids,
+          pids: ["<0.42.0>"],
+          max_events: 50
+        }
+      })
+
+    view = open_sessions(conn, ~p"/node/#{@node_name}/tracing?node=all&session=#{foreign.id}")
+
+    view
+    |> element("#trace-here")
+    |> render_click()
+
+    view
+    |> element("#copy-session-modal-cancel")
+    |> render_click()
+
+    {path, flash} = assert_redirect(view)
+    active = Tracer.active()
+    assert active.config == nil
+    assert flash["error"] =~ "Parameters could not be copied"
+    assert path == ~p"/node/#{@node_name}/tracing/#{active.id}"
+  end
+
   test "flashes and re-enables actions when an async action fails", %{conn: conn} do
     saved = insert_saved!()
 

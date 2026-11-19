@@ -168,7 +168,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
   attr :on_select, :string, required: true
 
   def session_tile(assigns) do
-    tone = item_tone(assigns.item)
+    tone = TracingComponents.tone(assigns.item)
     other_node? = item_other_node?(assigns.item, assigns.connected_node)
     {module, function} = item_mfa_parts(assigns.item.config)
 
@@ -353,7 +353,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
   attr :on_delete, :string, required: true
 
   def overview_session_card(assigns) do
-    tone = item_tone(assigns.item)
+    tone = TracingComponents.tone(assigns.item)
     other_node? = item_other_node?(assigns.item, assigns.connected_node)
     {module, function} = item_mfa_parts(assigns.item.config)
 
@@ -690,14 +690,6 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
       node -> node != connected_node
     end
   end
-
-  defp item_tone(%Session{} = session), do: TracingComponents.tone(session)
-  defp item_tone(%{status: :running}), do: :running
-
-  defp item_tone(%{status: :stopped, stop_reason: reason}),
-    do: TracingComponents.reason_tone(reason)
-
-  defp item_tone(_item), do: :open
 
   defp origin_icon(:mcp), do: "icon-brain"
   defp origin_icon(_origin), do: "icon-laptop"

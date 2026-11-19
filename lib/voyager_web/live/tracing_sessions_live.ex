@@ -565,7 +565,9 @@ defmodule VoyagerWeb.TracingSessionsLive do
   end
 
   defp copy_config_to_node(_node, nil, session), do: {:ok, session}
-  defp copy_config_to_node(_node, %Config{processes: :pids}, session), do: {:ok, session}
+
+  defp copy_config_to_node(_node, %Config{processes: :pids}, session),
+    do: {:ok, session, :config_dropped}
 
   defp copy_config_to_node(node, %Config{} = config, session) do
     case Tracer.configure(node, Map.from_struct(config), :ui) do
