@@ -599,4 +599,35 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     assert has_element?(view, "#history-tiles #history-#{saved.id}")
     assert has_element?(view, "#session-card[data-session-id='#{saved.id}']")
   end
+
+  test "keeps loaded older pages when deleting a row from beyond page 1", %{conn: conn} do
+    rows = for _ <- 1..22, do: insert_saved!()
+    oldest = List.first(rows)
+    second_oldest = Enum.at(rows, 1)
+
+    view = open_sessions(conn)
+
+    view
+    |> element("#show-older")
+    |> render_click()
+
+    view
+    |> element("#history-tiles #history-#{oldest.id}")
+    |> render_click()
+
+    view
+    |> element("#delete-session")
+    |> render_click()
+
+    view
+    |> element("#delete-session-modal-confirm")
+    |> render_click()
+
+    settle(view)
+
+    refute has_element?(view, "#history-tiles #history-#{oldest.id}")
+    assert has_element?(view, "#history-tiles #history-#{second_oldest.id}")
+    assert has_element?(view, "#session-count", "21")
+    refute has_element?(view, "#show-older")
+  end
 end
