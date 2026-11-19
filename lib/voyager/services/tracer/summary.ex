@@ -4,8 +4,9 @@ defmodule Voyager.Services.Tracer.Summary do
   exceptions, and the slowest timed events.
 
   `functions` maps an mfa to its calls, `processes` a pid to `{process, calls}`.
-  Both stop taking new keys at `max_keys/0`, so a session over many short-lived processes
-  keeps a bounded summary; `calls` still counts every call.
+  Both cap at `max_keys/0` so a session over many short-lived processes stays bounded
+  (`add/2` keeps the first seen, saved queries keep the top by count); `calls` still
+  counts every call.
   """
 
   alias Voyager.Services.Tracer.Entry
