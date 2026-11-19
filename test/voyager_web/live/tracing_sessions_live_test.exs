@@ -367,4 +367,80 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     assert active.config.module == "Elixir.Date"
     assert path == ~p"/node/#{@node_name}/tracing/#{active.id}"
   end
+
+  test "confirms before unloading or replacing an unsaved configured session", %{conn: conn} do
+    saved = insert_saved!()
+    unsaved = create!(save: false)
+    {:ok, _session} = configure()
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing")
+
+    view
+    |> element("#unload-session")
+    |> render_click()
+
+    assert has_element?(view, "#unload-session-modal")
+    assert Tracer.active().id == unsaved.id
+
+    view
+    |> element("#unload-session-modal-confirm")
+    |> render_click()
+
+    settle(view)
+
+    assert Tracer.active() == nil
+    refute has_element?(view, "#active-session-tile")
+
+    unsaved = create!(save: false)
+    {:ok, _session} = configure()
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing?session=#{saved.id}")
+
+    view
+    |> element("#load-session")
+    |> render_click()
+
+    assert has_element?(view, "#load-session-modal")
+    assert Tracer.active().id == unsaved.id
+
+    view
+    |> element("#load-session-modal-confirm")
+    |> render_click()
+
+    settle(view)
+
+    assert Tracer.active().id == saved.id
+    assert has_element?(view, "#active-session-tile")
+  end
+
+  test "flashes when Trace on this node cannot copy the saved session's parameters", %{conn: conn} do
+    foreign =
+      insert_saved!(%{
+        node: "worker@127.0.0.1",
+        config: %Config{
+          module: "erlang",
+          function: "send",
+          arity: 2,
+          processes: :all,
+          max_events: 50
+        }
+      })
+
+    {:ok, view, _html} =
+      live(conn, ~p"/node/#{@node_name}/tracing?node=all&session=#{foreign.id}")
+
+    view
+    |> element("#trace-here")
+    |> render_click()
+
+    view
+    |> element("#copy-session-modal-cancel")
+    |> render_click()
+
+    {path, flash} = assert_redirect(view)
+    active = Tracer.active()
+    assert active.config == nil
+    assert flash["error"] =~ "Parameters could not be copied"
+    assert path == ~p"/node/#{@node_name}/tracing/#{active.id}"
+  end
 end
