@@ -27,6 +27,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
     socket =
       socket
       |> assign(:active_nav, :tracing)
+      |> assign(:loaded?, false)
       |> assign(:pending, nil)
       |> assign(:confirm, nil)
       |> assign(:active_session, nil)
@@ -53,11 +54,13 @@ defmodule VoyagerWeb.TracingSessionsLive do
     socket =
       if connected?(socket) do
         Phoenix.PubSub.subscribe(Voyager.PubSub, Tracer.topic())
-        Writer.flush()
 
-        socket
-        |> assign(:active_session, Tracer.active())
-        |> schedule_tick()
+        # Tracer.active/0 queues behind a run's start and Writer.flush/0 behind pending writes.
+        start_async(socket, :initial_load, fn ->
+          active = Tracer.active()
+          Writer.flush()
+          active
+        end)
       else
         socket
       end
@@ -77,7 +80,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
       |> assign(:node_filter, next_filter)
       |> assign(:selected_param, selected_param)
 
-    if connected?(socket) do
+    if connected?(socket) and socket.assigns.loaded? do
       socket = if filter_changed?, do: reload_history(socket), else: socket
 
       socket
@@ -108,7 +111,11 @@ defmodule VoyagerWeb.TracingSessionsLive do
       id="tracing-sessions-page"
       class="mx-auto flex h-full max-w-screen-2xl gap-4 p-6 sm:p-8"
     >
+      <div :if={!@loaded?} class="flex-1">
+        <.loading_state id="sessions-loading" message="Loading sessions…" />
+      </div>
       <section
+        :if={@loaded?}
         id="sessions-list-card"
         class="card bg-base-100 border-base-200 min-w-80 flex w-1/3 max-w-md flex-none flex-col border shadow-sm"
       >
@@ -177,7 +184,11 @@ defmodule VoyagerWeb.TracingSessionsLive do
         />
       </section>
 
-      <section id="overview" class="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto">
+      <section
+        :if={@loaded?}
+        id="overview"
+        class="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto"
+      >
         <TracingBrowserComponents.no_selection_state :if={is_nil(@selected_item)} />
         <TracingBrowserComponents.overview_session_card
           :if={@selected_item}
@@ -276,6 +287,9 @@ defmodule VoyagerWeb.TracingSessionsLive do
   end
 
   @impl true
+  def handle_event(_event, _params, %{assigns: %{loaded?: false}} = socket),
+    do: {:noreply, socket}
+
   def handle_event("filter-node", %{"node" => node}, socket) do
     connected = socket.assigns.session.node_name
 
@@ -395,6 +409,30 @@ defmodule VoyagerWeb.TracingSessionsLive do
   end
 
   @impl true
+  def handle_async(:initial_load, {:exit, {:shutdown, :cancel}}, socket), do: {:noreply, socket}
+
+  def handle_async(:initial_load, _result, %{assigns: %{loaded?: true}} = socket),
+    do: {:noreply, socket}
+
+  def handle_async(:initial_load, {:ok, active}, socket) do
+    socket
+    |> assign(:loaded?, true)
+    |> assign(:active_session, active)
+    |> reload_history()
+    |> resolve_selection()
+    |> schedule_tick()
+    |> noreply()
+  end
+
+  def handle_async(:initial_load, {:exit, _reason}, socket) do
+    socket
+    |> assign(:loaded?, true)
+    |> reload_history()
+    |> resolve_selection()
+    |> put_flash(:error, format_error(:exit))
+    |> noreply()
+  end
+
   def handle_async(name, {:ok, {:ok, %Session{id: id}}}, socket) when name in [:create, :copy] do
     socket
     |> assign(:pending, nil)
@@ -455,6 +493,16 @@ defmodule VoyagerWeb.TracingSessionsLive do
   def handle_info({:session_closed, _id}, socket) do
     socket
     |> apply_active_change(nil)
+    |> noreply()
+  end
+
+  def handle_info(
+        {:session_entries, %Session{} = session, _entries},
+        %{assigns: %{loaded?: false}} = socket
+      ) do
+    socket
+    |> apply_active_change(session)
+    |> schedule_flush()
     |> noreply()
   end
 
@@ -534,15 +582,22 @@ defmodule VoyagerWeb.TracingSessionsLive do
   end
 
   defp apply_active_change(socket, next_active) do
+    loaded? = socket.assigns.loaded?
     prev_active = socket.assigns.active_session
 
-    socket
-    |> assign(:active_session, next_active)
-    |> assign(:queued_active, nil)
-    |> drop_stale_confirm(next_active)
-    |> reload_history()
-    |> adjust_selection_after_active_change(prev_active, next_active)
-    |> schedule_tick()
+    socket =
+      socket
+      |> cancel_async(:initial_load)
+      |> assign(:loaded?, true)
+      |> assign(:active_session, next_active)
+      |> assign(:queued_active, nil)
+      |> drop_stale_confirm(next_active)
+      |> reload_history()
+      |> schedule_tick()
+
+    if loaded?,
+      do: adjust_selection_after_active_change(socket, prev_active, next_active),
+      else: resolve_selection(socket)
   end
 
   defp adjust_selection_after_active_change(socket, _prev, %Session{id: next_id})
