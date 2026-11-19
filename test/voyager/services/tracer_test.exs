@@ -403,9 +403,9 @@ defmodule Voyager.Services.TracerTest do
     assert {:error, :not_found} = Tracer.session(id)
   end
 
-  test "reads the storage limit from its setting" do
+  test "saves the storage limit to its setting" do
     assert Tracer.storage_limit_mb() == 100
-    {:ok, _} = Voyager.Settings.put(:trace_storage_limit_mb, 7)
+    assert :ok = Tracer.put_storage_limit_mb(7)
     assert Tracer.storage_limit_mb() == 7
   end
 
