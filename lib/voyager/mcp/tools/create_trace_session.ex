@@ -240,17 +240,11 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
   defp parse_function(function) when is_binary(function) do
     function = String.trim(function)
 
-    cond do
-      match = Regex.run(@elixir_mfa, function, capture: :all_but_first) ->
-        [module | rest] = match
-        mfa_attrs(["Elixir." <> String.replace_prefix(module, "Elixir.", "") | rest])
+    match =
+      Regex.run(@elixir_mfa, function, capture: :all_but_first) ||
+        Regex.run(@erlang_mfa, function, capture: :all_but_first)
 
-      match = Regex.run(@erlang_mfa, function, capture: :all_but_first) ->
-        mfa_attrs(match)
-
-      true ->
-        nil
-    end
+    match && mfa_attrs(match)
   end
 
   defp parse_function(_function), do: nil
@@ -260,7 +254,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
     [function, arity] = Enum.take(rest ++ ["", ""], 2)
 
     %{
-      "module" => module,
+      "module" => Config.module_name(module),
       "function" => if(function == "", do: "_", else: function),
       "arity" => if(arity in ["", "_"], do: nil, else: String.to_integer(arity))
     }

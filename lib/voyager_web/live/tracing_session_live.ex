@@ -12,7 +12,9 @@ defmodule VoyagerWeb.TracingSessionLive do
   alias VoyagerWeb.Components.TraceLogComponents
   alias VoyagerWeb.Components.TracingComponents
   alias VoyagerWeb.Formatters
+  alias VoyagerWeb.FormSchemas.TraceConfigParams
   alias VoyagerWeb.Hooks.TracingStatusHook
+  alias VoyagerWeb.TracingSessionLive.ConfigModal
   alias VoyagerWeb.TracingSessionLive.Log
   alias VoyagerWeb.TracingSessionLive.Stats
 
@@ -31,6 +33,9 @@ defmodule VoyagerWeb.TracingSessionLive do
         |> assign(:confirm, nil)
         |> assign(:queued_session, nil)
         |> assign(:flush_scheduled?, false)
+        |> assign(:editable?, false)
+        |> assign(:config_form, nil)
+        |> assign(:config_error, nil)
         |> TracingStatusHook.defer_puts()
         |> Log.init()
         |> Stats.init()
@@ -70,8 +75,12 @@ defmodule VoyagerWeb.TracingSessionLive do
           on_load="load"
           on_unload="unload"
           on_delete="delete"
+          on_edit="edit-config"
         />
-        <TracingComponents.empty_state :if={@mode == :active and is_nil(trace_session.config)} />
+        <TracingComponents.empty_state
+          :if={@mode == :active and is_nil(trace_session.config)}
+          on_edit="edit-config"
+        />
         <TraceLogComponents.log
           :if={trace_session.config}
           rows={@streams.entries}
@@ -119,6 +128,16 @@ defmodule VoyagerWeb.TracingSessionLive do
           The session in the tracer is not saved, so its parameters and traces are discarded. This cannot be undone.
         </p>
       </TracingComponents.confirm_modal>
+
+      <ConfigModal.config_modal
+        :if={@config_form}
+        form={@config_form}
+        error={@config_error}
+        pending?={@pending != nil}
+        on_change="validate-config"
+        on_submit="save-config"
+        on_cancel="cancel-config"
+      />
     </div>
     """
   end
@@ -207,6 +226,49 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> noreply()
   end
 
+  def handle_event("edit-config", _params, %{assigns: %{editable?: true}} = socket) do
+    form =
+      socket.assigns.trace_session.result.config
+      |> TraceConfigParams.from_config()
+      |> TraceConfigParams.changeset(%{})
+      |> to_form(as: :config)
+
+    socket
+    |> assign(config_form: form, config_error: nil)
+    |> noreply()
+  end
+
+  def handle_event("cancel-config", _params, socket) do
+    socket
+    |> assign(:config_form, nil)
+    |> noreply()
+  end
+
+  def handle_event("validate-config", %{"config" => attrs}, socket) do
+    changeset = TraceConfigParams.changeset(%TraceConfigParams{}, attrs)
+
+    socket
+    |> assign(:config_form, to_form(changeset, as: :config, action: :validate))
+    |> noreply()
+  end
+
+  def handle_event(
+        "save-config",
+        %{"config" => attrs} = params,
+        %{assigns: %{editable?: true}} = socket
+      ) do
+    changeset = TraceConfigParams.changeset(%TraceConfigParams{}, attrs)
+
+    socket
+    |> assign(:config_form, to_form(changeset, as: :config, action: :validate))
+    |> save_config(Ecto.Changeset.apply_action(changeset, :validate), params["action"] == "start")
+    |> noreply()
+  end
+
+  # Sent before the view saw the session change, it would configure whichever one the tracer holds.
+  def handle_event(event, _params, socket) when event in ["edit-config", "save-config"],
+    do: {:noreply, socket}
+
   def handle_event("cancel-confirm", _params, socket) do
     socket
     |> assign(:confirm, nil)
@@ -289,6 +351,17 @@ defmodule VoyagerWeb.TracingSessionLive do
   def handle_async(:delete, {:ok, {:ok, _row}}, socket) do
     socket
     |> leave(:info, "Tracing session deleted.")
+    |> noreply()
+  end
+
+  def handle_async(:configure, result, socket) do
+    socket = assign(socket, :pending, nil)
+
+    case result do
+      {:ok, {:ok, _session}} -> assign(socket, :config_form, nil)
+      {:ok, {:error, reason}} -> config_failed(socket, reason)
+      {:exit, _reason} -> config_failed(socket, :exit)
+    end
     |> noreply()
   end
 
@@ -387,6 +460,7 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> assign(:trace_session, AsyncResult.loading(socket.assigns.trace_session))
     |> assign(:queued_session, nil)
     |> assign(:mode, nil)
+    |> assign(editable?: false, config_form: nil)
     |> cancel_async(:session)
     |> start_async(:session, fn -> Tracer.session(id) end)
   end
@@ -404,10 +478,14 @@ defmodule VoyagerWeb.TracingSessionLive do
         do: socket,
         else: Log.load(socket)
 
+    editable? = mode == :active and session.node in [nil, socket.assigns.session.node]
+
     socket
     |> assign(:trace_session, AsyncResult.ok(session))
     |> assign(:queued_session, nil)
     |> assign(:mode, mode)
+    |> assign(:editable?, editable?)
+    |> assign(:config_form, if(editable?, do: socket.assigns.config_form))
     |> Stats.track(shown, session)
     |> drop_stale_stop_confirm(session)
   end
@@ -455,6 +533,60 @@ defmodule VoyagerWeb.TracingSessionLive do
 
   defp sessions_path(%{node_name: node_name}), do: ~p"/node/#{node_name}/tracing"
 
+  defp save_config(socket, {:error, _changeset}, _start?), do: socket
+
+  defp save_config(socket, {:ok, form_params}, start?) do
+    config = TraceConfigParams.to_config(form_params)
+    current = socket.assigns.trace_session.result.config
+
+    if config == current and not start? do
+      assign(socket, :config_form, nil)
+    else
+      node = socket.assigns.session.node
+
+      socket
+      |> assign(:config_error, nil)
+      |> run(:configure, fn -> apply_config(node, config, current, start?) end)
+    end
+  end
+
+  defp apply_config(node, config, current, start?) do
+    with {:ok, _session} <- configure_changed(node, config, current) do
+      if start?, do: Tracer.start(:ui), else: {:ok, nil}
+    end
+  end
+
+  defp configure_changed(_node, config, config), do: {:ok, nil}
+
+  defp configure_changed(node, config, _current),
+    do: Tracer.configure(node, Map.from_struct(config), :ui)
+
+  # The modal is gone once cancelled while the configure ran, so the flash carries the reason.
+  defp config_failed(%{assigns: %{config_form: nil}} = socket, reason),
+    do: put_flash(socket, :error, format_error(reason))
+
+  defp config_failed(socket, reason) do
+    case config_error_field(reason) do
+      nil ->
+        assign(socket, :config_error, format_error(reason))
+
+      field ->
+        changeset =
+          Ecto.Changeset.add_error(socket.assigns.config_form.source, field, format_error(reason))
+
+        assign(socket, :config_form, to_form(changeset, as: :config, action: :validate))
+    end
+  end
+
+  defp config_error_field({reason, _module}) when reason in [:refused, :not_loaded], do: :module
+
+  defp config_error_field(reason) when reason in [:unknown_function, :no_function_matched],
+    do: :function
+
+  defp config_error_field(:invalid_pid), do: :pids
+  defp config_error_field({:noproc, _pid}), do: :pids
+  defp config_error_field(_reason), do: nil
+
   defp kept_copy(0), do: "No traces are kept"
   defp kept_copy(1), do: "Its 1 trace is kept"
   defp kept_copy(traces), do: "Its #{Formatters.format_integer(traces)} traces are kept"
@@ -499,5 +631,6 @@ defmodule VoyagerWeb.TracingSessionLive do
   defp format_error(:invalid_pid), do: "A traced PID is not valid."
   defp format_error({:tracer_down, _reason}), do: "The remote tracer crashed."
   defp format_error(:exit), do: "The tracer did not respond. Try again."
+  defp format_error(%Ecto.Changeset{}), do: "These parameters are not valid."
   defp format_error(reason), do: "Tracing failed: #{inspect(reason)}"
 end

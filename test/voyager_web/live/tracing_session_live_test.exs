@@ -74,7 +74,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
 
     assert has_element?(view, "#session-resume:not([disabled])")
     assert has_element?(view, "#session-unload:not([disabled])")
-    assert has_element?(view, "#session-edit[aria-disabled]")
+    assert has_element?(view, "#session-edit:not([aria-disabled])")
     refute has_element?(view, "#session-stop")
   end
 
@@ -168,6 +168,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     view = open(conn, id)
 
     assert has_element?(view, "#session-resume[aria-disabled]")
+    assert has_element?(view, "#session-edit[aria-disabled]")
     assert has_element?(view, "#session-unload:not([disabled])")
 
     assert view
@@ -183,7 +184,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#session-start[disabled]")
     refute has_element?(view, "#session-run-tip")
     assert has_element?(view, "#session-empty")
-    assert has_element?(view, "#session-set-parameters[disabled]")
+    assert has_element?(view, "#session-set-parameters:not([disabled])")
     assert has_element?(view, "#session-chip-storage", "Not saved")
     refute has_element?(view, "#session-edit")
   end
@@ -194,12 +195,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
 
     view = open(conn, id)
 
-    assert has_element?(view, "#session-edit[aria-disabled]")
-
-    assert view
-           |> element("#session-edit-tip-portal")
-           |> render() =~ "not available yet"
-
+    assert has_element?(view, "#session-edit:not([aria-disabled])")
     refute has_element?(view, "#session-empty")
     assert has_element?(view, "#log-footer", "No traces yet")
     assert has_element?(view, "#log-search[disabled]")
@@ -211,6 +207,255 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     settle(view)
 
     assert has_element?(view, "#session-stop")
+  end
+
+  test "opens the parameters form on an unconfigured session, filled with the defaults", %{
+    conn: conn
+  } do
+    %{id: id} = create!()
+    view = open(conn, id)
+    refute has_element?(view, "#config-modal")
+
+    view
+    |> element("#session-set-parameters")
+    |> render_click()
+
+    assert has_element?(view, "#config_processes_all[checked]")
+    assert has_element?(view, "#config_max_events[value='10000']")
+    assert has_element?(view, "#config_max_seconds[value='300']")
+
+    view
+    |> element("#config-cancel")
+    |> render_click()
+
+    refute has_element?(view, "#config-modal")
+  end
+
+  test "saves the parameters from the form and closes it", %{conn: conn} do
+    %{id: id} = create!()
+    view = open(conn, id)
+
+    view
+    |> element("#session-set-parameters")
+    |> render_click()
+
+    view
+    |> form("#config-form", config: %{module: "Date", function: "leap_year?", arity: "1"})
+    |> put_submitter("#config-save")
+    |> render_submit()
+
+    settle(view)
+
+    refute has_element?(view, "#config-modal")
+    assert has_element?(view, "#session-start:not([disabled])")
+
+    assert %{
+             module: "Elixir.Date",
+             function: "leap_year?",
+             arity: 1,
+             processes: :all,
+             max_events: 10_000,
+             max_rate: 1_000,
+             max_time_ms: 300_000
+           } = Tracer.active().config
+  end
+
+  test "starts the session from the form", %{conn: conn} do
+    %{id: id} = create!()
+    view = open(conn, id)
+
+    view
+    |> element("#session-set-parameters")
+    |> render_click()
+
+    view
+    |> form("#config-form", config: %{module: "Date", function: "leap_year?", arity: "1"})
+    |> put_submitter("#config-start")
+    |> render_submit()
+
+    settle(view)
+
+    refute has_element?(view, "#config-modal")
+    assert has_element?(view, "#session-stop")
+  end
+
+  test "keeps the form open with the reason a start failed on its field", %{conn: conn} do
+    %{id: id} = create!()
+    view = open(conn, id)
+
+    view
+    |> element("#session-set-parameters")
+    |> render_click()
+
+    view
+    |> form("#config-form", config: %{module: "Date", function: "leap_year?", arity: "2"})
+    |> put_submitter("#config-start")
+    |> render_submit()
+
+    settle(view)
+
+    assert has_element?(view, "#config_function.input-error")
+    refute has_element?(view, "#session-stop")
+  end
+
+  test "validates the form as it changes", %{conn: conn} do
+    %{id: id} = create!()
+    view = open(conn, id)
+
+    view
+    |> element("#session-set-parameters")
+    |> render_click()
+
+    view
+    |> form("#config-form", config: %{module: "Enum", function: "map"})
+    |> render_change()
+
+    assert has_element?(view, "#config_module.input-error")
+
+    view
+    |> form("#config-form", config: %{processes: "pids", module: "Enum", function: "map"})
+    |> render_change()
+
+    refute has_element?(view, "#config_module.input-error")
+    assert has_element?(view, "#config_pids.input-error")
+  end
+
+  test "edits the parameters of a stopped session, adding no row when nothing changed", %{
+    conn: conn
+  } do
+    %{id: id} = create!()
+    {:ok, _session} = configure()
+    view = open(conn, id)
+    rows = row_ids(view)
+
+    view
+    |> element("#session-edit")
+    |> render_click()
+
+    assert has_element?(view, "#config_module[value='Date']")
+
+    view
+    |> form("#config-form")
+    |> put_submitter("#config-save")
+    |> render_submit()
+
+    settle(view)
+
+    refute has_element?(view, "#config-modal")
+    assert row_ids(view) == rows
+  end
+
+  test "puts a refusal from the node on the field it names", %{conn: conn} do
+    %{id: id} = create!()
+    view = open(conn, id)
+
+    view
+    |> element("#session-set-parameters")
+    |> render_click()
+
+    view
+    # The alias makes the atom exist, so the node checks whether the module is loaded.
+    |> form("#config-form", config: %{module: inspect(Nope.Missing), function: "run"})
+    |> put_submitter("#config-start")
+    |> render_submit()
+
+    settle(view)
+
+    assert has_element?(view, "#config_module.input-error")
+
+    dead = spawn(fn -> :ok end)
+    ref = Process.monitor(dead)
+    assert_receive {:DOWN, ^ref, :process, ^dead, :normal}
+
+    view
+    |> form("#config-form",
+      config: %{module: "Date", function: "leap_year?", arity: "1", processes: "pids"}
+    )
+    |> render_change()
+
+    view
+    |> form("#config-form", config: %{pids: Voyager.Pid.format(dead, :distribution)})
+    |> put_submitter("#config-start")
+    |> render_submit()
+
+    settle(view)
+
+    assert has_element?(view, "#config_pids.input-error")
+    refute has_element?(view, "#config_module.input-error")
+    refute has_element?(view, "#session-stop")
+  end
+
+  test "shows a failure that names no field at the foot of the form", %{conn: conn} do
+    %{id: id} = create!()
+    {:ok, _session} = configure()
+    view = open(conn, id)
+
+    view
+    |> element("#session-edit")
+    |> render_click()
+
+    {:ok, _session} = Tracer.start(:ui)
+
+    view
+    |> form("#config-form", config: %{max_events: "50"})
+    |> put_submitter("#config-save")
+    |> render_submit()
+
+    settle(view)
+
+    assert has_element?(view, "#config-error", "A tracing session is running")
+    assert Tracer.active().config.max_events == 1_000
+  end
+
+  test "flashes why a start failed once the form was cancelled", %{conn: conn} do
+    %{id: id} = create!()
+    view = open(conn, id)
+
+    view
+    |> element("#session-set-parameters")
+    |> render_click()
+
+    :ok = :sys.suspend(Tracer)
+
+    view
+    |> form("#config-form", config: %{module: "Date", function: "leap_year?", arity: "2"})
+    |> put_submitter("#config-start")
+    |> render_submit()
+
+    view
+    |> element("#config-cancel")
+    |> render_click()
+
+    :ok = :sys.resume(Tracer)
+    settle(view)
+
+    refute has_element?(view, "#config-modal")
+    assert has_element?(view, "#flash-error", "No loaded function matches")
+  end
+
+  test "closes the form and ignores its save once the session leaves the tracer", %{
+    conn: conn
+  } do
+    %{id: id} = create!(save: true)
+    view = open(conn, id)
+
+    view
+    |> element("#session-set-parameters")
+    |> render_click()
+
+    %{id: replacing} = create!()
+    render_async(view)
+
+    refute has_element?(view, "#config-modal")
+
+    render_hook(view, "save-config", %{
+      "config" => %{"module" => "Date", "max_events" => "5"},
+      "action" => "start"
+    })
+
+    settle(view)
+
+    assert %{id: ^replacing, config: nil, status: :idle} = Tracer.active()
   end
 
   test "summarizes the config and shows what each reconfigure changed", %{conn: conn} do
