@@ -792,8 +792,8 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
 
   defp overview_meta_lead(%Session{}, true), do: "Active in tracer · stopped"
 
-  defp overview_meta_lead(%{status: :idle, created_at: %DateTime{} = at}, false),
-    do: "Not started · created #{Calendar.strftime(at, "%-d %b %H:%M UTC")}"
+  defp overview_meta_lead(%{status: :idle, created_at: at}, false),
+    do: "Not started · created #{format_utc_stamp(at)}"
 
   defp overview_meta_lead(item, false) do
     reason =
@@ -801,12 +801,9 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
         do: TracingComponents.stop_reason_label(item.stop_reason),
         else: "Stopped"
 
-    recorded =
-      case item.started_at || item.created_at do
-        %DateTime{} = at -> Calendar.strftime(at, "%-d %b %H:%M UTC")
-        _ -> ""
-      end
-
-    "#{reason} · recorded #{recorded}"
+    "#{reason} · recorded #{format_utc_stamp(item.started_at || item.created_at)}"
   end
+
+  defp format_utc_stamp(%DateTime{} = at), do: Calendar.strftime(at, "%-d %b %H:%M UTC")
+  defp format_utc_stamp(_at), do: ""
 end
