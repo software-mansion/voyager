@@ -199,6 +199,18 @@ defmodule Voyager.Services.Tracer do
   @spec storage_limit_mb() :: non_neg_integer()
   def storage_limit_mb, do: Settings.get(:trace_storage_limit_mb, @default_storage_limit_mb)
 
+  @doc """
+  Saves the storage limit. It applies from the next start and deletes nothing when lowered.
+  Returns `{:error, :locked}` when application config sets it.
+  """
+  @spec put_storage_limit_mb(pos_integer()) :: :ok | {:error, :locked | Ecto.Changeset.t()}
+  def put_storage_limit_mb(mb) when is_integer(mb) and mb > 0 do
+    with {:ok, _setting} <- Settings.put(:trace_storage_limit_mb, mb), do: :ok
+  end
+
+  @spec storage_limit_locked?() :: boolean()
+  def storage_limit_locked?, do: Settings.locked?(:trace_storage_limit_mb)
+
   @spec kept_traces() :: pos_integer()
   defdelegate kept_traces, to: MemoryLog
 

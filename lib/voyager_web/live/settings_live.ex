@@ -9,6 +9,7 @@ defmodule VoyagerWeb.SettingsLive do
   alias VoyagerWeb.SettingsLive.DistributionSettings
   alias VoyagerWeb.SettingsLive.McpSettings
   alias VoyagerWeb.SettingsLive.TelemetrySettings
+  alias VoyagerWeb.SettingsLive.TracingSettings
   alias VoyagerWeb.SettingsLive.UpdateSettings
 
   @pid_formats [
@@ -71,6 +72,7 @@ defmodule VoyagerWeb.SettingsLive do
         connected?={@session != nil}
       />
       <.live_component module={McpSettings} id="mcp-settings" status={@mcp_status} />
+      <.live_component module={TracingSettings} id="tracing-settings" />
       <.live_component
         module={TelemetrySettings}
         id="telemetry-settings"
