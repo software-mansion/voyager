@@ -23,7 +23,7 @@ inspects, often production ones.
   returns `{:error, :limit_exceeded}` when it is killed. One segment is a single allocation the
   heap check cannot interrupt (`<<0:99999999999999>>` asks for terabytes), so segment sizes must
   be integer literals, and size × unit at most 524288 bits: 64 KiB, the agent's
-  `TRACE_MAX_MATCH_SPEC_BYTES`, so no segment the agent would refuse is ever built.
+  `MAX_MATCH_SPEC_BYTES`, so no segment the agent would refuse is ever built.
 - **Refuse `!`.** `:ms_transform` folds operators through `erl_eval:partial_eval/1`, which
   really sends for `Name ! Msg` with literal operands: `init ! {stop, stop}` would stop Voyager.
 - **Functions, as `fun2ms` does.** `parse_fun/3` takes a function written in Erlang or Elixir and
@@ -44,20 +44,30 @@ inspects, often production ones.
   those are the only ways to reach another macro. `function` is set in the env so that an
   unknown local call (`return_trace()`) compiles as a local call, as `ms_transform` expects.
 - **Composable checks.** `parse/1` only turns the string into a term. `check_shape/1`,
-  `check_clauses/2`, `check_actions/2` and `check_compiles/2` are separate, each safe on any
-  term, and every input (a form field, an MCP tool, ETS) chains the ones it needs.
+  `check_clauses/2`, `check_actions/2`, `check_compiles/2` and `check_size/2` are separate,
+  each safe on any term, and every input (a form field, an MCP tool, ETS) chains the ones it
+  needs. Limits and refused actions are arguments: a spec is not tied to one use, so the
+  caller passes the agent's values from `Refusals`.
+- **Size is checked before sending.** `check_size/2` only measures `external_size/1`; the
+  caller encodes first and checks the encoded spec, which is what the agent measures against
+  `MAX_MATCH_SPEC_BYTES`, but only after the transfer. 4 KiB of input can build an 8 MiB spec.
 - **Errors are reasons.** Checks return atoms or tuples; `format_error/1` makes the message.
 - **Compile without running.** `check_compiles/2` prepends a `false` guard before
   `:erlang.match_spec_test/3`, because the body runs there and `{enable_trace, _}` segfaults the
   VM.
 - **No atoms created on the inspected node.** `encode/1` replaces every atom but a match variable
   with `{'$voyager_atom', Name}`; the agent resolves it with `binary_to_existing_atom/1` and refuses
-  an atom the node lacks with `{unknown_atom, Name}`. Atoms on Voyager are bounded by the 4 KiB
-  input cap and the atom-headroom refusal; a restart clears them.
+  an atom the node lacks with `{unknown_atom, Name}`. Only `_`, `$_`, `$$` and `$0`..`$1000`
+  stay plain, so those are the only atoms a spec can ever create on a node. `encode/1` walks
+  maps with `:maps`, never `Map.new/2`, whose `Enumerable` dispatch on a `__struct__` key
+  would run user-chosen code. Atoms on Voyager are bounded by the 4 KiB input cap and the
+  atom-headroom check, which is soft; a restart clears them.
 - **`return_trace` and `exception_trace` are refused by a check, not stripped.** Return tracing is
   the session's own option today. A caller that leaves the check out lets them through.
-- **ETS keeps its behaviour.** `Voyager.Services.Ets.MatchSpec` reuses `parse/1` and
-  `check_clauses/2` with a cap of one clause, and still sends plain atoms.
+- **ETS search goes through the same checks.** `Voyager.Services.Ets.MatchSpec` chains
+  `parse/1`, `check_clauses/2` with a cap of one clause and `check_compiles(spec, :table)`, then
+  encodes the spec and runs `check_size/2` on the result; `ets_select_spec/5` decodes it and
+  caps its size.
 
 ## Findings
 
@@ -74,4 +84,3 @@ inspects, often production ones.
 - A UI builder.
 - A `match_spec` field in `Voyager.Services.Tracer.Config`, encoded in `to_agent/2`, with the
   trace clause cap moved into `Refusals.agent_macros/0`.
-- Atom encoding for ETS search.

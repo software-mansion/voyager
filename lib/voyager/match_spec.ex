@@ -5,9 +5,14 @@ defmodule Voyager.MatchSpec do
       with {:ok, spec} <- MatchSpec.parse_fun(input, :elixir, :trace),
            :ok <- MatchSpec.check_clauses(spec, 10),
            :ok <- MatchSpec.check_actions(spec, [:return_trace]),
-           :ok <- MatchSpec.check_compiles(spec, :trace) do
-        {:ok, MatchSpec.encode(spec)}
+           :ok <- MatchSpec.check_compiles(spec, :trace),
+           encoded = MatchSpec.encode(spec),
+           :ok <- MatchSpec.check_size(encoded, Refusals.max_match_spec_bytes()) do
+        {:ok, encoded}
       end
+
+  Limits and refused actions are the caller's to pass; the agent's own are in
+  `Voyager.Services.Tracer.Refusals`.
 
   A spec arrives either as an Erlang term (`parse/1`) or as a function written in Erlang or
   Elixir (`parse_fun/3`). Both create the atoms the input names on this node.
@@ -22,7 +27,7 @@ defmodule Voyager.MatchSpec do
     * **10 000 free atoms**: below that, `{:error, :atom_table_full}`, since a full atom table
       aborts the VM instead of raising.
     * **524 288 bits per binary segment** (size × unit): 64 KiB, the agent's
-      `TRACE_MAX_MATCH_SPEC_BYTES`, so no segment is built that the agent would refuse anyway.
+      `MAX_MATCH_SPEC_BYTES`, so no segment is built that the agent would refuse anyway.
       It is checked before parsing, because one segment is a single allocation that
       `max_heap_size` cannot interrupt.
     * **8 MiB and 2 seconds per parse**: parsing runs in its own process with `max_heap_size`
@@ -31,9 +36,10 @@ defmodule Voyager.MatchSpec do
     * **No `!` operator**: `:ms_transform` folds it like any other operator, so
       `init ! {stop, stop}` in an Erlang fun would really send.
 
-  Every check returns `{:error, :invalid_shape}` for a term that is not a non-empty list of
-  `{head, [guard], [body]}` clauses, so leaving `check_shape/1` out never raises. Errors are
-  reasons; `format_error/1` turns them into messages for the user.
+  Every clause check returns `{:error, :invalid_shape}` for a term that is not a non-empty list
+  of `{head, [guard], [body]}` clauses, so leaving `check_shape/1` out never raises;
+  `check_size/2` measures any term. Errors are reasons; `format_error/1` turns them into
+  messages for the user.
   """
 
   alias Voyager.MatchSpec.ElixirParser
@@ -44,6 +50,7 @@ defmodule Voyager.MatchSpec do
   @atom_tag :"$voyager_atom"
   @max_parse_megabytes 8
   @parse_timeout 2_000
+  @max_variable 1_000
 
   @type t :: [{term(), [term()], [term()]}]
   @type type :: :table | :trace
@@ -55,6 +62,7 @@ defmodule Voyager.MatchSpec do
           | {:unsupported, String.t()}
           | :invalid_shape
           | {:too_many_clauses, pos_integer()}
+          | {:too_large, pos_integer()}
           | {:refused_action, atom()}
           | {:compile, [String.t()]}
           | {:unknown_atom, String.t()}
@@ -160,8 +168,18 @@ defmodule Voyager.MatchSpec do
   end
 
   @doc """
+  Checks the term is at most `max_bytes` in the external term format. Pass the spec as
+  `encode/1` returns it: that is what the agent measures, only after it crossed the wire.
+  """
+  @spec check_size(term(), pos_integer()) :: :ok | {:error, reason()}
+  def check_size(term, max_bytes) when is_integer(max_bytes) and max_bytes > 0 do
+    if :erlang.external_size(term) <= max_bytes, do: :ok, else: {:error, {:too_large, max_bytes}}
+  end
+
+  @doc """
   Replaces every atom but a match variable with `{:"$voyager_atom", name}`, which the agent
   resolves against the atoms its node already has, so sending the spec creates none there.
+  Only `_`, `$_`, `$$` and `$0` to `$1000` stay atoms.
   """
   @spec encode(term()) :: term()
   def encode(atom) when is_atom(atom) do
@@ -173,7 +191,10 @@ defmodule Voyager.MatchSpec do
   def encode(tuple) when is_tuple(tuple),
     do: tuple |> Tuple.to_list() |> encode() |> List.to_tuple()
 
-  def encode(map) when is_map(map), do: Map.new(map, fn {k, v} -> {encode(k), encode(v)} end)
+  # `Map.new/2` would dispatch `Enumerable` on a `__struct__` key, running a `File.Stream` read.
+  def encode(map) when is_map(map),
+    do: :maps.from_list(for {k, v} <- :maps.to_list(map), do: {encode(k), encode(v)})
+
   def encode(term), do: term
 
   @spec format_error(reason()) :: String.t()
@@ -188,16 +209,23 @@ defmodule Voyager.MatchSpec do
   def format_error(:invalid_shape), do: "expected a list of {head, guards, body} clauses"
   def format_error({:too_many_clauses, 1}), do: "expected one {head, guards, body} clause"
   def format_error({:too_many_clauses, max}), do: "expected at most #{max} clauses"
+  def format_error({:too_large, max_bytes}), do: "encodes to more than #{max_bytes} bytes"
   def format_error({:refused_action, action}), do: "the #{action} action is not allowed"
   def format_error({:compile, errors}), do: Enum.join(errors, " ")
   def format_error({:unknown_atom, name}), do: "atom '#{name}' does not exist on the node"
 
-  @doc "True for an atom a match spec may read as a variable: `_`, `$_`, `$$` and `$<digits>`."
-  @spec variable?(atom()) :: boolean()
-  # Wider than ERTS (`'$007'` is a constant there): an untagged constant keeps its meaning,
-  # while a tagged variable the node lacks would be refused.
-  def variable?(atom) when atom in [:_, :"$_", :"$$"], do: true
-  def variable?(atom) when is_atom(atom), do: String.match?(Atom.to_string(atom), ~r/\A\$\d+\z/)
+  # ERTS also reads `$1001` and up as variables; tagged, the agent keeps them only if the node
+  # has them, so the atoms a spec can create on a node are this fixed set.
+  defp variable?(atom) when atom in [:_, :"$_", :"$$"], do: true
+
+  defp variable?(atom) do
+    with "$" <> digits <- Atom.to_string(atom),
+         {number, ""} when number in 0..@max_variable <- Integer.parse(digits) do
+      Integer.to_string(number) == digits
+    else
+      _other -> false
+    end
+  end
 
   defp check_input(source) do
     cond do

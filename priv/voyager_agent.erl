@@ -524,12 +524,14 @@ ets_select_chunk(_Table, _Limit, _Budget, _Cont) ->
     erlang:error(badarg).
 
 -spec ets_select_spec(ets:tab(), term(), pos_integer(), non_neg_integer(), term()) ->
-                         {ok, ets_chunk()}.
-ets_select_spec(Table, Spec, Limit, Budget, Cont)
+                         {ok, ets_chunk()} | {error, {unknown_atom, binary()}}.
+ets_select_spec(Table, Encoded, Limit, Budget, Cont)
     when is_integer(Budget), Budget >= 0, is_integer(Limit), Limit >= 0 ->
-    case valid_spec(Spec) of
-        true ->
+    case valid_spec(Encoded) andalso decode_atoms(Encoded) of
+        {ok, Spec} ->
             with_bounded_heap(fun() -> do_select(Table, Spec, Limit, Budget, Cont) end);
+        {error, _} = Error ->
+            Error;
         false ->
             erlang:error(badarg)
     end;
@@ -606,8 +608,8 @@ do_select(_Table, Spec, _Limit, Budget, Cont) ->
                     ets:repair_continuation(Cont, Spec)),
                 Budget).
 
-valid_spec([{_Head, Guards, Body}]) when is_list(Guards), is_list(Body) ->
-    true;
+valid_spec([{_Head, Guards, Body}] = Spec) when is_list(Guards), is_list(Body) ->
+    erlang:external_size(Spec) =< ?MAX_MATCH_SPEC_BYTES;
 valid_spec(_) ->
     false.
 
@@ -649,7 +651,6 @@ bound_records([Record | Rest], Budget, Truncated, Acc) ->
 -define(TRACE_TIMEOUT, 4_000).
 -define(TRACE_MAX_TIME_MS, 3_600_000).
 -define(TRACE_MAX_BUDGET, 100_000).
--define(TRACE_MAX_MATCH_SPEC_BYTES, 65_536).
 -define(TRACER_TAG, '$voyager_tracer').
 -define(TRACE_NAMES_CAP, 1_000).
 -define(TRACE_MAX_SESSIONS, 5).
@@ -776,7 +777,7 @@ valid_spec_value(match_spec, undefined) ->
     true;
 valid_spec_value(match_spec, MatchSpec)
     when is_list(MatchSpec), length(MatchSpec) > 0, length(MatchSpec) =< ?TRACE_MAX_CLAUSES ->
-    erlang:external_size(MatchSpec) =< ?TRACE_MAX_MATCH_SPEC_BYTES
+    erlang:external_size(MatchSpec) =< ?MAX_MATCH_SPEC_BYTES
     andalso lists:all(fun({_Head, Guards, Body}) -> is_list(Guards) andalso is_list(Body);
                          (_Clause) -> false
                       end,

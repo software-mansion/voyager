@@ -3,7 +3,7 @@ defmodule Voyager.MatchSpec.Utils do
 
   alias Voyager.MatchSpec
 
-  # The agent's `TRACE_MAX_MATCH_SPEC_BYTES` (64 KiB): a bigger segment could never be sent.
+  # The agent's `MAX_MATCH_SPEC_BYTES` (64 KiB): a bigger segment could never be sent.
   @max_segment_bits 524_288
 
   @doc """

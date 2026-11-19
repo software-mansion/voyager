@@ -267,6 +267,16 @@ defmodule Voyager.MatchSpecTest do
     end
   end
 
+  describe "check_size/2" do
+    test "accepts up to max_bytes in the external term format" do
+      encoded = MatchSpec.encode([{:_, [], [:ok]}])
+      size = :erlang.external_size(encoded)
+
+      assert MatchSpec.check_size(encoded, size) == :ok
+      assert MatchSpec.check_size(encoded, size - 1) == {:error, {:too_large, size - 1}}
+    end
+  end
+
   test "checks compose over a parsed spec" do
     input = ~S([{['$1', '_'], [{'>', '$1', 10}], [{message, '$1'}]}, {'_', [], []}])
 
@@ -274,6 +284,7 @@ defmodule Voyager.MatchSpecTest do
     assert MatchSpec.check_clauses(spec, 10) == :ok
     assert MatchSpec.check_actions(spec, [:return_trace]) == :ok
     assert MatchSpec.check_compiles(spec, :trace) == :ok
+    assert MatchSpec.check_size(MatchSpec.encode(spec), 65_536) == :ok
   end
 
   describe "encode/1" do
@@ -287,15 +298,41 @@ defmodule Voyager.MatchSpecTest do
     end
 
     test "leaves match variables as they are" do
-      for variable <- [:_, :"$_", :"$$", :"$0", :"$1", :"$123", :"$007"] do
+      for variable <- [:_, :"$_", :"$$", :"$0", :"$1", :"$123", :"$1000"] do
         assert MatchSpec.encode([{variable, [], [variable]}]) == [{variable, [], [variable]}]
       end
     end
 
-    test "tags atoms that only look like variables" do
-      for atom <- [:"$", :"$abc", :"$1a", :"$-1", :__, :"$__"] do
+    test "tags atoms that only look like variables, and variables past $1000" do
+      for atom <-
+            [:"$", :"$abc", :"$1a", :"$-1", :"$+1", :__, :"$__", :"$007", :"$01"] ++
+              [:"$1001", :"$900000008834"] do
         assert MatchSpec.encode([{atom, [], []}]) == [{tag(atom), [], []}], inspect(atom)
       end
+    end
+
+    test "encodes struct-shaped maps as plain maps without running their protocols" do
+      stream = %{__struct__: File.Stream, path: "missing", raw: true}
+      range = %{__struct__: Range, first: 1, last: 3, step: 1}
+      set = %{__struct__: MapSet, map: %{x: []}}
+
+      assert MatchSpec.encode(stream) == %{
+               tag(:__struct__) => tag(File.Stream),
+               tag(:path) => "missing",
+               tag(:raw) => tag(true)
+             }
+
+      assert MatchSpec.encode(range) == %{
+               tag(:__struct__) => tag(Range),
+               tag(:first) => 1,
+               tag(:last) => 3,
+               tag(:step) => 1
+             }
+
+      assert MatchSpec.encode(set) == %{
+               tag(:__struct__) => tag(MapSet),
+               tag(:map) => %{tag(:x) => []}
+             }
     end
 
     test "tags atoms inside maps, nested tuples and improper lists" do
@@ -331,6 +368,7 @@ defmodule Voyager.MatchSpecTest do
             {:invalid_shape, "expected a list of {head, guards, body} clauses"},
             {{:too_many_clauses, 1}, "expected one {head, guards, body} clause"},
             {{:too_many_clauses, 10}, "expected at most 10 clauses"},
+            {{:too_large, 65_536}, "encodes to more than 65536 bytes"},
             {{:refused_action, :return_trace}, "the return_trace action is not allowed"},
             {{:compile, ["Variable $7 is unbound.", "Bad."]}, "Variable $7 is unbound. Bad."},
             {{:unknown_atom, "nope"}, "atom 'nope' does not exist on the node"}
