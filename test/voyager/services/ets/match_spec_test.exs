@@ -42,8 +42,18 @@ defmodule Voyager.Services.Ets.MatchSpecTest do
     end
 
     test "rejects a term that is not a clause list" do
-      assert {:error, {:invalid_match_spec, _}} = MatchSpec.parse("42")
-      assert {:error, {:invalid_match_spec, _}} = MatchSpec.parse("[{'$1', [], '$1'}]")
+      for input <- ["42", "[]", "[{'$1', [], '$1'}]"] do
+        assert MatchSpec.parse(input) ==
+                 {:error,
+                  {:invalid_match_spec, "expected a list of one {head, guards, body} clause"}}
+      end
+    end
+
+    test "rejects invalid UTF-8 and sized binary segments" do
+      assert {:error, {:invalid_match_spec, "not valid UTF-8"}} = MatchSpec.parse(<<255>>)
+
+      assert {:error, {:invalid_match_spec, "calls and sized binary segments are not allowed"}} =
+               MatchSpec.parse("[{'$1', [], [<<0:99999999999999>>]}]")
     end
 
     test "rejects an empty spec" do

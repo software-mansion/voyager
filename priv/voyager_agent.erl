@@ -880,11 +880,11 @@ generated_function(Name) ->
             false
     end.
 
-%% Atoms in a match spec are created on the remote when the dist message is decoded.
 trace_match_spec(undefined, ReturnTrace) ->
     {ok, [{'_', [], return_body(ReturnTrace)}]};
-trace_match_spec(MatchSpec, ReturnTrace) ->
+trace_match_spec(Encoded, ReturnTrace) ->
     maybe
+        {ok, MatchSpec} ?= decode_atoms(Encoded),
         false ?= refused_action([{Guards, Body} || {_Head, Guards, Body} <- MatchSpec],
                                 refused_actions(ReturnTrace)),
         %% `match_spec_test' runs the body here (`enable_trace' segfaults); `false' keeps it compile-only.
@@ -895,9 +895,36 @@ trace_match_spec(MatchSpec, ReturnTrace) ->
     else
         {value, Action} ->
             {error, {refused_action, Action}};
+        {error, {unknown_atom, _}} = Error ->
+            Error;
         {error, Errors} ->
             {error, {invalid_match_spec, Errors}}
     end.
+
+%% Voyager sends atoms as `{'$voyager_atom', Name}': a plain atom in a dist message is created on decode.
+decode_atoms(Term) ->
+    try
+        {ok, decode_atom(Term)}
+    catch
+        throw:{unknown_atom, _} = Reason ->
+            {error, Reason}
+    end.
+
+decode_atom({'$voyager_atom', Name}) when is_binary(Name) ->
+    try
+        binary_to_existing_atom(Name)
+    catch
+        error:badarg ->
+            throw({unknown_atom, Name})
+    end;
+decode_atom([Head | Tail]) ->
+    [decode_atom(Head) | decode_atom(Tail)];
+decode_atom(Tuple) when is_tuple(Tuple) ->
+    list_to_tuple(decode_atom(tuple_to_list(Tuple)));
+decode_atom(Map) when is_map(Map) ->
+    maps:from_list([{decode_atom(K), decode_atom(V)} || {K, V} <- maps:to_list(Map)]);
+decode_atom(Term) ->
+    Term.
 
 %% `exception_trace' also closes a frame on a raise, so a call never stays open in Voyager.
 return_body(true) ->
