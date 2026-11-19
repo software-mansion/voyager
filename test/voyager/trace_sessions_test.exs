@@ -276,31 +276,27 @@ defmodule Voyager.TraceSessionsTest do
     assert TraceSessionQueries.total_count(s3.id) == 2
   end
 
-  test "returns nil config for a stored row whose config no longer matches the schema" do
-    stale =
+  test "find_listed/2 loads a saved session matching the node filter and counts runs" do
+    saved =
       Repo.insert!(%TraceSession{
         origin: :ui,
         status: :stopped,
-        node: "a@host",
-        config: %{"module" => "Elixir.Date", "processes" => "everything"}
+        node: "a@host"
       })
 
-    Repo.insert!(%Voyager.Schemas.TraceSessionEvent{
-      session_id: stale.id,
-      seq: 0,
-      kind: :configured,
-      at: ~U[2026-01-01 00:00:00.000000Z],
-      origin: :ui,
-      node: "a@host",
-      config: %{"module" => "Elixir.Date", "arity" => "x"}
-    })
+    TraceEntryActions.insert_all(saved.id, [
+      %{seq: 0, kind: :started, at: 1, origin: :ui},
+      %{seq: 1, kind: :started, at: 2, origin: :ui}
+    ])
 
-    assert %{rows: [%{id: id, config: nil}]} = TraceSessionQueries.page(limit: 10)
-    assert id == stale.id
-    assert [%{kind: :configured, config: nil}] = TraceEntryQueries.controls(stale.id)
+    assert %{id: id, runs: 2} = TraceSessionQueries.find_listed(saved.id, "a@host")
+    assert id == saved.id
+    assert %{id: ^id, runs: 2} = TraceSessionQueries.find_listed(saved.id, "all")
+    assert TraceSessionQueries.find_listed(saved.id, "b@host") == nil
+    assert TraceSessionQueries.find_listed(saved.id + 999, "all") == nil
   end
 
-  test "activity/3 buckets saved trace rows in SQLite to match Overview.activity/2" do
+  test "activity/2 buckets saved trace rows in SQLite to match Overview.activity/2" do
     %{id: id} = session!(:stopped)
 
     controls = [
