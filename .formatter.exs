@@ -5,7 +5,7 @@
   inputs: [
     "*.{heex,ex,exs}",
     "priv/*/seeds.exs",
-    "{config,lib,test}/**/*.{heex,ex,exs}"
+    "{config,lib,test,e2e}/**/*.{heex,ex,exs}"
   ],
   inputs: ["*.{ex,exs}", "{config,lib,test}/**/*.{ex,exs}", "priv/*/seeds.exs"]
 ]

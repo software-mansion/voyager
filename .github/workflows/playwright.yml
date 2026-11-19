@@ -32,16 +32,6 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version-file: .tool-versions
-          cache: "npm"
-          cache-dependency-path: "./e2e/package-lock.json"
-
-      - name: Install Node dependencies
-        working-directory: ./e2e
-        run: npm ci
-
-      - name: Check prettier
-        working-directory: ./e2e
-        run: npx prettier . --check
 
       - name: Set up Elixir
         id: beam
@@ -67,29 +57,29 @@ jobs:
 
       - name: Cache Playwright browsers
         uses: actions/cache@v6
-        id: playwright-cache
         with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('e2e/package-lock.json') }}
+          path: |
+            ~/.cache/ms-playwright
+            ~/.cache/playwright
+          key: ${{ runner.os }}-playwright-ex-${{ hashFiles('mix.lock') }}
 
       - name: Install Playwright browsers
-        working-directory: ./e2e
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install
-
-      - name: Install Playwright OS dependencies
-        working-directory: ./e2e
-        run: npx playwright install-deps
+        run: mix playwright.install chromium firefox --with-deps
 
       - name: Setup and build assets
         run: mix assets.setup && mix assets.deploy
 
       - name: Run e2e tests
-        run: mix e2e
+        run: |
+          mix e2e --max-failures 5 \
+            --formatter ExUnit.CLIFormatter --formatter Playwright.Test.GitHubFormatter \
+            || { [ $? -eq 2 ] && mix e2e --failed; } \
+            || { [ $? -eq 2 ] && mix e2e --failed; }
 
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
-          name: playwright-report
-          path: e2e/playwright-report/
+          name: test-results
+          path: test-results/
           retention-days: 7
+          if-no-files-found: ignore

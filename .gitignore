@@ -69,3 +69,6 @@ npm-debug.log
 /.claude/*
 !/.claude/skills/
 !/.claude/rules/
+
+# playwright_ex output
+/test-results/

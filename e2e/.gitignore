@@ -2,14 +2,3 @@
 
 # Mock app beams (compiled by node.sh)
 /mock_app/ebin/*.beam
-
-# Playwright
-node_modules/
-/test-results/
-/playwright-report/
-/blob-report/
-/playwright/.cache/
-/playwright/.auth/
-
-# Flakiness benchmark output
-/flakiness-results/

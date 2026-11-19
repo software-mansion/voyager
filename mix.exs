@@ -7,6 +7,7 @@ defmodule Voyager.MixProject do
       version: "0.3.0-dev",
       elixir: "~> 1.20",
       elixirc_paths: elixirc_paths(Mix.env()),
+      test_paths: test_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
@@ -31,7 +32,11 @@ defmodule Voyager.MixProject do
     [preferred_envs: [precommit: :test, e2e: :e2e, "e2e.setup": :e2e]]
   end
 
+  defp test_paths(:e2e), do: ["e2e"]
+  defp test_paths(_), do: ["test"]
+
   defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(:e2e), do: ["lib", "e2e/support"]
   defp elixirc_paths(_), do: ["lib"]
 
   defp deps do
@@ -55,6 +60,7 @@ defmodule Voyager.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:mox, "~> 1.2", only: :test},
+      {:playwright, "~> 1.65.0-rc.2", hex: :playwright_ex, only: [:dev, :e2e]},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:lazy_html, ">= 0.1.0", only: :test},
       {:live_debugger, "~> 1.0", only: [:dev]},
@@ -68,14 +74,10 @@ defmodule Voyager.MixProject do
     [
       setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
       format: ["format", "cmd npm --prefix assets run format"],
-      "e2e.format": ["cmd npm --prefix e2e run format"],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
-      "e2e.setup": [
-        "cmd --cd e2e npm ci",
-        "cmd --cd e2e npx playwright install --with-deps"
-      ],
+      "e2e.setup": ["playwright.install chromium firefox --with-deps"],
       "tauri.dev": ["deps.get", "cmd bash ./rel/app/tauri.sh dev"],
       "tauri.app": ["cmd bash ./rel/app/tauri.sh app"],
       "tauri.build": ["cmd bash ./rel/app/tauri.sh build"],
@@ -98,10 +100,8 @@ defmodule Voyager.MixProject do
         "assets.build",
         "phx.digest"
       ],
-      e2e: [
-        "ecto.reset",
-        "cmd bash e2e/run.sh"
-      ],
+      # --seed 0: recent_connections_test needs definition order (upstream's mode: 'serial')
+      e2e: ["ecto.reset", "test --no-start --seed 0"],
       precommit: [
         tauri_check_version_cmd(),
         elixirkit_check_rev_cmd(),
@@ -109,7 +109,6 @@ defmodule Voyager.MixProject do
         "compile --warnings-as-errors",
         "format",
         "credo --strict",
-        "e2e.format",
         "tauri.format",
         "test",
         "tauri.test"

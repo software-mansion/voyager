@@ -9,7 +9,7 @@ matching files.
 - `mix precommit` when you are done; fix everything it reports (warnings, format,
   `credo --strict`, tests)
 - `mix test test/path/to_test.exs`, `mix test --failed`
-- `mix e2e` runs the Playwright suite (`mix e2e.setup` once first)
+- `mix e2e` runs the browser suite in `e2e/` (ExUnit with playwright_ex; `mix e2e.setup` once first)
 - `mix tauri.test` for the Rust shell
 
 ## Architecture
