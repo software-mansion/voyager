@@ -336,7 +336,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
 
   def handle_event("unload-session", _params, socket) do
     socket
-    |> confirm_or_run(:unload, &run_action(&1, :unload, fn -> Tracer.close() end))
+    |> confirm_or_run(:unload)
     |> noreply()
   end
 
@@ -344,7 +344,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
     case selected_item(socket.assigns) do
       %{id: id} when id > 0 ->
         socket
-        |> confirm_or_run({:load, id}, &run_action(&1, :load, fn -> Tracer.load(id) end))
+        |> confirm_or_run({:load, id})
         |> noreply()
 
       _other ->
@@ -395,6 +395,14 @@ defmodule VoyagerWeb.TracingSessionsLive do
   def handle_async(name, {:ok, {:ok, %Session{id: id}}}, socket) when name in [:create, :copy] do
     socket
     |> assign(:pending, nil)
+    |> push_navigate(to: session_path(socket.assigns.session, id))
+    |> noreply()
+  end
+
+  def handle_async(:copy, {:ok, {:ok, %Session{id: id}, :config_dropped}}, socket) do
+    socket
+    |> assign(:pending, nil)
+    |> put_flash(:error, "Parameters could not be copied to this node.")
     |> push_navigate(to: session_path(socket.assigns.session, id))
     |> noreply()
   end
@@ -491,10 +499,10 @@ defmodule VoyagerWeb.TracingSessionsLive do
 
   defp execute_confirmed(socket, _nil, _save?), do: socket
 
-  defp confirm_or_run(socket, confirm, fun) do
+  defp confirm_or_run(socket, confirm) do
     if unsaved_active?(socket.assigns.active_session),
       do: assign(socket, :confirm, confirm),
-      else: fun.(socket)
+      else: execute_confirmed(socket, confirm, false)
   end
 
   defp start_copy(socket, config, save?) do
@@ -513,7 +521,8 @@ defmodule VoyagerWeb.TracingSessionsLive do
   defp copy_config_to_node(node, %Config{} = config, session) do
     case Tracer.configure(node, Map.from_struct(config), :ui) do
       {:ok, configured} -> {:ok, configured}
-      {:error, _reason} -> {:ok, session}
+      {:error, %Ecto.Changeset{}} -> {:ok, session, :config_dropped}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -614,12 +623,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
   defp drop_stale_confirm(socket, _active), do: socket
 
   defp remove_deleted_row(socket, id) do
-    row = Map.get(socket.assigns.history_by_id, id)
-    socket = if row, do: stream_delete(socket, :history, row), else: socket
-
-    socket =
-      socket
-      |> reload_history()
+    socket = reload_history(socket)
 
     if socket.assigns.selected_id == id do
       socket
@@ -802,6 +806,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
 
   defp format_error(:busy), do: "A tracing session is running. Stop it first."
   defp format_error(:not_found), do: "No such tracing session."
+  defp format_error(:no_session), do: "This session is no longer active."
   defp format_error(:exit), do: "The tracer did not respond. Try again."
   defp format_error(reason), do: "Tracing failed: #{inspect(reason)}"
 end
