@@ -223,6 +223,17 @@ defmodule Voyager.Services.TracerTest do
     assert_receive {:session_entries, %{id: ^id, storage_limit: 40_000_000}, []}
   end
 
+  test "gives the active session the storage a deleted session frees" do
+    {:ok, _setting} = Voyager.Settings.put(:trace_storage_limit_mb, 50)
+    %{id: other} = Repo.insert!(%TraceSession{origin: :ui, status: :stopped, bytes: 10_000_000})
+    assert {:ok, %{id: id, storage_limit: 40_000_000}} = Tracer.create(:mcp, save: true)
+
+    assert {:ok, _row} = Tracer.delete(other)
+
+    assert %{storage_limit: 50_000_000} = Tracer.active()
+    assert_receive {:session_entries, %{id: ^id, storage_limit: 50_000_000}, []}
+  end
+
   test "stops a saved run once a lowered storage limit leaves it no room" do
     assert {:ok, _session} = Tracer.create(:mcp, save: true)
     assert {:ok, _session} = configure()
