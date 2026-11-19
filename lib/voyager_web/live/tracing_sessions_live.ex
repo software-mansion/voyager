@@ -487,7 +487,15 @@ defmodule VoyagerWeb.TracingSessionsLive do
   defp execute_confirmed(socket, :create, save?),
     do: run_action(socket, :create, fn -> Tracer.create(:ui, save: save?) end)
 
-  defp execute_confirmed(socket, {:copy, config}, save?), do: start_copy(socket, config, save?)
+  defp execute_confirmed(socket, {:copy, config}, save?) do
+    node = socket.assigns.session.node
+
+    run_action(socket, :copy, fn ->
+      with {:ok, session} <- Tracer.create(:ui, save: save?) do
+        copy_config_to_node(node, config, session)
+      end
+    end)
+  end
 
   defp execute_confirmed(socket, :stop, _save?),
     do: run_action(socket, :stop, fn -> Tracer.stop(:ui) end)
@@ -507,16 +515,6 @@ defmodule VoyagerWeb.TracingSessionsLive do
     if unsaved_active?(socket.assigns.active_session),
       do: assign(socket, :confirm, confirm),
       else: execute_confirmed(socket, confirm, false)
-  end
-
-  defp start_copy(socket, config, save?) do
-    node = socket.assigns.session.node
-
-    run_action(socket, :copy, fn ->
-      with {:ok, session} <- Tracer.create(:ui, save: save?) do
-        copy_config_to_node(node, config, session)
-      end
-    end)
   end
 
   defp copy_config_to_node(_node, nil, session), do: {:ok, session}
