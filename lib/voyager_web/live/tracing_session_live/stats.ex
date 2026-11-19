@@ -43,6 +43,7 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
   @spec track(Socket.t(), Session.t() | nil, Session.t()) :: Socket.t()
   def track(socket, shown, session) do
     socket
+    |> refresh_storage_limit(shown, session)
     |> reset_rates(shown, session)
     |> assign(:now, DateTime.utc_now())
     |> tick()
@@ -199,6 +200,13 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
     do: :erlang.float_to_binary(bytes / 1_000_000, decimals: 1) <> " MB"
 
   defp format_size(bytes), do: "#{Formatters.format_integer(div(bytes, 1_000_000))} MB"
+
+  # A session's share only changes with the setting or the other saved sessions; reread the total then.
+  defp refresh_storage_limit(socket, %Session{storage_limit: left}, %Session{storage_limit: left}),
+       do: socket
+
+  defp refresh_storage_limit(socket, _shown, _session),
+    do: assign(socket, :storage_limit_mb, Tracer.storage_limit_mb())
 
   defp percent(part, whole) when whole > 0, do: min(max(div(part * 100, whole), 0), 100)
   defp percent(_part, _whole), do: 0

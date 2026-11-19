@@ -851,6 +851,19 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#flash-error", "No loaded function matches")
   end
 
+  test "redraws the storage bar once the storage limit changes", %{conn: conn} do
+    Voyager.Repo.delete_all(Voyager.Schemas.Setting)
+    %{id: id} = start!(%{}, save: true)
+    view = open(conn, id)
+
+    assert has_element?(view, "#stat-storage", "of 100 MB")
+
+    :ok = Tracer.put_storage_limit_mb(250)
+    settle(view)
+
+    assert has_element?(view, "#stat-storage", "of 250 MB")
+  end
+
   test "flashes the storage limit instead of starting a saved session with no storage left",
        %{conn: conn} do
     {:ok, _} = Voyager.Settings.put(:trace_storage_limit_mb, 0)

@@ -53,7 +53,7 @@ defmodule VoyagerWeb.SettingsLive.TracingSettings do
               class="font-mono text-sm"
             />
             <p class="text-base-content/70 mt-2 text-xs">
-              Lowering it deletes no saved session. It applies from the next run.
+              Lowering it deletes no saved session. A running one stops once it passes the new limit.
             </p>
           </div>
 
