@@ -477,4 +477,14 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     assert has_element?(view, "#total-traces", "3")
     assert has_element?(view, "#active-session-tile", "3 traces")
   end
+
+  test "describes an unloaded saved idle session as not started", %{conn: conn} do
+    idle = insert_saved!(%{status: :idle, stop_reason: nil, runs: 0, traces: 0})
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing?session=#{idle.id}")
+
+    assert has_element?(view, "#overview-status", "Ready")
+    assert has_element?(view, "#overview-meta", "Not started · created")
+    refute has_element?(view, "#overview-meta", "Stopped")
+  end
 end
