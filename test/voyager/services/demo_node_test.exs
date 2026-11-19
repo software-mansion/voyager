@@ -12,6 +12,16 @@ defmodule Voyager.Services.DemoNodeTest do
 
   @node :"voyager_demo@127.0.0.1"
 
+  setup do
+    events =
+      for event <- [:start, :start_failed, :connect, :stop, :dismiss],
+          do: [:voyager, :demo, event]
+
+    handler = {__MODULE__, self()}
+    :telemetry.attach_many(handler, events, &__MODULE__.forward_telemetry/4, self())
+    on_exit(fn -> :telemetry.detach(handler) end)
+  end
+
   test "is hidden and refuses to start outside a release" do
     start_demo_node!(exec: nil)
 
@@ -26,6 +36,9 @@ defmodule Voyager.Services.DemoNodeTest do
 
     assert {:error, _reason} = DemoNode.start()
     assert Process.whereis(DemoNode) == pid
+
+    assert_receive {:telemetry, [:voyager, :demo, :start_failed], %{duration_ms: _},
+                    %{reason: :boot_failed}}
   end
 
   test "stays offered without saved connections, even once dismissed" do
@@ -45,6 +58,7 @@ defmodule Voyager.Services.DemoNodeTest do
     :ok = DemoNode.dismiss()
 
     assert DemoNode.offer() == :hidden
+    assert_receive {:telemetry, [:voyager, :demo, :dismiss], _, _}
   end
 
   test "is dismissible with only a saved SSH connection" do
@@ -68,6 +82,7 @@ defmodule Voyager.Services.DemoNodeTest do
     Application.put_env(:voyager, :demo_dismissed, false)
 
     assert DemoNode.dismiss() == {:error, :locked}
+    refute_received {:telemetry, [:voyager, :demo, :dismiss], _, _}
   end
 
   test "boots a loopback-only demo node with the given cookie and the demo tree" do
@@ -75,6 +90,7 @@ defmodule Voyager.Services.DemoNodeTest do
 
     assert {:ok, %{node_name: "voyager_demo@127.0.0.1", cookie: cookie}} = DemoNode.start()
     assert cookie =~ ~r/^[A-Z2-7]{52}$/
+    assert_receive {:telemetry, [:voyager, :demo, :start], %{duration_ms: _}, _}
 
     peer = demo_peer()
     assert :peer.call(peer, :erlang, :node, []) == @node
@@ -99,6 +115,9 @@ defmodule Voyager.Services.DemoNodeTest do
     assert_receive {:DOWN, ^first_ref, :process, _pid, _reason}
     assert second_cookie != first_cookie
     assert is_pid(demo_peer())
+
+    assert_receive {:telemetry, [:voyager, :demo, :stop], %{duration_ms: _},
+                    %{reason: :restarted}}
   end
 
   for event <- [:node_disconnected, :nodedown] do
@@ -111,6 +130,7 @@ defmodule Voyager.Services.DemoNodeTest do
 
       assert_receive {:DOWN, ^ref, :process, _pid, _reason}
       assert demo_peer() == nil
+      assert_receive {:telemetry, [:voyager, :demo, :stop], _, %{reason: unquote(event)}}
     end
   end
 
@@ -133,6 +153,7 @@ defmodule Voyager.Services.DemoNodeTest do
 
     assert_receive {:DOWN, ^ref, :process, _pid, _reason}
     assert demo_peer() == nil
+    assert_receive {:telemetry, [:voyager, :demo, :stop], _, %{reason: :other_node}}
   end
 
   test "stops when nobody connects within the idle timeout" do
@@ -146,6 +167,8 @@ defmodule Voyager.Services.DemoNodeTest do
 
     assert_receive {:DOWN, ^ref, :process, ^peer, _reason}
     assert demo_peer() == nil
+    assert_receive {:telemetry, [:voyager, :demo, :stop], _, %{reason: :idle_timeout}}
+    refute_received {:telemetry, [:voyager, :demo, :connect], _, _}
   end
 
   test "connecting to the demo node cancels the idle timeout" do
@@ -159,6 +182,7 @@ defmodule Voyager.Services.DemoNodeTest do
 
     assert %{timer: nil, peer: ^peer} = :sys.get_state(DemoNode)
     assert is_pid(peer)
+    assert_receive {:telemetry, [:voyager, :demo, :connect], %{time_to_connect_ms: _}, _}
   end
 
   test "clears its state when the demo node halts" do
@@ -171,6 +195,7 @@ defmodule Voyager.Services.DemoNodeTest do
 
     assert_receive {:DOWN, ^ref, :process, ^peer, _reason}
     assert demo_peer() == nil
+    assert_receive {:telemetry, [:voyager, :demo, :stop], _, %{reason: :halted}}
   end
 
   test "connects to the running demo node without saving a connection" do
@@ -203,6 +228,9 @@ defmodule Voyager.Services.DemoNodeTest do
     assert_receive {:DOWN, ^ref, :process, _pid, _reason}
     assert DemoNode.connect() == {:error, :not_started}
   end
+
+  def forward_telemetry(event, measurements, metadata, pid),
+    do: send(pid, {:telemetry, event, measurements, metadata})
 
   defp demo_peer, do: :sys.get_state(DemoNode).peer
 
