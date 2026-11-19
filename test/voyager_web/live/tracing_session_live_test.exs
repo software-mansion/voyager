@@ -231,6 +231,25 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     refute has_element?(view, "#config-modal")
   end
 
+  test "closes the parameters form from its close button and from outside it", %{conn: conn} do
+    %{id: id} = create!()
+    view = open(conn, id)
+
+    for close <- ["#config-close", "#config-backdrop"] do
+      view
+      |> element("#session-set-parameters")
+      |> render_click()
+
+      view
+      |> element(close)
+      |> render_click()
+
+      refute has_element?(view, "#config-modal")
+    end
+
+    assert %{config: nil} = Tracer.active()
+  end
+
   test "saves the parameters from the form and closes it", %{conn: conn} do
     %{id: id} = create!()
     view = open(conn, id)

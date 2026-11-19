@@ -12,6 +12,7 @@ const sel = {
   search: '#log-search',
   setParameters: '#session-set-parameters',
   configModal: '#config-modal',
+  configClose: '#config-close',
   configModule: '#config_module',
   configFunction: '#config_function',
   configArity: '#config_arity',
@@ -66,6 +67,15 @@ test.describe('TracingSessionLive', () => {
     const id = rpc('mock_app_ctl trace_create []');
     await page.goto(`/node/${encodeURIComponent(NODE_NAME)}/tracing/${id}`);
     await waitForLiveView(page);
+
+    await page.locator(sel.setParameters).click();
+    await expect(page.locator(sel.configModule)).toBeFocused();
+    await page.locator(sel.configModal).click({ position: { x: 5, y: 5 } });
+    await expect(page.locator(sel.configModal)).toBeHidden();
+
+    await page.locator(sel.setParameters).click();
+    await page.locator(sel.configClose).click();
+    await expect(page.locator(sel.configModal)).toBeHidden();
 
     await page.locator(sel.setParameters).click();
     const fields = [
