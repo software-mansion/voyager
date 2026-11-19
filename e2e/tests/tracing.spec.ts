@@ -86,6 +86,7 @@ test.describe('TracingSessionLive', () => {
       expect(await terms.count()).toBeGreaterThan(2);
     }).toPass();
     await page.locator(sel.stop).click();
+    await page.locator(sel.confirmStop).click();
     await expect(page.locator(sel.resume)).toBeVisible();
 
     await page.locator(sel.search).fill('lookup');
