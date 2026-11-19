@@ -21,12 +21,12 @@ defmodule Voyager.MCP.Tools.TraceReport do
   @spec report(Session.t(), keyword()) :: {:ok, map()} | {:error, :not_found}
   def report(session, entries_opts \\ [limit: @sample]) do
     with {:ok, page} <- Tracer.entries(session.id, entries_opts),
-         {:ok, report} <- build(session, page.entries) do
+         {:ok, report} <- build(session, Enum.sort_by(page.entries, & &1.seq)) do
       {:ok, put_present(report, :truncated, page.truncated?)}
     end
   end
 
-  @doc "`report/2` with the trace events matching `query` (see `Tracer.search/3`) as its events."
+  @doc "`report/2` with the trace events matching `query` (see `Tracer.search/3`), newest first."
   @spec search(Session.t(), String.t(), keyword()) :: {:ok, map()} | {:error, :not_found}
   def search(session, query, opts) do
     with {:ok, found} <- Tracer.search(session.id, query, opts),
@@ -60,7 +60,7 @@ defmodule Voyager.MCP.Tools.TraceReport do
     with {:ok, summaries} <- Tracer.summary(session.id),
          {:ok, runs} <- Tracer.runs(session.id) do
       session = latest(session)
-      events = entries |> Enum.sort_by(& &1.seq) |> Enum.map(&entry/1)
+      events = Enum.map(entries, &entry/1)
 
       report =
         session
@@ -71,7 +71,7 @@ defmodule Voyager.MCP.Tools.TraceReport do
           events: events
         })
         |> put_present(:last_run_summary, length(runs) > 1 && summary(summaries.last_run))
-        |> put_present(:untrusted, untrusted?(session) && @untrusted)
+        |> put_present(:untrusted, Enum.any?(events, &payload?/1) && @untrusted)
 
       {:ok, report}
     end
@@ -208,10 +208,7 @@ defmodule Voyager.MCP.Tools.TraceReport do
   defp stop_reason(reason) when is_atom(reason), do: reason
   defp stop_reason(reason), do: inspect(reason)
 
-  defp untrusted?(%{config: %Config{} = config}),
-    do: config.capture == :args or config.return_trace
-
-  defp untrusted?(_session), do: false
+  defp payload?(event), do: Map.has_key?(event, :args) or Map.has_key?(event, :value)
 
   defp put_present(map, _key, value) when value in [nil, false], do: map
   defp put_present(map, key, value), do: Map.put(map, key, value)
