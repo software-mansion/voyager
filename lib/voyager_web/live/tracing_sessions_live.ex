@@ -223,7 +223,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
 
   attr :confirm, :any, required: true
   attr :active_session, Session, default: nil
-  attr :selected_item, :any, default: nil
+  attr :selected_item, :map, default: nil
 
   defp browser_confirm_modal(assigns) do
     kind = confirm_kind(assigns.confirm)
@@ -673,7 +673,25 @@ defmodule VoyagerWeb.TracingSessionsLive do
   defp drop_stale_confirm(socket, _active), do: socket
 
   defp remove_deleted_row(socket, id) do
-    socket = reload_history(socket)
+    {removed, by_id} = Map.pop(socket.assigns.history_by_id, id)
+
+    socket =
+      if map_size(by_id) == 0 do
+        reload_history(socket)
+      else
+        socket =
+          socket
+          |> assign(:history_by_id, by_id)
+          |> assign(:oldest_id, by_id |> Map.keys() |> Enum.min())
+          |> refresh_history_counts()
+
+        socket =
+          if removed,
+            do: stream_delete(socket, :history, removed),
+            else: socket
+
+        assign(socket, :has_more?, map_size(by_id) < socket.assigns.shown_history_count)
+      end
 
     if socket.assigns.selected_id == id do
       socket
@@ -687,9 +705,6 @@ defmodule VoyagerWeb.TracingSessionsLive do
   defp reload_history(socket) do
     %{node_filter: node_filter, active_session: active} = socket.assigns
     exclude_id = active && active.id
-    node_counts = TraceSessionQueries.counts_by_node(exclude_id)
-    total_history = TraceSessionQueries.total_count(exclude_id)
-    used_bytes = TraceSessionQueries.bytes_except(0)
 
     page =
       TraceSessionQueries.page(
@@ -697,6 +712,23 @@ defmodule VoyagerWeb.TracingSessionsLive do
         node: query_node(node_filter),
         exclude_id: exclude_id
       )
+
+    socket
+    |> refresh_history_counts()
+    |> assign(:history_empty?, page.rows == [])
+    |> assign(:has_more?, page.has_more?)
+    |> assign(:oldest_id, List.last(page.rows, %{id: nil}).id)
+    |> assign(:history_by_id, Map.new(page.rows, &{&1.id, &1}))
+    |> assign(:now, DateTime.utc_now())
+    |> stream(:history, page.rows, reset: true)
+  end
+
+  defp refresh_history_counts(socket) do
+    %{node_filter: node_filter, active_session: active} = socket.assigns
+    exclude_id = active && active.id
+    node_counts = TraceSessionQueries.counts_by_node(exclude_id)
+    total_history = TraceSessionQueries.total_count(exclude_id)
+    used_bytes = TraceSessionQueries.bytes_except(0)
 
     shown_history =
       if node_filter == "all",
@@ -707,13 +739,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
     |> assign(:node_counts, node_counts)
     |> assign(:total_history, total_history)
     |> assign(:shown_history_count, shown_history)
-    |> assign(:history_empty?, page.rows == [])
-    |> assign(:has_more?, page.has_more?)
-    |> assign(:oldest_id, List.last(page.rows, %{id: nil}).id)
-    |> assign(:history_by_id, Map.new(page.rows, &{&1.id, &1}))
     |> assign(:used_bytes, used_bytes)
-    |> assign(:now, DateTime.utc_now())
-    |> stream(:history, page.rows, reset: true)
   end
 
   defp resolve_selection(socket) do
