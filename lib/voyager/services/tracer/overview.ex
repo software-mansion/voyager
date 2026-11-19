@@ -99,8 +99,7 @@ defmodule Voyager.Services.Tracer.Overview do
   def activity(runs, run_timestamps) do
     grouped = Enum.group_by(run_timestamps, &elem(&1, 0), &elem(&1, 1))
 
-    max_ats =
-      for {idx, ats} <- grouped, ats != [], into: %{}, do: {idx, Enum.max(ats)}
+    max_ats = Map.new(grouped, fn {idx, ats} -> {idx, Enum.max(ats)} end)
 
     {spans, bucket_ms} = plan_segments(runs, max_ats)
     bucket_us = bucket_ms * 1_000
