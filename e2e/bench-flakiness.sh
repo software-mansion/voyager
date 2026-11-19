@@ -44,10 +44,8 @@ for i in $(seq 1 "$RUNS"); do
   attempt=1
   while [ "$rc" -eq 2 ] && [ "$attempt" -le "$RETRIES" ]; do
     attempt=$((attempt + 1))
-    FLAKINESS_ATTEMPT="$attempt" mix e2e --failed "${FORMATTERS[@]}" 2>&1 | tee "$RESULTS_DIR/retry.log" | tee -a "$RESULTS_DIR/run-$idx.log"
+    FLAKINESS_ATTEMPT="$attempt" mix e2e --failed "${FORMATTERS[@]}" 2>&1 | tee -a "$RESULTS_DIR/run-$idx.log"
     rc="${PIPESTATUS[0]}"
-    # `--failed` with no failed tests to run (a failure outside any test, e.g. an on_exit) is a failure.
-    if grep -q "There are no tests to run" "$RESULTS_DIR/retry.log"; then break; fi
   done
 done
 

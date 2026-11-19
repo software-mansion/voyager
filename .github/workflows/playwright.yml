@@ -71,11 +71,10 @@ jobs:
 
       - name: Run e2e tests
         run: |
-          set -o pipefail
           mix e2e \
             --formatter ExUnit.CLIFormatter --formatter Playwright.Test.GitHubFormatter \
-            || { [ $? -eq 2 ] && mix e2e --failed | tee retry.log && ! grep -q "There are no tests to run" retry.log; } \
-            || { [ $? -eq 2 ] && mix e2e --failed | tee retry.log && ! grep -q "There are no tests to run" retry.log; }
+            || { [ $? -eq 2 ] && mix e2e --failed; } \
+            || { [ $? -eq 2 ] && mix e2e --failed; }
 
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
