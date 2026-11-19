@@ -60,7 +60,8 @@ defmodule Voyager.MCP.Tools.StartDemo do
   end
 
   defp start(session) do
-    if session.node_name == DemoNode.node_name() do
+    if session.node_name == DemoNode.node_name() and
+         session.connector == Voyager.NodeSession.Connectors.Distribution do
       Response.json(Response.tool(), %{status: "connected", node: session.node_name})
     else
       Response.error(
