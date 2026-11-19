@@ -211,7 +211,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
   end
 
   attr :confirm, :any, required: true
-  attr :active_session, :any, default: nil
+  attr :active_session, Session, default: nil
   attr :selected_item, :any, default: nil
 
   defp browser_confirm_modal(assigns) do
