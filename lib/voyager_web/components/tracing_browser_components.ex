@@ -660,7 +660,6 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
 
     assigns =
       assign(assigns,
-        saved?: saved?,
         activity_aside: activity_aside(assigns.overview.activity, saved?),
         functions: functions
       )
@@ -746,7 +745,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
     """
   end
 
-  attr :activity, :map, required: true
+  attr :activity, :map, default: nil
   attr :aside, :string, required: true
 
   defp overview_activity_card(%{activity: nil} = assigns) do
