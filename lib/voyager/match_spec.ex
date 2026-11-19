@@ -1,29 +1,37 @@
 defmodule Voyager.MatchSpec do
   @moduledoc """
-  Reads a match spec written as an Erlang term, without evaluating it, and checks it in steps
-  the caller composes:
+  Reads a match spec, without evaluating anything, and checks it in steps the caller composes:
 
-      with {:ok, spec} <- MatchSpec.parse(input),
+      with {:ok, spec} <- MatchSpec.parse_fun(input, :elixir, :trace),
            :ok <- MatchSpec.check_clauses(spec, 10),
            :ok <- MatchSpec.check_actions(spec, [:return_trace]),
            :ok <- MatchSpec.check_compiles(spec, :trace) do
         {:ok, MatchSpec.encode(spec)}
       end
 
+  A spec arrives either as an Erlang term (`parse/1`) or as a function written in Erlang or
+  Elixir (`parse_fun/3`). Both read at most 4096 bytes of UTF-8, refuse when the atom table is
+  close to full, and create the atoms the input names on this node.
+
   Every check returns `{:error, :invalid_shape}` for a term that is not a non-empty list of
   `{head, [guard], [body]}` clauses, so leaving `check_shape/1` out never raises. Errors are
   reasons; `format_error/1` turns them into messages for the user.
   """
+
+  alias Voyager.MatchSpec.ElixirParser
+  alias Voyager.MatchSpec.ErlangParser
 
   @max_bytes 4_096
   @atom_headroom 10_000
   @atom_tag :"$voyager_atom"
 
   @type t :: [{term(), [term()], [term()]}]
+  @type type :: :table | :trace
   @type reason ::
           :too_large
           | :atom_table_full
           | {:syntax, String.t()}
+          | {:unsupported, String.t()}
           | :invalid_shape
           | {:too_many_clauses, pos_integer()}
           | {:refused_action, atom()}
@@ -33,23 +41,58 @@ defmodule Voyager.MatchSpec do
   @doc """
   Turns `"[{{'$1', active}, [], ['$1']}]"` into the term it spells, of any shape.
 
-  A missing trailing `.` is added. Creates the atoms the string names on this node.
+  A missing trailing `.` is added. Calls, operators, variables and sized binary segments such
+  as `<<X:8>>` are syntax errors.
   """
   @spec parse(String.t()) :: {:ok, term()} | {:error, reason()}
-  def parse(string) when is_binary(string) and byte_size(string) > @max_bytes,
-    do: {:error, :too_large}
+  def parse(source) when is_binary(source) do
+    with :ok <- check_input(source), do: ErlangParser.parse_term(source)
+  end
 
-  def parse(string) when is_binary(string) do
-    cond do
-      not String.valid?(string) -> {:error, {:syntax, "not valid UTF-8"}}
-      not atom_headroom?() -> {:error, :atom_table_full}
-      true -> parse_term(string)
+  @doc """
+  Turns a function written as text into a match spec, as `ets:fun2ms/1` and `dbg:fun2ms/1` do
+  at compile time.
+
+  `source` is one anonymous function with one parameter per clause, in `language`:
+
+    * `:erlang` - `fun({K, V}) when V > 10 -> K end`, translated by `:ms_transform`, so
+      anything `ets:fun2ms/1` or `dbg:fun2ms/1` accepts in a shell works, except remote calls,
+      sized binary segments, `bsl` and `bsr`.
+    * `:elixir` - `fn {k, v} when v > 10 -> k end`. Supports patterns of literals, variables,
+      `_` (anything; `_name` is a variable like any other), lists, tuples and maps; guards of
+      comparisons, `and`, `or`, `not` and `is_*` type
+      checks, with each extra `when` becoming its own clause; bodies of bound variables and
+      literals.
+
+  `type` says what the parameter matches, and so the head of each clause:
+
+    * `:table` - an ETS row, so a tuple or a variable. The body is what the match returns.
+    * `:trace` - the list of a call's arguments, so a list or a variable. The body holds
+      the trace actions; `true` just selects the call.
+
+  Variables are numbered `'$1'`, `'$2'`, ... in the order they first appear in the head, and a
+  variable used twice must be equal in both places. A variable the head does not bind is an
+  `{:unsupported, message}` error.
+  """
+  @spec parse_fun(String.t(), :erlang | :elixir, type()) :: {:ok, t()} | {:error, reason()}
+  def parse_fun(source, language, type)
+      when is_binary(source) and language in [:erlang, :elixir] and type in [:table, :trace] do
+    with :ok <- check_input(source) do
+      case language do
+        :erlang -> ErlangParser.parse_fun(source, type)
+        :elixir -> ElixirParser.parse_fun(source, type)
+      end
     end
   end
 
+  @doc "Checks the spec is a non-empty proper list of `{head, [guard], [body]}` clauses."
   @spec check_shape(term()) :: :ok | {:error, :invalid_shape}
   def check_shape(spec), do: if(clauses?(spec), do: :ok, else: {:error, :invalid_shape})
 
+  @doc """
+  Checks the spec has at most `max` clauses: `1` for `ets_select_spec/5` on the agent, `10`
+  for `trace_start/3`.
+  """
   @spec check_clauses(term(), pos_integer()) :: :ok | {:error, reason()}
   def check_clauses(spec, max) when is_integer(max) and max > 0 do
     with :ok <- check_shape(spec) do
@@ -57,7 +100,11 @@ defmodule Voyager.MatchSpec do
     end
   end
 
-  @doc "Refuses a tuple whose first element is in `refused` at any depth of the guards or body."
+  @doc """
+  Refuses a tuple whose first element is in `refused` at any depth of the guards or body, the
+  same walk the agent does, so `[:return_trace, :exception_trace]` refuses return tracing
+  however deep it is written. Heads are patterns, never actions, so they are not walked.
+  """
   @spec check_actions(term(), [atom()]) :: :ok | {:error, reason()}
   def check_actions(spec, refused) when is_list(refused) do
     with :ok <- check_shape(spec),
@@ -69,8 +116,12 @@ defmodule Voyager.MatchSpec do
     end
   end
 
-  @doc "Compiles the spec as `:erlang.match_spec_test/3` would for `type`, without running its body."
-  @spec check_compiles(term(), :table | :trace) :: :ok | {:error, reason()}
+  @doc """
+  Compiles the spec with `:erlang.match_spec_test/3` for `type`, catching unknown guard
+  functions, unbound variables and actions the type does not allow (`message` in a `:table`
+  spec). A `false` guard is put first, so the body never runs on this node.
+  """
+  @spec check_compiles(term(), type()) :: :ok | {:error, reason()}
   def check_compiles(spec, type) when type in [:table, :trace] do
     with :ok <- check_shape(spec) do
       # `match_spec_test/3` runs the body on this node, and `{enable_trace, _}` segfaults it.
@@ -104,6 +155,7 @@ defmodule Voyager.MatchSpec do
   def format_error(:too_large), do: "longer than #{@max_bytes} bytes"
   def format_error(:atom_table_full), do: "atom table exhausted"
   def format_error({:syntax, detail}), do: detail
+  def format_error({:unsupported, detail}), do: detail
   def format_error(:invalid_shape), do: "expected a list of {head, guards, body} clauses"
   def format_error({:too_many_clauses, 1}), do: "expected one {head, guards, body} clause"
   def format_error({:too_many_clauses, max}), do: "expected at most #{max} clauses"
@@ -111,38 +163,25 @@ defmodule Voyager.MatchSpec do
   def format_error({:compile, errors}), do: Enum.join(errors, " ")
   def format_error({:unknown_atom, name}), do: "atom '#{name}' does not exist on the node"
 
-  defp parse_term(string) do
-    charlist = string |> terminate() |> String.to_charlist()
+  @doc "True for an atom a match spec may read as a variable: `_`, `$_`, `$$` and `$<digits>`."
+  @spec variable?(atom()) :: boolean()
+  # Wider than ERTS (`'$007'` is a constant there): an untagged constant keeps its meaning,
+  # while a tagged variable the node lacks would be refused.
+  def variable?(atom) when atom in [:_, :"$_", :"$$"], do: true
+  def variable?(atom) when is_atom(atom), do: String.match?(Atom.to_string(atom), ~r/\A\$\d+\z/)
 
-    with {:ok, tokens, _end} <- :erl_scan.string(charlist),
-         :ok <- refuse_colons(tokens),
-         {:ok, term} <- :erl_parse.parse_term(tokens) do
-      {:ok, term}
-    else
-      {:error, {:syntax, _detail}} = error -> error
-      {:error, reason, _end} -> {:error, {:syntax, format_syntax(reason)}}
-      {:error, reason} -> {:error, {:syntax, format_syntax(reason)}}
+  defp check_input(source) do
+    cond do
+      byte_size(source) > @max_bytes -> {:error, :too_large}
+      not String.valid?(source) -> {:error, {:syntax, "not valid UTF-8"}}
+      not atom_headroom?() -> {:error, :atom_table_full}
+      true -> :ok
     end
   end
 
-  # `:erl_scan` interns every atom it reads here, and a full atom table aborts the VM.
+  # Parsing interns every atom the input names here, and a full atom table aborts the VM.
   defp atom_headroom? do
     :erlang.system_info(:atom_limit) - :erlang.system_info(:atom_count) > @atom_headroom
-  end
-
-  # `:erl_parse.parse_term/1` builds `<<0:99999999999999>>`, so 20 bytes could exhaust memory.
-  defp refuse_colons(tokens) do
-    if List.keymember?(tokens, :":", 0),
-      do: {:error, {:syntax, "calls and sized binary segments are not allowed"}},
-      else: :ok
-  end
-
-  defp terminate(string) do
-    string |> String.trim_trailing() |> String.trim_trailing(".") |> Kernel.<>(".")
-  end
-
-  defp format_syntax({_location, module, description}) when is_atom(module) do
-    description |> module.format_error() |> to_string()
   end
 
   defp clauses?([{_head, guards, body} | rest]) when is_list(guards) and is_list(body) do
@@ -162,9 +201,4 @@ defmodule Voyager.MatchSpec do
 
   defp test_object(:table), do: {}
   defp test_object(:trace), do: []
-
-  # Wider than ERTS (`'$007'` is a constant there): an untagged constant keeps its meaning,
-  # while a tagged variable the node lacks would be refused.
-  defp variable?(atom) when atom in [:_, :"$_", :"$$"], do: true
-  defp variable?(atom), do: String.match?(Atom.to_string(atom), ~r/\A\$\d+\z/)
 end
