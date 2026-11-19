@@ -115,4 +115,53 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     assert has_element?(view, "#history-tiles #history-#{oldest.id}")
     refute has_element?(view, "#show-older")
   end
+
+  test "deep-links a session beyond page 1 without disturbing history order", %{conn: conn} do
+    rows = for _ <- 1..22, do: insert_saved!()
+    oldest = List.first(rows)
+    second_oldest = Enum.at(rows, 1)
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing?session=#{oldest.id}")
+
+    assert has_element?(view, "#session-card[data-session-id='#{oldest.id}']")
+    refute has_element?(view, "#history-tiles #history-#{oldest.id}")
+
+    view
+    |> element("#show-older")
+    |> render_click()
+
+    assert has_element?(view, "#history-tiles #history-#{oldest.id}[data-selected]")
+
+    tile_ids =
+      view
+      |> render()
+      |> LazyHTML.from_fragment()
+      |> LazyHTML.query("#history-tiles > button")
+      |> LazyHTML.attribute("id")
+
+    assert Enum.take(tile_ids, -2) == ["history-#{second_oldest.id}", "history-#{oldest.id}"]
+  end
+
+  test "falls back to default selection when ?session is hidden by the filter or unknown", %{
+    conn: conn
+  } do
+    local = insert_saved!()
+    foreign = insert_saved!(%{node: "worker@127.0.0.1"})
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing?session=#{foreign.id}")
+    assert has_element?(view, "#session-card[data-session-id='#{local.id}']")
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing?session=#{foreign.id + 999}")
+    assert has_element?(view, "#session-card[data-session-id='#{local.id}']")
+  end
+
+  test "counts the pinned active tile when filtering by another node", %{conn: conn} do
+    create!()
+    {:ok, _session} = configure()
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing?node=worker@127.0.0.1")
+
+    assert has_element?(view, "#active-session-tile")
+    assert has_element?(view, "#session-count", "1")
+  end
 end

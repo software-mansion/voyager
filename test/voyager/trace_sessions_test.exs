@@ -275,6 +275,26 @@ defmodule Voyager.TraceSessionsTest do
     assert TraceSessionQueries.total_count(s3.id) == 2
   end
 
+  test "find_listed/2 loads a saved session matching the node filter and counts runs" do
+    saved =
+      Repo.insert!(%TraceSession{
+        origin: :ui,
+        status: :stopped,
+        node: "a@host"
+      })
+
+    TraceEntryActions.insert_all(saved.id, [
+      %{seq: 0, kind: :started, at: 1, origin: :ui},
+      %{seq: 1, kind: :started, at: 2, origin: :ui}
+    ])
+
+    assert %{id: id, runs: 2} = TraceSessionQueries.find_listed(saved.id, "a@host")
+    assert id == saved.id
+    assert %{id: ^id, runs: 2} = TraceSessionQueries.find_listed(saved.id, "all")
+    assert TraceSessionQueries.find_listed(saved.id, "b@host") == nil
+    assert TraceSessionQueries.find_listed(saved.id + 999, "all") == nil
+  end
+
   test "activity/2 buckets saved trace rows in SQLite to match Overview.activity/2" do
     %{id: id} = session!(:stopped)
 

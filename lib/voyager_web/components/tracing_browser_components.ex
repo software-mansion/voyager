@@ -332,45 +332,38 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
     """
   end
 
-  @spec item_node(Session.t() | map()) :: String.t() | nil
-  def item_node(%Session{node: nil}), do: nil
-  def item_node(%Session{node: node}), do: Atom.to_string(node)
-  def item_node(%{node: node}), do: node
+  defp item_node(%Session{node: nil}), do: nil
+  defp item_node(%Session{node: node}), do: Atom.to_string(node)
+  defp item_node(%{node: node}), do: node
 
-  @spec item_other_node?(Session.t() | map(), String.t()) :: boolean()
-  def item_other_node?(item, connected_node) do
+  defp item_other_node?(item, connected_node) do
     case item_node(item) do
       nil -> false
       node -> node != connected_node
     end
   end
 
-  @spec item_tone(Session.t() | map()) :: TracingComponents.tone()
-  def item_tone(%Session{} = session), do: TracingComponents.tone(session)
-  def item_tone(%{status: :running}), do: :running
+  defp item_tone(%Session{} = session), do: TracingComponents.tone(session)
+  defp item_tone(%{status: :running}), do: :running
 
-  def item_tone(%{status: :stopped, stop_reason: reason}),
+  defp item_tone(%{status: :stopped, stop_reason: reason}),
     do: TracingComponents.reason_tone(reason)
 
-  def item_tone(_item), do: :open
+  defp item_tone(_item), do: :open
 
-  @spec origin_icon(:ui | :mcp) :: String.t()
-  def origin_icon(:mcp), do: "icon-brain"
-  def origin_icon(_origin), do: "icon-laptop"
+  defp origin_icon(:mcp), do: "icon-brain"
+  defp origin_icon(_origin), do: "icon-laptop"
 
-  @spec origin_label(:ui | :mcp) :: String.t()
-  def origin_label(:mcp), do: "MCP"
-  def origin_label(_origin), do: "UI"
+  defp origin_label(:mcp), do: "MCP"
+  defp origin_label(_origin), do: "UI"
 
-  @spec item_mfa_parts(Config.t() | nil) :: {String.t(), String.t()}
-  def item_mfa_parts(nil), do: {"", "New session"}
-  def item_mfa_parts(%Config{} = config), do: TracingComponents.traced_mfa_parts(config)
+  defp item_mfa_parts(nil), do: {"", "New session"}
+  defp item_mfa_parts(%Config{} = config), do: TracingComponents.traced_mfa_parts(config)
 
-  @spec storage_percent(non_neg_integer(), non_neg_integer()) :: non_neg_integer()
-  def storage_percent(bytes, limit) when limit > 0 and bytes > 0,
+  defp storage_percent(bytes, limit) when limit > 0 and bytes > 0,
     do: min(max(div(bytes * 100, limit), 1), 100)
 
-  def storage_percent(_bytes, _limit), do: 0
+  defp storage_percent(_bytes, _limit), do: 0
 
   defp sorted_nodes(counts, connected_node) do
     counts
