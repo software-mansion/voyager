@@ -39,7 +39,7 @@ defmodule VoyagerWeb.TracingSessionLive.ConfigModal do
     >
       <.focus_wrap
         id="config-modal-box"
-        phx-mounted={JS.focus_first()}
+        phx-mounted={JS.focus(to: "#config_module")}
         class="modal-box border-base-300 flex max-w-3xl flex-col border p-0 shadow-2xl"
       >
         <.form
@@ -49,12 +49,21 @@ defmodule VoyagerWeb.TracingSessionLive.ConfigModal do
           phx-submit={@on_submit}
           class="flex min-h-0 flex-1 flex-col"
         >
-          <h2
-            id="config-modal-title"
-            class="border-base-200 border-b px-8 py-5 text-lg font-semibold tracking-tight"
-          >
-            Session parameters
-          </h2>
+          <div class="border-base-200 flex items-center justify-between gap-4 border-b py-4 pr-5 pl-8">
+            <h2 id="config-modal-title" class="text-lg font-semibold tracking-tight">
+              Session parameters
+            </h2>
+            <button
+              type="button"
+              id="config-close"
+              phx-click={@on_cancel}
+              title="Close"
+              aria-label="Close session parameters"
+              class="btn btn-ghost btn-square toolbar-btn text-base-content/60 hover:text-base-content"
+            >
+              <.icon name="icon-x" class="toolbar-icon" />
+            </button>
+          </div>
 
           <div class="min-h-0 flex-1 space-y-10 overflow-y-auto px-8 py-7">
             <section>
@@ -249,6 +258,16 @@ defmodule VoyagerWeb.TracingSessionLive.ConfigModal do
           </div>
         </.form>
       </.focus_wrap>
+
+      <button
+        type="button"
+        id="config-backdrop"
+        phx-click={@on_cancel}
+        class="modal-backdrop"
+        aria-label="Close session parameters"
+      >
+        Close
+      </button>
     </div>
     """
   end
