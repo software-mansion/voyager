@@ -48,9 +48,9 @@ defmodule VoyagerWeb.SettingsLive.DistributionSettings do
           phx-change="validate"
           phx-submit="save"
           phx-target={@myself}
-          class="flex flex-col gap-4"
+          class="flex items-end justify-between gap-2"
         >
-          <div>
+          <div class="flex-1">
             <div class="mb-1.5 flex items-center gap-2">
               <label
                 class="font-mono tracking-label text-base-content/70 flex items-center gap-0.5 text-xs font-semibold uppercase"
@@ -66,9 +66,8 @@ defmodule VoyagerWeb.SettingsLive.DistributionSettings do
               autocomplete="off"
               spellcheck="false"
               disabled={@locked? or @connected?}
-              class="font-mono text-sm"
+              class="font-mono flex-1 text-sm"
             />
-            <.effective_distribution_name suffix={@form[:distribution_suffix].value} />
           </div>
 
           <div class="card-actions justify-end">
@@ -77,6 +76,7 @@ defmodule VoyagerWeb.SettingsLive.DistributionSettings do
             </button>
           </div>
         </.form>
+        <.effective_distribution_name suffix={@form[:distribution_suffix].value} />
       </div>
     </div>
     """

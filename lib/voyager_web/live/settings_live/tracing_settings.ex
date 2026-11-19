@@ -34,9 +34,9 @@ defmodule VoyagerWeb.SettingsLive.TracingSettings do
           phx-change="validate"
           phx-submit="save"
           phx-target={@myself}
-          class="flex flex-col gap-4"
+          class="flex items-end justify-between gap-2"
         >
-          <div>
+          <div class="flex-1">
             <div class="mb-1.5 flex items-center gap-2">
               <label
                 class="font-mono tracking-label text-base-content/70 flex items-center gap-0.5 text-xs font-semibold uppercase"
@@ -50,11 +50,8 @@ defmodule VoyagerWeb.SettingsLive.TracingSettings do
               type="number"
               min="1"
               disabled={@locked?}
-              class="font-mono text-sm"
+              class="font-mono flex-1 text-sm"
             />
-            <p class="text-base-content/70 mt-2 text-xs">
-              Lowering it deletes no saved session. A running one stops once it passes the new limit.
-            </p>
           </div>
 
           <div class="card-actions justify-end">
@@ -63,6 +60,9 @@ defmodule VoyagerWeb.SettingsLive.TracingSettings do
             </button>
           </div>
         </.form>
+        <p class="text-base-content/70 mt-2 text-xs">
+          Lowering it deletes no saved session. A running one stops once it passes the new limit.
+        </p>
       </div>
     </div>
     """
