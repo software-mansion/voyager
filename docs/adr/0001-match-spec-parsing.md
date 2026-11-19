@@ -29,11 +29,20 @@ inspects, often production ones.
 - **Functions, as `fun2ms` does.** `parse_fun/3` takes a function written in Erlang or Elixir and
   a type (`:table` for an ETS row, `:trace` for a call's argument list). Erlang goes through
   `:ms_transform.transform_from_shell/3`, the transform behind `ets:fun2ms/1` and `dbg:fun2ms/1`.
-  It raises on calls in a head, which `parse_fun/3` turns into an error. Elixir has no such
-  transform, so `Voyager.MatchSpec.ElixirParser` translates `Code.string_to_quoted/2` output from an allow-list:
-  literal, variable, list, tuple and map patterns; comparison, boolean, arithmetic and `is_*`
-  guards and bodies, one clause per extra `when`. It never folds constants, so arithmetic adds
-  no way to build a large term.
+  It raises on calls in a head, which `parse_fun/3` turns into an error.
+- **Elixir compiles to the Erlang form, then takes the same path.** A hand-written translator of
+  `Code.string_to_quoted/2` output (an allow-list mirroring `ms_transform`'s own) was 400 lines
+  to keep in step with `ms_transform`. Instead `Voyager.MatchSpec.ElixirParser` hands the quoted
+  `fn` to `:elixir.quoted_to_erl/2`, which expands and translates it to Erlang abstract format
+  without evaluating, and `ErlangParser.transform/2` (segment cap, then `ms_transform`) does the
+  rest for both languages. Costs: `quoted_to_erl/2` is private to Elixir, and Elixir refuses
+  `get_tcw()` and `is_seq_trace()` in a guard.
+- **Expansion is the only thing that runs, so it is fenced.** Expanding a macro or `%Name{}`
+  runs code on Voyager. The env has only Kernel required and six Kernel macros imported (`and`,
+  `or`, `in`, `..`, `is_nil`, `is_struct`), and a walk refuses `import`, `require`, `%Name{}`
+  and any remote call whose receiver is not `:erlang`, a variable or another field access:
+  those are the only ways to reach another macro. `function` is set in the env so that an
+  unknown local call (`return_trace()`) compiles as a local call, as `ms_transform` expects.
 - **Composable checks.** `parse/1` only turns the string into a term. `check_shape/1`,
   `check_clauses/2`, `check_actions/2` and `check_compiles/2` are separate, each safe on any
   term, and every input (a form field, an MCP tool, ETS) chains the ones it needs.
@@ -60,8 +69,7 @@ inspects, often production ones.
 
 ## Later
 
-- More Elixir `fn`: trace actions (`return_trace()`, `message(x)`), `Bitwise` operators,
-  `is_nil/1`, `elem/2`, `map_size/1`, module aliases.
+- A separate OS process (`:peer`) for parsing, if a VM abort ever gets past the limits.
 - Elixir term syntax through `Code.string_to_quoted/2` plus a literal-only walk, never eval.
 - A UI builder.
 - A `match_spec` field in `Voyager.Services.Tracer.Config`, encoded in `to_agent/2`, with the

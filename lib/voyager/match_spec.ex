@@ -79,12 +79,19 @@ defmodule Voyager.MatchSpec do
     * `:erlang` - `fun({K, V}) when V > 10 -> K end`, translated by `:ms_transform`, so
       anything `ets:fun2ms/1` or `dbg:fun2ms/1` accepts in a shell works, within
       [Limits](#module-limits).
-    * `:elixir` - `fn {k, v} when v > 10 -> k end`. Supports patterns of literals, variables,
-      `_` (anything; `_name` is a variable like any other), lists, tuples and maps; guards of
-      comparisons, `and`, `or`, `not`, arithmetic (`+`, `-`, `*`, `/`, `div/2`, `rem/2`) and
-      `is_*` type checks, with each extra `when` becoming its own clause; bodies of the same
-      expressions. Arithmetic is left for the match spec to compute, so `x > 1 + 2` stays
-      `{:>, :"$1", {:+, 1, 2}}`, where the Erlang path folds it to `3`.
+    * `:elixir` - `fn {k, v} when v > 10 -> k end`, compiled to the Erlang form of the same
+      function without evaluating it, then translated by `:ms_transform` like an Erlang one.
+      What Elixir compiles to something `fun2ms` accepts works: Kernel's operators and guards
+      (`elem/2`, `is_map_key/2`, ...), `Bitwise`, `:erlang.name(...)`, a module name such as
+      `MyApp.Repo`, and the trace actions, `object/0` and `bindings/0`, called as in Erlang.
+      The only macros are `and`, `or`, `in`, `..`, `is_nil/1` and `is_struct/1,2`; `in`,
+      `is_struct` and `map.key` work in guards only.
+
+      Expanding other code would run it on this node, so `import`, `require`, `%Name{}`
+      (match `%{__struct__: Name}` instead) and calls to any module but `:erlang` are
+      `{:unsupported, message}`. So is a guard call Elixir does not allow in a guard, such as
+      `get_tcw()`, and what `:ms_transform` does not know in either language, such as
+      `tuple_size/1` and `is_boolean/1`.
 
   `type` says what the parameter matches, and so the head of each clause:
 
