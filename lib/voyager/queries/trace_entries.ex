@@ -85,15 +85,25 @@ defmodule Voyager.Queries.TraceEntries do
     |> Kernel.+(1)
   end
 
-  @spec summary(integer()) :: Summary.t()
-  def summary(session_id), do: summarize(where(TraceEvent, [e], e.session_id == ^session_id))
+  @doc """
+  The `Summary` of the whole session and of its traces since the last `:started` entry
+  (empty if it never started), read in one transaction so concurrent writes cannot skew them.
+  """
+  @spec summaries(integer()) :: %{session: Summary.t(), last_run: Summary.t()}
+  def summaries(session_id) do
+    {:ok, summaries} =
+      Repo.transact(fn ->
+        session = summarize(where(TraceEvent, [e], e.session_id == ^session_id))
 
-  @doc "The `Summary` of the traces since the session's last `:started` entry; empty if it never started."
-  @spec last_run_summary(integer()) :: Summary.t()
-  def last_run_summary(session_id) do
-    TraceEvent
-    |> where([e], e.session_id == ^session_id and e.seq >= subquery(last_start(session_id)))
-    |> summarize()
+        last_run =
+          TraceEvent
+          |> where([e], e.session_id == ^session_id and e.seq >= subquery(last_start(session_id)))
+          |> summarize()
+
+        {:ok, %{session: session, last_run: last_run}}
+      end)
+
+    summaries
   end
 
   defp last_start(session_id) do
