@@ -337,7 +337,7 @@ defmodule Voyager.Services.Tracer do
 
   def handle_call({:delete, id}, _from, state) do
     Writer.flush()
-    {:reply, TraceSessionActions.delete(id), state}
+    {:reply, TraceSessionActions.delete(id), refresh_storage_limit(state)}
   end
 
   def handle_call(:close, _from, %{session: nil} = state), do: {:reply, :ok, state}
@@ -367,14 +367,8 @@ defmodule Voyager.Services.Tracer do
     {:reply, {:ok, state.session}, state}
   end
 
-  def handle_call(:refresh_storage_limit, _from, %{session: nil} = state),
-    do: {:reply, :ok, state}
-
-  def handle_call(:refresh_storage_limit, _from, %{session: session} = state) do
-    session = %{session | storage_limit: storage_limit(session.id)}
-    broadcast_entries(session, [])
-    {:reply, :ok, stop_over_limit(%{state | session: session})}
-  end
+  def handle_call(:refresh_storage_limit, _from, state),
+    do: {:reply, :ok, refresh_storage_limit(state)}
 
   def handle_call({:start, _origin, _id, _node, _config, _args}, _from, %{session: nil} = state),
     do: {:reply, {:error, :no_session}, state}
@@ -618,6 +612,14 @@ defmodule Voyager.Services.Tracer do
 
   defp storage_limit(id) do
     max(storage_limit_mb() * 1_000_000 - TraceSessionQueries.bytes_except(id), 0)
+  end
+
+  defp refresh_storage_limit(%{session: nil} = state), do: state
+
+  defp refresh_storage_limit(%{session: session} = state) do
+    session = %{session | storage_limit: storage_limit(session.id)}
+    broadcast_entries(session, [])
+    stop_over_limit(%{state | session: session})
   end
 
   defp down_reason(:noconnection), do: :node_down
