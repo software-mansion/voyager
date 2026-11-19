@@ -115,20 +115,12 @@ defmodule Voyager.Queries.TraceSessions do
   end
 
   defp to_listed(%TraceSession{} = row, runs) do
-    %{
-      id: row.id,
-      origin: row.origin,
-      status: row.status,
-      node: row.node,
+    row
+    |> Map.take(~w(id origin status node stop_reason traces dropped bytes started_at stopped_at)a)
+    |> Map.merge(%{
       config: row.config && Ecto.embedded_load(Config, row.config, :json),
-      stop_reason: row.stop_reason,
-      traces: row.traces,
-      dropped: row.dropped,
-      bytes: row.bytes,
       runs: runs,
-      created_at: DateTime.from_naive!(row.inserted_at, "Etc/UTC"),
-      started_at: row.started_at,
-      stopped_at: row.stopped_at
-    }
+      created_at: DateTime.from_naive!(row.inserted_at, "Etc/UTC")
+    })
   end
 end
