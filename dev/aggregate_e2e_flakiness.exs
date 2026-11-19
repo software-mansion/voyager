@@ -11,7 +11,7 @@
 #   score     failures / runs
 #
 # Usage:
-#   elixir e2e/aggregate_flakiness.exs [results-dir] [--write] [--threshold=N]
+#   elixir dev/aggregate_e2e_flakiness.exs [results-dir] [--write] [--threshold=N]
 #
 #   --write         also write summary.txt and summary.json into the directory, append the
 #                   report to $GITHUB_STEP_SUMMARY and emit workflow annotations
@@ -24,7 +24,15 @@ defmodule Voyager.E2E.Flakiness do
     for file <- dir |> File.ls!() |> Enum.sort(),
         String.starts_with?(file, "run-"),
         String.ends_with?(file, ".jsonl") do
-      dir |> Path.join(file) |> File.stream!() |> Enum.map(&JSON.decode!/1)
+      dir |> Path.join(file) |> File.stream!() |> Enum.flat_map(&decode_line/1)
+    end
+  end
+
+  # A line the run cut off (a killed VM) is skipped, not fatal.
+  defp decode_line(line) do
+    case JSON.decode(line) do
+      {:ok, entry} when is_map(entry) -> [entry]
+      _ -> []
     end
   end
 
@@ -106,7 +114,7 @@ defmodule Voyager.E2E.Flakiness do
           "  runs:              #{length(runs)}",
           "  tests tracked:     #{length(rows)}",
           "  flaky/failing:     #{length(flaky)}",
-          "  attempt failure:   #{failed}/#{attempts}"
+          "  attempt failure:   #{failed}/#{attempts} (#{percent(failed, attempts)}%)"
         ] ++
         if(threshold,
           do: [
@@ -119,15 +127,15 @@ defmodule Voyager.E2E.Flakiness do
     )
   end
 
+  defp percent(_part, 0), do: "0.00"
+  defp percent(part, whole), do: :erlang.float_to_binary(part / whole * 100, decimals: 2)
+
+  # Column widths 7, 6, 7, 6, 6, as the JS report.
   defp line(r) do
-    [
-      r.score |> Float.round(2) |> :erlang.float_to_binary(decimals: 2),
-      r.pass,
-      r.flaky,
-      r.fail,
-      r.runs
-    ]
-    |> Enum.map_join(&String.pad_trailing(to_string(&1), 6))
+    score = r.score |> Float.round(2) |> :erlang.float_to_binary(decimals: 2)
+
+    [{score, 7}, {r.pass, 6}, {r.flaky, 7}, {r.fail, 6}, {r.runs, 6}]
+    |> Enum.map_join(fn {value, width} -> String.pad_trailing(to_string(value), width) end)
     |> Kernel.<>(r.test)
   end
 end
@@ -172,6 +180,14 @@ if opts[:write] do
       "::error title=Flaky e2e test::#{r.test}: #{r.failures}/#{r.runs} runs not a clean pass (threshold #{threshold})"
     )
   end
+end
+
+if opts[:write] && threshold && breached == [] && Enum.any?(rows, &(&1.failures > 0)) do
+  flaky = Enum.count(rows, &(&1.failures > 0))
+
+  IO.puts(
+    "::warning::#{flaky} flaky/failing test(s) observed but within the threshold of #{threshold}."
+  )
 end
 
 if breached != [] do

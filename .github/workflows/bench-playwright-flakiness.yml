@@ -86,9 +86,7 @@ jobs:
         with:
           name: flakiness-report
           # Per-run attempt logs and console output, summary.txt and summary.json,
-          # plus the traces of failed tests in test-results/.
-          path: |
-            e2e/flakiness-results/
-            test-results/
+          # plus each run's traces of failed tests (run-XXX-test-results/).
+          path: e2e/flakiness-results/
           retention-days: 7
           if-no-files-found: ignore

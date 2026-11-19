@@ -5,7 +5,7 @@
 # Runs the whole suite RUNS times; within a run, failed tests are rerun up to RETRIES times
 # (`mix e2e --failed`), so a test that fails and then passes counts as flaky. Voyager.E2E.
 # FlakinessFormatter logs every attempt to flakiness-results/run-XXX.jsonl, and
-# aggregate_flakiness.exs turns the logs into summary.txt and summary.json (and, in CI, a
+# dev/aggregate_e2e_flakiness.exs turns the logs into summary.txt and summary.json (and, in CI, a
 # job summary and annotations). If a test's failures over the batch exceed THRESHOLD the
 # script exits non-zero, so the CI job fails; otherwise it exits 0.
 #
@@ -47,8 +47,12 @@ for i in $(seq 1 "$RUNS"); do
     FLAKINESS_ATTEMPT="$attempt" mix e2e --failed "${FORMATTERS[@]}" 2>&1 | tee -a "$RESULTS_DIR/run-$idx.log"
     rc="${PIPESTATUS[0]}"
   done
+
+  [ -s "$FLAKINESS_LOG" ] || echo "  WARNING: no attempt log produced (see $RESULTS_DIR/run-$idx.log)"
+  # Every run wipes test-results/, so keep this run's traces apart.
+  if [ -d test-results ]; then mv test-results "$RESULTS_DIR/run-$idx-test-results"; fi
 done
 
 echo
 echo "==================================================================="
-elixir "$SCRIPT_DIR/aggregate_flakiness.exs" "$RESULTS_DIR" --write --threshold="$THRESHOLD"
+elixir "$SCRIPT_DIR/../dev/aggregate_e2e_flakiness.exs" "$RESULTS_DIR" --write --threshold="$THRESHOLD"
