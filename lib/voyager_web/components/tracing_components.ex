@@ -192,6 +192,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
   attr :on_load, :string, required: true
   attr :on_unload, :string, required: true
   attr :on_delete, :string, required: true
+  attr :on_edit, :string, required: true
 
   def session_bar(assigns) do
     ~H"""
@@ -215,6 +216,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
           on_load={@on_load}
           on_unload={@on_unload}
           on_delete={@on_delete}
+          on_edit={@on_edit}
         />
       </div>
       <div
@@ -418,6 +420,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
   attr :on_load, :string, required: true
   attr :on_unload, :string, required: true
   attr :on_delete, :string, required: true
+  attr :on_edit, :string, required: true
 
   defp action_buttons(assigns) do
     ~H"""
@@ -439,7 +442,10 @@ defmodule VoyagerWeb.Components.TracingComponents do
         disabled={@pending?}
       />
       <.action_button
-        :if={@mode == :active and @trace_session.config}
+        :if={
+          @mode == :active and @trace_session.config != nil and
+            (@trace_session.status == :running or @other_node?)
+        }
         id="session-edit"
         icon="icon-pencil"
         label="Edit"
@@ -447,11 +453,27 @@ defmodule VoyagerWeb.Components.TracingComponents do
         class="md:min-w-24"
       >
         <:tip>
-          {if @trace_session.status == :running,
-            do: "Stop the session to edit its parameters",
-            else: "Editing parameters is not available yet"}
+          <span :if={@trace_session.status == :running}>
+            Stop the session to edit its parameters
+          </span>
+          <span :if={@trace_session.status != :running}>
+            Traced on <span class="font-mono">{@trace_session.node}</span>.
+            Connect to that node to edit this session.
+          </span>
         </:tip>
       </.action_button>
+      <.action_button
+        :if={
+          @mode == :active and @trace_session.config != nil and
+            @trace_session.status != :running and not @other_node?
+        }
+        id="session-edit"
+        icon="icon-pencil"
+        label="Edit"
+        phx-click={@on_edit}
+        disabled={@pending?}
+        class="md:min-w-24"
+      />
       <.action_button
         :if={@mode == :active and @trace_session.status == :running}
         id="session-stop"
@@ -540,6 +562,8 @@ defmodule VoyagerWeb.Components.TracingComponents do
     """
   end
 
+  attr :on_edit, :string, required: true
+
   def empty_state(assigns) do
     ~H"""
     <div
@@ -553,7 +577,12 @@ defmodule VoyagerWeb.Components.TracingComponents do
           Pick a function and at least one limit to start this session.
         </p>
       </div>
-      <button type="button" id="session-set-parameters" disabled class="btn btn-primary btn-sm">
+      <button
+        type="button"
+        id="session-set-parameters"
+        phx-click={@on_edit}
+        class="btn btn-primary btn-sm"
+      >
         <.icon name="icon-pencil" class="size-3.5" /> Set parameters
       </button>
     </div>

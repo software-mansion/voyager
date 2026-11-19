@@ -775,6 +775,54 @@ defmodule VoyagerWeb.CoreComponents do
   defp copy_icon_class(true, _size), do: "toolbar-icon"
   defp copy_icon_class(false, _size), do: "size-4"
 
+  @doc "Segmented radio group for a set of mutually exclusive options."
+  attr :name, :string, required: true
+  attr :value, :any, required: true, doc: "Currently selected value (compared as a string)"
+  attr :options, :list, required: true, doc: "List of `%{value:, label:, id: (optional)}` maps"
+  attr :disabled, :boolean, default: false
+  attr :size, :string, default: "xs", doc: "DaisyUI button size class (xs, sm, md, lg)"
+  attr :full_width, :boolean, default: false
+  attr :class, :any, default: nil
+
+  def segmented(assigns) do
+    ~H"""
+    <div class={["join", @class]}>
+      <input
+        :for={opt <- @options}
+        type="radio"
+        name={@name}
+        value={opt.value}
+        id={opt[:id]}
+        aria-label={opt.label}
+        checked={to_string(@value) == to_string(opt.value)}
+        disabled={@disabled}
+        class={
+          segmented_radio_class(
+            @disabled,
+            to_string(@value) == to_string(opt.value),
+            @size,
+            @full_width
+          )
+        }
+      />
+    </div>
+    """
+  end
+
+  defp segmented_radio_class(disabled?, active?, size, full_width?) do
+    [
+      "join-item btn btn-soft font-mono text-xs transition-opacity",
+      "btn-#{size}",
+      if(full_width?, do: "flex-1"),
+      "checked:text-primary-content",
+      if(disabled? && active?,
+        do: "!opacity-100 !bg-base-content/20 !text-primary-content",
+        else: "text-base-content/70 disabled:text-base-content/70"
+      ),
+      disabled? && !active? && "opacity-40"
+    ]
+  end
+
   @doc "Interpolates a changeset error's `%{count}`-style placeholders."
   @spec translate_error({String.t(), keyword()}) :: String.t()
   def translate_error({msg, opts}) do
