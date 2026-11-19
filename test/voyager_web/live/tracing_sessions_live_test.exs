@@ -443,4 +443,22 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     assert flash["error"] =~ "Parameters could not be copied"
     assert path == ~p"/node/#{@node_name}/tracing/#{active.id}"
   end
+
+  test "flashes and re-enables actions when an async action fails", %{conn: conn} do
+    saved = insert_saved!()
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing?session=#{saved.id}")
+
+    {:ok, _deleted} = Tracer.delete(saved.id)
+
+    view
+    |> element("#load-session")
+    |> render_click()
+
+    settle(view)
+
+    assert has_element?(view, "#flash-error", "No such tracing session.")
+    assert has_element?(view, "#load-session")
+    refute has_element?(view, "#load-session[disabled]")
+  end
 end
