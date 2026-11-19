@@ -46,6 +46,7 @@ defmodule Voyager.Services.DemoNode do
       not available?() -> :hidden
       not saved_connections?() -> :sticky
       Settings.get(@dismissed_key) == true -> :hidden
+      Settings.locked?(@dismissed_key) -> :sticky
       true -> :dismissible
     end
   end
