@@ -114,8 +114,12 @@ defmodule Voyager.Services.Tracer do
   """
   @spec load(pos_integer()) :: {:ok, Session.t()} | {:error, :busy | :not_found}
   def load(id) when is_integer(id) do
-    Writer.flush()
-    GenServer.call(__MODULE__, {:load, id, TraceEntryQueries.summary(id)})
+    if match?(%Session{status: :running}, active()) do
+      {:error, :busy}
+    else
+      Writer.flush()
+      GenServer.call(__MODULE__, {:load, id, TraceEntryQueries.summary(id)})
+    end
   end
 
   @doc "Deletes saved session `id` and its entries, unloading it if active; the running one is refused."
