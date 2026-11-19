@@ -12,18 +12,21 @@ defmodule VoyagerWeb.TracingSessionsLive do
   alias Voyager.Services.Tracer.Session
   alias Voyager.Services.Tracer.Writer
   alias VoyagerWeb.Components.TracingBrowserComponents
+  alias VoyagerWeb.Components.TracingComponents
   alias VoyagerWeb.Utils.URL
 
   @page_size 20
 
   @impl true
   def mount(_params, _session, socket) do
+    Writer.flush()
+
     socket
     |> assign(:active_nav, :tracing)
     |> assign(:save_new?, false)
     |> assign(:pending, nil)
-    |> assign(:active_session, nil)
-    |> assign(:node_filter, socket.assigns.session.node_name)
+    |> assign(:active_session, Tracer.active())
+    |> assign(:node_filter, nil)
     |> assign(:node_counts, %{})
     |> assign(:total_history, 0)
     |> assign(:shown_history_count, 0)
@@ -31,13 +34,13 @@ defmodule VoyagerWeb.TracingSessionsLive do
     |> assign(:has_more?, false)
     |> assign(:oldest_id, nil)
     |> assign(:history_by_id, %{})
+    |> assign(:extra_selected, nil)
     |> assign(:selected_id, nil)
     |> assign(:selected_param, nil)
     |> assign(:used_bytes, 0)
     |> assign(:storage_limit_mb, Tracer.storage_limit_mb())
     |> assign(:now, DateTime.utc_now())
     |> stream(:history, [])
-    |> load_initial()
     |> ok()
   end
 
@@ -62,9 +65,12 @@ defmodule VoyagerWeb.TracingSessionsLive do
 
   @impl true
   def render(assigns) do
+    selected = selected_item(assigns)
+
     assigns =
       assign(assigns,
-        selected_item: selected_item(assigns),
+        selected_item: selected,
+        selected_title: selected_title(selected),
         displayed_count: displayed_count(assigns),
         hidden_count: hidden_count(assigns)
       )
@@ -154,10 +160,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
           class="card bg-base-100 border-base-200 text-base-content flex-none border px-5 py-4 shadow-sm"
         >
           <h2 id="overview-mfa" class="font-mono text-base-content truncate text-lg font-semibold">
-            {elem(TracingBrowserComponents.item_mfa_parts(@selected_item.config), 0)}{elem(
-              TracingBrowserComponents.item_mfa_parts(@selected_item.config),
-              1
-            )}
+            {@selected_title}
           </h2>
         </div>
       </section>
@@ -224,15 +227,6 @@ defmodule VoyagerWeb.TracingSessionsLive do
 
   def handle_event("create-session", _params, socket), do: noreply(socket)
 
-  defp load_initial(socket) do
-    Writer.flush()
-    active = Tracer.active()
-
-    socket
-    |> assign(:active_session, active)
-    |> reload_history()
-  end
-
   defp reload_history(socket) do
     %{node_filter: node_filter, active_session: active} = socket.assigns
     exclude_id = active && active.id
@@ -273,15 +267,11 @@ defmodule VoyagerWeb.TracingSessionsLive do
       node_filter: node_filter
     } = socket.assigns
 
-    case target_selection(param_id, active, by_id, node_filter) do
-      {id, nil} ->
-        update_selected_tile(socket, id)
+    {id, extra_row} = target_selection(param_id, active, by_id, node_filter)
 
-      {id, extra_row} ->
-        socket
-        |> update(:history_by_id, &Map.put(&1, extra_row.id, extra_row))
-        |> update_selected_tile(id)
-    end
+    socket
+    |> assign(:extra_selected, extra_row)
+    |> update_selected_tile(id)
   end
 
   defp target_selection(nil, active, by_id, _node_filter),
@@ -305,20 +295,15 @@ defmodule VoyagerWeb.TracingSessionsLive do
     end
   end
 
+  defp update_selected_tile(%{assigns: %{selected_id: id}} = socket, id), do: socket
+
   defp update_selected_tile(socket, next_id) do
     prev_id = socket.assigns.selected_id
     by_id = socket.assigns.history_by_id
 
-    socket = assign(socket, :selected_id, next_id)
-
-    socket =
-      if prev_id != next_id and Map.has_key?(by_id, prev_id),
-        do: stream_insert(socket, :history, by_id[prev_id]),
-        else: socket
-
-    if prev_id != next_id and Map.has_key?(by_id, next_id),
-      do: stream_insert(socket, :history, by_id[next_id]),
-      else: socket
+    Enum.reduce([prev_id, next_id], assign(socket, :selected_id, next_id), fn id, acc ->
+      if row = by_id[id], do: stream_insert(acc, :history, row), else: acc
+    end)
   end
 
   defp default_selected_id(%Session{id: id}, _by_id), do: id
@@ -331,35 +316,25 @@ defmodule VoyagerWeb.TracingSessionsLive do
 
   defp selected_item(%{selected_id: nil}), do: nil
   defp selected_item(%{selected_id: id, active_session: %Session{id: id} = active}), do: active
-  defp selected_item(%{selected_id: id, history_by_id: by_id}), do: Map.get(by_id, id)
+
+  defp selected_item(%{selected_id: id, history_by_id: by_id}) when is_map_key(by_id, id),
+    do: by_id[id]
+
+  defp selected_item(%{selected_id: id, extra_selected: %{id: id} = extra}), do: extra
+  defp selected_item(_assigns), do: nil
+
+  defp selected_title(nil), do: nil
+  defp selected_title(%{config: nil}), do: "New session"
+  defp selected_title(%{config: config}), do: TracingComponents.traced_mfa(config)
 
   defp displayed_count(assigns) do
-    active_count =
-      case assigns.active_session do
-        nil ->
-          0
-
-        active ->
-          if matches_filter?(active, assigns.node_filter, assigns.session.node_name),
-            do: 1,
-            else: 0
-      end
-
-    assigns.shown_history_count + active_count
+    assigns.shown_history_count + if(assigns.active_session, do: 1, else: 0)
   end
 
   defp hidden_count(%{node_filter: "all"}), do: 0
 
   defp hidden_count(%{total_history: total, shown_history_count: shown}),
     do: max(total - shown, 0)
-
-  defp matches_filter?(_active, "all", _connected_node), do: true
-
-  defp matches_filter?(%Session{node: nil}, filter, connected_node),
-    do: filter == connected_node
-
-  defp matches_filter?(%Session{node: node}, filter, _connected_node),
-    do: Atom.to_string(node) == filter
 
   defp query_node("all"), do: nil
   defp query_node(node), do: node
