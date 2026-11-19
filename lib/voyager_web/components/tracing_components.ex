@@ -15,9 +15,9 @@ defmodule VoyagerWeb.Components.TracingComponents do
 
   @type tone :: :running | :warning | :error | :open
 
-  @spec tone(Session.t()) :: tone()
-  def tone(%Session{status: :running}), do: :running
-  def tone(%Session{status: :stopped, stop_reason: reason}), do: reason_tone(reason)
+  @spec tone(Session.t() | map()) :: tone()
+  def tone(%{status: :running}), do: :running
+  def tone(%{status: :stopped, stop_reason: reason}), do: reason_tone(reason)
   def tone(_session), do: :open
 
   @spec other_node?(Session.t(), node() | nil) :: boolean()
