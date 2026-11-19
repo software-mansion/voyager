@@ -44,7 +44,7 @@ defmodule Voyager.E2E.ConnectFormTest do
 
   describe "ConnectLive › SSH mode" do
     setup %{page: page} do
-      Page.goto!(page, "/")
+      ensure_disconnected(page)
       :ok
     end
 

@@ -1,6 +1,6 @@
 defmodule Voyager.E2E.TracingTest do
-  # The Tracer holds one active session per Voyager, so a single browser runs these, in order
-  # (as ExUnit runs a module's tests).
+  # The Tracer holds one active session per Voyager, so a single browser runs these (a module's
+  # tests run one at a time).
   use Voyager.E2E.Case,
     async: true,
     devices: ["Desktop Chrome"]

@@ -7,7 +7,8 @@ paths:
 
 `mix e2e` (`mix e2e.setup` once first) runs `mix test` under `MIX_ENV=e2e`, with the suite in
 `e2e/`. `e2e/test_helper.exs` starts `test@127.0.0.1` (with `mock_app`) and `test6@::1` through
-`e2e/node.sh` and the app on :4001. `--seed 0` keeps modules and tests in definition order.
+`e2e/node.sh` and the app on :4001. `--seed 0` runs a module's tests in definition order; the order of modules is not defined, so each module
+sets up its own connection state (`ensure_connected` / `ensure_disconnected`).
 
 ## Reuse before writing
 
@@ -38,9 +39,9 @@ paths:
 ## Browsers and ordering
 
 - Every module runs in both Chromium and Firefox via `use Voyager.E2E.Case` (`devices:` narrows it)
-- Specs share one node and one server. ExUnit runs async modules first, then the sync ones in
-  order (see `e2e/support/case.ex`). A module that disconnects or reconnects the session
+- Specs share one node and one server. ExUnit runs async modules first, then the sync ones one by one
+  (see `e2e/support/case.ex`). A module that disconnects or reconnects the session
   (`connect_form`, `ssh_config`, `connect`, `unreadable_secrets`, `recent_connections`) is
   `async: false`; a module for a connected node is `async: true`
 - A module that mutates global state (settings, the node's tree) uses `group:` so its browsers
-  run in order, or is sync and runs after the rest, like `supervision_tree` and `processes`
+  run one after the other (`supervision_tree`), or is sync (`processes`)

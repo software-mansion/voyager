@@ -100,7 +100,7 @@ defmodule Voyager.MixProject do
         "assets.build",
         "phx.digest"
       ],
-      # --seed 0: recent_connections_test needs definition order (upstream's mode: 'serial')
+      # --seed 0: runs a module's tests in definition order, which recent_connections_test needs
       e2e: ["ecto.reset", "test --no-start --seed 0"],
       precommit: [
         tauri_check_version_cmd(),

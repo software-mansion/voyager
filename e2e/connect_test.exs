@@ -3,7 +3,7 @@ defmodule Voyager.E2E.ConnectTest do
     async: false,
     devices: ["Desktop Chrome"]
 
-  # test.describe.serial: ExUnit runs the tests in order under `--seed 0`.
+  # Each test starts from `ensure_disconnected/1`, so the order doesn't matter.
   describe "direct connect" do
     test "connects to an IPv6 node and disconnects", %{page: page} do
       ensure_disconnected(page)

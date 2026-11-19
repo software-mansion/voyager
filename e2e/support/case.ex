@@ -3,7 +3,7 @@ defmodule Voyager.E2E.Case do
 
   # The suite shares the app's global state (one NodeSession, the mock tree on the target
   # node, the pid format, saved connections). ExUnit runs every async module first, then the
-  # sync ones one by one:
+  # sync ones one by one, in no defined order, so each module sets up its own connection state:
   #
   #   * async: the modules that only read a connected session (ets, node, sidebar), tracing
   #     (one browser, as the Tracer holds one session) and the supervision-tree modules.

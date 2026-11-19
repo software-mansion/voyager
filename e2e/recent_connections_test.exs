@@ -1,7 +1,8 @@
 defmodule Voyager.E2E.RecentConnectionsTest do
   use Voyager.E2E.Case, async: false
 
-  # The tests run in order under `--seed 0` (see the `e2e` alias).
+  # The tests depend on each other's state, so they run in definition order (`--seed 0`, see the
+  # `e2e` alias). The module sets up its own connection, whatever ran before it.
   setup_all %{browser: browser} do
     page = Browser.new_page!(browser)
     ensure_connected(page)

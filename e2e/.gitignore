@@ -2,3 +2,6 @@
 
 # Mock app beams (compiled by node.sh)
 /mock_app/ebin/*.beam
+
+# Flakiness benchmark output
+/flakiness-results/
