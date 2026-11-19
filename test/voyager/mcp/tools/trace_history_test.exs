@@ -133,18 +133,36 @@ defmodule Voyager.MCP.Tools.TraceHistoryTest do
     assert args =~ "2002"
     assert %{"searched" => _, "more" => false} = report
 
-    assert %{"events" => [newest], "next_before" => before, "more" => true} =
-             history(%{"session_id" => id, "query" => "leap_year", "limit" => 1})
+    assert %{"events" => [newest, older], "next_before" => before, "more" => true} =
+             history(%{"session_id" => id, "query" => "leap_year", "limit" => 2})
 
-    assert %{"events" => [older], "more" => true} =
+    assert newest["seq"] > older["seq"]
+    assert before == older["seq"]
+
+    assert %{"events" => [next, _], "more" => true} =
              history(%{
                "session_id" => id,
                "query" => "leap_year",
                "before" => before,
-               "limit" => 1
+               "limit" => 2
              })
 
-    assert older["seq"] < newest["seq"]
+    assert next["seq"] < before
+  end
+
+  test "warns about the payloads an earlier run captured, whatever the current config" do
+    %{id: id} = configure(%{max_events: 2})
+    refute Map.has_key?(history(%{"session_id" => id}), "untrusted")
+
+    {:ok, _session} = Tracer.start(:ui)
+    trace_calls(1)
+    assert_receive {:session_entries, %{status: :stopped}, _entries}
+
+    {:ok, _session} =
+      Tracer.configure(node(), config_attrs(%{capture: :arity, return_trace: false}), :ui)
+
+    assert %{"untrusted" => _, "events" => events} = history(%{"session_id" => id})
+    assert Enum.any?(events, &Map.has_key?(&1, "args"))
   end
 
   test "refuses an unknown session" do

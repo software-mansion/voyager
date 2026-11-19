@@ -95,7 +95,7 @@ defmodule Voyager.MCP.Tools.TraceHistory do
     opts = [limit: params.limit] ++ if(params[:before], do: [before: params.before], else: [])
 
     with {:ok, report} <- TraceReport.search(session, query, opts) do
-      oldest = List.first(report.events)
+      oldest = List.last(report.events)
 
       {:ok,
        Map.merge(report, %{
