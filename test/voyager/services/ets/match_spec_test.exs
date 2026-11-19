@@ -52,7 +52,9 @@ defmodule Voyager.Services.Ets.MatchSpecTest do
     test "rejects invalid UTF-8 and sized binary segments" do
       assert {:error, {:invalid_match_spec, "not valid UTF-8"}} = MatchSpec.parse(<<255>>)
 
-      assert {:error, {:invalid_match_spec, "calls and sized binary segments are not allowed"}} =
+      assert {:error,
+              {:invalid_match_spec,
+               "binary segments must have an integer size of at most 524288 bits"}} =
                MatchSpec.parse("[{'$1', [], [<<0:99999999999999>>]}]")
     end
 

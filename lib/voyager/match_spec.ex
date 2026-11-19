@@ -10,8 +10,26 @@ defmodule Voyager.MatchSpec do
       end
 
   A spec arrives either as an Erlang term (`parse/1`) or as a function written in Erlang or
-  Elixir (`parse_fun/3`). Both read at most 4096 bytes of UTF-8, refuse when the atom table is
-  close to full, and create the atoms the input names on this node.
+  Elixir (`parse_fun/3`). Both create the atoms the input names on this node.
+
+  ## Limits
+
+  Parsing builds the terms the input spells out, so a few bytes can ask for a lot of memory:
+  `<<0:99999999999999>>` is terabytes, and `:ms_transform` folds `1 bsl 4000000` into a 488 KiB
+  integer. Both `parse/1` and `parse_fun/3` therefore enforce:
+
+    * **4096 bytes of UTF-8 input**: `{:error, :too_large}` above it.
+    * **10 000 free atoms**: below that, `{:error, :atom_table_full}`, since a full atom table
+      aborts the VM instead of raising.
+    * **524 288 bits per binary segment** (size × unit): 64 KiB, the agent's
+      `TRACE_MAX_MATCH_SPEC_BYTES`, so no segment is built that the agent would refuse anyway.
+      It is checked before parsing, because one segment is a single allocation that
+      `max_heap_size` cannot interrupt.
+    * **8 MiB and 2 seconds per parse**: parsing runs in its own process with `max_heap_size`
+      (binaries included), killed past either limit with `{:error, :limit_exceeded}`. 8 MiB is
+      well above the 64 KiB a spec can be when sent, and small enough to cost nothing noticeable.
+    * **No `!` operator**: `:ms_transform` folds it like any other operator, so
+      `init ! {stop, stop}` in an Erlang fun would really send.
 
   Every check returns `{:error, :invalid_shape}` for a term that is not a non-empty list of
   `{head, [guard], [body]}` clauses, so leaving `check_shape/1` out never raises. Errors are
@@ -24,12 +42,15 @@ defmodule Voyager.MatchSpec do
   @max_bytes 4_096
   @atom_headroom 10_000
   @atom_tag :"$voyager_atom"
+  @max_parse_megabytes 8
+  @parse_timeout 2_000
 
   @type t :: [{term(), [term()], [term()]}]
   @type type :: :table | :trace
   @type reason ::
           :too_large
           | :atom_table_full
+          | :limit_exceeded
           | {:syntax, String.t()}
           | {:unsupported, String.t()}
           | :invalid_shape
@@ -41,12 +62,12 @@ defmodule Voyager.MatchSpec do
   @doc """
   Turns `"[{{'$1', active}, [], ['$1']}]"` into the term it spells, of any shape.
 
-  A missing trailing `.` is added. Calls, operators, variables and sized binary segments such
-  as `<<X:8>>` are syntax errors.
+  A missing trailing `.` is added. Calls, operators and variables are syntax errors. See
+  [Limits](#module-limits) for the size limits.
   """
   @spec parse(String.t()) :: {:ok, term()} | {:error, reason()}
   def parse(source) when is_binary(source) do
-    with :ok <- check_input(source), do: ErlangParser.parse_term(source)
+    with :ok <- check_input(source), do: bounded(fn -> ErlangParser.parse_term(source) end)
   end
 
   @doc """
@@ -56,13 +77,14 @@ defmodule Voyager.MatchSpec do
   `source` is one anonymous function with one parameter per clause, in `language`:
 
     * `:erlang` - `fun({K, V}) when V > 10 -> K end`, translated by `:ms_transform`, so
-      anything `ets:fun2ms/1` or `dbg:fun2ms/1` accepts in a shell works, except remote calls,
-      sized binary segments, `bsl` and `bsr`.
+      anything `ets:fun2ms/1` or `dbg:fun2ms/1` accepts in a shell works, within
+      [Limits](#module-limits).
     * `:elixir` - `fn {k, v} when v > 10 -> k end`. Supports patterns of literals, variables,
       `_` (anything; `_name` is a variable like any other), lists, tuples and maps; guards of
-      comparisons, `and`, `or`, `not` and `is_*` type
-      checks, with each extra `when` becoming its own clause; bodies of bound variables and
-      literals.
+      comparisons, `and`, `or`, `not`, arithmetic (`+`, `-`, `*`, `/`, `div/2`, `rem/2`) and
+      `is_*` type checks, with each extra `when` becoming its own clause; bodies of the same
+      expressions. Arithmetic is left for the match spec to compute, so `x > 1 + 2` stays
+      `{:>, :"$1", {:+, 1, 2}}`, where the Erlang path folds it to `3`.
 
   `type` says what the parameter matches, and so the head of each clause:
 
@@ -77,12 +99,8 @@ defmodule Voyager.MatchSpec do
   @spec parse_fun(String.t(), :erlang | :elixir, type()) :: {:ok, t()} | {:error, reason()}
   def parse_fun(source, language, type)
       when is_binary(source) and language in [:erlang, :elixir] and type in [:table, :trace] do
-    with :ok <- check_input(source) do
-      case language do
-        :erlang -> ErlangParser.parse_fun(source, type)
-        :elixir -> ElixirParser.parse_fun(source, type)
-      end
-    end
+    parser = if language == :erlang, do: ErlangParser, else: ElixirParser
+    with :ok <- check_input(source), do: bounded(fn -> parser.parse_fun(source, type) end)
   end
 
   @doc "Checks the spec is a non-empty proper list of `{head, [guard], [body]}` clauses."
@@ -154,6 +172,10 @@ defmodule Voyager.MatchSpec do
   @spec format_error(reason()) :: String.t()
   def format_error(:too_large), do: "longer than #{@max_bytes} bytes"
   def format_error(:atom_table_full), do: "atom table exhausted"
+
+  def format_error(:limit_exceeded),
+    do: "building it needs more than #{@max_parse_megabytes} MiB or #{@parse_timeout} ms"
+
   def format_error({:syntax, detail}), do: detail
   def format_error({:unsupported, detail}), do: detail
   def format_error(:invalid_shape), do: "expected a list of {head, guards, body} clauses"
@@ -176,6 +198,29 @@ defmodule Voyager.MatchSpec do
       not String.valid?(source) -> {:error, {:syntax, "not valid UTF-8"}}
       not atom_headroom?() -> {:error, :atom_table_full}
       true -> :ok
+    end
+  end
+
+  defp bounded(parse) do
+    max_heap = %{
+      size: div(@max_parse_megabytes * 1_048_576, :erlang.system_info(:wordsize)),
+      kill: true,
+      error_logger: false,
+      # Binaries over 64 bytes live off-heap, so the size would not count them otherwise.
+      include_shared_binaries: true
+    }
+
+    {pid, ref} =
+      :erlang.spawn_opt(fn -> exit({:shutdown, parse.()}) end, [:monitor, max_heap_size: max_heap])
+
+    receive do
+      {:DOWN, ^ref, :process, ^pid, {:shutdown, result}} -> result
+      {:DOWN, ^ref, :process, ^pid, _killed} -> {:error, :limit_exceeded}
+    after
+      @parse_timeout ->
+        Process.demonitor(ref, [:flush])
+        Process.exit(pid, :kill)
+        {:error, :limit_exceeded}
     end
   end
 

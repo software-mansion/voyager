@@ -98,12 +98,42 @@ defmodule Voyager.MatchSpecTest do
       assert MatchSpec.parse(<<"[", 255, "]">>) == {:error, {:syntax, "not valid UTF-8"}}
     end
 
-    test "refuses sized binary segments before building them" do
-      for input <- ["<<0:800000000>>", "<<0:99999999999999>>", "<<1:8/unit:8>>", "<<\"a\":8>>"] do
+    test "builds sized binary segments of up to 524288 bits, size times unit" do
+      assert MatchSpec.parse("[<<1:16, 2:4/unit:2>>, <<1:16/little>>]") ==
+               {:ok, [<<0, 1, 2>>, <<1, 0>>]}
+
+      for input <- ["<<0:524288>>", "<<0:2048/unit:256>>"] do
+        assert {:ok, binary} = MatchSpec.parse(input), input
+        assert byte_size(binary) == 65_536
+      end
+    end
+
+    test "refuses a segment too big or not literally sized before building it" do
+      for input <- [
+            "<<0:524289>>",
+            "<<0:2049/unit:256>>",
+            "<<0:65537/binary>>",
+            "<<0:99999999999999>>",
+            "<<0:(99999999999999)>>",
+            "<<<<0:99999999999999>>/binary>>",
+            "[{'_', [], [<<1:Size>>]}]"
+          ] do
         assert MatchSpec.parse(input) ==
-                 {:error, {:syntax, "calls and sized binary segments are not allowed"}},
+                 {:error,
+                  {:syntax, "binary segments must have an integer size of at most 524288 bits"}},
                input
       end
+    end
+
+    test "returns an error when the term outgrows the parsing process" do
+      input = "[" <> Enum.map_join(1..200, ",", fn _ -> "<<0:524288>>" end) <> "]"
+
+      assert MatchSpec.parse(input) == {:error, :limit_exceeded}
+    end
+
+    test "refuses the ! operator" do
+      assert MatchSpec.parse("init ! {stop, stop}") ==
+               {:error, {:syntax, "the ! operator is not allowed"}}
     end
 
     test "keeps colons inside quoted atoms and strings" do
@@ -296,6 +326,7 @@ defmodule Voyager.MatchSpecTest do
       for {reason, message} <- [
             {:too_large, "longer than 4096 bytes"},
             {:atom_table_full, "atom table exhausted"},
+            {:limit_exceeded, "building it needs more than 8 MiB or 2000 ms"},
             {{:syntax, "syntax error before: ')'"}, "syntax error before: ')'"},
             {:invalid_shape, "expected a list of {head, guards, body} clauses"},
             {{:too_many_clauses, 1}, "expected one {head, guards, body} clause"},

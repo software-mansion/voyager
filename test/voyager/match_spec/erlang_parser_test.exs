@@ -52,6 +52,18 @@ defmodule Voyager.MatchSpec.ErlangParserTest do
                {:ok, [{{:"$1", :"$1", [1 | :"$2"], %{k: :"$3"}, "b", -2.5}, [], [:"$_"]}]}
     end
 
+    test "keeps remote guard calls, folds shifts and builds sized segments" do
+      source = "fun({X}) when erlang:is_atom(X); X > 1 bsl 64; X == <<1:16>> -> X end"
+
+      assert parse(source, :table) ==
+               {:ok,
+                [
+                  {{:"$1"}, [{:is_atom, :"$1"}], [:"$1"]},
+                  {{:"$1"}, [{:>, :"$1", 18_446_744_073_709_551_616}], [:"$1"]},
+                  {{:"$1"}, [{:==, :"$1", <<0, 1>>}], [:"$1"]}
+                ]}
+    end
+
     test "wraps constant tuples and reserved atoms in the body" do
       assert parse("fun({K}) when K == {a, b} -> '$1' end", :table) ==
                {:ok, [{{:"$1"}, [{:==, :"$1", {{:a, :b}}}], [const: :"$1"]}]}
@@ -82,7 +94,8 @@ defmodule Voyager.MatchSpec.ErlangParserTest do
             {"fun({X}) -> #r{} end", :table},
             {"fun({X}) when X = 1 -> X end", :table},
             {"fun({X}) -> list_to_atom(X) end", :table},
-            {"fun([X]) -> case X of _ -> X end end", :trace}
+            {"fun([X]) -> case X of _ -> X end end", :trace},
+            {~S|fun(_) -> os:cmd("id") end|, :trace}
           ] do
         assert {:error, {:unsupported, message}} = parse(source, type), source
         assert is_binary(message)
@@ -103,16 +116,34 @@ defmodule Voyager.MatchSpec.ErlangParserTest do
       end
     end
 
-    test "refuses remote calls, sized binaries and shifts before translating" do
-      for {source, message} <- [
-            {~S|fun(_) -> os:cmd("id") end|, "calls and sized binary segments are not allowed"},
-            {"fun({X}) when X == <<0:99999999999999>> -> X end",
-             "calls and sized binary segments are not allowed"},
-            {"fun({X}) when X > 1 bsl 4000000 -> X end", "bsl and bsr are not allowed"},
-            {"fun({X}) -> 1 bsr -4000000 end", "bsl and bsr are not allowed"}
+    test "refuses the ! operator, which ms_transform would send" do
+      name = :"probe_#{System.unique_integer([:positive])}"
+      Process.register(self(), name)
+
+      assert parse("fun([X]) when X == (#{name} ! leaked) -> true end", :trace) ==
+               {:error, {:syntax, "the ! operator is not allowed"}}
+
+      refute_received :leaked
+    end
+
+    test "refuses a segment size too big or not a literal before building it" do
+      for source <- [
+            "fun({X}) when X == <<0:99999999999999>> -> X end",
+            "fun({X}) -> <<0:524289>> end",
+            "fun({X}) -> <<0:4097/unit:128>> end",
+            "fun({X}) -> <<1:X>> end"
           ] do
-        assert parse(source, :table) == {:error, {:syntax, message}}, source
+        assert parse(source, :table) ==
+                 {:error,
+                  {:syntax, "binary segments must have an integer size of at most 524288 bits"}},
+               source
       end
+    end
+
+    test "returns an error when folded constants outgrow the parsing process" do
+      shifts = Enum.map_join(1..20, ", ", fn _ -> "1 bsl 4000000" end)
+
+      assert parse("fun({X}) -> [#{shifts}] end", :table) == {:error, :limit_exceeded}
     end
 
     test "refuses anything but one fun" do

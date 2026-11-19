@@ -3,9 +3,14 @@ defmodule Voyager.MatchSpec.ErlangParser do
 
   alias Voyager.MatchSpec
 
+  # The agent's `TRACE_MAX_MATCH_SPEC_BYTES` (64 KiB): a bigger segment could never be sent.
+  @max_segment_bits 524_288
+
   @spec parse_term(String.t()) :: {:ok, term()} | {:error, MatchSpec.reason()}
   def parse_term(source) do
-    with {:ok, tokens} <- scan(source) do
+    with {:ok, tokens} <- scan(source),
+         {:ok, exprs} <- parsed(:erl_parse.parse_exprs(tokens)),
+         :ok <- check_segments(exprs) do
       parsed(:erl_parse.parse_term(tokens))
     end
   end
@@ -14,7 +19,8 @@ defmodule Voyager.MatchSpec.ErlangParser do
           {:ok, MatchSpec.t()} | {:error, MatchSpec.reason()}
   def parse_fun(source, type) do
     with {:ok, tokens} <- scan(source),
-         {:ok, exprs} <- parsed(:erl_parse.parse_exprs(tokens)) do
+         {:ok, exprs} <- parsed(:erl_parse.parse_exprs(tokens)),
+         :ok <- check_segments(exprs) do
       case exprs do
         [{:fun, _anno, {:clauses, clauses}}] -> transform(clauses, type)
         _other -> {:error, {:syntax, "expected one fun ... end"}}
@@ -26,23 +32,50 @@ defmodule Voyager.MatchSpec.ErlangParser do
     charlist = source |> terminate() |> String.to_charlist()
 
     case :erl_scan.string(charlist) do
-      {:ok, tokens, _end} -> refuse_amplifiers(tokens)
+      {:ok, tokens, _end} -> refuse_send(tokens)
       {:error, reason, _end} -> {:error, {:syntax, format(reason)}}
     end
   end
 
-  # From a few bytes, `:erl_parse` builds `<<0:99999999999999>>` (gigabytes) and `:ms_transform`
-  # folds `1 bsl 4000000` or `1 bsr -4000000` (0.5 MB each).
-  defp refuse_amplifiers(tokens) do
-    cond do
-      List.keymember?(tokens, :":", 0) ->
-        {:error, {:syntax, "calls and sized binary segments are not allowed"}}
+  # `:ms_transform` folds constant operators, so `init ! {stop, stop}` would really send.
+  defp refuse_send(tokens) do
+    if List.keymember?(tokens, :!, 0),
+      do: {:error, {:syntax, "the ! operator is not allowed"}},
+      else: {:ok, tokens}
+  end
 
-      List.keymember?(tokens, :bsl, 0) or List.keymember?(tokens, :bsr, 0) ->
-        {:error, {:syntax, "bsl and bsr are not allowed"}}
+  # One segment is one allocation, made before `max_heap_size` can stop the process.
+  defp check_segments(exprs) do
+    if oversized_segment?(exprs),
+      do:
+        {:error,
+         {:syntax,
+          "binary segments must have an integer size of at most #{@max_segment_bits} bits"}},
+      else: :ok
+  end
 
-      true ->
-        {:ok, tokens}
+  defp oversized_segment?({:bin_element, _anno, value, size, types}),
+    do: not small_segment?(size, types) or oversized_segment?(value)
+
+  defp oversized_segment?(tuple) when is_tuple(tuple),
+    do: tuple |> Tuple.to_list() |> oversized_segment?()
+
+  defp oversized_segment?(list) when is_list(list), do: Enum.any?(list, &oversized_segment?/1)
+  defp oversized_segment?(_term), do: false
+
+  defp small_segment?(:default, _types), do: true
+
+  defp small_segment?({kind, _anno, size}, types) when kind in [:integer, :char],
+    do: size * unit(types) <= @max_segment_bits
+
+  defp small_segment?(_size, _types), do: false
+
+  defp unit(:default), do: 1
+
+  defp unit(types) do
+    case List.keyfind(types, :unit, 0) do
+      {:unit, unit} -> unit
+      nil -> if Enum.any?(types, &(&1 in [:binary, :bytes])), do: 8, else: 1
     end
   end
 
