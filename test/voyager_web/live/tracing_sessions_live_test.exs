@@ -461,4 +461,20 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     assert has_element?(view, "#load-session")
     refute has_element?(view, "#load-session[disabled]")
   end
+
+  test "updates the running session totals on live PubSub broadcasts and ticks", %{conn: conn} do
+    start!()
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/tracing")
+
+    assert has_element?(view, "#overview-status[data-tone=running]")
+    assert has_element?(view, "#total-traces", "0")
+
+    call_traced!(3, 3)
+    put_queued(view)
+    send(view.pid, :tick)
+
+    assert has_element?(view, "#total-traces", "3")
+    assert has_element?(view, "#active-session-tile", "3 traces")
+  end
 end
