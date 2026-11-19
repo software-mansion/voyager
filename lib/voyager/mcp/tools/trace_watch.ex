@@ -5,9 +5,10 @@ defmodule Voyager.MCP.Tools.TraceWatch do
   calls) and a sample of the newest events. Joins a running session, starts one
   that was set up but never run, and returns a stopped session's report at once.
 
-  While it waits the user sees live progress, and other Voyager tool calls wait
-  for it to return. Cancelling the call only stops watching: the session keeps
-  running. After 10 minutes it stops waiting and returns the report with
+  While it waits the user sees live progress and the calling agent is blocked, so
+  run it in a subagent to keep working; `trace_stop` from elsewhere ends it early.
+  Clients older than MCP 2026-07-28 also queue their other Voyager calls behind it.
+  Cancelling the call only stops watching: the session keeps running. After 10 minutes it stops waiting and returns the report with
   `status` `running`; call it again or `trace_stop`.
   """
 
