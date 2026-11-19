@@ -459,7 +459,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
       |> assign(:overview, AsyncResult.ok(data))
       |> noreply()
     else
-      noreply(socket)
+      {:noreply, socket}
     end
   end
 
@@ -469,9 +469,11 @@ defmodule VoyagerWeb.TracingSessionsLive do
       |> assign(:overview, AsyncResult.ok(nil))
       |> noreply()
     else
-      noreply(socket)
+      {:noreply, socket}
     end
   end
+
+  def handle_async(:overview, {:exit, {:shutdown, :cancel}}, socket), do: {:noreply, socket}
 
   def handle_async(:overview, {:exit, reason}, socket) do
     socket
@@ -865,23 +867,15 @@ defmodule VoyagerWeb.TracingSessionsLive do
   defp fetch_overview(socket) do
     case selected_item(socket.assigns) do
       %{status: status, id: id} when status != :idle ->
-        start_overview_async(socket, id)
+        socket
+        |> cancel_async(:overview)
+        |> assign(:overview, loading_overview(socket.assigns.overview))
+        |> start_async(:overview, fn -> {id, Tracer.overview(id)} end)
 
       _none_or_idle ->
         socket
         |> cancel_async(:overview)
         |> assign(:overview, AsyncResult.ok(nil))
-    end
-  end
-
-  defp start_overview_async(socket, id) do
-    if connected?(socket) do
-      socket
-      |> cancel_async(:overview)
-      |> assign(:overview, loading_overview(socket.assigns.overview))
-      |> start_async(:overview, fn -> {id, Tracer.overview(id)} end)
-    else
-      socket
     end
   end
 
@@ -891,8 +885,13 @@ defmodule VoyagerWeb.TracingSessionsLive do
   defp loading_overview(_overview), do: AsyncResult.loading()
 
   defp refresh_running_overview(
-         %{assigns: %{selected_id: id, active_session: %Session{id: id, status: :running}}} =
-           socket
+         %{
+           assigns: %{
+             selected_id: id,
+             active_session: %Session{id: id, status: :running},
+             overview: %{loading: nil}
+           }
+         } = socket
        ),
        do: fetch_overview(socket)
 
