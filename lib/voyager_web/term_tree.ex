@@ -26,8 +26,8 @@ defmodule VoyagerWeb.TermTree do
   """
 
   alias Voyager.Services.TermSyntax
-  alias VoyagerWeb.TermFormatter
-  alias VoyagerWeb.TermFormatter.Erlang, as: ErlangFormatter
+  alias Voyager.TermFormatter
+  alias Voyager.TermFormatter.Erlang, as: ErlangFormatter
   alias VoyagerWeb.TermTree.Node
   alias VoyagerWeb.TermTree.Segment
   alias VoyagerWeb.TermTree.State

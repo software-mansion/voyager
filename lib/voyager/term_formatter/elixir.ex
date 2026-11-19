@@ -1,10 +1,10 @@
-defmodule VoyagerWeb.TermFormatter.Elixir do
+defmodule Voyager.TermFormatter.Elixir do
   @moduledoc false
 
-  @behaviour VoyagerWeb.TermFormatter
+  @behaviour Voyager.TermFormatter
 
   alias Voyager.Pid
-  alias VoyagerWeb.TermFormatter
+  alias Voyager.TermFormatter
 
   @impl true
   def inspect(term, opts \\ []),

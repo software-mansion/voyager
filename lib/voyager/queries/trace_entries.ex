@@ -9,6 +9,7 @@ defmodule Voyager.Queries.TraceEntries do
   alias Voyager.Repo
   alias Voyager.Schemas.TraceEvent
   alias Voyager.Schemas.TraceSessionEvent
+  alias Voyager.Services.TermSyntax
   alias Voyager.Services.Tracer.Config
   alias Voyager.StoredTerm
 
@@ -42,13 +43,16 @@ defmodule Voyager.Queries.TraceEntries do
   end
 
   @doc """
-  Up to `:limit` trace entries containing `query`, ignoring ASCII case, with `seq` below `:before`,
-  newest first, and the `total` of matches in the session, nil once `:before` is given.
+  Up to `:limit` trace entries whose `syntax` line of `search_text` contains `query`, ignoring
+  ASCII case, with `seq` below `:before`, newest first, and the `total` of matches in the
+  session, nil once `:before` is given.
   """
-  @spec search(integer(), String.t(), keyword()) ::
+  @spec search(integer(), String.t(), TermSyntax.syntax(), keyword()) ::
           %{entries: [map()], total: non_neg_integer() | nil}
-  def search(session_id, query, opts) do
-    pattern = "%" <> String.replace(query, ["\\", "%", "_"], &("\\" <> &1)) <> "%"
+  def search(session_id, query, syntax, opts) do
+    escaped = String.replace(query, ["\\", "%", "_"], &("\\" <> &1))
+    # `search_text` holds one newline, between its Elixir and Erlang lines.
+    pattern = if syntax == :erlang, do: "%\n%#{escaped}%", else: "%#{escaped}%\n%"
 
     matches =
       from e in TraceEvent,

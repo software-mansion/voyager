@@ -76,6 +76,17 @@ function positionTooltip(tipEl, trigger) {
   tipEl.style.left = `${left}px`;
 }
 
+// morphdom never patches a <template>'s content, so a re-rendered row would show a stale tip.
+// shortcut: copies data-phx-skip placeholders as is: fine in stream rows, not in a plain :for.
+export function syncTooltipContent(fromEl, toEl) {
+  if (
+    fromEl.tagName === 'TEMPLATE' &&
+    fromEl.hasAttribute('data-tooltip-content')
+  ) {
+    fromEl.content.replaceChildren(toEl.content.cloneNode(true));
+  }
+}
+
 const Tooltip = {
   mounted() {
     this._openTimeout = null;

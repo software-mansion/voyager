@@ -83,10 +83,13 @@ defmodule VoyagerWeb.TracingSessionLive do
           oldest_seq={@oldest_seq}
           node={@session.node}
           node_name={@session.node_name}
+          search={@search}
+          search_form={@search_form}
           on_pause="pause-log"
           on_resume="resume-log"
           on_older="load-older"
           on_ack="log-ack"
+          on_search="search-log"
         />
       </.async_result>
 
@@ -243,6 +246,15 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> schedule_flush()
     |> noreply()
   end
+
+  def handle_event("search-log", %{"search" => %{"query" => query} = params}, socket)
+      when is_binary(query) do
+    socket
+    |> Log.search(params)
+    |> noreply()
+  end
+
+  def handle_event("search-log", _params, socket), do: {:noreply, socket}
 
   @impl true
   # A broadcast for our id already ended the load, and is newer than its result.

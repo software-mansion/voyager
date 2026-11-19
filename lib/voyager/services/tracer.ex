@@ -31,6 +31,7 @@ defmodule Voyager.Services.Tracer do
   alias Voyager.Agent
   alias Voyager.Queries.TraceEntries, as: TraceEntryQueries
   alias Voyager.Queries.TraceSessions, as: TraceSessionQueries
+  alias Voyager.Services.TermSyntax
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Entry
   alias Voyager.Services.Tracer.MemoryLog
@@ -224,8 +225,9 @@ defmodule Voyager.Services.Tracer do
   end
 
   @doc """
-  Up to `:limit` (default 100) trace entries of session `id` containing `query`, ignoring ASCII
-  case, with `seq` below `:before`, newest first. Runs in the caller. A saved session searches
+  Up to `:limit` (default 100) trace entries of session `id` containing `query` as written in
+  the syntax rows are shown in (`TermSyntax.current/0`), ignoring ASCII case, with `seq` below
+  `:before`, newest first. Runs in the caller. A saved session searches
   all its traces, an unsaved one the at most #{@kept_traces} still in memory. `total` counts
   every match, and is nil once `:before` is given. Raises `ArgumentError` on an unknown option
   or a bad value.
@@ -236,12 +238,13 @@ defmodule Voyager.Services.Tracer do
     opts = Keyword.validate!(opts, [:before, limit: 100])
     Enum.each(opts, fn {key, value} -> validate_entries_opt!(key, value) end)
     query = Search.query(query)
+    syntax = TermSyntax.current()
 
     if id > 0 do
-      with_saved(id, fn _row -> {:ok, TraceEntryQueries.search(id, query, opts)} end)
+      with_saved(id, fn _row -> {:ok, TraceEntryQueries.search(id, query, syntax, opts)} end)
     else
       with {:ok, traces} <- GenServer.call(__MODULE__, {:kept_traces, id}),
-           do: {:ok, Search.filter(traces, query, opts)}
+           do: {:ok, Search.filter(traces, query, syntax, opts)}
     end
   end
 
