@@ -792,6 +792,9 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
 
   defp overview_meta_lead(%Session{}, true), do: "Active in tracer · stopped"
 
+  defp overview_meta_lead(%{status: :idle, created_at: %DateTime{} = at}, false),
+    do: "Not started · created #{Calendar.strftime(at, "%-d %b %H:%M UTC")}"
+
   defp overview_meta_lead(item, false) do
     reason =
       if item.stop_reason,
