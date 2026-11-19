@@ -12,6 +12,7 @@ defmodule Voyager.MCP.Server do
   component(Voyager.MCP.Tools.ListSshConfigHosts)
   component(Voyager.MCP.Tools.Connect)
   component(Voyager.MCP.Tools.Disconnect)
+  component(Voyager.MCP.Tools.StartDemo)
   component(Voyager.MCP.Tools.NodeInfo)
   component(Voyager.MCP.Tools.ProcessList)
   component(Voyager.MCP.Tools.ProcessInfo)

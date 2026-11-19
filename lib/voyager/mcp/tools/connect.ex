@@ -15,7 +15,8 @@ defmodule Voyager.MCP.Tools.Connect do
   not verified, or whose key changed, is handed off the same way, so the user can
   check its fingerprint in Voyager. Calling it for the node Voyager is
   already connected to returns `connected`. Only one node can be connected at a
-  time: call `disconnect` first to switch.
+  time: call `disconnect` first to switch. To connect to Voyager's demo node,
+  call `start_demo` first, then `connect` with its `node_name`.
   """
 
   use Anubis.Server.Component, type: :tool
@@ -28,6 +29,7 @@ defmodule Voyager.MCP.Tools.Connect do
   alias Voyager.Queries.SshConnections, as: SshConnectionQueries
   alias Voyager.Schemas.Connection
   alias Voyager.Schemas.SshConnection
+  alias Voyager.Services.DemoNode
   alias Voyager.Services.SavedConnections
 
   @name_types %{"longnames" => :longnames, "shortnames" => :shortnames}
@@ -167,6 +169,9 @@ defmodule Voyager.MCP.Tools.Connect do
           "Already connected to #{session.node_name}, call `disconnect` first to switch"
         )
 
+      demo?(target) ->
+        connect_demo(target)
+
       SavedConnections.ready?(target) ->
         connect_now(target)
 
@@ -187,9 +192,29 @@ defmodule Voyager.MCP.Tools.Connect do
         hand_off(target, "review the changed SSH host key")
 
       {:error, reason} ->
-        message = "Could not connect to #{target.node_name}: #{ConnectError.message(reason)}"
-        Response.error(Response.tool(), message)
+        connect_failed(target, reason)
     end
+  end
+
+  defp demo?(%Connection{node_name: node_name}), do: node_name == DemoNode.node_name()
+  defp demo?(_target), do: false
+
+  defp connect_demo(target) do
+    case DemoNode.connect() do
+      :ok ->
+        connected(target)
+
+      {:error, :not_started} ->
+        Response.error(Response.tool(), "The demo node is not running, call `start_demo` first")
+
+      {:error, reason} ->
+        connect_failed(target, reason)
+    end
+  end
+
+  defp connect_failed(target, reason) do
+    message = "Could not connect to #{target.node_name}: #{ConnectError.message(reason)}"
+    Response.error(Response.tool(), message)
   end
 
   defp connected(target) do

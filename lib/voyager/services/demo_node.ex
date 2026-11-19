@@ -62,6 +62,15 @@ defmodule Voyager.Services.DemoNode do
   @spec start() :: {:ok, params()} | {:error, term()}
   def start, do: GenServer.call(__MODULE__, :start, :infinity)
 
+  @doc "Connects Voyager to the running demo node, without saving it as a connection."
+  @spec connect() :: :ok | {:error, :not_started | term()}
+  def connect do
+    case GenServer.call(__MODULE__, :cookie) do
+      nil -> {:error, :not_started}
+      cookie -> NodeSession.connect(@node_name, cookie, name_type: :longnames)
+    end
+  end
+
   @spec node_name() :: String.t()
   def node_name, do: @node_name
 
@@ -77,6 +86,7 @@ defmodule Voyager.Services.DemoNode do
        exec: exec,
        peer: nil,
        node: nil,
+       cookie: nil,
        timer: nil
      }}
   end
@@ -93,7 +103,7 @@ defmodule Voyager.Services.DemoNode do
     case start_peer(state.exec, cookie) do
       {:ok, peer, node} ->
         timer = :erlang.start_timer(@idle_timeout, self(), :idle_timeout)
-        state = %{state | peer: peer, node: node, timer: timer}
+        state = %{state | peer: peer, node: node, cookie: cookie, timer: timer}
         {:reply, {:ok, %{node_name: @node_name, cookie: cookie}}, state}
 
       {:error, _reason} = error ->
@@ -102,6 +112,8 @@ defmodule Voyager.Services.DemoNode do
         {:reply, error, state}
     end
   end
+
+  def handle_call(:cookie, _from, state), do: {:reply, state.cookie, state}
 
   @impl GenServer
   def handle_info({:node_connected, node}, %{node: node} = state) do
@@ -204,7 +216,7 @@ defmodule Voyager.Services.DemoNode do
 
   defp clear(state) do
     cancel_timer(state.timer)
-    %{state | peer: nil, node: nil, timer: nil}
+    %{state | peer: nil, node: nil, cookie: nil, timer: nil}
   end
 
   defp cancel_timer(nil), do: :ok
