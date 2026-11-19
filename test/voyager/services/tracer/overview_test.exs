@@ -109,6 +109,50 @@ defmodule Voyager.Services.Tracer.OverviewTest do
     assert interrupted.stopped_at == nil
   end
 
+  test "runs/3 subtracts earlier runs' drops from an open run's dropped count" do
+    controls = [
+      %{seq: 4, kind: :started, at: 20_000_000, origin: :ui},
+      %{
+        seq: 3,
+        kind: :stopped,
+        at: 15_000_000,
+        origin: :ui,
+        reason: :stopped,
+        traces: 10,
+        dropped: 4
+      },
+      %{seq: 1, kind: :started, at: 10_000_000, origin: :ui},
+      %{seq: 0, kind: :configured, at: 1_000_000, origin: :ui, node: :a@host, config: @first}
+    ]
+
+    now = DateTime.from_unix!(25_000_000, :microsecond)
+
+    [first, running] =
+      Overview.runs(
+        controls,
+        session(status: :running, traces: 15, run_traces_before: 10, dropped: 7),
+        now
+      )
+
+    assert first.dropped == 4
+    assert running.dropped == 3
+
+    [_, interrupted] =
+      Overview.runs(
+        controls,
+        session(
+          status: :stopped,
+          stop_reason: :interrupted,
+          traces: 15,
+          run_traces_before: 10,
+          dropped: 7
+        ),
+        now
+      )
+
+    assert interrupted.dropped == 3
+  end
+
   test "activity/2 keeps a crashed run's traces out of the next run's gap" do
     controls = [
       %{

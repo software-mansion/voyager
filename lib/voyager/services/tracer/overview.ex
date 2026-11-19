@@ -70,17 +70,20 @@ defmodule Voyager.Services.Tracer.Overview do
     ordered = Enum.sort_by(controls, & &1.seq, :asc)
     starts = Enum.filter(ordered, &(&1.kind == :started))
 
-    starts
-    |> Enum.with_index(1)
-    |> Enum.scan(nil, fn {start, index}, prev_run ->
-      next_start = Enum.at(starts, index)
-      next_seq = next_start && next_start.seq
-      stop = find_stop(ordered, start.seq, next_seq)
-      config = config_at(ordered, start.seq) || session.config
-      prev_config = prev_run && prev_run.config
+    {runs, _acc} =
+      starts
+      |> Enum.with_index(1)
+      |> Enum.map_reduce({nil, 0}, fn {start, index}, {_prev_config, prior_dropped} = prior ->
+        next_start = Enum.at(starts, index)
+        next_seq = next_start && next_start.seq
+        stop = find_stop(ordered, start.seq, next_seq)
+        config = config_at(ordered, start.seq) || session.config
 
-      build_run(index, start, next_seq, stop, config, prev_config, session, now)
-    end)
+        run = build_run(index, start, next_seq, stop, config, prior, session, now)
+        {run, {config, prior_dropped + run.dropped}}
+      end)
+
+    runs
   end
 
   @doc """
@@ -269,10 +272,11 @@ defmodule Voyager.Services.Tracer.Overview do
     |> Enum.find_value(&(&1.kind == :configured && &1.config))
   end
 
-  defp build_run(index, start, next_seq, stop, config, prev_config, session, now) do
+  defp build_run(index, start, next_seq, stop, config, {prev_config, prior_dropped}, session, now) do
     started_at = DateTime.from_unix!(start.at, :microsecond)
 
-    {stopped_at, reason, traces, dropped} = run_outcome(stop, is_nil(next_seq), session)
+    {stopped_at, reason, traces, dropped} =
+      run_outcome(stop, is_nil(next_seq), prior_dropped, session)
 
     duration_ms =
       case stopped_at do
@@ -298,20 +302,21 @@ defmodule Voyager.Services.Tracer.Overview do
     }
   end
 
-  defp run_outcome(%{} = stop, _last?, _session) do
+  defp run_outcome(%{} = stop, _last?, _prior_dropped, _session) do
     {DateTime.from_unix!(stop.at, :microsecond), stop.reason, stop.traces, stop.dropped}
   end
 
-  defp run_outcome(nil, true, %Session{status: :running} = session) do
-    {nil, :running, max(session.traces - session.run_traces_before, 0), session.dropped}
+  defp run_outcome(nil, true, prior_dropped, %Session{status: :running} = session) do
+    {nil, :running, max(session.traces - session.run_traces_before, 0),
+     max(session.dropped - prior_dropped, 0)}
   end
 
   # A nil stop stays nil: the session's `stopped_at` is the boot that interrupted it, and
   # stamping `started_at` would clamp the run's traces into one bucket.
-  defp run_outcome(nil, true, %Session{} = session) do
+  defp run_outcome(nil, true, prior_dropped, %Session{} = session) do
     {nil, session.stop_reason || :interrupted, max(session.traces - session.run_traces_before, 0),
-     session.dropped}
+     max(session.dropped - prior_dropped, 0)}
   end
 
-  defp run_outcome(nil, false, _session), do: {nil, :interrupted, 0, 0}
+  defp run_outcome(nil, false, _prior_dropped, _session), do: {nil, :interrupted, 0, 0}
 end
