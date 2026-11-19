@@ -7,6 +7,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
 
   use VoyagerWeb, :component
 
+  alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Session
   alias VoyagerWeb.Components.TracingComponents
@@ -92,7 +93,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
                 id="node-filter-all"
                 phx-click={@on_filter}
                 phx-value-node="all"
-                class={["flex items-center gap-2", @node_filter == "all" && "menu-active"]}
+                class="menu-active flex items-center gap-2"
               >
                 <span class="flex-1 text-left text-xs">All nodes</span>
                 <span class="font-mono text-base-content/60 text-xs tabular-nums">
@@ -106,7 +107,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
                 phx-click={@on_filter}
                 phx-value-node={node}
                 data-filter-node={node}
-                class={["flex items-center gap-2", node == @node_filter && "menu-active"]}
+                class="flex items-center gap-2"
               >
                 <span class="font-mono min-w-0 flex-1 truncate text-left text-xs">{node}</span>
                 <span
@@ -641,7 +642,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
         id="total-storage"
         label="Storage"
         value="Not saved"
-        unit={"newest #{Voyager.Services.Tracer.kept_traces()}"}
+        unit={"newest #{Tracer.kept_traces()}"}
         prose
       />
     </div>
