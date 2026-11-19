@@ -53,7 +53,11 @@ defmodule VoyagerWeb.TracingSessionsLive do
     socket =
       if connected?(socket) do
         Phoenix.PubSub.subscribe(Voyager.PubSub, Tracer.topic())
-        load_initial(socket)
+        Writer.flush()
+
+        socket
+        |> assign(:active_session, Tracer.active())
+        |> schedule_tick()
       else
         socket
       end
@@ -258,7 +262,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
         Loading discards the unsaved active session.
       </p>
       <p :if={@save_choice?} class="text-base-content/70 mt-1 text-sm">
-        A saved session is stored on disk with all its traces and stays in History. An unsaved one keeps only the newest 500 traces in memory and is gone once unloaded.
+        A saved session is stored on disk with all its traces and stays in History. An unsaved one keeps only the newest {Tracer.kept_traces()} traces in memory and is gone once unloaded.
       </p>
       <p
         :if={@save_choice? and unsaved_active?(@active_session)}
@@ -530,14 +534,6 @@ defmodule VoyagerWeb.TracingSessionsLive do
     socket
     |> assign(:pending, name)
     |> start_async(name, fun)
-  end
-
-  defp load_initial(socket) do
-    Writer.flush()
-
-    socket
-    |> assign(:active_session, Tracer.active())
-    |> schedule_tick()
   end
 
   defp apply_active_change(socket, next_active) do
