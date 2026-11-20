@@ -11,6 +11,7 @@ defmodule Voyager.Queries.TraceEntries do
   alias Voyager.Schemas.TraceSessionEvent
   alias Voyager.Services.TermSyntax
   alias Voyager.Services.Tracer.Config
+  alias Voyager.Services.Tracer.Overview
   alias Voyager.Services.Tracer.Summary
   alias Voyager.StoredTerm
 
@@ -105,6 +106,21 @@ defmodule Voyager.Queries.TraceEntries do
 
     summaries
   end
+
+  @doc "The trace count and latest `at` of a run that has no stop entry."
+  @spec open_run_extent(integer(), Overview.run()) :: {non_neg_integer(), DateTime.t() | nil}
+  def open_run_extent(session_id, run) do
+    TraceEvent
+    |> where([e], e.session_id == ^session_id)
+    |> where(^in_run_seq(run))
+    |> select([e], {count(e.id), max(e.at)})
+    |> Repo.one()
+  end
+
+  defp in_run_seq(%{seq: seq, next_seq: nil}), do: dynamic([e], e.seq > ^seq)
+
+  defp in_run_seq(%{seq: seq, next_seq: next_seq}),
+    do: dynamic([e], e.seq > ^seq and e.seq < ^next_seq)
 
   defp last_start(session_id) do
     from s in TraceSessionEvent,
