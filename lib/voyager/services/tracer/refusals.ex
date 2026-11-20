@@ -27,6 +27,10 @@ defmodule Voyager.Services.Tracer.Refusals do
     ]
   end
 
+  @doc "List of refused actions sent to Tracer"
+  @spec refused_actions() :: [atom()]
+  def refused_actions, do: @refused_actions
+
   @doc "The largest encoded match spec the agent takes, for trace and ETS select alike."
   @spec max_match_spec_bytes() :: pos_integer()
   def max_match_spec_bytes, do: @max_match_spec_bytes

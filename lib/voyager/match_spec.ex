@@ -4,42 +4,37 @@ defmodule Voyager.MatchSpec do
 
       with {:ok, spec} <- MatchSpec.parse_fun(input, :elixir, :trace),
            :ok <- MatchSpec.check_clauses(spec, 10),
-           :ok <- MatchSpec.check_actions(spec, [:return_trace]),
+           :ok <- MatchSpec.check_actions(spec, Refusals.refused_actions()),
            :ok <- MatchSpec.check_compiles(spec, :trace),
            encoded = MatchSpec.encode(spec),
            :ok <- MatchSpec.check_size(encoded, Refusals.max_match_spec_bytes()) do
         {:ok, encoded}
       end
 
-  Limits and refused actions are the caller's to pass; the agent's own are in
+  What a spec may hold is OTP's to say:
+  [Match Specifications in Erlang](https://www.erlang.org/doc/apps/erts/match_spec.html) for a
+  term, [`ms_transform`](https://www.erlang.org/doc/apps/stdlib/ms_transform.html) for a
+  function. Limits and refused actions are the caller's to pass; the agent's own are in
   `Voyager.Services.Tracer.Refusals`.
 
-  A spec arrives either as an Erlang term (`parse/1`) or as a function written in Erlang or
-  Elixir (`parse_fun/3`). Both create the atoms the input names on this node.
+  `parse/1` and `parse_fun/3` create the atoms the input names on this node.
 
   ## Limits
 
-  Parsing builds the terms the input spells out, so a few bytes can ask for a lot of memory:
-  `<<0:99999999999999>>` is terabytes, and `:ms_transform` folds `1 bsl 4000000` into a 488 KiB
-  integer. Both `parse/1` and `parse_fun/3` therefore enforce:
+  A few bytes of input can ask for a lot of memory, so both parsers enforce:
 
     * **4096 bytes of UTF-8 input**: `{:error, :too_large}` above it.
-    * **10 000 free atoms**: below that, `{:error, :atom_table_full}`, since a full atom table
+    * **10 000 free atoms**: `{:error, :atom_table_full}` below it, since a full atom table
       aborts the VM instead of raising.
-    * **524 288 bits per binary segment** (size × unit): 64 KiB, the agent's
-      `MAX_MATCH_SPEC_BYTES`, so no segment is built that the agent would refuse anyway.
-      It is checked before parsing, because one segment is a single allocation that
-      `max_heap_size` cannot interrupt.
-    * **8 MiB and 2 seconds per parse**: parsing runs in its own process with `max_heap_size`
-      (binaries included), killed past either limit with `{:error, :limit_exceeded}`. 8 MiB is
-      well above the 64 KiB a spec can be when sent, and small enough to cost nothing noticeable.
-    * **No `!` operator**: `:ms_transform` folds it like any other operator, so
-      `init ! {stop, stop}` in an Erlang fun would really send.
+    * **524 288 bits per binary segment** (size × unit), the agent's `MAX_MATCH_SPEC_BYTES`.
+      Checked before parsing: one segment is a single allocation `max_heap_size` cannot
+      interrupt.
+    * **8 MiB and 2 seconds per parse**: `{:error, :limit_exceeded}` past either.
+    * **No `!` operator**: `:ms_transform` folds constant operators, so `init ! {stop, stop}`
+      in an Erlang fun would really send.
 
   Every clause check returns `{:error, :invalid_shape}` for a term that is not a non-empty list
-  of `{head, [guard], [body]}` clauses, so leaving `check_shape/1` out never raises;
-  `check_size/2` measures any term. Errors are reasons; `format_error/1` turns them into
-  messages for the user.
+  of `{head, [guard], [body]}` clauses, so leaving `check_shape/1` out never raises.
   """
 
   alias Voyager.MatchSpec.ElixirParser
@@ -79,37 +74,23 @@ defmodule Voyager.MatchSpec do
   end
 
   @doc """
-  Turns a function written as text into a match spec, as `ets:fun2ms/1` and `dbg:fun2ms/1` do
-  at compile time.
+  Turns one anonymous function written as text into a match spec, with
+  [`ms_transform`](https://www.erlang.org/doc/apps/stdlib/ms_transform.html), which says what
+  the function may hold. `type` picks its dialect: `:table` is `ets:fun2ms/1`, `:trace` is
+  `dbg:fun2ms/1`.
 
-  `source` is one anonymous function with one parameter per clause, in `language`:
+  An `:elixir` function is compiled to its Erlang form without being evaluated, then translated
+  like an Erlang one, with trace actions called as in Erlang (`return_trace()`). Expanding
+  other code would run it on this node, so the only macros are `and`, `or`, `in`, `..`,
+  `is_nil/1` and `is_struct/1,2`, and `import`, `require`, `%Name{}` (match
+  `%{__struct__: Name}` instead) and calls to any module but `:erlang` are
+  `{:unsupported, message}`.
 
-    * `:erlang` - `fun({K, V}) when V > 10 -> K end`, translated by `:ms_transform`, so
-      anything `ets:fun2ms/1` or `dbg:fun2ms/1` accepts in a shell works, within
-      [Limits](#module-limits).
-    * `:elixir` - `fn {k, v} when v > 10 -> k end`, compiled to the Erlang form of the same
-      function without evaluating it, then translated by `:ms_transform` like an Erlang one.
-      What Elixir compiles to something `fun2ms` accepts works: Kernel's operators and guards
-      (`elem/2`, `is_map_key/2`, ...), `Bitwise`, `:erlang.name(...)`, a module name such as
-      `MyApp.Repo`, and the trace actions, `object/0` and `bindings/0`, called as in Erlang.
-      The only macros are `and`, `or`, `in`, `..`, `is_nil/1` and `is_struct/1,2`; `in`,
-      `is_struct` and `map.key` work in guards only.
+  `"abc"` is a binary in Elixir and a list in Erlang. An Erlang binary of non-ASCII text needs
+  its encoding, `<<"zażółć"/utf8>>`: without it each character is cut to one byte.
 
-      Expanding other code would run it on this node, so `import`, `require`, `%Name{}`
-      (match `%{__struct__: Name}` instead) and calls to any module but `:erlang` are
-      `{:unsupported, message}`. So is a guard call Elixir does not allow in a guard, such as
-      `get_tcw()`, and what `:ms_transform` does not know in either language, such as
-      `tuple_size/1` and `is_boolean/1`.
-
-  `type` says what the parameter matches, and so the head of each clause:
-
-    * `:table` - an ETS row, so a tuple or a variable. The body is what the match returns.
-    * `:trace` - the list of a call's arguments, so a list or a variable. The body holds
-      the trace actions; `true` just selects the call.
-
-  Variables are numbered `'$1'`, `'$2'`, ... in the order they first appear in the head, and a
-  variable used twice must be equal in both places. A variable the head does not bind is an
-  `{:unsupported, message}` error.
+  `bindings()` compiles to `'$*'`, which ERTS returns as that atom; only `'$$'` in a term is
+  the list of bound variables.
   """
   @spec parse_fun(String.t(), :erlang | :elixir, type()) :: {:ok, t()} | {:error, reason()}
   def parse_fun(source, language, type)

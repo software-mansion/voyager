@@ -15,6 +15,8 @@ defmodule Voyager.MCP.Tools.EtsSearchTable do
   - Atoms the node does not have are refused: no row can hold them.
   - OTP strings (such as paths in `code_server` tables) are Erlang charlists (list of integers).
     To match a charlist prefix, use a list pattern like `[47, 104, 111 | '$rest']`.
+  - Elixir strings are binaries: `<<"abc">>`. Non-ASCII text needs its encoding:
+    `<<"zażółć"/utf8>>`.
   - Full syntax: https://www.erlang.org/doc/apps/erts/match_spec.html
 
   Examples:
