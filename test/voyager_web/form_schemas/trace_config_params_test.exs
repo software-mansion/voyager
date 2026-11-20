@@ -63,6 +63,12 @@ defmodule VoyagerWeb.FormSchemas.TraceConfigParamsTest do
              errors(%{"max_seconds" => "7200"})
   end
 
+  test "drops the typed pids when another process set is picked" do
+    attrs = %{"module" => "Date", "processes" => "all", "pids" => "<0.1.0>"}
+
+    assert %Config{processes: :all, pids: []} = to_config(attrs)
+  end
+
   test "refuses a module that is neither an Elixir nor an Erlang name" do
     assert %{module: ["must look like MyApp.Repo or :lists"]} = errors(%{"module" => "my app"})
   end

@@ -110,7 +110,7 @@ defmodule VoyagerWeb.TracingSessionLive.ConfigModal do
                   </span>
                 </label>
               </div>
-              <div :if={@selected == "pids"} class="mt-4">
+              <div class={["mt-4", @selected != "pids" && "hidden"]}>
                 <.field field={@form[:pids]} label="Pids" placeholder="<0.123.0>, <0.456.0>" />
               </div>
             </section>
