@@ -14,18 +14,16 @@ defmodule Voyager.MatchSpec do
   What a spec may hold is OTP's to say:
   [Match Specifications in Erlang](https://www.erlang.org/doc/apps/erts/match_spec.html) for a
   term, [`ms_transform`](https://www.erlang.org/doc/apps/stdlib/ms_transform.html) for a
-  function. Limits and refused actions are the caller's to pass; the agent's own are in
-  `Voyager.Services.Tracer.Refusals`.
+  function. Limits and refused actions are the caller's to pass. 
 
-  `parse/1` and `parse_fun/3` create the atoms the input names on this node.
+  `parse/1` and `parse_fun/3` create the atoms on this node.
 
   ## Limits
 
   A few bytes of input can ask for a lot of memory, so both parsers enforce:
 
     * **4096 bytes of UTF-8 input**: `{:error, :too_large}` above it.
-    * **10 000 free atoms**: `{:error, :atom_table_full}` below it, since a full atom table
-      aborts the VM instead of raising.
+    * **10 000 free atoms**: `{:error, :atom_table_full}` below it.
     * **524 288 bits per binary segment** (size × unit), the agent's `MAX_MATCH_SPEC_BYTES`.
       Checked before parsing: one segment is a single allocation `max_heap_size` cannot
       interrupt.
@@ -63,10 +61,7 @@ defmodule Voyager.MatchSpec do
           | {:unknown_atom, String.t()}
 
   @doc """
-  Turns `"[{{'$1', active}, [], ['$1']}]"` into the term it spells, of any shape.
-
-  A missing trailing `.` is added. Calls, operators and variables are syntax errors. See
-  [Limits](#module-limits) for the size limits.
+  A missing trailing `.` is added. Calls, operators and variables are syntax errors.
   """
   @spec parse(String.t()) :: {:ok, term()} | {:error, reason()}
   def parse(source) when is_binary(source) do
@@ -75,9 +70,7 @@ defmodule Voyager.MatchSpec do
 
   @doc """
   Turns one anonymous function written as text into a match spec, with
-  [`ms_transform`](https://www.erlang.org/doc/apps/stdlib/ms_transform.html), which says what
-  the function may hold. `type` picks its dialect: `:table` is `ets:fun2ms/1`, `:trace` is
-  `dbg:fun2ms/1`.
+  [`ms_transform`](https://www.erlang.org/doc/apps/stdlib/ms_transform.html).
 
   An `:elixir` function is compiled to its Erlang form without being evaluated, then translated
   like an Erlang one, with trace actions called as in Erlang (`return_trace()`). Expanding
@@ -86,8 +79,9 @@ defmodule Voyager.MatchSpec do
   `%{__struct__: Name}` instead) and calls to any module but `:erlang` are
   `{:unsupported, message}`.
 
-  `"abc"` is a binary in Elixir and a list in Erlang. An Erlang binary of non-ASCII text needs
-  its encoding, `<<"zażółć"/utf8>>`: without it each character is cut to one byte.
+  `"abc"` is a binary in Elixir and a list in Erlang. 
+  An Erlang binary of non-ASCII text needs its encoding, 
+  `<<"zażółć"/utf8>>`: without it each character is cut to one byte.
 
   `bindings()` compiles to `'$*'`, which ERTS returns as that atom; only `'$$'` in a term is
   the list of bound variables.
@@ -104,8 +98,7 @@ defmodule Voyager.MatchSpec do
   def check_shape(spec), do: if(clauses?(spec), do: :ok, else: {:error, :invalid_shape})
 
   @doc """
-  Checks the spec has at most `max` clauses: `1` for `ets_select_spec/5` on the agent, `10`
-  for `trace_start/3`.
+  Checks the spec has at most `max` clauses.
   """
   @spec check_clauses(term(), pos_integer()) :: :ok | {:error, reason()}
   def check_clauses(spec, max) when is_integer(max) and max > 0 do
@@ -115,9 +108,8 @@ defmodule Voyager.MatchSpec do
   end
 
   @doc """
-  Refuses a tuple whose first element is in `refused` at any depth of the guards or body, the
-  same walk the agent does, so `[:return_trace, :exception_trace]` refuses return tracing
-  however deep it is written. Heads are patterns, never actions, so they are not walked.
+  Refuses actions which are in `refused` at any depth of the guards or body. 
+  Heads are patterns, never actions, so they are not walked.
   """
   @spec check_actions(term(), [atom()]) :: :ok | {:error, reason()}
   def check_actions(spec, refused) when is_list(refused) do
@@ -149,8 +141,7 @@ defmodule Voyager.MatchSpec do
   end
 
   @doc """
-  Checks the term is at most `max_bytes` in the external term format. Pass the spec as
-  `encode/1` returns it: that is what the agent measures, only after it crossed the wire.
+  Checks the term is at most `max_bytes` in the external term format. Agent also checks it so after encode.
   """
   @spec check_size(term(), pos_integer()) :: :ok | {:error, reason()}
   def check_size(term, max_bytes) when is_integer(max_bytes) and max_bytes > 0 do
