@@ -29,7 +29,7 @@ jobs:
 
       - name: Open PR and run CI
         env:
+          BASE: main
           TITLE: "Chore: Bump Elixir to ${{ steps.versions.outputs.elixir }} and OTP to ${{ steps.versions.outputs.otp }}"
-          ELIXIR_RELEASES: ${{ steps.versions.outputs.elixir_releases }}
-          OTP_RELEASES: ${{ steps.versions.outputs.otp_releases }}
-        run: bash .github/scripts/open_bump_pr.sh
+          BODY: ${{ steps.versions.outputs.body }}
+        run: bash .github/scripts/open_bot_pr.sh
