@@ -69,13 +69,11 @@ defmodule VoyagerWeb.SettingsLiveTest do
       refute has_element?(view, "#start-demo-setting")
     end
 
-    test "redirects to the connect screen to start the demo", %{conn: conn} do
+    test "links to the connect screen to start the demo", %{conn: conn} do
       start_demo_node!()
       {:ok, view, _html} = live(conn, ~p"/settings")
 
-      view |> element("#start-demo-setting") |> render_click()
-
-      assert_redirect(view, ~p"/?demo=start")
+      assert has_element?(view, ~s|a#start-demo-setting[href="/?demo=start"]|)
     end
 
     test "disables the start button while a node is connected", %{conn: conn} do
@@ -85,7 +83,8 @@ defmodule VoyagerWeb.SettingsLiveTest do
       {:ok, view, _html} = live(conn, ~p"/settings")
 
       assert has_element?(view, "#demo-settings-connected")
-      assert has_element?(view, "#start-demo-setting[disabled]")
+      assert has_element?(view, "button#start-demo-setting[disabled]")
+      refute has_element?(view, "a#start-demo-setting")
     end
   end
 

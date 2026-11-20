@@ -3,7 +3,6 @@ defmodule VoyagerWeb.SettingsLive.DemoSettings do
   use VoyagerWeb, :html
 
   attr :connected?, :boolean, required: true
-  attr :on_start, :string, required: true
 
   def demo_settings(assigns) do
     ~H"""
@@ -22,11 +21,19 @@ defmodule VoyagerWeb.SettingsLive.DemoSettings do
         </div>
 
         <div class="card-actions justify-end">
+          <.link
+            :if={not @connected?}
+            id="start-demo-setting"
+            href={~p"/?demo=start"}
+            class="btn btn-primary"
+          >
+            <.icon name="icon-binoculars" class="size-4" /> Start demo node
+          </.link>
           <button
+            :if={@connected?}
             type="button"
             id="start-demo-setting"
-            phx-click={@on_start}
-            disabled={@connected?}
+            disabled
             class="btn btn-primary"
           >
             <.icon name="icon-binoculars" class="size-4" /> Start demo node

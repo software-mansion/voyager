@@ -50,11 +50,7 @@ defmodule VoyagerWeb.SettingsLive do
       </div>
 
       <AppearanceSettings.appearance_settings />
-      <DemoSettings.demo_settings
-        :if={@demo_available?}
-        connected?={@session != nil}
-        on_start="start-demo"
-      />
+      <DemoSettings.demo_settings :if={@demo_available?} connected?={@session != nil} />
       <SettingsComponents.choice_setting
         id="pid-format"
         title="PID format"
@@ -96,16 +92,6 @@ defmodule VoyagerWeb.SettingsLive do
 
   def handle_event("select-term-syntax", %{"choice" => choice}, socket) do
     save_choice(socket, :term_syntax, TermSyntax.save_setting(choice))
-  end
-
-  def handle_event("start-demo", _params, %{assigns: %{session: %NodeSession.Session{}}} = socket) do
-    {:noreply, socket}
-  end
-
-  def handle_event("start-demo", _params, socket) do
-    socket
-    |> redirect(to: ~p"/?demo=start")
-    |> noreply()
   end
 
   @impl true
