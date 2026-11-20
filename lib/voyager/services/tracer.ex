@@ -15,7 +15,7 @@ defmodule Voyager.Services.Tracer do
   saved sessions are read from the database. Broadcasts on `topic/0` are
   `{:session_activated, session}`, `{:session_closed, id}` and
   `{:session_entries, session, entries}` with the entries just appended, oldest first, or
-  none when only a saved session's `bytes` changed.
+  none when only a saved session's `bytes` or `storage_limit` changed.
   `session_topic/0` carries only `{:session_updated, session | nil}` alongside each of those.
 
   A session created with `save: true` gets a `Voyager.Schemas.TraceSession` row and
@@ -801,13 +801,13 @@ defmodule Voyager.Services.Tracer do
     max(storage_limit_mb() * 1_000_000 - TraceSessionQueries.bytes_except(id), 0)
   end
 
-  defp refresh_storage_limit(%{session: nil} = state), do: state
-
-  defp refresh_storage_limit(%{session: session} = state) do
+  defp refresh_storage_limit(%{session: %Session{save: true} = session} = state) do
     session = %{session | storage_limit: storage_limit(session.id)}
     broadcast_entries(session, [])
     stop_over_limit(%{state | session: session})
   end
+
+  defp refresh_storage_limit(state), do: state
 
   defp down_reason(:noconnection), do: :node_down
   defp down_reason(reason), do: {:tracer_down, reason}

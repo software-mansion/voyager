@@ -223,6 +223,13 @@ defmodule Voyager.Services.TracerTest do
     assert_receive {:session_entries, %{id: ^id, storage_limit: 40_000_000}, []}
   end
 
+  test "leaves an unsaved session's share alone when the storage limit changes", %{
+    session: %{id: id}
+  } do
+    assert :ok = Tracer.put_storage_limit_mb(50)
+    refute_received {:session_entries, %{id: ^id}, []}
+  end
+
   test "gives the active session the storage a deleted session frees" do
     {:ok, _setting} = Voyager.Settings.put(:trace_storage_limit_mb, 50)
     %{id: other} = Repo.insert!(%TraceSession{origin: :ui, status: :stopped, bytes: 10_000_000})
