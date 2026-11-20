@@ -9,6 +9,7 @@ defmodule VoyagerWeb.SettingsLive do
   alias VoyagerWeb.SettingsLive.DistributionSettings
   alias VoyagerWeb.SettingsLive.McpSettings
   alias VoyagerWeb.SettingsLive.TelemetrySettings
+  alias VoyagerWeb.SettingsLive.TracingSettings
   alias VoyagerWeb.SettingsLive.UpdateSettings
 
   @pid_formats [
@@ -26,12 +27,13 @@ defmodule VoyagerWeb.SettingsLive do
   ]
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
     socket
     |> assign(:session, NodeSession.current())
     |> assign(:terms_of_service_url, Application.get_env(:voyager, :terms_of_service_url))
     |> assign(:pid_format, Pid.get_setting())
     |> assign(:term_syntax, TermSyntax.get_setting())
+    |> assign(:focus_storage_limit?, params["focus"] == "trace_storage_limit_mb")
     |> ok()
   end
 
@@ -71,6 +73,11 @@ defmodule VoyagerWeb.SettingsLive do
         connected?={@session != nil}
       />
       <.live_component module={McpSettings} id="mcp-settings" status={@mcp_status} />
+      <.live_component
+        module={TracingSettings}
+        id="tracing-settings"
+        focus?={@focus_storage_limit?}
+      />
       <.live_component
         module={TelemetrySettings}
         id="telemetry-settings"

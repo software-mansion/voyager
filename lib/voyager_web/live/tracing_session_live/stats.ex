@@ -8,6 +8,8 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
   Reads `mode` and `trace_session` from the socket.
   """
 
+  use VoyagerWeb, :verified_routes
+
   import Phoenix.Component
   import Phoenix.LiveView
   import VoyagerWeb.Helpers, only: [cont: 1, halt: 1]
@@ -43,6 +45,7 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
   @spec track(Socket.t(), Session.t() | nil, Session.t()) :: Socket.t()
   def track(socket, shown, session) do
     socket
+    |> refresh_storage_limit(shown, session)
     |> reset_rates(shown, session)
     |> assign(:now, DateTime.utc_now())
     |> tick()
@@ -177,7 +180,11 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
         {"This session", format_size(bytes)},
         {"Other saved sessions", format_size(others)},
         {"Free", format_size(max(left - bytes, 0))}
-      ]
+      ],
+      link: %{
+        href: ~p"/settings?focus=trace_storage_limit_mb#tracing-settings",
+        tip: "Change the storage limit in Settings"
+      }
     }
   end
 
@@ -199,6 +206,14 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
     do: :erlang.float_to_binary(bytes / 1_000_000, decimals: 1) <> " MB"
 
   defp format_size(bytes), do: "#{Formatters.format_integer(div(bytes, 1_000_000))} MB"
+
+  # The share moves with the setting, except when clamped at 0; reread the total in both cases.
+  defp refresh_storage_limit(socket, %Session{storage_limit: left}, %Session{storage_limit: left})
+       when left > 0,
+       do: socket
+
+  defp refresh_storage_limit(socket, _shown, _session),
+    do: assign(socket, :storage_limit_mb, Tracer.storage_limit_mb())
 
   defp percent(part, whole) when whole > 0, do: min(max(div(part * 100, whole), 0), 100)
   defp percent(_part, _whole), do: 0
