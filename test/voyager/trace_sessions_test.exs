@@ -9,7 +9,6 @@ defmodule Voyager.TraceSessionsTest do
   alias Voyager.Schemas.TraceEvent
   alias Voyager.Schemas.TraceSession
   alias Voyager.Services.Tracer.Config
-  alias Voyager.Services.Tracer.Search
   alias Voyager.Services.Tracer.Session
 
   test "interrupt_running/0 stops running sessions" do
@@ -136,7 +135,8 @@ defmodule Voyager.TraceSessionsTest do
     assert %{search_text: text} = Repo.get_by!(TraceEvent, session_id: id)
 
     assert text ==
-             ~s(#PID#{pid_string} :my_server Date.leap_year?/1 [#PID#{pid_string}, "bin"])
+             ~s|#PID#{pid_string} :my_server Date.leap_year?/1 (#PID#{pid_string}, "bin")\n| <>
+               ~s|#{pid_string} my_server 'Elixir.Date':'leap_year?'/1 (#{pid_string}, <<"bin">>)|
 
     terms = [pid, :my_server, call.args] |> Enum.map(&:erlang.external_size/1) |> Enum.sum()
 
@@ -160,9 +160,9 @@ defmodule Voyager.TraceSessionsTest do
     bytes = TraceEntryActions.insert_all(id, [trace(0, %{args: args, truncated: false})])
 
     assert [%{args: ^args}] = TraceEntryQueries.page(id, limit: 1)
-    assert %{args: stored} = Repo.get_by!(TraceEvent, session_id: id)
+    assert %{args: stored, search_text: text} = Repo.get_by!(TraceEvent, session_id: id)
     assert byte_size(stored) < :erlang.external_size(args) / 10
-    assert bytes < :erlang.external_size(args)
+    assert bytes - byte_size(text) < :erlang.external_size(args)
   end
 
   test "from_row/5 reads a never started session" do
@@ -212,7 +212,7 @@ defmodule Voyager.TraceSessionsTest do
     assert TraceEntryQueries.traces_before_last_run(never_started) == 0
   end
 
-  test "search/3 matches Search.text/1, one session and trace rows only" do
+  test "search/4 matches one syntax's line, one session and trace rows only" do
     %{id: id} = session!(:stopped)
     %{id: other} = session!(:stopped)
     needle = trace(1, %{args: ["needle"]})
@@ -226,9 +226,14 @@ defmodule Voyager.TraceSessionsTest do
     TraceEntryActions.insert_all(other, [trace(0, %{args: ["needle"]})])
 
     assert %{entries: [%{seq: 1}], total: 1} =
-             TraceEntryQueries.search(id, Search.text(needle), limit: 10)
+             TraceEntryQueries.search(id, ~s|("needle")|, :elixir, limit: 10)
 
-    assert %{entries: [], total: 0} = TraceEntryQueries.search(id, "started", limit: 10)
+    assert %{entries: [%{seq: 1}], total: 1} =
+             TraceEntryQueries.search(id, ~s|(<<"needle">>)|, :erlang, limit: 10)
+
+    assert %{total: 0} = TraceEntryQueries.search(id, ~s|(<<"needle">>)|, :elixir, limit: 10)
+    assert %{total: 0} = TraceEntryQueries.search(id, "Elixir.Date", :elixir, limit: 10)
+    assert %{total: 0} = TraceEntryQueries.search(id, "started", :elixir, limit: 10)
   end
 
   defp seqs(entries), do: Enum.map(entries, & &1.seq)

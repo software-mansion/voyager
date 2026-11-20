@@ -20,12 +20,12 @@ defmodule VoyagerWeb.ProcessInfoLive do
 
   alias Phoenix.LiveView.AsyncResult
   alias Voyager.Pid
+  alias Voyager.TermFormatter
   alias VoyagerWeb.Components.SupervisionTreeComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.ProcessInfoControls
   alias VoyagerWeb.Hooks.TermTreeHook
   alias VoyagerWeb.ProcessInfoLive.Query
-  alias VoyagerWeb.TermFormatter
 
   require Logger
 
