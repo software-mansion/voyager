@@ -63,6 +63,17 @@ defmodule Voyager.Services.McpConfigFileTest do
       assert Bitwise.band(File.stat!(path).mode, 0o777) == 0o600
     end
 
+    test "refuses a read-only file and leaves it untouched", %{tmp_dir: dir} do
+      path = Path.join(dir, ".claude.json")
+      contents = ~s({"mcpServers": {"voyager": {"url": "#{@url}"}}})
+      File.write!(path, contents)
+      File.chmod!(path, 0o444)
+
+      assert {:error, :eacces} = McpConfigFile.put_server(path, :json, ["mcpServers"], @entry)
+      assert {:error, :eacces} = McpConfigFile.delete_server(path, :json, ["mcpServers"])
+      assert File.read!(path) == contents
+    end
+
     test "writes through a symlink instead of replacing it", %{tmp_dir: dir} do
       target = Path.join(dir, "dotfiles.json")
       link = Path.join(dir, "mcp.json")

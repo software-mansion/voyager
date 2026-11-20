@@ -244,40 +244,8 @@ defmodule Voyager.Services.McpConfigFile do
 
   defp write_json(path, doc), do: write(path, Jason.encode!(doc, pretty: true) <> "\n")
 
+  # In place, not tmp + rename: a rename would bypass a read-only file and drop its owner, ACLs and xattrs.
   defp write(path, contents) do
-    path = resolve_symlink(path)
-    tmp = path <> ".voyager.tmp"
-
-    File.rm(tmp)
-
-    # Owner-only before any contents land, so a 0600 config never sits in a umask-wide temp file.
-    with :ok <- File.mkdir_p(Path.dirname(path)),
-         :ok <- File.write(tmp, "", [:exclusive]),
-         :ok <- File.chmod(tmp, 0o600),
-         :ok <- File.write(tmp, contents),
-         :ok <- copy_mode(path, tmp),
-         :ok <- File.rename(tmp, path) do
-      :ok
-    else
-      {:error, reason} ->
-        File.rm(tmp)
-        {:error, reason}
-    end
-  end
-
-  # Renaming over a symlink would replace a dotfiles-managed config with a plain file.
-  defp resolve_symlink(path) do
-    case :file.read_link_all(path) do
-      {:ok, target} -> resolve_symlink(Path.expand(to_string(target), Path.dirname(path)))
-      {:error, _reason} -> path
-    end
-  end
-
-  defp copy_mode(from, to) do
-    case File.stat(from) do
-      {:ok, %File.Stat{mode: mode}} -> File.chmod(to, Bitwise.band(mode, 0o7777))
-      {:error, :enoent} -> :ok
-      {:error, reason} -> {:error, reason}
-    end
+    with :ok <- File.mkdir_p(Path.dirname(path)), do: File.write(path, contents)
   end
 end
