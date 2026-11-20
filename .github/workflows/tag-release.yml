@@ -1,0 +1,33 @@
+name: Tag release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: ['v*']
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  tag:
+    name: Tag release
+    if: >-
+      github.repository == 'software-mansion/voyager' &&
+      github.event.pull_request.merged &&
+      startsWith(github.head_ref, 'release/v') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      HEAD_REF: ${{ github.head_ref }}
+      MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Push tag and build release
+        run: bash .github/scripts/tag_release.sh

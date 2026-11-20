@@ -4,13 +4,14 @@ on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
   create_release:
-    if: github.repository == 'software-mansion/voyager'
+    if: github.repository == 'software-mansion/voyager' && startsWith(github.ref, 'refs/tags/v')
     name: Create release
     permissions:
       contents: write
@@ -23,12 +24,7 @@ jobs:
 
       - name: Create release
         shell: bash
-        run: |
-          gh release create \
-            --repo "${{ github.repository }}" \
-            --title "${{ github.ref_name }}" \
-            --draft \
-            "${{ github.ref_name }}"
+        run: bash .github/scripts/create_draft_release.sh "${{ github.ref_name }}"
 
   assets:
     name: Build priv/static
