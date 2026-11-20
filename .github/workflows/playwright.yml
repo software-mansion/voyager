@@ -9,6 +9,7 @@ on:
     branches:
       - main
       - "v*.*"
+  workflow_dispatch:
 
 permissions:
   contents: read
