@@ -17,9 +17,11 @@ Generate the changelog section for a release from git history, in the same forma
      are not reachable from `main`, so `git describe` finds nothing);
      date = the intended release date (default: today)
    - Range is `<prev>..<target>`; the user-named version is the section heading
-2. **Collect entries.** `git log <range> --oneline` — one entry per merged PR (`(#N)` suffix).
+2. **Collect entries.** `git log <range> --oneline` — one entry per merged PR (`(#N)` suffix),
+   plus commits without one on a release branch (e.g. a direct dependency sync)
 3. **Filter.** Drop entirely:
-   - dependabot / dependency bumps (`Chore: Bump ...`)
+   - dependabot / dependency bumps (`Chore: Bump ...`), except those that fix a security
+     advisory: they go under `#### Security`, see "Dependency security patches"
    - CI, workflows, review tooling, repo hygiene (CLAUDE.md, README, banners, dependabot config)
    - tests-only and docs-only PRs
    - refactors and internal APIs with no user-visible behavior (e.g. `Add X API`, `Refactor Y`) — when such a PR is groundwork for a feature PR in the same range, the feature entry may cite both PR numbers
@@ -32,7 +34,7 @@ Generate the changelog section for a release from git history, in the same forma
    - Stay close to the PR title; strip the `Feature:`/`Fix:`/`Chore:` prefix
    - Only expand when the diff confirms the specifics (e.g. "Zoom In / Zoom Out menu actions (Cmd+= / Cmd+-)" after reading the accelerators in the diff)
    - Never invent capabilities, platforms, or gestures not in the diff
-6. **Group and format — match the existing `CHANGELOG.md`.** Read the top section of the current file and copy its exact conventions: heading style, section names, entry syntax, link style. Do not introduce a new format.
+6. **Group and format — match the existing `CHANGELOG.md`.** Read the top section of the current file and copy its exact conventions: heading style, section names, entry syntax, link style. Do not introduce a new format; the one exception is `#### Security`, placed after the existing sections.
 7. **Output.** Prepend the new section to `CHANGELOG.md`, show the result to the user for review. Do not commit or tag.
 
 ## Voyager specifics
@@ -40,3 +42,16 @@ Generate the changelog section for a release from git history, in the same forma
 - PR links: `[#N](https://github.com/software-mansion/voyager/pull/N)`
 - Security-relevant fixes (cookies, network binding, distribution exposure) are worth their own precise wording — read those diffs fully
 - Early releases with no per-PR notes (e.g. 0.1.0 "Closed Alpha release") keep exactly the text of their GitHub release — do not back-fill invented entries
+
+## Dependency security patches
+
+Patch releases on a `vX.Y` branch can consist only of dependency bumps.
+
+- Find the bumped packages with `git log <range> -p -- mix.lock assets/package-lock.json
+  rel/app/src-tauri/Cargo.lock`
+- Only call a bump a security fix when its PR body or commit message names the advisory
+  (CVE / GHSA / EEF id). Never infer one from the version number
+- Entry: `* Bump <package> <old> → <new> (<advisory id>) in [#N](...)`; drop the link for a
+  direct commit
+- If every entry is filtered out, still write the section with a single `* Dependency updates`
+  entry: `create_draft_release.sh` fails on a release without a `CHANGELOG.md` section
