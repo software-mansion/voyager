@@ -10,6 +10,13 @@ const sel = {
   liveBadge: '#session-log .badge-success',
   indicator: '#tracing-indicator',
   search: '#log-search',
+  setParameters: '#session-set-parameters',
+  configModal: '#config-modal',
+  configClose: '#config-close',
+  configModule: '#config_module',
+  configFunction: '#config_function',
+  configArity: '#config_arity',
+  configStart: '#config-start',
 };
 
 test.describe('TracingSessionLive', () => {
@@ -52,6 +59,40 @@ test.describe('TracingSessionLive', () => {
     await page.locator(sel.confirmStop).click();
     await expect(page.locator(sel.resume)).toBeVisible();
     await expect(page.locator(sel.liveBadge)).toBeHidden();
+  });
+
+  test('configures and starts a session from the parameters modal', async ({
+    page,
+  }) => {
+    const id = rpc('mock_app_ctl trace_create []');
+    await page.goto(`/node/${encodeURIComponent(NODE_NAME)}/tracing/${id}`);
+    await waitForLiveView(page);
+
+    await page.locator(sel.setParameters).click();
+    await expect(page.locator(sel.configModule)).toBeFocused();
+    await page.locator(sel.configModal).click({ position: { x: 5, y: 5 } });
+    await expect(page.locator(sel.configModal)).toBeHidden();
+
+    await page.locator(sel.setParameters).click();
+    await page.locator(sel.configClose).click();
+    await expect(page.locator(sel.configModal)).toBeHidden();
+
+    await page.locator(sel.setParameters).click();
+    const fields = [
+      [sel.configModule, 'mock_tracee'],
+      [sel.configFunction, 'lookup'],
+      [sel.configArity, '1'],
+    ];
+    await expect(async () => {
+      for (const [field, value] of fields) {
+        await page.locator(field).fill(value, { timeout: 500 });
+        await expect(page.locator(field)).toHaveValue(value, { timeout: 500 });
+      }
+    }).toPass({ timeout: 2000 });
+    await page.locator(sel.configStart).click();
+
+    await expect(page.locator(sel.configModal)).toBeHidden();
+    await expect(page.locator(sel.stop)).toBeVisible();
   });
 
   test('aligns a row tooltip to the call / result column', async ({ page }) => {

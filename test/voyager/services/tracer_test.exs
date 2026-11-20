@@ -401,7 +401,6 @@ defmodule Voyager.Services.TracerTest do
   end
 
   test "reads the storage limit from its setting" do
-    Repo.delete_all(Voyager.Schemas.Setting)
     assert Tracer.storage_limit_mb() == 100
     {:ok, _} = Voyager.Settings.put(:trace_storage_limit_mb, 7)
     assert Tracer.storage_limit_mb() == 7
@@ -600,6 +599,23 @@ defmodule Voyager.Services.TracerTest do
 
   test "refuses to start without a config" do
     assert {:error, :not_configured} = Tracer.start(:ui)
+  end
+
+  test "start and configure refuse a session that is not the expected one" do
+    assert {:ok, %{id: id, config: config}} = configure()
+
+    assert {:error, :changed} = Tracer.start(:ui, id + 1)
+
+    assert {:error, :changed} =
+             Tracer.configure(
+               Node.self(),
+               %{Map.from_struct(config) | max_events: 5},
+               :ui,
+               id + 1
+             )
+
+    assert %{status: :idle, config: ^config} = Tracer.active()
+    assert {:ok, %{status: :running}} = Tracer.start(:ui, id)
   end
 
   test "refuses to change the session while running" do

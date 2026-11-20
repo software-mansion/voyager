@@ -40,5 +40,5 @@ Playwright against the app under `MIX_ENV=e2e` on :4001.
   (`connect_form`, `connect`, `unreadable_secrets`, `recent_connections`) get their own
   projects, chained first; a new spec for a connected node depends on `recent-connections
   firefox`
-- A spec that mutates global state (settings, the node's tree) runs serially or after the rest,
-  like `supervision-tree` and `processes`
+- A spec that mutates global state (settings, the node's tree, the Tracer's one active session)
+  runs serially or after the rest, like `supervision-tree`, `processes` and `tracing`
