@@ -706,6 +706,23 @@ defmodule Voyager.Services.TracerTest do
     assert {:error, :not_configured} = Tracer.start(:ui)
   end
 
+  test "start and configure refuse a session that is not the expected one" do
+    assert {:ok, %{id: id, config: config}} = configure()
+
+    assert {:error, :changed} = Tracer.start(:ui, id + 1)
+
+    assert {:error, :changed} =
+             Tracer.configure(
+               Node.self(),
+               %{Map.from_struct(config) | max_events: 5},
+               :ui,
+               id + 1
+             )
+
+    assert %{status: :idle, config: ^config} = Tracer.active()
+    assert {:ok, %{status: :running}} = Tracer.start(:ui, id)
+  end
+
   test "refuses to change the session while running" do
     assert {:ok, _session} = configure()
     assert {:ok, _session} = Tracer.start(:ui)

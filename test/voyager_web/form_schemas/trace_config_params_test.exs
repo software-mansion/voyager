@@ -43,7 +43,8 @@ defmodule VoyagerWeb.FormSchemas.TraceConfigParamsTest do
              pids: "<0.1.0>, <0.2.0>",
              max_events: nil,
              max_rate: nil,
-             max_seconds: 60
+             max_time: 60,
+             max_time_unit: :s
            } = params
 
     assert to_config(%{}, params) == config
@@ -52,15 +53,26 @@ defmodule VoyagerWeb.FormSchemas.TraceConfigParamsTest do
              TraceConfigParams.from_config(%{config | module: "lists"})
   end
 
+  test "prefills a time that is not whole seconds in milliseconds, and gives it back" do
+    config = %{to_config(%{"module" => "Date"}) | max_time_ms: 1_500}
+    params = TraceConfigParams.from_config(config)
+
+    assert %TraceConfigParams{max_time: 1_500, max_time_unit: :ms} = params
+    assert to_config(%{}, params) == config
+  end
+
   test "keeps a cleared limit empty instead of the new session's default" do
-    attrs = %{"module" => "Date", "max_events" => "5", "max_rate" => "", "max_seconds" => ""}
+    attrs = %{"module" => "Date", "max_events" => "5", "max_rate" => "", "max_time" => ""}
 
     assert %Config{max_events: 5, max_rate: nil, max_time_ms: nil} = to_config(attrs)
   end
 
-  test "puts a time over the cap on the seconds field, in seconds" do
-    assert %{max_seconds: ["must be less than or equal to 3600"]} =
-             errors(%{"max_seconds" => "7200"})
+  test "puts a time over the cap on the time field, in its unit" do
+    assert %{max_time: ["must be less than or equal to 3600"]} =
+             errors(%{"max_time" => "7200", "max_time_unit" => "s"})
+
+    assert %{max_time: ["must be less than or equal to 3600000"]} =
+             errors(%{"max_time" => "7200000", "max_time_unit" => "ms"})
   end
 
   test "drops the typed pids when another process set is picked" do
@@ -73,14 +85,15 @@ defmodule VoyagerWeb.FormSchemas.TraceConfigParamsTest do
     assert %{module: ["must look like MyApp.Repo or :lists"]} = errors(%{"module" => "my app"})
   end
 
-  test "turns the form into a config, from seconds, a pid list and an Elixir module" do
+  test "turns the form into a config, from milliseconds, a pid list and an Elixir module" do
     attrs = %{
       "module" => "MyApp.Repo",
       "function" => "",
       "arity" => "",
       "processes" => "pids",
       "pids" => "<0.1.0>, <0.2.0>\n<0.3.0>",
-      "max_seconds" => "30"
+      "max_time" => "250",
+      "max_time_unit" => "ms"
     }
 
     assert %Config{
@@ -95,7 +108,7 @@ defmodule VoyagerWeb.FormSchemas.TraceConfigParamsTest do
              budget: 5_000,
              max_events: 10_000,
              max_rate: 1_000,
-             max_time_ms: 30_000
+             max_time_ms: 250
            } = to_config(attrs)
   end
 end

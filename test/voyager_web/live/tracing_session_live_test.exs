@@ -222,7 +222,8 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
 
     assert has_element?(view, "#config_processes_all[checked]")
     assert has_element?(view, "#config_max_events[value='10000']")
-    assert has_element?(view, "#config_max_seconds[value='300']")
+    assert has_element?(view, "#config_max_time[value='300']")
+    assert has_element?(view, "#config_max_time_unit_s[checked]")
 
     view
     |> element("#config-cancel")
@@ -248,6 +249,82 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     end
 
     assert %{config: nil} = Tracer.active()
+  end
+
+  test "ignores a save sent after the form was cancelled", %{conn: conn} do
+    %{id: id} = create!()
+    view = open(conn, id)
+
+    view
+    |> element("#session-set-parameters")
+    |> render_click()
+
+    view
+    |> element("#config-cancel")
+    |> render_click()
+
+    render_hook(view, "save-config", %{"config" => %{"module" => "Date", "max_events" => "5"}})
+    settle(view)
+
+    refute has_element?(view, "#config-modal")
+    assert %{config: nil} = Tracer.active()
+  end
+
+  test "keeps the form closed until a cancelled save finishes", %{conn: conn} do
+    %{id: id} = create!()
+    view = open(conn, id)
+
+    view
+    |> element("#session-set-parameters")
+    |> render_click()
+
+    :ok = :sys.suspend(Tracer)
+
+    view
+    |> form("#config-form", config: %{module: "Date", function: "leap_year?", arity: "1"})
+    |> put_submitter("#config-save")
+    |> render_submit()
+
+    view
+    |> element("#config-cancel")
+    |> render_click()
+
+    view
+    |> element("#session-set-parameters")
+    |> render_click()
+
+    refute has_element?(view, "#config-modal")
+
+    :ok = :sys.resume(Tracer)
+    settle(view)
+
+    refute has_element?(view, "#config-modal")
+    assert %{function: "leap_year?"} = Tracer.active().config
+  end
+
+  test "saves a time limit in milliseconds and reopens it in milliseconds", %{conn: conn} do
+    %{id: id} = create!()
+    view = open(conn, id)
+
+    view
+    |> element("#session-set-parameters")
+    |> render_click()
+
+    view
+    |> form("#config-form", config: %{module: "Date", max_time: "1500", max_time_unit: "ms"})
+    |> put_submitter("#config-save")
+    |> render_submit()
+
+    settle(view)
+
+    assert %{max_time_ms: 1_500} = Tracer.active().config
+
+    view
+    |> element("#session-edit")
+    |> render_click()
+
+    assert has_element?(view, "#config_max_time[value='1500']")
+    assert has_element?(view, "#config_max_time_unit_ms[checked]")
   end
 
   test "saves the parameters from the form and closes it", %{conn: conn} do
@@ -314,6 +391,26 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     settle(view)
 
     assert has_element?(view, "#config_function.input-error")
+    refute has_element?(view, "#session-stop")
+  end
+
+  test "shows a missing module at the foot of the form, not on its function", %{conn: conn} do
+    %{id: id} = create!()
+    view = open(conn, id)
+
+    view
+    |> element("#session-set-parameters")
+    |> render_click()
+
+    view
+    |> form("#config-form", config: %{module: "Voyager.NoSuchModule", function: "run"})
+    |> put_submitter("#config-start")
+    |> render_submit()
+
+    settle(view)
+
+    assert has_element?(view, "#config-error")
+    refute has_element?(view, "#config_function.input-error")
     refute has_element?(view, "#session-stop")
   end
 

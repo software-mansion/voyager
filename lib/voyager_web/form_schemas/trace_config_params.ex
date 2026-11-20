@@ -1,8 +1,8 @@
 defmodule VoyagerWeb.FormSchemas.TraceConfigParams do
   @moduledoc """
-  The session parameters form: time in seconds and pids as one text. It holds no tracing
-  rules of its own; `Voyager.Services.Tracer.Config` validates, and its errors land on the
-  form's fields.
+  The session parameters form: time in seconds or milliseconds and pids as one text. It holds
+  no tracing rules of its own; `Voyager.Services.Tracer.Config` validates, and its errors land
+  on the form's fields.
   """
 
   use Ecto.Schema
@@ -10,21 +10,6 @@ defmodule VoyagerWeb.FormSchemas.TraceConfigParams do
   import Ecto.Changeset
 
   alias Voyager.Services.Tracer.Config
-
-  @fields [
-    :module,
-    :function,
-    :arity,
-    :processes,
-    :pids,
-    :capture,
-    :scope,
-    :return_trace,
-    :budget,
-    :max_events,
-    :max_rate,
-    :max_seconds
-  ]
 
   @primary_key false
   embedded_schema do
@@ -39,7 +24,8 @@ defmodule VoyagerWeb.FormSchemas.TraceConfigParams do
     field :budget, :integer
     field :max_events, :integer
     field :max_rate, :integer
-    field :max_seconds, :integer
+    field :max_time, :integer
+    field :max_time_unit, Ecto.Enum, values: [:s, :ms]
   end
 
   @type t :: %__MODULE__{}
@@ -57,6 +43,8 @@ defmodule VoyagerWeb.FormSchemas.TraceConfigParams do
       })
 
   def from_config(%Config{} = config) do
+    {max_time, max_time_unit} = form_time(config.max_time_ms)
+
     %__MODULE__{
       module: typed_module(config.module),
       function: if(config.function != "_", do: config.function),
@@ -69,14 +57,15 @@ defmodule VoyagerWeb.FormSchemas.TraceConfigParams do
       budget: config.budget,
       max_events: config.max_events,
       max_rate: config.max_rate,
-      max_seconds: config.max_time_ms && div(config.max_time_ms, 1_000)
+      max_time: max_time,
+      max_time_unit: max_time_unit
     }
   end
 
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(%__MODULE__{} = params, attrs) do
     params
-    |> cast(attrs, @fields)
+    |> cast(attrs, __schema__(:fields))
     |> validate_change(:module, fn :module, module ->
       if Config.module_name(module),
         do: [],
@@ -101,19 +90,29 @@ defmodule VoyagerWeb.FormSchemas.TraceConfigParams do
 
   # A field that already failed to cast or parse would get a second, misleading error.
   defp copy_error({field, error}, changeset) do
-    {field, {message, opts}} = form_error(field, error)
+    {field, {message, opts}} = form_error(field, error, get_field(changeset, :max_time_unit))
 
     if Keyword.has_key?(changeset.errors, field),
       do: changeset,
       else: add_error(changeset, field, message, opts)
   end
 
-  defp form_error(:max_time_ms, {message, opts}) do
-    opts = if opts[:number], do: Keyword.put(opts, :number, div(opts[:number], 1_000)), else: opts
-    {:max_seconds, {message, opts}}
+  defp form_error(:max_time_ms, {message, opts}, unit) do
+    opts =
+      if opts[:number] && unit != :ms,
+        do: Keyword.update!(opts, :number, &div(&1, 1_000)),
+        else: opts
+
+    {:max_time, {message, opts}}
   end
 
-  defp form_error(field, error), do: {field, error}
+  defp form_error(field, error, _unit), do: {field, error}
+
+  defp form_time(ms) when is_integer(ms) and rem(ms, 1_000) != 0, do: {ms, :ms}
+  defp form_time(ms), do: {ms && div(ms, 1_000), :s}
+
+  defp time_ms(time, :ms), do: time
+  defp time_ms(time, _seconds), do: time && time * 1_000
 
   defp typed_module(nil), do: nil
   defp typed_module("Elixir." <> elixir), do: elixir
@@ -132,7 +131,7 @@ defmodule VoyagerWeb.FormSchemas.TraceConfigParams do
       budget: params.budget,
       max_events: params.max_events,
       max_rate: params.max_rate,
-      max_time_ms: params.max_seconds && params.max_seconds * 1_000
+      max_time_ms: time_ms(params.max_time, params.max_time_unit)
     }
   end
 
