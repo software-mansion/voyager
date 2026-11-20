@@ -223,7 +223,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#config_processes_all[checked]")
     assert has_element?(view, "#config_max_events[value='10000']")
     assert has_element?(view, "#config_max_time[value='300']")
-    assert has_element?(view, "#config_max_time_unit_s[checked]")
+    assert has_element?(view, "#config_max_time_unit-s-option input[checked]")
 
     view
     |> element("#config-cancel")
@@ -324,7 +324,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     |> render_click()
 
     assert has_element?(view, "#config_max_time[value='1500']")
-    assert has_element?(view, "#config_max_time_unit_ms[checked]")
+    assert has_element?(view, "#config_max_time_unit-ms-option input[checked]")
   end
 
   test "saves the parameters from the form and closes it", %{conn: conn} do
