@@ -339,6 +339,30 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#config_pids.input-error")
   end
 
+  test "keeps the typed pids while another process set is picked", %{conn: conn} do
+    %{id: id} = create!()
+    view = open(conn, id)
+
+    view
+    |> element("#session-set-parameters")
+    |> render_click()
+
+    changes = [
+      %{processes: "pids"},
+      %{pids: "<0.1.0>"},
+      %{processes: "all"},
+      %{processes: "pids"}
+    ]
+
+    for change <- changes do
+      view
+      |> form("#config-form", config: change)
+      |> render_change()
+    end
+
+    assert has_element?(view, "#config_pids[value='<0.1.0>']")
+  end
+
   test "edits the parameters of a stopped session, adding no row when nothing changed", %{
     conn: conn
   } do
@@ -452,7 +476,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#flash-error", "No loaded function matches")
   end
 
-  test "closes the form and ignores its save once the session leaves the tracer", %{
+  test "closes the form and ignores its changes and save once the session leaves the tracer", %{
     conn: conn
   } do
     %{id: id} = create!(save: true)
@@ -464,6 +488,10 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
 
     %{id: replacing} = create!()
     render_async(view)
+
+    refute has_element?(view, "#config-modal")
+
+    render_hook(view, "validate-config", %{"config" => %{"module" => "Date"}})
 
     refute has_element?(view, "#config-modal")
 

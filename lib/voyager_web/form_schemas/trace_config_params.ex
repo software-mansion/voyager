@@ -125,7 +125,7 @@ defmodule VoyagerWeb.FormSchemas.TraceConfigParams do
       function: params.function || "_",
       arity: params.arity,
       processes: params.processes,
-      pids: String.split(params.pids || "", ~r/[\s,]+/, trim: true),
+      pids: pids(params),
       capture: params.capture,
       scope: params.scope,
       return_trace: params.return_trace,
@@ -135,4 +135,10 @@ defmodule VoyagerWeb.FormSchemas.TraceConfigParams do
       max_time_ms: params.max_seconds && params.max_seconds * 1_000
     }
   end
+
+  # The hidden pids input keeps its text for another process set; the config must not.
+  defp pids(%__MODULE__{processes: :pids, pids: pids}),
+    do: String.split(pids || "", ~r/[\s,]+/, trim: true)
+
+  defp pids(_params), do: []
 end

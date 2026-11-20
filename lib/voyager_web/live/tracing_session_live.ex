@@ -244,7 +244,11 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> noreply()
   end
 
-  def handle_event("validate-config", %{"config" => attrs}, socket) do
+  def handle_event(
+        "validate-config",
+        %{"config" => attrs},
+        %{assigns: %{config_form: %Phoenix.HTML.Form{}}} = socket
+      ) do
     changeset = TraceConfigParams.changeset(%TraceConfigParams{}, attrs)
 
     socket
@@ -265,9 +269,10 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> noreply()
   end
 
-  # Sent before the view saw the session change, it would configure whichever one the tracer holds.
-  def handle_event(event, _params, socket) when event in ["edit-config", "save-config"],
-    do: {:noreply, socket}
+  # Sent after the form closed: a change would reopen it, a save configure the wrong session.
+  def handle_event(event, _params, socket)
+      when event in ["edit-config", "validate-config", "save-config"],
+      do: {:noreply, socket}
 
   def handle_event("cancel-confirm", _params, socket) do
     socket
@@ -478,7 +483,8 @@ defmodule VoyagerWeb.TracingSessionLive do
         do: socket,
         else: Log.load(socket)
 
-    editable? = mode == :active and session.node in [nil, socket.assigns.session.node]
+    editable? =
+      mode == :active and not TracingComponents.other_node?(session, socket.assigns.session.node)
 
     socket
     |> assign(:trace_session, AsyncResult.ok(session))
