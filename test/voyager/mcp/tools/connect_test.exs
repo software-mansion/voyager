@@ -12,6 +12,7 @@ defmodule Voyager.MCP.Tools.ConnectTest do
   alias Voyager.NodeSession.Connectors.Ssh, as: SshConnector
   alias Voyager.Schemas.Connection
   alias Voyager.Schemas.SshConnection
+  alias Voyager.Services.DemoNode
   alias Voyager.Test.SshKeys
   alias Voyager.Test.SshServer
 
@@ -95,6 +96,35 @@ defmodule Voyager.MCP.Tools.ConnectTest do
       assert %{"status" => "connected"} = args |> execute() |> run()
       args |> Map.put("ssh_port", 2222) |> execute() |> assert_error()
       args |> Map.put("epmd_port", 14_369) |> execute() |> assert_error()
+    end
+  end
+
+  describe "the demo node" do
+    test "connects a started demo without saving it" do
+      Mox.set_mox_global()
+      Mox.stub_with(Voyager.ErpcMock, Voyager.Erpc.Impl)
+      on_exit(fn -> if Node.alive?(), do: :net_kernel.stop() end)
+      start_demo_node!()
+      {:ok, _params} = DemoNode.start()
+
+      assert %{"status" => "connected", "node" => "voyager_demo@127.0.0.1"} =
+               %{"node_name" => "voyager_demo@127.0.0.1"} |> execute() |> run()
+
+      assert %NodeSession.Session{node_name: "voyager_demo@127.0.0.1"} = NodeSession.current()
+      assert Repo.all(Connection) == []
+
+      :ok = NodeSession.disconnect()
+    end
+
+    test "points at start_demo with no demo running, without opening Voyager" do
+      start_demo_node!()
+      Process.register(self(), ElixirKit.PubSub)
+
+      assert {:reply, %Response{isError: true, content: [%{"text" => message}]}, %Frame{}} =
+               execute(%{"node_name" => "voyager_demo@127.0.0.1"})
+
+      assert message =~ "`start_demo`"
+      refute_received {:"$gen_cast", {:broadcast, "messages", _}}
     end
   end
 

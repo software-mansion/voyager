@@ -7,6 +7,7 @@ defmodule Voyager.Services.DemoNodeTest do
   alias Voyager.Actions.Connections, as: ConnectionActions
   alias Voyager.Actions.SshConnections, as: SshConnectionActions
   alias Voyager.NodeSession
+  alias Voyager.Queries.Connections, as: ConnectionQueries
   alias Voyager.Services.DemoNode
 
   @node :"voyager_demo@127.0.0.1"
@@ -195,6 +196,37 @@ defmodule Voyager.Services.DemoNodeTest do
     assert_receive {:DOWN, ^ref, :process, ^peer, _reason}
     assert demo_peer() == nil
     assert_receive {:telemetry, [:voyager, :demo, :stop], _, %{reason: :halted}}
+  end
+
+  test "connects to the running demo node without saving a connection" do
+    Mox.set_mox_global()
+    Mox.stub_with(Voyager.ErpcMock, Voyager.Erpc.Impl)
+    on_exit(fn -> if Node.alive?(), do: :net_kernel.stop() end)
+    start_demo_node!()
+    {:ok, _params} = DemoNode.start()
+
+    assert DemoNode.connect() == :ok
+    assert %NodeSession.Session{node: @node} = NodeSession.current()
+    assert ConnectionQueries.all() == []
+
+    :ok = NodeSession.disconnect()
+  end
+
+  test "does not connect without a running demo node" do
+    start_demo_node!()
+
+    assert DemoNode.connect() == {:error, :not_started}
+  end
+
+  test "forgets the cookie once the demo node stops" do
+    start_demo_node!()
+    {:ok, _params} = DemoNode.start()
+    ref = Process.monitor(demo_peer())
+
+    broadcast({:node_connected, :"other@127.0.0.1"})
+
+    assert_receive {:DOWN, ^ref, :process, _pid, _reason}
+    assert DemoNode.connect() == {:error, :not_started}
   end
 
   def forward_telemetry(event, measurements, metadata, pid),
