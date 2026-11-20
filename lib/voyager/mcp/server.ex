@@ -19,8 +19,12 @@ defmodule Voyager.MCP.Server do
   component(Voyager.MCP.Tools.EtsReadTableChunk)
   component(Voyager.MCP.Tools.EtsSearchTable)
   component(Voyager.MCP.Tools.CreateTraceSession)
+  component(Voyager.MCP.Tools.TraceConfigure)
   component(Voyager.MCP.Tools.ModuleList)
   component(Voyager.MCP.Tools.TraceHistory)
+  component(Voyager.MCP.Tools.TraceStart)
+  component(Voyager.MCP.Tools.TraceStop)
+  component(Voyager.MCP.Tools.TraceWatch)
 
   @impl true
   def init(_client_info, frame), do: {:ok, frame}

@@ -8,6 +8,8 @@ defmodule Voyager.MCP.Router do
 
   use Plug.Router
 
+  alias Voyager.MCP.Tools.TraceWatch
+
   @loopback_hosts ~w(localhost 127.0.0.1 ::1 [::1])
 
   plug :require_loopback_host
@@ -22,7 +24,11 @@ defmodule Voyager.MCP.Router do
 
   forward "/mcp",
     to: Anubis.Server.Transport.StreamableHTTP.Plug,
-    init_opts: [server: Voyager.MCP.Server]
+    init_opts: [
+      server: Voyager.MCP.Server,
+      # Bounds every tool call, so it must outlast the longest `trace_watch`.
+      request_timeout: TraceWatch.max_wait() + to_timeout(minute: 1)
+    ]
 
   match _ do
     send_resp(conn, 404, "Not found")

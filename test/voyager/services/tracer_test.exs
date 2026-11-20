@@ -218,6 +218,17 @@ defmodule Voyager.Services.TracerTest do
     assert {:ok, %{status: :running}} = Tracer.start(:ui)
   end
 
+  test "refuses to create and start a saved session while saved ones use all the storage" do
+    {:ok, _} = Voyager.Settings.put(:trace_storage_limit_mb, 0)
+    rows = Repo.aggregate(TraceSession, :count)
+    attrs = %{module: "Elixir.Date", processes: "all", max_events: 1_000}
+
+    assert {:error, :storage_limit} =
+             Tracer.create_and_start(Node.self(), attrs, :mcp, save: true)
+
+    assert Repo.aggregate(TraceSession, :count) == rows
+  end
+
   test "keeps an unsaved session out of the database" do
     assert {:ok, %{id: id}} = configure(%{max_events: 1})
     assert id < 0
@@ -537,6 +548,29 @@ defmodule Voyager.Services.TracerTest do
              saved.last_run
 
     assert {:error, :not_found} = Tracer.summary(-1)
+  end
+
+  test "start, stop and configure refuse a session that is not the expected one" do
+    assert {:ok, %{id: id} = session} = configure()
+
+    assert {:error, :changed} = Tracer.start(:ui, id + 1)
+
+    assert {:error, :changed} =
+             Tracer.configure(node(), Map.from_struct(session.config), :ui, id + 1)
+
+    assert {:ok, _session} = Tracer.start(:ui, id)
+    assert {:error, :changed} = Tracer.stop(:ui, id + 1)
+    assert %{status: :running} = Tracer.active()
+    assert :ok = Tracer.stop(:ui, id)
+  end
+
+  test "configuring a stopped session sets it back to idle" do
+    assert {:ok, %{id: id}} = configure(%{max_events: 1})
+    assert {:ok, _session} = Tracer.start(:ui)
+    Date.leap_year?(~D[2024-01-01])
+    assert_receive {:session_entries, %{id: ^id, status: :stopped}, _entries}
+
+    assert {:ok, %{status: :idle}} = configure(%{max_events: 2})
   end
 
   test "lists a session's runs the same from memory and from the database" do

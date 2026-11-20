@@ -9,6 +9,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
   alias Voyager.Fakes
   alias Voyager.MCP.Tools.CreateTraceSession
   alias Voyager.NodeSession
+  alias Voyager.Queries.TraceSessions, as: TraceSessionQueries
   alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Writer
   alias Voyager.Test.VoyagerAgentFixture
@@ -43,6 +44,8 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
                input.input_requests
 
       properties = params["requestedSchema"]["properties"]
+      assert properties["scope"]["default"] == "global"
+      assert properties["save"]["default"] == false
       assert properties["function"]["default"] == "Date.leap_year?/1"
       assert properties["max_rate"]["default"] == 5
       assert properties["capture_args"]["default"] == false
@@ -92,9 +95,10 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
     test "starts the accepted session and returns its id", %{pid: pid} do
       content = %{"function" => "Date.leap_year?/1", "pids" => pid, "capture_args" => true}
 
-      %{"status" => "started", "session_id" => id} =
+      %{"status" => "started", "session_id" => id, "next" => next} =
         %{} |> execute(answered(accept(content))) |> run()
 
+      assert next =~ "trace_watch"
       assert %{id: ^id, origin: :mcp, status: :running, config: config} = Tracer.active()
 
       assert %{module: "Elixir.Date", function: "leap_year?", arity: 1, capture: :args} = config
@@ -138,6 +142,46 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
       end
 
       refute match?(%{origin: :mcp, status: :running}, Tracer.active())
+    end
+
+    test "starts a saved session of new processes in local scope" do
+      content = %{
+        "function" => "Date.leap_year?/1",
+        "scope" => "local",
+        "new_processes_only" => true,
+        "save" => true
+      }
+
+      %{"status" => "started", "session_id" => id} =
+        %{} |> execute(answered(accept(content))) |> run()
+
+      assert %{id: ^id, save: true, config: %{scope: :local, processes: :new}} = Tracer.active()
+      assert TraceSessionQueries.get(id)
+    end
+
+    test "leaves no saved row behind when the agent refuses the start" do
+      before = length(TraceSessionQueries.all())
+      content = %{"function" => "Voyager.Missing", "save" => true}
+
+      assert %{} |> execute(answered(accept(content))) |> assert_error()
+      assert length(TraceSessionQueries.all()) == before
+    end
+
+    test "warns that the form discards an unsaved session with events", %{pid: pid} do
+      %{"session_id" => id} =
+        %{}
+        |> execute(answered(accept(%{"function" => "Date.leap_year?/1", "pids" => pid})))
+        |> run()
+
+      Date.leap_year?(~D[2024-01-01])
+      Tracer.stop(:ui)
+      _ = :sys.get_state(Tracer)
+
+      assert {:reply, %InputRequired{input_requests: %{"session" => request}}, _frame} =
+               execute(%{})
+
+      assert request["params"]["message"] =~ "discards"
+      assert request["params"]["message"] =~ "#{id}"
     end
 
     test "reads max_seconds sent as a string", %{pid: pid} do
