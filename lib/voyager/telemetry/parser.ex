@@ -92,6 +92,13 @@ defmodule Voyager.Telemetry.Parser do
     Map.take(m, [:hosts, :unsupported])
   end
 
+  def parse_measurements([:voyager, :demo, event], m)
+      when event in [:start, :start_failed, :stop] do
+    Map.take(m, [:duration_ms])
+  end
+
+  def parse_measurements([:voyager, :demo, :connect], m), do: Map.take(m, [:time_to_connect_ms])
+
   def parse_measurements([:anubis_mcp, :server, :tool_call, :start], _m), do: %{}
 
   def parse_measurements([:anubis_mcp, :server, :tool_call, :stop], m) do
@@ -147,7 +154,11 @@ defmodule Voyager.Telemetry.Parser do
   end
 
   def parse_metadata([:voyager, :trace, event], meta) when event in [:start_failed, :stop] do
-    %{origin: meta[:origin], reason: trace_reason(meta[:reason])}
+    %{origin: meta[:origin], reason: reason_tag(meta[:reason])}
+  end
+
+  def parse_metadata([:voyager, :demo, event], meta) when event in [:start_failed, :stop] do
+    %{reason: reason_tag(meta[:reason])}
   end
 
   def parse_metadata([:voyager, :ssh_config, :import], meta) do
@@ -189,13 +200,13 @@ defmodule Voyager.Telemetry.Parser do
 
   defp sanitize_reason(_reason), do: "unknown"
 
-  # Trace reasons are atoms from the agent and the Tracer; tuple payloads can carry module names or pids.
-  defp trace_reason(reason) when is_atom(reason), do: Atom.to_string(reason)
+  # Tuple payloads can carry module names or pids.
+  defp reason_tag(reason) when is_atom(reason), do: Atom.to_string(reason)
 
-  defp trace_reason(reason) when is_tuple(reason) and is_atom(elem(reason, 0)),
+  defp reason_tag(reason) when is_tuple(reason) and is_atom(elem(reason, 0)),
     do: reason |> elem(0) |> Atom.to_string()
 
-  defp trace_reason(_reason), do: "unknown"
+  defp reason_tag(_reason), do: "unknown"
 
   defp ssh_config_keyword(keyword) when keyword in @ssh_config_keywords, do: keyword
   defp ssh_config_keyword(_keyword), do: "other"

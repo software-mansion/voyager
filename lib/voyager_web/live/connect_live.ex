@@ -6,6 +6,7 @@ defmodule VoyagerWeb.ConnectLive do
   alias Voyager.Queries.Connections, as: ConnectionQueries
   alias Voyager.Queries.SshConnections, as: SshConnectionQueries
   alias VoyagerWeb.ConnectComponents
+  alias VoyagerWeb.ConnectLive.DemoBanner
 
   @prefill_keys ~w(connection node_name name_type ssh_user ssh_host ssh_port epmd_port auth_method key_path agent_socket_path)
 
@@ -28,6 +29,7 @@ defmodule VoyagerWeb.ConnectLive do
     |> assign(:mode, mode)
     |> assign(:prefill, prefill(params))
     |> maybe_sync_mode_url(mode, params)
+    |> maybe_start_demo(params)
     |> noreply()
   end
 
@@ -37,120 +39,129 @@ defmodule VoyagerWeb.ConnectLive do
 
     ~H"""
     <div class="bg-base-200 scrollbar-gutter-both h-full overflow-y-auto">
-      <div class="min-w-96 flex min-h-full items-center justify-center p-4">
-        <div class="card bg-base-100 w-full max-w-lg shadow-xl">
-          <div class="card-body group gap-0 p-10">
-            <div class="mb-7 flex items-center gap-3">
-              <.logo />
-              <div class="text-base-content text-lg font-semibold tracking-tight">Voyager</div>
-              <.link
-                id="open-settings"
-                href={~p"/settings"}
-                title="Settings"
-                class="btn btn-ghost btn-square toolbar-btn text-base-content/60 ml-auto hover:text-base-content"
-              >
-                <.icon name="icon-settings" class="toolbar-icon" />
-              </.link>
-            </div>
-            <ConnectComponents.connected_indicator session={@connected_session} />
+      <div class="min-w-96 pt-13 flex min-h-full items-center justify-center px-4 pb-4">
+        <div class="relative w-full max-w-lg">
+          <.live_component
+            :if={is_nil(@connected_session)}
+            module={DemoBanner}
+            id="demo-banner"
+            connect_id="direct-connect"
+            disabled?={@connecting?}
+          />
+          <div class="card bg-base-100 relative z-10 w-full shadow-xl">
+            <div class="card-body group gap-0 p-10">
+              <div class="mb-7 flex items-center gap-3">
+                <.logo />
+                <div class="text-base-content text-lg font-semibold tracking-tight">Voyager</div>
+                <.link
+                  id="open-settings"
+                  href={~p"/settings"}
+                  title="Settings"
+                  class="btn btn-ghost btn-square toolbar-btn text-base-content/60 ml-auto hover:text-base-content"
+                >
+                  <.icon name="icon-settings" class="toolbar-icon" />
+                </.link>
+              </div>
+              <ConnectComponents.connected_indicator session={@connected_session} />
 
-            <div class="mb-6">
-              <h1 class="text-base-content mb-1 text-2xl font-semibold tracking-tight">
-                Connect to a node
-              </h1>
-              <.link
-                id="connect-tutorial-link"
-                href="https://github.com/software-mansion/voyager/blob/main/docs/connecting_to_a_node.md"
-                target="_blank"
-                rel="noopener"
-                class={[
-                  "mb-4 inline-flex items-center gap-1 text-xs hover:underline",
-                  "group-has-[.phx-submit-loading]:text-base-content/50",
-                  if(@connected_session || @connecting?,
-                    do: "text-base-content/50",
-                    else: "text-primary"
-                  )
-                ]}
-              >
-                How to prepare your node <.icon name="icon-circle-help" class="size-3.5" />
-              </.link>
-              <h4 class="font-mono tracking-label text-base-content/70 mb-2 text-xs uppercase">
-                Connection type:
-              </h4>
-              <ConnectComponents.mode_toggle
-                mode={@mode}
-                disabled={not is_nil(@mode_disabled_reason)}
-                reason={@mode_disabled_reason}
-              >
-                <:disabled_reason :if={@mode_disabled_reason == :connected}>
-                  Cannot change mode while connected
-                </:disabled_reason>
-                <:disabled_reason :if={@mode_disabled_reason == :connecting}>
-                  Cannot change mode while connecting
-                </:disabled_reason>
-                <:disabled_reason :if={@mode_disabled_reason == :proxy_epmd_inactive}>
-                  Cannot change to SSH tunnel mode while <strong>proxy_epmd</strong>
-                  module is not active
-                </:disabled_reason>
-              </ConnectComponents.mode_toggle>
-              <p
-                :if={@mode == :direct}
-                class="text-base-content/70 text-sm"
-              >
-                Inspect node on your machine.
-              </p>
-              <p
-                :if={@mode == :ssh}
-                class="text-base-content/70 text-sm"
-              >
-                Tunnel into a remote machine to reach its node.
-              </p>
-            </div>
+              <div class="mb-6">
+                <h1 class="text-base-content mb-1 text-2xl font-semibold tracking-tight">
+                  Connect to a node
+                </h1>
+                <.link
+                  id="connect-tutorial-link"
+                  href="https://github.com/software-mansion/voyager/blob/main/docs/connecting_to_a_node.md"
+                  target="_blank"
+                  rel="noopener"
+                  class={[
+                    "mb-4 inline-flex items-center gap-1 text-xs hover:underline",
+                    "group-has-[.phx-submit-loading]:text-base-content/50",
+                    if(@connected_session || @connecting?,
+                      do: "text-base-content/50",
+                      else: "text-primary"
+                    )
+                  ]}
+                >
+                  How to prepare your node <.icon name="icon-circle-help" class="size-3.5" />
+                </.link>
+                <h4 class="font-mono tracking-label text-base-content/70 mb-2 text-xs uppercase">
+                  Connection type:
+                </h4>
+                <ConnectComponents.mode_toggle
+                  mode={@mode}
+                  disabled={not is_nil(@mode_disabled_reason)}
+                  reason={@mode_disabled_reason}
+                >
+                  <:disabled_reason :if={@mode_disabled_reason == :connected}>
+                    Cannot change mode while connected
+                  </:disabled_reason>
+                  <:disabled_reason :if={@mode_disabled_reason == :connecting}>
+                    Cannot change mode while connecting
+                  </:disabled_reason>
+                  <:disabled_reason :if={@mode_disabled_reason == :proxy_epmd_inactive}>
+                    Cannot change to SSH tunnel mode while <strong>proxy_epmd</strong>
+                    module is not active
+                  </:disabled_reason>
+                </ConnectComponents.mode_toggle>
+                <p
+                  :if={@mode == :direct}
+                  class="text-base-content/70 text-sm"
+                >
+                  Inspect node on your machine.
+                </p>
+                <p
+                  :if={@mode == :ssh}
+                  class="text-base-content/70 text-sm"
+                >
+                  Tunnel into a remote machine to reach its node.
+                </p>
+              </div>
 
-            <div
-              :if={@prefill && is_nil(@connected_session)}
-              id="mcp-connect-request"
-              role="note"
-              class="alert alert-info mb-4 text-xs"
-            >
-              <.icon name="icon-info" class="text-info size-4 shrink-0" />
-              <span>
-                An AI agent asked to connect to this node. Enter the secrets here, they never reach the agent.
-              </span>
-            </div>
+              <div
+                :if={@prefill && is_nil(@connected_session)}
+                id="mcp-connect-request"
+                role="note"
+                class="alert alert-info mb-4 text-xs"
+              >
+                <.icon name="icon-info" class="text-info size-4 shrink-0" />
+                <span>
+                  An AI agent asked to connect to this node. Enter the secrets here, they never reach the agent.
+                </span>
+              </div>
 
-            <div
-              :if={
-                is_nil(@connected_session) and
-                  if(@mode == :ssh, do: @unreadable_ssh_secrets?, else: @unreadable_direct_secrets?)
-              }
-              id="unreadable-secrets"
-              role="alert"
-              class="alert alert-warning mb-4 text-xs"
-            >
-              <.icon name="icon-circle-alert" class="text-warning size-4 shrink-0" />
-              <span>
-                Some saved secrets can't be decrypted, the encryption key probably changed. Enter them again or delete those connections.
-              </span>
-            </div>
+              <div
+                :if={
+                  is_nil(@connected_session) and
+                    if(@mode == :ssh, do: @unreadable_ssh_secrets?, else: @unreadable_direct_secrets?)
+                }
+                id="unreadable-secrets"
+                role="alert"
+                class="alert alert-warning mb-4 text-xs"
+              >
+                <.icon name="icon-circle-alert" class="text-warning size-4 shrink-0" />
+                <span>
+                  Some saved secrets can't be decrypted, the encryption key probably changed. Enter them again or delete those connections.
+                </span>
+              </div>
 
-            <div class={@mode != :direct && "hidden"}>
-              <.live_component
-                module={VoyagerWeb.ConnectLive.DirectConnect}
-                id="direct-connect"
-                disabled?={not is_nil(@connected_session) or @connecting?}
-                connecting?={@connecting?}
-                prefill={if(@mode == :direct, do: @prefill)}
-              />
-            </div>
-            <div class={(@mode != :ssh or !@proxy_epmd_active?) && "hidden"}>
-              <.live_component
-                module={VoyagerWeb.ConnectLive.SshConnect}
-                id="ssh-connect"
-                disabled?={not is_nil(@connected_session) or @connecting?}
-                connecting?={@connecting?}
-                prefill={if(@mode == :ssh, do: @prefill)}
-              />
+              <div class={@mode != :direct && "hidden"}>
+                <.live_component
+                  module={VoyagerWeb.ConnectLive.DirectConnect}
+                  id="direct-connect"
+                  disabled?={not is_nil(@connected_session) or @connecting?}
+                  connecting?={@connecting?}
+                  prefill={if(@mode == :direct, do: @prefill)}
+                />
+              </div>
+              <div class={(@mode != :ssh or !@proxy_epmd_active?) && "hidden"}>
+                <.live_component
+                  module={VoyagerWeb.ConnectLive.SshConnect}
+                  id="ssh-connect"
+                  disabled?={not is_nil(@connected_session) or @connecting?}
+                  connecting?={@connecting?}
+                  prefill={if(@mode == :ssh, do: @prefill)}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -205,6 +216,8 @@ defmodule VoyagerWeb.ConnectLive do
   end
 
   def handle_info(:saved_connection_deleted, socket) do
+    send_update(DemoBanner, id: "demo-banner", refresh: true)
+
     socket
     |> assign_unreadable_secrets()
     |> noreply()
@@ -254,6 +267,20 @@ defmodule VoyagerWeb.ConnectLive do
       socket
     end
   end
+
+  defp maybe_start_demo(socket, %{"demo" => "start"}) do
+    if connected?(socket) do
+      if is_nil(socket.assigns.connected_session) do
+        send_update(DemoBanner, id: "demo-banner", start: true)
+      end
+
+      push_patch(socket, to: connect_path(socket.assigns.mode), replace: true)
+    else
+      socket
+    end
+  end
+
+  defp maybe_start_demo(socket, _params), do: socket
 
   defp prefill(params) do
     case Map.take(params, @prefill_keys) do
