@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.1 (2026-11-20)
+
+#### Enhancements
+
+* `.deb` Linux build alongside the AppImage (which needs `libfuse2`, missing on recent Ubuntu), with its own in-app update channel in [#311](https://github.com/software-mansion/voyager/pull/311)
+
 ## 0.2.0
 
 #### Features
