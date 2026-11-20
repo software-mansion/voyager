@@ -180,6 +180,7 @@ defmodule VoyagerWeb.CoreComponents do
   attr :align, :atom, default: :start, values: [:start, :end]
   attr :side, :atom, default: :bottom, values: [:top, :bottom]
   attr :disabled, :boolean, default: false
+  attr :ghost, :boolean, default: false, doc: "no border or fill, inside another field's border"
 
   def select(%{field: %Phoenix.HTML.FormField{} = field} = assigns) do
     assigns
@@ -218,7 +219,10 @@ defmodule VoyagerWeb.CoreComponents do
         phx-keydown={close_select(@id)}
         phx-key="Escape"
         aria-labelledby={"#{@id}-label #{@id}-value"}
-        class="select select-bordered select-sm select-caret font-mono w-full cursor-pointer list-none pr-8 text-left text-xs font-normal"
+        class={[
+          "select select-bordered select-sm select-caret font-mono w-full cursor-pointer list-none pr-8 text-left text-xs font-normal",
+          @ghost && "select-ghost"
+        ]}
       >
         <span id={"#{@id}-value"}>{@current_label}</span>
       </summary>
@@ -764,6 +768,40 @@ defmodule VoyagerWeb.CoreComponents do
         ]}
         {@rest}
       />
+      <p :for={error <- @errors} class="font-mono text-error mt-1.5 text-xs first-letter:uppercase">
+        {error}
+      </p>
+    </div>
+    """
+  end
+
+  @doc """
+  Renders a number input and its unit picker inside one field border, wired to two form fields.
+
+  Units are `{label, value}` pairs, or a list of values used as both.
+  """
+  attr :field, Phoenix.HTML.FormField, required: true
+  attr :unit_field, Phoenix.HTML.FormField, required: true
+  attr :units, :list, required: true
+  attr :rest, :global, include: ~w(max min placeholder step)
+
+  def input_with_units(assigns) do
+    assigns = assign(assigns, :errors, Enum.map(assigns.field.errors, &translate_error/1))
+
+    ~H"""
+    <div class="w-full">
+      <div class={["input input-bordered w-full pr-1", @errors != [] && "input-error"]}>
+        <input
+          type="number"
+          id={@field.id}
+          name={@field.name}
+          value={Phoenix.HTML.Form.normalize_value("number", @field.value)}
+          class="no-spinner grow"
+          {@rest}
+        />
+        <span id={"#{@unit_field.id}-label"} class="sr-only">Unit</span>
+        <.select field={@unit_field} options={@units} align={:end} class="w-16 shrink-0" ghost />
+      </div>
       <p :for={error <- @errors} class="font-mono text-error mt-1.5 text-xs first-letter:uppercase">
         {error}
       </p>
