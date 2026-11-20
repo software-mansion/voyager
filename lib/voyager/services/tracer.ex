@@ -43,6 +43,8 @@ defmodule Voyager.Services.Tracer do
   alias Voyager.Services.Tracer.Writer
   alias Voyager.Settings
 
+  require Logger
+
   @topic "tracing"
   @session_topic "tracing:session"
   @max_mailbox 1_000
@@ -315,19 +317,19 @@ defmodule Voyager.Services.Tracer do
   def handle_call({:create_and_start, origin, save, node, config, {spec, limits}}, _from, state) do
     session = %{new_session(origin, save) | node: node, config: config}
 
-    case start_tracer(session, spec, limits) do
-      {:ok, tracer} ->
-        broadcast({:session_activated, session})
+    with :ok <- check_storage(session),
+         {:ok, tracer} <- start_tracer(session, spec, limits) do
+      broadcast({:session_activated, session})
 
-        state =
-          %__MODULE__{session: session}
-          |> append([Entry.configured(origin, node, config, nil)])
-          |> begin_run(tracer, origin)
+      state =
+        %__MODULE__{session: session}
+        |> append([Entry.configured(origin, node, config, nil)])
+        |> begin_run(tracer, origin)
 
-        {:reply, {:ok, state.session}, state}
-
+      {:reply, {:ok, state.session}, state}
+    else
       {:error, reason} ->
-        if save, do: TraceSessionActions.delete(session.id)
+        if save, do: delete_unstarted(session.id)
         {:reply, start_failed(reason, origin), state}
     end
   end
@@ -661,6 +663,11 @@ defmodule Voyager.Services.Tracer do
   end
 
   defp check_storage(_session), do: :ok
+
+  defp delete_unstarted(id) do
+    with {:error, reason} <- TraceSessionActions.delete(id),
+         do: Logger.error("Deleting unstarted trace session #{id} failed: #{inspect(reason)}")
+  end
 
   defp request_stop(%{session: session, run: %Run{stop_request: nil}} = state, reason) do
     Task.Supervisor.start_child(Voyager.TaskSupervisor, fn ->

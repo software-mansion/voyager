@@ -218,6 +218,17 @@ defmodule Voyager.Services.TracerTest do
     assert {:ok, %{status: :running}} = Tracer.start(:ui)
   end
 
+  test "refuses to create and start a saved session while saved ones use all the storage" do
+    {:ok, _} = Voyager.Settings.put(:trace_storage_limit_mb, 0)
+    rows = Repo.aggregate(TraceSession, :count)
+    attrs = %{module: "Elixir.Date", processes: "all", max_events: 1_000}
+
+    assert {:error, :storage_limit} =
+             Tracer.create_and_start(Node.self(), attrs, :mcp, save: true)
+
+    assert Repo.aggregate(TraceSession, :count) == rows
+  end
+
   test "keeps an unsaved session out of the database" do
     assert {:ok, %{id: id}} = configure(%{max_events: 1})
     assert id < 0

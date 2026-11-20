@@ -79,10 +79,12 @@ defmodule Voyager.MCP.Tools.TraceConfigure do
   end
 
   defp check_ready(frame) do
+    connection = NodeSession.current()
+
     cond do
-      is_nil(NodeSession.current()) -> {:error, Remote.not_connected()}
+      is_nil(connection) -> {:error, Remote.not_connected()}
       not TraceForm.forms?(frame) -> {:error, TraceForm.no_forms()}
-      true -> {:ok, NodeSession.current()}
+      true -> {:ok, connection}
     end
   end
 
