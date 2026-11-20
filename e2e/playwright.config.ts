@@ -109,10 +109,11 @@ export default defineConfig({
       dependencies: ['recent-connections firefox'],
     },
 
-    // The Tracer holds one active session per Voyager, so a single browser runs these.
+    // The Tracer holds one active session per Voyager, so a single browser runs these in order.
     {
       name: 'tracing chromium',
       use: { ...devices['Desktop Chrome'] },
+      fullyParallel: false,
       testMatch: '**/tracing.spec.ts',
       dependencies: ['recent-connections firefox'],
     },

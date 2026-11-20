@@ -238,7 +238,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
   @doc """
   A term inspector with a copy button.
 
-  The button copies the term in full (`VoyagerWeb.TermFormatter.copy_string/2`)
+  The button copies the term in full (`Voyager.TermFormatter.copy_string/2`)
   from a hidden element, not the collapsed-and-windowed tree the user sees. The
   term is already truncated on the remote before it reaches here, so copying it
   fully is bounded by that same truncation; elided subterms copy as their

@@ -10,8 +10,8 @@ defmodule VoyagerWeb.Components.TracingComponents do
 
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Session
+  alias Voyager.TermFormatter
   alias VoyagerWeb.Formatters
-  alias VoyagerWeb.TermFormatter
 
   @type tone :: :running | :warning | :error | :open
 

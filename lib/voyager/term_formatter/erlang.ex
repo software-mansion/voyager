@@ -1,14 +1,14 @@
-defmodule VoyagerWeb.TermFormatter.Erlang do
+defmodule Voyager.TermFormatter.Erlang do
   @moduledoc """
   Prints terms in Erlang syntax with `erl_pp`, from an abstract form built
   here, so the output never depends on the VM's `+pc` flag. A list reads as a
   string only within Latin-1, as in a default `erl` shell; a binary within Unicode.
   """
 
-  @behaviour VoyagerWeb.TermFormatter
+  @behaviour Voyager.TermFormatter
 
   alias Voyager.Pid
-  alias VoyagerWeb.TermFormatter
+  alias Voyager.TermFormatter
 
   @single_line 1_000_000_000
   @elision {:text, ~c"..."}

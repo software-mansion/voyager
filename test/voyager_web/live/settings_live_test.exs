@@ -28,6 +28,21 @@ defmodule VoyagerWeb.SettingsLiveTest do
       assert has_element?(view, ~s|a#settings-back[href="/"]|)
     end
 
+    test "shows the connected node in the topbar and disconnects from it", %{conn: conn} do
+      Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      assert has_element?(view, "#node-status", "demo@localhost")
+      refute has_element?(view, "#open-settings")
+
+      view |> element("#disconnect") |> render_click()
+
+      assert has_element?(view, "#flash-info", "Node disconnected: demo@localhost")
+      refute has_element?(view, "#node-status")
+      refute has_element?(view, "#distribution-settings-connected")
+    end
+
     test "goes back in history when opened from inside the app", %{conn: conn} do
       {:ok, view, _html} =
         conn

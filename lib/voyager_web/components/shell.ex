@@ -21,7 +21,7 @@ defmodule VoyagerWeb.Components.Shell do
     ~H"""
     <div class="bg-base-200 flex h-full flex-col overflow-x-auto overflow-y-hidden">
       <div class="min-w-lg flex min-h-0 flex-1 flex-col">
-        <.topbar session={@session} mcp_status={@mcp_status} tracing_session={@tracing_session} />
+        <.topbar session={@session} tracing_session={@tracing_session} />
 
         <div class="relative flex flex-1 overflow-y-hidden">
           <.sidebar
@@ -40,19 +40,20 @@ defmodule VoyagerWeb.Components.Shell do
     """
   end
 
-  attr :session, Session, required: true
-  attr :mcp_status, :map, default: %{alive?: false, url: nil}
+  attr :session, Session, default: nil
   attr :tracing_session, Tracer.Session, default: nil
+  attr :settings_link?, :boolean, default: true
 
-  defp topbar(assigns) do
+  def topbar(assigns) do
     ~H"""
     <div class="bg-base-100 border-base-300 min-h-14 grid-cols-[auto_1fr_auto] z-10 grid flex-none items-center gap-4 border-b px-4">
       <.brand />
       <div class="@container/nav-status flex min-w-0 items-center gap-3">
-        <.node_indicator session={@session} />
-        <.tracing_indicator session={@tracing_session} connected_node={@session.node} />
+        <.node_indicator :if={@session} session={@session} />
+        <.tracing_indicator :if={@session} session={@tracing_session} connected_node={@session.node} />
       </div>
       <.link
+        :if={@settings_link?}
         href={~p"/settings"}
         id="open-settings"
         title="Settings"
@@ -60,24 +61,6 @@ defmodule VoyagerWeb.Components.Shell do
       >
         <.icon name="icon-settings" class="toolbar-icon" />
       </.link>
-    </div>
-    """
-  end
-
-  @doc """
-  Renders the topbar used by the settings page, showing the brand mark.
-  """
-  attr :tracing_session, Tracer.Session, default: nil
-
-  def settings_topbar(assigns) do
-    ~H"""
-    <div class="navbar bg-base-100 border-base-300 min-h-14 z-10 flex-none gap-3 border-b px-4">
-      <div class="navbar-start gap-3">
-        <.brand />
-      </div>
-      <div class="navbar-end @container/nav-status min-w-0">
-        <.tracing_indicator session={@tracing_session} />
-      </div>
     </div>
     """
   end
@@ -96,7 +79,7 @@ defmodule VoyagerWeb.Components.Shell do
       )
 
     ~H"""
-    <.tooltip id="tracing-indicator-tip" position="bottom" class="shrink-0">
+    <.tooltip id="tracing-indicator-tip" position="bottom" class="shrink-0" tip_class="!max-w-lg">
       <.link
         navigate={tracing_session_path(@session, @connected_node)}
         id="tracing-indicator"

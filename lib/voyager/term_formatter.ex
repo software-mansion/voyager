@@ -1,4 +1,4 @@
-defmodule VoyagerWeb.TermFormatter do
+defmodule Voyager.TermFormatter do
   @moduledoc """
   Renders any term as text in Elixir or Erlang syntax.
 
@@ -8,8 +8,8 @@ defmodule VoyagerWeb.TermFormatter do
   """
 
   alias Voyager.Services.TermSyntax
-  alias VoyagerWeb.TermFormatter.Elixir, as: ElixirFormatter
-  alias VoyagerWeb.TermFormatter.Erlang, as: ErlangFormatter
+  alias Voyager.TermFormatter.Elixir, as: ElixirFormatter
+  alias Voyager.TermFormatter.Erlang, as: ErlangFormatter
 
   @callback inspect(term(), keyword()) :: String.t()
   @callback copy_string(term(), keyword()) :: String.t()

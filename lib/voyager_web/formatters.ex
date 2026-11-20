@@ -149,6 +149,6 @@ defmodule VoyagerWeb.Formatters do
   defdelegate pid(pid), to: Voyager.Pid, as: :format
   defdelegate pid(pid, format), to: Voyager.Pid, as: :format
 
-  defdelegate format_term(term, opts \\ []), to: VoyagerWeb.TermFormatter, as: :inspect
-  defdelegate format_mfa(mfa, opts \\ []), to: VoyagerWeb.TermFormatter
+  defdelegate format_term(term, opts \\ []), to: Voyager.TermFormatter, as: :inspect
+  defdelegate format_mfa(mfa, opts \\ []), to: Voyager.TermFormatter
 end

@@ -6,6 +6,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   use VoyagerWeb, :component
 
+  alias Voyager.TermFormatter
   alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Components.DetailsPanelComponents
   alias VoyagerWeb.Components.EtsTableComponents
@@ -15,7 +16,6 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.FormSchemas.EtsLookupControls
   alias VoyagerWeb.FormSchemas.EtsPeekControls
-  alias VoyagerWeb.TermFormatter
   alias VoyagerWeb.TermTree.State
 
   @truncated :"$voyager_truncated"

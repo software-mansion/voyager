@@ -1,9 +1,9 @@
-defmodule VoyagerWeb.TermFormatterTest do
+defmodule Voyager.TermFormatterTest do
   use ExUnit.Case, async: true
 
   import Voyager.TestUtils, only: [erl_eval: 1]
 
-  alias VoyagerWeb.TermFormatter
+  alias Voyager.TermFormatter
 
   @atoms [:ok, :"hello world", :"it's", :żółć, :end, Enum, nil]
   @numbers [-3, ?a, 159, 0x10FFFF, 10 ** 40, 0.1, -0.0, 5.0e-324]
