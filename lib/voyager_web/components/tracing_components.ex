@@ -15,9 +15,9 @@ defmodule VoyagerWeb.Components.TracingComponents do
 
   @type tone :: :running | :warning | :error | :open
 
-  @spec tone(Session.t()) :: tone()
-  def tone(%Session{status: :running}), do: :running
-  def tone(%Session{status: :stopped, stop_reason: reason}), do: reason_tone(reason)
+  @spec tone(Session.t() | map()) :: tone()
+  def tone(%{status: :running}), do: :running
+  def tone(%{status: :stopped, stop_reason: reason}), do: reason_tone(reason)
   def tone(_session), do: :open
 
   @spec other_node?(Session.t(), node() | nil) :: boolean()
@@ -563,18 +563,23 @@ defmodule VoyagerWeb.Components.TracingComponents do
   attr :id, :string, required: true
   attr :title, :string, required: true
   attr :confirm_label, :string, required: true
-  attr :on_confirm, :string, required: true
-  attr :on_cancel, :string, required: true
+  attr :on_confirm, :any, required: true
+  attr :on_cancel, :any, required: true
+  attr :on_dismiss, :any, default: nil, doc: "Escape and backdrop click; defaults to `on_cancel`"
+  attr :cancel_label, :string, default: "Cancel"
+  attr :confirm_class, :string, default: "btn-error dark:text-base-100"
   slot :inner_block, required: true
 
   def confirm_modal(assigns) do
+    assigns = assign(assigns, :on_dismiss, assigns.on_dismiss || assigns.on_cancel)
+
     ~H"""
     <div
       id={@id}
       role="dialog"
       aria-modal="true"
       aria-labelledby={"#{@id}-title"}
-      phx-window-keydown={@on_cancel}
+      phx-window-keydown={@on_dismiss}
       phx-key="Escape"
       class="modal modal-open"
     >
@@ -589,18 +594,19 @@ defmodule VoyagerWeb.Components.TracingComponents do
         {render_slot(@inner_block)}
         <div class="modal-action">
           <button type="button" id={"#{@id}-cancel"} phx-click={@on_cancel} class="btn btn-ghost">
-            Cancel
+            {@cancel_label}
           </button>
           <button
             type="button"
             id={"#{@id}-confirm"}
             phx-click={@on_confirm}
-            class="btn btn-error dark:text-base-100"
+            class={["btn", @confirm_class]}
           >
             {@confirm_label}
           </button>
         </div>
       </.focus_wrap>
+      <div id={"#{@id}-backdrop"} class="modal-backdrop" phx-click={@on_dismiss}></div>
     </div>
     """
   end
@@ -658,6 +664,16 @@ defmodule VoyagerWeb.Components.TracingComponents do
   @spec count(non_neg_integer(), String.t(), String.t()) :: String.t()
   def count(1, singular, _plural), do: "1 #{singular}"
   def count(n, _singular, plural), do: "#{Formatters.format_integer(n)} #{plural}"
+
+  @spec format_storage_bytes(non_neg_integer()) :: String.t()
+  def format_storage_bytes(bytes) when bytes < 1_000_000,
+    do: "#{Formatters.format_integer(div(bytes + 999, 1_000))} KB"
+
+  def format_storage_bytes(bytes) when bytes < 100_000_000,
+    do: :erlang.float_to_binary(bytes / 1_000_000, decimals: 1) <> " MB"
+
+  def format_storage_bytes(bytes),
+    do: "#{Formatters.format_integer(div(bytes, 1_000_000))} MB"
 
   @spec reason_tone(Voyager.Services.Tracer.stop_reason() | nil) :: tone()
   def reason_tone({:tracer_down, _reason}), do: :error
