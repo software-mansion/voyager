@@ -79,4 +79,11 @@ defmodule Voyager.MCP.Tools.TraceStartTest do
 
     assert error!(TraceStart.execute(%{}, %Frame{})) =~ "module_list"
   end
+
+  test "explains a saved session without storage left" do
+    configure(%{}, save: true)
+    {:ok, _} = Voyager.Settings.put(:trace_storage_limit_mb, 0)
+
+    assert error!(TraceStart.execute(%{}, %Frame{})) =~ "delete a saved session"
+  end
 end

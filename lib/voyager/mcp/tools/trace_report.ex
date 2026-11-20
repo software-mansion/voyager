@@ -2,6 +2,7 @@ defmodule Voyager.MCP.Tools.TraceReport do
   @moduledoc false
 
   alias Anubis.Server.Response
+  alias Voyager.MCP.Tools.TraceForm
   alias Voyager.Queries.TraceSessions, as: TraceSessionQueries
   alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Config
@@ -39,6 +40,10 @@ defmodule Voyager.MCP.Tools.TraceReport do
   def start_error(:all_processes_busy),
     do:
       "Another Voyager session already traces all processes on this node; narrow this one to some `pids` (with `trace_configure` for an existing session), or stop that one first"
+
+  def start_error(:storage_limit),
+    do:
+      "Saved sessions use all of Voyager's trace storage; ask the user to delete a saved session in Voyager, or create an unsaved one"
 
   def start_error(:unknown_function),
     do: "The node has no such function loaded; check the name with `module_list`"
@@ -208,7 +213,7 @@ defmodule Voyager.MCP.Tools.TraceReport do
 
   defp config(%Config{} = config) do
     %{
-      target: target(config),
+      target: TraceForm.function_name(config),
       processes: if(config.processes == :pids, do: config.pids, else: config.processes),
       capture: config.capture,
       return_trace: config.return_trace,
@@ -217,20 +222,6 @@ defmodule Voyager.MCP.Tools.TraceReport do
         |> Map.take([:max_events, :max_rate, :max_time_ms])
         |> Map.reject(fn {_limit, value} -> is_nil(value) end)
     }
-  end
-
-  defp target(config) do
-    module =
-      case config.module do
-        "Elixir." <> module -> module
-        module -> ":" <> module
-      end
-
-    case {config.function, config.arity} do
-      {"_", _arity} -> module
-      {function, nil} -> "#{module}.#{function}"
-      {function, arity} -> "#{module}.#{function}/#{arity}"
-    end
   end
 
   # Averaged since the first start, so pauses between runs lower it.

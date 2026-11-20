@@ -38,18 +38,24 @@ defmodule Voyager.MCP.Tools.TraceStop do
 
   defp stop(%{status: :running} = session, _id) do
     case Tracer.stop(:mcp, session.id) do
-      :ok -> session |> await_stopped() |> TraceReport.reply()
+      :ok -> await_stopped(session)
       {:error, :changed} -> Response.error(Response.tool(), TraceReport.start_error(:changed))
     end
   end
 
   defp stop(session, _id), do: TraceReport.reply(session)
 
-  defp await_stopped(%{id: id} = session) do
+  # A stop queued before this run started is older than `seq`.
+  defp await_stopped(%{id: id, seq: seq} = session) do
     receive do
-      {:session_updated, %{id: ^id, status: :stopped} = stopped} -> stopped
+      {:session_updated, %{id: ^id, status: :stopped, seq: stopped_seq} = stopped}
+      when stopped_seq > seq ->
+        TraceReport.reply(stopped)
     after
-      @stop_timeout -> session
+      @stop_timeout ->
+        TraceReport.reply(session, %{
+          note: "The node has not confirmed the stop yet, check with `trace_history` or retry"
+        })
     end
   end
 end

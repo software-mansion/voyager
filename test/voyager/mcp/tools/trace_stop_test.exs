@@ -33,6 +33,18 @@ defmodule Voyager.MCP.Tools.TraceStopTest do
     assert %{status: :stopped} = Tracer.active()
   end
 
+  test "waits past a stop queued before the run it stops" do
+    configure()
+    {:ok, running} = Tracer.start(:ui)
+    trace_calls(1)
+    send(self(), {:session_updated, %{running | status: :stopped, seq: 0}})
+
+    assert %{"status" => "stopped", "stop_reason" => "stopped", "total_events" => 2} =
+             json!(TraceStop.execute(%{}, %Frame{}))
+
+    assert_received {:session_updated, %{status: :stopped, seq: 0}}
+  end
+
   test "refuses to stop a session that is no longer the given one" do
     %{id: id} = configure()
     {:ok, _session} = Tracer.start(:ui)
