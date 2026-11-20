@@ -6,6 +6,10 @@
 
 * `.deb` Linux build alongside the AppImage (which needs `libfuse2`, missing on recent Ubuntu), with its own in-app update channel in [#311](https://github.com/software-mansion/voyager/pull/311)
 
+#### Dependencies
+
+* Phoenix 1.8.16, Phoenix LiveView 1.2.13, Phoenix HTML 4.4.0, Bandit 1.15.0, Ecto SQLite3 0.26.0, Anubis MCP 2.2.0, Tauri 2.12.6, Cytoscape.js 3.35.0, daisyUI 5.8.1
+
 ## 0.2.0
 
 #### Features
