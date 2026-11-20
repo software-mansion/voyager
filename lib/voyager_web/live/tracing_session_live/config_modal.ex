@@ -166,7 +166,23 @@ defmodule VoyagerWeb.TracingSessionLive.ConfigModal do
               <div class="grid grid-cols-3 gap-4">
                 <.field field={@form[:max_events]} label="Max events" type="number" min="1" />
                 <.field field={@form[:max_rate]} label="Max events / s" type="number" min="1" />
-                <.field field={@form[:max_seconds]} label="Max time (s)" type="number" min="1" />
+                <div>
+                  <label for={@form[:max_time].id} class="mb-1 block text-sm font-medium">
+                    Max time
+                  </label>
+                  <div class="flex items-start gap-2">
+                    <.input field={@form[:max_time]} type="number" min="1" />
+                    <.segmented
+                      name={@form[:max_time_unit].name}
+                      value={@form[:max_time_unit].value}
+                      size="md"
+                      options={[
+                        %{value: "s", label: "s", id: "config_max_time_unit_s"},
+                        %{value: "ms", label: "ms", id: "config_max_time_unit_ms"}
+                      ]}
+                    />
+                  </div>
+                </div>
               </div>
               <p class="text-base-content/60 mt-2 text-xs">At least one is required.</p>
             </section>

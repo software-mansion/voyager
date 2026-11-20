@@ -163,8 +163,10 @@ defmodule VoyagerWeb.TracingSessionLive do
   end
 
   def handle_event("start", _params, socket) do
+    id = socket.assigns.id
+
     socket
-    |> run(:start, fn -> Tracer.start(:ui) end)
+    |> run(:start, fn -> Tracer.start(:ui, id) end)
     |> noreply()
   end
 
@@ -226,7 +228,7 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> noreply()
   end
 
-  def handle_event("edit-config", _params, %{assigns: %{editable?: true}} = socket) do
+  def handle_event("edit-config", _params, %{assigns: %{editable?: true, pending: nil}} = socket) do
     form =
       socket.assigns.trace_session.result.config
       |> TraceConfigParams.from_config()
@@ -259,7 +261,7 @@ defmodule VoyagerWeb.TracingSessionLive do
   def handle_event(
         "save-config",
         %{"config" => attrs} = params,
-        %{assigns: %{editable?: true}} = socket
+        %{assigns: %{editable?: true, config_form: %Phoenix.HTML.Form{}}} = socket
       ) do
     changeset = TraceConfigParams.changeset(%TraceConfigParams{}, attrs)
 
@@ -269,7 +271,7 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> noreply()
   end
 
-  # Sent after the form closed: a change would reopen it, a save configure the wrong session.
+  # Sent after the form closed or while its save runs: a reply would reopen it or race the save.
   def handle_event(event, _params, socket)
       when event in ["edit-config", "validate-config", "save-config"],
       do: {:noreply, socket}
@@ -548,24 +550,24 @@ defmodule VoyagerWeb.TracingSessionLive do
     if config == current and not start? do
       assign(socket, :config_form, nil)
     else
-      node = socket.assigns.session.node
+      %{id: id, session: %{node: node}} = socket.assigns
 
       socket
       |> assign(:config_error, nil)
-      |> run(:configure, fn -> apply_config(node, config, current, start?) end)
+      |> run(:configure, fn -> apply_config(id, node, config, current, start?) end)
     end
   end
 
-  defp apply_config(node, config, current, start?) do
-    with {:ok, _session} <- configure_changed(node, config, current) do
-      if start?, do: Tracer.start(:ui), else: {:ok, nil}
+  defp apply_config(id, node, config, current, start?) do
+    with {:ok, _session} <- configure_changed(id, node, config, current) do
+      if start?, do: Tracer.start(:ui, id), else: {:ok, nil}
     end
   end
 
-  defp configure_changed(_node, config, config), do: {:ok, nil}
+  defp configure_changed(_id, _node, config, config), do: {:ok, nil}
 
-  defp configure_changed(node, config, _current),
-    do: Tracer.configure(node, Map.from_struct(config), :ui)
+  defp configure_changed(id, node, config, _current),
+    do: Tracer.configure(node, Map.from_struct(config), :ui, id)
 
   # The modal is gone once cancelled while the configure ran, so the flash carries the reason.
   defp config_failed(%{assigns: %{config_form: nil}} = socket, reason),
@@ -586,8 +588,8 @@ defmodule VoyagerWeb.TracingSessionLive do
 
   defp config_error_field({reason, _module}) when reason in [:refused, :not_loaded], do: :module
 
-  defp config_error_field(reason) when reason in [:unknown_function, :no_function_matched],
-    do: :function
+  # The agent's `:unknown_function` also covers a module atom the node has never seen.
+  defp config_error_field(:no_function_matched), do: :function
 
   defp config_error_field(:invalid_pid), do: :pids
   defp config_error_field({:noproc, _pid}), do: :pids
@@ -620,7 +622,9 @@ defmodule VoyagerWeb.TracingSessionLive do
   defp format_error(:not_found), do: "No such tracing session."
   defp format_error(:no_session), do: "This session is no longer active."
   defp format_error(:not_configured), do: "Set the session's parameters first."
-  defp format_error(:changed), do: "The session was reconfigured meanwhile. Try again."
+
+  defp format_error(:changed),
+    do: "The session was reconfigured or replaced meanwhile. Try again."
 
   defp format_error(:storage_limit),
     do: "Saved sessions use all their storage. Delete a saved session to resume."
