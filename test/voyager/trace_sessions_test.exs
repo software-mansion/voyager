@@ -10,6 +10,7 @@ defmodule Voyager.TraceSessionsTest do
   alias Voyager.Schemas.TraceSession
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Session
+  alias Voyager.Services.Tracer.Summary
 
   test "interrupt_running/0 stops running sessions" do
     %{id: running} = session!(:running)
@@ -234,6 +235,35 @@ defmodule Voyager.TraceSessionsTest do
     assert %{total: 0} = TraceEntryQueries.search(id, ~s|(<<"needle">>)|, :elixir, limit: 10)
     assert %{total: 0} = TraceEntryQueries.search(id, "Elixir.Date", :elixir, limit: 10)
     assert %{total: 0} = TraceEntryQueries.search(id, "started", :elixir, limit: 10)
+  end
+
+  test "summaries/1 summarizes the last run, the whole session for one run and nothing before a start" do
+    %{id: one_run} = session!(:stopped)
+    %{id: two_runs} = session!(:stopped)
+    %{id: never_started} = session!(:idle)
+    started = &%{seq: &1, kind: :started, at: &1, origin: :ui}
+
+    TraceEntryActions.insert_all(one_run, [started.(0), trace(1, %{})])
+
+    TraceEntryActions.insert_all(two_runs, [
+      started.(0),
+      trace(1, %{}),
+      started.(2),
+      trace(3, %{}),
+      trace(4, %{})
+    ])
+
+    TraceEntryActions.insert_all(never_started, [trace(0, %{})])
+
+    assert %{session: %{calls: 1} = session, last_run: session} =
+             TraceEntryQueries.summaries(one_run)
+
+    assert %{session: %{calls: 3}, last_run: %{calls: 2}} = TraceEntryQueries.summaries(two_runs)
+
+    assert %{session: %{calls: 1}, last_run: %Summary{} = empty} =
+             TraceEntryQueries.summaries(never_started)
+
+    assert empty == %Summary{}
   end
 
   defp seqs(entries), do: Enum.map(entries, & &1.seq)

@@ -93,17 +93,21 @@ defmodule Voyager.Queries.TraceEntries do
   def summaries(session_id) do
     {:ok, summaries} =
       Repo.transact(fn ->
-        session = summarize(where(TraceEvent, [e], e.session_id == ^session_id))
-
-        last_run =
-          TraceEvent
-          |> where([e], e.session_id == ^session_id and e.seq >= subquery(last_start(session_id)))
-          |> summarize()
-
+        events = where(TraceEvent, [e], e.session_id == ^session_id)
+        session = summarize(events)
+        last_run = last_run(events, session, Repo.one(last_start(session_id)))
         {:ok, %{session: session, last_run: last_run}}
       end)
 
     summaries
+  end
+
+  defp last_run(_events, _session, nil), do: %Summary{}
+
+  defp last_run(events, session, last_start) do
+    if Repo.exists?(where(events, [e], e.seq < ^last_start)),
+      do: events |> where([e], e.seq >= ^last_start) |> summarize(),
+      else: session
   end
 
   defp last_start(session_id) do

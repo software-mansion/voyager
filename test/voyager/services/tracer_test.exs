@@ -518,6 +518,8 @@ defmodule Voyager.Services.TracerTest do
         run_named(id, :a_name, ~D[2023-01-01])
 
         assert {:ok, summaries} = Tracer.summary(id)
+        assert [%{duration_us: slowest}, %{duration_us: next}] = summaries.session.slowest
+        assert is_integer(slowest) and is_integer(next) and slowest >= next
         Map.new(summaries, fn {key, summary} -> {key, comparable(summary)} end)
       end
 
