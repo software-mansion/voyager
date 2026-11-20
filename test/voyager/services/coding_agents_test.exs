@@ -14,7 +14,7 @@ defmodule Voyager.Services.CodingAgentsTest do
     on_exit(fn -> Application.put_env(:voyager, :coding_agents_home, previous) end)
   end
 
-  test "lists every agent argent supports, undetected and not added in an empty home" do
+  test "lists every agent Voyager supports, undetected and not added in an empty home" do
     agents = CodingAgents.scan(@url)
 
     assert Enum.map(agents, & &1.id) ==
