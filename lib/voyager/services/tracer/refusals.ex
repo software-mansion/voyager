@@ -1,6 +1,6 @@
 defmodule Voyager.Services.Tracer.Refusals do
   @moduledoc """
-  What the agent refuses to trace, compiled into it as macros and checked by
+  What the agent refuses to trace or select, compiled into it as macros and checked by
   `Voyager.Services.Tracer.Config`. Must not depend on `Voyager.Agent`, whose
   module name hashes these lists.
   """
@@ -14,6 +14,7 @@ defmodule Voyager.Services.Tracer.Refusals do
   @hot_prefixes ["prim_", "erts_"]
   @refused_actions ~w(trace enable_trace disable_trace silent set_seq_token process_dump display
                       current_stacktrace caller_line set_tcw return_trace exception_trace)a
+  @max_match_spec_bytes 65_536
 
   @spec agent_macros() :: keyword()
   def agent_macros do
@@ -21,9 +22,18 @@ defmodule Voyager.Services.Tracer.Refusals do
       TRACE_ALWAYS_REFUSED: @always_refused,
       TRACE_HOT: @hot,
       TRACE_HOT_PREFIXES: Enum.map(@hot_prefixes, &String.to_charlist/1),
-      TRACE_REFUSED_ACTIONS: @refused_actions
+      TRACE_REFUSED_ACTIONS: @refused_actions,
+      MAX_MATCH_SPEC_BYTES: @max_match_spec_bytes
     ]
   end
+
+  @doc "List of refused actions sent to Tracer"
+  @spec refused_actions() :: [atom()]
+  def refused_actions, do: @refused_actions
+
+  @doc "The largest encoded match spec the agent takes, for trace and ETS select alike."
+  @spec max_match_spec_bytes() :: pos_integer()
+  def max_match_spec_bytes, do: @max_match_spec_bytes
 
   @doc "Refused even on selected pids. The agent also refuses itself."
   @spec always_refused?(String.t()) :: boolean()

@@ -1,0 +1,417 @@
+defmodule Voyager.MatchSpecTest do
+  use ExUnit.Case, async: true
+
+  alias Voyager.MatchSpec
+
+  @tag_atom :"$voyager_atom"
+  @not_specs [
+    [],
+    42,
+    :foo,
+    "[]",
+    %{},
+    {:_, [], []},
+    [:not_a_clause],
+    [{:_, []}],
+    [{:_, [], [], []}],
+    [{:_, :guards, []}],
+    [{:_, [], :body}],
+    [{:_, [], []} | :tail],
+    [{:_, [:a | :b], []}],
+    [{:_, [], [:a | :b]}],
+    [{:_, [], []}, :not_a_clause]
+  ]
+
+  describe "parse/1" do
+    test "parses a head, guards and body" do
+      assert MatchSpec.parse(~S([{{'$1', '$2'}, [{'>', '$2', 10}], ['$1']}])) ==
+               {:ok, [{{:"$1", :"$2"}, [{:>, :"$2", 10}], [:"$1"]}]}
+    end
+
+    test "parses every literal Erlang term" do
+      input =
+        ~S([{{<<"a">>, -3, 1.5, -2.0e3, "ab", $c, #{k => '$2'}, [1 | t], 'Quoted atom'}, [], []}])
+
+      assert MatchSpec.parse(input) ==
+               {:ok,
+                [
+                  {{"a", -3, 1.5, -2.0e3, ~c"ab", ?c, %{k: :"$2"}, [1 | :t], :"Quoted atom"}, [],
+                   []}
+                ]}
+    end
+
+    test "parses unicode atoms and binaries" do
+      assert MatchSpec.parse(~S(['zażółć', <<"ćma"/utf8>>])) == {:ok, [:zażółć, "ćma"]}
+    end
+
+    test "returns a term of any shape" do
+      assert MatchSpec.parse("42") == {:ok, 42}
+      assert MatchSpec.parse("[]") == {:ok, []}
+      assert MatchSpec.parse("{a, b}") == {:ok, {:a, :b}}
+    end
+
+    test "parses empty terms and integers in another base" do
+      assert MatchSpec.parse(~S([{}, #{}, "", <<>>, <<0:0>>, 16#ff])) ==
+               {:ok, [{}, %{}, [], "", "", 255]}
+    end
+
+    test "skips a leading comment" do
+      assert MatchSpec.parse("% all rows\n[{'$1', [], ['$1']}]") == {:ok, [{:"$1", [], [:"$1"]}]}
+    end
+
+    test "adds a missing trailing dot and ignores trailing whitespace" do
+      for input <- [
+            "[{'$1', [], ['$1']}]",
+            "[{'$1', [], ['$1']}].",
+            "[{'$1', [], ['$1']}] .\n\t "
+          ] do
+        assert MatchSpec.parse(input) == {:ok, [{:"$1", [], [:"$1"]}]}, inspect(input)
+      end
+    end
+
+    test "never evaluates code" do
+      for input <- [
+            ~S|os:cmd("whoami")|,
+            ~S|erlang:halt()|,
+            ~S|[{'_', [], [os:cmd("id")]}]|,
+            "fun() -> ok end",
+            "1 + 2",
+            "X",
+            "[{X, [], [X]}]",
+            "#r{a = 1}",
+            "<<X:8>>",
+            "begin ok end",
+            "a = b"
+          ] do
+        assert {:error, {:syntax, message}} = MatchSpec.parse(input), inspect(input)
+        assert is_binary(message)
+      end
+    end
+
+    test "rejects malformed input" do
+      for input <- [
+            "",
+            "  ",
+            ".",
+            "[{'$1', [], ['$1']}",
+            "'unterminated",
+            "a. b.",
+            "{a,,}",
+            "<<0:-1>>",
+            "[] % a trailing comment hides the added dot"
+          ] do
+        assert {:error, {:syntax, _message}} = MatchSpec.parse(input), inspect(input)
+      end
+    end
+
+    test "rejects invalid UTF-8 without raising" do
+      assert MatchSpec.parse(<<"[", 255, "]">>) == {:error, {:syntax, "not valid UTF-8"}}
+    end
+
+    test "builds sized binary segments of up to 524288 bits, size times unit" do
+      assert MatchSpec.parse("[<<1:16, 2:4/unit:2>>, <<1:16/little>>]") ==
+               {:ok, [<<0, 1, 2>>, <<1, 0>>]}
+
+      for input <- ["<<0:524288>>", "<<0:2048/unit:256>>"] do
+        assert {:ok, binary} = MatchSpec.parse(input), input
+        assert byte_size(binary) == 65_536
+      end
+    end
+
+    test "refuses a segment too big or not literally sized before building it" do
+      for input <- [
+            "<<0:99999999999999>>",
+            "<<0:(99999999999999)>>",
+            "<<0:(1 bsl 40)>>",
+            "[{'_', [], [<<1>>, <<1:Size>>]}]"
+          ] do
+        assert MatchSpec.parse(input) ==
+                 {:error,
+                  {:syntax, "binary segments must have an integer size of at most 524288 bits"}},
+               input
+      end
+    end
+
+    test "returns an error when the term outgrows the parsing process" do
+      input = "[" <> Enum.map_join(1..200, ",", fn _ -> "<<0:524288>>" end) <> "]"
+
+      assert MatchSpec.parse(input) == {:error, :limit_exceeded}
+    end
+
+    test "accepts 4096 bytes and refuses one more, counting bytes and not characters" do
+      term = "[{'$1', [], ['$1']}]"
+      at_cap = term <> String.duplicate(" ", 4_096 - byte_size(term))
+
+      assert byte_size(at_cap) == 4_096
+      assert {:ok, _spec} = MatchSpec.parse(at_cap)
+      assert MatchSpec.parse(at_cap <> " ") == {:error, :too_large}
+      assert MatchSpec.parse("'" <> String.duplicate("ż", 2_048) <> "'") == {:error, :too_large}
+    end
+  end
+
+  describe "parse_fun/3" do
+    test "applies the input limits before either parser" do
+      for {language, fun} <- [erlang: "fun({X}) -> X end", elixir: "fn {x} -> x end"] do
+        at_cap = fun <> String.duplicate(" ", 4_096 - byte_size(fun))
+
+        assert MatchSpec.parse_fun(at_cap, language, :table) == {:ok, [{{:"$1"}, [], [:"$1"]}]}
+        assert MatchSpec.parse_fun(at_cap <> " ", language, :table) == {:error, :too_large}
+
+        assert MatchSpec.parse_fun(<<fun::binary, 255>>, language, :table) ==
+                 {:error, {:syntax, "not valid UTF-8"}}
+      end
+    end
+
+    test "returns an error when folded constants outgrow the parsing process" do
+      for {language, head, shift} <- [
+            {:erlang, "fun({X}) ->", "1 bsl 4000000"},
+            {:elixir, "fn {x} ->", "1 <<< 4000000"}
+          ] do
+        source = "#{head} [#{Enum.map_join(1..20, ", ", fn _ -> shift end)}] end"
+
+        assert MatchSpec.parse_fun(source, language, :table) == {:error, :limit_exceeded}, source
+      end
+    end
+  end
+
+  describe "check_shape/1" do
+    test "accepts one or more clauses" do
+      assert MatchSpec.check_shape([{:_, [], []}]) == :ok
+      assert MatchSpec.check_shape([{[:"$1"], [{:>, :"$1", 1}], [true]}, {:_, [], []}]) == :ok
+    end
+  end
+
+  test "every clause check rejects a term that is not a spec" do
+    for term <- @not_specs,
+        check <- [
+          &MatchSpec.check_shape/1,
+          &MatchSpec.check_clauses(&1, 10),
+          &MatchSpec.check_actions(&1, [:return_trace]),
+          &MatchSpec.check_compiles(&1, :table),
+          &MatchSpec.check_compiles(&1, :trace)
+        ] do
+      assert check.(term) == {:error, :invalid_shape}, inspect(term)
+    end
+  end
+
+  describe "check_clauses/2" do
+    test "accepts up to max clauses" do
+      assert MatchSpec.check_clauses([{:_, [], []}], 1) == :ok
+      assert MatchSpec.check_clauses(List.duplicate({:_, [], []}, 10), 10) == :ok
+    end
+
+    test "refuses more than max clauses" do
+      assert MatchSpec.check_clauses(List.duplicate({:_, [], []}, 2), 1) ==
+               {:error, {:too_many_clauses, 1}}
+
+      assert MatchSpec.check_clauses(List.duplicate({:_, [], []}, 11), 10) ==
+               {:error, {:too_many_clauses, 10}}
+    end
+  end
+
+  describe "check_actions/2" do
+    @refused [:return_trace, :exception_trace, :enable_trace]
+
+    test "accepts a spec without refused actions" do
+      spec = [{[:"$1"], [{:>, :"$1", 1}], [{:message, :"$1"}, true]}, {:_, [], []}]
+
+      assert MatchSpec.check_actions(spec, @refused) == :ok
+      assert MatchSpec.check_actions([{:_, [], [{:return_trace}]}], []) == :ok
+    end
+
+    test "refuses an action at any depth of the guards or body" do
+      for {spec, action} <- [
+            {[{:_, [], [{:return_trace}]}], :return_trace},
+            {[{:_, [], [true]}, {:_, [], [{:exception_trace}]}], :exception_trace},
+            {[{:_, [], [{:message, {{:ok, {:enable_trace, :send}}}}]}], :enable_trace},
+            {[{:_, [{:is_list, {:return_trace}}], []}], :return_trace},
+            {[{:_, [], [{:message, {:const, %{key: {:exception_trace}}}}]}], :exception_trace},
+            {[{:_, [], [{:message, [:a | {:return_trace}]}]}], :return_trace},
+            {[{:_, [], [{:message, %{{:enable_trace, :send} => 1}}]}], :enable_trace}
+          ] do
+        assert MatchSpec.check_actions(spec, @refused) == {:error, {:refused_action, action}},
+               inspect(spec)
+      end
+    end
+
+    test "reports the first refused action" do
+      spec = [{:_, [], [{:exception_trace}, {:return_trace}]}]
+
+      assert MatchSpec.check_actions(spec, @refused) ==
+               {:error, {:refused_action, :exception_trace}}
+    end
+
+    test "ignores the head, where a tuple is a pattern" do
+      assert MatchSpec.check_actions([{[{:return_trace}], [], []}], @refused) == :ok
+    end
+
+    test "ignores a refused name that is not the first element of a tuple" do
+      body = [:return_trace, {}, {"return_trace"}, {:message, :return_trace}]
+
+      assert MatchSpec.check_actions([{:_, [:return_trace], body}], @refused) == :ok
+    end
+  end
+
+  describe "check_compiles/2" do
+    test "accepts specs that compile for their type" do
+      assert MatchSpec.check_compiles([{{:"$1", :"$2"}, [{:>, :"$2", 10}], [:"$1"]}], :table) ==
+               :ok
+
+      assert MatchSpec.check_compiles([{{:_, %{k: :"$1"}}, [], [:"$_"]}], :table) == :ok
+
+      assert MatchSpec.check_compiles(
+               [{[:"$1", :_], [{:is_binary, :"$1"}], [{:message, :"$1"}, {:return_trace}]}],
+               :trace
+             ) == :ok
+    end
+
+    test "compiles a body without running it" do
+      # Run by match_spec_test/3, `{enable_trace, send}` segfaults the VM.
+      assert MatchSpec.check_compiles([{:_, [], [{:enable_trace, :send}]}], :trace) == :ok
+    end
+
+    test "reports what does not compile" do
+      for {spec, type} <- [
+            {[{:_, [{:no_such_guard, :"$1"}], []}], :trace},
+            {[{:_, [], [:"$7"]}], :trace},
+            {[{:_, [], [{:no_such_action, 1}]}], :trace},
+            {[{:_, [], [{:message, 1}]}], :table},
+            {[{"head", [], []}], :trace},
+            {[{:_, [], []}, {:_, [{:no_such_guard}], []}], :trace}
+          ] do
+        assert {:error, {:compile, [_ | _] = errors}} = MatchSpec.check_compiles(spec, type),
+               inspect(spec)
+
+        assert Enum.all?(errors, &is_binary/1)
+      end
+    end
+
+    test "reports every error of a clause" do
+      assert MatchSpec.check_compiles([{:_, [:"$1"], []}], :table) ==
+               {:error,
+                {:compile, ["Variable $1 is unbound.", "Body clause does not return anything."]}}
+    end
+  end
+
+  describe "check_size/2" do
+    test "accepts up to max_bytes in the external term format" do
+      encoded = MatchSpec.encode([{:_, [], [:ok]}])
+      size = :erlang.external_size(encoded)
+
+      assert MatchSpec.check_size(encoded, size) == :ok
+      assert MatchSpec.check_size(encoded, size - 1) == {:error, {:too_large, size - 1}}
+    end
+
+    test "measures a term that is not a spec" do
+      assert MatchSpec.check_size(:ok, 1) == {:error, {:too_large, 1}}
+    end
+  end
+
+  test "checks compose over a spec from either parser" do
+    term = ~S([{['$1', '_'], [{'>', '$1', 10}], [{message, '$1'}]}, {'_', [], [true]}])
+    fun = "fun([A, _]) when A > 10 -> message(A); (_) -> true end"
+
+    assert {:ok, spec} = MatchSpec.parse(term)
+    assert MatchSpec.parse_fun(fun, :erlang, :trace) == {:ok, spec}
+    assert MatchSpec.check_clauses(spec, 10) == :ok
+    assert MatchSpec.check_actions(spec, [:return_trace]) == :ok
+    assert MatchSpec.check_compiles(spec, :trace) == :ok
+    assert MatchSpec.check_size(MatchSpec.encode(spec), 65_536) == :ok
+  end
+
+  describe "encode/1" do
+    test "tags constant atoms in the head, guards and body" do
+      spec = [{[:"$1", :active], [{:==, :"$1", :ok}], [{:message, true}]}]
+
+      assert MatchSpec.encode(spec) == [
+               {[:"$1", tag(:active)], [{tag(:==), :"$1", tag(:ok)}],
+                [{tag(:message), tag(true)}]}
+             ]
+    end
+
+    test "leaves match variables as they are" do
+      for variable <- [:_, :"$_", :"$$", :"$0", :"$1", :"$123", :"$1000"] do
+        spec = [{%{variable => variable}, [], [variable]}]
+
+        assert MatchSpec.encode(spec) == spec
+      end
+    end
+
+    test "tags atoms that only look like variables, and variables past $1000" do
+      for atom <-
+            [:"", :"$", :"$abc", :"$1a", :"$-1", :"$+1", :__, :"$__", :"$_1", :"$$$"] ++
+              [:"$007", :"$01", :"$1001", :"$900000008834"] do
+        assert MatchSpec.encode([{atom, [], []}]) == [{tag(atom), [], []}], inspect(atom)
+      end
+    end
+
+    test "encodes struct-shaped maps as plain maps without running their protocols" do
+      stream = %{__struct__: File.Stream, path: "missing", raw: true}
+      range = %{__struct__: Range, first: 1, last: 3, step: 1}
+      set = %{__struct__: MapSet, map: %{x: []}}
+
+      assert MatchSpec.encode(stream) == %{
+               tag(:__struct__) => tag(File.Stream),
+               tag(:path) => "missing",
+               tag(:raw) => tag(true)
+             }
+
+      assert MatchSpec.encode(range) == %{
+               tag(:__struct__) => tag(Range),
+               tag(:first) => 1,
+               tag(:last) => 3,
+               tag(:step) => 1
+             }
+
+      assert MatchSpec.encode(set) == %{
+               tag(:__struct__) => tag(MapSet),
+               tag(:map) => %{tag(:x) => []}
+             }
+    end
+
+    test "tags atoms inside maps, nested tuples and improper lists" do
+      spec = [{{%{key: [:a | :b]}}, [], [{:const, {{:c}}}]}]
+
+      assert MatchSpec.encode(spec) == [
+               {{%{tag(:key) => [tag(:a) | tag(:b)]}}, [], [{tag(:const), {{tag(:c)}}}]}
+             ]
+    end
+
+    test "leaves numbers, binaries and empty terms alone" do
+      spec = [{[1, -2.5, "atom", {}, %{}], [], [~c"ab", []]}]
+
+      assert MatchSpec.encode(spec) == spec
+    end
+
+    test "tags the tag atom itself, so a literal tag tuple survives" do
+      spec = [{:_, [], [{:const, {@tag_atom, "x"}}]}]
+
+      assert MatchSpec.encode(spec) == [
+               {:_, [], [{tag(:const), {tag(@tag_atom), "x"}}]}
+             ]
+    end
+  end
+
+  describe "format_error/1" do
+    test "describes every reason" do
+      for {reason, message} <- [
+            {:too_large, "longer than 4096 bytes"},
+            {:atom_table_full, "atom table exhausted"},
+            {:limit_exceeded, "building it needs more than 8 MiB or 2000 ms"},
+            {{:syntax, "syntax error before: ')'"}, "syntax error before: ')'"},
+            {{:unsupported, "`%URI{}` is not supported"}, "`%URI{}` is not supported"},
+            {:invalid_shape, "expected a list of {head, guards, body} clauses"},
+            {{:too_many_clauses, 1}, "expected one {head, guards, body} clause"},
+            {{:too_many_clauses, 10}, "expected at most 10 clauses"},
+            {{:too_large, 65_536}, "encodes to more than 65536 bytes"},
+            {{:refused_action, :return_trace}, "the return_trace action is not allowed"},
+            {{:compile, ["Variable $7 is unbound.", "Bad."]}, "Variable $7 is unbound. Bad."},
+            {{:unknown_atom, "nope"}, "atom 'nope' does not exist on the node"}
+          ] do
+        assert MatchSpec.format_error(reason) == message
+      end
+    end
+  end
+
+  defp tag(atom), do: {@tag_atom, Atom.to_string(atom)}
+end

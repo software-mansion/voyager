@@ -1,76 +1,34 @@
 defmodule Voyager.Services.Ets.MatchSpec do
   @moduledoc """
-  Parses a source match spec written as an Erlang term.
+  Parses the source match spec `ets_search_table` sends, with `Voyager.MatchSpec`.
 
-  The tool schema can only carry a string, so the spec arrives as text and is
-  scanned and parsed with `:erl_parse.parse_term/1`. Only a literal term is
-  accepted -- a call or a variable is a parse error -- and nothing is evaluated.
-
-  Guard validity is not checked here: `:ets.select/3` on the target rejects a
-  bad guard as `badarg`, which `Voyager.Services.Ets.Fetch` maps to
-  `{:error, :cannot_read}`. Only the clause shape is, because
-  the agent's `ets_select_spec/5` takes one `{head, guards, body}` clause.
+  The spec must be one `{head, guards, body}` clause, because the agent's `ets_select_spec/5`
+  takes one, compile for a table, and fit the agent's size cap. It comes back encoded, so the
+  search creates no atoms on the node; an atom the node lacks is `{:unknown_atom, name}` there.
   """
 
-  @max_bytes 4_096
-  @atom_headroom 10_000
+  alias Voyager.MatchSpec
+  alias Voyager.Services.Tracer.Refusals
 
-  @type spec :: [{term(), [term()], [term()]}]
   @type error :: {:invalid_match_spec, String.t()}
 
   @doc """
-  Turns `"[{{'$1', active}, [], ['$1']}]"` into the term it spells.
+  Turns `"[{{'$1', active}, [], ['$1']}]"` into the encoded term the agent selects with.
 
   A missing trailing `.` is added.
   """
-  @spec parse(String.t()) :: {:ok, spec()} | {:error, error()}
-  def parse(string) when is_binary(string) and byte_size(string) > @max_bytes do
-    invalid("longer than #{@max_bytes} bytes")
-  end
-
+  @spec parse(String.t()) :: {:ok, term()} | {:error, error()}
   def parse(string) when is_binary(string) do
-    if atom_headroom?() do
-      with {:ok, term} <- parse_term(string) do
-        validate(term)
-      end
+    with {:ok, spec} <- MatchSpec.parse(string),
+         :ok <- MatchSpec.check_clauses(spec, 1),
+         :ok <- MatchSpec.check_compiles(spec, :table),
+         encoded = MatchSpec.encode(spec),
+         :ok <- MatchSpec.check_size(encoded, Refusals.max_match_spec_bytes()) do
+      {:ok, encoded}
     else
-      invalid("atom table exhausted")
+      {:error, :invalid_shape} -> invalid("expected a list of one {head, guards, body} clause")
+      {:error, reason} -> invalid(MatchSpec.format_error(reason))
     end
-  end
-
-  defp parse_term(string) do
-    charlist = string |> terminate() |> String.to_charlist()
-
-    with {:ok, tokens, _end} <- :erl_scan.string(charlist),
-         {:ok, term} <- :erl_parse.parse_term(tokens) do
-      {:ok, term}
-    else
-      {:error, reason, _end} -> invalid(format(reason))
-      {:error, reason} -> invalid(format(reason))
-    end
-  end
-
-  # `:erl_scan` interns every atom in the string on this node. The byte cap
-  # bounds one call; refusing below @atom_headroom free slots bounds the total,
-  # since a full atom table aborts the VM rather than raising.
-  defp atom_headroom? do
-    :erlang.system_info(:atom_limit) - :erlang.system_info(:atom_count) > @atom_headroom
-  end
-
-  defp validate([{_head, guards, body}] = spec) when is_list(guards) and is_list(body) do
-    {:ok, spec}
-  end
-
-  defp validate([_clause | _rest]), do: invalid("expected one {head, guards, body} clause")
-
-  defp validate(_term), do: invalid("expected a list of one {head, guards, body} clause")
-
-  defp terminate(string) do
-    string |> String.trim_trailing() |> String.trim_trailing(".") |> Kernel.<>(".")
-  end
-
-  defp format({_location, module, description}) when is_atom(module) do
-    description |> module.format_error() |> to_string()
   end
 
   defp invalid(detail), do: {:error, {:invalid_match_spec, detail}}

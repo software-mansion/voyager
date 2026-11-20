@@ -44,6 +44,19 @@ defmodule Voyager.MCP.Tools.EtsSearchTableTest do
       assert result["cursor"] == nil
     end
 
+    test "sends the spec with its atoms encoded" do
+      stub_intern()
+
+      expect(Voyager.ErpcMock, :call, fn _node, _agent, :ets_select_spec, args, _t ->
+        assert [_table, [{{:"$1", {:"$voyager_atom", "active"}}, [], [:"$1"]}] | _rest] = args
+        {:ok, %{records: [], continuation: :"$end_of_table", truncated: false}}
+      end)
+
+      assert run(%{"table" => "code", "match_spec" => "[{{'$1', active}, [], ['$1']}]"})[
+               "records"
+             ] == []
+    end
+
     test "returns a cursor for paged results" do
       stub_intern()
       stub_select([{:alice, 30}], continuation: :next_page)
@@ -103,6 +116,22 @@ defmodule Voyager.MCP.Tools.EtsSearchTableTest do
                "table" => "code",
                "match_spec" => "[{'$1', [], ['$1']}, {'$2', [], ['$2']}]"
              }) =~ "Invalid match spec"
+    end
+
+    test "refuses a spec that does not compile for a table without calling the node" do
+      assert error(%{"table" => "code", "match_spec" => "[{'$1', [], ['$7']}]"}) ==
+               "Invalid match spec: Variable $7 is unbound."
+    end
+
+    test "reports an atom the node does not have" do
+      stub_intern()
+
+      expect(Voyager.ErpcMock, :call, fn _node, _agent, :ets_select_spec, _args, _t ->
+        {:error, {:unknown_atom, "ghost"}}
+      end)
+
+      assert error(%{"table" => "code", "match_spec" => "[{{'$1', ghost}, [], ['$1']}]"}) ==
+               "Invalid match spec: atom 'ghost' does not exist on the node"
     end
 
     test "rejects an invalid cursor" do
