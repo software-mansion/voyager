@@ -11,6 +11,8 @@ defmodule Voyager.Queries.TraceEntries do
   alias Voyager.Schemas.TraceSessionEvent
   alias Voyager.Services.TermSyntax
   alias Voyager.Services.Tracer.Config
+  alias Voyager.Services.Tracer.Overview
+  alias Voyager.Services.Tracer.Summary
   alias Voyager.StoredTerm
 
   @doc """
@@ -85,6 +87,134 @@ defmodule Voyager.Queries.TraceEntries do
     |> Enum.reject(&is_nil/1)
     |> Enum.max(fn -> -1 end)
     |> Kernel.+(1)
+  end
+
+  @doc "The `Voyager.Services.Tracer.Summary` of the session's trace events."
+  @spec summary(integer()) :: Summary.t()
+  def summary(session_id) do
+    events = where(TraceEvent, [e], e.session_id == ^session_id)
+
+    counts =
+      events
+      |> group_by([e], e.type)
+      |> select([e], {e.type, count(e.id)})
+      |> Repo.all()
+      |> Map.new()
+
+    %Summary{
+      calls: Map.get(counts, :call, 0),
+      returns: Map.get(counts, :return, 0),
+      exceptions: Map.get(counts, :exception, 0),
+      functions: function_calls(events),
+      processes: process_calls(events),
+      slowest: slowest(events)
+    }
+  end
+
+  @doc """
+  Buckets a stopped saved session's trace timestamps in SQLite into its `Overview.activity`.
+  A running session's live window comes from `Voyager.Services.Tracer.MemoryLog` instead.
+  """
+  @spec activity(integer(), [Overview.run()]) :: Overview.activity() | nil
+  def activity(_session_id, []), do: nil
+
+  def activity(session_id, runs) do
+    max_ats =
+      for %{stopped_at: nil} = run <- runs,
+          {_count, max_at} = open_run_extent(session_id, run),
+          not is_nil(max_at),
+          into: %{},
+          do: {run.index, DateTime.to_unix(max_at, :microsecond)}
+
+    {spans, bucket_ms} = Overview.plan_segments(runs, max_ats)
+    bucket_us = bucket_ms * 1_000
+
+    run_buckets =
+      for {run, {start_us, _end_us}} <- Enum.zip(runs, spans),
+          buckets = run_events(session_id, run) |> query_buckets(start_us, bucket_us),
+          map_size(buckets) > 0,
+          into: %{},
+          do: {run.index, buckets}
+
+    Overview.build_segments(runs, spans, bucket_ms, run_buckets)
+  end
+
+  @doc "The trace count and latest `at` of a run that has no stop entry."
+  @spec open_run_extent(integer(), Overview.run()) :: {non_neg_integer(), DateTime.t() | nil}
+  def open_run_extent(session_id, run) do
+    session_id
+    |> run_events(run)
+    |> select([e], {count(e.id), max(e.at)})
+    |> Repo.one()
+  end
+
+  defp run_events(session_id, run) do
+    TraceEvent
+    |> where([e], e.session_id == ^session_id)
+    |> where(^in_run_seq(run))
+  end
+
+  # `ecto_sqlite3` dumps `:utc_datetime_usec` as `YYYY-MM-DDTHH:MM:SS.ffffffZ`; `substr(..., 21, 6)` is `ffffff`.
+  defp query_buckets(query, start_us, bucket_us) do
+    query
+    |> select([e], %{
+      bucket:
+        selected_as(
+          fragment(
+            "max((CAST(unixepoch(?) AS INTEGER) * 1000000 + CAST(substr(?, 21, 6) AS INTEGER)) - ?, 0) / ?",
+            e.at,
+            e.at,
+            ^start_us,
+            ^bucket_us
+          ),
+          :bucket
+        ),
+      count: count(e.id)
+    })
+    |> group_by(selected_as(:bucket))
+    |> Repo.all()
+    |> Map.new(&{&1.bucket, &1.count})
+  end
+
+  defp in_run_seq(%{seq: seq, next_seq: nil}), do: dynamic([e], e.seq > ^seq)
+
+  defp in_run_seq(%{seq: seq, next_seq: next_seq}),
+    do: dynamic([e], e.seq > ^seq and e.seq < ^next_seq)
+
+  defp function_calls(events) do
+    events
+    |> where([e], e.type == :call)
+    |> group_by([e], [e.module, e.function, e.arity])
+    |> order_by([e], desc: count(e.id))
+    |> limit(^Summary.max_keys())
+    |> select([e], {e.module, e.function, e.arity, count(e.id)})
+    |> Repo.all()
+    |> Map.new(fn {module, function, arity, calls} ->
+      {{String.to_atom(module), String.to_atom(function), arity}, calls}
+    end)
+  end
+
+  defp process_calls(events) do
+    events
+    |> where([e], e.type == :call)
+    |> group_by([e], e.pid)
+    |> order_by([e], desc: count(e.id))
+    |> limit(^Summary.max_keys())
+    # SQLite takes a bare column from the row holding the max, so this is the latest call's name.
+    |> select([e], {e.pid, e.process, max(e.seq), count(e.id)})
+    |> Repo.all()
+    |> Map.new(fn {pid, process, _seq, calls} ->
+      {StoredTerm.decode(pid), {StoredTerm.decode(process), calls}}
+    end)
+  end
+
+  defp slowest(events) do
+    events
+    |> where([e], not is_nil(e.duration_us))
+    |> order_by([e], desc: e.duration_us)
+    |> limit(^Summary.slowest_count())
+    |> Repo.all()
+    |> Enum.map(&to_entry/1)
   end
 
   defp window(query, session_id, opts) do

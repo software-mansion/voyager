@@ -1,17 +1,25 @@
 defmodule Voyager.Services.Tracer.MemoryLog do
   @moduledoc """
-  An unsaved session's log, kept in memory with only its newest traces.
+  The active session's log, kept in memory with only its newest traces, a summary of all of
+  them and per-second trace counts of the last minute.
   """
 
   alias Voyager.Services.Tracer.Entry
+  alias Voyager.Services.Tracer.Overview
+  alias Voyager.Services.Tracer.Summary
 
   @kept_traces 500
 
   # `controls` keeps every configured/started/stopped entry, `traces` the newest
   # trace and dropped entries; both newest first.
-  defstruct controls: [], traces: []
+  defstruct controls: [], traces: [], summary: %Summary{}, live: %{}
 
-  @type t :: %__MODULE__{controls: [Entry.t()], traces: [Entry.t()]}
+  @type t :: %__MODULE__{
+          controls: [Entry.t()],
+          traces: [Entry.t()],
+          summary: Summary.t(),
+          live: Overview.live_counts()
+        }
 
   @spec kept_traces() :: pos_integer()
   def kept_traces, do: @kept_traces
@@ -25,7 +33,14 @@ defmodule Voyager.Services.Tracer.MemoryLog do
     # Dropped entries come with every shed batch, so they are capped with the traces.
     kept = Enum.take(Enum.reverse(traces) ++ log.traces, @kept_traces)
 
-    {entries, %{log | controls: Enum.reverse(controls) ++ log.controls, traces: kept}}
+    {entries,
+     %{
+       log
+       | controls: Enum.reverse(controls) ++ log.controls,
+         traces: kept,
+         summary: Summary.add(log.summary, traces),
+         live: Overview.count_live(log.live, traces)
+     }}
   end
 
   @doc "The `Voyager.Services.Tracer.entries/2` page of the kept entries, where `next_seq` is the session's."

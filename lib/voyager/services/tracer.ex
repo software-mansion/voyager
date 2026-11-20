@@ -35,9 +35,11 @@ defmodule Voyager.Services.Tracer do
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Entry
   alias Voyager.Services.Tracer.MemoryLog
+  alias Voyager.Services.Tracer.Overview
   alias Voyager.Services.Tracer.Run
   alias Voyager.Services.Tracer.Search
   alias Voyager.Services.Tracer.Session
+  alias Voyager.Services.Tracer.Summary
   alias Voyager.Services.Tracer.Writer
   alias Voyager.Settings
 
@@ -108,11 +110,18 @@ defmodule Voyager.Services.Tracer do
   end
 
   @doc """
-  Makes saved session `id` active, with its config and counts.
-  Returns `{:error, :busy}` while the active session runs.
+  Makes saved session `id` active, with its config and counts. Its trace summary is read in
+  the caller. Returns `{:error, :busy}` while the active session runs.
   """
   @spec load(pos_integer()) :: {:ok, Session.t()} | {:error, :busy | :not_found}
-  def load(id) when is_integer(id), do: GenServer.call(__MODULE__, {:load, id})
+  def load(id) when is_integer(id) do
+    if match?(%Session{status: :running}, active()) do
+      {:error, :busy}
+    else
+      Writer.flush()
+      GenServer.call(__MODULE__, {:load, id, TraceEntryQueries.summary(id)})
+    end
+  end
 
   @doc "Deletes saved session `id` and its entries, unloading it if active; the running one is refused."
   @spec delete(pos_integer()) ::
@@ -248,6 +257,31 @@ defmodule Voyager.Services.Tracer do
     end
   end
 
+  @doc """
+  The runs, activity histogram and event `Summary` of session `id`. Runs in the caller for
+  saved sessions. The active session's summary and, while it runs, its activity come from
+  memory, so polling a running session does not read its traces from the database. Once
+  stopped, an unsaved session's activity covers only the at most #{@kept_traces} traces kept
+  in memory.
+  """
+  @spec overview(integer()) ::
+          {:ok,
+           %{
+             runs: [Overview.run()],
+             activity: Overview.activity() | nil,
+             summary: Summary.t()
+           }}
+          | {:error, :not_found}
+  def overview(id) when is_integer(id) do
+    case GenServer.call(__MODULE__, {:overview, id}) do
+      {:saved, active} ->
+        with_saved(id, fn row -> {:ok, saved_overview(row, active)} end)
+
+      reply ->
+        reply
+    end
+  end
+
   @impl true
   def init(nil), do: {:ok, %__MODULE__{}, {:continue, :interrupt_running}}
 
@@ -289,7 +323,7 @@ defmodule Voyager.Services.Tracer do
     end
   end
 
-  def handle_call({:load, id}, _from, state) do
+  def handle_call({:load, id, summary}, _from, state) do
     Writer.flush()
     TraceSessionActions.interrupt_running()
 
@@ -300,7 +334,7 @@ defmodule Voyager.Services.Tracer do
       row ->
         row
         |> saved_session()
-        |> activate()
+        |> activate(%MemoryLog{summary: summary})
     end
   end
 
@@ -377,6 +411,27 @@ defmodule Voyager.Services.Tracer do
   end
 
   def handle_call({:entries, _id, _opts}, _from, state), do: {:reply, :saved, state}
+
+  def handle_call(
+        {:overview, id},
+        _from,
+        %{session: %{id: id, save: false} = session} = state
+      ) do
+    runs = Overview.runs(state.log.controls, session)
+
+    activity =
+      live_activity(state) ||
+        Overview.activity(runs, Overview.trace_timestamps(runs, state.log.traces))
+
+    {:reply, {:ok, %{runs: runs, activity: activity, summary: state.log.summary}}, state}
+  end
+
+  def handle_call({:overview, id}, _from, %{session: %{id: id} = session} = state) do
+    active = %{session: session, summary: state.log.summary, live: live_activity(state)}
+    {:reply, {:saved, active}, state}
+  end
+
+  def handle_call({:overview, _id}, _from, state), do: {:reply, {:saved, nil}, state}
 
   def handle_call({:kept_traces, id}, _from, %{session: %{id: id, save: false}} = state),
     do: {:reply, {:ok, state.log.traces}, state}
@@ -494,10 +549,53 @@ defmodule Voyager.Services.Tracer do
     )
   end
 
-  defp activate(session) do
+  defp fill_interrupted_run(session_id, %{stopped_at: nil, reason: :interrupted} = run) do
+    {traces, max_at} = TraceEntryQueries.open_run_extent(session_id, run)
+
+    duration_ms =
+      case max_at do
+        %DateTime{} = at -> max(DateTime.diff(at, run.started_at, :millisecond), 0)
+        nil -> 0
+      end
+
+    %{run | traces: traces, duration_ms: duration_ms}
+  end
+
+  defp fill_interrupted_run(_session_id, run), do: run
+
+  defp saved_overview(row, nil) do
+    controls = TraceEntryQueries.controls(row.id)
+    traces_before = TraceEntryQueries.traces_before_last_run(row.id)
+    runs = saved_runs(row.id, controls, Session.from_row(row, controls, traces_before, 0, 0))
+
+    %{
+      runs: runs,
+      activity: TraceEntryQueries.activity(row.id, runs),
+      summary: TraceEntryQueries.summary(row.id)
+    }
+  end
+
+  defp saved_overview(row, %{session: session, summary: summary, live: live}) do
+    runs = saved_runs(row.id, TraceEntryQueries.controls(row.id), session)
+    %{runs: runs, activity: live || TraceEntryQueries.activity(row.id, runs), summary: summary}
+  end
+
+  # An interrupted run's traces are range-scanned on every overview poll.
+  defp saved_runs(session_id, controls, session) do
+    controls
+    |> Overview.runs(session)
+    |> Enum.map(&fill_interrupted_run(session_id, &1))
+  end
+
+  defp live_activity(%{session: %{status: :running}, log: log}),
+    do: Overview.live_activity(log.live)
+
+  defp live_activity(_state), do: nil
+
+  defp activate(session, log \\ %MemoryLog{}) do
     broadcast({:session_activated, session})
     broadcast_session(session)
-    {:reply, {:ok, session}, %__MODULE__{session: session}}
+    {:reply, {:ok, session}, %__MODULE__{session: session, log: log}}
   end
 
   defp start_tracer(session, spec, limits) do
