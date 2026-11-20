@@ -52,7 +52,7 @@ defmodule VoyagerWeb.SettingsLive do
       <AppearanceSettings.appearance_settings />
       <DemoSettings.demo_settings
         :if={@demo_available?}
-        connected?={@connected?}
+        connected?={@session != nil}
         on_start="start-demo"
       />
       <SettingsComponents.choice_setting
@@ -98,7 +98,7 @@ defmodule VoyagerWeb.SettingsLive do
     save_choice(socket, :term_syntax, TermSyntax.save_setting(choice))
   end
 
-  def handle_event("start-demo", _params, %{assigns: %{connected?: true}} = socket) do
+  def handle_event("start-demo", _params, %{assigns: %{session: %NodeSession.Session{}}} = socket) do
     {:noreply, socket}
   end
 
