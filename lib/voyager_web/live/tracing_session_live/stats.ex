@@ -207,8 +207,9 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
 
   defp format_size(bytes), do: "#{Formatters.format_integer(div(bytes, 1_000_000))} MB"
 
-  # A session's share only changes with the setting or the other saved sessions; reread the total then.
-  defp refresh_storage_limit(socket, %Session{storage_limit: left}, %Session{storage_limit: left}),
+  # The share moves with the setting, except when clamped at 0; reread the total in both cases.
+  defp refresh_storage_limit(socket, %Session{storage_limit: left}, %Session{storage_limit: left})
+       when left > 0,
        do: socket
 
   defp refresh_storage_limit(socket, _shown, _session),
