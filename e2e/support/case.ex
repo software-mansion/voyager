@@ -14,14 +14,18 @@ defmodule Voyager.E2E.Case do
   use ExUnit.CaseTemplate
 
   # Each module runs once per device: Chromium and Firefox (`devices:` narrows it).
+  # E2E_BROWSER=chromium|firefox runs only that browser's devices.
   @devices ["Desktop Chrome", "Desktop Firefox"]
 
   using opts do
     {devices, opts} = Keyword.pop(opts, :devices, @devices)
+    browser = System.get_env("E2E_BROWSER")
 
     parameterize =
       for device <- devices,
-          do: Playwright.Test.parameters(Playwright.device(device))
+          device = Playwright.device(device),
+          browser in [nil, device[:default_browser_type]],
+          do: Playwright.Test.parameters(device)
 
     opts = Keyword.put(opts, :parameterize, parameterize)
 

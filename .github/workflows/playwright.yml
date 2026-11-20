@@ -20,11 +20,18 @@ concurrency:
 
 jobs:
   e2e:
-    name: e2e
+    name: e2e (${{ matrix.browser }})
     runs-on: ubuntu-24.04
+
+    # One project per run until Elixir 1.21: elixir-lang/elixir#15820
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox]
 
     env:
       MIX_ENV: "e2e"
+      E2E_BROWSER: ${{ matrix.browser }}
 
     steps:
       - uses: actions/checkout@v7
@@ -61,25 +68,34 @@ jobs:
           path: |
             ~/.cache/ms-playwright
             ~/.cache/playwright
-          key: ${{ runner.os }}-playwright-ex-${{ hashFiles('mix.lock') }}
+          key: ${{ runner.os }}-playwright-ex-${{ matrix.browser }}-${{ hashFiles('mix.lock') }}
 
       - name: Install Playwright browsers
-        run: mix playwright.install chromium firefox --with-deps
+        run: mix playwright.install ${{ matrix.browser }} --with-deps
 
       - name: Setup and build assets
         run: mix assets.setup && mix assets.deploy
 
       - name: Run e2e tests
+        shell: bash
         run: |
+          # A rerun that finds no failures after a failed run must fail the job.
+          retry() {
+            mix e2e --failed 2>&1 | tee retry.log; s=${PIPESTATUS[0]}
+            if grep -q "^There are no tests to run" retry.log; then
+              echo "::error::mix e2e --failed found no failures to rerun after a failed run"; return 1
+            fi
+            return $s
+          }
           mix e2e \
             --formatter ExUnit.CLIFormatter --formatter Playwright.Test.GitHubFormatter \
-            || { [ $? -eq 2 ] && mix e2e --failed; } \
-            || { [ $? -eq 2 ] && mix e2e --failed; }
+            || { [ $? -eq 2 ] && retry; } \
+            || { [ $? -eq 2 ] && retry; }
 
       - uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
-          name: test-results
+          name: test-results-${{ matrix.browser }}
           path: test-results/
           retention-days: 7
           if-no-files-found: ignore
