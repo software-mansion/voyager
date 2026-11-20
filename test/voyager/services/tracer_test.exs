@@ -403,7 +403,6 @@ defmodule Voyager.Services.TracerTest do
   end
 
   test "reads the storage limit from its setting" do
-    Repo.delete_all(Voyager.Schemas.Setting)
     assert Tracer.storage_limit_mb() == 100
     {:ok, _} = Voyager.Settings.put(:trace_storage_limit_mb, 7)
     assert Tracer.storage_limit_mb() == 7
