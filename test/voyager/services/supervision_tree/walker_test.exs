@@ -1,6 +1,7 @@
 defmodule Voyager.Services.SupervisionTree.WalkerTest do
   use ExUnit.Case, async: false
 
+  alias Voyager.Erpc.Impl, as: ErpcImpl
   alias Voyager.Services.SupervisionTree.Walker
   alias Voyager.Test.RemoteFixture
 
@@ -8,7 +9,7 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
     fixture_app = RemoteFixture.start_fixture_app!()
     prev_erpc = Application.get_env(:voyager, :erpc)
 
-    Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
+    Application.put_env(:voyager, :erpc, ErpcImpl)
 
     on_exit(fn ->
       Application.stop(fixture_app)
@@ -40,6 +41,13 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
     children = :erpc.call(node, :supervisor, :which_children, [mid_a])
     pids = Enum.map(children, fn {_id, pid, _type, _mods} -> pid end)
     {mid_a, pids}
+  end
+
+  defp with_link(pinfo_list, pids, from, to) do
+    Enum.zip_with(pids, pinfo_list, fn
+      ^from, [_ | _] = info -> Keyword.replace_lazy(info, :links, &[to | &1])
+      _pid, info -> info
+    end)
   end
 
   describe "walk/4 depth=3, no expanded" do
@@ -207,6 +215,33 @@ defmodule Voyager.Services.SupervisionTree.WalkerTest do
       assert Enum.any?(Map.values(edges), fn e ->
                e.source == w2 and e.target == w1 and e.kind == :monitored_by
              end)
+    end
+
+    test "a link to a pid on another node keeps the external batch", %{node: node} do
+      {_mid_a, [w1 | _]} = midsup_a_workers(node)
+      foreign = Voyager.TestUtils.foreign_pid()
+
+      Application.put_env(:voyager, :erpc, Voyager.ErpcMock)
+      on_exit(fn -> Application.put_env(:voyager, :erpc, ErpcImpl) end)
+      Mox.set_mox_global()
+      Mox.stub(Voyager.ErpcMock, :call, &ErpcImpl.call/4)
+
+      Mox.stub(Voyager.ErpcMock, :call, fn
+        n, :lists, :zipwith, [fun, pids, keys], timeout ->
+          n
+          |> ErpcImpl.call(:lists, :zipwith, [fun, pids, keys], timeout)
+          |> with_link(pids, w1, foreign)
+
+        n, mod, fun, args, timeout ->
+          ErpcImpl.call(n, mod, fun, args, timeout)
+      end)
+
+      {_status, %{nodes: nodes, edges: edges}, errors} =
+        Walker.walk(node, [:voyager_fixture], 4, MapSet.new(), true)
+
+      assert errors == []
+      assert Enum.any?(Map.values(edges), &(&1.source == w1 and &1.target == foreign))
+      assert Map.has_key?(nodes, key(foreign))
     end
 
     test "supervisor pid-links are not emitted as relationship edges", %{node: node} do

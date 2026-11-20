@@ -540,7 +540,8 @@ defmodule Voyager.Services.SupervisionTree.Walker do
 
     target_ids = deduped |> Enum.map(fn {_from, to, _kind} -> to end) |> Enum.uniq()
     external = Enum.reject(target_ids, &MapSet.member?(seen, &1))
-    external_pids = Enum.filter(external, &is_pid/1)
+    # `process_info/2` raises for a pid of another node, failing the whole batch.
+    external_pids = Enum.filter(external, &(is_pid(&1) and node(&1) == node))
 
     {info_map, pinfo_errors} = fetch_external_info(node, external_pids)
 

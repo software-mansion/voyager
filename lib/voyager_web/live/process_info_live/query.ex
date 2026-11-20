@@ -21,9 +21,9 @@ defmodule VoyagerWeb.ProcessInfoLive.Query do
   @pid_format ~r/^\A<\d+\.\d+\.\d+>\z$/
 
   @type relations :: %{
-          links: Agent.bounded(pid() | port()),
-          monitors: Agent.bounded(ProcessInfo.monitor()),
-          monitored_by: Agent.bounded(pid() | port())
+          links: {:ok, Agent.bounded(pid() | port())} | {:error, term()},
+          monitors: {:ok, Agent.bounded(ProcessInfo.monitor())} | {:error, term()},
+          monitored_by: {:ok, Agent.bounded(pid() | port())} | {:error, term()}
         }
 
   @spec default_timeout() :: pos_integer()
@@ -47,14 +47,25 @@ defmodule VoyagerWeb.ProcessInfoLive.Query do
     end)
   end
 
+  @doc """
+  Each relation succeeds or fails on its own. A rate-limit refusal, or a dead process,
+  timeout or lost connection on the first fetch, fails the whole call.
+  """
   @spec relations(node(), pid(), non_neg_integer(), timeout()) ::
           {:ok, relations(), non_neg_integer()} | {:error, term()}
   def relations(node, pid, limit, timeout) do
     rate_limited(fn ->
-      with {:ok, links} <- ProcessInfo.fetch_links(node, pid, limit, timeout),
-           {:ok, monitors} <- ProcessInfo.fetch_monitors(node, pid, limit, timeout),
-           {:ok, monitored_by} <- ProcessInfo.fetch_monitored_by(node, pid, limit, timeout) do
-        {:ok, %{links: links, monitors: monitors, monitored_by: monitored_by}}
+      case ProcessInfo.fetch_links(node, pid, limit, timeout) do
+        {:error, reason} when reason in [:dead, :timeout, :noconnection] ->
+          {:error, reason}
+
+        links ->
+          {:ok,
+           %{
+             links: links,
+             monitors: ProcessInfo.fetch_monitors(node, pid, limit, timeout),
+             monitored_by: ProcessInfo.fetch_monitored_by(node, pid, limit, timeout)
+           }}
       end
     end)
   end
