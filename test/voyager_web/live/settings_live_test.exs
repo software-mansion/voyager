@@ -224,6 +224,7 @@ defmodule VoyagerWeb.SettingsLiveTest do
     test "adds Voyager to an agent in one click", %{conn: conn, tmp_dir: home, mcp_port: port} do
       use_agents_home(home)
       File.mkdir_p!(Path.join(home, ".claude"))
+      File.write!(Path.join(home, ".claude.json"), "{}")
 
       {:ok, view, _html} = live(conn, ~p"/settings")
       _ = :sys.get_state(McpAgents)
@@ -237,9 +238,37 @@ defmodule VoyagerWeb.SettingsLiveTest do
     end
 
     @tag :tmp_dir
+    test "asks before creating a missing config file", %{conn: conn, tmp_dir: home} do
+      use_agents_home(home)
+      File.mkdir_p!(Path.join(home, ".claude"))
+      path = Path.join(home, ".claude.json")
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+      _ = :sys.get_state(McpAgents)
+
+      view |> element("#mcp-agent-claude_code-add") |> render_click()
+
+      refute File.exists?(path)
+      assert has_element?(view, "#mcp-agent-claude_code-confirm-create", "~/.claude.json")
+
+      view |> element("#mcp-agent-claude_code-cancel-create") |> render_click()
+
+      refute File.exists?(path)
+      refute has_element?(view, "#mcp-agent-claude_code-confirm-create")
+
+      view |> element("#mcp-agent-claude_code-add") |> render_click()
+      view |> element("#mcp-agent-claude_code-create") |> render_click()
+
+      assert File.read!(path) |> JSON.decode!() |> get_in(["mcpServers", "voyager"])
+      assert has_element?(view, "#mcp-agent-claude_code-added")
+      refute has_element?(view, "#mcp-agent-claude_code-confirm-create")
+    end
+
+    @tag :tmp_dir
     test "removes Voyager from an agent", %{conn: conn, tmp_dir: home} do
       use_agents_home(home)
       File.mkdir_p!(Path.join(home, ".claude"))
+      File.write!(Path.join(home, ".claude.json"), "{}")
 
       {:ok, view, _html} = live(conn, ~p"/settings")
       _ = :sys.get_state(McpAgents)

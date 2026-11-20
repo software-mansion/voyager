@@ -19,6 +19,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
     |> assign(:port_locked?, Settings.locked?(:mcp_port))
     |> assign(:enabled_locked?, Settings.locked?(:mcp_enabled))
     |> assign(:toggle_revision, 0)
+    |> assign(:confirm_create, nil)
     |> assign(:form, mcp_port_form())
     |> ok()
   end
@@ -107,6 +108,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
                 :for={agent <- @shown_agents}
                 id={"mcp-agent-#{agent.id}"}
                 agent={agent}
+                confirming?={@confirm_create == to_string(agent.id)}
                 target={@myself}
               />
             </ul>
@@ -130,6 +132,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
                   :for={agent <- @more_agents}
                   id={"mcp-agent-#{agent.id}"}
                   agent={agent}
+                  confirming?={@confirm_create == to_string(agent.id)}
                   target={@myself}
                 />
               </ul>
@@ -203,10 +206,16 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
   end
 
   def handle_event("add-agent", %{"id" => id}, socket) do
-    change_agent(socket, id, &McpAgents.install/1, "add Voyager", fn name ->
-      "Voyager added to #{name}. Restart it to load the server."
-    end)
+    case Enum.find(socket.assigns.agents.agents, &(to_string(&1.id) == id)) do
+      %{exists?: false} -> {:noreply, assign(socket, :confirm_create, id)}
+      _agent -> add_agent(socket, id)
+    end
   end
+
+  def handle_event("confirm-create", %{"id" => id}, socket), do: add_agent(socket, id)
+
+  def handle_event("cancel-create", _params, socket),
+    do: {:noreply, assign(socket, :confirm_create, nil)}
 
   def handle_event("remove-agent", %{"id" => id}, socket) do
     change_agent(socket, id, &McpAgents.remove/1, "remove Voyager", fn name ->
@@ -261,6 +270,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
 
   attr :id, :string, required: true
   attr :agent, :map, required: true
+  attr :confirming?, :boolean, required: true
   attr :target, :any, required: true
 
   defp agent_row(assigns) do
@@ -269,7 +279,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
       <div class="flex items-center gap-3">
         <.agent_identity agent={@agent} />
         <button
-          :if={@agent.status in [:not_added, :outdated]}
+          :if={@agent.status in [:not_added, :outdated] and not @confirming?}
           id={"#{@id}-add"}
           type="button"
           phx-click="add-agent"
@@ -294,6 +304,34 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
           class="btn btn-sm btn-ghost btn-square text-base-content/70 hover:text-error"
         >
           <.icon name="icon-trash" class="size-4" />
+        </button>
+      </div>
+      <div
+        :if={@confirming?}
+        id={"#{@id}-confirm-create"}
+        class="border-base-300 bg-base-200 ml-11 flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2"
+      >
+        <p class="text-base-content/70 min-w-0 flex-1 text-xs">
+          <span class="font-mono text-base-content">{@agent.path}</span> doesn't exist. Create it?
+        </p>
+        <button
+          id={"#{@id}-cancel-create"}
+          type="button"
+          phx-click="cancel-create"
+          phx-target={@target}
+          class="btn btn-xs btn-ghost"
+        >
+          Cancel
+        </button>
+        <button
+          id={"#{@id}-create"}
+          type="button"
+          phx-click="confirm-create"
+          phx-value-id={@agent.id}
+          phx-target={@target}
+          class="btn btn-xs btn-primary"
+        >
+          Create file
         </button>
       </div>
       <p :if={@agent.status == :added} class="font-mono text-base-content/70 pl-11 text-xs">
@@ -330,6 +368,14 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
       <McpComponents.recently_used :if={@agent.recent} />
     </span>
     """
+  end
+
+  defp add_agent(socket, id) do
+    socket
+    |> assign(:confirm_create, nil)
+    |> change_agent(id, &McpAgents.install/1, "add Voyager", fn name ->
+      "Voyager added to #{name}. Restart it to load the server."
+    end)
   end
 
   defp change_agent(socket, id, change, action, success_message) do
