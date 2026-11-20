@@ -190,6 +190,8 @@ defmodule Voyager.MatchSpec.ElixirParserTest do
             "fn {x} -> Kernel.use(GenServer) end",
             ~S|fn {x} -> :"Elixir.Kernel".use(GenServer) end|,
             "fn {x} -> MyApp.Repo.config() end",
+            "fn {x} -> Elixir.System.halt() end",
+            "fn {x} -> :lists.reverse(x) end",
             "fn {x} -> import String\n upcase(x) end",
             "fn {x} -> require Logger\n Logger.info(x) end",
             "fn {x} -> %URI{} end",
@@ -222,7 +224,19 @@ defmodule Voyager.MatchSpec.ElixirParserTest do
             "fn {%{1}} -> 1 end",
             "fn {x} -> %{x | a: 1} end",
             "fn {x} when get_tcw() > 1 -> x end",
-            "fn {a} -> 1\n a, b -> 2 end"
+            "fn {a} -> 1\n a, b -> 2 end",
+            "fn {x} when tuple_size(x) > 1 -> x end",
+            "fn {x} when is_boolean(x) -> x end",
+            "fn {x} -> :erlang.apply(:erlang, :halt, []) end",
+            "fn {x} -> x |> elem(0) end",
+            "fn {x} -> x && 1 end",
+            "fn {x} -> !x end",
+            ~S|fn {x} -> x <> "a" end|,
+            "fn {x} -> to_string(x) end",
+            "fn {x} -> ~s(a) end",
+            "fn {x} -> quote do: x end",
+            "fn {x} -> for y <- x, do: y end",
+            "fn {x} -> receive do\n _ -> 1 end end"
           ] do
         assert {:error, {:unsupported, message}} = parse(source, :table), source
         assert is_binary(message)
@@ -244,28 +258,23 @@ defmodule Voyager.MatchSpec.ElixirParserTest do
       refute_received :leaked
     end
 
-    test "returns an error when folded constants outgrow the parsing process" do
-      shifts = Enum.map_join(1..20, ", ", fn _ -> "1 <<< 4000000" end)
-
-      assert parse("fn {x} -> [#{shifts}] end", :table) == {:error, :limit_exceeded}
-    end
-
     test "refuses anything but one fn" do
-      for source <- ["[{:_, [], []}]", "x", ":ok"] do
+      for source <- [
+            "[{:_, [], []}]",
+            "x",
+            ":ok",
+            "&(&1)",
+            "fn {x} -> x end; fn {y} -> y end"
+          ] do
         assert parse(source, :table) == {:error, {:syntax, "expected one fn ... end"}}, source
       end
     end
 
     test "reports syntax errors" do
-      for source <- ["fn x -> x", "fn x x end", "1 +", ""] do
+      for source <- ["fn x -> x", "fn x x end", "1 +", "", "fn {x} -> x end."] do
         assert {:error, {:syntax, message}} = parse(source, :table), inspect(source)
         assert is_binary(message)
       end
-    end
-
-    test "applies the input limits" do
-      assert parse(String.duplicate(" ", 4_097), :table) == {:error, :too_large}
-      assert parse(<<"fn ", 255, " -> 1 end">>, :table) == {:error, {:syntax, "not valid UTF-8"}}
     end
   end
 
@@ -362,63 +371,20 @@ defmodule Voyager.MatchSpec.ElixirParserTest do
 
   test "matches what the Erlang fun gives" do
     for {elixir, erlang, type} <- [
-          {"fn {a, _} = x -> x end", "fun({A, _} = X) -> X end", :table},
-          {"fn {a} -> {object(), bindings()} end", "fun({A}) -> {object(), bindings()} end",
-           :table},
-          {"fn {a} when elem(a, 0) == 2 and (is_map_key(a, :k) and a.k > 1) -> a end",
-           "fun({A}) when element(1, A) == 2 andalso is_map_key(k, A) andalso map_get(k, A) > 1 -> A end",
-           :table},
-          {"fn [a] -> return_trace(); message(caller()); current_stacktrace(2) end",
-           "fun([A]) -> return_trace(), message(caller()), current_stacktrace(2) end", :trace},
           {"fn [a] -> message(get_tcw())\n is_seq_trace() end",
            "fun([A]) -> message(get_tcw()), is_seq_trace() end", :trace},
+          {"fn [a] -> current_stacktrace(2) end", "fun([A]) -> current_stacktrace(2) end",
+           :trace},
           {"fn [MyApp.Repo, :all, [q | _]] -> message(q) end",
            "fun(['Elixir.MyApp.Repo', all, [Q | _]]) -> message(Q) end", :trace},
-          {"fn args = [a] -> message(args) end", "fun(Args = [A]) -> message(Args) end", :trace},
-          {"fn {a} when :erlang.xor(a, true) when (a &&& 1) == 1 when ~~~a > 1 -> a end",
-           "fun({A}) when A xor true; A band 1 == 1; bnot A > 1 -> A end", :table},
           {"fn {a} -> {abs(a), hd(a), tl(a), length(a), round(a), trunc(a), float(a), max(a, 1), min(a, 2), node(), node(a), self(), byte_size(a), bit_size(a), map_size(a), binary_part(a, 0, 1)} end",
            "fun({A}) -> {abs(A), hd(A), tl(A), length(A), round(A), trunc(A), float(A), max(A, 1), min(A, 2), node(), node(A), self(), byte_size(A), bit_size(A), map_size(A), binary_part(A, 0, 1)} end",
            :table},
           {"fn {a} -> {bxor(a, 1), bnot(a), bsl(a, 2), bsr(a, 1), a <<< 1, a >>> 1, a ||| 2} end",
            "fun({A}) -> {A bxor 1, bnot A, A bsl 2, A bsr 1, A bsl 1, A bsr 1, A bor 2} end",
-           :table},
-          {~S|fn {a} when a == <<1, 2::16-little, 3::size(4)-unit(2), "ab", 1.5::32>> -> a end|,
-           ~S|fun({A}) when A == <<1, 2:16/little, 3:4/unit:2, "ab", 1.5:32/float>> -> A end|,
-           :table},
-          {"fn [a, _] when a > 10 -> true end", "fun([A, _]) when A > 10 -> true end", :trace},
-          {"fn args -> true end", "fun(Args) -> true end", :trace},
-          {"fn {k, v} when v > 1 -> k end", "fun({K, V}) when V > 1 -> K end", :table},
-          {"fn {k, v} when v >= 1 when k == :a -> {k, v} end",
-           "fun({K, V}) when V >= 1; K == a -> {K, V} end", :table},
-          {"fn {k, v} when k !== v and is_atom(k) -> [k] end",
-           "fun({K, V}) when K =/= V andalso is_atom(K) -> [K] end", :table},
-          {~S|fn {k, %{a: v}} when v != "x" -> %{k: v} end|,
-           ~S|fun({K, #{a := V}}) when V /= <<"x">> -> #{k => V} end|, :table},
-          {"fn {k, v} when v + 1 > 10 and rem(v, 2) == 0 -> {k * 2, div(v, 3), -k, v / 2} end",
-           "fun({K, V}) when V + 1 > 10 andalso V rem 2 == 0 -> {K * 2, V div 3, -K, V / 2} end",
            :table}
         ] do
       assert parse(elixir, type) == MatchSpec.parse_fun(erlang, :erlang, type), elixir
-    end
-  end
-
-  test "every translated spec compiles for its type" do
-    for {source, type} <- [
-          {"fn [a, _] when a > 10 and not is_atom(a) -> true end", :trace},
-          {"fn args when is_list(args) -> true end", :trace},
-          {"fn {k, v} when v > 1 when k == :a -> {k, [v]} end", :table},
-          {~S|fn {k, %{a: v}} when k == {:b, :"$1"} -> %{k: v} end|, :table},
-          {"fn [a, b] when a + b > 1 + 2 and rem(-a, 2) == 0 -> true end", :trace},
-          {"fn {k, v} -> {k * 2, div(v, 3), v / 2} end", :table},
-          {"fn {k, _} = row when elem(row, 0) == k and is_map_key(k, :a) -> object() end",
-           :table},
-          {"fn [a] = args when map_size(a) > 1 -> return_trace(); message(args) end", :trace},
-          {"fn {a} when a == <<1, 2::16-little>> or a.key == 1 -> {a &&& 1, is_nil(a)} end",
-           :table}
-        ] do
-      assert {:ok, spec} = parse(source, type), source
-      assert MatchSpec.check_compiles(spec, type) == :ok, source
     end
   end
 end

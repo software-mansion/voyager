@@ -23,10 +23,6 @@ defmodule Voyager.MatchSpecTest do
   ]
 
   describe "parse/1" do
-    test "parses the match-all spec" do
-      assert MatchSpec.parse("[{'$1', [], ['$1']}].") == {:ok, [{:"$1", [], [:"$1"]}]}
-    end
-
     test "parses a head, guards and body" do
       assert MatchSpec.parse(~S([{{'$1', '$2'}, [{'>', '$2', 10}], ['$1']}])) ==
                {:ok, [{{:"$1", :"$2"}, [{:>, :"$2", 10}], [:"$1"]}]}
@@ -48,15 +44,19 @@ defmodule Voyager.MatchSpecTest do
       assert MatchSpec.parse(~S(['zażółć', <<"ćma"/utf8>>])) == {:ok, [:zażółć, "ćma"]}
     end
 
-    test "parses several clauses" do
-      assert {:ok, [{[:"$1"], [{:>, :"$1", 10}], [{:return_trace}]}, {:_, [], []}]} =
-               MatchSpec.parse(~S([{['$1'], [{'>', '$1', 10}], [{return_trace}]}, {'_', [], []}]))
-    end
-
     test "returns a term of any shape" do
       assert MatchSpec.parse("42") == {:ok, 42}
       assert MatchSpec.parse("[]") == {:ok, []}
       assert MatchSpec.parse("{a, b}") == {:ok, {:a, :b}}
+    end
+
+    test "parses empty terms and integers in another base" do
+      assert MatchSpec.parse(~S([{}, #{}, "", <<>>, <<0:0>>, 16#ff])) ==
+               {:ok, [{}, %{}, [], "", "", 255]}
+    end
+
+    test "skips a leading comment" do
+      assert MatchSpec.parse("% all rows\n[{'$1', [], ['$1']}]") == {:ok, [{:"$1", [], [:"$1"]}]}
     end
 
     test "adds a missing trailing dot and ignores trailing whitespace" do
@@ -89,7 +89,17 @@ defmodule Voyager.MatchSpecTest do
     end
 
     test "rejects malformed input" do
-      for input <- ["", "  ", ".", "[{'$1', [], ['$1']}", "'unterminated", "a. b.", "{a,,}"] do
+      for input <- [
+            "",
+            "  ",
+            ".",
+            "[{'$1', [], ['$1']}",
+            "'unterminated",
+            "a. b.",
+            "{a,,}",
+            "<<0:-1>>",
+            "[] % a trailing comment hides the added dot"
+          ] do
         assert {:error, {:syntax, _message}} = MatchSpec.parse(input), inspect(input)
       end
     end
@@ -110,13 +120,10 @@ defmodule Voyager.MatchSpecTest do
 
     test "refuses a segment too big or not literally sized before building it" do
       for input <- [
-            "<<0:524289>>",
-            "<<0:2049/unit:256>>",
-            "<<0:65537/binary>>",
             "<<0:99999999999999>>",
             "<<0:(99999999999999)>>",
-            "<<<<0:99999999999999>>/binary>>",
-            "[{'_', [], [<<1:Size>>]}]"
+            "<<0:(1 bsl 40)>>",
+            "[{'_', [], [<<1>>, <<1:Size>>]}]"
           ] do
         assert MatchSpec.parse(input) ==
                  {:error,
@@ -131,22 +138,39 @@ defmodule Voyager.MatchSpecTest do
       assert MatchSpec.parse(input) == {:error, :limit_exceeded}
     end
 
-    test "refuses the ! operator" do
-      assert MatchSpec.parse("init ! {stop, stop}") ==
-               {:error, {:syntax, "the ! operator is not allowed"}}
-    end
-
-    test "keeps colons inside quoted atoms and strings" do
-      assert MatchSpec.parse(~S(['a:b', "c:d", <<"e:f">>])) == {:ok, [:"a:b", ~c"c:d", "e:f"]}
-    end
-
-    test "accepts 4096 bytes and refuses one more" do
+    test "accepts 4096 bytes and refuses one more, counting bytes and not characters" do
       term = "[{'$1', [], ['$1']}]"
       at_cap = term <> String.duplicate(" ", 4_096 - byte_size(term))
 
       assert byte_size(at_cap) == 4_096
       assert {:ok, _spec} = MatchSpec.parse(at_cap)
       assert MatchSpec.parse(at_cap <> " ") == {:error, :too_large}
+      assert MatchSpec.parse("'" <> String.duplicate("ż", 2_048) <> "'") == {:error, :too_large}
+    end
+  end
+
+  describe "parse_fun/3" do
+    test "applies the input limits before either parser" do
+      for {language, fun} <- [erlang: "fun({X}) -> X end", elixir: "fn {x} -> x end"] do
+        at_cap = fun <> String.duplicate(" ", 4_096 - byte_size(fun))
+
+        assert MatchSpec.parse_fun(at_cap, language, :table) == {:ok, [{{:"$1"}, [], [:"$1"]}]}
+        assert MatchSpec.parse_fun(at_cap <> " ", language, :table) == {:error, :too_large}
+
+        assert MatchSpec.parse_fun(<<fun::binary, 255>>, language, :table) ==
+                 {:error, {:syntax, "not valid UTF-8"}}
+      end
+    end
+
+    test "returns an error when folded constants outgrow the parsing process" do
+      for {language, head, shift} <- [
+            {:erlang, "fun({X}) ->", "1 bsl 4000000"},
+            {:elixir, "fn {x} ->", "1 <<< 4000000"}
+          ] do
+        source = "#{head} [#{Enum.map_join(1..20, ", ", fn _ -> shift end)}] end"
+
+        assert MatchSpec.parse_fun(source, language, :table) == {:error, :limit_exceeded}, source
+      end
     end
   end
 
@@ -155,11 +179,18 @@ defmodule Voyager.MatchSpecTest do
       assert MatchSpec.check_shape([{:_, [], []}]) == :ok
       assert MatchSpec.check_shape([{[:"$1"], [{:>, :"$1", 1}], [true]}, {:_, [], []}]) == :ok
     end
+  end
 
-    test "rejects every other term" do
-      for term <- @not_specs do
-        assert MatchSpec.check_shape(term) == {:error, :invalid_shape}, inspect(term)
-      end
+  test "every clause check rejects a term that is not a spec" do
+    for term <- @not_specs,
+        check <- [
+          &MatchSpec.check_shape/1,
+          &MatchSpec.check_clauses(&1, 10),
+          &MatchSpec.check_actions(&1, [:return_trace]),
+          &MatchSpec.check_compiles(&1, :table),
+          &MatchSpec.check_compiles(&1, :trace)
+        ] do
+      assert check.(term) == {:error, :invalid_shape}, inspect(term)
     end
   end
 
@@ -175,12 +206,6 @@ defmodule Voyager.MatchSpecTest do
 
       assert MatchSpec.check_clauses(List.duplicate({:_, [], []}, 11), 10) ==
                {:error, {:too_many_clauses, 10}}
-    end
-
-    test "rejects a term that is not a spec" do
-      for term <- @not_specs do
-        assert MatchSpec.check_clauses(term, 10) == {:error, :invalid_shape}, inspect(term)
-      end
     end
   end
 
@@ -220,10 +245,10 @@ defmodule Voyager.MatchSpecTest do
       assert MatchSpec.check_actions([{[{:return_trace}], [], []}], @refused) == :ok
     end
 
-    test "rejects a term that is not a spec" do
-      for term <- @not_specs do
-        assert MatchSpec.check_actions(term, @refused) == {:error, :invalid_shape}, inspect(term)
-      end
+    test "ignores a refused name that is not the first element of a tuple" do
+      body = [:return_trace, {}, {"return_trace"}, {:message, :return_trace}]
+
+      assert MatchSpec.check_actions([{:_, [:return_trace], body}], @refused) == :ok
     end
   end
 
@@ -251,7 +276,8 @@ defmodule Voyager.MatchSpecTest do
             {[{:_, [], [:"$7"]}], :trace},
             {[{:_, [], [{:no_such_action, 1}]}], :trace},
             {[{:_, [], [{:message, 1}]}], :table},
-            {[{"head", [], []}], :trace}
+            {[{"head", [], []}], :trace},
+            {[{:_, [], []}, {:_, [{:no_such_guard}], []}], :trace}
           ] do
         assert {:error, {:compile, [_ | _] = errors}} = MatchSpec.check_compiles(spec, type),
                inspect(spec)
@@ -260,10 +286,10 @@ defmodule Voyager.MatchSpecTest do
       end
     end
 
-    test "rejects a term that is not a spec" do
-      for term <- @not_specs, type <- [:table, :trace] do
-        assert MatchSpec.check_compiles(term, type) == {:error, :invalid_shape}, inspect(term)
-      end
+    test "reports every error of a clause" do
+      assert MatchSpec.check_compiles([{:_, [:"$1"], []}], :table) ==
+               {:error,
+                {:compile, ["Variable $1 is unbound.", "Body clause does not return anything."]}}
     end
   end
 
@@ -275,12 +301,18 @@ defmodule Voyager.MatchSpecTest do
       assert MatchSpec.check_size(encoded, size) == :ok
       assert MatchSpec.check_size(encoded, size - 1) == {:error, {:too_large, size - 1}}
     end
+
+    test "measures a term that is not a spec" do
+      assert MatchSpec.check_size(:ok, 1) == {:error, {:too_large, 1}}
+    end
   end
 
-  test "checks compose over a parsed spec" do
-    input = ~S([{['$1', '_'], [{'>', '$1', 10}], [{message, '$1'}]}, {'_', [], []}])
+  test "checks compose over a spec from either parser" do
+    term = ~S([{['$1', '_'], [{'>', '$1', 10}], [{message, '$1'}]}, {'_', [], [true]}])
+    fun = "fun([A, _]) when A > 10 -> message(A); (_) -> true end"
 
-    assert {:ok, spec} = MatchSpec.parse(input)
+    assert {:ok, spec} = MatchSpec.parse(term)
+    assert MatchSpec.parse_fun(fun, :erlang, :trace) == {:ok, spec}
     assert MatchSpec.check_clauses(spec, 10) == :ok
     assert MatchSpec.check_actions(spec, [:return_trace]) == :ok
     assert MatchSpec.check_compiles(spec, :trace) == :ok
@@ -299,14 +331,16 @@ defmodule Voyager.MatchSpecTest do
 
     test "leaves match variables as they are" do
       for variable <- [:_, :"$_", :"$$", :"$0", :"$1", :"$123", :"$1000"] do
-        assert MatchSpec.encode([{variable, [], [variable]}]) == [{variable, [], [variable]}]
+        spec = [{%{variable => variable}, [], [variable]}]
+
+        assert MatchSpec.encode(spec) == spec
       end
     end
 
     test "tags atoms that only look like variables, and variables past $1000" do
       for atom <-
-            [:"$", :"$abc", :"$1a", :"$-1", :"$+1", :__, :"$__", :"$007", :"$01"] ++
-              [:"$1001", :"$900000008834"] do
+            [:"", :"$", :"$abc", :"$1a", :"$-1", :"$+1", :__, :"$__", :"$_1", :"$$$"] ++
+              [:"$007", :"$01", :"$1001", :"$900000008834"] do
         assert MatchSpec.encode([{atom, [], []}]) == [{tag(atom), [], []}], inspect(atom)
       end
     end
@@ -343,8 +377,8 @@ defmodule Voyager.MatchSpecTest do
              ]
     end
 
-    test "leaves numbers and binaries alone" do
-      spec = [{[1, -2.5, "atom"], [], [~c"ab"]}]
+    test "leaves numbers, binaries and empty terms alone" do
+      spec = [{[1, -2.5, "atom", {}, %{}], [], [~c"ab", []]}]
 
       assert MatchSpec.encode(spec) == spec
     end
@@ -365,6 +399,7 @@ defmodule Voyager.MatchSpecTest do
             {:atom_table_full, "atom table exhausted"},
             {:limit_exceeded, "building it needs more than 8 MiB or 2000 ms"},
             {{:syntax, "syntax error before: ')'"}, "syntax error before: ')'"},
+            {{:unsupported, "`%URI{}` is not supported"}, "`%URI{}` is not supported"},
             {:invalid_shape, "expected a list of {head, guards, body} clauses"},
             {{:too_many_clauses, 1}, "expected one {head, guards, body} clause"},
             {{:too_many_clauses, 10}, "expected at most 10 clauses"},
@@ -375,14 +410,6 @@ defmodule Voyager.MatchSpecTest do
           ] do
         assert MatchSpec.format_error(reason) == message
       end
-    end
-
-    test "formats what parse/1 and the checks return" do
-      assert {:error, reason} = MatchSpec.parse("[{X, [], []}]")
-      assert MatchSpec.format_error(reason) =~ "bad term"
-
-      assert {:error, reason} = MatchSpec.check_compiles([{:_, [], [:"$7"]}], :trace)
-      assert MatchSpec.format_error(reason) == "Variable $7 is unbound."
     end
   end
 

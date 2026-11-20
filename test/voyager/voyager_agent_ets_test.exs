@@ -343,6 +343,16 @@ defmodule VoyagerAgentEtsTest do
                @agent_module.ets_select_spec(name, spec, 10, @budget, :undefined)
     end
 
+    test "selects a row holding a literal tag tuple" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :set])
+      :ets.insert(name, [{:a, {:"$voyager_atom", "hit"}}, {:b, :hit}])
+      spec = MatchSpec.encode([{{:"$1", {:"$voyager_atom", "hit"}}, [], [:"$1"]}])
+
+      assert {:ok, %{records: [:a]}} =
+               @agent_module.ets_select_spec(name, spec, 10, @budget, :undefined)
+    end
+
     test "refuses an encoded atom the node does not have, without creating it" do
       name = EtsTable.unique_name()
       :ets.new(name, [:named_table, :public, :set])
@@ -353,6 +363,18 @@ defmodule VoyagerAgentEtsTest do
                {:error, {:unknown_atom, missing}}
 
       assert_raise ArgumentError, fn -> String.to_existing_atom(missing) end
+    end
+
+    test "refuses an encoded name no atom can have" do
+      name = EtsTable.unique_name()
+      :ets.new(name, [:named_table, :public, :set])
+
+      for impossible <- [String.duplicate("a", 256), <<255>>] do
+        spec = [{{:"$1", {:"$voyager_atom", impossible}}, [], [:"$1"]}]
+
+        assert @agent_module.ets_select_spec(name, spec, 10, @budget, :undefined) ==
+                 {:error, {:unknown_atom, impossible}}
+      end
     end
 
     test "raises badarg for a spec over the size cap" do

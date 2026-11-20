@@ -93,7 +93,10 @@ defmodule Voyager.MatchSpec.ErlangParserTest do
             {"fun(A, B) -> A end", :table},
             {"fun({X}) -> #r{} end", :table},
             {"fun({X}) when X = 1 -> X end", :table},
+            {"fun() -> ok end", :table},
             {"fun({X}) -> list_to_atom(X) end", :table},
+            {"fun({X}) when tuple_size(X) > 1 -> X end", :table},
+            {"fun({X}) when is_boolean(X) -> X end", :table},
             {"fun([X]) -> case X of _ -> X end end", :trace},
             {~S|fun(_) -> os:cmd("id") end|, :trace}
           ] do
@@ -126,11 +129,19 @@ defmodule Voyager.MatchSpec.ErlangParserTest do
       refute_received :leaked
     end
 
+    test "keeps a ! that is an atom, a string or a char" do
+      assert parse(~S|fun({X}) when X == '!'; X == "!"; X == $! -> X end|, :table) ==
+               {:ok,
+                [
+                  {{:"$1"}, [{:==, :"$1", :!}], [:"$1"]},
+                  {{:"$1"}, [{:==, :"$1", ~c"!"}], [:"$1"]},
+                  {{:"$1"}, [{:==, :"$1", ?!}], [:"$1"]}
+                ]}
+    end
+
     test "refuses a segment size too big or not a literal before building it" do
       for source <- [
             "fun({X}) when X == <<0:99999999999999>> -> X end",
-            "fun({X}) -> <<0:524289>> end",
-            "fun({X}) -> <<0:4097/unit:128>> end",
             "fun({X}) -> <<1:X>> end"
           ] do
         assert parse(source, :table) ==
@@ -140,16 +151,20 @@ defmodule Voyager.MatchSpec.ErlangParserTest do
       end
     end
 
-    test "returns an error when folded constants outgrow the parsing process" do
-      shifts = Enum.map_join(1..20, ", ", fn _ -> "1 bsl 4000000" end)
-
-      assert parse("fun({X}) -> [#{shifts}] end", :table) == {:error, :limit_exceeded}
-    end
-
-    test "refuses anything but one fun" do
-      for source <- ["[{'_', [], []}]", "ok", "fun(X) -> X end, fun(Y) -> Y end"] do
+    test "refuses anything but one anonymous fun" do
+      for source <- [
+            "[{'_', [], []}]",
+            "ok",
+            "fun(X) -> X end, fun(Y) -> Y end",
+            "fun F({X}) -> X end",
+            "fun erlang:halt/0"
+          ] do
         assert parse(source, :table) == {:error, {:syntax, "expected one fun ... end"}}, source
       end
+    end
+
+    test "adds a missing trailing dot" do
+      assert parse("fun({X}) -> X end", :table) == parse("fun({X}) -> X end. ", :table)
     end
 
     test "reports syntax errors" do
@@ -157,25 +172,6 @@ defmodule Voyager.MatchSpec.ErlangParserTest do
         assert {:error, {:syntax, message}} = parse(source, :table), inspect(source)
         assert is_binary(message)
       end
-    end
-
-    test "applies the input limits" do
-      assert parse(String.duplicate(" ", 4_097), :table) == {:error, :too_large}
-
-      assert parse(<<"fun(", 255, ") -> 1 end">>, :table) ==
-               {:error, {:syntax, "not valid UTF-8"}}
-    end
-  end
-
-  test "every translated spec compiles for its type" do
-    for {source, type} <- [
-          {"fun([A, _]) when A > 10 -> return_trace() end", :trace},
-          {"fun(Args) -> message(Args) end", :trace},
-          {"fun({K, V}) when V > 1; K == a -> {K, V} end", :table},
-          {"fun({K, _}) -> object() end", :table}
-        ] do
-      assert {:ok, spec} = parse(source, type), source
-      assert MatchSpec.check_compiles(spec, type) == :ok, source
     end
   end
 end

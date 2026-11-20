@@ -16,9 +16,12 @@ defmodule Voyager.MatchSpec.UtilsTest do
             [],
             {:atom, 1, :ok},
             {:bin, 1, [segment(int(1))]},
+            {:bin, 1, [segment(int(0), int(0))]},
             {:bin, 1, [segment(int(0), int(524_288))]},
+            {:bin, 1, [segment(int(0), int(524_288), [:integer, :little])]},
             {:bin, 1, [segment(int(0), {:char, 1, ?a})]},
             {:bin, 1, [segment(int(0), int(65_536), [:binary])]},
+            {:bin, 1, [segment(int(0), int(524_288), [:binary, {:unit, 1}])]},
             [{:tuple, 1, [{:bin, 1, [segment(int(0), int(2048), [{:unit, 256}])]}]}]
           ] do
         assert Utils.check_segments(abstract) == :ok, inspect(abstract)
@@ -30,14 +33,21 @@ defmodule Voyager.MatchSpec.UtilsTest do
             {:bin, 1, [segment(int(0), int(524_289))]},
             {:bin, 1, [segment(int(0), int(65_537), [:binary])]},
             {:bin, 1, [segment(int(0), int(65_537), [:bytes])]},
-            {:bin, 1, [segment(int(0), int(2049), [{:unit, 256}])]}
+            {:bin, 1, [segment(int(0), int(2049), [{:unit, 256}])]},
+            {:bin, 1, [segment(int(0), int(65_536), [:binary, {:unit, 9}])]},
+            {:bin, 1, [segment(int(1)), segment(int(0), int(524_289))]}
           ] do
         assert Utils.check_segments(abstract) == @too_big, inspect(abstract)
       end
     end
 
     test "refuses a size that is not an integer literal" do
-      for size <- [{:var, 1, :Size}, {:op, 1, :bsl, int(1), int(40)}, {:float, 1, 8.0}] do
+      for size <- [
+            {:var, 1, :Size},
+            {:op, 1, :bsl, int(1), int(40)},
+            {:op, 1, :-, int(1)},
+            {:float, 1, 8.0}
+          ] do
         assert Utils.check_segments({:bin, 1, [segment(int(0), size)]}) == @too_big,
                inspect(size)
       end
