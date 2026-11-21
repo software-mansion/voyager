@@ -1,6 +1,6 @@
 defmodule Voyager.E2E.SshConfigTest do
   # The saved config path is global, and a session started by `connect` disables the form.
-  use Voyager.E2E.Case, async: false
+  use Voyager.E2E.Case, async: false, project: "ssh-config"
 
   @config """
   Host prod

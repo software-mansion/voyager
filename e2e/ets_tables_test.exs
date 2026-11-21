@@ -1,5 +1,5 @@
 defmodule Voyager.E2E.EtsTablesTest do
-  use Voyager.E2E.Case, async: true
+  use Voyager.E2E.Case, async: true, project: "ets"
 
   # Tables owned by mock_ets_owner on the target node (see e2e/mock_app). The node runs
   # without Elixir, so the auto term syntax shows them as Erlang atoms.

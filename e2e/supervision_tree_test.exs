@@ -1,6 +1,7 @@
 defmodule Voyager.E2E.SupervisionTreeTest do
   use Voyager.E2E.Case,
     async: true,
+    project: "supervision-tree",
     group: :supervision_tree_spec
 
   import Voyager.E2E.TreeHelpers
@@ -253,6 +254,7 @@ end
 defmodule Voyager.E2E.SupervisionTreeRelationEdgeTest do
   use Voyager.E2E.Case,
     async: true,
+    project: "supervision-tree",
     group: :supervision_tree_spec
 
   import Voyager.E2E.TreeHelpers

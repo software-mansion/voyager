@@ -13,19 +13,29 @@ defmodule Voyager.E2E.Case do
   #     unreadable_secrets, recent_connections) and processes (global pid format).
   use ExUnit.CaseTemplate
 
-  # Each module runs once per device: Chromium and Firefox (`devices:` narrows it).
-  # E2E_BROWSER=chromium|firefox runs only that browser's devices.
+  # Each module runs once per project, named as in the JS config's `projects`:
+  # `project: "ets"` runs "ets chromium" (Desktop Chrome) and "ets firefox" (Desktop Firefox),
+  # `devices:` narrows it; `projects: [{"connect", "Desktop Chrome"}]` names them in full.
+  # E2E_BROWSER=chromium|firefox runs only that browser's projects.
   @devices ["Desktop Chrome", "Desktop Firefox"]
 
   using opts do
+    {project, opts} = Keyword.pop(opts, :project)
     {devices, opts} = Keyword.pop(opts, :devices, @devices)
+
+    {projects, opts} =
+      Keyword.pop_lazy(opts, :projects, fn ->
+        for device <- devices,
+            do: {"#{project} #{Playwright.device(device)[:default_browser_type]}", device}
+      end)
+
     browser = System.get_env("E2E_BROWSER")
 
     parameterize =
-      for device <- devices,
+      for {name, device} <- projects,
           device = Playwright.device(device),
           browser in [nil, device[:default_browser_type]],
-          do: Playwright.Test.parameters(device)
+          do: Playwright.Test.parameters([name: name] ++ device)
 
     opts = Keyword.put(opts, :parameterize, parameterize)
 

@@ -3,6 +3,7 @@ defmodule Voyager.E2E.TracingTest do
   # tests run one at a time).
   use Voyager.E2E.Case,
     async: true,
+    project: "tracing",
     devices: ["Desktop Chrome"]
 
   import Voyager.E2E.TreeHelpers

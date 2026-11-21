@@ -1,5 +1,5 @@
 defmodule Voyager.E2E.ConnectFormTest do
-  use Voyager.E2E.Case, async: false
+  use Voyager.E2E.Case, async: false, project: "connect-form"
 
   describe "ConnectLive › form validation" do
     setup %{page: page} do

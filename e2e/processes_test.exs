@@ -1,5 +1,5 @@
 defmodule Voyager.E2E.ProcessesTest do
-  use Voyager.E2E.Case, async: false
+  use Voyager.E2E.Case, async: false, project: "processes"
 
   @pid_links ~s|#processes-table tbody tr[id] td[data-column="pid"] a|
   @open_settings "#open-settings"

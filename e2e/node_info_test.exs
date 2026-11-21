@@ -1,5 +1,5 @@
 defmodule Voyager.E2E.NodeInfoTest do
-  use Voyager.E2E.Case, async: true
+  use Voyager.E2E.Case, async: true, project: "node"
 
   defp node_url, do: "/node/#{node_name()}"
 

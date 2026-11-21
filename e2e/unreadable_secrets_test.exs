@@ -1,7 +1,7 @@
 defmodule Voyager.E2E.UnreadableSecretsTest do
   use Voyager.E2E.Case,
     async: false,
-    devices: ["Desktop Chrome"]
+    projects: [{"unreadable-secrets", "Desktop Chrome"}]
 
   @db_path Path.expand("../priv/db/voyager_e2e.db", __DIR__)
   @unreadable_node "unreadable@127.0.0.1"

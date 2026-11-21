@@ -1,7 +1,7 @@
 defmodule Voyager.E2E.ConnectTest do
   use Voyager.E2E.Case,
     async: false,
-    devices: ["Desktop Chrome"]
+    projects: [{"connect", "Desktop Chrome"}]
 
   # Each test starts from `ensure_disconnected/1`, so the order doesn't matter.
   describe "direct connect" do

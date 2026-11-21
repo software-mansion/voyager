@@ -79,16 +79,17 @@ jobs:
       - name: Run e2e tests
         shell: bash
         run: |
+          # Both runs annotate: a test passing on the rerun is flaky.
+          f="--formatter ExUnit.CLIFormatter --formatter Playwright.Test.GitHubFormatter"
           # A rerun that finds no failures after a failed run must fail the job.
           retry() {
-            mix e2e --failed 2>&1 | tee retry.log; s=${PIPESTATUS[0]}
+            mix e2e --failed $f 2>&1 | tee retry.log; s=${PIPESTATUS[0]}
             if grep -q "^There are no tests to run" retry.log; then
               echo "::error::mix e2e --failed found no failures to rerun after a failed run"; return 1
             fi
             return $s
           }
-          mix e2e \
-            --formatter ExUnit.CLIFormatter --formatter Playwright.Test.GitHubFormatter \
+          mix e2e $f \
             || { [ $? -eq 2 ] && retry; } \
             || { [ $? -eq 2 ] && retry; }
 

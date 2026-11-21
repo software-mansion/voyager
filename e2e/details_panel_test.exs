@@ -1,6 +1,7 @@
 defmodule Voyager.E2E.DetailsPanelTest do
   use Voyager.E2E.Case,
     async: true,
+    project: "supervision-tree",
     group: :details_panel_spec
 
   import Voyager.E2E.TreeHelpers
@@ -81,6 +82,7 @@ end
 defmodule Voyager.E2E.DetailsPanelRelationOnlyLinkTest do
   use Voyager.E2E.Case,
     async: true,
+    project: "supervision-tree",
     group: :details_panel_spec
 
   import Voyager.E2E.TreeHelpers

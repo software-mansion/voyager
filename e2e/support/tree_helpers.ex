@@ -1,6 +1,6 @@
 defmodule Voyager.E2E.TreeHelpers do
   @moduledoc false
-  import ExUnit.Assertions
+  import Playwright.Test.Assertions
   import Voyager.E2E.Fixtures
 
   alias Playwright.Expect

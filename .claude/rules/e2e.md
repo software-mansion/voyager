@@ -38,7 +38,8 @@ sets up its own connection state (`ensure_connected` / `ensure_disconnected`).
 
 ## Browsers and ordering
 
-- Every module runs in both Chromium and Firefox via `use Voyager.E2E.Case` (`devices:` narrows it)
+- Every module runs in both Chromium and Firefox via `use Voyager.E2E.Case, project: "<name>"`, as
+  the projects `<name> chromium` and `<name> firefox` (`devices:` narrows it)
 - Specs share one node and one server. ExUnit runs async modules first, then the sync ones one by one
   (see `e2e/support/case.ex`). A module that disconnects or reconnects the session
   (`connect_form`, `ssh_config`, `connect`, `unreadable_secrets`, `recent_connections`) is

@@ -7,7 +7,7 @@ defmodule Voyager.E2E.FlakinessFormatter do
   """
   use GenServer
 
-  alias Playwright.Test.Options
+  alias Playwright.Test.Project
 
   @impl true
   def init(_opts) do
@@ -44,10 +44,9 @@ defmodule Voyager.E2E.FlakinessFormatter do
     %{test: label(test), status: status, attempt: String.to_integer(attempt)}
   end
 
-  # "Module test name [browser]", as the JS report named a test with its project.
+  # "Module test name [project]", as the JS report named a test with its project.
   defp label(%ExUnit.Test{module: module, name: name, parameters: parameters}) do
-    use = Options.used(parameters)
-    browser = use[:browser_name] || use[:default_browser_type] || :chromium
-    "#{inspect(module)} #{name} [#{browser}]"
+    projects = for {_key, %Project{} = project} <- parameters, do: Project.title(project)
+    "#{inspect(module)} #{name} [#{Enum.join(projects)}]"
   end
 end

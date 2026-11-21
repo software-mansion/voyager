@@ -1,5 +1,5 @@
 defmodule Voyager.E2E.SidebarTest do
-  use Voyager.E2E.Case, async: true
+  use Voyager.E2E.Case, async: true, project: "sidebar"
 
   @sidebar "#app-sidebar"
 
