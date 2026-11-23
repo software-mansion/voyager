@@ -939,7 +939,6 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
   end
 
   test "redraws the storage bar once the storage limit changes", %{conn: conn} do
-    Voyager.Repo.delete_all(Voyager.Schemas.Setting)
     %{id: id} = start!(%{}, save: true)
     view = open(conn, id)
 

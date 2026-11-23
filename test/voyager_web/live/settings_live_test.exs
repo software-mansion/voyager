@@ -402,11 +402,6 @@ defmodule VoyagerWeb.SettingsLiveTest do
   end
 
   describe "tracing settings" do
-    setup do
-      Voyager.Repo.delete_all(Voyager.Schemas.Setting)
-      :ok
-    end
-
     test "saves the trace storage limit", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/settings")
 
