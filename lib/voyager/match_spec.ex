@@ -4,10 +4,10 @@ defmodule Voyager.MatchSpec do
 
       with {:ok, spec} <- MatchSpec.parse_fun(input, :elixir, :trace),
            :ok <- MatchSpec.check_clauses(spec, 10),
-           :ok <- MatchSpec.check_actions(spec, Refusals.refused_actions()),
+           :ok <- MatchSpec.check_actions(spec, Tracer.Refusals.refused_actions()),
            :ok <- MatchSpec.check_compiles(spec, :trace),
            encoded = MatchSpec.encode(spec),
-           :ok <- MatchSpec.check_size(encoded, Refusals.max_match_spec_bytes()) do
+           :ok <- MatchSpec.check_size(encoded, MatchSpec.Refusals.max_match_spec_bytes()) do
         {:ok, encoded}
       end
 

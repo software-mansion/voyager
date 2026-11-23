@@ -833,7 +833,8 @@ traceable(Module, Processes) ->
             ok
     end.
 
-%% The refusal macros come from `Voyager.Services.Tracer.Refusals.agent_macros/0'.
+%% The refusal macros come from `Voyager.Services.Tracer.Refusals.agent_macros/0'
+%% and `Voyager.MatchSpec.Refusals.agent_macros/0'.
 refused(Module, Pids) when is_list(Pids) ->
     Module =:= ?MODULE orelse lists:member(Module, ?TRACE_ALWAYS_REFUSED);
 refused(Module, _ProcessSet) ->

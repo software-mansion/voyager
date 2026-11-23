@@ -8,7 +8,7 @@ defmodule Voyager.Services.Ets.MatchSpec do
   """
 
   alias Voyager.MatchSpec
-  alias Voyager.Services.Tracer.Refusals
+  alias Voyager.MatchSpec.Refusals
 
   @type error :: {:invalid_match_spec, String.t()}
 

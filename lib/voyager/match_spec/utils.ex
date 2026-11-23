@@ -3,8 +3,8 @@ defmodule Voyager.MatchSpec.Utils do
 
   alias Voyager.MatchSpec
 
-  # The agent's `MAX_MATCH_SPEC_BYTES` (64 KiB): a bigger segment could never be sent.
-  @max_segment_bits 524_288
+  # A segment bigger than the agent's match spec cap could never be sent.
+  @max_segment_bits Voyager.MatchSpec.Refusals.max_match_spec_bytes() * 8
 
   @doc "Turns a fun's clauses in Erlang abstract format into a match spec, as `fun2ms` does."
   @spec transform([tuple()], :table | :trace) ::

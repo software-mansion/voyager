@@ -6,17 +6,19 @@ defmodule Voyager.Agent do
   """
 
   alias Voyager.Erpc
+  alias Voyager.MatchSpec.Refusals, as: MatchSpecRefusals
   alias Voyager.NodeSession
   alias Voyager.Services.CodeInjector
   alias Voyager.Services.Tracer.Refusals
 
+  @agent_macros Refusals.agent_macros() ++ MatchSpecRefusals.agent_macros()
   @agent_source "voyager_agent.erl"
   @agent_path Path.expand("../../priv/#{@agent_source}", __DIR__)
   @external_resource @agent_path
   @agent_digest :sha256
                 |> :crypto.hash([
                   File.read!(@agent_path),
-                  :erlang.term_to_binary(Refusals.agent_macros())
+                  :erlang.term_to_binary(@agent_macros)
                 ])
                 |> Base.encode16(case: :lower)
   @agent :"voyager_agent_#{binary_part(@agent_digest, 0, 12)}"
@@ -68,7 +70,7 @@ defmodule Voyager.Agent do
 
   @doc "The macros the agent source is compiled with."
   @spec macros() :: keyword()
-  def macros, do: [{:AGENT, @agent} | Refusals.agent_macros()]
+  def macros, do: [{:AGENT, @agent} | @agent_macros]
 
   @doc "Minimum OTP release the agent requires on the remote node."
   @spec min_otp() :: pos_integer()

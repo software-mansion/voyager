@@ -4,8 +4,8 @@ defmodule VoyagerAgentEtsTest do
   @compile {:no_warn_undefined, Voyager.Agent.module()}
 
   alias Voyager.MatchSpec
+  alias Voyager.MatchSpec.Refusals
   alias Voyager.Services.Ets.Search
-  alias Voyager.Services.Tracer.Refusals
   alias Voyager.Test.EtsTable
   alias Voyager.Test.VoyagerAgentFixture
 
