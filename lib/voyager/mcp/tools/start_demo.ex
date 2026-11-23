@@ -15,17 +15,11 @@ defmodule Voyager.MCP.Tools.StartDemo do
   is not connected to it within 5 minutes; call `start_demo` again for a new
   one. It runs only in the Voyager desktop app.
 
-  Once connected, explore it with:
-  - `node_info`: OTP and Elixir versions, memory, process and port counts
-  - `process_list` / `process_info`: the `supervision_tree_demo` application,
-    with `SupervisionTreeDemo.StuckMailbox` (200 messages queued in a stalled
-    process), `SupervisionTreeDemo.LargeState` (a large GenServer state),
-    `SupervisionTreeDemo.Hub` (links, monitors, a port and a socket) and
-    workers under dynamic, task and nested supervisors
-  - `ets_list` / `ets_read_table_chunk` / `ets_search_table`: tables of every
-    type and protection, e.g. `kv_set`, `users_ordered`, `bag_events`,
-    `dup_bag`, `protected_config`, `huge_records`, `all_elixir_types`
-  - `module_list`: the demo modules, `SupervisionTreeDemo.*` and `EtsDemo`
+  Once connected, list Voyager's tools (MCP `tools/list`) and try each of them
+  on it. The demo runs the `supervision_tree_demo` application, which has a
+  stalled process with a queued mailbox, a GenServer with a large state,
+  processes with links, monitors, a port and a socket, and ETS tables of every
+  type and protection.
   """
 
   use Anubis.Server.Component, type: :tool
