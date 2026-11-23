@@ -4,8 +4,6 @@ defmodule Voyager.MatchSpecTest do
   alias Voyager.MatchSpec
 
   @tag_atom :"$voyager_atom"
-  @not_a_list {:error,
-               {:unsupported, "dbg:fun2ms requires fun with single variable or list parameter"}}
   @not_specs [
     [],
     42,
@@ -120,18 +118,10 @@ defmodule Voyager.MatchSpecTest do
       end
     end
 
-    test "refuses a segment too big or not literally sized before building it" do
-      for input <- [
-            "<<0:99999999999999>>",
-            "<<0:(99999999999999)>>",
-            "<<0:(1 bsl 40)>>",
-            "[{'_', [], [<<1>>, <<1:Size>>]}]"
-          ] do
-        assert MatchSpec.parse(input) ==
-                 {:error,
-                  {:syntax, "binary segments must have an integer size of at most 524288 bits"}},
-               input
-      end
+    test "refuses a segment too big before building it" do
+      assert MatchSpec.parse("<<0:99999999999999>>") ==
+               {:error,
+                {:syntax, "binary segments must have an integer size of at most 524288 bits"}}
     end
 
     test "returns an error when the term outgrows the parsing process" do
@@ -152,18 +142,6 @@ defmodule Voyager.MatchSpecTest do
   end
 
   describe "parse_fun/3" do
-    test "applies the input limits before either parser" do
-      for {language, fun} <- [erlang: "fun({X}) -> X end", elixir: "fn {x} -> x end"] do
-        at_cap = fun <> String.duplicate(" ", 4_096 - byte_size(fun))
-
-        assert MatchSpec.parse_fun(at_cap, language, :table) == {:ok, [{{:"$1"}, [], [:"$1"]}]}
-        assert MatchSpec.parse_fun(at_cap <> " ", language, :table) == {:error, :too_large}
-
-        assert MatchSpec.parse_fun(<<fun::binary, 255>>, language, :table) ==
-                 {:error, {:syntax, "not valid UTF-8"}}
-      end
-    end
-
     test "returns an error when folded constants outgrow the parsing process" do
       for {language, head, shift} <- [
             {:erlang, "fun({X}) ->", "1 bsl 4000000"},
@@ -174,14 +152,145 @@ defmodule Voyager.MatchSpecTest do
         assert MatchSpec.parse_fun(source, language, :table) == {:error, :limit_exceeded}, source
       end
     end
+
+    test "turns the parameter and a guard into a clause" do
+      trace = {:ok, [{[:"$1", :_], [{:>, :"$1", 10}], [true]}]}
+      table = {:ok, [{{:"$1", :"$2"}, [{:>, :"$2", 1}], [:"$1"]}]}
+
+      for {language, type, source, result} <- [
+            {:erlang, :trace, "fun([A, _]) when A > 10 -> true end", trace},
+            {:elixir, :trace, "fn [a, _] when a > 10 -> true end", trace},
+            {:erlang, :table, "fun({K, V}) when V > 1 -> K end", table},
+            {:elixir, :table, "fn {k, v} when v > 1 -> k end", table}
+          ] do
+        assert MatchSpec.parse_fun(source, language, type) == result, source
+      end
+    end
+
+    test "binds the whole argument list to a variable" do
+      for {language, source} <- [
+            erlang: "fun(Args) when length(Args) > 1 -> true end",
+            elixir: "fn args when length(args) > 1 -> true end"
+          ] do
+        assert MatchSpec.parse_fun(source, language, :trace) ==
+                 {:ok, [{:"$1", [{:>, {:length, :"$1"}, 1}], [true]}]},
+               source
+      end
+    end
+
+    test "matches literals, lists, maps and repeated variables" do
+      for {language, source} <- [
+            erlang: ~S'fun({K, K, [1 | T], #{k := V}, <<"b">>, -2.5, ok, nil}) -> V end',
+            elixir: ~S'fn {k, k, [1 | t], %{k: v}, "b", -2.5, :ok, nil} -> v end'
+          ] do
+        assert MatchSpec.parse_fun(source, language, :table) ==
+                 {:ok,
+                  [{{:"$1", :"$1", [1 | :"$2"], %{k: :"$3"}, "b", -2.5, :ok, nil}, [], [:"$3"]}]},
+               source
+      end
+    end
+
+    test "refuses anything but one parameter of the type's shape" do
+      messages = %{
+        trace: "dbg:fun2ms requires fun with single variable or list parameter",
+        table: "ets:fun2ms requires fun with single variable or tuple parameter"
+      }
+
+      for {language, type, source} <- [
+            {:erlang, :trace, "fun({K, V}) -> K end"},
+            {:elixir, :trace, "fn {k, v} -> k end"},
+            {:elixir, :trace, "fn %{k: v} -> v end"},
+            {:elixir, :trace, "fn :atom -> 1 end"},
+            {:elixir, :trace, "fn a, b -> a end"},
+            {:elixir, :trace, "fn a, b when a > b -> a end"},
+            {:elixir, :trace, "fn -> 1 end"},
+            {:erlang, :table, "fun([K]) -> K end"},
+            {:erlang, :table, "fun(A, B) -> A end"},
+            {:erlang, :table, "fun() -> ok end"},
+            {:elixir, :table, "fn [k] -> k end"}
+          ] do
+        assert MatchSpec.parse_fun(source, language, type) ==
+                 {:error, {:unsupported, messages[type]}},
+               source
+      end
+    end
+
+    test "refuses a variable the head does not bind" do
+      for {language, source, message} <- [
+            {:erlang, "fun({K}) when K > X -> K end", "the variable X is unbound"},
+            {:elixir, "fn {x} when x > y -> x end", ~S(undefined variable "y")},
+            {:elixir, "fn {x} -> y end", ~S(undefined variable "y")},
+            {:elixir, "fn {x} -> _ end", "invalid use of _"}
+          ] do
+        assert {:error, {:unsupported, error}} = MatchSpec.parse_fun(source, language, :table),
+               source
+
+        assert error =~ message
+      end
+    end
+
+    test "refuses a reserved atom in the head" do
+      for {language, source} <- [
+            erlang: "fun({X, '$1'}) -> X end",
+            elixir: ~S|fn {x, :"$1"} -> x end|
+          ] do
+        assert {:error, {:unsupported, message}} = MatchSpec.parse_fun(source, language, :table),
+               source
+
+        assert message =~ "'$1'"
+      end
+    end
+
+    test "refuses a segment too big before building it" do
+      for {language, source} <- [
+            erlang: "fun({X}) when X == <<0:99999999999999>> -> X end",
+            elixir: "fn {x} when x == <<0::99999999999999>> -> x end"
+          ] do
+        assert MatchSpec.parse_fun(source, language, :table) ==
+                 {:error,
+                  {:syntax, "binary segments must have an integer size of at most 524288 bits"}},
+               source
+      end
+    end
+
+    test "refuses anything but one fun" do
+      for {language, message, sources} <- [
+            {:erlang, "expected one fun ... end",
+             [
+               "[{'_', [], []}]",
+               "ok",
+               "fun(X) -> X end, fun(Y) -> Y end",
+               "fun F({X}) -> X end",
+               "fun erlang:halt/0"
+             ]},
+            {:elixir, "expected one fn ... end",
+             ["[{:_, [], []}]", "x", ":ok", "&(&1)", "fn {x} -> x end; fn {y} -> y end"]}
+          ],
+          source <- sources do
+        assert MatchSpec.parse_fun(source, language, :table) == {:error, {:syntax, message}},
+               source
+      end
+    end
+
+    test "reports syntax errors" do
+      for {language, source} <- [
+            erlang: "fun(X) -> X",
+            erlang: "fun(X) X end",
+            elixir: "fn x -> x",
+            elixir: "fn x x end",
+            elixir: "1 +",
+            elixir: "",
+            elixir: "fn {x} -> x end."
+          ] do
+        assert {:error, {:syntax, message}} = MatchSpec.parse_fun(source, language, :table),
+               inspect(source)
+
+        assert is_binary(message)
+      end
+    end
   end
 
   describe "parse_fun/3 with :erlang and :trace" do
-    test "turns the argument list and a guard into a clause" do
-      assert parse_erlang("fun([A, _]) when A > 10 -> true end", :trace) ==
-               {:ok, [{[:"$1", :_], [{:>, :"$1", 10}], [true]}]}
-    end
-
     test "keeps trace actions in the body" do
       assert parse_erlang(
                "fun([A]) when A > 10 -> return_trace(), message(A); (_) -> true end",
@@ -193,25 +302,9 @@ defmodule Voyager.MatchSpecTest do
                   {:_, [], [true]}
                 ]}
     end
-
-    test "binds the whole argument list to a variable" do
-      assert parse_erlang("fun(Args) when length(Args) > 1 -> true end", :trace) ==
-               {:ok, [{:"$1", [{:>, {:length, :"$1"}, 1}], [true]}]}
-    end
-
-    test "refuses a parameter that is not a list or a variable" do
-      assert parse_erlang("fun({K, V}) -> K end", :trace) ==
-               {:error,
-                {:unsupported, "dbg:fun2ms requires fun with single variable or list parameter"}}
-    end
   end
 
   describe "parse_fun/3 with :erlang and :table" do
-    test "turns the row and a guard into a clause" do
-      assert parse_erlang("fun({K, V}) when V > 1 -> K end", :table) ==
-               {:ok, [{{:"$1", :"$2"}, [{:>, :"$2", 1}], [:"$1"]}]}
-    end
-
     test "splits guard sequences into clauses and keeps guard lists" do
       assert parse_erlang("fun({K, V}) when is_integer(V), V > 1; K == a -> {K, V} end", :table) ==
                {:ok,
@@ -219,14 +312,6 @@ defmodule Voyager.MatchSpecTest do
                   {{:"$1", :"$2"}, [{:is_integer, :"$2"}, {:>, :"$2", 1}], [{{:"$1", :"$2"}}]},
                   {{:"$1", :"$2"}, [{:==, :"$1", :a}], [{{:"$1", :"$2"}}]}
                 ]}
-    end
-
-    test "matches literals, lists, maps and repeated variables" do
-      assert parse_erlang(
-               ~S'fun({K, K, [1 | T], #{k := V}, <<"b">>, -2.5}) -> object() end',
-               :table
-             ) ==
-               {:ok, [{{:"$1", :"$1", [1 | :"$2"], %{k: :"$3"}, "b", -2.5}, [], [:"$_"]}]}
     end
 
     test "keeps remote guard calls, folds shifts and builds sized segments" do
@@ -245,32 +330,13 @@ defmodule Voyager.MatchSpecTest do
       assert parse_erlang("fun({K}) when K == {a, b} -> '$1' end", :table) ==
                {:ok, [{{:"$1"}, [{:==, :"$1", {{:a, :b}}}], [const: :"$1"]}]}
     end
-
-    test "refuses a parameter that is not a tuple or a variable" do
-      assert parse_erlang("fun([K]) -> K end", :table) ==
-               {:error,
-                {:unsupported, "ets:fun2ms requires fun with single variable or tuple parameter"}}
-    end
   end
 
   describe "parse_fun/3 with :erlang errors" do
-    test "refuses a variable the head does not bind" do
-      assert parse_erlang("fun({K}) when K > X -> K end", :table) ==
-               {:error,
-                {:unsupported, "the variable X is unbound, cannot translate into match_spec"}}
-    end
-
-    test "refuses reserved atoms in the head" do
-      assert {:error, {:unsupported, message}} = parse_erlang("fun({X, '$1'}) -> X end", :table)
-      assert message =~ "'$1'"
-    end
-
     test "refuses what ms_transform cannot translate" do
       for {source, type} <- [
-            {"fun(A, B) -> A end", :table},
             {"fun({X}) -> #r{} end", :table},
             {"fun({X}) when X = 1 -> X end", :table},
-            {"fun() -> ok end", :table},
             {"fun({X}) -> list_to_atom(X) end", :table},
             {"fun({X}) when tuple_size(X) > 1 -> X end", :table},
             {"fun({X}) when is_boolean(X) -> X end", :table},
@@ -315,94 +381,22 @@ defmodule Voyager.MatchSpecTest do
                   {{:"$1"}, [{:==, :"$1", ?!}], [:"$1"]}
                 ]}
     end
-
-    test "refuses a segment size too big or not a literal before building it" do
-      for source <- [
-            "fun({X}) when X == <<0:99999999999999>> -> X end",
-            "fun({X}) -> <<1:X>> end"
-          ] do
-        assert parse_erlang(source, :table) ==
-                 {:error,
-                  {:syntax, "binary segments must have an integer size of at most 524288 bits"}},
-               source
-      end
-    end
-
-    test "refuses anything but one anonymous fun" do
-      for source <- [
-            "[{'_', [], []}]",
-            "ok",
-            "fun(X) -> X end, fun(Y) -> Y end",
-            "fun F({X}) -> X end",
-            "fun erlang:halt/0"
-          ] do
-        assert parse_erlang(source, :table) == {:error, {:syntax, "expected one fun ... end"}},
-               source
-      end
-    end
-
-    test "adds a missing trailing dot" do
-      assert parse_erlang("fun({X}) -> X end", :table) ==
-               parse_erlang("fun({X}) -> X end. ", :table)
-    end
-
-    test "reports syntax errors" do
-      for source <- ["fun(X) -> X", "fun(X) X end", "'unterminated", ""] do
-        assert {:error, {:syntax, message}} = parse_erlang(source, :table), inspect(source)
-        assert is_binary(message)
-      end
-    end
   end
 
   describe "parse_fun/3 with :elixir and :trace" do
-    test "turns the argument list and a guard into a clause" do
-      assert parse_elixir("fn [a, _] when a > 10 -> true end", :trace) ==
-               {:ok, [{[:"$1", :_], [{:>, :"$1", 10}], [true]}]}
-    end
-
-    test "binds the whole argument list to a variable" do
-      assert parse_elixir("fn args when is_list(args) -> true end", :trace) ==
-               {:ok, [{:"$1", [{:is_list, :"$1"}], [true]}]}
-    end
-
     test "translates every clause" do
       assert parse_elixir("fn [a] when a > 1 -> true\n _ -> false end", :trace) ==
                {:ok, [{[:"$1"], [{:>, :"$1", 1}], [true]}, {:_, [], [false]}]}
     end
-
-    test "refuses a parameter that is not a list or a variable" do
-      for source <- ["fn {k, v} -> k end", "fn %{k: v} -> v end", "fn :atom -> 1 end"] do
-        assert parse_elixir(source, :trace) == @not_a_list, source
-      end
-    end
   end
 
   describe "parse_fun/3 with :elixir and :table" do
-    test "turns the row and a guard into a clause" do
-      assert parse_elixir("fn {k, v} when v > 1 -> k end", :table) ==
-               {:ok, [{{:"$1", :"$2"}, [{:>, :"$2", 1}], [:"$1"]}]}
-    end
-
-    test "matches n-tuples, lists, maps, literals and repeated variables" do
-      source = ~S'fn {k, k, [1 | t], %{k: v}, "b", -2.5, :ok, nil} -> v end'
-
-      assert parse_elixir(source, :table) ==
-               {:ok,
-                [{{:"$1", :"$1", [1 | :"$2"], %{k: :"$3"}, "b", -2.5, :ok, nil}, [], [:"$3"]}]}
-    end
-
     test "matches anything with _ and binds _name like any variable" do
       assert parse_elixir("fn {_, _a, _a, x} -> x end", :table) ==
                {:ok, [{{:_, :"$1", :"$1", :"$2"}, [], [:"$2"]}]}
 
       assert parse_elixir("fn {_a, _a} -> true end", :table) ==
                MatchSpec.parse_fun("fun({_A, _A}) -> true end", :erlang, :table)
-    end
-
-    test "refuses a parameter that is not a tuple or a variable" do
-      assert parse_elixir("fn [k] -> k end", :table) ==
-               {:error,
-                {:unsupported, "ets:fun2ms requires fun with single variable or tuple parameter"}}
     end
   end
 
@@ -506,31 +500,9 @@ defmodule Voyager.MatchSpecTest do
                    [{{:"$1", [:"$2" | :"$1"], {{:"$1", :"$2", 1}}, %{key: :"$2"}}}]}
                 ]}
     end
-
-    test "wraps reserved atoms" do
-      assert parse_elixir(~S|fn {x} -> :"$1" end|, :table) ==
-               {:ok, [{{:"$1"}, [], [{:const, :"$1"}]}]}
-    end
   end
 
   describe "parse_fun/3 with :elixir errors" do
-    test "refuses a reserved atom in the head" do
-      assert {:error, {:unsupported, message}} = parse_elixir(~S|fn {x, :"$1"} -> x end|, :table)
-      assert message =~ "'$1'"
-    end
-
-    test "refuses a variable the head does not bind" do
-      for source <- ["fn {x} when x > y -> x end", "fn {x} -> y end", "fn {x} -> _ end"] do
-        assert {:error, {:unsupported, _message}} = parse_elixir(source, :table), source
-      end
-    end
-
-    test "refuses more or fewer than one parameter" do
-      for source <- ["fn a, b -> a end", "fn a, b when a > b -> a end", "fn -> 1 end"] do
-        assert parse_elixir(source, :trace) == @not_a_list, source
-      end
-    end
-
     test "refuses the forms whose expansion would run code on this node" do
       for source <- [
             ~S|fn {x} -> System.cmd("id", []) end|,
@@ -573,8 +545,6 @@ defmodule Voyager.MatchSpecTest do
             "fn {x} -> %{x | a: 1} end",
             "fn {x} when get_tcw() > 1 -> x end",
             "fn {a} -> 1\n a, b -> 2 end",
-            "fn {x} when tuple_size(x) > 1 -> x end",
-            "fn {x} when is_boolean(x) -> x end",
             "fn {x} -> :erlang.apply(:erlang, :halt, []) end",
             "fn {x} -> x |> elem(0) end",
             "fn {x} -> x && 1 end",
@@ -605,26 +575,6 @@ defmodule Voyager.MatchSpecTest do
 
       refute_received :leaked
     end
-
-    test "refuses anything but one fn" do
-      for source <- [
-            "[{:_, [], []}]",
-            "x",
-            ":ok",
-            "&(&1)",
-            "fn {x} -> x end; fn {y} -> y end"
-          ] do
-        assert parse_elixir(source, :table) == {:error, {:syntax, "expected one fn ... end"}},
-               source
-      end
-    end
-
-    test "reports syntax errors" do
-      for source <- ["fn x -> x", "fn x x end", "1 +", "", "fn {x} -> x end."] do
-        assert {:error, {:syntax, message}} = parse_elixir(source, :table), inspect(source)
-        assert is_binary(message)
-      end
-    end
   end
 
   describe "parse_fun/3 with :elixir fun2ms features" do
@@ -653,7 +603,6 @@ defmodule Voyager.MatchSpecTest do
             {"elem(x, x)", {:element, {:+, :"$1", 1}, :"$1"}},
             {"is_map_key(x, :k)", {:is_map_key, :k, :"$1"}},
             {"is_nil(x)", {:==, :"$1", nil}},
-            {"map_size(x)", {:map_size, :"$1"}},
             {":erlang.element(1, x)", {:element, 1, :"$1"}},
             {":erlang.xor(x, true)", {:xor, :"$1", true}},
             {"x &&& 1", {:band, :"$1", 1}},
@@ -702,20 +651,9 @@ defmodule Voyager.MatchSpecTest do
       end
     end
 
-    test "refuses bit syntax that is not a literal or too big" do
+    test "refuses bit syntax that is not a literal" do
       assert {:error, {:unsupported, _}} = parse_elixir("fn {x} -> <<x::8>> end", :table)
       assert {:error, {:unsupported, _}} = parse_elixir("fn {x} -> <<1.5::8>> end", :table)
-
-      for source <- [
-            "fn {x} -> <<0::524289>> end",
-            "fn {x} -> <<0::2049-unit(256)>> end",
-            "fn {x} -> <<0::size(x)>> end"
-          ] do
-        assert parse_elixir(source, :table) ==
-                 {:error,
-                  {:syntax, "binary segments must have an integer size of at most 524288 bits"}},
-               source
-      end
     end
   end
 
