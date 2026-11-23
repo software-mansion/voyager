@@ -4,18 +4,62 @@ defmodule Voyager.Services.Ets.MatchSpecTest do
   alias Voyager.Services.Ets.MatchSpec
 
   describe "parse/1" do
-    test "returns the spec with its atoms encoded" do
-      spec = ~S([{{'$1', '$2', active}, [{'>', '$2', 10}], ['$1']}])
-
-      assert MatchSpec.parse(spec) ==
-               {:ok, [{{:"$1", :"$2", tag(:active)}, [{tag(:>), :"$2", 10}], [:"$1"]}]}
+    test "parses the match-all spec" do
+      assert MatchSpec.parse("[{'$1', [], ['$1']}].") == {:ok, [{:"$1", [], [:"$1"]}]}
     end
 
-    test "rejects what Voyager.MatchSpec.parse/1 refuses, with its message" do
+    test "parses a head, guards and body" do
+      spec = ~S([{{'$1', '$2'}, [{'>', '$2', 10}], ['$1']}])
+
+      assert MatchSpec.parse(spec) ==
+               {:ok, [{{:"$1", :"$2"}, [{tag(:>), :"$2", 10}], [:"$1"]}]}
+    end
+
+    test "parses binaries, negative numbers and nested terms" do
+      spec = ~S([{{'$1', <<"a">>, [-3, {ok, #{k => '$2'}}]}, [], ['$_']}])
+
+      assert {:ok, [{head, [], [:"$_"]}]} = MatchSpec.parse(spec)
+      assert head == {:"$1", "a", [-3, {tag(:ok), %{tag(:k) => :"$2"}}]}
+    end
+
+    test "adds a missing trailing dot" do
+      assert MatchSpec.parse("[{'$1', [], ['$1']}]") == {:ok, [{:"$1", [], [:"$1"]}]}
+    end
+
+    test "rejects a call" do
+      assert {:error, {:invalid_match_spec, _}} = MatchSpec.parse("os:cmd(\"whoami\").")
+    end
+
+    test "rejects a variable" do
+      assert {:error, {:invalid_match_spec, _}} = MatchSpec.parse("[{X, [], [X]}].")
+    end
+
+    test "rejects a spec that is not a single clause" do
+      assert {:error, {:invalid_match_spec, detail}} =
+               MatchSpec.parse("[{'$1', [], ['$1']}, {'$2', [], ['$2']}]")
+
+      assert detail =~ "one {head, guards, body} clause"
+    end
+
+    test "rejects a term that is not a clause list" do
+      assert {:error, {:invalid_match_spec, _}} = MatchSpec.parse("42")
+      assert {:error, {:invalid_match_spec, _}} = MatchSpec.parse("[{'$1', [], '$1'}]")
+    end
+
+    test "rejects an empty spec" do
+      assert {:error, {:invalid_match_spec, _}} = MatchSpec.parse("")
+    end
+
+    test "rejects a spec over the byte cap" do
+      assert {:error, {:invalid_match_spec, detail}} =
+               MatchSpec.parse(String.duplicate("a", 5_000))
+
+      assert detail =~ "longer than"
+    end
+
+    test "rejects invalid UTF-8 and an oversized binary segment" do
       for {input, detail} <- [
             {<<255>>, "not valid UTF-8"},
-            {String.duplicate("a", 4_097), "longer than 4096 bytes"},
-            {"[{X, [], [X]}]", "bad term"},
             {"[{'$1', [], [<<0:99999999999999>>]}]",
              "binary segments must have an integer size of at most 524288 bits"}
           ] do
@@ -34,19 +78,6 @@ defmodule Voyager.Services.Ets.MatchSpecTest do
     test "rejects a spec that encodes to more than the agent takes" do
       assert MatchSpec.parse("[{'_', [], [<<0:524288>>]}]") ==
                {:error, {:invalid_match_spec, "encodes to more than 65536 bytes"}}
-    end
-
-    test "rejects a spec that is not a single clause" do
-      assert MatchSpec.parse("[{'$1', [], ['$1']}, {'$2', [], ['$2']}]") ==
-               {:error, {:invalid_match_spec, "expected one {head, guards, body} clause"}}
-    end
-
-    test "rejects a term that is not a clause list" do
-      for input <- ["42", "[]", "[{'$1', [], '$1'}]"] do
-        assert MatchSpec.parse(input) ==
-                 {:error,
-                  {:invalid_match_spec, "expected a list of one {head, guards, body} clause"}}
-      end
     end
   end
 
