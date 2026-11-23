@@ -419,7 +419,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
           </div>
 
           <.tooltip
-            id={"overview-params-#{@item.id}"}
+            id="overview-params"
             position="bottom"
             class="mt-2 flex w-fit min-w-0 max-w-full flex-col items-start gap-2.5"
           >
