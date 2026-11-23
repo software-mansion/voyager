@@ -261,7 +261,7 @@ defmodule VoyagerWeb.TracingSessionLive do
   def handle_event(
         "save-config",
         %{"config" => attrs} = params,
-        %{assigns: %{editable?: true, config_form: %Phoenix.HTML.Form{}}} = socket
+        %{assigns: %{editable?: true, pending: nil, config_form: %Phoenix.HTML.Form{}}} = socket
       ) do
     changeset = TraceConfigParams.changeset(%TraceConfigParams{}, attrs)
 

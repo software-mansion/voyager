@@ -302,6 +302,31 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert %{function: "leap_year?"} = Tracer.active().config
   end
 
+  test "ignores a second save while the first one runs", %{conn: conn} do
+    %{id: id} = create!()
+    view = open(conn, id)
+
+    view
+    |> element("#session-set-parameters")
+    |> render_click()
+
+    :ok = :sys.suspend(Tracer)
+
+    view
+    |> form("#config-form", config: %{module: "Date", function: "leap_year?", arity: "1"})
+    |> put_submitter("#config-save")
+    |> render_submit()
+
+    view
+    |> form("#config-form", config: %{max_events: "5"})
+    |> render_submit()
+
+    :ok = :sys.resume(Tracer)
+    settle(view)
+
+    assert %{function: "leap_year?", max_events: 10_000} = Tracer.active().config
+  end
+
   test "saves a time limit in milliseconds and reopens it in milliseconds", %{conn: conn} do
     %{id: id} = create!()
     view = open(conn, id)
