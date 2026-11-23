@@ -450,6 +450,19 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> noreply()
   end
 
+  # The Tracer only recomputes the active session's share.
+  def handle_info(
+        {:storage_limit_changed, _mb},
+        %{assigns: %{mode: :saved, trace_session: %AsyncResult{result: %Session{} = session}}} =
+          socket
+      ) do
+    session = %{session | storage_limit: Tracer.storage_limit(session.id)}
+
+    socket
+    |> assign(:trace_session, AsyncResult.ok(session))
+    |> noreply()
+  end
+
   def handle_info(_message, socket), do: noreply(socket)
 
   defp subscribe_and_load(socket) do

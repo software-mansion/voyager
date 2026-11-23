@@ -38,14 +38,13 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
     |> assign(:previous_trace_at, nil)
     |> assign(:tick_scheduled?, false)
     |> assign(:storage_limit_mb, Tracer.storage_limit_mb())
-    |> attach_hook(:stats_tick, :handle_info, &handle_tick/2)
+    |> attach_hook(:stats, :handle_info, &handle_message/2)
   end
 
   @doc "Restarts the rate samples when `session` is a new run of `shown`, and keeps ticking while it runs."
   @spec track(Socket.t(), Session.t() | nil, Session.t()) :: Socket.t()
   def track(socket, shown, session) do
     socket
-    |> refresh_storage_limit(shown, session)
     |> reset_rates(shown, session)
     |> assign(:now, DateTime.utc_now())
     |> tick()
@@ -207,24 +206,16 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
 
   defp format_size(bytes), do: "#{Formatters.format_integer(div(bytes, 1_000_000))} MB"
 
-  # The share moves with the setting, except when clamped at 0; reread the total in both cases.
-  defp refresh_storage_limit(socket, %Session{storage_limit: left}, %Session{storage_limit: left})
-       when left > 0,
-       do: socket
-
-  defp refresh_storage_limit(socket, _shown, _session),
-    do: assign(socket, :storage_limit_mb, Tracer.storage_limit_mb())
-
   defp percent(part, whole) when whole > 0, do: min(max(div(part * 100, whole), 0), 100)
   defp percent(_part, _whole), do: 0
 
-  defp handle_tick(:tick, %{assigns: %{trace_session: %AsyncResult{result: nil}}} = socket) do
+  defp handle_message(:tick, %{assigns: %{trace_session: %AsyncResult{result: nil}}} = socket) do
     socket
     |> assign(:tick_scheduled?, false)
     |> halt()
   end
 
-  defp handle_tick(:tick, socket) do
+  defp handle_message(:tick, socket) do
     %{window_traces: count, last_trace_at: last_at, previous_trace_at: previous_at} =
       socket.assigns
 
@@ -238,7 +229,14 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
     |> halt()
   end
 
-  defp handle_tick(_message, socket), do: cont(socket)
+  # The view goes on to refresh a saved session's share.
+  defp handle_message({:storage_limit_changed, mb}, socket) do
+    socket
+    |> assign(:storage_limit_mb, mb)
+    |> cont()
+  end
+
+  defp handle_message(_message, socket), do: cont(socket)
 
   # Timed by the traces' own timestamps, so batching and tick drift do not jitter an even rate.
   defp rate(0, _last_at, _previous_at), do: 0

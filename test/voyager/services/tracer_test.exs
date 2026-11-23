@@ -449,6 +449,7 @@ defmodule Voyager.Services.TracerTest do
     assert Tracer.storage_limit_mb() == 100
     assert :ok = Tracer.put_storage_limit_mb(7)
     assert Tracer.storage_limit_mb() == 7
+    assert_receive {:storage_limit_changed, 7}
   end
 
   for save <- [true, false] do
