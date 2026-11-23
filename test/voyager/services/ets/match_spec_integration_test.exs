@@ -1,34 +1,13 @@
 defmodule Voyager.Services.Ets.MatchSpecIntegrationTest do
-  # async: false because starting distribution renames the local node for the whole VM.
-  use ExUnit.Case, async: false
+  use Voyager.ErpcCase
 
   alias Voyager.Agent
   alias Voyager.Services.Ets.Fetch
   alias Voyager.Services.Ets.MatchSpec
 
-  @moduletag :integration
-
-  setup do
-    unless Node.alive?() do
-      {_output, 0} = System.cmd("epmd", ["-daemon"])
-
-      {:ok, _pid} =
-        :net_kernel.start(:"voyager_test_#{System.unique_integer([:positive])}", %{
-          name_domain: :shortnames
-        })
-
-      on_exit(fn -> :net_kernel.stop() end)
-    end
-
-    {:ok, peer, node} =
-      :peer.start(%{name: :"voyager_peer_#{System.unique_integer([:positive])}"})
-
-    on_exit(fn -> :peer.stop(peer) end)
-
+  setup %{node: node} do
     Mox.stub_with(Voyager.ErpcMock, Voyager.Erpc.Impl)
     :ok = Agent.install(node)
-
-    %{node: node}
   end
 
   test "selects with the atoms the node already has", %{node: node} do
