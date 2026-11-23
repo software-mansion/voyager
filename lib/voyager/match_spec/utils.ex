@@ -6,6 +6,13 @@ defmodule Voyager.MatchSpec.Utils do
   # The agent's `MAX_MATCH_SPEC_BYTES` (64 KiB): a bigger segment could never be sent.
   @max_segment_bits 524_288
 
+  @doc "Turns a fun's clauses in Erlang abstract format into a match spec, as `fun2ms` does."
+  @spec transform([tuple()], :table | :trace) ::
+          {:ok, MatchSpec.t()} | {:error, MatchSpec.reason()}
+  def transform(clauses, type) do
+    with :ok <- check_segments(clauses), do: ms_transform(clauses, type)
+  end
+
   @doc """
   Refuses a binary segment in Erlang abstract format whose size is not an integer literal or
   whose size × unit is over 524288 bits. One segment is one allocation, made before
@@ -19,6 +26,26 @@ defmodule Voyager.MatchSpec.Utils do
          {:syntax,
           "binary segments must have an integer size of at most #{@max_segment_bits} bits"}},
       else: :ok
+  end
+
+  @spec format_error_info({term(), module(), term()}) :: String.t()
+  def format_error_info({_location, module, description}) when is_atom(module) do
+    description |> module.format_error() |> to_string()
+  end
+
+  defp ms_transform(clauses, type) do
+    dialect = if type == :trace, do: :dbg, else: :ets
+
+    case :ms_transform.transform_from_shell(dialect, clauses, []) do
+      {:error, [{_file, [reason | _]} | _], _warnings} ->
+        {:error, {:unsupported, format_error_info(reason)}}
+
+      spec ->
+        {:ok, spec}
+    end
+  catch
+    # `:ms_transform` raises on calls in a head (`fun({f(x)}) -> ok end`) and exits on crashes.
+    _kind, _reason -> {:error, {:unsupported, "the fun cannot be turned into a match spec"}}
   end
 
   defp oversized_segment?({:bin_element, _anno, value, size, types}),

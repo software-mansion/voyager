@@ -19,17 +19,10 @@ defmodule Voyager.MatchSpec.ErlangParser do
     with {:ok, tokens} <- scan(source),
          {:ok, exprs} <- parsed(:erl_parse.parse_exprs(tokens)) do
       case exprs do
-        [{:fun, _anno, {:clauses, clauses}}] -> transform(clauses, type)
+        [{:fun, _anno, {:clauses, clauses}}] -> Utils.transform(clauses, type)
         _other -> {:error, {:syntax, "expected one fun ... end"}}
       end
     end
-  end
-
-  @doc "Turns a fun's clauses in Erlang abstract format into a match spec, as `fun2ms` does."
-  @spec transform([tuple()], :table | :trace) ::
-          {:ok, MatchSpec.t()} | {:error, MatchSpec.reason()}
-  def transform(clauses, type) do
-    with :ok <- Utils.check_segments(clauses), do: ms_transform(clauses, type)
   end
 
   defp scan(source) do
@@ -37,7 +30,7 @@ defmodule Voyager.MatchSpec.ErlangParser do
 
     case :erl_scan.string(charlist) do
       {:ok, tokens, _end} -> refuse_send(tokens)
-      {:error, reason, _end} -> {:error, {:syntax, format(reason)}}
+      {:error, reason, _end} -> {:error, {:syntax, Utils.format_error_info(reason)}}
     end
   end
 
@@ -49,25 +42,9 @@ defmodule Voyager.MatchSpec.ErlangParser do
   end
 
   defp parsed({:ok, term}), do: {:ok, term}
-  defp parsed({:error, reason}), do: {:error, {:syntax, format(reason)}}
-
-  defp ms_transform(clauses, type) do
-    dialect = if type == :trace, do: :dbg, else: :ets
-
-    case :ms_transform.transform_from_shell(dialect, clauses, []) do
-      {:error, [{_file, [reason | _]} | _], _warnings} -> {:error, {:unsupported, format(reason)}}
-      spec -> {:ok, spec}
-    end
-  catch
-    # `:ms_transform` raises on calls in a head (`fun({f(x)}) -> ok end`) and exits on crashes.
-    _kind, _reason -> {:error, {:unsupported, "the fun cannot be turned into a match spec"}}
-  end
+  defp parsed({:error, reason}), do: {:error, {:syntax, Utils.format_error_info(reason)}}
 
   defp terminate(source) do
     source |> String.trim_trailing() |> String.trim_trailing(".") |> Kernel.<>(".")
-  end
-
-  defp format({_location, module, description}) when is_atom(module) do
-    description |> module.format_error() |> to_string()
   end
 end

@@ -2,7 +2,7 @@ defmodule Voyager.MatchSpec.ElixirParser do
   @moduledoc false
 
   alias Voyager.MatchSpec
-  alias Voyager.MatchSpec.ErlangParser
+  alias Voyager.MatchSpec.Utils
 
   # Expanding a macro runs its code on this node, so only these Kernel ones are in scope.
   @macros Enum.sort(and: 2, in: 2, is_nil: 1, is_struct: 1, is_struct: 2, or: 2, ..: 2)
@@ -15,7 +15,7 @@ defmodule Voyager.MatchSpec.ElixirParser do
       {:ok, {:fn, _meta, _clauses} = ast} ->
         with :ok <- check_forms(ast),
              {:ok, clauses} <- erlang_clauses(ast),
-             do: ErlangParser.transform(clauses, type)
+             do: Utils.transform(clauses, type)
 
       {:ok, _other} ->
         {:error, {:syntax, "expected one fn ... end"}}
