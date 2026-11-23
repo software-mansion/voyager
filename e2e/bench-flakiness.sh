@@ -9,8 +9,8 @@
 # job summary and annotations). If a test's failures over the batch exceed THRESHOLD the
 # script exits non-zero, so the CI job fails; otherwise it exits 0.
 #
-# The suite shares one node and one app, so runs are strictly sequential. A failing run
-# never aborts the batch.
+# The suite shares one node and one app, so runs are strictly sequential, one browser after
+# the other. A failing run never aborts the batch.
 #
 # Usage: e2e/bench-flakiness.sh [RUNS] [RETRIES] [THRESHOLD]
 #   RUNS       how many times to run the suite          (default 20)
@@ -37,20 +37,29 @@ for i in $(seq 1 "$RUNS"); do
   idx="$(printf '%03d' "$i")"
   export FLAKINESS_LOG="$RESULTS_DIR/run-$idx.jsonl"
 
-  # `mix e2e` resets the database and starts fresh target nodes, so runs don't leak state.
-  FLAKINESS_ATTEMPT=1 mix e2e "${FORMATTERS[@]}" 2>&1 | tee "$RESULTS_DIR/run-$idx.log"
-  rc="${PIPESTATUS[0]}"
+  : > "$RESULTS_DIR/run-$idx.log"
 
-  attempt=1
-  while [ "$rc" -eq 2 ] && [ "$attempt" -le "$RETRIES" ]; do
-    attempt=$((attempt + 1))
-    FLAKINESS_ATTEMPT="$attempt" mix e2e --failed "${FORMATTERS[@]}" 2>&1 | tee -a "$RESULTS_DIR/run-$idx.log"
+  # One browser per `mix e2e`, as in playwright.yml: with both browsers' projects in one run,
+  # `--failed` would not rerun every failure (elixir#15820).
+  for browser in chromium firefox; do
+    export E2E_BROWSER="$browser"
+
+    # `mix e2e` resets the database and starts fresh target nodes, so runs don't leak state.
+    FLAKINESS_ATTEMPT=1 mix e2e "${FORMATTERS[@]}" 2>&1 | tee -a "$RESULTS_DIR/run-$idx.log"
     rc="${PIPESTATUS[0]}"
+
+    attempt=1
+    while [ "$rc" -eq 2 ] && [ "$attempt" -le "$RETRIES" ]; do
+      attempt=$((attempt + 1))
+      FLAKINESS_ATTEMPT="$attempt" mix e2e --failed "${FORMATTERS[@]}" 2>&1 | tee -a "$RESULTS_DIR/run-$idx.log"
+      rc="${PIPESTATUS[0]}"
+    done
+
+    # Every run wipes test-results/, so keep this run's traces apart.
+    if [ -d test-results ]; then mv test-results "$RESULTS_DIR/run-$idx-$browser-test-results"; fi
   done
 
   [ -s "$FLAKINESS_LOG" ] || echo "  WARNING: no attempt log produced (see $RESULTS_DIR/run-$idx.log)"
-  # Every run wipes test-results/, so keep this run's traces apart.
-  if [ -d test-results ]; then mv test-results "$RESULTS_DIR/run-$idx-test-results"; fi
 done
 
 echo

@@ -89,7 +89,16 @@ jobs:
             fi
             return $s
           }
-          mix e2e $f \
+          # maxFailures: 5 of playwright.config.ts on CI. The reruns can't run the tests a
+          # stopped run skipped, so a stopped run fails the job.
+          first() {
+            mix e2e --max-failures 5 $f 2>&1 | tee first.log; s=${PIPESTATUS[0]}
+            if grep -q -- "--max-failures reached" first.log; then
+              echo "::error::mix e2e stopped after 5 failures"; return 1
+            fi
+            return $s
+          }
+          first \
             || { [ $? -eq 2 ] && retry; } \
             || { [ $? -eq 2 ] && retry; }
 
