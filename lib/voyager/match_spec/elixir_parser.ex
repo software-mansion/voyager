@@ -25,8 +25,8 @@ defmodule Voyager.MatchSpec.ElixirParser do
     end
   end
 
-  # Besides the macros in `env/0`, these are the only forms whose expansion runs code:
-  # `import` and a remote call can reach any macro, `%Name{}` calls `Name.__struct__/1`.
+  # `env/0` limits local macros only: `import`/`require` add others, a remote call expands a
+  # required module's (`Kernel.binding()`), and `%Name{}` calls `Name.__struct__/1`.
   defp check_forms(ast) do
     case ast |> Macro.prewalker() |> Enum.find(&runs_code?/1) do
       nil -> :ok
@@ -37,14 +37,15 @@ defmodule Voyager.MatchSpec.ElixirParser do
   defp runs_code?({form, _meta, args}) when form in [:import, :require, :%] and is_list(args),
     do: true
 
-  defp runs_code?({{:., _dot, [receiver, _name]}, _meta, _args}), do: not field_owner?(receiver)
+  # `Mod.fun()` and `map.key` share this AST, so only the receiver tells them apart.
+  defp runs_code?({{:., _dot, [receiver, _name]}, _meta, _args}), do: may_have_macros?(receiver)
   defp runs_code?(_ast), do: false
 
-  # `:erlang` has no macros, and a variable or another `a.b` never expands to a module name.
-  defp field_owner?(:erlang), do: true
-  defp field_owner?({{:., _dot, _target}, _meta, _args}), do: true
-  defp field_owner?({name, _meta, context}), do: is_atom(name) and is_atom(context)
-  defp field_owner?(_ast), do: false
+  # A variable or an `a.b` result is only known at runtime; the walk checks the inner `a.b` itself.
+  defp may_have_macros?(:erlang), do: false
+  defp may_have_macros?({{:., _dot, _target}, _meta, _args}), do: false
+  defp may_have_macros?({name, _meta, context}) when is_atom(name) and is_atom(context), do: false
+  defp may_have_macros?(_ast), do: true
 
   # `:elixir.quoted_to_erl/2` is private to Elixir: it expands and translates, never evaluates.
   defp erlang_clauses(ast) do
