@@ -20,6 +20,7 @@ defmodule Voyager.Services.Ets.MatchSpec do
   @spec parse(String.t()) :: {:ok, term()} | {:error, error()}
   def parse(string) when is_binary(string) do
     with {:ok, spec} <- MatchSpec.parse(string),
+         :ok <- MatchSpec.check_shape(spec),
          :ok <- MatchSpec.check_clauses(spec, 1),
          :ok <- MatchSpec.check_compiles(spec, :table),
          encoded = MatchSpec.encode(spec),

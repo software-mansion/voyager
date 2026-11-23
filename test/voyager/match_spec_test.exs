@@ -179,18 +179,11 @@ defmodule Voyager.MatchSpecTest do
       assert MatchSpec.check_shape([{:_, [], []}]) == :ok
       assert MatchSpec.check_shape([{[:"$1"], [{:>, :"$1", 1}], [true]}, {:_, [], []}]) == :ok
     end
-  end
 
-  test "every clause check rejects a term that is not a spec" do
-    for term <- @not_specs,
-        check <- [
-          &MatchSpec.check_shape/1,
-          &MatchSpec.check_clauses(&1, 10),
-          &MatchSpec.check_actions(&1, [:return_trace]),
-          &MatchSpec.check_compiles(&1, :table),
-          &MatchSpec.check_compiles(&1, :trace)
-        ] do
-      assert check.(term) == {:error, :invalid_shape}, inspect(term)
+    test "rejects a term that is not a spec" do
+      for term <- @not_specs do
+        assert MatchSpec.check_shape(term) == {:error, :invalid_shape}, inspect(term)
+      end
     end
   end
 

@@ -31,8 +31,7 @@ defmodule Voyager.MatchSpec do
     * **No `!` operator**: `:ms_transform` folds constant operators, so `init ! {stop, stop}`
       in an Erlang fun would really send.
 
-  Every clause check returns `{:error, :invalid_shape}` for a term that is not a non-empty list
-  of `{head, [guard], [body]}` clauses, so leaving `check_shape/1` out never raises.
+  A `parse_fun/3` result always passes `check_shape/1`.
   """
 
   alias Voyager.MatchSpec.ElixirParser
@@ -75,9 +74,9 @@ defmodule Voyager.MatchSpec do
   An `:elixir` function is compiled to its Erlang form without being evaluated, then translated
   like an Erlang one, with trace actions called as in Erlang (`return_trace()`). Expanding
   other code would run it on this node, so the only macros are `and`, `or`, `in`, `..`,
-  `is_nil/1` and `is_struct/1,2`, and `import`, `require`, `%Name{}` (match
-  `%{__struct__: Name}` instead) and calls to any module but `:erlang` are
-  `{:unsupported, message}`.
+  `is_nil/1` and `is_struct/1,2`.
+  `import`, `require`, `%Name{}` (match `%{__struct__: Name}` instead) and calls to any module 
+  but `:erlang` are `{:unsupported, message}`.
 
   `"abc"` is a binary in Elixir and a list in Erlang. 
   An Erlang binary of non-ASCII text needs its encoding, 
@@ -95,29 +94,32 @@ defmodule Voyager.MatchSpec do
 
   @doc "Checks the spec is a non-empty proper list of `{head, [guard], [body]}` clauses."
   @spec check_shape(term()) :: :ok | {:error, :invalid_shape}
-  def check_shape(spec), do: if(clauses?(spec), do: :ok, else: {:error, :invalid_shape})
-
-  @doc """
-  Checks the spec has at most `max` clauses.
-  """
-  @spec check_clauses(term(), pos_integer()) :: :ok | {:error, reason()}
-  def check_clauses(spec, max) when is_integer(max) and max > 0 do
-    with :ok <- check_shape(spec) do
-      if length(spec) <= max, do: :ok, else: {:error, {:too_many_clauses, max}}
+  def check_shape([{_head, guards, body} | rest]) when is_list(guards) and is_list(body) do
+    cond do
+      List.improper?(guards) or List.improper?(body) -> {:error, :invalid_shape}
+      rest == [] -> :ok
+      true -> check_shape(rest)
     end
   end
 
+  def check_shape(_spec), do: {:error, :invalid_shape}
+
   @doc """
-  Refuses actions which are in `refused` at any depth of the guards or body. 
-  Heads are patterns, never actions, so they are not walked.
+  Checks the spec has at most `max` clauses. Use after `check_shape/1`.
   """
-  @spec check_actions(term(), [atom()]) :: :ok | {:error, reason()}
+  @spec check_clauses(t(), pos_integer()) :: :ok | {:error, reason()}
+  def check_clauses(spec, max) when is_integer(max) and max > 0 do
+    if length(spec) <= max, do: :ok, else: {:error, {:too_many_clauses, max}}
+  end
+
+  @doc """
+  Refuses actions which are in `refused` at any depth of the guards or body.
+  Heads are patterns, never actions, so they are not walked. Use after `check_shape/1`.
+  """
+  @spec check_actions(t(), [atom()]) :: :ok | {:error, reason()}
   def check_actions(spec, refused) when is_list(refused) do
-    with :ok <- check_shape(spec),
-         nil <- refused(for({_head, guards, body} <- spec, do: guards ++ body), refused) do
-      :ok
-    else
-      {:error, :invalid_shape} = error -> error
+    case refused(for({_head, guards, body} <- spec, do: guards ++ body), refused) do
+      nil -> :ok
       action -> {:error, {:refused_action, action}}
     end
   end
@@ -125,18 +127,17 @@ defmodule Voyager.MatchSpec do
   @doc """
   Compiles the spec with `:erlang.match_spec_test/3` for `type`, catching unknown guard
   functions, unbound variables and actions the type does not allow (`message` in a `:table`
-  spec). A `false` guard is put first, so the body never runs on this node.
+  spec). A `false` guard is put first, so the body never runs on this node. Use after
+  `check_shape/1`.
   """
-  @spec check_compiles(term(), type()) :: :ok | {:error, reason()}
+  @spec check_compiles(t(), type()) :: :ok | {:error, reason()}
   def check_compiles(spec, type) when type in [:table, :trace] do
-    with :ok <- check_shape(spec) do
-      # `match_spec_test/3` runs the body on this node, and `{enable_trace, _}` segfaults it.
-      silenced = for {head, guards, body} <- spec, do: {head, [false | guards], body}
+    # `match_spec_test/3` runs the body on this node, and `{enable_trace, _}` segfaults it.
+    silenced = for {head, guards, body} <- spec, do: {head, [false | guards], body}
 
-      case :erlang.match_spec_test(test_object(type), silenced, type) do
-        {:ok, _result, _flags, _warnings} -> :ok
-        {:error, errors} -> {:error, {:compile, Enum.map(errors, &to_string(elem(&1, 1)))}}
-      end
+    case :erlang.match_spec_test(test_object(type), silenced, type) do
+      {:ok, _result, _flags, _warnings} -> :ok
+      {:error, errors} -> {:error, {:compile, Enum.map(errors, &to_string(elem(&1, 1)))}}
     end
   end
 
@@ -235,12 +236,6 @@ defmodule Voyager.MatchSpec do
   defp atom_headroom? do
     :erlang.system_info(:atom_limit) - :erlang.system_info(:atom_count) > @atom_headroom
   end
-
-  defp clauses?([{_head, guards, body} | rest]) when is_list(guards) and is_list(body) do
-    not List.improper?(guards) and not List.improper?(body) and (rest == [] or clauses?(rest))
-  end
-
-  defp clauses?(_term), do: false
 
   defp refused(term, refused) when is_tuple(term) and tuple_size(term) > 0 do
     action = elem(term, 0)
