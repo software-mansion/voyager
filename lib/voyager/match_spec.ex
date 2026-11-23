@@ -14,7 +14,7 @@ defmodule Voyager.MatchSpec do
   What a spec may hold is OTP's to say:
   [Match Specifications in Erlang](https://www.erlang.org/doc/apps/erts/match_spec.html) for a
   term, [`ms_transform`](https://www.erlang.org/doc/apps/stdlib/ms_transform.html) for a
-  function. Limits and refused actions are the caller's to pass. 
+  function. Limits and refused actions are the caller's to pass.
 
   `parse/1` and `parse_fun/3` create the atoms on this node.
 
@@ -75,11 +75,11 @@ defmodule Voyager.MatchSpec do
   like an Erlang one, with trace actions called as in Erlang (`return_trace()`). Expanding
   other code would run it on this node, so the only macros are `and`, `or`, `in`, `..`,
   `is_nil/1` and `is_struct/1,2`.
-  `import`, `require`, `%Name{}` (match `%{__struct__: Name}` instead) and calls to any module 
+  `import`, `require`, `%Name{}` (match `%{__struct__: Name}` instead) and calls to any module
   but `:erlang` are `{:unsupported, message}`.
 
-  `"abc"` is a binary in Elixir and a list in Erlang. 
-  An Erlang binary of non-ASCII text needs its encoding, 
+  `"abc"` is a binary in Elixir and a list in Erlang.
+  An Erlang binary of non-ASCII text needs its encoding,
   `<<"zażółć"/utf8>>`: without it each character is cut to one byte.
 
   `bindings()` compiles to `'$*'`, which ERTS returns as that atom; only `'$$'` in a term is
