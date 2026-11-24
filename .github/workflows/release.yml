@@ -221,6 +221,11 @@ jobs:
           # Every matrix job would rewrite latest.json and drop the others' platforms.
           includeUpdaterJson: false
 
+      - name: Smoke test demo node
+        shell: bash
+        timeout-minutes: 5
+        run: .github/scripts/smoke_demo_node.sh "rel/app/src-tauri/rel-$(uname -s | tr '[:upper:]' '[:lower:]')"
+
       - name: Verify app notarization (macOS)
         if: runner.os == 'macOS'
         shell: bash
