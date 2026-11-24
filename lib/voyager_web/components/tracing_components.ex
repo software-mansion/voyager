@@ -516,7 +516,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
         class="btn-primary md:min-w-24"
       />
       <.action_button
-        :if={@mode == :saved}
+        :if={@trace_session.save and @trace_session.status != :running}
         id="session-delete"
         icon="icon-trash"
         label="Delete session"

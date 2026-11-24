@@ -222,11 +222,19 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> noreply()
   end
 
-  def handle_event("delete", _params, socket) do
+  def handle_event(
+        "delete",
+        _params,
+        %{assigns: %{trace_session: %AsyncResult{result: %Session{save: true, status: status}}}} =
+          socket
+      )
+      when status != :running do
     socket
     |> assign(:confirm, :delete)
     |> noreply()
   end
+
+  def handle_event("delete", _params, socket), do: noreply(socket)
 
   def handle_event("edit-config", _params, %{assigns: %{editable?: true, pending: nil}} = socket) do
     form =
@@ -437,6 +445,9 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> noreply()
   end
 
+  def handle_info({:session_closed, id}, %{assigns: %{id: id, pending: :delete}} = socket),
+    do: noreply(socket)
+
   def handle_info({:session_closed, id}, %{assigns: %{id: id}} = socket) do
     socket
     |> gone()
@@ -476,6 +487,9 @@ defmodule VoyagerWeb.TracingSessionLive do
   defp gone(%{assigns: %{id: id}} = socket) when id < 0,
     do: leave(socket, :info, "The tracing session was closed.")
 
+  defp gone(%{assigns: %{trace_session: %AsyncResult{result: %Session{config: nil}}}} = socket),
+    do: leave(socket, :info, "The tracing session was closed.")
+
   defp gone(socket), do: load(socket)
 
   defp put_session(socket, session, mode) do
@@ -496,7 +510,7 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> assign(:editable?, editable?)
     |> assign(:config_form, if(editable?, do: socket.assigns.config_form))
     |> Stats.track(shown, session)
-    |> drop_stale_stop_confirm(session)
+    |> drop_stale_confirm(session)
   end
 
   defp queue_session(
@@ -522,11 +536,14 @@ defmodule VoyagerWeb.TracingSessionLive do
     assign(socket, :flush_scheduled?, true)
   end
 
-  defp drop_stale_stop_confirm(%{assigns: %{confirm: :stop}} = socket, %Session{status: status})
+  defp drop_stale_confirm(%{assigns: %{confirm: :stop}} = socket, %Session{status: status})
        when status != :running,
        do: assign(socket, :confirm, nil)
 
-  defp drop_stale_stop_confirm(socket, _session), do: socket
+  defp drop_stale_confirm(%{assigns: %{confirm: :delete}} = socket, %Session{status: :running}),
+    do: assign(socket, :confirm, nil)
+
+  defp drop_stale_confirm(socket, _session), do: socket
 
   defp run(socket, name, fun) do
     socket

@@ -43,6 +43,8 @@ defmodule Voyager.Services.Tracer do
   alias Voyager.Services.Tracer.Writer
   alias Voyager.Settings
 
+  require Logger
+
   @topic "tracing"
   @session_topic "tracing:session"
   @max_mailbox 1_000
@@ -327,6 +329,7 @@ defmodule Voyager.Services.Tracer do
   def handle_continue(:interrupt_running, state) do
     Writer.flush()
     TraceSessionActions.interrupt_running()
+    TraceSessionActions.delete_unconfigured()
     broadcast_session(nil)
     {:noreply, state}
   end
@@ -336,7 +339,9 @@ defmodule Voyager.Services.Tracer do
       when is_session_change(request),
       do: {:reply, {:error, :busy}, state}
 
-  def handle_call({:create, origin, save}, _from, _state) do
+  def handle_call({:create, origin, save}, _from, state) do
+    prune_unconfigured(state.session)
+
     origin
     |> new_session(save)
     |> activate()
@@ -346,7 +351,8 @@ defmodule Voyager.Services.Tracer do
     session = %{new_session(origin, false) | node: node, config: config}
 
     case start_tracer(session, spec, limits) do
-      {:ok, tracer, clock_offset_us} ->
+      {:ok, tracer} ->
+        prune_unconfigured(state.session)
         broadcast({:session_activated, session})
 
         state =
@@ -370,6 +376,8 @@ defmodule Voyager.Services.Tracer do
         {:reply, {:error, :not_found}, state}
 
       row ->
+        unless match?(%Session{id: ^id}, state.session), do: prune_unconfigured(state.session)
+
         row
         |> saved_session()
         |> activate(%MemoryLog{summary: summaries.session, last_run_summary: summaries.last_run})
@@ -381,9 +389,10 @@ defmodule Voyager.Services.Tracer do
 
   def handle_call({:delete, id}, _from, %{session: %{id: id, save: true}}) do
     Writer.flush()
+    result = TraceSessionActions.delete(id)
     broadcast({:session_closed, id})
     broadcast_session(nil)
-    {:reply, TraceSessionActions.delete(id), %__MODULE__{}}
+    {:reply, result, %__MODULE__{}}
   end
 
   def handle_call({:delete, id}, _from, state) do
@@ -394,6 +403,7 @@ defmodule Voyager.Services.Tracer do
   def handle_call(:close, _from, %{session: nil} = state), do: {:reply, :ok, state}
 
   def handle_call(:close, _from, %{session: session}) do
+    prune_unconfigured(session)
     broadcast({:session_closed, session.id})
     broadcast_session(nil)
     {:reply, :ok, %__MODULE__{}}
@@ -606,6 +616,22 @@ defmodule Voyager.Services.Tracer do
   end
 
   defp new_session_id(_origin, false), do: -System.unique_integer([:positive])
+
+  defp prune_unconfigured(%Session{id: id, save: true, config: nil}) do
+    case TraceSessionActions.delete(id) do
+      {:ok, _row} ->
+        :ok
+
+      {:error, :not_found} ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("Failed to delete unconfigured trace session #{id}: #{inspect(reason)}")
+        :ok
+    end
+  end
+
+  defp prune_unconfigured(_session), do: :ok
 
   defp with_saved(id, fun) do
     Writer.flush()

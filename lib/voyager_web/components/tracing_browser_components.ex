@@ -20,7 +20,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
 
   def list_header(assigns) do
     ~H"""
-    <div class="flex items-center justify-between gap-2">
+    <div class="flex flex-wrap items-center justify-between gap-2">
       <div class="flex items-baseline gap-2">
         <h1 class="text-base-content text-base font-semibold">Sessions</h1>
         <span id="session-count" class="font-mono text-base-content/60 text-sm tabular-nums">
@@ -64,7 +64,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
     assigns = assign(assigns, :nodes, sorted_nodes(assigns.node_counts, assigns.connected_node))
 
     ~H"""
-    <div id="node-filter" class="min-h-7 flex items-center">
+    <div id="node-filter" class="min-h-7 flex flex-wrap items-center gap-2">
       <%= if @node_filter == "all" do %>
         <details
           id="node-picker"
@@ -84,7 +84,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
           </summary>
           <ul
             phx-click={JS.remove_attribute("open", to: "#node-picker")}
-            class="dropdown-content menu bg-base-100 rounded-box border-base-200 z-20 mt-1 w-72 border p-1.5 shadow-lg"
+            class="dropdown-content menu bg-base-100 rounded-box border-base-200 max-w-[calc(100vw-3rem)] z-20 mt-1 w-72 border p-1.5 shadow-lg"
           >
             <li class="menu-title font-mono tracking-label px-2 text-xs uppercase">Filter by node</li>
             <li>
@@ -150,7 +150,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
           id="node-filter-connected"
           phx-click={@on_filter}
           phx-value-node={@connected_node}
-          class="btn btn-ghost btn-xs text-base-content/70 ml-2"
+          class="btn btn-ghost btn-xs text-base-content/70"
         >
           This node
         </button>
@@ -235,8 +235,8 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
           {item_node(@item)}
         </span>
       </span>
-      <span class="font-mono text-base-content/60 flex justify-between gap-2 pl-4 text-xs tabular-nums">
-        <span class="truncate">{tile_meta(@item)}</span>
+      <span class="font-mono text-base-content/60 flex min-w-0 justify-between gap-2 pl-4 text-xs tabular-nums">
+        <span class="min-w-0 truncate">{tile_meta(@item)}</span>
         <span class="shrink-0">{tile_ago(@item, @now)}</span>
       </span>
     </button>
@@ -286,7 +286,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
 
     ~H"""
     <div id="storage-footer" class="border-base-200 flex flex-col gap-2 border-t px-5 py-4">
-      <div class="flex items-baseline justify-between text-xs">
+      <div class="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5 text-xs">
         <span class="font-mono tracking-label text-base-content/60 font-semibold uppercase">
           Storage · all nodes
         </span>
@@ -381,7 +381,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
     >
       <div class="flex items-start gap-4 px-5 py-4">
         <div class="min-w-0 flex-1">
-          <div class="flex min-w-0 items-center gap-2 text-xs">
+          <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs">
             <span
               id="overview-status"
               data-tone={@tone}
@@ -409,7 +409,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
             >
               Saved
             </span>
-            <span id="overview-meta" class="text-base-content/60 truncate">
+            <span id="overview-meta" class="text-base-content/60 min-w-0 break-words">
               {overview_meta_lead(@item, @active?)}
               <span :if={@other_node?}>
                 · on <span class="font-mono text-info">{@node_label}</span>
@@ -433,7 +433,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
             >
               <span :if={@module != ""} class="text-base-content/50 font-medium">{@module}</span>{@function}
             </h2>
-            <div :if={@chips != []} class="flex flex-wrap gap-1.5">
+            <div :if={@chips != []} class="flex min-w-0 max-w-full flex-wrap gap-1.5">
               <span
                 :for={{key, label, value} <- @chips}
                 id={"overview-chip-#{key}"}
@@ -442,7 +442,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
                 <span class="font-mono tracking-label text-base-content/50 shrink-0 text-xs font-semibold uppercase">
                   {label}
                 </span>
-                <span class="font-mono text-base-content/90 truncate text-xs">{value}</span>
+                <span class="font-mono text-base-content/90 min-w-0 truncate text-xs">{value}</span>
               </span>
             </div>
             <:content>
@@ -455,6 +455,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
         <.overview_actions
           item={@item}
           active?={@active?}
+          saved?={@saved?}
           other_node?={@other_node?}
           busy?={@busy?}
           pending?={@pending?}
@@ -472,10 +473,10 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
         :if={@active? and @other_node?}
         id="other-node-note"
         role="note"
-        class="bg-info/10 border-info/30 text-base-content/80 mx-5 mb-4 flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"
+        class="bg-info/10 border-info/30 text-base-content/80 mx-5 mb-4 flex items-start gap-2 rounded-lg border px-3 py-2 text-sm"
       >
-        <.icon name="icon-info" class="text-info size-4 shrink-0" />
-        <span>
+        <.icon name="icon-info" class="text-info size-4 mt-0.5 shrink-0" />
+        <span class="min-w-0 break-words">
           This session traced <span class="font-mono">{@node_label}</span>. Unload it to start tracing {@connected_node}.
         </span>
       </div>
@@ -493,6 +494,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
 
   attr :item, :map, required: true
   attr :active?, :boolean, required: true
+  attr :saved?, :boolean, required: true
   attr :other_node?, :boolean, required: true
   attr :busy?, :boolean, required: true
   attr :pending?, :boolean, required: true
@@ -506,89 +508,124 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
 
   defp overview_actions(assigns) do
     ~H"""
-    <div class="flex shrink-0 items-center gap-2">
-      <button
+    <div class="flex shrink-0 items-center gap-2 @2xl/overview:flex-row @2xl/overview:items-center md:flex-col-reverse md:items-end">
+      <.overview_action
         :if={@active? and @item.status == :running}
-        type="button"
         id="stop-session"
+        icon="icon-square-filled"
+        label="Stop"
         phx-click={@on_stop}
         disabled={@pending?}
-        class="btn btn-sm btn-soft btn-error"
-      >
-        <.icon name="icon-square-filled" class="size-3.5" /> Stop
-      </button>
+        class="btn-soft btn-error"
+      />
 
-      <button
+      <.overview_action
         :if={@active? and @item.status != :running}
-        type="button"
         id="unload-session"
+        icon="icon-log-out"
+        label="Unload from tracer"
         phx-click={@on_unload}
         disabled={@pending?}
-        class="btn btn-sm"
-      >
-        <.icon name="icon-log-out" class="size-3.5" /> Unload from tracer
-      </button>
+      />
 
-      <.tooltip :if={!@active? and !@other_node? and @busy?} id="load-busy-tip" position="bottom">
-        <button type="button" id="load-session" aria-disabled="true" class="btn btn-sm">
-          <.icon name="icon-log-in" class="size-3.5" /> Load into tracer
-        </button>
-        <:content>Stop the running session first</:content>
-      </.tooltip>
-
-      <button
-        :if={!@active? and !@other_node? and !@busy?}
-        type="button"
+      <.overview_action
+        :if={!@active? and !@other_node? and @busy?}
         id="load-session"
+        tip_id="load-busy-tip"
+        icon="icon-log-in"
+        label="Load into tracer"
+        tip="Stop the running session first"
+        aria-disabled="true"
+      />
+
+      <.overview_action
+        :if={!@active? and !@other_node? and !@busy?}
+        id="load-session"
+        icon="icon-log-in"
+        label="Load into tracer"
         phx-click={@on_load}
         disabled={@pending?}
-        class="btn btn-sm"
-      >
-        <.icon name="icon-log-in" class="size-3.5" /> Load into tracer
-      </button>
+      />
 
-      <.tooltip :if={!@active? and @other_node? and @busy?} id="copy-busy-tip" position="bottom">
-        <button type="button" id="trace-here" aria-disabled="true" class="btn btn-sm">
-          <.icon name="icon-copy" class="size-3.5" /> Trace on this node
-        </button>
-        <:content>Stop the running session first</:content>
-      </.tooltip>
+      <.overview_action
+        :if={!@active? and @other_node? and @busy?}
+        id="trace-here"
+        tip_id="copy-busy-tip"
+        icon="icon-copy"
+        label="Trace on this node"
+        tip="Stop the running session first"
+        aria-disabled="true"
+      />
 
-      <.tooltip
+      <.overview_action
         :if={!@active? and @other_node? and !@busy?}
-        id="trace-here-tip"
-        position="bottom"
-      >
-        <button
-          type="button"
-          id="trace-here"
-          phx-click={@on_copy}
-          disabled={@pending?}
-          class="btn btn-sm"
-        >
-          <.icon name="icon-copy" class="size-3.5" /> Trace on this node
-        </button>
-        <:content>New session on {@connected_node} with these parameters</:content>
-      </.tooltip>
+        id="trace-here"
+        icon="icon-copy"
+        label="Trace on this node"
+        tip={"New session on #{@connected_node} with these parameters"}
+        phx-click={@on_copy}
+        disabled={@pending?}
+      />
 
-      <.tooltip :if={!@active?} id="delete-session-tip" position="bottom">
-        <button
-          type="button"
+      <div class="flex items-center gap-2">
+        <.overview_action
+          :if={@saved? and @item.status != :running}
           id="delete-session"
+          icon="icon-trash"
+          label="Delete session"
+          icon_only
           phx-click={@on_delete}
           disabled={@pending?}
-          aria-label="Delete session"
-          class="btn btn-sm btn-square btn-ghost text-base-content/60 hover:bg-error/10 hover:text-error"
-        >
-          <.icon name="icon-trash" class="size-3.5" />
-        </button>
-        <:content>Delete session</:content>
-      </.tooltip>
+          class="btn-ghost text-base-content/60 hover:bg-error/10 hover:text-error"
+        />
 
-      <.link navigate={@open_href} id="open-session" class="btn btn-sm btn-primary">
-        Open session <.icon name="icon-arrow-right" class="size-3.5" />
-      </.link>
+        <.tooltip id="open-session-tip" position="bottom" tip_class="md:hidden">
+          <.link
+            navigate={@open_href}
+            id="open-session"
+            class="btn btn-sm btn-primary max-md:btn-square"
+          >
+            <span class="sr-only md:not-sr-only">Open session</span>
+            <.icon name="icon-arrow-right" class="size-3.5" />
+          </.link>
+          <:content>Open session</:content>
+        </.tooltip>
+      </div>
     </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :tip_id, :string, default: nil
+  attr :icon, :string, required: true
+  attr :label, :string, required: true
+  attr :tip, :string, default: nil
+  attr :icon_only, :boolean, default: false
+  attr :class, :any, default: nil
+  attr :rest, :global, include: ~w(disabled)
+
+  defp overview_action(assigns) do
+    assigns = assign(assigns, :tip_id, assigns.tip_id || "#{assigns.id}-tip")
+
+    ~H"""
+    <.tooltip
+      id={@tip_id}
+      position="bottom"
+      tip_class={if(is_nil(@tip) and not @icon_only, do: "md:hidden")}
+    >
+      <button
+        type="button"
+        id={@id}
+        class={["btn btn-sm", if(@icon_only, do: "btn-square", else: "max-md:btn-square"), @class]}
+        {@rest}
+      >
+        <.icon name={@icon} class="size-3.5" />
+        <span class={if @icon_only, do: "sr-only", else: "sr-only md:not-sr-only"}>
+          {@label}
+        </span>
+      </button>
+      <:content>{@tip || @label}</:content>
+    </.tooltip>
     """
   end
 
@@ -609,7 +646,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
     ~H"""
     <div
       id="overview-totals"
-      class="bg-base-200 border-base-200 rounded-b-box grid grid-cols-2 gap-px overflow-hidden border-t lg:grid-cols-4"
+      class="bg-base-200 border-base-200 rounded-b-box grid grid-cols-2 gap-px overflow-hidden border-t @3xl/overview:grid-cols-4"
     >
       <.total_cell
         id="total-traces"
@@ -663,15 +700,11 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
       <div class="font-mono tracking-label text-base-content/60 mb-1.5 text-xs font-semibold uppercase">
         {@label}
       </div>
-      <div class="min-h-7 flex items-baseline gap-1.5">
-        <span class={[
-          "truncate text-lg font-semibold",
-          !@prose && "font-mono tabular-nums",
-          @value_class
-        ]}>
+      <div class="min-h-7 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+        <span class={["text-lg font-semibold", !@prose && "font-mono tabular-nums", @value_class]}>
           {@value}
         </span>
-        <span :if={@unit} class="font-mono text-base-content/60 shrink-0 text-xs">{@unit}</span>
+        <span :if={@unit} class="font-mono text-base-content/60 text-xs">{@unit}</span>
       </div>
       <div :if={@bar != nil} class="bg-base-content/10 mt-2 flex h-1.5 overflow-hidden rounded-full">
         <span class="bg-primary block h-full transition-all" style={"width: #{@bar}%"}></span>

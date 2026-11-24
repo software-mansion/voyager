@@ -59,4 +59,14 @@ defmodule Voyager.Actions.TraceSessions do
 
     :ok
   end
+
+  @doc "Deletes saved sessions that were never configured."
+  @spec delete_unconfigured() :: :ok
+  def delete_unconfigured do
+    TraceSession
+    |> where([s], is_nil(s.config))
+    |> Repo.delete_all()
+
+    :ok
+  end
 end

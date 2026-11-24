@@ -46,7 +46,7 @@ defmodule Voyager.Services.TracerTest do
     assert :ok = Tracer.close()
     assert_receive {:session_closed, ^new_id}
     assert nil == Tracer.active()
-    assert {:ok, %{entries: []}} = Tracer.entries(new_id)
+    assert {:error, :not_found} = Tracer.entries(new_id)
     assert {:error, :not_found} = Tracer.entries(id)
     assert {:error, :no_session} = configure()
     assert {:error, :no_session} = Tracer.start(:ui)
@@ -267,10 +267,63 @@ defmodule Voyager.Services.TracerTest do
     assert {:ok, %{status: :running}} = Tracer.start(:ui)
   end
 
-  test "loads a saved session that was never configured" do
-    assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
-    assert {:ok, _session} = Tracer.create(:ui)
-    assert {:ok, %{id: ^id, node: nil, config: nil}} = Tracer.load(id)
+  test "deletes an unconfigured saved session when closed or replaced" do
+    # Closed
+    assert {:ok, %{id: closed_id}} = Tracer.create(:ui, save: true)
+    assert :ok = Tracer.close()
+    assert nil == TraceSessionQueries.get(closed_id)
+    assert {:error, :not_found} = Tracer.load(closed_id)
+
+    # Replaced by create/2
+    assert {:ok, %{id: replaced_id}} = Tracer.create(:ui, save: true)
+    assert {:ok, %{id: configured_id}} = Tracer.create(:ui, save: true)
+    assert nil == TraceSessionQueries.get(replaced_id)
+
+    # Configured idle session stays saved when unloaded
+    assert {:ok, _session} = configure()
+    assert :ok = Tracer.close()
+    assert %{id: ^configured_id} = TraceSessionQueries.get(configured_id)
+
+    # Replaced by load/1 of another session (while reloading itself keeps it)
+    assert {:ok, %{id: empty_id}} = Tracer.create(:ui, save: true)
+    assert {:ok, %{id: ^empty_id}} = Tracer.load(empty_id)
+    assert %{id: ^empty_id} = TraceSessionQueries.get(empty_id)
+    assert {:ok, %{id: ^configured_id}} = Tracer.load(configured_id)
+    assert nil == TraceSessionQueries.get(empty_id)
+
+    # Kept on failed create_and_start/3, deleted once it succeeds
+    assert {:ok, %{id: kept_id}} = Tracer.create(:ui, save: true)
+
+    assert {:error, :unknown_function} =
+             Tracer.create_and_start(
+               Node.self(),
+               %{module: "Elixir.Voyager.NoSuchModule", processes: "all", max_events: 1},
+               :mcp
+             )
+
+    assert %{id: ^kept_id} = Tracer.active()
+    assert %{id: ^kept_id} = TraceSessionQueries.get(kept_id)
+
+    assert {:ok, _started} =
+             Tracer.create_and_start(
+               Node.self(),
+               %{module: "Elixir.Date", processes: "all", max_events: 1},
+               :mcp
+             )
+
+    assert nil == TraceSessionQueries.get(kept_id)
+  end
+
+  test "deletes unconfigured saved sessions with delete_unconfigured/0" do
+    assert {:ok, %{id: empty_id}} = TraceSessionActions.create(%{origin: :ui, status: :idle})
+    assert {:ok, %{id: configured_id}} = Tracer.create(:ui, save: true)
+    assert {:ok, _session} = configure()
+    Writer.flush()
+
+    assert :ok = TraceSessionActions.delete_unconfigured()
+
+    assert nil == TraceSessionQueries.get(empty_id)
+    assert %{id: ^configured_id} = TraceSessionQueries.get(configured_id)
   end
 
   test "refuses to load a missing session or while running" do

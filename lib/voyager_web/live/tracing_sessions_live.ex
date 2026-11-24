@@ -109,7 +109,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
     ~H"""
     <div
       id="tracing-sessions-page"
-      class="mx-auto flex h-full max-w-screen-2xl gap-4 p-6 sm:p-8"
+      class="mx-auto flex h-full max-w-screen-2xl gap-4 p-4 sm:p-6 lg:p-8"
     >
       <div :if={!@loaded?} class="flex-1">
         <.loading_state id="sessions-loading" message="Loading sessions…" />
@@ -117,7 +117,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
       <section
         :if={@loaded?}
         id="sessions-list-card"
-        class="card bg-base-100 border-base-200 min-w-80 flex w-1/3 max-w-md flex-none flex-col border shadow-sm"
+        class="card bg-base-100 border-base-200 min-w-72 flex w-1/3 max-w-md flex-none flex-col border shadow-sm"
       >
         <div class="border-base-200 flex flex-col gap-3 border-b px-5 py-4">
           <TracingBrowserComponents.list_header
@@ -187,7 +187,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
       <section
         :if={@loaded?}
         id="overview"
-        class="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto"
+        class="@container/overview min-w-lg flex flex-1 flex-col gap-4 overflow-y-auto"
       >
         <TracingBrowserComponents.no_selection_state :if={is_nil(@selected_item)} />
         <TracingBrowserComponents.overview_session_card
@@ -383,7 +383,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
 
   def handle_event("delete-session", _params, socket) do
     case selected_item(socket.assigns) do
-      %{id: id} = item when not is_struct(item, Session) and id > 0 ->
+      %{id: id, status: status} when id > 0 and status != :running ->
         socket
         |> assign(:confirm, {:delete, id})
         |> noreply()
@@ -449,9 +449,13 @@ defmodule VoyagerWeb.TracingSessionsLive do
   end
 
   def handle_async(:delete, {:ok, {:ok, deleted}}, socket) do
+    socket =
+      if match?(%Session{id: id} when id == deleted.id, socket.assigns.active_session),
+        do: apply_active_change(socket, nil),
+        else: remove_deleted_row(socket, deleted.id)
+
     socket
     |> assign(:pending, nil)
-    |> remove_deleted_row(deleted.id)
     |> put_flash(:info, "Tracing session deleted.")
     |> noreply()
   end
@@ -669,6 +673,12 @@ defmodule VoyagerWeb.TracingSessionsLive do
       do: socket,
       else: assign(socket, :confirm, nil)
   end
+
+  defp drop_stale_confirm(%{assigns: %{confirm: {:delete, id}}} = socket, %Session{
+         id: id,
+         status: :running
+       }),
+       do: assign(socket, :confirm, nil)
 
   defp drop_stale_confirm(socket, _active), do: socket
 
