@@ -109,7 +109,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
     ~H"""
     <div
       id="tracing-sessions-page"
-      class="mx-auto flex h-full max-w-screen-2xl gap-4 p-4 sm:p-6 lg:p-8"
+      class="mx-auto flex h-full max-w-screen-2xl gap-4 p-6 sm:p-8"
     >
       <div :if={!@loaded?} class="flex-1">
         <.loading_state id="sessions-loading" message="Loading sessions…" />
@@ -117,7 +117,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
       <section
         :if={@loaded?}
         id="sessions-list-card"
-        class="card bg-base-100 border-base-200 min-w-72 flex w-1/3 max-w-md flex-none flex-col border shadow-sm"
+        class="card bg-base-100 border-base-200 min-w-64 flex w-1/3 max-w-md flex-none flex-col border shadow-sm"
       >
         <div class="border-base-200 flex flex-col gap-3 border-b px-5 py-4">
           <TracingBrowserComponents.list_header
@@ -187,7 +187,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
       <section
         :if={@loaded?}
         id="overview"
-        class="@container/overview min-w-lg flex flex-1 flex-col gap-4 overflow-y-auto"
+        class="@container/overview flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto"
       >
         <TracingBrowserComponents.no_selection_state :if={is_nil(@selected_item)} />
         <TracingBrowserComponents.overview_session_card

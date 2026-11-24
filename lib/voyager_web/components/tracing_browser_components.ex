@@ -216,7 +216,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
         />
       </span>
       <span class="flex min-w-0 items-center gap-2 pl-4 text-sm">
-        <span class={["shrink-0 truncate", TracingComponents.tone_class(@tone, :label)]}>
+        <span class={["min-w-0 truncate", TracingComponents.tone_class(@tone, :label)]}>
           {tile_state_label(@item)}
         </span>
         <span
@@ -508,7 +508,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
 
   defp overview_actions(assigns) do
     ~H"""
-    <div class="flex shrink-0 items-center gap-2 @2xl/overview:flex-row @2xl/overview:items-center md:flex-col-reverse md:items-end">
+    <div class="flex shrink-0 flex-col-reverse items-end gap-2 @2xl/overview:flex-row @2xl/overview:items-center">
       <.overview_action
         :if={@active? and @item.status == :running}
         id="stop-session"
@@ -567,7 +567,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
         disabled={@pending?}
       />
 
-      <div class="flex items-center gap-2">
+      <div class="flex flex-col-reverse items-end gap-2 @md/overview:flex-row @md/overview:items-center">
         <.overview_action
           :if={@saved? and @item.status != :running}
           id="delete-session"
@@ -579,13 +579,13 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
           class="btn-ghost text-base-content/60 hover:bg-error/10 hover:text-error"
         />
 
-        <.tooltip id="open-session-tip" position="bottom" tip_class="md:hidden">
+        <.tooltip id="open-session-tip" position="bottom">
           <.link
             navigate={@open_href}
             id="open-session"
-            class="btn btn-sm btn-primary max-md:btn-square"
+            class="btn btn-sm btn-primary @max-md/overview:btn-square"
           >
-            <span class="sr-only md:not-sr-only">Open session</span>
+            <span class="sr-only @md/overview:not-sr-only">Open session</span>
             <.icon name="icon-arrow-right" class="size-3.5" />
           </.link>
           <:content>Open session</:content>
@@ -608,19 +608,19 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
     assigns = assign(assigns, :tip_id, assigns.tip_id || "#{assigns.id}-tip")
 
     ~H"""
-    <.tooltip
-      id={@tip_id}
-      position="bottom"
-      tip_class={if(is_nil(@tip) and not @icon_only, do: "md:hidden")}
-    >
+    <.tooltip id={@tip_id} position="bottom">
       <button
         type="button"
         id={@id}
-        class={["btn btn-sm", if(@icon_only, do: "btn-square", else: "max-md:btn-square"), @class]}
+        class={[
+          "btn btn-sm",
+          if(@icon_only, do: "btn-square", else: "@max-md/overview:btn-square"),
+          @class
+        ]}
         {@rest}
       >
         <.icon name={@icon} class="size-3.5" />
-        <span class={if @icon_only, do: "sr-only", else: "sr-only md:not-sr-only"}>
+        <span class={if @icon_only, do: "sr-only", else: "sr-only @md/overview:not-sr-only"}>
           {@label}
         </span>
       </button>
@@ -646,7 +646,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
     ~H"""
     <div
       id="overview-totals"
-      class="bg-base-200 border-base-200 rounded-b-box grid grid-cols-2 gap-px overflow-hidden border-t @3xl/overview:grid-cols-4"
+      class="bg-base-200 border-base-200 rounded-b-box grid grid-cols-1 gap-px overflow-hidden border-t @3xl/overview:grid-cols-4 @xs/overview:grid-cols-2"
     >
       <.total_cell
         id="total-traces"
