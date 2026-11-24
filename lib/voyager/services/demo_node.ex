@@ -186,8 +186,7 @@ defmodule Voyager.Services.DemoNode do
       args: [~c"-kernel", ~c"inet_dist_use_interface", ~c"{127,0,0,1}"],
       # argv is world-readable through ps; a process environment is readable only by its owner.
       env: [
-        {~c"ERL_AFLAGS", ~c"-setcookie #{cookie}"},
-        {~c"ERL_EPMD_ADDRESS", ~c"127.0.0.1"}
+        {~c"ERL_AFLAGS", ~c"-setcookie #{cookie}"}
       ]
     }
 
