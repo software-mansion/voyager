@@ -110,19 +110,14 @@ defmodule Voyager.Queries.TraceEntries do
 
   @doc """
   Buckets a stopped saved session's trace timestamps in SQLite into its `Overview.activity`.
+  `max_ats` maps open runs' indices to their latest trace timestamp in microseconds.
   A running session's live window comes from `Voyager.Services.Tracer.MemoryLog` instead.
   """
-  @spec activity(integer(), [Overview.run()]) :: Overview.activity() | nil
-  def activity(_session_id, []), do: nil
+  @spec activity(integer(), [Overview.run()], %{optional(pos_integer()) => integer()}) ::
+          Overview.activity() | nil
+  def activity(_session_id, [], _max_ats), do: nil
 
-  def activity(session_id, runs) do
-    max_ats =
-      for %{stopped_at: nil} = run <- runs,
-          {_count, max_at} = open_run_extent(session_id, run),
-          not is_nil(max_at),
-          into: %{},
-          do: {run.index, DateTime.to_unix(max_at, :microsecond)}
-
+  def activity(session_id, runs, max_ats) do
     {spans, bucket_ms} = Overview.plan_segments(runs, max_ats)
     bucket_us = bucket_ms * 1_000
 
@@ -289,7 +284,7 @@ defmodule Voyager.Queries.TraceEntries do
     %{
       origin: row.origin,
       node: String.to_atom(row.node),
-      config: Ecto.embedded_load(Config, row.config, :json)
+      config: Config.from_stored(row.config)
     }
   end
 

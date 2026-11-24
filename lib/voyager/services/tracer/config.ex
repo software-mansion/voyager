@@ -70,6 +70,16 @@ defmodule Voyager.Services.Tracer.Config do
     end
   end
 
+  @doc "Loads a stored config map, returning `nil` when empty or incompatible with this schema."
+  @spec from_stored(map() | nil) :: t() | nil
+  def from_stored(data) when is_map(data) do
+    Ecto.embedded_load(__MODULE__, data, :json)
+  rescue
+    ArgumentError -> nil
+  end
+
+  def from_stored(_data), do: nil
+
   @doc "The `{spec, limits}` pair `trace_start` takes on the agent; `pids` are the resolved `:pids`."
   @spec to_agent(t(), [pid()]) :: {map(), map()}
   def to_agent(%__MODULE__{} = config, pids) do

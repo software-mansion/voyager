@@ -268,15 +268,39 @@ defmodule Voyager.TraceSessionsTest do
     assert %Config{module: "Elixir.Date"} = oldest.config
 
     assert %{rows: [only_a], has_more?: false} =
-             TraceSessionQueries.page(node: "a@host", exclude_id: s3.id)
+             TraceSessionQueries.page(node: "a@host", exclude_id: s3.id, limit: 10)
 
     assert only_a.id == s1.id
-    assert TraceSessionQueries.counts_by_node() == %{"a@host" => 2, "b@host" => 1}
+    assert TraceSessionQueries.counts_by_node(nil) == %{"a@host" => 2, "b@host" => 1}
     assert TraceSessionQueries.counts_by_node(s3.id) == %{"a@host" => 1, "b@host" => 1}
     assert TraceSessionQueries.total_count(s3.id) == 2
   end
 
-  test "activity/2 buckets saved trace rows in SQLite to match Overview.activity/2" do
+  test "returns nil config for a stored row whose config no longer matches the schema" do
+    stale =
+      Repo.insert!(%TraceSession{
+        origin: :ui,
+        status: :stopped,
+        node: "a@host",
+        config: %{"module" => "Elixir.Date", "processes" => "everything"}
+      })
+
+    Repo.insert!(%Voyager.Schemas.TraceSessionEvent{
+      session_id: stale.id,
+      seq: 0,
+      kind: :configured,
+      at: ~U[2026-01-01 00:00:00.000000Z],
+      origin: :ui,
+      node: "a@host",
+      config: %{"module" => "Elixir.Date", "arity" => "x"}
+    })
+
+    assert %{rows: [%{id: id, config: nil}]} = TraceSessionQueries.page(limit: 10)
+    assert id == stale.id
+    assert [%{kind: :configured, config: nil}] = TraceEntryQueries.controls(stale.id)
+  end
+
+  test "activity/3 buckets saved trace rows in SQLite to match Overview.activity/2" do
     %{id: id} = session!(:stopped)
 
     controls = [
@@ -317,7 +341,7 @@ defmodule Voyager.TraceSessionsTest do
     expected_stopped =
       Overview.activity(stopped_runs, Overview.trace_timestamps(stopped_runs, traces))
 
-    assert TraceEntryQueries.activity(id, stopped_runs) == expected_stopped
+    assert TraceEntryQueries.activity(id, stopped_runs, %{}) == expected_stopped
   end
 
   defp seqs(entries), do: Enum.map(entries, & &1.seq)
