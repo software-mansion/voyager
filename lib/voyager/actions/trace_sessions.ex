@@ -37,7 +37,7 @@ defmodule Voyager.Actions.TraceSessions do
   end
 
   @doc "Deletes the session and its entries."
-  @spec delete(integer()) :: {:ok, TraceSession.t()} | {:error, :not_found}
+  @spec delete(integer()) :: {:ok, TraceSession.t()} | {:error, :not_found | Ecto.Changeset.t()}
   def delete(id) do
     case TraceSessionQueries.get(id) do
       nil -> {:error, :not_found}
