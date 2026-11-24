@@ -11,6 +11,7 @@ defmodule Voyager.Services.Tracer.Overview do
 
   @max_buckets 60
   @live_bucket_ms 1_000
+  @day_ms 86_400_000
   @bucket_ladder_ms [
     1_000,
     2_000,
@@ -28,7 +29,7 @@ defmodule Voyager.Services.Tracer.Overview do
     7_200_000,
     21_600_000,
     43_200_000,
-    86_400_000
+    @day_ms
   ]
 
   @type segment :: %{
@@ -101,11 +102,11 @@ defmodule Voyager.Services.Tracer.Overview do
 
     max_ats = Map.new(grouped, fn {idx, ats} -> {idx, Enum.max(ats)} end)
 
-    {spans, bucket_ms} = plan_segments(runs, max_ats)
+    {planned, bucket_ms} = plan_segments(runs, max_ats)
     bucket_us = bucket_ms * 1_000
 
     run_buckets =
-      for {run, {start_us, _end_us}} <- Enum.zip(runs, spans),
+      for {run, {start_us, _end_us}} <- planned,
           ats = Map.get(grouped, run.index, []),
           ats != [],
           into: %{} do
@@ -118,7 +119,7 @@ defmodule Voyager.Services.Tracer.Overview do
         {run.index, buckets}
       end
 
-    build_segments(runs, spans, bucket_ms, run_buckets)
+    build_segments(planned, bucket_ms, run_buckets)
   end
 
   @doc """
@@ -161,12 +162,17 @@ defmodule Voyager.Services.Tracer.Overview do
     }
   end
 
-  @doc "The `{start_us, end_us}` span of each run and the chosen slice width `bucket_ms`."
+  @doc """
+  Pairs up to the newest `@max_buckets` runs with their `{start_us, end_us}` spans and picks
+  a slice width `bucket_ms` so total buckets stay within `@max_buckets`.
+  """
   @spec plan_segments([run()], %{optional(pos_integer()) => integer()}) ::
-          {[{integer(), integer()}], pos_integer()}
+          {[{run(), {integer(), integer()}}], pos_integer()}
   def plan_segments(runs, max_ats) do
-    spans =
-      Enum.map(runs, fn run ->
+    planned =
+      runs
+      |> Enum.take(-@max_buckets)
+      |> Enum.map(fn run ->
         start_us = DateTime.to_unix(run.started_at, :microsecond)
 
         end_us =
@@ -175,33 +181,31 @@ defmodule Voyager.Services.Tracer.Overview do
             nil -> Map.get(max_ats, run.index, start_us)
           end
 
-        {start_us, max(end_us, start_us)}
+        {run, {start_us, max(end_us, start_us)}}
       end)
 
-    {spans, bucket_ms(spans)}
+    spans = Enum.map(planned, &elem(&1, 1))
+    {planned, bucket_ms(spans)}
   end
 
   @doc """
-  Builds a stopped session's `activity` from `runs`, `spans`, `bucket_ms` and
+  Builds a stopped session's `activity` from `planned` `{run, span}` pairs, `bucket_ms` and
   `%{run_index => %{bucket_idx => count}}`, or `nil` when every run is empty.
   """
   @spec build_segments(
-          [run()],
-          [{integer(), integer()}],
+          [{run(), {integer(), integer()}}],
           pos_integer(),
           %{optional(pos_integer()) => %{optional(non_neg_integer()) => non_neg_integer()}}
         ) :: activity() | nil
-  def build_segments(_runs, _spans, _bucket_ms, run_buckets) when map_size(run_buckets) == 0,
+  def build_segments(_planned, _bucket_ms, run_buckets) when map_size(run_buckets) == 0,
     do: nil
 
-  def build_segments(runs, spans, bucket_ms, run_buckets) do
+  def build_segments(planned, bucket_ms, run_buckets) do
     bucket_us = bucket_ms * 1_000
 
     {segments, _prev_end} =
-      runs
-      |> Enum.zip(spans)
-      |> Enum.map_reduce(nil, fn {run, {start_us, end_us}}, prev_end ->
-        count = max(div(end_us - start_us + bucket_us - 1, bucket_us), 1)
+      Enum.map_reduce(planned, nil, fn {run, {start_us, end_us} = span}, prev_end ->
+        count = segment_buckets(span, bucket_us)
         counts = clamp_buckets(Map.get(run_buckets, run.index, %{}), count)
 
         segment = %{
@@ -234,12 +238,39 @@ defmodule Voyager.Services.Tracer.Overview do
   end
 
   defp bucket_ms(spans) do
-    total_ms = spans |> Enum.map(fn {from, to} -> div(to - from, 1_000) end) |> Enum.sum()
-
-    Enum.find(@bucket_ladder_ms, List.last(@bucket_ladder_ms), fn bucket_ms ->
-      div(total_ms + bucket_ms - 1, bucket_ms) + length(spans) <= @max_buckets
-    end)
+    Enum.find(@bucket_ladder_ms, &fits?(spans, &1)) || multi_day_bucket_ms(spans)
   end
+
+  defp fits?(spans, bucket_ms) do
+    bucket_us = bucket_ms * 1_000
+
+    Enum.reduce(spans, 0, fn span, acc -> acc + segment_buckets(span, bucket_us) end) <=
+      @max_buckets
+  end
+
+  defp multi_day_bucket_ms(spans) do
+    day_us = @day_ms * 1_000
+
+    max_days =
+      spans
+      |> Enum.map(fn {from, to} -> div(to - from + day_us - 1, day_us) end)
+      |> Enum.max()
+
+    find_min_days(spans, 2, max(max_days, 2)) * @day_ms
+  end
+
+  defp find_min_days(_spans, lo, hi) when lo >= hi, do: lo
+
+  defp find_min_days(spans, lo, hi) do
+    mid = div(lo + hi, 2)
+
+    if fits?(spans, mid * @day_ms),
+      do: find_min_days(spans, lo, mid),
+      else: find_min_days(spans, mid + 1, hi)
+  end
+
+  defp segment_buckets({start_us, end_us}, bucket_us),
+    do: max(div(end_us - start_us + bucket_us - 1, bucket_us), 1)
 
   @doc "Pairs each `:trace` entry with the `index` of the run its `seq` falls into."
   @spec trace_timestamps([run()], [Entry.t()]) :: [{pos_integer(), integer()}]

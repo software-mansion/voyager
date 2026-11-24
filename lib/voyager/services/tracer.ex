@@ -315,13 +315,13 @@ defmodule Voyager.Services.Tracer do
     session = %{new_session(origin, false) | node: node, config: config}
 
     case start_tracer(session, spec, limits) do
-      {:ok, tracer} ->
+      {:ok, tracer, clock_offset_us} ->
         broadcast({:session_activated, session})
 
         state =
           %__MODULE__{session: session}
           |> append([Entry.configured(origin, node, config, nil)])
-          |> begin_run(tracer, origin)
+          |> begin_run(tracer, origin, clock_offset_us)
 
         {:reply, {:ok, state.session}, state}
 
@@ -397,8 +397,8 @@ defmodule Voyager.Services.Tracer do
         %{session: %Session{id: id, node: node, config: config} = session} = state
       ) do
     with :ok <- check_storage(session),
-         {:ok, tracer} <- start_tracer(session, spec, limits) do
-      state = begin_run(state, tracer, origin)
+         {:ok, tracer, clock_offset_us} <- start_tracer(session, spec, limits) do
+      state = begin_run(state, tracer, origin, clock_offset_us)
       {:reply, {:ok, state.session}, state}
     else
       {:error, reason} -> {:reply, start_failed(reason, origin), state}
@@ -660,17 +660,29 @@ defmodule Voyager.Services.Tracer do
   end
 
   defp start_tracer(session, spec, limits) do
-    with {:ok, reply} <-
-           Agent.call(session.node, :trace_start, [self(), spec, limits], Agent.default_timeout()),
-         do: reply
+    before_us = System.os_time(:microsecond)
+
+    case Agent.call(session.node, :trace_start, [self(), spec, limits], Agent.default_timeout()) do
+      {:ok, {:ok, tracer, remote_us}} ->
+        after_us = System.os_time(:microsecond)
+        {:ok, tracer, div(before_us + after_us, 2) - remote_us}
+
+      {:ok, {:error, _} = error} ->
+        error
+
+      {:error, _} = error ->
+        error
+    end
   end
 
-  defp begin_run(%{session: session} = state, tracer, origin) do
+  defp begin_run(%{session: session} = state, tracer, origin, clock_offset_us) do
     Process.monitor(tracer)
     session = Session.running(session, tracer, storage_limit(session.id))
     emit_started(session, origin)
 
-    append(%{state | session: session, run: Run.new(session, origin)}, [Entry.started(origin)])
+    append(%{state | session: session, run: Run.new(session, origin, clock_offset_us)}, [
+      Entry.started(origin)
+    ])
   end
 
   @spec end_run(state(), stop_reason(), non_neg_integer()) :: state()

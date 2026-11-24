@@ -286,4 +286,93 @@ defmodule Voyager.Services.Tracer.OverviewTest do
     assert Overview.activity([], []) == nil
     assert Overview.activity(runs, []) == nil
   end
+
+  test "activity/2 steps up the bucket ladder to keep total buckets within 60" do
+    controls = [
+      %{
+        seq: 1,
+        kind: :stopped,
+        at: 90_000_000,
+        origin: :ui,
+        reason: :stopped,
+        traces: 2,
+        dropped: 0
+      },
+      %{seq: 0, kind: :started, at: 0, origin: :ui}
+    ]
+
+    runs = Overview.runs(controls, session(status: :stopped, stop_reason: :stopped))
+
+    assert %{bucket_ms: 2_000, segments: [segment]} =
+             Overview.activity(runs, [{1, 1_000_000}, {1, 89_000_000}])
+
+    assert length(segment.counts) == 45
+    assert Enum.sum(segment.counts) == 2
+  end
+
+  test "activity/2 fits 60 runs on the smallest fitting rung and caps >60 runs to the newest 60" do
+    {controls_60, timestamps_60} = multi_run_fixture(60, 5_000_000)
+    runs_60 = Overview.runs(controls_60, session(status: :stopped, stop_reason: :stopped))
+
+    assert %{bucket_ms: 5_000, segments: segments_60} =
+             Overview.activity(runs_60, timestamps_60)
+
+    assert length(segments_60) == 60
+    assert Enum.sum_by(segments_60, &length(&1.counts)) == 60
+    assert Enum.sum_by(segments_60, &Enum.sum(&1.counts)) == 60
+
+    {controls_75, timestamps_75} = multi_run_fixture(75, 5_000_000)
+    runs_75 = Overview.runs(controls_75, session(status: :stopped, stop_reason: :stopped))
+
+    assert %{bucket_ms: 5_000, segments: segments_75} =
+             Overview.activity(runs_75, timestamps_75)
+
+    assert length(segments_75) == 60
+
+    assert hd(segments_75).start_us ==
+             DateTime.to_unix(Enum.at(runs_75, 15).started_at, :microsecond)
+
+    assert hd(segments_75).gap_before_ms == nil
+    assert Enum.sum_by(segments_75, &length(&1.counts)) == 60
+  end
+
+  test "activity/2 uses multi-day buckets when an open run exceeds 60 days" do
+    controls = [%{seq: 0, kind: :started, at: 0, origin: :ui}]
+    runs = Overview.runs(controls, session(status: :stopped, stop_reason: :interrupted))
+    day_us = 86_400_000_000
+
+    assert %{bucket_ms: bucket_ms, segments: [segment]} =
+             Overview.activity(runs, [{1, 1_000_000}, {1, 366 * day_us}])
+
+    assert bucket_ms == 7 * 86_400_000
+    assert length(segment.counts) == 53
+    assert Enum.sum(segment.counts) == 2
+  end
+
+  defp multi_run_fixture(count, duration_us) do
+    step_us = duration_us + 5_000_000
+
+    {controls, timestamps} =
+      Enum.reduce(1..count, {[], []}, fn index, {controls, timestamps} ->
+        start_at = (index - 1) * step_us
+        start_seq = (index - 1) * 3
+
+        run_controls = [
+          %{
+            seq: start_seq + 2,
+            kind: :stopped,
+            at: start_at + duration_us,
+            origin: :ui,
+            reason: :stopped,
+            traces: 1,
+            dropped: 0
+          },
+          %{seq: start_seq, kind: :started, at: start_at, origin: :ui}
+        ]
+
+        {run_controls ++ controls, [{index, start_at + 1_000_000} | timestamps]}
+      end)
+
+    {controls, Enum.reverse(timestamps)}
+  end
 end

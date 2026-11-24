@@ -649,6 +649,22 @@ defmodule Voyager.Services.TracerTest do
     end
   end
 
+  test "overview/1 normalizes remote clock skew into Voyager's live window" do
+    assert {:ok, %{id: id}} = Tracer.create(:ui)
+    assert {:ok, _session} = configure()
+    assert {:ok, %{tracer: tracer}} = Tracer.start(:ui)
+    skew_us = 3_600_000_000
+    :sys.replace_state(Tracer, &put_in(&1.run.clock_offset_us, -skew_us))
+
+    remote_at = System.os_time(:microsecond) + skew_us
+    event = %{type: :call, pid: self(), process: nil, mfa: {Date, :leap_year?, 1}, at: remote_at}
+    send(Tracer, {:voyager_trace_events, tracer, List.duplicate(event, 4), 0})
+    _ = :sys.get_state(Tracer)
+
+    assert {:ok, %{activity: %{live?: true, segments: [segment]}}} = Tracer.overview(id)
+    assert Enum.sum(segment.counts) == 4
+  end
+
   defp comparable(summary),
     do: %{summary | slowest: Enum.map(summary.slowest, &Map.take(&1, [:type, :mfa, :pid]))}
 

@@ -344,6 +344,73 @@ defmodule Voyager.TraceSessionsTest do
     assert TraceEntryQueries.activity(id, stopped_runs, %{}) == expected_stopped
   end
 
+  test "activity/3 caps saved sessions with >60 runs to the newest 60 matching Overview.activity/2" do
+    %{id: id} = session!(:stopped)
+
+    {entries, traces} =
+      Enum.reduce(1..65, {[], []}, fn index, {all, traces} ->
+        start_at = (index - 1) * 10_000_000
+        start_seq = (index - 1) * 3
+        trace_entry = trace(start_seq + 1, %{at: start_at + 1_000_000})
+
+        run_entries = [
+          %{seq: start_seq, kind: :started, at: start_at, origin: :ui},
+          trace_entry,
+          %{
+            seq: start_seq + 2,
+            kind: :stopped,
+            at: start_at + 5_000_000,
+            origin: :ui,
+            reason: :stopped,
+            traces: 1,
+            dropped: 0
+          }
+        ]
+
+        {all ++ run_entries, [trace_entry | traces]}
+      end)
+
+    TraceEntryActions.insert_all(id, entries)
+    controls = TraceEntryQueries.controls(id)
+    runs = Overview.runs(controls, Session.from_row(row(), controls, 0, 0, 0))
+    expected = Overview.activity(runs, Overview.trace_timestamps(runs, Enum.reverse(traces)))
+
+    assert %{bucket_ms: 5_000, segments: segments} =
+             actual = TraceEntryQueries.activity(id, runs, %{})
+
+    assert length(segments) == 60
+    assert actual == expected
+  end
+
+  test "summaries/1 summarizes the last run, the whole session for one run and nothing before a start" do
+    %{id: one_run} = session!(:stopped)
+    %{id: two_runs} = session!(:stopped)
+    %{id: never_started} = session!(:idle)
+    started = &%{seq: &1, kind: :started, at: &1, origin: :ui}
+
+    TraceEntryActions.insert_all(one_run, [started.(0), trace(1, %{})])
+
+    TraceEntryActions.insert_all(two_runs, [
+      started.(0),
+      trace(1, %{}),
+      started.(2),
+      trace(3, %{}),
+      trace(4, %{})
+    ])
+
+    TraceEntryActions.insert_all(never_started, [trace(0, %{})])
+
+    assert %{session: %{calls: 1} = session, last_run: session} =
+             TraceEntryQueries.summaries(one_run)
+
+    assert %{session: %{calls: 3}, last_run: %{calls: 2}} = TraceEntryQueries.summaries(two_runs)
+
+    assert %{session: %{calls: 1}, last_run: %Summary{} = empty} =
+             TraceEntryQueries.summaries(never_started)
+
+    assert empty == %Summary{}
+  end
+
   defp seqs(entries), do: Enum.map(entries, & &1.seq)
 
   defp row do

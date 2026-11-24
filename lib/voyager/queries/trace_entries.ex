@@ -118,17 +118,17 @@ defmodule Voyager.Queries.TraceEntries do
   def activity(_session_id, [], _max_ats), do: nil
 
   def activity(session_id, runs, max_ats) do
-    {spans, bucket_ms} = Overview.plan_segments(runs, max_ats)
+    {planned, bucket_ms} = Overview.plan_segments(runs, max_ats)
     bucket_us = bucket_ms * 1_000
 
     run_buckets =
-      for {run, {start_us, _end_us}} <- Enum.zip(runs, spans),
+      for {run, {start_us, _end_us}} <- planned,
           buckets = run_events(session_id, run) |> query_buckets(start_us, bucket_us),
           map_size(buckets) > 0,
           into: %{},
           do: {run.index, buckets}
 
-    Overview.build_segments(runs, spans, bucket_ms, run_buckets)
+    Overview.build_segments(planned, bucket_ms, run_buckets)
   end
 
   @doc "The trace count and latest `at` of a run that has no stop entry."
