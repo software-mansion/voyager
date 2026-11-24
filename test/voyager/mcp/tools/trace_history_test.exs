@@ -2,7 +2,10 @@ defmodule Voyager.MCP.Tools.TraceHistoryTest do
   # async: false because the tool reads the global `Tracer`.
   use Voyager.TraceToolCase, async: false
 
+  import Voyager.TestUtils, only: [reset_term_syntax: 1]
+
   alias Voyager.MCP.Tools.TraceHistory
+  alias Voyager.Services.TermSyntax
 
   test "lists the active session first, then the saved ones, each once" do
     %{id: saved} = configure(%{}, save: true)
@@ -14,6 +17,12 @@ defmodule Voyager.MCP.Tools.TraceHistoryTest do
              history(%{})
 
     assert %{"target" => "Date.leap_year?/1", "capture" => "args", "total_events" => 0} = listed
+
+    assert %{"runs" => 0, "bytes" => bytes, "created_at" => created_at, "started_at" => nil} =
+             listed
+
+    assert bytes > 0
+    assert {:ok, _at, 0} = DateTime.from_iso8601(created_at)
   end
 
   test "lists 20 saved sessions besides the active one, then older ones past the cursor" do
@@ -87,6 +96,7 @@ defmodule Voyager.MCP.Tools.TraceHistoryTest do
     assert %{"status" => "stopped", "summary" => %{"calls" => 1}, "events" => events} = report
     assert %{"untrusted" => _, "runs" => [%{"run" => 1, "reason" => "stopped"}]} = report
     refute Map.has_key?(report, "last_run_summary")
+    assert %{"sessions" => [_active, %{"session_id" => ^id, "runs" => 1}]} = history(%{})
 
     assert [
              %{"kind" => "configured"},
@@ -117,9 +127,12 @@ defmodule Voyager.MCP.Tools.TraceHistoryTest do
 
     assert %{"run" => 1, "events" => 2, "reason" => "event_limit", "config" => config} = first
     assert config == %{"capture" => "args"}
-    assert %{"run" => 2, "events" => 2} = second
+    refute Map.has_key?(first, "previous_config")
+    assert %{"run" => 2, "events" => 2, "previous_config" => previous} = second
+    assert previous == %{"capture" => "args"}
     refute Map.has_key?(second, "config")
     assert %{"last_run_summary" => %{"calls" => 1}} = report
+    assert %{"sessions" => [%{"session_id" => ^id, "runs" => 2}]} = history(%{})
   end
 
   test "searches a session's events, newest first, past the cursor" do
@@ -127,10 +140,10 @@ defmodule Voyager.MCP.Tools.TraceHistoryTest do
     {:ok, _session} = Tracer.start(:ui)
     trace_calls(3)
 
-    assert %{"events" => [%{"kind" => "call", "args" => args}], "total_matches" => 1} =
+    assert %{"events" => [%{"kind" => "call", "args" => [arg]}], "total_matches" => 1} =
              report = history(%{"session_id" => id, "query" => "2002"})
 
-    assert args =~ "2002"
+    assert arg == "~D[2002-01-01]"
     assert %{"searched" => _, "more" => false} = report
 
     assert %{"events" => [newest, older], "next_before" => before, "more" => true} =
@@ -163,6 +176,28 @@ defmodule Voyager.MCP.Tools.TraceHistoryTest do
 
     assert %{"untrusted" => _, "events" => events} = history(%{"session_id" => id})
     assert Enum.any?(events, &Map.has_key?(&1, "args"))
+  end
+
+  describe "with the Erlang term syntax" do
+    setup :reset_term_syntax
+
+    test "writes terms as search matches them" do
+      {:ok, :erlang} = TermSyntax.save_setting(:erlang)
+      %{id: id} = configure()
+      {:ok, _session} = Tracer.start(:ui)
+      trace_calls(2)
+
+      assert %{"syntax" => "erlang", "target" => "'Elixir.Date':'leap_year?'/1"} =
+               report = history(%{"session_id" => id})
+
+      assert [%{"function" => function, "args" => [arg]}, _second] =
+               Enum.filter(report["events"], &(&1["kind"] == "call"))
+
+      assert function == "'Elixir.Date':'leap_year?'/1"
+      assert arg =~ "'__struct__' => 'Elixir.Date'"
+      assert %{"total_matches" => 1} = history(%{"session_id" => id, "query" => arg})
+      assert %{"total_matches" => 4} = history(%{"session_id" => id, "query" => function})
+    end
   end
 
   test "refuses an unknown session" do
