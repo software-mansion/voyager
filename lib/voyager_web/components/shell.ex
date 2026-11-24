@@ -6,14 +6,16 @@ defmodule VoyagerWeb.Components.Shell do
   use VoyagerWeb, :html
 
   alias Voyager.NodeSession.Session
+  alias Voyager.Services.McpAgents
   alias Voyager.Services.Tracer
   alias VoyagerWeb.Components.TracingComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.Hooks.UrlHook
+  alias VoyagerWeb.McpComponents
 
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
-  attr :mcp_status, :map, default: %{alive?: false, url: nil}
+  attr :mcp_agents, McpAgents, default: %McpAgents{}
   attr :tracing_session, Tracer.Session, default: nil
   slot :inner_block, required: true
 
@@ -27,7 +29,7 @@ defmodule VoyagerWeb.Components.Shell do
           <.sidebar
             active_nav={@active_nav}
             session={@session}
-            mcp_status={@mcp_status}
+            mcp_agents={@mcp_agents}
             tracing_running?={match?(%Tracer.Session{status: :running}, @tracing_session)}
           />
 
@@ -205,15 +207,18 @@ defmodule VoyagerWeb.Components.Shell do
     """
   end
 
-  attr :status, :map, required: true
+  attr :agents, McpAgents, required: true
 
   defp mcp_status_indicator(assigns) do
+    assigns = assign(assigns, :rows, status_rows(assigns.agents))
+
     ~H"""
     <.tooltip
-      id={"mcp-status-tip-#{@status.alive?}-#{:erlang.phash2(@status.url)}"}
+      id={"mcp-status-tip-#{@agents.server.alive?}-#{:erlang.phash2(@agents.server.url)}"}
       interactive
       position="top"
       class="w-full"
+      tip_class="w-80 max-w-80"
     >
       <div
         id="mcp-status"
@@ -221,54 +226,107 @@ defmodule VoyagerWeb.Components.Shell do
       >
         <span class="relative inline-flex shrink-0">
           <.icon name="icon-brain" class="text-base-content/70 size-4" />
-          <span class="absolute -right-0.5 -bottom-0.5 flex h-1.5 w-1.5">
-            <span
-              :if={@status.alive?}
-              class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
-            ></span>
-            <span class={[
-              "relative inline-flex h-1.5 w-1.5 rounded-full",
-              if(@status.alive?, do: "bg-success", else: "bg-error")
-            ]}></span>
+          <span class="absolute -right-0.5 -bottom-0.5 flex">
+            <McpComponents.status_dot agents={@agents} />
           </span>
         </span>
-        <span class="sidebar-label font-mono text-base-content/70 truncate text-xs">
-          MCP {if @status.alive?, do: "running", else: "stopped"}
-        </span>
+        <span class="sidebar-label font-mono text-base-content/70 truncate text-xs">AI agents</span>
       </div>
       <:content>
-        <%= if @status.alive? do %>
-          <div>
-            <span>
-              MCP server is running at
-            </span>
-            <div class="flex items-center gap-1">
-              <span id="mcp-status-url" class="font-mono">{@status.url}</span>
-              <.copy_button
-                id="mcp-status-copy"
-                target="#mcp-status-url"
-                icon_only
-                class="btn-xs text-base-content/70 shrink-0 hover:text-base-content"
-              />
-            </div>
-          </div>
-        <% else %>
+        <div :if={!@agents.server.alive?} id="mcp-status-stopped">
           MCP server is not active. It can be enabled and configured in Settings.
           <.link
-            href={~p"/settings"}
+            href={~p"/settings#mcp-server"}
             class="text-primary mt-2 flex w-fit items-center gap-1 font-medium underline-offset-2 hover:underline"
           >
             Open Settings
           </.link>
-        <% end %>
+        </div>
+        <div :if={@agents.server.alive?} id="mcp-status-running" class="flex flex-col gap-3 py-1">
+          <div class="flex items-center justify-between gap-3">
+            <span id="mcp-status-headline" class="text-sm font-semibold">
+              {status_headline(Enum.count(@rows, & &1.recent?))}
+            </span>
+            <span class="flex items-center gap-0.5">
+              <span class="font-mono text-base-content/70">
+                {McpComponents.short_url(@agents.server.url)}
+              </span>
+              <span id="mcp-status-url" class="hidden">{@agents.server.url}</span>
+              <.copy_button
+                id="mcp-status-copy"
+                target="#mcp-status-url"
+                label="Copy MCP URL"
+                icon_only
+                size={:sm}
+                class="text-base-content/70 shrink-0 hover:text-base-content"
+              />
+            </span>
+          </div>
+          <ul :if={@rows != []} id="mcp-status-agents" class="flex flex-col gap-2.5">
+            <li
+              :for={row <- @rows}
+              id={"mcp-status-agent-#{row.key}"}
+              class="flex items-center gap-2.5"
+            >
+              <McpComponents.agent_logo id={row.agent_id} active />
+              <span class="min-w-0 flex-1 truncate text-sm">
+                {row.name}
+                <span :if={row.version} class="font-mono text-base-content/70 text-xs">
+                  {row.version}
+                </span>
+              </span>
+              <McpComponents.recently_used :if={row.recent?} />
+              <span :if={!row.recent?} class="text-base-content/70 text-xs">Added</span>
+            </li>
+          </ul>
+          <p :if={@rows == []} id="mcp-status-empty" class="text-base-content/70">
+            No coding agent set up yet.
+          </p>
+          <div class="border-base-content/10 border-t"></div>
+          <.link
+            id="mcp-status-settings"
+            href={~p"/settings#mcp-server"}
+            class="text-primary w-fit font-medium underline-offset-2 hover:underline"
+          >
+            {if @rows == [], do: "Set up agents", else: "MCP settings"}
+          </.link>
+        </div>
       </:content>
     </.tooltip>
     """
   end
 
+  defp status_rows(%McpAgents{agents: agents, recent: recent}) do
+    names = Map.new(agents, &{&1.id, &1.name})
+
+    recent_rows =
+      Enum.map(recent, fn client ->
+        %{
+          key: client.agent_id || :erlang.phash2(client.name),
+          agent_id: client.agent_id,
+          name: Map.get(names, client.agent_id, client.name),
+          version: client.version,
+          recent?: true
+        }
+      end)
+
+    recent_ids = MapSet.new(recent, & &1.agent_id)
+
+    added_rows =
+      for agent <- agents, agent.status == :added, agent.id not in recent_ids do
+        %{key: agent.id, agent_id: agent.id, name: agent.name, version: nil, recent?: false}
+      end
+
+    Enum.uniq_by(recent_rows, & &1.key) ++ added_rows
+  end
+
+  defp status_headline(0), do: "MCP server running"
+  defp status_headline(1), do: "1 agent used recently"
+  defp status_headline(count), do: "#{count} agents used recently"
+
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
-  attr :mcp_status, :map, default: %{alive?: false, url: nil}
+  attr :mcp_agents, McpAgents, default: %McpAgents{}
   attr :tracing_running?, :boolean, default: false
 
   defp sidebar(assigns) do
@@ -316,7 +374,7 @@ defmodule VoyagerWeb.Components.Shell do
       <div class="border-base-content/10 border-t mx-[length:var(--sidebar-compact-pad)]"></div>
 
       <div class="flex flex-none flex-col gap-1 p-3">
-        <.mcp_status_indicator status={@mcp_status} />
+        <.mcp_status_indicator agents={@mcp_agents} />
       </div>
     </aside>
     """

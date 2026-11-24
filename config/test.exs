@@ -12,6 +12,8 @@ config :voyager, Voyager.Repo,
 
 config :voyager, Voyager.MCP, enabled: false
 
+config :voyager, :coding_agents_home, Path.expand("../tmp/coding_agents_home", __DIR__)
+
 config :voyager, :global_known_hosts_path, Path.expand("../tmp/ssh_known_hosts", __DIR__)
 
 config :voyager, VoyagerWeb.Endpoint,

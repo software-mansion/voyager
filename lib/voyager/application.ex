@@ -27,6 +27,7 @@ defmodule Voyager.Application do
       VoyagerWeb.Endpoint,
       Voyager.Services.UsedRequestStates,
       Voyager.MCP,
+      Voyager.Services.McpAgents,
       {Voyager.Services.TrayStatus, native?: elixirkit_pubsub != nil},
       {Task, fn -> if elixirkit_pubsub, do: ElixirKit.PubSub.broadcast("messages", "ready") end}
     ]
