@@ -10,12 +10,17 @@ defmodule VoyagerWeb.McpComponents do
     doc: "a `Voyager.Services.CodingAgents.id()`, nil for any other agent"
 
   attr :size, :atom, default: :sm, values: [:sm, :md]
+  attr :active, :boolean, default: false, doc: "whether the agent has Voyager set up"
 
   def agent_logo(assigns) do
     ~H"""
     <span class={[
-      "bg-base-200 text-base-content flex shrink-0 items-center justify-center",
-      if(@size == :md, do: "size-8 rounded-lg", else: "size-6 rounded-md")
+      "flex shrink-0 items-center justify-center transition-colors duration-200",
+      if(@size == :md, do: "size-8 rounded-lg", else: "size-6 rounded-md"),
+      if(@active,
+        do: ["ring-black/10 bg-white shadow-sm ring-1", logo_color(@id)],
+        else: "bg-base-200 text-base-content/40"
+      )
     ]}>
       <.icon name={logo_icon(@id)} class={if @size == :md, do: "size-4", else: "size-3.5"} />
     </span>
@@ -47,6 +52,12 @@ defmodule VoyagerWeb.McpComponents do
   defp status_color(%McpAgents{server: %{alive?: false}}), do: "bg-error"
   defp status_color(%McpAgents{recent: []}), do: "bg-warning"
   defp status_color(%McpAgents{}), do: "bg-success"
+
+  defp logo_color(:claude_code), do: "text-brand-claude"
+  defp logo_color(:vscode), do: "text-brand-vscode"
+  defp logo_color(:antigravity), do: "text-brand-antigravity"
+  defp logo_color(:zed), do: "text-brand-zed"
+  defp logo_color(_id), do: "text-black"
 
   defp logo_icon(:claude_code), do: "icon-brand-claude"
   defp logo_icon(:cursor), do: "icon-brand-cursor"

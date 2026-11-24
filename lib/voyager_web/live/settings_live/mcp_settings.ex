@@ -357,7 +357,7 @@ defmodule VoyagerWeb.SettingsLive.McpSettings do
 
   defp agent_identity(assigns) do
     ~H"""
-    <McpComponents.agent_logo id={@agent.id} size={:md} />
+    <McpComponents.agent_logo id={@agent.id} size={:md} active={@agent.status == :added} />
     <span class="flex min-w-0 flex-1 flex-col">
       <span class="flex items-center gap-2 text-sm font-medium">
         <span class="truncate">{@agent.name}</span>

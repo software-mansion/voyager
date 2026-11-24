@@ -281,7 +281,7 @@ defmodule VoyagerWeb.Components.Shell do
               id={"mcp-status-agent-#{row.key}"}
               class="flex items-center gap-2.5"
             >
-              <McpComponents.agent_logo id={row.agent_id} />
+              <McpComponents.agent_logo id={row.agent_id} active />
               <span class="min-w-0 flex-1 truncate text-sm">
                 {row.name}
                 <span :if={row.version} class="font-mono text-base-content/70 text-xs">
