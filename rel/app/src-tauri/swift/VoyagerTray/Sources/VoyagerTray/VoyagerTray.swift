@@ -194,8 +194,9 @@ final class TrayController: NSObject, NSWindowDelegate {
 
     private func installMonitors() {
         removeMonitors()
-        let outsideClick = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) {
-            [weak self] _ in
+        let outsideClick = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        ) { [weak self] _ in
             // Status item clicks reach this monitor too; hiding here would make toggle(_:) reopen the panel.
             guard let self, self.statusItemFrame()?.contains(NSEvent.mouseLocation) != true else { return }
             self.hide()
