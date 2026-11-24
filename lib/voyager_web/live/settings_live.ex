@@ -3,7 +3,6 @@ defmodule VoyagerWeb.SettingsLive do
 
   alias Voyager.NodeSession
   alias Voyager.Pid
-  alias Voyager.Services.DemoNode
   alias Voyager.Services.TermSyntax
   alias VoyagerWeb.SettingsComponents
   alias VoyagerWeb.SettingsLive.AppearanceSettings
@@ -34,7 +33,6 @@ defmodule VoyagerWeb.SettingsLive do
     |> assign(:terms_of_service_url, Application.get_env(:voyager, :terms_of_service_url))
     |> assign(:pid_format, Pid.get_setting())
     |> assign(:term_syntax, TermSyntax.get_setting())
-    |> assign(:demo_available?, DemoNode.available?())
     |> ok()
   end
 
@@ -50,7 +48,7 @@ defmodule VoyagerWeb.SettingsLive do
       </div>
 
       <AppearanceSettings.appearance_settings />
-      <DemoSettings.demo_settings :if={@demo_available?} connected?={@session != nil} />
+      <DemoSettings.demo_settings connected?={@session != nil} />
       <SettingsComponents.choice_setting
         id="pid-format"
         title="PID format"

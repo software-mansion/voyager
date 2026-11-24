@@ -1,6 +1,6 @@
 defmodule Voyager.Services.DemoNode do
   @moduledoc """
-  Runs the bundled demo node as a `:peer` of the Voyager VM. Available only in a release.
+  Runs the bundled demo node as a `:peer` of the Voyager VM.
 
   The demo node stops when the user disconnects from it, connects to another node, or does not
   connect within the idle timeout. It halts with the Voyager VM, because a `:standard_io` peer
@@ -17,7 +17,6 @@ defmodule Voyager.Services.DemoNode do
   require Logger
 
   @dismissed_key :demo_dismissed
-  @available_key {__MODULE__, :available?}
   @name ~c"voyager_demo"
   @host ~c"127.0.0.1"
   @node_name "#{@name}@#{@host}"
@@ -32,10 +31,6 @@ defmodule Voyager.Services.DemoNode do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
-  @doc "Whether the demo can run: true only in a release."
-  @spec available?() :: boolean()
-  def available?, do: :persistent_term.get(@available_key, false)
-
   @doc """
   How to offer the demo: `:sticky` while there are no saved connections, whether dismissed or
   not; `:dismissible` once there are some, until dismissed.
@@ -43,7 +38,6 @@ defmodule Voyager.Services.DemoNode do
   @spec offer() :: offer()
   def offer do
     cond do
-      not available?() -> :hidden
       not saved_connections?() -> :sticky
       Settings.get(@dismissed_key) == true -> :hidden
       Settings.locked?(@dismissed_key) -> :sticky
@@ -71,12 +65,10 @@ defmodule Voyager.Services.DemoNode do
   def init(opts) do
     Process.flag(:trap_exit, true)
     Phoenix.PubSub.subscribe(Voyager.PubSub, NodeSession.topic())
-    exec = Keyword.get_lazy(opts, :exec, &release_exec/0)
-    :persistent_term.put(@available_key, exec != nil)
 
     {:ok,
      %{
-       exec: exec,
+       peer_opts: Map.new(opts),
        peer: nil,
        node: nil,
        timer: nil,
@@ -85,16 +77,12 @@ defmodule Voyager.Services.DemoNode do
   end
 
   @impl GenServer
-  def handle_call(:start, _from, %{exec: nil} = state) do
-    {:reply, {:error, :unavailable}, state}
-  end
-
   def handle_call(:start, _from, state) do
     state = stop_demo(state, :restarted)
     cookie = :crypto.strong_rand_bytes(32) |> Base.encode32(padding: false)
     boot_ms = System.monotonic_time(:millisecond)
 
-    case start_peer(state.exec, cookie) do
+    case start_peer(state.peer_opts, cookie) do
       {:ok, peer, node} ->
         timer = :erlang.start_timer(@idle_timeout, self(), :idle_timeout)
 
@@ -157,38 +145,41 @@ defmodule Voyager.Services.DemoNode do
 
   defp saved_connections?, do: ConnectionQueries.any?() or SshConnectionQueries.any?()
 
-  defp release_exec do
-    with root when is_binary(root) <- System.get_env("RELEASE_ROOT"),
-         vsn when is_binary(vsn) <- System.get_env("RELEASE_VSN"),
-         bindir when is_binary(bindir) <- System.get_env("BINDIR") do
-      # The release root has no bin/start.boot, the default boot file erl looks for.
-      args = [
-        "-boot",
-        Path.join([root, "releases", vsn, "start_clean"]),
-        "-boot_var",
-        "RELEASE_LIB",
-        Path.join(root, "lib")
-      ]
+  defp boot_args do
+    args =
+      with root when is_binary(root) <- System.get_env("RELEASE_ROOT"),
+           vsn when is_binary(vsn) <- System.get_env("RELEASE_VSN") do
+        # The release root has no bin/start.boot, the default boot file erl looks for.
+        [
+          "-boot",
+          Path.join([root, "releases", vsn, "start_clean"]),
+          "-boot_var",
+          "RELEASE_LIB",
+          Path.join(root, "lib")
+        ]
+      else
+        _ -> ["-pa", Path.join(:code.lib_dir(:elixir), "ebin")]
+      end
 
-      {String.to_charlist(Path.join(bindir, "erl")), Enum.map(args, &String.to_charlist/1)}
-    else
-      _ -> nil
-    end
+    Enum.map(args, &String.to_charlist/1)
   end
 
-  defp start_peer(exec, cookie) do
-    opts = %{
-      name: @name,
-      host: @host,
-      longnames: true,
-      connection: :standard_io,
-      exec: exec,
-      args: [~c"-kernel", ~c"inet_dist_use_interface", ~c"{127,0,0,1}"],
-      # argv is world-readable through ps; a process environment is readable only by its owner.
-      env: [
-        {~c"ERL_AFLAGS", ~c"-setcookie #{cookie}"}
-      ]
-    }
+  defp start_peer(peer_opts, cookie) do
+    opts =
+      Map.merge(
+        %{
+          name: @name,
+          host: @host,
+          longnames: true,
+          connection: :standard_io,
+          args: [~c"-kernel", ~c"inet_dist_use_interface", ~c"{127,0,0,1}" | boot_args()],
+          # argv is world-readable through ps; a process environment is readable only by its owner.
+          env: [
+            {~c"ERL_AFLAGS", ~c"-setcookie #{cookie}"}
+          ]
+        },
+        peer_opts
+      )
 
     with {:ok, peer, node} <- :peer.start_link(opts) do
       case load_demo(peer) do

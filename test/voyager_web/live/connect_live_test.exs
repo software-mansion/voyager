@@ -120,12 +120,6 @@ defmodule VoyagerWeb.ConnectLiveTest do
   end
 
   describe "demo node" do
-    test "has no demo tab outside a release", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/")
-
-      refute has_element?(view, "#start-demo-btn")
-    end
-
     test "fills the direct form with the started demo node", %{conn: conn} do
       start_demo_node!()
       {:ok, view, _html} = live(conn, ~p"/")

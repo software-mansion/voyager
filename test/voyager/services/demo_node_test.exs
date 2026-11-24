@@ -21,14 +21,6 @@ defmodule Voyager.Services.DemoNodeTest do
     on_exit(fn -> :telemetry.detach(handler) end)
   end
 
-  test "is hidden and refuses to start outside a release" do
-    start_demo_node!(exec: nil)
-
-    refute DemoNode.available?()
-    assert DemoNode.offer() == :hidden
-    assert DemoNode.start() == {:error, :unavailable}
-  end
-
   @tag :capture_log
   test "returns an error without restarting when the demo node fails to boot" do
     pid = start_demo_node!(exec: {~c"/usr/bin/false", []})

@@ -2,7 +2,7 @@ defmodule VoyagerWeb.SettingsLiveTest do
   use VoyagerWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
-  import Voyager.TestUtils, only: [reset_pid_format: 1, reset_term_syntax: 1, start_demo_node!: 0]
+  import Voyager.TestUtils, only: [reset_pid_format: 1, reset_term_syntax: 1]
 
   alias Voyager.Fakes
   alias Voyager.Services.TermSyntax
@@ -63,21 +63,13 @@ defmodule VoyagerWeb.SettingsLiveTest do
   end
 
   describe "demo node" do
-    test "has no start button outside a release", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/settings")
-
-      refute has_element?(view, "#start-demo-setting")
-    end
-
     test "links to the connect screen to start the demo", %{conn: conn} do
-      start_demo_node!()
       {:ok, view, _html} = live(conn, ~p"/settings")
 
       assert has_element?(view, ~s|a#start-demo-setting[href="/?demo=start"]|)
     end
 
     test "disables the start button while a node is connected", %{conn: conn} do
-      start_demo_node!()
       Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
 
       {:ok, view, _html} = live(conn, ~p"/settings")
