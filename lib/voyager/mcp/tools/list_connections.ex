@@ -2,7 +2,8 @@ defmodule Voyager.MCP.Tools.ListConnections do
   @moduledoc """
   Lists the node connections saved in Voyager, pinned first, then most recently
   used. Call it before `connect` when the user names a node or environment
-  ("staging", "the shop node") to find its `id`.
+  ("staging", "the shop node") to find its `id`. A node that is not listed may
+  be in `list_ssh_config_hosts`.
 
   `needs_user_input` is true when the cookie (or, for SSH password auth, the
   password) is not stored: `connect` then opens Voyager for the user to type it.

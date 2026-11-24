@@ -19,6 +19,18 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     previous_state = :sys.get_state(Tracer)
     :sys.replace_state(Tracer, fn _ -> %Tracer{} end)
     on_exit(fn -> :sys.replace_state(Tracer, fn _ -> previous_state end) end)
+    Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
+    :ok
+  end
+
+  test "shows nothing while no node is connected", %{conn: conn} do
+    Fakes.put_session(nil)
+    :sys.replace_state(Tracer, fn _ -> %Tracer{session: session()} end)
+
+    {:ok, view, _html} = live(conn, ~p"/settings")
+    render_async(view)
+
+    refute has_element?(view, "#tracing-indicator")
   end
 
   test "shows nothing while the session is not configured", %{conn: conn} do
@@ -54,6 +66,9 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     assert has_element?(view, "#tracing-indicator-count", "1.2K")
 
     broadcast({:session_updated, %{session() | traces: 2_000}})
+    assert has_element?(view, "#tracing-indicator-count", "1.2K")
+
+    send(view.pid, :put_tracing_session)
     assert has_element?(view, "#tracing-indicator-count", "2.0K")
 
     broadcast({:session_updated, %{session() | status: :stopped, stop_reason: :stopped}})
@@ -101,8 +116,7 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     end
   end
 
-  test "shows the indicator in the app topbar", %{conn: conn} do
-    Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
+  test "shows the indicator in the app topbar and a live dot on the sidebar item", %{conn: conn} do
     stub_erpc(Fakes.node_data())
     :sys.replace_state(Tracer, fn _ -> %Tracer{session: session()} end)
 
@@ -110,32 +124,47 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
     render_async(view)
 
     assert has_element?(view, "#tracing-indicator")
+    assert has_element?(view, "#sidebar-nav-tracing")
+    refute has_element?(view, "#sidebar-nav-tracing .badge", "Soon")
+    assert has_element?(view, "#sidebar-nav-tracing-live .sr-only", "Running")
+
+    broadcast({:session_updated, %{session() | status: :stopped, stop_reason: :stopped}})
+    refute has_element?(view, "#sidebar-nav-tracing-live")
   end
 
-  test "warns when the run failed", %{conn: conn} do
+  test "warns when the node went down", %{conn: conn} do
     stopped = %{session() | status: :stopped, stop_reason: :node_down}
     :sys.replace_state(Tracer, fn _ -> %Tracer{session: stopped} end)
 
     {:ok, view, _html} = live(conn, ~p"/settings")
     render_async(view)
 
-    assert has_element?(view, "#tracing-indicator[data-tone=failed]")
+    assert has_element?(view, "#tracing-indicator[data-tone=warning]")
     assert view |> element("#tracing-indicator-tip-portal") |> render() =~ "Node went down"
   end
 
-  test "shows a hit limit as a plain stop with its reason", %{conn: conn} do
+  test "warns when a limit stopped the run", %{conn: conn} do
     stopped = %{session() | status: :stopped, stop_reason: :storage_limit}
     :sys.replace_state(Tracer, fn _ -> %Tracer{session: stopped} end)
 
     {:ok, view, _html} = live(conn, ~p"/settings")
     render_async(view)
 
-    assert has_element?(view, "#tracing-indicator[data-tone=open]")
+    assert has_element?(view, "#tracing-indicator[data-tone=warning]")
     assert view |> element("#tracing-indicator-tip-portal") |> render() =~ "Storage limit reached"
   end
 
+  test "shows an error when saving traces failed", %{conn: conn} do
+    stopped = %{session() | status: :stopped, stop_reason: :write_failed}
+    :sys.replace_state(Tracer, fn _ -> %Tracer{session: stopped} end)
+
+    {:ok, view, _html} = live(conn, ~p"/settings")
+    render_async(view)
+
+    assert has_element?(view, "#tracing-indicator[data-tone=error]")
+  end
+
   test "consumes an activated session's broadcast on an app page", %{conn: conn} do
-    Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
     stub_erpc(Fakes.node_data())
 
     {:ok, view, _html} = live(conn, ~p"/node/demo@localhost")
@@ -152,14 +181,13 @@ defmodule VoyagerWeb.Hooks.TracingStatusHookTest do
   test "marks a session from another node and links to it on the connected node", %{conn: conn} do
     stopped = %{session() | node: :other@localhost, status: :stopped, stop_reason: :disconnected}
     :sys.replace_state(Tracer, fn _ -> %Tracer{session: stopped} end)
-    Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
     stub_erpc(Fakes.node_data())
 
     {:ok, view, _html} = live(conn, ~p"/node/demo@localhost")
     render_async(view)
 
     assert has_element?(view, ~s|#tracing-indicator[href="/node/demo%40localhost/tracing/7"]|)
-    assert has_element?(view, "#tracing-indicator[data-tone=other_node]")
+    assert has_element?(view, "#tracing-indicator[data-tone=open][data-other-node]")
 
     assert view |> element("#tracing-indicator-tip-portal") |> render() =~
              "tracing-indicator-other-node"

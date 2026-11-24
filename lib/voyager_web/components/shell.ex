@@ -30,6 +30,7 @@ defmodule VoyagerWeb.Components.Shell do
             active_nav={@active_nav}
             session={@session}
             mcp_agents={@mcp_agents}
+            tracing_running?={match?(%Tracer.Session{status: :running}, @tracing_session)}
           />
 
           <main class="min-w-lg relative flex-1 overflow-y-auto">
@@ -41,18 +42,20 @@ defmodule VoyagerWeb.Components.Shell do
     """
   end
 
-  attr :session, Session, required: true
+  attr :session, Session, default: nil
   attr :tracing_session, Tracer.Session, default: nil
+  attr :settings_link?, :boolean, default: true
 
-  defp topbar(assigns) do
+  def topbar(assigns) do
     ~H"""
     <div class="bg-base-100 border-base-300 min-h-14 grid-cols-[auto_1fr_auto] z-10 grid flex-none items-center gap-4 border-b px-4">
       <.brand />
       <div class="@container/nav-status flex min-w-0 items-center gap-3">
-        <.node_indicator session={@session} />
-        <.tracing_indicator session={@tracing_session} connected_node={@session.node} />
+        <.node_indicator :if={@session} session={@session} />
+        <.tracing_indicator :if={@session} session={@tracing_session} connected_node={@session.node} />
       </div>
       <.link
+        :if={@settings_link?}
         href={~p"/settings"}
         id="open-settings"
         title="Settings"
@@ -60,24 +63,6 @@ defmodule VoyagerWeb.Components.Shell do
       >
         <.icon name="icon-settings" class="toolbar-icon" />
       </.link>
-    </div>
-    """
-  end
-
-  @doc """
-  Renders the topbar used by the settings page, showing the brand mark.
-  """
-  attr :tracing_session, Tracer.Session, default: nil
-
-  def settings_topbar(assigns) do
-    ~H"""
-    <div class="navbar bg-base-100 border-base-300 min-h-14 z-10 flex-none gap-3 border-b px-4">
-      <div class="navbar-start gap-3">
-        <.brand />
-      </div>
-      <div class="navbar-end @container/nav-status min-w-0">
-        <.tracing_indicator session={@tracing_session} />
-      </div>
     </div>
     """
   end
@@ -90,20 +75,22 @@ defmodule VoyagerWeb.Components.Shell do
   defp tracing_indicator(assigns) do
     assigns =
       assign(assigns,
-        tone: TracingComponents.tone(assigns.session, assigns.connected_node),
+        tone: TracingComponents.tone(assigns.session),
+        other_node?: TracingComponents.other_node?(assigns.session, assigns.connected_node),
         state: TracingComponents.state(assigns.session)
       )
 
     ~H"""
-    <.tooltip id="tracing-indicator-tip" position="bottom" class="shrink-0">
+    <.tooltip id="tracing-indicator-tip" position="bottom" class="shrink-0" tip_class="!max-w-lg">
       <.link
         navigate={tracing_session_path(@session, @connected_node)}
         id="tracing-indicator"
         data-tone={@tone}
+        data-other-node={@other_node?}
         aria-label={"Open the #{@state} tracing session, #{Formatters.format_integer(@session.traces)} traces captured"}
         class={[
           "flex items-center gap-2 rounded-lg border py-1 pr-1 pl-2.5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2",
-          TracingComponents.tone_class(@tone, :chip)
+          TracingComponents.tone_class(if(@other_node?, do: :other_node, else: @tone), :chip)
         ]}
       >
         <span class="relative flex h-1.5 w-1.5 shrink-0">
@@ -148,7 +135,7 @@ defmodule VoyagerWeb.Components.Shell do
             <dt class="text-base-content/60">Node</dt>
             <dd id="tracing-indicator-node" class="font-mono">{@session.node}</dd>
             <dd
-              :if={@tone == :other_node}
+              :if={@other_node?}
               id="tracing-indicator-other-node"
               role="note"
               class="alert alert-info col-span-2 my-1 gap-1.5 px-2 py-1.5 text-xs"
@@ -164,7 +151,7 @@ defmodule VoyagerWeb.Components.Shell do
             <dd
               :if={@session.stop_reason}
               id="tracing-indicator-reason"
-              class={if @tone == :failed, do: "text-warning", else: nil}
+              class={@tone != :open && TracingComponents.tone_class(@tone, :label)}
             >
               {TracingComponents.stop_reason_label(@session.stop_reason)}
             </dd>
@@ -340,6 +327,7 @@ defmodule VoyagerWeb.Components.Shell do
   attr :active_nav, :atom, default: nil
   attr :session, Session, required: true
   attr :mcp_agents, McpAgents, default: %McpAgents{}
+  attr :tracing_running?, :boolean, default: false
 
   defp sidebar(assigns) do
     ~H"""
@@ -355,6 +343,7 @@ defmodule VoyagerWeb.Components.Shell do
           active={@active_nav == page.feature}
           navigate={UrlHook.without_back_arrow(node_path(@session, page.path))}
           label={page.label}
+          live_dot={page.feature == :tracing and @tracing_running?}
         >
           <:icon>
             <.icon name={page.icon} class={["toolbar-icon", page[:icon_class]]} />
@@ -443,11 +432,11 @@ defmodule VoyagerWeb.Components.Shell do
       path: "ets-tables",
       label: "ETS Tables",
       icon: "icon-database-search"
-    }
+    },
+    %{feature: :tracing, path: "tracing", label: "Tracing", icon: "icon-binoculars"}
   ]
 
   @coming_soon_pages [
-    %{feature: :tracing, path: "tracing", label: "Tracing", icon: "icon-binoculars"},
     %{feature: :sockets, path: "sockets", label: "Sockets", icon: "icon-plug"},
     %{feature: :ports, path: "ports", label: "Ports", icon: "icon-ethernet-port"},
     %{feature: :charts, path: "charts", label: "Charts", icon: "icon-chart-column"},
@@ -467,6 +456,7 @@ defmodule VoyagerWeb.Components.Shell do
   attr :navigate, :any, required: true
   attr :label, :string, required: true
   attr :coming_soon, :boolean, default: false
+  attr :live_dot, :boolean, default: false
   slot :icon, required: true
 
   defp nav_item(assigns) do
@@ -482,7 +472,14 @@ defmodule VoyagerWeb.Components.Shell do
         data-tooltip-interactive="false"
         data-tooltip-show-when="sidebar-compact"
       >
-        {render_slot(@icon)}
+        <span class="relative inline-flex">
+          {render_slot(@icon)}
+          <span :if={@live_dot} id={"#{@id}-live"} class="size-2 absolute -top-0.5 -right-0.5 flex">
+            <span class="bg-success absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"></span>
+            <span class="bg-success size-2 relative inline-flex rounded-full"></span>
+            <span class="sr-only">Running</span>
+          </span>
+        </span>
         <span class="sidebar-label flex-1 truncate">{@label}</span>
         <span :if={@coming_soon} class="sidebar-badge badge badge-primary badge-soft badge-xs">
           Soon

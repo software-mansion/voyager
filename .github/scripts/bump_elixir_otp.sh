@@ -16,6 +16,19 @@ newer_than() {
   awk -v current="$1" 'found; $0 == current {found = 1}' | paste -sd ' ' -
 }
 
+changelog() {
+  echo "Automated bump by the Bump Elixir and OTP workflow."
+  for version in $elixir_releases; do
+    printf '\n<details><summary>Elixir %s</summary>\n\n' "$version"
+    gh api "repos/elixir-lang/elixir/releases/tags/v$version" --jq .body
+    printf '\n</details>\n'
+  done
+  [[ -z $otp_releases ]] || printf '\n## OTP\n\n'
+  for version in $otp_releases; do
+    echo "- [OTP $version](https://github.com/erlang/otp/releases/tag/OTP-$version)"
+  done
+}
+
 otp_releases=$(newer_than "$current_otp" <<< "$otp_versions")
 elixir_releases=$(newer_than "${current_elixir%%-*}" <<< "$elixir_versions")
 
@@ -28,9 +41,12 @@ elixir=${elixir:-$current_elixir}
 sed -E -e "s/^erlang .*/erlang $otp/" -e "s/^elixir .*/elixir $elixir/" .tool-versions > .tool-versions.tmp
 mv .tool-versions.tmp .tool-versions
 
+# Elixir release notes are arbitrary text, so a fixed heredoc delimiter could end the output early.
+delimiter=$(openssl rand -hex 16)
 {
   echo "otp=$otp"
   echo "elixir=$elixir"
-  echo "otp_releases=$otp_releases"
-  echo "elixir_releases=$elixir_releases"
+  echo "body<<$delimiter"
+  changelog
+  echo "$delimiter"
 } >> "${GITHUB_OUTPUT:-/dev/stdout}"

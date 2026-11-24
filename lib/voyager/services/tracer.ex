@@ -14,7 +14,8 @@ defmodule Voyager.Services.Tracer do
   newest trace and dropped entries are kept in memory while a session is unsaved;
   saved sessions are read from the database. Broadcasts on `topic/0` are
   `{:session_activated, session}`, `{:session_closed, id}` and
-  `{:session_entries, session, entries}` with the entries just appended, oldest first.
+  `{:session_entries, session, entries}` with the entries just appended, oldest first, or
+  none when only a saved session's `bytes` changed.
   `session_topic/0` carries only `{:session_updated, session | nil}` alongside each of those.
 
   A session created with `save: true` gets a `Voyager.Schemas.TraceSession` row and
@@ -30,12 +31,14 @@ defmodule Voyager.Services.Tracer do
   alias Voyager.Agent
   alias Voyager.Queries.TraceEntries, as: TraceEntryQueries
   alias Voyager.Queries.TraceSessions, as: TraceSessionQueries
+  alias Voyager.Services.TermSyntax
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Entry
   alias Voyager.Services.Tracer.MemoryLog
   alias Voyager.Services.Tracer.Run
   alias Voyager.Services.Tracer.Search
   alias Voyager.Services.Tracer.Session
+  alias Voyager.Services.Tracer.Summary
   alias Voyager.Services.Tracer.Writer
   alias Voyager.Settings
 
@@ -136,8 +139,9 @@ defmodule Voyager.Services.Tracer do
 
   @doc """
   Starts or resumes the configured session, resolving its pids on the node again in the caller.
-  The agent's refusals come back as `{:error, reason}`, and `{:error, :changed}` means the
-  session was reconfigured meanwhile.
+  The agent's refusals come back as `{:error, reason}`, `{:error, :changed}` means the
+  session was reconfigured meanwhile, and `{:error, :storage_limit}` that a saved session
+  has no storage left.
   """
   @spec start(origin()) :: {:ok, Session.t()} | {:error, term()}
   def start(origin) when origin in [:ui, :mcp] do
@@ -222,8 +226,9 @@ defmodule Voyager.Services.Tracer do
   end
 
   @doc """
-  Up to `:limit` (default 100) trace entries of session `id` containing `query`, ignoring ASCII
-  case, with `seq` below `:before`, newest first. Runs in the caller. A saved session searches
+  Up to `:limit` (default 100) trace entries of session `id` containing `query` as written in
+  the syntax rows are shown in (`TermSyntax.current/0`), ignoring ASCII case, with `seq` below
+  `:before`, newest first. Runs in the caller. A saved session searches
   all its traces, an unsaved one the at most #{@kept_traces} still in memory. `total` counts
   every match, and is nil once `:before` is given. Raises `ArgumentError` on an unknown option
   or a bad value.
@@ -234,12 +239,26 @@ defmodule Voyager.Services.Tracer do
     opts = Keyword.validate!(opts, [:before, limit: 100])
     Enum.each(opts, fn {key, value} -> validate_entries_opt!(key, value) end)
     query = Search.query(query)
+    syntax = TermSyntax.current()
 
     if id > 0 do
-      with_saved(id, fn _row -> {:ok, TraceEntryQueries.search(id, query, opts)} end)
+      with_saved(id, fn _row -> {:ok, TraceEntryQueries.search(id, query, syntax, opts)} end)
     else
       with {:ok, traces} <- GenServer.call(__MODULE__, {:kept_traces, id}),
-           do: {:ok, Search.filter(traces, query, opts)}
+           do: {:ok, Search.filter(traces, query, syntax, opts)}
+    end
+  end
+
+  @doc """
+  The `Summary` of every trace event of session `id`, including those evicted from memory,
+  and of those since its last start.
+  """
+  @spec summary(integer()) ::
+          {:ok, %{session: Summary.t(), last_run: Summary.t()}} | {:error, :not_found}
+  def summary(id) do
+    case GenServer.call(__MODULE__, {:summary, id}) do
+      :saved -> with_saved(id, &{:ok, TraceEntryQueries.summaries(&1.id)})
+      reply -> reply
     end
   end
 
@@ -342,13 +361,12 @@ defmodule Voyager.Services.Tracer do
         _from,
         %{session: %Session{node: node, config: config} = session} = state
       ) do
-    case start_tracer(session, spec, limits) do
-      {:ok, tracer} ->
-        state = begin_run(state, tracer, origin)
-        {:reply, {:ok, state.session}, state}
-
-      {:error, reason} ->
-        {:reply, start_failed(reason, origin), state}
+    with :ok <- check_storage(session),
+         {:ok, tracer} <- start_tracer(session, spec, limits) do
+      state = begin_run(state, tracer, origin)
+      {:reply, {:ok, state.session}, state}
+    else
+      {:error, reason} -> {:reply, start_failed(reason, origin), state}
     end
   end
 
@@ -373,6 +391,12 @@ defmodule Voyager.Services.Tracer do
   end
 
   def handle_call({:entries, _id, _opts}, _from, state), do: {:reply, :saved, state}
+
+  def handle_call({:summary, id}, _from, %{session: %{id: id, save: false}} = state),
+    do:
+      {:reply, {:ok, %{session: state.log.summary, last_run: state.log.last_run_summary}}, state}
+
+  def handle_call({:summary, _id}, _from, state), do: {:reply, :saved, state}
 
   def handle_call({:kept_traces, id}, _from, %{session: %{id: id, save: false}} = state),
     do: {:reply, {:ok, state.log.traces}, state}
@@ -411,8 +435,11 @@ defmodule Voyager.Services.Tracer do
     {:noreply, end_run(state, down_reason(reason), session.dropped)}
   end
 
-  def handle_info({:trace_written, id, bytes}, %{session: %{id: id} = session} = state),
-    do: {:noreply, stop_over_limit(%{state | session: %{session | bytes: bytes}})}
+  def handle_info({:trace_written, id, bytes}, %{session: %{id: id} = session} = state) do
+    session = %{session | bytes: bytes}
+    broadcast_entries(session, [])
+    {:noreply, stop_over_limit(%{state | session: session})}
+  end
 
   def handle_info({:trace_write_failed, id, _reason}, %{session: %{id: id}} = state),
     do: {:noreply, request_stop(state, :write_failed)}
@@ -547,6 +574,13 @@ defmodule Voyager.Services.Tracer do
 
   defp stop_over_limit(state), do: state
 
+  # A run is only stopped after a write passes the limit, so each start on a full session grows it.
+  defp check_storage(%Session{save: true, id: id, bytes: bytes}) do
+    if bytes >= storage_limit(id), do: {:error, :storage_limit}, else: :ok
+  end
+
+  defp check_storage(_session), do: :ok
+
   defp request_stop(%{session: session, run: %Run{stop_request: nil}} = state, reason) do
     Task.Supervisor.start_child(Voyager.TaskSupervisor, fn ->
       stop_tracer(session.node, session.tracer)
@@ -581,10 +615,14 @@ defmodule Voyager.Services.Tracer do
     session = %{session | seq: session.seq + length(entries)}
 
     if session.save, do: Writer.append(session, entries)
-    broadcast({:session_entries, session, entries})
-    broadcast_session(session)
+    broadcast_entries(session, entries)
 
     %{state | session: session, log: log}
+  end
+
+  defp broadcast_entries(session, entries) do
+    broadcast({:session_entries, session, entries})
+    broadcast_session(session)
   end
 
   defp broadcast(message), do: Phoenix.PubSub.broadcast(Voyager.PubSub, @topic, message)

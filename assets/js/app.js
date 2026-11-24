@@ -25,7 +25,7 @@ import { LiveSocket } from 'phoenix_live_view';
 import { hooks as colocatedHooks } from 'phoenix-colocated/voyager';
 import topbar from '../vendor/topbar';
 import SupervisionTree from './hooks/supervision_tree';
-import Tooltip from './hooks/tooltip';
+import Tooltip, { syncTooltipContent } from './hooks/tooltip';
 import { toggleSidebar } from './sidebar';
 import NumberStepper from './hooks/number_stepper';
 import DetailsPanelResize from './hooks/details_panel_resize';
@@ -36,6 +36,7 @@ const csrfToken = document
   .getAttribute('content');
 const liveSocket = new LiveSocket('/live', Socket, {
   params: () => ({ _csrf_token: csrfToken, _history_length: history.length }),
+  dom: { onBeforeElUpdated: syncTooltipContent },
   hooks: {
     SupervisionTree,
     Tooltip,

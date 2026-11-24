@@ -9,7 +9,9 @@ defmodule Voyager.Queries.TraceEntries do
   alias Voyager.Repo
   alias Voyager.Schemas.TraceEvent
   alias Voyager.Schemas.TraceSessionEvent
+  alias Voyager.Services.TermSyntax
   alias Voyager.Services.Tracer.Config
+  alias Voyager.Services.Tracer.Summary
   alias Voyager.StoredTerm
 
   @doc """
@@ -42,13 +44,16 @@ defmodule Voyager.Queries.TraceEntries do
   end
 
   @doc """
-  Up to `:limit` trace entries containing `query`, ignoring ASCII case, with `seq` below `:before`,
-  newest first, and the `total` of matches in the session, nil once `:before` is given.
+  Up to `:limit` trace entries whose `syntax` line of `search_text` contains `query`, ignoring
+  ASCII case, with `seq` below `:before`, newest first, and the `total` of matches in the
+  session, nil once `:before` is given.
   """
-  @spec search(integer(), String.t(), keyword()) ::
+  @spec search(integer(), String.t(), TermSyntax.syntax(), keyword()) ::
           %{entries: [map()], total: non_neg_integer() | nil}
-  def search(session_id, query, opts) do
-    pattern = "%" <> String.replace(query, ["\\", "%", "_"], &("\\" <> &1)) <> "%"
+  def search(session_id, query, syntax, opts) do
+    escaped = String.replace(query, ["\\", "%", "_"], &("\\" <> &1))
+    # `search_text` holds one newline, between its Elixir and Erlang lines.
+    pattern = if syntax == :erlang, do: "%\n%#{escaped}%", else: "%#{escaped}%\n%"
 
     matches =
       from e in TraceEvent,
@@ -63,13 +68,10 @@ defmodule Voyager.Queries.TraceEntries do
   @doc "How many traces were saved before the session's last `:started` entry; 0 if it never started."
   @spec traces_before_last_run(integer()) :: non_neg_integer()
   def traces_before_last_run(session_id) do
-    last_start =
-      from s in TraceSessionEvent,
-        where: s.session_id == ^session_id and s.kind == :started,
-        select: max(s.seq)
-
     # A session never started has a NULL `max`, which no `seq` is below.
-    from(e in TraceEvent, where: e.session_id == ^session_id and e.seq < subquery(last_start))
+    from(e in TraceEvent,
+      where: e.session_id == ^session_id and e.seq < subquery(last_start(session_id))
+    )
     |> Repo.aggregate(:count)
   end
 
@@ -81,6 +83,91 @@ defmodule Voyager.Queries.TraceEntries do
     |> Enum.reject(&is_nil/1)
     |> Enum.max(fn -> -1 end)
     |> Kernel.+(1)
+  end
+
+  @doc """
+  The `Summary` of the whole session and of its traces since the last `:started` entry
+  (empty if it never started), read in one transaction so concurrent writes cannot skew them.
+  """
+  @spec summaries(integer()) :: %{session: Summary.t(), last_run: Summary.t()}
+  def summaries(session_id) do
+    {:ok, summaries} =
+      Repo.transact(fn ->
+        events = where(TraceEvent, [e], e.session_id == ^session_id)
+        session = summarize(events)
+        last_run = last_run(events, session, Repo.one(last_start(session_id)))
+        {:ok, %{session: session, last_run: last_run}}
+      end)
+
+    summaries
+  end
+
+  defp last_run(_events, _session, nil), do: %Summary{}
+
+  defp last_run(events, session, last_start) do
+    if Repo.exists?(where(events, [e], e.seq < ^last_start)),
+      do: events |> where([e], e.seq >= ^last_start) |> summarize(),
+      else: session
+  end
+
+  defp last_start(session_id) do
+    from s in TraceSessionEvent,
+      where: s.session_id == ^session_id and s.kind == :started,
+      select: max(s.seq)
+  end
+
+  defp summarize(events) do
+    counts =
+      events
+      |> group_by([e], e.type)
+      |> select([e], {e.type, count(e.id)})
+      |> Repo.all()
+      |> Map.new()
+
+    %Summary{
+      calls: Map.get(counts, :call, 0),
+      returns: Map.get(counts, :return, 0),
+      exceptions: Map.get(counts, :exception, 0),
+      functions: function_calls(events),
+      processes: process_calls(events),
+      slowest: slowest(events)
+    }
+  end
+
+  defp function_calls(events) do
+    events
+    |> where([e], e.type == :call)
+    |> group_by([e], [e.module, e.function, e.arity])
+    |> order_by([e], desc: count(e.id))
+    |> limit(^Summary.max_keys())
+    |> select([e], {e.module, e.function, e.arity, count(e.id)})
+    |> Repo.all()
+    |> Map.new(fn {module, function, arity, calls} ->
+      {{String.to_atom(module), String.to_atom(function), arity}, calls}
+    end)
+  end
+
+  defp process_calls(events) do
+    events
+    |> where([e], e.type == :call)
+    |> group_by([e], e.pid)
+    |> order_by([e], desc: count(e.id))
+    |> limit(^Summary.max_keys())
+    # SQLite takes a bare column from the row holding the max, so this is the latest call's name.
+    |> select([e], {e.pid, e.process, max(e.seq), count(e.id)})
+    |> Repo.all()
+    |> Map.new(fn {pid, process, _seq, calls} ->
+      {StoredTerm.decode(pid), {StoredTerm.decode(process), calls}}
+    end)
+  end
+
+  defp slowest(events) do
+    events
+    |> where([e], not is_nil(e.duration_us))
+    |> order_by([e], desc: e.duration_us)
+    |> limit(^Summary.slowest_count())
+    |> Repo.all()
+    |> Enum.map(&to_entry/1)
   end
 
   defp window(query, session_id, opts) do

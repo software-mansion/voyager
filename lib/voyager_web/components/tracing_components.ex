@@ -10,27 +10,25 @@ defmodule VoyagerWeb.Components.TracingComponents do
 
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Session
+  alias Voyager.TermFormatter
   alias VoyagerWeb.Formatters
-  alias VoyagerWeb.TermFormatter
 
-  @spec tone(Session.t(), node() | nil) :: :running | :other_node | :failed | :open
-  def tone(session, connected_node \\ nil)
-  def tone(%Session{status: :running}, _connected_node), do: :running
+  @type tone :: :running | :warning | :error | :open
 
-  def tone(%Session{node: node}, connected_node)
-      when not is_nil(node) and not is_nil(connected_node) and node != connected_node,
-      do: :other_node
+  @spec tone(Session.t()) :: tone()
+  def tone(%Session{status: :running}), do: :running
+  def tone(%Session{status: :stopped, stop_reason: reason}), do: reason_tone(reason)
+  def tone(_session), do: :open
 
-  def tone(%Session{status: :stopped, stop_reason: reason}, _connected_node),
-    do: if(failure?(reason), do: :failed, else: :open)
+  @spec other_node?(Session.t(), node() | nil) :: boolean()
+  def other_node?(%Session{node: node}, connected_node)
+      when not is_nil(node) and not is_nil(connected_node),
+      do: node != connected_node
 
-  def tone(_session, _connected_node), do: :open
+  def other_node?(_session, _connected_node), do: false
 
-  defp failure?({:tracer_down, _reason}), do: true
-  defp failure?(reason), do: reason in [:node_down, :write_failed]
-
-  @spec tone_class(:running | :other_node | :failed | :open, :chip | :dot | :label | :badge) ::
-          String.t()
+  @spec tone_class(tone(), :chip | :dot | :label | :badge | :status_badge) :: String.t()
+  @spec tone_class(:other_node, :chip) :: String.t()
   def tone_class(:running, :chip),
     do:
       "border-success/30 bg-success/10 hover:bg-success/20 hover:border-success/50 focus-visible:outline-success"
@@ -38,22 +36,29 @@ defmodule VoyagerWeb.Components.TracingComponents do
   def tone_class(:running, :dot), do: "bg-success"
   def tone_class(:running, :label), do: "text-success"
   def tone_class(:running, :badge), do: "badge-success dark:text-neutral"
+  def tone_class(:running, :status_badge), do: "badge-soft badge-success"
 
-  def tone_class(:failed, :chip),
+  def tone_class(:warning, :chip),
     do:
       "border-warning/30 bg-warning/10 hover:bg-warning/20 hover:border-warning/50 focus-visible:outline-warning"
 
-  def tone_class(:failed, :dot), do: "bg-warning"
-  def tone_class(:failed, :label), do: "text-warning"
-  def tone_class(:failed, :badge), do: "badge-warning dark:text-neutral"
+  def tone_class(:warning, :dot), do: "bg-warning"
+  def tone_class(:warning, :label), do: "text-warning"
+  def tone_class(:warning, :badge), do: "badge-warning dark:text-neutral"
+  def tone_class(:warning, :status_badge), do: "badge-soft badge-warning"
+
+  def tone_class(:error, :chip),
+    do:
+      "border-error/30 bg-error/10 hover:bg-error/20 hover:border-error/50 focus-visible:outline-error"
+
+  def tone_class(:error, :dot), do: "bg-error"
+  def tone_class(:error, :label), do: "text-error"
+  def tone_class(:error, :badge), do: "badge-error dark:text-neutral"
+  def tone_class(:error, :status_badge), do: "badge-soft badge-error"
 
   def tone_class(:other_node, :chip),
     do:
       "border-info/30 bg-info/10 hover:bg-info/20 hover:border-info/50 focus-visible:outline-info"
-
-  def tone_class(:other_node, :dot), do: "bg-info"
-  def tone_class(:other_node, :label), do: "text-info"
-  def tone_class(:other_node, :badge), do: "badge-info dark:text-neutral"
 
   def tone_class(:open, :chip),
     do:
@@ -62,6 +67,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
   def tone_class(:open, :dot), do: "bg-base-content/40"
   def tone_class(:open, :label), do: "text-base-content/70"
   def tone_class(:open, :badge), do: "badge-ghost"
+  def tone_class(:open, :status_badge), do: "badge-ghost"
 
   @spec state(Session.t()) :: String.t()
   def state(%Session{status: :running}), do: "running"
@@ -180,6 +186,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
   attr :pending?, :boolean, required: true
   attr :show_back_arrow, :boolean, required: true
   attr :connected_node, :atom, required: true
+  attr :stats, :list, default: []
   attr :on_stop, :string, required: true
   attr :on_start, :string, required: true
   attr :on_load, :string, required: true
@@ -192,7 +199,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
       id="session-bar"
       class="card bg-base-100 border-base-200 text-base-content flex-none border shadow-sm"
     >
-      <div class="flex items-center gap-3 px-4 py-3">
+      <div class="flex items-start gap-3 px-4 py-3">
         <.back_arrow :if={@show_back_arrow} id="session-header-back" />
         <div class="min-w-0 flex-1">
           <.session_status trace_session={@trace_session} mode={@mode} />
@@ -202,13 +209,81 @@ defmodule VoyagerWeb.Components.TracingComponents do
           trace_session={@trace_session}
           mode={@mode}
           pending?={@pending?}
-          other_node?={tone(@trace_session, @connected_node) == :other_node}
+          other_node?={other_node?(@trace_session, @connected_node)}
           on_stop={@on_stop}
           on_start={@on_start}
           on_load={@on_load}
           on_unload={@on_unload}
           on_delete={@on_delete}
         />
+      </div>
+      <div
+        :if={@stats != []}
+        id="session-stats"
+        class="bg-base-200 border-base-200 rounded-b-box grid grid-cols-2 gap-px overflow-hidden border-t lg:grid-cols-5"
+      >
+        <div
+          :for={cell <- @stats}
+          id={"stat-#{cell.key}"}
+          class="bg-base-100 min-w-0 px-5 py-3 last:col-span-2 lg:last:col-span-1"
+        >
+          <div class="font-mono tracking-label text-base-content/60 mb-1 text-xs font-semibold uppercase">
+            {cell.label}
+          </div>
+          <.tooltip :if={cell[:tip]} id={"stat-#{cell.key}-tip"} position="bottom" class="w-full">
+            <.stat_value cell={cell} tip_id={"stat-#{cell.key}-tip-tip"} />
+            <:content>
+              <span :if={is_binary(cell.tip)}>{cell.tip}</span>
+              <table :if={is_list(cell.tip)} class="font-mono">
+                <tr :for={{label, value} <- cell.tip}>
+                  <td class="text-base-content/60 py-0.5 pr-4">{label}</td>
+                  <td class="py-0.5 text-right">{value}</td>
+                </tr>
+              </table>
+            </:content>
+          </.tooltip>
+          <.stat_value :if={!cell[:tip]} cell={cell} />
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  attr :cell, :map, required: true
+  attr :tip_id, :string, default: nil
+
+  defp stat_value(assigns) do
+    ~H"""
+    <div class="w-full" tabindex={@tip_id && "0"} aria-describedby={@tip_id}>
+      <div class="min-h-6 flex items-baseline gap-1.5">
+        <span class={[
+          "truncate text-base font-semibold",
+          !@cell[:prose] && "font-mono tabular-nums",
+          @cell[:tone]
+        ]}>
+          {@cell.value}
+        </span>
+        <span :if={@cell[:unit]} class="font-mono text-base-content/60 shrink-0 text-xs">
+          {@cell.unit}
+        </span>
+        <span
+          :if={@cell[:spark]}
+          aria-hidden="true"
+          class="ml-auto flex h-5 items-end gap-0.5 self-center"
+        >
+          <span
+            :for={height <- @cell.spark}
+            class="bg-primary w-0.75 rounded-xs opacity-55 last:opacity-100"
+            style={"height: #{height}%"}
+          ></span>
+        </span>
+      </div>
+      <div :if={@cell[:bar]} class="bg-base-content/10 mt-2 flex h-1 overflow-hidden rounded-full">
+        <span
+          :for={{fill, width} <- @cell.bar}
+          class={["block h-full transition-all duration-700", fill]}
+          style={"width: #{width}%"}
+        ></span>
       </div>
     </div>
     """
@@ -218,14 +293,6 @@ defmodule VoyagerWeb.Components.TracingComponents do
     do: [{:storage, "Storage", if(save, do: "Saved", else: "Not saved")}]
 
   defp chips(%Session{config: config}), do: config_chips(config)
-
-  defp status_class(session) do
-    case tone(session) do
-      :running -> "badge-soft badge-success"
-      :failed -> "badge-soft badge-warning"
-      :open -> "badge-ghost"
-    end
-  end
 
   defp meta(session, :saved), do: recorded(session.started_at, session.stopped_at)
   defp meta(%Session{config: nil}, _mode), do: "Active in tracer · no parameters yet"
@@ -260,7 +327,10 @@ defmodule VoyagerWeb.Components.TracingComponents do
       <span
         id="session-status"
         data-tone={tone(@trace_session)}
-        class={["badge badge-sm shrink-0 gap-1.5 font-semibold", status_class(@trace_session)]}
+        class={[
+          "badge badge-sm shrink-0 gap-1.5 font-semibold",
+          tone_class(tone(@trace_session), :status_badge)
+        ]}
       >
         <span class="size-1.5 relative flex">
           <span
@@ -351,104 +421,122 @@ defmodule VoyagerWeb.Components.TracingComponents do
 
   defp action_buttons(assigns) do
     ~H"""
-    <div class="flex shrink-0 items-center gap-2">
-      <.tooltip
+    <div class="flex shrink-0 flex-col-reverse items-end gap-2 lg:flex-row lg:items-center">
+      <.action_button
+        :if={@mode == :active and @trace_session.status != :running}
+        id="session-unload"
+        icon="icon-log-out"
+        label="Unload from tracer"
+        phx-click={@on_unload}
+        disabled={@pending?}
+      />
+      <.action_button
+        :if={@mode == :saved}
+        id="session-load"
+        icon="icon-log-in"
+        label="Load into tracer"
+        phx-click={@on_load}
+        disabled={@pending?}
+      />
+      <.action_button
         :if={@mode == :active and @trace_session.config}
-        id="session-edit-tip"
-        position="bottom"
+        id="session-edit"
+        icon="icon-pencil"
+        label="Edit"
+        aria-disabled="true"
+        class="md:min-w-24"
       >
-        <button type="button" id="session-edit" aria-disabled="true" class="btn btn-sm">
-          <.icon name="icon-pencil" class="size-3.5" /> Edit
-        </button>
-        <:content>
+        <:tip>
           {if @trace_session.status == :running,
             do: "Stop the session to edit its parameters",
             else: "Editing parameters is not available yet"}
-        </:content>
-      </.tooltip>
-      <button
-        :if={@mode == :active and @trace_session.status != :running}
-        type="button"
-        id="session-unload"
-        phx-click={@on_unload}
-        disabled={@pending?}
-        class="btn btn-sm"
-      >
-        <.icon name="icon-log-out" class="size-3.5" /> Unload from tracer
-      </button>
-      <button
+        </:tip>
+      </.action_button>
+      <.action_button
         :if={@mode == :active and @trace_session.status == :running}
-        type="button"
         id="session-stop"
+        icon="icon-square-filled"
+        label="Stop"
         phx-click={@on_stop}
         disabled={@pending?}
-        class="btn btn-sm btn-soft btn-error"
-      >
-        <.icon name="icon-square-filled" class="size-3.5" /> Stop
-      </button>
-      <.tooltip
+        class="btn-soft btn-error md:min-w-24"
+      />
+      <.action_button
         :if={@mode == :active and @trace_session.status != :running and @other_node?}
-        id="session-run-tip"
-        position="bottom"
+        id={if @trace_session.status == :stopped, do: "session-resume", else: "session-start"}
+        tip_id="session-run-tip"
+        icon="icon-play"
+        label={if @trace_session.status == :stopped, do: "Resume", else: "Start"}
+        aria-disabled="true"
+        class="btn-primary md:min-w-24"
       >
-        <button
-          type="button"
-          id={if @trace_session.status == :stopped, do: "session-resume", else: "session-start"}
-          aria-disabled="true"
-          class="btn btn-sm btn-primary"
-        >
-          <.icon name="icon-play" class="size-3.5" />
-          {if @trace_session.status == :stopped, do: "Resume", else: "Start"}
-        </button>
-        <:content>
+        <:tip>
           Traced on <span class="font-mono">{@trace_session.node}</span>.
           Connect to that node to run this session.
-        </:content>
-      </.tooltip>
-      <button
+        </:tip>
+      </.action_button>
+      <.action_button
         :if={@mode == :active and @trace_session.status == :stopped and not @other_node?}
-        type="button"
         id="session-resume"
+        icon="icon-play"
+        label="Resume"
         phx-click={@on_start}
         disabled={@pending?}
-        class="btn btn-sm btn-primary"
-      >
-        <.icon name="icon-play" class="size-3.5" /> Resume
-      </button>
-      <button
+        class="btn-primary md:min-w-24"
+      />
+      <.action_button
         :if={@mode == :active and @trace_session.status == :idle and not @other_node?}
-        type="button"
         id="session-start"
+        icon="icon-play"
+        label="Start"
         phx-click={@on_start}
         disabled={@pending? or is_nil(@trace_session.config)}
-        class="btn btn-sm btn-primary"
-      >
-        <.icon name="icon-play" class="size-3.5" /> Start
-      </button>
-      <button
+        class="btn-primary md:min-w-24"
+      />
+      <.action_button
         :if={@mode == :saved}
-        type="button"
-        id="session-load"
-        phx-click={@on_load}
+        id="session-delete"
+        icon="icon-trash"
+        label="Delete session"
+        icon_only
+        phx-click={@on_delete}
         disabled={@pending?}
-        class="btn btn-sm"
-      >
-        <.icon name="icon-log-in" class="size-3.5" /> Load into tracer
-      </button>
-      <.tooltip :if={@mode == :saved} id="session-delete-tip" position="bottom">
-        <button
-          type="button"
-          id="session-delete"
-          phx-click={@on_delete}
-          disabled={@pending?}
-          aria-label="Delete session"
-          class="btn btn-sm btn-square btn-ghost text-base-content/60 hover:bg-error/10 hover:text-error"
-        >
-          <.icon name="icon-trash" class="size-3.5" />
-        </button>
-        <:content>Delete session</:content>
-      </.tooltip>
+        class="btn-ghost text-base-content/60 hover:bg-error/10 hover:text-error"
+      />
     </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :tip_id, :string, default: nil, doc: "the tooltip's id; defaults to `<id>-tip`"
+  attr :icon, :string, required: true
+  attr :label, :string, required: true
+  attr :icon_only, :boolean, default: false, doc: "keeps the label in the tooltip at every width"
+  attr :class, :any, default: nil
+  attr :rest, :global, include: ~w(disabled)
+
+  slot :tip, doc: "shown at every width in place of the label"
+
+  defp action_button(assigns) do
+    assigns = assign(assigns, :tip_id, assigns.tip_id || "#{assigns.id}-tip")
+
+    ~H"""
+    <.tooltip
+      id={@tip_id}
+      position="bottom"
+      tip_class={if(@tip == [] and not @icon_only, do: "md:hidden")}
+    >
+      <button
+        type="button"
+        id={@id}
+        class={["btn btn-sm", if(@icon_only, do: "btn-square", else: "max-md:btn-square"), @class]}
+        {@rest}
+      >
+        <.icon name={@icon} class="size-3.5" />
+        <span class={if @icon_only, do: "sr-only", else: "sr-only md:not-sr-only"}>{@label}</span>
+      </button>
+      <:content>{if @tip == [], do: @label, else: render_slot(@tip)}</:content>
+    </.tooltip>
     """
   end
 
@@ -567,6 +655,24 @@ defmodule VoyagerWeb.Components.TracingComponents do
   defp format_time_limit(ms) when ms < 3_600_000, do: "#{div(ms, 60_000)} min"
   defp format_time_limit(ms), do: "#{div(ms, 3_600_000)} h"
 
-  defp count(1, singular, _plural), do: "1 #{singular}"
-  defp count(n, _singular, plural), do: "#{Formatters.format_integer(n)} #{plural}"
+  @spec count(non_neg_integer(), String.t(), String.t()) :: String.t()
+  def count(1, singular, _plural), do: "1 #{singular}"
+  def count(n, _singular, plural), do: "#{Formatters.format_integer(n)} #{plural}"
+
+  @spec reason_tone(Voyager.Services.Tracer.stop_reason() | nil) :: tone()
+  def reason_tone({:tracer_down, _reason}), do: :error
+  def reason_tone(reason) when reason in [:interrupted, :write_failed], do: :error
+
+  def reason_tone(reason)
+      when reason in [
+             :node_down,
+             :event_limit,
+             :rate_limit,
+             :time_limit,
+             :mailbox_limit,
+             :storage_limit
+           ],
+      do: :warning
+
+  def reason_tone(_reason), do: :open
 end

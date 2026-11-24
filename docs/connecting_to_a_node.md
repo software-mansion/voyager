@@ -101,6 +101,17 @@ Use this for a node behind a firewall or bastion, which is the usual production 
 
 The SSH Tunnel option is disabled when Voyager was not started with its `proxy_epmd` module. That is how the local BEAM learns to route distribution traffic through the tunnel; the packaged desktop app always enables it, and in development `dev/server.sh` or `mix tauri.dev` does.
 
+### Import hosts from your SSH config
+
+**Import SSH config** lists the hosts in a config file so you do not have to retype them. Leave **Config file** empty to read `~/.ssh/config`, or enter another path (**Browse** works in the desktop app). Voyager remembers the path and reads the file again after a restart.
+
+- **Click a host** to fill in SSH User, SSH Host, SSH Port, the identity file and the agent socket. Fields the host does not set stay empty or at their defaults. A host with several `IdentityFile` entries uses the first one. Node Name and Cookie are not in an SSH config, so you still enter those, and you still choose the **Authentication** method. The exception is a host with `IdentityAgent none`: it selects **Key file** when it has an `IdentityFile`, and **Password** otherwise.
+- **×** removes a host from the list, for example `github.com`, which has no node to connect to. Your config file is not changed, and reloading brings the host back.
+
+Voyager reads only `Host`, `HostName`, `User`, `Port`, `IdentityFile` and `IdentityAgent`, follows a top-level `Include`, and skips everything else. A host whose own `Host` block has a skipped setting gets a warning badge; hover it to see which settings and why: not supported, a value Voyager cannot use (such as `%h` tokens or `$VARS`), or a skipped block. Skipped settings from top-level lines, `Host *` and other wildcard blocks, and `Match` blocks are listed above the hosts instead. Patterns such as `*.internal` are not listed as hosts, but their settings still apply to the hosts they match.
+
+MCP clients can list the same hosts with the `list_ssh_config_hosts` tool, from the imported file or from `~/.ssh/config` when none is imported. This includes hostnames, users and key paths, but never the keys themselves.
+
 ## Voyager's own node and saved connections
 
 - Voyager starts its own distributed node named `voyager<suffix>`, with host `127.0.0.1` for long names and `localhost` for short names. Set the suffix under **Settings → Distribution** to run several Voyager instances side by side.

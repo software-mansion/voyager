@@ -136,6 +136,19 @@ defmodule Voyager.Services.TracerTest do
     end
   end
 
+  test "broadcasts a saved session's size once its entries are saved, without a next batch" do
+    assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
+    assert {:ok, _session} = configure()
+    assert {:ok, _session} = Tracer.start(:ui)
+    Date.leap_year?(~D[2024-01-01])
+    assert_receive {:session_entries, %{traces: 1}, [%{kind: :trace}]}, 1_000
+    Writer.flush()
+    _ = :sys.get_state(Tracer)
+
+    assert %{bytes: bytes} = TraceSessionQueries.get(id)
+    assert_receive {:session_entries, %{id: ^id, status: :running, bytes: ^bytes}, []}
+  end
+
   test "saves a saved session's log as it is appended, reading back what was broadcast" do
     assert {:ok, %{id: id}} = Tracer.create(:mcp, save: true)
     assert id > 0
@@ -170,10 +183,15 @@ defmodule Voyager.Services.TracerTest do
     assert {:ok, %{entries: [%{seq: 1}]}} = Tracer.entries(id, before: 2, limit: 1)
   end
 
-  test "stops a saved run once its entries pass the storage limit" do
-    {:ok, _} = Voyager.Settings.put(:trace_storage_limit_mb, 0)
+  test "stops a saved run once its entries pass the storage limit, and refuses to resume it" do
     assert {:ok, %{id: id}} = Tracer.create(:mcp, save: true)
     assert {:ok, _session} = configure()
+    Writer.flush()
+    _ = :sys.get_state(Tracer)
+    %{bytes: configured} = Tracer.active()
+    others = Tracer.storage_limit_mb() * 1_000_000 - configured - 1
+    Repo.insert!(%TraceSession{origin: :ui, status: :stopped, bytes: others})
+
     assert {:ok, _session} = Tracer.start(:ui)
 
     Date.leap_year?(~D[2024-01-01])
@@ -182,7 +200,20 @@ defmodule Voyager.Services.TracerTest do
                    1_000
 
     Writer.flush()
-    assert %{status: :stopped, stop_reason: :storage_limit} = TraceSessionQueries.get(id)
+    _ = :sys.get_state(Tracer)
+
+    assert %{status: :stopped, stop_reason: :storage_limit, bytes: full} =
+             TraceSessionQueries.get(id)
+
+    assert {:error, :storage_limit} = Tracer.start(:ui)
+    Writer.flush()
+    assert %{bytes: ^full} = TraceSessionQueries.get(id)
+  end
+
+  test "starts an unsaved session while saved ones use all the storage" do
+    {:ok, _} = Voyager.Settings.put(:trace_storage_limit_mb, 0)
+    assert {:ok, _session} = configure()
+    assert {:ok, %{status: :running}} = Tracer.start(:ui)
   end
 
   test "keeps an unsaved session out of the database" do
@@ -475,6 +506,48 @@ defmodule Voyager.Services.TracerTest do
 
     assert_raise ArgumentError, ~r/invalid :order option/, fn -> Tracer.entries(1, order: :up) end
     assert_raise ArgumentError, fn -> Tracer.entries(1, sort: :asc) end
+  end
+
+  test "summarizes a session the same from memory and from the database" do
+    summaries =
+      for save <- [false, true] do
+        assert {:ok, %{id: id}} = Tracer.create(:ui, save: save)
+        assert {:ok, _session} = configure(%{return_trace: true, max_events: 2})
+        # Renamed between runs, as the agent caches a name per run; the latest sorts first.
+        run_named(id, :z_name, ~D[2024-01-01])
+        run_named(id, :a_name, ~D[2023-01-01])
+
+        assert {:ok, summaries} = Tracer.summary(id)
+        assert [%{duration_us: slowest}, %{duration_us: next}] = summaries.session.slowest
+        assert is_integer(slowest) and is_integer(next) and slowest >= next
+        Map.new(summaries, fn {key, summary} -> {key, comparable(summary)} end)
+      end
+
+    assert [unsaved, saved] = summaries
+    assert unsaved == saved
+
+    assert %{calls: 2, returns: 2, exceptions: 0, functions: %{{Date, :leap_year?, 1} => 2}} =
+             saved.session
+
+    assert %{slowest: [_, _]} = saved.session
+    assert [{pid, {:a_name, 2}}] = Map.to_list(saved.session.processes)
+    assert pid == self()
+
+    assert %{calls: 1, returns: 1, slowest: [_], processes: %{^pid => {:a_name, 1}}} =
+             saved.last_run
+
+    assert {:error, :not_found} = Tracer.summary(-1)
+  end
+
+  defp comparable(summary),
+    do: %{summary | slowest: Enum.map(summary.slowest, &Map.take(&1, [:type, :mfa, :pid]))}
+
+  defp run_named(id, name, date) do
+    Process.register(self(), name)
+    assert {:ok, _session} = Tracer.start(:ui)
+    Date.leap_year?(date)
+    assert_receive {:session_entries, %{id: ^id}, [%{kind: :stopped}]}
+    Process.unregister(name)
   end
 
   test "puts the call's duration on its return" do

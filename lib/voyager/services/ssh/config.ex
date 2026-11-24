@@ -9,12 +9,22 @@ defmodule Voyager.Services.SSH.Config do
           user: String.t() | nil,
           port: :inet.port_number() | nil,
           identity_files: [Path.t()],
-          identity_agent: Path.t() | :none | nil
+          identity_agent: Path.t() | :none | nil,
+          problems: [unsupported()]
         }
 
   @type unsupported :: %{keyword: String.t(), type: :keyword | :block | :value}
 
-  @type result :: %{hosts: [host()], unsupported: [unsupported()]}
+  @typedoc "`shared` holds the problems from any block that can match more than its exact aliases."
+  @type result :: %{hosts: [host()], unsupported: [unsupported()], shared: [unsupported()]}
+
+  @type connect_fields :: %{
+          ssh_host: String.t(),
+          ssh_user: String.t() | nil,
+          ssh_port: :inet.port_number(),
+          key_path: Path.t() | nil,
+          agent_socket_path: Path.t() | nil
+        }
 
   @max_include_depth 16
   @bad_include {:problem, "include", :value}
@@ -31,6 +41,21 @@ defmodule Voyager.Services.SSH.Config do
 
   @env_agent_values ["SSH_AUTH_SOCK", "$SSH_AUTH_SOCK", "${SSH_AUTH_SOCK}"]
 
+  @spec config_path(String.t() | nil) :: Path.t()
+  def config_path(path) when path in [nil, ""], do: "~/.ssh/config"
+  def config_path(path), do: path
+
+  @spec connect_fields(host()) :: connect_fields()
+  def connect_fields(host) do
+    %{
+      ssh_host: host.host_name || host.alias,
+      ssh_user: host.user,
+      ssh_port: host.port || 22,
+      key_path: List.first(host.identity_files),
+      agent_socket_path: if(is_binary(host.identity_agent), do: host.identity_agent)
+    }
+  end
+
   @spec read(Path.t()) ::
           {:ok, result()}
           | {:error, {:read_failed, {Path.t(), LocalFiles.read_error()}}}
@@ -46,9 +71,12 @@ defmodule Voyager.Services.SSH.Config do
       |> apply_top_level_to_every_host()
       |> Enum.map(&to_setting/1)
 
+    owned = owned_problems(items)
+
     %{
-      hosts: items |> aliases() |> Enum.map(&resolve_host(&1, items)),
-      unsupported: unsupported(items)
+      hosts: items |> aliases() |> Enum.map(&resolve_host(&1, items, owned)),
+      unsupported: unsupported(items),
+      shared: for({owners, problem} <- owned, :shared in owners, uniq: true, do: problem)
     }
   end
 
@@ -165,22 +193,49 @@ defmodule Voyager.Services.SSH.Config do
     for {:problem, keyword, type} <- items, uniq: true, do: %{keyword: keyword, type: type}
   end
 
+  defp owned_problems(items) do
+    {problems, _owners} =
+      Enum.flat_map_reduce(items, [], fn
+        {:header, patterns}, _owners -> {[], owners(patterns)}
+        {:problem, keyword, type}, owners -> {[{owners, %{keyword: keyword, type: type}}], owners}
+        _item, owners -> {[], owners}
+      end)
+
+    problems
+  end
+
+  defp owners(patterns) do
+    literals = Enum.filter(patterns, &literal?/1)
+    if literals != [] and literals == patterns, do: literals, else: [:shared | literals]
+  end
+
   defp aliases(items) do
     for {:header, patterns} <- items,
         pattern <- patterns,
-        not String.contains?(pattern, ["*", "?", "!"]),
+        literal?(pattern),
         uniq: true,
         do: pattern
   end
 
-  defp resolve_host(host_alias, items) do
+  defp literal?(pattern), do: not String.contains?(pattern, ["*", "?", "!"])
+
+  defp resolve_host(host_alias, items, owned) do
     resolved =
       items
       |> settings_for(host_alias)
       |> Enum.reduce(%{alias: host_alias}, &merge_setting/2)
 
+    problems = for {owners, problem} <- owned, host_alias in owners, uniq: true, do: problem
+
     Map.merge(
-      %{host_name: nil, user: nil, port: nil, identity_files: [], identity_agent: nil},
+      %{
+        host_name: nil,
+        user: nil,
+        port: nil,
+        identity_files: [],
+        identity_agent: nil,
+        problems: problems
+      },
       resolved
     )
   end
