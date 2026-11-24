@@ -55,16 +55,15 @@ defmodule Voyager.Services.McpAgentsTest do
     assert McpAgents.get().recent == []
   end
 
-  test "a client drops off once its last call is older than five minutes" do
+  test "a client drops off when the timer of its last call fires" do
     McpAgents.tool_called(%{"name" => "claude-code", "version" => "2.1.0"})
     _ = :sys.get_state(McpAgents)
 
-    send(McpAgents, {:expire, "claude-code"})
+    send(McpAgents, {:expire, "claude-code", make_ref()})
     assert [%{name: "claude-code"}] = McpAgents.get().recent
 
-    long_ago = System.monotonic_time(:millisecond) - :timer.minutes(6)
-    :sys.replace_state(McpAgents, &put_in(&1, [:calls, "claude-code", :at], long_ago))
-    send(McpAgents, {:expire, "claude-code"})
+    ref = :sys.get_state(McpAgents).calls["claude-code"].ref
+    send(McpAgents, {:expire, "claude-code", ref})
 
     assert McpAgents.get().recent == []
   end

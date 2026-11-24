@@ -95,21 +95,20 @@ defmodule Voyager.Services.McpAgents do
   def handle_cast(:refresh, state), do: {:noreply, state |> scan() |> publish()}
 
   def handle_cast({:tool_called, name, version}, state) do
-    Process.send_after(self(), {:expire, name}, @recent_ms)
+    ref = make_ref()
+    Process.send_after(self(), {:expire, name, ref}, @recent_ms)
     new_client? = not Map.has_key?(state.calls, name)
-    call = %{version: version, at: System.monotonic_time(:millisecond)}
+    call = %{version: version, ref: ref}
     state = %{state | calls: Map.put(state.calls, name, call)}
     state = if new_client?, do: scan(state), else: state
     {:noreply, publish(state)}
   end
 
   @impl true
-  def handle_info({:expire, name}, state) do
+  def handle_info({:expire, name, ref}, state) do
     case state.calls do
-      %{^name => %{at: at}} ->
-        if System.monotonic_time(:millisecond) - at >= @recent_ms,
-          do: {:noreply, publish(%{state | calls: Map.delete(state.calls, name)})},
-          else: {:noreply, state}
+      %{^name => %{ref: ^ref}} ->
+        {:noreply, publish(%{state | calls: Map.delete(state.calls, name)})}
 
       _calls ->
         {:noreply, state}

@@ -30,12 +30,9 @@ defmodule VoyagerWeb.McpComponents do
     """
   end
 
-  attr :id, :string, default: nil
-  attr :class, :any, default: nil
-
   def recently_used(assigns) do
     ~H"""
-    <span id={@id} class={["text-success flex items-center gap-1 text-xs font-medium", @class]}>
+    <span class="text-success flex items-center gap-1 text-xs font-medium">
       <span class="bg-success size-1.5 rounded-full"></span> Recently used
     </span>
     """
