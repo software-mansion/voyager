@@ -61,7 +61,11 @@ defmodule Voyager.MCP.Tools.TraceWatchTest do
     watch = Task.async(fn -> TraceWatch.execute(%{}, frame) end)
 
     assert_receive {:send_notification, "notifications/progress",
-                    %{"progressToken" => "t", "progress" => 0}}
+                    %{"progressToken" => "t", "progress" => 0, "message" => "0 events" <> _}}
+
+    assert_receive {:send_notification, "notifications/progress",
+                    %{"progress" => 1, "message" => "0 events" <> _}},
+                   2_000
 
     Date.leap_year?(~D[2024-01-01])
 
@@ -71,6 +75,27 @@ defmodule Voyager.MCP.Tools.TraceWatchTest do
 
     Tracer.stop(:ui)
     assert %{"status" => "stopped"} = json!(Task.await(watch))
+  end
+
+  test "returns the running session's report once the wait runs out" do
+    previous = Application.fetch_env(:voyager, :trace_watch_max_wait_ms)
+    Application.put_env(:voyager, :trace_watch_max_wait_ms, 50)
+
+    on_exit(fn ->
+      case previous do
+        {:ok, value} -> Application.put_env(:voyager, :trace_watch_max_wait_ms, value)
+        :error -> Application.delete_env(:voyager, :trace_watch_max_wait_ms)
+      end
+    end)
+
+    %{id: id} = configure()
+    {:ok, _session} = Tracer.start(:ui)
+
+    assert %{"session_id" => ^id, "status" => "running", "note" => note} =
+             json!(TraceWatch.execute(%{}, %Frame{}))
+
+    assert note =~ "call `trace_watch` again"
+    assert %{status: :running} = Tracer.active()
   end
 
   test "leaves the session running when the watch is cancelled" do

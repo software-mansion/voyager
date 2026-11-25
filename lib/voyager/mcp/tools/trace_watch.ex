@@ -21,14 +21,14 @@ defmodule Voyager.MCP.Tools.TraceWatch do
   alias Voyager.MCP.Tools.TraceStart
   alias Voyager.Services.Tracer
 
-  @max_wait to_timeout(minute: 10)
+  @default_max_wait to_timeout(minute: 10)
   @progress_interval 1_000
 
   schema do
   end
 
   @spec max_wait() :: pos_integer()
-  def max_wait, do: @max_wait
+  def max_wait, do: Application.get_env(:voyager, :trace_watch_max_wait_ms, @default_max_wait)
 
   @impl true
   def execute(_params, frame) do
@@ -61,16 +61,18 @@ defmodule Voyager.MCP.Tools.TraceWatch do
 
   defp await(session, frame) do
     if Frame.progress_token(frame), do: send(self(), :progress)
-    deadline = System.monotonic_time(:millisecond) + @max_wait
+    max_wait = max_wait()
+    started = System.monotonic_time(:millisecond)
+    watch = %{started: started, deadline: started + max_wait, reported: -1, seq: session.seq}
 
-    case await(session, frame, %{deadline: deadline, reported: -1, seq: session.seq}) do
+    case await(session, frame, watch) do
       {:ended, session} ->
         TraceReport.reply(session)
 
       {:waiting, session} ->
         TraceReport.reply(session, %{
           note:
-            "Still running after #{div(@max_wait, 60_000)} minutes, call `trace_watch` again or `trace_stop`"
+            "Still running after #{div(max_wait, 60_000)} minutes, call `trace_watch` again or `trace_stop`"
         })
 
       :closed ->
@@ -101,14 +103,18 @@ defmodule Voyager.MCP.Tools.TraceWatch do
     end
   end
 
-  # Progress must increase with each notification, so an idle second sends none.
-  defp report_progress(%{traces: traces} = session, frame, %{reported: reported} = watch)
-       when traces > reported do
-    seconds = DateTime.diff(DateTime.utc_now(), session.run_started_at)
-    message = "#{traces} events, #{session.dropped} dropped, #{seconds}s"
-    Notifier.progress(frame, Frame.progress_token(frame), traces, message: message)
-    %{watch | reported: traces}
-  end
+  # Progress must increase with each notification; seconds watched do even on an idle session,
+  # so a client that resets its timeout on progress keeps a quiet watch open.
+  defp report_progress(session, frame, watch) do
+    watched = div(System.monotonic_time(:millisecond) - watch.started, 1_000)
 
-  defp report_progress(_session, _frame, watch), do: watch
+    if watched > watch.reported do
+      seconds = DateTime.diff(DateTime.utc_now(), session.run_started_at)
+      message = "#{session.traces} events, #{session.dropped} dropped, #{seconds}s"
+      Notifier.progress(frame, Frame.progress_token(frame), watched, message: message)
+      %{watch | reported: watched}
+    else
+      watch
+    end
+  end
 end
