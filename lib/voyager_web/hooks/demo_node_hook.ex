@@ -4,6 +4,7 @@ defmodule VoyagerWeb.Hooks.DemoNodeHook do
   import Phoenix.LiveView
   import Phoenix.Component
 
+  alias Phoenix.LiveView.AsyncResult
   alias Voyager.Services.DemoNode
   alias VoyagerWeb.ConnectLive.DirectConnect
 
@@ -11,8 +12,8 @@ defmodule VoyagerWeb.Hooks.DemoNodeHook do
     socket =
       socket
       |> subscribe()
-      |> assign(:demo_running?, DemoNode.running?())
-      |> attach_hook(:demo_running, :handle_info, &handle_demo_stopped/2)
+      |> assign_async(:demo_running?, fn -> {:ok, %{demo_running?: DemoNode.running?()}} end)
+      |> attach_hook(:demo_running, :handle_info, &handle_demo_running/2)
 
     {:cont, socket}
   end
@@ -34,11 +35,15 @@ defmodule VoyagerWeb.Hooks.DemoNodeHook do
     socket
   end
 
-  defp handle_demo_stopped({:demo_stopped, _reason}, socket) do
-    {:halt, assign(socket, :demo_running?, false)}
+  defp handle_demo_running(:demo_started, socket) do
+    {:halt, assign(socket, :demo_running?, AsyncResult.ok(true))}
   end
 
-  defp handle_demo_stopped(_event, socket), do: {:cont, socket}
+  defp handle_demo_running({:demo_stopped, _reason}, socket) do
+    {:halt, assign(socket, :demo_running?, AsyncResult.ok(false))}
+  end
+
+  defp handle_demo_running(_event, socket), do: {:cont, socket}
 
   defp notify_stopped({:demo_stopped, :idle_timeout}, socket) do
     {:halt,

@@ -97,6 +97,8 @@ defmodule Voyager.Services.DemoNode do
           measurements: %{duration_ms: since(boot_ms)}
         )
 
+        Phoenix.PubSub.broadcast(Voyager.PubSub, @pubsub_topic, :demo_started)
+
         state = %{
           state
           | peer: peer,

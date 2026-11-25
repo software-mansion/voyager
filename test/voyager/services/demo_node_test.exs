@@ -162,12 +162,13 @@ defmodule Voyager.Services.DemoNodeTest do
     refute_received {:telemetry, [:voyager, :demo, :connect], _, _}
   end
 
-  test "reports whether it runs and broadcasts when it stops" do
+  test "reports whether it runs and broadcasts when it starts and stops" do
     start_demo_node!()
     Phoenix.PubSub.subscribe(Voyager.PubSub, DemoNode.topic())
     refute DemoNode.running?()
 
     {:ok, _params} = DemoNode.start()
+    assert_receive :demo_started
     assert DemoNode.running?()
 
     send(DemoNode, {:timeout, :sys.get_state(DemoNode).timer, :idle_timeout})

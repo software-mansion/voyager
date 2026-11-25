@@ -2,11 +2,12 @@ defmodule VoyagerWeb.SettingsLive.DemoSettings do
   @moduledoc false
   use VoyagerWeb, :html
 
+  alias Phoenix.LiveView.AsyncResult
   alias Voyager.NodeSession.Session
   alias Voyager.Services.DemoNode
 
   attr :session, Session, default: nil
-  attr :running?, :boolean, required: true
+  attr :running?, AsyncResult, required: true
 
   def demo_settings(assigns) do
     assigns = assign(assigns, :status, status(assigns.session, assigns.running?))
@@ -83,8 +84,9 @@ defmodule VoyagerWeb.SettingsLive.DemoSettings do
     """
   end
 
-  defp status(nil, true), do: :running
-  defp status(nil, false), do: :stopped
+  defp status(nil, %AsyncResult{ok?: true, result: true}), do: :running
+  defp status(nil, %AsyncResult{ok?: true, result: false}), do: :stopped
+  defp status(nil, _loading_or_failed), do: :loading
 
   defp status(%Session{node_name: node_name}, _running?) do
     if node_name == DemoNode.node_name(), do: :connected, else: :blocked

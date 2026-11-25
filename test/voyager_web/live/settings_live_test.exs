@@ -69,6 +69,7 @@ defmodule VoyagerWeb.SettingsLiveTest do
   describe "demo node" do
     test "links to the connect screen to start the demo", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/settings")
+      render_async(view)
 
       assert has_element?(view, ~s|a#start-demo-setting[href="/?demo=start"]|)
     end
@@ -88,12 +89,36 @@ defmodule VoyagerWeb.SettingsLiveTest do
       {:ok, _params} = DemoNode.start()
 
       {:ok, view, _html} = live(conn, ~p"/settings")
+      render_async(view)
 
       assert has_element?(view, "#demo-settings-running a#start-demo-setting")
 
       send(view.pid, {:demo_stopped, :idle_timeout})
 
       refute has_element?(view, "#demo-settings-running")
+      assert has_element?(view, ~s|a#start-demo-setting[href="/?demo=start"]|)
+    end
+
+    test "offers a restart once the demo node starts", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings")
+      render_async(view)
+
+      send(view.pid, :demo_started)
+
+      assert has_element?(view, "#demo-settings-running a#start-demo-setting")
+    end
+
+    test "hides the start button while the demo node does not answer", %{conn: conn} do
+      start_demo_node!()
+      :sys.suspend(DemoNode)
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      refute has_element?(view, "#start-demo-setting")
+
+      :sys.resume(DemoNode)
+      render_async(view)
+
       assert has_element?(view, ~s|a#start-demo-setting[href="/?demo=start"]|)
     end
 
