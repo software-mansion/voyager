@@ -42,16 +42,22 @@ defmodule Voyager.MCP.Tools.TraceWatch do
 
   defp watch(nil, _frame), do: Response.error(Response.tool(), TraceReport.no_session())
 
-  defp watch(%{status: :idle} = session, frame) do
-    case TraceStart.start(session.id) do
+  defp watch(%{status: :idle, id: id}, frame) do
+    case TraceStart.start(id) do
       {:ok, session, _notes} -> await(session, frame)
-      {:error, message} -> Response.error(Response.tool(), message)
+      {:error, message} -> join(Tracer.active(), id, message, frame)
     end
   end
 
   defp watch(%{status: :running} = session, frame), do: await(session, frame)
 
   defp watch(session, _frame), do: TraceReport.reply(session)
+
+  # Another call, such as a second `trace_watch`, started it first; its run may have ended since.
+  defp join(%{id: id, status: status} = session, id, _message, frame) when status != :idle,
+    do: watch(session, frame)
+
+  defp join(_active, _id, message, _frame), do: Response.error(Response.tool(), message)
 
   defp await(session, frame) do
     if Frame.progress_token(frame), do: send(self(), :progress)

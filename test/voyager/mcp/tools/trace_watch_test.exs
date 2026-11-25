@@ -31,6 +31,25 @@ defmodule Voyager.MCP.Tools.TraceWatchTest do
     assert %{"status" => "stopped", "stop_reason" => "event_limit"} = json!(Task.await(watch))
   end
 
+  test "joins the session when another watch starts it first" do
+    configure(%{max_events: 2})
+    tracer = Process.whereis(Tracer)
+    :sys.suspend(tracer)
+    watches = for _watch <- 1..2, do: Task.async(fn -> TraceWatch.execute(%{}, %Frame{}) end)
+
+    _both_read_it_idle =
+      Stream.repeatedly(fn -> Process.info(tracer, :message_queue_len) end)
+      |> Enum.find(fn {:message_queue_len, len} -> len >= 2 end)
+
+    :sys.resume(tracer)
+    assert_receive {:session_entries, %{status: :running}, [%{kind: :started}]}
+    trace_calls(1)
+
+    for watch <- watches do
+      assert %{"status" => "stopped", "stop_reason" => "event_limit"} = json!(Task.await(watch))
+    end
+  end
+
   test "reports progress while it waits" do
     configure(%{max_events: 4})
     {:ok, _session} = Tracer.start(:ui)
