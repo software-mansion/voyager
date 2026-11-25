@@ -1,0 +1,54 @@
+name: Prepare release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, e.g. 0.3.0-rc.0 or 0.3.0. Run it on that version's vX.Y branch.
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  prepare:
+    name: Prepare release
+    if: github.repository == 'software-mansion/voyager'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ inputs.version }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set version
+        run: |
+          [[ $VERSION =~ ^([0-9]+)\.([0-9]+)\.[0-9]+(-rc\.[0-9]+)?$ && $GITHUB_REF_NAME == "v${BASH_REMATCH[1]}.${BASH_REMATCH[2]}" ]] ||
+            { echo "$VERSION is not a valid $GITHUB_REF_NAME release" >&2; exit 1; }
+          bash .github/scripts/set_version.sh "$VERSION"
+
+      - name: Write changelog
+        uses: anthropics/claude-code-action@v1
+        with:
+          github_token: ${{ github.token }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Call the Skill tool with `changelog` NOW and follow it for the upcoming release ${{ inputs.version }}, dated today.
+            Edit only CHANGELOG.md. Do not commit.
+          claude_args: |
+            --model opus
+            --allowedTools "Skill,Read,Edit,Glob,Grep,Bash(git log:*),Bash(git show:*),Bash(git describe:*),Bash(git for-each-ref:*),Bash(gh pr view:*)"
+
+      - name: Open release PR and run CI
+        env:
+          BASE: ${{ github.ref_name }}
+          BRANCH: release/v${{ inputs.version }}
+          TITLE: "Release: v${{ inputs.version }}"
+          BODY: "Prepared by the Prepare release workflow. Merging it tags v${{ inputs.version }} and builds the draft release."
+        run: bash .github/scripts/open_bot_pr.sh

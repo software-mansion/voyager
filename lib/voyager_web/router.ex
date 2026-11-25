@@ -36,7 +36,7 @@ defmodule VoyagerWeb.Router do
       on_mount: [
         {VoyagerWeb.Hooks.NodeSessionHook, :observe_node_session},
         VoyagerWeb.Hooks.DemoNodeHook,
-        VoyagerWeb.Hooks.McpStatusHook,
+        VoyagerWeb.Hooks.McpAgentsHook,
         VoyagerWeb.Hooks.TracingStatusHook,
         VoyagerWeb.Hooks.AppUpdateHook
       ] do
@@ -49,7 +49,7 @@ defmodule VoyagerWeb.Router do
       on_mount: [
         {VoyagerWeb.Hooks.NodeSessionHook, :require_connected_node},
         VoyagerWeb.Hooks.OnboardingHook,
-        VoyagerWeb.Hooks.McpStatusHook,
+        VoyagerWeb.Hooks.McpAgentsHook,
         VoyagerWeb.Hooks.TracingStatusHook,
         VoyagerWeb.Hooks.AppUpdateHook
       ] do

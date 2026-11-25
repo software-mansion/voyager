@@ -41,6 +41,10 @@
   --color-success-bg: #e0f7ec;
   --color-warning-bg: #fff7e4;
   --color-error-bg: #feecec;
+  --color-brand-claude: #d97757;
+  --color-brand-vscode: #007acc;
+  --color-brand-antigravity: #4285f4;
+  --color-brand-zed: #084ccf;
 }
 
 @plugin 'daisyui/theme' {
