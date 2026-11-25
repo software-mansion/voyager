@@ -48,6 +48,19 @@ defmodule Voyager.MCP.Tools.TraceReport do
   def start_error(:unknown_function),
     do: "The node has no such function loaded; check the name with `module_list`"
 
+  def start_error({:not_loaded, module}),
+    do: "Module #{inspect(module)} is not loaded on the node; check the name with `module_list`"
+
+  def start_error(:no_function_matched),
+    do:
+      "No function of the module matches; check the name and arity with `module_list`, and use `scope` `local` for a private function"
+
+  def start_error({:noproc, pid}),
+    do:
+      "Process #{Voyager.Pid.format(pid)} is not alive; pick live `pids` with `process_list` (with `trace_configure` for an existing session)"
+
+  def start_error(:no_session), do: @no_session
+
   def start_error(reason), do: "Could not start tracing: #{inspect(reason)}"
 
   @spec error(Ecto.Changeset.t() | String.t() | term()) :: Response.t()
