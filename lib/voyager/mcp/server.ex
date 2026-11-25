@@ -20,6 +20,7 @@ defmodule Voyager.MCP.Server do
   component(Voyager.MCP.Tools.EtsSearchTable)
   component(Voyager.MCP.Tools.CreateTraceSession)
   component(Voyager.MCP.Tools.ModuleList)
+  component(Voyager.MCP.Tools.TraceHistory)
 
   @before_compile {Voyager.Services.McpAgents, :track_tool_calls}
 

@@ -35,6 +35,7 @@ defmodule Voyager.Services.Tracer do
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Entry
   alias Voyager.Services.Tracer.MemoryLog
+  alias Voyager.Services.Tracer.Overview
   alias Voyager.Services.Tracer.Run
   alias Voyager.Services.Tracer.Search
   alias Voyager.Services.Tracer.Session
@@ -262,6 +263,15 @@ defmodule Voyager.Services.Tracer do
     end
   end
 
+  @doc "The runs of session `id`, oldest first. Runs in the caller for saved sessions."
+  @spec runs(integer()) :: {:ok, [Overview.run()]} | {:error, :not_found}
+  def runs(id) do
+    case GenServer.call(__MODULE__, {:runs, id}) do
+      {:saved, active} -> with_saved(id, &{:ok, saved_runs(&1, active)})
+      reply -> reply
+    end
+  end
+
   @impl true
   def init(nil), do: {:ok, %__MODULE__{}, {:continue, :interrupt_running}}
 
@@ -398,6 +408,14 @@ defmodule Voyager.Services.Tracer do
 
   def handle_call({:summary, _id}, _from, state), do: {:reply, :saved, state}
 
+  def handle_call({:runs, id}, _from, %{session: %{id: id, save: false} = session} = state),
+    do: {:reply, {:ok, Overview.runs(state.log.controls, session)}, state}
+
+  def handle_call({:runs, id}, _from, %{session: %{id: id} = session} = state),
+    do: {:reply, {:saved, session}, state}
+
+  def handle_call({:runs, _id}, _from, state), do: {:reply, {:saved, nil}, state}
+
   def handle_call({:kept_traces, id}, _from, %{session: %{id: id, save: false}} = state),
     do: {:reply, {:ok, state.log.traces}, state}
 
@@ -503,6 +521,27 @@ defmodule Voyager.Services.Tracer do
       row -> fun.(row)
     end
   end
+
+  defp saved_runs(row, active) do
+    row.id
+    |> TraceEntryQueries.controls()
+    |> Overview.runs(active || saved_session(row))
+    |> Enum.map(&fill_interrupted_run(row.id, &1))
+  end
+
+  defp fill_interrupted_run(session_id, %{stopped_at: nil, reason: :interrupted} = run) do
+    {traces, max_at} = TraceEntryQueries.open_run_extent(session_id, run)
+
+    duration_ms =
+      case max_at do
+        %DateTime{} = at -> max(DateTime.diff(at, run.started_at, :millisecond), 0)
+        nil -> 0
+      end
+
+    %{run | traces: traces, duration_ms: duration_ms}
+  end
+
+  defp fill_interrupted_run(_session_id, run), do: run
 
   defp saved_session(row) do
     Session.from_row(
