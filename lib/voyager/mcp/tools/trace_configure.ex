@@ -140,14 +140,7 @@ defmodule Voyager.MCP.Tools.TraceConfigure do
         Map.put(notes, :next, "Call `trace_start` or `trace_watch` to run it")
       )
     else
-      {:error, %Ecto.Changeset{} = changeset} ->
-        Response.error(Response.tool(), "Invalid session: #{TraceForm.format_errors(changeset)}")
-
-      {:error, message} when is_binary(message) ->
-        Response.error(Response.tool(), message)
-
-      {:error, reason} ->
-        Response.error(Response.tool(), TraceReport.start_error(reason))
+      {:error, reason} -> TraceReport.error(reason)
     end
   end
 end

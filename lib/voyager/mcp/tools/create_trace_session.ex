@@ -143,14 +143,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
         next: "Call `trace_watch` to wait for the session to end and read its report"
       })
     else
-      {:error, %Ecto.Changeset{} = changeset} ->
-        Response.error(Response.tool(), "Invalid session: #{TraceForm.format_errors(changeset)}")
-
-      {:error, message} when is_binary(message) ->
-        Response.error(Response.tool(), message)
-
-      {:error, reason} ->
-        Response.error(Response.tool(), TraceReport.start_error(reason))
+      {:error, reason} -> TraceReport.error(reason)
     end
   end
 end

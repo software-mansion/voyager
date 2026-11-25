@@ -50,6 +50,13 @@ defmodule Voyager.MCP.Tools.TraceReport do
 
   def start_error(reason), do: "Could not start tracing: #{inspect(reason)}"
 
+  @spec error(Ecto.Changeset.t() | String.t() | term()) :: Response.t()
+  def error(%Ecto.Changeset{} = changeset),
+    do: Response.error(Response.tool(), "Invalid session: #{TraceForm.format_errors(changeset)}")
+
+  def error(message) when is_binary(message), do: Response.error(Response.tool(), message)
+  def error(reason), do: Response.error(Response.tool(), start_error(reason))
+
   @spec reply(session(), map()) :: Response.t()
   def reply(session, fields \\ %{}) do
     case report(session) do
