@@ -46,49 +46,57 @@ defmodule VoyagerWeb.SettingsLive do
     assigns = assign(assigns, pid_formats: @pid_formats, term_syntaxes: @term_syntaxes)
 
     ~H"""
-    <div class="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-10">
-      <div class="flex items-center gap-2">
+    <div class="mx-auto w-full px-6 py-10 md:max-w-[80vw]">
+      <div class="mb-6 flex items-center gap-2">
         <.back_arrow id="settings-back" href={if(!@can_go_back?, do: ~p"/")} />
         <h1 class="text-base-content text-2xl font-semibold tracking-tight">Settings</h1>
       </div>
 
-      <AppearanceSettings.appearance_settings />
-      <DemoSettings.demo_settings session={@session} running?={@demo_running?} />
-      <SettingsComponents.choice_setting
-        id="pid-format"
-        title="PID format"
-        description="Choose how process identifiers are shown in the Voyager UI."
-        options={@pid_formats}
-        selected={@pid_format}
-        locked?={Pid.setting_locked?()}
-        on_select="select-pid-format"
-      />
-      <SettingsComponents.choice_setting
-        id="term-syntax"
-        title="Term syntax"
-        description="Choose the language syntax values are shown in."
-        options={@term_syntaxes}
-        selected={@term_syntax}
-        locked?={TermSyntax.setting_locked?()}
-        on_select="select-term-syntax"
-      />
-      <.live_component
-        module={DistributionSettings}
-        id="distribution-settings"
-        connected?={@session != nil}
-      />
-      <.live_component module={McpSettings} id="mcp-server" agents={@mcp_agents} />
-      <.live_component
-        module={TracingSettings}
-        id="tracing-settings"
-        focus?={@focus_storage_limit?}
-      />
-      <.live_component
-        module={TelemetrySettings}
-        id="telemetry-settings"
-        terms_of_service_url={@terms_of_service_url}
-      />
-      <UpdateSettings.update_settings :if={@app_update_supported?} update={@app_update} />
+      <div class="grid grid-cols-3 gap-6 max-2xl:grid-cols-2 max-lg:grid-cols-1">
+        <div class="flex flex-col gap-6">
+          <AppearanceSettings.appearance_settings />
+          <DemoSettings.demo_settings session={@session} running?={@demo_running?} />
+          <SettingsComponents.choice_setting
+            id="pid-format"
+            title="PID format"
+            description="Choose how process identifiers are shown in the Voyager UI."
+            options={@pid_formats}
+            selected={@pid_format}
+            locked?={Pid.setting_locked?()}
+            on_select="select-pid-format"
+          />
+          <SettingsComponents.choice_setting
+            id="term-syntax"
+            title="Term syntax"
+            description="Choose the language syntax values are shown in."
+            options={@term_syntaxes}
+            selected={@term_syntax}
+            locked?={TermSyntax.setting_locked?()}
+            on_select="select-term-syntax"
+          />
+        </div>
+        <div class="flex flex-col gap-6">
+          <.live_component module={McpSettings} id="mcp-server" agents={@mcp_agents} />
+        </div>
+        <div class="flex flex-col gap-6">
+          <.live_component
+            module={DistributionSettings}
+            id="distribution-settings"
+            connected?={@session != nil}
+          />
+          <.live_component
+            module={TracingSettings}
+            id="tracing-settings"
+            focus?={@focus_storage_limit?}
+          />
+          <.live_component
+            module={TelemetrySettings}
+            id="telemetry-settings"
+            terms_of_service_url={@terms_of_service_url}
+          />
+          <UpdateSettings.update_settings :if={@app_update_supported?} update={@app_update} />
+        </div>
+      </div>
     </div>
     """
   end
