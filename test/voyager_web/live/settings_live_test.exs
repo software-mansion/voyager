@@ -2,9 +2,13 @@ defmodule VoyagerWeb.SettingsLiveTest do
   use VoyagerWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
-  import Voyager.TestUtils, only: [reset_pid_format: 1, reset_term_syntax: 1, start_demo_node!: 0]
+
+  import Voyager.TestUtils,
+    only: [reset_pid_format: 1, reset_term_syntax: 1, start_demo_node!: 0]
 
   alias Voyager.Fakes
+  alias Voyager.Services.DemoNode
+  alias Voyager.Services.McpAgents
   alias Voyager.Services.TermSyntax
   alias Voyager.Settings
 
@@ -63,28 +67,53 @@ defmodule VoyagerWeb.SettingsLiveTest do
   end
 
   describe "demo node" do
-    test "has no start button outside a release", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/settings")
-
-      refute has_element?(view, "#start-demo-setting")
-    end
-
     test "links to the connect screen to start the demo", %{conn: conn} do
-      start_demo_node!()
       {:ok, view, _html} = live(conn, ~p"/settings")
 
       assert has_element?(view, ~s|a#start-demo-setting[href="/?demo=start"]|)
     end
 
     test "disables the start button while a node is connected", %{conn: conn} do
-      start_demo_node!()
       Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
 
       {:ok, view, _html} = live(conn, ~p"/settings")
 
-      assert has_element?(view, "#demo-settings-connected")
+      assert has_element?(view, "#demo-settings-blocked")
       assert has_element?(view, "button#start-demo-setting[disabled]")
       refute has_element?(view, "a#start-demo-setting")
+    end
+
+    test "offers a restart while the demo node runs, until it stops", %{conn: conn} do
+      start_demo_node!()
+      {:ok, _params} = DemoNode.start()
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      assert has_element?(view, "#demo-settings-running a#start-demo-setting")
+
+      send(view.pid, {:demo_stopped, :idle_timeout})
+
+      refute has_element?(view, "#demo-settings-running")
+      assert has_element?(view, ~s|a#start-demo-setting[href="/?demo=start"]|)
+    end
+
+    test "offers a restart once the demo node starts", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings")
+      refute has_element?(view, "#demo-settings-running")
+
+      send(view.pid, :demo_started)
+
+      assert has_element?(view, "#demo-settings-running a#start-demo-setting")
+    end
+
+    test "shows the demo node as connected without a start button", %{conn: conn} do
+      Fakes.connect_node!(Fakes.node_session(node_name: DemoNode.node_name()))
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      assert has_element?(view, "#demo-settings-connected")
+      refute has_element?(view, "#demo-settings-blocked")
+      refute has_element?(view, "#start-demo-setting")
     end
   end
 
@@ -247,6 +276,95 @@ defmodule VoyagerWeb.SettingsLiveTest do
       assert has_element?(view, ~s|#mcp-toggle[disabled]|)
     end
 
+    @tag :tmp_dir
+    test "lists detected agents and folds the rest", %{conn: conn, tmp_dir: home} do
+      use_agents_home(home)
+      File.mkdir_p!(Path.join(home, ".claude"))
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+      _ = :sys.get_state(McpAgents)
+
+      assert has_element?(view, "#mcp-agent-list #mcp-agent-claude_code")
+      assert has_element?(view, "#mcp-more-agents #mcp-agent-codex")
+      assert has_element?(view, "#mcp-more-agents summary", "Show 7 more agents")
+    end
+
+    @tag :tmp_dir
+    test "adds Voyager to an agent in one click", %{conn: conn, tmp_dir: home, mcp_port: port} do
+      use_agents_home(home)
+      File.mkdir_p!(Path.join(home, ".claude"))
+      File.write!(Path.join(home, ".claude.json"), "{}")
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+      _ = :sys.get_state(McpAgents)
+
+      view |> element("#mcp-agent-claude_code-add") |> render_click()
+
+      config = home |> Path.join(".claude.json") |> File.read!() |> JSON.decode!()
+      assert config["mcpServers"]["voyager"]["url"] == "http://127.0.0.1:#{port}/mcp"
+      assert has_element?(view, "#mcp-agent-claude_code-added")
+      assert render(view) =~ "Voyager added to Claude Code"
+    end
+
+    @tag :tmp_dir
+    test "asks before creating a missing config file", %{conn: conn, tmp_dir: home} do
+      use_agents_home(home)
+      File.mkdir_p!(Path.join(home, ".claude"))
+      path = Path.join(home, ".claude.json")
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+      _ = :sys.get_state(McpAgents)
+
+      view |> element("#mcp-agent-claude_code-add") |> render_click()
+
+      refute File.exists?(path)
+      assert has_element?(view, "#mcp-agent-claude_code-confirm-create", "~/.claude.json")
+
+      view |> element("#mcp-agent-claude_code-cancel-create") |> render_click()
+
+      refute File.exists?(path)
+      refute has_element?(view, "#mcp-agent-claude_code-confirm-create")
+
+      view |> element("#mcp-agent-claude_code-add") |> render_click()
+      view |> element("#mcp-agent-claude_code-create") |> render_click()
+
+      assert File.read!(path) |> JSON.decode!() |> get_in(["mcpServers", "voyager"])
+      assert has_element?(view, "#mcp-agent-claude_code-added")
+      refute has_element?(view, "#mcp-agent-claude_code-confirm-create")
+    end
+
+    @tag :tmp_dir
+    test "removes Voyager from an agent", %{conn: conn, tmp_dir: home} do
+      use_agents_home(home)
+      File.mkdir_p!(Path.join(home, ".claude"))
+      File.write!(Path.join(home, ".claude.json"), "{}")
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+      _ = :sys.get_state(McpAgents)
+
+      view |> element("#mcp-agent-claude_code-add") |> render_click()
+      view |> element("#mcp-agent-claude_code-remove") |> render_click()
+
+      config = home |> Path.join(".claude.json") |> File.read!() |> JSON.decode!()
+      refute Map.has_key?(config["mcpServers"], "voyager")
+      assert has_element?(view, "#mcp-agent-claude_code-add")
+      refute has_element?(view, "#mcp-agent-claude_code-remove")
+      assert render(view) =~ "Voyager removed from Claude Code"
+    end
+
+    @tag :tmp_dir
+    test "shows a config to copy when the file has comments", %{conn: conn, tmp_dir: home} do
+      use_agents_home(home)
+      File.mkdir_p!(Path.join(home, ".config/zed"))
+      File.write!(Path.join(home, ".config/zed/settings.json"), "// mine\n{}")
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+      _ = :sys.get_state(McpAgents)
+
+      assert has_element?(view, "#mcp-agent-zed-snippet", "context_servers")
+      refute has_element?(view, "#mcp-agent-zed-add")
+    end
+
     test "names both locked values in a single alert", %{conn: conn, mcp_port: port} do
       Application.put_env(:voyager, :mcp_port, port)
       Application.put_env(:voyager, :mcp_enabled, true)
@@ -364,5 +482,15 @@ defmodule VoyagerWeb.SettingsLiveTest do
       assert has_element?(view, ~s|#term-syntax-erlang[aria-pressed="true"][disabled]|)
       assert has_element?(view, ~s|#term-syntax-auto[disabled]|)
     end
+  end
+
+  defp use_agents_home(home) do
+    previous = Application.get_env(:voyager, :coding_agents_home)
+    Application.put_env(:voyager, :coding_agents_home, home)
+
+    on_exit(fn ->
+      Application.put_env(:voyager, :coding_agents_home, previous)
+      McpAgents.refresh()
+    end)
   end
 end

@@ -13,7 +13,7 @@ defmodule Voyager.MCP.Tools.StartDemo do
 
   The demo stops when Voyager disconnects from it, connects to another node, or
   is not connected to it within 5 minutes; call `start_demo` again for a new
-  one. It runs only in the Voyager desktop app.
+  one.
 
   Once connected, list Voyager's tools (MCP `tools/list`) and try each of them
   on it. The demo runs the `supervision_tree_demo` application, which has a
@@ -44,9 +44,6 @@ defmodule Voyager.MCP.Tools.StartDemo do
           node: node,
           message: "Call `connect` with node_name #{inspect(node)} now."
         })
-
-      {:error, :unavailable} ->
-        Response.error(Response.tool(), "The demo node runs only in the Voyager desktop app")
 
       {:error, _reason} ->
         Response.error(Response.tool(), "Could not start the demo node")

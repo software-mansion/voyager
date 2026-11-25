@@ -22,14 +22,6 @@ defmodule Voyager.Services.DemoNodeTest do
     on_exit(fn -> :telemetry.detach(handler) end)
   end
 
-  test "is hidden and refuses to start outside a release" do
-    start_demo_node!(exec: nil)
-
-    refute DemoNode.available?()
-    assert DemoNode.offer() == :hidden
-    assert DemoNode.start() == {:error, :unavailable}
-  end
-
   @tag :capture_log
   test "returns an error without restarting when the demo node fails to boot" do
     pid = start_demo_node!(exec: {~c"/usr/bin/false", []})
@@ -169,6 +161,21 @@ defmodule Voyager.Services.DemoNodeTest do
     assert demo_peer() == nil
     assert_receive {:telemetry, [:voyager, :demo, :stop], _, %{reason: :idle_timeout}}
     refute_received {:telemetry, [:voyager, :demo, :connect], _, _}
+  end
+
+  test "reports whether it runs and broadcasts when it starts and stops" do
+    start_demo_node!()
+    Phoenix.PubSub.subscribe(Voyager.PubSub, DemoNode.topic())
+    refute DemoNode.running?()
+
+    {:ok, _params} = DemoNode.start()
+    assert_receive :demo_started
+    assert DemoNode.running?()
+
+    send(DemoNode, {:timeout, :sys.get_state(DemoNode).timer, :idle_timeout})
+
+    assert_receive {:demo_stopped, :idle_timeout}
+    refute DemoNode.running?()
   end
 
   test "connecting to the demo node cancels the idle timeout" do

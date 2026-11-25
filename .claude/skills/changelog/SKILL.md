@@ -12,12 +12,16 @@ Generate the changelog section for a release from git history, in the same forma
 1. **Determine the range and date.**
    - Target is an existing tag: prev = `git describe --tags --abbrev=0 <target>^`;
      date = `git for-each-ref --format='%(creatordate:short)' refs/tags/<target>`
-   - Target is untagged HEAD (upcoming release): prev = `git describe --tags --abbrev=0`;
+   - Target is untagged HEAD (upcoming release): prev = `v` + the newest `## ` version in
+     `CHANGELOG.md`, skipping `-rc` versions when the target is a final release (release tags
+     are not reachable from `main`, so `git describe` finds nothing);
      date = the intended release date (default: today)
    - Range is `<prev>..<target>`; the user-named version is the section heading
-2. **Collect entries.** `git log <range> --oneline` — one entry per merged PR (`(#N)` suffix).
+2. **Collect entries.** `git log <range> --oneline` — one entry per merged PR (`(#N)` suffix),
+   plus commits without one on a release branch (e.g. a direct dependency sync)
 3. **Filter.** Drop entirely:
-   - dependabot / dependency bumps (`Chore: Bump ...`)
+   - dependabot / dependency bumps (`Chore: Bump ...`) as entries of their own; they are
+     summarized under `#### Dependencies`, see "Dependency updates"
    - CI, workflows, review tooling, repo hygiene (CLAUDE.md, README, banners, dependabot config)
    - tests-only and docs-only PRs
    - refactors and internal APIs with no user-visible behavior (e.g. `Add X API`, `Refactor Y`) — when such a PR is groundwork for a feature PR in the same range, the feature entry may cite both PR numbers
@@ -30,7 +34,7 @@ Generate the changelog section for a release from git history, in the same forma
    - Stay close to the PR title; strip the `Feature:`/`Fix:`/`Chore:` prefix
    - Only expand when the diff confirms the specifics (e.g. "Zoom In / Zoom Out menu actions (Cmd+= / Cmd+-)" after reading the accelerators in the diff)
    - Never invent capabilities, platforms, or gestures not in the diff
-6. **Group and format — match the existing `CHANGELOG.md`.** Read the top section of the current file and copy its exact conventions: heading style, section names, entry syntax, link style. Do not introduce a new format.
+6. **Group and format — match the existing `CHANGELOG.md`.** Read the top section of the current file and copy its exact conventions: heading style, section names, entry syntax, link style. Do not introduce a new format; the one exception is `#### Dependencies`, placed after the existing sections.
 7. **Output.** Prepend the new section to `CHANGELOG.md`, show the result to the user for review. Do not commit or tag.
 
 ## Voyager specifics
@@ -38,3 +42,15 @@ Generate the changelog section for a release from git history, in the same forma
 - PR links: `[#N](https://github.com/software-mansion/voyager/pull/N)`
 - Security-relevant fixes (cookies, network binding, distribution exposure) are worth their own precise wording — read those diffs fully
 - Early releases with no per-PR notes (e.g. 0.1.0 "Closed Alpha release") keep exactly the text of their GitHub release — do not back-fill invented entries
+
+## Dependency updates
+
+- When the range bumps a dependency that ships in the app (`mix.lock` runtime deps,
+  `rel/app/src-tauri/Cargo.lock`, `assets/`), add one `#### Dependencies` entry naming the main
+  packages with their new versions: `* Phoenix 1.8.16, Phoenix LiveView 1.2.13, Tauri 2.12.6`.
+  Find them with `git log <range> -p -- <lockfile>`; dev-only bumps (`dialyxir`, `prettier`,
+  `e2e/`) don't count
+- Add an advisory ID only when a commit message or PR body in the range names it:
+  `Plug 1.20.4 (fixes GHSA-xxxx-xxxx-xxxx)`. Never infer one from a version number
+- A dependency-only patch release still gets this section, so it is never empty:
+  `create_draft_release.sh` fails on a release without a `CHANGELOG.md` section

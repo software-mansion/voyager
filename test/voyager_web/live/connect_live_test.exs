@@ -120,12 +120,6 @@ defmodule VoyagerWeb.ConnectLiveTest do
   end
 
   describe "demo node" do
-    test "has no demo tab outside a release", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/")
-
-      refute has_element?(view, "#start-demo-btn")
-    end
-
     test "fills the direct form with the started demo node", %{conn: conn} do
       start_demo_node!()
       {:ok, view, _html} = live(conn, ~p"/")
@@ -137,6 +131,7 @@ defmodule VoyagerWeb.ConnectLiveTest do
       assert has_element?(view, ~s|#conn_node_name[value="voyager_demo@127.0.0.1"]|)
       assert has_element?(view, ~s|#conn_cookie[value="#{cookie}"]|)
       assert has_element?(view, ~s|#start-demo-btn:not([disabled])|)
+      assert has_element?(view, "#flash-info")
     end
 
     @tag :capture_log
@@ -250,6 +245,38 @@ defmodule VoyagerWeb.ConnectLiveTest do
       :ok = NodeSession.disconnect()
 
       assert_receive {:DOWN, ^ref, :process, _pid, _reason}
+    end
+
+    for {reason, flash} <- [idle_timeout: "#flash-info", halted: "#flash-error"] do
+      test "flashes and clears the demo form on #{reason}", %{conn: conn} do
+        {:ok, view, _html} = live(conn, ~p"/")
+        fill_direct_node_name(view, DemoNode.node_name())
+
+        send(view.pid, {:demo_stopped, unquote(reason)})
+
+        assert has_element?(view, unquote(flash))
+        refute has_element?(view, ~s|#conn_node_name[value="voyager_demo@127.0.0.1"]|)
+      end
+    end
+
+    test "keeps another node in the form when the demo node stops", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+      fill_direct_node_name(view, "app@127.0.0.1")
+
+      send(view.pid, {:demo_stopped, :idle_timeout})
+
+      assert has_element?(view, "#flash-info")
+      assert has_element?(view, ~s|#conn_node_name[value="app@127.0.0.1"]|)
+    end
+
+    test "stays quiet when the demo node is replaced", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+      fill_direct_node_name(view, DemoNode.node_name())
+
+      send(view.pid, {:demo_stopped, :restarted})
+
+      refute has_element?(view, "#flash-info")
+      assert has_element?(view, ~s|#conn_node_name[value="voyager_demo@127.0.0.1"]|)
     end
   end
 
@@ -608,6 +635,12 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
       refute has_element?(view, "#onboarding-modal")
     end
+  end
+
+  defp fill_direct_node_name(view, node_name) do
+    view
+    |> element("#direct-connect-form")
+    |> render_change(%{"conn" => %{"node_name" => node_name}})
   end
 
   defp broadcast(pubsub_topic, event) do

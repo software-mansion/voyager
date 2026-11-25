@@ -74,17 +74,13 @@ defmodule Voyager.TestUtils do
   end
 
   @doc """
-  Replaces the app's `DemoNode`, which is unavailable outside a release, with one booting the
-  test VM's `erl` with Elixir on the code path. Restores the app's instance on exit.
+  Replaces the app's `DemoNode` with one whose `:peer` options are overridden by `opts`.
+  Restores the app's instance on exit.
   """
   def start_demo_node!(opts \\ []) do
     :ok = Supervisor.terminate_child(Voyager.Supervisor, DemoNode)
     on_exit(fn -> {:ok, _pid} = Supervisor.restart_child(Voyager.Supervisor, DemoNode) end)
-
-    elixir_ebin = Path.join(:code.lib_dir(:elixir), "ebin")
-    erl = String.to_charlist(Path.join(System.get_env("BINDIR"), "erl"))
-    exec = {erl, [~c"-pa", String.to_charlist(elixir_ebin)]}
-    start_supervised!({DemoNode, Keyword.put_new(opts, :exec, exec)})
+    start_supervised!({DemoNode, opts})
   end
 
   @doc "Evaluates `source` as one Erlang expression, the trailing dot added, and returns its value."

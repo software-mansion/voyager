@@ -1,0 +1,42 @@
+name: Update main after release
+
+on:
+  release:
+    types: [released]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Released tag, e.g. v0.3.0
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+jobs:
+  update:
+    name: Update main
+    if: github.repository == 'software-mansion/voyager'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Set next dev version and changelog
+        run: bash .github/scripts/update_main_after_release.sh "$TAG"
+
+      - name: Open PR and run CI
+        env:
+          BASE: main
+          BRANCH: chore/update-main-after-${{ env.TAG }}
+          TITLE: "Chore: Update main after ${{ env.TAG }}"
+          BODY: "Next dev version and CHANGELOG.md from ${{ env.TAG }}."
+        run: bash .github/scripts/open_bot_pr.sh

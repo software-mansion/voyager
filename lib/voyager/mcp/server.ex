@@ -22,6 +22,8 @@ defmodule Voyager.MCP.Server do
   component(Voyager.MCP.Tools.CreateTraceSession)
   component(Voyager.MCP.Tools.ModuleList)
 
+  @before_compile {Voyager.Services.McpAgents, :track_tool_calls}
+
   @impl true
   def init(_client_info, frame), do: {:ok, frame}
 end

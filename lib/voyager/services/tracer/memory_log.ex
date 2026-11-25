@@ -1,17 +1,24 @@
 defmodule Voyager.Services.Tracer.MemoryLog do
   @moduledoc """
-  An unsaved session's log, kept in memory with only its newest traces.
+  An unsaved session's log, kept in memory with only its newest traces, a summary of all of them
+  and one of its last run's.
   """
 
   alias Voyager.Services.Tracer.Entry
+  alias Voyager.Services.Tracer.Summary
 
   @kept_traces 500
 
   # `controls` keeps every configured/started/stopped entry, `traces` the newest
   # trace and dropped entries; both newest first.
-  defstruct controls: [], traces: []
+  defstruct controls: [], traces: [], summary: %Summary{}, last_run_summary: %Summary{}
 
-  @type t :: %__MODULE__{controls: [Entry.t()], traces: [Entry.t()]}
+  @type t :: %__MODULE__{
+          controls: [Entry.t()],
+          traces: [Entry.t()],
+          summary: Summary.t(),
+          last_run_summary: Summary.t()
+        }
 
   @spec kept_traces() :: pos_integer()
   def kept_traces, do: @kept_traces
@@ -25,7 +32,14 @@ defmodule Voyager.Services.Tracer.MemoryLog do
     # Dropped entries come with every shed batch, so they are capped with the traces.
     kept = Enum.take(Enum.reverse(traces) ++ log.traces, @kept_traces)
 
-    {entries, %{log | controls: Enum.reverse(controls) ++ log.controls, traces: kept}}
+    {entries,
+     %{
+       log
+       | controls: Enum.reverse(controls) ++ log.controls,
+         traces: kept,
+         summary: Summary.add(log.summary, traces),
+         last_run_summary: summarize_last_run(log.last_run_summary, entries)
+     }}
   end
 
   @doc "The `Voyager.Services.Tracer.entries/2` page of the kept entries, where `next_seq` is the session's."
@@ -49,6 +63,13 @@ defmodule Voyager.Services.Tracer.MemoryLog do
 
     # Seqs have no gaps, so a seq in the covered range without an entry was evicted.
     %{entries: page, truncated?: length(page) < Range.size(covered)}
+  end
+
+  defp summarize_last_run(summary, entries) do
+    Enum.reduce(entries, summary, fn
+      %{kind: :started}, _summary -> %Summary{}
+      entry, summary -> Summary.add(summary, [entry])
+    end)
   end
 
   # A full page covers the range up to its last entry; a short one the whole range.

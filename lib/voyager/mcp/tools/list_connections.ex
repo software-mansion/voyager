@@ -21,7 +21,6 @@ defmodule Voyager.MCP.Tools.ListConnections do
   alias Voyager.Queries.SshConnections, as: SshConnectionQueries
   alias Voyager.Schemas.Connection
   alias Voyager.Schemas.SshConnection
-  alias Voyager.Services.DemoNode
   alias Voyager.Services.SavedConnections
 
   @demo_hint "No saved connections. Call `start_demo` to try Voyager on its bundled demo node."
@@ -42,9 +41,7 @@ defmodule Voyager.MCP.Tools.ListConnections do
     {:reply, Response.json(Response.tool(), payload), frame}
   end
 
-  defp put_demo_hint(%{connections: []} = payload, nil) do
-    if DemoNode.available?(), do: Map.put(payload, :hint, @demo_hint), else: payload
-  end
+  defp put_demo_hint(%{connections: []} = payload, nil), do: Map.put(payload, :hint, @demo_hint)
 
   defp put_demo_hint(payload, _session), do: payload
 

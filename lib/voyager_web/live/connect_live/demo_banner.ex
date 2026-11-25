@@ -102,6 +102,7 @@ defmodule VoyagerWeb.ConnectLive.DemoBanner do
 
     socket
     |> assign(:starting?, false)
+    |> push_flash(:info, "Demo node started. Press Connect to explore it.")
     |> push_patch(to: connect_path(:direct))
     |> noreply()
   end

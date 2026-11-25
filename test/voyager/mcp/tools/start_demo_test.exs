@@ -57,9 +57,11 @@ defmodule Voyager.MCP.Tools.StartDemoTest do
     assert :sys.get_state(DemoNode).peer == nil
   end
 
-  test "returns an error outside a release" do
-    start_demo_node!(exec: nil)
+  @tag :capture_log
+  test "returns an error when the demo node fails to boot" do
+    start_demo_node!(exec: {~c"/usr/bin/false", []})
 
     assert {:reply, %Response{isError: true}, %Frame{}} = StartDemo.execute(%{}, %Frame{})
+    assert :sys.get_state(DemoNode).peer == nil
   end
 end
