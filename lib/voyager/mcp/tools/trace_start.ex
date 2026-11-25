@@ -20,6 +20,8 @@ defmodule Voyager.MCP.Tools.TraceStart do
 
   schema do
     field :session_id, :integer,
+      min: -TraceReport.max_integer(),
+      max: TraceReport.max_integer(),
       description:
         "Session to start, e.g. a saved one from `trace_history`. Defaults to the active one."
   end

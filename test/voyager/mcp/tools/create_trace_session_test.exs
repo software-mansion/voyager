@@ -89,7 +89,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
     end
 
     test "rejects a malformed function before showing the form" do
-      for function <- ["Date.", "date leap", "Date.leap_year?/x", "Date/1/2"] do
+      for function <- ["Date.", "date leap", "Date.leap_year?/x", "Date/1/2", "Date.x/1000"] do
         %{"function" => function} |> execute() |> assert_error()
       end
     end

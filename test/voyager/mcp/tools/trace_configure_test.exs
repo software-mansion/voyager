@@ -7,6 +7,7 @@ defmodule Voyager.MCP.Tools.TraceConfigureTest do
   alias Voyager.Fakes
   alias Voyager.MCP.Tools.TraceConfigure
   alias Voyager.MCP.Tools.TraceForm
+  alias Voyager.MCP.Tools.TraceReport
   alias Voyager.NodeSession
 
   @stateless Anubis.Protocol.V2026_07_28
@@ -120,6 +121,9 @@ defmodule Voyager.MCP.Tools.TraceConfigureTest do
 
     {:ok, _session} = Tracer.start(:ui)
     assert error!(execute(%{"session_id" => id})) =~ "trace_stop"
+
+    too_big = TraceReport.max_integer() + 1
+    assert {:error, _errors} = TraceConfigure.mcp_schema(%{"session_id" => too_big})
   end
 
   test "refuses a session of a node Voyager is not connected to" do

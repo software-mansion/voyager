@@ -3,6 +3,7 @@ defmodule Voyager.MCP.Tools.TraceStartTest do
   use Voyager.TraceToolCase, async: false
 
   alias Voyager.Fakes
+  alias Voyager.MCP.Tools.TraceReport
   alias Voyager.MCP.Tools.TraceStart
 
   test "starts the configured session" do
@@ -64,6 +65,9 @@ defmodule Voyager.MCP.Tools.TraceStartTest do
   test "refuses an unknown session id" do
     configure()
     assert error!(TraceStart.execute(%{session_id: 424_242}, %Frame{})) =~ "No tracing session"
+
+    too_big = TraceReport.max_integer() + 1
+    assert {:error, _errors} = TraceStart.mcp_schema(%{"session_id" => too_big})
   end
 
   test "refuses without a configured session" do

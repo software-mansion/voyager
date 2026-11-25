@@ -33,6 +33,8 @@ defmodule Voyager.MCP.Tools.TraceConfigure do
   schema do
     field :session_id, :integer,
       required: true,
+      min: -TraceReport.max_integer(),
+      max: TraceReport.max_integer(),
       description: "Session to change, e.g. the active one or a saved one from `trace_history`."
 
     field :function, :string, description: ~s(Function to trace, e.g. "MyApp.Repo.insert/2".)

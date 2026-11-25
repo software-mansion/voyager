@@ -12,8 +12,8 @@ defmodule Voyager.MCP.Tools.TraceForm do
   @function_format ~s(`function` must look like "MyApp.Repo.insert/2", "MyApp.Repo" or ":lists.map/2")
   @pids_format ~s(`pids` must be pids separated by commas, like "<0.123.0>, <0.456.0>", or empty for all processes)
 
-  @elixir_mfa ~r/^((?:[A-Z]\w*\.)*[A-Z]\w*)(?:\.([a-z_]\w*[?!]?))?(?:\/(\d+|_))?$/
-  @erlang_mfa ~r/^:?([a-z]\w*)(?:[:.]([a-z_]\w*))?(?:\/(\d+|_))?$/
+  @elixir_mfa ~r/^((?:[A-Z]\w*\.)*[A-Z]\w*)(?:\.([a-z_]\w*[?!]?))?(?:\/(\d{1,3}|_))?$/
+  @erlang_mfa ~r/^:?([a-z]\w*)(?:[:.]([a-z_]\w*))?(?:\/(\d{1,3}|_))?$/
 
   @spec max_events() :: pos_integer()
   def max_events, do: @max_events
