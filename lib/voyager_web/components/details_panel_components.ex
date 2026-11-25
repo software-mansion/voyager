@@ -9,6 +9,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   alias Phoenix.LiveView.AsyncResult
   alias Voyager.Services.SupervisionTree.TreeNode
   alias VoyagerWeb.Components.ProcessComponents
+  alias VoyagerWeb.Components.ProcessInfoComponents
   alias VoyagerWeb.Components.SupervisionTreeComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.ProcessInfoHelp
@@ -54,6 +55,8 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   # Public so DetailsPanel can cap its remote fetch at what this panel renders.
   @max_expanded_relations 60
   def max_expanded_relations, do: @max_expanded_relations
+
+  defguard is_local_pid(pid, remote_node) when is_pid(pid) and node(pid) == remote_node
 
   attr :panel_id, :string, required: true
   attr :open?, :boolean, required: true
@@ -230,13 +233,15 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :on_select, :string, required: true
   attr :on_toggle_relation, :string, required: true
   attr :target, :any, required: true
-  attr :remote_node, :atom, default: nil, doc: "forwarded to `overview/1`"
+  attr :remote_node, :atom, default: nil, doc: "pids on any other node get no process sections"
   attr :chips_disabled?, :boolean, default: false
 
   def body(assigns) do
+    pid = assigns.node.pid
+
     assigns =
       assigns
-      |> assign(:process?, is_pid(assigns.node.pid))
+      |> assign(:process?, is_local_pid(pid, assigns.remote_node))
       |> assign(:info, failed_over_stale(assigns.info))
       |> assign(:relations_info, failed_over_stale(assigns.relations_info))
 
@@ -262,8 +267,11 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         />
         <.memory_and_garbage_collection info={@info} />
       <% else %>
-        <div class="alert alert-info">
-          <p>
+        <div id={"#{@panel_id}-no-process-info"} class="alert alert-info">
+          <p :if={is_pid(@node.pid)}>
+            This process runs on {node(@node.pid)}. Connect to that node to inspect it.
+          </p>
+          <p :if={not is_pid(@node.pid)}>
             This is not a process node, so no process information is available.
           </p>
         </div>
@@ -369,18 +377,23 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
         <:failed :let={failure}>
           <.load_error failure={failure} />
         </:failed>
-        <.relation_list
-          id_prefix={"#{@panel_id}-#{slug}"}
-          toggle_id={"#{@panel_id}-toggle-#{slug}"}
-          relation={key}
-          items={Map.fetch!(relations, key).items}
-          total={Map.fetch!(relations, key).total}
-          expanded?={MapSet.member?(@expanded_relations, key)}
-          on_select={@on_select}
-          on_toggle={@on_toggle_relation}
-          target={@target}
-          chips_disabled?={@chips_disabled?}
-        />
+        <%= case Map.fetch!(relations, key) do %>
+          <% {:ok, bounded} -> %>
+            <.relation_list
+              id_prefix={"#{@panel_id}-#{slug}"}
+              toggle_id={"#{@panel_id}-toggle-#{slug}"}
+              relation={key}
+              items={bounded.items}
+              total={bounded.total}
+              expanded?={MapSet.member?(@expanded_relations, key)}
+              on_select={@on_select}
+              on_toggle={@on_toggle_relation}
+              target={@target}
+              chips_disabled?={@chips_disabled?}
+            />
+          <% {:error, reason} -> %>
+            <.load_error id={"#{@panel_id}-#{slug}-error"} failure={reason} />
+        <% end %>
       </.async_result>
     </.section>
     """
@@ -506,6 +519,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   attr :on_select, :string, required: true
   attr :target, :any, required: true
   attr :disabled, :boolean, default: false
+  attr :kind, :atom, default: :pid, values: [:pid, :port, :reference]
 
   def chip(assigns) do
     ~H"""
@@ -520,17 +534,21 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       aria-label={"Select #{@label}"}
       class="border-base-content/70 bg-base-200 text-base-content inline-flex cursor-pointer rounded-md border px-2.5 py-1 text-xs transition-colors enabled:hover:border-primary enabled:hover:text-primary disabled:cursor-wait disabled:opacity-50"
     >
-      <.display_pid pid={@label} />
+      <.display_pid :if={@kind == :pid} pid={@label} />
+      <.dotted :if={@kind != :pid} dot_class={if(@kind == :port, do: "bg-port", else: "bg-success")}>
+        {@label}
+      </.dotted>
     </button>
     """
   end
 
+  attr :id, :string, default: nil
   attr :failure, :any, default: nil
 
   @spec load_error(any()) :: Phoenix.LiveView.Rendered.t()
   def load_error(assigns) do
     ~H"""
-    <div class="alert alert-error border px-3 py-2.5 text-xs">
+    <div id={@id} class="alert alert-error border px-3 py-2.5 text-xs">
       <.icon name="icon-circle-alert" class="text-error size-4 shrink-0" />
       {load_error_message(@failure)}
     </div>
@@ -688,6 +706,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       <.chip
         id={@id}
         label={format_identifier(@item)}
+        kind={identifier_kind(@item)}
         node_key={TreeNode.key(@item)}
         on_select={@on_select}
         target={@target}
@@ -695,16 +714,25 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
       />
       """
     else
+      assigns = assign(assigns, :entry, SupervisionTreeComponents.monitor_entry(assigns.item))
+
       ~H"""
-      <span
-        id={@id}
-        class="border-base-content/30 text-base-content/70 font-mono inline-flex rounded-md border px-2.5 py-1 text-xs"
-      >
-        {format_identifier(@item)}
-      </span>
+      <.link_tooltip id={@id} entry={@entry}>
+        <span
+          tabindex="0"
+          class="border-base-content/30 text-base-content/70 font-mono inline-flex cursor-help rounded-md border px-2.5 py-1 text-xs"
+        >
+          {@entry.label}
+        </span>
+        <:content>{@entry.text}</:content>
+      </.link_tooltip>
       """
     end
   end
+
+  defp identifier_kind(port) when is_port(port), do: :port
+  defp identifier_kind(ref) when is_reference(ref), do: :reference
+  defp identifier_kind(pid) when is_pid(pid), do: :pid
 
   @doc """
   A single line of text with a copy button that appears on hover.
@@ -737,12 +765,12 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   @spec linkable_pid(atom(), map(), node() | nil) :: pid() | nil
   def linkable_pid(key, info, remote_node) when key in [:parent, :group_leader] do
     pid = Map.fetch!(info, key)
-    if is_pid(pid) and node(pid) == remote_node, do: pid
+    if is_local_pid(pid, remote_node), do: pid
   end
 
   def linkable_pid(_key, _info, _remote_node), do: nil
 
-  @doc "False for a monitor held by registered name (`{name, node}`), which has no tree node."
+  @doc "False for a monitor by registered name or time offset, which has no tree node."
   @spec selectable_relation?(term()) :: boolean()
   def selectable_relation?(item), do: is_pid(item) or is_port(item) or is_reference(item)
 
@@ -808,9 +836,6 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp format_identifier(port) when is_port(port),
     do: port |> :erlang.port_to_list() |> List.to_string()
 
-  defp format_identifier({name, node}) when is_atom(name) and is_atom(node),
-    do: "#{Formatters.format_term(name)} on #{node}"
-
   defp format_identifier(other), do: Formatters.format_term(other)
 
   defp node_pid_string(%TreeNode{pid: pid}) when is_pid(pid), do: format_identifier(pid)
@@ -823,7 +848,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   defp failed_over_stale(result), do: result
 
   defp relation_count(%AsyncResult{ok?: true, result: %{} = relations}, key),
-    do: "(#{Formatters.format_integer(Map.fetch!(relations, key).total)})"
+    do: relations |> Map.fetch!(key) |> ProcessInfoComponents.bounded_count()
 
   defp relation_count(_, _), do: nil
 end

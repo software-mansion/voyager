@@ -1,16 +1,81 @@
 # Seeds a node with a supervised app whose workers cover every link, monitor and
-# monitored-by kind the supervision tree and its details panel render.
+# monitored-by kind the supervision tree and its details panel render, including
+# a link, a monitor and a monitored-by with a process on a second node.
 #
 # Run:
 #   dev/mock_nodes/relations.sh
 #
 # Then in Voyager connect to relations@127.0.0.1 with cookie "demo" and open the
-# relations_demo app in the supervision tree.
+# relations_demo app in the supervision tree. `RelationsDemo.stall(8_000)` in this
+# shell makes every Voyager fetch from the node time out for 8 seconds.
 
 defmodule RelationsDemo do
+  @peer_node :"peer@127.0.0.1"
+
   def idle, do: Process.sleep(:infinity)
   def cat_port, do: Port.open({:spawn, "cat"}, [:binary])
+  def peer_node, do: @peer_node
+
+  # process_info answers even suspended or dirty-NIF processes; only starving the erpc worker stalls it.
+  def stall(ms) do
+    deadline = System.monotonic_time(:millisecond) + ms
+
+    for _ <- 1..System.schedulers_online() do
+      spawn(fn ->
+        Process.flag(:priority, :high)
+        spin(deadline)
+      end)
+    end
+
+    :ok
+  end
+
+  defp spin(deadline), do: if(System.monotonic_time(:millisecond) < deadline, do: spin(deadline))
+
+  # The peer loads RelationsDemo.Remote from its compiled binary: this script is not on its code path.
+  def start_peer(remote_beam) do
+    {:ok, _peer, @peer_node} =
+      :peer.start(%{
+        name: :peer,
+        host: ~c"127.0.0.1",
+        longnames: true,
+        args: [
+          ~c"-setcookie",
+          Atom.to_charlist(Node.get_cookie()),
+          ~c"-pa",
+          :code.lib_dir(:elixir) ++ ~c"/ebin"
+        ]
+      })
+
+    {:module, _} =
+      :erpc.call(@peer_node, :code, :load_binary, [RelationsDemo.Remote, ~c"nofile", remote_beam])
+
+    {:ok, _} =
+      :erpc.call(@peer_node, GenServer, :start, [
+        RelationsDemo.Remote,
+        nil,
+        [name: RelationsDemo.Remote]
+      ])
+  end
 end
+
+{:module, _, remote_beam, _} =
+  defmodule RelationsDemo.Remote do
+    use GenServer
+
+    @impl true
+    def init(nil), do: {:ok, nil}
+
+    @impl true
+    def handle_call({:watch, pid}, _from, state) do
+      Process.link(pid)
+      Process.monitor(pid)
+      {:reply, :ok, state}
+    end
+
+    @impl true
+    def handle_info(_message, state), do: {:noreply, state}
+  end
 
 defmodule RelationsDemo.Idle do
   use GenServer
@@ -45,6 +110,7 @@ defmodule RelationsDemo.Hub do
     Process.link(peer)
     Process.monitor(peer)
     Process.monitor({RelationsDemo.Peer, node()})
+    Process.monitor({RelationsDemo.Remote, RelationsDemo.peer_node()})
     Port.monitor(RelationsDemo.Peer.port())
     :erlang.monitor(:time_offset, :clock_service)
 
@@ -156,4 +222,11 @@ end
      mod: {RelationsDemo.Application, []}}
   )
 
+RelationsDemo.start_peer(remote_beam)
 {:ok, _} = Application.ensure_all_started(:relations_demo)
+
+:ok =
+  GenServer.call(
+    {RelationsDemo.Remote, RelationsDemo.peer_node()},
+    {:watch, Process.whereis(RelationsDemo.Hub)}
+  )

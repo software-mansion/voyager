@@ -16,12 +16,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
   defp text(html, selector), do: html |> query(selector) |> LazyHTML.text()
   defp attr(html, selector, name), do: html |> query(selector) |> LazyHTML.attribute(name)
 
-  defp remote_pid do
-    # NEW_PID_EXT for <45.6> decoded as if it came from the inspected node.
-    :erlang.binary_to_term(
-      <<131, 88, 119, byte_size("demo@127.0.0.1"), "demo@127.0.0.1", 45::32, 6::32, 1::32>>
-    )
-  end
+  defp remote_pid, do: Voyager.TestUtils.foreign_pid("demo@127.0.0.1")
 
   defp chips(attrs) do
     defaults = [
@@ -260,18 +255,26 @@ defmodule VoyagerWeb.Components.ProcessInfoComponentsTest do
       assert text(html, "#chips span") =~ "on nonode@nohost"
     end
 
-    test "unwraps monitor entries and lists non-pid targets plainly" do
+    test "unwraps monitor entries and explains the ones with nothing to open" do
       port = Port.open({:spawn, "cat"}, [:binary])
       on_exit(fn -> if Port.info(port), do: Port.close(port) end)
 
       html =
         chips(
-          items: [{:process, remote_pid()}, {:port, port}, {:name, :other@node}],
-          total: 3
+          items: [
+            {:process, remote_pid()},
+            {:port, port},
+            {:process, {:name, :other@node}},
+            {:time_offset, :clock_service}
+          ],
+          total: 4
         )
 
       assert count(html, "#chips a") == 1
-      assert text(html, "#chips") =~ ":name on other@node"
+      assert text(html, "#chips-2") =~ ":name on other@node"
+      assert text(html, "#chips-2-portal") =~ "Monitor by registered name"
+      assert text(html, "#chips-3") =~ ":clock_service"
+      assert text(html, "#chips-3-portal") =~ "Time offset monitor"
     end
 
     test "shows how many entries stayed on the remote" do

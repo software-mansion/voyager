@@ -71,6 +71,11 @@ defmodule Voyager.TestUtils do
     end
   end
 
+  @doc "A pid of `node`, built without that node existing."
+  def foreign_pid(node \\ "other@localhost") do
+    :erlang.binary_to_term(<<131, 88, 119, byte_size(node), node::binary, 45::32, 6::32, 1::32>>)
+  end
+
   @doc "Evaluates `source` as one Erlang expression, the trailing dot added, and returns its value."
   def erl_eval(source) do
     {:ok, tokens, _end} = :erl_scan.string(String.to_charlist(source <> "."))
