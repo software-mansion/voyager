@@ -17,6 +17,7 @@ defmodule VoyagerAgentTraceTest do
 
   test "pushes calls with their arguments and stops at the event limit" do
     {:ok, tracer} = start(spec(), %{@limits | max_events: 3})
+    assert_received {:voyager_trace_started, ^tracer}
 
     for _ <- 1..5, do: String.jaro_distance("voyager", "voyage")
 

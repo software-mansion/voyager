@@ -504,6 +504,16 @@ defmodule Voyager.Services.Tracer do
   def handle_info({:trace_write_failed, id, _reason}, %{session: %{id: id}} = state),
     do: {:noreply, request_stop(state, :write_failed)}
 
+  def handle_info({:voyager_trace_started, tracer}, %{session: %{tracer: tracer}} = state),
+    do: {:noreply, state}
+
+  # A start that timed out here still runs once a suspended node answers, so nothing owns it.
+  def handle_info({:voyager_trace_started, tracer}, state) do
+    Logger.warning("Stopping tracer #{inspect(tracer)} on #{node(tracer)}, whose start timed out")
+    stop_tracer_async(node(tracer), tracer)
+    {:noreply, state}
+  end
+
   def handle_info(_stale, state), do: {:noreply, state}
 
   defp startable(nil, _id), do: {:error, :no_session}
@@ -529,6 +539,9 @@ defmodule Voyager.Services.Tracer do
 
   defp stop_tracer(node, tracer),
     do: Agent.call(node, :trace_stop, [tracer], Agent.default_timeout())
+
+  defp stop_tracer_async(node, tracer),
+    do: Task.Supervisor.start_child(Voyager.TaskSupervisor, fn -> stop_tracer(node, tracer) end)
 
   defp validate_entries_opt!(:order, order) when order in [:asc, :desc], do: :ok
   defp validate_entries_opt!(:limit, limit) when is_integer(limit) and limit >= 1, do: :ok
@@ -672,10 +685,7 @@ defmodule Voyager.Services.Tracer do
   end
 
   defp request_stop(%{session: session, run: %Run{stop_request: nil}} = state, reason) do
-    Task.Supervisor.start_child(Voyager.TaskSupervisor, fn ->
-      stop_tracer(session.node, session.tracer)
-    end)
-
+    stop_tracer_async(session.node, session.tracer)
     put_stop_request(state, reason, nil)
   end
 

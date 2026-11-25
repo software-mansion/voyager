@@ -566,6 +566,23 @@ defmodule Voyager.Services.TracerTest do
     assert :ok = Tracer.stop(:ui, id)
   end
 
+  test "stops a tracer that reports to it without being its session's, as after a start timeout" do
+    {:ok, config} =
+      %{module: "Elixir.Date", function: "leap_year?", processes: :all, max_time_ms: 60_000}
+      |> Config.changeset()
+      |> Ecto.Changeset.apply_action(:validate)
+
+    {spec, limits} = Config.to_agent(config, [])
+
+    {:ok, {:ok, orphan}} =
+      Voyager.Agent.call(node(), :trace_start, [Process.whereis(Tracer), spec, limits], 5_000)
+
+    ref = Process.monitor(orphan)
+
+    assert_receive {:DOWN, ^ref, :process, ^orphan, :normal}, 1_000
+    assert %{status: :idle} = Tracer.active()
+  end
+
   test "configuring a stopped session sets it back to idle, leaving the stop to its run" do
     assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
     assert {:ok, _session} = configure(%{max_events: 1})
