@@ -86,26 +86,21 @@ defmodule Voyager.Queries.TraceEntries do
     |> Kernel.+(1)
   end
 
-  @doc "The `Voyager.Services.Tracer.Summary` of the session's trace events."
-  @spec summary(integer()) :: Summary.t()
-  def summary(session_id) do
-    events = where(TraceEvent, [e], e.session_id == ^session_id)
+  @doc """
+  The `Summary` of the whole session and of its traces since the last `:started` entry
+  (empty if it never started), read in one transaction so concurrent writes cannot skew them.
+  """
+  @spec summaries(integer()) :: %{session: Summary.t(), last_run: Summary.t()}
+  def summaries(session_id) do
+    {:ok, summaries} =
+      Repo.transact(fn ->
+        events = where(TraceEvent, [e], e.session_id == ^session_id)
+        session = summarize(events)
+        last_run = last_run(events, session, Repo.one(last_start(session_id)))
+        {:ok, %{session: session, last_run: last_run}}
+      end)
 
-    counts =
-      events
-      |> group_by([e], e.type)
-      |> select([e], {e.type, count(e.id)})
-      |> Repo.all()
-      |> Map.new()
-
-    %Summary{
-      calls: Map.get(counts, :call, 0),
-      returns: Map.get(counts, :return, 0),
-      exceptions: Map.get(counts, :exception, 0),
-      functions: function_calls(events),
-      processes: process_calls(events),
-      slowest: slowest(events)
-    }
+    summaries
   end
 
   @doc """
@@ -138,6 +133,38 @@ defmodule Voyager.Queries.TraceEntries do
     |> run_events(run)
     |> select([e], {count(e.id), max(e.at)})
     |> Repo.one()
+  end
+
+  defp last_run(_events, _session, nil), do: %Summary{}
+
+  defp last_run(events, session, last_start) do
+    if Repo.exists?(where(events, [e], e.seq < ^last_start)),
+      do: events |> where([e], e.seq >= ^last_start) |> summarize(),
+      else: session
+  end
+
+  defp last_start(session_id) do
+    from s in TraceSessionEvent,
+      where: s.session_id == ^session_id and s.kind == :started,
+      select: max(s.seq)
+  end
+
+  defp summarize(events) do
+    counts =
+      events
+      |> group_by([e], e.type)
+      |> select([e], {e.type, count(e.id)})
+      |> Repo.all()
+      |> Map.new()
+
+    %Summary{
+      calls: Map.get(counts, :call, 0),
+      returns: Map.get(counts, :return, 0),
+      exceptions: Map.get(counts, :exception, 0),
+      functions: function_calls(events),
+      processes: process_calls(events),
+      slowest: slowest(events)
+    }
   end
 
   defp run_events(session_id, run) do

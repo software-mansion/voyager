@@ -375,4 +375,35 @@ defmodule Voyager.Services.Tracer.OverviewTest do
 
     {controls, Enum.reverse(timestamps)}
   end
+
+  test "runs/3 pairs controls into runs, each with its config and its own traces and drops" do
+    args_config = %{@first | capture: :args}
+
+    controls = [
+      %{seq: 5, kind: :started, at: 30_000_000, origin: :mcp},
+      %{seq: 4, kind: :configured, at: 25_000_000, origin: :ui, node: :a@host, config: args_config},
+      %{
+        seq: 3,
+        kind: :stopped,
+        at: 15_000_000,
+        origin: :ui,
+        reason: :stopped,
+        traces: 80,
+        dropped: 2
+      },
+      %{seq: 1, kind: :started, at: 5_000_000, origin: :ui},
+      %{seq: 0, kind: :configured, at: 1_000_000, origin: :ui, node: :a@host, config: @first}
+    ]
+
+    session =
+      session(config: args_config, status: :running, traces: 100, run_traces_before: 80, dropped: 5)
+
+    assert [first, second] = Overview.runs(controls, session, DateTime.from_unix!(40, :second))
+
+    assert %{index: 1, reason: :stopped, duration_ms: 10_000, traces: 80, dropped: 2} = first
+    assert %{config: @first, previous_config: nil} = first
+
+    assert %{index: 2, reason: :running, duration_ms: 10_000, traces: 20, dropped: 3} = second
+    assert %{origin: :mcp, config: ^args_config, previous_config: @first} = second
+  end
 end

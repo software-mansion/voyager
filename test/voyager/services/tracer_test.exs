@@ -518,26 +518,34 @@ defmodule Voyager.Services.TracerTest do
         run_named(id, :z_name, ~D[2024-01-01])
         run_named(id, :a_name, ~D[2023-01-01])
 
-        assert {:ok, %{summary: summary}} = Tracer.overview(id)
+        assert {:ok, %{summary: summary, last_run_summary: last_run}} = Tracer.overview(id)
+        assert [%{duration_us: slowest}, %{duration_us: next}] = summary.slowest
+        assert is_integer(slowest) and is_integer(next) and slowest >= next
+        active = %{summary: comparable(summary), last_run_summary: comparable(last_run)}
         assert {:ok, _session} = Tracer.create(:ui)
 
         if save do
-          assert {:ok, %{summary: from_db}} = Tracer.overview(id)
-          assert comparable(from_db) == comparable(summary)
+          assert {:ok, %{summary: from_db, last_run_summary: last_from_db}} = Tracer.overview(id)
+
+          assert %{summary: comparable(from_db), last_run_summary: comparable(last_from_db)} ==
+                   active
         end
 
-        comparable(summary)
+        active
       end
 
     assert [unsaved, saved] = summaries
     assert unsaved == saved
 
     assert %{calls: 2, returns: 2, exceptions: 0, functions: %{{Date, :leap_year?, 1} => 2}} =
-             saved
+             saved.summary
 
-    assert %{slowest: [_, _]} = saved
-    assert [{pid, {:a_name, 2}}] = Map.to_list(saved.processes)
+    assert %{slowest: [_, _]} = saved.summary
+    assert [{pid, {:a_name, 2}}] = Map.to_list(saved.summary.processes)
     assert pid == self()
+
+    assert %{calls: 1, returns: 1, slowest: [_], processes: %{^pid => {:a_name, 1}}} =
+             saved.last_run_summary
   end
 
   test "overview/1 returns runs, activity slices and summary for unsaved and saved sessions" do
@@ -624,10 +632,15 @@ defmodule Voyager.Services.TracerTest do
     assert {:ok, _session} = Tracer.create(:ui)
     assert {:ok, _session} = Tracer.load(id)
 
+    assert {:ok, %{summary: %{calls: 1}, last_run_summary: %{calls: 1}}} = Tracer.overview(id)
+
     run_named(id, :second_run, ~D[2023-01-01])
 
-    assert {:ok, %{summary: %{calls: 2, functions: %{{Date, :leap_year?, 1} => 2}}}} =
-             Tracer.overview(id)
+    assert {:ok,
+            %{
+              summary: %{calls: 2, functions: %{{Date, :leap_year?, 1} => 2}},
+              last_run_summary: %{calls: 1}
+            }} = Tracer.overview(id)
   end
 
   for save <- [true, false] do
@@ -665,8 +678,54 @@ defmodule Voyager.Services.TracerTest do
     assert Enum.sum(segment.counts) == 4
   end
 
-  defp comparable(summary),
-    do: %{summary | slowest: Enum.map(summary.slowest, &Map.take(&1, [:type, :mfa, :pid]))}
+  test "lists a session's runs the same from memory and from the database" do
+    runs =
+      for save <- [false, true] do
+        assert {:ok, %{id: id}} = Tracer.create(:ui, save: save)
+        assert {:ok, _session} = configure(%{return_trace: true, max_events: 2})
+        run_named(id, :first_run, ~D[2024-01-01])
+        assert {:ok, _session} = configure(%{capture: :arity, return_trace: true, max_events: 2})
+        run_named(id, :second_run, ~D[2023-01-01])
+
+        assert {:ok, runs} = Tracer.runs(id)
+        Enum.map(runs, &Map.take(&1, [:index, :reason, :traces, :dropped, :config]))
+      end
+
+    assert [unsaved, saved] = runs
+    assert unsaved == saved
+
+    assert [
+             %{index: 1, reason: :event_limit, traces: 2, config: %{capture: :args}},
+             %{index: 2, reason: :event_limit, traces: 2, config: %{capture: :arity}}
+           ] = saved
+
+    assert {:error, :not_found} = Tracer.runs(-1)
+  end
+
+  test "counts a saved run that crashed before its stop entry was written" do
+    assert {:ok, %{id: id}} = TraceSessionActions.create(%{origin: :ui, status: :stopped})
+
+    TraceEntryActions.insert_all(id, [
+      %{seq: 0, kind: :started, at: 1_000_000, origin: :ui},
+      trace_row(1, 2_000_000),
+      trace_row(2, 8_000_000),
+      %{seq: 3, kind: :started, at: 20_000_000, origin: :ui},
+      trace_row(4, 22_000_000),
+      %{
+        seq: 5,
+        kind: :stopped,
+        at: 30_000_000,
+        origin: :ui,
+        reason: :stopped,
+        traces: 1,
+        dropped: 0
+      }
+    ])
+
+    assert {:ok, [crashed, later]} = Tracer.runs(id)
+    assert %{stopped_at: nil, reason: :interrupted, traces: 2, duration_ms: 7_000} = crashed
+    assert %{reason: :stopped, traces: 1} = later
+  end
 
   defp trace_row(seq, at) do
     %{
@@ -679,6 +738,9 @@ defmodule Voyager.Services.TracerTest do
       at: at
     }
   end
+
+  defp comparable(summary),
+    do: %{summary | slowest: Enum.map(summary.slowest, &Map.take(&1, [:type, :mfa, :pid]))}
 
   defp run_named(id, name, date) do
     Process.register(self(), name)

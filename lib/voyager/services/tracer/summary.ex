@@ -4,9 +4,8 @@ defmodule Voyager.Services.Tracer.Summary do
   exceptions, and the slowest timed events.
 
   `functions` maps an mfa to its calls, `processes` a pid to `{process, calls}`.
-  Both cap at `max_keys/0` so a session over many short-lived processes stays bounded
-  (`add/2` keeps the first seen, saved queries keep the top by count); `calls` still
-  counts every call.
+  Both stay within `max_keys/0`: a full map keeps its busiest half, so a busy newcomer still
+  gets in and a dropped key counts again from 1; `calls` still counts every call.
   """
 
   alias Voyager.Services.Tracer.Entry
@@ -67,7 +66,18 @@ defmodule Voyager.Services.Tracer.Summary do
   defp bump(counts, key, _update, initial) when map_size(counts) < @max_keys,
     do: Map.put(counts, key, initial)
 
-  defp bump(counts, _key, _update, _initial), do: counts
+  defp bump(counts, key, update, initial),
+    do: counts |> keep_busiest() |> bump(key, update, initial)
+
+  defp keep_busiest(counts) do
+    counts
+    |> Enum.sort_by(fn {_key, value} -> calls(value) end, :desc)
+    |> Enum.take(div(@max_keys, 2))
+    |> Map.new()
+  end
+
+  defp calls({_process, calls}), do: calls
+  defp calls(calls), do: calls
 
   defp track_slowest(summary, %{duration_us: duration} = entry) when is_integer(duration) do
     slowest =
