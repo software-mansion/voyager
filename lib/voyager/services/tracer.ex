@@ -383,10 +383,12 @@ defmodule Voyager.Services.Tracer do
       when is_integer(id) and id != active,
       do: {:reply, {:error, :changed}, state}
 
-  def handle_call({:configure, node, config, origin, _id}, _from, state) do
+  def handle_call({:configure, node, config, origin, _id}, _from, %{session: session} = state) do
+    idle = %{session | node: node, config: config, status: :idle, stop_reason: nil}
+
     state =
-      %{state | session: %{state.session | node: node, config: config, status: :idle}}
-      |> append([Entry.configured(origin, node, config, state.session.config)])
+      %{state | session: idle}
+      |> append([Entry.configured(origin, node, config, session.config)])
 
     {:reply, {:ok, state.session}, state}
   end

@@ -566,13 +566,19 @@ defmodule Voyager.Services.TracerTest do
     assert :ok = Tracer.stop(:ui, id)
   end
 
-  test "configuring a stopped session sets it back to idle" do
-    assert {:ok, %{id: id}} = configure(%{max_events: 1})
+  test "configuring a stopped session sets it back to idle, leaving the stop to its run" do
+    assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
+    assert {:ok, _session} = configure(%{max_events: 1})
     assert {:ok, _session} = Tracer.start(:ui)
     Date.leap_year?(~D[2024-01-01])
     assert_receive {:session_entries, %{id: ^id, status: :stopped}, _entries}
 
-    assert {:ok, %{status: :idle}} = configure(%{max_events: 2})
+    assert {:ok, %{status: :idle, stop_reason: nil, stopped_at: %DateTime{}}} =
+             configure(%{max_events: 2})
+
+    Writer.flush()
+    assert %{status: :idle, stop_reason: nil} = TraceSessionQueries.get(id)
+    assert {:ok, [%{reason: :event_limit, stopped_at: %DateTime{}}]} = Tracer.runs(id)
   end
 
   test "lists a session's runs the same from memory and from the database" do
