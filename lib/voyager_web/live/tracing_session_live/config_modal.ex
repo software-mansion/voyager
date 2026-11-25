@@ -21,6 +21,7 @@ defmodule VoyagerWeb.TracingSessionLive.ConfigModal do
 
   def config_modal(assigns) do
     form = assigns.form
+    selected = to_string(form[:processes].value)
 
     assigns =
       assign(assigns,
@@ -29,8 +30,10 @@ defmodule VoyagerWeb.TracingSessionLive.ConfigModal do
           form
           | errors: Enum.filter(form.errors, fn {field, _} -> used_input?(form[field]) end)
         },
+        # Pids kept for another process set stay out of the config, so they change nothing.
+        changed?: Enum.any?(Map.keys(form.source.changes), &(&1 != :pids or selected == "pids")),
         processes: @processes,
-        selected: to_string(form[:processes].value),
+        selected: selected,
         return_trace?: Form.normalize_value("checkbox", form[:return_trace].value)
       )
 
@@ -263,7 +266,7 @@ defmodule VoyagerWeb.TracingSessionLive.ConfigModal do
               name="action"
               value="save"
               disabled={@pending?}
-              class="btn"
+              class={["btn", @changed? && "btn-success dark:text-base-100"]}
             >
               Save
             </button>

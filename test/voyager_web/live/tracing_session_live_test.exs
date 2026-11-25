@@ -477,6 +477,52 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     refute has_element?(view, "#config_pids.input-error")
   end
 
+  test "turns the save green once a parameter differs from the session's", %{conn: conn} do
+    %{id: id} = create!()
+    {:ok, _session} = configure()
+    view = open(conn, id)
+
+    view
+    |> element("#session-edit")
+    |> render_click()
+
+    refute has_element?(view, "#config-save.btn-success")
+
+    view
+    |> form("#config-form", config: %{module: "Enum"})
+    |> render_change()
+
+    assert has_element?(view, "#config-save.btn-success")
+
+    view
+    |> form("#config-form", config: %{module: "Date"})
+    |> render_change()
+
+    refute has_element?(view, "#config-save.btn-success")
+  end
+
+  test "does not count pids typed for another process set as a change", %{conn: conn} do
+    %{id: id} = create!()
+    {:ok, _session} = configure(%{processes: :all, pids: []})
+    view = open(conn, id)
+
+    view
+    |> element("#session-edit")
+    |> render_click()
+
+    view
+    |> form("#config-form", config: %{processes: "pids", pids: "<0.1.0>"})
+    |> render_change()
+
+    assert has_element?(view, "#config-save.btn-success")
+
+    view
+    |> form("#config-form", config: %{processes: "all"})
+    |> render_change()
+
+    refute has_element?(view, "#config-save.btn-success")
+  end
+
   test "keeps the typed pids while another process set is picked", %{conn: conn} do
     %{id: id} = create!()
     view = open(conn, id)

@@ -249,9 +249,9 @@ defmodule VoyagerWeb.TracingSessionLive do
   def handle_event(
         "validate-config",
         %{"config" => attrs},
-        %{assigns: %{config_form: %Phoenix.HTML.Form{}}} = socket
+        %{assigns: %{config_form: %Phoenix.HTML.Form{} = form}} = socket
       ) do
-    changeset = TraceConfigParams.changeset(%TraceConfigParams{}, attrs)
+    changeset = config_changeset(form, attrs)
 
     socket
     |> assign(:config_form, to_form(changeset, as: :config, action: :validate))
@@ -261,9 +261,10 @@ defmodule VoyagerWeb.TracingSessionLive do
   def handle_event(
         "save-config",
         %{"config" => attrs} = params,
-        %{assigns: %{editable?: true, pending: nil, config_form: %Phoenix.HTML.Form{}}} = socket
+        %{assigns: %{editable?: true, pending: nil, config_form: %Phoenix.HTML.Form{} = form}} =
+          socket
       ) do
-    changeset = TraceConfigParams.changeset(%TraceConfigParams{}, attrs)
+    changeset = config_changeset(form, attrs)
 
     socket
     |> assign(:config_form, to_form(changeset, as: :config, action: :validate))
@@ -540,6 +541,10 @@ defmodule VoyagerWeb.TracingSessionLive do
   end
 
   defp sessions_path(%{node_name: node_name}), do: ~p"/node/#{node_name}/tracing"
+
+  # Cast onto the parameters the form opened with, so `changes` holds only the edited fields.
+  defp config_changeset(%Phoenix.HTML.Form{source: opened}, attrs),
+    do: TraceConfigParams.changeset(opened.data, attrs)
 
   defp save_config(socket, {:error, _changeset}, _start?), do: socket
 
