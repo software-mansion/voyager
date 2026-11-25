@@ -1,10 +1,11 @@
 defmodule Voyager.MCP.Tools.CreateTraceSession do
   @moduledoc """
   Proposes a tracing session on the connected node. The user reviews it in a
-  form and the session starts only once they accept; the result carries its
-  `session_id`. A declined or cancelled form returns `declined`, a failed start
-  an error. Only one session runs at a time, and the client must support forms
-  (MCP elicitation).
+  form and the session starts only once they accept; the result is the started
+  session's report, with its `session_id` (negative for an unsaved session) and
+  the config the user accepted. A declined or cancelled form returns `declined`,
+  a failed start an error. Only one session runs at a time, and the client must
+  support forms (MCP elicitation).
 
   `function` prefills the form: `Mod.fun/arity`, `Mod.fun` (any arity) or `Mod`
   (every function), with Erlang modules as `:mod.fun/arity` or `mod:fun/arity`.
@@ -43,6 +44,8 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
   alias Voyager.Services.UsedRequestStates
 
   @form "session"
+  @default_max_events 100
+  @default_max_seconds 60
   # Signed by anubis with a TTL, so an expired or forged answer is refused before `execute/2`.
   @form_state :create_trace_session
 
@@ -51,8 +54,18 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
       description: ~s(Function to trace, e.g. "MyApp.Repo.insert/2". Prefills the form.)
 
     field :return_trace, :boolean, default: false, description: "Also trace return values."
-    field :max_events, :integer, min: 1, max: TraceForm.max_events(), default: 100
-    field :max_seconds, :integer, min: 1, max: TraceForm.max_seconds(), default: 60
+
+    field :max_events, :integer,
+      min: 1,
+      max: TraceForm.max_events(),
+      default: @default_max_events,
+      description: "Default #{@default_max_events}."
+
+    field :max_seconds, :integer,
+      min: 1,
+      max: TraceForm.max_seconds(),
+      default: @default_max_seconds,
+      description: "Default #{@default_max_seconds}."
 
     field :max_rate, :integer,
       min: 1,
@@ -140,10 +153,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
     with {:ok, attrs} <- TraceForm.config_attrs(content),
          {:ok, session} <-
            Tracer.create_and_start(node, attrs, :mcp, save: content["save"] == true) do
-      Response.json(Response.tool(), %{
-        status: "started",
-        session_id: session.id,
-        node: node,
+      TraceReport.reply(session, %{
         next: "Call `trace_watch` to wait for the session to end and read its report"
       })
     else

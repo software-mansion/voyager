@@ -99,10 +99,15 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
     test "starts the accepted session and returns its id", %{pid: pid} do
       content = %{"function" => "Date.leap_year?/1", "pids" => pid, "capture_args" => true}
 
-      %{"status" => "started", "session_id" => id, "next" => next} =
-        %{} |> execute(answered(accept(content))) |> run()
+      %{"status" => "running", "session_id" => id, "next" => next} =
+        report = %{} |> execute(answered(accept(content))) |> run()
 
       assert next =~ "trace_watch"
+      assert id < 0
+
+      assert %{"target" => "Date.leap_year?/1", "capture" => "args", "processes" => [^pid]} =
+               report
+
       assert %{id: ^id, origin: :mcp, status: :running, config: config} = Tracer.active()
 
       assert %{module: "Elixir.Date", function: "leap_year?", arity: 1, capture: :args} = config
@@ -111,7 +116,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
 
     test "keeps the Elixir prefix of a fully qualified module", %{pid: pid} do
       content = %{"function" => "Elixir.Date.leap_year?/1", "pids" => pid}
-      %{"status" => "started"} = %{} |> execute(answered(accept(content))) |> run()
+      %{"status" => "running"} = %{} |> execute(answered(accept(content))) |> run()
 
       assert %{module: "Elixir.Date", function: "leap_year?", arity: 1} = Tracer.active().config
     end
@@ -119,7 +124,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
     test "parses Erlang functions and traces all processes without pids" do
       Code.ensure_loaded!(:calendar)
       content = %{"function" => "calendar:is_leap_year/1", "pids" => " "}
-      %{"status" => "started"} = %{} |> execute(answered(accept(content))) |> run()
+      %{"status" => "running"} = %{} |> execute(answered(accept(content))) |> run()
 
       assert %{module: "calendar", function: "is_leap_year", processes: :all, capture: :arity} =
                Tracer.active().config
@@ -156,7 +161,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
         "save" => true
       }
 
-      %{"status" => "started", "session_id" => id} =
+      %{"status" => "running", "session_id" => id} =
         %{} |> execute(answered(accept(content))) |> run()
 
       assert %{id: ^id, save: true, config: %{scope: :local, processes: :new}} = Tracer.active()
@@ -210,14 +215,14 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
 
     test "reads max_seconds sent as a string", %{pid: pid} do
       content = %{"function" => "Date", "pids" => pid, "max_seconds" => "60"}
-      %{"status" => "started"} = %{} |> execute(answered(accept(content))) |> run()
+      %{"status" => "running"} = %{} |> execute(answered(accept(content))) |> run()
 
       assert %{max_time_ms: 60_000} = Tracer.active().config
     end
 
     test "asks again for a form state already answered", %{pid: pid} do
       frame = answered(accept(%{"function" => "Date", "pids" => pid}))
-      %{"status" => "started", "session_id" => id} = %{} |> execute(frame) |> run()
+      %{"status" => "running", "session_id" => id} = %{} |> execute(frame) |> run()
 
       Tracer.stop(:ui)
       _ = :sys.get_state(Tracer)
@@ -259,7 +264,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
     end
 
     test "refuses while another session runs", %{pid: pid} do
-      %{"status" => "started"} =
+      %{"status" => "running"} =
         %{}
         |> execute(answered(accept(%{"function" => "Date", "pids" => pid})))
         |> run()
