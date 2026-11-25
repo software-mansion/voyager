@@ -461,6 +461,21 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#config_pids.input-error")
   end
 
+  test "keeps the revealed pids input unmarked until it is used", %{conn: conn} do
+    %{id: id} = create!()
+    view = open(conn, id)
+
+    view
+    |> element("#session-set-parameters")
+    |> render_click()
+
+    view
+    |> form("#config-form", config: %{processes: "pids", module: "Date"})
+    |> render_change(%{config: %{_unused_pids: ""}})
+
+    refute has_element?(view, "#config_pids.input-error")
+  end
+
   test "keeps the typed pids while another process set is picked", %{conn: conn} do
     %{id: id} = create!()
     view = open(conn, id)

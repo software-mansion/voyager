@@ -20,10 +20,14 @@ defmodule VoyagerWeb.TracingSessionLive.ConfigModal do
   attr :on_cancel, :string, required: true
 
   def config_modal(assigns) do
+    pids = assigns.form[:pids]
+
     assigns =
       assign(assigns,
         processes: @processes,
         selected: to_string(assigns.form[:processes].value),
+        # "Selected processes" reveals an empty pids input; its error waits for typing or a submit.
+        pids: if(used_input?(pids), do: pids, else: %{pids | errors: []}),
         return_trace?: Form.normalize_value("checkbox", assigns.form[:return_trace].value)
       )
 
@@ -35,7 +39,7 @@ defmodule VoyagerWeb.TracingSessionLive.ConfigModal do
       aria-labelledby="config-modal-title"
       phx-window-keydown={@on_cancel}
       phx-key="Escape"
-      class="modal modal-open"
+      class="modal modal-middle modal-open"
     >
       <.focus_wrap
         id="config-modal-box"
@@ -111,7 +115,7 @@ defmodule VoyagerWeb.TracingSessionLive.ConfigModal do
                 </label>
               </div>
               <div class={["mt-4", @selected != "pids" && "hidden"]}>
-                <.field field={@form[:pids]} label="Pids" placeholder="<0.123.0>, <0.456.0>" />
+                <.field field={@pids} label="Pids" placeholder="<0.123.0>, <0.456.0>" />
               </div>
             </section>
 
@@ -162,7 +166,7 @@ defmodule VoyagerWeb.TracingSessionLive.ConfigModal do
             </section>
 
             <section>
-              <.section_title>Stop after</.section_title>
+              <.section_title hint="At least one is required">Stop after</.section_title>
               <div class="grid grid-cols-3 gap-4">
                 <.field field={@form[:max_events]} label="Max events" type="number" min="1" />
                 <.field field={@form[:max_rate]} label="Max events / s" type="number" min="1" />
@@ -178,7 +182,6 @@ defmodule VoyagerWeb.TracingSessionLive.ConfigModal do
                   />
                 </div>
               </div>
-              <p class="text-base-content/60 mt-2 text-xs">At least one is required.</p>
             </section>
 
             <section>
@@ -282,13 +285,17 @@ defmodule VoyagerWeb.TracingSessionLive.ConfigModal do
     """
   end
 
+  attr :hint, :string, default: nil
   slot :inner_block, required: true
 
   defp section_title(assigns) do
     ~H"""
-    <h3 class="font-mono tracking-label text-base-content/60 mb-2 text-xs font-semibold uppercase">
-      {render_slot(@inner_block)}
-    </h3>
+    <div class="mb-2 flex items-baseline gap-2">
+      <h3 class="font-mono tracking-label text-base-content/60 text-xs font-semibold uppercase">
+        {render_slot(@inner_block)}
+      </h3>
+      <span :if={@hint} class="text-base-content/60 text-xs">{@hint}</span>
+    </div>
     """
   end
 

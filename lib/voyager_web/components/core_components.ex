@@ -800,7 +800,13 @@ defmodule VoyagerWeb.CoreComponents do
           {@rest}
         />
         <span id={"#{@unit_field.id}-label"} class="sr-only">Unit</span>
-        <.select field={@unit_field} options={@units} align={:end} class="w-16 shrink-0" ghost />
+        <.select
+          field={@unit_field}
+          options={@units}
+          align={:end}
+          class="border-base-content/10 w-16 shrink-0 border-l"
+          ghost
+        />
       </div>
       <p :for={error <- @errors} class="font-mono text-error mt-1.5 text-xs first-letter:uppercase">
         {error}
