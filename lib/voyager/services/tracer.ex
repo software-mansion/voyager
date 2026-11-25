@@ -351,7 +351,7 @@ defmodule Voyager.Services.Tracer do
     session = %{new_session(origin, false) | node: node, config: config}
 
     case start_tracer(session, spec, limits) do
-      {:ok, tracer} ->
+      {:ok, tracer, clock_offset_us} ->
         prune_unconfigured(state.session)
         broadcast({:session_activated, session})
 

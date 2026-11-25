@@ -296,7 +296,31 @@ defmodule Voyager.TraceSessionsTest do
     assert TraceSessionQueries.find_listed(saved.id + 999, "all") == nil
   end
 
-  test "activity/2 buckets saved trace rows in SQLite to match Overview.activity/2" do
+  test "returns nil config for a stored row whose config no longer matches the schema" do
+    stale =
+      Repo.insert!(%TraceSession{
+        origin: :ui,
+        status: :stopped,
+        node: "a@host",
+        config: %{"module" => "Elixir.Date", "processes" => "everything"}
+      })
+
+    Repo.insert!(%Voyager.Schemas.TraceSessionEvent{
+      session_id: stale.id,
+      seq: 0,
+      kind: :configured,
+      at: ~U[2026-01-01 00:00:00.000000Z],
+      origin: :ui,
+      node: "a@host",
+      config: %{"module" => "Elixir.Date", "arity" => "x"}
+    })
+
+    assert %{rows: [%{id: id, config: nil}]} = TraceSessionQueries.page(limit: 10)
+    assert id == stale.id
+    assert [%{kind: :configured, config: nil}] = TraceEntryQueries.controls(stale.id)
+  end
+
+  test "activity/3 buckets saved trace rows in SQLite to match Overview.activity/2" do
     %{id: id} = session!(:stopped)
 
     controls = [
