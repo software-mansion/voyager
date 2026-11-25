@@ -6,6 +6,7 @@ defmodule Voyager.MCP.Tools.TraceConfigureTest do
   alias Anubis.Server.InputRequired
   alias Voyager.Fakes
   alias Voyager.MCP.Tools.TraceConfigure
+  alias Voyager.MCP.Tools.TraceForm
   alias Voyager.NodeSession
 
   @stateless Anubis.Protocol.V2026_07_28
@@ -55,6 +56,27 @@ defmodule Voyager.MCP.Tools.TraceConfigureTest do
              json!(execute(%{"session_id" => saved}, answered(saved, accept(content))))
 
     assert %{id: ^saved, save: true} = Tracer.active()
+  end
+
+  test "says a failed configure of a saved session discarded the unsaved one it replaced" do
+    %{id: saved} = configure(%{}, save: true)
+    %{id: unsaved} = configure()
+    {:ok, _session} = Tracer.start(:ui)
+    trace_calls(1)
+    Tracer.stop(:ui)
+    assert_receive {:session_entries, %{id: ^unsaved, status: :stopped}, _entries}
+
+    frame = answered(saved, accept(%{"function" => "Date.leap_year?/1", "pids" => pid()}))
+    Application.put_env(:voyager, :erpc, Voyager.ErpcMock)
+
+    Mox.expect(Voyager.ErpcMock, :call, fn _node, :lists, :map, _args, _timeout ->
+      :erlang.error({:erpc, :noconnection})
+    end)
+
+    message = error!(execute(%{"session_id" => saved}, frame))
+
+    assert message =~ "unsaved session #{unsaved} and its 2 events were discarded"
+    assert %{id: ^saved} = Tracer.active()
   end
 
   test "asks again for an answer meant for another session" do
@@ -132,8 +154,8 @@ defmodule Voyager.MCP.Tools.TraceConfigureTest do
 
   defp answered(id, answer) do
     state =
-      {:trace_configure, node(), NodeSession.current().connected_at, id, "",
-       System.unique_integer()}
+      {:trace_configure, node(), NodeSession.current().connected_at, id,
+       TraceForm.discard_warning(Tracer.active(), id), System.unique_integer()}
 
     frame(%{"session" => answer}, state)
   end

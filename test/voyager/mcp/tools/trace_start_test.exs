@@ -44,6 +44,23 @@ defmodule Voyager.MCP.Tools.TraceStartTest do
     assert %{"runs" => [_, %{"reason" => "running"}]} = report
   end
 
+  test "says a failed start of a saved session discarded the unsaved one it replaced" do
+    %{id: saved} =
+      configure(%{module: "Elixir.Voyager.Missing", function: "_", arity: nil}, save: true)
+
+    %{id: unsaved} = configure()
+    {:ok, _session} = Tracer.start(:ui)
+    trace_calls(1)
+    Tracer.stop(:ui)
+    assert_receive {:session_entries, %{id: ^unsaved, status: :stopped}, _entries}
+
+    message = error!(TraceStart.execute(%{session_id: saved}, %Frame{}))
+
+    assert message =~ "Voyager.Missing is not loaded"
+    assert message =~ "unsaved session #{unsaved} and its 2 events were discarded"
+    assert %{id: ^saved, status: :idle} = Tracer.active()
+  end
+
   test "refuses an unknown session id" do
     configure()
     assert error!(TraceStart.execute(%{session_id: 424_242}, %Frame{})) =~ "No tracing session"

@@ -143,12 +143,17 @@ defmodule Voyager.MCP.Tools.TraceConfigure do
 
   defp configure(%{id: id} = session, node, content) do
     with {:ok, attrs} <- TraceForm.config_attrs(content, session.config || %Config{}),
-         {:ok, _active, notes} <- TraceStart.activate(id),
-         {:ok, session} <- Tracer.configure(node, attrs, :mcp, id) do
-      TraceReport.reply(
-        session,
-        Map.put(notes, :next, "Call `trace_start` or `trace_watch` to run it")
-      )
+         {:ok, _active, notes} <- TraceStart.activate(id) do
+      case Tracer.configure(node, attrs, :mcp, id) do
+        {:ok, session} ->
+          TraceReport.reply(
+            session,
+            Map.put(notes, :next, "Call `trace_start` or `trace_watch` to run it")
+          )
+
+        {:error, reason} ->
+          TraceReport.error(reason, notes)
+      end
     else
       {:error, reason} -> TraceReport.error(reason)
     end

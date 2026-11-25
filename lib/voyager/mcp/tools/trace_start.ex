@@ -37,15 +37,18 @@ defmodule Voyager.MCP.Tools.TraceStart do
 
   @doc """
   Starts session `id`, or the active one when nil, on the node Voyager is connected to.
-  `notes` holds `discarded` when an unsaved active session was replaced to load it.
+  `notes` holds `discarded` when an unsaved active session was replaced to load it, and the
+  error says so too when the start then fails.
   """
   @spec start(integer() | nil) :: {:ok, Session.t(), map()} | {:error, String.t()}
   def start(id) do
     with {:ok, session} <- find(id),
          {:ok, session} <- startable(session, NodeSession.current()),
-         {:ok, session, notes} <- activate(session.id),
-         {:ok, session} <- run(session) do
-      {:ok, session, notes}
+         {:ok, session, notes} <- activate(session.id) do
+      case run(session) do
+        {:ok, session} -> {:ok, session, notes}
+        {:error, message} -> {:error, TraceReport.with_notes(message, notes)}
+      end
     end
   end
 

@@ -67,12 +67,20 @@ defmodule Voyager.MCP.Tools.TraceReport do
   def other_node(session_node, connected),
     do: "The session traces #{session_node} but Voyager is connected to #{connected}"
 
-  @spec error(Ecto.Changeset.t() | String.t() | term()) :: Response.t()
-  def error(%Ecto.Changeset{} = changeset),
-    do: Response.error(Response.tool(), "Invalid session: #{TraceForm.format_errors(changeset)}")
+  @doc "The error for `reason`, followed by `notes` such as `TraceStart.activate/1`'s `discarded`."
+  @spec error(Ecto.Changeset.t() | String.t() | term(), map()) :: Response.t()
+  def error(reason, notes \\ %{})
 
-  def error(message) when is_binary(message), do: Response.error(Response.tool(), message)
-  def error(reason), do: Response.error(Response.tool(), start_error(reason))
+  def error(%Ecto.Changeset{} = changeset, notes),
+    do: error("Invalid session: #{TraceForm.format_errors(changeset)}", notes)
+
+  def error(message, notes) when is_binary(message),
+    do: Response.error(Response.tool(), with_notes(message, notes))
+
+  def error(reason, notes), do: error(start_error(reason), notes)
+
+  @spec with_notes(String.t(), map()) :: String.t()
+  def with_notes(message, notes), do: Enum.join([message | Map.values(notes)], ". ")
 
   @spec reply(session(), map()) :: Response.t()
   def reply(session, fields \\ %{}) do
