@@ -26,7 +26,7 @@ defmodule Voyager.MCP.Tools.TraceHistoryTest do
   end
 
   test "lists 20 saved sessions besides the active one, then older ones past the cursor" do
-    for _ <- 1..22, do: {:ok, _session} = Tracer.create(:ui, save: true)
+    for _ <- 1..22, do: configure(%{}, save: true)
 
     assert %{"sessions" => [%{"session_id" => active} | saved], "next_before_id" => before_id} =
              history(%{})
