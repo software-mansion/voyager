@@ -127,9 +127,9 @@ defmodule Voyager.MCP.Tools.TraceForm do
       "function" => function_name(config),
       "capture_args" => config.capture == :args,
       "return_trace" => config.return_trace,
-      "max_events" => config.max_events,
-      "max_seconds" => config.max_time_ms && div(config.max_time_ms, 1_000),
-      "max_rate" => config.max_rate,
+      "max_events" => config.max_events && min(config.max_events, @max_events),
+      "max_seconds" => config.max_time_ms && to_seconds(config.max_time_ms),
+      "max_rate" => config.max_rate && min(config.max_rate, @max_rate),
       "pids" => if(config.processes == :pids, do: Enum.join(config.pids, ", ")),
       "new_processes_only" => config.processes == :new,
       "scope" => Atom.to_string(config.scope)
@@ -152,24 +152,32 @@ defmodule Voyager.MCP.Tools.TraceForm do
     end
   end
 
-  @doc "The `Config` attrs of an accepted form, validated with the form's caps."
-  @spec config_attrs(map()) :: {:ok, map()} | {:error, String.t() | Ecto.Changeset.t()}
-  def config_attrs(content) do
+  @doc """
+  The `Config` attrs of an accepted form, validated with the form's caps. What the form cannot
+  show (`budget`, `:existing` processes, a `max_time_ms` in part seconds) keeps `current`'s value
+  while its field is left as `defaults/1` prefilled it.
+  """
+  @spec config_attrs(map(), Config.t()) ::
+          {:ok, map()} | {:error, String.t() | Ecto.Changeset.t()}
+  def config_attrs(content, current \\ %Config{}) do
     case parse_function(content["function"]) do
       nil ->
         {:error, @function_format}
 
       mfa ->
+        new_only? = content["new_processes_only"] == true
+
         attrs =
           mfa
-          |> Map.merge(processes(content["pids"], content["new_processes_only"] == true))
+          |> Map.merge(processes(content["pids"], new_only?, current))
           |> Map.merge(%{
+            "budget" => current.budget,
             "capture" => if(content["capture_args"] == true, do: "args", else: "arity"),
             "return_trace" => content["return_trace"] == true,
             "scope" => content["scope"] || "global",
             "max_events" => content["max_events"],
             "max_rate" => content["max_rate"],
-            "max_time_ms" => to_ms(content["max_seconds"])
+            "max_time_ms" => max_time_ms(content["max_seconds"], current.max_time_ms)
           })
 
         with {:ok, _config} <- validate(attrs), do: {:ok, attrs}
@@ -214,15 +222,23 @@ defmodule Voyager.MCP.Tools.TraceForm do
 
   defp to_ms(other), do: other
 
-  defp processes(pids, new_only?) when is_binary(pids) do
+  defp to_seconds(ms), do: div(ms + 999, 1_000)
+
+  defp max_time_ms(seconds, current_ms) do
+    ms = to_ms(seconds)
+    if current_ms && ms == to_seconds(current_ms) * 1_000, do: current_ms, else: ms
+  end
+
+  defp processes(pids, new_only?, current) when is_binary(pids) do
     case pids |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == "")) do
-      [] -> processes(nil, new_only?)
+      [] -> processes(nil, new_only?, current)
       pids -> %{"processes" => "pids", "pids" => pids}
     end
   end
 
-  defp processes(_none, true), do: %{"processes" => "new"}
-  defp processes(_none, false), do: %{"processes" => "all"}
+  defp processes(_none, true, _current), do: %{"processes" => "new"}
+  defp processes(_none, false, %Config{processes: :existing}), do: %{"processes" => "existing"}
+  defp processes(_none, false, _current), do: %{"processes" => "all"}
 
   defp parse_function(function) when is_binary(function) do
     function = String.trim(function)

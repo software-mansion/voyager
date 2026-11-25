@@ -22,6 +22,7 @@ defmodule Voyager.MCP.Tools.TraceConfigure do
   alias Voyager.MCP.Tools.TraceStart
   alias Voyager.NodeSession
   alias Voyager.Services.Tracer
+  alias Voyager.Services.Tracer.Config
   alias Voyager.Services.UsedRequestStates
 
   @form "session"
@@ -126,13 +127,13 @@ defmodule Voyager.MCP.Tools.TraceConfigure do
     do: ask(params, session, node, connected_at)
 
   defp answer(:ok, %{"action" => "accept"} = response, _params, session, {node, _connected_at}),
-    do: configure(session.id, node, response["content"] || %{})
+    do: configure(session, node, response["content"] || %{})
 
   defp answer(:ok, _declined, _params, _session, _connection),
     do: Response.json(Response.tool(), %{status: "declined"})
 
-  defp configure(id, node, content) do
-    with {:ok, attrs} <- TraceForm.config_attrs(content),
+  defp configure(%{id: id} = session, node, content) do
+    with {:ok, attrs} <- TraceForm.config_attrs(content, session.config || %Config{}),
          {:ok, _active, notes} <- TraceStart.activate(id),
          {:ok, session} <- Tracer.configure(node, attrs, :mcp, id) do
       TraceReport.reply(
