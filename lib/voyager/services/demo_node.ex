@@ -17,6 +17,7 @@ defmodule Voyager.Services.DemoNode do
   require Logger
 
   @dismissed_key :demo_dismissed
+  @pubsub_topic "demo_node"
   @name ~c"voyager_demo"
   @host ~c"127.0.0.1"
   @node_name "#{@name}@#{@host}"
@@ -58,8 +59,14 @@ defmodule Voyager.Services.DemoNode do
   @spec start() :: {:ok, params()} | {:error, term()}
   def start, do: GenServer.call(__MODULE__, :start, :infinity)
 
+  @spec running?() :: boolean()
+  def running?, do: GenServer.call(__MODULE__, :running?)
+
   @spec node_name() :: String.t()
   def node_name, do: @node_name
+
+  @spec topic() :: String.t()
+  def topic, do: @pubsub_topic
 
   @impl GenServer
   def init(opts) do
@@ -111,6 +118,10 @@ defmodule Voyager.Services.DemoNode do
 
         {:reply, error, state}
     end
+  end
+
+  def handle_call(:running?, _from, state) do
+    {:reply, state.peer != nil, state}
   end
 
   @impl GenServer
@@ -229,6 +240,8 @@ defmodule Voyager.Services.DemoNode do
       measurements: %{duration_ms: since(state.started_ms)},
       metadata: %{reason: reason}
     )
+
+    Phoenix.PubSub.broadcast(Voyager.PubSub, @pubsub_topic, {:demo_stopped, reason})
 
     %{state | peer: nil, node: nil, timer: nil, started_ms: nil}
   end

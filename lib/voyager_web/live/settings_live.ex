@@ -48,7 +48,7 @@ defmodule VoyagerWeb.SettingsLive do
       </div>
 
       <AppearanceSettings.appearance_settings />
-      <DemoSettings.demo_settings connected?={@session != nil} />
+      <DemoSettings.demo_settings session={@session} running?={@demo_running?} />
       <SettingsComponents.choice_setting
         id="pid-format"
         title="PID format"

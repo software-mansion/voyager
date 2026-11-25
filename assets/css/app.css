@@ -37,6 +37,7 @@
   --color-error: #fd6160;
   --color-success: #00bd65;
   --color-info: hsl(210, 100%, 56.27%);
+  --color-info-bg: hsl(212, 100%, 94.71%);
   --color-success-bg: #e0f7ec;
   --color-warning-bg: #fff7e4;
   --color-error-bg: #feecec;

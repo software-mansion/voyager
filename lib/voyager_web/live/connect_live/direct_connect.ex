@@ -36,6 +36,17 @@ defmodule VoyagerWeb.ConnectLive.DirectConnect do
     |> ok()
   end
 
+  def update(%{demo_stopped: true}, socket) do
+    if socket.assigns.form[:node_name].value == DemoNode.node_name() do
+      socket
+      |> assign(:form, empty_form())
+      |> SecretVisibility.reset()
+      |> ok()
+    else
+      {:ok, socket}
+    end
+  end
+
   def update(assigns, socket) when not is_map_key(socket.assigns, :initialized) do
     socket
     |> assign(:id, assigns.id)

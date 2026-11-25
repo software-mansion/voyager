@@ -23,6 +23,7 @@ defmodule VoyagerWeb.Router do
       layout: {VoyagerWeb.Layouts, :connect},
       on_mount: [
         {VoyagerWeb.Hooks.NodeSessionHook, :observe_node_session},
+        {VoyagerWeb.Hooks.DemoNodeHook, :notify_stopped},
         VoyagerWeb.Hooks.OnboardingHook,
         VoyagerWeb.Hooks.AppUpdateHook
       ] do
@@ -34,6 +35,7 @@ defmodule VoyagerWeb.Router do
       session: {VoyagerWeb.Hooks.UrlHook, :referer_session, []},
       on_mount: [
         {VoyagerWeb.Hooks.NodeSessionHook, :observe_node_session},
+        VoyagerWeb.Hooks.DemoNodeHook,
         VoyagerWeb.Hooks.McpStatusHook,
         VoyagerWeb.Hooks.TracingStatusHook,
         VoyagerWeb.Hooks.AppUpdateHook
