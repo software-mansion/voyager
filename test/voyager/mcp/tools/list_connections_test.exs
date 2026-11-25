@@ -86,6 +86,25 @@ defmodule Voyager.MCP.Tools.ListConnectionsTest do
              run()["connections"]
   end
 
+  describe "demo hint" do
+    test "suggests start_demo when nothing is saved" do
+      assert %{"connections" => [], "hint" => hint} = run()
+      assert hint =~ "`start_demo`"
+    end
+
+    test "is left out once a connection is saved" do
+      insert!(%Connection{node_name: "shop@10.0.4.12"}, 0)
+
+      refute Map.has_key?(run(), "hint")
+    end
+
+    test "is left out while connected to a node" do
+      Fakes.put_session(Fakes.node_session(node_name: "voyager_demo@127.0.0.1"))
+
+      assert run() == %{"connections" => []}
+    end
+  end
+
   defp insert!(connection, hours_ago) do
     at = DateTime.utc_now() |> DateTime.add(-hours_ago, :hour) |> DateTime.truncate(:second)
     Repo.insert!(%{connection | last_connected_at: at})

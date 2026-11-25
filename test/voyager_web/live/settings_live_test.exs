@@ -97,6 +97,15 @@ defmodule VoyagerWeb.SettingsLiveTest do
       assert has_element?(view, ~s|a#start-demo-setting[href="/?demo=start"]|)
     end
 
+    test "offers a restart once the demo node starts", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings")
+      refute has_element?(view, "#demo-settings-running")
+
+      send(view.pid, :demo_started)
+
+      assert has_element?(view, "#demo-settings-running a#start-demo-setting")
+    end
+
     test "shows the demo node as connected without a start button", %{conn: conn} do
       Fakes.connect_node!(Fakes.node_session(node_name: DemoNode.node_name()))
 

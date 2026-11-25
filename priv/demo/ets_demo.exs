@@ -77,6 +77,9 @@ defmodule EtsDemo do
     :ets.new(:private_tab, [:set, :named_table, :private])
     :ets.insert(:private_tab, {:secret, 42})
 
+    :ets.new(:protected_config, [:set, :named_table, :protected])
+    :ets.insert(:protected_config, [{:pool_size, 10}, {:timeout, 5_000}, {:region, "eu-west"}])
+
     unnamed = :ets.new(:anon_data, [:set, :public])
     for i <- 1..12, do: :ets.insert(unnamed, {i, {:anon, i}})
 

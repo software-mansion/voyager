@@ -8,7 +8,8 @@ defmodule Voyager.MCP.Tools.ListConnections do
   `needs_user_input` is true when the cookie (or, for SSH password auth, the
   password) is not stored: `connect` then opens Voyager for the user to type it.
   `connected` marks the row Voyager is connected to right now. Secrets are never
-  returned.
+  returned. With no saved connections and no node connected, `hint` suggests
+  `start_demo` to try Voyager on its bundled demo node.
   """
 
   use Anubis.Server.Component, type: :tool
@@ -22,6 +23,8 @@ defmodule Voyager.MCP.Tools.ListConnections do
   alias Voyager.Schemas.SshConnection
   alias Voyager.Services.SavedConnections
 
+  @demo_hint "No saved connections. Call `start_demo` to try Voyager on its bundled demo node."
+
   schema do
   end
 
@@ -34,8 +37,13 @@ defmodule Voyager.MCP.Tools.ListConnections do
       |> Enum.sort_by(&{&1.pinned, DateTime.to_unix(&1.last_connected_at)}, :desc)
       |> Enum.map(&row(&1, session))
 
-    {:reply, Response.json(Response.tool(), %{connections: connections}), frame}
+    payload = put_demo_hint(%{connections: connections}, session)
+    {:reply, Response.json(Response.tool(), payload), frame}
   end
+
+  defp put_demo_hint(%{connections: []} = payload, nil), do: Map.put(payload, :hint, @demo_hint)
+
+  defp put_demo_hint(payload, _session), do: payload
 
   defp row(saved, session) do
     %{

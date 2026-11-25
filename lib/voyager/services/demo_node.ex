@@ -59,6 +59,15 @@ defmodule Voyager.Services.DemoNode do
   @spec start() :: {:ok, params()} | {:error, term()}
   def start, do: GenServer.call(__MODULE__, :start, :infinity)
 
+  @doc "Connects Voyager to the running demo node, without saving it as a connection."
+  @spec connect() :: :ok | {:error, :not_started | term()}
+  def connect do
+    case GenServer.call(__MODULE__, :cookie) do
+      nil -> {:error, :not_started}
+      cookie -> NodeSession.connect(@node_name, cookie, name_type: :longnames)
+    end
+  end
+
   @spec running?() :: boolean()
   def running?, do: GenServer.call(__MODULE__, :running?)
 
@@ -78,6 +87,7 @@ defmodule Voyager.Services.DemoNode do
        peer_opts: Map.new(opts),
        peer: nil,
        node: nil,
+       cookie: nil,
        timer: nil,
        started_ms: nil
      }}
@@ -97,10 +107,13 @@ defmodule Voyager.Services.DemoNode do
           measurements: %{duration_ms: since(boot_ms)}
         )
 
+        Phoenix.PubSub.broadcast(Voyager.PubSub, @pubsub_topic, :demo_started)
+
         state = %{
           state
           | peer: peer,
             node: node,
+            cookie: cookie,
             timer: timer,
             started_ms: System.monotonic_time(:millisecond)
         }
@@ -119,6 +132,8 @@ defmodule Voyager.Services.DemoNode do
         {:reply, error, state}
     end
   end
+
+  def handle_call(:cookie, _from, state), do: {:reply, state.cookie, state}
 
   def handle_call(:running?, _from, state) do
     {:reply, state.peer != nil, state}
@@ -243,7 +258,7 @@ defmodule Voyager.Services.DemoNode do
 
     Phoenix.PubSub.broadcast(Voyager.PubSub, @pubsub_topic, {:demo_stopped, reason})
 
-    %{state | peer: nil, node: nil, timer: nil, started_ms: nil}
+    %{state | peer: nil, node: nil, cookie: nil, timer: nil, started_ms: nil}
   end
 
   defp since(ms), do: System.monotonic_time(:millisecond) - ms
