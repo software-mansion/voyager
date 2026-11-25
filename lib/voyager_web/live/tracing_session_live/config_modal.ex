@@ -20,15 +20,18 @@ defmodule VoyagerWeb.TracingSessionLive.ConfigModal do
   attr :on_cancel, :string, required: true
 
   def config_modal(assigns) do
-    pids = assigns.form[:pids]
+    form = assigns.form
 
     assigns =
       assign(assigns,
+        # The browser marks inputs never typed in as `_unused_`; their errors wait for a submit.
+        form: %{
+          form
+          | errors: Enum.filter(form.errors, fn {field, _} -> used_input?(form[field]) end)
+        },
         processes: @processes,
-        selected: to_string(assigns.form[:processes].value),
-        # "Selected processes" reveals an empty pids input; its error waits for typing or a submit.
-        pids: if(used_input?(pids), do: pids, else: %{pids | errors: []}),
-        return_trace?: Form.normalize_value("checkbox", assigns.form[:return_trace].value)
+        selected: to_string(form[:processes].value),
+        return_trace?: Form.normalize_value("checkbox", form[:return_trace].value)
       )
 
     ~H"""
@@ -44,7 +47,7 @@ defmodule VoyagerWeb.TracingSessionLive.ConfigModal do
       <.focus_wrap
         id="config-modal-box"
         phx-mounted={JS.focus(to: "#config_module")}
-        class="modal-box border-base-300 flex max-w-3xl flex-col border p-0 shadow-2xl"
+        class="modal-box border-base-300 flex max-w-5xl flex-col border p-0 shadow-2xl"
       >
         <.form
           for={@form}
@@ -69,7 +72,7 @@ defmodule VoyagerWeb.TracingSessionLive.ConfigModal do
             </button>
           </div>
 
-          <div class="min-h-0 flex-1 space-y-10 overflow-y-auto px-8 py-7">
+          <div class="min-h-0 flex-1 space-y-10 overflow-y-auto px-8 pt-7 pb-10">
             <section>
               <.section_title>What to trace</.section_title>
               <div class="grid grid-cols-5 gap-4">
@@ -88,154 +91,160 @@ defmodule VoyagerWeb.TracingSessionLive.ConfigModal do
                 <.field field={@form[:arity]} label="Arity" type="number" placeholder="any" min="0" />
               </div>
             </section>
-
-            <section>
-              <.section_title>Where</.section_title>
-              <div class="grid grid-cols-2 gap-3">
-                <label
-                  :for={{value, label, hint} <- @processes}
-                  for={"config_processes_#{value}"}
-                  class={[
-                    "border-base-300 rounded-box flex cursor-pointer gap-3 border p-4",
-                    @selected == value && "border-primary bg-primary/5"
-                  ]}
-                >
-                  <input
-                    type="radio"
-                    id={"config_processes_#{value}"}
-                    name={@form[:processes].name}
-                    value={value}
-                    checked={@selected == value}
-                    class="radio radio-primary radio-sm mt-0.5"
-                  />
-                  <span>
-                    <span class="block text-sm font-medium">{label}</span>
-                    <span class="text-base-content/60 block text-xs">{hint}</span>
-                  </span>
-                </label>
-              </div>
-              <div class={["mt-4", @selected != "pids" && "hidden"]}>
-                <.field field={@pids} label="Pids" placeholder="<0.123.0>, <0.456.0>" />
-              </div>
-            </section>
-
-            <section>
-              <.section_title>Capture</.section_title>
-              <div class="border-base-300 divide-base-300 rounded-box divide-y border">
-                <.capture_row title="Calls record" hint="Arguments cost more than arity.">
-                  <.segmented
-                    name={@form[:capture].name}
-                    value={@form[:capture].value}
-                    size="sm"
-                    options={[
-                      %{value: "arity", label: "Arity", id: "config_capture_arity"},
-                      %{value: "args", label: "Arguments", id: "config_capture_args"}
-                    ]}
-                  />
-                </.capture_row>
-                <.capture_row
-                  title="Which calls"
-                  hint="Global traces calls from other modules. Local also traces calls from inside the module."
-                >
-                  <.segmented
-                    name={@form[:scope].name}
-                    value={@form[:scope].value}
-                    size="sm"
-                    options={[
-                      %{value: "global", label: "Global", id: "config_scope_global"},
-                      %{value: "local", label: "Local", id: "config_scope_local"}
-                    ]}
-                  />
-                </.capture_row>
-                <.capture_row
-                  title="Return values"
-                  hint="Also traces returns and exceptions, which gives call durations."
-                >
-                  <input type="hidden" name={@form[:return_trace].name} value="false" />
-                  <input
-                    type="checkbox"
-                    id={@form[:return_trace].id}
-                    name={@form[:return_trace].name}
-                    value="true"
-                    checked={@return_trace?}
-                    aria-label="Return values"
-                    class="toggle toggle-primary"
-                  />
-                </.capture_row>
-              </div>
-            </section>
-
-            <section>
-              <.section_title hint="At least one is required">Stop after</.section_title>
-              <div class="grid grid-cols-3 gap-4">
-                <.field field={@form[:max_events]} label="Max events" type="number" min="1" />
-                <.field field={@form[:max_rate]} label="Max events / s" type="number" min="1" />
-                <div>
-                  <label for={@form[:max_time].id} class="mb-1 block text-sm font-medium">
-                    Max time
-                  </label>
-                  <.input_with_units
-                    field={@form[:max_time]}
-                    unit_field={@form[:max_time_unit]}
-                    units={["s", "ms"]}
-                    min="1"
-                  />
-                </div>
-              </div>
-            </section>
-
-            <section>
-              <.section_title>Advanced</.section_title>
-              <div class="grid grid-cols-2 gap-4">
-                <div>
-                  <div class="mb-1 flex items-center gap-1.5">
-                    <label for={@form[:budget].id} class="text-sm font-medium">
-                      Max size per captured term
+            <div class="grid gap-x-12 gap-y-12 lg:grid-cols-2">
+              <div class="space-y-10">
+                <section>
+                  <.section_title>Where</.section_title>
+                  <div class="grid grid-cols-2 gap-3">
+                    <label
+                      :for={{value, label, hint} <- @processes}
+                      for={"config_processes_#{value}"}
+                      class={[
+                        "border-base-300 rounded-box flex cursor-pointer gap-3 border p-4",
+                        @selected == value && "border-primary bg-primary/5"
+                      ]}
+                    >
+                      <input
+                        type="radio"
+                        id={"config_processes_#{value}"}
+                        name={@form[:processes].name}
+                        value={value}
+                        checked={@selected == value}
+                        class="radio radio-primary radio-sm mt-0.5"
+                      />
+                      <span>
+                        <span class="block text-sm font-medium">{label}</span>
+                        <span class="text-base-content/60 block text-xs">{hint}</span>
+                      </span>
                     </label>
-                    <.tooltip id="config-budget-tip" position="top" tip_class="max-w-sm">
-                      <button
-                        type="button"
-                        class="text-base-content/60 hover:text-base-content"
-                        aria-label="About the term size limit"
-                      >
-                        <.icon name="icon-circle-help" class="size-3.5" />
-                      </button>
-                      <:content>
-                        <div class="space-y-1.5 text-left text-xs leading-relaxed">
-                          <p>
-                            Caps each captured term on its own: a call's arguments, a return value, an exception.
-                          </p>
-                          <p>
-                            Atoms, small integers, list cells, tuples and map entries cost 1 each. Strings and binaries cost 1 per byte, so a long binary is cut at the limit.
-                          </p>
-                          <p>
-                            What doesn't fit is replaced with a marker, and the event shows as truncated in the log.
-                          </p>
-                          <p>
-                            It only matters when arguments or return values are captured. A higher limit costs the traced node more memory and network. Maximum 100,000.
-                          </p>
-                        </div>
-                      </:content>
-                    </.tooltip>
                   </div>
-                  <.input field={@form[:budget]} type="number" min="0" />
-                </div>
-                <div>
-                  <label
-                    for="config-match-spec"
-                    class="mb-1 flex items-center gap-1.5 text-sm font-medium"
-                  >
-                    Match spec <span class="badge badge-ghost badge-xs">Coming soon</span>
-                  </label>
-                  <input
-                    id="config-match-spec"
-                    disabled
-                    placeholder="fn [a, _] when a > 10 -> :return_trace end"
-                    class="input font-mono w-full"
-                  />
-                </div>
+                  <div class={["mt-4", @selected != "pids" && "hidden"]}>
+                    <.field field={@form[:pids]} label="Pids" placeholder="<0.123.0>, <0.456.0>" />
+                  </div>
+                </section>
+
+                <section>
+                  <.section_title hint="At least one is required">Stop after</.section_title>
+                  <div class="grid grid-cols-3 gap-4">
+                    <.field field={@form[:max_events]} label="Max events" type="number" min="1" />
+                    <.field field={@form[:max_rate]} label="Max events / s" type="number" min="1" />
+                    <div>
+                      <label for={@form[:max_time].id} class="mb-1 block text-sm font-medium">
+                        Max time
+                      </label>
+                      <.input_with_units
+                        field={@form[:max_time]}
+                        unit_field={@form[:max_time_unit]}
+                        units={["s", "ms"]}
+                        min="1"
+                        side={:top}
+                        float_errors
+                      />
+                    </div>
+                  </div>
+                </section>
               </div>
-            </section>
+              <div class="space-y-10">
+                <section>
+                  <.section_title>Capture</.section_title>
+                  <div class="border-base-300 divide-base-300 rounded-box divide-y border">
+                    <.capture_row title="Calls record" hint="Arguments cost more than arity.">
+                      <.segmented
+                        name={@form[:capture].name}
+                        value={@form[:capture].value}
+                        size="sm"
+                        options={[
+                          %{value: "arity", label: "Arity", id: "config_capture_arity"},
+                          %{value: "args", label: "Arguments", id: "config_capture_args"}
+                        ]}
+                      />
+                    </.capture_row>
+                    <.capture_row
+                      title="Which calls"
+                      hint="Global traces calls from other modules. Local also traces calls from inside the module."
+                    >
+                      <.segmented
+                        name={@form[:scope].name}
+                        value={@form[:scope].value}
+                        size="sm"
+                        options={[
+                          %{value: "global", label: "Global", id: "config_scope_global"},
+                          %{value: "local", label: "Local", id: "config_scope_local"}
+                        ]}
+                      />
+                    </.capture_row>
+                    <.capture_row
+                      title="Return values"
+                      hint="Also traces returns and exceptions, which gives call durations."
+                    >
+                      <input type="hidden" name={@form[:return_trace].name} value="false" />
+                      <input
+                        type="checkbox"
+                        id={@form[:return_trace].id}
+                        name={@form[:return_trace].name}
+                        value="true"
+                        checked={@return_trace?}
+                        aria-label="Return values"
+                        class="toggle toggle-primary"
+                      />
+                    </.capture_row>
+                  </div>
+                </section>
+
+                <section>
+                  <.section_title>Advanced</.section_title>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div>
+                      <div class="mb-1 flex items-center gap-1.5">
+                        <label for={@form[:budget].id} class="text-sm font-medium">
+                          Max size per captured term
+                        </label>
+                        <.tooltip id="config-budget-tip" position="top" tip_class="max-w-sm">
+                          <button
+                            type="button"
+                            class="text-base-content/60 hover:text-base-content"
+                            aria-label="About the term size limit"
+                          >
+                            <.icon name="icon-circle-help" class="size-3.5" />
+                          </button>
+                          <:content>
+                            <div class="space-y-1.5 text-left text-xs leading-relaxed">
+                              <p>
+                                Caps each captured term on its own: a call's arguments, a return value, an exception.
+                              </p>
+                              <p>
+                                Atoms, small integers, list cells, tuples and map entries cost 1 each. Strings and binaries cost 1 per byte, so a long binary is cut at the limit.
+                              </p>
+                              <p>
+                                What doesn't fit is replaced with a marker, and the event shows as truncated in the log.
+                              </p>
+                              <p>
+                                It only matters when arguments or return values are captured. A higher limit costs the traced node more memory and network. Maximum 100,000.
+                              </p>
+                            </div>
+                          </:content>
+                        </.tooltip>
+                      </div>
+                      <.input field={@form[:budget]} type="number" min="0" float_errors />
+                    </div>
+                    <div>
+                      <label
+                        for="config-match-spec"
+                        class="mb-1 flex items-center gap-1.5 text-sm font-medium"
+                      >
+                        Match spec <span class="badge badge-ghost badge-xs">Coming soon</span>
+                      </label>
+                      <input
+                        id="config-match-spec"
+                        disabled
+                        placeholder="fn [a, _] when a > 10 -> :return_trace end"
+                        class="input font-mono w-full"
+                      />
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </div>
           </div>
 
           <div class="border-base-200 flex items-center gap-2 border-t px-8 py-4">
@@ -309,7 +318,13 @@ defmodule VoyagerWeb.TracingSessionLive.ConfigModal do
     ~H"""
     <div class={@class}>
       <label for={@field.id} class="mb-1 block text-sm font-medium">{@label}</label>
-      <.input field={@field} type={@type} class={@type == "text" && "font-mono"} {@rest} />
+      <.input
+        field={@field}
+        type={@type}
+        class={@type == "text" && "font-mono"}
+        float_errors
+        {@rest}
+      />
     </div>
     """
   end

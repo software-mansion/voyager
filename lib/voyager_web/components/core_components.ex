@@ -691,6 +691,7 @@ defmodule VoyagerWeb.CoreComponents do
   attr :errors, :list, default: []
   attr :class, :any, default: nil
   attr :field, Phoenix.HTML.FormField
+  attr :float_errors, :boolean, default: false, doc: "errors overlay the space below the input"
 
   attr :rest, :global,
     include:
@@ -754,7 +755,7 @@ defmodule VoyagerWeb.CoreComponents do
 
   def input(assigns) do
     ~H"""
-    <div class="w-full">
+    <div class={["w-full", @float_errors && "relative"]}>
       <input
         type={@type}
         id={@id}
@@ -768,9 +769,7 @@ defmodule VoyagerWeb.CoreComponents do
         ]}
         {@rest}
       />
-      <p :for={error <- @errors} class="font-mono text-error mt-1.5 text-xs first-letter:uppercase">
-        {error}
-      </p>
+      <.field_errors errors={@errors} float={@float_errors} />
     </div>
     """
   end
@@ -783,13 +782,15 @@ defmodule VoyagerWeb.CoreComponents do
   attr :field, Phoenix.HTML.FormField, required: true
   attr :unit_field, Phoenix.HTML.FormField, required: true
   attr :units, :list, required: true
+  attr :side, :atom, default: :bottom, values: [:top, :bottom], doc: "where the unit list opens"
+  attr :float_errors, :boolean, default: false, doc: "errors overlay the space below the input"
   attr :rest, :global, include: ~w(max min placeholder step)
 
   def input_with_units(assigns) do
     assigns = assign(assigns, :errors, Enum.map(assigns.field.errors, &translate_error/1))
 
     ~H"""
-    <div class="w-full">
+    <div class={["w-full", @float_errors && "relative"]}>
       <div class={["input input-bordered w-full pr-1", @errors != [] && "input-error"]}>
         <input
           type="number"
@@ -804,10 +805,22 @@ defmodule VoyagerWeb.CoreComponents do
           field={@unit_field}
           options={@units}
           align={:end}
+          side={@side}
           class="border-base-content/10 w-16 shrink-0 border-l"
           ghost
         />
       </div>
+      <.field_errors errors={@errors} float={@float_errors} />
+    </div>
+    """
+  end
+
+  attr :errors, :list, required: true
+  attr :float, :boolean, required: true
+
+  defp field_errors(assigns) do
+    ~H"""
+    <div :if={@errors != []} class={@float && "absolute top-full left-0 w-full"}>
       <p :for={error <- @errors} class="font-mono text-error mt-1.5 text-xs first-letter:uppercase">
         {error}
       </p>

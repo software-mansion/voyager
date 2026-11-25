@@ -461,7 +461,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#config_pids.input-error")
   end
 
-  test "keeps the revealed pids input unmarked until it is used", %{conn: conn} do
+  test "keeps fields unmarked until they are used", %{conn: conn} do
     %{id: id} = create!()
     view = open(conn, id)
 
@@ -470,9 +470,10 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     |> render_click()
 
     view
-    |> form("#config-form", config: %{processes: "pids", module: "Date"})
-    |> render_change(%{config: %{_unused_pids: ""}})
+    |> form("#config-form", config: %{processes: "pids"})
+    |> render_change(%{config: %{_unused_module: "", _unused_pids: ""}})
 
+    refute has_element?(view, "#config_module.input-error")
     refute has_element?(view, "#config_pids.input-error")
   end
 
