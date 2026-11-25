@@ -377,11 +377,11 @@ defmodule Voyager.Services.Tracer.OverviewTest do
   end
 
   test "runs/3 pairs controls into runs, each with its config and its own traces and drops" do
-    args_config = %{@first | capture: :args}
+    args = %{@first | capture: :args}
 
     controls = [
       %{seq: 5, kind: :started, at: 30_000_000, origin: :mcp},
-      %{seq: 4, kind: :configured, at: 25_000_000, origin: :ui, node: :a@host, config: args_config},
+      %{seq: 4, kind: :configured, at: 25_000_000, origin: :ui, node: :a@host, config: args},
       %{
         seq: 3,
         kind: :stopped,
@@ -396,7 +396,7 @@ defmodule Voyager.Services.Tracer.OverviewTest do
     ]
 
     session =
-      session(config: args_config, status: :running, traces: 100, run_traces_before: 80, dropped: 5)
+      session(config: args, status: :running, traces: 100, run_traces_before: 80, dropped: 5)
 
     assert [first, second] = Overview.runs(controls, session, DateTime.from_unix!(40, :second))
 
@@ -404,6 +404,6 @@ defmodule Voyager.Services.Tracer.OverviewTest do
     assert %{config: @first, previous_config: nil} = first
 
     assert %{index: 2, reason: :running, duration_ms: 10_000, traces: 20, dropped: 3} = second
-    assert %{origin: :mcp, config: ^args_config, previous_config: @first} = second
+    assert %{origin: :mcp, config: ^args, previous_config: @first} = second
   end
 end
