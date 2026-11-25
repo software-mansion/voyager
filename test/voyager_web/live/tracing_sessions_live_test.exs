@@ -913,4 +913,62 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     assert has_element?(view, "#outcome-processes", "2")
     assert has_element?(view, "#overview-functions", "others (1)")
   end
+
+  test "keeps an active unconfigured saved session loaded and deletes it when unloaded", %{
+    conn: conn
+  } do
+    {:ok, %{id: id}} = Tracer.create(:ui, save: true)
+
+    view = open_sessions(conn)
+
+    assert has_element?(view, "#active-session-tile")
+    assert has_element?(view, "#session-card[data-session-id='#{id}']")
+
+    view
+    |> element("#unload-session")
+    |> render_click()
+
+    settle(view)
+
+    refute has_element?(view, "#active-session-tile")
+    refute has_element?(view, "#history-tiles #history-#{id}")
+    assert has_element?(view, "#overview-empty")
+    assert nil == TraceSessionQueries.get(id)
+  end
+
+  test "deletes a non-running active saved session after confirmation", %{conn: conn} do
+    history = insert_saved!()
+    {:ok, %{id: id}} = Tracer.create(:ui, save: true)
+
+    view = open_sessions(conn)
+
+    assert has_element?(view, "#active-session-tile")
+    assert has_element?(view, "#delete-session")
+
+    view
+    |> element("#delete-session")
+    |> render_click()
+
+    assert has_element?(view, "#delete-session-modal", "This session")
+
+    view
+    |> element("#delete-session-modal-confirm")
+    |> render_click()
+
+    settle(view)
+
+    refute has_element?(view, "#active-session-tile")
+    assert has_element?(view, "#session-card[data-session-id='#{history.id}']")
+    assert nil == Tracer.active()
+    assert nil == TraceSessionQueries.get(id)
+  end
+
+  test "hides the delete button for an unsaved active session", %{conn: conn} do
+    {:ok, _session} = Tracer.create(:ui, save: false)
+
+    view = open_sessions(conn)
+
+    assert has_element?(view, "#active-session-tile")
+    refute has_element?(view, "#delete-session")
+  end
 end
