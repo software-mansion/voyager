@@ -48,6 +48,25 @@ defmodule Voyager.MCP.Tools.TraceFormTest do
     assert {:ok, %{"processes" => "all"}} = TraceForm.config_attrs(cleared, current)
   end
 
+  test "refuses an answer that is not an object, or pids that are not a list of them" do
+    for content <- [
+          5,
+          %{"function" => "Date", "pids" => ["<0.1.0>"]},
+          %{"function" => "Date", "pids" => " , "},
+          %{"function" => "Date", "pids" => 1}
+        ] do
+      assert {:error, message} = TraceForm.config_attrs(content)
+      assert message =~ ~r/object|`pids`/
+    end
+
+    assert {:ok, %{"processes" => "pids", "pids" => ["<0.1.0>"]}} =
+             TraceForm.config_attrs(%{
+               "function" => "Date",
+               "pids" => "<0.1.0>,",
+               "max_events" => 1
+             })
+  end
+
   defp config(attrs) do
     %{
       module: "Elixir.Date",

@@ -10,6 +10,7 @@ defmodule Voyager.MCP.Tools.TraceForm do
   @max_seconds 3_600
   @max_rate 1_000
   @function_format ~s(`function` must look like "MyApp.Repo.insert/2", "MyApp.Repo" or ":lists.map/2")
+  @pids_format ~s(`pids` must be pids separated by commas, like "<0.123.0>, <0.456.0>", or empty for all processes)
 
   @elixir_mfa ~r/^((?:[A-Z]\w*\.)*[A-Z]\w*)(?:\.([a-z_]\w*[?!]?))?(?:\/(\d+|_))?$/
   @erlang_mfa ~r/^:?([a-z]\w*)(?:[:.]([a-z_]\w*))?(?:\/(\d+|_))?$/
@@ -49,8 +50,9 @@ defmodule Voyager.MCP.Tools.TraceForm do
   @spec check_function(String.t() | nil) :: :ok | {:error, String.t()}
   def check_function(nil), do: :ok
 
-  def check_function(function),
-    do: if(parse_function(function), do: :ok, else: {:error, @function_format})
+  def check_function(function) do
+    with {:ok, _mfa} <- parse_function(function), do: :ok
+  end
 
   @doc """
   The form's JSON schema, prefilled with `defaults` (string keys, as the form answers).
@@ -157,32 +159,33 @@ defmodule Voyager.MCP.Tools.TraceForm do
   show (`budget`, `:existing` processes, a `max_time_ms` in part seconds) keeps `current`'s value
   while its field is left as `defaults/1` prefilled it.
   """
-  @spec config_attrs(map(), Config.t()) ::
+  @spec config_attrs(term(), Config.t()) ::
           {:ok, map()} | {:error, String.t() | Ecto.Changeset.t()}
-  def config_attrs(content, current \\ %Config{}) do
-    case parse_function(content["function"]) do
-      nil ->
-        {:error, @function_format}
+  def config_attrs(content, current \\ %Config{})
 
-      mfa ->
-        new_only? = content["new_processes_only"] == true
+  def config_attrs(content, current) when is_map(content) do
+    new_only? = content["new_processes_only"] == true
 
-        attrs =
-          mfa
-          |> Map.merge(processes(content["pids"], new_only?, current))
-          |> Map.merge(%{
-            "budget" => current.budget,
-            "capture" => if(content["capture_args"] == true, do: "args", else: "arity"),
-            "return_trace" => content["return_trace"] == true,
-            "scope" => content["scope"] || "global",
-            "max_events" => content["max_events"],
-            "max_rate" => content["max_rate"],
-            "max_time_ms" => max_time_ms(content["max_seconds"], current.max_time_ms)
-          })
+    with {:ok, mfa} <- parse_function(content["function"]),
+         {:ok, processes} <- processes(content["pids"], new_only?, current) do
+      attrs =
+        mfa
+        |> Map.merge(processes)
+        |> Map.merge(%{
+          "budget" => current.budget,
+          "capture" => if(content["capture_args"] == true, do: "args", else: "arity"),
+          "return_trace" => content["return_trace"] == true,
+          "scope" => content["scope"] || "global",
+          "max_events" => content["max_events"],
+          "max_rate" => content["max_rate"],
+          "max_time_ms" => max_time_ms(content["max_seconds"], current.max_time_ms)
+        })
 
-        with {:ok, _config} <- validate(attrs), do: {:ok, attrs}
+      with {:ok, _config} <- validate(attrs), do: {:ok, attrs}
     end
   end
+
+  def config_attrs(_content, _current), do: {:error, "The form's answer is not an object"}
 
   @spec format_errors(Ecto.Changeset.t()) :: String.t()
   def format_errors(changeset) do
@@ -229,16 +232,23 @@ defmodule Voyager.MCP.Tools.TraceForm do
     if current_ms && ms == to_seconds(current_ms) * 1_000, do: current_ms, else: ms
   end
 
-  defp processes(pids, new_only?, current) when is_binary(pids) do
-    case pids |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == "")) do
-      [] -> processes(nil, new_only?, current)
-      pids -> %{"processes" => "pids", "pids" => pids}
+  defp processes(text, new_only?, current) when is_binary(text) do
+    pids = text |> String.split(",") |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
+
+    cond do
+      pids != [] -> {:ok, %{"processes" => "pids", "pids" => pids}}
+      String.trim(text) == "" -> processes(nil, new_only?, current)
+      true -> {:error, @pids_format}
     end
   end
 
-  defp processes(_none, true, _current), do: %{"processes" => "new"}
-  defp processes(_none, false, %Config{processes: :existing}), do: %{"processes" => "existing"}
-  defp processes(_none, false, _current), do: %{"processes" => "all"}
+  defp processes(nil, true, _current), do: {:ok, %{"processes" => "new"}}
+
+  defp processes(nil, false, %Config{processes: :existing}),
+    do: {:ok, %{"processes" => "existing"}}
+
+  defp processes(nil, false, _current), do: {:ok, %{"processes" => "all"}}
+  defp processes(_pids, _new_only?, _current), do: {:error, @pids_format}
 
   defp parse_function(function) when is_binary(function) do
     function = String.trim(function)
@@ -246,17 +256,17 @@ defmodule Voyager.MCP.Tools.TraceForm do
     cond do
       match = Regex.run(@elixir_mfa, function, capture: :all_but_first) ->
         [module | rest] = match
-        mfa_attrs(["Elixir." <> String.replace_prefix(module, "Elixir.", "") | rest])
+        {:ok, mfa_attrs(["Elixir." <> String.replace_prefix(module, "Elixir.", "") | rest])}
 
       match = Regex.run(@erlang_mfa, function, capture: :all_but_first) ->
-        mfa_attrs(match)
+        {:ok, mfa_attrs(match)}
 
       true ->
-        nil
+        {:error, @function_format}
     end
   end
 
-  defp parse_function(_function), do: nil
+  defp parse_function(_function), do: {:error, @function_format}
 
   # `Regex.run/3` drops unmatched trailing groups and returns "" for unmatched inner ones.
   defp mfa_attrs([module | rest]) do
