@@ -75,12 +75,14 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
     reply =
       with {:ok, %{node: node, connected_at: connected_at} = session} <- check_ready(frame),
            :ok <- TraceForm.check_function(params[:function]) do
+        warning = TraceForm.discard_warning(Tracer.active())
+
         case {Frame.request_state(frame), Frame.input_response(frame, @form)} do
-          {{@form_state, ^node, ^connected_at, id}, %{"action" => _action} = response} ->
+          {{@form_state, ^node, ^connected_at, ^warning, id}, %{"action" => _action} = response} ->
             answer(UsedRequestStates.consume(id), response, params, session)
 
-          _unanswered_or_other_connection ->
-            ask(params, session)
+          _unanswered_or_changed_meanwhile ->
+            ask(params, session, warning)
         end
       else
         {:error, message} -> Response.error(Response.tool(), message)
@@ -89,7 +91,8 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
     {:reply, reply, frame}
   end
 
-  defp answer(:used, _response, params, session), do: ask(params, session)
+  defp answer(:used, _response, params, session),
+    do: ask(params, session, TraceForm.discard_warning(Tracer.active()))
 
   defp answer(:ok, %{"action" => "accept"} = response, _params, session),
     do: start(session.node, response["content"])
@@ -115,13 +118,14 @@ defmodule Voyager.MCP.Tools.CreateTraceSession do
     end
   end
 
-  defp ask(params, %{node: node, connected_at: connected_at}) do
-    message =
-      "Start this tracing session on #{node}?" <> TraceForm.discard_warning(Tracer.active())
-
+  defp ask(params, %{node: node, connected_at: connected_at}, warning) do
     InputRequired.new()
-    |> InputRequired.elicit(@form, message, TraceForm.schema(defaults(params)))
-    |> InputRequired.state({@form_state, node, connected_at, System.unique_integer()})
+    |> InputRequired.elicit(
+      @form,
+      "Start this tracing session on #{node}?" <> warning,
+      TraceForm.schema(defaults(params))
+    )
+    |> InputRequired.state({@form_state, node, connected_at, warning, System.unique_integer()})
   end
 
   defp defaults(params) do

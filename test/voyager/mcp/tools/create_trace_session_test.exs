@@ -8,6 +8,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
   alias Anubis.Server.Response
   alias Voyager.Fakes
   alias Voyager.MCP.Tools.CreateTraceSession
+  alias Voyager.MCP.Tools.TraceForm
   alias Voyager.NodeSession
   alias Voyager.Queries.TraceSessions, as: TraceSessionQueries
   alias Voyager.Services.Tracer
@@ -51,7 +52,10 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
       assert properties["capture_args"]["default"] == false
       refute Map.has_key?(properties["pids"], "default")
       assert params["message"] =~ Atom.to_string(node())
-      assert {:set, {:create_trace_session, node, connected_at, _id}} = input.request_state
+
+      assert {:set, {:create_trace_session, node, connected_at, _warning, _id}} =
+               input.request_state
+
       assert node == node()
       assert connected_at == NodeSession.current().connected_at
     end
@@ -60,11 +64,11 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
       frame =
         frame(
           %{"session" => accept(%{"function" => "Date"})},
-          {:create_trace_session, :a@b, NodeSession.current().connected_at,
+          {:create_trace_session, :a@b, NodeSession.current().connected_at, "",
            System.unique_integer()}
         )
 
-      assert {:reply, %InputRequired{request_state: {:set, {_, node, _, _id}}}, _frame} =
+      assert {:reply, %InputRequired{request_state: {:set, {_, node, _, _, _id}}}, _frame} =
                execute(%{}, frame)
 
       assert node == node()
@@ -184,6 +188,26 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
       assert request["params"]["message"] =~ "#{id}"
     end
 
+    test "asks again when the session it would discard changed after the form was shown",
+         %{pid: pid} do
+      frame = answered(accept(%{"function" => "Date", "pids" => pid}))
+
+      %{"session_id" => id} =
+        %{}
+        |> execute(answered(accept(%{"function" => "Date.leap_year?/1", "pids" => pid})))
+        |> run()
+
+      Date.leap_year?(~D[2024-01-01])
+      Tracer.stop(:ui)
+      _ = :sys.get_state(Tracer)
+
+      assert {:reply, %InputRequired{input_requests: %{"session" => request}}, _frame} =
+               execute(%{}, frame)
+
+      assert request["params"]["message"] =~ "discards"
+      assert %{id: ^id} = Tracer.active()
+    end
+
     test "reads max_seconds sent as a string", %{pid: pid} do
       content = %{"function" => "Date", "pids" => pid, "max_seconds" => "60"}
       %{"status" => "started"} = %{} |> execute(answered(accept(content))) |> run()
@@ -280,7 +304,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
       frame(
         %{"session" => answer},
         {:create_trace_session, node(), NodeSession.current().connected_at,
-         System.unique_integer()}
+         TraceForm.discard_warning(Tracer.active()), System.unique_integer()}
       )
 
   defp accept(content),

@@ -27,7 +27,7 @@ defmodule Voyager.MCP.Tools.TraceConfigureTest do
     assert properties["max_rate"]["default"] == 5
     assert properties["scope"]["default"] == "local"
     refute Map.has_key?(properties, "save")
-    assert {:set, {:trace_configure, _node, _connected_at, ^id, _nonce}} = input.request_state
+    assert {:set, {:trace_configure, _node, _connected_at, ^id, "", _nonce}} = input.request_state
   end
 
   test "applies the accepted form to a stopped session, which goes back to idle" do
@@ -66,12 +66,37 @@ defmodule Voyager.MCP.Tools.TraceConfigureTest do
     assert %{config: %{max_events: 1_000}} = Tracer.active()
   end
 
-  test "refuses a running or unknown session" do
-    %{id: id} = configure()
+  test "asks again when the session it would discard changed after the form was shown" do
+    %{id: saved} = configure(%{}, save: true)
+    %{id: unsaved} = configure()
+    frame = answered(saved, accept(%{"function" => "Date.leap_year?/1", "pids" => pid()}))
+
+    {:ok, _session} = Tracer.start(:ui)
+    trace_calls(1)
+    Tracer.stop(:ui)
+    assert_receive {:session_entries, %{id: ^unsaved, status: :stopped}, _entries}
+
+    assert {:reply, %InputRequired{input_requests: %{"session" => request}}, _frame} =
+             execute(%{"session_id" => saved}, frame)
+
+    assert request["params"]["message"] =~ "discards"
+    assert %{id: ^unsaved} = Tracer.active()
+  end
+
+  test "refuses while another session runs, rather than asking again as its events grow" do
+    %{id: saved} = configure(%{}, save: true)
+    configure()
     {:ok, _session} = Tracer.start(:ui)
 
-    assert error!(execute(%{"session_id" => id})) =~ "trace_stop"
+    assert error!(execute(%{"session_id" => saved})) =~ "trace_stop"
+  end
+
+  test "refuses a running or unknown session" do
+    %{id: id} = configure()
     assert error!(execute(%{"session_id" => 424_242})) =~ "No tracing session"
+
+    {:ok, _session} = Tracer.start(:ui)
+    assert error!(execute(%{"session_id" => id})) =~ "trace_stop"
   end
 
   test "reports a declined form" do
@@ -99,7 +124,8 @@ defmodule Voyager.MCP.Tools.TraceConfigureTest do
 
   defp answered(id, answer) do
     state =
-      {:trace_configure, node(), NodeSession.current().connected_at, id, System.unique_integer()}
+      {:trace_configure, node(), NodeSession.current().connected_at, id, "",
+       System.unique_integer()}
 
     frame(%{"session" => answer}, state)
   end

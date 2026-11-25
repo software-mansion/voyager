@@ -7,7 +7,7 @@ defmodule Voyager.MCP.Tools.TraceConfigure do
   capturing arguments or widening the target still needs their consent. A stopped
   session goes back to idle: call `trace_start` or `trace_watch` to run it. A saved
   session that is not active is loaded, which replaces an unsaved active one (the form
-  says when that discards events). Refused while the session runs. The client must
+  says when that discards events). Refused while a session runs. The client must
   support forms (MCP elicitation).
   """
 
@@ -59,18 +59,21 @@ defmodule Voyager.MCP.Tools.TraceConfigure do
       with {:ok, %{node: node, connected_at: connected_at}} <- check_ready(frame),
            {:ok, session} <- find(id),
            :ok <- TraceForm.check_function(params[:function]) do
+        warning = TraceForm.discard_warning(Tracer.active(), id)
+
         case {Frame.request_state(frame), Frame.input_response(frame, @form)} do
-          {{@form_state, ^node, ^connected_at, ^id, nonce}, %{"action" => _action} = response} ->
+          {{@form_state, ^node, ^connected_at, ^id, ^warning, nonce},
+           %{"action" => _action} = response} ->
             answer(
               UsedRequestStates.consume(nonce),
               response,
               params,
               session,
-              {node, connected_at}
+              {node, connected_at, warning}
             )
 
-          _unanswered_or_other_session ->
-            ask(params, session, node, connected_at)
+          _unanswered_or_changed_meanwhile ->
+            ask(params, session, {node, connected_at, warning})
         end
       else
         {:error, message} -> Response.error(Response.tool(), message)
@@ -84,6 +87,7 @@ defmodule Voyager.MCP.Tools.TraceConfigure do
 
     cond do
       is_nil(connection) -> {:error, Remote.not_connected()}
+      match?(%{status: :running}, Tracer.active()) -> {:error, TraceReport.start_error(:busy)}
       not TraceForm.forms?(frame) -> {:error, TraceForm.no_forms()}
       true -> {:ok, connection}
     end
@@ -97,18 +101,16 @@ defmodule Voyager.MCP.Tools.TraceConfigure do
     end
   end
 
-  defp ask(params, session, node, connected_at) do
-    message =
-      "Change tracing session #{session.id} to trace this on #{node}?" <>
-        TraceForm.discard_warning(Tracer.active(), session.id)
-
+  defp ask(params, session, {node, connected_at, warning}) do
     InputRequired.new()
     |> InputRequired.elicit(
       @form,
-      message,
+      "Change tracing session #{session.id} to trace this on #{node}?" <> warning,
       TraceForm.schema(defaults(params, session), save?: false)
     )
-    |> InputRequired.state({@form_state, node, connected_at, session.id, System.unique_integer()})
+    |> InputRequired.state(
+      {@form_state, node, connected_at, session.id, warning, System.unique_integer()}
+    )
   end
 
   defp defaults(params, session) do
@@ -123,13 +125,12 @@ defmodule Voyager.MCP.Tools.TraceConfigure do
     Map.merge(current, proposed)
   end
 
-  defp answer(:used, _response, params, session, {node, connected_at}),
-    do: ask(params, session, node, connected_at)
+  defp answer(:used, _response, params, session, form), do: ask(params, session, form)
 
-  defp answer(:ok, %{"action" => "accept"} = response, _params, session, {node, _connected_at}),
+  defp answer(:ok, %{"action" => "accept"} = response, _params, session, {node, _at, _warning}),
     do: configure(session, node, response["content"] || %{})
 
-  defp answer(:ok, _declined, _params, _session, _connection),
+  defp answer(:ok, _declined, _params, _session, _form),
     do: Response.json(Response.tool(), %{status: "declined"})
 
   defp configure(%{id: id} = session, node, content) do
