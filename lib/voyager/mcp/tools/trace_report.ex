@@ -63,6 +63,10 @@ defmodule Voyager.MCP.Tools.TraceReport do
 
   def start_error(reason), do: "Could not start tracing: #{inspect(reason)}"
 
+  @spec other_node(node(), node()) :: String.t()
+  def other_node(session_node, connected),
+    do: "The session traces #{session_node} but Voyager is connected to #{connected}"
+
   @spec error(Ecto.Changeset.t() | String.t() | term()) :: Response.t()
   def error(%Ecto.Changeset{} = changeset),
     do: Response.error(Response.tool(), "Invalid session: #{TraceForm.format_errors(changeset)}")

@@ -4,6 +4,7 @@ defmodule Voyager.MCP.Tools.TraceConfigureTest do
 
   alias Anubis.Server.Context
   alias Anubis.Server.InputRequired
+  alias Voyager.Fakes
   alias Voyager.MCP.Tools.TraceConfigure
   alias Voyager.NodeSession
 
@@ -97,6 +98,13 @@ defmodule Voyager.MCP.Tools.TraceConfigureTest do
 
     {:ok, _session} = Tracer.start(:ui)
     assert error!(execute(%{"session_id" => id})) =~ "trace_stop"
+  end
+
+  test "refuses a session of a node Voyager is not connected to" do
+    %{id: id} = configure()
+    Fakes.connect_node!(Fakes.node_session(node: :other@host, node_name: "other@host"))
+
+    assert error!(execute(%{"session_id" => id})) =~ "connected to other@host"
   end
 
   test "reports a declined form" do

@@ -71,9 +71,7 @@ defmodule Voyager.MCP.Tools.TraceStart do
   defp startable(%{node: node} = session, %{node: node}), do: {:ok, session}
 
   defp startable(session, node_session),
-    do:
-      {:error,
-       "The session traces #{session.node} but Voyager is connected to #{node_session.node}"}
+    do: {:error, TraceReport.other_node(session.node, node_session.node)}
 
   @doc """
   Makes session `id` the active one, loading it when saved. `notes` holds `discarded`

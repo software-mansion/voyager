@@ -7,8 +7,8 @@ defmodule Voyager.MCP.Tools.TraceConfigure do
   capturing arguments or widening the target still needs their consent. A stopped
   session goes back to idle: call `trace_start` or `trace_watch` to run it. A saved
   session that is not active is loaded, which replaces an unsaved active one (the form
-  says when that discards events). Refused while a session runs. The client must
-  support forms (MCP elicitation).
+  says when that discards events). Refused while a session runs, and for a session
+  of another node than the connected one. The client must support forms (MCP elicitation).
   """
 
   use Anubis.Server.Component, type: :tool
@@ -57,7 +57,7 @@ defmodule Voyager.MCP.Tools.TraceConfigure do
   def execute(%{session_id: id} = params, frame) do
     reply =
       with {:ok, %{node: node, connected_at: connected_at}} <- check_ready(frame),
-           {:ok, session} <- find(id),
+           {:ok, session} <- find(id, node),
            :ok <- TraceForm.check_function(params[:function]) do
         warning = TraceForm.discard_warning(Tracer.active(), id)
 
@@ -93,11 +93,19 @@ defmodule Voyager.MCP.Tools.TraceConfigure do
     end
   end
 
-  defp find(id) do
+  defp find(id, node) do
     case Tracer.session(id) do
-      {:ok, %{status: :running}, _where} -> {:error, TraceReport.start_error(:busy)}
-      {:ok, session, _where} -> {:ok, session}
-      {:error, :not_found} -> {:error, "No tracing session #{id}"}
+      {:ok, %{status: :running}, _where} ->
+        {:error, TraceReport.start_error(:busy)}
+
+      {:ok, %{node: other}, _where} when other not in [nil, node] ->
+        {:error, TraceReport.other_node(other, node)}
+
+      {:ok, session, _where} ->
+        {:ok, session}
+
+      {:error, :not_found} ->
+        {:error, "No tracing session #{id}"}
     end
   end
 
