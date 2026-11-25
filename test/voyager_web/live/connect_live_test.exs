@@ -9,6 +9,8 @@ defmodule VoyagerWeb.ConnectLiveTest do
   alias Voyager.Fakes
   alias Voyager.NodeSession
   alias Voyager.NodeSession.Connectors.Ssh, as: SshConnector
+  alias Voyager.Queries.Connections, as: ConnectionQueries
+  alias Voyager.Services.DemoNode
   alias Voyager.Settings
 
   setup do
@@ -114,6 +116,167 @@ defmodule VoyagerWeb.ConnectLiveTest do
       render_async(view)
 
       assert has_element?(view, "#ssh_node_name.input-error")
+    end
+  end
+
+  describe "demo node" do
+    test "fills the direct form with the started demo node", %{conn: conn} do
+      start_demo_node!()
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      view |> element("#start-demo-btn") |> render_click()
+      render_async(view, 15_000)
+
+      cookie = :peer.call(:sys.get_state(DemoNode).peer, :erlang, :get_cookie, [])
+      assert has_element?(view, ~s|#conn_node_name[value="voyager_demo@127.0.0.1"]|)
+      assert has_element?(view, ~s|#conn_cookie[value="#{cookie}"]|)
+      assert has_element?(view, ~s|#start-demo-btn:not([disabled])|)
+      assert has_element?(view, "#flash-info")
+    end
+
+    @tag :capture_log
+    test "flashes when the demo node fails to boot", %{conn: conn} do
+      start_demo_node!(exec: {~c"/nonexistent/erl", []})
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      view |> element("#start-demo-btn") |> render_click()
+      render_async(view, 15_000)
+
+      assert has_element?(view, "#flash-error", "Could not start the demo node")
+      assert has_element?(view, ~s|#start-demo-btn:not([disabled])|)
+    end
+
+    test "hides the demo tab while connected", %{conn: conn} do
+      start_demo_node!()
+      Fakes.connect_node!(Fakes.node_session())
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      refute has_element?(view, "#start-demo-btn")
+    end
+
+    test "disables the start button while connecting", %{conn: conn} do
+      start_demo_node!()
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      send(view.pid, {:node_connecting, "demo@localhost"})
+
+      assert has_element?(view, ~s|#start-demo-btn[disabled]|)
+    end
+
+    test "has no dismiss button while no connection is saved", %{conn: conn} do
+      start_demo_node!()
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert has_element?(view, "#start-demo-btn")
+      refute has_element?(view, "#dismiss-demo-btn")
+    end
+
+    test "stays dismissed after a remount", %{conn: conn} do
+      {:ok, _connection} = ConnectionActions.upsert_connected("recent@127.0.0.1")
+      start_demo_node!()
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      view |> element("#dismiss-demo-btn") |> render_click()
+
+      refute has_element?(view, "#start-demo-btn")
+      {:ok, view, _html} = live(conn, ~p"/")
+      refute has_element?(view, "#start-demo-btn")
+    end
+
+    test "comes back once the last saved connection is deleted", %{conn: conn} do
+      {:ok, _connection} = ConnectionActions.upsert_connected("recent@127.0.0.1")
+      start_demo_node!()
+      {:ok, view, _html} = live(conn, ~p"/")
+      view |> element("#dismiss-demo-btn") |> render_click()
+
+      view |> element(~s|#direct-recent-connections button[title="Remove"]|) |> render_click()
+
+      assert has_element?(view, "#start-demo-btn")
+      refute has_element?(view, "#dismiss-demo-btn")
+    end
+
+    test "starts from the demo param", %{conn: conn} do
+      start_demo_node!()
+      {:ok, view, _html} = live(conn, ~p"/?demo=start")
+
+      render_async(view, 15_000)
+
+      assert has_element?(view, ~s|#conn_node_name[value="voyager_demo@127.0.0.1"]|)
+    end
+
+    test "ignores the demo param while connected", %{conn: conn} do
+      start_demo_node!()
+      Fakes.connect_node!(Fakes.node_session())
+
+      {:ok, _view, _html} = live(conn, ~p"/?demo=start")
+
+      assert :sys.get_state(DemoNode).peer == nil
+    end
+
+    test "switches from SSH to Direct to show the filled form", %{conn: conn} do
+      enable_proxy_epmd(%{})
+      start_demo_node!()
+      {:ok, view, _html} = live(conn, ~p"/?mode=ssh")
+
+      view |> element("#start-demo-btn") |> render_click()
+      render_async(view, 15_000)
+
+      assert_patch(view, ~p"/")
+      assert has_element?(view, ~s|#conn_node_name[value="voyager_demo@127.0.0.1"]|)
+    end
+
+    test "connects without saving a recent connection and stops on disconnect", %{conn: conn} do
+      Mox.set_mox_global()
+      Mox.stub_with(Voyager.ErpcMock, Voyager.Erpc.Impl)
+      on_exit(fn -> if Node.alive?(), do: :net_kernel.stop() end)
+      start_demo_node!()
+
+      {:ok, view, _html} = live(conn, ~p"/")
+      view |> element("#start-demo-btn") |> render_click()
+      render_async(view, 15_000)
+      view |> element("#direct-connect-form") |> render_submit()
+
+      assert_redirect(view, ~p"/open", 15_000)
+      assert %NodeSession.Session{node: :"voyager_demo@127.0.0.1"} = NodeSession.current()
+      assert ConnectionQueries.all() == []
+
+      ref = Process.monitor(:sys.get_state(DemoNode).peer)
+      :ok = NodeSession.disconnect()
+
+      assert_receive {:DOWN, ^ref, :process, _pid, _reason}
+    end
+
+    for {reason, flash} <- [idle_timeout: "#flash-info", halted: "#flash-error"] do
+      test "flashes and clears the demo form on #{reason}", %{conn: conn} do
+        {:ok, view, _html} = live(conn, ~p"/")
+        fill_direct_node_name(view, DemoNode.node_name())
+
+        send(view.pid, {:demo_stopped, unquote(reason)})
+
+        assert has_element?(view, unquote(flash))
+        refute has_element?(view, ~s|#conn_node_name[value="voyager_demo@127.0.0.1"]|)
+      end
+    end
+
+    test "keeps another node in the form when the demo node stops", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+      fill_direct_node_name(view, "app@127.0.0.1")
+
+      send(view.pid, {:demo_stopped, :idle_timeout})
+
+      assert has_element?(view, "#flash-info")
+      assert has_element?(view, ~s|#conn_node_name[value="app@127.0.0.1"]|)
+    end
+
+    test "stays quiet when the demo node is replaced", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+      fill_direct_node_name(view, DemoNode.node_name())
+
+      send(view.pid, {:demo_stopped, :restarted})
+
+      refute has_element?(view, "#flash-info")
+      assert has_element?(view, ~s|#conn_node_name[value="voyager_demo@127.0.0.1"]|)
     end
   end
 
@@ -472,6 +635,12 @@ defmodule VoyagerWeb.ConnectLiveTest do
 
       refute has_element?(view, "#onboarding-modal")
     end
+  end
+
+  defp fill_direct_node_name(view, node_name) do
+    view
+    |> element("#direct-connect-form")
+    |> render_change(%{"conn" => %{"node_name" => node_name}})
   end
 
   defp broadcast(pubsub_topic, event) do

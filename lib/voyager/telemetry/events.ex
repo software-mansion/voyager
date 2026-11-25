@@ -14,7 +14,12 @@ defmodule Voyager.Telemetry.Events do
     [:voyager, :trace, :start],
     [:voyager, :trace, :start_failed],
     [:voyager, :trace, :stop],
-    [:voyager, :ssh_config, :import]
+    [:voyager, :ssh_config, :import],
+    [:voyager, :demo, :start],
+    [:voyager, :demo, :start_failed],
+    [:voyager, :demo, :connect],
+    [:voyager, :demo, :stop],
+    [:voyager, :demo, :dismiss]
   ]
 
   @system_events [

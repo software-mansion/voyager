@@ -7,6 +7,7 @@ defmodule VoyagerWeb.SettingsLive do
   alias Voyager.Services.TermSyntax
   alias VoyagerWeb.SettingsComponents
   alias VoyagerWeb.SettingsLive.AppearanceSettings
+  alias VoyagerWeb.SettingsLive.DemoSettings
   alias VoyagerWeb.SettingsLive.DistributionSettings
   alias VoyagerWeb.SettingsLive.McpSettings
   alias VoyagerWeb.SettingsLive.TelemetrySettings
@@ -50,6 +51,7 @@ defmodule VoyagerWeb.SettingsLive do
       </div>
 
       <AppearanceSettings.appearance_settings />
+      <DemoSettings.demo_settings session={@session} running?={@demo_running?} />
       <SettingsComponents.choice_setting
         id="pid-format"
         title="PID format"
