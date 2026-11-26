@@ -285,6 +285,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
   with its call event's arguments and its outcome. The outcome shows only when `return_trace?`,
   as the list's durations do.
   """
+  attr :seq, :integer, default: nil, doc: "the selected event's seq; closed when nil"
   attr :call, AsyncResult, required: true
   attr :return_trace?, :boolean, required: true
   attr :node, :atom, default: nil, doc: "the connected node; only its pids link to their page"
@@ -306,6 +307,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
 
     assigns =
       assigns
+      |> assign(:open?, assigns.seq != nil)
       |> assign(:call_event, call_event)
       |> assign(:outcome, outcome)
       |> assign(:event, event)
@@ -319,28 +321,33 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
     <aside
       id="event-panel"
       phx-hook="DetailsPanelResize"
-      data-resize-persist="false"
-      class="details-panel border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex h-full min-h-0 w-full flex-col border-l p-4 shadow-2xl"
+      data-resize-persist="true"
+      inert={not @open?}
+      class={[
+        "details-panel",
+        "border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex w-full flex-col border-l p-2 shadow-2xl transition-transform duration-300 ease-in-out",
+        if(@open?, do: "translate-x-0", else: "translate-x-full")
+      ]}
     >
-      <DetailsPanelComponents.resize_handle panel_id="event-panel" open?={true} />
-      <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-        <div class="border-base-200 flex shrink-0 items-start gap-3 border-b pb-3">
-          <div class="flex min-w-0 flex-1 flex-col gap-1.5">
-            <div class="flex items-center gap-2">
-              <.icon name={glyph(:call)} class="text-primary size-3.5" />
-              <div class="font-mono text-base-content text-xs uppercase">Call</div>
-            </div>
-            <DetailsPanelComponents.copyable
-              :if={@event}
-              id="event-panel-mfa"
-              class="font-mono text-base-content break-all text-sm font-medium"
-              text={Formatters.format_mfa(@event.mfa)}
-              label="Copy MFA"
-            />
+      <DetailsPanelComponents.resize_handle panel_id="event-panel" open?={@open?} />
+      <div :if={@open?} class="border-base-200 flex items-start gap-3 border-b px-5 py-4">
+        <div class="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div class="flex items-center gap-2">
+            <.icon name={glyph(:call)} class="text-primary size-3.5" />
+            <div class="font-mono text-base-content text-xs uppercase">Call</div>
           </div>
-          <DetailsPanelComponents.close_button panel_id="event-panel" on_close={@on_close} />
+          <DetailsPanelComponents.copyable
+            :if={@event}
+            id="event-panel-mfa"
+            class="font-mono text-base-content break-all text-sm font-medium"
+            text={Formatters.format_mfa(@event.mfa)}
+            label="Copy MFA"
+          />
         </div>
+        <DetailsPanelComponents.close_button panel_id="event-panel" on_close={@on_close} />
+      </div>
 
+      <div :if={@open?} class="flex flex-1 flex-col overflow-y-auto px-5 py-4">
         <.async_result assign={@call}>
           <:loading>
             <.loading_state id="event-panel-loading" message="Loading event…" />
@@ -348,7 +355,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
           <:failed>
             <.error_state id="event-panel-error" message="Could not load the event." />
           </:failed>
-          <div :if={@event} class="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto">
+          <div :if={@event} class="flex flex-col gap-5">
             <DetailsPanelComponents.section title="Overview">
               <DetailsPanelComponents.kv label="PID">
                 <ProcessComponents.process_link

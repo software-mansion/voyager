@@ -29,7 +29,7 @@ defmodule VoyagerWeb.TracingSessionEventTest do
 
     view |> element("#entry-2-time") |> render_click()
     assert_patch(view, path)
-    refute has_element?(view, "#event-panel")
+    assert has_element?(view, "#event-panel.translate-x-full")
     refute has_element?(view, "#log-selection")
   end
 
@@ -61,7 +61,7 @@ defmodule VoyagerWeb.TracingSessionEventTest do
 
     view |> element("#event-panel-close") |> render_click()
     assert_patch(view, path)
-    refute has_element?(view, "#event-panel")
+    assert has_element?(view, "#event-panel.translate-x-full")
   end
 
   test "closes the panel with a notice when the event is not in the session", %{conn: conn} do
@@ -72,7 +72,7 @@ defmodule VoyagerWeb.TracingSessionEventTest do
     render_async(view)
 
     assert_patch(view, path)
-    refute has_element?(view, "#event-panel")
+    assert has_element?(view, "#event-panel.translate-x-full")
     assert has_element?(view, "#flash-info")
   end
 
@@ -90,7 +90,7 @@ defmodule VoyagerWeb.TracingSessionEventTest do
     render_click(view, "select-event", %{})
     render_click(view, "select-event", %{"seq" => "-1"})
 
-    refute has_element?(view, "#event-panel")
+    assert has_element?(view, "#event-panel.translate-x-full")
   end
 
   test "shows neither arguments nor an outcome that the session does not trace", %{conn: conn} do

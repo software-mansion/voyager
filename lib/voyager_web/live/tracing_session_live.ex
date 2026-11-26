@@ -149,7 +149,7 @@ defmodule VoyagerWeb.TracingSessionLive do
         </TracingComponents.confirm_modal>
       </div>
       <TraceLogComponents.event_panel
-        :if={@event_seq}
+        seq={@event_seq}
         call={@call}
         return_trace?={return_trace?(@trace_session)}
         node={@session.node}
