@@ -47,7 +47,9 @@ defmodule Voyager.MCP.Tools.TraceStartTest do
 
   test "says a failed start of a saved session discarded the unsaved one it replaced" do
     %{id: saved} =
-      configure(%{module: "Elixir.Voyager.Missing", function: "_", arity: nil}, save: true)
+      configure(%{module: Atom.to_string(Voyager.Missing), function: "_", arity: nil},
+        save: true
+      )
 
     %{id: unsaved} = configure()
     {:ok, _session} = Tracer.start(:ui)
