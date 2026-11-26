@@ -583,6 +583,16 @@ defmodule Voyager.Services.TracerTest do
     assert %{status: :idle} = Tracer.active()
   end
 
+  test "ignores a tracer report from the node that carries no pid" do
+    assert {:ok, %{id: id}} = Tracer.create(:ui)
+    tracer = Process.whereis(Tracer)
+
+    send(tracer, {:voyager_trace_started, :foo})
+
+    assert %{id: ^id} = Tracer.active()
+    assert Process.whereis(Tracer) == tracer
+  end
+
   test "configuring a stopped session sets it back to idle, leaving the stop to its run" do
     assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
     assert {:ok, _session} = configure(%{max_events: 1})

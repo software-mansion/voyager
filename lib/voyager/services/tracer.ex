@@ -508,7 +508,7 @@ defmodule Voyager.Services.Tracer do
     do: {:noreply, state}
 
   # A start that timed out here still runs once a suspended node answers, so nothing owns it.
-  def handle_info({:voyager_trace_started, tracer}, state) do
+  def handle_info({:voyager_trace_started, tracer}, state) when is_pid(tracer) do
     Logger.warning("Stopping tracer #{inspect(tracer)} on #{node(tracer)}, whose start timed out")
     stop_tracer_async(node(tracer), tracer)
     {:noreply, state}
