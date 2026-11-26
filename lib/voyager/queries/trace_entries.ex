@@ -70,13 +70,21 @@ defmodule Voyager.Queries.TraceEntries do
   @doc "The `CallPairing.find_call/2` of the session's trace event `seq`; nil when it has none."
   @spec find_call(integer(), non_neg_integer()) :: CallPairing.call() | nil
   def find_call(session_id, seq) do
-    case Repo.get_by(TraceEvent, session_id: session_id, seq: seq) do
-      nil -> nil
-      row -> CallPairing.find_call(to_entry(row), partner_side(row))
+    with %TraceEvent{} = row <- Repo.get_by(TraceEvent, session_id: session_id, seq: seq) do
+      entry = to_entry(row)
+
+      # Only the partner is read with its terms: the replay goes by the types of the rows before it.
+      side =
+        case CallPairing.partner(entry, candidates(row)) do
+          nil -> []
+          %{seq: partner} -> window(TraceEvent, session_id, since: partner, before: partner + 1)
+        end
+
+      CallPairing.find_call(entry, side)
     end
   end
 
-  defp partner_side(row) do
+  defp candidates(row) do
     opts =
       if row.type == :call,
         do: [since: row.seq + 1, order: :asc],
@@ -88,7 +96,9 @@ defmodule Voyager.Queries.TraceEntries do
       e.pid == ^row.pid and e.module == ^row.module and e.function == ^row.function and
         e.arity == ^row.arity
     )
-    |> window(row.session_id, [limit: CallPairing.walk_limit()] ++ opts)
+    |> select([e], map(e, [:seq, :type]))
+    |> in_window(row.session_id, [limit: CallPairing.walk_limit()] ++ opts)
+    |> Repo.all()
   end
 
   @doc "How many traces were saved before the session's last `:started` entry; 0 if it never started."
@@ -213,12 +223,17 @@ defmodule Voyager.Queries.TraceEntries do
 
   defp window(query, session_id, opts) do
     query
+    |> in_window(session_id, opts)
+    |> Repo.all()
+    |> Enum.map(&to_entry/1)
+  end
+
+  defp in_window(query, session_id, opts) do
+    query
     |> where([e], e.session_id == ^session_id and e.seq >= ^Keyword.get(opts, :since, 0))
     |> where_before(opts[:before])
     |> order_by([e], [{^order(opts), e.seq}])
     |> limit_to(opts[:limit])
-    |> Repo.all()
-    |> Enum.map(&to_entry/1)
   end
 
   # Each window already holds its table's first `limit` rows, so the merged first `limit` is exact.

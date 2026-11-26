@@ -103,20 +103,6 @@ defmodule Voyager.Services.Tracer.CallPairingTest do
       assert CallPairing.find_call(call, [paired_elsewhere]) == %{call_event: call, outcome: nil}
       assert CallPairing.find_call(unpaired, [call]) == %{call_event: nil, outcome: unpaired}
     end
-
-    test "walks at most walk_limit/0 events of the same function" do
-      call = event(:call, 0)
-
-      nested =
-        Enum.flat_map(1..div(CallPairing.walk_limit(), 2), fn at ->
-          [event(:call, at), :return |> event(at) |> Map.put(:duration_us, 0)]
-        end)
-
-      ret = :return |> event(100_000) |> Map.put(:duration_us, 100_000)
-
-      assert CallPairing.find_call(call, nested ++ [ret]) == %{call_event: call, outcome: nil}
-      assert CallPairing.find_call(call, Enum.drop(nested, 2) ++ [ret]).outcome == ret
-    end
   end
 
   test "does not reset at exactly the cap" do

@@ -282,12 +282,15 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
 
   @doc """
   The event details panel: the call the selected event belongs to, as `Tracer.find_call/2` found it,
-  with its call event's arguments and its outcome. The outcome shows only when the session traces returns,
-  as the list's durations do.
+  with its call event's arguments and its outcome.
   """
   attr :seq, :integer, default: nil, doc: "the selected event's seq; closed when nil"
   attr :call, AsyncResult, required: true
-  attr :trace_session, AsyncResult, required: true, doc: "its config decides `return_trace?`"
+
+  attr :trace_session, AsyncResult,
+    required: true,
+    doc: "one that traces returns notes a call without an outcome"
+
   attr :node, :atom, default: nil, doc: "the connected node; only its pids link to their page"
   attr :current_url, :string, required: true
   attr :term_states, :map, required: true, doc: "`VoyagerWeb.Hooks.TermTreeHook`'s states"
@@ -299,7 +302,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
 
     # A lookup still out has a nil result, which reads as neither half.
     call_event = assigns.call.result[:call_event]
-    outcome = if return_trace?, do: assigns.call.result[:outcome]
+    outcome = assigns.call.result[:outcome]
     event = call_event || outcome
 
     {outcome_title, outcome_at_label} =
@@ -321,7 +324,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
       |> assign(:link?, event && node(event.pid) == assigns.node)
 
     ~H"""
-    <DetailsPanelComponents.panel id="event-panel" open?={@open?} data-resize-persist="true">
+    <DetailsPanelComponents.panel id="event-panel" open?={@open?}>
       <div :if={@open?} class="border-base-200 flex items-start gap-3 border-b px-5 py-4">
         <div class="flex min-w-0 flex-1 flex-col gap-1.5">
           <div class="flex items-center gap-2">
@@ -379,14 +382,14 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
                 id="event-panel-no-call"
                 class="text-base-content/70 py-2.5 text-xs"
               >
-                Call not in the log
+                Call not found
               </p>
               <p
                 :if={@return_trace? and !@outcome}
                 id="event-panel-no-outcome"
                 class="text-base-content/70 py-2.5 text-xs"
               >
-                No return recorded
+                No return found
               </p>
             </DetailsPanelComponents.section>
 

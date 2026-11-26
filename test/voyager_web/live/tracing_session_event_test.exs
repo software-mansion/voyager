@@ -106,6 +106,20 @@ defmodule VoyagerWeb.TracingSessionEventTest do
     refute has_element?(view, "#event-panel-no-outcome")
   end
 
+  test "shows an outcome traced before the session stopped tracing returns", %{conn: conn} do
+    %{id: id} = start!(%{return_trace: true})
+    trace!(%{type: :return, at: 25, value: true})
+    :ok = Tracer.stop(:ui)
+    assert_receive {:session_entries, _session, [%{kind: :stopped}]}
+    {:ok, _session} = configure(%{return_trace: false})
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{node_name()}/tracing/#{id}?seq=2")
+    render_async(view)
+
+    assert has_element?(view, "#event-panel-mfa", "Date.leap_year?/1")
+    assert has_element?(view, "#event-panel-value", "true")
+  end
+
   test "opens no details from a control row", %{conn: conn} do
     %{id: id} = start!()
     view = open(conn, id)
@@ -146,12 +160,35 @@ defmodule VoyagerWeb.TracingSessionEventTest do
     true = :erlang.suspend_process(lookup)
     :sys.resume(Tracer)
     trace!(%{type: :return, at: 25, value: true})
-    render(view)
+    assert has_element?(view, "#event-panel-loading")
     true = :erlang.resume_process(lookup)
+    # The first lookup lands without the outcome and starts the one that finds it.
+    render_async(view)
     render_async(view)
 
     refute has_element?(view, "#event-panel-no-outcome")
     assert has_element?(view, "#event-panel-value", "true")
+  end
+
+  test "keeps showing a call that left memory before its outcome came", %{conn: conn} do
+    %{id: id} = start!(%{return_trace: true})
+    trace!(%{type: :call, at: 10, args: [~D[2024-01-01]]})
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{node_name()}/tracing/#{id}?seq=2")
+    render_async(view)
+
+    evicting =
+      for at <- 1..Tracer.kept_traces(),
+          do: Map.merge(@event, %{type: :call, at: 10 + at, mfa: {Date, :new, 3}})
+
+    send(Tracer, {:voyager_trace_events, Tracer.active().tracer, evicting, 0})
+    trace!(%{type: :return, at: 1_000, value: true})
+    render(view)
+    render_async(view)
+
+    assert has_element?(view, "#event-panel-arg-1", "2024")
+    assert has_element?(view, "#event-panel-no-outcome")
+    refute has_element?(view, "#flash-info")
   end
 
   test "notes a call event that is not in the log", %{conn: conn} do
@@ -164,6 +201,19 @@ defmodule VoyagerWeb.TracingSessionEventTest do
     assert has_element?(view, "#event-panel-no-call")
     assert has_element?(view, "#event-panel-value", "true")
     refute has_element?(view, "#event-panel-duration")
+  end
+
+  test "shows an exception as its call's outcome", %{conn: conn} do
+    %{id: id} = start!(%{return_trace: true})
+    trace!(%{type: :call, at: 10})
+    trace!(%{type: :exception, at: 25, value: {:error, :badarg}})
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{node_name()}/tracing/#{id}?seq=2")
+    render_async(view)
+
+    assert has_element?(view, "#event-panel-outcome", "error")
+    assert has_element?(view, "#event-panel-value", "badarg")
+    assert has_element?(view, "#event-panel-duration", "15 µs")
   end
 
   @tag :capture_log

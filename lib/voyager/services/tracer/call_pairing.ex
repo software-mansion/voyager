@@ -7,7 +7,8 @@ defmodule Voyager.Services.Tracer.CallPairing do
 
   # Returns that never come would grow the open calls forever, so they reset past this.
   @max_open_calls 10_000
-  @walk_limit 1_000
+  # A straight recursion as deep as `pair/2` times puts a call's outcome this many events away.
+  @walk_limit 2 * @max_open_calls
 
   defstruct open: %{}, count: 0
 
@@ -28,23 +29,43 @@ defmodule Voyager.Services.Tracer.CallPairing do
     Enum.map_reduce(events, pairing, &pair_event/2)
   end
 
-  @doc "How many events of the same pid and MFA `find_call/2` walks before it gives up on a partner."
+  @doc "How many candidates are worth reading from a log for `partner/2`."
   @spec walk_limit() :: pos_integer()
   def walk_limit, do: @walk_limit
 
   @doc """
   The call `event` belongs to, as its call event and outcome, replaying `pair/2` over `side`: the
   trace events on the partner's side of the log, nearest first (later ones for a call event,
-  earlier ones for an outcome). A partner is nil when it is not in `side`, lies past
-  `walk_limit/0` events of the same function, or was not the one `pair/2` timed the outcome with.
+  earlier ones for an outcome). A partner is nil when it is not in `side` or was not the one
+  `pair/2` timed the outcome with.
   """
   @spec find_call(Entry.t(), [Entry.t()]) :: call()
-  def find_call(event, side) do
+  def find_call(%{pid: pid, mfa: mfa} = event, side) do
     {own, other} = if call?(event), do: {:call_event, :outcome}, else: {:outcome, :call_event}
-    found = %{own => event, other => partner(event, side)}
+    candidates = Enum.filter(side, &match?(%{pid: ^pid, mfa: ^mfa}, &1))
+    found = %{own => event, other => partner(event, candidates)}
 
     # The replay cannot see where pairing restarted after a drop; the outcome's duration can.
     if paired?(found.call_event, found.outcome), do: found, else: %{found | other => nil}
+  end
+
+  @doc """
+  The one of `candidates` that `pair/2` matched `event` with, replayed from their `type` alone;
+  nil when none is. They are the trace events of `event`'s pid and MFA on its partner's side of
+  the log, nearest first.
+  """
+  @spec partner(Entry.t(), [candidate]) :: candidate | nil
+        when candidate: %{required(:type) => atom(), optional(atom()) => term()}
+  def partner(event, candidates) do
+    candidates
+    |> Enum.reduce_while(1, fn candidate, open ->
+      open = if call?(candidate) == call?(event), do: open + 1, else: open - 1
+      if open == 0, do: {:halt, candidate}, else: {:cont, open}
+    end)
+    |> case do
+      %{} = found -> found
+      _open -> nil
+    end
   end
 
   @doc "Whether `pair/2` timed `outcome` with `call_event`: same pid and MFA, and its duration ends there."
@@ -58,20 +79,6 @@ defmodule Voyager.Services.Tracer.CallPairing do
       do: ended - duration == at
 
   def paired?(_call_event, _outcome), do: false
-
-  defp partner(%{pid: pid, mfa: mfa} = event, side) do
-    side
-    |> Stream.filter(&match?(%{pid: ^pid, mfa: ^mfa}, &1))
-    |> Stream.take(@walk_limit)
-    |> Enum.reduce_while(1, fn candidate, open ->
-      open = if call?(candidate) == call?(event), do: open + 1, else: open - 1
-      if open == 0, do: {:halt, candidate}, else: {:cont, open}
-    end)
-    |> case do
-      %{} = found -> found
-      _open -> nil
-    end
-  end
 
   defp call?(event), do: event.type == :call
 

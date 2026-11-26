@@ -311,6 +311,18 @@ defmodule VoyagerWeb.TracingSessionLive do
   end
 
   @impl true
+  # An outcome that came in while this lookup was out may have been logged after it read the log.
+  def handle_async(
+        :call,
+        {:ok, {seq, {:ok, %{outcome: nil} = call}}},
+        %{assigns: %{event_seq: seq, call: %AsyncResult{loading: :outdated}}} = socket
+      ) do
+    socket
+    |> put_call(call)
+    |> look_up_call()
+    |> noreply()
+  end
+
   def handle_async(:call, {:ok, {seq, {:ok, call}}}, %{assigns: %{event_seq: seq}} = socket) do
     socket
     |> put_call(call)
@@ -320,7 +332,7 @@ defmodule VoyagerWeb.TracingSessionLive do
   def handle_async(
         :call,
         {:ok, {seq, {:error, :not_found}}},
-        %{assigns: %{event_seq: seq}} = socket
+        %{assigns: %{event_seq: seq, call: %AsyncResult{ok?: false}}} = socket
       ) do
     socket
     |> put_flash(:info, "That event is no longer in this session.")
@@ -335,7 +347,7 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> noreply()
   end
 
-  # The panel closed or moved on to another event since this lookup started.
+  # The panel closed or moved on since this lookup started, or its shown event left the log.
   def handle_async(:call, _stale, socket), do: {:noreply, socket}
 
   # A broadcast for our id already ended the load, and is newer than its result.
@@ -551,10 +563,10 @@ defmodule VoyagerWeb.TracingSessionLive do
       else: socket
   end
 
-  # A lookup still out may have read the log before these entries reached it.
-  defp refresh_call(%{assigns: %{call: %AsyncResult{loading: true}}} = socket, entries) do
+  # Restarting the lookup that is out on every batch would discard it; it repeats once it lands.
+  defp refresh_call(%{assigns: %{call: %AsyncResult{loading: true} = call}} = socket, entries) do
     if Enum.any?(entries, &match?(%{kind: :trace, type: type} when type != :call, &1)),
-      do: look_up_call(socket),
+      do: assign(socket, :call, AsyncResult.loading(call, :outdated)),
       else: socket
   end
 

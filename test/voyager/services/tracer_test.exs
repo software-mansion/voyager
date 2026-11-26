@@ -496,6 +496,22 @@ defmodule Voyager.Services.TracerTest do
     assert {:ok, %{entries: [^entry], total: 1}} = Tracer.search(id, "needle")
   end
 
+  test "finds a saved call across a recursion deeper than memory keeps" do
+    event = %{pid: self(), process: nil, mfa: {Date, :leap_year?, 1}}
+    depth = Tracer.kept_traces() + 1
+    calls = for at <- 1..depth, do: Map.merge(event, %{type: :call, at: at})
+
+    returns =
+      for at <- 1..depth, do: Map.merge(event, %{type: :return, at: depth + at, value: at})
+
+    {id, [outer | _]} = traced(true, calls ++ returns, %{return_trace: true})
+    {:ok, %{entries: [outcome]}} = Tracer.entries(id, limit: 1)
+
+    assert outcome.duration_us == 2 * depth - 1
+    assert Tracer.find_call(id, outer.seq) == {:ok, %{call_event: outer, outcome: outcome}}
+    assert Tracer.find_call(id, outcome.seq) == {:ok, %{call_event: outer, outcome: outcome}}
+  end
+
   test "does not find a call evicted from memory, or of a missing or closed session" do
     {id, [oldest]} = searchable(false, ["oldest"])
     assert {:ok, %{call_event: ^oldest}} = Tracer.find_call(id, oldest.seq)
