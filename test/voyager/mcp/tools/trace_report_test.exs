@@ -13,4 +13,11 @@ defmodule Voyager.MCP.Tools.TraceReportTest do
     assert {:ok, %{status: :stopped, stop_reason: :event_limit, total_events: 2}} =
              TraceReport.report(running)
   end
+
+  test "says what to do about the agent's refusals instead of showing the raw term" do
+    assert TraceReport.start_error(:no_session) =~ "create_trace_session"
+    assert TraceReport.start_error({:noproc, self()}) =~ "#{Voyager.Pid.format(self())} is not"
+    assert TraceReport.start_error({:not_loaded, Voyager.Missing}) =~ "Voyager.Missing is not"
+    assert TraceReport.start_error(:no_function_matched) =~ "`scope` `local`"
+  end
 end

@@ -5,6 +5,7 @@ defmodule Voyager.MCP.Tools.TraceHistoryTest do
   import Voyager.TestUtils, only: [reset_term_syntax: 1]
 
   alias Voyager.MCP.Tools.TraceHistory
+  alias Voyager.MCP.Tools.TraceReport
   alias Voyager.Services.TermSyntax
 
   test "lists the active session first, then the saved ones, each once" do
@@ -203,6 +204,20 @@ defmodule Voyager.MCP.Tools.TraceHistoryTest do
   test "refuses an unknown session" do
     assert {:reply, response, _frame} = execute(%{"session_id" => 424_242})
     assert error!({:reply, response, %Frame{}}) =~ "No tracing session"
+  end
+
+  test "refuses ids and seqs past 64 bits before they reach the database" do
+    too_big = TraceReport.max_integer() + 1
+
+    for args <- [
+          %{"session_id" => too_big},
+          %{"session_id" => -too_big},
+          %{"session_id" => 1, "since" => too_big},
+          %{"session_id" => 1, "query" => "x", "before" => too_big},
+          %{"before_id" => too_big}
+        ] do
+      assert {:error, _errors} = TraceHistory.mcp_schema(args)
+    end
   end
 
   defp history(args), do: args |> execute() |> json!()

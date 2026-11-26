@@ -1,0 +1,112 @@
+defmodule Voyager.MCP.Tools.TraceStartTest do
+  # async: false because the tool drives the global `Tracer` and `Voyager.NodeSession`.
+  use Voyager.TraceToolCase, async: false
+
+  alias Voyager.Fakes
+  alias Voyager.MCP.Tools.TraceReport
+  alias Voyager.MCP.Tools.TraceStart
+
+  test "starts the configured session" do
+    %{id: id} = configure()
+
+    assert %{"session_id" => ^id, "status" => "running", "total_events" => 0, "events" => sample} =
+             json!(TraceStart.execute(%{}, %Frame{}))
+
+    assert [%{"kind" => "configured"}, %{"kind" => "started", "origin" => "mcp"}] = sample
+    assert %{status: :running} = Tracer.active()
+  end
+
+  test "resumes a stopped session with its events" do
+    configure(%{max_events: 2})
+    {:ok, _session} = Tracer.start(:ui)
+    trace_calls(1)
+    assert_receive {:session_entries, %{status: :stopped, stop_reason: :event_limit}, _entries}
+
+    assert %{"status" => "running", "total_events" => 2, "summary" => %{"calls" => 1}} =
+             json!(TraceStart.execute(%{}, %Frame{}))
+  end
+
+  test "loads a saved session by id and runs it again, saying what it discarded" do
+    %{id: saved} = configure(%{max_events: 2}, save: true)
+    {:ok, _session} = Tracer.start(:ui)
+    trace_calls(1)
+    assert_receive {:session_entries, %{status: :stopped}, _entries}
+
+    %{id: unsaved} = configure()
+    {:ok, _session} = Tracer.start(:ui)
+    trace_calls(1)
+    Tracer.stop(:ui)
+    assert_receive {:session_entries, %{id: ^unsaved, status: :stopped}, _entries}
+
+    assert %{"session_id" => ^saved, "status" => "running", "discarded" => discarded} =
+             report = json!(TraceStart.execute(%{session_id: saved}, %Frame{}))
+
+    assert discarded =~ "#{unsaved}"
+    assert %{"runs" => [_, %{"reason" => "running"}]} = report
+  end
+
+  test "says a failed start of a saved session discarded the unsaved one it replaced" do
+    %{id: saved} =
+      configure(%{module: Atom.to_string(Voyager.Missing), function: "_", arity: nil},
+        save: true
+      )
+
+    %{id: unsaved} = configure()
+    {:ok, _session} = Tracer.start(:ui)
+    trace_calls(1)
+    Tracer.stop(:ui)
+    assert_receive {:session_entries, %{id: ^unsaved, status: :stopped}, _entries}
+
+    message = error!(TraceStart.execute(%{session_id: saved}, %Frame{}))
+
+    assert message =~ "Voyager.Missing is not loaded"
+    assert message =~ "unsaved session #{unsaved} and its 2 events were discarded"
+    assert %{id: ^saved, status: :idle} = Tracer.active()
+  end
+
+  test "refuses an unknown session id" do
+    configure()
+    assert error!(TraceStart.execute(%{session_id: 424_242}, %Frame{})) =~ "No tracing session"
+
+    too_big = TraceReport.max_integer() + 1
+    assert {:error, _errors} = TraceStart.mcp_schema(%{"session_id" => too_big})
+  end
+
+  test "refuses without a configured session" do
+    assert error!(TraceStart.execute(%{}, %Frame{})) =~ "no tracing session"
+
+    {:ok, _session} = Tracer.create(:ui)
+    assert error!(TraceStart.execute(%{}, %Frame{})) =~ "no function"
+  end
+
+  test "refuses a running session" do
+    configure()
+    {:ok, _session} = Tracer.start(:ui)
+
+    assert error!(TraceStart.execute(%{}, %Frame{})) =~ "trace_watch"
+  end
+
+  test "refuses a session of a node Voyager is not connected to" do
+    configure()
+
+    Fakes.connect_node!(Fakes.node_session(node: :other@host, node_name: "other@host"))
+    assert error!(TraceStart.execute(%{}, %Frame{})) =~ "connected to other@host"
+
+    Fakes.put_session(nil)
+    assert error!(TraceStart.execute(%{}, %Frame{})) =~ "connect"
+    assert %{status: :idle} = Tracer.active()
+  end
+
+  test "explains the agent's refusal" do
+    configure(%{module: "Elixir.Voyager.Missing", function: "_", arity: nil})
+
+    assert error!(TraceStart.execute(%{}, %Frame{})) =~ "module_list"
+  end
+
+  test "explains a saved session without storage left" do
+    configure(%{}, save: true)
+    {:ok, _} = Voyager.Settings.put(:trace_storage_limit_mb, 0)
+
+    assert error!(TraceStart.execute(%{}, %Frame{})) =~ "delete a saved session"
+  end
+end

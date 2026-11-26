@@ -971,6 +971,8 @@ tracer_init(Caller, Ref, Collector, {_, _, _, Processes, _, Limits} = Plan) ->
             MaxTime = maps:get(max_time_ms, Limits, ?TRACE_MAX_TIME_MS),
             erlang:send_after(MaxTime, self(), voyager_trace_ttl),
             erlang:send_after(?TRACE_FLUSH_MS, self(), voyager_trace_flush),
+            %% Reaches the collector even after its erpc timed out, so it can stop a tracer it never got.
+            erlang:send(Collector, {voyager_trace_started, self()}, [noconnect]),
             Caller ! {Ref, {ok, self()}},
             tracer_loop(#tracer{session = Session,
                                 collector = Collector,

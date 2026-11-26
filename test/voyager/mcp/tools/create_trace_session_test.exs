@@ -8,7 +8,9 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
   alias Anubis.Server.Response
   alias Voyager.Fakes
   alias Voyager.MCP.Tools.CreateTraceSession
+  alias Voyager.MCP.Tools.TraceForm
   alias Voyager.NodeSession
+  alias Voyager.Queries.TraceSessions, as: TraceSessionQueries
   alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Writer
   alias Voyager.Test.VoyagerAgentFixture
@@ -43,12 +45,17 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
                input.input_requests
 
       properties = params["requestedSchema"]["properties"]
+      assert properties["scope"]["default"] == "global"
+      assert properties["save"]["default"] == false
       assert properties["function"]["default"] == "Date.leap_year?/1"
       assert properties["max_rate"]["default"] == 5
       assert properties["capture_args"]["default"] == false
       refute Map.has_key?(properties["pids"], "default")
       assert params["message"] =~ Atom.to_string(node())
-      assert {:set, {:create_trace_session, node, connected_at, _id}} = input.request_state
+
+      assert {:set, {:create_trace_session, node, connected_at, _warning, _id}} =
+               input.request_state
+
       assert node == node()
       assert connected_at == NodeSession.current().connected_at
     end
@@ -57,11 +64,11 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
       frame =
         frame(
           %{"session" => accept(%{"function" => "Date"})},
-          {:create_trace_session, :a@b, NodeSession.current().connected_at,
+          {:create_trace_session, :a@b, NodeSession.current().connected_at, "",
            System.unique_integer()}
         )
 
-      assert {:reply, %InputRequired{request_state: {:set, {_, node, _, _id}}}, _frame} =
+      assert {:reply, %InputRequired{request_state: {:set, {_, node, _, _, _id}}}, _frame} =
                execute(%{}, frame)
 
       assert node == node()
@@ -82,7 +89,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
     end
 
     test "rejects a malformed function before showing the form" do
-      for function <- ["Date.", "date leap", "Date.leap_year?/x", "Date/1/2"] do
+      for function <- ["Date.", "date leap", "Date.leap_year?/x", "Date/1/2", "Date.x/1000"] do
         %{"function" => function} |> execute() |> assert_error()
       end
     end
@@ -92,8 +99,14 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
     test "starts the accepted session and returns its id", %{pid: pid} do
       content = %{"function" => "Date.leap_year?/1", "pids" => pid, "capture_args" => true}
 
-      %{"status" => "started", "session_id" => id} =
-        %{} |> execute(answered(accept(content))) |> run()
+      %{"status" => "running", "session_id" => id, "next" => next} =
+        report = %{} |> execute(answered(accept(content))) |> run()
+
+      assert next =~ "trace_watch"
+      assert id < 0
+
+      assert %{"target" => "Date.leap_year?/1", "capture" => "args", "processes" => [^pid]} =
+               report
 
       assert %{id: ^id, origin: :mcp, status: :running, config: config} = Tracer.active()
 
@@ -103,7 +116,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
 
     test "keeps the Elixir prefix of a fully qualified module", %{pid: pid} do
       content = %{"function" => "Elixir.Date.leap_year?/1", "pids" => pid}
-      %{"status" => "started"} = %{} |> execute(answered(accept(content))) |> run()
+      %{"status" => "running"} = %{} |> execute(answered(accept(content))) |> run()
 
       assert %{module: "Elixir.Date", function: "leap_year?", arity: 1} = Tracer.active().config
     end
@@ -111,7 +124,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
     test "parses Erlang functions and traces all processes without pids" do
       Code.ensure_loaded!(:calendar)
       content = %{"function" => "calendar:is_leap_year/1", "pids" => " "}
-      %{"status" => "started"} = %{} |> execute(answered(accept(content))) |> run()
+      %{"status" => "running"} = %{} |> execute(answered(accept(content))) |> run()
 
       assert %{module: "calendar", function: "is_leap_year", processes: :all, capture: :arity} =
                Tracer.active().config
@@ -140,16 +153,76 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
       refute match?(%{origin: :mcp, status: :running}, Tracer.active())
     end
 
+    test "starts a saved session of new processes in local scope" do
+      content = %{
+        "function" => "Date.leap_year?/1",
+        "scope" => "local",
+        "new_processes_only" => true,
+        "save" => true
+      }
+
+      %{"status" => "running", "session_id" => id} =
+        %{} |> execute(answered(accept(content))) |> run()
+
+      assert %{id: ^id, save: true, config: %{scope: :local, processes: :new}} = Tracer.active()
+      assert TraceSessionQueries.get(id)
+    end
+
+    test "leaves no saved row behind when the agent refuses the start" do
+      before = length(TraceSessionQueries.all())
+      content = %{"function" => "Voyager.Missing", "save" => true}
+
+      assert %{} |> execute(answered(accept(content))) |> assert_error()
+      assert length(TraceSessionQueries.all()) == before
+    end
+
+    test "warns that the form discards an unsaved session with events", %{pid: pid} do
+      %{"session_id" => id} =
+        %{}
+        |> execute(answered(accept(%{"function" => "Date.leap_year?/1", "pids" => pid})))
+        |> run()
+
+      Date.leap_year?(~D[2024-01-01])
+      Tracer.stop(:ui)
+      _ = :sys.get_state(Tracer)
+
+      assert {:reply, %InputRequired{input_requests: %{"session" => request}}, _frame} =
+               execute(%{})
+
+      assert request["params"]["message"] =~ "discards"
+      assert request["params"]["message"] =~ "#{id}"
+    end
+
+    test "asks again when the session it would discard changed after the form was shown",
+         %{pid: pid} do
+      frame = answered(accept(%{"function" => "Date", "pids" => pid}))
+
+      %{"session_id" => id} =
+        %{}
+        |> execute(answered(accept(%{"function" => "Date.leap_year?/1", "pids" => pid})))
+        |> run()
+
+      Date.leap_year?(~D[2024-01-01])
+      Tracer.stop(:ui)
+      _ = :sys.get_state(Tracer)
+
+      assert {:reply, %InputRequired{input_requests: %{"session" => request}}, _frame} =
+               execute(%{}, frame)
+
+      assert request["params"]["message"] =~ "discards"
+      assert %{id: ^id} = Tracer.active()
+    end
+
     test "reads max_seconds sent as a string", %{pid: pid} do
       content = %{"function" => "Date", "pids" => pid, "max_seconds" => "60"}
-      %{"status" => "started"} = %{} |> execute(answered(accept(content))) |> run()
+      %{"status" => "running"} = %{} |> execute(answered(accept(content))) |> run()
 
       assert %{max_time_ms: 60_000} = Tracer.active().config
     end
 
     test "asks again for a form state already answered", %{pid: pid} do
       frame = answered(accept(%{"function" => "Date", "pids" => pid}))
-      %{"status" => "started", "session_id" => id} = %{} |> execute(frame) |> run()
+      %{"status" => "running", "session_id" => id} = %{} |> execute(frame) |> run()
 
       Tracer.stop(:ui)
       _ = :sys.get_state(Tracer)
@@ -191,7 +264,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
     end
 
     test "refuses while another session runs", %{pid: pid} do
-      %{"status" => "started"} =
+      %{"status" => "running"} =
         %{}
         |> execute(answered(accept(%{"function" => "Date", "pids" => pid})))
         |> run()
@@ -236,7 +309,7 @@ defmodule Voyager.MCP.Tools.CreateTraceSessionTest do
       frame(
         %{"session" => answer},
         {:create_trace_session, node(), NodeSession.current().connected_at,
-         System.unique_integer()}
+         TraceForm.discard_warning(Tracer.active()), System.unique_integer()}
       )
 
   defp accept(content),

@@ -9,9 +9,9 @@ defmodule Voyager.MCP.Tools.TraceHistory do
   changed since the run before, as they were then), its summary (and, after several runs,
   `last_run_summary`) and a page of its events, oldest first, from `since` (a `seq`, 0 by
   default). Pass the returned `next_since` to read the next page; `more` says the page was
-  full. This works on a running session too, to follow it in batches. An unsaved session
-  keeps only its newest events, and `truncated` marks a page missing evicted ones; its
-  summary still counts every event. Terms are written in `syntax` (`elixir` or `erlang`),
+  full. This works on a running session too, to follow it in batches and `trace_stop` it
+  early. An unsaved session keeps only its newest events, and `truncated` marks a page
+  missing evicted ones; its summary still counts every event. Terms are written in `syntax` (`elixir` or `erlang`),
   as Voyager shows them.
 
   With `session_id` and `query`, returns the trace events containing `query` as written in
@@ -33,10 +33,14 @@ defmodule Voyager.MCP.Tools.TraceHistory do
   @listed 20
 
   schema do
-    field :session_id, :integer, description: "`session_id` of the session to read."
+    field :session_id, :integer,
+      min: -TraceReport.max_integer(),
+      max: TraceReport.max_integer(),
+      description: "`session_id` of the session to read."
 
     field :since, :integer,
       min: 0,
+      max: TraceReport.max_integer(),
       default: 0,
       description: "Read events from this `seq`, e.g. the previous page's `next_since`."
 
@@ -45,6 +49,7 @@ defmodule Voyager.MCP.Tools.TraceHistory do
 
     field :before, :integer,
       min: 0,
+      max: TraceReport.max_integer(),
       description:
         "With `query`, matches below this `seq`, e.g. the previous result's `next_before`."
 
@@ -54,6 +59,7 @@ defmodule Voyager.MCP.Tools.TraceHistory do
 
     field :before_id, :integer,
       min: 1,
+      max: TraceReport.max_integer(),
       description: "Without `session_id`, list sessions older than this, e.g. `next_before_id`."
   end
 
