@@ -207,9 +207,11 @@ defmodule VoyagerWeb.SettingsLiveTest do
       assert render(view) =~ "Running at http://127.0.0.1:#{port}/mcp"
 
       view |> element("#mcp-toggle") |> render_click()
+      _ = :sys.get_state(McpAgents)
       assert render(view) =~ "Stopped"
 
       view |> element("#mcp-toggle") |> render_click()
+      _ = :sys.get_state(McpAgents)
       assert render(view) =~ "Running at http://127.0.0.1:#{port}/mcp"
     end
 
@@ -217,6 +219,7 @@ defmodule VoyagerWeb.SettingsLiveTest do
       {:ok, view, _html} = live(conn, ~p"/settings")
 
       view |> element("#mcp-toggle") |> render_click()
+      _ = :sys.get_state(McpAgents)
       assert render(view) =~ "Stopped"
 
       {:ok, socket} = :gen_tcp.listen(port, [:binary, active: false, ip: {127, 0, 0, 1}])
