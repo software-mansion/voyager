@@ -645,7 +645,8 @@ defmodule VoyagerWeb.TracingSessionLive do
     do: "The session was reconfigured or replaced meanwhile. Try again."
 
   defp format_error(:storage_limit),
-    do: "Saved sessions use all their storage. Delete a saved session to resume."
+    do:
+      "Saved sessions use all their storage. Delete a saved session or extend storage limit to resume."
 
   defp format_error({:refused, module}), do: "#{inspect(module)} cannot be traced."
   defp format_error({:not_loaded, module}), do: "#{inspect(module)} is not loaded on the node."

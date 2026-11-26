@@ -51,6 +51,7 @@ defmodule VoyagerWeb.SettingsLive.TracingSettings do
               min="1"
               disabled={@locked?}
               phx-mounted={@focus? && JS.focus()}
+              float_errors
               class="font-mono flex-1 text-sm"
             />
           </div>
@@ -61,7 +62,7 @@ defmodule VoyagerWeb.SettingsLive.TracingSettings do
             </button>
           </div>
         </.form>
-        <p class="text-base-content/70 mt-2 text-xs">
+        <p class="text-base-content/70 mt-3 text-xs">
           Lowering it deletes no saved session. A running one stops once it passes the new limit.
         </p>
       </div>

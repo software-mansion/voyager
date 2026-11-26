@@ -238,7 +238,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
                 id={"stat-#{cell.key}-settings"}
                 href={cell.link.href}
                 aria-label={cell.link.tip}
-                class="text-base-content/50 hover:text-base-content"
+                class="text-base-content/70 hover:text-base-content"
               >
                 <.icon name="icon-settings" class="size-3.5" />
               </a>
