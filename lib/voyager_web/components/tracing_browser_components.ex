@@ -724,7 +724,8 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
 
     assigns =
       assign(assigns,
-        activity_aside: activity_aside(assigns.overview.activity, saved?),
+        activity_aside:
+          activity_aside(assigns.overview.activity, saved?, length(assigns.overview.runs)),
         functions: functions
       )
 
@@ -1161,14 +1162,23 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
   defp format_utc_stamp(%DateTime{} = at), do: Calendar.strftime(at, "%-d %b %H:%M UTC")
   defp format_utc_stamp(_at), do: ""
 
-  defp activity_aside(nil, true), do: "traces over all runs"
-  defp activity_aside(nil, false), do: "newest #{Tracer.kept_traces()}"
+  defp activity_aside(nil, true, _run_count), do: "traces over all runs"
+  defp activity_aside(nil, false, _run_count), do: "newest #{Tracer.kept_traces()}"
 
-  defp activity_aside(%{live?: true, bucket_ms: bucket_ms, segments: [segment]}, _saved?),
+  defp activity_aside(%{live?: true, bucket_ms: bucket_ms, segments: [segment]}, _saved?, _runs),
     do: "last #{span_label(length(segment.counts) * bucket_ms)} · #{span_label(bucket_ms)} slices"
 
-  defp activity_aside(%{bucket_ms: bucket_ms}, saved?),
-    do: "#{activity_aside(nil, saved?)} · #{span_label(bucket_ms)} slices"
+  defp activity_aside(%{bucket_ms: bucket_ms, segments: segments}, saved?, run_count),
+    do: "#{runs_scope(saved?, length(segments), run_count)} · #{span_label(bucket_ms)} slices"
+
+  # Overview draws one segment per run, and past its bucket cap only the newest runs.
+  defp runs_scope(saved?, shown, total) when shown >= total,
+    do: activity_aside(nil, saved?, total)
+
+  defp runs_scope(true, shown, total), do: "latest #{shown} of #{total} runs"
+
+  defp runs_scope(false, shown, total),
+    do: "#{activity_aside(nil, false, total)} · latest #{shown} of #{total} runs"
 
   defp span_label(ms) when rem(ms, 3_600_000) == 0, do: "#{div(ms, 3_600_000)}h"
   defp span_label(ms) when rem(ms, 60_000) == 0, do: "#{div(ms, 60_000)}m"

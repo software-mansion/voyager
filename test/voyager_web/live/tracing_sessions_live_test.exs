@@ -914,6 +914,50 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     assert has_element?(view, "#overview-functions", "others (1)")
   end
 
+  test "says the activity covers only the latest runs once they pass the bucket cap", %{
+    conn: conn
+  } do
+    saved = insert_saved!(%{runs: 0, traces: 61})
+    config = %Config{module: "Elixir.Date", function: "leap_year?", arity: 1, max_events: 100}
+
+    runs =
+      Enum.flat_map(1..61, fn idx ->
+        seq = idx * 3 - 2
+        started_at = idx * 10_000_000
+
+        [
+          %{seq: seq, kind: :started, at: started_at, origin: :ui},
+          %{
+            seq: seq + 1,
+            kind: :trace,
+            type: :call,
+            pid: self(),
+            process: nil,
+            mfa: {Date, :leap_year?, 1},
+            at: started_at + 1_000_000
+          },
+          %{
+            seq: seq + 2,
+            kind: :stopped,
+            at: started_at + 2_000_000,
+            origin: :ui,
+            reason: :stopped,
+            traces: 1,
+            dropped: 0
+          }
+        ]
+      end)
+
+    TraceEntryActions.insert_all(saved.id, [
+      %{seq: 0, kind: :configured, at: 0, origin: :ui, node: Node.self(), config: config} | runs
+    ])
+
+    view = open_sessions(conn)
+
+    assert has_element?(view, "#overview-runs", "61 runs")
+    assert has_element?(view, "#overview-activity", "latest 60 of 61 runs · 2s slices")
+  end
+
   test "keeps an active unconfigured saved session loaded and deletes it when unloaded", %{
     conn: conn
   } do
