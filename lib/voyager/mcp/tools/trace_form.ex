@@ -138,9 +138,8 @@ defmodule Voyager.MCP.Tools.TraceForm do
     }
   end
 
-  @doc "How `config`'s target reads: `Mod.fun/arity`, `Mod.fun` or `Mod`, Erlang modules as `:mod`."
-  @spec function_name(Config.t()) :: String.t()
-  def function_name(%Config{} = config) do
+  # Written the way `parse_function/1` reads it back, so an unchanged form keeps the target.
+  defp function_name(%Config{} = config) do
     module =
       case config.module do
         "Elixir." <> module -> module

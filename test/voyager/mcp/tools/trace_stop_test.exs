@@ -28,7 +28,7 @@ defmodule Voyager.MCP.Tools.TraceStopTest do
            } = report
 
     assert [%{"kind" => "configured"}, %{"kind" => "started"} | events] = report["events"]
-    assert [%{"kind" => "call", "args" => "[~D[2001-01-01]]"}, %{"value" => "false"} | _] = events
+    assert [%{"kind" => "call", "args" => ["~D[2001-01-01]"]}, %{"value" => "false"} | _] = events
     assert %{"kind" => "stopped", "origin" => "mcp"} = List.last(events)
     assert %{status: :stopped} = Tracer.active()
   end

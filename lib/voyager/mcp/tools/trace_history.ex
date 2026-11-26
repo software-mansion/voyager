@@ -1,22 +1,24 @@
 defmodule Voyager.MCP.Tools.TraceHistory do
   @moduledoc """
-  Without `session_id`, lists the active tracing session and the newest saved ones,
-  optionally only those on `node`. Pass the returned `next_before_id` as `before_id`
-  for older ones.
+  Without `session_id`, lists the active tracing session and the newest saved ones, with
+  their `runs` count, optionally only those on `node`. Pass the returned `next_before_id`
+  as `before_id` for older ones.
 
   With `session_id`, returns that session's status, its runs (a run's `config` lists only
-  the settings that differ from the session's current ones), its summary (and, after
-  several runs, `last_run_summary`) and a page of its events, oldest first, from `since`
-  (a `seq`, 0 by default). Pass the returned `next_since` to read the next page; `more`
-  says the page was full. This works on a running session too, to follow it in batches
-  and `trace_stop` it early.
-  An unsaved session keeps only its newest events, and `truncated` marks a page missing
-  evicted ones; its summary still counts every event.
+  the settings that differ from the session's current ones, `previous_config` those it
+  changed since the run before, as they were then), its summary (and, after several runs,
+  `last_run_summary`) and a page of its events, oldest first, from `since` (a `seq`, 0 by
+  default). Pass the returned `next_since` to read the next page; `more` says the page was
+  full. This works on a running session too, to follow it in batches and `trace_stop` it
+  early. An unsaved session keeps only its newest events, and `truncated` marks a page
+  missing evicted ones; its summary still counts every event. Terms are written in `syntax` (`elixir` or `erlang`),
+  as Voyager shows them.
 
-  With `session_id` and `query`, returns the trace events containing `query` (in the pid,
-  process, function, arguments or value, ignoring case) instead, newest first, with
-  `total_matches`. Pass the returned `next_before` as `before` for older matches. Prefer
-  this over paging to find a value. An unsaved session searches only its newest events.
+  With `session_id` and `query`, returns the trace events containing `query` as written in
+  `syntax` (in the pid, process, function, arguments or value, ignoring case) instead,
+  newest first, with `total_matches`. Pass the returned `next_before` as `before` for older
+  matches. Prefer this over paging to find a value. An unsaved session searches only its
+  newest events.
   """
 
   use Anubis.Server.Component, type: :tool
@@ -24,6 +26,7 @@ defmodule Voyager.MCP.Tools.TraceHistory do
   alias Anubis.Server.Response
   alias Voyager.MCP.Tools.TraceReport
   alias Voyager.Queries.TraceSessions, as: TraceSessionQueries
+  alias Voyager.Services.TermSyntax
   alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Writer
 
@@ -76,6 +79,7 @@ defmodule Voyager.MCP.Tools.TraceHistory do
   def execute(params, frame) do
     active = Tracer.active()
     Writer.flush()
+    syntax = TermSyntax.current()
 
     page =
       TraceSessionQueries.page(
@@ -85,10 +89,8 @@ defmodule Voyager.MCP.Tools.TraceHistory do
         limit: @listed
       )
 
-    pinned =
-      if is_nil(params[:before_id]) and on_node?(active, params[:node]), do: [active], else: []
-
-    sessions = Enum.map(pinned ++ page.rows, &TraceReport.header/1)
+    saved = Enum.map(page.rows, &Map.put(TraceReport.header(&1, syntax), :runs, &1.runs))
+    sessions = listed_active(active, params, syntax) ++ saved
 
     result =
       if page.has_more?,
@@ -123,6 +125,15 @@ defmodule Voyager.MCP.Tools.TraceHistory do
 
       {:ok,
        Map.merge(report, %{next_since: next_since, more: length(report.events) == params.limit})}
+    end
+  end
+
+  defp listed_active(active, params, syntax) do
+    with true <- is_nil(params[:before_id]) and on_node?(active, params[:node]),
+         {:ok, runs} <- Tracer.runs(active.id) do
+      [Map.put(TraceReport.header(active, syntax), :runs, length(runs))]
+    else
+      _not_listed -> []
     end
   end
 
