@@ -4,7 +4,9 @@ defmodule Voyager.TestUtils do
   """
 
   import Ecto.Query, only: [from: 2]
-  import ExUnit.Callbacks, only: [on_exit: 1]
+  import ExUnit.Callbacks, only: [on_exit: 1, start_supervised!: 1]
+
+  alias Voyager.Services.DemoNode
 
   @doc """
   Converts changeset errors into a map of translated messages.
@@ -69,6 +71,16 @@ defmodule Voyager.TestUtils do
 
       await_element(view, selector, text_filter, attempts - 1)
     end
+  end
+
+  @doc """
+  Replaces the app's `DemoNode` with one whose `:peer` options are overridden by `opts`.
+  Restores the app's instance on exit.
+  """
+  def start_demo_node!(opts \\ []) do
+    :ok = Supervisor.terminate_child(Voyager.Supervisor, DemoNode)
+    on_exit(fn -> {:ok, _pid} = Supervisor.restart_child(Voyager.Supervisor, DemoNode) end)
+    start_supervised!({DemoNode, opts})
   end
 
   @doc "Evaluates `source` as one Erlang expression, the trailing dot added, and returns its value."

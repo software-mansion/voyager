@@ -12,6 +12,9 @@ defmodule Voyager.Queries.SshConnections do
     |> Repo.all()
   end
 
+  @spec any?() :: boolean()
+  def any?, do: Repo.exists?(SshConnection)
+
   @spec get(integer()) :: SshConnection.t() | nil
   def get(id), do: Repo.get(SshConnection, id)
 

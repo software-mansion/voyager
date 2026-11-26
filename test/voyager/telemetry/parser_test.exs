@@ -175,6 +175,27 @@ defmodule Voyager.Telemetry.ParserTest do
     end
   end
 
+  describe "parse_metadata/2 for demo events" do
+    test "keeps only the reason tag for `demo.start_failed` and `demo.stop`" do
+      assert Parser.parse_metadata([:voyager, :demo, :start_failed], %{
+               reason: :boot_failed,
+               cookie: "secret"
+             }) == %{reason: "boot_failed"}
+
+      assert Parser.parse_metadata([:voyager, :demo, :stop], %{reason: :idle_timeout}) ==
+               %{reason: "idle_timeout"}
+
+      assert Parser.parse_metadata([:voyager, :demo, :stop], %{reason: "x"}) ==
+               %{reason: "unknown"}
+    end
+
+    test "returns empty map for `demo.start`, `demo.connect` and `demo.dismiss`" do
+      for event <- [:start, :connect, :dismiss] do
+        assert Parser.parse_metadata([:voyager, :demo, event], %{foo: :bar}) == %{}
+      end
+    end
+  end
+
   describe "parse_metadata/2 for mcp tool call events" do
     test "includes tool name for `tool_call.start` and `tool_call.stop`" do
       assert Parser.parse_metadata([:anubis_mcp, :server, :tool_call, :start], %{
@@ -266,6 +287,24 @@ defmodule Voyager.Telemetry.ParserTest do
                %{events: 3, dropped: 1, duration_ms: 20}
 
       assert %{} == Parser.parse_measurements([:voyager, :trace, :start], %{foo: :bar})
+    end
+  end
+
+  describe "parse_measurements/2 for demo events" do
+    test "keeps the duration for `demo.start`, `demo.start_failed` and `demo.stop`" do
+      for event <- [:start, :start_failed, :stop] do
+        assert Parser.parse_measurements([:voyager, :demo, event], %{duration_ms: 5, foo: 1}) ==
+                 %{duration_ms: 5}
+      end
+    end
+
+    test "keeps the time to connect for `demo.connect`" do
+      assert Parser.parse_measurements([:voyager, :demo, :connect], %{
+               time_to_connect_ms: 7,
+               foo: 1
+             }) == %{time_to_connect_ms: 7}
+
+      assert %{} == Parser.parse_measurements([:voyager, :demo, :dismiss], %{foo: :bar})
     end
   end
 

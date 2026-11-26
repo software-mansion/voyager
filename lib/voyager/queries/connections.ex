@@ -14,6 +14,9 @@ defmodule Voyager.Queries.Connections do
     |> Repo.all()
   end
 
+  @spec any?() :: boolean()
+  def any?, do: Repo.exists?(Connection)
+
   @spec get(integer()) :: optional()
   def get(id), do: Repo.get(Connection, id)
 

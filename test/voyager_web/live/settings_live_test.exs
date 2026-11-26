@@ -2,9 +2,12 @@ defmodule VoyagerWeb.SettingsLiveTest do
   use VoyagerWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
-  import Voyager.TestUtils, only: [reset_pid_format: 1, reset_term_syntax: 1]
+
+  import Voyager.TestUtils,
+    only: [reset_pid_format: 1, reset_term_syntax: 1, start_demo_node!: 0]
 
   alias Voyager.Fakes
+  alias Voyager.Services.DemoNode
   alias Voyager.Services.McpAgents
   alias Voyager.Services.TermSyntax
   alias Voyager.Settings
@@ -60,6 +63,73 @@ defmodule VoyagerWeb.SettingsLiveTest do
         |> live(~p"/settings")
 
       assert has_element?(view, ~s|a#settings-back[href="/"]|)
+    end
+  end
+
+  describe "demo node" do
+    test "links to the connect screen to start the demo", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings")
+      render_async(view)
+
+      assert has_element?(view, ~s|a#start-demo-setting[href="/?demo=start"]|)
+    end
+
+    test "disables the start button while a node is connected", %{conn: conn} do
+      Fakes.connect_node!(Fakes.node_session(node_name: "demo@localhost"))
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      assert has_element?(view, "#demo-settings-blocked")
+      assert has_element?(view, "button#start-demo-setting[disabled]")
+      refute has_element?(view, "a#start-demo-setting")
+    end
+
+    test "offers a restart while the demo node runs, until it stops", %{conn: conn} do
+      start_demo_node!()
+      {:ok, _params} = DemoNode.start()
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+      render_async(view)
+
+      assert has_element?(view, "#demo-settings-running a#start-demo-setting")
+
+      send(view.pid, {:demo_stopped, :idle_timeout})
+
+      refute has_element?(view, "#demo-settings-running")
+      assert has_element?(view, ~s|a#start-demo-setting[href="/?demo=start"]|)
+    end
+
+    test "offers a restart once the demo node starts", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings")
+      render_async(view)
+
+      send(view.pid, :demo_started)
+
+      assert has_element?(view, "#demo-settings-running a#start-demo-setting")
+    end
+
+    test "hides the start button while the demo node does not answer", %{conn: conn} do
+      start_demo_node!()
+      :sys.suspend(DemoNode)
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      refute has_element?(view, "#start-demo-setting")
+
+      :sys.resume(DemoNode)
+      render_async(view)
+
+      assert has_element?(view, ~s|a#start-demo-setting[href="/?demo=start"]|)
+    end
+
+    test "shows the demo node as connected without a start button", %{conn: conn} do
+      Fakes.connect_node!(Fakes.node_session(node_name: DemoNode.node_name()))
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      assert has_element?(view, "#demo-settings-connected")
+      refute has_element?(view, "#demo-settings-blocked")
+      refute has_element?(view, "#start-demo-setting")
     end
   end
 
