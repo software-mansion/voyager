@@ -908,6 +908,7 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     assert has_element?(view, "#overview-run-1", "Stopped on request")
     assert has_element?(view, "#overview-run-2", "Event limit reached")
     assert has_element?(view, "#overview-activity", "traces over all runs · 1s slices")
+    assert has_element?(view, "#overview-activity [title='2s without a run']", "+2s")
     assert has_element?(view, "#activity-scale", "/s")
     assert has_element?(view, "#overview-outcome", "Exceptions")
     assert has_element?(view, "#outcome-processes", "2")
@@ -956,6 +957,8 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
 
     assert has_element?(view, "#overview-runs", "61 runs")
     assert has_element?(view, "#overview-activity", "latest 60 of 61 runs · 2s slices")
+    assert has_element?(view, "#overview-activity [title='8s without a run']")
+    refute has_element?(view, "#overview-activity [title='8s without a run']", "+8s")
   end
 
   test "keeps an active unconfigured saved session loaded and deletes it when unloaded", %{

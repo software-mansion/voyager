@@ -810,6 +810,9 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
     """
   end
 
+  # A labeled gap is a fixed 2rem wide, so more of them push the card past its column.
+  @max_labeled_gaps 4
+
   attr :activity, :map, default: nil
   attr :aside, :string, required: true
 
@@ -830,7 +833,8 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
     assigns =
       assign(assigns,
         bars: activity_bars(assigns.activity, unit_ms, top),
-        top_label: "#{Formatters.format_integer(top)}#{unit}"
+        top_label: "#{Formatters.format_integer(top)}#{unit}",
+        gap_labels?: Enum.count(segments, & &1.gap_before_ms) <= @max_labeled_gaps
       )
 
     ~H"""
@@ -848,11 +852,17 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
             <%= for bar <- @bars do %>
               <span
                 :if={bar.gap}
-                class="relative flex h-full w-8 shrink-0 justify-center"
+                class={[
+                  "relative flex h-full shrink-0 justify-center",
+                  if(@gap_labels?, do: "w-8", else: "w-px")
+                ]}
                 title={"#{bar.gap} without a run"}
               >
                 <span class="border-base-content/30 h-full border-l border-dashed"></span>
-                <span class="font-mono bg-base-100 text-base-content/50 absolute top-0 text-xs">
+                <span
+                  :if={@gap_labels?}
+                  class="font-mono bg-base-100 text-base-content/50 absolute top-0 text-xs"
+                >
                   +{bar.gap}
                 </span>
               </span>
@@ -877,7 +887,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
           </div>
           <div class="font-mono text-base-content/60 mt-1.5 flex gap-px text-xs tabular-nums">
             <%= for bar <- @bars do %>
-              <span :if={bar.gap} class="w-8 shrink-0"></span>
+              <span :if={bar.gap} class={["shrink-0", if(@gap_labels?, do: "w-8", else: "w-px")]}></span>
               <span :if={!bar.gap} class="relative h-4 flex-1">
                 <span :if={bar.label} class="absolute left-0 whitespace-nowrap">{bar.label}</span>
                 <span :if={bar.end_label} class="absolute right-0 whitespace-nowrap">
