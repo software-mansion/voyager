@@ -469,10 +469,10 @@ defmodule Voyager.Services.TracerTest do
           )
 
         assert ret.duration_us == 15
-        assert Tracer.call(id, call.seq) == {:ok, %{call_event: call, outcome: ret}}
-        assert Tracer.call(id, ret.seq) == {:ok, %{call_event: call, outcome: ret}}
-        assert Tracer.call(id, 0) == {:error, :not_found}
-        assert Tracer.call(id, ret.seq + 100) == {:error, :not_found}
+        assert Tracer.find_call(id, call.seq) == {:ok, %{call_event: call, outcome: ret}}
+        assert Tracer.find_call(id, ret.seq) == {:ok, %{call_event: call, outcome: ret}}
+        assert Tracer.find_call(id, 0) == {:error, :not_found}
+        assert Tracer.find_call(id, ret.seq + 100) == {:error, :not_found}
       end
     end
   end
@@ -498,19 +498,19 @@ defmodule Voyager.Services.TracerTest do
 
   test "does not find a call evicted from memory, or of a missing or closed session" do
     {id, [oldest]} = searchable(false, ["oldest"])
-    assert {:ok, %{call_event: ^oldest}} = Tracer.call(id, oldest.seq)
+    assert {:ok, %{call_event: ^oldest}} = Tracer.find_call(id, oldest.seq)
 
     newer = for n <- 1..Tracer.kept_traces(), do: %{Map.delete(oldest, :seq) | args: [n]}
     send(Tracer, {:voyager_trace_events, Tracer.active().tracer, newer, 0})
     [kept | _] = traces(id)
 
-    assert {:error, :not_found} = Tracer.call(id, oldest.seq)
-    assert {:ok, %{call_event: ^kept}} = Tracer.call(id, kept.seq)
-    assert {:error, :not_found} = Tracer.call(1_000_000, 0)
+    assert {:error, :not_found} = Tracer.find_call(id, oldest.seq)
+    assert {:ok, %{call_event: ^kept}} = Tracer.find_call(id, kept.seq)
+    assert {:error, :not_found} = Tracer.find_call(1_000_000, 0)
     assert :ok = Tracer.stop(:ui)
     assert_receive {:session_entries, _session, [%{kind: :stopped}]}
     assert :ok = Tracer.close()
-    assert {:error, :not_found} = Tracer.call(id, kept.seq)
+    assert {:error, :not_found} = Tracer.find_call(id, kept.seq)
   end
 
   test "does not search a missing or closed session", %{session: %{id: id}} do

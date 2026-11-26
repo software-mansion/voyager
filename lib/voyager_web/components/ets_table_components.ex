@@ -13,7 +13,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
       copyable: 1,
       kv: 1,
       kv_skeleton: 1,
-      resize_handle: 1,
+      panel: 1,
       section: 1
     ]
 
@@ -441,17 +441,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
     assigns = assign(assigns, :open?, assigns.table_param != nil)
 
     ~H"""
-    <aside
-      id={@id}
-      phx-hook="DetailsPanelResize"
-      inert={not @open?}
-      class={[
-        "details-panel",
-        "border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex w-full flex-col border-l p-2 shadow-2xl transition-transform duration-300 ease-in-out",
-        if(@open?, do: "translate-x-0", else: "translate-x-full")
-      ]}
-    >
-      <.resize_handle panel_id={@id} open?={@open?} />
+    <.panel id={@id} open?={@open?}>
       <%= if @open? do %>
         <.panel_header
           id={@id}
@@ -475,7 +465,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
             </.panel_notice>
         <% end %>
       <% end %>
-    </aside>
+    </.panel>
     """
   end
 

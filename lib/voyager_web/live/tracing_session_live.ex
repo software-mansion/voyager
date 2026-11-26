@@ -38,8 +38,7 @@ defmodule VoyagerWeb.TracingSessionLive do
         |> assign(:confirm, nil)
         |> assign(:queued_session, nil)
         |> assign(:flush_scheduled?, false)
-        |> assign(:event_seq, nil)
-        |> assign(:call, %AsyncResult{})
+        |> assign_call(nil, %AsyncResult{})
         |> TracingStatusHook.defer_puts()
         |> Log.init()
         |> Stats.init()
@@ -64,8 +63,7 @@ defmodule VoyagerWeb.TracingSessionLive do
 
   def handle_params(_params, _uri, socket) do
     socket
-    |> assign(:event_seq, nil)
-    |> assign(:call, %AsyncResult{})
+    |> assign_call(nil, %AsyncResult{})
     |> noreply()
   end
 
@@ -111,7 +109,7 @@ defmodule VoyagerWeb.TracingSessionLive do
             node_name={@session.node_name}
             search={@search}
             search_form={@search_form}
-            selection={selection(@event_seq, @call)}
+            selection={@selection}
             on_select="select-event"
             on_pause="pause-log"
             on_resume="resume-log"
@@ -151,7 +149,7 @@ defmodule VoyagerWeb.TracingSessionLive do
       <TraceLogComponents.event_panel
         seq={@event_seq}
         call={@call}
-        return_trace?={return_trace?(@trace_session)}
+        trace_session={@trace_session}
         node={@session.node}
         current_url={@current_url}
         term_states={@term_states}
@@ -503,23 +501,29 @@ defmodule VoyagerWeb.TracingSessionLive do
 
   defp open_event(socket, seq) do
     socket
-    |> assign(:event_seq, seq)
-    |> assign(:call, AsyncResult.loading())
+    |> assign_call(seq, AsyncResult.loading())
     |> look_up_call()
   end
 
   defp look_up_call(socket) do
     %{id: id, event_seq: seq} = socket.assigns
-    start_async(socket, :call, fn -> {seq, Tracer.call(id, seq)} end)
+    start_async(socket, :call, fn -> {seq, Tracer.find_call(id, seq)} end)
   end
 
   defp put_call(socket, call) do
-    shown = socket.assigns.call.result || %{call_event: nil, outcome: nil}
+    %{event_seq: seq, call: shown} = socket.assigns
 
     socket
-    |> put_terms(shown.call_event, call.call_event)
-    |> put_terms(shown.outcome, call.outcome)
-    |> assign(:call, AsyncResult.ok(socket.assigns.call, call))
+    |> put_terms(shown.result[:call_event], call.call_event)
+    |> put_terms(shown.result[:outcome], call.outcome)
+    |> assign_call(seq, AsyncResult.ok(shown, call))
+  end
+
+  defp assign_call(socket, seq, call) do
+    socket
+    |> assign(:event_seq, seq)
+    |> assign(:call, call)
+    |> assign(:selection, selection(seq, call))
   end
 
   # A refresh that found the outcome keeps the arguments' open branches.
@@ -547,10 +551,14 @@ defmodule VoyagerWeb.TracingSessionLive do
       else: socket
   end
 
-  defp refresh_call(socket, _entries), do: socket
+  # A lookup still out may have read the log before these entries reached it.
+  defp refresh_call(%{assigns: %{call: %AsyncResult{loading: true}}} = socket, entries) do
+    if Enum.any?(entries, &match?(%{kind: :trace, type: type} when type != :call, &1)),
+      do: look_up_call(socket),
+      else: socket
+  end
 
-  defp return_trace?(trace_session),
-    do: match?(%AsyncResult{result: %Session{config: %{return_trace: true}}}, trace_session)
+  defp refresh_call(socket, _entries), do: socket
 
   defp selection(nil, _call), do: nil
 

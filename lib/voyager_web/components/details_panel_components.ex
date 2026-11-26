@@ -55,6 +55,31 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   @max_expanded_relations 60
   def max_expanded_relations, do: @max_expanded_relations
 
+  @doc "The shell of an overlay details panel: slides in from the right while `open?`."
+  attr :id, :string, required: true
+  attr :open?, :boolean, required: true
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  def panel(assigns) do
+    ~H"""
+    <aside
+      id={@id}
+      phx-hook="DetailsPanelResize"
+      inert={not @open?}
+      class={[
+        "details-panel",
+        "border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex w-full flex-col border-l p-2 shadow-2xl transition-transform duration-300 ease-in-out",
+        if(@open?, do: "translate-x-0", else: "translate-x-full")
+      ]}
+      {@rest}
+    >
+      <.resize_handle panel_id={@id} open?={@open?} />
+      {render_slot(@inner_block)}
+    </aside>
+    """
+  end
+
   attr :panel_id, :string, required: true
   attr :open?, :boolean, required: true
 

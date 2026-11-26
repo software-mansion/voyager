@@ -3,6 +3,8 @@ defmodule Voyager.Services.Tracer.CallPairing do
   Matches return and exception trace events to their calls to time them.
   """
 
+  alias Voyager.Services.Tracer.Entry
+
   # Returns that never come would grow the open calls forever, so they reset past this.
   @max_open_calls 10_000
   @walk_limit 1_000
@@ -14,7 +16,7 @@ defmodule Voyager.Services.Tracer.CallPairing do
           count: non_neg_integer()
         }
 
-  @type call :: %{call_event: map() | nil, outcome: map() | nil}
+  @type call :: %{call_event: Entry.t() | nil, outcome: Entry.t() | nil}
 
   @doc """
   Gives each return or exception event the `duration_us` of its call, matched per
@@ -26,7 +28,7 @@ defmodule Voyager.Services.Tracer.CallPairing do
     Enum.map_reduce(events, pairing, &pair_event/2)
   end
 
-  @doc "How many events of the same pid and MFA `call/2` walks before it gives up on a partner."
+  @doc "How many events of the same pid and MFA `find_call/2` walks before it gives up on a partner."
   @spec walk_limit() :: pos_integer()
   def walk_limit, do: @walk_limit
 
@@ -36,26 +38,17 @@ defmodule Voyager.Services.Tracer.CallPairing do
   earlier ones for an outcome). A partner is nil when it is not in `side`, lies past
   `walk_limit/0` events of the same function, or was not the one `pair/2` timed the outcome with.
   """
-  @spec call(map(), [map()]) :: call()
-  def call(%{type: :call} = call_event, later) do
-    outcome = partner(call_event, later)
+  @spec find_call(Entry.t(), [Entry.t()]) :: call()
+  def find_call(event, side) do
+    {own, other} = if call?(event), do: {:call_event, :outcome}, else: {:outcome, :call_event}
+    found = %{own => event, other => partner(event, side)}
 
     # The replay cannot see where pairing restarted after a drop; the outcome's duration can.
-    if paired?(call_event, outcome),
-      do: %{call_event: call_event, outcome: outcome},
-      else: %{call_event: call_event, outcome: nil}
-  end
-
-  def call(outcome, earlier) do
-    call_event = partner(outcome, earlier)
-
-    if paired?(call_event, outcome),
-      do: %{call_event: call_event, outcome: outcome},
-      else: %{call_event: nil, outcome: outcome}
+    if paired?(found.call_event, found.outcome), do: found, else: %{found | other => nil}
   end
 
   @doc "Whether `pair/2` timed `outcome` with `call_event`: same pid and MFA, and its duration ends there."
-  @spec paired?(map() | nil, map() | nil) :: boolean()
+  @spec paired?(Entry.t() | nil, Entry.t() | nil) :: boolean()
   def paired?(%{pid: pid, mfa: mfa, at: at}, %{
         pid: pid,
         mfa: mfa,

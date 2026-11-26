@@ -256,14 +256,15 @@ defmodule Voyager.Services.Tracer do
   nil when the log lacks it. `{:error, :not_found}` when the session or the event is gone, as an
   unsaved session keeps only its newest #{@kept_traces} traces. Runs in the caller.
   """
-  @spec call(integer(), non_neg_integer()) :: {:ok, CallPairing.call()} | {:error, :not_found}
-  def call(id, seq) do
+  @spec find_call(integer(), non_neg_integer()) ::
+          {:ok, CallPairing.call()} | {:error, :not_found}
+  def find_call(id, seq) do
     found =
       if id > 0 do
-        with_saved(id, fn _row -> {:ok, TraceEntryQueries.call(id, seq)} end)
+        with_saved(id, fn _row -> {:ok, TraceEntryQueries.find_call(id, seq)} end)
       else
         with {:ok, traces} <- GenServer.call(__MODULE__, {:kept_traces, id}),
-             do: {:ok, MemoryLog.call(traces, seq)}
+             do: {:ok, MemoryLog.find_call(traces, seq)}
       end
 
     case found do

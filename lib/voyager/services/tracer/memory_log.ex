@@ -66,15 +66,15 @@ defmodule Voyager.Services.Tracer.MemoryLog do
     %{entries: page, truncated?: length(page) < Range.size(covered)}
   end
 
-  @doc "The `CallPairing.call/2` of kept trace event `seq` among `traces`, newest first; nil when not kept."
-  @spec call([Entry.t()], non_neg_integer()) :: CallPairing.call() | nil
-  def call(traces, seq) do
+  @doc "The `CallPairing.find_call/2` of kept trace event `seq` among `traces`, newest first; nil when not kept."
+  @spec find_call([Entry.t()], non_neg_integer()) :: CallPairing.call() | nil
+  def find_call(traces, seq) do
     case Enum.split_while(traces, &(&1.seq != seq)) do
       {newer, [%{kind: :trace, type: :call} = call | _older]} ->
-        CallPairing.call(call, Enum.reverse(newer))
+        CallPairing.find_call(call, Enum.reverse(newer))
 
       {_newer, [%{kind: :trace} = outcome | older]} ->
-        CallPairing.call(outcome, older)
+        CallPairing.find_call(outcome, older)
 
       _not_kept ->
         nil

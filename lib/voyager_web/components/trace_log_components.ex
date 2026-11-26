@@ -281,23 +281,25 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
   end
 
   @doc """
-  The event details panel: the call the selected event belongs to, as `Tracer.call/2` found it,
-  with its call event's arguments and its outcome. The outcome shows only when `return_trace?`,
+  The event details panel: the call the selected event belongs to, as `Tracer.find_call/2` found it,
+  with its call event's arguments and its outcome. The outcome shows only when the session traces returns,
   as the list's durations do.
   """
   attr :seq, :integer, default: nil, doc: "the selected event's seq; closed when nil"
   attr :call, AsyncResult, required: true
-  attr :return_trace?, :boolean, required: true
+  attr :trace_session, AsyncResult, required: true, doc: "its config decides `return_trace?`"
   attr :node, :atom, default: nil, doc: "the connected node; only its pids link to their page"
   attr :current_url, :string, required: true
   attr :term_states, :map, required: true, doc: "`VoyagerWeb.Hooks.TermTreeHook`'s states"
   attr :on_close, :string, required: true
 
   def event_panel(assigns) do
-    %{call_event: call_event, outcome: outcome} =
-      assigns.call.result || %{call_event: nil, outcome: nil}
+    return_trace? =
+      match?(%AsyncResult{result: %Session{config: %{return_trace: true}}}, assigns.trace_session)
 
-    outcome = if assigns.return_trace?, do: outcome
+    # A lookup still out has a nil result, which reads as neither half.
+    call_event = assigns.call.result[:call_event]
+    outcome = if return_trace?, do: assigns.call.result[:outcome]
     event = call_event || outcome
 
     {outcome_title, outcome_at_label} =
@@ -308,6 +310,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
     assigns =
       assigns
       |> assign(:open?, assigns.seq != nil)
+      |> assign(:return_trace?, return_trace?)
       |> assign(:call_event, call_event)
       |> assign(:outcome, outcome)
       |> assign(:event, event)
@@ -318,18 +321,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
       |> assign(:link?, event && node(event.pid) == assigns.node)
 
     ~H"""
-    <aside
-      id="event-panel"
-      phx-hook="DetailsPanelResize"
-      data-resize-persist="true"
-      inert={not @open?}
-      class={[
-        "details-panel",
-        "border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex w-full flex-col border-l p-2 shadow-2xl transition-transform duration-300 ease-in-out",
-        if(@open?, do: "translate-x-0", else: "translate-x-full")
-      ]}
-    >
-      <DetailsPanelComponents.resize_handle panel_id="event-panel" open?={@open?} />
+    <DetailsPanelComponents.panel id="event-panel" open?={@open?} data-resize-persist="true">
       <div :if={@open?} class="border-base-200 flex items-start gap-3 border-b px-5 py-4">
         <div class="flex min-w-0 flex-1 flex-col gap-1.5">
           <div class="flex items-center gap-2">
@@ -408,7 +400,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
           </div>
         </.async_result>
       </div>
-    </aside>
+    </DetailsPanelComponents.panel>
     """
   end
 

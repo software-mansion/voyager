@@ -134,6 +134,26 @@ defmodule VoyagerWeb.TracingSessionEventTest do
     assert has_element?(view, "#log-selection[data-partner='entry-3']")
   end
 
+  test "shows an outcome that arrives while its call is still looked up", %{conn: conn} do
+    %{id: id} = start!(%{return_trace: true})
+    trace!(%{type: :call, at: 10, args: [~D[2024-01-01]]})
+    view = open(conn, id)
+
+    :sys.suspend(Tracer)
+    view |> element("#entry-2-time") |> render_click()
+    {lookup, _tag} = lookup_from()
+    # Holds the first lookup's answer back until the outcome's broadcast has reached the view.
+    true = :erlang.suspend_process(lookup)
+    :sys.resume(Tracer)
+    trace!(%{type: :return, at: 25, value: true})
+    render(view)
+    true = :erlang.resume_process(lookup)
+    render_async(view)
+
+    refute has_element?(view, "#event-panel-no-outcome")
+    assert has_element?(view, "#event-panel-value", "true")
+  end
+
   test "notes a call event that is not in the log", %{conn: conn} do
     %{id: id} = start!(%{return_trace: true})
     trace!(%{type: :return, at: 25, value: true})
@@ -144,6 +164,53 @@ defmodule VoyagerWeb.TracingSessionEventTest do
     assert has_element?(view, "#event-panel-no-call")
     assert has_element?(view, "#event-panel-value", "true")
     refute has_element?(view, "#event-panel-duration")
+  end
+
+  @tag :capture_log
+  test "shows an error when the lookup crashes", %{conn: conn} do
+    %{id: id} = start!()
+    call_traced!(1, 1)
+    view = open(conn, id)
+
+    :sys.suspend(Tracer)
+    view |> element("#entry-2-time") |> render_click()
+    # Answers the lookup's request with traces that it cannot walk, so it raises.
+    GenServer.reply(lookup_from(), {:ok, :not_traces})
+    render_async(view)
+    :sys.resume(Tracer)
+
+    assert has_element?(view, "#event-panel-error")
+  end
+
+  test "ignores a lookup that ends after its panel closed", %{conn: conn} do
+    %{id: id} = start!()
+    call_traced!(1, 1)
+    view = open(conn, id)
+
+    :sys.suspend(Tracer)
+    view |> element("#entry-2-time") |> render_click()
+    _ = lookup_from()
+    view |> element("#event-panel-close") |> render_click()
+    :sys.resume(Tracer)
+    render_async(view)
+
+    assert has_element?(view, "#event-panel.translate-x-full")
+    refute has_element?(view, "#event-panel-mfa")
+    refute has_element?(view, "#flash-info")
+  end
+
+  # The lookup's `from`, once its request waits in the suspended Tracer's mailbox.
+  defp lookup_from do
+    {:messages, messages} = Process.info(Process.whereis(Tracer), :messages)
+
+    case for {:"$gen_call", from, {:kept_traces, _id}} <- messages, do: from do
+      [from] ->
+        from
+
+      [] ->
+        Process.sleep(5)
+        lookup_from()
+    end
   end
 
   defp trace!(fields) do

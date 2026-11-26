@@ -76,12 +76,12 @@ defmodule Voyager.Services.Tracer.CallPairingTest do
     assert pairing == %CallPairing{}
   end
 
-  describe "call/2" do
+  describe "find_call/2" do
     test "finds a call event's outcome among the later events" do
       call = event(:call, 10)
       ret = :return |> event(25) |> Map.put(:duration_us, 15)
 
-      assert CallPairing.call(call, [event(:call, 12, pid: spawn(fn -> :ok end)), ret]) ==
+      assert CallPairing.find_call(call, [event(:call, 12, pid: spawn(fn -> :ok end)), ret]) ==
                %{call_event: call, outcome: ret}
     end
 
@@ -90,7 +90,7 @@ defmodule Voyager.Services.Tracer.CallPairingTest do
       inner_ret = :return |> event(8) |> Map.put(:duration_us, 3)
       outer_ret = :exception |> event(20) |> Map.put(:duration_us, 19)
 
-      assert CallPairing.call(outer_ret, [inner_ret, event(:call, 5), outer]) ==
+      assert CallPairing.find_call(outer_ret, [inner_ret, event(:call, 5), outer]) ==
                %{call_event: outer, outcome: outer_ret}
     end
 
@@ -99,9 +99,9 @@ defmodule Voyager.Services.Tracer.CallPairingTest do
       unpaired = event(:return, 25)
       paired_elsewhere = :return |> event(30) |> Map.put(:duration_us, 2)
 
-      assert CallPairing.call(call, [unpaired]) == %{call_event: call, outcome: nil}
-      assert CallPairing.call(call, [paired_elsewhere]) == %{call_event: call, outcome: nil}
-      assert CallPairing.call(unpaired, [call]) == %{call_event: nil, outcome: unpaired}
+      assert CallPairing.find_call(call, [unpaired]) == %{call_event: call, outcome: nil}
+      assert CallPairing.find_call(call, [paired_elsewhere]) == %{call_event: call, outcome: nil}
+      assert CallPairing.find_call(unpaired, [call]) == %{call_event: nil, outcome: unpaired}
     end
 
     test "walks at most walk_limit/0 events of the same function" do
@@ -114,8 +114,8 @@ defmodule Voyager.Services.Tracer.CallPairingTest do
 
       ret = :return |> event(100_000) |> Map.put(:duration_us, 100_000)
 
-      assert CallPairing.call(call, nested ++ [ret]) == %{call_event: call, outcome: nil}
-      assert CallPairing.call(call, Enum.drop(nested, 2) ++ [ret]).outcome == ret
+      assert CallPairing.find_call(call, nested ++ [ret]) == %{call_event: call, outcome: nil}
+      assert CallPairing.find_call(call, Enum.drop(nested, 2) ++ [ret]).outcome == ret
     end
   end
 

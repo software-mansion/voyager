@@ -67,12 +67,12 @@ defmodule Voyager.Queries.TraceEntries do
     %{entries: window(matches, session_id, opts), total: total}
   end
 
-  @doc "The `CallPairing.call/2` of the session's trace event `seq`; nil when it has none."
-  @spec call(integer(), non_neg_integer()) :: CallPairing.call() | nil
-  def call(session_id, seq) do
+  @doc "The `CallPairing.find_call/2` of the session's trace event `seq`; nil when it has none."
+  @spec find_call(integer(), non_neg_integer()) :: CallPairing.call() | nil
+  def find_call(session_id, seq) do
     case Repo.get_by(TraceEvent, session_id: session_id, seq: seq) do
       nil -> nil
-      row -> CallPairing.call(to_entry(row), partner_side(row))
+      row -> CallPairing.find_call(to_entry(row), partner_side(row))
     end
   end
 
