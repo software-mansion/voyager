@@ -238,6 +238,8 @@ defmodule VoyagerWeb.SettingsLiveTest do
       |> form("#mcp-port-form", %{"mcp_port" => %{"port" => to_string(new_port)}})
       |> render_submit()
 
+      _ = :sys.get_state(McpAgents)
+
       assert Settings.get(:mcp_port) == new_port
       assert render(view) =~ "MCP port updated"
       assert render(view) =~ "Running at http://127.0.0.1:#{new_port}/mcp"
