@@ -268,7 +268,8 @@ defmodule Voyager.Services.Tracer do
   The runs, activity histogram and event `Summary` of session `id` (whole session and
   since its last start). Runs in the caller for saved sessions. While the active session
   runs, its summaries and activity come from memory and `activity` covers only the last
-  minute (`live?: true`); once stopped it spans all runs and gaps. For an unsaved stopped
+  minute (`live?: true`); once stopped it has one segment per run with the gaps between them,
+  and past `Overview`'s bucket cap only the newest runs get one. For an unsaved stopped
   session, `activity` covers only the at most #{@kept_traces} traces kept in memory.
   """
   @spec overview(integer()) ::
@@ -696,12 +697,10 @@ defmodule Voyager.Services.Tracer do
   end
 
   defp start_tracer(session, spec, limits) do
-    before_us = System.os_time(:microsecond)
-
     case Agent.call(session.node, :trace_start, [self(), spec, limits], Agent.default_timeout()) do
+      # trace_start reads the remote clock after setup, so a call midpoint stamps traces early.
       {:ok, {:ok, tracer, remote_us}} ->
-        after_us = System.os_time(:microsecond)
-        {:ok, tracer, div(before_us + after_us, 2) - remote_us}
+        {:ok, tracer, System.os_time(:microsecond) - remote_us}
 
       {:ok, {:error, _} = error} ->
         error

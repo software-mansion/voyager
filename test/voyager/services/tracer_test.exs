@@ -6,6 +6,7 @@ defmodule Voyager.Services.TracerTest do
 
   alias Voyager.Actions.TraceEntries, as: TraceEntryActions
   alias Voyager.Actions.TraceSessions, as: TraceSessionActions
+  alias Voyager.Erpc.Impl, as: ErpcImpl
   alias Voyager.Queries.TraceSessions, as: TraceSessionQueries
   alias Voyager.Repo
   alias Voyager.Schemas.TraceEvent
@@ -19,7 +20,7 @@ defmodule Voyager.Services.TracerTest do
     VoyagerAgentFixture.load!()
 
     prev_erpc = Application.get_env(:voyager, :erpc)
-    Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
+    Application.put_env(:voyager, :erpc, ErpcImpl)
     on_exit(fn -> Application.put_env(:voyager, :erpc, prev_erpc) end)
 
     Phoenix.PubSub.subscribe(Voyager.PubSub, Tracer.topic())
@@ -676,6 +677,30 @@ defmodule Voyager.Services.TracerTest do
 
     assert {:ok, %{activity: %{live?: true, segments: [segment]}}} = Tracer.overview(id)
     assert Enum.sum(segment.counts) == 4
+  end
+
+  test "anchors the remote clock to the trace_start reply, not the call's midpoint" do
+    assert {:ok, _session} = configure()
+    skew_us = 3_600_000_000
+
+    # Mox global mode: the Tracer process makes the erpc call.
+    Mox.set_mox_global()
+    Application.put_env(:voyager, :erpc, Voyager.ErpcMock)
+
+    Mox.stub(Voyager.ErpcMock, :call, fn
+      node, mod, :trace_start, args, timeout ->
+        {:ok, tracer, _remote_us} = ErpcImpl.call(node, mod, :trace_start, args, timeout)
+        {:ok, tracer, System.os_time(:microsecond) - skew_us}
+
+      node, mod, fun, args, timeout ->
+        ErpcImpl.call(node, mod, fun, args, timeout)
+    end)
+
+    assert {:ok, %{status: :running}} = Tracer.start(:ui)
+    Application.put_env(:voyager, :erpc, ErpcImpl)
+
+    assert %{run: %{clock_offset_us: offset_us}} = :sys.get_state(Tracer)
+    assert (offset_us - skew_us) in 0..20_000
   end
 
   test "lists a session's runs the same from memory and from the database" do
