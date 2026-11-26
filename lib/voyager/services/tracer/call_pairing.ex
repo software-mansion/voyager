@@ -5,6 +5,7 @@ defmodule Voyager.Services.Tracer.CallPairing do
 
   # Returns that never come would grow the open calls forever, so they reset past this.
   @max_open_calls 10_000
+  @walk_limit 1_000
 
   defstruct open: %{}, count: 0
 
@@ -12,6 +13,8 @@ defmodule Voyager.Services.Tracer.CallPairing do
           open: %{{pid(), mfa()} => [integer()]},
           count: non_neg_integer()
         }
+
+  @type call :: %{call_event: map() | nil, outcome: map() | nil}
 
   @doc """
   Gives each return or exception event the `duration_us` of its call, matched per
@@ -22,6 +25,62 @@ defmodule Voyager.Services.Tracer.CallPairing do
     pairing = if pairing.count > @max_open_calls, do: %__MODULE__{}, else: pairing
     Enum.map_reduce(events, pairing, &pair_event/2)
   end
+
+  @doc "How many events of the same pid and MFA `call/2` walks before it gives up on a partner."
+  @spec walk_limit() :: pos_integer()
+  def walk_limit, do: @walk_limit
+
+  @doc """
+  The call `event` belongs to, as its call event and outcome, replaying `pair/2` over `side`: the
+  trace events on the partner's side of the log, nearest first (later ones for a call event,
+  earlier ones for an outcome). A partner is nil when it is not in `side`, lies past
+  `walk_limit/0` events of the same function, or was not the one `pair/2` timed the outcome with.
+  """
+  @spec call(map(), [map()]) :: call()
+  def call(%{type: :call} = call_event, later) do
+    outcome = partner(call_event, later)
+
+    # The replay cannot see where pairing restarted after a drop; the outcome's duration can.
+    if paired?(call_event, outcome),
+      do: %{call_event: call_event, outcome: outcome},
+      else: %{call_event: call_event, outcome: nil}
+  end
+
+  def call(outcome, earlier) do
+    call_event = partner(outcome, earlier)
+
+    if paired?(call_event, outcome),
+      do: %{call_event: call_event, outcome: outcome},
+      else: %{call_event: nil, outcome: outcome}
+  end
+
+  @doc "Whether `pair/2` timed `outcome` with `call_event`: same pid and MFA, and its duration ends there."
+  @spec paired?(map() | nil, map() | nil) :: boolean()
+  def paired?(%{pid: pid, mfa: mfa, at: at}, %{
+        pid: pid,
+        mfa: mfa,
+        at: ended,
+        duration_us: duration
+      }),
+      do: ended - duration == at
+
+  def paired?(_call_event, _outcome), do: false
+
+  defp partner(%{pid: pid, mfa: mfa} = event, side) do
+    side
+    |> Stream.filter(&match?(%{pid: ^pid, mfa: ^mfa}, &1))
+    |> Stream.take(@walk_limit)
+    |> Enum.reduce_while(1, fn candidate, open ->
+      open = if call?(candidate) == call?(event), do: open + 1, else: open - 1
+      if open == 0, do: {:halt, candidate}, else: {:cont, open}
+    end)
+    |> case do
+      %{} = found -> found
+      _open -> nil
+    end
+  end
+
+  defp call?(event), do: event.type == :call
 
   defp pair_event(%{type: :call} = event, pairing), do: {event, open_call(pairing, event)}
 

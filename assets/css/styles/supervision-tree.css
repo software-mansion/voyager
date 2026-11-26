@@ -17,7 +17,8 @@
 }
 
 @media (min-width: 1024px) {
-  #ets-lookup-sidebar {
+  #ets-lookup-sidebar,
+  #event-panel {
     min-width: 23rem;
   }
 }

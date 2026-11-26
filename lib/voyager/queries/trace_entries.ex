@@ -10,6 +10,7 @@ defmodule Voyager.Queries.TraceEntries do
   alias Voyager.Schemas.TraceEvent
   alias Voyager.Schemas.TraceSessionEvent
   alias Voyager.Services.TermSyntax
+  alias Voyager.Services.Tracer.CallPairing
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Overview
   alias Voyager.Services.Tracer.Summary
@@ -64,6 +65,30 @@ defmodule Voyager.Queries.TraceEntries do
 
     total = if opts[:before], do: nil, else: Repo.aggregate(matches, :count)
     %{entries: window(matches, session_id, opts), total: total}
+  end
+
+  @doc "The `CallPairing.call/2` of the session's trace event `seq`; nil when it has none."
+  @spec call(integer(), non_neg_integer()) :: CallPairing.call() | nil
+  def call(session_id, seq) do
+    case Repo.get_by(TraceEvent, session_id: session_id, seq: seq) do
+      nil -> nil
+      row -> CallPairing.call(to_entry(row), partner_side(row))
+    end
+  end
+
+  defp partner_side(row) do
+    opts =
+      if row.type == :call,
+        do: [since: row.seq + 1, order: :asc],
+        else: [before: row.seq]
+
+    TraceEvent
+    |> where(
+      [e],
+      e.pid == ^row.pid and e.module == ^row.module and e.function == ^row.function and
+        e.arity == ^row.arity
+    )
+    |> window(row.session_id, [limit: CallPairing.walk_limit()] ++ opts)
   end
 
   @doc "How many traces were saved before the session's last `:started` entry; 0 if it never started."

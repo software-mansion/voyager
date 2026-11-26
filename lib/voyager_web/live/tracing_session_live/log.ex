@@ -339,6 +339,7 @@ defmodule VoyagerWeb.TracingSessionLive.Log do
 
   defp count_traces(entries), do: Enum.count(entries, &(&1.kind == :trace))
 
-  defp entry_dom_id(%{kind: :evicted, seq: seq}), do: "entry-evicted-#{seq}"
-  defp entry_dom_id(%{seq: seq}), do: "entry-#{seq}"
+  @spec entry_dom_id(map()) :: String.t()
+  def entry_dom_id(%{kind: :evicted, seq: seq}), do: "entry-evicted-#{seq}"
+  def entry_dom_id(%{seq: seq}), do: "entry-#{seq}"
 end

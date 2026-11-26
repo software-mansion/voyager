@@ -2,21 +2,28 @@ defmodule VoyagerWeb.TracingSessionLive do
   @moduledoc """
   Shows one tracing session, active or saved, and its run controls. It follows
   `Tracer.topic/0` and reloads a saved session once it stops being the active one.
+  `?seq=` opens the event details panel on that trace event.
   """
 
   use VoyagerWeb, :live_view
 
   alias Phoenix.LiveView.AsyncResult
   alias Voyager.Services.Tracer
+  alias Voyager.Services.Tracer.CallPairing
   alias Voyager.Services.Tracer.Session
   alias VoyagerWeb.Components.TraceLogComponents
   alias VoyagerWeb.Components.TracingComponents
   alias VoyagerWeb.Formatters
+  alias VoyagerWeb.Hooks.TermTreeHook
   alias VoyagerWeb.Hooks.TracingStatusHook
   alias VoyagerWeb.TracingSessionLive.Log
   alias VoyagerWeb.TracingSessionLive.Stats
+  alias VoyagerWeb.Utils.URL
+
+  on_mount TermTreeHook
 
   @actions [:stop, :start, :load, :unload, :delete]
+  @term_open_depth 3
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
@@ -31,6 +38,8 @@ defmodule VoyagerWeb.TracingSessionLive do
         |> assign(:confirm, nil)
         |> assign(:queued_session, nil)
         |> assign(:flush_scheduled?, false)
+        |> assign(:event_seq, nil)
+        |> assign(:call, %AsyncResult{})
         |> TracingStatusHook.defer_puts()
         |> Log.init()
         |> Stats.init()
@@ -45,80 +54,109 @@ defmodule VoyagerWeb.TracingSessionLive do
   end
 
   @impl true
+  def handle_params(%{"seq" => seq}, _uri, socket) do
+    case parse_seq(seq) do
+      nil -> patch_event(socket, nil, replace: true)
+      seq -> open_event(socket, seq)
+    end
+    |> noreply()
+  end
+
+  def handle_params(_params, _uri, socket) do
+    socket
+    |> assign(:event_seq, nil)
+    |> assign(:call, %AsyncResult{})
+    |> noreply()
+  end
+
+  @impl true
   def render(assigns) do
     ~H"""
-    <div
-      id="tracing-session-page"
-      class="mx-auto flex h-full max-w-screen-2xl flex-col gap-3 p-6 sm:p-8"
-    >
-      <.async_result :let={trace_session} assign={@trace_session}>
-        <:loading>
-          <.loading_state id="session-loading" message="Loading session…" />
-        </:loading>
-        <:failed>
-          <.error_state id="session-error" message="Could not load the tracing session." />
-        </:failed>
-        <TracingComponents.session_bar
-          trace_session={trace_session}
-          mode={@mode}
-          pending?={@pending != nil}
-          show_back_arrow={@can_go_back?}
-          connected_node={@session.node}
-          stats={stats(trace_session, @rates, @now, @storage_limit_mb)}
-          on_stop="stop"
-          on_start="start"
-          on_load="load"
-          on_unload="unload"
-          on_delete="delete"
-        />
-        <TracingComponents.empty_state :if={@mode == :active and is_nil(trace_session.config)} />
-        <TraceLogComponents.log
-          :if={trace_session.config}
-          rows={@streams.entries}
-          trace_session={trace_session}
-          live?={@mode == :active and trace_session.status == :running}
-          paused?={@paused?}
-          new_count={@new_count}
-          trace_rows={Log.trace_rows(@held)}
-          oldest_seq={@oldest_seq}
-          node={@session.node}
-          node_name={@session.node_name}
-          search={@search}
-          search_form={@search_form}
-          on_pause="pause-log"
-          on_resume="resume-log"
-          on_older="load-older"
-          on_ack="log-ack"
-          on_search="search-log"
-        />
-      </.async_result>
-
-      <TracingComponents.confirm_modal
-        :if={@confirm}
-        id={"#{@confirm}-session-modal"}
-        title={confirm_title(@confirm)}
-        confirm_label={confirm_label(@confirm)}
-        on_confirm={"confirm-#{@confirm}"}
-        on_cancel="cancel-confirm"
+    <div id="tracing-session" class="relative flex h-full overflow-hidden">
+      <div
+        id="tracing-session-page"
+        class="mx-auto flex h-full min-w-0 max-w-screen-2xl flex-1 flex-col gap-3 p-6 sm:p-8"
       >
-        <p :if={@confirm == :stop} class="text-base-content/70 mt-1 text-sm">
-          Tracing
-          <span class="font-mono text-base-content">{TracingComponents.traced_mfa(
-            @trace_session.result.config
-          )}</span>
-          on <span class="font-mono text-base-content">{@trace_session.result.node}</span>
-          stops. {kept_copy(@trace_session.result.traces)}, and you can resume it later.
-        </p>
-        <p :if={@confirm == :delete} class="text-base-content/70 mt-1 text-sm">
-          {deleted_copy(@trace_session.result.traces)} This cannot be undone.
-        </p>
-        <p :if={@confirm == :unload} class="text-base-content/70 mt-1 text-sm">
-          It is not saved, so its parameters and traces are discarded. This cannot be undone.
-        </p>
-        <p :if={@confirm == :load} class="text-base-content/70 mt-1 text-sm">
-          The session in the tracer is not saved, so its parameters and traces are discarded. This cannot be undone.
-        </p>
-      </TracingComponents.confirm_modal>
+        <.async_result :let={trace_session} assign={@trace_session}>
+          <:loading>
+            <.loading_state id="session-loading" message="Loading session…" />
+          </:loading>
+          <:failed>
+            <.error_state id="session-error" message="Could not load the tracing session." />
+          </:failed>
+          <TracingComponents.session_bar
+            trace_session={trace_session}
+            mode={@mode}
+            pending?={@pending != nil}
+            show_back_arrow={@can_go_back?}
+            connected_node={@session.node}
+            stats={stats(trace_session, @rates, @now, @storage_limit_mb)}
+            on_stop="stop"
+            on_start="start"
+            on_load="load"
+            on_unload="unload"
+            on_delete="delete"
+          />
+          <TracingComponents.empty_state :if={@mode == :active and is_nil(trace_session.config)} />
+          <TraceLogComponents.log
+            :if={trace_session.config}
+            rows={@streams.entries}
+            trace_session={trace_session}
+            live?={@mode == :active and trace_session.status == :running}
+            paused?={@paused?}
+            new_count={@new_count}
+            trace_rows={Log.trace_rows(@held)}
+            oldest_seq={@oldest_seq}
+            node={@session.node}
+            node_name={@session.node_name}
+            search={@search}
+            search_form={@search_form}
+            selection={selection(@event_seq, @call)}
+            on_select="select-event"
+            on_pause="pause-log"
+            on_resume="resume-log"
+            on_older="load-older"
+            on_ack="log-ack"
+            on_search="search-log"
+          />
+        </.async_result>
+
+        <TracingComponents.confirm_modal
+          :if={@confirm}
+          id={"#{@confirm}-session-modal"}
+          title={confirm_title(@confirm)}
+          confirm_label={confirm_label(@confirm)}
+          on_confirm={"confirm-#{@confirm}"}
+          on_cancel="cancel-confirm"
+        >
+          <p :if={@confirm == :stop} class="text-base-content/70 mt-1 text-sm">
+            Tracing
+            <span class="font-mono text-base-content">{TracingComponents.traced_mfa(
+              @trace_session.result.config
+            )}</span>
+            on <span class="font-mono text-base-content">{@trace_session.result.node}</span>
+            stops. {kept_copy(@trace_session.result.traces)}, and you can resume it later.
+          </p>
+          <p :if={@confirm == :delete} class="text-base-content/70 mt-1 text-sm">
+            {deleted_copy(@trace_session.result.traces)} This cannot be undone.
+          </p>
+          <p :if={@confirm == :unload} class="text-base-content/70 mt-1 text-sm">
+            It is not saved, so its parameters and traces are discarded. This cannot be undone.
+          </p>
+          <p :if={@confirm == :load} class="text-base-content/70 mt-1 text-sm">
+            The session in the tracer is not saved, so its parameters and traces are discarded. This cannot be undone.
+          </p>
+        </TracingComponents.confirm_modal>
+      </div>
+      <TraceLogComponents.event_panel
+        :if={@event_seq}
+        call={@call}
+        return_trace?={return_trace?(@trace_session)}
+        node={@session.node}
+        current_url={@current_url}
+        term_states={@term_states}
+        on_close="close-event-panel"
+      />
     </div>
     """
   end
@@ -256,7 +294,52 @@ defmodule VoyagerWeb.TracingSessionLive do
 
   def handle_event("search-log", _params, socket), do: {:noreply, socket}
 
+  def handle_event("select-event", params, socket) do
+    case parse_seq(params["seq"]) do
+      nil ->
+        {:noreply, socket}
+
+      seq ->
+        socket
+        |> select_event(seq)
+        |> noreply()
+    end
+  end
+
+  def handle_event("close-event-panel", _params, socket) do
+    socket
+    |> patch_event(nil, [])
+    |> noreply()
+  end
+
   @impl true
+  def handle_async(:call, {:ok, {seq, {:ok, call}}}, %{assigns: %{event_seq: seq}} = socket) do
+    socket
+    |> put_call(call)
+    |> noreply()
+  end
+
+  def handle_async(
+        :call,
+        {:ok, {seq, {:error, :not_found}}},
+        %{assigns: %{event_seq: seq}} = socket
+      ) do
+    socket
+    |> put_flash(:info, "That event is no longer in this session.")
+    |> patch_event(nil, replace: true)
+    |> noreply()
+  end
+
+  def handle_async(:call, {:exit, reason}, %{assigns: %{event_seq: seq}} = socket)
+      when is_integer(seq) do
+    socket
+    |> assign(:call, AsyncResult.failed(socket.assigns.call, {:exit, reason}))
+    |> noreply()
+  end
+
+  # The panel closed or moved on to another event since this lookup started.
+  def handle_async(:call, _stale, socket), do: {:noreply, socket}
+
   # A broadcast for our id already ended the load, and is newer than its result.
   def handle_async(
         :session,
@@ -329,6 +412,7 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> queue_session(session)
     |> Log.absorb(entries)
     |> Stats.absorb(entries)
+    |> refresh_call(entries)
     |> schedule_flush()
     |> noreply()
   end
@@ -389,6 +473,90 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> assign(:mode, nil)
     |> cancel_async(:session)
     |> start_async(:session, fn -> Tracer.session(id) end)
+  end
+
+  defp parse_seq(seq) when is_binary(seq) do
+    case Integer.parse(seq) do
+      {seq, ""} when seq >= 0 -> seq
+      _invalid -> nil
+    end
+  end
+
+  defp parse_seq(_seq), do: nil
+
+  defp select_event(%{assigns: %{event_seq: seq}} = socket, seq), do: patch_event(socket, nil, [])
+  defp select_event(%{assigns: %{event_seq: nil}} = socket, seq), do: patch_event(socket, seq, [])
+  defp select_event(socket, seq), do: patch_event(socket, seq, replace: true)
+
+  defp patch_event(socket, seq, opts) do
+    url = socket.assigns.current_url
+
+    to =
+      if seq,
+        do: URL.put_query_param(url, "seq", Integer.to_string(seq)),
+        else: URL.drop_query_param(url, "seq")
+
+    push_patch(socket, [to: to] ++ opts)
+  end
+
+  defp open_event(%{assigns: %{event_seq: seq}} = socket, seq), do: socket
+
+  defp open_event(socket, seq) do
+    socket
+    |> assign(:event_seq, seq)
+    |> assign(:call, AsyncResult.loading())
+    |> look_up_call()
+  end
+
+  defp look_up_call(socket) do
+    %{id: id, event_seq: seq} = socket.assigns
+    start_async(socket, :call, fn -> {seq, Tracer.call(id, seq)} end)
+  end
+
+  defp put_call(socket, call) do
+    shown = socket.assigns.call.result || %{call_event: nil, outcome: nil}
+
+    socket
+    |> put_terms(shown.call_event, call.call_event)
+    |> put_terms(shown.outcome, call.outcome)
+    |> assign(:call, AsyncResult.ok(socket.assigns.call, call))
+  end
+
+  # A refresh that found the outcome keeps the arguments' open branches.
+  defp put_terms(socket, event, event), do: socket
+
+  defp put_terms(socket, _shown, event) do
+    event
+    |> TraceLogComponents.panel_terms()
+    |> Enum.reduce(socket, fn {id, _label, term}, acc ->
+      TermTreeHook.put_term(acc, id, term, depth: @term_open_depth, open_all: true)
+    end)
+  end
+
+  # Only the lookup's replay can tell this call's outcome from a nested call's with the same timing.
+  defp refresh_call(
+         %{
+           assigns: %{
+             call: %AsyncResult{ok?: true, result: %{call_event: %{} = call_event, outcome: nil}}
+           }
+         } = socket,
+         entries
+       ) do
+    if Enum.any?(entries, &CallPairing.paired?(call_event, &1)),
+      do: look_up_call(socket),
+      else: socket
+  end
+
+  defp refresh_call(socket, _entries), do: socket
+
+  defp return_trace?(trace_session),
+    do: match?(%AsyncResult{result: %Session{config: %{return_trace: true}}}, trace_session)
+
+  defp selection(nil, _call), do: nil
+
+  defp selection(seq, %AsyncResult{result: result}) do
+    partner = result && Enum.find([result.call_event, result.outcome], &(&1 && &1.seq != seq))
+    %{selected: Log.entry_dom_id(%{seq: seq}), partner: partner && Log.entry_dom_id(partner)}
   end
 
   defp gone(%{assigns: %{id: id}} = socket) when id < 0,
