@@ -60,7 +60,7 @@
   --color-code-special: #ad1fbf;
   --color-code-punct: #5f6675;
   --color-port: oklch(58% 0.12 105);
-  --color-process-monitor: #af5ed1;
+  --color-process-monitor: oklch(55% 0.19 315);
   --color-process-monitored-by: oklch(56% 0.15 248);
   --color-base-100: oklch(100% 0 0);
   --color-base-200: oklch(97% 0.005 250);

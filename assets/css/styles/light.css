@@ -18,6 +18,19 @@
     color: color-mix(in oklab, var(--color-base-content) 70%, transparent);
   }
 
+  [data-cy-container] {
+    --grid: rgba(100, 116, 139, 0.18);
+  }
+
+  .cy-toggle:not(:hover) {
+    border-color: color-mix(
+      in oklab,
+      var(--color-base-content) 30%,
+      transparent
+    );
+    color: color-mix(in oklab, var(--color-base-content) 70%, transparent);
+  }
+
   /* Solid status fills take white text here, so an alert on its pale -bg ground names its own ink. */
   .alert {
     color: var(--color-base-content);
