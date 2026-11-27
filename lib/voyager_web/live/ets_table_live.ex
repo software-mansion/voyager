@@ -96,19 +96,21 @@ defmodule VoyagerWeb.EtsTableLive do
 
           <EtsPeekComponents.info_panel info={info} current_url={@current_url} />
 
-          <EtsPeekComponents.controls
-            form={@form}
-            loading?={loading?(@chunk) or loading?(@info)}
-            readable?={readable?(@info)}
-            fetched?={@fetched?}
-          />
+          <div class="flex flex-wrap items-end gap-x-8 gap-y-2">
+            <EtsPeekComponents.controls
+              form={@form}
+              loading?={loading?(@chunk) or loading?(@info)}
+              readable?={readable?(@info)}
+              fetched?={@fetched?}
+            />
 
-          <EtsPeekComponents.search_hint
-            :if={readable?(@info)}
-            node_name={@session.node_name}
-            info={info}
-            mcp_running?={@mcp_agents.server.alive?}
-          />
+            <EtsPeekComponents.search_hint
+              :if={readable?(@info)}
+              node_name={@session.node_name}
+              info={info}
+              mcp_running?={@mcp_agents.server.alive?}
+            />
+          </div>
 
           <div
             :if={not readable?(@info)}
