@@ -167,16 +167,16 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
     %{
       key: :storage,
       label: "Storage",
-      value: format_size(bytes),
-      unit: "of #{format_size(limit)}",
+      value: TracingComponents.format_storage_bytes(bytes),
+      unit: "of #{TracingComponents.format_storage_bytes(limit)}",
       bar: [
         {"bg-base-content/30", percent(others, limit)},
         {"bg-primary", if(bytes > 0, do: max(percent(bytes, limit), 1), else: 0)}
       ],
       tip: [
-        {"This session", format_size(bytes)},
-        {"Other saved sessions", format_size(others)},
-        {"Free", format_size(max(left - bytes, 0))}
+        {"This session", TracingComponents.format_storage_bytes(bytes)},
+        {"Other saved sessions", TracingComponents.format_storage_bytes(others)},
+        {"Free", TracingComponents.format_storage_bytes(max(left - bytes, 0))}
       ]
     }
   end
@@ -191,14 +191,6 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
       tip: "Unsaved sessions keep only their newest #{@kept_traces} events, in memory"
     }
   end
-
-  defp format_size(bytes) when bytes < 1_000_000,
-    do: "#{Formatters.format_integer(div(bytes + 999, 1_000))} KB"
-
-  defp format_size(bytes) when bytes < 100_000_000,
-    do: :erlang.float_to_binary(bytes / 1_000_000, decimals: 1) <> " MB"
-
-  defp format_size(bytes), do: "#{Formatters.format_integer(div(bytes, 1_000_000))} MB"
 
   defp percent(part, whole) when whole > 0, do: min(max(div(part * 100, whole), 0), 100)
   defp percent(_part, _whole), do: 0

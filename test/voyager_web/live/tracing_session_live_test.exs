@@ -664,11 +664,14 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     conn: conn
   } do
     %{id: id} = create!(save: true)
+    {:ok, _session} = configure()
     view = open(conn, id)
 
     view
-    |> element("#session-set-parameters")
+    |> element("#session-edit")
     |> render_click()
+
+    assert has_element?(view, "#config-modal")
 
     %{id: replacing} = create!()
     render_async(view)
@@ -891,8 +894,25 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert %{"info" => _} = assert_redirect(view, ~p"/node/#{@node_name}/tracing", 2_000)
   end
 
+  test "navigates away with an info flash when an unconfigured saved session is unloaded", %{
+    conn: conn
+  } do
+    %{id: id} = create!(save: true)
+    view = open(conn, id)
+
+    view
+    |> element("#session-unload")
+    |> render_click()
+
+    assert %{"info" => "The tracing session was closed."} =
+             assert_redirect(view, ~p"/node/#{@node_name}/tracing", 2_000)
+
+    refute TraceSessionQueries.get(id)
+  end
+
   test "keeps showing a saved session once it is closed", %{conn: conn} do
     %{id: id} = create!(save: true)
+    {:ok, _session} = configure()
     view = open(conn, id)
     assert has_element?(view, "#session-start")
 
@@ -905,6 +925,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
 
   test "keeps showing a saved session once another one replaces it", %{conn: conn} do
     %{id: id} = create!(save: true)
+    {:ok, _session} = configure()
     view = open(conn, id)
 
     create!()
@@ -982,6 +1003,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
 
   test "hides the run actions while a closed saved session reloads", %{conn: conn} do
     %{id: id} = create!(save: true)
+    {:ok, _session} = configure()
     view = open(conn, id)
     :ok = :sys.suspend(Tracer)
 
@@ -1105,5 +1127,54 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
 
     assert has_element?(view, "#session-start")
     refute has_element?(view, "#session-stats")
+    refute has_element?(view, "#session-delete")
+  end
+
+  test "deletes a non-running active saved session after confirmation", %{conn: conn} do
+    %{id: id} = create!(save: true)
+    {:ok, _session} = configure()
+    view = open(conn, id)
+
+    view
+    |> element("#session-delete")
+    |> render_click()
+
+    assert has_element?(view, "#delete-session-modal")
+
+    view
+    |> element("#delete-session-modal-confirm")
+    |> render_click()
+
+    assert %{"info" => "Tracing session deleted."} =
+             assert_redirect(view, ~p"/node/#{@node_name}/tracing", 2_000)
+
+    assert nil == Tracer.active()
+    refute TraceSessionQueries.get(id)
+  end
+
+  test "deletes an active unconfigured saved session after confirmation", %{conn: conn} do
+    %{id: id} = create!(save: true)
+    view = open(conn, id)
+
+    view
+    |> element("#session-delete")
+    |> render_click()
+
+    view
+    |> element("#delete-session-modal-confirm")
+    |> render_click()
+
+    assert %{"info" => "Tracing session deleted."} =
+             assert_redirect(view, ~p"/node/#{@node_name}/tracing", 2_000)
+
+    assert nil == Tracer.active()
+    refute TraceSessionQueries.get(id)
+  end
+
+  test "hides the delete button while an active saved session is running", %{conn: conn} do
+    %{id: id} = start!(%{}, save: true)
+    view = open(conn, id)
+
+    refute has_element?(view, "#session-delete")
   end
 end
