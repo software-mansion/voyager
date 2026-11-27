@@ -242,7 +242,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
   end
 
   defp search_prompt(node_name, %{id: id, type: type, keypos: keypos}) do
-    table = mcp_table_id(id)
+    table = TableId.display(id)
 
     """
     Search the ETS table `#{table}` (type: #{type}, keypos: #{keypos}) on node `#{node_name}` \
@@ -254,10 +254,6 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
     Looking for: \
     """
   end
-
-  # The `id` form `ets_list` returns, which is what the MCP ETS tools accept.
-  defp mcp_table_id(id) when is_atom(id), do: Atom.to_string(id)
-  defp mcp_table_id(id), do: TableId.display(id)
 
   def truncation_notice(assigns) do
     ~H"""
