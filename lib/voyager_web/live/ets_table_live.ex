@@ -103,6 +103,12 @@ defmodule VoyagerWeb.EtsTableLive do
             fetched?={@fetched?}
           />
 
+          <EtsPeekComponents.search_hint
+            :if={readable?(@info)}
+            node_name={@session.node_name}
+            info={info}
+          />
+
           <div
             :if={not readable?(@info)}
             id="ets-private-notice"

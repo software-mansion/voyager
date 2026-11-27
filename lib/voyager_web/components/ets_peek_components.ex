@@ -1,11 +1,12 @@
 defmodule VoyagerWeb.Components.EtsPeekComponents do
   @moduledoc """
-  The ETS contents page: the table info panel, the gated fetch controls, the
-  paginated record list and the lookup sidebar.
+  The ETS contents page: the table info panel, the gated fetch controls, the MCP
+  search hint, the paginated record list and the lookup sidebar.
   """
 
   use VoyagerWeb, :component
 
+  alias Voyager.Services.Ets.TableId
   alias Voyager.TermFormatter
   alias VoyagerWeb.Components.DataTableComponents
   alias VoyagerWeb.Components.DetailsPanelComponents
@@ -197,6 +198,51 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
     </.form>
     """
   end
+
+  attr :node_name, :string, required: true
+  attr :info, :map, required: true, doc: "`Remote.table_info()` of a readable table"
+
+  def search_hint(assigns) do
+    assigns = assign(assigns, :prompt, search_prompt(assigns.node_name, assigns.info))
+
+    ~H"""
+    <div id="ets-search-hint" role="note" class="text-base-content/70 flex items-center gap-2 text-xs">
+      <.icon name="icon-brain" class="size-4 shrink-0" />
+      <span>
+        To search records by key prefix, value or match spec, ask an AI agent connected to <.link
+          id="ets-search-hint-settings"
+          href={~p"/settings#mcp-server"}
+          class="text-primary font-medium underline-offset-2 hover:underline"
+        >Voyager's MCP server</.link>.
+      </span>
+      <span id="ets-search-prompt" class="hidden">{@prompt}</span>
+      <.copy_button
+        id="ets-search-prompt-copy"
+        target="#ets-search-prompt"
+        label="Copy search prompt"
+        class="shrink-0"
+      />
+    </div>
+    """
+  end
+
+  defp search_prompt(node_name, %{id: id, type: type, keypos: keypos}) do
+    table = mcp_table_id(id)
+
+    """
+    Search the ETS table `#{table}` (type: #{type}, keypos: #{keypos}) on node `#{node_name}` \
+    with the Voyager MCP tools. Pass `#{table}` as `table`.
+
+    - `ets_read_table_chunk` filters by `key_eq`, `key_prefix` or `element_eq`; also pass `keypos: #{keypos}`.
+    - `ets_search_table` takes a match spec, for guards or conditions on more than one element.
+
+    Looking for: \
+    """
+  end
+
+  # The `id` form `ets_list` returns, which is what the MCP ETS tools accept.
+  defp mcp_table_id(id) when is_atom(id), do: Atom.to_string(id)
+  defp mcp_table_id(id), do: TableId.display(id)
 
   def truncation_notice(assigns) do
     ~H"""
