@@ -938,6 +938,93 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#flash-error", "No loaded function matches")
   end
 
+  test "redraws the storage bar once the storage limit changes", %{conn: conn} do
+    %{id: id} = start!(%{}, save: true)
+    view = open(conn, id)
+
+    assert has_element?(view, "#stat-storage", "of 100 MB")
+
+    assert has_element?(
+             view,
+             "#stat-storage-settings[href='/settings?focus=trace_storage_limit_mb#tracing-settings']"
+           )
+
+    assert view
+           |> element("#stat-storage-settings-tip-portal")
+           |> render() =~ "Change the storage limit in Settings"
+
+    :ok = Tracer.put_storage_limit_mb(250)
+    settle(view)
+
+    assert has_element?(view, "#stat-storage", "of 250 MB")
+  end
+
+  test "redraws the storage bar once the storage limit changes while other sessions fill it",
+       %{conn: conn} do
+    %{id: id} = start!(%{}, save: true)
+    :ok = Tracer.stop(:ui)
+
+    Voyager.Repo.insert!(%Voyager.Schemas.TraceSession{
+      origin: :ui,
+      status: :stopped,
+      bytes: 300_000_000
+    })
+
+    :ok = Tracer.put_storage_limit_mb(50)
+    view = open(conn, id)
+
+    assert has_element?(view, "#stat-storage", "of 50.0 MB")
+
+    :ok = Tracer.put_storage_limit_mb(200)
+    settle(view)
+
+    assert has_element?(view, "#stat-storage", "of 200 MB")
+  end
+
+  test "redraws the total when a limit change and a delete leave the share as it was",
+       %{conn: conn} do
+    %{id: other} =
+      Voyager.Repo.insert!(%Voyager.Schemas.TraceSession{
+        origin: :ui,
+        status: :stopped,
+        bytes: 10_000_000
+      })
+
+    %{id: id} = start!(%{}, save: true)
+    view = open(conn, id)
+
+    assert has_element?(view, "#stat-storage", "of 100 MB")
+
+    :ok = Tracer.put_storage_limit_mb(90)
+    assert {:ok, _row} = Tracer.delete(other)
+    settle(view)
+
+    assert has_element?(view, "#stat-storage", "of 90.0 MB")
+  end
+
+  test "redraws an inactive saved session's storage bar once the storage limit changes",
+       %{conn: conn} do
+    Voyager.Repo.insert!(%Voyager.Schemas.TraceSession{
+      origin: :ui,
+      status: :stopped,
+      bytes: 10_000_000
+    })
+
+    %{id: id} = start!(%{max_events: 1}, save: true)
+    Date.leap_year?(~D[2024-01-01])
+    assert_receive {:session_entries, %{id: ^id, status: :stopped}, _entries}, 2_000
+    create!()
+    view = open(conn, id)
+
+    assert has_element?(view, "#stat-storage", "of 100 MB")
+
+    :ok = Tracer.put_storage_limit_mb(250)
+    settle(view)
+
+    assert has_element?(view, "#stat-storage", "of 250 MB")
+    assert view |> element("#stat-storage-tip-portal") |> render() =~ "10.0 MB"
+  end
+
   test "flashes the storage limit instead of starting a saved session with no storage left",
        %{conn: conn} do
     {:ok, _} = Voyager.Settings.put(:trace_storage_limit_mb, 0)
@@ -1000,6 +1087,7 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     assert has_element?(view, "#session-stats")
     assert has_element?(view, "#stat-events", "/ 1,000")
     assert has_element?(view, "#stat-storage", "Not saved")
+    refute has_element?(view, "#stat-storage-settings")
 
     assert has_element?(
              view,

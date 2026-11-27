@@ -213,6 +213,49 @@ defmodule Voyager.Services.TracerTest do
     assert %{bytes: ^full} = TraceSessionQueries.get(id)
   end
 
+  test "gives the active session its share of a new storage limit" do
+    assert {:ok, %{id: id}} = Tracer.create(:mcp, save: true)
+    Repo.insert!(%TraceSession{origin: :ui, status: :stopped, bytes: 10_000_000})
+
+    assert :ok = Tracer.put_storage_limit_mb(50)
+
+    assert %{storage_limit: 40_000_000} = Tracer.active()
+    assert_receive {:session_entries, %{id: ^id, storage_limit: 40_000_000}, []}
+  end
+
+  test "leaves an unsaved session's share alone when the storage limit changes", %{
+    session: %{id: id}
+  } do
+    assert :ok = Tracer.put_storage_limit_mb(50)
+    _ = :sys.get_state(Tracer)
+    refute_received {:session_entries, %{id: ^id}, []}
+  end
+
+  test "gives the active session the storage a deleted session frees" do
+    {:ok, _setting} = Voyager.Settings.put(:trace_storage_limit_mb, 50)
+    %{id: other} = Repo.insert!(%TraceSession{origin: :ui, status: :stopped, bytes: 10_000_000})
+    assert {:ok, %{id: id, storage_limit: 40_000_000}} = Tracer.create(:mcp, save: true)
+
+    assert {:ok, _row} = Tracer.delete(other)
+
+    assert %{storage_limit: 50_000_000} = Tracer.active()
+    assert_receive {:session_entries, %{id: ^id, storage_limit: 50_000_000}, []}
+  end
+
+  test "stops a saved run once a lowered storage limit leaves it no room" do
+    assert {:ok, _session} = Tracer.create(:mcp, save: true)
+    assert {:ok, _session} = configure()
+    assert {:ok, _session} = Tracer.start(:ui)
+    Writer.flush()
+    _ = :sys.get_state(Tracer)
+    Repo.insert!(%TraceSession{origin: :ui, status: :stopped, bytes: 1_000_000})
+
+    assert :ok = Tracer.put_storage_limit_mb(1)
+
+    assert_receive {:session_entries, _session, [%{kind: :stopped, reason: :storage_limit}]},
+                   1_000
+  end
+
   test "starts an unsaved session while saved ones use all the storage" do
     {:ok, _} = Voyager.Settings.put(:trace_storage_limit_mb, 0)
     assert {:ok, _session} = configure()
@@ -403,10 +446,12 @@ defmodule Voyager.Services.TracerTest do
     assert {:error, :not_found} = Tracer.session(id)
   end
 
-  test "reads the storage limit from its setting" do
+  test "saves the storage limit to its setting" do
     assert Tracer.storage_limit_mb() == 100
-    {:ok, _} = Voyager.Settings.put(:trace_storage_limit_mb, 7)
+    assert :ok = Tracer.put_storage_limit_mb(7)
+    _ = :sys.get_state(Tracer)
     assert Tracer.storage_limit_mb() == 7
+    assert_receive {:storage_limit_changed, 7}
   end
 
   for save <- [true, false] do

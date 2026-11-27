@@ -8,6 +8,8 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
   Reads `mode` and `trace_session` from the socket.
   """
 
+  use VoyagerWeb, :verified_routes
+
   import Phoenix.Component
   import Phoenix.LiveView
   import VoyagerWeb.Helpers, only: [cont: 1, halt: 1]
@@ -36,7 +38,7 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
     |> assign(:previous_trace_at, nil)
     |> assign(:tick_scheduled?, false)
     |> assign(:storage_limit_mb, Tracer.storage_limit_mb())
-    |> attach_hook(:stats_tick, :handle_info, &handle_tick/2)
+    |> attach_hook(:stats, :handle_info, &handle_message/2)
   end
 
   @doc "Restarts the rate samples when `session` is a new run of `shown`, and keeps ticking while it runs."
@@ -177,7 +179,11 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
         {"This session", format_size(bytes)},
         {"Other saved sessions", format_size(others)},
         {"Free", format_size(max(left - bytes, 0))}
-      ]
+      ],
+      link: %{
+        href: ~p"/settings?focus=trace_storage_limit_mb#tracing-settings",
+        tip: "Change the storage limit in Settings"
+      }
     }
   end
 
@@ -198,18 +204,24 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
   defp format_size(bytes) when bytes < 100_000_000,
     do: :erlang.float_to_binary(bytes / 1_000_000, decimals: 1) <> " MB"
 
-  defp format_size(bytes), do: "#{Formatters.format_integer(div(bytes, 1_000_000))} MB"
+  defp format_size(bytes) when bytes < 1_000_000_000,
+    do: "#{Formatters.format_integer(div(bytes, 1_000_000))} MB"
+
+  defp format_size(bytes) when bytes < 100_000_000_000,
+    do: :erlang.float_to_binary(bytes / 1_000_000_000, decimals: 1) <> " GB"
+
+  defp format_size(bytes), do: "#{Formatters.format_integer(div(bytes, 1_000_000_000))} GB"
 
   defp percent(part, whole) when whole > 0, do: min(max(div(part * 100, whole), 0), 100)
   defp percent(_part, _whole), do: 0
 
-  defp handle_tick(:tick, %{assigns: %{trace_session: %AsyncResult{result: nil}}} = socket) do
+  defp handle_message(:tick, %{assigns: %{trace_session: %AsyncResult{result: nil}}} = socket) do
     socket
     |> assign(:tick_scheduled?, false)
     |> halt()
   end
 
-  defp handle_tick(:tick, socket) do
+  defp handle_message(:tick, socket) do
     %{window_traces: count, last_trace_at: last_at, previous_trace_at: previous_at} =
       socket.assigns
 
@@ -223,7 +235,14 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
     |> halt()
   end
 
-  defp handle_tick(_message, socket), do: cont(socket)
+  # The view goes on to refresh a saved session's share.
+  defp handle_message({:storage_limit_changed, mb}, socket) do
+    socket
+    |> assign(:storage_limit_mb, mb)
+    |> cont()
+  end
+
+  defp handle_message(_message, socket), do: cont(socket)
 
   # Timed by the traces' own timestamps, so batching and tick drift do not jitter an even rate.
   defp rate(0, _last_at, _previous_at), do: 0

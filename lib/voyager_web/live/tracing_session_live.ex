@@ -450,6 +450,19 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> noreply()
   end
 
+  # The Tracer only recomputes the active session's share.
+  def handle_info(
+        {:storage_limit_changed, _mb},
+        %{assigns: %{mode: :saved, trace_session: %AsyncResult{result: %Session{} = session}}} =
+          socket
+      ) do
+    session = %{session | storage_limit: Tracer.storage_limit(session.id)}
+
+    socket
+    |> assign(:trace_session, AsyncResult.ok(session))
+    |> noreply()
+  end
+
   def handle_info(_message, socket), do: noreply(socket)
 
   defp subscribe_and_load(socket) do
@@ -632,7 +645,8 @@ defmodule VoyagerWeb.TracingSessionLive do
     do: "The session was reconfigured or replaced meanwhile. Try again."
 
   defp format_error(:storage_limit),
-    do: "Saved sessions use all their storage. Delete a saved session to resume."
+    do:
+      "Saved sessions use all their storage. Delete a saved session or extend storage limit to resume."
 
   defp format_error({:refused, module}), do: "#{inspect(module)} cannot be traced."
   defp format_error({:not_loaded, module}), do: "#{inspect(module)} is not loaded on the node."

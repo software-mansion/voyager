@@ -10,6 +10,7 @@ defmodule VoyagerWeb.SettingsLiveTest do
   alias Voyager.Services.DemoNode
   alias Voyager.Services.McpAgents
   alias Voyager.Services.TermSyntax
+  alias Voyager.Services.Tracer
   alias Voyager.Settings
 
   setup do
@@ -397,6 +398,90 @@ defmodule VoyagerWeb.SettingsLiveTest do
                "#mcp-locked",
                "The MCP server and its port are controlled by application config, so changes are disabled."
              )
+    end
+  end
+
+  describe "tracing settings" do
+    test "saves the trace storage limit", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      assert has_element?(view, "#trace_storage_limit_mb[value='100']")
+
+      view
+      |> form("#trace-storage-form", trace_storage: %{limit_mb: "250"})
+      |> render_submit()
+
+      _ = :sys.get_state(Tracer)
+      assert Tracer.storage_limit_mb() == 250
+      assert render(view) =~ "Storage limit saved"
+    end
+
+    test "saves the trace storage limit while the Tracer is busy", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings")
+      :ok = :sys.suspend(Tracer)
+      on_exit(fn -> :sys.resume(Tracer) end)
+
+      view
+      |> form("#trace-storage-form", trace_storage: %{limit_mb: "250"})
+      |> render_submit()
+
+      assert Tracer.storage_limit_mb() == 250
+      assert render(view) =~ "Storage limit saved"
+
+      :ok = :sys.resume(Tracer)
+      _ = :sys.get_state(Tracer)
+    end
+
+    test "focuses the storage limit only when the link asks for it", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings?focus=trace_storage_limit_mb")
+      assert has_element?(view, "#trace_storage_limit_mb[phx-mounted]")
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+      refute has_element?(view, "#trace_storage_limit_mb[phx-mounted]")
+    end
+
+    test "keeps a limit under 1 MB on the field instead of saving it", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      view
+      |> form("#trace-storage-form", trace_storage: %{limit_mb: "0"})
+      |> render_change()
+
+      assert has_element?(view, "#trace_storage_limit_mb.input-error")
+
+      view
+      |> form("#trace-storage-form", trace_storage: %{limit_mb: "0"})
+      |> render_submit()
+
+      assert has_element?(view, "#trace_storage_limit_mb.input-error")
+      assert Tracer.storage_limit_mb() == 100
+    end
+
+    test "disables the field when application config locks it after the page opened", %{
+      conn: conn
+    } do
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      Application.put_env(:voyager, :trace_storage_limit_mb, 50)
+      on_exit(fn -> Application.delete_env(:voyager, :trace_storage_limit_mb) end)
+
+      view
+      |> form("#trace-storage-form", trace_storage: %{limit_mb: "250"})
+      |> render_submit()
+
+      assert render(view) =~ "Could not save the storage limit"
+      assert has_element?(view, "#trace-storage-locked")
+      assert has_element?(view, "#trace_storage_limit_mb[value='50'][disabled]")
+    end
+
+    test "disables the field when locked by application config", %{conn: conn} do
+      Application.put_env(:voyager, :trace_storage_limit_mb, 50)
+      on_exit(fn -> Application.delete_env(:voyager, :trace_storage_limit_mb) end)
+
+      {:ok, view, _html} = live(conn, ~p"/settings")
+
+      assert has_element?(view, "#trace-storage-locked")
+      assert has_element?(view, "#trace_storage_limit_mb[value='50'][disabled]")
     end
   end
 

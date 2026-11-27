@@ -229,8 +229,21 @@ defmodule VoyagerWeb.Components.TracingComponents do
           id={"stat-#{cell.key}"}
           class="bg-base-100 min-w-0 px-5 py-3 last:col-span-2 lg:last:col-span-1"
         >
-          <div class="font-mono tracking-label text-base-content/60 mb-1 text-xs font-semibold uppercase">
-            {cell.label}
+          <div class="mb-1 flex items-center justify-between gap-2">
+            <div class="font-mono tracking-label text-base-content/60 text-xs font-semibold uppercase">
+              {cell.label}
+            </div>
+            <.tooltip :if={cell[:link]} id={"stat-#{cell.key}-settings-tip"} position="bottom">
+              <a
+                id={"stat-#{cell.key}-settings"}
+                href={cell.link.href}
+                aria-label={cell.link.tip}
+                class="text-base-content/70 hover:text-base-content"
+              >
+                <.icon name="icon-settings" class="size-3.5" />
+              </a>
+              <:content>{cell.link.tip}</:content>
+            </.tooltip>
           </div>
           <.tooltip :if={cell[:tip]} id={"stat-#{cell.key}-tip"} position="bottom" class="w-full">
             <.stat_value cell={cell} tip_id={"stat-#{cell.key}-tip-tip"} />

@@ -13,10 +13,12 @@ defmodule Voyager.Services.Tracer do
   replaced, nil for the first. The configured, started and stopped entries and the
   newest trace and dropped entries are kept in memory while a session is unsaved;
   saved sessions are read from the database. Broadcasts on `topic/0` are
-  `{:session_activated, session}`, `{:session_closed, id}` and
+  `{:session_activated, session}`, `{:session_closed, id}`,
   `{:session_entries, session, entries}` with the entries just appended, oldest first, or
-  none when only a saved session's `bytes` changed.
-  `session_topic/0` carries only `{:session_updated, session | nil}` alongside each of those.
+  none when only a saved session's `bytes` or `storage_limit` changed, and
+  `{:storage_limit_changed, mb}` once the storage limit is saved.
+  `session_topic/0` carries only `{:session_updated, session | nil}`, alongside each of those
+  but the last.
 
   A session created with `save: true` gets a `Voyager.Schemas.TraceSession` row and
   every entry is handed to `Writer` as it is appended; `load/1` makes it active again later.
@@ -208,6 +210,26 @@ defmodule Voyager.Services.Tracer do
   @spec storage_limit_mb() :: non_neg_integer()
   def storage_limit_mb, do: Settings.get(:trace_storage_limit_mb, @default_storage_limit_mb)
 
+  @doc """
+  Saves the storage limit and gives the active session its new share, stopping its run once
+  the share is used up. Lowering it deletes nothing. Returns `{:error, :locked}` when
+  application config sets it.
+  """
+  @spec put_storage_limit_mb(pos_integer()) :: :ok | {:error, :locked | Ecto.Changeset.t()}
+  def put_storage_limit_mb(mb) when is_integer(mb) and mb > 0 do
+    with {:ok, _setting} <- Settings.put(:trace_storage_limit_mb, mb),
+         do: GenServer.cast(__MODULE__, :storage_limit_changed)
+  end
+
+  @doc "The bytes the other saved sessions leave of the storage limit for session `id`."
+  @spec storage_limit(integer()) :: non_neg_integer()
+  def storage_limit(id) when is_integer(id) do
+    max(storage_limit_mb() * 1_000_000 - TraceSessionQueries.bytes_except(id), 0)
+  end
+
+  @spec storage_limit_locked?() :: boolean()
+  def storage_limit_locked?, do: Settings.locked?(:trace_storage_limit_mb)
+
   @spec kept_traces() :: pos_integer()
   defdelegate kept_traces, to: MemoryLog
 
@@ -388,7 +410,7 @@ defmodule Voyager.Services.Tracer do
 
   def handle_call({:delete, id}, _from, state) do
     Writer.flush()
-    {:reply, TraceSessionActions.delete(id), state}
+    {:reply, TraceSessionActions.delete(id), refresh_storage_limit(state)}
   end
 
   def handle_call(:close, _from, %{session: nil} = state), do: {:reply, :ok, state}
@@ -512,6 +534,11 @@ defmodule Voyager.Services.Tracer do
   def handle_call({:kept_traces, _id}, _from, state), do: {:reply, {:error, :not_found}, state}
 
   @impl true
+  def handle_cast(:storage_limit_changed, state) do
+    broadcast({:storage_limit_changed, storage_limit_mb()})
+    {:noreply, refresh_storage_limit(state)}
+  end
+
   def handle_cast(:disconnecting, %{session: %{status: :running}} = state),
     do: {:noreply, put_stop_request(state, :disconnected, nil)}
 
@@ -780,9 +807,13 @@ defmodule Voyager.Services.Tracer do
   defp put_stop_request(%{run: run} = state, reason, origin),
     do: %{state | run: %{run | stop_request: {reason, origin}}}
 
-  defp storage_limit(id) do
-    max(storage_limit_mb() * 1_000_000 - TraceSessionQueries.bytes_except(id), 0)
+  defp refresh_storage_limit(%{session: %Session{save: true} = session} = state) do
+    session = %{session | storage_limit: storage_limit(session.id)}
+    broadcast_entries(session, [])
+    stop_over_limit(%{state | session: session})
   end
+
+  defp refresh_storage_limit(state), do: state
 
   defp down_reason(:noconnection), do: :node_down
   defp down_reason(reason), do: {:tracer_down, reason}

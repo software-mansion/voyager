@@ -48,17 +48,14 @@ defmodule VoyagerWeb.SettingsLive.DistributionSettings do
           phx-change="validate"
           phx-submit="save"
           phx-target={@myself}
-          class="flex flex-col gap-4"
         >
-          <div>
-            <div class="mb-1.5 flex items-center gap-2">
-              <label
-                class="font-mono tracking-label text-base-content/70 flex items-center gap-0.5 text-xs font-semibold uppercase"
-                for={@form[:distribution_suffix].id}
-              >
-                Distribution name suffix
-              </label>
-            </div>
+          <label
+            class="font-mono tracking-label text-base-content/70 mb-1.5 block text-xs font-semibold uppercase"
+            for={@form[:distribution_suffix].id}
+          >
+            Distribution name suffix
+          </label>
+          <div class="flex items-start gap-2">
             <.input
               field={@form[:distribution_suffix]}
               type="text"
@@ -68,15 +65,12 @@ defmodule VoyagerWeb.SettingsLive.DistributionSettings do
               disabled={@locked? or @connected?}
               class="font-mono text-sm"
             />
-            <.effective_distribution_name suffix={@form[:distribution_suffix].value} />
-          </div>
-
-          <div class="card-actions justify-end">
             <button type="submit" class="btn btn-primary" disabled={@locked? or @connected?}>
               Save suffix
             </button>
           </div>
         </.form>
+        <.effective_distribution_name suffix={@form[:distribution_suffix].value} />
       </div>
     </div>
     """

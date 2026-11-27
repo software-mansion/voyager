@@ -17,9 +17,28 @@ defmodule VoyagerWeb.SettingsLive.DemoSettings do
       <div class="card-body gap-4 p-5">
         <div>
           <h3 class="text-base-content text-sm font-semibold">Demo node</h3>
-          <p class="text-base-content/70 mt-1 text-sm">
-            Explore Voyager on a bundled demo node.
-          </p>
+          <div class="mt-1 flex items-center gap-4">
+            <p class="text-base-content/70 flex-1 text-sm">
+              Explore Voyager on a bundled demo node.
+            </p>
+            <.link
+              :if={@status == :stopped}
+              id="start-demo-setting"
+              href={~p"/?demo=start"}
+              class="btn btn-primary shrink-0"
+            >
+              <.icon name="icon-binoculars" class="size-4" /> Start demo node
+            </.link>
+            <button
+              :if={@status == :blocked}
+              type="button"
+              id="start-demo-setting"
+              disabled
+              class="btn btn-primary shrink-0"
+            >
+              <.icon name="icon-binoculars" class="size-4" /> Start demo node
+            </button>
+          </div>
         </div>
 
         <div
@@ -58,26 +77,6 @@ defmodule VoyagerWeb.SettingsLive.DemoSettings do
         <div :if={@status == :blocked} id="demo-settings-blocked" class="alert alert-warning text-sm">
           <.icon name="icon-circle-alert" class="text-warning size-4" />
           <span>Cannot start the demo node when a node is connected.</span>
-        </div>
-
-        <div :if={@status in [:stopped, :blocked]} class="card-actions justify-end">
-          <.link
-            :if={@status == :stopped}
-            id="start-demo-setting"
-            href={~p"/?demo=start"}
-            class="btn btn-primary"
-          >
-            <.icon name="icon-binoculars" class="size-4" /> Start demo node
-          </.link>
-          <button
-            :if={@status == :blocked}
-            type="button"
-            id="start-demo-setting"
-            disabled
-            class="btn btn-primary"
-          >
-            <.icon name="icon-binoculars" class="size-4" /> Start demo node
-          </button>
         </div>
       </div>
     </div>
