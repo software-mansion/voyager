@@ -204,7 +204,13 @@ defmodule VoyagerWeb.TracingSessionLive.Stats do
   defp format_size(bytes) when bytes < 100_000_000,
     do: :erlang.float_to_binary(bytes / 1_000_000, decimals: 1) <> " MB"
 
-  defp format_size(bytes), do: "#{Formatters.format_integer(div(bytes, 1_000_000))} MB"
+  defp format_size(bytes) when bytes < 1_000_000_000,
+    do: "#{Formatters.format_integer(div(bytes, 1_000_000))} MB"
+
+  defp format_size(bytes) when bytes < 100_000_000_000,
+    do: :erlang.float_to_binary(bytes / 1_000_000_000, decimals: 1) <> " GB"
+
+  defp format_size(bytes), do: "#{Formatters.format_integer(div(bytes, 1_000_000_000))} GB"
 
   defp percent(part, whole) when whole > 0, do: min(max(div(part * 100, whole), 0), 100)
   defp percent(_part, _whole), do: 0

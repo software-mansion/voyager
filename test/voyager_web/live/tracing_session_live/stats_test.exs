@@ -111,6 +111,25 @@ defmodule VoyagerWeb.TracingSessionLive.StatsTest do
              |> List.last()
   end
 
+  test "shows sizes from 1 GB up in GB" do
+    session = running(%{save: true, bytes: 1_260_000_000, storage_limit: 150_000_000_000})
+
+    assert %{
+             value: "1.3 GB",
+             unit: "of 250 GB",
+             tip: [_this, {"Other saved sessions", "100 GB"}, {"Free", "148 GB"}]
+           } =
+             session
+             |> Stats.cells([], at(1), 250_000)
+             |> List.last()
+
+    assert %{value: "999 MB", unit: "of 1,500 GB"} =
+             %{save: true, bytes: 999_999_999, storage_limit: 1_500_000_000_000}
+             |> running()
+             |> Stats.cells([], at(1), 1_500_000)
+             |> List.last()
+  end
+
   test "scales the sparkline to the larger of max rate and the busiest tick" do
     below_limit = running(%{}, %{max_rate: 200})
     above_limit = running(%{}, %{max_rate: 50})
