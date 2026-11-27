@@ -11,9 +11,12 @@ defmodule Voyager.MCP.Tools.EtsSearchTable do
   - Must be a valid Erlang term string with one `[{Head, Guards, Body}]` clause.
   - Match variables must be single-quoted atoms: `'$1'`, `'$2'`, `'_'`, `'$_'`.
   - Guards only support Erlang guard BIFs (e.g. `=:=`, `>`, `<`, `is_list`, `is_binary`,
-    `element`, `binary_part`, `byte_size`). Calling other functions fails with `:cannot_read`.
+    `element`, `binary_part`, `byte_size`). Other functions are refused before the search runs.
+  - Atoms the node does not have are refused: no row can hold them.
   - OTP strings (such as paths in `code_server` tables) are Erlang charlists (list of integers).
     To match a charlist prefix, use a list pattern like `[47, 104, 111 | '$rest']`.
+  - Elixir strings are binaries: `<<"abc">>`. Non-ASCII text needs its encoding:
+    `<<"zażółć"/utf8>>`.
   - Full syntax: https://www.erlang.org/doc/apps/erts/match_spec.html
 
   Examples:
@@ -83,8 +86,14 @@ defmodule Voyager.MCP.Tools.EtsSearchTable do
 
   defp fetch(node, params, spec, continuation) do
     with {:ok, table} <- EtsHelpers.parse_table(node, params.table) do
-      Fetch.select_spec(node, table, spec, params.limit, params.budget, continuation)
-      |> EtsHelpers.format_chunk({params.table, spec})
+      node
+      |> Fetch.select_spec(table, spec, params.limit, params.budget, continuation)
+      |> format_chunk({params.table, spec})
     end
   end
+
+  defp format_chunk({:error, {:unknown_atom, _name} = reason}, _scope),
+    do: {:error, "Invalid match spec: " <> Voyager.MatchSpec.format_error(reason)}
+
+  defp format_chunk(result, scope), do: EtsHelpers.format_chunk(result, scope)
 end

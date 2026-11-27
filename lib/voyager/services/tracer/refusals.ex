@@ -25,6 +25,10 @@ defmodule Voyager.Services.Tracer.Refusals do
     ]
   end
 
+  @doc "Trace match spec actions the agent refuses."
+  @spec refused_actions() :: [atom()]
+  def refused_actions, do: @refused_actions
+
   @doc "Refused even on selected pids. The agent also refuses itself."
   @spec always_refused?(String.t()) :: boolean()
   def always_refused?(module), do: module in Enum.map(@always_refused, &Atom.to_string/1)

@@ -40,6 +40,6 @@ Use what `test/support/` has before writing a helper, and put new shared helpers
 
 - `Voyager.ErpcMock` (Mox, `test/test_helper.exs`) for remote calls
 - `ssh_server.ex`, `ssh_keys.ex` for SSH
-- `remote_fixture.ex`, `fixture_app.ex` for a real peer node; start one only when the test needs
-  real distribution
+- `erpc_case.ex` for a real peer node; use it only when the test needs real distribution
+- `remote_fixture.ex`, `fixture_app.ex` for a deterministic supervision tree
 - `mcp_case.ex` for MCP tools; `fakes.ex`, `ets_fakes.ex`

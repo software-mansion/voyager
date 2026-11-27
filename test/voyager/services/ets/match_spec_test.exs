@@ -12,14 +12,14 @@ defmodule Voyager.Services.Ets.MatchSpecTest do
       spec = ~S([{{'$1', '$2'}, [{'>', '$2', 10}], ['$1']}])
 
       assert MatchSpec.parse(spec) ==
-               {:ok, [{{:"$1", :"$2"}, [{:>, :"$2", 10}], [:"$1"]}]}
+               {:ok, [{{:"$1", :"$2"}, [{tag(:>), :"$2", 10}], [:"$1"]}]}
     end
 
     test "parses binaries, negative numbers and nested terms" do
       spec = ~S([{{'$1', <<"a">>, [-3, {ok, #{k => '$2'}}]}, [], ['$_']}])
 
       assert {:ok, [{head, [], [:"$_"]}]} = MatchSpec.parse(spec)
-      assert head == {:"$1", "a", [-3, {:ok, %{k: :"$2"}}]}
+      assert head == {:"$1", "a", [-3, {tag(:ok), %{tag(:k) => :"$2"}}]}
     end
 
     test "adds a missing trailing dot" do
@@ -56,5 +56,30 @@ defmodule Voyager.Services.Ets.MatchSpecTest do
 
       assert detail =~ "longer than"
     end
+
+    test "rejects invalid UTF-8 and an oversized binary segment" do
+      for {input, detail} <- [
+            {<<255>>, "not valid UTF-8"},
+            {"[{'$1', [], [<<0:99999999999999>>]}]",
+             "binary segments must have an integer size of at most 524288 bits"}
+          ] do
+        assert MatchSpec.parse(input) == {:error, {:invalid_match_spec, detail}}, input
+      end
+    end
+
+    test "rejects a spec that does not compile for a table" do
+      assert MatchSpec.parse("[{'$1', [], ['$7']}]") ==
+               {:error, {:invalid_match_spec, "Variable $7 is unbound."}}
+
+      assert {:error, {:invalid_match_spec, _detail}} =
+               MatchSpec.parse("[{'$1', [], [{message, '$1'}]}]")
+    end
+
+    test "rejects a spec that encodes to more than the agent takes" do
+      assert MatchSpec.parse("[{'_', [], [<<0:524288>>]}]") ==
+               {:error, {:invalid_match_spec, "encodes to more than 65536 bytes"}}
+    end
   end
+
+  defp tag(atom), do: {:"$voyager_atom", Atom.to_string(atom)}
 end

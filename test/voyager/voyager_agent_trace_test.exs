@@ -3,6 +3,7 @@ defmodule VoyagerAgentTraceTest do
 
   @compile {:no_warn_undefined, Voyager.Agent.module()}
 
+  alias Voyager.MatchSpec
   alias Voyager.Test.VoyagerAgentFixture
 
   @agent_module Voyager.Agent.module()
@@ -205,6 +206,54 @@ defmodule VoyagerAgentTraceTest do
         ] do
       assert {:error, {:refused_action, ^action}} = start(spec(match_spec: match_spec), @limits)
     end
+  end
+
+  test "resolves the atoms of an encoded match spec" do
+    match_spec =
+      MatchSpec.encode([
+        {[:"$1", :_], [{:==, :"$1", "keep"}], [{:message, {:const, %{ok: [:error, {:ok}]}}}]}
+      ])
+
+    {:ok, tracer} = start(spec(match_spec: match_spec), %{@limits | max_events: 1})
+
+    String.jaro_distance("drop", "x")
+    String.jaro_distance("keep", "x")
+
+    assert {[%{type: :call, args: ["keep", "x"], message: %{ok: [:error, {:ok}]}}], :event_limit,
+            _stats} = collect(tracer)
+  end
+
+  test "refuses an encoded atom the node does not have, without creating it" do
+    name = "voyager_no_such_atom_#{System.unique_integer([:positive])}"
+    unknown = {:"$voyager_atom", name}
+
+    for body <- [
+          [{:message, unknown}],
+          [{:message, {:const, %{ok: [:error, unknown]}}}],
+          [{:message, {:const, %{unknown => 1}}}],
+          [{:message, {:const, [:ok | unknown]}}]
+        ] do
+      assert {:error, {:unknown_atom, ^name}} =
+               start(spec(match_spec: [{:_, [], body}]), @limits),
+             inspect(body)
+    end
+
+    assert_raise ArgumentError, fn -> String.to_existing_atom(name) end
+  end
+
+  test "keeps a raw map pair that looks like a tag" do
+    match_spec = [{:_, [], [{:message, {:const, %{:"$voyager_atom" => "ok"}}}]}]
+    {:ok, tracer} = start(spec(match_spec: match_spec), %{@limits | max_events: 1})
+
+    String.jaro_distance("voyager", "x")
+
+    assert {[%{message: %{:"$voyager_atom" => "ok"}}], :event_limit, _stats} = collect(tracer)
+  end
+
+  test "checks refused actions after decoding the atoms" do
+    match_spec = MatchSpec.encode([{:_, [], [{:message, {:silent, true}}]}])
+
+    assert {:error, {:refused_action, :silent}} = start(spec(match_spec: match_spec), @limits)
   end
 
   test "refuses any message action when return trace is on" do

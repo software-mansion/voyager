@@ -524,12 +524,14 @@ ets_select_chunk(_Table, _Limit, _Budget, _Cont) ->
     erlang:error(badarg).
 
 -spec ets_select_spec(ets:tab(), term(), pos_integer(), non_neg_integer(), term()) ->
-                         {ok, ets_chunk()}.
-ets_select_spec(Table, Spec, Limit, Budget, Cont)
+                         {ok, ets_chunk()} | {error, {unknown_atom, binary()}}.
+ets_select_spec(Table, Encoded, Limit, Budget, Cont)
     when is_integer(Budget), Budget >= 0, is_integer(Limit), Limit >= 0 ->
-    case valid_spec(Spec) of
-        true ->
+    case valid_spec(Encoded) andalso decode_atoms(Encoded) of
+        {ok, Spec} ->
             with_bounded_heap(fun() -> do_select(Table, Spec, Limit, Budget, Cont) end);
+        {error, _} = Error ->
+            Error;
         false ->
             erlang:error(badarg)
     end;
@@ -606,8 +608,8 @@ do_select(_Table, Spec, _Limit, Budget, Cont) ->
                     ets:repair_continuation(Cont, Spec)),
                 Budget).
 
-valid_spec([{_Head, Guards, Body}]) when is_list(Guards), is_list(Body) ->
-    true;
+valid_spec([{_Head, Guards, Body}] = Spec) when is_list(Guards), is_list(Body) ->
+    erlang:external_size(Spec) =< ?MAX_MATCH_SPEC_BYTES;
 valid_spec(_) ->
     false.
 
@@ -649,7 +651,6 @@ bound_records([Record | Rest], Budget, Truncated, Acc) ->
 -define(TRACE_TIMEOUT, 4_000).
 -define(TRACE_MAX_TIME_MS, 3_600_000).
 -define(TRACE_MAX_BUDGET, 100_000).
--define(TRACE_MAX_MATCH_SPEC_BYTES, 65_536).
 -define(TRACER_TAG, '$voyager_tracer').
 -define(TRACE_NAMES_CAP, 1_000).
 -define(TRACE_MAX_SESSIONS, 5).
@@ -776,7 +777,7 @@ valid_spec_value(match_spec, undefined) ->
     true;
 valid_spec_value(match_spec, MatchSpec)
     when is_list(MatchSpec), length(MatchSpec) > 0, length(MatchSpec) =< ?TRACE_MAX_CLAUSES ->
-    erlang:external_size(MatchSpec) =< ?TRACE_MAX_MATCH_SPEC_BYTES
+    erlang:external_size(MatchSpec) =< ?MAX_MATCH_SPEC_BYTES
     andalso lists:all(fun({_Head, Guards, Body}) -> is_list(Guards) andalso is_list(Body);
                          (_Clause) -> false
                       end,
@@ -832,7 +833,8 @@ traceable(Module, Processes) ->
             ok
     end.
 
-%% The refusal macros come from `Voyager.Services.Tracer.Refusals.agent_macros/0'.
+%% The refusal macros come from `Voyager.Services.Tracer.Refusals.agent_macros/0'
+%% and `Voyager.MatchSpec.Refusals.agent_macros/0'.
 refused(Module, Pids) when is_list(Pids) ->
     Module =:= ?MODULE orelse lists:member(Module, ?TRACE_ALWAYS_REFUSED);
 refused(Module, _ProcessSet) ->
@@ -880,11 +882,11 @@ generated_function(Name) ->
             false
     end.
 
-%% Atoms in a match spec are created on the remote when the dist message is decoded.
 trace_match_spec(undefined, ReturnTrace) ->
     {ok, [{'_', [], return_body(ReturnTrace)}]};
-trace_match_spec(MatchSpec, ReturnTrace) ->
+trace_match_spec(Encoded, ReturnTrace) ->
     maybe
+        {ok, MatchSpec} ?= decode_atoms(Encoded),
         false ?= refused_action([{Guards, Body} || {_Head, Guards, Body} <- MatchSpec],
                                 refused_actions(ReturnTrace)),
         %% `match_spec_test' runs the body here (`enable_trace' segfaults); `false' keeps it compile-only.
@@ -895,9 +897,36 @@ trace_match_spec(MatchSpec, ReturnTrace) ->
     else
         {value, Action} ->
             {error, {refused_action, Action}};
+        {error, {unknown_atom, _}} = Error ->
+            Error;
         {error, Errors} ->
             {error, {invalid_match_spec, Errors}}
     end.
+
+%% Voyager sends atoms as `{'$voyager_atom', Name}': a plain atom in a dist message is created on decode.
+decode_atoms(Term) ->
+    try
+        {ok, decode_atom(Term)}
+    catch
+        throw:{unknown_atom, _} = Reason ->
+            {error, Reason}
+    end.
+
+decode_atom({'$voyager_atom', Name}) when is_binary(Name) ->
+    try
+        binary_to_existing_atom(Name)
+    catch
+        error:badarg ->
+            throw({unknown_atom, Name})
+    end;
+decode_atom([Head | Tail]) ->
+    [decode_atom(Head) | decode_atom(Tail)];
+decode_atom(Tuple) when is_tuple(Tuple) ->
+    list_to_tuple(decode_atom(tuple_to_list(Tuple)));
+decode_atom(Map) when is_map(Map) ->
+    maps:from_list([{decode_atom(K), decode_atom(V)} || {K, V} <- maps:to_list(Map)]);
+decode_atom(Term) ->
+    Term.
 
 %% `exception_trace' also closes a frame on a raise, so a call never stays open in Voyager.
 return_body(true) ->
