@@ -17,6 +17,6 @@ defmodule VoyagerWeb.FormSchemas.TraceStorageParams do
     %__MODULE__{}
     |> cast(attrs, [:limit_mb])
     |> validate_required([:limit_mb])
-    |> validate_number(:limit_mb, greater_than: 0)
+    |> validate_number(:limit_mb, greater_than: 0, less_than: 1_000_000_000_000_000)
   end
 end
