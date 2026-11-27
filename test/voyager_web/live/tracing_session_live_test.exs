@@ -664,11 +664,14 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
     conn: conn
   } do
     %{id: id} = create!(save: true)
+    {:ok, _session} = configure()
     view = open(conn, id)
 
     view
-    |> element("#session-set-parameters")
+    |> element("#session-edit")
     |> render_click()
+
+    assert has_element?(view, "#config-modal")
 
     %{id: replacing} = create!()
     render_async(view)
