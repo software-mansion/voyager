@@ -422,7 +422,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
       </td>
       <td colspan={if @durations?, do: 2, else: 1} class="py-2">
         <div class="flex items-center gap-2">
-          <.tooltip id={"#{@id}-config"} position="bottom" class="min-w-0">
+          <.tooltip :if={@entry.config} id={"#{@id}-config"} position="bottom" class="min-w-0">
             <span
               id={"#{@id}-changes"}
               tabindex="0"

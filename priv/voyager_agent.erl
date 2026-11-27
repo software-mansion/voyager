@@ -665,6 +665,7 @@ bound_records([Record | Rest], Budget, Truncated, Acc) ->
          collector :: pid(),
          limits :: trace_limits(),
          budget :: non_neg_integer(),
+         time_offset :: integer(),
          buffer = [] :: [map()],
          buffered = 0 :: non_neg_integer(),
          events = 0 :: non_neg_integer(),
@@ -688,7 +689,7 @@ bound_records([Record | Rest], Budget, Truncated, Acc) ->
       max_time_ms => pos_integer(),
       budget := non_neg_integer()}.
 
--spec trace_start(pid(), trace_spec(), trace_limits()) -> {ok, pid()} | {error, term()}.
+-spec trace_start(pid(), trace_spec(), trace_limits()) -> {ok, pid(), integer()} | {error, term()}.
 trace_start(Collector, Spec, Limits) when is_pid(Collector) ->
     case trace_validate(Spec, Limits) of
         {ok, Plan} ->
@@ -971,11 +972,14 @@ tracer_init(Caller, Ref, Collector, {_, _, _, Processes, _, Limits} = Plan) ->
             MaxTime = maps:get(max_time_ms, Limits, ?TRACE_MAX_TIME_MS),
             erlang:send_after(MaxTime, self(), voyager_trace_ttl),
             erlang:send_after(?TRACE_FLUSH_MS, self(), voyager_trace_flush),
-            Caller ! {Ref, {ok, self()}},
+            TimeOffset = erlang:time_offset(microsecond),
+            Now = erlang:monotonic_time(microsecond) + TimeOffset,
+            Caller ! {Ref, {ok, self(), Now}},
             tracer_loop(#tracer{session = Session,
                                 collector = Collector,
                                 limits = Limits,
                                 budget = maps:get(budget, Limits),
+                                time_offset = TimeOffset,
                                 window = {erlang:monotonic_time(millisecond), 0}});
         {error, _} = Error ->
             trace:session_destroy(Session),
@@ -1083,7 +1087,7 @@ value_event(Type, Value, Budget) ->
 tracer_event(#tracer{limits = Limits} = T0, Pid, Ts, {MFA, Event}) ->
     {Window, Rate} = tick(T0#tracer.window),
     {Label, Names} = process_label(Pid, T0#tracer.names),
-    At = erlang:convert_time_unit(Ts, nanosecond, microsecond) + erlang:time_offset(microsecond),
+    At = erlang:convert_time_unit(Ts, nanosecond, microsecond) + T0#tracer.time_offset,
     T = T0#tracer{buffer =
                       [Event#{pid => Pid, process => Label, mfa => MFA, at => At}
                        | T0#tracer.buffer],

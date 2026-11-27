@@ -9,6 +9,7 @@ defmodule Voyager.TraceSessionsTest do
   alias Voyager.Schemas.TraceEvent
   alias Voyager.Schemas.TraceSession
   alias Voyager.Services.Tracer.Config
+  alias Voyager.Services.Tracer.Overview
   alias Voyager.Services.Tracer.Session
   alias Voyager.Services.Tracer.Summary
 
@@ -235,6 +236,150 @@ defmodule Voyager.TraceSessionsTest do
     assert %{total: 0} = TraceEntryQueries.search(id, ~s|(<<"needle">>)|, :elixir, limit: 10)
     assert %{total: 0} = TraceEntryQueries.search(id, "Elixir.Date", :elixir, limit: 10)
     assert %{total: 0} = TraceEntryQueries.search(id, "started", :elixir, limit: 10)
+  end
+
+  test "page/1 paginates by id, filters by node, excludes active id and counts runs" do
+    config = %Config{module: "Elixir.Date", function: "leap_year?", arity: 1, max_events: 10}
+
+    s1 =
+      Repo.insert!(%TraceSession{
+        origin: :ui,
+        status: :stopped,
+        node: "a@host",
+        config: Map.from_struct(config)
+      })
+
+    s2 = Repo.insert!(%TraceSession{origin: :mcp, status: :stopped, node: "b@host"})
+    s3 = Repo.insert!(%TraceSession{origin: :ui, status: :stopped, node: "a@host"})
+
+    TraceEntryActions.insert_all(s1.id, [
+      %{seq: 0, kind: :started, at: 1, origin: :ui},
+      %{seq: 1, kind: :started, at: 2, origin: :ui}
+    ])
+
+    assert %{rows: [first, second], has_more?: true} = TraceSessionQueries.page(limit: 2)
+    assert [first.id, second.id] == [s3.id, s2.id]
+
+    assert %{rows: [oldest], has_more?: false} =
+             TraceSessionQueries.page(before_id: second.id, limit: 2)
+
+    assert oldest.id == s1.id
+    assert oldest.runs == 2
+    assert %Config{module: "Elixir.Date"} = oldest.config
+
+    assert %{rows: [only_a], has_more?: false} =
+             TraceSessionQueries.page(node: "a@host", exclude_id: s3.id, limit: 10)
+
+    assert only_a.id == s1.id
+    assert TraceSessionQueries.counts_by_node(nil) == %{"a@host" => 2, "b@host" => 1}
+    assert TraceSessionQueries.counts_by_node(s3.id) == %{"a@host" => 1, "b@host" => 1}
+    assert TraceSessionQueries.total_count(s3.id) == 2
+  end
+
+  test "returns nil config for a stored row whose config no longer matches the schema" do
+    stale =
+      Repo.insert!(%TraceSession{
+        origin: :ui,
+        status: :stopped,
+        node: "a@host",
+        config: %{"module" => "Elixir.Date", "processes" => "everything"}
+      })
+
+    Repo.insert!(%Voyager.Schemas.TraceSessionEvent{
+      session_id: stale.id,
+      seq: 0,
+      kind: :configured,
+      at: ~U[2026-01-01 00:00:00.000000Z],
+      origin: :ui,
+      node: "a@host",
+      config: %{"module" => "Elixir.Date", "arity" => "x"}
+    })
+
+    assert %{rows: [%{id: id, config: nil}]} = TraceSessionQueries.page(limit: 10)
+    assert id == stale.id
+    assert [%{kind: :configured, config: nil}] = TraceEntryQueries.controls(stale.id)
+  end
+
+  test "activity/3 buckets saved trace rows in SQLite to match Overview.activity/2" do
+    %{id: id} = session!(:stopped)
+
+    controls = [
+      %{seq: 0, kind: :started, at: 1_000_000, origin: :ui},
+      %{
+        seq: 2,
+        kind: :stopped,
+        at: 6_000_000,
+        origin: :ui,
+        reason: :stopped,
+        traces: 1,
+        dropped: 0
+      },
+      %{seq: 3, kind: :started, at: 10_000_000, origin: :ui},
+      %{
+        seq: 6,
+        kind: :stopped,
+        at: 30_000_000,
+        origin: :ui,
+        reason: :stopped,
+        traces: 2,
+        dropped: 0
+      }
+    ]
+
+    traces = [
+      trace(1, %{at: 2_000_000}),
+      trace(4, %{at: 12_123_456}),
+      trace(5, %{at: 28_999_999})
+    ]
+
+    TraceEntryActions.insert_all(id, controls ++ traces)
+
+    stopped_controls = TraceEntryQueries.controls(id)
+    stopped_session = Session.from_row(row(), stopped_controls, 0, 0, 0)
+    stopped_runs = Overview.runs(stopped_controls, stopped_session)
+
+    expected_stopped =
+      Overview.activity(stopped_runs, Overview.trace_timestamps(stopped_runs, traces))
+
+    assert TraceEntryQueries.activity(id, stopped_runs, %{}) == expected_stopped
+  end
+
+  test "activity/3 caps saved sessions with >60 runs to the newest 60 matching Overview.activity/2" do
+    %{id: id} = session!(:stopped)
+
+    {entries, traces} =
+      Enum.reduce(1..65, {[], []}, fn index, {all, traces} ->
+        start_at = (index - 1) * 10_000_000
+        start_seq = (index - 1) * 3
+        trace_entry = trace(start_seq + 1, %{at: start_at + 1_000_000})
+
+        run_entries = [
+          %{seq: start_seq, kind: :started, at: start_at, origin: :ui},
+          trace_entry,
+          %{
+            seq: start_seq + 2,
+            kind: :stopped,
+            at: start_at + 5_000_000,
+            origin: :ui,
+            reason: :stopped,
+            traces: 1,
+            dropped: 0
+          }
+        ]
+
+        {all ++ run_entries, [trace_entry | traces]}
+      end)
+
+    TraceEntryActions.insert_all(id, entries)
+    controls = TraceEntryQueries.controls(id)
+    runs = Overview.runs(controls, Session.from_row(row(), controls, 0, 0, 0))
+    expected = Overview.activity(runs, Overview.trace_timestamps(runs, Enum.reverse(traces)))
+
+    assert %{bucket_ms: 5_000, segments: segments} =
+             actual = TraceEntryQueries.activity(id, runs, %{})
+
+    assert length(segments) == 60
+    assert actual == expected
   end
 
   test "summaries/1 summarizes the last run, the whole session for one run and nothing before a start" do

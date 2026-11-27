@@ -6,6 +6,7 @@ defmodule Voyager.Services.TracerTest do
 
   alias Voyager.Actions.TraceEntries, as: TraceEntryActions
   alias Voyager.Actions.TraceSessions, as: TraceSessionActions
+  alias Voyager.Erpc.Impl, as: ErpcImpl
   alias Voyager.Queries.TraceSessions, as: TraceSessionQueries
   alias Voyager.Repo
   alias Voyager.Schemas.TraceEvent
@@ -19,7 +20,7 @@ defmodule Voyager.Services.TracerTest do
     VoyagerAgentFixture.load!()
 
     prev_erpc = Application.get_env(:voyager, :erpc)
-    Application.put_env(:voyager, :erpc, Voyager.Erpc.Impl)
+    Application.put_env(:voyager, :erpc, ErpcImpl)
     on_exit(fn -> Application.put_env(:voyager, :erpc, prev_erpc) end)
 
     Phoenix.PubSub.subscribe(Voyager.PubSub, Tracer.topic())
@@ -518,26 +519,188 @@ defmodule Voyager.Services.TracerTest do
         run_named(id, :z_name, ~D[2024-01-01])
         run_named(id, :a_name, ~D[2023-01-01])
 
-        assert {:ok, summaries} = Tracer.summary(id)
-        assert [%{duration_us: slowest}, %{duration_us: next}] = summaries.session.slowest
+        assert {:ok, %{summary: summary, last_run_summary: last_run}} = Tracer.overview(id)
+        assert [%{duration_us: slowest}, %{duration_us: next}] = summary.slowest
         assert is_integer(slowest) and is_integer(next) and slowest >= next
-        Map.new(summaries, fn {key, summary} -> {key, comparable(summary)} end)
+        active = %{summary: comparable(summary), last_run_summary: comparable(last_run)}
+        assert {:ok, _session} = Tracer.create(:ui)
+
+        if save do
+          assert {:ok, %{summary: from_db, last_run_summary: last_from_db}} = Tracer.overview(id)
+
+          assert %{summary: comparable(from_db), last_run_summary: comparable(last_from_db)} ==
+                   active
+        end
+
+        active
       end
 
     assert [unsaved, saved] = summaries
     assert unsaved == saved
 
     assert %{calls: 2, returns: 2, exceptions: 0, functions: %{{Date, :leap_year?, 1} => 2}} =
-             saved.session
+             saved.summary
 
-    assert %{slowest: [_, _]} = saved.session
-    assert [{pid, {:a_name, 2}}] = Map.to_list(saved.session.processes)
+    assert %{slowest: [_, _]} = saved.summary
+    assert [{pid, {:a_name, 2}}] = Map.to_list(saved.summary.processes)
     assert pid == self()
 
     assert %{calls: 1, returns: 1, slowest: [_], processes: %{^pid => {:a_name, 1}}} =
-             saved.last_run
+             saved.last_run_summary
+  end
 
-    assert {:error, :not_found} = Tracer.summary(-1)
+  test "overview/1 returns runs, activity slices and summary for unsaved and saved sessions" do
+    for save <- [false, true] do
+      assert {:ok, %{id: id}} = Tracer.create(:ui, save: save)
+      assert {:ok, _session} = configure(%{return_trace: true, max_events: 2})
+      run_named(id, :z_name, ~D[2024-01-01])
+      run_named(id, :a_name, ~D[2023-01-01])
+
+      assert {:ok, %{runs: [run1, run2], activity: activity, summary: summary}} =
+               Tracer.overview(id)
+
+      assert run1.traces == 2
+      assert run2.traces == 2
+      assert %{live?: false, segments: [_first, %{gap_before_ms: gap}] = segments} = activity
+      assert is_integer(gap)
+      assert segments |> Enum.flat_map(& &1.counts) |> Enum.sum() == 4
+      assert summary.calls == 2
+      assert summary.returns == 2
+    end
+
+    assert {:error, :not_found} = Tracer.overview(-999)
+  end
+
+  test "overview/1 counts a saved run that crashed before its stop entry was written" do
+    assert {:ok, %{id: id}} = TraceSessionActions.create(%{origin: :ui, status: :stopped})
+
+    TraceEntryActions.insert_all(id, [
+      %{seq: 0, kind: :started, at: 1_000_000, origin: :ui},
+      trace_row(1, 2_000_000),
+      trace_row(2, 8_000_000),
+      %{seq: 3, kind: :started, at: 20_000_000, origin: :ui},
+      trace_row(4, 22_000_000),
+      %{
+        seq: 5,
+        kind: :stopped,
+        at: 30_000_000,
+        origin: :ui,
+        reason: :stopped,
+        traces: 1,
+        dropped: 0
+      }
+    ])
+
+    assert {:ok, %{runs: [crashed, later], activity: %{segments: [first, second]}}} =
+             Tracer.overview(id)
+
+    assert crashed.stopped_at == nil
+    assert crashed.reason == :interrupted
+    assert crashed.traces == 2
+    assert crashed.duration_ms == 7_000
+    assert later.traces == 1
+    assert length(first.counts) > 1
+    assert Enum.sum(first.counts) == 2
+    assert second.gap_before_ms == 12_000
+  end
+
+  test "overview/1 spans a last run interrupted at boot by its traces, not the boot time" do
+    assert {:ok, %{id: id}} = TraceSessionActions.create(%{origin: :ui, status: :running})
+    day_ago = System.os_time(:microsecond) - 86_400_000_000
+
+    TraceEntryActions.insert_all(id, [
+      %{seq: 0, kind: :started, at: day_ago, origin: :ui},
+      trace_row(1, day_ago + 1_000_000),
+      trace_row(2, day_ago + 7_000_000)
+    ])
+
+    TraceSessionActions.interrupt_running()
+
+    assert {:ok, %{runs: [run], activity: %{bucket_ms: 1_000, segments: [segment]}}} =
+             Tracer.overview(id)
+
+    assert run.stopped_at == nil
+    assert run.reason == :interrupted
+    assert run.traces == 2
+    assert run.duration_ms == 7_000
+    assert segment.counts == [0, 1, 0, 0, 0, 0, 1]
+  end
+
+  test "overview/1 keeps a loaded session's earlier totals once it resumes" do
+    assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
+    assert {:ok, _session} = configure(%{max_events: 1})
+    run_named(id, :first_run, ~D[2024-01-01])
+    assert {:ok, _session} = Tracer.create(:ui)
+    assert {:ok, _session} = Tracer.load(id)
+
+    assert {:ok, %{summary: %{calls: 1}, last_run_summary: %{calls: 1}}} = Tracer.overview(id)
+
+    run_named(id, :second_run, ~D[2023-01-01])
+
+    assert {:ok,
+            %{
+              summary: %{calls: 2, functions: %{{Date, :leap_year?, 1} => 2}},
+              last_run_summary: %{calls: 1}
+            }} = Tracer.overview(id)
+  end
+
+  for save <- [true, false] do
+    test "overview/1 draws a running session's last minute from memory with save: #{save}" do
+      assert {:ok, %{id: id}} = Tracer.create(:ui, save: unquote(save))
+      assert {:ok, _session} = configure()
+      assert {:ok, %{tracer: tracer}} = Tracer.start(:ui)
+      at = System.os_time(:microsecond)
+      event = %{type: :call, pid: self(), process: nil, mfa: {Date, :leap_year?, 1}, at: at}
+      send(Tracer, {:voyager_trace_events, tracer, List.duplicate(event, 3), 0})
+      _ = :sys.get_state(Tracer)
+      Writer.flush()
+      Repo.delete_all(TraceEvent)
+
+      assert {:ok, %{activity: %{live?: true, segments: [segment]}, summary: %{calls: 3}}} =
+               Tracer.overview(id)
+
+      assert Enum.sum(segment.counts) == 3
+    end
+  end
+
+  test "overview/1 normalizes remote clock skew into Voyager's live window" do
+    assert {:ok, %{id: id}} = Tracer.create(:ui)
+    assert {:ok, _session} = configure()
+    assert {:ok, %{tracer: tracer}} = Tracer.start(:ui)
+    skew_us = 3_600_000_000
+    :sys.replace_state(Tracer, &put_in(&1.run.clock_offset_us, -skew_us))
+
+    remote_at = System.os_time(:microsecond) + skew_us
+    event = %{type: :call, pid: self(), process: nil, mfa: {Date, :leap_year?, 1}, at: remote_at}
+    send(Tracer, {:voyager_trace_events, tracer, List.duplicate(event, 4), 0})
+    _ = :sys.get_state(Tracer)
+
+    assert {:ok, %{activity: %{live?: true, segments: [segment]}}} = Tracer.overview(id)
+    assert Enum.sum(segment.counts) == 4
+  end
+
+  test "anchors the remote clock to the trace_start reply, not the call's midpoint" do
+    assert {:ok, _session} = configure()
+    skew_us = 3_600_000_000
+
+    # Mox global mode: the Tracer process makes the erpc call.
+    Mox.set_mox_global()
+    Application.put_env(:voyager, :erpc, Voyager.ErpcMock)
+
+    Mox.stub(Voyager.ErpcMock, :call, fn
+      node, mod, :trace_start, args, timeout ->
+        {:ok, tracer, _remote_us} = ErpcImpl.call(node, mod, :trace_start, args, timeout)
+        {:ok, tracer, System.os_time(:microsecond) - skew_us}
+
+      node, mod, fun, args, timeout ->
+        ErpcImpl.call(node, mod, fun, args, timeout)
+    end)
+
+    assert {:ok, %{status: :running}} = Tracer.start(:ui)
+    Application.put_env(:voyager, :erpc, ErpcImpl)
+
+    assert %{run: %{clock_offset_us: offset_us}} = :sys.get_state(Tracer)
+    assert (offset_us - skew_us) in 0..20_000
   end
 
   test "lists a session's runs the same from memory and from the database" do
@@ -829,6 +992,7 @@ defmodule Voyager.Services.TracerTest do
   end
 
   test "keeps a saved session's bytes in step with its saved rows" do
+    Phoenix.PubSub.subscribe(Voyager.PubSub, Tracer.session_topic())
     assert {:ok, %{id: id}} = Tracer.create(:ui, save: true)
     assert {:ok, _session} = configure(%{max_events: 3})
     assert {:ok, _session} = Tracer.start(:ui)
@@ -840,6 +1004,8 @@ defmodule Voyager.Services.TracerTest do
     assert %{bytes: bytes} = TraceSessionQueries.get(id)
     assert bytes > 0
     assert %{bytes: ^bytes} = Tracer.active()
+    assert_receive {:session_entries, %{id: ^id, bytes: ^bytes}, []}
+    assert_receive {:session_updated, %{id: ^id, bytes: ^bytes}}
   end
 
   test "the writer saves a full queue without waiting for its timer" do

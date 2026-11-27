@@ -2,12 +2,11 @@ defmodule Voyager.Queries.TraceSessions do
   @moduledoc "Read queries for tracing sessions."
 
   import Ecto.Query
+
   alias Voyager.Repo
   alias Voyager.Schemas.TraceSession
   alias Voyager.Schemas.TraceSessionEvent
   alias Voyager.Services.Tracer.Config
-
-  @default_limit 20
 
   @type listed :: %{
           id: pos_integer(),
@@ -49,8 +48,8 @@ defmodule Voyager.Queries.TraceSessions do
           node: String.t() | nil,
           exclude_id: integer() | nil
         ) :: %{rows: [listed()], has_more?: boolean()}
-  def page(opts \\ []) do
-    limit = Keyword.get(opts, :limit, @default_limit)
+  def page(opts) do
+    limit = Keyword.fetch!(opts, :limit)
 
     fetched =
       TraceSession
@@ -68,6 +67,26 @@ defmodule Voyager.Queries.TraceSessions do
       rows: Enum.map(rows, &to_listed(&1, Map.get(run_counts, &1.id, 0))),
       has_more?: length(fetched) > limit
     }
+  end
+
+  @doc "Saved session counts keyed by `node` (configured rows only), omitting `exclude_id`."
+  @spec counts_by_node(integer() | nil) :: %{String.t() => non_neg_integer()}
+  def counts_by_node(exclude_id) do
+    TraceSession
+    |> where([s], not is_nil(s.node))
+    |> filter_exclude(exclude_id)
+    |> group_by([s], s.node)
+    |> select([s], {s.node, count(s.id)})
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @doc "Total saved sessions, omitting `exclude_id`."
+  @spec total_count(integer() | nil) :: non_neg_integer()
+  def total_count(exclude_id) do
+    TraceSession
+    |> filter_exclude(exclude_id)
+    |> Repo.aggregate(:count)
   end
 
   defp filter_node(query, nil), do: query
@@ -94,20 +113,12 @@ defmodule Voyager.Queries.TraceSessions do
   end
 
   defp to_listed(%TraceSession{} = row, runs) do
-    %{
-      id: row.id,
-      origin: row.origin,
-      status: row.status,
-      node: row.node,
-      config: row.config && Ecto.embedded_load(Config, row.config, :json),
-      stop_reason: row.stop_reason,
-      traces: row.traces,
-      dropped: row.dropped,
-      bytes: row.bytes,
+    row
+    |> Map.take(~w(id origin status node stop_reason traces dropped bytes started_at stopped_at)a)
+    |> Map.merge(%{
+      config: Config.from_stored(row.config),
       runs: runs,
-      created_at: DateTime.from_naive!(row.inserted_at, "Etc/UTC"),
-      started_at: row.started_at,
-      stopped_at: row.stopped_at
-    }
+      created_at: DateTime.from_naive!(row.inserted_at, "Etc/UTC")
+    })
   end
 end

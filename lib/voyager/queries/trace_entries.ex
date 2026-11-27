@@ -103,6 +103,38 @@ defmodule Voyager.Queries.TraceEntries do
     summaries
   end
 
+  @doc """
+  Buckets a stopped saved session's trace timestamps in SQLite into its `Overview.activity`.
+  `max_ats` maps open runs' indices to their latest trace timestamp in microseconds.
+  A running session's live window comes from `Voyager.Services.Tracer.MemoryLog` instead.
+  """
+  @spec activity(integer(), [Overview.run()], %{optional(pos_integer()) => integer()}) ::
+          Overview.activity() | nil
+  def activity(_session_id, [], _max_ats), do: nil
+
+  def activity(session_id, runs, max_ats) do
+    {planned, bucket_ms} = Overview.plan_segments(runs, max_ats)
+    bucket_us = bucket_ms * 1_000
+
+    run_buckets =
+      for {run, {start_us, _end_us}} <- planned,
+          buckets = run_events(session_id, run) |> query_buckets(start_us, bucket_us),
+          map_size(buckets) > 0,
+          into: %{},
+          do: {run.index, buckets}
+
+    Overview.build_segments(planned, bucket_ms, run_buckets)
+  end
+
+  @doc "The trace count and latest `at` of a run that has no stop entry."
+  @spec open_run_extent(integer(), Overview.run()) :: {non_neg_integer(), DateTime.t() | nil}
+  def open_run_extent(session_id, run) do
+    session_id
+    |> run_events(run)
+    |> select([e], {count(e.id), max(e.at)})
+    |> Repo.one()
+  end
+
   defp last_run(_events, _session, nil), do: %Summary{}
 
   defp last_run(events, session, last_start) do
@@ -110,21 +142,6 @@ defmodule Voyager.Queries.TraceEntries do
       do: events |> where([e], e.seq >= ^last_start) |> summarize(),
       else: session
   end
-
-  @doc "The trace count and latest `at` of a run that has no stop entry."
-  @spec open_run_extent(integer(), Overview.run()) :: {non_neg_integer(), DateTime.t() | nil}
-  def open_run_extent(session_id, run) do
-    TraceEvent
-    |> where([e], e.session_id == ^session_id)
-    |> where(^in_run_seq(run))
-    |> select([e], {count(e.id), max(e.at)})
-    |> Repo.one()
-  end
-
-  defp in_run_seq(%{seq: seq, next_seq: nil}), do: dynamic([e], e.seq > ^seq)
-
-  defp in_run_seq(%{seq: seq, next_seq: next_seq}),
-    do: dynamic([e], e.seq > ^seq and e.seq < ^next_seq)
 
   defp last_start(session_id) do
     from s in TraceSessionEvent,
@@ -149,6 +166,39 @@ defmodule Voyager.Queries.TraceEntries do
       slowest: slowest(events)
     }
   end
+
+  defp run_events(session_id, run) do
+    TraceEvent
+    |> where([e], e.session_id == ^session_id)
+    |> where(^in_run_seq(run))
+  end
+
+  # `ecto_sqlite3` dumps `:utc_datetime_usec` as `YYYY-MM-DDTHH:MM:SS.ffffffZ`; `substr(..., 21, 6)` is `ffffff`.
+  defp query_buckets(query, start_us, bucket_us) do
+    query
+    |> select([e], %{
+      bucket:
+        selected_as(
+          fragment(
+            "max((CAST(unixepoch(?) AS INTEGER) * 1000000 + CAST(substr(?, 21, 6) AS INTEGER)) - ?, 0) / ?",
+            e.at,
+            e.at,
+            ^start_us,
+            ^bucket_us
+          ),
+          :bucket
+        ),
+      count: count(e.id)
+    })
+    |> group_by(selected_as(:bucket))
+    |> Repo.all()
+    |> Map.new(&{&1.bucket, &1.count})
+  end
+
+  defp in_run_seq(%{seq: seq, next_seq: nil}), do: dynamic([e], e.seq > ^seq)
+
+  defp in_run_seq(%{seq: seq, next_seq: next_seq}),
+    do: dynamic([e], e.seq > ^seq and e.seq < ^next_seq)
 
   defp function_calls(events) do
     events
@@ -261,7 +311,7 @@ defmodule Voyager.Queries.TraceEntries do
     %{
       origin: row.origin,
       node: String.to_atom(row.node),
-      config: Ecto.embedded_load(Config, row.config, :json)
+      config: Config.from_stored(row.config)
     }
   end
 

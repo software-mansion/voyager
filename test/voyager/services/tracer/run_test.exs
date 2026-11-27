@@ -27,7 +27,7 @@ defmodule Voyager.Services.Tracer.RunTest do
   describe "absorb/5" do
     test "counts the events and logs the agent's drops before them" do
       session = session()
-      run = Run.new(session, :ui)
+      run = Run.new(session, :ui, 0)
 
       assert {[%{kind: :dropped, count: 2} | traces], session, run} =
                Run.absorb(run, session, events(3), 2, false)
@@ -41,7 +41,7 @@ defmodule Voyager.Services.Tracer.RunTest do
 
     test "logs only drops that are new since the last batch" do
       session = session()
-      run = Run.new(session, :ui)
+      run = Run.new(session, :ui, 0)
 
       {[%{count: 2}], session, run} = Run.absorb(run, session, [], 2, false)
       assert {[%{count: 3}], session, _run} = Run.absorb(run, session, [], 5, false)
@@ -50,7 +50,7 @@ defmodule Voyager.Services.Tracer.RunTest do
 
     test "sheds the whole batch while shedding, without logging drops" do
       session = session()
-      run = Run.new(session, :ui)
+      run = Run.new(session, :ui, 0)
 
       assert {[], session, run} = Run.absorb(run, session, events(4), 1, true)
 
@@ -62,7 +62,7 @@ defmodule Voyager.Services.Tracer.RunTest do
 
     test "logs the shed drops once shedding ends" do
       session = session()
-      run = Run.new(session, :ui)
+      run = Run.new(session, :ui, 0)
 
       {[], session, run} = Run.absorb(run, session, events(4), 0, true)
       {[], session, run} = Run.absorb(run, session, events(2), 0, true)
@@ -76,7 +76,7 @@ defmodule Voyager.Services.Tracer.RunTest do
 
     test "builds on the drops of earlier runs" do
       session = session(traces: 10, dropped: 7)
-      run = Run.new(session, :ui)
+      run = Run.new(session, :ui, 0)
 
       assert {[%{kind: :trace}], session, _run} = Run.absorb(run, session, events(1), 0, false)
       assert session.dropped == 7
@@ -85,7 +85,7 @@ defmodule Voyager.Services.Tracer.RunTest do
 
     test "resets the pairing when drops grow" do
       session = session(return_trace: true)
-      run = Run.new(session, :ui)
+      run = Run.new(session, :ui, 0)
 
       {_entries, session, run} = Run.absorb(run, session, [event(:call, 1)], 0, false)
       assert run.pairing.count == 1
@@ -99,16 +99,38 @@ defmodule Voyager.Services.Tracer.RunTest do
 
     test "keeps the pairing when nothing was dropped" do
       session = session(return_trace: true)
-      run = Run.new(session, :ui)
+      run = Run.new(session, :ui, 0)
 
       {_entries, session, run} = Run.absorb(run, session, [event(:call, 1)], 0, false)
       assert {[ret], _session, _run} = Run.absorb(run, session, [event(:return, 9)], 0, false)
       assert ret.duration_us == 8
     end
 
+    test "shifts event timestamps by clock_offset_us while preserving return durations" do
+      session = session(return_trace: true)
+      ahead = Run.new(session, :ui, -3_600_000_000)
+
+      {[call, ret], _session, _run} =
+        Run.absorb(
+          ahead,
+          session,
+          [event(:call, 3_600_001_000), event(:return, 3_600_001_250)],
+          0,
+          false
+        )
+
+      assert call.at == 1_000
+      assert ret.at == 1_250
+      assert ret.duration_us == 250
+
+      behind = Run.new(session, :ui, 1_700_000_000_000_000)
+      {[shifted], _session, _run} = Run.absorb(behind, session, [event(:call, 500)], 0, false)
+      assert shifted.at == 1_700_000_000_000_500
+    end
+
     test "leaves events and pairing alone without return_trace" do
       session = session(return_trace: false)
-      run = Run.new(session, :ui)
+      run = Run.new(session, :ui, 0)
       batch = [event(:call, 1), event(:return, 4)]
 
       assert {entries, _session, run} = Run.absorb(run, session, batch, 0, false)
