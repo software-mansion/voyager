@@ -366,11 +366,13 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
               <DetailsPanelComponents.kv :if={@process} label="Process" value={@process} />
               <DetailsPanelComponents.kv
                 :if={@call_event}
+                id="event-panel-called-at"
                 label="Called at"
                 value={panel_at(@call_event.at)}
               />
               <DetailsPanelComponents.kv
                 :if={@outcome}
+                id="event-panel-outcome-at"
                 label={@outcome_at_label}
                 value={panel_at(@outcome.at)}
               />
@@ -851,7 +853,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
 
   defp panel_at(at) do
     at
-    |> datetime()
+    |> DateTime.from_unix!(:microsecond)
     |> Calendar.strftime("%-d %b %Y, %H:%M:%S.%f UTC")
   end
 

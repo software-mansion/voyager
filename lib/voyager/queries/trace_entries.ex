@@ -75,13 +75,21 @@ defmodule Voyager.Queries.TraceEntries do
 
       # Only the partner is read with its terms: the replay goes by the types of the rows before it.
       side =
-        case CallPairing.partner(entry, candidates(row)) do
+        case partner(row, entry) do
           nil -> []
           %{seq: partner} -> window(TraceEvent, session_id, since: partner, before: partner + 1)
         end
 
       CallPairing.find_call(entry, side)
     end
+  end
+
+  # Sibling calls put an outcome any number of rows away, so the replay streams up to it.
+  defp partner(row, entry) do
+    {:ok, partner} =
+      Repo.transact(fn -> {:ok, CallPairing.partner(entry, Repo.stream(candidates(row)))} end)
+
+    partner
   end
 
   defp candidates(row) do
@@ -97,8 +105,7 @@ defmodule Voyager.Queries.TraceEntries do
         e.arity == ^row.arity
     )
     |> select([e], map(e, [:seq, :type]))
-    |> in_window(row.session_id, [limit: CallPairing.walk_limit()] ++ opts)
-    |> Repo.all()
+    |> in_window(row.session_id, opts)
   end
 
   @doc "How many traces were saved before the session's last `:started` entry; 0 if it never started."

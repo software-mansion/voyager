@@ -145,6 +145,8 @@ defmodule VoyagerWeb.TracingSessionEventTest do
     refute has_element?(view, "#event-panel-no-outcome")
     assert has_element?(view, "#event-panel-value", "true")
     assert has_element?(view, "#event-panel-duration", "15 µs")
+    assert has_element?(view, "#event-panel-called-at", "00:00:00.000010 UTC")
+    assert has_element?(view, "#event-panel-outcome-at", "00:00:00.000025 UTC")
     assert has_element?(view, "#log-selection[data-partner='entry-3']")
   end
 
@@ -153,6 +155,7 @@ defmodule VoyagerWeb.TracingSessionEventTest do
     trace!(%{type: :call, at: 10, args: [~D[2024-01-01]]})
     view = open(conn, id)
 
+    trace_lookups()
     :sys.suspend(Tracer)
     view |> element("#entry-2-time") |> render_click()
     {lookup, _tag} = lookup_from()
@@ -222,6 +225,7 @@ defmodule VoyagerWeb.TracingSessionEventTest do
     call_traced!(1, 1)
     view = open(conn, id)
 
+    trace_lookups()
     :sys.suspend(Tracer)
     view |> element("#entry-2-time") |> render_click()
     # Answers the lookup's request with traces that it cannot walk, so it raises.
@@ -232,11 +236,35 @@ defmodule VoyagerWeb.TracingSessionEventTest do
     assert has_element?(view, "#event-panel-error")
   end
 
+  @tag :capture_log
+  test "shows an error instead of the call when its refresh crashes", %{conn: conn} do
+    %{id: id} = start!(%{return_trace: true})
+    trace!(%{type: :call, at: 10, args: [~D[2024-01-01]]})
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{node_name()}/tracing/#{id}?seq=2")
+    render_async(view)
+    assert has_element?(view, "#event-panel-no-outcome")
+
+    # Holds the outcome's broadcast in the view until the Tracer cannot answer the refresh.
+    :sys.suspend(view.pid)
+    trace!(%{type: :return, at: 25, value: true})
+    trace_lookups()
+    :sys.suspend(Tracer)
+    :sys.resume(view.pid)
+    GenServer.reply(lookup_from(), {:ok, :not_traces})
+    render_async(view)
+    :sys.resume(Tracer)
+
+    assert has_element?(view, "#event-panel-error")
+    refute has_element?(view, "#event-panel-no-outcome")
+  end
+
   test "ignores a lookup that ends after its panel closed", %{conn: conn} do
     %{id: id} = start!()
     call_traced!(1, 1)
     view = open(conn, id)
 
+    trace_lookups()
     :sys.suspend(Tracer)
     view |> element("#entry-2-time") |> render_click()
     _ = lookup_from()
@@ -249,18 +277,17 @@ defmodule VoyagerWeb.TracingSessionEventTest do
     refute has_element?(view, "#flash-info")
   end
 
-  # The lookup's `from`, once its request waits in the suspended Tracer's mailbox.
+  # Its own trace session, so the Tracer's own sessions on this VM keep theirs.
+  defp trace_lookups do
+    session = :trace.session_create(:lookups, self(), [])
+    1 = :trace.process(session, Process.whereis(Tracer), true, [:receive])
+    on_exit(fn -> :trace.session_destroy(session) end)
+  end
+
+  # The lookup's `from`, once its request reaches the suspended Tracer's mailbox.
   defp lookup_from do
-    {:messages, messages} = Process.info(Process.whereis(Tracer), :messages)
-
-    case for {:"$gen_call", from, {:kept_traces, _id}} <- messages, do: from do
-      [from] ->
-        from
-
-      [] ->
-        Process.sleep(5)
-        lookup_from()
-    end
+    assert_receive {:trace, _tracer, :receive, {:"$gen_call", from, {:kept_traces, _id}}}, 1_000
+    from
   end
 
   defp trace!(fields) do

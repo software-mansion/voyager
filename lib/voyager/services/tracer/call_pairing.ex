@@ -7,8 +7,6 @@ defmodule Voyager.Services.Tracer.CallPairing do
 
   # Returns that never come would grow the open calls forever, so they reset past this.
   @max_open_calls 10_000
-  # A straight recursion as deep as `pair/2` times puts a call's outcome this many events away.
-  @walk_limit 2 * @max_open_calls
 
   defstruct open: %{}, count: 0
 
@@ -29,10 +27,6 @@ defmodule Voyager.Services.Tracer.CallPairing do
     Enum.map_reduce(events, pairing, &pair_event/2)
   end
 
-  @doc "How many candidates are worth reading from a log for `partner/2`."
-  @spec walk_limit() :: pos_integer()
-  def walk_limit, do: @walk_limit
-
   @doc """
   The call `event` belongs to, as its call event and outcome, replaying `pair/2` over `side`: the
   trace events on the partner's side of the log, nearest first (later ones for a call event,
@@ -52,9 +46,9 @@ defmodule Voyager.Services.Tracer.CallPairing do
   @doc """
   The one of `candidates` that `pair/2` matched `event` with, replayed from their `type` alone;
   nil when none is. They are the trace events of `event`'s pid and MFA on its partner's side of
-  the log, nearest first.
+  the log, nearest first, taken only up to the partner.
   """
-  @spec partner(Entry.t(), [candidate]) :: candidate | nil
+  @spec partner(Entry.t(), Enumerable.t(candidate)) :: candidate | nil
         when candidate: %{required(:type) => atom(), optional(atom()) => term()}
   def partner(event, candidates) do
     candidates

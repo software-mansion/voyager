@@ -340,10 +340,11 @@ defmodule VoyagerWeb.TracingSessionLive do
     |> noreply()
   end
 
+  # A fresh result, not `failed(shown)`: a refresh's `ok?` would keep the stale call on screen.
   def handle_async(:call, {:exit, reason}, %{assigns: %{event_seq: seq}} = socket)
       when is_integer(seq) do
     socket
-    |> assign(:call, AsyncResult.failed(socket.assigns.call, {:exit, reason}))
+    |> assign_call(seq, AsyncResult.failed(%AsyncResult{}, {:exit, reason}))
     |> noreply()
   end
 

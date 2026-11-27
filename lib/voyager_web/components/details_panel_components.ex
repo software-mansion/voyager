@@ -488,6 +488,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :label, :string, required: true
+  attr :id, :string, default: nil, doc: "the value's DOM id"
   attr :value, :string, default: nil, doc: "text value; truncated on overflow but kept in `title`"
   attr :last, :boolean, default: false
   attr :stacked, :boolean, default: false
@@ -509,6 +510,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     ]}>
       <.kv_label label={@label} help={@help} />
       <div
+        id={@id}
         class={[
           "text-base-content min-w-0",
           @size == :sm && "text-sm",
