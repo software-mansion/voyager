@@ -55,7 +55,6 @@ defmodule VoyagerWeb.SettingsLive do
       <div class="grid grid-cols-3 gap-6 max-2xl:grid-cols-2 max-lg:grid-cols-1">
         <div class="flex flex-col gap-6">
           <AppearanceSettings.appearance_settings />
-          <DemoSettings.demo_settings session={@session} running?={@demo_running?} />
           <SettingsComponents.choice_setting
             id="pid-format"
             title="PID format"
@@ -76,6 +75,7 @@ defmodule VoyagerWeb.SettingsLive do
           />
         </div>
         <div class="flex flex-col gap-6">
+          <DemoSettings.demo_settings session={@session} running?={@demo_running?} />
           <.live_component module={McpSettings} id="mcp-server" agents={@mcp_agents} />
         </div>
         <div class="flex flex-col gap-6">
