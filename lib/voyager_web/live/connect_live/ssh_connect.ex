@@ -214,7 +214,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
           <div
             id="ssh-advanced"
             class={[
-              "border-base-content/20 mt-3 flex flex-col gap-3 rounded-lg border p-4",
+              "border-base-content/20 mt-3 flex flex-col gap-3 rounded-lg border p-4 light:border-base-content/30",
               not @show_ssh_advanced && "hidden"
             ]}
           >
@@ -354,7 +354,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
         <div class="flex min-w-0 flex-1 flex-col gap-1">
           <span class="truncate text-left">{@conn.node_name}</span>
           <div class="flex flex-wrap items-center gap-1">
-            <span class="font-mono text-base-content/70 border-base-content/20 rounded border px-1 text-xs">
+            <span class="font-mono text-base-content/70 border-base-content/20 rounded border px-1 text-xs light:border-base-content/30">
               {@conn.ssh_user}@{@conn.ssh_host}
             </span>
             <ConnectComponents.saved_badge :if={@conn.cookie} label="cookie" title="Cookie saved" />

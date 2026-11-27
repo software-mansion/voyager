@@ -276,7 +276,7 @@ defmodule VoyagerWeb.Components.EtsTableComponents do
         <DataTableComponents.value_cell
           id={"#{@row_id}-size"}
           value={Formatters.format_integer(@row.size)}
-          class={@row.size == 0 && "text-base-content/40"}
+          class={@row.size == 0 && "text-base-content/40 light:text-base-content/60"}
         />
       <% :memory -> %>
         <DataTableComponents.value_cell

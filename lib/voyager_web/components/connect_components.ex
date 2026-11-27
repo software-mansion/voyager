@@ -13,7 +13,7 @@ defmodule VoyagerWeb.ConnectComponents do
     ~H"""
     <span
       title={@title}
-      class="font-mono text-base-content/70 border-base-content/20 shrink-0 rounded border px-1 text-xs"
+      class="font-mono text-base-content/70 border-base-content/20 shrink-0 rounded border px-1 text-xs light:border-base-content/30"
     >
       {@label}
     </span>
@@ -590,7 +590,7 @@ defmodule VoyagerWeb.ConnectComponents do
     ~H"""
     <div
       id="ssh-config-filled-from"
-      class="border-base-content/20 flex min-w-0 items-center gap-2 rounded-lg border px-3 py-2"
+      class="border-base-content/20 flex min-w-0 items-center gap-2 rounded-lg border px-3 py-2 light:border-base-content/30"
     >
       <.icon name="icon-check" class="text-success size-3.5 shrink-0" />
       <span class="font-mono text-base-content/90 max-w-1/2 shrink-0 truncate text-xs">
@@ -707,7 +707,7 @@ defmodule VoyagerWeb.ConnectComponents do
         <p
           :if={@hosts == []}
           id={"#{@id}-empty"}
-          class="text-base-content/70 border-base-content/20 mt-3 rounded-lg border border-dashed p-4 text-center text-sm"
+          class="text-base-content/70 border-base-content/20 mt-3 rounded-lg border border-dashed p-4 text-center text-sm light:border-base-content/30"
         >
           No hosts in this file.
         </p>
@@ -766,7 +766,7 @@ defmodule VoyagerWeb.ConnectComponents do
       <.unsupported_list
         id="ssh-config-notice-reasons"
         unsupported={@unsupported}
-        class="bg-base-200 border-base-content/20 mt-2 rounded-md border p-3"
+        class="bg-base-200 border-base-content/20 mt-2 rounded-md border p-3 light:border-base-content/30"
       />
     </details>
     """
@@ -784,7 +784,7 @@ defmodule VoyagerWeb.ConnectComponents do
         id={"#{@id}-#{type}"}
         class="contents"
       >
-        <dt class="text-base-content/50 whitespace-nowrap">{label}</dt>
+        <dt class="text-base-content/50 whitespace-nowrap light:text-base-content/60">{label}</dt>
         <dd class="font-mono min-w-0 break-words">{Enum.join(keywords, ", ")}</dd>
       </div>
     </dl>
@@ -818,7 +818,7 @@ defmodule VoyagerWeb.ConnectComponents do
         <div class="flex min-w-0 flex-1 flex-col gap-1">
           <span class="truncate text-left">{@host.alias}</span>
           <div class="flex flex-wrap items-center gap-1">
-            <span class="font-mono text-base-content/70 border-base-content/20 rounded border px-1 text-xs">
+            <span class="font-mono text-base-content/70 border-base-content/20 rounded border px-1 text-xs light:border-base-content/30">
               {ssh_host_address(@host)}
             </span>
             <.saved_badge

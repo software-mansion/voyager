@@ -147,7 +147,10 @@ defmodule VoyagerWeb.Components.TracingComponents do
           {row.label}
         </td>
         <td class="break-all py-0.5 pr-1">
-          <span :if={row.old} class="text-base-content/50 mr-1 font-normal line-through">
+          <span
+            :if={row.old}
+            class="text-base-content/50 mr-1 font-normal line-through light:text-base-content/60"
+          >
             {row.old}
           </span>
           {row.value}
@@ -175,7 +178,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
     <span :if={@rows == []}>no changes</span>
     <span :for={{row, index} <- Enum.with_index(@rows)}>
       {if index > 0, do: " · "}{row.label}
-      <span class="text-base-content/40 line-through">{row.old}</span>
+      <span class="text-base-content/40 line-through light:text-base-content/60">{row.old}</span>
       → <span class="text-base-content font-semibold">{row.value}</span>
     </span>
     """
@@ -375,7 +378,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
         id={"session-chip-#{key}"}
         class="border-base-300 bg-base-200 flex min-w-0 max-w-full items-center gap-1.5 rounded-lg border px-2 py-0.5"
       >
-        <span class="font-mono tracking-label text-base-content/50 shrink-0 text-xs font-semibold uppercase">
+        <span class="font-mono tracking-label text-base-content/50 shrink-0 text-xs font-semibold uppercase light:text-base-content/60">
           {label}
         </span>
         <span class="font-mono text-base-content/90 truncate text-xs">{value}</span>
@@ -406,7 +409,7 @@ defmodule VoyagerWeb.Components.TracingComponents do
       tabindex="0"
       class="font-mono text-base-content min-w-0 truncate text-base font-semibold"
     >
-      <span class="text-base-content/50 font-medium">{@module}</span>{@function}
+      <span class="text-base-content/50 font-medium light:text-base-content/60">{@module}</span>{@function}
     </h1>
     """
   end
