@@ -21,6 +21,8 @@ defmodule VoyagerWeb.TracingSessionsLive do
   @page_size 20
   @tick_ms 1_000
   @actions [:create, :stop, :unload, :load, :copy, :delete]
+  # SQLite raises on an integer bind past int64.
+  @max_row_id 0x7FFFFFFFFFFFFFFF
 
   @impl true
   def mount(_params, _session, socket) do
@@ -81,11 +83,9 @@ defmodule VoyagerWeb.TracingSessionsLive do
       |> assign(:selected_param, selected_param)
 
     if connected?(socket) and socket.assigns.loaded? do
-      socket = if filter_changed?, do: reload_history(socket), else: socket
+      socket = if filter_changed?, do: reload_history(socket), else: resolve_selection(socket)
 
-      socket
-      |> resolve_selection()
-      |> noreply()
+      {:noreply, socket}
     else
       {:noreply, socket}
     end
@@ -422,7 +422,6 @@ defmodule VoyagerWeb.TracingSessionsLive do
     |> assign(:loaded?, true)
     |> assign(:active_session, active)
     |> reload_history()
-    |> resolve_selection()
     |> schedule_tick()
     |> noreply()
   end
@@ -431,7 +430,6 @@ defmodule VoyagerWeb.TracingSessionsLive do
     socket
     |> assign(:loaded?, true)
     |> reload_history()
-    |> resolve_selection()
     |> put_flash(:error, format_error(:exit))
     |> noreply()
   end
@@ -592,22 +590,21 @@ defmodule VoyagerWeb.TracingSessionsLive do
   end
 
   defp apply_active_change(socket, next_active) do
-    loaded? = socket.assigns.loaded?
     prev_active = socket.assigns.active_session
 
-    socket =
-      socket
-      |> cancel_async(:initial_load)
-      |> assign(:loaded?, true)
-      |> assign(:active_session, next_active)
-      |> assign(:queued_active, nil)
-      |> drop_stale_confirm(next_active)
-      |> reload_history()
-      |> schedule_tick()
+    select =
+      if socket.assigns.loaded?,
+        do: &adjust_selection_after_active_change(&1, prev_active, next_active),
+        else: &resolve_selection/1
 
-    if loaded?,
-      do: adjust_selection_after_active_change(socket, prev_active, next_active),
-      else: resolve_selection(socket)
+    socket
+    |> cancel_async(:initial_load)
+    |> assign(:loaded?, true)
+    |> assign(:active_session, next_active)
+    |> assign(:queued_active, nil)
+    |> drop_stale_confirm(next_active)
+    |> reload_history(select)
+    |> schedule_tick()
   end
 
   defp adjust_selection_after_active_change(socket, _prev, %Session{id: next_id})
@@ -689,34 +686,32 @@ defmodule VoyagerWeb.TracingSessionsLive do
   defp remove_deleted_row(socket, id) do
     {removed, by_id} = Map.pop(socket.assigns.history_by_id, id)
 
-    socket =
-      if map_size(by_id) == 0 do
-        reload_history(socket)
-      else
-        socket =
-          socket
-          |> assign(:history_by_id, by_id)
-          |> assign(:oldest_id, by_id |> Map.keys() |> Enum.min())
-          |> refresh_history_counts()
+    selected? = socket.assigns.selected_id == id
+    socket = if selected?, do: assign(socket, :selected_param, nil), else: socket
+    select = if selected?, do: &resolve_selection/1, else: & &1
 
-        socket =
-          if removed,
-            do: stream_delete(socket, :history, removed),
-            else: socket
-
-        assign(socket, :has_more?, map_size(by_id) < socket.assigns.shown_history_count)
-      end
-
-    if socket.assigns.selected_id == id do
-      socket
-      |> assign(:selected_param, nil)
-      |> resolve_selection()
+    if map_size(by_id) == 0 do
+      reload_history(socket, select)
     else
+      socket =
+        socket
+        |> assign(:history_by_id, by_id)
+        |> assign(:oldest_id, by_id |> Map.keys() |> Enum.min())
+        |> refresh_history_counts()
+
+      socket =
+        if removed,
+          do: stream_delete(socket, :history, removed),
+          else: socket
+
       socket
+      |> assign(:has_more?, map_size(by_id) < socket.assigns.shown_history_count)
+      |> select.()
     end
   end
 
-  defp reload_history(socket) do
+  # LiveStream renders an id at its latest insert, so a tile re-inserted after the reset sinks to the end.
+  defp reload_history(socket, select \\ &resolve_selection/1) do
     %{node_filter: node_filter, active_session: active} = socket.assigns
     exclude_id = active && active.id
 
@@ -734,6 +729,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
     |> assign(:oldest_id, List.last(page.rows, %{id: nil}).id)
     |> assign(:history_by_id, Map.new(page.rows, &{&1.id, &1}))
     |> assign(:now, DateTime.utc_now())
+    |> select.()
     |> stream(:history, page.rows, reset: true)
   end
 
@@ -798,10 +794,20 @@ defmodule VoyagerWeb.TracingSessionsLive do
     prev_id = socket.assigns.selected_id
     by_id = socket.assigns.history_by_id
 
-    Enum.reduce([prev_id, next_id], assign(socket, :selected_id, next_id), fn id, acc ->
+    socket =
+      socket
+      |> assign(:selected_id, next_id)
+      |> drop_selected_item_confirm()
+
+    Enum.reduce([prev_id, next_id], socket, fn id, acc ->
       if row = by_id[id], do: stream_insert(acc, :history, row), else: acc
     end)
   end
+
+  defp drop_selected_item_confirm(%{assigns: %{confirm: {_kind, _item}}} = socket),
+    do: assign(socket, :confirm, nil)
+
+  defp drop_selected_item_confirm(socket), do: socket
 
   defp default_selected_id(%Session{id: id}, _by_id), do: id
 
@@ -883,7 +889,7 @@ defmodule VoyagerWeb.TracingSessionsLive do
 
   defp parse_selected_id(%{"session" => raw}) when is_binary(raw) do
     case Integer.parse(raw) do
-      {id, ""} -> id
+      {id, ""} when id <= @max_row_id -> id
       _invalid -> nil
     end
   end

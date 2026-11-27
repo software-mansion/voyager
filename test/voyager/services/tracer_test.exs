@@ -267,6 +267,24 @@ defmodule Voyager.Services.TracerTest do
     assert {:ok, %{status: :running}} = Tracer.start(:ui)
   end
 
+  test "keeps a saved session whose stored config no longer loads when it is closed" do
+    row =
+      Repo.insert!(%TraceSession{
+        origin: :ui,
+        status: :stopped,
+        node: Atom.to_string(Node.self()),
+        config: %{"module" => "Elixir.Date", "processes" => "everything"},
+        stop_reason: :stopped,
+        traces: 42
+      })
+
+    TraceEntryActions.insert_all(row.id, [%{seq: 0, kind: :started, at: 1_000_000, origin: :ui}])
+
+    assert {:ok, %{config: nil, traces: 42}} = Tracer.load(row.id)
+    assert :ok = Tracer.close()
+    assert %{traces: 42} = TraceSessionQueries.get(row.id)
+  end
+
   test "deletes an unconfigured saved session when closed or replaced" do
     # Closed
     assert {:ok, %{id: closed_id}} = Tracer.create(:ui, save: true)

@@ -23,6 +23,14 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     view
   end
 
+  defp tile_ids(view) do
+    view
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query("#history-tiles > button")
+    |> LazyHTML.attribute("id")
+  end
+
   defp insert_saved!(overrides \\ %{}) do
     config =
       Map.get(overrides, :config, %Config{
@@ -140,14 +148,64 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
 
     assert has_element?(view, "#history-tiles #history-#{oldest.id}[data-selected]")
 
-    tile_ids =
-      view
-      |> render()
-      |> LazyHTML.from_fragment()
-      |> LazyHTML.query("#history-tiles > button")
-      |> LazyHTML.attribute("id")
+    assert Enum.take(tile_ids(view), -2) == [
+             "history-#{second_oldest.id}",
+             "history-#{oldest.id}"
+           ]
+  end
 
-    assert Enum.take(tile_ids, -2) == ["history-#{second_oldest.id}", "history-#{oldest.id}"]
+  test "keeps history newest first when a reload also moves the selection", %{conn: conn} do
+    [oldest, middle, newest] = for _ <- 1..3, do: insert_saved!()
+    foreign = insert_saved!(%{node: "worker@127.0.0.1"})
+    local_order = Enum.map([newest, middle, oldest], &"history-#{&1.id}")
+
+    view = open_sessions(conn)
+
+    assert has_element?(view, "#history-#{newest.id}[data-selected]")
+    assert tile_ids(view) == local_order
+
+    view
+    |> element("#node-filter-clear")
+    |> render_click()
+
+    assert tile_ids(view) == ["history-#{foreign.id}" | local_order]
+
+    view = open_sessions(conn, ~p"/node/#{@node_name}/tracing?node=all&session=#{foreign.id}")
+
+    assert has_element?(view, "#history-#{foreign.id}[data-selected]")
+
+    view
+    |> element("#node-picker [data-filter-node='#{@node_name}']")
+    |> render_click()
+
+    assert has_element?(view, "#history-#{newest.id}[data-selected]")
+    assert tile_ids(view) == local_order
+  end
+
+  test "ignores a ?session id too large for the database", %{conn: conn} do
+    saved = insert_saved!()
+
+    view = open_sessions(conn, ~p"/node/#{@node_name}/tracing?session=99999999999999999999")
+
+    assert has_element?(view, "#session-card[data-session-id='#{saved.id}']")
+  end
+
+  test "closes the delete confirmation when another session gets selected", %{conn: conn} do
+    first = insert_saved!()
+    second = insert_saved!()
+
+    view = open_sessions(conn, ~p"/node/#{@node_name}/tracing?session=#{first.id}")
+
+    view
+    |> element("#delete-session")
+    |> render_click()
+
+    assert has_element?(view, "#delete-session-modal")
+
+    render_patch(view, ~p"/node/#{@node_name}/tracing?session=#{second.id}")
+
+    refute has_element?(view, "#delete-session-modal")
+    assert TraceSessionQueries.get(first.id)
   end
 
   test "falls back to default selection when ?session is hidden by the filter or unknown", %{

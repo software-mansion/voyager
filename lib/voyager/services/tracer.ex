@@ -617,7 +617,8 @@ defmodule Voyager.Services.Tracer do
 
   defp new_session_id(_origin, false), do: -System.unique_integer([:positive])
 
-  defp prune_unconfigured(%Session{id: id, save: true, config: nil}) do
+  # A stored config that no longer loads is also nil; `seq: 0` leaves that session and its traces alone.
+  defp prune_unconfigured(%Session{id: id, save: true, config: nil, seq: 0}) do
     case TraceSessionActions.delete(id) do
       {:ok, _row} ->
         :ok
