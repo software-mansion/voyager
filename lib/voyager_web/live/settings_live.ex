@@ -74,7 +74,7 @@ defmodule VoyagerWeb.SettingsLive do
             on_select="select-term-syntax"
           />
         </div>
-        <div class="flex flex-col gap-6">
+        <div class="flex flex-col gap-6 lg:max-2xl:row-span-2">
           <DemoSettings.demo_settings session={@session} running?={@demo_running?} />
           <.live_component module={McpSettings} id="mcp-server" agents={@mcp_agents} />
         </div>
