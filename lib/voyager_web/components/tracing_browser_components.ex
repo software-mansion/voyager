@@ -94,7 +94,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
           </summary>
           <ul
             phx-click={JS.remove_attribute("open", to: "#node-picker")}
-            class="dropdown-content menu bg-base-100 rounded-box border-base-200 max-w-[calc(100vw-3rem)] z-20 mt-1 w-72 border p-1.5 shadow-lg"
+            class="dropdown-content menu bg-base-100 rounded-box border-base-200 z-20 mt-1 w-72 border p-1.5 shadow-lg"
           >
             <li class="menu-title font-mono tracking-label px-2 text-xs uppercase">Filter by node</li>
             <li>

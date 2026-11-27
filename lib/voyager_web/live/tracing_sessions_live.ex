@@ -82,12 +82,10 @@ defmodule VoyagerWeb.TracingSessionsLive do
       |> assign(:node_filter, next_filter)
       |> assign(:selected_param, selected_param)
 
-    if connected?(socket) and socket.assigns.loaded? do
-      socket = if filter_changed?, do: reload_history(socket), else: resolve_selection(socket)
-
-      {:noreply, socket}
-    else
-      {:noreply, socket}
+    cond do
+      not (connected?(socket) and socket.assigns.loaded?) -> {:noreply, socket}
+      filter_changed? -> {:noreply, reload_history(socket)}
+      true -> {:noreply, resolve_selection(socket)}
     end
   end
 
