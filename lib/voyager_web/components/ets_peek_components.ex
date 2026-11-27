@@ -207,7 +207,11 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
     assigns = assign(assigns, :prompt, search_prompt(assigns.node_name, assigns.info))
 
     ~H"""
-    <div id="ets-search-hint" role="note" class="text-base-content/70 flex items-center gap-2 text-xs">
+    <div
+      id="ets-search-hint"
+      role="note"
+      class="text-base-content/70 basis-xl flex grow items-center gap-2 text-xs"
+    >
       <.icon :if={@mcp_running?} name="icon-brain" class="size-4 shrink-0" />
       <span :if={@mcp_running?}>
         To search records by key prefix, value or match spec, ask an AI agent connected to <.link
