@@ -46,7 +46,7 @@ defmodule VoyagerWeb.SettingsLive do
     assigns = assign(assigns, pid_formats: @pid_formats, term_syntaxes: @term_syntaxes)
 
     ~H"""
-    <div class="mx-auto w-full px-6 py-10 md:max-w-[80vw]">
+    <div class="mx-auto w-full px-6 py-10 md:w-4/5">
       <div class="mb-6 flex items-center gap-2">
         <.back_arrow id="settings-back" href={if(!@can_go_back?, do: ~p"/")} />
         <h1 class="text-base-content text-2xl font-semibold tracking-tight">Settings</h1>

@@ -961,7 +961,6 @@ defmodule VoyagerWeb.TracingSessionLiveTest do
 
   test "redraws the storage bar once the storage limit changes while other sessions fill it",
        %{conn: conn} do
-    {:ok, _} = Voyager.Settings.put(:trace_storage_limit_mb, 100)
     %{id: id} = start!(%{}, save: true)
     :ok = Tracer.stop(:ui)
 

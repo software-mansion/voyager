@@ -17,7 +17,8 @@ defmodule Voyager.Services.Tracer do
   `{:session_entries, session, entries}` with the entries just appended, oldest first, or
   none when only a saved session's `bytes` or `storage_limit` changed, and
   `{:storage_limit_changed, mb}` once the storage limit is saved.
-  `session_topic/0` carries only `{:session_updated, session | nil}` alongside each of those.
+  `session_topic/0` carries only `{:session_updated, session | nil}`, alongside each of those
+  but the last.
 
   A session created with `save: true` gets a `Voyager.Schemas.TraceSession` row and
   every entry is handed to `Writer` as it is appended; `load/1` makes it active again later.
@@ -217,7 +218,7 @@ defmodule Voyager.Services.Tracer do
   @spec put_storage_limit_mb(pos_integer()) :: :ok | {:error, :locked | Ecto.Changeset.t()}
   def put_storage_limit_mb(mb) when is_integer(mb) and mb > 0 do
     with {:ok, _setting} <- Settings.put(:trace_storage_limit_mb, mb),
-         do: GenServer.call(__MODULE__, {:storage_limit_changed, mb})
+         do: GenServer.cast(__MODULE__, :storage_limit_changed)
   end
 
   @doc "The bytes the other saved sessions leave of the storage limit for session `id`."
@@ -439,11 +440,6 @@ defmodule Voyager.Services.Tracer do
     {:reply, {:ok, state.session}, state}
   end
 
-  def handle_call({:storage_limit_changed, mb}, _from, state) do
-    broadcast({:storage_limit_changed, mb})
-    {:reply, :ok, refresh_storage_limit(state)}
-  end
-
   def handle_call({:start, _origin, _id, _node, _config, _args}, _from, %{session: nil} = state),
     do: {:reply, {:error, :no_session}, state}
 
@@ -538,6 +534,11 @@ defmodule Voyager.Services.Tracer do
   def handle_call({:kept_traces, _id}, _from, state), do: {:reply, {:error, :not_found}, state}
 
   @impl true
+  def handle_cast(:storage_limit_changed, state) do
+    broadcast({:storage_limit_changed, storage_limit_mb()})
+    {:noreply, refresh_storage_limit(state)}
+  end
+
   def handle_cast(:disconnecting, %{session: %{status: :running}} = state),
     do: {:noreply, put_stop_request(state, :disconnected, nil)}
 

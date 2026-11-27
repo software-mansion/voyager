@@ -37,14 +37,12 @@ defmodule VoyagerWeb.SettingsLive.TracingSettings do
           class="flex items-end justify-between gap-2"
         >
           <div class="flex-1">
-            <div class="mb-1.5 flex items-center gap-2">
-              <label
-                class="font-mono tracking-label text-base-content/70 flex items-center gap-0.5 text-xs font-semibold uppercase"
-                for={@form[:limit_mb].id}
-              >
-                Storage limit (MB)
-              </label>
-            </div>
+            <label
+              class="font-mono tracking-label text-base-content/70 mb-1.5 block text-xs font-semibold uppercase"
+              for={@form[:limit_mb].id}
+            >
+              Storage limit (MB)
+            </label>
             <.input
               field={@form[:limit_mb]}
               type="number"
@@ -52,7 +50,7 @@ defmodule VoyagerWeb.SettingsLive.TracingSettings do
               disabled={@locked?}
               phx-mounted={@focus? && JS.focus()}
               float_errors
-              class="font-mono flex-1 text-sm"
+              class="font-mono text-sm"
             />
           </div>
 

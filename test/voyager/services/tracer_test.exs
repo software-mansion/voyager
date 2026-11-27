@@ -227,6 +227,7 @@ defmodule Voyager.Services.TracerTest do
     session: %{id: id}
   } do
     assert :ok = Tracer.put_storage_limit_mb(50)
+    _ = :sys.get_state(Tracer)
     refute_received {:session_entries, %{id: ^id}, []}
   end
 
@@ -448,6 +449,7 @@ defmodule Voyager.Services.TracerTest do
   test "saves the storage limit to its setting" do
     assert Tracer.storage_limit_mb() == 100
     assert :ok = Tracer.put_storage_limit_mb(7)
+    _ = :sys.get_state(Tracer)
     assert Tracer.storage_limit_mb() == 7
     assert_receive {:storage_limit_changed, 7}
   end

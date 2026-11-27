@@ -411,8 +411,25 @@ defmodule VoyagerWeb.SettingsLiveTest do
       |> form("#trace-storage-form", trace_storage: %{limit_mb: "250"})
       |> render_submit()
 
+      _ = :sys.get_state(Tracer)
       assert Tracer.storage_limit_mb() == 250
       assert render(view) =~ "Storage limit saved"
+    end
+
+    test "saves the trace storage limit while the Tracer is busy", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/settings")
+      :ok = :sys.suspend(Tracer)
+      on_exit(fn -> :sys.resume(Tracer) end)
+
+      view
+      |> form("#trace-storage-form", trace_storage: %{limit_mb: "250"})
+      |> render_submit()
+
+      assert Tracer.storage_limit_mb() == 250
+      assert render(view) =~ "Storage limit saved"
+
+      :ok = :sys.resume(Tracer)
+      _ = :sys.get_state(Tracer)
     end
 
     test "focuses the storage limit only when the link asks for it", %{conn: conn} do
