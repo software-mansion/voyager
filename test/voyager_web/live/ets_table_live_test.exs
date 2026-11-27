@@ -9,11 +9,13 @@ defmodule VoyagerWeb.EtsTableLiveTest do
   alias Voyager.Erpc
   alias Voyager.Fakes
   alias Voyager.MCP.Tools.EtsHelpers
+  alias Voyager.Services.McpAgents
   alias Voyager.Services.TermSyntax
   alias Voyager.Test.EtsTable
   alias Voyager.Test.VoyagerAgentFixture
 
   @node_name "nonode@nohost"
+  @mcp_url "http://localhost:4040/mcp"
 
   setup do
     VoyagerAgentFixture.load!()
@@ -401,6 +403,23 @@ defmodule VoyagerWeb.EtsTableLiveTest do
 
     assert {:ok, ^ref} = EtsHelpers.parse_table(Node.self(), prompt_table(prompt))
     refute prompt =~ Atom.to_string(name)
+  end
+
+  test "the search hint follows the MCP server turning off and on", %{conn: conn} do
+    name = named_table(:set)
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/ets-tables/#{inspect(name)}")
+    render_async(view, 2_000)
+
+    send(view.pid, {:mcp_agents, %McpAgents{server: %{alive?: false, url: nil}}})
+
+    assert has_element?(view, "#ets-search-hint-mcp-off")
+    assert has_element?(view, "#ets-search-prompt-copy")
+
+    send(view.pid, {:mcp_agents, %McpAgents{server: %{alive?: true, url: @mcp_url}}})
+
+    refute has_element?(view, "#ets-search-hint-mcp-off")
+    assert has_element?(view, "#ets-search-hint-settings[href='/settings#mcp-server']")
   end
 
   describe "with the Erlang term syntax" do

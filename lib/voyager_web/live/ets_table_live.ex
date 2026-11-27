@@ -107,6 +107,7 @@ defmodule VoyagerWeb.EtsTableLive do
             :if={readable?(@info)}
             node_name={@session.node_name}
             info={info}
+            mcp_running?={@mcp_agents.server.alive?}
           />
 
           <div

@@ -201,19 +201,30 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
 
   attr :node_name, :string, required: true
   attr :info, :map, required: true, doc: "`Remote.table_info()` of a readable table"
+  attr :mcp_running?, :boolean, required: true
 
   def search_hint(assigns) do
     assigns = assign(assigns, :prompt, search_prompt(assigns.node_name, assigns.info))
 
     ~H"""
     <div id="ets-search-hint" role="note" class="text-base-content/70 flex items-center gap-2 text-xs">
-      <.icon name="icon-brain" class="size-4 shrink-0" />
-      <span>
+      <.icon :if={@mcp_running?} name="icon-brain" class="size-4 shrink-0" />
+      <span :if={@mcp_running?}>
         To search records by key prefix, value or match spec, ask an AI agent connected to <.link
           id="ets-search-hint-settings"
           href={~p"/settings#mcp-server"}
           class="text-primary font-medium underline-offset-2 hover:underline"
         >Voyager's MCP server</.link>.
+      </span>
+      <.icon :if={!@mcp_running?} name="icon-circle-alert" class="text-warning size-4 shrink-0" />
+      <span :if={!@mcp_running?} id="ets-search-hint-mcp-off">
+        Voyager's MCP server is off. Turn it on in
+        <.link
+          id="ets-search-hint-settings"
+          href={~p"/settings#mcp-server"}
+          class="text-primary font-medium underline-offset-2 hover:underline"
+        >Settings</.link>
+        to search records by key prefix, value or match spec with an AI agent.
       </span>
       <span id="ets-search-prompt" class="hidden">{@prompt}</span>
       <.copy_button
