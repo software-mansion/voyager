@@ -357,6 +357,7 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     |> render_click()
 
     refute has_element?(view, "#load-session")
+    refute has_element?(view, "#duplicate-session")
     assert has_element?(view, "#trace-here")
 
     view
@@ -373,6 +374,79 @@ defmodule VoyagerWeb.TracingSessionsLiveTest do
     assert active.node == Node.self()
     assert active.config.module == "Elixir.Date"
     assert path == ~p"/node/#{@node_name}/tracing/#{active.id}"
+  end
+
+  test "duplicates a saved session from this node into a new one, keeping its pids", %{
+    conn: conn
+  } do
+    pid = Voyager.Pid.format(self(), :distribution)
+
+    saved =
+      insert_saved!(%{
+        config: %Config{
+          module: "Elixir.Date",
+          function: "leap_year?",
+          arity: 1,
+          processes: :pids,
+          pids: [pid],
+          max_events: 50
+        }
+      })
+
+    view = open_sessions(conn, ~p"/node/#{@node_name}/tracing?session=#{saved.id}")
+
+    view
+    |> element("#duplicate-session")
+    |> render_click()
+
+    view
+    |> element("#copy-session-modal-confirm")
+    |> render_click()
+
+    {path, _flash} = assert_redirect(view)
+    active = Tracer.active()
+    assert active.save
+    assert active.id != saved.id
+    assert active.status == :idle
+    assert active.config.pids == [pid]
+    assert TraceSessionQueries.get(saved.id)
+    assert path == ~p"/node/#{@node_name}/tracing/#{active.id}"
+  end
+
+  test "duplicates the active session once it has stopped", %{conn: conn} do
+    start!(%{}, save: true)
+    %{id: original_id, config: config} = Tracer.active()
+    view = open_sessions(conn)
+
+    assert has_element?(view, "#duplicate-session[aria-disabled='true']")
+
+    Tracer.stop(:ui)
+    assert_receive {:session_entries, %{status: :stopped}, _entries}, 2_000
+    settle(view)
+
+    view
+    |> element("#duplicate-session:not([aria-disabled])")
+    |> render_click()
+
+    view
+    |> element("#copy-session-modal-cancel")
+    |> render_click()
+
+    {path, _flash} = assert_redirect(view)
+    active = Tracer.active()
+    refute active.save
+    assert active.id != original_id
+    assert active.config == config
+    assert TraceSessionQueries.get(original_id)
+    assert path == ~p"/node/#{@node_name}/tracing/#{active.id}"
+  end
+
+  test "hides Duplicate for a session with no parameters", %{conn: conn} do
+    create!(save: true)
+    view = open_sessions(conn)
+
+    assert has_element?(view, "#unload-session")
+    refute has_element?(view, "#duplicate-session")
   end
 
   test "confirms before unloading or replacing an unsaved configured session", %{conn: conn} do

@@ -371,9 +371,12 @@ defmodule VoyagerWeb.TracingSessionsLive do
 
   def handle_event("copy-session", _params, socket) do
     case selected_item(socket.assigns) do
-      %{config: config} = item when not is_struct(item, Session) ->
+      %{status: status, config: config} = item when status != :running ->
+        other_node? =
+          TracingBrowserComponents.other_node?(item, socket.assigns.session.node_name)
+
         socket
-        |> assign(:confirm, {:copy, config})
+        |> assign(:confirm, {:copy, {config, other_node?}})
         |> noreply()
 
       _other ->
@@ -538,12 +541,12 @@ defmodule VoyagerWeb.TracingSessionsLive do
   defp execute_confirmed(socket, :create, save?),
     do: run_action(socket, :create, fn -> Tracer.create(:ui, save: save?) end)
 
-  defp execute_confirmed(socket, {:copy, config}, save?) do
+  defp execute_confirmed(socket, {:copy, {config, other_node?}}, save?) do
     node = socket.assigns.session.node
 
     run_action(socket, :copy, fn ->
       with {:ok, session} <- Tracer.create(:ui, save: save?) do
-        copy_config_to_node(node, config, session)
+        copy_config_to_node(node, config, other_node?, session)
       end
     end)
   end
@@ -568,12 +571,13 @@ defmodule VoyagerWeb.TracingSessionsLive do
       else: execute_confirmed(socket, confirm, false)
   end
 
-  defp copy_config_to_node(_node, nil, session), do: {:ok, session}
+  defp copy_config_to_node(_node, nil, _other_node?, session), do: {:ok, session}
 
-  defp copy_config_to_node(_node, %Config{processes: :pids}, session),
+  # Pid strings resolve on any node, so another node's would select unrelated processes.
+  defp copy_config_to_node(_node, %Config{processes: :pids}, true, session),
     do: {:ok, session, :config_dropped}
 
-  defp copy_config_to_node(node, %Config{} = config, session) do
+  defp copy_config_to_node(node, %Config{} = config, _other_node?, session) do
     case Tracer.configure(node, Map.from_struct(config), :ui) do
       {:ok, configured} -> {:ok, configured}
       {:error, %Ecto.Changeset{}} -> {:ok, session, :config_dropped}

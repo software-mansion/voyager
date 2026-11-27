@@ -7,11 +7,21 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
 
   use VoyagerWeb, :component
 
+  alias Voyager.Queries.TraceSessions, as: TraceSessionQueries
   alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Session
   alias VoyagerWeb.Components.TracingComponents
   alias VoyagerWeb.Formatters
+
+  @doc "Whether `item` (the active session or a listed saved one) traced a node other than `connected_node`."
+  @spec other_node?(Session.t() | TraceSessionQueries.listed(), String.t()) :: boolean()
+  def other_node?(item, connected_node) do
+    case item_node(item) do
+      nil -> false
+      node -> node != connected_node
+    end
+  end
 
   attr :count, :integer, required: true
   attr :busy?, :boolean, required: true
@@ -169,7 +179,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
 
   def session_tile(assigns) do
     tone = TracingComponents.tone(assigns.item)
-    other_node? = item_other_node?(assigns.item, assigns.connected_node)
+    other_node? = other_node?(assigns.item, assigns.connected_node)
     {module, function} = item_mfa_parts(assigns.item.config)
 
     assigns =
@@ -354,7 +364,7 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
 
   def overview_session_card(assigns) do
     tone = TracingComponents.tone(assigns.item)
-    other_node? = item_other_node?(assigns.item, assigns.connected_node)
+    other_node? = other_node?(assigns.item, assigns.connected_node)
     {module, function} = item_mfa_parts(assigns.item.config)
 
     assigns =
@@ -569,6 +579,23 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
 
       <div class="flex flex-col-reverse items-end gap-2 @md/overview:flex-row @md/overview:items-center">
         <.overview_action
+          :if={@item.config != nil and !@other_node?}
+          id="duplicate-session"
+          icon="icon-copy"
+          label="Duplicate session"
+          tip={
+            if @busy?,
+              do: "Stop the running session first",
+              else: "New session with these parameters"
+          }
+          icon_only
+          phx-click={!@busy? && @on_copy}
+          aria-disabled={@busy? && "true"}
+          disabled={@pending?}
+          class="btn-ghost text-base-content/60"
+        />
+
+        <.overview_action
           :if={@saved? and @item.status != :running}
           id="delete-session"
           icon="icon-trash"
@@ -716,13 +743,6 @@ defmodule VoyagerWeb.Components.TracingBrowserComponents do
   defp item_node(%Session{node: nil}), do: nil
   defp item_node(%Session{node: node}), do: Atom.to_string(node)
   defp item_node(%{node: node}), do: node
-
-  defp item_other_node?(item, connected_node) do
-    case item_node(item) do
-      nil -> false
-      node -> node != connected_node
-    end
-  end
 
   defp origin_icon(:mcp), do: "icon-brain"
   defp origin_icon(_origin), do: "icon-laptop"
