@@ -1141,7 +1141,9 @@ lookup_label(Pid) ->
             undefined;
         [{registered_name, Name}, _, _] when is_atom(Name) ->
             Name;
-        [_, {_, {_, _, _} = InitialCall}, _] ->
+        %% A process sets `$initial_call' itself, and the label is sent outside the term budget.
+        [_, {_, {M, F, A} = InitialCall}, _]
+            when is_atom(M), is_atom(F), is_integer(A), A >= 0, A =< 255 ->
             InitialCall;
         [_, _, {initial_call, InitialCall}] ->
             InitialCall
