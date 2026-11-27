@@ -8,11 +8,14 @@ defmodule VoyagerWeb.EtsTableLiveTest do
 
   alias Voyager.Erpc
   alias Voyager.Fakes
+  alias Voyager.MCP.Tools.EtsHelpers
+  alias Voyager.Services.McpAgents
   alias Voyager.Services.TermSyntax
   alias Voyager.Test.EtsTable
   alias Voyager.Test.VoyagerAgentFixture
 
   @node_name "nonode@nohost"
+  @mcp_url "http://localhost:4040/mcp"
 
   setup do
     VoyagerAgentFixture.load!()
@@ -66,6 +69,7 @@ defmodule VoyagerWeb.EtsTableLiveTest do
 
     assert has_element?(view, "#ets-private-notice")
     assert has_element?(view, "#ets-peek-fetch:not([disabled])", "Refetch info")
+    refute has_element?(view, "#ets-search-hint")
 
     :ets.delete(name)
     :ets.new(name, [:named_table, :public, :set])
@@ -76,6 +80,7 @@ defmodule VoyagerWeb.EtsTableLiveTest do
 
     refute has_element?(view, "#ets-private-notice")
     refute has_element?(view, "#ets-records-count")
+    assert has_element?(view, "#ets-search-hint")
   end
 
   test "refetching records on a table that became private hides the records", %{conn: conn} do
@@ -95,6 +100,7 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     assert has_element?(view, "#ets-peek-fetch", "Refetch info")
     refute has_element?(view, "#ets-records-0")
     refute has_element?(view, "#ets-peek-error")
+    refute has_element?(view, "#ets-search-hint")
   end
 
   test "records read before the table turned private stay hidden when they land last", %{
@@ -368,6 +374,54 @@ defmodule VoyagerWeb.EtsTableLiveTest do
     assert {^key, _binding} = view |> text("#ets-sidebar-key-copy-text") |> Code.eval_string()
   end
 
+  test "the search prompt hands MCP a named table's handle and keypos", %{conn: conn} do
+    name = EtsTable.unique_name()
+    :ets.new(name, [:named_table, :public, :bag, keypos: 2])
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/ets-tables/#{inspect(name)}")
+    render_async(view, 2_000)
+
+    assert has_element?(view, "#ets-search-prompt-copy[data-copy-target='#ets-search-prompt']")
+
+    prompt = text(view, "#ets-search-prompt")
+
+    assert {:ok, ^name} = EtsHelpers.parse_table(Node.self(), prompt_table(prompt))
+    assert prompt =~ "(type: bag, keypos: 2) on node `#{@node_name}`"
+    assert prompt =~ "also pass `keypos: 2`"
+    assert prompt =~ "`ets_read_table_chunk`"
+    assert prompt =~ "`ets_search_table`"
+  end
+
+  test "the search prompt hands MCP an unnamed table's reference", %{conn: conn} do
+    name = EtsTable.unique_name()
+    ref = :ets.new(name, [:public, :ordered_set])
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/ets-tables/#{inspect(ref)}")
+    render_async(view, 2_000)
+
+    prompt = text(view, "#ets-search-prompt")
+
+    assert {:ok, ^ref} = EtsHelpers.parse_table(Node.self(), prompt_table(prompt))
+    refute prompt =~ Atom.to_string(name)
+  end
+
+  test "the search hint follows the MCP server turning off and on", %{conn: conn} do
+    name = named_table(:set)
+
+    {:ok, view, _html} = live(conn, ~p"/node/#{@node_name}/ets-tables/#{inspect(name)}")
+    render_async(view, 2_000)
+
+    send(view.pid, {:mcp_agents, %McpAgents{server: %{alive?: false, url: nil}}})
+
+    assert has_element?(view, "#ets-search-hint-mcp-off")
+    assert has_element?(view, "#ets-search-prompt-copy")
+
+    send(view.pid, {:mcp_agents, %McpAgents{server: %{alive?: true, url: @mcp_url}}})
+
+    refute has_element?(view, "#ets-search-hint-mcp-off")
+    assert has_element?(view, "#ets-search-hint-settings[href='/settings#mcp-server']")
+  end
+
   describe "with the Erlang term syntax" do
     setup :reset_term_syntax
 
@@ -439,6 +493,11 @@ defmodule VoyagerWeb.EtsTableLiveTest do
 
   defp text(view, selector) do
     view |> render() |> LazyHTML.from_fragment() |> LazyHTML.query(selector) |> LazyHTML.text()
+  end
+
+  defp prompt_table(prompt) do
+    [_match, table] = Regex.run(~r/Pass `(.+?)` as `table`/, prompt)
+    table
   end
 
   defp info_size(view), do: view |> text("#ets-info-size dd") |> String.trim()
