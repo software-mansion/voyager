@@ -11,6 +11,9 @@ paths:
 - Icons are SVGs in `assets/css/icons/`, rendered with `<.icon name="icon-{file}" class="size-4">`.
   An icon is a CSS mask on `currentColor`: color it with `text-*`, never `bg-*`. The name must
   match an existing SVG, or it renders as an empty span
+- Pick-one controls use `<.segmented>` from `core_components.ex`, or
+  `SettingsComponents.choice_setting/1` for a settings card; both carry the shared checked and
+  hover colours
 - Form inputs use `<.input>` from `core_components.ex`. A custom `class` replaces the default
   classes, so it must style the input fully
 - `<.flash_group>` is called only from `layouts.ex`

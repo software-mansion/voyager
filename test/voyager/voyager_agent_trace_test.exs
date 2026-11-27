@@ -406,9 +406,9 @@ defmodule VoyagerAgentTraceTest do
 
   defp start(spec, limits, collector \\ self()) do
     case @agent_module.trace_start(collector, spec, limits) do
-      {:ok, tracer} = ok ->
+      {:ok, tracer, now} when is_integer(now) ->
         on_exit(fn -> @agent_module.trace_stop(tracer) end)
-        ok
+        {:ok, tracer}
 
       error ->
         error

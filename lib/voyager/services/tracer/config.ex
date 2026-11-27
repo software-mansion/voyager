@@ -14,6 +14,8 @@ defmodule Voyager.Services.Tracer.Config do
   @max_time_ms 3_600_000
   @max_budget 100_000
   @max_pids 100
+  @elixir_module ~r/^(?:Elixir\.)?((?:[A-Z]\w*\.)*[A-Z]\w*)$/
+  @erlang_module ~r/^:?([a-z]\w*)$/
 
   @primary_key false
   embedded_schema do
@@ -51,6 +53,32 @@ defmodule Voyager.Services.Tracer.Config do
     |> validate_pids()
     |> validate_module_allowed()
   end
+
+  @doc """
+  The `module` the agent takes for a typed name: `MyApp.Repo` becomes `Elixir.MyApp.Repo`,
+  `:lists` becomes `lists`. `nil` when it is neither an Elixir nor an Erlang module name.
+  """
+  @spec module_name(String.t()) :: String.t() | nil
+  def module_name(module) when is_binary(module) do
+    module = String.trim(module)
+
+    case {Regex.run(@elixir_module, module, capture: :all_but_first),
+          Regex.run(@erlang_module, module, capture: :all_but_first)} do
+      {[elixir], _erlang} -> "Elixir." <> elixir
+      {nil, [erlang]} -> erlang
+      {nil, nil} -> nil
+    end
+  end
+
+  @doc "Loads a stored config map, returning `nil` when empty or incompatible with this schema."
+  @spec from_stored(map() | nil) :: t() | nil
+  def from_stored(data) when is_map(data) do
+    Ecto.embedded_load(__MODULE__, data, :json)
+  rescue
+    ArgumentError -> nil
+  end
+
+  def from_stored(_data), do: nil
 
   @doc "The `{spec, limits}` pair `trace_start` takes on the agent; `pids` are the resolved `:pids`."
   @spec to_agent(t(), [pid()]) :: {map(), map()}

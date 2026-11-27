@@ -162,7 +162,7 @@ defmodule VoyagerWeb.ConnectLive.SshConnect do
           <label class="font-mono tracking-label text-base-content/70 mb-1.5 block text-xs uppercase">
             Authentication
           </label>
-          <ConnectComponents.segmented
+          <.segmented
             name="ssh[auth_method]"
             value={@current_auth_method}
             disabled={@disabled?}

@@ -14,6 +14,7 @@ defmodule Voyager.Services.Tracer.Run do
     :dropped_before,
     :dropped_logged,
     :started_ms,
+    clock_offset_us: 0,
     shed: 0,
     pairing: %CallPairing{},
     stop_request: nil
@@ -24,31 +25,34 @@ defmodule Voyager.Services.Tracer.Run do
           dropped_before: non_neg_integer(),
           dropped_logged: non_neg_integer(),
           started_ms: integer(),
+          clock_offset_us: integer(),
           shed: non_neg_integer(),
           pairing: CallPairing.t(),
           stop_request: {Tracer.stop_reason(), Tracer.origin() | nil} | nil
         }
 
-  @spec new(Session.t(), Tracer.origin()) :: t()
-  def new(%Session{} = session, origin) do
+  @spec new(Session.t(), Tracer.origin(), integer()) :: t()
+  def new(%Session{} = session, origin, clock_offset_us) do
     %__MODULE__{
       origin: origin,
       dropped_before: session.dropped,
       dropped_logged: session.dropped,
-      started_ms: System.monotonic_time(:millisecond)
+      started_ms: System.monotonic_time(:millisecond),
+      clock_offset_us: clock_offset_us
     }
   end
 
   @doc """
-  Accounts for a batch from the remote tracer: sheds it when `shedding?`, pairs returns with
-  their calls and updates the session's counts. Returns the entries to log, the session and
-  the run.
+  Accounts for a batch from the remote tracer: sheds it when `shedding?`, shifts event
+  timestamps onto Voyager's clock, pairs returns with their calls and updates the session's
+  counts. Returns the entries to log, the session and the run.
   """
   @spec absorb(t(), Session.t(), [map()], non_neg_integer(), boolean()) ::
           {[Entry.unnumbered()], Session.t(), t()}
   def absorb(%__MODULE__{} = run, %Session{} = session, events, agent_dropped, shedding?) do
     {events, run} = shed(run, events, shedding?)
     dropped = total_dropped(run, agent_dropped)
+    events = shift_clock(events, run.clock_offset_us)
     {events, run} = pair_returns(run, session, events, dropped)
     session = %{session | traces: session.traces + length(events), dropped: dropped}
     {dropped_entries, run} = log_drops(run, dropped, shedding?)
@@ -63,6 +67,15 @@ defmodule Voyager.Services.Tracer.Run do
 
   defp shed(run, events, true), do: {[], %{run | shed: run.shed + length(events)}}
   defp shed(run, events, false), do: {events, run}
+
+  defp shift_clock(events, 0), do: events
+
+  defp shift_clock(events, offset) do
+    Enum.map(events, fn
+      %{at: at} = event when is_integer(at) -> %{event | at: at + offset}
+      event -> event
+    end)
+  end
 
   defp pair_returns(run, session, events, dropped) do
     pairing = if dropped > session.dropped, do: %CallPairing{}, else: run.pairing

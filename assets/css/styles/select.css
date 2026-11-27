@@ -32,3 +32,13 @@
   -webkit-mask: var(--select-caret) center / contain no-repeat;
   mask: var(--select-caret) center / contain no-repeat;
 }
+
+/* A `.select` inside an `.input` (input_with_units) rings itself, not the field around it. */
+.input:has(.dropdown:focus-within) {
+  outline: none;
+  box-shadow: none;
+}
+
+.input:not(.input-error):has(.dropdown:focus-within) {
+  --input-color: color-mix(in oklab, var(--color-base-content) 20%, #0000);
+}

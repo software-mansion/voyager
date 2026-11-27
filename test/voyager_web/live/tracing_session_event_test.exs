@@ -145,8 +145,8 @@ defmodule VoyagerWeb.TracingSessionEventTest do
     refute has_element?(view, "#event-panel-no-outcome")
     assert has_element?(view, "#event-panel-value", "true")
     assert has_element?(view, "#event-panel-duration", "15 µs")
-    assert has_element?(view, "#event-panel-called-at", "00:00:00.000010 UTC")
-    assert has_element?(view, "#event-panel-outcome-at", "00:00:00.000025 UTC")
+    assert has_element?(view, "#event-panel-called-at", ~r/:\d\d\.\d{6} UTC/)
+    assert has_element?(view, "#event-panel-outcome-at", ~r/:\d\d\.\d{6} UTC/)
     assert has_element?(view, "#log-selection[data-partner='entry-3']")
   end
 

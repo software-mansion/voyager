@@ -70,6 +70,15 @@ defmodule Voyager.Services.Tracer.ConfigTest do
     assert %{module: [_]} = errors(%{@valid | module: Atom.to_string(Voyager.Agent.module())})
   end
 
+  test "from_stored/1 loads a stored config map and returns nil on incompatible data" do
+    assert %Config{module: "Elixir.Date", processes: :all} =
+             Config.from_stored(%{"module" => "Elixir.Date", "processes" => "all"})
+
+    assert Config.from_stored(nil) == nil
+    assert Config.from_stored(%{"processes" => "everything"}) == nil
+    assert Config.from_stored(%{"arity" => "x"}) == nil
+  end
+
   defp apply_attrs(attrs),
     do: attrs |> Config.changeset() |> Ecto.Changeset.apply_action(:validate)
 
