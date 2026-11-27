@@ -83,10 +83,10 @@
   --color-success: oklch(50% 0.14 158);
   --color-success-bg: #e0f7ec;
   --color-success-content: oklch(1 0 0);
-  --color-warning: oklch(54% 0.125 70);
+  --color-warning: oklch(77% 0.17 70);
   --color-warning-bg: #fff7e4;
-  --color-warning-content: oklch(1 0 0);
-  --color-error: oklch(54% 0.2 18);
+  --color-warning-content: var(--color-base-content);
+  --color-error: oklch(55% 0.235 26);
   --color-error-bg: #feecec;
   --color-error-content: oklch(1 0 0);
   --radius-selector: 0.25rem;

@@ -31,6 +31,13 @@
     color: color-mix(in oklab, var(--color-base-content) 70%, transparent);
   }
 
+  /* Amber bright enough to read as a warning fill cannot reach 4.5:1 as text on white. */
+  .text-warning,
+  .hover\:text-warning:hover,
+  .badge-soft.badge-warning {
+    color: oklch(54% 0.15 60);
+  }
+
   /* Solid status fills take white text here, so an alert on its pale -bg ground names its own ink. */
   .alert {
     color: var(--color-base-content);
