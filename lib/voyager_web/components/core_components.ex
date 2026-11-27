@@ -716,7 +716,7 @@ defmodule VoyagerWeb.CoreComponents do
           data-direction="-1"
           tabindex="-1"
           aria-label="Decrease"
-          class="btn btn-square toolbar-btn join-item border-base-content/20"
+          class="btn btn-square toolbar-btn join-item border-base-content/20 light:border-base-content/30"
         >
           <.icon name="icon-minus" class="toolbar-icon" />
         </button>
@@ -738,7 +738,7 @@ defmodule VoyagerWeb.CoreComponents do
           data-direction="1"
           tabindex="-1"
           aria-label="Increase"
-          class="btn btn-square toolbar-btn join-item border-base-content/20"
+          class="btn btn-square toolbar-btn join-item border-base-content/20 light:border-base-content/30"
         >
           <.icon name="icon-plus" class="toolbar-icon" />
         </button>

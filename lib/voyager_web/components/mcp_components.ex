@@ -19,7 +19,7 @@ defmodule VoyagerWeb.McpComponents do
       if(@size == :md, do: "size-8 rounded-lg", else: "size-6 rounded-md"),
       if(@active,
         do: ["ring-black/10 bg-white shadow-sm ring-1", logo_color(@id)],
-        else: "bg-base-200 text-base-content/40"
+        else: "bg-base-200 text-base-content/40 light:text-base-content/60"
       )
     ]}>
       <.icon name={logo_icon(@id)} class={if @size == :md, do: "size-4", else: "size-3.5"} />

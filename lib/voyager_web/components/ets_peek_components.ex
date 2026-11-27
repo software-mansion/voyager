@@ -241,7 +241,7 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
                 row_open?(@open_rows, index) && "rotate-90"
               ]}
             />
-            <span class="text-base-content/50 font-mono shrink-0 text-xs tabular-nums">
+            <span class="text-base-content/50 font-mono shrink-0 text-xs tabular-nums light:text-base-content/60">
               {@offset + index + 1}
             </span>
             <span class="font-mono text-base-content min-w-0 flex-1 truncate text-xs">
@@ -428,7 +428,11 @@ defmodule VoyagerWeb.Components.EtsPeekComponents do
             </div>
           </div>
 
-          <p :if={chunk.truncated?} id="ets-lookup-truncated" class="text-base-content/50 text-xs">
+          <p
+            :if={chunk.truncated?}
+            id="ets-lookup-truncated"
+            class="text-base-content/50 text-xs light:text-base-content/60"
+          >
             Shortened to fit the term budget — raise it and refetch to see more.
           </p>
 

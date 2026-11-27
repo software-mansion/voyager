@@ -185,7 +185,9 @@ defmodule VoyagerWeb.Components.DataTableComponents do
   end
 
   defp arrow_class(true, direction, direction), do: "text-primary"
-  defp arrow_class(_active?, _direction, _arrow), do: "text-base-content/30"
+
+  defp arrow_class(_active?, _direction, _arrow),
+    do: "text-base-content/30 light:text-base-content/50"
 
   defp aria_sort(true, :asc), do: "ascending"
   defp aria_sort(true, :desc), do: "descending"
@@ -224,7 +226,7 @@ defmodule VoyagerWeb.Components.DataTableComponents do
         aria-describedby={"#{@tip_id}-tip"}
         class={[
           "font-mono block truncate text-sm",
-          @empty? && "text-base-content/40",
+          @empty? && "text-base-content/40 light:text-base-content/60",
           @muted && !@empty? && "text-base-content/70",
           @class
         ]}

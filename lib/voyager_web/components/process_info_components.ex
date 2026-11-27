@@ -261,7 +261,7 @@ defmodule VoyagerWeb.Components.ProcessInfoComponents do
         target={"##{@id}-copy-source"}
         icon_only
         label={@label}
-        class="text-base-content/40 shrink-0 opacity-0 transition-opacity group-hover/term:opacity-100 hover:text-base-content focus-visible:opacity-100"
+        class="text-base-content/40 shrink-0 opacity-0 transition-opacity group-hover/term:opacity-100 light:text-base-content/60 hover:text-base-content focus-visible:opacity-100"
       />
     </div>
     """

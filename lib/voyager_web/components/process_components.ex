@@ -256,7 +256,10 @@ defmodule VoyagerWeb.Components.ProcessComponents do
         <DataTableComponents.value_cell
           id={"#{@row_id}-msgq"}
           value={format_number(@row[:message_queue_len])}
-          class={not queue_backed_up?(@row[:message_queue_len]) && "text-base-content/40"}
+          class={
+            not queue_backed_up?(@row[:message_queue_len]) &&
+              "text-base-content/40 light:text-base-content/60"
+          }
         />
     <% end %>
     """

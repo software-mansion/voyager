@@ -331,7 +331,10 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
             tip="#log-term-tip"
           >
             <span tabindex="0" class="font-mono block min-w-0 truncate text-sm">
-              <span :if={@wildcard? and @entry.type != :call} class="text-base-content/50 mr-1">
+              <span
+                :if={@wildcard? and @entry.type != :call}
+                class="text-base-content/50 mr-1 light:text-base-content/60"
+              >
                 {fun_arity(@entry.mfa)}
               </span>
               <span class={term_class(@entry.type)}>
@@ -375,14 +378,17 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
                 :for={{label, text, cut?} <- tip_terms(@entry)}
                 class="font-mono flex gap-3"
               >
-                <span :if={label} class="text-base-content/50 min-w-5 shrink-0 text-right">
+                <span
+                  :if={label}
+                  class="text-base-content/50 min-w-5 shrink-0 text-right light:text-base-content/60"
+                >
                   {label}
                 </span>
                 <span class="min-w-0 flex-1 whitespace-pre-wrap break-all"><.highlighted
                   text={text}
                   syntax={@syntax}
                   query={@query}
-                /><span :if={cut?} class="text-base-content/50">…</span></span>
+                /><span :if={cut?} class="text-base-content/50 light:text-base-content/60">…</span></span>
               </div>
             </:content>
           </.tooltip>
@@ -394,7 +400,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
           >
             <.icon
               name="icon-circle-alert"
-              class="text-base-content/40 size-3.5 transition-colors hover:text-warning"
+              class="text-base-content/40 size-3.5 transition-colors light:text-base-content/60 hover:text-warning"
               tabindex="0"
               role="img"
               aria-label="Truncated on the remote node"
@@ -505,7 +511,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
 
     ~H"""
     <td class="font-mono truncate py-2 text-sm tabular-nums" title={full_at(@at)}>
-      <span class="text-base-content/50">{@clock}</span><span class="text-base-content">{@millis}</span>
+      <span class="text-base-content/50 light:text-base-content/60">{@clock}</span><span class="text-base-content">{@millis}</span>
     </td>
     """
   end
@@ -553,7 +559,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
   defp glyph(:return), do: "icon-arrow-left"
   defp glyph(:exception), do: "icon-x"
 
-  defp glyph_class(:call), do: "text-base-content/50"
+  defp glyph_class(:call), do: "text-base-content/50 light:text-base-content/60"
   defp glyph_class(:return), do: "text-success"
   defp glyph_class(:exception), do: "text-error"
 

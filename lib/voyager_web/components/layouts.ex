@@ -192,7 +192,7 @@ defmodule VoyagerWeb.Layouts do
       :if={@dev_build?}
       id="dev-build-banner"
       role="status"
-      class="bg-warning-bg text-warning-content border-warning/30 tracking-label font-mono flex flex-none items-center justify-center gap-2 border-b px-4 py-2 text-xs uppercase"
+      class="bg-warning-bg text-base-content border-warning/30 tracking-label font-mono flex flex-none items-center justify-center gap-2 border-b px-4 py-2 text-xs uppercase dark:text-warning-content"
     >
       <.icon name="icon-circle-alert" class="text-warning size-3.5" /> Dev Build
     </div>

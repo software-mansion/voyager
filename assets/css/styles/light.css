@@ -1,0 +1,45 @@
+/* The same alpha reads fainter on white than on slate, so the light theme takes one step more. */
+[data-theme='light'] {
+  ::placeholder {
+    color: color-mix(in oklab, currentcolor 60%, transparent);
+  }
+
+  :is(.input, .select, .textarea):not(
+    .input-error,
+    .select-error,
+    .textarea-error,
+    :focus,
+    :focus-within
+  ) {
+    --input-color: color-mix(in oklab, var(--color-base-content) 30%, #0000);
+  }
+
+  .tab:not(:checked, :hover, .tab-active, [aria-selected='true']) {
+    color: color-mix(in oklab, var(--color-base-content) 70%, transparent);
+  }
+
+  [data-cy-container] {
+    --grid: rgba(100, 116, 139, 0.18);
+  }
+
+  .cy-toggle:not(:hover) {
+    border-color: color-mix(
+      in oklab,
+      var(--color-base-content) 30%,
+      transparent
+    );
+    color: color-mix(in oklab, var(--color-base-content) 70%, transparent);
+  }
+
+  /* Amber bright enough to read as a warning fill cannot reach 4.5:1 as text on white. */
+  .text-warning,
+  .hover\:text-warning:hover,
+  .badge-soft.badge-warning {
+    color: oklch(54% 0.15 60);
+  }
+
+  /* Solid status fills take white text here, so an alert on its pale -bg ground names its own ink. */
+  .alert {
+    color: var(--color-base-content);
+  }
+}

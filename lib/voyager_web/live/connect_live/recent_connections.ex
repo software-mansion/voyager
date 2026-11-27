@@ -55,7 +55,7 @@ defmodule VoyagerWeb.ConnectLive.RecentConnections do
     <div
       :if={@pinned_connections != []}
       class={[
-        "border-base-content/20 mt-7 border-t pt-5",
+        "border-base-content/20 mt-7 border-t pt-5 light:border-base-content/30",
         @disabled && "pointer-events-none opacity-40"
       ]}
     >
@@ -72,7 +72,7 @@ defmodule VoyagerWeb.ConnectLive.RecentConnections do
     <div
       :if={@recent_connections != []}
       class={[
-        "border-base-content/20 border-t pt-5",
+        "border-base-content/20 border-t pt-5 light:border-base-content/30",
         if(@pinned_connections != [], do: "mt-3", else: "mt-7"),
         @disabled && "pointer-events-none opacity-40"
       ]}
