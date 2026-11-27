@@ -7,16 +7,19 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
 
   use VoyagerWeb, :component
 
+  alias Phoenix.LiveView.AsyncResult
   alias Voyager.Services.TermSyntax
   alias Voyager.Services.Tracer
   alias Voyager.Services.Tracer.Session
   alias VoyagerWeb.Components.DataTableComponents
+  alias VoyagerWeb.Components.DetailsPanelComponents
   alias VoyagerWeb.Components.ProcessComponents
   alias VoyagerWeb.Components.TermComponents
   alias VoyagerWeb.Components.TracingComponents
   alias VoyagerWeb.Formatters
   alias VoyagerWeb.TermHighlight
   alias VoyagerWeb.TermTree.Segment
+  alias VoyagerWeb.TermTree.State
 
   @row_cap 100
   @mark_lead 16
@@ -47,6 +50,12 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
       "the shown search: `query`, `total`, `shown`, `oldest_seq` and the `traces` it covered; nil for the live list"
 
   attr :search_form, Phoenix.HTML.Form, required: true
+
+  attr :selection, :map,
+    default: nil,
+    doc: "the DOM ids of the `selected` row and its `partner` (nil when not shown); nil for none"
+
+  attr :on_select, :string, required: true, doc: "clicked on a trace row with its `seq`"
   attr :on_pause, :string, required: true
   attr :on_resume, :string, required: true
   attr :on_older, :string, required: true
@@ -76,6 +85,15 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
           }
         }
       </script>
+      <%!-- Streamed rows keep their markup when the selection moves, so it is styled from outside them. --%>
+      <style
+        :if={@selection}
+        id="log-selection"
+        data-selected={@selection.selected}
+        data-partner={@selection.partner}
+      >
+        <%= selection_css(@selection) %>
+      </style>
       <%!-- One tip for all rows: a hidden tip still takes part in layout, and each patch walks it. --%>
       <.tooltip_portal id="log-term" interactive tip_class="max-w-3xl!">
         <div id="log-term-slot" phx-update="ignore" data-tooltip-slot></div>
@@ -216,6 +234,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
               node={@node}
               node_name={@node_name}
               query={@search && @search.query}
+              on_select={@on_select}
             />
           </tbody>
         </table>
@@ -261,6 +280,172 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
     """
   end
 
+  @doc """
+  The event details panel: the call the selected event belongs to, as `Tracer.find_call/2` found it,
+  with its call event's arguments and its outcome.
+  """
+  attr :seq, :integer, default: nil, doc: "the selected event's seq; closed when nil"
+  attr :call, AsyncResult, required: true
+
+  attr :trace_session, AsyncResult,
+    required: true,
+    doc: "one that traces returns notes a call without an outcome"
+
+  attr :node, :atom, default: nil, doc: "the connected node; only its pids link to their page"
+  attr :current_url, :string, required: true
+  attr :term_states, :map, required: true, doc: "`VoyagerWeb.Hooks.TermTreeHook`'s states"
+  attr :on_close, :string, required: true
+
+  def event_panel(assigns) do
+    return_trace? =
+      match?(%AsyncResult{result: %Session{config: %{return_trace: true}}}, assigns.trace_session)
+
+    # A lookup still out has a nil result, which reads as neither half.
+    call_event = assigns.call.result[:call_event]
+    outcome = assigns.call.result[:outcome]
+    event = call_event || outcome
+
+    {outcome_title, outcome_at_label} =
+      if match?(%{type: :exception}, outcome),
+        do: {"Exception", "Raised at"},
+        else: {"Return value", "Returned at"}
+
+    assigns =
+      assigns
+      |> assign(:open?, assigns.seq != nil)
+      |> assign(:return_trace?, return_trace?)
+      |> assign(:call_event, call_event)
+      |> assign(:outcome, outcome)
+      |> assign(:event, event)
+      |> assign(:args?, is_list(call_event[:args]))
+      |> assign(:outcome_title, outcome_title)
+      |> assign(:outcome_at_label, outcome_at_label)
+      |> assign(:process, event && process_label(event[:process]))
+      |> assign(:link?, event && node(event.pid) == assigns.node)
+
+    ~H"""
+    <DetailsPanelComponents.panel id="event-panel" open?={@open?}>
+      <div :if={@open?} class="border-base-200 flex items-start gap-3 border-b px-5 py-4">
+        <div class="flex min-w-0 flex-1 flex-col gap-1.5">
+          <div class="flex items-center gap-2">
+            <.icon name={glyph(:call)} class="text-primary size-3.5" />
+            <div class="font-mono text-base-content text-xs uppercase">Call</div>
+          </div>
+          <DetailsPanelComponents.copyable
+            :if={@event}
+            id="event-panel-mfa"
+            class="font-mono text-base-content break-all text-sm font-medium"
+            text={Formatters.format_mfa(@event.mfa)}
+            label="Copy MFA"
+          />
+        </div>
+        <DetailsPanelComponents.close_button panel_id="event-panel" on_close={@on_close} />
+      </div>
+
+      <div :if={@open?} class="flex flex-1 flex-col overflow-y-auto px-5 py-4">
+        <.async_result assign={@call}>
+          <:loading>
+            <.loading_state id="event-panel-loading" message="Loading event…" />
+          </:loading>
+          <:failed>
+            <.error_state id="event-panel-error" message="Could not load the event." />
+          </:failed>
+          <div :if={@event} class="flex flex-col gap-5">
+            <DetailsPanelComponents.section title="Overview">
+              <DetailsPanelComponents.kv label="PID">
+                <ProcessComponents.process_link
+                  :if={@link?}
+                  id="event-panel-pid"
+                  pid={@event.pid}
+                  current_url={@current_url}
+                />
+                <span :if={!@link?} id="event-panel-pid" class="text-primary">
+                  {Formatters.pid(@event.pid)}
+                </span>
+              </DetailsPanelComponents.kv>
+              <DetailsPanelComponents.kv :if={@process} label="Process" value={@process} />
+              <DetailsPanelComponents.kv
+                :if={@call_event}
+                id="event-panel-called-at"
+                label="Called at"
+                value={panel_at(@call_event.at)}
+              />
+              <DetailsPanelComponents.kv
+                :if={@outcome}
+                id="event-panel-outcome-at"
+                label={@outcome_at_label}
+                value={panel_at(@outcome.at)}
+              />
+              <DetailsPanelComponents.kv :if={@call_event && @outcome} label="Duration">
+                <span id="event-panel-duration">{format_duration(@outcome.duration_us)}</span>
+              </DetailsPanelComponents.kv>
+              <p
+                :if={!@call_event}
+                id="event-panel-no-call"
+                class="text-base-content/70 py-2.5 text-xs"
+              >
+                Call not found
+              </p>
+              <p
+                :if={@return_trace? and !@outcome}
+                id="event-panel-no-outcome"
+                class="text-base-content/70 py-2.5 text-xs"
+              >
+                No return found
+              </p>
+            </DetailsPanelComponents.section>
+
+            <DetailsPanelComponents.section :if={@args?} title="Arguments">
+              <.event_terms id="event-panel-args" event={@call_event} term_states={@term_states} />
+            </DetailsPanelComponents.section>
+
+            <DetailsPanelComponents.section :if={@outcome} title={@outcome_title}>
+              <.event_terms id="event-panel-outcome" event={@outcome} term_states={@term_states} />
+            </DetailsPanelComponents.section>
+          </div>
+        </.async_result>
+      </div>
+    </DetailsPanelComponents.panel>
+    """
+  end
+
+  @doc "The `{inspector_id, label, term}` of each term `event_panel/1` shows of `event`."
+  @spec panel_terms(map() | nil) :: [{String.t(), String.t() | nil, term()}]
+  def panel_terms(nil), do: []
+
+  def panel_terms(%{type: :call} = call),
+    do: for({label, arg} <- labelled_terms(call), do: {"event-panel-arg-#{label}", label, arg})
+
+  def panel_terms(outcome),
+    do: for({label, term} <- labelled_terms(outcome), do: {"event-panel-value", label, term})
+
+  attr :id, :string, required: true
+  attr :event, :map, required: true
+  attr :term_states, :map, required: true
+
+  defp event_terms(assigns) do
+    assigns = assign(assigns, :terms, panel_terms(assigns.event))
+
+    ~H"""
+    <div id={@id} class="flex flex-col gap-2">
+      <div :for={{id, label, term} <- @terms} class="flex items-start gap-3">
+        <span :if={label} class="font-mono text-base-content/50 min-w-5 shrink-0 text-right text-xs">
+          {label}
+        </span>
+        <TermComponents.term_inspector
+          id={id}
+          term={term}
+          state={Map.get(@term_states, id, %State{})}
+          class="min-w-0 flex-1 overflow-x-auto"
+        />
+      </div>
+      <p :if={@event[:truncated]} id={"#{@id}-truncated"} class="text-base-content/50 text-xs">
+        Truncated on the remote node to fit the capture budget
+      </p>
+    </div>
+    """
+  end
+
   attr :id, :string, required: true
   attr :entry, :map, required: true
   attr :durations?, :boolean, required: true
@@ -269,6 +454,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
   attr :node, :atom, default: nil
   attr :node_name, :string, default: nil
   attr :query, :string, default: nil
+  attr :on_select, :string, required: true
 
   defp log_row(%{entry: %{kind: :trace}} = assigns) do
     assigns =
@@ -298,7 +484,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
         )
       ]}
     >
-      <.time_cell at={@entry.at} />
+      <.time_cell id={"#{@id}-time"} at={@entry.at} on_select={@on_select} seq={@entry.seq} />
       <td class="py-2">
         <ProcessComponents.pid_cell
           :if={@link?}
@@ -314,7 +500,7 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
           class="text-primary"
         />
       </td>
-      <td class="py-2">
+      <td class="cursor-pointer py-2" phx-click={@on_select} phx-value-seq={@entry.seq}>
         <div class="flex items-center gap-2">
           <.icon
             name={glyph(@entry.type)}
@@ -403,7 +589,12 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
           </.tooltip>
         </div>
       </td>
-      <td :if={@durations?} class="font-mono truncate py-2 text-right text-sm tabular-nums">
+      <td
+        :if={@durations?}
+        class="font-mono cursor-pointer truncate py-2 text-right text-sm tabular-nums"
+        phx-click={@on_select}
+        phx-value-seq={@entry.seq}
+      >
         {format_duration(@entry[:duration_us])}
       </td>
     </tr>
@@ -492,6 +683,9 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
     do: text |> TermHighlight.parts(syntax, query) |> TermHighlight.clip(@mark_lead, @row_cap)
 
   attr :at, :integer, default: nil
+  attr :id, :string, default: nil
+  attr :on_select, :string, default: nil, doc: "clicked with `seq`; the time becomes its button"
+  attr :seq, :integer, default: nil
 
   defp time_cell(%{at: nil} = assigns), do: ~H"<td></td>"
 
@@ -504,9 +698,31 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
     assigns = assign(assigns, clock: clock, millis: millis)
 
     ~H"""
-    <td class="font-mono truncate py-2 text-sm tabular-nums" title={full_at(@at)}>
-      <span class="text-base-content/50">{@clock}</span><span class="text-base-content">{@millis}</span>
+    <td
+      id={@id}
+      class={["font-mono truncate py-2 text-sm tabular-nums", @on_select && "cursor-pointer"]}
+      title={full_at(@at)}
+      phx-click={@on_select}
+      phx-value-seq={@seq}
+    >
+      <button
+        :if={@on_select}
+        type="button"
+        class="cursor-pointer focus-visible:underline focus-visible:outline-none"
+      >
+        <.clock clock={@clock} millis={@millis} />
+      </button>
+      <.clock :if={!@on_select} clock={@clock} millis={@millis} />
     </td>
+    """
+  end
+
+  attr :clock, :string, required: true
+  attr :millis, :string, required: true
+
+  defp clock(assigns) do
+    ~H"""
+    <span class="text-base-content/50">{@clock}</span><span class="text-base-content">{@millis}</span>
     """
   end
 
@@ -626,6 +842,20 @@ defmodule VoyagerWeb.Components.TraceLogComponents do
     do: "Search all #{Formatters.format_integer(traces)} traces"
 
   defp search_placeholder(_session), do: "Search newest #{@kept_traces} events"
+
+  defp selection_css(selection) do
+    [{selection.selected, 12}, {selection.partner, 5}]
+    |> Enum.reject(fn {id, _percent} -> is_nil(id) end)
+    |> Enum.map_join("\n", fn {id, percent} ->
+      "##{id} { background-color: color-mix(in oklab, var(--color-primary) #{percent}%, transparent); }"
+    end)
+  end
+
+  defp panel_at(at) do
+    at
+    |> DateTime.from_unix!(:microsecond)
+    |> Calendar.strftime("%-d %b %Y, %H:%M:%S.%f UTC")
+  end
 
   defp format_at(at) do
     at

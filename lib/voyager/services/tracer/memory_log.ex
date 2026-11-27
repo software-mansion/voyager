@@ -4,6 +4,7 @@ defmodule Voyager.Services.Tracer.MemoryLog do
   them and of its last run, and per-second trace counts of the last minute.
   """
 
+  alias Voyager.Services.Tracer.CallPairing
   alias Voyager.Services.Tracer.Entry
   alias Voyager.Services.Tracer.Overview
   alias Voyager.Services.Tracer.Summary
@@ -66,6 +67,21 @@ defmodule Voyager.Services.Tracer.MemoryLog do
 
     # Seqs have no gaps, so a seq in the covered range without an entry was evicted.
     %{entries: page, truncated?: length(page) < Range.size(covered)}
+  end
+
+  @doc "The `CallPairing.find_call/2` of kept trace event `seq` among `traces`, newest first; nil when not kept."
+  @spec find_call([Entry.t()], non_neg_integer()) :: CallPairing.call() | nil
+  def find_call(traces, seq) do
+    case Enum.split_while(traces, &(&1.seq != seq)) do
+      {newer, [%{kind: :trace, type: :call} = call | _older]} ->
+        CallPairing.find_call(call, Enum.reverse(newer))
+
+      {_newer, [%{kind: :trace} = outcome | older]} ->
+        CallPairing.find_call(outcome, older)
+
+      _not_kept ->
+        nil
+    end
   end
 
   defp summarize_last_run(summary, entries) do

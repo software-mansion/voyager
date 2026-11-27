@@ -76,6 +76,35 @@ defmodule Voyager.Services.Tracer.CallPairingTest do
     assert pairing == %CallPairing{}
   end
 
+  describe "find_call/2" do
+    test "finds a call event's outcome among the later events" do
+      call = event(:call, 10)
+      ret = :return |> event(25) |> Map.put(:duration_us, 15)
+
+      assert CallPairing.find_call(call, [event(:call, 12, pid: spawn(fn -> :ok end)), ret]) ==
+               %{call_event: call, outcome: ret}
+    end
+
+    test "finds an outcome's call event among the earlier events, past nested calls" do
+      outer = event(:call, 1)
+      inner_ret = :return |> event(8) |> Map.put(:duration_us, 3)
+      outer_ret = :exception |> event(20) |> Map.put(:duration_us, 19)
+
+      assert CallPairing.find_call(outer_ret, [inner_ret, event(:call, 5), outer]) ==
+               %{call_event: outer, outcome: outer_ret}
+    end
+
+    test "finds no partner whose duration does not match, as after a drop" do
+      call = event(:call, 10)
+      unpaired = event(:return, 25)
+      paired_elsewhere = :return |> event(30) |> Map.put(:duration_us, 2)
+
+      assert CallPairing.find_call(call, [unpaired]) == %{call_event: call, outcome: nil}
+      assert CallPairing.find_call(call, [paired_elsewhere]) == %{call_event: call, outcome: nil}
+      assert CallPairing.find_call(unpaired, [call]) == %{call_event: nil, outcome: unpaired}
+    end
+  end
+
   test "does not reset at exactly the cap" do
     calls = for at <- 1..10_000, do: event(:call, at)
     {_events, pairing} = CallPairing.pair(%CallPairing{}, calls)

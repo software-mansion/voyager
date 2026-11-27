@@ -453,6 +453,27 @@ defmodule Voyager.Services.TracerTest do
         assert {:ok, %{entries: [^entry]}} = Tracer.search(id, "#PID<12." <> rest)
         assert {:ok, %{entries: []}} = Tracer.search(id, "<7.0.0>")
       end
+
+      test "finds the call an event belongs to by its seq", %{save: save} do
+        event = %{pid: self(), process: nil, mfa: {Date, :leap_year?, 1}}
+
+        {id, [call, _other, ret]} =
+          traced(
+            save,
+            [
+              Map.merge(event, %{type: :call, at: 10, args: [~D[2024-01-01]]}),
+              Map.merge(event, %{type: :call, at: 12, args: [1], mfa: {Date, :new, 3}}),
+              Map.merge(event, %{type: :return, at: 25, value: true})
+            ],
+            %{return_trace: true}
+          )
+
+        assert ret.duration_us == 15
+        assert Tracer.find_call(id, call.seq) == {:ok, %{call_event: call, outcome: ret}}
+        assert Tracer.find_call(id, ret.seq) == {:ok, %{call_event: call, outcome: ret}}
+        assert Tracer.find_call(id, 0) == {:error, :not_found}
+        assert Tracer.find_call(id, ret.seq + 100) == {:error, :not_found}
+      end
     end
   end
 
@@ -473,6 +494,39 @@ defmodule Voyager.Services.TracerTest do
     assert {:ok, _session} = Tracer.create(:ui)
 
     assert {:ok, %{entries: [^entry], total: 1}} = Tracer.search(id, "needle")
+  end
+
+  test "finds a saved call across a recursion deeper than memory keeps" do
+    event = %{pid: self(), process: nil, mfa: {Date, :leap_year?, 1}}
+    depth = Tracer.kept_traces() + 1
+    calls = for at <- 1..depth, do: Map.merge(event, %{type: :call, at: at})
+
+    returns =
+      for at <- 1..depth, do: Map.merge(event, %{type: :return, at: depth + at, value: at})
+
+    {id, [outer | _]} = traced(true, calls ++ returns, %{return_trace: true})
+    {:ok, %{entries: [outcome]}} = Tracer.entries(id, limit: 1)
+
+    assert outcome.duration_us == 2 * depth - 1
+    assert Tracer.find_call(id, outer.seq) == {:ok, %{call_event: outer, outcome: outcome}}
+    assert Tracer.find_call(id, outcome.seq) == {:ok, %{call_event: outer, outcome: outcome}}
+  end
+
+  test "does not find a call evicted from memory, or of a missing or closed session" do
+    {id, [oldest]} = searchable(false, ["oldest"])
+    assert {:ok, %{call_event: ^oldest}} = Tracer.find_call(id, oldest.seq)
+
+    newer = for n <- 1..Tracer.kept_traces(), do: %{Map.delete(oldest, :seq) | args: [n]}
+    send(Tracer, {:voyager_trace_events, Tracer.active().tracer, newer, 0})
+    [kept | _] = traces(id)
+
+    assert {:error, :not_found} = Tracer.find_call(id, oldest.seq)
+    assert {:ok, %{call_event: ^kept}} = Tracer.find_call(id, kept.seq)
+    assert {:error, :not_found} = Tracer.find_call(1_000_000, 0)
+    assert :ok = Tracer.stop(:ui)
+    assert_receive {:session_entries, _session, [%{kind: :stopped}]}
+    assert :ok = Tracer.close()
+    assert {:error, :not_found} = Tracer.find_call(id, kept.seq)
   end
 
   test "does not search a missing or closed session", %{session: %{id: id}} do
@@ -1122,11 +1176,15 @@ defmodule Voyager.Services.TracerTest do
   end
 
   defp searchable(save, args) do
-    {:ok, %{id: id}} = Tracer.create(:ui, save: save)
-    {:ok, _session} = configure()
-    {:ok, %{tracer: tracer}} = Tracer.start(:ui)
     event = %{type: :call, pid: self(), process: nil, mfa: {Date, :leap_year?, 1}, at: 10}
-    send(Tracer, {:voyager_trace_events, tracer, Enum.map(args, &Map.put(event, :args, [&1])), 0})
+    traced(save, Enum.map(args, &Map.put(event, :args, [&1])))
+  end
+
+  defp traced(save, events, overrides \\ %{}) do
+    {:ok, %{id: id}} = Tracer.create(:ui, save: save)
+    {:ok, _session} = configure(overrides)
+    {:ok, %{tracer: tracer}} = Tracer.start(:ui)
+    send(Tracer, {:voyager_trace_events, tracer, events, 0})
     _ = :sys.get_state(Tracer)
     Writer.flush()
     {id, traces(id)}

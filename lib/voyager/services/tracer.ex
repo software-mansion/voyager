@@ -32,6 +32,7 @@ defmodule Voyager.Services.Tracer do
   alias Voyager.Queries.TraceEntries, as: TraceEntryQueries
   alias Voyager.Queries.TraceSessions, as: TraceSessionQueries
   alias Voyager.Services.TermSyntax
+  alias Voyager.Services.Tracer.CallPairing
   alias Voyager.Services.Tracer.Config
   alias Voyager.Services.Tracer.Entry
   alias Voyager.Services.Tracer.MemoryLog
@@ -261,6 +262,28 @@ defmodule Voyager.Services.Tracer do
     else
       with {:ok, traces} <- GenServer.call(__MODULE__, {:kept_traces, id}),
            do: {:ok, Search.filter(traces, query, syntax, opts)}
+    end
+  end
+
+  @doc """
+  The call that trace event `seq` of session `id` belongs to: its call event and outcome, either
+  nil when the log lacks it. `{:error, :not_found}` when the session or the event is gone, as an
+  unsaved session keeps only its newest #{@kept_traces} traces. Runs in the caller.
+  """
+  @spec find_call(integer(), non_neg_integer()) ::
+          {:ok, CallPairing.call()} | {:error, :not_found}
+  def find_call(id, seq) do
+    found =
+      if id > 0 do
+        with_saved(id, fn _row -> {:ok, TraceEntryQueries.find_call(id, seq)} end)
+      else
+        with {:ok, traces} <- GenServer.call(__MODULE__, {:kept_traces, id}),
+             do: {:ok, MemoryLog.find_call(traces, seq)}
+      end
+
+    case found do
+      {:ok, nil} -> {:error, :not_found}
+      found -> found
     end
   end
 

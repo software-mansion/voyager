@@ -55,6 +55,29 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   @max_expanded_relations 60
   def max_expanded_relations, do: @max_expanded_relations
 
+  @doc "The shell of an overlay details panel: slides in from the right while `open?`."
+  attr :id, :string, required: true
+  attr :open?, :boolean, required: true
+  slot :inner_block, required: true
+
+  def panel(assigns) do
+    ~H"""
+    <aside
+      id={@id}
+      phx-hook="DetailsPanelResize"
+      inert={not @open?}
+      class={[
+        "details-panel",
+        "border-base-200 bg-base-100 absolute inset-y-0 right-0 z-40 flex w-full flex-col border-l p-2 shadow-2xl transition-transform duration-300 ease-in-out",
+        if(@open?, do: "translate-x-0", else: "translate-x-full")
+      ]}
+    >
+      <.resize_handle panel_id={@id} open?={@open?} />
+      {render_slot(@inner_block)}
+    </aside>
+    """
+  end
+
   attr :panel_id, :string, required: true
   attr :open?, :boolean, required: true
 
@@ -465,6 +488,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
   end
 
   attr :label, :string, required: true
+  attr :id, :string, default: nil, doc: "the value's DOM id"
   attr :value, :string, default: nil, doc: "text value; truncated on overflow but kept in `title`"
   attr :last, :boolean, default: false
   attr :stacked, :boolean, default: false
@@ -486,6 +510,7 @@ defmodule VoyagerWeb.Components.DetailsPanelComponents do
     ]}>
       <.kv_label label={@label} help={@help} />
       <div
+        id={@id}
         class={[
           "text-base-content min-w-0",
           @size == :sm && "text-sm",
