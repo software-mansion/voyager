@@ -1,10 +1,10 @@
 %% Entry points invoked from Playwright tests via erl_call, e.g.:
 %%   erl_call -name test@127.0.0.1 -c e2e_cookie -a 'mock_app_ctl add_child [mock_dyn_sup_a, tmp_a1]'
-%% Every function but trace_session/1, which returns the session id, returns the atom ok;
+%% Every function but trace_session/1 and trace_create/0, which return the session id, returns ok;
 %% erl_call prints it and the tests assert on it.
 -module(mock_app_ctl).
 
--export([add_child/2, remove_child/2, reset/0, trace_session/1, trace_close/0]).
+-export([add_child/2, remove_child/2, reset/0, trace_session/1, trace_create/0, trace_close/0]).
 
 -define(BASELINE, #{mock_dyn_sup_a => [], mock_dyn_sup_b => [mock_dyn_worker_b1]}).
 -define(TRACER, 'Elixir.Voyager.Services.Tracer').
@@ -51,6 +51,13 @@ trace_session(Save) ->
     {ok, _} = rpc:call(Voyager, ?TRACER, configure, [node(), Config, ui]),
     {ok, _} = rpc:call(Voyager, ?TRACER, start, [ui]),
     true = register(mock_tracee_traffic, spawn(mock_tracee, loop, [1])),
+    Id.
+
+%% Creates an unconfigured session in the connected Voyager, for tests that configure it in the UI.
+trace_create() ->
+    ok = trace_close(),
+    {module, _} = code:ensure_loaded(mock_tracee),
+    {ok, #{id := Id}} = rpc:call(voyager_node(), ?TRACER, create, [ui, []]),
     Id.
 
 %% Stops and closes the active session; the stop lands asynchronously, so close is retried.

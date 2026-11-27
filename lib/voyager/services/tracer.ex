@@ -127,30 +127,37 @@ defmodule Voyager.Services.Tracer do
 
   @doc """
   Sets the active session to trace `node` with `attrs` (see `Config`).
-  Selected pids are resolved on `node` in the caller. Returns `{:error, :busy}` while it runs.
+  Selected pids are resolved on `node` in the caller. Returns `{:error, :busy}` while it runs,
+  and `{:error, :changed}` when `id` is given and is not the active session.
   """
-  @spec configure(node(), map(), origin()) ::
-          {:ok, Session.t()} | {:error, :no_session | :busy | Ecto.Changeset.t() | term()}
-  def configure(node, attrs, origin) when origin in [:ui, :mcp] do
+  @spec configure(node(), map(), origin(), integer() | nil) ::
+          {:ok, Session.t()}
+          | {:error, :no_session | :busy | :changed | Ecto.Changeset.t() | term()}
+  def configure(node, attrs, origin, id \\ nil) when origin in [:ui, :mcp] do
     with {:ok, config} <- attrs |> Config.changeset() |> Ecto.Changeset.apply_action(:validate),
          {:ok, _pids} <- resolve_pids(node, config) do
-      GenServer.call(__MODULE__, {:configure, node, config, origin})
+      GenServer.call(__MODULE__, {:configure, node, config, origin, id})
     end
   end
 
   @doc """
   Starts or resumes the configured session, resolving its pids on the node again in the caller.
   The agent's refusals come back as `{:error, reason}`, `{:error, :changed}` means the
-  session was reconfigured meanwhile, and `{:error, :storage_limit}` that a saved session
-  has no storage left.
+  session was reconfigured or replaced meanwhile, or is not session `id` when that is given,
+  and `{:error, :storage_limit}` that a saved session has no storage left.
   """
-  @spec start(origin()) :: {:ok, Session.t()} | {:error, term()}
-  def start(origin) when origin in [:ui, :mcp] do
-    with {:ok, %{node: node, config: config}} <- startable(active()) do
+  @spec start(origin(), integer() | nil) :: {:ok, Session.t()} | {:error, term()}
+  def start(origin, id \\ nil) when origin in [:ui, :mcp] do
+    with {:ok, %{node: node, config: config} = session} <- startable(active(), id) do
       case resolve_pids(node, config) do
         {:ok, pids} ->
           args = Config.to_agent(config, pids)
-          GenServer.call(__MODULE__, {:start, origin, node, config, args}, @call_timeout)
+
+          GenServer.call(
+            __MODULE__,
+            {:start, origin, session.id, node, config, args},
+            @call_timeout
+          )
 
         {:error, reason} ->
           start_failed(reason, origin)
@@ -351,10 +358,18 @@ defmodule Voyager.Services.Tracer do
     {:reply, :ok, %__MODULE__{}}
   end
 
-  def handle_call({:configure, _node, _config, _origin}, _from, %{session: nil} = state),
+  def handle_call({:configure, _node, _config, _origin, _id}, _from, %{session: nil} = state),
     do: {:reply, {:error, :no_session}, state}
 
-  def handle_call({:configure, node, config, origin}, _from, state) do
+  def handle_call(
+        {:configure, _node, _config, _origin, id},
+        _from,
+        %{session: %{id: active}} = state
+      )
+      when is_integer(id) and id != active,
+      do: {:reply, {:error, :changed}, state}
+
+  def handle_call({:configure, node, config, origin, _id}, _from, state) do
     state =
       %{state | session: %{state.session | node: node, config: config}}
       |> append([Entry.configured(origin, node, config, state.session.config)])
@@ -362,14 +377,14 @@ defmodule Voyager.Services.Tracer do
     {:reply, {:ok, state.session}, state}
   end
 
-  def handle_call({:start, _origin, _node, _config, _args}, _from, %{session: nil} = state),
+  def handle_call({:start, _origin, _id, _node, _config, _args}, _from, %{session: nil} = state),
     do: {:reply, {:error, :no_session}, state}
 
   # The caller resolved the pids, so `node` and `config` must still be the session's.
   def handle_call(
-        {:start, origin, node, config, {spec, limits}},
+        {:start, origin, id, node, config, {spec, limits}},
         _from,
-        %{session: %Session{node: node, config: config} = session} = state
+        %{session: %Session{id: id, node: node, config: config} = session} = state
       ) do
     with :ok <- check_storage(session),
          {:ok, tracer} <- start_tracer(session, spec, limits) do
@@ -380,7 +395,7 @@ defmodule Voyager.Services.Tracer do
     end
   end
 
-  def handle_call({:start, _origin, _node, _config, _args}, _from, state),
+  def handle_call({:start, _origin, _id, _node, _config, _args}, _from, state),
     do: {:reply, {:error, :changed}, state}
 
   # The session ends on the tracer's done message or its DOWN, never on this reply.
@@ -464,10 +479,14 @@ defmodule Voyager.Services.Tracer do
 
   def handle_info(_stale, state), do: {:noreply, state}
 
-  defp startable(nil), do: {:error, :no_session}
-  defp startable(%Session{config: nil}), do: {:error, :not_configured}
-  defp startable(%Session{status: :running}), do: {:error, :busy}
-  defp startable(%Session{} = session), do: {:ok, session}
+  defp startable(nil, _id), do: {:error, :no_session}
+
+  defp startable(%Session{id: active}, id) when is_integer(id) and id != active,
+    do: {:error, :changed}
+
+  defp startable(%Session{config: nil}, _id), do: {:error, :not_configured}
+  defp startable(%Session{status: :running}, _id), do: {:error, :busy}
+  defp startable(%Session{} = session, _id), do: {:ok, session}
 
   defp resolve_pids(_node, %Config{processes: processes}) when processes != :pids, do: {:ok, []}
 
